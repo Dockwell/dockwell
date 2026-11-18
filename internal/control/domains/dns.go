@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/store"
@@ -47,20 +49,61 @@ func (h *Handler) ListDnsProviders(ctx context.Context, req *connect.Request[doc
 		if project != "" && !slices.Contains(p.Projects, project) {
 			continue
 		}
-		info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects, StrictZones: p.StrictZones}
-		// What a provider keeps is an admin's alone, as the trim below an admin drops it,
-		// so nothing is read at Cloudflare for anyone else (the review's M5).
-		if h.Cloudflare != nil && admin {
-			// A list that can't say what's kept still lists the provider.
-			if kept, err := h.Cloudflare.Kept(ctx, p.Name, admin); err == nil {
-				info.Kept = kept
-			} else {
-				h.logger.WarnContext(ctx, "couldn't list the records a DNS provider keeps", slog.String("provider", p.Name), slog.String("error", err.Error()))
-			}
-		}
-		out.Providers = append(out.Providers, info)
+		out.Providers = append(out.Providers, h.providerInfo(ctx, p, admin))
 	}
 	return connect.NewResponse(out), nil
+}
+
+// providerInfo says what a provider is, and for an admin what Dockwell keeps at it.
+func (h *Handler) providerInfo(ctx context.Context, p *dnsproviders.Info, admin bool) *dockwellv1.DnsProviderInfo {
+	info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects, StrictZones: p.StrictZones}
+	// What a provider keeps is an admin's alone, as the trim below an admin drops it,
+	// so nothing is read at Cloudflare for anyone else (the review's M5).
+	if h.Cloudflare == nil || !admin {
+		return info
+	}
+	// A list that can't say what's kept still lists the provider.
+	if kept, err := h.Cloudflare.Kept(ctx, p.Name, admin); err == nil {
+		info.Kept = kept
+	} else {
+		h.logger.WarnContext(ctx, "couldn't list the records a DNS provider keeps", slog.String("provider", p.Name), slog.String("error", err.Error()))
+	}
+	if records, readAt, err := h.Cloudflare.Managed(ctx, p.Name); err == nil {
+		info.ManagedRecords = records
+		if readAt != nil {
+			info.ReadAt = timestamppb.New(*readAt)
+		}
+	} else {
+		h.logger.WarnContext(ctx, "couldn't count the records Dockwell keeps at a DNS provider", slog.String("provider", p.Name), slog.String("error", err.Error()))
+	}
+	return info
+}
+
+// SyncDnsProvider reads now what Dockwell keeps at a provider, as the drift timer
+// does, and gives the provider as the read left it (#820).
+//
+//nolint:revive // the generated DomainServiceHandler names it
+func (h *Handler) SyncDnsProvider(ctx context.Context, req *connect.Request[dockwellv1.SyncDnsProviderRequest]) (*connect.Response[dockwellv1.SyncDnsProviderResponse], error) {
+	if h.DNS == nil || h.Cloudflare == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("this control plane keeps no DNS providers"))
+	}
+	shown, err := h.DNS.Shown(ctx)
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(shown, func(p dnsproviders.Info) bool { return p.ID == req.Msg.GetId() })
+	if i < 0 {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("there's no DNS provider with that ID. Read the list again"))
+	}
+	p := &shown[i]
+	if err := h.Cloudflare.Sync(ctx, p.Name); err != nil {
+		if slow, ok := errors.AsType[*publish.SlowDownError](err); ok {
+			return nil, connect.NewError(connect.CodeResourceExhausted, slow)
+		}
+		return nil, connect.NewError(connect.CodeUnavailable, fmt.Errorf("couldn't read what Dockwell keeps at %s: %w. Sync again in a minute, or check the token in Settings, under Integrations", p.Name, err))
+	}
+	admin, _ := callerProjects(ctx)
+	return connect.NewResponse(&dockwellv1.SyncDnsProviderResponse{Provider: h.providerInfo(ctx, p, admin)}), nil
 }
 
 // CheckDnsProvider checks a token from the control plane, as typed or as a saved

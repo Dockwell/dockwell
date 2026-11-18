@@ -47,6 +47,9 @@ const (
 	// DomainServiceListDnsProvidersProcedure is the fully-qualified name of the DomainService's
 	// ListDnsProviders RPC.
 	DomainServiceListDnsProvidersProcedure = "/dockwell.v1.DomainService/ListDnsProviders"
+	// DomainServiceSyncDnsProviderProcedure is the fully-qualified name of the DomainService's
+	// SyncDnsProvider RPC.
+	DomainServiceSyncDnsProviderProcedure = "/dockwell.v1.DomainService/SyncDnsProvider"
 	// DomainServiceCheckDnsProviderProcedure is the fully-qualified name of the DomainService's
 	// CheckDnsProvider RPC.
 	DomainServiceCheckDnsProviderProcedure = "/dockwell.v1.DomainService/CheckDnsProvider"
@@ -83,6 +86,13 @@ type DomainServiceClient interface {
 	// is never returned. Below an admin, it says each one's ID, name and zones. See
 	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
 	ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error)
+	// SyncDnsProvider reads, now, what Dockwell keeps at a DNS provider, as the drift
+	// timer does every five minutes: each tunnel it wrote a rule in and each zone's
+	// records it wrote, and marks what it finds. It changes nothing there. A read
+	// already running, the timer's or another Sync's, is joined, not repeated, and
+	// while Cloudflare says too many requests it waits for that to pass (#820). An
+	// admin's, as a provider is install-wide.
+	SyncDnsProvider(context.Context, *connect.Request[v1.SyncDnsProviderRequest]) (*connect.Response[v1.SyncDnsProviderResponse], error)
 	// CheckDnsProvider checks a DNS provider's token from the control plane, as a
 	// certificate would use it, and saves nothing: with a token as typed, or a
 	// saved provider's again. It lists the zones the token reaches, and in each
@@ -141,6 +151,12 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		syncDnsProvider: connect.NewClient[v1.SyncDnsProviderRequest, v1.SyncDnsProviderResponse](
+			httpClient,
+			baseURL+DomainServiceSyncDnsProviderProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("SyncDnsProvider")),
+			connect.WithClientOptions(opts...),
+		),
 		checkDnsProvider: connect.NewClient[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse](
 			httpClient,
 			baseURL+DomainServiceCheckDnsProviderProcedure,
@@ -170,6 +186,7 @@ type domainServiceClient struct {
 	checkDomain         *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
 	listCertificates    *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
 	listDnsProviders    *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
+	syncDnsProvider     *connect.Client[v1.SyncDnsProviderRequest, v1.SyncDnsProviderResponse]
 	checkDnsProvider    *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
 	listSigninProviders *connect.Client[v1.ListSigninProvidersRequest, v1.ListSigninProvidersResponse]
 	checkSigninProvider *connect.Client[v1.CheckSigninProviderRequest, v1.CheckSigninProviderResponse]
@@ -193,6 +210,11 @@ func (c *domainServiceClient) ListCertificates(ctx context.Context, req *connect
 // ListDnsProviders calls dockwell.v1.DomainService.ListDnsProviders.
 func (c *domainServiceClient) ListDnsProviders(ctx context.Context, req *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error) {
 	return c.listDnsProviders.CallUnary(ctx, req)
+}
+
+// SyncDnsProvider calls dockwell.v1.DomainService.SyncDnsProvider.
+func (c *domainServiceClient) SyncDnsProvider(ctx context.Context, req *connect.Request[v1.SyncDnsProviderRequest]) (*connect.Response[v1.SyncDnsProviderResponse], error) {
+	return c.syncDnsProvider.CallUnary(ctx, req)
 }
 
 // CheckDnsProvider calls dockwell.v1.DomainService.CheckDnsProvider.
@@ -235,6 +257,13 @@ type DomainServiceHandler interface {
 	// is never returned. Below an admin, it says each one's ID, name and zones. See
 	// docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
 	ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error)
+	// SyncDnsProvider reads, now, what Dockwell keeps at a DNS provider, as the drift
+	// timer does every five minutes: each tunnel it wrote a rule in and each zone's
+	// records it wrote, and marks what it finds. It changes nothing there. A read
+	// already running, the timer's or another Sync's, is joined, not repeated, and
+	// while Cloudflare says too many requests it waits for that to pass (#820). An
+	// admin's, as a provider is install-wide.
+	SyncDnsProvider(context.Context, *connect.Request[v1.SyncDnsProviderRequest]) (*connect.Response[v1.SyncDnsProviderResponse], error)
 	// CheckDnsProvider checks a DNS provider's token from the control plane, as a
 	// certificate would use it, and saves nothing: with a token as typed, or a
 	// saved provider's again. It lists the zones the token reaches, and in each
@@ -289,6 +318,12 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceSyncDnsProviderHandler := connect.NewUnaryHandler(
+		DomainServiceSyncDnsProviderProcedure,
+		svc.SyncDnsProvider,
+		connect.WithSchema(domainServiceMethods.ByName("SyncDnsProvider")),
+		connect.WithHandlerOptions(opts...),
+	)
 	domainServiceCheckDnsProviderHandler := connect.NewUnaryHandler(
 		DomainServiceCheckDnsProviderProcedure,
 		svc.CheckDnsProvider,
@@ -319,6 +354,8 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 			domainServiceListCertificatesHandler.ServeHTTP(w, r)
 		case DomainServiceListDnsProvidersProcedure:
 			domainServiceListDnsProvidersHandler.ServeHTTP(w, r)
+		case DomainServiceSyncDnsProviderProcedure:
+			domainServiceSyncDnsProviderHandler.ServeHTTP(w, r)
 		case DomainServiceCheckDnsProviderProcedure:
 			domainServiceCheckDnsProviderHandler.ServeHTTP(w, r)
 		case DomainServiceListSigninProvidersProcedure:
@@ -348,6 +385,10 @@ func (UnimplementedDomainServiceHandler) ListCertificates(context.Context, *conn
 
 func (UnimplementedDomainServiceHandler) ListDnsProviders(context.Context, *connect.Request[v1.ListDnsProvidersRequest]) (*connect.Response[v1.ListDnsProvidersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.ListDnsProviders is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) SyncDnsProvider(context.Context, *connect.Request[v1.SyncDnsProviderRequest]) (*connect.Response[v1.SyncDnsProviderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.SyncDnsProvider is not implemented"))
 }
 
 func (UnimplementedDomainServiceHandler) CheckDnsProvider(context.Context, *connect.Request[v1.CheckDnsProviderRequest]) (*connect.Response[v1.CheckDnsProviderResponse], error) {

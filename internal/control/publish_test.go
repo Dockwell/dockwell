@@ -714,6 +714,103 @@ func TestDriftGoesOnPastWhatItCantRead(t *testing.T) {
 	}
 }
 
+// Sync now reads what Dockwell keeps at a provider, and says how many records it
+// keeps and when it read them. A Sync while the timer reads, and a second Sync,
+// join that read rather than ask Cloudflare again; while Cloudflare says too many
+// requests, Sync refuses with when to try again, and asks nothing (#820).
+func TestSyncReadsOnceAndWaitsOutTooMany(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	listed, err := dc.ListDnsProviders(t.Context(), connect.NewRequest(&dockwellv1.ListDnsProvidersRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Msg.GetProviders()) != 1 {
+		t.Fatalf("providers: %v", listed.Msg.GetProviders())
+	}
+	provider := listed.Msg.GetProviders()[0]
+	if provider.GetManagedRecords() < 1 {
+		t.Fatalf("a published domain's record isn't counted: %v", provider)
+	}
+	syncNow := func() (*dockwellv1.DnsProviderInfo, error) {
+		got, err := dc.SyncDnsProvider(t.Context(), connect.NewRequest(&dockwellv1.SyncDnsProviderRequest{Id: provider.GetId()}))
+		if err != nil {
+			return nil, err
+		}
+		return got.Msg.GetProvider(), nil
+	}
+	synced, err := syncNow()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if synced.GetReadAt() == nil || synced.GetManagedRecords() != provider.GetManagedRecords() {
+		t.Fatalf("after a sync: %v", synced)
+	}
+	asked := func() int { return len(s.cf.Calls()) }
+	before := asked()
+	if _, err := syncNow(); err != nil {
+		t.Fatal(err)
+	}
+	one := asked() - before
+	if one == 0 {
+		t.Fatal("a sync asked Cloudflare nothing")
+	}
+
+	// The timer's read is held at Cloudflare, and two Syncs join it.
+	pub := s.f.server.publisher
+	hold, entered := make(chan struct{}), make(chan struct{})
+	var first sync.Once
+	s.cf.Limit(func(string) bool {
+		first.Do(func() {
+			close(entered)
+			<-hold
+		})
+		return false
+	})
+	joined := make(chan string, 2)
+	pub.OnJoin(func(provider string) { joined <- provider })
+	before = asked()
+	done := make(chan error, 3)
+	go func() { done <- pub.Drift(t.Context()) }()
+	<-entered
+	for range 2 {
+		go func() {
+			_, err := syncNow()
+			done <- err
+		}()
+	}
+	for range 2 {
+		if got := <-joined; got != "cloudflare" {
+			t.Fatalf("joined for %q", got)
+		}
+	}
+	close(hold)
+	for range 3 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := asked() - before; n != one {
+		t.Fatalf("a read and two Syncs at once asked Cloudflare %d times; one read asks %d", n, one)
+	}
+	pub.OnJoin(nil)
+
+	s.cf.Limit(func(string) bool { return true })
+	if _, err := syncNow(); connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("a sync Cloudflare refused: %v", err)
+	}
+	before = asked()
+	_, err = syncNow()
+	if connect.CodeOf(err) != connect.CodeResourceExhausted || !strings.Contains(err.Error(), "Sync again in") {
+		t.Fatalf("a sync while Cloudflare asks Dockwell to wait: %v", err)
+	}
+	if asked() != before {
+		t.Fatal("a sync while waiting asked Cloudflare")
+	}
+}
+
 // A save in a stale dashboard tab takes the zone's rule out of the tunnel, and a
 // record is deleted by hand: the drift timer marks both, Activity says so, and the
 // domain's row says where it stands; proposing the route again puts it back (ADR

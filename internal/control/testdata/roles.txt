@@ -124,6 +124,7 @@ DomainService.ListCertificates                 read         viewer     viewer   
 DomainService.ListDnsProviders                 read         viewer     viewer     named
 DomainService.ListDomains                      read         viewer     viewer     project
 DomainService.ListSigninProviders              read         viewer     viewer     named
+DomainService.SyncDnsProvider                  read         admin      admin      install
 EventService.CountEvents                       read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
 EventService.WatchEvents                       read         viewer     viewer     project

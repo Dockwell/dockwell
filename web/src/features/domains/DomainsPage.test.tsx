@@ -3,12 +3,15 @@
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  Capability,
+  CapabilityState,
   CertificateState,
   ChangeState,
   Connection,
   DomainCheckState,
   type ProposeChangeRequest,
   PublishedState,
+  Role,
   RouteWay,
   StrangerOutcome,
   type WatchChangeResponse,
@@ -21,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, ENV, places, projectPlaces, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { moved, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -550,7 +554,9 @@ describe("the list of domains", () => {
       route: { service: "", port: 0, redirect: { to: "https://example.com", temporary: false, dropPath: false } },
     });
     renderAt("/domains", api([aDomain({ name: "example.com", certificate: issued }), www]));
-    expect(await rowOf(/^example\.com/)).toHaveTextContent("Redirects: www → example.com");
+    // On the list, in its Redirects column (#820).
+    expect(await screen.findByRole("columnheader", { name: "Redirects" })).toBeVisible();
+    expect(await rowOf(/^example\.com/)).toHaveTextContent("from www");
     expect(screen.queryByRole("row", { name: /^www\.example\.com/ })).toBeNull();
   });
 
@@ -2714,5 +2720,183 @@ describe("who gets in to a route (ADR 0087)", () => {
     const fact = row.querySelector(".private-fact");
     expect(fact).toHaveTextContent("Private · A stranger gets in");
     expect(fact).toHaveClass("is-warning");
+  });
+});
+
+describe("Cloudflare on the list (#820)", () => {
+  const provider = {
+    id: "dnp_1",
+    name: "cloudflare",
+    provider: "cloudflare",
+    zones: ["example.com"],
+    managedRecords: 3,
+    readAt: timestampFromDate(new Date(Date.now() - 3 * 60_000)),
+  };
+  const published = (name: string, state: PublishedState, way = RouteWay.SERVER_TUNNEL) => ({
+    ...aDomain({ name, certificate: certificate(CertificateState.NONE), route: { tls: "off" } }),
+    published: [{ name, way, tunnel: "web-1", state }],
+  });
+  const withCloudflare = (domains: ReturnType<typeof aDomain>[], more: Api["domains"] = {}) =>
+    api(domains, {
+      more: {
+        domains: { listDomains: () => ({ domains }), listDnsProviders: () => ({ providers: [provider] }), ...more },
+        changes: { watchChange: feed<WatchChangeResponse>().stream, proposeChange: () => ({ change: webPlanned() }) },
+      },
+    });
+  /** A row's cell in the At Cloudflare column, the last one. */
+  const atCloudflare = async (name: RegExp) => {
+    await screen.findByRole("columnheader", { name: "At Cloudflare" }, { timeout: 5000 });
+    return within(await rowOf(name))
+      .getAllByRole("cell")
+      .at(-1) as HTMLElement;
+  };
+
+  it.each([
+    [
+      "published through the zone's rule",
+      PublishedState.PUBLISHED,
+      RouteWay.SERVER_TUNNEL,
+      "Publishedby *.example.com",
+      "",
+    ],
+    ["published proxied", PublishedState.PUBLISHED, RouteWay.PROXY, "Publishedproxied", ""],
+    [
+      "gone from the tunnel",
+      PublishedState.GONE_FROM_TUNNEL,
+      RouteWay.SERVER_TUNNEL,
+      "Not in the tunnel any more",
+      "Put wiki.example.com back at Cloudflare",
+    ],
+    [
+      "its record gone",
+      PublishedState.RECORD_GONE,
+      RouteWay.SERVER_TUNNEL,
+      "Its DNS record is gone at Cloudflare",
+      "Put wiki.example.com back at Cloudflare",
+    ],
+    [
+      "made in Cloudflare",
+      PublishedState.CAN_TAKE_ON,
+      RouteWay.SERVER_TUNNEL,
+      "Made in Cloudflare",
+      "Manage in Dockwell",
+    ],
+    [
+      "its rule at the app's port",
+      PublishedState.CAN_MOVE,
+      RouteWay.SERVER_TUNNEL,
+      "points at the app's own port",
+      "Move it to Dockwell",
+    ],
+    [
+      "its tunnel elsewhere too",
+      PublishedState.TUNNEL_SHARED,
+      RouteWay.SERVER_TUNNEL,
+      "runs on another server too",
+      "",
+    ],
+    ["its tunnel unproven", PublishedState.TUNNEL_UNPROVEN, RouteWay.SERVER_TUNNEL, "can't prove its tunnel", ""],
+    ["its tunnel deleted", PublishedState.TUNNEL_DELETED, RouteWay.SERVER_TUNNEL, "was deleted in Cloudflare", ""],
+  ])("says a name %s, with its action", async (_, state, way, words, action) => {
+    renderAt("/domains", withCloudflare([published("wiki.example.com", state, way)]));
+    const cell = await atCloudflare(/^wiki\.example\.com/);
+    await waitFor(() => expect(cell).toHaveTextContent(words), { timeout: 5000 });
+    const buttons = within(cell).queryAllByRole("button");
+    if (action) expect(buttons.map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual([action]);
+    else expect(buttons).toEqual([]);
+  });
+
+  it("shows nothing there for a name published by hand", async () => {
+    renderAt(
+      "/domains",
+      withCloudflare([
+        published("wiki.example.com", PublishedState.PUBLISHED),
+        aDomain({ name: "hand.example.com", certificate: issued }),
+      ]),
+    );
+    await rowOf(/^wiki\.example\.com/);
+    expect((await atCloudflare(/^hand\.example\.com/)).textContent).toBe("");
+  });
+
+  it("says in the Redirects column what a website's list sends to a domain", async () => {
+    renderAt(
+      "/domains",
+      api([
+        aDomain({ name: "shop.example.com", certificate: issued }),
+        aDomain({
+          name: "old.example.org",
+          certificate: issued,
+          route: {
+            service: "",
+            port: 0,
+            redirect: { to: "https://shop.example.com", temporary: false, dropPath: false },
+          },
+        }),
+      ]),
+    );
+    await screen.findByRole("columnheader", { name: "Redirects" });
+    expect(await rowOf(/^shop\.example\.com/)).toHaveTextContent("from old.example.org");
+  });
+
+  it("puts each Cloudflare connection beside the list, and Sync now reads it once, with the token's rights", async () => {
+    const user = userEvent.setup();
+    const synced: string[] = [];
+    renderAt(
+      "/domains",
+      withCloudflare([published("wiki.example.com", PublishedState.PUBLISHED)], {
+        syncDnsProvider: (req) => {
+          synced.push(req.id);
+          return { provider: { ...provider, managedRecords: 4, readAt: timestampFromDate(new Date()) } };
+        },
+        checkDnsProvider: () => ({
+          capabilities: [
+            { capability: Capability.DNS, state: CapabilityState.HAS },
+            { capability: Capability.TUNNELS, state: CapabilityState.HAS },
+          ],
+        }),
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Cloudflare" }, { timeout: 5000 });
+    await waitFor(() => expect(panel).toHaveTextContent("3 managed by Dockwell"), { timeout: 5000 });
+    expect(panel).toHaveTextContent("Edits DNS in its zone");
+    // Read three minutes before the file loaded, which may be longer ago by now.
+    expect(panel).toHaveTextContent(/Last sync\d+ min ago/);
+    await user.click(await within(panel).findByRole("button", { name: "Sync now" }));
+    await waitFor(() => expect(panel).toHaveTextContent("4 managed by Dockwell"), { timeout: 5000 });
+    expect(synced).toEqual(["dnp_1"]);
+    expect(panel).toHaveTextContent("Edits DNS, publishes through tunnels");
+    expect(within(panel).getByRole("button", { name: "Replace token" })).toBeVisible();
+  });
+
+  it("says why Sync now didn't read, and when to try again", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/domains",
+      withCloudflare([published("wiki.example.com", PublishedState.PUBLISHED)], {
+        syncDnsProvider: () => {
+          throw new ConnectError(
+            "Cloudflare said too many requests, so Dockwell waits before it reads again. Sync again in 42s",
+            Code.ResourceExhausted,
+          );
+        },
+        checkDnsProvider: () => ({}),
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Cloudflare" }, { timeout: 5000 });
+    await user.click(await within(panel).findByRole("button", { name: "Sync now" }));
+    await waitFor(() => expect(panel).toHaveTextContent("Sync again in 42s"), { timeout: 5000 });
+  });
+
+  it("shows below an admin a connection's name and zone, and nothing to sync", async () => {
+    renderAt("/domains", {
+      ...withCloudflare([published("wiki.example.com", PublishedState.PUBLISHED)], {
+        listDnsProviders: () => ({ providers: [{ id: "dnp_1", name: "cloudflare", zones: ["example.com"] }] }),
+      }),
+      auth: { getAuthState: () => authState({ user: { ...mira, role: Role.DEVELOPER } }) },
+    });
+    const panel = await screen.findByRole("region", { name: "Cloudflare" }, { timeout: 5000 });
+    expect(panel).toHaveTextContent("example.com");
+    expect(panel).not.toHaveTextContent("managed by Dockwell");
+    expect(within(panel).queryByRole("button", { name: "Sync now" })).toBeNull();
   });
 });

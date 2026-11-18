@@ -70,8 +70,10 @@ import "./Domains.css";
 import { phoneWordClass } from "../apps/Health";
 import { useInstallAdmin } from "../apps/publish";
 import { useServicesWatch } from "../apps/ServicesLive";
+import { useDnsProviders } from "../dns/dns";
+import { CloudflarePanels } from "./CloudflarePanel";
 import { DnsReadsContext, useDnsOf, useDnsReads, useDnsReadsHere, useDnsWord } from "./dns";
-import { ManageNameContext, PublishedNote } from "./Published";
+import { ManageNameContext, PublishedCell, PublishedNote, ZonesContext } from "./Published";
 
 /** The list's place, in its URL: its filters. */
 export interface DomainsSearch {
@@ -113,6 +115,8 @@ interface Row {
   open: readonly OpenWay[];
   /** Its domain's other half, www or the bare domain, folded in as it only redirects here (ADR 0070). */
   folded: readonly Standing[];
+  /** The domains that only redirect here, its other half too, for the Redirects column (#820). */
+  sources: readonly string[];
 }
 
 /** A domain's other half: www's name for a bare domain, or the bare domain for www. */
@@ -133,6 +137,20 @@ function foldsInto(domain: Domain): string {
     }
   });
   return into ? target : "";
+}
+
+/** The domain a domain only redirects to, whatever it is, or empty: a website's list makes such ones. */
+function redirectsTo(domain: Domain): string {
+  const hosts = new Set<string>();
+  for (const route of domain.routes) {
+    if (!route.redirect) return "";
+    try {
+      hosts.add(new URL(route.redirect.to).hostname);
+    } catch {
+      return "";
+    }
+  }
+  return hosts.size === 1 ? ([...hosts][0] ?? "") : "";
 }
 
 /** An app's key among the routes that reach it. */
@@ -195,6 +213,12 @@ export function DomainsPage({
   const dnsReads = useDnsReads(read === "read", (env) => places.place(env)?.scope ?? "");
   // The names of what's there hold, as an app's do, past how long how it is can be believed.
   const all = domains.last?.domains;
+  // The connected providers: their zones say which zone's rule publishes a name, and
+  // each has its panel beside the list (#820).
+  const providers = useDnsProviders((all?.length ?? 0) > 0).data?.providers ?? [];
+  const zones = useMemo(() => providers.flatMap((p) => p.zones), [providers]);
+  // A column for where each name stands at Cloudflare, once any is published there.
+  const atCloudflare = (all ?? []).some((d) => d.published.length > 0);
   const sayWhere = places.showsEnvironment || places.severalProjects;
   const apps = useMemo(() => {
     // A website's own services get their domain from Websites.
@@ -254,6 +278,12 @@ export function DomainsPage({
     if (into && host && !foldsInto(host.domain)) folds.set(into, [...(folds.get(into) ?? []), one]);
   }
   const foldedAway = new Set([...folds.values()].flat().map((one) => one.domain.name));
+  // What redirects to each domain, from every domain, as the Redirects column says it.
+  const sourcesOf = new Map<string, string[]>();
+  for (const domain of all ?? []) {
+    const to = redirectsTo(domain);
+    if (to && to !== domain.name) sourcesOf.set(to, [...(sourcesOf.get(to) ?? []), domain.name]);
+  }
   for (const { domain, look, silent } of shown) {
     if (foldedAway.has(domain.name)) continue;
     const folded = folds.get(domain.name) ?? [];
@@ -280,6 +310,7 @@ export function DomainsPage({
         first,
         open: openWaysOf(domain, route, service, all ?? []),
         folded: first && route.path === "" ? folded : [],
+        sources: first && route.path === "" ? (sourcesOf.get(domain.name) ?? []) : [],
       });
       first = false;
     }
@@ -423,152 +454,158 @@ export function DomainsPage({
 
   return (
     <DnsReadsContext.Provider value={dnsReads}>
-      <ManageNameContext.Provider
-        value={
-          admin
-            ? (domain: Domain) => {
-                const route = domain.routes.find((r) => r.path === "") ?? domain.routes[0];
-                const service = route && byName.get(appKey(domain.environmentId, route.service));
-                if (service) setManaging({ service, name: domain.name });
-              }
-            : undefined
-        }
-      >
-        <Page
-          title={t`Domains`}
-          back="/more"
-          // The line is held while they load, so the list doesn't move when it lands; with none, nothing will,
-          // and the empty state sits under the title as Websites' does.
-          lead={
-            pending ? (
-              <span aria-hidden="true">&nbsp;</span>
-            ) : count === 0 ? undefined : (
-              <>
-                {[total, trouble].filter(Boolean).join(" · ")}
-                {showFirst ? <> {showFirst}</> : null}
-              </>
-            )
-          }
-          status={reconnecting ? <Reconnecting /> : undefined}
-          className="apps-page domains-page"
-          actions={canAdd ? add() : undefined}
-        >
-          <section className={cx("apps-section", count > 0 && "has-filters")} aria-label={t`Domains`}>
-            {count > 0 ? (
-              <div className="apps-filters">
-                <TextField
-                  className="apps-filter"
-                  size={phone ? "lg" : "sm"}
-                  icon="search"
-                  type="search"
-                  placeholder={t`Filter domains`}
-                  aria-label={t`Filter domains`}
-                  value={typed}
-                  onChange={(event) => setTyped(event.target.value)}
-                />
-                <SelectField
-                  aria-label={t`State`}
-                  size="sm"
-                  className="domains-state-filter"
-                  value={search.state ?? ""}
-                  // Nothing can be sorted by how it stands while nobody can say.
-                  disabled={read === "failed"}
-                  options={[
-                    { value: "", label: t`All states` },
-                    ...DOMAIN_GROUPS.map((group) => ({ value: group, label: states[group] })),
-                  ]}
-                  onChange={(event) =>
-                    onSearch?.({ ...search, state: (event.target.value as DomainGroup) || undefined })
-                  }
-                />
-                {fleet ? (
-                  <SelectField
-                    aria-label={t`Server`}
-                    size="sm"
-                    className="apps-server-filter"
-                    value={search.server ?? ""}
-                    options={[
-                      { value: "", label: t`All servers` },
-                      ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
-                    ]}
-                    onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
-                  />
-                ) : null}
-              </div>
-            ) : null}
-            {phone && canAdd ? (
-              <>
-                <div className="apps-phone-head">
-                  <h2 className="dw-text-heading apps-phone-count">{total}</h2>
-                  {add()}
-                </div>
-                {/* The line is held, so the list stays put as things go wrong, and as the way to bring them up arrives. */}
-                <p className="domains-phone-trouble">
-                  {trouble ? (
-                    <span className="apps-phone-trouble">{trouble}</span>
-                  ) : (
-                    <span aria-hidden="true">&nbsp;</span>
-                  )}
-                  {showFirst}
-                </p>
-              </>
-            ) : null}
-            {/* What goes wrong later moves nothing on the screen, so someone not looking at it has to be told. */}
-            <p className="dw-sr" aria-live="polite">
-              {later && outOfPlace ? t`${later}. Show them first puts them at the top of the list.` : later}
-            </p>
-            {domains.unread && all !== undefined ? (
-              <Callout tone="info" shape="dashed-ring" className="apps-unread">
-                <UnreadWords {...domains.unread} />
-              </Callout>
-            ) : null}
-            {services.error ? (
-              <Callout
-                tone="warning"
-                title={t`Can't read your apps`}
-                actions={
-                  <Button onClick={() => void services.refetch()} loading={services.isFetching}>
-                    <Trans>Try again</Trans>
-                  </Button>
+      <ZonesContext.Provider value={zones}>
+        <ManageNameContext.Provider
+          value={
+            admin
+              ? (domain: Domain) => {
+                  const route = domain.routes.find((r) => r.path === "") ?? domain.routes[0];
+                  const service = route && byName.get(appKey(domain.environmentId, route.service));
+                  if (service) setManaging({ service, name: domain.name });
                 }
-              >
-                <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
-              </Callout>
+              : undefined
+          }
+        >
+          <Page
+            title={t`Domains`}
+            back="/more"
+            // The line is held while they load, so the list doesn't move when it lands; with none, nothing will,
+            // and the empty state sits under the title as Websites' does.
+            lead={
+              pending ? (
+                <span aria-hidden="true">&nbsp;</span>
+              ) : count === 0 ? undefined : (
+                <>
+                  {[total, trouble].filter(Boolean).join(" · ")}
+                  {showFirst ? <> {showFirst}</> : null}
+                </>
+              )
+            }
+            status={reconnecting ? <Reconnecting /> : undefined}
+            className="apps-page domains-page"
+            actions={canAdd ? add() : undefined}
+          >
+            <section className={cx("apps-section", count > 0 && "has-filters")} aria-label={t`Domains`}>
+              {count > 0 ? (
+                <div className="apps-filters">
+                  <TextField
+                    className="apps-filter"
+                    size={phone ? "lg" : "sm"}
+                    icon="search"
+                    type="search"
+                    placeholder={t`Filter domains`}
+                    aria-label={t`Filter domains`}
+                    value={typed}
+                    onChange={(event) => setTyped(event.target.value)}
+                  />
+                  <SelectField
+                    aria-label={t`State`}
+                    size="sm"
+                    className="domains-state-filter"
+                    value={search.state ?? ""}
+                    // Nothing can be sorted by how it stands while nobody can say.
+                    disabled={read === "failed"}
+                    options={[
+                      { value: "", label: t`All states` },
+                      ...DOMAIN_GROUPS.map((group) => ({ value: group, label: states[group] })),
+                    ]}
+                    onChange={(event) =>
+                      onSearch?.({ ...search, state: (event.target.value as DomainGroup) || undefined })
+                    }
+                  />
+                  {fleet ? (
+                    <SelectField
+                      aria-label={t`Server`}
+                      size="sm"
+                      className="apps-server-filter"
+                      value={search.server ?? ""}
+                      options={[
+                        { value: "", label: t`All servers` },
+                        ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
+                      ]}
+                      onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
+              {phone && canAdd ? (
+                <>
+                  <div className="apps-phone-head">
+                    <h2 className="dw-text-heading apps-phone-count">{total}</h2>
+                    {add()}
+                  </div>
+                  {/* The line is held, so the list stays put as things go wrong, and as the way to bring them up arrives. */}
+                  <p className="domains-phone-trouble">
+                    {trouble ? (
+                      <span className="apps-phone-trouble">{trouble}</span>
+                    ) : (
+                      <span aria-hidden="true">&nbsp;</span>
+                    )}
+                    {showFirst}
+                  </p>
+                </>
+              ) : null}
+              {/* What goes wrong later moves nothing on the screen, so someone not looking at it has to be told. */}
+              <p className="dw-sr" aria-live="polite">
+                {later && outOfPlace ? t`${later}. Show them first puts them at the top of the list.` : later}
+              </p>
+              {domains.unread && all !== undefined ? (
+                <Callout tone="info" shape="dashed-ring" className="apps-unread">
+                  <UnreadWords {...domains.unread} />
+                </Callout>
+              ) : null}
+              {services.error ? (
+                <Callout
+                  tone="warning"
+                  title={t`Can't read your apps`}
+                  actions={
+                    <Button onClick={() => void services.refetch()} loading={services.isFetching}>
+                      <Trans>Try again</Trans>
+                    </Button>
+                  }
+                >
+                  <Trans>Until then, a domain doesn't lead to its app, and you can't add one here.</Trans>
+                </Callout>
+              ) : null}
+              {/* Every domain's, whatever the filters show, so it stays put while someone types. */}
+              {phone || count === 0 || read !== "read" ? (
+                body
+              ) : (
+                // With the At Cloudflare column the list takes the width, and the panels go under it, side by side.
+                <div className={cx("domains-layout", atCloudflare && "is-wide")}>
+                  <div className="domains-main">{body}</div>
+                  <div className="domains-side">
+                    <CloudflarePanels providers={providers} />
+                    <Certificates standings={standings} />
+                  </div>
+                </div>
+              )}
+            </section>
+            {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
+            {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
+            {privateAt ? (
+              <PrivateSheet
+                domain={privateAt.domain}
+                route={privateAt.route}
+                onClose={() => choosePrivate(undefined)}
+                service={byName.get(appKey(privateAt.domain.environmentId, privateAt.route.service))}
+                all={all ?? []}
+                onOther={choosePrivate}
+              />
             ) : null}
-            {/* Every domain's, whatever the filters show, so it stays put while someone types. */}
-            {phone || count === 0 || read !== "read" ? (
-              body
-            ) : (
-              <div className="domains-layout">
-                <div className="domains-main">{body}</div>
-                <Certificates standings={standings} />
-              </div>
-            )}
-          </section>
-          {/* ?add opens it only for someone who may plan a change (ADR 0059). */}
-          {adding && mayAdd.allowed ? <AddDomainSheet apps={apps} onClose={() => setAdding(false)} /> : null}
-          {privateAt ? (
-            <PrivateSheet
-              domain={privateAt.domain}
-              route={privateAt.route}
-              onClose={() => choosePrivate(undefined)}
-              service={byName.get(appKey(privateAt.domain.environmentId, privateAt.route.service))}
-              all={all ?? []}
-              onOther={choosePrivate}
-            />
-          ) : null}
-          {moving?.service ? (
-            <AddDomainSheet
-              service={moving.service}
-              start={moveBehindOf(moving.domain, moving.route)}
-              onClose={() => setMoving(undefined)}
-            />
-          ) : null}
-          {managing ? (
-            <AddDomainSheet service={managing.service} named={managing.name} onClose={() => setManaging(undefined)} />
-          ) : null}
-        </Page>
-      </ManageNameContext.Provider>
+            {moving?.service ? (
+              <AddDomainSheet
+                service={moving.service}
+                start={moveBehindOf(moving.domain, moving.route)}
+                onClose={() => setMoving(undefined)}
+              />
+            ) : null}
+            {managing ? (
+              <AddDomainSheet service={managing.service} named={managing.name} onClose={() => setManaging(undefined)} />
+            ) : null}
+          </Page>
+        </ManageNameContext.Provider>
+      </ZonesContext.Provider>
     </DnsReadsContext.Provider>
   );
 }
@@ -901,6 +938,8 @@ function DomainsTable({
   onOpen: (row: Row) => void;
 }) {
   const { t } = useLingui();
+  const redirects = rows.some((row) => row.sources.length > 0);
+  const atCloudflare = rows.some((row) => row.domain.published.length > 0);
   const columns = useMemo<TableColumn<Row>[]>(
     () => [
       {
@@ -914,24 +953,47 @@ function DomainsTable({
               <Private row={row} onPrivate={onPrivate} />
             </span>
             <PrivateFact domain={row.domain} route={row.route} open={row.open} />
-            <Folded row={row} />
             <Unserved row={row} />
             <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
-            {row.first ? <PublishedNote domain={row.domain} /> : null}
           </div>
         ),
       },
       {
         key: "reaches",
         header: t`Routes to`,
-        // Narrower than it was alone, as the DNS column and the panel beside the list take room the name needs.
-        width: "22%",
+        // Narrower than it was alone, as the DNS column and the panel beside the list take room the name needs,
+        // and narrower again beside Cloudflare's columns (#820).
+        width: atCloudflare ? "17%" : "22%",
         render: (row) => <Reaches row={row} fleet={fleet} environment={environment} />,
       },
-      { key: "dns", header: t`DNS`, width: 184, render: (row) => <DnsCell domain={row.domain} read={read} /> },
-      { key: "status", header: t`Status`, width: 168, render: (row) => <RowBadge row={row} read={read} /> },
+      {
+        key: "dns",
+        header: t`DNS`,
+        width: atCloudflare ? 140 : 184,
+        render: (row) => <DnsCell domain={row.domain} read={read} />,
+      },
+      {
+        key: "status",
+        header: t`Status`,
+        width: 168,
+        render: (row) => <RowBadge row={row} read={read} />,
+      },
+      // Each only where a row has something for it, so a list with none draws no empty column (#820).
+      ...(redirects
+        ? [{ key: "redirects", header: t`Redirects`, width: 128, render: (row: Row) => <Sources row={row} /> }]
+        : []),
+      ...(atCloudflare
+        ? [
+            {
+              key: "cloudflare",
+              header: t`At Cloudflare`,
+              width: 248,
+              render: (row: Row) => (row.first ? <PublishedCell domain={row.domain} /> : null),
+            },
+          ]
+        : []),
     ],
-    [t, read, fleet, environment, onMoveBehind, onPrivate],
+    [t, read, fleet, environment, onMoveBehind, onPrivate, redirects, atCloudflare],
   );
   return (
     <Table<Row>
@@ -1056,6 +1118,26 @@ function PhoneRow({
       <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
       {row.first ? <PublishedNote domain={row.domain} /> : null}
     </div>
+  );
+}
+
+/**
+ * What only redirects to a domain, in its Redirects cell: "from www", its other half
+ * by the part before it, the rest whole (#820).
+ */
+function Sources({ row }: { row: Row }) {
+  if (row.sources.length === 0) return null;
+  const here = row.domain.name;
+  return (
+    <span className="domains-sources">
+      <Trans>from</Trans>{" "}
+      {row.sources.map((name, i) => (
+        <span key={name}>
+          {i > 0 ? ", " : null}
+          <code>{name.endsWith(`.${here}`) ? name.slice(0, -here.length - 1) : name}</code>
+        </span>
+      ))}
+    </span>
   );
 }
 

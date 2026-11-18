@@ -14,6 +14,7 @@ import { join } from "node:path";
 
 import type { Flow } from "./flows.ts";
 import { atWidth, LONG_HOSTNAME, onTop } from "./sheets.ts";
+import { bytes, number } from "./wire.ts";
 
 function fail(message: string): never {
   throw new Error(message);
@@ -310,6 +311,81 @@ export const flow: Flow = {
         await add.getByRole("button", { name: "Cancel" }).click();
       } finally {
         await cloudflare(`/zones/${zoneId}/dns_records/${hand.id}`, { method: "DELETE" });
+      }
+
+      step(
+        "adding a domain through Cloudflare: Domains says where each name stands at Cloudflare, with the connection beside the list, and Sync now reads it",
+      );
+      // The fake engine can't run the ingress, so no route here is published: the list
+      // is answered by hand for that, and the connection beside it, its Sync now and the
+      // token's rights are the control plane's and the stand-in's (#820).
+      const named = (name: string, way: number, state: number) => {
+        const publish = Buffer.concat([
+          number(1, way),
+          way === 1 ? bytes(2, TUNNEL) : Buffer.alloc(0),
+          bytes(3, "cloudflare"),
+        ]);
+        const route = Buffer.concat([
+          bytes(1, `rte_${name}`),
+          bytes(2, name.replaceAll(".", "-")),
+          bytes(4, "wiki-app"),
+          number(5, 80),
+          bytes(7, "off"),
+          bytes(81, "127.0.0.1"),
+          bytes(113, publish),
+        ]);
+        const on = Buffer.concat([bytes(1, server.id), bytes(2, server.name), bytes(3, bytes(1, name))]);
+        const said = Buffer.concat([
+          bytes(1, name),
+          number(2, way),
+          way === 1 ? bytes(3, "web-1") : Buffer.alloc(0),
+          number(5, state),
+        ]);
+        return bytes(
+          1,
+          Buffer.concat([
+            bytes(1, name),
+            bytes(2, appEnv),
+            bytes(3, `https://${name}`),
+            bytes(4, route),
+            bytes(5, on),
+            bytes(6, said),
+          ]),
+        );
+      };
+      // Ways: 1 the server's tunnel, 3 Cloudflare's proxy. States: 1 published, 3 its record gone.
+      const listed = Buffer.concat([
+        named("docs.example.com", 3, 1),
+        named("help.example.com", 1, 3),
+        named("wiki.example.com", 1, 1),
+      ]);
+      await page.route(/DomainService\/ListDomains/, (route) =>
+        route.fulfill({ status: 200, contentType: "application/proto", body: listed }),
+      );
+      try {
+        await page.goto(`${origin}/domains`);
+        const table = page.getByRole("table", { name: "Domains" });
+        await table.getByRole("columnheader", { name: "At Cloudflare" }).waitFor({ timeout: 20_000 });
+        const help = table.getByRole("row", { name: /^help\.example\.com/ });
+        await help.getByText("Its DNS record is gone at Cloudflare").waitFor();
+        await help.getByRole("button", { name: "Put help.example.com back at Cloudflare" }).waitFor();
+        await table
+          .getByRole("row", { name: /^wiki\.example\.com/ })
+          .getByText("by *.example.com")
+          .waitFor();
+        await table
+          .getByRole("row", { name: /^docs\.example\.com/ })
+          .getByText("proxied")
+          .waitFor();
+        const panel = page.getByRole("region", { name: "Cloudflare" });
+        await panel.getByText("example.com, example.org").waitFor();
+        await panel.getByRole("button", { name: "Sync now" }).click();
+        // The read, and the token's rights as the stand-in grants them.
+        await panel.getByText("Edits DNS, publishes through tunnels").waitFor({ timeout: 30_000 });
+        await panel.getByText(/^(\d+ s ago|just now|now)$/).waitFor();
+        await shoot(page, "publish-domain-domains");
+      } finally {
+        await page.unroute(/DomainService\/ListDomains/);
       }
     } finally {
       // The run goes, so nothing after reads a tunnel the machine doesn't run.
