@@ -93,6 +93,7 @@ import { followChange } from "./follow";
 import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
 import { panelName } from "./PanelPlan";
 import { PlanSteps } from "./PlanSteps";
+import { CloudflareSteps } from "./ProviderSteps";
 import {
   canUndo,
   changeTo,
@@ -1469,6 +1470,8 @@ function PlanBody({
       ) : null}
       {phase === "history" && change ? <OnRecord change={change} /> : null}
       {phase !== "discarded" ? <Places plan={plan} /> : null}
+      {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
+      {showSteps ? null : <CloudflareSteps plan={plan} />}
       {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
       {unitOnly ? null : (
         <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>

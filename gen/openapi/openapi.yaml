@@ -2694,6 +2694,15 @@ paths:
                  is never returned. Below an admin, it says each one's ID, name and zones. See
                  docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.
             operationId: DomainService_ListDnsProviders
+            parameters:
+                - name: projectId
+                  in: query
+                  description: |-
+                    A project's ID: with one, only the providers that serve it are listed, as a
+                     domain in it can be published through those alone (ADR 0104). The caller
+                     must be able to read the project.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -2762,6 +2771,15 @@ paths:
                      as a service's name is unique only in its environment.
                   schema:
                     type: string
+                - name: readDns
+                  in: query
+                  description: |-
+                    Read what DNS says of each domain now, in Domain.dns: from its connected
+                     zone's records, read once per zone, or from public DNS for a name in no
+                     connected zone. Each read is cached, so a page that opens costs a zone list,
+                     never a check per domain (ADR 0104, #791).
+                  schema:
+                    type: boolean
             responses:
                 "200":
                     description: OK
@@ -11811,7 +11829,9 @@ components:
                         - $ref: '#/components/schemas/CloudflareCheck'
                     description: |-
                         What Cloudflare holds at the name, and the ways in, where a connected DNS
-                         provider's zone holds it for the project. Unset otherwise (ADR 0104).
+                         provider's zone holds it for the project, or, for an admin who names no project,
+                         as for a new website whose plan adds its project to the provider, where any
+                         provider's zone holds it. Unset otherwise (ADR 0104).
             description: CheckDomainResponse says what DNS says of it.
         CheckInviteRequest:
             type: object
@@ -12151,6 +12171,13 @@ components:
                         When checks read Cloudflare again, while it asks Dockwell to wait (state
                          CLOUDFLARE_NAME_WAITING).
                     format: date-time
+                handRule:
+                    allOf:
+                        - $ref: '#/components/schemas/HandRule'
+                    description: |-
+                        The tunnel's rule made by hand that serves the name now, when one does: an
+                         admin's alone, so Take it on or Move it to Dockwell can name it in the route's
+                         takes_over (ADR 0104, section 8). Unset below an admin.
             description: |-
                 CloudflareCheck is what a connected Cloudflare zone, and the server's tunnel, say
                  of a name, before any plan (ADR 0104, section 1). Below an admin it says only
@@ -13584,6 +13611,14 @@ components:
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it makes.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        How its domain, and the names that redirect to it, are published at
+                         Cloudflare (ADR 0104), as a route's publish says. Where the provider doesn't
+                         serve the website's new project yet, the same change adds it, which takes an
+                         admin.
             description: CreateWebsiteRequest is a website to make.
         CreateWebsiteResponse:
             type: object
@@ -14360,6 +14395,23 @@ components:
                          every proxied name in them over HTTPS with a certificate it checks. A zone's
                          mode changes how all its proxied names are reached, so it's set here, on its
                          own plan, never as a side effect of one domain (ADR 0104).
+                clearTunnelApiToken:
+                    type: boolean
+                    description: |-
+                        Takes the second token off, so the API token does tunnels again. An update
+                         that leaves tunnel_api_token out keeps it, so this says it goes. It's never
+                         stored, and comes with no tunnel_api_token (ADR 0104).
+                putBack:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Records made by hand that Dockwell keeps a copy of, by the ID the provider's
+                         info lists them with, to put back at Cloudflare in this change: a route that
+                         replaced one was removed, and the name held something else then. One whose
+                         name holds a record now isn't put back, and the plan says so; nothing is
+                         replaced. It takes an admin, as it writes someone's record, and it's never
+                         stored (ADR 0104).
             description: |-
                 DnsProvider is what writes the records of one or more DNS zones through a DNS
                  provider's API, so the control plane can prove a name by DNS-01 and get its
@@ -14386,6 +14438,29 @@ components:
                 tunnelApiTokenSet:
                     type: boolean
                     description: Whether it holds a second token, for tunnels alone (ADR 0104).
+                kept:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/KeptRecord'
+                    description: |-
+                        Records made by hand that Dockwell replaced and keeps a copy of, which it
+                         couldn't put back as the name held something else then. Put back on the
+                         provider (DnsProvider.put_back) writes one again where its name is free.
+                projects:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The projects whose routes it proves and publishes names for, by ID: an admin's
+                         alone. A form that changes the provider sends them back, as an edit is the whole
+                         spec.
+                strictZones:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The zones it set to Full (strict), and keeps so: an admin's alone. A form that
+                         changes the provider sends them back, or the plan puts their mode back.
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object
@@ -14515,6 +14590,13 @@ components:
                     description: |-
                         What Dockwell published for it at Cloudflare, and whether it's still there
                          (ADR 0104). Empty for a domain published by hand, or not at all.
+                dns:
+                    allOf:
+                        - $ref: '#/components/schemas/DomainCheck'
+                    description: |-
+                        What DNS says of it now, where the list was asked to read it (read_dns). Below
+                         an admin it says nothing of a proxied record's content, the origin address
+                         public DNS hides. Unset otherwise.
             description: Domain is one domain the routes of an environment serve.
         DomainCheck:
             type: object
@@ -14606,6 +14688,7 @@ components:
                         - PUBLISHED_STATE_CAN_MOVE
                         - PUBLISHED_STATE_TUNNEL_DELETED
                         - PUBLISHED_STATE_UNREADABLE
+                        - PUBLISHED_STATE_TUNNEL_UNPROVEN
                     type: string
                     description: Where it stands.
                     format: enum
@@ -14693,6 +14776,18 @@ components:
                     description: |-
                         Where it redirects, for a route that answers with a redirect in place of a
                          service (ADR 0070). Unset for any other route.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        How its domain is published at Cloudflare, as the route's spec has it (ADR
+                         0104). A form that sends the route as it is sends this back, or the plan takes
+                         the domain's records away.
+                proof:
+                    type: string
+                    description: |-
+                        How its domain proves itself for its certificate, as the route's spec has it
+                         (ADR 0088): a form that sends the route as it is sends this back.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -15558,6 +15653,8 @@ components:
                         - PROVIDER_ACTION_TAKE_ON_RULE
                         - PROVIDER_ACTION_MOVE_RULE
                         - PROVIDER_ACTION_KEEP_RULE
+                        - PROVIDER_ACTION_SET_ZONE_MODE
+                        - PROVIDER_ACTION_RESTORE_RULE
                     type: string
                     description: What was done.
                     format: enum
@@ -17274,6 +17371,31 @@ components:
                     type: string
                     description: The driver Docker asks, such as "nvidia". Empty takes Docker's default.
             description: Gpus are the GPUs a container reaches.
+        HandRule:
+            type: object
+            properties:
+                tunnel:
+                    type: string
+                    description: The tunnel holding it, by ID.
+                tunnelName:
+                    type: string
+                    description: The tunnel's name, such as "web-1".
+                hostname:
+                    type: string
+                    description: The rule's hostname, such as "wiki.example.com".
+                path:
+                    type: string
+                    description: The rule's path, if it has one.
+                service:
+                    type: string
+                    description: Where it sends, such as "http://127.0.0.1:8080".
+                reachesProxy:
+                    type: boolean
+                    description: |-
+                        Whether it reaches the server's proxy already, so taking it on writes nothing;
+                         false where it reaches an app's own port, so Move it to Dockwell points it at
+                         the proxy.
+            description: HandRule is a tunnel's rule made in Cloudflare by hand that serves a name.
         HealthResult:
             type: object
             properties:
@@ -17385,6 +17507,7 @@ components:
                         - HOST_ACCESS_KIND_ROOT_TOGETHER
                         - HOST_ACCESS_KIND_TUNNEL_RULE
                         - HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER
+                        - HOST_ACCESS_KIND_ZONE_MODE
                     type: string
                     description: What it is.
                     format: enum
@@ -18884,6 +19007,26 @@ components:
                         The labels a server joining with it gets (ADR 0091). Numbered in the block
                          labels hold, 20 to 29.
             description: JoinTicket is a ticket that adds one server, without its secret.
+        KeptRecord:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, pending:…, as DnsProvider.put_back names it.
+                name:
+                    type: string
+                    description: The name it was at, such as "vpn.example.com".
+                record:
+                    type: string
+                    description: 'The record, in words, such as "CNAME elsewhere.example.net": an admin''s alone.'
+                keptAt:
+                    type: string
+                    description: When it was kept.
+                    format: date-time
+                nameFree:
+                    type: boolean
+                    description: Whether nothing is at its name now, so putting it back writes it.
+            description: KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
         Link:
             type: object
             properties:
@@ -23191,6 +23334,8 @@ components:
                         - PROVIDER_ACTION_TAKE_ON_RULE
                         - PROVIDER_ACTION_MOVE_RULE
                         - PROVIDER_ACTION_KEEP_RULE
+                        - PROVIDER_ACTION_SET_ZONE_MODE
+                        - PROVIDER_ACTION_RESTORE_RULE
                     type: string
                     description: What it does.
                     format: enum
@@ -28410,6 +28555,14 @@ components:
                         The domain it answers at now, such as "example.org", as a route takes one.
                          Empty keeps the one it has. Moving it to one of redirect_from, as making www
                          the main domain does, takes it out of that list in the same change.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: |-
+                        How its domain, and the names that redirect to it, are published at
+                         Cloudflare (ADR 0104). Unset keeps how they're published now. Where the
+                         provider doesn't serve the website's project, the same change adds it, which
+                         takes an admin.
             description: UpdateWebsiteRequest is what a website should serve now.
         UpdateWebsiteResponse:
             type: object
@@ -28842,6 +28995,11 @@ components:
                     description: |-
                         The rule that catches the name first, when another does, such as
                          "*.example.com, to http://127.0.0.1:8080": an admin's alone.
+                reaches:
+                    type: string
+                    description: |-
+                        Where the server's tunnel reaches its proxy, such as "http://127.0.0.1:80", for
+                         a server tunnel's option, as the agent found its run.
             description: WayOption is one way in for a domain, and whether it can be taken now.
         Web:
             type: object

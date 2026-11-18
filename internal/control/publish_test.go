@@ -7,10 +7,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io/fs"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -39,6 +42,54 @@ const panelDoc = `{"ingress":[{"hostname":"panel.example.com","service":"http://
 type publishStand struct {
 	*dnsStand
 	cf *cftest.API
+	// proc is what the server's agent reads as /proc, which a test may add a run to.
+	proc *swapFS
+}
+
+// swapFS is a /proc a test changes while the agent reads it.
+type swapFS struct {
+	mu sync.Mutex
+	m  fstest.MapFS
+}
+
+func (s *swapFS) Open(name string) (fs.File, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.Open(name)
+}
+
+func (s *swapFS) ReadLink(name string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.ReadLink(name)
+}
+
+func (s *swapFS) Lstat(name string) (fs.FileInfo, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m.Lstat(name)
+}
+
+// stop takes a process's files out of it, as a process that ended.
+func (s *swapFS) stop(pid string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := maps.Clone(s.m)
+	for name := range next {
+		if strings.HasPrefix(name, pid+"/") {
+			delete(next, name)
+		}
+	}
+	s.m = next
+}
+
+// add puts files in it, as a process that started.
+func (s *swapFS) add(files fstest.MapFS) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := maps.Clone(s.m)
+	maps.Copy(next, files)
+	s.m = next
 }
 
 func newPublishStand(t *testing.T) *publishStand {
@@ -63,14 +114,19 @@ func newPublishStandRunning(t *testing.T, cmdline string) *publishStand {
 
 func newPublishStandIn(t *testing.T, backend store.Backend, cmdline string) *publishStand {
 	t.Helper()
+	proc := &swapFS{m: fstest.MapFS{
+		"self/ns/net": {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
+		"100/stat":    {Data: []byte("100 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 500 1000 100")},
+		"100/cmdline": {Data: []byte(cmdline)},
+		"100/ns/net":  {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
+	}}
 	finder := &tunnels.Finder{
-		Proc: fstest.MapFS{
-			"self/ns/net": {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
-			"100/stat":    {Data: []byte("100 (cloudflared) S 1 1 1 0 -1 4194560 100 0 0 0 1 1 0 0 20 0 9 0 500 1000 100")},
-			"100/cmdline": {Data: []byte(cmdline)},
-			"100/ns/net":  {Data: []byte("net:[1]"), Mode: fs.ModeSymlink},
-		},
-		ReadyIn: func(context.Context, int, string) (tunnels.Ready, error) {
+		Proc: proc,
+		// Only the server's own run answers its /ready, as a run of a test's own makes up.
+		ReadyIn: func(_ context.Context, pid int, _ string) (tunnels.Ready, error) {
+			if pid != 100 {
+				return tunnels.Ready{}, errors.New("nothing answers there")
+			}
 			return tunnels.Ready{Connections: 4, ConnectorID: "connector-hz-1"}, nil
 		},
 	}
@@ -84,7 +140,7 @@ func newPublishStandIn(t *testing.T, backend store.Backend, cmdline string) *pub
 	applyConfirmed(t, s.person, propose(t, s.person, "Publish through Cloudflare", dnsEdit("cloudflare", &resourcev1.DnsProvider{
 		Provider: "cloudflare", Zones: []string{"example.com"}, ApiToken: dnsToken, Projects: []string{s.project},
 	})))
-	return &publishStand{dnsStand: s, cf: cf}
+	return &publishStand{dnsStand: s, cf: cf, proc: proc}
 }
 
 func (s *publishStand) published(name, domain string, takes ...*resourcev1.TakeOver) *dockwellv1.Edit {
@@ -859,5 +915,61 @@ func TestServersSharingAnAddress(t *testing.T) {
 	}
 	if got := sharingAnAddress(fleet, "c", []string{"198.51.100.7"}); len(got) != 0 {
 		t.Fatalf("shares with %q", got)
+	}
+}
+
+// A form that sends a route as it is, as Make private and Move behind what's in
+// front do, sends what the domain's row says, publish included, so the plan keeps
+// the domain's records at Cloudflare (the panel slice's find).
+func TestARouteSentAsItIsKeepsItsRecords(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+	dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+	asItIs := func() *resourcev1.Route {
+		t.Helper()
+		listed, err := dc.ListDomains(t.Context(), connect.NewRequest(&dockwellv1.ListDomainsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range listed.Msg.GetDomains() {
+			if d.GetName() != "wiki.example.com" {
+				continue
+			}
+			r := d.GetRoutes()[0]
+			if r.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL || r.GetPublish().GetTunnel() != webOne {
+				t.Fatalf("the row should say how it's published: %v", r)
+			}
+			return &resourcev1.Route{
+				Domain: d.GetName(), Path: r.GetPath(), Service: r.GetService(), Port: r.GetPort(), Tls: r.GetTls(),
+				TrustedProxies: r.GetTrustedProxies(), PlainForAnyone: r.GetPlainForAnyone(), Held: r.GetHeld(), Publish: r.GetPublish(),
+			}
+		}
+		t.Fatal("wiki.example.com isn't listed")
+		return nil
+	}
+	edit := func(r *resourcev1.Route) *dockwellv1.Edit {
+		return &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: s.env, Name: "wiki"}, Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Route{Route: r}}}
+	}
+
+	// Move behind what's in front: who it believes changes, and nothing at Cloudflare does.
+	behind := asItIs()
+	behind.TrustedProxies = []string{"127.0.0.1"}
+	ch := propose(t, s.person, "Move wiki behind what's in front", edit(behind))
+	if steps := providerSteps(ch); len(steps) != 0 {
+		t.Fatalf("moving it behind what's in front touches Cloudflare: %v", steps)
+	}
+	s.applied(t, ch)
+
+	// Make private: who gets in changes, and nothing at Cloudflare does.
+	private := asItIs()
+	private.Access = &resourcev1.RouteAccess{Allow: []string{"203.0.113.0/24"}}
+	ch = propose(t, s.person, "Make wiki private", edit(private))
+	if steps := providerSteps(ch); len(steps) != 0 {
+		t.Fatalf("making it private touches Cloudflare: %v", steps)
+	}
+	s.applied(t, ch)
+	if got := s.cf.Records("example.com"); len(got) != 1 || got[0].Name != "wiki.example.com" {
+		t.Fatalf("records after: %v", got)
 	}
 }

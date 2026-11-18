@@ -1398,7 +1398,10 @@ func Methods() []*apicli.Method {
 			Short:     "Return the DNS providers an admin connected",
 			Long:      "Return the DNS providers an admin connected, sorted by name, with the zones each\nwrites in, so a certificate can name one. A token is never returned. Below an\nadmin, it says each one's ID, name and zones. See\ndocs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.",
 			Effect:    v1.Effect_EFFECT_READ,
-			Call:      apicli.Unary[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](dockwellv1connect.DomainServiceListDnsProvidersProcedure),
+			Fields: []apicli.Field{
+				{Path: "project_id", Help: "A project's ID: with one, only the providers that serve it are listed, as a domain in it can be published through those alone (ADR 0104). The caller must be able to read the project."},
+			},
+			Call: apicli.Unary[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse](dockwellv1connect.DomainServiceListDnsProvidersProcedure),
 		},
 		{
 			Name:      "dockwell.v1.DomainService.CheckDomain",
@@ -1429,6 +1432,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "environment", Help: "Only domains with a route in this environment, by ID. Empty means every environment."},
 				{Path: "service", Help: "Only domains with a route to this service, by name. It needs environment, as a service's name is unique only in its environment."},
+				{Path: "read_dns", Help: "Read what DNS says of each domain now, in Domain.dns: from its connected zone's records, read once per zone, or from public DNS for a name in no connected zone. Each read is cached, so a page that opens costs a zone list, never a check per domain (ADR 0104, #791)."},
 			},
 			Call: apicli.Unary[v1.ListDomainsRequest, v1.ListDomainsResponse](dockwellv1connect.DomainServiceListDomainsProcedure),
 		},
@@ -3731,6 +3735,7 @@ func Methods() []*apicli.Method {
 				{Path: "plain_for_anyone", Help: "With tls off, answers anyone who reaches the server's port 80, as a route's plain_for_anyone."},
 				{Path: "servers", Help: "Where it runs, by server ID. Empty runs it on the only server; once there are several, name one."},
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it makes."},
+				{Path: "publish", Help: "How its domain, and the names that redirect to it, are published at Cloudflare (ADR 0104), as a route's publish says. Where the provider doesn't serve the website's new project yet, the same change adds it, which takes an admin."},
 			},
 			Call: apicli.Unary[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse](dockwellv1connect.WebsiteServiceCreateWebsiteProcedure),
 		},
@@ -3799,6 +3804,7 @@ func Methods() []*apicli.Method {
 				{Path: "website", Help: "What it serves, whole, as JSON, such as {\"proxy\":{\"url\":\"https://backend.example.com\"}}, or {\"proxy\":{\"port\":3000}} for a port on the server. Its redirect_from is whole too: a domain left out stops redirecting to it."},
 				{Path: "summary", Help: "What the change is for, for the timeline. Empty says what it changes."},
 				{Path: "domain", Help: "The domain it answers at now, such as \"example.org\", as a route takes one. Empty keeps the one it has. Moving it to one of redirect_from, as making www the main domain does, takes it out of that list in the same change."},
+				{Path: "publish", Help: "How its domain, and the names that redirect to it, are published at Cloudflare (ADR 0104). Unset keeps how they're published now. Where the provider doesn't serve the website's project, the same change adds it, which takes an admin."},
 			},
 			Call: apicli.Unary[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse](dockwellv1connect.WebsiteServiceUpdateWebsiteProcedure),
 		},
@@ -4475,6 +4481,8 @@ func Kinds() []*apicli.Kind {
 				{Path: "projects", Help: "The projects whose routes' names it proves, by ID. Empty is none: proving a name by DNS works wherever it points, so an admin says which projects may."},
 				{Path: "tunnel_api_token", Help: "A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel Edit, and API Tokens Read to check its own rights. Empty, the API token does tunnels too, as one token may carry both (ADR 0104, amending ADR 0099). Leave it out of an update to keep it.", Sensitive: true},
 				{Path: "strict_zones", Help: "The zones an admin set to Full (strict) through Dockwell, so Cloudflare reaches every proxied name in them over HTTPS with a certificate it checks. A zone's mode changes how all its proxied names are reached, so it's set here, on its own plan, never as a side effect of one domain (ADR 0104)."},
+				{Path: "clear_tunnel_api_token", Help: "Takes the second token off, so the API token does tunnels again. An update that leaves tunnel_api_token out keeps it, so this says it goes. It's never stored, and comes with no tunnel_api_token (ADR 0104)."},
+				{Path: "put_back", Help: "Records made by hand that Dockwell keeps a copy of, by the ID the provider's info lists them with, to put back at Cloudflare in this change: a route that replaced one was removed, and the name held something else then. One whose name holds a record now isn't put back, and the plan says so; nothing is replaced. It takes an admin, as it writes someone's record, and it's never stored (ADR 0104)."},
 			},
 		},
 		{

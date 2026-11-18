@@ -10,6 +10,7 @@ import {
   type Domain,
   type DomainRoute,
   DomainService,
+  RouteWay,
   type Server,
   type ServiceInfo,
 } from "@dockwell/api";
@@ -38,6 +39,7 @@ import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
+import { DomainName, NameState, WayIn } from "./DomainStep";
 import {
   formRefusal,
   freshRouteName,
@@ -50,6 +52,17 @@ import {
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
 import { routeAsItIs } from "./PrivateSheet";
+import {
+  pickedOf,
+  publicAddressOf,
+  publishOf,
+  routeOfWay,
+  type TakeOverInit,
+  useCloudflareCheck,
+  useInstallAdmin,
+  useZones,
+  wayOf,
+} from "./publish";
 import { usePlaces } from "./useServices";
 
 /** A domain that's refused a certificate, moved behind what's in front by editing the routes it has. */
@@ -101,6 +114,14 @@ function portOf(service: ServiceInfo | undefined): string {
   return published ? String(published) : "80";
 }
 
+/** The whole name, from a subdomain and a zone: the zone itself where none is typed, and a name typed whole as it is. */
+export function nameIn(sub: string, zone: string): string {
+  const name = sub.trim().toLowerCase().replace(/\.+$/, "");
+  if (zone === "") return name;
+  if (name === "" || name === zone) return zone;
+  return name.endsWith(`.${zone}`) ? name : `${name}.${zone}`;
+}
+
 /** The server a route goes on: the one chosen, or the only one there is. */
 function serverOf(fleet: FleetState, id: string): Server | undefined {
   if (fleet.status === "connecting") return undefined;
@@ -123,6 +144,7 @@ export function AddDomainSheet({
   apps,
   onClose,
   start,
+  named,
 }: {
   /** The app it's for, when it's opened from one. */
   service?: ServiceInfo;
@@ -131,6 +153,8 @@ export function AddDomainSheet({
   onClose: () => void;
   /** A domain that needs moving behind a tunnel, as it's refused a certificate. */
   start?: MoveBehind;
+  /** A name to start from, as Domains opens it on one made in Cloudflare to take on. */
+  named?: string;
 }) {
   const { t } = useLingui();
   const transport = useTransport();
@@ -158,6 +182,18 @@ export function AddDomainSheet({
       ? environmentOf(service)
       : "";
   const known = useQuery(DomainService.method.listDomains, { environment }, { enabled: environment !== "" });
+  // A name is picked from a zone a connected DNS provider writes in for the project, and
+  // Cloudflare is done for you; Another domain is typed whole and behaves as before (ADR 0104).
+  const project = places.place(environment)?.scope ?? "";
+  const { zones, providers } = useZones(start ? "" : project);
+  const [zonePicked, setZonePicked] = useState<string>();
+  const zone =
+    start || zones.length === 0
+      ? ""
+      : zonePicked !== undefined && (zonePicked === "" || zones.some((z) => z.zone === zonePicked))
+        ? zonePicked
+        : (zones[0]?.zone ?? "");
+  const publishing = zone !== "";
   // A website's other domains are reached as its own is (ADR 0070): moving the site's
   // domain behind what's in front, or out, moves the redirects its list wrote with it.
   const websiteOf = useWebsiteOfEnvironment(start !== undefined);
@@ -183,7 +219,17 @@ export function AddDomainSheet({
   // What the Server field shows is what the plan sends: the one picked while it's a
   // choice there, or else the first, as the field shows it.
   const server = servers.some((s) => s.serverId === serverPicked) ? serverPicked : (servers[0]?.serverId ?? "");
-  const [domain, setDomain] = useState(start?.domain ?? "");
+  const [domain, setDomain] = useState(start?.domain ?? named ?? "");
+  // A name given whole starts in its zone, as the subdomain under it, once the zones are read.
+  const placed = useRef(false);
+  if (named && !placed.current && zones.length > 0) {
+    placed.current = true;
+    const into = zones.find((z) => named === z.zone || named.endsWith(`.${z.zone}`));
+    if (into) {
+      setZonePicked(into.zone);
+      setDomain(named === into.zone ? "" : named.slice(0, -(into.zone.length + 1)));
+    }
+  }
   const [port, setPort] = useState(start?.port ?? portOf(service));
   // What you typed stays as you choose another app. What it started from follows.
   const portTyped = useRef(false);
@@ -198,6 +244,8 @@ export function AddDomainSheet({
   const [failure, setFailure] = useState<string>();
   const [plan, setPlan] = useState<Opening>();
   const field = useRef<HTMLInputElement>(null);
+  // Review plan pressed while the check reads Cloudflare goes on once it has.
+  const [waiting, setWaiting] = useState(false);
   const form = useRef<HTMLFormElement>(null);
   const switchName = useTunnelSwitchName();
   const fleet = fleetServers;
@@ -218,10 +266,32 @@ export function AddDomainSheet({
         ),
       ];
   const [typingPort, setTypingPort] = useState(false);
+  const [portOpen, setPortOpen] = useState(false);
   const picksPort = listens.length > 0 && !typingPort && (port === "" || listens.includes(Number(port)));
   // A domain's root may be with another app already, whatever its route is called.
   // Going on moves it, the same either way, so this says that before it does.
-  const typed = domain.trim().toLowerCase();
+  const typed = nameIn(domain, zone);
+  // What the zone and the server's tunnels say of the name, and the way in it picks,
+  // unless the person picked another that can still be taken.
+  const cf = useCloudflareCheck(serverOf(fleetServers, server)?.id ?? "", typed, project, publishing);
+  const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
+  const way =
+    wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
+  const wayTakeable = wayOf(cf.check, way.way, way.tunnel)?.off === "";
+  const [waysOpen, setWaysOpen] = useState(false);
+  // The choice to leave a name's other half out, one step away in a connected zone.
+  const [companionOpen, setCompanionOpen] = useState(false);
+  // What an admin agreed to replace or take on, for the name it was agreed for alone.
+  const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>({ domain: "", items: [] });
+  const takesOver = consent.domain === typed ? consent.items : [];
+  const provider = cf.check?.provider || zones.find((z) => z.zone === zone)?.provider || "";
+  const admin = useInstallAdmin();
+  const providerInfo = providers.find((p) => p.name === provider && p.provider !== "");
+  // Published at Cloudflare: the way's route, and what it publishes. Anything else is
+  // as it was, with what's in front said under Advanced.
+  const publishes = publishing && cf.check !== undefined && wayTakeable && way.way !== RouteWay.FRONT;
+  const behind = publishing ? way.way === RouteWay.FRONT : noCertificate;
+  const serverName = serverOf(fleetServers, server)?.name ?? "";
   const held = known.data?.domains.find((d) => d.name === typed)?.routes.find((route) => route.path === "");
   const leaves = !start && !redirecting && held && held.service !== name ? held : undefined;
   // www for a bare domain, or the bare domain for www, redirecting to it, on by what DNS
@@ -231,7 +301,7 @@ export function AddDomainSheet({
     typed,
     places.place(environment)?.scope ?? "",
   );
-  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true);
+  const [chosenCompanion, setAlsoCompanion] = useCompanionChoice(companion, environment, true, publishing);
   // www that redirects to this domain already needs nothing added.
   const companionAlready = (known.data?.domains ?? []).some(
     (d) => d.name === companion.companion && d.routes.some((r) => r.path === "" && sendsTo(r.redirect?.to, typed)),
@@ -272,6 +342,45 @@ export function AddDomainSheet({
     if (!portTyped.current) setPort(portOf(next));
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it goes on once the check is in, and submit is new each time.
+  useEffect(() => {
+    if (!waiting || cf.checking) return;
+    setWaiting(false);
+    void submit();
+  }, [waiting, cf.checking]);
+
+  /** Sets the zone to Full (strict) on its DNS provider's own plan, for an admin (ADR 0104, section 2). */
+  const toStrict = () => {
+    if (!providerInfo) return;
+    const p = providerInfo;
+    setPlan({
+      kind: "propose",
+      summary: t`Set ${zone} to Full (strict)`,
+      edits: [
+        {
+          resource: { kind: "dns.provider", name: p.name },
+          spec: {
+            kind: {
+              case: "dnsProvider",
+              value: {
+                provider: "cloudflare",
+                zones: p.zones,
+                projects: p.projects,
+                strictZones: [...new Set([...p.strictZones, zone])],
+              },
+            },
+          },
+        },
+      ],
+      retryLabel: t`Edit and try again`,
+      // Back here either way, with the check read again.
+      onClose: () => {
+        setPlan(undefined);
+        cf.again();
+      },
+    });
+  };
+
   // Back from a plan that failed, what it said is at the field, ready to change.
   const reveal = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: it runs when the form comes back, and revealError is new each time.
@@ -290,7 +399,7 @@ export function AddDomainSheet({
     }
     switch (refusedField(said, { domain: wanted, port, onServer })) {
       case "proxies":
-        if (noCertificate && inFront === "proxy") setProxiesError(said);
+        if (behind && inFront === "proxy") setProxiesError(said);
         else setFailure(said);
         break;
       case "port":
@@ -307,7 +416,12 @@ export function AddDomainSheet({
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
     if (busy) return;
-    const wanted = domain.trim().toLowerCase();
+    // A name in a connected zone waits for the check, which picks the way in.
+    if (publishing && cf.checking && typed !== "") {
+      setWaiting(true);
+      return;
+    }
+    const wanted = nameIn(domain, zone);
     // What's sent is what the field shows: https:// and a domain's xn-- form are added there.
     const goesTo = redirecting ? redirectTarget(to) : to.trim();
     if (redirecting && goesTo !== to) setTo(goesTo);
@@ -315,18 +429,33 @@ export function AddDomainSheet({
     const portOk = redirecting || validPort(port);
     const toOk = !redirecting || /^https?:\/\/\S+$/i.test(goesTo);
     const named = proxyList(proxies);
-    const proxiesOk = !noCertificate || inFront !== "proxy" || named.length > 0;
+    const proxiesOk = !behind || inFront !== "proxy" || named.length > 0;
     setAppError(service || redirecting ? undefined : t`Choose the app this domain reaches.`);
     setToError(toOk ? undefined : t`Give the address it sends to, such as https://example.org.`);
     setDomainError(domainOk ? undefined : t`Name the domain, such as app.example.com.`);
     setPortError(portOk ? undefined : t`Use a port from 1 to 65535.`);
     setProxiesError(proxiesOk ? undefined : t`Name what connects to this server, as an address or a range.`);
     setFailure(undefined);
+    // A way in that can't be taken says why, with what fixes it, under the name; so
+    // does a check Cloudflare couldn't answer, with Check again. Neither plans a plain
+    // route in a connected zone: Another domain is a person's own choice (the review's B-M1).
+    if (publishing && (cf.failed || (cf.check && !wayTakeable))) {
+      setWaysOpen(false);
+      return;
+    }
     if ((!service && !redirecting) || !domainOk || !portOk || !proxiesOk || !toOk || environment === "") {
       revealError();
       return;
     }
-    const front = () => frontOf(noCertificate, inFront, named);
+    // The cards close as the plan opens, so a cancelled plan comes back to the way's line.
+    setWaysOpen(false);
+    const front = () => frontOf(behind, inFront, named);
+    // How a new route is reached: the way's own fields and what it publishes, or what's in front.
+    const reached = (takes: readonly TakeOverInit[]) => {
+      if (!publishes) return behind ? front() : {};
+      const publish = publishOf(way.way, way.tunnel, provider, takes);
+      return { ...routeOfWay(way.way, cf.check?.sslMode ?? ""), ...(publish ? { publish } : {}) };
+    };
     setBusy(true);
     let change: Change | undefined;
     try {
@@ -358,7 +487,7 @@ export function AddDomainSheet({
                         // What's in front is the sheet's to say: a certificate, or what it names.
                         tls: "",
                         plainForAnyone: false,
-                        ...(noCertificate ? front() : {}),
+                        ...(behind ? front() : {}),
                       },
                     },
                   },
@@ -366,7 +495,7 @@ export function AddDomainSheet({
                 ...followers.map(({ domain: from, route }) => {
                   const kept = route.redirect;
                   // Its to follows how the site is reached: plain HTTP to anyone, or HTTPS.
-                  const scheme = noCertificate && inFront === "anyone" ? "http" : "https";
+                  const scheme = behind && inFront === "anyone" ? "http" : "https";
                   const after = kept?.to.replace(/^https?:\/\/[^/]+/i, "") ?? "";
                   return {
                     resource: { kind: "route", scope: environment, name: route.name },
@@ -383,7 +512,8 @@ export function AddDomainSheet({
                           tls: "",
                           trustedProxies: [],
                           plainForAnyone: false,
-                          ...(noCertificate ? front() : {}),
+                          ...(route.publish ? { publish: route.publish } : {}),
+                          ...(behind ? front() : {}),
                         },
                       },
                     },
@@ -404,13 +534,13 @@ export function AddDomainSheet({
                         ? {
                             domain: wanted,
                             redirect: { to: goesTo, temporary, dropPath },
-                            ...(noCertificate ? front() : {}),
+                            ...reached(takesOver),
                           }
                         : {
                             domain: wanted,
                             service: name,
                             ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
-                            ...(noCertificate ? front() : {}),
+                            ...reached(takesOver),
                           },
                     },
                   },
@@ -432,9 +562,10 @@ export function AddDomainSheet({
                             value: {
                               domain: companion.companion,
                               redirect: {
-                                to: `${noCertificate && inFront === "anyone" ? "http" : "https"}://${wanted}`,
+                                to: `${behind && inFront === "anyone" ? "http" : "https"}://${wanted}`,
                               },
-                              ...(noCertificate ? front() : {}),
+                              // Published the same way, taking over nothing of its own.
+                              ...reached([]),
                             },
                           },
                         },
@@ -494,11 +625,13 @@ export function AddDomainSheet({
       subtitle={
         redirecting
           ? t`Visitors to this name are sent on to the address you give`
-          : !noCertificate
-            ? t`People reach the app at this name, over HTTPS`
-            : inFront === "anyone"
-              ? t`People reach the app at this name, over plain HTTP`
-              : t`People reach the app at this name, through what's in front of this server`
+          : publishing
+            ? t`People reach the app at this name`
+            : !noCertificate
+              ? t`People reach the app at this name, over HTTPS`
+              : inFront === "anyone"
+                ? t`People reach the app at this name, over plain HTTP`
+                : t`People reach the app at this name, through what's in front of this server`
       }
       onClose={onClose}
       className={cx("app-sheet", phone && "is-phone")}
@@ -514,7 +647,7 @@ export function AddDomainSheet({
           <Button
             variant="primary"
             size={phone ? "lg" : "md"}
-            loading={busy}
+            loading={busy || waiting}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
           >
@@ -534,28 +667,80 @@ export function AddDomainSheet({
         {/* Lets Enter in a field do what the button in the sheet's footer does. */}
         <button type="submit" hidden />
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
-        <TextField
-          ref={field}
-          label={t`Domain`}
-          mono
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          value={domain}
-          readOnly={start !== undefined}
-          error={domainError}
-          hint={
-            !noCertificate
-              ? t`Its certificate comes by itself once its DNS points here.`
-              : inFront === "anyone"
-                ? t`Point its DNS at this server.`
-                : t`Point its DNS at your tunnel or proxy.`
-          }
-          onChange={(event) => {
-            setDomain(event.target.value);
-            setDomainError(undefined);
-          }}
-        />
+        {zones.length > 0 && !start ? (
+          <DomainName
+            field={field}
+            sub={domain}
+            onSub={(value) => {
+              // A whole name typed or pasted in a connected zone picks that zone.
+              const low = value.trim().toLowerCase();
+              const into = zone !== "" ? zones.find((z) => low.endsWith(`.${z.zone}`)) : undefined;
+              if (into) {
+                setZonePicked(into.zone);
+                setDomain(low.slice(0, -(into.zone.length + 1)));
+              } else setDomain(value);
+              setDomainError(undefined);
+            }}
+            zone={zone}
+            onZone={(next) => {
+              // Another domain is typed whole: what's typed so far becomes the start of it.
+              if (next === "" && zone !== "") setDomain(domain.trim() === "" ? "" : typed);
+              else if (next !== "" && zone === "")
+                setDomain(
+                  typed.endsWith(`.${next}`) ? typed.slice(0, -(next.length + 1)) : typed === next ? "" : domain,
+                );
+              setZonePicked(next);
+              setWayPicked(undefined);
+              setDomainError(undefined);
+            }}
+            zones={zones}
+            error={domainError}
+          >
+            {publishing ? (
+              <NameState
+                check={cf.check}
+                checking={cf.checking}
+                domain={typed}
+                sub={domain.trim().toLowerCase()}
+                zone={zone}
+                companion={cf.companion}
+                companionOn={alsoCompanion}
+                onCompanion={() => setCompanionOpen(true)}
+                failed={cf.failed}
+                onAgain={cf.again}
+                takesOver={takesOver}
+                onTakesOver={(items) => setConsent({ domain: typed, items })}
+                onSub={(value) => {
+                  setDomain(value);
+                  setDomainError(undefined);
+                }}
+              />
+            ) : null}
+          </DomainName>
+        ) : (
+          <TextField
+            ref={field}
+            label={t`Domain`}
+            mono
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            value={domain}
+            readOnly={start !== undefined}
+            error={domainError}
+            hint={
+              !noCertificate
+                ? t`Its certificate comes by itself once its DNS points here.`
+                : inFront === "anyone"
+                  ? t`Point its DNS at this server.`
+                  : t`Point its DNS at your tunnel or proxy.`
+            }
+            onChange={(event) => {
+              setDomain(event.target.value);
+              setDomainError(undefined);
+            }}
+          />
+        )}
         {offersRedirect ? (
           <fieldset className="app-front">
             <legend className="dw-field-label">
@@ -630,24 +815,43 @@ export function AddDomainSheet({
             <span>{t`Points ${followsApp} at it too: ${followsNames}`}</span>
           </p>
         ) : null}
-        <DomainRecord
-          server={serverOf(fleet, server)}
-          domain={typed}
-          tunnel={noCertificate}
-          tunnelName={switchName}
-          onLeave={onClose}
-        />
-        <CompanionChoice
-          server={serverOf(fleet, server)}
-          read={companion}
-          on={alsoCompanion}
-          onChange={setAlsoCompanion}
-          tunnel={noCertificate}
-          env={environment}
-          strict
-          already={companionAlready}
-          onLeave={onClose}
-        />
+        {publishing ? (
+          <WayIn
+            check={cf.check}
+            way={way.way}
+            tunnel={way.tunnel}
+            onWay={(next, tunnel) => setWayPicked({ way: next, tunnel })}
+            open={waysOpen}
+            onOpen={setWaysOpen}
+            server={serverOf(fleet, server)?.name ?? ""}
+            address={publicAddressOf(serverOf(fleet, server))}
+            admin={admin && providerInfo !== undefined}
+            onStrict={toStrict}
+            onLeave={onClose}
+          />
+        ) : (
+          <DomainRecord
+            server={serverOf(fleet, server)}
+            domain={typed}
+            tunnel={noCertificate}
+            tunnelName={switchName}
+            onLeave={onClose}
+          />
+        )}
+        {/* In a connected zone, the name's line says its other half, with Change one step away. */}
+        {!publishing || companionOpen ? (
+          <CompanionChoice
+            server={serverOf(fleet, server)}
+            read={companion}
+            on={alsoCompanion}
+            onChange={setAlsoCompanion}
+            tunnel={behind || publishes}
+            env={environment}
+            strict
+            already={companionAlready}
+            onLeave={onClose}
+          />
+        ) : null}
         {leaves ? (
           <Callout tone="warning">
             <Trans>
@@ -655,7 +859,31 @@ export function AddDomainSheet({
             </Trans>
           </Callout>
         ) : null}
-        {redirecting ? null : picksPort ? (
+        {redirecting ? null : publishing &&
+          !onServer &&
+          validPort(port) &&
+          !portOpen &&
+          service &&
+          !choosing &&
+          portError === undefined ? (
+          // From an app's page both are set, so what it reaches is a fact with Change beside it.
+          <dl className="domain-step-facts">
+            <dt>
+              <Trans>Reaches</Trans>
+            </dt>
+            <dd>{t`${name} on port ${port}`}</dd>
+            <dd>
+              <button
+                type="button"
+                className="domain-step-change"
+                aria-label={t`Change the port it reaches`}
+                onClick={() => setPortOpen(true)}
+              >
+                <Trans>Change</Trans>
+              </button>
+            </dd>
+          </dl>
+        ) : picksPort ? (
           <SelectField
             label={t`Port in the app`}
             value={port}
@@ -729,34 +957,107 @@ export function AddDomainSheet({
             </label>
           </Advanced>
         ) : null}
+        {/* Something else in front: what it is, one step away, as the way says there's no certificate. */}
+        {/* What the way sets, one step away: the path, and who the route believes (the review's B-L5). */}
+        {publishes ? (
+          <Advanced
+            label={t`Advanced`}
+            summary={
+              way.way === RouteWay.PROXY
+                ? t`Path / · Answers only Cloudflare`
+                : way.way === RouteWay.OWN_HTTPS
+                  ? t`Path / · Answers anyone`
+                  : t`Path / · Answers only ${serverName}'s tunnel`
+            }
+          >
+            <dl className="domain-step-facts">
+              <dt>
+                <Trans>Path</Trans>
+              </dt>
+              <dd>
+                <code>/</code>
+              </dd>
+              <dd />
+              <dt>
+                <Trans>Believes</Trans>
+              </dt>
+              <dd>
+                {way.way === RouteWay.PROXY ? (
+                  <Trans>Cloudflare's addresses, for who a visitor is</Trans>
+                ) : way.way === RouteWay.OWN_HTTPS ? (
+                  <Trans>No proxy: each visitor reaches it as themselves</Trans>
+                ) : (
+                  <Trans>
+                    The tunnel on <code>127.0.0.1</code>, for who a visitor is
+                  </Trans>
+                )}
+              </dd>
+              <dd />
+            </dl>
+          </Advanced>
+        ) : null}
+        {publishing && behind ? (
+          <Advanced
+            label={t`What's in front`}
+            summary={
+              inFront === "anyone"
+                ? t`Nothing: plain HTTP to anyone`
+                : inFront === "tunnel"
+                  ? t`A tunnel on this server`
+                  : inFront === "cloudflare"
+                    ? t`Cloudflare's proxy`
+                    : t`Another proxy`
+            }
+            defaultOpen={proxiesError !== undefined}
+          >
+            <FrontFields
+              fixed
+              noCertificate
+              onNoCertificate={() => undefined}
+              inFront={inFront}
+              onInFront={(value) => {
+                setInFront(value);
+                setProxiesError(undefined);
+              }}
+              proxies={proxies}
+              onProxies={(value) => {
+                setProxies(value);
+                setProxiesError(undefined);
+              }}
+              proxiesError={proxiesError}
+            />
+          </Advanced>
+        ) : null}
         {/* HTTPS is on, with its certificate coming by itself: what's in front is one step away. */}
-        <Advanced
-          label={t`HTTPS`}
-          summary={
-            !noCertificate
-              ? t`On, with a certificate that comes by itself`
-              : inFront === "anyone"
-                ? t`Off: plain HTTP to anyone`
-                : t`Handled in front of this server`
-          }
-          defaultOpen={noCertificate || proxiesError !== undefined}
-        >
-          <FrontFields
-            noCertificate={noCertificate}
-            onNoCertificate={setNoCertificate}
-            inFront={inFront}
-            onInFront={(value) => {
-              setInFront(value);
-              setProxiesError(undefined);
-            }}
-            proxies={proxies}
-            onProxies={(value) => {
-              setProxies(value);
-              setProxiesError(undefined);
-            }}
-            proxiesError={proxiesError}
-          />
-        </Advanced>
+        {publishing ? null : (
+          <Advanced
+            label={t`HTTPS`}
+            summary={
+              !noCertificate
+                ? t`On, with a certificate that comes by itself`
+                : inFront === "anyone"
+                  ? t`Off: plain HTTP to anyone`
+                  : t`Handled in front of this server`
+            }
+            defaultOpen={noCertificate || proxiesError !== undefined}
+          >
+            <FrontFields
+              noCertificate={noCertificate}
+              onNoCertificate={setNoCertificate}
+              inFront={inFront}
+              onInFront={(value) => {
+                setInFront(value);
+                setProxiesError(undefined);
+              }}
+              proxies={proxies}
+              onProxies={(value) => {
+                setProxies(value);
+                setProxiesError(undefined);
+              }}
+              proxiesError={proxiesError}
+            />
+          </Advanced>
+        )}
       </form>
     </Sheet>
   );

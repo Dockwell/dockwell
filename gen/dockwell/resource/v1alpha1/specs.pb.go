@@ -8177,7 +8177,18 @@ type DnsProvider struct {
 	// every proxied name in them over HTTPS with a certificate it checks. A zone's
 	// mode changes how all its proxied names are reached, so it's set here, on its
 	// own plan, never as a side effect of one domain (ADR 0104).
-	StrictZones   []string `protobuf:"bytes,6,rep,name=strict_zones,json=strictZones,proto3" json:"strict_zones,omitempty"`
+	StrictZones []string `protobuf:"bytes,6,rep,name=strict_zones,json=strictZones,proto3" json:"strict_zones,omitempty"`
+	// Takes the second token off, so the API token does tunnels again. An update
+	// that leaves tunnel_api_token out keeps it, so this says it goes. It's never
+	// stored, and comes with no tunnel_api_token (ADR 0104).
+	ClearTunnelApiToken bool `protobuf:"varint,7,opt,name=clear_tunnel_api_token,json=clearTunnelApiToken,proto3" json:"clear_tunnel_api_token,omitempty"`
+	// Records made by hand that Dockwell keeps a copy of, by the ID the provider's
+	// info lists them with, to put back at Cloudflare in this change: a route that
+	// replaced one was removed, and the name held something else then. One whose
+	// name holds a record now isn't put back, and the plan says so; nothing is
+	// replaced. It takes an admin, as it writes someone's record, and it's never
+	// stored (ADR 0104).
+	PutBack       []string `protobuf:"bytes,8,rep,name=put_back,json=putBack,proto3" json:"put_back,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8250,6 +8261,20 @@ func (x *DnsProvider) GetTunnelApiToken() string {
 func (x *DnsProvider) GetStrictZones() []string {
 	if x != nil {
 		return x.StrictZones
+	}
+	return nil
+}
+
+func (x *DnsProvider) GetClearTunnelApiToken() bool {
+	if x != nil {
+		return x.ClearTunnelApiToken
+	}
+	return false
+}
+
+func (x *DnsProvider) GetPutBack() []string {
+	if x != nil {
+		return x.PutBack
 	}
 	return nil
 }
@@ -11298,14 +11323,16 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0eDnsCertificate\x12\x18\n" +
 	"\adomains\x18\x01 \x03(\tR\adomains\x12!\n" +
 	"\fdns_provider\x18\x02 \x01(\tR\vdnsProvider\x12\x1a\n" +
-	"\bprojects\x18\x03 \x03(\tR\bprojects\"\xd1\x01\n" +
+	"\bprojects\x18\x03 \x03(\tR\bprojects\"\xa1\x02\n" +
 	"\vDnsProvider\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05zones\x18\x02 \x03(\tR\x05zones\x12!\n" +
 	"\tapi_token\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\bapiToken\x12\x1a\n" +
 	"\bprojects\x18\x04 \x03(\tR\bprojects\x12.\n" +
 	"\x10tunnel_api_token\x18\x05 \x01(\tB\x04\xc8\xf3\x18\x01R\x0etunnelApiToken\x12!\n" +
-	"\fstrict_zones\x18\x06 \x03(\tR\vstrictZones\"\x90\x03\n" +
+	"\fstrict_zones\x18\x06 \x03(\tR\vstrictZones\x123\n" +
+	"\x16clear_tunnel_api_token\x18\a \x01(\bR\x13clearTunnelApiToken\x12\x19\n" +
+	"\bput_back\x18\b \x03(\tR\aputBack\"\x90\x03\n" +
 	"\x0eConnectionSpec\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x128\n" +
 	"\x04kind\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkKindR\x04kind\x128\n" +

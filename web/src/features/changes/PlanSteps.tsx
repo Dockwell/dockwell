@@ -26,6 +26,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
+import { ProviderMeta, useProviderLine, writesAt } from "./ProviderSteps";
 import {
   intentOf,
   isFleet,
@@ -39,7 +40,7 @@ import {
 } from "./plan";
 import { RebootPlan } from "./RebootPlan";
 import { UnitLine, UnitPlan } from "./UnitPlan";
-import { type ChangeWords, type Tense, useChangeWords } from "./words";
+import { type ChangeWords, reachLines, type Tense, tunnelledRoutes, useChangeWords } from "./words";
 
 /** How a step's verb reads, from how it is going. */
 function tenseOf(state: StepState | undefined): Tense {
@@ -67,6 +68,7 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
   const groups = stepGroups(plan);
   if (groups.length === 0) return null;
   const rollout = plan?.rollout;
+  const tunnelled = tunnelledRoutes(plan);
   return (
     <section className="plan-section" aria-label={fleet ? t`Steps by server` : t`Steps`}>
       {fleet ? (
@@ -87,6 +89,7 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
               fleet={fleet}
               intent={intentOf(plan)}
               noUndo={plan?.removes !== undefined}
+              tunnelled={tunnelled}
             />
           ))}
         </div>
@@ -157,6 +160,7 @@ function ServerSteps({
   fleet,
   intent,
   noUndo,
+  tunnelled,
 }: {
   server: ServerPlan;
   progress: readonly StepProgress[];
@@ -165,6 +169,8 @@ function ServerSteps({
   intent: Intent | undefined;
   /** The change has no undo, as a removal hasn't (ADR 0090). */
   noUndo: boolean;
+  /** The routes the plan publishes through a tunnel at Cloudflare, by ID. */
+  tunnelled: Set<string>;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
@@ -208,6 +214,7 @@ function ServerSteps({
               fleet={fleet}
               intent={intent?.resourceId === step.resourceId ? intent : undefined}
               noUndo={noUndo}
+              tunnelled={tunnelled.has(step.resourceId)}
             />
           ))}
         </ol>
@@ -225,6 +232,7 @@ function StepRow({
   fleet,
   intent,
   noUndo,
+  tunnelled,
 }: {
   step: PlanStep;
   server: string;
@@ -235,9 +243,12 @@ function StepRow({
   /** What the change is for, when this step is what does it. */
   intent: Intent | undefined;
   noUndo: boolean;
+  /** Whether the plan publishes this route through a tunnel at Cloudflare. */
+  tunnelled: boolean;
 }) {
   const { t } = useLingui();
   const time = useTimeWords();
+  const providerLine = useProviderLine();
   const name = step.resource?.name ?? step.resourceId;
   const look = live ? words.step(live.state) : undefined;
   const planning = !live;
@@ -273,6 +284,9 @@ function StepRow({
             <span className="plan-step-activity">{activity}</span>
           ) : intent ? (
             <MachineWords>{words.intent(intent, tenseOf(live?.state))}</MachineWords>
+          ) : step.provider ? (
+            // A step at Cloudflare, for the route: where it runs is its own to say.
+            providerLine(step.provider, live?.state === StepState.DONE ? "done" : "plan", writesAt(step))
           ) : step.backupFirst ? (
             <BackupFirstLine first={step.backupFirst} name={name} />
           ) : step.reboot ? (
@@ -361,11 +375,10 @@ function StepRow({
           {returning ? <span className="plan-step-warn">{returning}</span> : null}
           {handEdited ? <span className="plan-step-warn">{handEdited}</span> : null}
           {dns ? <span className="plan-step-warn">{dns}</span> : null}
-          {step.unencrypted ? <span className="plan-step-notice">{words.unencrypted(server)}</span> : null}
           {step.goes ? <span className="plan-step-notice">{words.goes(step.goes)}</span> : null}
           {step.moves ? <span className="plan-step-notice">{words.moves(step.moves)}</span> : null}
           {step.redirects ? <span className="plan-step-notice">{words.redirects(step.redirects)}</span> : null}
-          {words.answers(step.answers, step.serverPort, server).map((line) => (
+          {reachLines(words, step, server, tunnelled).map((line) => (
             <span key={line} className="plan-step-notice">
               {line}
             </span>
@@ -373,6 +386,7 @@ function StepRow({
         </span>
       ) : null}
       {said ? <span className="plan-step-meta">{said}</span> : null}
+      {planning && step.provider ? <ProviderMeta step={step.provider} /> : null}
       {planning && step.install ? <InstallList install={step.install} server={server} serverId={serverId} /> : null}
       {planning && step.reboot ? <RebootPlan reboot={step.reboot} server={server} serverId={serverId} /> : null}
       {planning && step.unit ? <UnitPlan unit={step.unit} server={server} serverId={serverId} /> : null}

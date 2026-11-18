@@ -6,10 +6,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/scope"
 )
 
 // Publishing a route's domain at Cloudflare is steps of the route's change, which
@@ -25,16 +27,36 @@ type PublishRoute struct {
 	ID          string
 	Server      string
 	Environment string
-	Before      *resourcev1.Route
-	After       *resourcev1.Route
+	// Reverts is the change this one undoes or rolls back, if any: what that change
+	// took on is let go, as it was before it.
+	Reverts string
+	// Project is the environment's project, where the change makes the environment,
+	// as a new website's: empty otherwise, and read from the store.
+	Project string
+	Before  *resourcev1.Route
+	After   *resourcev1.Route
+}
+
+// dnsProviderKind is the kind whose changes can take steps at Cloudflare of their
+// own, as setting a zone's mode or putting a kept record back (ADR 0104).
+const dnsProviderKind resource.Kind = "dns.provider"
+
+// PublishProvider is a DNS provider a change makes, changes or removes, as
+// publishing reads it: its spec before and after the change, nil where it has none.
+type PublishProvider struct {
+	Ref    resource.Ref
+	ID     string
+	Before *resourcev1.DnsProvider
+	After  *resourcev1.DnsProvider
 }
 
 // Publisher plans and takes a change's steps at Cloudflare.
 type Publisher interface {
-	// Plan works out the steps routes need at Cloudflare, by route: what each
-	// publishes against what Dockwell wrote, and what Cloudflare holds. A route
-	// whose publishing can't be done refuses the plan, saying why.
-	Plan(ctx context.Context, changeID string, routes []PublishRoute) (map[resource.Ref][]resource.Step, error)
+	// Plan works out the steps routes and DNS providers need at Cloudflare, by
+	// resource: what each route publishes against what Dockwell wrote, and what
+	// Cloudflare holds, and what each provider sets or puts back. One whose steps
+	// can't be done refuses the plan, saying why.
+	Plan(ctx context.Context, changeID string, routes []PublishRoute, providers []PublishProvider) (map[resource.Ref][]resource.Step, error)
 	// Apply takes one step, and says what it did when that's more than the step's
 	// own words, as a write that raced someone's in the dashboard.
 	Apply(ctx context.Context, changeID string, route PublishRoute, step resource.ProviderStep) (said string, err error)
@@ -47,10 +69,19 @@ func (e *Engine) SetPublisher(p Publisher) { e.publisher = p }
 
 // publishing gathers the change's routes that publish, before or after, and plans
 // their steps at Cloudflare, by route.
-func (e *Engine) publishing(ctx context.Context, changeID string, items []item) (map[resource.Ref][]resource.Step, error) {
+func (e *Engine) publishing(ctx context.Context, changeID string, items []item, reverts string) (map[resource.Ref][]resource.Step, error) {
 	var routes []PublishRoute
+	var providers []PublishProvider
 	for i := range items {
 		it := &items[i]
+		if it.ref.Kind == dnsProviderKind {
+			before, _ := it.current.(*resourcev1.DnsProvider)
+			after, _ := it.spec.(*resourcev1.DnsProvider)
+			if before != nil || after != nil {
+				providers = append(providers, PublishProvider{Ref: it.ref, ID: it.id, Before: before, After: after})
+			}
+			continue
+		}
 		if it.ref.Kind != routeKind {
 			continue
 		}
@@ -61,15 +92,29 @@ func (e *Engine) publishing(ctx context.Context, changeID string, items []item) 
 		if len(it.servers) > 0 {
 			pr.Server = it.servers[0]
 		}
+		pr.Reverts = reverts
+		for j := range items {
+			if items[j].ref.Kind == scope.EnvironmentKind && items[j].id == pr.Environment {
+				pr.Project = items[j].ref.Scope
+			}
+		}
 		routes = append(routes, pr)
 	}
-	if len(routes) == 0 {
+	if e.publisher == nil {
+		if len(routes) > 0 {
+			return nil, fault.New(ErrInvalid, "this control plane doesn't publish domains at Cloudflare, so %s can't be published here", routes[0].Ref.Name)
+		}
+		for _, p := range providers {
+			if len(p.After.GetPutBack()) > 0 || !slices.Equal(p.Before.GetStrictZones(), p.After.GetStrictZones()) {
+				return nil, fault.New(ErrInvalid, "this control plane doesn't write at Cloudflare, so %s can't set a zone's mode or put a record back here", p.Ref.Name)
+			}
+		}
 		return nil, nil
 	}
-	if e.publisher == nil {
-		return nil, fault.New(ErrInvalid, "this control plane doesn't publish domains at Cloudflare, so %s can't be published here", routes[0].Ref.Name)
+	if len(routes) == 0 && len(providers) == 0 {
+		return nil, nil
 	}
-	steps, err := e.publisher.Plan(ctx, changeID, routes)
+	steps, err := e.publisher.Plan(ctx, changeID, routes, providers)
 	if err != nil && ctx.Err() == nil && !errors.Is(err, ErrInvalid) {
 		// What stops publishing stops the plan, in its own words.
 		return nil, fault.New(ErrInvalid, "%w", err)
@@ -102,6 +147,10 @@ func providerWords(state StepState, p *resource.ProviderStep) string {
 		doing, did = fmt.Sprintf("Adding %s to the tunnel %s", p.Name, p.Target), fmt.Sprintf("Added %s to the tunnel %s", p.Name, p.Target)
 	case resource.ProviderRemoveRule:
 		doing, did = fmt.Sprintf("Removing %s from the tunnel %s", p.Name, p.Target), fmt.Sprintf("Removed %s from the tunnel %s", p.Name, p.Target)
+	case resource.ProviderRestoreRule:
+		doing, did = fmt.Sprintf("Putting back %s in the tunnel %s", p.Name, p.Target), fmt.Sprintf("Put back %s in the tunnel %s", p.Name, p.Target)
+	case resource.ProviderSetZoneMode:
+		doing, did = fmt.Sprintf("Setting %s to %s", p.Name, p.To), fmt.Sprintf("Set %s to %s", p.Name, p.To)
 	case resource.ProviderKeepRule:
 		doing, did = fmt.Sprintf("Keeping %s in the tunnel %s", p.Name, p.Target), fmt.Sprintf("Kept %s in the tunnel %s", p.Name, p.Target)
 	case resource.ProviderTakeOnRule:

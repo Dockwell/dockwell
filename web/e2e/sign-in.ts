@@ -155,11 +155,15 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   process.env["DOCKWELL_TEST_REGISTRY"] = `http://${registry}`;
   process.env["DOCKWELL_TEST_CLOUDFLARE"] = `http://${cloudflare}/client/v4`;
   process.env["DOCKWELL_TEST_GITHUB"] = `http://${github}`;
+  // A folder standing in for /proc, where a flow puts a cloudflared run for the agent to
+  // find, as this machine runs none (ADR 0104).
+  process.env["DOCKWELL_TEST_PROC"] = join(data, "proc");
   return {
     DOCKER_HOST: `unix://${socket}`,
     DOCKWELL_TEST_REGISTRY: `http://${registry}`,
     DOCKWELL_TEST_CLOUDFLARE: `http://${cloudflare}/client/v4`,
     DOCKWELL_TEST_GITHUB: `http://${github}`,
+    DOCKWELL_TEST_PROC: join(data, "proc"),
   };
 }
 

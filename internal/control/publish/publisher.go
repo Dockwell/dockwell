@@ -52,12 +52,16 @@ type Publisher struct {
 	Server func(ctx context.Context, server string) (Facts, error)
 	// Panel says every name the panel answers to, and its own listener as a
 	// tunnel's rule would name it.
-	Panel func(ctx context.Context) (names []string, service string)
+	Panel func(ctx context.Context) PanelNames
 	// ProjectOf says the project an environment is in.
 	ProjectOf func(ctx context.Context, environment string) (string, error)
 	// Routes are every route as it stands, by resource ID, to tell when a zone's
 	// rule is the last route's.
 	Routes func(ctx context.Context) (map[string]*resourcev1.Route, error)
+	// HostPorts are the ports a service publishes on its server, by its
+	// environment and name: an app's own ports, which a tunnel's rule made by hand
+	// may point at, for Move it to Dockwell.
+	HostPorts func(ctx context.Context, environment, service string) ([]uint32, error)
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 	// LockWait is how long a step waits for another writer of a tunnel; zero waits
@@ -144,6 +148,41 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	return nil, Unreadable{fmt.Errorf("%s's token doesn't reach %s at Cloudflare any more. Check the provider again under Integrations", provider, zoneName)}
 }
 
+// ErrShared is a tunnel connected from somewhere besides the server it's proved on,
+// or from there no more, which Cloudflare sends a zone's names to.
+var ErrShared = errors.New("its names go to whichever connection answers")
+
+// ErrUnproven is a tunnel Dockwell can't prove runs on the server alone: run more
+// than once there in ways that disagree, unread, or not connected.
+var ErrUnproven = errors.New("Dockwell can't prove it runs on the server alone") //nolint:staticcheck // the product's name
+
+// proofFailed is a tunnel's proof refused in words, of a kind (ErrShared or
+// ErrUnproven) the drift timer marks.
+type proofFailed struct {
+	said string
+	kind error
+}
+
+func (p proofFailed) Error() string        { return p.said }
+func (p proofFailed) Is(target error) bool { return target == p.kind }
+
+// handedOver says the record id is Dockwell's own, of another route of the change
+// that publishes name no more, while route publishes it now.
+func (p *Publisher) handedOver(ctx context.Context, id, route, name string, inChange map[string]*resourcev1.Route) bool {
+	var row store.CloudflareRecord
+	if err := p.DB.View(ctx, func(tx *store.Tx) error {
+		var err error
+		row, err = tx.CloudflareRecordByID(ctx, id)
+		return err
+	}); err != nil || row.RouteID == route {
+		return false
+	}
+	if _, ok := inChange[row.RouteID]; !ok {
+		return false
+	}
+	return publishedElsewhere(inChange, row.RouteID, name, "") == route
+}
+
 // AdminCaller says the caller ctx carries is an admin of the install, or that it
 // carries none, as the control plane's own work does.
 func AdminCaller(ctx context.Context) bool {
@@ -200,6 +239,25 @@ func pastCertificate(zone, name string) bool {
 	return rest != name && strings.Contains(rest, ".")
 }
 
+// writesWords says what a record Dockwell writes is, naming a tunnel by its name, as
+// "CNAME to web-1's tunnel, proxied", never by its ID (the polish round).
+func (p *Publisher) writesWords(ctx context.Context, t *target, r dnsproviders.Record) string {
+	if r.Type != "CNAME" || !strings.HasSuffix(r.Content, ".cfargotunnel.com") {
+		return recordWords(r)
+	}
+	id := strings.TrimSuffix(r.Content, ".cfargotunnel.com")
+	name := id
+	if info, err := readFor(p, t, "info:"+id, func() (dnsproviders.Tunnel, error) {
+		return t.tunnels.TunnelByID(ctx, t.zone.Account, id)
+	}); err == nil && info.Name != "" {
+		name = info.Name
+	}
+	if r.Proxied {
+		return "CNAME to " + name + "'s tunnel, proxied"
+	}
+	return "CNAME to " + name + "'s tunnel"
+}
+
 func recordWords(r dnsproviders.Record) string {
 	if r.Proxied {
 		return r.Type + " " + r.Content + ", proxied"
@@ -214,24 +272,40 @@ func step(route revision.PublishRoute, action resource.Action, p resource.Provid
 // Plan works out each route's steps at Cloudflare: what it publishes after the
 // change against what Dockwell wrote for it, what Cloudflare holds at its name, and
 // what its tunnel's document needs.
-func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision.PublishRoute) (map[resource.Ref][]resource.Step, error) {
+func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision.PublishRoute, providers []revision.PublishProvider) (map[resource.Ref][]resource.Step, error) {
 	out := map[resource.Ref][]resource.Step{}
 	rules := map[string]bool{} // rules a route of this change adds already, by tunnel|hostname
 	inChange := map[string]*resourcev1.Route{}
-	for _, r := range routes {
-		inChange[r.ID] = r.After
+	for i := range routes {
+		inChange[routes[i].ID] = routes[i].After
 	}
-	for _, r := range routes {
-		steps, err := p.planRoute(ctx, r, rules, inChange)
+	// What the change's own providers serve after it, by name.
+	serving := map[string]*resourcev1.DnsProvider{}
+	for _, pp := range providers {
+		if pp.After != nil {
+			serving[pp.Ref.Name] = pp.After
+		}
+	}
+	for i := range routes {
+		steps, err := p.planRoute(ctx, routes[i], rules, inChange, serving)
 		if err != nil {
 			return nil, err
 		}
-		out[r.Ref] = steps
+		out[routes[i].Ref] = steps
+	}
+	for _, pp := range providers {
+		steps, err := p.planProvider(ctx, pp)
+		if err != nil {
+			return nil, err
+		}
+		if len(steps) > 0 {
+			out[pp.Ref] = steps
+		}
 	}
 	return out, nil
 }
 
-func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rules map[string]bool, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
+func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, error) {
 	var written, kept []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
 		var err error
@@ -246,7 +320,7 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	var steps []resource.Step
 	keep := map[string]bool{} // written records this plan keeps, by ID
 	if pub := r.After.GetPublish(); pub != nil && pub.GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT {
-		pre, kept, err := p.planWrites(ctx, r, pub, written, rules)
+		pre, kept, err := p.planWrites(ctx, r, pub, written, rules, inChange, serving)
 		if err != nil {
 			return nil, err
 		}
@@ -296,6 +370,37 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 		if w.TakenOnAt != nil {
 			words += ", made in Cloudflare and taken on " + w.TakenOnAt.Format("2 January")
 		}
+		// A domain moved to another route of the change goes on with it, as it is (the
+		// review's M1).
+		if to := publishedElsewhere(inChange, r.ID, w.Name, ""); to != "" {
+			steps = append(steps, step(r, resource.ActionNone, resource.ProviderStep{
+				Provider: w.Provider, Action: resource.ProviderTakeOnRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
+				HandOverTo: to, Routing: "It goes on with the route that publishes " + w.Name + " now, as it is",
+			}))
+			continue
+		}
+		// A name the route still serves keeps its record, let go as it is, unless this
+		// undoes the change that wrote it; one taken on is let go by that undo too, as
+		// it was there before (the review's H2).
+		// Only what was taken on is let go. Dockwell's own record goes as before, unless
+		// a rule made by hand that this lets go still sends the name through it (the
+		// re-check's A-M3), so nothing of Dockwell's is left at Cloudflare for good.
+		undoingIt := r.Reverts != "" && r.Reverts == w.ChangeID
+		letGo := w.TakenOnAt != nil && (keepsName(r, w.Name) || undoingIt)
+		if !letGo && w.TakenOnAt == nil && keepsName(r, w.Name) && !undoingIt {
+			hand, err := p.handRuleLetGo(ctx, r, w.Name)
+			if err != nil {
+				return nil, err
+			}
+			letGo = hand
+		}
+		if letGo {
+			steps = append(steps, step(r, resource.ActionNone, resource.ProviderStep{
+				Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
+				Mode: letGoRule, Routing: "Dockwell lets go of it, and it stays as it is",
+			}))
+			continue
+		}
 		steps = append(steps, step(r, resource.ActionDelete, resource.ProviderStep{
 			Provider: w.Provider, Action: resource.ProviderDeleteRecord, Target: w.Zone, Name: w.Name, Was: words, ZoneID: w.ZoneID, Record: rec,
 		}))
@@ -332,18 +437,22 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 }
 
 // planWrites plans what a route publishes: its records, and its tunnel's rule.
-func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool) ([]resource.Step, map[string]bool, error) {
+func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, map[string]bool, error) {
 	name := strings.ToLower(r.After.GetDomain())
-	project, err := p.ProjectOf(ctx, r.Environment)
-	if err != nil {
-		return nil, nil, err
+	project := r.Project
+	if project == "" {
+		var err error
+		if project, err = p.ProjectOf(ctx, r.Environment); err != nil {
+			return nil, nil, err
+		}
 	}
 	t, err := p.target(ctx, pub.GetProvider(), name)
 	if err != nil {
 		return nil, nil, err
 	}
 	// Writing at Cloudflare follows the provider's reach (ADR 0104, section 5).
-	if !dnsprovider.Serves(t.spec, project) {
+	// A provider this change has serve the project counts, as a new website's does.
+	if !dnsprovider.Serves(t.spec, project) && !dnsprovider.Serves(serving[t.provider], project) {
 		return nil, nil, fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. An admin adds the project to the provider", t.provider, name)
 	}
 	way := pub.GetWay()
@@ -385,7 +494,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 	}
 	for _, d := range want {
 		base := resource.ProviderStep{
-			Provider: t.provider, Target: t.zone.Name, Name: name, To: recordWords(d), ZoneID: t.zone.ID,
+			Provider: t.provider, Target: t.zone.Name, Name: name, To: p.writesWords(ctx, t, d), ZoneID: t.zone.ID,
 			Record: &resource.ProviderRecord{Type: d.Type, Name: d.Name, Content: d.Content, Proxied: d.Proxied, TTL: d.TTL, Comment: d.Comment},
 		}
 		// Ours, as wanted: nothing to do.
@@ -403,6 +512,14 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			}
 			conflict = &x
 			break
+		}
+		// Dockwell's own record of a route this change moves the name from goes on with
+		// this one, as it is: the other route's step hands it over (the review's M1).
+		if conflict != nil && p.handedOver(ctx, conflict.ID, r.ID, name, inChange) {
+			if conflict.Type != d.Type || conflict.Content != d.Content || conflict.Proxied != d.Proxied {
+				return nil, nil, fmt.Errorf("%s moves to this route in this change, published another way. Move it as it is, then change how it's published in another change", name)
+			}
+			continue
 		}
 		switch {
 		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content:
@@ -487,11 +604,22 @@ func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *ta
 		return nil, err
 	}
 	need := NeedFor(doc, routing, t.zone.Name, name)
+	// The rule for the name made by hand, taken on, moved, put back or let go, as the
+	// route's consent says (ADR 0104, section 8).
+	hand, handled, err := p.planHandRule(ctx, r, t, account, tunnel, info.Name, name, doc, routing, need)
+	if err != nil || handled {
+		if handKey := tunnel + "|" + name; err == nil && rules[handKey] {
+			return nil, nil
+		} else if err == nil {
+			rules[handKey] = true
+		}
+		return hand, err
+	}
 	switch {
 	case need.Refused != nil:
 		return nil, fmt.Errorf("can't publish %s through %s: %w", name, info.Name, need.Refused)
 	case need.Nothing:
-		return nil, nil
+		return hand, nil
 	}
 	key := tunnel + "|" + need.Rule.Hostname
 	if rules[key] {
@@ -510,7 +638,8 @@ func (p *Publisher) planRule(ctx context.Context, r revision.PublishRoute, t *ta
 func (p *Publisher) routing(ctx context.Context, t *target, tunnel string, doc *Document, reaches, name string) (Routing, error) {
 	rt := Routing{Proxy: cmp.Or(reaches, "http://127.0.0.1:80"), Ours: []string{name}}
 	if p.Panel != nil {
-		rt.Panel, rt.PanelService = p.Panel(ctx)
+		names := p.Panel(ctx)
+		rt.Panel, rt.PanelService = names.Names(), names.Service
 	}
 	for _, r := range doc.Rules {
 		if r.Hostname != "" && !strings.Contains(r.Hostname, "*") {
@@ -553,17 +682,17 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		}
 	}
 	if len(here) == 0 {
-		return nil, fmt.Errorf("%s doesn't run that tunnel. Pick a way in under Change", facts.Name)
+		return nil, proofFailed{facts.Name + " doesn't run that tunnel. Pick a way in under Change", ErrShared}
 	}
 	if slices.ContainsFunc(here, func(f *dockwellv1.CloudflaredTunnel) bool { return f.GetManagedInFile() }) {
-		return nil, fmt.Errorf("%s's tunnel is managed in a file, so Dockwell writes nothing at Cloudflare", facts.Name)
+		return nil, proofFailed{facts.Name + "'s tunnel is managed in a file, so Dockwell writes nothing at Cloudflare", ErrUnproven}
 	}
 	// Each run of the tunnel here gets names from Cloudflare, so a rule's service has
 	// to reach apps from every one of them: runs that reach apps differently, or say
 	// different accounts, leave no one service to write (the review's M2).
 	for _, f := range here[1:] {
 		if f.GetReaches() != here[0].GetReaches() || f.GetNetworkRange() != here[0].GetNetworkRange() || f.GetAccountTag() != here[0].GetAccountTag() {
-			return nil, fmt.Errorf("the tunnel runs more than once on %s, and its runs reach apps differently, so Dockwell can't pick where its rule sends a name. Keep one of them", facts.Name)
+			return nil, proofFailed{fmt.Sprintf("the tunnel runs more than once on %s, and its runs reach apps differently, so Dockwell can't pick where its rule sends a name. Keep one of them", facts.Name), ErrUnproven}
 		}
 	}
 	account := cmp.Or(here[0].GetAccountTag(), t.zone.Account)
@@ -574,7 +703,7 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		return nil, fmt.Errorf("can't read the tunnel's connections at Cloudflare: %w", err)
 	}
 	if len(connectors) == 0 {
-		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name), ErrUnproven}
 	}
 	ids := map[string]*dockwellv1.CloudflaredTunnel{}
 	unread := false
@@ -589,10 +718,10 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 	// other server leaves from the same address (ADR 0104, section 3).
 	byAddress := len(ids) == 0
 	if byAddress && len(facts.SharesWith) > 0 {
-		return nil, fmt.Errorf("%s and %s share an address, so Dockwell can't tell which runs the tunnel", facts.Name, strings.Join(facts.SharesWith, ", "))
+		return nil, proofFailed{fmt.Sprintf("%s and %s share an address, so Dockwell can't tell which runs the tunnel", facts.Name, strings.Join(facts.SharesWith, ", ")), ErrUnproven}
 	}
 	if !byAddress && unread {
-		return nil, fmt.Errorf("the tunnel runs more than once on %s, and Dockwell can't read one of its runs, so it can't tell which is real. Keep one of them", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel runs more than once on %s, and Dockwell can't read one of its runs, so it can't tell which is real. Keep one of them", facts.Name), ErrUnproven}
 	}
 	var proved *dockwellv1.CloudflaredTunnel
 	for _, c := range connectors {
@@ -603,13 +732,13 @@ func (p *Publisher) proveTunnel(ctx context.Context, server string, t *target, t
 		if byAddress && len(c.Connections) > 0 && !slices.ContainsFunc(c.Connections, func(conn dnsproviders.Connection) bool { return !slices.Contains(facts.WaysOut, conn.OriginIP) }) {
 			continue
 		}
-		return nil, fmt.Errorf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel runs on %s and somewhere else too, so Dockwell can't send a name to one of them", facts.Name), ErrShared}
 	}
 	if byAddress {
 		return here[0], nil
 	}
 	if proved == nil {
-		return nil, fmt.Errorf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name)
+		return nil, proofFailed{fmt.Sprintf("the tunnel isn't connected from %s now, so Dockwell can't tell it runs there", facts.Name), ErrUnproven}
 	}
 	return proved, nil
 }
@@ -631,7 +760,7 @@ func (p *Publisher) removalRouting(ctx context.Context, t *target, tunnel string
 		return Routing{}, err
 	}
 	rt.Names = slices.DeleteFunc(rt.Names, func(n string) bool {
-		return slices.ContainsFunc(own, func(r store.CloudflareRecord) bool { return strings.EqualFold(r.Name, n) })
+		return strings.EqualFold(n, leaving) || slices.ContainsFunc(own, func(r store.CloudflareRecord) bool { return strings.EqualFold(r.Name, n) })
 	})
 	return rt, nil
 }
@@ -670,6 +799,36 @@ func keptWords(moved []Moved) string {
 	return fmt.Sprintf("%s and %d other names go through it, so it stays", moved[0].Name, len(moved)-1)
 }
 
+// handRuleLetGo says a rule made by hand that the route took on for name is let go,
+// as it still serves the name: the record that sends the name to it is still needed.
+func (p *Publisher) handRuleLetGo(ctx context.Context, r revision.PublishRoute, name string) (bool, error) {
+	was := r.Before.GetPublish()
+	if was.GetWay() != resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+		return false, nil
+	}
+	held, found, err := p.heldRule(ctx, was.GetTunnel(), strings.ToLower(name))
+	if err != nil || !found {
+		return false, err
+	}
+	return held.TakenOnAt != nil && held.State != store.CloudflareRuleKept && !readKept(held.Replaced).Moved, nil
+}
+
+// recordLetGoAt says the route took on a record made by hand at name, which is let
+// go as the route still serves the name: the zone's rule it goes through is still needed.
+func (p *Publisher) recordLetGoAt(ctx context.Context, routeID, name string) (bool, error) {
+	needed := false
+	err := p.DB.View(ctx, func(tx *store.Tx) error {
+		recs, err := tx.CloudflareRecordsOf(ctx, routeID)
+		for i := range recs {
+			if strings.EqualFold(recs[i].Name, name) && recs[i].TakenOnAt != nil && recs[i].Type != store.CloudflarePendingType {
+				needed = true
+			}
+		}
+		return err
+	})
+	return needed, err
+}
+
 // planRuleRemoval takes the zone's rule out of a tunnel once no route publishes
 // through it in the zone after the change.
 func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute, inChange map[string]*resourcev1.Route) ([]resource.Step, error) {
@@ -689,6 +848,12 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 		return nil, err
 	}
 	name := strings.ToLower(r.Before.GetDomain())
+	// The rule for the name made by hand that the route took on or moved comes out,
+	// or goes back as it was (ADR 0104, section 8).
+	hand, err := p.planHandRuleRemoval(ctx, r, inChange, was.GetTunnel(), name)
+	if err != nil {
+		return nil, err
+	}
 	all, err := p.Routes(ctx)
 	if err != nil {
 		return nil, err
@@ -696,11 +861,26 @@ func (p *Publisher) planRuleRemoval(ctx context.Context, r revision.PublishRoute
 	for id, spec := range inChange {
 		all[id] = spec
 	}
-	var steps []resource.Step
+	steps := hand
 	for i := range held {
 		rule := &held[i]
+		// A rule made by hand is the route's own to settle, above. A route that still
+		// serves the name, publishing it no more, keeps what brings it in, unless this
+		// undoes the change that added it (the review's H2).
 		if rule.TakenOnAt != nil || !HostMatches(rule.Hostname, name) {
 			continue
+		}
+		// Dockwell's own zone rule goes as before, unless a record made by hand that
+		// this lets go still points the name at the tunnel through it (the re-check's
+		// A-M3).
+		if keepsName(r, name) && r.Reverts != rule.ChangeID {
+			needed, err := p.recordLetGoAt(ctx, r.ID, name)
+			if err != nil {
+				return nil, err
+			}
+			if needed {
+				continue
+			}
 		}
 		stillUsed := false
 		for id, other := range all {

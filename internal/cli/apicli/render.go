@@ -1441,6 +1441,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TUNNEL_RULE:         resource.AccessTunnelRule,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER: resource.AccessCloudflareTakeover,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ZONE_MODE:           resource.AccessZoneMode,
 }
 
 // upTo writes a bound to the second, rounding up, as "1 min 50 s", so it

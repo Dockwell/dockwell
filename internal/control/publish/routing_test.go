@@ -194,3 +194,38 @@ func TestRoutingAgreesWithCloudflared(t *testing.T) {
 		}
 	}
 }
+
+// The panel's names include the domain it moves from, during a move, and its apps
+// domain with every name under it: no rule Dockwell writes may serve one, and a zone
+// rule that would take one from where it goes now is refused, by its name (ADR 0104,
+// section 4; ADR 0063 and ADR 0061).
+func TestTheGuardHoldsTheOldDomainAndTheAppsDomain(t *testing.T) {
+	names := PanelNames{Served: []string{"panel.example.com", ""}, Moving: "Old.Example.com", Apps: "apps-example.net", Service: "http://127.0.0.1:7600"}
+	if got := strings.Join(names.Names(), " "); got != "panel.example.com old.example.com apps-example.net *.apps-example.net" {
+		t.Fatalf("the panel's names: %s", got)
+	}
+	rt := Routing{Panel: names.Names(), PanelService: names.Service, Proxy: proxy}
+	for _, host := range []string{"old.example.com", "apps-example.net", "*.apps-example.net", "grafana.apps-example.net"} {
+		if !rt.Serves(Rule{Hostname: host, Service: proxy}) {
+			t.Errorf("a rule for %s should be the panel's", host)
+		}
+	}
+	if rt.Serves(Rule{Hostname: "*.example.com", Service: proxy}) {
+		t.Error("the zone's wildcard beside the old domain isn't the panel's by itself")
+	}
+	// A zone rule for the apps domain's own zone serves the panel's apps.
+	if need := NeedFor(doc(t, CatchAll), rt, "apps-example.net", "wiki.apps-example.net"); !errors.Is(need.Refused, ErrServesPanel) {
+		t.Fatalf("a zone rule over the apps domain: %+v", need)
+	}
+	// The old domain served by the catch-all alone: the zone rule would take it.
+	byCatchAll := doc(t, Rule{Service: "http://127.0.0.1:7600"})
+	var moved Moved
+	if need := NeedFor(byCatchAll, rt, "example.com", "wiki.example.com"); !errors.As(need.Refused, &moved) || !moved.Panel {
+		t.Fatalf("the old domain by the catch-all: %+v", need)
+	}
+	// Served by its own rule, with the domain in use, the zone rule goes in after.
+	byOwn := doc(t, Rule{Hostname: "panel.example.com", Service: "http://127.0.0.1:7600"}, Rule{Hostname: "old.example.com", Service: "http://127.0.0.1:7600"}, CatchAll)
+	if need := NeedFor(byOwn, rt, "example.com", "wiki.example.com"); need.Refused != nil || need.Edit.At != 2 {
+		t.Fatalf("the old domain by its own rule: %+v", need)
+	}
+}

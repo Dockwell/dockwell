@@ -11,7 +11,9 @@ import {
   type IngressEffect,
   type Intent,
   IntentKind,
+  type Plan,
   PlanAction,
+  type PlanStep,
   type RolloutPlan,
   type RouteAnswers,
   type RouteGoes,
@@ -436,6 +438,17 @@ export function useChangeWords(): ChangeWords {
             return type === "http"
               ? t`the port ${path} on the server itself, past its containers, at ${detail} over plain HTTP`
               : t`the port ${path} on the server itself, past its containers, at ${detail}`;
+          case HostAccessKind.TUNNEL_RULE: {
+            // A rule Dockwell adds to a tunnel it shares with others, once per zone (ADR 0104).
+            const sendsTo = plain(access.address);
+            return t`the rule ${path} in the tunnel ${detail}, which it shares with others, sending to ${sendsTo}`;
+          }
+          case HostAccessKind.CLOUDFLARE_TAKEOVER:
+            return t`${detail} at ${path}, made in Cloudflare by someone else, which Dockwell takes on or replaces, and may delete later`;
+          case HostAccessKind.ZONE_MODE:
+            return access.detail === ""
+              ? t`Full (strict) for ${path}, where a proxied name whose server has no valid certificate stops answering`
+              : t`Full (strict) for ${path}, where a name whose server has no valid certificate stops answering: ${detail}`;
           case HostAccessKind.TRUSTED_PROXY:
             return namesARange(access.path)
               ? t`${path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is`
@@ -862,3 +875,29 @@ export function useAlsoWords() {
     [t, i18n.locale],
   );
 }
+
+/** The routes a plan publishes through a tunnel at Cloudflare, by ID. */
+export function tunnelledRoutes(plan: Plan | undefined): Set<string> {
+  return new Set(
+    (plan?.resources ?? [])
+      .filter((r) => r.changes.some((c) => c.path === "publish.way" && c.to.endsWith("tunnel")))
+      .map((r) => r.id),
+  );
+}
+
+/**
+ * What a step says of how its route is reached: TLS ending before the server, and who it
+ * answers. Through a tunnel Dockwell publishes, TLS ending at Cloudflare and answering
+ * only the server itself, or its loopback, are the happy path, so neither is said; what it lets reach a
+ * port still is (ADR 0104, the polish round).
+ */
+export function reachLines(words: ChangeWords, step: PlanStep, server: string, tunnelled: boolean): string[] {
+  const answers = words.answers(step.answers, step.serverPort, server);
+  if (!tunnelled) return [...(step.unencrypted ? [words.unencrypted(server)] : []), ...answers];
+  const reach = step.answers?.reach;
+  const loopback = reach === RouteReach.PROXIES && (step.answers?.proxies ?? []).every((p) => LOOPBACK.has(p));
+  return reach === RouteReach.THIS_SERVER || loopback ? answers.slice(1) : answers;
+}
+
+/** A tunnel's own address on the server, as a route through it believes it. */
+export const LOOPBACK: ReadonlySet<string> = new Set(["127.0.0.1", "127.0.0.1/32", "::1", "::1/128"]);

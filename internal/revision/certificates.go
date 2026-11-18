@@ -17,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/certificate"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -139,6 +140,24 @@ func (e *Engine) keys(ctx context.Context) *keyContext {
 		slices.SortFunc(k.shared, func(a, b certificate.Shared) int { return strings.Compare(a.Name, b.Name) })
 		return nil
 	})
+	return k
+}
+
+// keysWith is keys as the change will leave them: a DNS provider it makes or
+// changes counts as it will be, and an environment it makes is in its project, so
+// a new website proven by DNS through a provider that serves its project from the
+// same change can plan (ADR 0104, the review's B-H1).
+func (e *Engine) keysWith(ctx context.Context, items []item) *keyContext {
+	k := e.keys(ctx)
+	for i := range items {
+		it := &items[i]
+		if p, ok := it.spec.(*resourcev1.DnsProvider); ok && p != nil {
+			k.providers[it.ref.Name] = p
+		}
+		if it.ref.Kind == scope.EnvironmentKind && it.id != "" {
+			k.projects[it.id] = it.ref.Scope
+		}
+	}
 	return k
 }
 

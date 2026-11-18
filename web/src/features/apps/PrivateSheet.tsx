@@ -380,8 +380,11 @@ export function PrivateSheet({
                 tls: route.tls,
                 trustedProxies: route.trustedProxies,
                 plainForAnyone: route.plainForAnyone,
-                // An app not open yet stays so (ADR 0084): the sheet sends the whole route.
+                // An app not open yet stays so (ADR 0084), and how it's published stays
+                // (ADR 0104): the sheet sends the whole route.
                 held: route.held,
+                ...(route.publish ? { publish: route.publish } : {}),
+                ...(route.proof ? { proof: route.proof } : {}),
                 ...(opens ? {} : { access }),
               },
             },
@@ -734,6 +737,12 @@ export function routeAsItIs(domain: string, r: DomainRoute) {
     trustedProxies: r.trustedProxies,
     plainForAnyone: r.plainForAnyone,
     held: r.held,
+    // How it's published at Cloudflare stays (ADR 0104): left out, the plan takes its records away.
+    ...(r.publish ? { publish: r.publish } : {}),
+    // A route that redirects stays one.
+    ...(r.redirect ? { redirect: r.redirect } : {}),
+    // How it proves its name stays, as a proxy's proves by DNS (the review's B-L7).
+    ...(r.proof ? { proof: r.proof } : {}),
     ...(isPrivate(r)
       ? {
           access: {

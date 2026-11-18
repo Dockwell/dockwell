@@ -798,6 +798,12 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             case ProviderAction.MOVE_RULE:
               title = t`Moved ${name} in the tunnel ${where} to the server's proxy`;
               break;
+            case ProviderAction.RESTORE_RULE:
+              title = t`Put back ${name}'s rule made in Cloudflare, in the tunnel ${where}`;
+              break;
+            case ProviderAction.SET_ZONE_MODE:
+              title = t`Set ${name}'s SSL mode at Cloudflare`;
+              break;
           }
           return { title, icon: "globe" };
         }
@@ -823,6 +829,17 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               : cf.action === ProviderAction.REMOVE_RULE
                 ? t`Replaced an edit to ${target} made in Cloudflare, removing ${rule}`
                 : t`Replaced an edit to ${target} made in Cloudflare, adding ${rule}`,
+            icon: "globe",
+            tone: "warning",
+          };
+        }
+        case "cloudflare.kept": {
+          // A record made by hand that couldn't go back, as its name held another: the DNS provider keeps a copy.
+          const cf = event.cloudflare;
+          return {
+            title: cf?.name
+              ? t`Kept a copy of ${cf.name}'s record made in Cloudflare, as the name holds another now`
+              : t`Kept a copy of a record made in Cloudflare`,
             icon: "globe",
             tone: "warning",
           };

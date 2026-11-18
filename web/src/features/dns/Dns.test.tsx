@@ -24,6 +24,8 @@ const saved = create(DnsProviderInfoSchema, {
   name: "cloudflare",
   provider: "cloudflare",
   zones: ["example.com"],
+  projects: ["prj_1"],
+  strictZones: ["example.com"],
 });
 
 afterEach(async () => {
@@ -162,9 +164,52 @@ describe("DNS providers", () => {
     expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({
       zones: ["example.com", "example.org"],
       apiToken: "",
+      // An edit is the whole spec, so the projects it serves, and the zones it set to
+      // Full (strict), go back as they are.
+      projects: ["prj_1"],
+      strictZones: ["example.com"],
     });
     // The saved token was checked by name; none was sent.
     expect(checks.every((c) => c.name === "cloudflare" && c.apiToken === "")).toBe(true);
+  });
+});
+
+describe("records kept at Cloudflare", () => {
+  it("lists what a provider keeps of records made by hand, and puts one back as its own plan", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const keeping = create(DnsProviderInfoSchema, {
+      id: "dnp_1",
+      name: "cloudflare",
+      provider: "cloudflare",
+      zones: ["example.com"],
+      projects: ["prj_1"],
+      strictZones: ["example.com"],
+      kept: [
+        { id: "pending:1", name: "vpn.example.com", record: "CNAME elsewhere.example.net", nameFree: true },
+        { id: "pending:2", name: "mail.example.com", record: "A 203.0.113.9", nameFree: false },
+      ],
+    });
+    renderAt("/settings/integrations", {
+      backups: { listBackupDestinations: () => ({ destinations: [] }) },
+      domains: { listDnsProviders: () => ({ providers: [keeping] }) },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const card = await screen.findByRole("article", { name: "Cloudflare" });
+    const kept = await within(card).findByRole("list", { name: "Records kept" });
+    expect(kept).toHaveTextContent("Kept: vpn.example.com, CNAME elsewhere.example.net");
+    expect(kept).toHaveTextContent("Kept: mail.example.com, A 203.0.113.9. Put back once its name is free");
+    expect(within(kept).queryByRole("button", { name: "Put the record for mail.example.com back" })).toBeNull();
+    await user.click(within(kept).getByRole("button", { name: "Put the record for vpn.example.com back" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]).toMatchObject({
+      resource: { kind: "dns.provider", name: "cloudflare" },
+      spec: {
+        kind: {
+          value: { zones: ["example.com"], projects: ["prj_1"], strictZones: ["example.com"], putBack: ["pending:1"] },
+        },
+      },
+    });
   });
 });
 

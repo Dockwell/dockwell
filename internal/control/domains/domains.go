@@ -61,6 +61,8 @@ type Handler struct {
 	// Lookup resolves a name for CheckDomain. Nil means the control server's resolver.
 	Lookup  func(ctx context.Context, name string) ([]netip.Addr, error)
 	callers *callers
+	// dnsSeen keeps what public DNS said of each name, for Domains.
+	dnsSeen dnsCache
 	// DNS are the DNS providers an admin connected (ADR 0088); nil has none.
 	DNS *dnsproviders.Providers
 	// Certificates are the certificates by DNS (ADR 0088); nil has none.
@@ -76,6 +78,12 @@ type Handler struct {
 // ways in.
 type CloudflareChecker interface {
 	Check(ctx context.Context, ask publish.CheckAsk) (*dockwellv1.CloudflareCheck, error)
+	// Kept lists the records made by hand a provider keeps a copy of, with whether
+	// each one's name is free now; their words only for an admin.
+	Kept(ctx context.Context, provider string, admin bool) ([]*dockwellv1.KeptRecord, error)
+	// ZoneRecordsAt is what a connected zone holds at name, from one listing of the
+	// zone kept a while; inZone says a connected zone holds it.
+	ZoneRecordsAt(ctx context.Context, name string) (recs []dnsproviders.Record, inZone bool, err error)
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
@@ -148,12 +156,19 @@ func (h *Handler) CheckDomain(ctx context.Context, req *connect.Request[dockwell
 	check := read(domain)
 	<-done
 	out := &dockwellv1.CheckDomainResponse{Check: resourcepb.DomainCheck(check), Companion: companion}
-	// What Cloudflare holds there, where a provider serving the project has the name:
-	// a check that couldn't be made says nothing, beside what DNS says (ADR 0104).
-	if h.Cloudflare != nil && req.Msg.GetProjectId() != "" {
-		admin, _ := callerProjects(ctx)
+	// What Cloudflare holds there, where a provider serving the project has the name,
+	// read only when it's asked for: a project named, or a way to publish, as New
+	// website asks for an admin, checked against every provider's zones as its plan
+	// adds the project to the provider. Domains asks for neither, so it reads DNS
+	// alone (the review's B-M2). A check that couldn't be made names the provider with
+	// no state, beside what DNS says (ADR 0104).
+	admin, _ := callerProjects(ctx)
+	asked := req.Msg.GetProjectId() != "" || admin && req.Msg.GetPublish() != nil
+	if h.Cloudflare != nil && asked {
 		cf, err := h.Cloudflare.Check(ctx, publish.CheckAsk{
 			Server: srv.GetId(), Project: req.Msg.GetProjectId(), Name: domain, Admin: admin, Way: req.Msg.GetPublish().GetWay(),
+			// Check again reads the server's tunnels now (Cache-Control: no-cache).
+			Fresh: strings.Contains(req.Header().Get("Cache-Control"), "no-cache"),
 		})
 		if err != nil {
 			h.logger.WarnContext(ctx, "couldn't check a name at Cloudflare", slog.String("domain", domain), slog.String("error", err.Error()))
@@ -205,6 +220,9 @@ func (h *Handler) ListDomains(ctx context.Context, req *connect.Request[dockwell
 		res.Domains = append(res.Domains, d)
 	}
 	slices.SortFunc(res.Domains, func(a, b *dockwellv1.Domain) int { return cmp.Compare(a.GetName(), b.GetName()) })
+	if req.Msg.GetReadDns() && h.servers != nil {
+		h.readDNS(ctx, res.Domains)
+	}
 	return connect.NewResponse(res), nil
 }
 
@@ -242,7 +260,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		Id: r.ID, Name: r.Name, Path: rt.GetPath(), Service: rt.GetService(), Port: rt.GetPort(), Url: scheme + route.Where(rt),
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(), Redirect: rt.GetRedirect(),
 		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
-		SetupUntil: setupUntil(rt),
+		SetupUntil: setupUntil(rt), Publish: rt.GetPublish(), Proof: rt.GetProof(),
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {
@@ -315,6 +333,10 @@ func addPublished(ctx context.Context, tx *store.Tx, routeID string, rt *resourc
 		switch {
 		case ruleState == store.CloudflareTunnelDeleted:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_DELETED
+		case ruleState == store.CloudflareTunnelShared:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_SHARED
+		case ruleState == store.CloudflareTunnelUnproven:
+			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_TUNNEL_UNPROVEN
 		case ruleState == store.CloudflareUnreadable || rec.State == store.CloudflareUnreadable:
 			p.State = dockwellv1.PublishedState_PUBLISHED_STATE_UNREADABLE
 		case ruleState != store.CloudflarePublished:

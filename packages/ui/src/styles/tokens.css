@@ -94,6 +94,7 @@
   --diff-remove-soft: var(--critical-soft); /* Ground behind old values. */
   --link: var(--cobalt); /* Inline links. Underline on hover; never colour alone in body copy. */
   --selection: var(--cobalt-soft); /* Text selection and selected or focused table rows. */
+  --choice-on: #eef2fd; /* Ground of a picked choice card, as a way in: lighter and quieter than cobalt-soft in dark. */
   --scrim: #191c1a59; /* Overlay behind sheets and the command bar. */
   --shadow-float: 0 0 0 1px #191c1a14, 0 2px 4px #191c1a0d, 0 8px 24px -6px #191c1a29; /* Menus, popovers, toasts, the selected segment. */
   --shadow-sheet: 0 0 0 1px #191c1a14, 0 4px 8px #191c1a0f, 0 24px 64px -16px #191c1a4d; /* Sheets and the command bar. */
@@ -139,6 +140,7 @@
     --diff-remove-soft: var(--critical-soft);
     --link: var(--cobalt);
     --selection: var(--cobalt-soft);
+    --choice-on: #1e2431;
     --scrim: #000000a6;
     --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
     --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;
@@ -182,6 +184,7 @@
   --diff-remove-soft: var(--critical-soft);
   --link: var(--cobalt);
   --selection: var(--cobalt-soft);
+  --choice-on: #1e2431;
   --scrim: #000000a6;
   --shadow-float: 0 0 0 1px #ffffff14, 0 8px 24px -6px #000000cc;
   --shadow-sheet: 0 0 0 1px #ffffff17, 0 24px 64px -16px #000000f2;

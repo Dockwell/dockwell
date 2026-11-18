@@ -5,9 +5,12 @@ package publish
 import (
 	"context"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
@@ -78,5 +81,55 @@ func TestTheProofByAddress(t *testing.T) {
 	p, tg = proving(t, []*dockwellv1.CloudflaredTunnel{run}, from, cftest.Connector{ID: "connector-2", OriginIPs: []string{"198.51.100.7"}})
 	if _, err := p.proveTunnel(t.Context(), "hz-1", tg, proveTunnel, facts); err == nil || !strings.Contains(err.Error(), "somewhere else too") {
 		t.Fatalf("connected from somewhere else too: %v", err)
+	}
+}
+
+// The names a zone's mode changes leave out names on a tunnel, with the panel's
+// first and the names Dockwell doesn't publish next, which are those at risk under
+// Full (strict) (the review's M3).
+func TestZoneModeNamesPanelFirst(t *testing.T) {
+	p := &Publisher{Install: "ins_1", Panel: func(context.Context) PanelNames { return PanelNames{Served: []string{"panel.example.com"}} }}
+	all, atRisk := p.zoneModeNames(t.Context(), []dnsproviders.Record{
+		{Name: "wiki.example.com", Content: proveTunnel + ".cfargotunnel.com", Proxied: true, Comment: "dockwell ins_1 rte_1"},
+		{Name: "docs.example.com", Content: "203.0.113.10", Proxied: true, Comment: "dockwell ins_1 rte_2"},
+		{Name: "vpn.example.com", Content: "203.0.113.9", Proxied: true, Comment: "by hand"},
+		{Name: "panel.example.com", Content: "203.0.113.10", Proxied: true},
+	})
+	if got := strings.Join(all, " "); got != "panel.example.com vpn.example.com docs.example.com" {
+		t.Errorf("every name: %s", got)
+	}
+	if got := strings.Join(atRisk, " "); got != "panel.example.com vpn.example.com" {
+		t.Errorf("at risk: %s", got)
+	}
+}
+
+// A zone with many proxied names names the ones at risk, up to a bound, and counts
+// the rest, so a plan's line stays a line (the re-check's A-L1).
+func TestFullStrictWordsAreBounded(t *testing.T) {
+	var atRisk []string
+	for i := range 25 {
+		atRisk = append(atRisk, "n"+strconv.Itoa(i)+".example.com")
+	}
+	all := append(slices.Clone(atRisk), "docs.example.com", "wiki.example.com")
+	got := strictWords("example.com", all, atRisk)
+	if !strings.HasSuffix(got, "n19.example.com, and 5 more, and 2 names Dockwell publishes") || strings.Contains(got, "n20.") {
+		t.Fatalf("bounded: %s", got)
+	}
+	if got := listed(atRisk, len(atRisk)); strings.Count(got, ".example.com") != 20 {
+		t.Fatalf("an approval names 20: %s", got)
+	}
+}
+
+// A server with no public address and no tunnel has no way in: the check takes that as
+// its way, with why and what fixes it, so the panel never shows a way it can't name.
+func TestNoWayInIsTheWayTaken(t *testing.T) {
+	p, tg := proving(t, nil)
+	ways, way, _ := p.ways(t.Context(), CheckAsk{Server: "hz-1", Name: "wiki.example.com", Admin: true}, tg, "wiki.example.com", Facts{Name: "hz-1"}, false)
+	if way != resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL {
+		t.Fatalf("the way taken: %v", way)
+	}
+	last := ways[len(ways)-1]
+	if last.GetWay() != way || last.GetOff() != "hz-1 has no public address and no tunnel" || last.GetAction() != "Add a tunnel" {
+		t.Fatalf("the way taken should say why and what fixes it: %v", ways)
 	}
 }

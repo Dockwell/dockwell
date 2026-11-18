@@ -70,6 +70,22 @@ export function useRouteTarget(): (route: { service: string; hostPort: number })
   return ({ service, hostPort }) => service || t`port ${hostPort} on the server`;
 }
 
+/**
+ * Whether a domain serves with HTTPS ending in front of its server, which is neither
+ * good nor bad (#791): it serves, as what's in front reaches it, with no certificate here.
+ */
+export function endsInFront(domain: Domain, look: DomainLook, silent: boolean): boolean {
+  return (
+    !look.stale &&
+    !look.expired &&
+    look.state !== "failed" &&
+    !look.orphaned &&
+    !silent &&
+    Boolean(look.noCertificate) &&
+    !plainForAnyone(domain)
+  );
+}
+
 /** A state's shape and word, as every state has in the brand book. */
 export function useDomainWord(domain: Domain, look: DomainLook, silent: boolean): [Status, string] {
   const { t } = useLingui();
@@ -79,7 +95,8 @@ export function useDomainWord(domain: Domain, look: DomainLook, silent: boolean)
   if (look.orphaned) return ["stopped", t`No server`];
   if (silent) return ["stopped", t`No report`];
   if (look.noCertificate) {
-    return plainForAnyone(domain) ? ["degraded", t`Plain HTTP`] : ["healthy", t`TLS ends in front`];
+    // No certificate here is neither good nor bad: HTTPS ends at what's in front (#791).
+    return plainForAnyone(domain) ? ["degraded", t`Plain HTTP`] : ["stopped", t`HTTPS ends in front`];
   }
   if (look.warning) return ["degraded", t`Renewal failing`];
   if (look.state === "serving") {

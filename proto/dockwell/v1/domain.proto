@@ -235,7 +235,12 @@ message CertificateInfo {
 }
 
 // ListDnsProvidersRequest asks for every DNS provider the caller may see.
-message ListDnsProvidersRequest {}
+message ListDnsProvidersRequest {
+  // A project's ID: with one, only the providers that serve it are listed, as a
+  // domain in it can be published through those alone (ADR 0104). The caller
+  // must be able to read the project.
+  string project_id = 1;
+}
 
 // ListDnsProvidersResponse holds the DNS providers.
 message ListDnsProvidersResponse {
@@ -255,6 +260,31 @@ message DnsProviderInfo {
   repeated string zones = 4;
   // Whether it holds a second token, for tunnels alone (ADR 0104).
   bool tunnel_api_token_set = 5;
+  // Records made by hand that Dockwell replaced and keeps a copy of, which it
+  // couldn't put back as the name held something else then. Put back on the
+  // provider (DnsProvider.put_back) writes one again where its name is free.
+  repeated KeptRecord kept = 6;
+  // The projects whose routes it proves and publishes names for, by ID: an admin's
+  // alone. A form that changes the provider sends them back, as an edit is the whole
+  // spec.
+  repeated string projects = 7;
+  // The zones it set to Full (strict), and keeps so: an admin's alone. A form that
+  // changes the provider sends them back, or the plan puts their mode back.
+  repeated string strict_zones = 8;
+}
+
+// KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
+message KeptRecord {
+  // Its ID, pending:…, as DnsProvider.put_back names it.
+  string id = 1;
+  // The name it was at, such as "vpn.example.com".
+  string name = 2;
+  // The record, in words, such as "CNAME elsewhere.example.net": an admin's alone.
+  string record = 3;
+  // When it was kept.
+  google.protobuf.Timestamp kept_at = 4;
+  // Whether nothing is at its name now, so putting it back writes it.
+  bool name_free = 5;
 }
 
 // CheckDnsProviderRequest is a token to check, or a saved provider to check
@@ -388,7 +418,9 @@ message CheckDomainResponse {
   // Where the companion stands. Unset when there's no companion.
   CompanionCheck companion_check = 3;
   // What Cloudflare holds at the name, and the ways in, where a connected DNS
-  // provider's zone holds it for the project. Unset otherwise (ADR 0104).
+  // provider's zone holds it for the project, or, for an admin who names no project,
+  // as for a new website whose plan adds its project to the provider, where any
+  // provider's zone holds it. Unset otherwise (ADR 0104).
   CloudflareCheck cloudflare = 4;
 }
 
@@ -419,6 +451,28 @@ message CloudflareCheck {
   // When checks read Cloudflare again, while it asks Dockwell to wait (state
   // CLOUDFLARE_NAME_WAITING).
   google.protobuf.Timestamp checks_again = 10;
+  // The tunnel's rule made by hand that serves the name now, when one does: an
+  // admin's alone, so Take it on or Move it to Dockwell can name it in the route's
+  // takes_over (ADR 0104, section 8). Unset below an admin.
+  HandRule hand_rule = 11;
+}
+
+// HandRule is a tunnel's rule made in Cloudflare by hand that serves a name.
+message HandRule {
+  // The tunnel holding it, by ID.
+  string tunnel = 1;
+  // The tunnel's name, such as "web-1".
+  string tunnel_name = 2;
+  // The rule's hostname, such as "wiki.example.com".
+  string hostname = 3;
+  // The rule's path, if it has one.
+  string path = 4;
+  // Where it sends, such as "http://127.0.0.1:8080".
+  string service = 5;
+  // Whether it reaches the server's proxy already, so taking it on writes nothing;
+  // false where it reaches an app's own port, so Move it to Dockwell points it at
+  // the proxy.
+  bool reaches_proxy = 6;
 }
 
 // CloudflareName is what Cloudflare holds at a name.
@@ -462,6 +516,9 @@ message WayOption {
   // The rule that catches the name first, when another does, such as
   // "*.example.com, to http://127.0.0.1:8080": an admin's alone.
   string caught_by = 8;
+  // Where the server's tunnel reaches its proxy, such as "http://127.0.0.1:80", for
+  // a server tunnel's option, as the agent found its run.
+  string reaches = 9;
 }
 
 // CompanionCheck is where a domain's companion stands: what DNS says of it, whether
@@ -496,6 +553,11 @@ message ListDomainsRequest {
   // Only domains with a route to this service, by name. It needs environment,
   // as a service's name is unique only in its environment.
   string service = 2;
+  // Read what DNS says of each domain now, in Domain.dns: from its connected
+  // zone's records, read once per zone, or from public DNS for a name in no
+  // connected zone. Each read is cached, so a page that opens costs a zone list,
+  // never a check per domain (ADR 0104, #791).
+  bool read_dns = 3;
 }
 
 // ListDomainsResponse lists domains.
@@ -521,6 +583,10 @@ message Domain {
   // What Dockwell published for it at Cloudflare, and whether it's still there
   // (ADR 0104). Empty for a domain published by hand, or not at all.
   repeated DomainPublished published = 6;
+  // What DNS says of it now, where the list was asked to read it (read_dns). Below
+  // an admin it says nothing of a proxied record's content, the origin address
+  // public DNS hides. Unset otherwise.
+  DomainCheck dns = 7;
 }
 
 // DomainPublished is one name Dockwell published at Cloudflare, as the drift timer
@@ -565,6 +631,9 @@ enum PublishedState {
   // Dockwell can't read it: its DNS provider isn't connected, or Cloudflare refuses
   // the token.
   PUBLISHED_STATE_UNREADABLE = 9 [(dockwell.v1.word) = "Dockwell can't read it at Cloudflare"];
+  // Dockwell can't prove its tunnel runs on the route's server alone: run more than
+  // once there in ways that disagree, or not connected.
+  PUBLISHED_STATE_TUNNEL_UNPROVEN = 10 [(dockwell.v1.word) = "Dockwell can't prove its tunnel runs on this server"];
 }
 
 // DomainRoute is one route of a domain.
@@ -610,6 +679,13 @@ message DomainRoute {
   // Where it redirects, for a route that answers with a redirect in place of a
   // service (ADR 0070). Unset for any other route.
   dockwell.resource.v1alpha1.RouteRedirect redirect = 10;
+  // How its domain is published at Cloudflare, as the route's spec has it (ADR
+  // 0104). A form that sends the route as it is sends this back, or the plan takes
+  // the domain's records away.
+  dockwell.resource.v1alpha1.RoutePublish publish = 113;
+  // How its domain proves itself for its certificate, as the route's spec has it
+  // (ADR 0088): a form that sends the route as it is sends this back.
+  string proof = 120;
 }
 
 // DomainServer is where a domain stands on one server.

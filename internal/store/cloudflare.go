@@ -25,6 +25,20 @@ const (
 	// CloudflareUnreadable is what Dockwell can't read: its provider isn't connected
 	// any more, or Cloudflare refuses the token.
 	CloudflareUnreadable = "unreadable"
+	// CloudflareTunnelShared is a rule whose tunnel runs on another server too, so
+	// Cloudflare sends some of the zone's names to a server with no route for them.
+	CloudflareTunnelShared = "tunnel_shared"
+	// CloudflareRuleKept is a rule made by hand that Dockwell took on, or moved, and
+	// took out of its tunnel since, kept whole so undo puts it back where it was.
+	// Dockwell holds it in no tunnel, and no listing of held rules names it.
+	CloudflareRuleKept = "kept"
+	// CloudflareRuleMoving is a rule made by hand that a step of Move it to Dockwell
+	// is writing: kept whole before the write, so a step cut short finishes, or puts
+	// it back. No listing of held rules names it.
+	CloudflareRuleMoving = "moving"
+	// CloudflareTunnelUnproven is a rule whose tunnel Dockwell can't prove runs on its
+	// server alone now: run more than once in ways that disagree, or not connected.
+	CloudflareTunnelUnproven = "tunnel_unproven"
 )
 
 // CloudflareRecord is a DNS record Dockwell wrote or took on, as it wrote it.
@@ -105,6 +119,12 @@ func (t *Tx) CloudflarePendingOf(ctx context.Context, routeID string) ([]Cloudfl
 	return t.cloudflareRecords(ctx, `WHERE route_id = ? AND type = 'pending' ORDER BY name`, routeID)
 }
 
+// CloudflarePendingAll lists every record made by hand that Dockwell keeps a copy of,
+// by name.
+func (t *Tx) CloudflarePendingAll(ctx context.Context) ([]CloudflareRecord, error) {
+	return t.cloudflareRecords(ctx, `WHERE type = 'pending' ORDER BY name`)
+}
+
 // CloudflareRecordByID returns the row of a record by its ID at Cloudflare, or
 // ErrNotFound.
 func (t *Tx) CloudflareRecordByID(ctx context.Context, id string) (CloudflareRecord, error) {
@@ -178,15 +198,18 @@ type CloudflareRule struct {
 	State     string
 	CheckedAt *time.Time
 	CreatedAt time.Time
+	// ServerID is the server whose proxy the rule sends to: empty for one written
+	// before it was kept.
+	ServerID string
 }
 
-const cloudflareRuleColumns = `tunnel_id, hostname, path, account, provider, zone, service, read_doc, written_doc, version, change_id, taken_on_at, replaced, state, checked_at, created_at`
+const cloudflareRuleColumns = `tunnel_id, hostname, path, account, provider, zone, service, read_doc, written_doc, version, change_id, taken_on_at, replaced, state, checked_at, created_at, server_id`
 
 func scanCloudflareRule(row interface{ Scan(...any) error }) (CloudflareRule, error) {
 	var r CloudflareRule
 	var taken, checked sql.NullInt64
 	var created int64
-	if err := row.Scan(&r.TunnelID, &r.Hostname, &r.Path, &r.Account, &r.Provider, &r.Zone, &r.Service, &r.ReadDoc, &r.WrittenDoc, &r.Version, &r.ChangeID, &taken, &r.Replaced, &r.State, &checked, &created); err != nil {
+	if err := row.Scan(&r.TunnelID, &r.Hostname, &r.Path, &r.Account, &r.Provider, &r.Zone, &r.Service, &r.ReadDoc, &r.WrittenDoc, &r.Version, &r.ChangeID, &taken, &r.Replaced, &r.State, &checked, &created, &r.ServerID); err != nil {
 		return CloudflareRule{}, err
 	}
 	r.TakenOnAt, r.CheckedAt, r.CreatedAt = timePtr(taken), timePtr(checked), fromMillis(created)
@@ -199,13 +222,13 @@ func (t *Tx) PutCloudflareRule(ctx context.Context, r CloudflareRule) error {
 	if r.State == "" {
 		r.State = CloudflarePublished
 	}
-	_, err := t.exec(ctx, `INSERT INTO cloudflare_rules (`+cloudflareRuleColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := t.exec(ctx, `INSERT INTO cloudflare_rules (`+cloudflareRuleColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (tunnel_id, hostname, path) DO UPDATE SET account = excluded.account, provider = excluded.provider, zone = excluded.zone,
 		service = excluded.service, read_doc = excluded.read_doc, written_doc = excluded.written_doc, version = excluded.version,
 		change_id = excluded.change_id, taken_on_at = excluded.taken_on_at, replaced = excluded.replaced, state = excluded.state,
-		checked_at = excluded.checked_at`,
+		checked_at = excluded.checked_at, server_id = excluded.server_id`,
 		r.TunnelID, strings.ToLower(r.Hostname), r.Path, r.Account, r.Provider, r.Zone, r.Service, r.ReadDoc, r.WrittenDoc, r.Version,
-		r.ChangeID, nullMillis(r.TakenOnAt), r.Replaced, r.State, nullMillis(r.CheckedAt), millis(r.CreatedAt))
+		r.ChangeID, nullMillis(r.TakenOnAt), r.Replaced, r.State, nullMillis(r.CheckedAt), millis(r.CreatedAt), r.ServerID)
 	if err != nil {
 		return fmt.Errorf("can't record the rule %s in the tunnel: %w", r.Hostname, err)
 	}
@@ -214,16 +237,16 @@ func (t *Tx) PutCloudflareRule(ctx context.Context, r CloudflareRule) error {
 
 // CloudflareRulesOf lists the rules Dockwell holds in a tunnel.
 func (t *Tx) CloudflareRulesOf(ctx context.Context, tunnelID string) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? ORDER BY hostname, path`, tunnelID)
+	return t.cloudflareRules(ctx, `WHERE tunnel_id = ? AND state NOT IN ('kept', 'moving') ORDER BY hostname, path`, tunnelID)
 }
 
 // CloudflareRulesAll lists every rule Dockwell holds, for the drift timer.
 func (t *Tx) CloudflareRulesAll(ctx context.Context) ([]CloudflareRule, error) {
-	return t.cloudflareRules(ctx, `ORDER BY tunnel_id, hostname, path`)
+	return t.cloudflareRules(ctx, `WHERE state NOT IN ('kept', 'moving') ORDER BY tunnel_id, hostname, path`)
 }
 
-// CloudflareRuleAt returns the rule Dockwell holds in a tunnel for hostname and
-// path, or ErrNotFound.
+// CloudflareRuleAt returns what's recorded of a rule in a tunnel for hostname and
+// path, held or kept (CloudflareRuleKept), or ErrNotFound.
 func (t *Tx) CloudflareRuleAt(ctx context.Context, tunnelID, hostname, path string) (CloudflareRule, error) {
 	r, err := scanCloudflareRule(t.queryRow(ctx, `SELECT `+cloudflareRuleColumns+` FROM cloudflare_rules WHERE tunnel_id = ? AND hostname = ? AND path = ?`, tunnelID, strings.ToLower(hostname), path))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -265,6 +288,49 @@ func (t *Tx) MarkCloudflareRule(ctx context.Context, tunnelID, hostname, path, s
 	if _, err := t.exec(ctx, `UPDATE cloudflare_rules SET state = ?, checked_at = ? WHERE tunnel_id = ? AND hostname = ? AND path = ?`,
 		state, millis(at), tunnelID, strings.ToLower(hostname), path); err != nil {
 		return fmt.Errorf("can't mark the rule %s: %w", hostname, err)
+	}
+	return nil
+}
+
+// CloudflareZoneMode is a zone Dockwell set to Full (strict) for an admin, with the
+// mode it had before.
+type CloudflareZoneMode struct {
+	ZoneID, Provider, Zone, Was, ChangeID string
+	SetAt                                 time.Time
+}
+
+// PutCloudflareZoneMode records that Dockwell sets a zone's mode, and what it was, as
+// a step does before it writes, so a crash between the two loses nothing.
+func (t *Tx) PutCloudflareZoneMode(ctx context.Context, m CloudflareZoneMode) error {
+	_, err := t.exec(ctx, `INSERT INTO cloudflare_zone_modes (zone_id, provider, zone, was, change_id, set_at) VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT (zone_id) DO UPDATE SET provider = excluded.provider, zone = excluded.zone, was = excluded.was, change_id = excluded.change_id, set_at = excluded.set_at`,
+		m.ZoneID, m.Provider, m.Zone, m.Was, m.ChangeID, millis(m.SetAt))
+	if err != nil {
+		return fmt.Errorf("can't record %s's mode: %w", m.Zone, err)
+	}
+	return nil
+}
+
+// CloudflareZoneModeOf returns what's recorded of a zone's mode, or ErrNotFound.
+func (t *Tx) CloudflareZoneModeOf(ctx context.Context, zoneID string) (CloudflareZoneMode, error) {
+	var m CloudflareZoneMode
+	var at int64
+	err := t.queryRow(ctx, `SELECT zone_id, provider, zone, was, change_id, set_at FROM cloudflare_zone_modes WHERE zone_id = ?`, zoneID).
+		Scan(&m.ZoneID, &m.Provider, &m.Zone, &m.Was, &m.ChangeID, &at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return CloudflareZoneMode{}, fmt.Errorf("the zone %s's mode: %w", zoneID, ErrNotFound)
+	}
+	if err != nil {
+		return CloudflareZoneMode{}, fmt.Errorf("can't read the zone %s's mode: %w", zoneID, err)
+	}
+	m.SetAt = fromMillis(at)
+	return m, nil
+}
+
+// DeleteCloudflareZoneMode forgets a zone's mode, once it's put back or let go.
+func (t *Tx) DeleteCloudflareZoneMode(ctx context.Context, zoneID string) error {
+	if _, err := t.exec(ctx, `DELETE FROM cloudflare_zone_modes WHERE zone_id = ?`, zoneID); err != nil {
+		return fmt.Errorf("can't forget the zone %s's mode: %w", zoneID, err)
 	}
 	return nil
 }

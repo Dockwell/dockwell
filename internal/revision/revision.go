@@ -1196,7 +1196,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.pinBuilds(ctx, items, changeID); err != nil {
 		return nil, err
 	}
-	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties, unholds: slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Unholds })})
+	plan, err := e.plan(ctx, changeID, items, false, planWith{removal: p.Removes, rollout: p.Rollout, empties: p.Empties, unholds: slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Unholds }), reverts: reverts})
 	if err != nil {
 		return nil, err
 	}
@@ -1684,13 +1684,27 @@ func (e *Engine) changeItems(ctx context.Context, tx *store.Tx, changeID string,
 // stored is the item's spec as the store keeps it at at: sealed for there,
 // for a kind that may hold secrets, and nil for a deletion.
 func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item, at store.SpecAt) ([]byte, error) {
-	if it.encoded == nil || !it.sealed {
-		return it.encoded, nil
+	encoded := it.encoded
+	// What a change asks for once stays in the change, where a plan made again reads
+	// it, and out of the revision, so no later edit asks for it again.
+	if at.Revision > 0 && encoded != nil && it.spec != nil {
+		if t, err := e.kinds.Type(it.ref.Kind); err == nil {
+			if tr, ok := t.(resource.Transient); ok {
+				if kept := tr.StripTransient(it.spec); kept != it.spec {
+					if encoded, err = resource.Encode(kept); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+	}
+	if encoded == nil || !it.sealed {
+		return encoded, nil
 	}
 	if e.sealer == nil {
 		return nil, fmt.Errorf("can't store %s without the install's key, which keeps it encrypted", it.ref)
 	}
-	return e.sealer.Seal(ctx, tx, at, it.encoded)
+	return e.sealer.Seal(ctx, tx, at, encoded)
 }
 
 // open reads the encoding of a spec stored at at: opened, if it is sealed.
@@ -2887,17 +2901,42 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 	}
 	// Each route's steps at Cloudflare, which the control plane takes (ADR 0104).
-	provided, err := e.publishing(ctx, changeID, items)
+	provided, err := e.publishing(ctx, changeID, items, with.reverts)
 	if err != nil {
 		return nil, err
+	}
+	// A DNS provider's steps at Cloudflare, as setting a zone's mode or putting a
+	// record back, belong to no server: the control plane takes them, so they go on
+	// its own server's plan, and its agent plans nothing for them (ADR 0104).
+	var controlOnly []*item
+	for i := range items {
+		if it := &items[i]; it.ref.Kind == dnsProviderKind && len(provided[it.ref]) > 0 {
+			controlOnly = append(controlOnly, it)
+		}
+	}
+	control := ""
+	if len(controlOnly) > 0 {
+		if control = e.ControlServer(); control == "" {
+			return nil, fault.New(ErrInvalid, "this control plane doesn't know its own server, so it can't take %s's steps at Cloudflare", controlOnly[0].ref.Name)
+		}
+		if !slices.Contains(servers, control) {
+			servers = append(servers, control)
+			more, err := e.serverNames(ctx, []string{control})
+			if err != nil {
+				return nil, err
+			}
+			maps.Copy(names, more)
+		}
 	}
 	for _, server := range servers {
 		its := byServer[server]
 		sp := ServerPlan{Server: server, Name: names[server]}
 		var steps []resource.Step
 		agent, online := e.agents.Agent(server)
-		sp.Offline = !online
-		if online {
+		// A server whose plan holds only the control plane's steps at Cloudflare needs
+		// nothing of its agent (the review's L8).
+		sp.Offline = !online && len(its) > 0
+		if online && len(its) > 0 {
 			var err error
 			if steps, err = e.planOn(ctx, agent, server, sp.Name, its); err != nil {
 				if !rollback {
@@ -3150,7 +3189,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			if it := itemOf(its, s.Ref); it != nil && s.Action != resource.ActionDelete {
 				if rt, ok := it.spec.(*resourcev1.Route); ok && rt.GetTls() == "" {
 					if keys == nil {
-						keys = e.keys(ctx)
+						keys = e.keysWith(ctx, items)
 					}
 					proof := rt.GetProof()
 					if proof == "" {
@@ -3221,7 +3260,11 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		// A route's steps at Cloudflare come first on its server, and the ones that take
 		// something away last, after the route is gone from it (ADR 0104, section 7).
 		var pre, post []resource.Step
-		for _, it := range its {
+		withSteps := its
+		if server == control {
+			withSteps = slices.Concat(its, controlOnly)
+		}
+		for _, it := range withSteps {
 			steps := provided[it.ref]
 			for j := range steps {
 				st := &steps[j]
@@ -3307,7 +3350,54 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	plan.Fingerprint = hex.EncodeToString(keyed.Sum(nil)[:16])
 	plan.plain = hex.EncodeToString(plain.Sum(nil)[:16])
 	plan.Notes = append(plan.Notes, keyNotes...)
+	plan.Notes = append(plan.Notes, e.providerGrants(ctx, items)...)
 	return plan, nil
+}
+
+// providerGrants says, in words, what a DNS provider serving another project grants:
+// that project's developers may publish names in each of its zones, as a new website
+// joins it (ADR 0104, the review's B-M5).
+func (e *Engine) providerGrants(ctx context.Context, items []item) []Note {
+	var out []Note
+	for i := range items {
+		it := &items[i]
+		after, ok := it.spec.(*resourcev1.DnsProvider)
+		if !ok || after == nil {
+			continue
+		}
+		before, _ := it.current.(*resourcev1.DnsProvider)
+		zones := human.List(after.GetZones())
+		for _, project := range after.GetProjects() {
+			if slices.Contains(before.GetProjects(), project) {
+				continue
+			}
+			name := e.projectName(ctx, items, project)
+			out = append(out, Note{
+				Reason: "provider_serves", Ref: it.ref, Names: []string{it.ref.Name, name},
+				Message: it.ref.Name + " serves " + name + " from now on, so its developers can publish names in " + zones,
+			})
+		}
+	}
+	return out
+}
+
+// projectName is a project's name, from the change where it makes it, or else as
+// it's kept.
+func (e *Engine) projectName(ctx context.Context, items []item, project string) string {
+	for i := range items {
+		if items[i].id == project && items[i].ref.Kind == scope.ProjectKind {
+			return items[i].ref.Name
+		}
+	}
+	name := project
+	_ = e.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResourceByID(ctx, project)
+		if err == nil {
+			name = r.Name
+		}
+		return err
+	})
+	return name
 }
 
 // unfinishedOn is the step of a resource that a run stopped partway didn't see end on
@@ -4218,7 +4308,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	for i := range items {
 		items[i].rollback = rollback
 	}
-	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked), unholds: unholdsIn(asked)})
+	plan, err := e.plan(ctx, c.ID, items, rollback, planWith{removal: removalIn(asked), waves: wavesIn(asked), empties: emptiesIn(asked), unholds: unholdsIn(asked), reverts: c.Reverts})
 	if err != nil {
 		return nil, err
 	}
@@ -5492,7 +5582,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			}
 		}
 	}
-	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned), unholds: unholdsIn(planned)})
+	plan, err := e.plan(ctx, c.ID, items, false, planWith{removal: removalIn(planned), waves: wavesIn(planned), empties: emptiesIn(planned), unholds: unholdsIn(planned), reverts: c.Reverts})
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err

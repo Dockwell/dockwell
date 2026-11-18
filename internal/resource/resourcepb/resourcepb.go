@@ -434,6 +434,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 
 	resource.AccessTunnelRule:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TUNNEL_RULE,
 	resource.AccessCloudflareTakeover: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER,
+	resource.AccessZoneMode:           dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ZONE_MODE,
 }
 
 // HostAccess converts what a resource reaches on its server.

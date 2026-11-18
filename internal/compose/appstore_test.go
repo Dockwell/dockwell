@@ -347,6 +347,8 @@ func accessClass(a resource.Access) string {
 		return "a rule in a shared tunnel"
 	case resource.AccessCloudflareTakeover:
 		return "something taken over at Cloudflare"
+	case resource.AccessZoneMode:
+		return "a zone set to Full (strict)"
 	case resource.AccessBackupOf:
 		return "a backup of what reached a server path"
 	case resource.AccessServerShell:

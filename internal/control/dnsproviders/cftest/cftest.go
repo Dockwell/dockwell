@@ -10,6 +10,7 @@ package cftest
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -54,6 +55,9 @@ type API struct {
 	// the stand-in unlocked: a test writes there, as someone in the dashboard would
 	// between Dockwell's read and its write.
 	BeforePut func(tunnel string)
+	// LosePut writes a tunnel's configuration where it says yes, then answers 502, as
+	// a write whose answer was lost on its way back: Dockwell can't tell it landed.
+	LosePut func(tunnel string) bool
 }
 
 // Token is what a token may do.
@@ -347,6 +351,23 @@ func (a *API) zone(w http.ResponseWriter, r *http.Request, t Token, parts []stri
 			mode = "full"
 		}
 		succeed(w, map[string]any{"id": "ssl", "value": mode, "editable": true}, nil)
+	case len(parts) == 3 && parts[1] == "settings" && parts[2] == "ssl" && r.Method == http.MethodPatch:
+		if !t.has("Zone Settings Write") {
+			fail(w, http.StatusForbidden, 9109, "Unauthorized to access requested resource")
+			return
+		}
+		var body struct {
+			Value string `json:"value"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !slices.Contains([]string{"off", "flexible", "full", "strict"}, body.Value) {
+			fail(w, http.StatusBadRequest, 1007, "Invalid value for zone setting ssl")
+			return
+		}
+		if a.SSL == nil {
+			a.SSL = map[string]string{}
+		}
+		a.SSL[zone] = body.Value
+		succeed(w, map[string]any{"id": "ssl", "value": body.Value, "editable": true}, nil)
 	case len(parts) >= 2 && parts[1] == "dns_records":
 		a.records2(w, r, t, zone, parts[2:])
 	default:
@@ -381,6 +402,9 @@ func (a *API) records2(w http.ResponseWriter, r *http.Request, t Token, zone str
 				continue
 			}
 			if c := q.Get("content"); c != "" && rec.Content != c {
+				continue
+			}
+			if q.Get("proxied") == "true" && !rec.Proxied {
 				continue
 			}
 			out = append(out, rec)
@@ -534,6 +558,10 @@ func (a *API) tunnels(w http.ResponseWriter, r *http.Request, t Token, parts []s
 			a.mu.Lock()
 		}
 		a.setDocument(tun, body.Config)
+		if a.LosePut != nil && a.LosePut(tun.ID) {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
 		succeed(w, map[string]any{"tunnel_id": tun.ID, "version": tun.Version, "config": tun.Config, "source": "cloudflare"}, nil)
 	default:
 		fail(w, http.StatusNotFound, 7003, "Could not route")
@@ -566,6 +594,23 @@ func (a *API) EditInPlace(zone, id string, change func(*Record)) {
 	}
 }
 
+// Mode is the zone's SSL mode, as the dashboard shows it.
+func (a *API) Mode(zone string) string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return cmp.Or(a.SSL[zone], "full")
+}
+
+// SetMode sets the zone's SSL mode, as someone in the dashboard does.
+func (a *API) SetMode(zone, mode string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.SSL == nil {
+		a.SSL = map[string]string{}
+	}
+	a.SSL[zone] = mode
+}
+
 // OnPut sets BeforePut while requests may be served.
 func (a *API) OnPut(before func(tunnel string)) {
 	a.mu.Lock()
@@ -582,6 +627,25 @@ func (a *API) SetToken(token string, t *Token) {
 		return
 	}
 	a.Tokens[token] = *t
+}
+
+// Connect gives the tunnel id one more connector, as cloudflared started for it
+// somewhere does; Disconnect takes the connector cid away.
+func (a *API) Connect(id string, c Connector) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t := a.Tunnels[id]; t != nil {
+		t.Connectors = append(t.Connectors, c)
+	}
+}
+
+// Disconnect takes the connector cid off the tunnel id.
+func (a *API) Disconnect(id, cid string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if t := a.Tunnels[id]; t != nil {
+		t.Connectors = slices.DeleteFunc(t.Connectors, func(c Connector) bool { return c.ID == cid })
+	}
 }
 
 // DeleteTunnel deletes the tunnel id, as the dashboard does once its connections

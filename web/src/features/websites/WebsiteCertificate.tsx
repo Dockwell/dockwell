@@ -80,7 +80,7 @@ function ServerCertificate({ server, several }: { server: DomainServer; several:
     [CertificateState.PENDING]: t`On its way`,
     [CertificateState.ISSUED]: t`Issued`,
     [CertificateState.FAILED]: t`Failed`,
-    [CertificateState.NONE]: t`None, as TLS ends in front`,
+    [CertificateState.NONE]: t`None, as HTTPS ends in front`,
   }[certificate?.state ?? CertificateState.UNSPECIFIED];
   return (
     <dl className="website-facts">

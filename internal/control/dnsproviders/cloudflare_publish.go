@@ -125,6 +125,14 @@ func (c *Cloudflare) SSLMode(ctx context.Context, zone Zone) (mode string, edita
 	return got.Value, got.Editable, nil
 }
 
+// SetSSLMode sets a zone's SSL/TLS mode, such as "strict", which takes Zone
+// Settings Edit. It changes how Cloudflare reaches every proxied name in the zone,
+// so only an admin's own plan on the DNS provider calls it (ADR 0104).
+func (c *Cloudflare) SetSSLMode(ctx context.Context, zone Zone, mode string) error {
+	_, err := c.call(ctx, http.MethodPatch, "/zones/"+url.PathEscape(zone.ID)+"/settings/ssl", map[string]string{"value": mode}, nil)
+	return err
+}
+
 // Record is a DNS record as Cloudflare holds it: everything undo needs to write it
 // back as it was.
 type Record struct {
@@ -144,10 +152,22 @@ func (c *Cloudflare) RecordsAt(ctx context.Context, zone Zone, name string) ([]R
 	return c.records(ctx, zone, url.Values{"name": {name}})
 }
 
+// ZoneRecords lists every record in zone, as Domains reads what DNS says of its
+// names in one listing per zone (ADR 0104, #791).
+func (c *Cloudflare) ZoneRecords(ctx context.Context, zone Zone) ([]Record, error) {
+	return c.records(ctx, zone, url.Values{})
+}
+
 // RecordsCommented lists the records in zone whose comment starts with prefix, as
 // Dockwell's own records' comments do.
 func (c *Cloudflare) RecordsCommented(ctx context.Context, zone Zone, prefix string) ([]Record, error) {
 	return c.records(ctx, zone, url.Values{"comment.startswith": {prefix}})
+}
+
+// RecordsProxied lists the records in zone on Cloudflare's proxy, whose mode
+// decides how Cloudflare reaches them.
+func (c *Cloudflare) RecordsProxied(ctx context.Context, zone Zone) ([]Record, error) {
+	return c.records(ctx, zone, url.Values{"proxied": {"true"}})
 }
 
 // RecordsPointingAt lists the CNAME records in zone whose content is target, as the

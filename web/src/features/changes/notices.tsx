@@ -35,7 +35,7 @@ import {
   shownName,
   startsStopped,
 } from "./plan";
-import { namesARange, plain, type RolloutLine, useChangeWords } from "./words";
+import { LOOPBACK, namesARange, plain, type RolloutLine, reachLines, tunnelledRoutes, useChangeWords } from "./words";
 
 /** One thing to know about a plan before applying it. */
 export interface Notice {
@@ -106,6 +106,8 @@ export function needsPasskey(plan: Plan | undefined): boolean {
   return (
     plan !== undefined &&
     (accessOf(plan).some(asGoodAsRoot) ||
+      // Taking on a record made in Cloudflare takes a fresh passkey, with no typed code (ADR 0104, section 5).
+      accessOf(plan).some((a) => a.kind === HostAccessKind.CLOUDFLARE_TAKEOVER) ||
       installs(plan) ||
       reboots(plan) ||
       // A removal cuts a server off and revokes what it holds (ADR 0090).
@@ -169,6 +171,11 @@ function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string }
   return [...out.values()];
 }
 
+/** Whether a plan publishes a route through a tunnel at Cloudflare. */
+function publishesThroughTunnel(plan: Plan): boolean {
+  return tunnelledRoutes(plan).size > 0;
+}
+
 /** What a plan lets a resource reach on its server, in words, worst first, with what is as good as root apart. */
 function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } {
   const { t } = useLingui();
@@ -177,7 +184,13 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
 
   const reaches: { name: string; server: string; access: HostAccess }[] = [];
   const seen = new Set<string>();
+  // Through a tunnel Dockwell proved runs on the server, believing the tunnel's own
+  // address, and the zone's rule its step at Cloudflare says, are the happy path: no
+  // warning (ADR 0104, the polish round).
+  const tunnelled = publishesThroughTunnel(plan);
   const add = (name: string, server: string, access: HostAccess) => {
+    if (access.kind === HostAccessKind.TUNNEL_RULE) return;
+    if (tunnelled && access.kind === HostAccessKind.TRUSTED_PROXY && LOOPBACK.has(access.path)) return;
     const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}/${access.detail}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -199,6 +212,17 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   reaches.sort((a, b) => (WORST[a.access.kind] ?? 9) - (WORST[b.access.kind] ?? 9));
 
   const notice = ({ name, server, access }: (typeof reaches)[number], key: string): Notice => {
+    // Taking on or replacing a record made in Cloudflare runs nothing: it says what's
+    // taken, and that it's kept whole so undo puts it back (ADR 0104, section 5).
+    if (access.kind === HostAccessKind.CLOUDFLARE_TAKEOVER) {
+      const { path, detail } = access;
+      return {
+        key,
+        title: t`${path}'s ${detail}, made in Cloudflare, becomes Dockwell's`,
+        detail: t`Dockwell keeps it whole, so undo puts it back.`,
+        amber: true,
+      };
+    }
     // What a spec holds is quoted where it isn't what a name holds, so it can't write these words.
     const [path, leadsTo] = [plain(access.path), plain(access.leadsTo)];
     // A relabel writes on the server, however read-only the mount is (ADR 0021).
@@ -1507,16 +1531,14 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       notice: true,
     });
   }
+  const tunnelled = tunnelledRoutes(plan);
   for (const server of plan?.servers ?? []) {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
       const key = `${server.serverId}/${step.resourceId}`;
       for (const line of words.ingress(step.ingress, server.serverName))
         out.push({ key: `ingress-${key}-${line}`, title: line });
-      if (step.unencrypted) {
-        out.push({ key: `unencrypted-${key}`, title: words.unencrypted(server.serverName), notice: true });
-      }
-      for (const line of words.answers(step.answers, step.serverPort, server.serverName)) {
+      for (const line of reachLines(words, step, server.serverName, tunnelled.has(step.resourceId))) {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
       if (step.goes) out.push({ key: `goes-${key}`, title: words.goes(step.goes), notice: true });
@@ -1524,7 +1546,10 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       if (step.redirects) {
         out.push({ key: `redirects-${key}`, title: words.redirects(step.redirects), notice: true });
       }
-      if (reloadsProxy(step)) out.push({ key: `reload-${key}`, title: `${words.reload(server.serverName)}.` });
+      // A server's proxy reloads once for all its routes, so it's said once.
+      if (reloadsProxy(step) && !out.some((n) => n.key === `reload-${server.serverId}`)) {
+        out.push({ key: `reload-${server.serverId}`, title: `${words.reload(server.serverName)}.` });
+      }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {
         out.push({

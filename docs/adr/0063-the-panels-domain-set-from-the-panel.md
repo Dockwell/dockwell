@@ -45,6 +45,7 @@ The save is refused while the name is invalid or taken by a route. DNS that does
 - the confirm before the save names how many people have passkeys only for A, and Settings → Members shows who hasn't moved yet, with **Send a sign-in link** for each, for the owner to pass on, as an invite;
 - A also serves `/.well-known/webauthn` listing B (WebAuthn's related origin requests). B's own ceremonies ask for B's relying party ID, so during the grace period B's sign-in page also offers **Use a passkey from A**, a ceremony that asks for A's ID, in a browser whose `getClientCapabilities()` says it supports related origins; elsewhere that button isn't shown, and Move my sign-in to B is the way.
 - **Stop using it** during a move ends the move back on A: the setting goes back to A and the control plane restarts on A alone, so A's passkeys keep working. It never clears the setting while B isn't serving, which would leave every member without a way in.
+- the tunnel writer of [ADR 0104](0104-adding-a-domain-publishes-it.md) keeps A as one of the panel's names for as long as it answers: whatever builds the move names A in `PanelNames.Moving`, so no rule Dockwell writes in a tunnel serves or moves it.
 
 The grace period ends 7 days after B has answered over HTTPS and its owner has signed in there, or when the owner ends it early in Settings → General; then A answers 421 as any other name does. Loopback and the tunnel answer throughout. Moving back to a domain set before (A to B to A) brings A's passkeys back, as they're bound to A's ID.
 

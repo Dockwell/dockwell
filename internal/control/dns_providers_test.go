@@ -93,14 +93,19 @@ func TestAnAdminConnectsADNSProvider(t *testing.T) {
 	if strings.Contains(protojson.Format(checkedEvents.Msg), dnsToken) {
 		t.Error("Activity holds the DNS token after a check")
 	}
-	// Its zones change without the token again.
-	apply(t, c, propose(t, c, "And example.org", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com", "example.org"}})))
+	// Its zones change without the token again, and it serves a project, which an
+	// admin's list says, so a form that changes the provider again can send it back.
+	const project = "prj_01JD6Z3R8M9QF2K7T4XW5BNC0V"
+	apply(t, c, propose(t, c, "And example.org", dnsEdit("cloudflare", &resourcev1.DnsProvider{Provider: "cloudflare", Zones: []string{"example.com", "example.org"}, Projects: []string{project}})))
 	providers, err := dc.ListDnsProviders(t.Context(), connect.NewRequest(&dockwellv1.ListDnsProvidersRequest{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p := providers.Msg.GetProviders(); len(p) != 1 || p[0].GetName() != "cloudflare" || p[0].GetProvider() != "cloudflare" || !slices.Equal(p[0].GetZones(), []string{"example.com", "example.org"}) {
 		t.Errorf("an admin lists %v", p)
+	}
+	if p := providers.Msg.GetProviders(); len(p) != 1 || !slices.Equal(p[0].GetProjects(), []string{project}) {
+		t.Errorf("an admin's list should name the projects it serves: %v", p)
 	}
 	if strings.Contains(protojson.Format(providers.Msg), dnsToken) {
 		t.Error("the list holds the DNS token")
@@ -117,7 +122,7 @@ func TestAnAdminConnectsADNSProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p := trimmed.Msg.GetProviders(); len(p) != 1 || p[0].GetName() != "cloudflare" || len(p[0].GetZones()) != 2 || p[0].GetProvider() != "" {
+	if p := trimmed.Msg.GetProviders(); len(p) != 1 || p[0].GetName() != "cloudflare" || len(p[0].GetZones()) != 2 || p[0].GetProvider() != "" || len(p[0].GetProjects()) != 0 {
 		t.Errorf("a developer lists %v", p)
 	}
 	_, err = dc.CheckDnsProvider(t.Context(), connect.NewRequest(&dockwellv1.CheckDnsProviderRequest{Name: "cloudflare"}))

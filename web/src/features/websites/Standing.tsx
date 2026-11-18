@@ -6,7 +6,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
 
-import { useDomainState, useSilent } from "../apps/DomainNote";
+import { endsInFront, useDomainState, useSilent } from "../apps/DomainNote";
 import { type DomainLook, type DomainRead, lookOf, plainForAnyone, readOf, useAllDomains } from "../apps/domains";
 import { useHealthWords } from "../apps/Health";
 import { type AppHealth, type HealthView, useHealth, worstHealth } from "../apps/health";
@@ -163,7 +163,9 @@ function DomainStanding({
 }) {
   const { t } = useLingui();
   const silent = useSilent(domain, look);
-  const [status] = useDomainState(domain, look, silent, read);
+  const [said] = useDomainState(domain, look, silent, read);
+  // HTTPS that ends in front serves, as what's in front reaches it.
+  const status = read === "read" && endsInFront(domain, look, silent) ? "healthy" : said;
   const word = useServingWord(status);
   if (status !== "healthy") return children({ status, word });
   if (unreachable) return children(unreachable);
@@ -237,7 +239,7 @@ export function useCertificateWords(): (domain: Domain, look: DomainLook, read: 
     if (read !== "read" || look.stale) return "";
     if (look.expired) return t`certificate expired`;
     if (look.state === "failed") return t`certificate failed`;
-    if (look.noCertificate) return plainForAnyone(domain) ? t`plain HTTP` : t`TLS ends in front`;
+    if (look.noCertificate) return plainForAnyone(domain) ? t`plain HTTP` : t`HTTPS ends in front`;
     if (look.warning) return t`certificate renewal failing`;
     if (look.state === "pending") return t`certificate on its way`;
     const { days } = look;

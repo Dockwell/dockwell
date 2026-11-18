@@ -16,6 +16,7 @@ import {
   PlanAction,
   type PlannedResource,
   type PlanStep,
+  ProviderAction,
   type ServerPlan,
   type StepProgress,
   StepState,
@@ -185,6 +186,9 @@ export function changing(plan: Plan | undefined): PlannedResource[] {
 
 /** True for what is as good as root on the server, as the plan says, and always for Docker's socket and the server's network. */
 export function asGoodAsRoot(access: HostAccess): boolean {
+  // Taking on a record made in Cloudflare asks for a passkey as root does, but runs
+  // nothing on a server, so it reads as itself, not as root (ADR 0104, section 5).
+  if (access.kind === HostAccessKind.CLOUDFLARE_TAKEOVER) return false;
   return (
     access.sameAsRoot || access.kind === HostAccessKind.DOCKER_SOCKET || access.kind === HostAccessKind.HOST_NETWORK
   );
@@ -211,6 +215,24 @@ function readingOrder(resource: PlanResource, planned: PlannedResource | undefin
  * container, which is how it is done and no news to whoever deployed, so it
  * counts as an update and the downtime says the rest.
  */
+/** The tunnel a route's steps at Cloudflare go through, by name: a rule's tunnel, or the one its record points at. */
+function tunnelOf(steps: readonly PlanStep[]): string | undefined {
+  for (const s of steps) {
+    const p = s.provider;
+    if (!p) continue;
+    const named = /^CNAME to (.+)'s tunnel/.exec(p.to);
+    if (named) return named[1];
+    if (
+      p.action === ProviderAction.ADD_RULE ||
+      p.action === ProviderAction.TAKE_ON_RULE ||
+      p.action === ProviderAction.MOVE_RULE
+    ) {
+      return p.target;
+    }
+  }
+  return undefined;
+}
+
 export function diffResources(
   plan: Plan | undefined,
   rows: FieldRows,
@@ -228,6 +250,7 @@ export function diffResources(
     const steps = (plan?.servers ?? []).flatMap((s) => s.steps).filter((s) => s.resourceId === resource.id);
     const changes = rows({
       kind,
+      tunnel: tunnelOf(steps),
       changes: resource.changes,
       hostAccess: resource.hostAccess,
       keptPaths: [...new Set(steps.flatMap((s) => s.keptPaths))],

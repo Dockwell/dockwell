@@ -168,7 +168,7 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await row("shop.example.com").getByRole("link", { name: "adminer" }).waitFor();
   await row("bad.example.com").getByText("Failed", { exact: true }).waitFor();
   await row("new.example.com").getByText("Issuing").waitFor();
-  await row("tunnel.example.com").getByText("TLS ends in front").waitFor();
+  await row("tunnel.example.com").getByText("HTTPS ends in front").waitFor();
   await row("gone.example.com").getByText("Not connected").waitFor();
   await row("old.example.com").getByText("Expired").waitFor();
   await row("old.example.com")
@@ -328,7 +328,9 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   await page.unroute(stubbed);
   await page.route(stubbed, async (route) => {
     await wait(2_000);
-    await answer(route);
+    // A read the page gave up on while it waited, as Domains' own DNS read is once the
+    // page is left, is handled already: nothing's left to answer.
+    await answer(route).catch(() => undefined);
   });
   const says = async (where: string) => {
     if ((await page.getByText(/can't reach the control plane/).count()) !== 0) {

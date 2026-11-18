@@ -1357,6 +1357,10 @@ const (
 	// what's there, as "A 203.0.113.9" or "a rule in web-1". As good as root to
 	// apply: an admin's, with a passkey (ADR 0104).
 	AccessCloudflareTakeover
+	// AccessZoneMode is a zone set to Full (strict): Path is the zone, Detail the
+	// proxied names a server without a valid certificate behind stops answering, the
+	// panel's first, comma-separated. An admin's to approve (ADR 0104).
+	AccessZoneMode
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1653,6 +1657,11 @@ func AccessWords(a Access) string {
 		return out
 	case AccessCloudflareTakeover:
 		return plain(a.Detail) + " at " + plain(a.Path) + ", made in Cloudflare by someone else, which Dockwell replaces or takes on, and may delete later"
+	case AccessZoneMode:
+		if a.Detail == "" {
+			return "Full (strict) for " + plain(a.Path) + ", where a proxied name whose server has no valid certificate stops answering"
+		}
+		return "Full (strict) for " + plain(a.Path) + ", where a name whose server has no valid certificate stops answering: " + plain(a.Detail)
 	}
 	return fmt.Sprintf("access(%d)", int(a.Kind))
 }
@@ -1850,6 +1859,15 @@ type WriterNamer interface {
 // new one. Dockwell's own changes count as an admin's.
 type SaverStamper interface {
 	StampSaver(current, spec proto.Message, installAdmin bool)
+}
+
+// Transient is a kind whose spec can carry what a change asks for once, as records
+// for a DNS provider to put back: the change keeps it, so a plan made again finds
+// it, and its revision doesn't, so no later edit asks for it again. StripTransient
+// returns the spec as the revision keeps it, or spec itself when there's nothing to
+// leave out.
+type Transient interface {
+	StripTransient(spec proto.Message) proto.Message
 }
 
 // NewDefaulter is a kind whose new resources take a default from their ref
@@ -2878,6 +2896,8 @@ const (
 	ProviderTakeOnRule
 	ProviderMoveRule
 	ProviderKeepRule
+	ProviderSetZoneMode
+	ProviderRestoreRule
 )
 
 // ProviderStep is one thing the control plane writes, or removes, at Cloudflare for
@@ -2905,6 +2925,15 @@ type ProviderStep struct {
 	// replace deleted it, for a step that puts it back from there. It's never sent
 	// to Cloudflare.
 	Pending string `json:",omitempty"`
+	// Mode is the SSL/TLS mode a step sets a zone to, such as "strict", or puts
+	// back.
+	Mode string `json:",omitempty"`
+	// Skip says the plan found the step can't be taken, as a kept record whose name
+	// holds another now: it writes nothing, and Routing says why.
+	Skip bool `json:",omitempty"`
+	// HandOverTo is the route, by ID, a record goes on with, as a domain moved from
+	// one route to another in one change: the store's alone, nothing at Cloudflare.
+	HandOverTo string `json:",omitempty"`
 }
 
 // ProviderRecord is a DNS record a step writes or acts on.

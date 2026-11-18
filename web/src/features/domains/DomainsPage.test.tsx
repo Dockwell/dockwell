@@ -8,6 +8,8 @@ import {
   Connection,
   DomainCheckState,
   type ProposeChangeRequest,
+  PublishedState,
+  RouteWay,
   StrangerOutcome,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -142,7 +144,7 @@ describe("the list of domains", () => {
     expect(await rowOf(/a\.example\.com/)).toHaveTextContent("Valid for 47 days");
     expect(await rowOf(/b\.example\.com/)).toHaveTextContent("Issuing");
     expect(await rowOf(/c\.example\.com/)).toHaveTextContent("Failed");
-    expect(await rowOf(/d\.example\.com/)).toHaveTextContent("TLS ends in front");
+    expect(await rowOf(/d\.example\.com/)).toHaveTextContent("HTTPS ends in front");
     expect(await rowOf(/e\.example\.com/)).toHaveTextContent("Plain HTTP");
     expect(await rowOf(/f\.example\.com/)).toHaveTextContent("Renewal failing");
     expect(container.querySelector(".page-lead")).toHaveTextContent("6 domains · 2 need a look");
@@ -319,12 +321,15 @@ describe("the list of domains", () => {
     expect(old).not.toHaveAttribute("tabindex");
     expect(port).not.toHaveClass("is-clickable");
 
-    // Tabbing goes past each, to what's in it that does something: its link, and who gets in.
+    // Tabbing goes past each, to what's in it that does something: its link, who gets in, and its DNS.
     within(app).getByRole("link", { name: "Open app.example.com" }).focus();
     await user.tab();
     expect(within(app).getByRole("button", { name: "Make app.example.com private" })).toHaveFocus();
     await user.tab();
+    expect(within(app).getByRole("button", { name: "Check DNS for app.example.com now" })).toHaveFocus();
+    await user.tab();
     expect(screen.getByRole("link", { name: "Open port.example.com" })).toHaveFocus();
+    await user.tab();
     await user.tab();
     await user.tab();
     expect(screen.getByRole("link", { name: "Open old.example.com" })).toHaveFocus();
@@ -768,7 +773,14 @@ describe("the list of domains", () => {
               CertificateState.FAILED,
               "A certificate authority can't reach app.example.com. If a tunnel or a proxy ends TLS in front of this server, set tls to off on its routes.",
             ),
-            route: { held: true, allow: ["203.0.113.0/24"], users: ["mira"], signIn, trustedProxies: ["10.0.0.0/8"] },
+            route: {
+              held: true,
+              allow: ["203.0.113.0/24"],
+              users: ["mira"],
+              signIn,
+              trustedProxies: ["10.0.0.0/8"],
+              publish: { way: RouteWay.PROXY, provider: "cloudflare" },
+            },
           }),
         ],
         {
@@ -796,6 +808,8 @@ describe("the list of domains", () => {
       tls: "off",
       trustedProxies: ["127.0.0.1"],
       access: { allow: ["203.0.113.0/24"], users: [{ name: "mira" }], signIn },
+      // How it's published at Cloudflare stays, or the plan would take its records away.
+      publish: { way: RouteWay.PROXY, provider: "cloudflare" },
     });
   });
 
@@ -882,6 +896,101 @@ describe("DNS and certificates, as Domains-List has them", () => {
     expect(panel).toHaveTextContent("Valid2");
     expect(panel).toHaveTextContent("Issuing1");
     expect(panel).not.toHaveTextContent("Failed");
+  });
+
+  it("reads every row's DNS in one list as the page opens, and a row's in full on Check now", async () => {
+    const user = userEvent.setup();
+    const asked: { domain: string; projectId: string }[] = [];
+    let readAll = 0;
+    const domains = [aDomain({ name: "app.example.com", certificate: issued })];
+    renderAt(
+      "/domains",
+      api(domains, {
+        more: {
+          domains: {
+            listDomains: (req) => {
+              if (!req.readDns) return { domains };
+              readAll++;
+              return { domains: domains.map((d) => ({ ...d, dns: { state: DomainCheckState.NO_RECORD, found: [] } })) };
+            },
+            checkDomain: (req) => {
+              asked.push({ domain: req.domain, projectId: req.projectId });
+              return { check: { state: DomainCheckState.POINTS_HERE, found: [] } };
+            },
+          },
+        },
+      }),
+    );
+    const row = await rowOf(/app\.example\.com/);
+    await waitFor(() => expect(row).toHaveTextContent("No record yet"));
+    // One list for the page, and no check per row (the review's B-M2).
+    expect(readAll).toBe(1);
+    expect(asked).toEqual([]);
+    await user.click(within(row).getByRole("button", { name: "Check DNS for app.example.com now" }));
+    await waitFor(() => expect(row).toHaveTextContent("Points here"));
+    expect(asked).toEqual([{ domain: "app.example.com", projectId: "prj_1" }]);
+  });
+
+  it("says what Dockwell published at Cloudflare is gone, and puts it back as the routes are", async () => {
+    const user = userEvent.setup();
+    const edits: ProposeChangeRequest["edits"] = [];
+    const publish = { way: RouteWay.SERVER_TUNNEL, tunnel: "tun_1", provider: "cloudflare" };
+    const domains = [
+      {
+        ...aDomain({
+          name: "wiki.example.com",
+          certificate: certificate(CertificateState.NONE),
+          route: { tls: "off", trustedProxies: ["127.0.0.1"], publish },
+        }),
+        published: [
+          {
+            name: "wiki.example.com",
+            way: RouteWay.SERVER_TUNNEL,
+            tunnel: "web-1",
+            state: PublishedState.GONE_FROM_TUNNEL,
+          },
+        ],
+      },
+    ];
+    renderAt(
+      "/domains",
+      api(domains, {
+        more: {
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...req.edits);
+              return { change: webPlanned() };
+            },
+          },
+        },
+      }),
+    );
+    const row = await rowOf(/wiki\.example\.com/);
+    expect(row).toHaveTextContent("Not in the tunnel any more");
+    await user.click(within(row).getByRole("button", { name: "Put wiki.example.com back at Cloudflare" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({
+      domain: "wiki.example.com",
+      service: "web",
+      tls: "off",
+      trustedProxies: ["127.0.0.1"],
+      publish,
+    });
+  });
+
+  it("shows HTTPS that ends in front as neither good nor bad, and renews nothing it has no certificate for", async () => {
+    renderAt(
+      "/domains",
+      api([aDomain({ name: "t.example.com", certificate: certificate(CertificateState.NONE), route: { tls: "off" } })]),
+    );
+    const row = await rowOf(/t\.example\.com/);
+    expect(row).toHaveTextContent("HTTPS ends in front");
+    expect(row.querySelector(".dw-tone-healthy")).toBeNull();
+    const panel = await screen.findByRole("region", { name: "Certificates" });
+    expect(panel).toHaveTextContent("HTTPS ends in front1");
+    expect(panel).not.toHaveTextContent("Renewed automatically");
   });
 
   it("counts every domain once, whatever the filters show, so the panel stays put", async () => {
@@ -2055,7 +2164,13 @@ describe("who gets in to a route (ADR 0087)", () => {
     renderAt(
       "/domains",
       privateApi(
-        [aDomain({ name: "app.example.com", certificate: issued, route: { trustedProxies: [] } })],
+        [
+          aDomain({
+            name: "app.example.com",
+            certificate: issued,
+            route: { trustedProxies: [], publish: { way: RouteWay.OWN_HTTPS, provider: "cloudflare" } },
+          }),
+        ],
         "198.51.100.23",
         edits,
       ),
@@ -2097,6 +2212,8 @@ describe("who gets in to a route (ADR 0087)", () => {
     // It stays on the server it runs on, and as open or held as it was.
     expect(edits[0]?.servers).toEqual([SERVER]);
     expect(edits[0]?.spec?.kind.value).toMatchObject({ held: false });
+    // How it's published at Cloudflare stays, or the plan would take its records away.
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ publish: { way: RouteWay.OWN_HTTPS, provider: "cloudflare" } });
   });
 
   it("asks for a password Dockwell makes, shown once, through the SSH tunnel where your address can't be offered", async () => {

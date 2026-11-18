@@ -10,12 +10,14 @@ import {
   type ChangeServiceRuntimeRequest,
   ChangeState,
   type CheckDomainRequest,
+  CloudflareName,
   type CreateWebsiteRequest,
   DomainCheckState,
   FileType,
   HealthState,
   PlanAction,
   Role,
+  RouteWay,
   ServiceSchema,
   UpdateCheck,
   UpdateProblem,
@@ -322,7 +324,7 @@ describe("The websites", () => {
     expect(first).toHaveTextContent("1 Nov");
     const second = await rowOf(/tools\.example\.com/);
     expect(second).toHaveTextContent("Port 3000 on the server");
-    await waitFor(() => expect(second).toHaveTextContent("TLS ends in front"));
+    await waitFor(() => expect(second).toHaveTextContent("HTTPS ends in front"));
     expect(container.querySelector(".page-lead")).toHaveTextContent("2 sites on hz-1");
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", `/servers/${SERVER}/files`);
     expect(screen.getByRole("link", { name: "New website" })).toHaveAttribute("href", "/websites/new");
@@ -513,6 +515,67 @@ describe("New website", () => {
     expect(asked?.website?.serves).toEqual({ case: "proxy", value: expect.objectContaining({ port: 3000 }) });
     expect(asked?.tls).toBe("off");
     expect(asked?.trustedProxies).toEqual(["127.0.0.1"]);
+  });
+
+  it("picks its name from a connected zone and publishes it through Cloudflare's proxy (ADR 0104)", async () => {
+    const user = userEvent.setup();
+    let asked: CreateWebsiteRequest | undefined;
+    const checks: CheckDomainRequest[] = [];
+    renderAt(
+      "/websites/new",
+      api([], {
+        domains: {
+          listDomains: () => ({ domains: [] }),
+          listDnsProviders: (req) => ({
+            providers:
+              req.projectId === ""
+                ? [{ id: "dnp_1", name: "cloudflare", provider: "cloudflare", zones: ["example.com"], projects: [] }]
+                : [],
+          }),
+          checkDomain: (req) => {
+            checks.push(req);
+            return {
+              cloudflare: {
+                zone: "example.com",
+                provider: "cloudflare",
+                state: CloudflareName.FREE,
+                way: RouteWay.PROXY,
+                ways: [{ way: RouteWay.PROXY }, { way: RouteWay.OWN_HTTPS }, { way: RouteWay.FRONT }],
+                sslMode: "full",
+              },
+            };
+          },
+        },
+        websites: {
+          createWebsite: (req) => {
+            asked = req;
+            return { change: planned };
+          },
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    expect(await within(sheet).findByRole("combobox", { name: "Zone" })).toHaveValue("example.com");
+    await user.type(within(sheet).getByRole("textbox", { name: "Subdomain" }), "docs");
+    expect(await within(sheet).findByText("Through Cloudflare's proxy", {}, { timeout: 3000 })).toBeVisible();
+    // A website not made yet has no project: an admin's check reads every zone.
+    expect(checks.at(-1)).toMatchObject({ domain: "docs.example.com", projectId: "" });
+    // It asks for a way, which an admin's check reads in every zone; Domains asks for none.
+    expect(checks.some((c) => c.domain === "docs.example.com" && c.publish !== undefined)).toBe(true);
+    // Nothing to point by hand.
+    expect(sheet).not.toHaveTextContent(/Make this record/);
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.domain).toBe("docs.example.com");
+    expect(asked?.tls).toBe("");
+    expect(asked?.trustedProxies).toEqual(["cloudflare"]);
+    expect(asked?.publish).toMatchObject({ way: RouteWay.PROXY, provider: "cloudflare" });
+    // The folder follows the whole name.
+    expect(asked?.website?.serves).toEqual({
+      case: "folder",
+      value: expect.objectContaining({ root: "/var/www/docs.example.com" }),
+    });
   });
 
   it("opens the website it made once its plan applies", async () => {

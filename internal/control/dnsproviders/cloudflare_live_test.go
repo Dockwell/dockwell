@@ -88,7 +88,7 @@ func cloudflareUnderTest(t *testing.T) (cf *dnsproviders.Cloudflare, account, zo
 	api := cftest.New("token", "example.com")
 	api.Tokens["token"] = cftest.Token{
 		Reads: []string{"example.com"}, Writes: []string{"example.com"}, Account: true,
-		Rights: []string{"Zone Read", "DNS Write", "Zone Settings Read", "Cloudflare Tunnel Write", "Account API Tokens Read"},
+		Rights: []string{"Zone Read", "DNS Write", "Zone Settings Read", "Zone Settings Write", "Cloudflare Tunnel Write", "Account API Tokens Read"},
 	}
 	srv := httptest.NewServer(api)
 	t.Cleanup(srv.Close)
@@ -232,6 +232,40 @@ func TestCloudflareLive(t *testing.T) {
 		}
 		if _, kept := decoded(t, read.Config).(map[string]any)["originRequest"]; kept {
 			t.Fatal("a PUT replaces the whole document, so what it leaves out goes")
+		}
+	})
+
+	// Setting a zone to Full (strict) and back, as an admin's plan on the provider
+	// does, and listing the zone's proxied names, which the plan names. The mode is
+	// put back whatever happens.
+	t.Run("a zone's mode", func(t *testing.T) {
+		was, _, err := cf.SSLMode(ctx, zone)
+		if err != nil || was == "" {
+			t.Fatalf("the zone's mode: %q %v", was, err)
+		}
+		t.Cleanup(func() {
+			if err := cf.SetSSLMode(context.Background(), zone, was); err != nil {
+				t.Errorf("putting the zone's mode back to %s: %v", was, err)
+			}
+		})
+		to := "strict"
+		if was == "strict" {
+			to = "full"
+		}
+		if err := cf.SetSSLMode(ctx, zone, to); err != nil {
+			t.Fatalf("setting %s: %v", to, err)
+		}
+		if got, _, err := cf.SSLMode(ctx, zone); err != nil || got != to {
+			t.Fatalf("after setting %s, the mode reads %q %v", to, got, err)
+		}
+		proxied, err := cf.RecordsProxied(ctx, zone)
+		if err != nil {
+			t.Fatalf("the proxied names: %v", err)
+		}
+		for _, r := range proxied {
+			if !r.Proxied {
+				t.Fatalf("the proxied filter gave a record that isn't: %s", r.Type)
+			}
 		}
 	})
 

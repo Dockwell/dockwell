@@ -635,7 +635,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		mux.Handle(catalogapi.MediaRoute, catalogSources.Media(func(r *http.Request) error {
 			return authapi.Authorizer(cfg.Auth, cfg.Logger)(r.Context(), dockwellv1connect.CatalogServiceListCatalogEntriesProcedure)
 		}))
-		handle(dockwellv1connect.NewWebsiteServiceHandler(websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger), opts...))
+		sites := websites.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Agents, cfg.Logger)
+		sites.DNS = cfg.dns
+		handle(dockwellv1connect.NewWebsiteServiceHandler(sites, opts...))
 		handle(dockwellv1connect.NewEventServiceHandler(events.New(cfg.Changes, cfg.Store, cfg.Logger, cfg.EventPoll), opts...))
 		handle(dockwellv1connect.NewResourceServiceHandler(resources.New(cfg.Changes.Kinds(), cfg.Store, cfg.Logger), opts...))
 		if cfg.Secrets != nil {

@@ -740,6 +740,10 @@ const (
 	// on: a DNS record, or a tunnel's rule. Taking it on lets Dockwell delete it
 	// later. As good as root to apply: an admin's, with a passkey (ADR 0104).
 	HostAccessKind_HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER HostAccessKind = 341
+	// A zone set to Full (strict) for an admin: path is the zone, detail the names a
+	// server with no valid certificate behind stops answering, the panel's first,
+	// comma-separated (ADR 0104).
+	HostAccessKind_HOST_ACCESS_KIND_ZONE_MODE HostAccessKind = 342
 )
 
 // Enum value maps for HostAccessKind.
@@ -775,6 +779,7 @@ var (
 		174: "HOST_ACCESS_KIND_ROOT_TOGETHER",
 		340: "HOST_ACCESS_KIND_TUNNEL_RULE",
 		341: "HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER",
+		342: "HOST_ACCESS_KIND_ZONE_MODE",
 	}
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":         0,
@@ -807,6 +812,7 @@ var (
 		"HOST_ACCESS_KIND_ROOT_TOGETHER":       174,
 		"HOST_ACCESS_KIND_TUNNEL_RULE":         340,
 		"HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER": 341,
+		"HOST_ACCESS_KIND_ZONE_MODE":           342,
 	}
 )
 
@@ -864,6 +870,13 @@ const (
 	// Keeps a rule no route publishes through any more, as names made in Cloudflare
 	// still go through it; routing says which. It writes nothing.
 	ProviderAction_PROVIDER_ACTION_KEEP_RULE ProviderAction = 10
+	// Sets a zone's SSL/TLS mode: to Full (strict) for an admin, on the DNS
+	// provider's own plan, or back to what it was. It changes how Cloudflare reaches
+	// every proxied name in the zone; routing names them.
+	ProviderAction_PROVIDER_ACTION_SET_ZONE_MODE ProviderAction = 11
+	// Puts back a rule made by hand that Dockwell took on or moved: in its tunnel
+	// where it was, held again, or as it was before Move it to Dockwell, let go.
+	ProviderAction_PROVIDER_ACTION_RESTORE_RULE ProviderAction = 12
 )
 
 // Enum value maps for ProviderAction.
@@ -880,6 +893,8 @@ var (
 		8:  "PROVIDER_ACTION_TAKE_ON_RULE",
 		9:  "PROVIDER_ACTION_MOVE_RULE",
 		10: "PROVIDER_ACTION_KEEP_RULE",
+		11: "PROVIDER_ACTION_SET_ZONE_MODE",
+		12: "PROVIDER_ACTION_RESTORE_RULE",
 	}
 	ProviderAction_value = map[string]int32{
 		"PROVIDER_ACTION_UNSPECIFIED":    0,
@@ -893,6 +908,8 @@ var (
 		"PROVIDER_ACTION_TAKE_ON_RULE":   8,
 		"PROVIDER_ACTION_MOVE_RULE":      9,
 		"PROVIDER_ACTION_KEEP_RULE":      10,
+		"PROVIDER_ACTION_SET_ZONE_MODE":  11,
+		"PROVIDER_ACTION_RESTORE_RULE":   12,
 	}
 )
 
@@ -11241,7 +11258,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1cGUESSABLE_SECRET_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"GUESSABLE_SECRET_DATABASE_PASSWORD\x10\x01\x12\x1d\n" +
 	"\x19GUESSABLE_SECRET_PASSWORD\x10\x02\x12\x18\n" +
-	"\x14GUESSABLE_SECRET_KEY\x10\x03*\xa4\b\n" +
+	"\x14GUESSABLE_SECRET_KEY\x10\x03*\xc5\b\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
@@ -11273,7 +11290,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1fHOST_ACCESS_KIND_HOST_PROCESSES\x10\xad\x01\x12#\n" +
 	"\x1eHOST_ACCESS_KIND_ROOT_TOGETHER\x10\xae\x01\x12!\n" +
 	"\x1cHOST_ACCESS_KIND_TUNNEL_RULE\x10\xd4\x02\x12)\n" +
-	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02*\x82\x03\n" +
+	"$HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER\x10\xd5\x02\x12\x1f\n" +
+	"\x1aHOST_ACCESS_KIND_ZONE_MODE\x10\xd6\x02*\xc7\x03\n" +
 	"\x0eProviderAction\x12\x1f\n" +
 	"\x1bPROVIDER_ACTION_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dPROVIDER_ACTION_CREATE_RECORD\x10\x01\x12!\n" +
@@ -11286,7 +11304,9 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1cPROVIDER_ACTION_TAKE_ON_RULE\x10\b\x12\x1d\n" +
 	"\x19PROVIDER_ACTION_MOVE_RULE\x10\t\x12\x1d\n" +
 	"\x19PROVIDER_ACTION_KEEP_RULE\x10\n" +
-	"*\x99\x01\n" +
+	"\x12!\n" +
+	"\x1dPROVIDER_ACTION_SET_ZONE_MODE\x10\v\x12 \n" +
+	"\x1cPROVIDER_ACTION_RESTORE_RULE\x10\f*\x99\x01\n" +
 	"\x10VolumeMoveMethod\x12\"\n" +
 	"\x1eVOLUME_MOVE_METHOD_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bVOLUME_MOVE_METHOD_IN_PLACE\x10\x01\x12#\n" +

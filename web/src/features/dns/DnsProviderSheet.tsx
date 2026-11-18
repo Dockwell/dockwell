@@ -113,7 +113,20 @@ export function DnsProviderSheet({
       edits: [
         {
           resource: { kind: "dns.provider", name },
-          spec: { kind: { case: "dnsProvider", value: { provider: "cloudflare", zones, apiToken: token } } },
+          // An edit is the whole spec, so the projects it serves and the zones it set to
+          // Full (strict) go back as they are, a zone it no longer writes in aside.
+          spec: {
+            kind: {
+              case: "dnsProvider",
+              value: {
+                provider: "cloudflare",
+                zones,
+                apiToken: token,
+                projects: editing?.projects ?? [],
+                strictZones: (editing?.strictZones ?? []).filter((z) => zones.includes(z)),
+              },
+            },
+          },
         },
       ],
       onClose: (change) => {

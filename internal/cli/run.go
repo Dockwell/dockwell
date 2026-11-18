@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -522,7 +523,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,
 		UpgradesItself: true,
-		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Tunnels: &tunnels.Finder{Proc: os.DirFS("/proc"), ReadIn: tunnels.ReadInRoot, ReadyIn: tunnels.ReadyInNetwork}, Health: monitor,
+		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Tunnels: tunnelFinder(stdio, logger), Health: monitor,
 		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,
@@ -677,4 +678,26 @@ func serveSignIn(ctx context.Context, logger *slog.Logger, dir datadir.Dir, keep
 	if err := signin.Serve(ln, answer, signInReadWait, logger); !errors.Is(err, net.ErrClosed) {
 		logger.Warn("stopped answering what the ingress asks of who signed in, so routes that sign people in answer 502. Restart the agent", slog.String("error", err.Error()))
 	}
+}
+
+// envTestProc names, in a test, a folder that stands in for /proc where the agent
+// finds cloudflared's runs, as a test's machine runs none (ADR 0104). A run's
+// connector ID is in its folder's file "ready", as its /ready would answer it.
+const envTestProc = "DOCKWELL_TEST_PROC"
+
+// tunnelFinder finds the Cloudflare tunnels cloudflared runs on this server: in
+// /proc, or in a test, in the stand-in DOCKWELL_TEST_PROC names, and nowhere else.
+func tunnelFinder(stdio IO, logger *slog.Logger) *tunnels.Finder {
+	dir := stdio.Getenv(envTestProc)
+	if dir == "" || !isSet(stdio.Getenv(envTest)) {
+		return &tunnels.Finder{Proc: os.DirFS("/proc"), ReadIn: tunnels.ReadInRoot, ReadyIn: tunnels.ReadyInNetwork}
+	}
+	logger.Info("this is a test, so the agent finds cloudflared's runs in the stand-in "+envTestProc+" names, not in /proc", "stand_in", dir)
+	return &tunnels.Finder{Proc: os.DirFS(dir), ReadyIn: func(_ context.Context, pid int, _ string) (tunnels.Ready, error) {
+		b, err := os.ReadFile(filepath.Join(dir, strconv.Itoa(pid), "ready")) //nolint:gosec // a test's own stand-in folder
+		if err != nil {
+			return tunnels.Ready{}, err
+		}
+		return tunnels.Ready{Connections: 4, ConnectorID: strings.TrimSpace(string(b))}, nil
+	}}
 }
