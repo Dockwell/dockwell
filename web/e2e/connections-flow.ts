@@ -120,6 +120,15 @@ export const flow: Flow = {
     if ((await page.locator("main").innerText()).includes(SECRET)) fail("the connection's page shows its key");
     await shoot(page, "connections-page");
 
+    step("connections: the list says its last check, which Check kept (#799)");
+    await page.goto(`${origin}/connections`);
+    await page.getByRole("columnheader", { name: "Last check" }).waitFor({ timeout: 20_000 });
+    const listedRow = page.getByRole("row", { name: /e2e-files/ });
+    await listedRow.getByText(/^Fails from /).waitFor({ timeout: 20_000 });
+    await shoot(page, "connections-last-check");
+    await page.goto(`${origin}/connections/e2e-files`);
+    await page.getByRole("heading", { level: 1, name: "e2e-files" }).waitFor({ timeout: 20_000 });
+
     step("connections: an app linked to it reads its names from it, and Disconnect keeps their values");
     // The link Connect storage would plan, made from the CLI, as nothing here is a
     // bucket the app's network reaches.

@@ -43,6 +43,8 @@ const (
 	StepRead    = "read"
 	StepPresign = "presign"
 	StepDelete  = "delete"
+	// StepList is a check on a schedule's one read, which writes nothing.
+	StepList = "list"
 )
 
 // What kept a check from an answer, where the service gave none.
@@ -118,6 +120,51 @@ func checkS3(ctx context.Context, c *S3, guard netguard.Options) Result {
 	out.Passed = true
 	return out
 }
+
+// readS3 reads the bucket and writes nothing, for a check on a schedule (ADR 0099):
+// one signed list of at most one key under the prefix. A key that may not list,
+// which AccessDenied says, is asked for one fixed object that isn't there instead
+// (#799's review, M3): NoSuchKey says it may read, so it passes; AccessDenied again
+// says nothing a read can confirm, which only Check's write can, so it fails at
+// "list" with that code, and the panel shows it as unconfirmed rather than refused.
+// Both steps are "list", as neither saw an object.
+func readS3(ctx context.Context, c *S3, guard netguard.Options) Result {
+	b := &s3.Bucket{
+		Endpoint: c.Endpoint, Region: c.Region, Name: c.Bucket, VirtualHost: c.VirtualHost,
+		AccessKey: c.AccessKey, SecretKey: c.SecretKey, Client: netguard.Client(guard), Stall: ConnectWait * 3,
+	}
+	prefix := strings.TrimLeft(c.Prefix, "/")
+	out := Result{}
+	err := b.ListOne(ctx, prefix)
+	var se *s3.Error
+	if errors.As(err, &se) && se.Region != "" && se.Region != b.Region {
+		b.Region, out.Region = se.Region, se.Region
+		err = b.ListOne(ctx, prefix)
+	}
+	if err == nil {
+		out.Passed, out.Step = true, StepList
+		return out
+	}
+	if !errors.As(err, &se) || se.Code != "AccessDenied" {
+		return failed(out, StepList, err, c)
+	}
+	r, err := b.Get(ctx, prefix+AbsentKey)
+	if err == nil {
+		// Something is at a key nobody writes: it may read all the same.
+		_ = r.Close()
+		out.Passed, out.Step = true, StepList
+		return out
+	}
+	if errors.As(err, &se) && se.Code == "NoSuchKey" {
+		out.Passed, out.Step, out.Code, out.Status = true, StepList, se.Code, se.Status
+		return out
+	}
+	return failed(out, StepList, err, c)
+}
+
+// AbsentKey is the object a scheduled read asks for where the keys may not list:
+// one nobody writes, so the answer says whether the keys may read, and nothing else.
+const AbsentKey = ".dockwell-check-absent"
 
 // fetchPresigned fetches the object by a presigned URL, as a browser would by one
 // the app gave it, or says why it couldn't.

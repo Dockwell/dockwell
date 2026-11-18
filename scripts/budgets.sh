@@ -181,6 +181,49 @@ tasks_json() {
   printf ']\n'
 }
 
+# connections saves $connection_count connections on the control plane of run
+# $1, half of them to S3 storage and half to a mail server, so it's measured
+# keeping them and checking each on its schedule, as an install that has some
+# does (#799): the checker's next look, within a minute, checks them all, well
+# within the settle. Each is on a loopback port nothing answers, which a check
+# is refused before it dials, where the server can run a check at all, so
+# nothing leaves this machine. A build from before connections were checked
+# keeps them all the same.
+connection_count=${CONNECTIONS:-20}
+claim_bin="$work/claim"
+(cd "$(dirname "$0")/.." && go build -o "$claim_bin" ./scripts/claim) || { echo "budgets: can't build scripts/claim" >&2; exit 1; }
+connections() {
+  local dir="$work/$1" i keys link
+  "$dir/control" connections --help >/dev/null 2>&1 || {
+    echo "this build has no connections, so it keeps none" >>"$dir/connections.log"
+    return 0
+  }
+  # Saving one takes an owner, and local access that may make changes.
+  link=$("$dir/control" claim --data-dir "$dir/control.d" 2>>"$dir/connections.log" |
+    grep -o 'http://localhost:[0-9]*/claim#[A-Za-z0-9_-]*' | head -1) || true
+  [[ -n "$link" ]] || fail "$1" "dockwell claim printed no claim link"
+  "$claim_bin" "$link" >>"$dir/connections.log" 2>&1 || fail "$1" "can't claim the install"
+  DOCKWELL_DATA_DIR="$dir/control.d" "$dir/control" login --local >>"$dir/connections.log" 2>&1 ||
+    fail "$1" "dockwell login --local failed"
+  keys="$dir/keys"
+  printf 'AKIDEXAMPLE\n' >"$keys.id"
+  printf 'budgets-secret\n' >"$keys.secret"
+  printf 'notes@example.com\n' >"$keys.user"
+  for ((i = 1; i <= connection_count; i++)); do
+    if ((i % 2)); then
+      DOCKWELL_DATA_DIR="$dir/control.d" "$dir/control" connections create "bucket-$i" --yes --kind s3 --reach every \
+        --s3-endpoint https://127.0.0.1:9 --s3-bucket "bucket-$i" --s3-path-style \
+        --s3-access-key-id-file "$keys.id" --s3-secret-key-file "$keys.secret" >>"$dir/connections.log" 2>&1 ||
+        fail "$1" "saving the connection bucket-$i failed"
+    else
+      DOCKWELL_DATA_DIR="$dir/control.d" "$dir/control" connections create "mail-$i" --yes --kind smtp --reach every \
+        --smtp-host 127.0.0.1 --smtp-port 9 --smtp-security none --smtp-sender notes@example.com \
+        --smtp-user-file "$keys.user" --smtp-password-file "$keys.secret" >>"$dir/connections.log" 2>&1 ||
+        fail "$1" "saving the connection mail-$i failed"
+    fi
+  done
+}
+
 # run measures a control plane of the full build $2 and an agent of the
 # agent build $3, called $4, as run $1, and writes their figures to
 # $work/$1/figures.
@@ -203,6 +246,7 @@ run() {
   done
   [[ -n "$api" ]] || fail "$k" "the control plane didn't say where it listens within 30 s"
   curl -fsS "http://$api/healthz" >/dev/null 2>&1 || fail "$k" "the control plane didn't answer /healthz on $api within 30 s"
+  connections "$k"
   pause "$settle"
   kill -0 "$control" 2>/dev/null || fail "$k" "the control plane exited before it was measured"
   figures=$(sample "$k" "$control")

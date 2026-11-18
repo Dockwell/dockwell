@@ -15,6 +15,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -437,11 +438,19 @@ type ConnectionInfo struct {
 	Shared bool `protobuf:"varint,14,opt,name=shared,proto3" json:"shared,omitempty"`
 	// Where its mail server is, for a mail server's: its host, port and security,
 	// and who the mail comes from. Who it signs in as is never shown.
-	Host          string                `protobuf:"bytes,15,opt,name=host,proto3" json:"host,omitempty"`
-	Port          uint32                `protobuf:"varint,16,opt,name=port,proto3" json:"port,omitempty"`
-	Security      v1alpha1.SmtpSecurity `protobuf:"varint,17,opt,name=security,proto3,enum=dockwell.resource.v1alpha1.SmtpSecurity" json:"security,omitempty"`
-	Sender        string                `protobuf:"bytes,18,opt,name=sender,proto3" json:"sender,omitempty"`
-	SenderName    string                `protobuf:"bytes,19,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
+	Host       string                `protobuf:"bytes,15,opt,name=host,proto3" json:"host,omitempty"`
+	Port       uint32                `protobuf:"varint,16,opt,name=port,proto3" json:"port,omitempty"`
+	Security   v1alpha1.SmtpSecurity `protobuf:"varint,17,opt,name=security,proto3,enum=dockwell.resource.v1alpha1.SmtpSecurity" json:"security,omitempty"`
+	Sender     string                `protobuf:"bytes,18,opt,name=sender,proto3" json:"sender,omitempty"`
+	SenderName string                `protobuf:"bytes,19,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
+	// Its last check from each server it's checked from, as saved: the control plane
+	// checks each connection once it's saved or changed, with the full check, and every
+	// 6 hours after with one that writes nothing, whose step is "list" for storage;
+	// from each server an app linked to it runs on, on that app's networks, or the
+	// control server where none does; and keeps a check someone runs of it as saved too. Only its revision's,
+	// newest first, kept in memory, so none until the first after a start. Below an
+	// admin, whether each passed and when, alone.
+	Checks        []*CheckConnectionResponse `protobuf:"bytes,20,rep,name=checks,proto3" json:"checks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -607,6 +616,13 @@ func (x *ConnectionInfo) GetSenderName() string {
 		return x.SenderName
 	}
 	return ""
+}
+
+func (x *ConnectionInfo) GetChecks() []*CheckConnectionResponse {
+	if x != nil {
+		return x.Checks
+	}
+	return nil
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.
@@ -834,7 +850,11 @@ type CheckConnectionResponse struct {
 	// It did everything asked of it.
 	Passed bool `protobuf:"varint,1,opt,name=passed,proto3" json:"passed,omitempty"`
 	// Where it stopped: write, read, presign or delete for storage; connect, hello,
-	// tls or sign-in for a mail server.
+	// tls or sign-in for a mail server. A check on a schedule reads storage alone and
+	// says "list" whether it passed or not, as it saw no object: one list, or where
+	// AccessDenied answers that, a read of an object that isn't there. NoSuchKey on
+	// that passes; AccessDenied on both fails with that code, unconfirmed rather than
+	// refused, and "agent-update" is an agent that can't run the scheduled read.
 	Step string `protobuf:"bytes,2,opt,name=step,proto3" json:"step,omitempty"`
 	// What the storage said, such as an S3 error's code, or a mail server's reply
 	// code and its enhanced code, such as "535 5.7.8", or what kept it from
@@ -848,7 +868,9 @@ type CheckConnectionResponse struct {
 	// The bucket's region, where the storage said another than asked.
 	Region string `protobuf:"bytes,7,opt,name=region,proto3" json:"region,omitempty"`
 	// The server that checked it, by name.
-	Server        string `protobuf:"bytes,8,opt,name=server,proto3" json:"server,omitempty"`
+	Server string `protobuf:"bytes,8,opt,name=server,proto3" json:"server,omitempty"`
+	// When it checked.
+	Time          *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -939,11 +961,18 @@ func (x *CheckConnectionResponse) GetServer() string {
 	return ""
 }
 
+func (x *CheckConnectionResponse) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
 var File_dockwell_v1_connection_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\n" +
-	"\x1cdockwell/v1/connection.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\"\xf9\x02\n" +
+	"\x1cdockwell/v1/connection.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf9\x02\n" +
 	"\x15ConnectStorageRequest\x12\x18\n" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\x12\x10\n" +
@@ -971,7 +1000,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"X\n" +
 	"\x17ListConnectionsResponse\x12=\n" +
-	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xfd\x04\n" +
+	"\vconnections\x18\x01 \x03(\v2\x1b.dockwell.v1.ConnectionInfoR\vconnections\"\xbb\x05\n" +
 	"\x0eConnectionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -995,7 +1024,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\bsecurity\x18\x11 \x01(\x0e2(.dockwell.resource.v1alpha1.SmtpSecurityR\bsecurity\x12\x16\n" +
 	"\x06sender\x18\x12 \x01(\tR\x06sender\x12\x1f\n" +
 	"\vsender_name\x18\x13 \x01(\tR\n" +
-	"senderName\"\xd6\x02\n" +
+	"senderName\x12<\n" +
+	"\x06checks\x18\x14 \x03(\v2$.dockwell.v1.CheckConnectionResponseR\x06checks\"\xd6\x02\n" +
 	"\rConnectionUse\x12\x17\n" +
 	"\alink_id\x18\x01 \x01(\tR\x06linkId\x12\x12\n" +
 	"\x04link\x18\x02 \x01(\tR\x04link\x12 \n" +
@@ -1016,7 +1046,7 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\x03app\x18\x05 \x01(\tR\x03app\x12\x18\n" +
 	"\apresign\x18\x06 \x01(\bR\apresign\x12\x16\n" +
 	"\x06prefix\x18\a \x01(\tR\x06prefix\x12D\n" +
-	"\x04smtp\x18\b \x01(\v2*.dockwell.resource.v1alpha1.ConnectionSmtpB\x04\xc8\xf3\x18\x01R\x04smtp\"\xd1\x01\n" +
+	"\x04smtp\x18\b \x01(\v2*.dockwell.resource.v1alpha1.ConnectionSmtpB\x04\xc8\xf3\x18\x01R\x04smtp\"\x81\x02\n" +
 	"\x17CheckConnectionResponse\x12\x16\n" +
 	"\x06passed\x18\x01 \x01(\bR\x06passed\x12\x12\n" +
 	"\x04step\x18\x02 \x01(\tR\x04step\x12\x12\n" +
@@ -1025,7 +1055,8 @@ const file_dockwell_v1_connection_proto_rawDesc = "" +
 	"\amessage\x18\x05 \x01(\tR\amessage\x12\x14\n" +
 	"\x05words\x18\x06 \x01(\tR\x05words\x12\x16\n" +
 	"\x06region\x18\a \x01(\tR\x06region\x12\x16\n" +
-	"\x06server\x18\b \x01(\tR\x06server2\xb7\b\n" +
+	"\x06server\x18\b \x01(\tR\x06server\x12.\n" +
+	"\x04time\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x04time2\xb7\b\n" +
 	"\x11ConnectionService\x12\x88\x01\n" +
 	"\x0fListConnections\x12#.dockwell.v1.ListConnectionsRequest\x1a$.dockwell.v1.ListConnectionsResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/connections\x90\x02\x01\x12\x92\x01\n" +
 	"\x0fCheckConnection\x12#.dockwell.v1.CheckConnectionRequest\x1a$.dockwell.v1.CheckConnectionResponse\"4\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/connections:check\x12\xa9\x01\n" +
@@ -1066,7 +1097,8 @@ var file_dockwell_v1_connection_proto_goTypes = []any{
 	(v1alpha1.SmtpSecurity)(0),        // 15: dockwell.resource.v1alpha1.SmtpSecurity
 	(*v1alpha1.ConnectionS3)(nil),     // 16: dockwell.resource.v1alpha1.ConnectionS3
 	(*v1alpha1.ConnectionSmtp)(nil),   // 17: dockwell.resource.v1alpha1.ConnectionSmtp
-	(v1alpha1.LinkPart)(0),            // 18: dockwell.resource.v1alpha1.LinkPart
+	(*timestamppb.Timestamp)(nil),     // 18: google.protobuf.Timestamp
+	(v1alpha1.LinkPart)(0),            // 19: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_connection_proto_depIdxs = []int32{
 	10, // 0: dockwell.v1.ConnectStorageRequest.sets:type_name -> dockwell.v1.ConnectStorageRequest.SetsEntry
@@ -1078,24 +1110,26 @@ var file_dockwell_v1_connection_proto_depIdxs = []int32{
 	14, // 6: dockwell.v1.ConnectionInfo.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
 	7,  // 7: dockwell.v1.ConnectionInfo.uses:type_name -> dockwell.v1.ConnectionUse
 	15, // 8: dockwell.v1.ConnectionInfo.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
-	11, // 9: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
-	16, // 10: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
-	17, // 11: dockwell.v1.CheckConnectionRequest.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
-	18, // 12: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	18, // 13: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
-	4,  // 14: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
-	8,  // 15: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
-	0,  // 16: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
-	2,  // 17: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
-	5,  // 18: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
-	9,  // 19: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
-	1,  // 20: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
-	3,  // 21: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
-	18, // [18:22] is the sub-list for method output_type
-	14, // [14:18] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	9,  // 9: dockwell.v1.ConnectionInfo.checks:type_name -> dockwell.v1.CheckConnectionResponse
+	11, // 10: dockwell.v1.ConnectionUse.sets:type_name -> dockwell.v1.ConnectionUse.SetsEntry
+	16, // 11: dockwell.v1.CheckConnectionRequest.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
+	17, // 12: dockwell.v1.CheckConnectionRequest.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
+	18, // 13: dockwell.v1.CheckConnectionResponse.time:type_name -> google.protobuf.Timestamp
+	19, // 14: dockwell.v1.ConnectStorageRequest.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	19, // 15: dockwell.v1.ConnectionUse.SetsEntry.value:type_name -> dockwell.resource.v1alpha1.LinkPart
+	4,  // 16: dockwell.v1.ConnectionService.ListConnections:input_type -> dockwell.v1.ListConnectionsRequest
+	8,  // 17: dockwell.v1.ConnectionService.CheckConnection:input_type -> dockwell.v1.CheckConnectionRequest
+	0,  // 18: dockwell.v1.ConnectionService.ConnectStorage:input_type -> dockwell.v1.ConnectStorageRequest
+	2,  // 19: dockwell.v1.ConnectionService.DisconnectStorage:input_type -> dockwell.v1.DisconnectStorageRequest
+	5,  // 20: dockwell.v1.ConnectionService.ListConnections:output_type -> dockwell.v1.ListConnectionsResponse
+	9,  // 21: dockwell.v1.ConnectionService.CheckConnection:output_type -> dockwell.v1.CheckConnectionResponse
+	1,  // 22: dockwell.v1.ConnectionService.ConnectStorage:output_type -> dockwell.v1.ConnectStorageResponse
+	3,  // 23: dockwell.v1.ConnectionService.DisconnectStorage:output_type -> dockwell.v1.DisconnectStorageResponse
+	20, // [20:24] is the sub-list for method output_type
+	16, // [16:20] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_connection_proto_init() }

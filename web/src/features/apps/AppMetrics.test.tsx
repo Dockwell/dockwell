@@ -144,6 +144,9 @@ describe("a server's samples that hold only apps' figures (#797)", () => {
     const noMemory = full(40, 25, 200);
     noMemory.memoryTotalBytes = 0n;
     expect(ownOnly(aServer({ id: SERVER, name: "hz-1", stats: noMemory })).stats).toBe(noMemory);
+    // A sample of disks alone, with no memory or uptime, is the server's too (#849's websites test).
+    const disksOnly = create(ServerStatsSchema, { disks: [{ mountPoint: "/", sizeBytes: 100n, usedBytes: 40n }] });
+    expect(ownOnly(aServer({ id: SERVER, name: "hz-1", stats: disksOnly })).stats).toBe(disksOnly);
     // A later message appends its newest sample, once.
     const next = theirs(30, 210);
     const after = mergeUsage([apps], aServer({ id: SERVER, name: "hz-1", stats: next }));

@@ -11949,7 +11949,11 @@ components:
                     type: string
                     description: |-
                         Where it stopped: write, read, presign or delete for storage; connect, hello,
-                         tls or sign-in for a mail server.
+                         tls or sign-in for a mail server. A check on a schedule reads storage alone and
+                         says "list" whether it passed or not, as it saw no object: one list, or where
+                         AccessDenied answers that, a read of an object that isn't there. NoSuchKey on
+                         that passes; AccessDenied on both fails with that code, unconfirmed rather than
+                         refused, and "agent-update" is an agent that can't run the scheduled read.
                 code:
                     type: string
                     description: |-
@@ -11971,6 +11975,10 @@ components:
                 server:
                     type: string
                     description: The server that checked it, by name.
+                time:
+                    type: string
+                    description: When it checked.
+                    format: date-time
             description: 'CheckConnectionResponse is what a check found: codes, never a body.'
         CheckDatabaseSignInResponse:
             type: object
@@ -12916,6 +12924,18 @@ components:
                     type: string
                 senderName:
                     type: string
+                checks:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/CheckConnectionResponse'
+                    description: |-
+                        Its last check from each server it's checked from, as saved: the control plane
+                         checks each connection once it's saved or changed, with the full check, and every
+                         6 hours after with one that writes nothing, whose step is "list" for storage;
+                         from each server an app linked to it runs on, on that app's networks, or the
+                         control server where none does; and keeps a check someone runs of it as saved too. Only its revision's,
+                         newest first, kept in memory, so none until the first after a start. Below an
+                         admin, whether each passed and when, alone.
             description: |-
                 ConnectionInfo is a connection as a caller may see it: never its keys. Below an
                  admin, its name, kind and what it reaches alone.

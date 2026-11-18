@@ -396,6 +396,22 @@ func (b *Bucket) ListBuckets(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// ListOne lists at most one key under prefix, a signed read of the bucket that
+// writes nothing, as a check on a schedule asks (ADR 0099). Refused, it's an *Error
+// with the service's code, which says more than HEAD's status alone.
+func (b *Bucket) ListOne(ctx context.Context, prefix string) error {
+	q := url.Values{"list-type": {"2"}, "max-keys": {"1"}}
+	if prefix != "" {
+		q.Set("prefix", prefix)
+	}
+	res, err := b.do(ctx, http.MethodGet, "", q, nil, 0, emptyHash)
+	if err != nil {
+		return err
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 64<<10))
+	return res.Body.Close()
+}
+
 // Size is how large an object is.
 func (b *Bucket) Size(ctx context.Context, key string) (int64, error) {
 	res, err := b.do(ctx, http.MethodHead, key, nil, nil, 0, emptyHash)

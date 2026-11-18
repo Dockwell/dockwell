@@ -44,8 +44,19 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { seesWhere, where } from "./ConnectionsPage";
 import { ConnectStorageSheet, useConnectableApps } from "./ConnectStorageSheet";
+import { mailCheckOf, useLastCheck } from "./LastCheck";
 import { appsOn } from "./storage";
-import { checkServer, SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
+import {
+  AGENT_UPDATE,
+  checkServer,
+  SILENT,
+  unconfirmed,
+  useCheckWords,
+  useConnections,
+  usePartWords,
+  useProjectLabel,
+} from "./useConnections";
+import { WantsMail } from "./WantsMail";
 import "../apps/Apps.css";
 import "./Connections.css";
 
@@ -65,7 +76,9 @@ export function ConnectionPage({ name }: { name: string }) {
   const mayCheck = may(ConnectionService.method.checkConnection);
   const [editing, setEditing] = useState(false);
   const [using, setUsing] = useState(false);
-  const check = useCheck(name);
+  // A Check that passes or fails is kept as that server's last, so the list reads it again.
+  const check = useCheck(name, () => void query.refetch());
+  const last = useLastCheck(connection ?? EMPTY);
   const share = useShare(connection ?? EMPTY, () => void query.refetch());
   const phone = useMediaQuery(PHONE_QUERY);
   // Use in an app is for someone who may connect an app it reaches: not a viewer. A
@@ -115,9 +128,11 @@ export function ConnectionPage({ name }: { name: string }) {
       badge={
         check.answer ? (
           <CheckState answer={check.answer} connection={connection} />
-        ) : mayCheck.allowed ? (
+        ) : last ? (
+          <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />
+        ) : (
           <Unchecked />
-        ) : undefined
+        )
       }
       lead={lead}
       phoneSub={lead}
@@ -159,7 +174,15 @@ export function ConnectionPage({ name }: { name: string }) {
           {check.failure}
         </Callout>
       ) : null}
-      {check.answer ? <CheckLine answer={check.answer} connection={connection} /> : null}
+      {check.answer ? (
+        <CheckLine answer={check.answer} connection={connection} />
+      ) : last?.failing ? (
+        <CheckLine
+          answer={last.failing}
+          connection={connection}
+          onCheck={mayCheck.allowed ? () => void check.run() : undefined}
+        />
+      ) : null}
       {unsharedMany ? (
         <Callout
           tone="warning"
@@ -176,12 +199,7 @@ export function ConnectionPage({ name }: { name: string }) {
           <Trans>Share it to link another app beside them.</Trans>
         </Callout>
       ) : null}
-      <UsedBy
-        connection={connection}
-        admin={admin}
-        onUse={canUse ? () => setUsing(true) : undefined}
-        onDisconnected={() => void query.refetch()}
-      />
+      <UsedBy connection={connection} admin={admin} onDisconnected={() => void query.refetch()} />
       {admin ? (
         <Details
           connection={connection}
@@ -195,9 +213,11 @@ export function ConnectionPage({ name }: { name: string }) {
         <div className="connection-phone-actions">
           {check.answer ? (
             <CheckState answer={check.answer} connection={connection} />
-          ) : mayCheck.allowed ? (
+          ) : last ? (
+            <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />
+          ) : (
             <Unchecked />
-          ) : null}
+          )}
           <div className="connection-phone-buttons">
             {mayCheck.allowed ? (
               <Button size="lg" icon="refresh" loading={check.busy} onClick={() => void check.run()}>
@@ -220,19 +240,11 @@ export function ConnectionPage({ name }: { name: string }) {
   );
 }
 
-/**
- * What a mail server's check on its page knows: its port. Whether it signed in isn't
- * the panel's to see, so a pass says only that it answered.
- */
-function mailCheck(c: ConnectionInfo) {
-  return c.kind === LinkKind.SMTP ? { port: c.port } : undefined;
-}
-
 /** No connection, for the hooks a page calls before it knows there's one. */
 const EMPTY = create(ConnectionInfoSchema, {});
 
 /** A check of a saved connection, from the first server that's connected. */
-function useCheck(name: string) {
+function useCheck(name: string, onChecked: () => void) {
   const transport = useTransport();
   const client = useMemo(() => createClient(ConnectionService, transport), [transport]);
   const fleet = useFleetView();
@@ -246,6 +258,7 @@ function useCheck(name: string) {
     setFailure(undefined);
     try {
       setAnswer(await client.checkConnection({ name, server: from }));
+      onChecked();
     } catch (err) {
       setAnswer(undefined);
       setFailure(sentence(err));
@@ -256,16 +269,16 @@ function useCheck(name: string) {
 }
 
 /**
- * Nothing checked it here yet: no check is kept, so one saved without reaching its
- * bucket, and one that reached it, read the same until Check runs.
+ * Nothing checked it yet: the control plane checks each connection within a minute
+ * of its saving or a start, and Check checks it now (#799).
  */
 function Unchecked() {
   const { t } = useLingui();
-  return <StatusBadge status="unknown" label={t`Not checked`} labelIsState />;
+  return <StatusBadge status="unknown" label={t`Not checked yet`} labelIsState />;
 }
 
 function CheckState({ answer, connection }: { answer: CheckConnectionResponse; connection: ConnectionInfo }) {
-  const words = useCheckWords()(answer, mailCheck(connection));
+  const words = useCheckWords()(answer, mailCheckOf(connection));
   const silent = SILENT.includes(answer.code);
   return (
     <StatusBadge status={words.passed ? "healthy" : silent ? "unknown" : "down"} label={words.state} labelIsState />
@@ -273,10 +286,60 @@ function CheckState({ answer, connection }: { answer: CheckConnectionResponse; c
 }
 
 /** What a check found, as a line under the page's head, where it didn't pass. */
-function CheckLine({ answer, connection }: { answer: CheckConnectionResponse; connection: ConnectionInfo }) {
-  const words = useCheckWords()(answer, mailCheck(connection));
+function CheckLine({
+  answer,
+  connection,
+  onCheck,
+}: {
+  answer: CheckConnectionResponse;
+  connection: ConnectionInfo;
+  /** Check, where the read couldn't confirm the keys without writing. */
+  onCheck?: (() => void) | undefined;
+}) {
+  const words = useCheckWords()(answer, mailCheckOf(connection));
   const { t } = useLingui();
+  const servers = useFleetView().servers ?? [];
   if (words.passed) return null;
+  if (unconfirmed(answer)) {
+    return (
+      <Callout
+        tone="info"
+        title={words.state}
+        actions={
+          onCheck ? (
+            <Button size="sm" icon="refresh" onClick={onCheck}>
+              <Trans>Check</Trans>
+            </Button>
+          ) : undefined
+        }
+      >
+        {words.line}
+      </Callout>
+    );
+  }
+  if (answer.code === AGENT_UPDATE) {
+    const server = servers.find((s) => s.name === answer.server);
+    const name = answer.server;
+    return (
+      <Callout
+        tone="info"
+        title={words.state}
+        actions={
+          server ? (
+            <Link
+              to="/servers/$serverId/updates"
+              params={{ serverId: server.id }}
+              className="dw-btn dw-btn-secondary dw-btn-sm"
+            >
+              <Trans>Open {name}'s updates</Trans>
+            </Link>
+          ) : undefined
+        }
+      >
+        {words.line}
+      </Callout>
+    );
+  }
   return (
     <Callout tone="warning" title={t`${words.state} from ${answer.server || t`the server`}`}>
       {words.line}
@@ -292,13 +355,11 @@ function CheckLine({ answer, connection }: { answer: CheckConnectionResponse; co
 function UsedBy({
   connection,
   admin,
-  onUse,
   onDisconnected,
 }: {
   connection: ConnectionInfo;
   /** An install admin keeps a connection's keys on Disconnect, as secrets; below one, they go. */
   admin: boolean;
-  onUse: (() => void) | undefined;
   onDisconnected: () => void;
 }) {
   const { t } = useLingui();
@@ -366,17 +427,16 @@ function UsedBy({
   };
   if (connection.uses.length === 0) {
     return (
-      <Panel title={t`Used by`}>
-        <div className="connection-unused">
-          <span className="connections-meta">
-            <Trans>No app reads it yet.</Trans>
-          </span>
-          {onUse ? (
-            <Button size="sm" variant="secondary" icon="plus" onClick={onUse}>
-              <Trans>Use in an app</Trans>
-            </Button>
-          ) : null}
-        </div>
+      <Panel title={t`Used by`} flush={mail}>
+        {mail ? (
+          <WantsMail connection={connection} onUsed={onDisconnected} />
+        ) : (
+          <div className="connection-unused">
+            <span className="connections-meta">
+              <Trans>No app reads it yet.</Trans>
+            </span>
+          </div>
+        )}
       </Panel>
     );
   }
@@ -515,7 +575,10 @@ function Details({
         { label: t`Endpoint`, value: connection.endpoint, mono: true },
         { label: t`Region`, value: connection.region, mono: true },
         { label: t`Bucket`, value: connection.bucket, mono: true },
-        { label: t`Bucket goes`, value: connection.pathStyle ? t`In the path` : t`In the host` },
+        {
+          label: t`Address style`,
+          value: connection.pathStyle ? t`Bucket in the path` : t`Bucket in the hostname`,
+        },
         { label: t`Public address`, value: connection.publicUrl || t`None`, mono: connection.publicUrl !== "" },
         { label: t`Projects`, value: reach },
       ];

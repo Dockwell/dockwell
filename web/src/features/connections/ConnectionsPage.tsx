@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ChangeService, type ConnectionInfo, ConnectionReach, LinkKind } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -13,6 +13,7 @@ import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
+import { LastCheckCell, useLastCheck } from "./LastCheck";
 import { type MailProviderId, mailPlaceOf, mailProvider } from "./mail";
 import { hostOf, type ProviderId, placeOf, provider } from "./providers";
 import { ServiceTiles } from "./ServiceTiles";
@@ -107,6 +108,7 @@ export function ConnectionsPage() {
                   <span className="connections-meta">
                     <UsedBy connection={c} />
                   </span>
+                  <PhoneCheck connection={c} />
                 </span>
               </Link>
             </li>
@@ -153,13 +155,15 @@ function ConnectionsTable({
         </div>
       ),
     },
-    { key: "uses", header: t`Used by`, width: 320, render: (c) => <UsedBy connection={c} /> },
+    { key: "uses", header: t`Used by`, width: 260, render: (c) => <UsedBy connection={c} /> },
+    // What the control plane's last checks found, from where each app reaches it (#799).
+    { key: "check", header: t`Last check`, width: 260, render: (c) => <LastCheckCell connection={c} /> },
   ];
   if (admin) {
     columns.push({
       key: "reach",
       header: t`Projects`,
-      width: 220,
+      width: 180,
       render: (c) =>
         c.reach === ConnectionReach.EVERY ? (
           <Trans>Every project</Trans>
@@ -211,6 +215,13 @@ export function Mark({ connection }: { connection: ConnectionInfo }) {
       {p && p.id !== "other" ? p.mark : "S3"}
     </span>
   );
+}
+
+/** A phone row's last check, in a line: the state, and when. */
+function PhoneCheck({ connection }: { connection: ConnectionInfo }) {
+  const last = useLastCheck(connection);
+  if (!last) return null;
+  return <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />;
 }
 
 /** How many apps read it, with their names. */

@@ -30,6 +30,22 @@ export function checkServer(
   return (up.find((s) => s.control) ?? up[0] ?? servers[0])?.id ?? "";
 }
 
+/** A scheduled check a server's agent couldn't run, as one from before it: the agent needs an update. */
+export const AGENT_UPDATE = "agent-update";
+
+/**
+ * A scheduled read that can't confirm the keys without writing: AccessDenied on both
+ * the list and the one object it asks for. Shown as unconfirmed, not refused (#799).
+ */
+export function unconfirmed(c: CheckConnectionResponse): boolean {
+  return !c.passed && c.step === "list" && c.code === "AccessDenied";
+}
+
+/** A check that says nothing of the connection, only that it couldn't confirm it, or couldn't run. */
+export function neutral(c: CheckConnectionResponse): boolean {
+  return unconfirmed(c) || c.code === AGENT_UPDATE;
+}
+
 /** The probe's own codes for what kept it from an answer, as the agent says them. */
 const NO_ANSWER = ["refused", "timeout", "unreachable", "tls", "mismatch"] as const;
 
@@ -50,11 +66,47 @@ export function useCheckWords() {
   const mailWords = useMailCheckWords();
   return (c: CheckConnectionResponse, mail?: MailCheck): { passed: boolean; state: string; line: string } => {
     if (mail || MAIL_STEPS.includes(c.step)) return mailWords(c, mail ?? {});
-    if (c.passed) {
+    if (c.passed && c.step === "list") {
+      // A check on a schedule read the bucket and wrote nothing: the keys work, and
+      // only a check that saw the bucket says it's found (ADR 0099, #799).
       return {
         passed: true,
-        state: c.server ? t`Reached from ${c.server}` : t`Reached`,
-        line: c.region ? t`It answered from region ${c.region}.` : t`Wrote, read and deleted a test object.`,
+        state: t`Keys work`,
+        line:
+          c.code === "NoSuchKey"
+            ? t`The keys may read, but not list the bucket, which apps rarely need.`
+            : t`It listed the bucket, and wrote nothing.`,
+      };
+    }
+    if (c.passed) {
+      // What a person wants to know first: the keys work and the bucket is there (#799).
+      const server = c.server;
+      const region = c.region;
+      // One message each, so a translation joins its sentences as it reads (#799's review, L7).
+      const line = server
+        ? region
+          ? t`From ${server}, it wrote, read and deleted a test object. It answered from region ${region}.`
+          : t`From ${server}, it wrote, read and deleted a test object.`
+        : region
+          ? t`It wrote, read and deleted a test object. It answered from region ${region}.`
+          : t`It wrote, read and deleted a test object.`;
+      return { passed: true, state: t`Keys work · bucket found`, line };
+    }
+    if (unconfirmed(c)) {
+      // The keys may neither list nor read: a read can't tell that from access taken
+      // away, so it says so, and only Check's write confirms them (#799's review, M3).
+      return {
+        passed: false,
+        state: t`Can't confirm without writing`,
+        line: t`The keys may not list the bucket or read from it. Check writes a test object to confirm them.`,
+      };
+    }
+    if (c.code === AGENT_UPDATE) {
+      const server = c.server || t`this server`;
+      return {
+        passed: false,
+        state: t`Agent needs an update`,
+        line: t`The agent on ${server} can't run the scheduled check. Update it from the server's page.`,
       };
     }
     const code = c.code;
@@ -80,6 +132,8 @@ export function useCheckWords() {
         };
       case "SignatureDoesNotMatch":
       case "InvalidAccessKeyId":
+      // R2 answers a key it doesn't know with Unauthorized (its 10002).
+      case "Unauthorized":
         return { passed: false, state: t`Keys refused`, line: t`Check the access key ID and its secret.` };
       case "AccessDenied":
         return { passed: false, state: t`Access denied`, line: t`The keys may not write in this bucket.` };
@@ -116,13 +170,18 @@ function useMailCheckWords() {
   };
   return (c: CheckConnectionResponse, m: MailCheck): { passed: boolean; state: string; line: string } => {
     if (c.passed) {
+      const server = c.server;
+      const from = server ? t`Checked from ${server}.` : "";
       return {
         passed: true,
-        state: c.server ? t`Reached from ${c.server}` : t`Reached`,
         // Only a check sent a user signed in (the SMTP review's L2).
-        line: m.signedIn
-          ? t`It took the sign-in, and Dockwell sent no mail.`
-          : t`It answered, and Dockwell sent no mail.`,
+        state: m.signedIn ? t`Sign-in works` : t`Server answers`,
+        line: [
+          from,
+          m.signedIn ? t`It took the sign-in, and Dockwell sent no mail.` : t`It answered, and Dockwell sent no mail.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       };
     }
     const said = c.words;
