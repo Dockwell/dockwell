@@ -34,6 +34,9 @@ type Server struct {
 	// method: POST is how every upload starts.
 	Refuse     string
 	RefuseOnly string
+	// RefuseQuery refuses only requests whose query has this parameter, as a key
+	// that may not list is refused list-type=2 alone.
+	RefuseQuery string
 	// RefuseStatus is the status a refusal answers with: 403 unless set, such as 500.
 	RefuseStatus int
 	// MovedTo answers every request for a bucket as S3 does when it's in another
@@ -112,7 +115,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "<Error><Code>PermanentRedirect</Code><Message>The bucket you are attempting to access must be addressed using the specified endpoint.</Message></Error>")
 		return
 	}
-	if s.Refuse != "" && (s.RefuseOnly == "" || s.RefuseOnly == r.Method) {
+	if s.Refuse != "" && (s.RefuseOnly == "" || s.RefuseOnly == r.Method) && (s.RefuseQuery == "" || r.URL.Query().Has(s.RefuseQuery)) {
 		status := http.StatusForbidden
 		if s.RefuseStatus != 0 {
 			status = s.RefuseStatus

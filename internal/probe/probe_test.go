@@ -210,8 +210,8 @@ func TestAReadOnScheduleWritesNothing(t *testing.T) {
 }
 
 // What each code a provider answers a list with means for a check on a schedule,
-// as R2, B2, GCS and AWS answer it: AccessDenied took the keys, as a key that may
-// only put and get objects is refused a list, so it passes; a refused key or
+// as R2, B2, GCS and AWS answer it: AccessDenied on both the list and the one object
+// is unconfirmed, as only a write could say more; a refused key or
 // signature is Keys refused, R2's Unauthorized among them; a missing bucket and the
 // rest fail with the provider's code.
 func TestAReadSaysWhatTheProviderSaid(t *testing.T) {
@@ -221,7 +221,7 @@ func TestAReadSaysWhatTheProviderSaid(t *testing.T) {
 		status int
 		passed bool
 	}{
-		{"AccessDenied", 403, true},           // every provider, a key with no list permission
+		{"AccessDenied", 403, false},          // every provider: a key that may do neither, unconfirmed
 		{"InvalidAccessKeyId", 403, false},    // AWS, GCS and B2's unknown key
 		{"Unauthorized", 401, false},          // R2's unknown key (its 10002)
 		{"SignatureDoesNotMatch", 403, false}, // a wrong secret, everywhere
@@ -241,8 +241,13 @@ func TestAReadSaysWhatTheProviderSaid(t *testing.T) {
 		if got.Passed != c.passed || got.Step != StepList || got.Code != c.code || got.Status != c.status {
 			t.Errorf("%s reads as %+v, want passed %v at %s", c.code, got, c.passed, StepList)
 		}
-		if !slices.Equal(srv.Methods, []string{"GET"}) {
-			t.Errorf("%s: the read sent %v, want one GET", c.code, srv.Methods)
+		// AccessDenied asks once more, for an object that isn't there: a GET too.
+		want := []string{"GET"}
+		if c.code == "AccessDenied" {
+			want = []string{"GET", "GET"}
+		}
+		if !slices.Equal(srv.Methods, want) {
+			t.Errorf("%s: the read sent %v, want %v", c.code, srv.Methods, want)
 		}
 	}
 	// A bucket in another region is read there, once more, as the full check does.
@@ -252,5 +257,27 @@ func TestAReadSaysWhatTheProviderSaid(t *testing.T) {
 	req.Kind = KindS3Read
 	if got, _ := Check(t.Context(), req); !got.Passed || got.Region != "eu-central-1" {
 		t.Errorf("a bucket in eu-central-1 reads as %+v", got)
+	}
+}
+
+// A key that may not list is asked for one object that isn't there, a GET that
+// writes nothing (#799's review, M3): NoSuchKey says it may read, and passes; an
+// AccessDenied on that too stays unconfirmed, at "list" with its code.
+func TestAReadThatMayNotListAsksForOneObject(t *testing.T) {
+	t.Parallel()
+	srv := s3test.New(t)
+	srv.Refuse = "AccessDenied"
+	srv.RefuseQuery = "list-type"
+	req := s3Request(srv, false)
+	req.Kind = KindS3Read
+	got, err := Check(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Passed || got.Step != StepList || got.Code != "NoSuchKey" || got.Status != 404 {
+		t.Errorf("a key that may read but not list reads as %+v", got)
+	}
+	if !slices.Equal(srv.Methods, []string{"GET", "GET"}) || len(srv.Objects()) != 0 {
+		t.Errorf("it sent %v and left %v, want two GETs and nothing", srv.Methods, srv.Objects())
 	}
 }
