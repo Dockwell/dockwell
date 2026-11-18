@@ -381,6 +381,76 @@ a.plan-reach-at:focus-visible {
   color: var(--ink-muted);
 }
 
+/* A note in one line, which opens to the whole of it where there's more (#821). */
+.plan-note-line {
+  min-width: 0;
+}
+
+.plan-note.plan-note-more {
+  display: block;
+}
+
+.plan-note-more summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  list-style: none;
+}
+
+.plan-note-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-note-more summary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.plan-note-chevron {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.plan-note-more[open] .plan-note-chevron {
+  transform: rotate(180deg);
+}
+
+.plan-note-text {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A long name kept to its line: its start, an ellipsis, and its end (#821). Inline
+ * boxes, not flex items, so the page's text still reads the name whole.
+ */
+.middle-name {
+  white-space: nowrap;
+}
+
+.middle-name-head {
+  display: inline-block;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+/* In a note, no more than the plan's server chip takes, and less on a narrow line. */
+.plan-note .middle-name-head {
+  max-width: min(16ch, calc(100% - 9ch));
+}
+
+/* In the chip, the start leaves room for the end, so both show within its 24ch. */
+.plan-lead code.plan-server .middle-name-head {
+  max-width: 15ch;
+}
+
 /* Steps. A group holds a fleet's servers today, and a rollout's waves later. */
 .plan-group {
   display: flex;
@@ -753,12 +823,20 @@ a.plan-reach-at:focus-visible {
 
 /* Big enough for a thumb, wherever a failure's Details shows. */
 @media (pointer: coarse) {
+  .plan-note-more summary {
+    min-height: 44px;
+  }
+
   .plan-details summary {
     display: inline-flex;
     align-items: center;
     min-width: 44px;
     min-height: 44px;
   }
+}
+
+.plan-view.is-phone .plan-note-more summary {
+  min-height: 44px;
 }
 
 .plan-view.is-phone .plan-details summary {

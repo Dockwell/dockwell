@@ -52,6 +52,8 @@ export interface Notice {
   notice?: boolean;
   /** A risk of how this goes, not of what it does, so it's amber beside what's red. */
   amber?: boolean;
+  /** The server its title names, shortened in the middle where it's long. */
+  server?: string;
 }
 
 /** Everything a plan says it reaches, on its resources and its steps. */
@@ -1536,8 +1538,8 @@ export function useAsides(plan: Plan | undefined): Notice[] {
     for (const step of server.steps) {
       const name = step.resource?.name ?? step.resourceId;
       const key = `${server.serverId}/${step.resourceId}`;
-      for (const line of words.ingress(step.ingress, server.serverName))
-        out.push({ key: `ingress-${key}-${line}`, title: line });
+      for (const note of words.ingress(step.ingress, server.serverName))
+        out.push({ key: `ingress-${key}-${note.title}`, ...note, server: server.serverName });
       for (const line of reachLines(words, step, server.serverName, tunnelled.has(step.resourceId))) {
         out.push({ key: `answers-${key}-${line}`, title: line, notice: true });
       }
@@ -1548,7 +1550,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       }
       // A server's proxy reloads once for all its routes, so it's said once.
       if (reloadsProxy(step) && !out.some((n) => n.key === `reload-${server.serverId}`)) {
-        out.push({ key: `reload-${server.serverId}`, title: `${words.reload(server.serverName)}.` });
+        out.push({ key: `reload-${server.serverId}`, ...words.reload(server.serverName), server: server.serverName });
       }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
       if (step.hidesLogs) {

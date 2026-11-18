@@ -411,8 +411,13 @@ export async function appsFlow(
     await form.getByRole("button", { name: /Review plan/ }).click();
     const review = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await review.waitFor({ timeout: 30_000 });
-    // Nothing moves from the review until the row has settled, in any frame. The sheet slides in first.
-    await page.waitForTimeout(400);
+    // The room for the arrival comes with Apply, so the review has no empty band
+    // (#821). From Apply until the row has settled, nothing moves, in any frame.
+    await review.getByRole("button", { name: /Apply plan/ }).click();
+    await page
+      .locator(".dw-sheet-layer:not(.is-leaving) :is(.plan-room-held, .plan-reach-row)")
+      .first()
+      .waitFor({ state: "attached" });
     const moved = page.evaluate(
       ({ settled, frames }) =>
         new Promise<number[]>((done) => {
@@ -430,7 +435,6 @@ export async function appsFlow(
         }),
       { settled: "HTTPS ends in front", frames: 60 * 300 },
     );
-    await review.getByRole("button", { name: /Apply plan/ }).click();
     const row = page.locator(".plan-reach-row", { hasText: tunnelled });
     await row.waitFor({ timeout: 180_000 });
     await row.getByText("HTTPS ends in front").waitFor({ timeout: 120_000 });

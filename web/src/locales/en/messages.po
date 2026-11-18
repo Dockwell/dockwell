@@ -11372,6 +11372,9 @@ msgstr "Anyone visiting {where} stops reaching it."
 msgid "Automatic"
 msgstr "Automatic"
 
+msgid "Brief reset for open connections"
+msgstr "Brief reset for open connections"
+
 msgid "Build and deploy {commit}"
 msgstr "Build and deploy {commit}"
 
@@ -11459,6 +11462,9 @@ msgstr "Docker's socket at {path}, which gives control of Docker on the server, 
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 
+msgid "Frees {ports}"
+msgstr "Frees {ports}"
+
 msgid "From a push"
 msgstr "From a push"
 
@@ -11476,6 +11482,9 @@ msgstr "Full (strict) for {path}, where a name whose server has no valid certifi
 
 msgid "Full (strict) for {path}, where a proxied name whose server has no valid certificate stops answering"
 msgstr "Full (strict) for {path}, where a proxied name whose server has no valid certificate stops answering"
+
+msgid "HTTPS on it drops for a moment"
+msgstr "HTTPS on it drops for a moment"
 
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
@@ -11510,6 +11519,9 @@ msgstr "Its image keeps data at {imageData}, which two containers mustn't write 
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "Its image puts an empty volume there. {source} stays on the server, as it was"
 
+msgid "Its passkeys and sessions stay"
+msgstr "Its passkeys and sessions stay"
+
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "Its rollout order says to stop first, so there are never two"
 
@@ -11521,6 +11533,9 @@ msgstr "Letting go of"
 
 msgid "Listening there now: {listening}"
 msgstr "Listening there now: {listening}"
+
+msgid "Moves {panelDomain} behind the proxy"
+msgstr "Moves {panelDomain} behind the proxy"
 
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
@@ -11548,6 +11563,9 @@ msgstr "Nothing checks it, so it only has to start. If it doesn't, Dockwell roll
 
 msgid "Nothing checks it, so it only has to start. If it doesn't, the new one goes, and what was stopped stays stopped"
 msgstr "Nothing checks it, so it only has to start. If it doesn't, the new one goes, and what was stopped stays stopped"
+
+msgid "Nothing it serves stops"
+msgstr "Nothing it serves stops"
 
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
@@ -11609,8 +11627,14 @@ msgstr "Pulling {image} again"
 msgid "Recreates its container"
 msgstr "Recreates its container"
 
+msgid "Reloads the proxy on {server}"
+msgstr "Reloads the proxy on {server}"
+
 msgid "Replacing"
 msgstr "Replacing"
+
+msgid "Restarts the proxy on {server}"
+msgstr "Restarts the proxy on {server}"
 
 msgid "Roll back"
 msgstr "Roll back"
@@ -11627,11 +11651,23 @@ msgstr "Rolling back to {revision}"
 msgid "Rolling, with nothing stopped"
 msgstr "Rolling, with nothing stopped"
 
+msgid "Routes without a certificate go on answering"
+msgstr "Routes without a certificate go on answering"
+
 msgid "Skipped"
 msgstr "Skipped"
 
+msgid "Starts the proxy on {server}"
+msgstr "Starts the proxy on {server}"
+
+msgid "Stops the proxy on {server}"
+msgstr "Stops the proxy on {server}"
+
 msgid "Take on"
 msgstr "Take on"
+
+msgid "Takes {ports}"
+msgstr "Takes {ports}"
 
 msgid "Taking on"
 msgstr "Taking on"
@@ -11651,11 +11687,20 @@ msgstr "The old container stops first"
 msgid "The panel"
 msgstr "The panel"
 
+msgid "The panel takes the ports back for {panelDomain}"
+msgstr "The panel takes the ports back for {panelDomain}"
+
 msgid "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
 msgstr "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
 
 msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
 msgstr "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
+
+msgid "The proxy on {server} frees {ports}"
+msgstr "The proxy on {server} frees {ports}"
+
+msgid "The proxy on {server} takes {ports}"
+msgstr "The proxy on {server} takes {ports}"
 
 msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
 msgstr "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
@@ -11698,6 +11743,9 @@ msgstr "Updating"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
+
+msgid "What it serves is down meanwhile"
+msgstr "What it serves is down meanwhile"
 
 msgid "What this step wants already runs, so nothing stops for it"
 msgstr "What this step wants already runs, so nothing stops for it"

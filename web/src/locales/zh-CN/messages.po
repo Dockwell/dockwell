@@ -11372,6 +11372,9 @@ msgstr "访问 {where} 的人将无法再访问到它。"
 msgid "Automatic"
 msgstr "自动"
 
+msgid "Brief reset for open connections"
+msgstr "已打开的连接会短暂重置"
+
 msgid "Build and deploy {commit}"
 msgstr "构建并部署 {commit}"
 
@@ -11459,6 +11462,9 @@ msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，�
 msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
 msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
 
+msgid "Frees {ports}"
+msgstr "释放 {ports}"
+
 msgid "From a push"
 msgstr "来自推送"
 
@@ -11476,6 +11482,9 @@ msgstr "{path} 设为 Full (strict)，其服务器没有有效证书的名称将
 
 msgid "Full (strict) for {path}, where a proxied name whose server has no valid certificate stops answering"
 msgstr "{path} 设为 Full (strict)，其服务器没有有效证书的代理名称将无法访问"
+
+msgid "HTTPS on it drops for a moment"
+msgstr "其 HTTPS 会短暂中断"
 
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
@@ -11510,6 +11519,9 @@ msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "其镜像会在那里放置一个空卷。{source} 原样保留在服务器上"
 
+msgid "Its passkeys and sessions stay"
+msgstr "其通行密钥和会话保持不变"
+
 msgid "Its rollout order says to stop first, so there are never two"
 msgstr "其发布顺序设置为先停止，因此不会同时存在两个容器"
 
@@ -11521,6 +11533,9 @@ msgstr "正在放开"
 
 msgid "Listening there now: {listening}"
 msgstr "目前在此监听的是：{listening}"
+
+msgid "Moves {panelDomain} behind the proxy"
+msgstr "将 {panelDomain} 移到代理之后"
 
 msgid "No route on {server} takes a certificate after this, so {proxy} frees ports {ports}. Its routes that take none go on answering"
 msgstr "此后 {server} 上没有路由需要证书，因此 {proxy} 会释放端口 {ports}。不需要证书的路由会继续响应"
@@ -11548,6 +11563,9 @@ msgstr "没有任何检查，因此它只需启动。如果它没有启动，Doc
 
 msgid "Nothing checks it, so it only has to start. If it doesn't, the new one goes, and what was stopped stays stopped"
 msgstr "没有任何检查，因此它只需启动。如果它没有启动，新容器会被移除，已停止的容器保持停止"
+
+msgid "Nothing it serves stops"
+msgstr "它所服务的内容都不会停止"
 
 msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
 msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
@@ -11609,8 +11627,14 @@ msgstr "正在重新拉取 {image}"
 msgid "Recreates its container"
 msgstr "重建它的容器"
 
+msgid "Reloads the proxy on {server}"
+msgstr "重新加载 {server} 上的代理"
+
 msgid "Replacing"
 msgstr "正在替换"
+
+msgid "Restarts the proxy on {server}"
+msgstr "重启 {server} 上的代理"
 
 msgid "Roll back"
 msgstr "回滚"
@@ -11627,11 +11651,23 @@ msgstr "正在回滚到 {revision}"
 msgid "Rolling, with nothing stopped"
 msgstr "滚动更新，不停止任何服务"
 
+msgid "Routes without a certificate go on answering"
+msgstr "没有证书的路由继续响应"
+
 msgid "Skipped"
 msgstr "已跳过"
 
+msgid "Starts the proxy on {server}"
+msgstr "启动 {server} 上的代理"
+
+msgid "Stops the proxy on {server}"
+msgstr "停止 {server} 上的代理"
+
 msgid "Take on"
 msgstr "接管"
+
+msgid "Takes {ports}"
+msgstr "占用 {ports}"
 
 msgid "Taking on"
 msgstr "正在接管"
@@ -11651,11 +11687,20 @@ msgstr "旧容器先停止"
 msgid "The panel"
 msgstr "面板"
 
+msgid "The panel takes the ports back for {panelDomain}"
+msgstr "面板为 {panelDomain} 收回这些端口"
+
 msgid "The panel takes those ports back for its domain, {panelDomain}. Its address, passkeys and sessions stay as they are"
 msgstr "面板将为其域名 {panelDomain} 收回这些端口。它的地址、通行密钥和会话都保持不变"
 
 msgid "The panel's domain, {panelDomain}, moves behind {proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until {proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working"
 msgstr "面板的域名 {panelDomain} 将转到 {proxy} 之后。它的地址、通行密钥和会话都保持不变，并继续使用现有证书，直到 {proxy} 获得自己的证书。端口交接时，该域名的 HTTPS 会短暂中断；SSH 隧道仍可使用"
+
+msgid "The proxy on {server} frees {ports}"
+msgstr "{server} 上的代理释放 {ports}"
+
+msgid "The proxy on {server} takes {ports}"
+msgstr "{server} 上的代理占用 {ports}"
 
 msgid "The route {edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll"
 msgstr "路由 {edited} 已被手动修改，Dockwell 不会改动它，因此新容器必须沿用旧容器的地址，旧容器先停止。还原或采纳该修改后即可滚动发布"
@@ -11698,6 +11743,9 @@ msgstr "正在更新"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "正在处理的请求最多有 {drain} 的时间完成。超过此时间的连接（如长连接）会随旧容器一起结束"
+
+msgid "What it serves is down meanwhile"
+msgstr "期间它所服务的内容不可用"
 
 msgid "What this step wants already runs, so nothing stops for it"
 msgstr "此步骤需要的容器已在运行，因此无需停止任何服务"

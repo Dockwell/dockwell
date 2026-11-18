@@ -835,6 +835,77 @@ describe("the plan sheet", () => {
     expect(sheet).toHaveTextContent("This reloads the proxy on hz-1");
   });
 
+  describe("says each proxy note in one line, with the whole of it a click away (#821)", () => {
+    /** A note's one line, whose server name is an element of its own. */
+    const noteLine = (el: Element | null, starts: string) =>
+      !!el?.matches(".plan-note-line") && (el.textContent ?? "").startsWith(starts);
+    const notes: [string, IngressChange, string, string, string][] = [
+      ["starting it", IngressChange.STARTS, "Starts the proxy on hz-1", "Takes 80/tcp", "Caddy isn't running on hz-1"],
+      ["stopping it", IngressChange.STOPS, "Stops the proxy on hz-1", "Frees 80/tcp", "This is the last route on hz-1"],
+      [
+        "restarting it",
+        IngressChange.RESTARTS,
+        "Restarts the proxy on hz-1",
+        "What it serves is down meanwhile",
+        "Caddy restarts on hz-1, for a newer version",
+      ],
+      [
+        "taking ports",
+        IngressChange.TAKES_PORTS,
+        "The proxy on hz-1 takes 80/tcp",
+        "Nothing it serves stops",
+        "This is the first route on hz-1 that takes a certificate",
+      ],
+      [
+        "freeing ports",
+        IngressChange.FREES_PORTS,
+        "The proxy on hz-1 frees 80/tcp",
+        "Routes without a certificate go on answering",
+        "No route on hz-1 takes a certificate after this",
+      ],
+    ];
+    it.each(notes)("%s", async (_, change, title, detail, more) => {
+      const user = userEvent.setup();
+      const routed = webPlanned();
+      const step = routed.plan?.servers[0]?.steps[0];
+      if (!step) throw new Error("webPlanned has no step");
+      step.ingress = create(IngressEffectSchema, { change, proxy: "Caddy", ports: ["80/tcp"] });
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: routed }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      const line = await within(sheet).findByText((_, el) => noteLine(el, title));
+      expect(line).toHaveTextContent(`${title} · ${detail}`);
+      const note = line.closest("details");
+      expect(note).not.toHaveAttribute("open");
+      expect(note).toHaveTextContent(more);
+      await user.click(line);
+      expect(note).toHaveAttribute("open");
+    });
+
+    it("the proxy reloading, and a long server name shortened in the middle, whole on hover", async () => {
+      const long = "ip10x0x12x34a7f3c9d1e5b8a4f60d2c7e9b1a3f";
+      const routed = webPlanned();
+      const server = routed.plan?.servers[0];
+      const step = server?.steps[0];
+      if (!server || !step) throw new Error("webPlanned has no step");
+      server.serverName = long;
+      step.resource = create(ResourceRefSchema, { kind: "route", name: "www" });
+      renderSheet(proposeWeb, {
+        changes: { proposeChange: () => ({ change: routed }), watchChange: feed<WatchChangeResponse>().stream },
+      });
+      const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+      const line = await within(sheet).findByText((_, el) => noteLine(el, "Reloads the proxy on"));
+      expect(line).toHaveTextContent(`Reloads the proxy on ${long} · Brief reset for open connections`);
+      const name = line.querySelector(".middle-name");
+      expect(name).toHaveAttribute("title", long);
+      expect(name?.querySelector(".middle-name-tail")).toHaveTextContent(long.slice(-8));
+      expect(line.closest("details")).toHaveTextContent(
+        `This reloads the proxy on ${long}, which can reset a connection`,
+      );
+    });
+  });
+
   it("says quietly, once, what an edit kept of an app's own values, as no warning, however many servers note it", async () => {
     const kept = webPlanned();
     if (!kept.plan) throw new Error("webPlanned has no plan");
@@ -2082,12 +2153,8 @@ describe("the plan sheet, once it runs", () => {
         );
         const review = await screen.findByRole("dialog", { name: "Review plan" });
         await waitFor(() => expect(reads).toBe(1));
-        // The room it'll take is there from the review on, with nothing to read or find in it.
-        const held = review.querySelector(".plan-room-held");
-        expect(held).toHaveAttribute("aria-hidden", "true");
-        expect(held?.querySelector(".is-domain [data-words='app.example.com']")).not.toBeNull();
-        expect(held?.textContent).toBe("");
-        expect(held?.querySelector(".plan-reach-how")).toBeNull();
+        // The review keeps no empty room for it (#821).
+        expect(review.querySelector(".plan-room-held")).toBeNull();
         await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
         const done = await screen.findByRole("dialog", { name: "web is deployed" });
         const name = await within(done).findByText("app.example.com", { selector: ".plan-reach-at" });
@@ -2702,7 +2769,8 @@ describe("the plan sheet, once it runs", () => {
         expect(done.querySelectorAll(".plan-reach-row")[1]).toHaveTextContent("site-1.example.com");
       });
 
-      it("holds room at the review for what will show, and the line for the rest", async () => {
+      it("holds room from Apply on for what will show, and the line for the rest", async () => {
+        const user = userEvent.setup();
         const change = aServicePlan();
         const planned = change.plan?.resources[0]?.resource;
         if (planned) planned.scope = "env_1";
@@ -2711,12 +2779,17 @@ describe("the plan sheet, once it runs", () => {
           {
             services: { listServices: () => ({ services: [aService([])] }) },
             domains: { listDomains: () => ({ domains: many(14) }) },
-            changes: { watchChange: feed<WatchChangeResponse>().stream },
+            changes: {
+              watchChange: feed<WatchChangeResponse>().stream,
+              applyChange: () => ({ change: moved(change, { state: ChangeState.APPLYING }) }),
+            },
           },
         );
         const review = await screen.findByRole("dialog", { name: "Review plan" });
-        await waitFor(() => expect(review.querySelectorAll(".plan-room-held .is-domain")).toHaveLength(3));
-        expect(review.querySelectorAll(".plan-room-held > .plan-reach-row:not(.is-domain)")).toHaveLength(1);
+        expect(review.querySelector(".plan-room-held")).toBeNull();
+        await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+        await waitFor(() => expect(document.querySelectorAll(".plan-room-held .is-domain")).toHaveLength(3));
+        expect(document.querySelectorAll(".plan-room-held > .plan-reach-row:not(.is-domain)")).toHaveLength(1);
       });
     });
 
@@ -2862,7 +2935,17 @@ describe("the plan sheet, once it runs", () => {
     expect(await within(done).findByRole("link", { name: /:8080/ })).toBeVisible();
   });
 
-  describe("holds room for what its arrival will say", () => {
+  describe("holds room for what its arrival will say, from Apply on (#821)", () => {
+    /** Applies a plan whose apply goes on, and gives the room it holds then, none of which the review had. */
+    const applying = async () => {
+      const user = userEvent.setup();
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review.querySelector(".plan-room-held")).toBeNull();
+      await user.click(within(review).getByRole("button", { name: /Apply plan/ }));
+      await waitFor(() => expect(document.querySelector(".plan-room-held")).not.toBeNull());
+      return () => document.querySelector(".plan-room-held");
+    };
+    const goesOn = (change: Change) => () => ({ change: moved(change, { state: ChangeState.APPLYING }) });
     it("a line for what a server says of a domain, which it knows already", async () => {
       const change = aServicePlan();
       const planned = change.plan?.resources[0]?.resource;
@@ -2888,29 +2971,28 @@ describe("the plan sheet, once it runs", () => {
               ],
             }),
           },
-          changes: { watchChange: feed<WatchChangeResponse>().stream },
+          changes: { watchChange: feed<WatchChangeResponse>().stream, applyChange: goesOn(change) },
         },
       );
-      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      const held = await applying();
       await waitFor(() =>
-        expect(review.querySelector(".plan-room-held .plan-reach-how")).toHaveAttribute("data-words", "Asking for it"),
+        expect(held()?.querySelector(".plan-reach-how")).toHaveAttribute("data-words", "Asking for it"),
       );
     });
 
-    const heldAtReview = async (change: Change, ports: MessageInitShape<typeof PortMappingSchema>[]) => {
+    const heldWhileApplying = async (change: Change, ports: MessageInitShape<typeof PortMappingSchema>[]) => {
       renderSheet(
         { kind: "plan", make: () => Promise.resolve({ change }) },
         {
           services: { listServices: () => ({ services: [aService(ports)] }) },
-          changes: { watchChange: feed<WatchChangeResponse>().stream },
+          changes: { watchChange: feed<WatchChangeResponse>().stream, applyChange: goesOn(change) },
         },
       );
-      const review = await screen.findByRole("dialog", { name: "Review plan" });
-      return () => review.querySelector(".plan-room-held");
+      return applying();
     };
 
     it("a row for each port the app has", async () => {
-      const held = await heldAtReview(aServicePlan(), [
+      const held = await heldWhileApplying(aServicePlan(), [
         { hostPort: 8080, containerPort: 80 },
         { hostPort: 8443, containerPort: 443 },
       ]);
@@ -2922,7 +3004,7 @@ describe("the plan sheet, once it runs", () => {
       const resource = change.plan?.resources[0];
       if (resource)
         resource.changes = [create(FieldChangeSchema, { path: "app.ports[0]", op: FieldOp.ADDED, to: "8080:80" })];
-      const held = await heldAtReview(change, []);
+      const held = await heldWhileApplying(change, []);
       await waitFor(() => expect(held()?.querySelectorAll(".plan-reach-row")).toHaveLength(1));
       expect(held()?.querySelector(".plan-unreached")).toBeNull();
     });
@@ -2942,11 +3024,11 @@ describe("the plan sheet, once it runs", () => {
               services: [{ ...aService([{ hostPort: 8080, containerPort: 80 }]), revision: 3n }],
             }),
           },
-          changes: { watchChange: feed<WatchChangeResponse>().stream },
+          changes: { watchChange: feed<WatchChangeResponse>().stream, applyChange: goesOn(change) },
         },
       );
-      const review = await screen.findByRole("dialog", { name: "Review plan" });
-      await waitFor(() => expect(review.querySelectorAll(".plan-room-held .plan-reach-row")).toHaveLength(1));
+      const held = await applying();
+      await waitFor(() => expect(held()?.querySelectorAll(".plan-reach-row")).toHaveLength(1));
     });
 
     it("and none for one the plan takes away, which leaves saying nothing reaches it", async () => {
@@ -2954,7 +3036,7 @@ describe("the plan sheet, once it runs", () => {
       const resource = change.plan?.resources[0];
       if (resource)
         resource.changes = [create(FieldChangeSchema, { path: "app.ports[0]", op: FieldOp.REMOVED, from: "8080:80" })];
-      const held = await heldAtReview(change, [{ hostPort: 8080, containerPort: 80 }]);
+      const held = await heldWhileApplying(change, [{ hostPort: 8080, containerPort: 80 }]);
       await waitFor(() => expect(held()?.querySelector(".plan-unreached")).not.toBeNull());
       expect(held()?.querySelector("[data-words]")).toHaveAttribute(
         "data-words",
