@@ -2898,9 +2898,14 @@ export function RunsOnField({
     setOpen(true);
     onChange(next);
   };
+  // Said as one line from the first look, before the choice reaches the form, so it
+  // never shows boxes for a moment first.
+  const shown = auto ?? best;
   const autoServer =
-    !open && auto && value.length === 1 && value[0] === auto.id ? servers.find((s) => s.id === auto.id) : undefined;
-  if (autoServer && auto) {
+    !open && shown && (value.length === 0 || (value.length === 1 && value[0] === shown.id))
+      ? servers.find((s) => s.id === shown.id)
+      : undefined;
+  if (autoServer && shown) {
     return (
       <fieldset className="app-section" aria-labelledby={id}>
         <span id={id} className="dw-field-label">
@@ -2909,7 +2914,7 @@ export function RunsOnField({
         <span className="app-runs-auto">
           <code className="app-server-name">{autoServer.name}</code>
           <span className="app-runs-auto-why">
-            {auto.why === "only" ? t`the only server that can take it` : t`most free memory`}
+            {shown.why === "only" ? t`the only server that can take it` : t`most free memory`}
           </span>
           <button
             type="button"

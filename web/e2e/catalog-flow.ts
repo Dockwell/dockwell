@@ -76,9 +76,10 @@ async function chooseServer(sheet: Locator) {
     .getByText(/^Runs on/)
     .first()
     .waitFor();
-  const servers = sheet.getByRole("group", { name: "Runs on" });
-  if ((await servers.count()) === 0) return;
-  await servers.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
+  const runsOn = sheet.getByRole("group", { name: "Runs on" });
+  // A server is chosen at once, in one line with Change (#792); boxes only once changed.
+  if ((await runsOn.count()) > 0 && (await runsOn.getByRole("button", { name: "Change where it runs" }).count()) === 0)
+    await runsOn.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
 }
 
 export async function catalogFlow(page: Page, { origin, step, shoot, docker, catalogDir }: CatalogFlowOptions) {
@@ -412,12 +413,9 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   // beside the field, before anything is asked of it, so this asks nothing of the network.
   step("catalog: a source's repository is checked as it's typed, and one that isn't public is refused, saying why");
   await page.getByRole("button", { name: "Add a source" }).click();
-  const adding = page.getByRole("dialog", { name: "Add a catalog source" });
-  // The stores come first, one click each, then a link for anything else.
-  await adding
-    .getByRole("group", { name: "App stores" })
-    .getByRole("button", { name: "Add Coolify's templates" })
-    .waitFor();
+  // The repository form alone: the page lists the stores (#792).
+  const adding = page.getByRole("dialog", { name: "Add a source" });
+  await adding.getByLabel("Repository").waitFor();
   await adding.getByLabel("Repository").fill("https://127.0.0.1/catalog");
   await adding
     .locator("form")

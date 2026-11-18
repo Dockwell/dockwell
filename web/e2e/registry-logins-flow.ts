@@ -69,7 +69,12 @@ export const flow: Flow = {
       .first()
       .waitFor();
     const runsOn = form.getByRole("group", { name: "Runs on" });
-    if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
+    // A server is chosen at once, in one line with Change (#792); boxes only once changed.
+    if (
+      (await runsOn.count()) > 0 &&
+      (await runsOn.getByRole("button", { name: "Change where it runs" }).count()) === 0
+    )
+      await runsOn.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
     await form.getByLabel("Image", { exact: true }).fill(IMAGE);
     await form.getByText("Found, with ghcr").waitFor({ timeout: 20_000 });
     await shoot(page, "registry-logins-found");

@@ -73,11 +73,11 @@ async function chooseServer(sheet: Locator) {
     .getByText(/^Runs on/)
     .first()
     .waitFor();
-  // One server is a line with nothing to choose; several are checkboxes.
-  const boxes = sheet
-    .getByRole("group", { name: "Runs on" })
-    .locator("label", { hasNotText: "Offline" })
-    .getByRole("checkbox");
+  // One server is a line with nothing to choose; several are chosen at once too, in a
+  // line with Change (#792), and boxes only once changed.
+  const runsOn = sheet.getByRole("group", { name: "Runs on" });
+  if ((await runsOn.getByRole("button", { name: "Change where it runs" }).count()) > 0) return;
+  const boxes = runsOn.locator("label", { hasNotText: "Offline" }).getByRole("checkbox");
   if ((await boxes.count()) === 0) return;
   await boxes.first().check();
 }
