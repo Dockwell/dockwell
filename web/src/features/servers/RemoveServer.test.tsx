@@ -126,7 +126,9 @@ describe("Removing a server", () => {
     expect(review).toHaveTextContent("hz-2 leaves the fleet for goodIts agent is refused from then on.");
     // When it's revoked is the switch's to say, once (#800).
     expect(review.textContent?.match(/revoked once its steps have passed/gi)).toHaveLength(1);
-    expect(within(review).getByText("Stays as it is")).toBeVisible();
+    // The server's own row says what becomes of it (#800's review, L4).
+    expect(within(review).getByText("Leaves the fleet")).toBeVisible();
+    expect(within(review).queryByText("Stays as it is")).toBeNull();
     // One confirmation: the passkey, with no code to type, as nothing else in it destroys data (#800).
     expect(within(review).queryByRole("textbox", { name: /to apply it/ })).toBeNull();
     expect(review).not.toHaveTextContent(/undo this until|Undoing this brings/);
@@ -135,6 +137,8 @@ describe("Removing a server", () => {
     await user.click(within(review).getByRole("switch", { name: /It may be compromised/ }));
     await waitFor(() => expect(plan).toHaveBeenCalledTimes(2));
     expect(plan.mock.calls[1]?.[0]).toMatchObject({ serverId: "srv_2", apps: AppsOnRemoval.LEAVE, compromised: true });
+    // What it leaves running stays on the server, outside Dockwell.
+    expect(await within(review).findByText("Stays on the server")).toBeVisible();
   });
 
   it("is in the command bar on a phone, which has no header menu", async () => {

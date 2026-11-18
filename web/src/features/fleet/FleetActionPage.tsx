@@ -3,8 +3,9 @@
 import { create } from "@bufbuild/protobuf";
 import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { useTransport } from "@connectrpc/connect-query";
 import {
+  type Change,
   ChangeService,
   ChangeState,
   type FleetRollout,
@@ -27,6 +28,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQuery as useAnyQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 
@@ -764,21 +766,44 @@ function Summary({
   );
 }
 
+/** How many fleet actions the panel lists, and how many pages of changes it reads at most to find them. */
+const RECENT = 5;
+const RECENT_PAGES = 25;
+
+/** A change that ran over a fleet in waves: applied, failed or running, not a plan nobody applied. */
+function fleetAction(c: Change): boolean {
+  return (
+    (c.plan?.rollout?.waves.length ?? 0) > 0 && c.state !== ChangeState.PLANNED && c.state !== ChangeState.DISCARDED
+  );
+}
+
 /**
  * The fleet actions run lately, newest first, each a link to its change (#800): what
  * it did, on how many servers, by whom and when. Plans nobody applied aren't actions.
  */
 function RecentFleetActions() {
   const { t, i18n } = useLingui();
-  const changes = useQuery(ChangeService.method.listChanges, { pageSize: 200 }, { retry: false });
-  const recent = (changes.data?.changes ?? [])
-    .filter(
-      (c) =>
-        (c.plan?.rollout?.waves.length ?? 0) > 0 &&
-        c.state !== ChangeState.PLANNED &&
-        c.state !== ChangeState.DISCARDED,
-    )
-    .slice(0, 5);
+  const transport = useTransport();
+  // Page by page, newest first, until five are found or the changes run out, as ListChanges has no filter for
+  // a plan with waves. PAGES bounds what one look reads: past it, an install with that much else since its last
+  // fleet action shows none, and a filter on the server is the way past that (#800's review, L3).
+  const changes = useAnyQuery({
+    queryKey: ["recent-fleet-actions"],
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const client = createClient(ChangeService, transport);
+      const found: Change[] = [];
+      let pageToken = "";
+      for (let page = 0; page < RECENT_PAGES && found.length < RECENT; page++) {
+        const res = await client.listChanges({ pageSize: 200, pageToken }, { signal });
+        found.push(...res.changes.filter(fleetAction));
+        pageToken = res.nextPageToken;
+        if (pageToken === "") break;
+      }
+      return found.slice(0, RECENT);
+    },
+  });
+  const recent = changes.data ?? [];
   if (recent.length === 0) return null;
   return (
     <section className="dw-panel fleet-recent" aria-labelledby="fleet-recent-title">

@@ -431,6 +431,7 @@ function Name({ service, acts, server }: { service: SystemServiceInfo; acts?: Un
           to="/servers/$serverId/files"
           params={{ serverId: open.serverId }}
           search={open.search}
+          title={open.path}
           onClick={(event) => event.stopPropagation()}
         >
           {open.label}
@@ -447,7 +448,7 @@ function Name({ service, acts, server }: { service: SystemServiceInfo; acts?: Un
 function useFileLink(
   server: Server | undefined,
   why: string,
-): { serverId: string; search: { file: string; line?: number }; label: string } | undefined {
+): { serverId: string; search: { file: string; line?: number }; label: string; path: string } | undefined {
   const { t } = useLingui();
   const may = useMay()(FileService.method.listFiles).allowed;
   const file = why ? fileOf(why) : undefined;
@@ -458,6 +459,7 @@ function useFileLink(
     serverId: server.id,
     search: line ? { file: file.path, line } : { file: file.path },
     label: line ? t`Open ${name} at line ${line}` : t`Open ${name}`,
+    path: file.path,
   };
 }
 
@@ -625,6 +627,7 @@ function ServiceSheet({
                     to="/servers/$serverId/files"
                     params={{ serverId: open.serverId }}
                     search={open.search}
+                    title={open.path}
                     icon="file"
                   >
                     {open.label}

@@ -9401,8 +9401,14 @@ msgstr "{on} 的标签已更改"
 msgid "Leave it for an admin"
 msgstr "留给管理员处理"
 
-msgid "Left as it was"
-msgstr "保持了原样"
+msgid "Leaves the fleet"
+msgstr "离开服务器群"
+
+msgid "Left on the server"
+msgstr "已留在服务器上"
+
+msgid "Left the fleet"
+msgstr "已离开服务器群"
 
 msgid "Masked {name} on {server}"
 msgstr "已在 {server} 上屏蔽 {name}"
@@ -9484,6 +9490,9 @@ msgstr "正在 {server} 上重新启动 {name}"
 
 msgid "Starting {name} on {server}"
 msgstr "正在 {server} 上启动 {name}"
+
+msgid "Stays on the server"
+msgstr "留在服务器上"
 
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
@@ -15731,6 +15740,9 @@ msgstr "显示命令"
 
 msgid "Such as region:eu. The server joins with them."
 msgstr "例如 region:eu。服务器加入时带上这些标签。"
+
+msgid "The command above still works until it expires"
+msgstr "上面的命令在过期前仍然有效"
 
 msgid "This command expired"
 msgstr "此命令已过期"

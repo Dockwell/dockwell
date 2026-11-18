@@ -225,6 +225,34 @@ describe("New fleet action", () => {
     );
   });
 
+  it("pages through the changes for fleet actions, past the first 200 (#800's review, L3)", async () => {
+    const pages: string[] = [];
+    const other = (i: number) =>
+      create(ChangeSchema, { id: `chg_x${i}`, summary: `Deploy web ${i}`, state: ChangeState.APPLIED, plan: {} });
+    renderFleetAction([control, alpha, bravo], "/fleet-actions", {
+      changes: {
+        listChanges: (req: { pageToken: string }) => {
+          pages.push(req.pageToken);
+          return req.pageToken === ""
+            ? { changes: Array.from({ length: 200 }, (_, i) => other(i)), nextPageToken: "p2" }
+            : {
+                changes: [
+                  create(ChangeSchema, {
+                    id: "chg_old",
+                    summary: "Reboot alpha and bravo",
+                    plan: planned("Reboot alpha and bravo").plan,
+                    state: ChangeState.APPLIED,
+                  }),
+                ],
+              };
+        },
+      },
+    });
+    const recent = await screen.findByRole("region", { name: "Recent fleet actions" });
+    expect(within(recent).getByRole("link", { name: "Reboot alpha and bravo" })).toBeVisible();
+    expect(pages).toContain("p2");
+  });
+
   it("matches nothing while the selector has a term it can't read", async () => {
     renderFleetAction([control, alpha, bravo], "/fleet-actions?selector=pool%3Aweb+bad%21term");
     expect(await screen.findByText("No server matches while the selector has a term it can't read")).toBeVisible();

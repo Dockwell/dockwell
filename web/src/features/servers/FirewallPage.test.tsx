@@ -523,6 +523,18 @@ describe("a server's Firewall tab", () => {
     });
   });
 
+  it("lets in the /64 of your IPv6 address, as the database page does, not the address that changes (#800's review, M3)", async () => {
+    const user = userEvent.setup();
+    await renderFirewall({ tools: [ufw] }, hz1, {
+      changes: { proposeChange: vi.fn(() => ({})), watchChange: feed<WatchChangeResponse>().stream },
+      auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "2001:db8:5:6:a:b:c:d", current: true }] }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Add a rule" }));
+    const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    await user.click(await within(add).findByRole("button", { name: "Use my address" }));
+    expect(within(add).getByLabelText("From")).toHaveValue("2001:db8:5:6::/64");
+  });
+
   it("refuses a port that isn't one, before planning anything", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));

@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code } from "@connectrpc/connect";
+import { Code, createRouterTransport } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
   ChangeSchema,
@@ -536,6 +536,51 @@ describe("Servers", () => {
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
       expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
       expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+    });
+
+    it("opens from the command bar on Servers itself, and leaves no ticket for a later visit (#800's review, M1)", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      const first = renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await screen.findByRole("heading", { level: 1, name: "Servers" });
+      await user.click(screen.getByRole("button", { name: "Search or run a command" }));
+      await user.click(
+        await within(screen.getByRole("dialog", { name: "Command bar" })).findByRole("option", {
+          name: /Add a server/,
+        }),
+      );
+      // The same page, only its address changed: the sheet opens with the ticket that click started.
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
+      expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      first.unmount();
+
+      // A later visit by address finds no ticket, and makes none without a click.
+      const later = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers?add=1", { ...release, ...passkey([]), servers: later.servers });
+      const again = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(within(again).getByRole("button", { name: "Show the command" })).toBeEnabled();
+      expect(again).not.toHaveTextContent("TICKET");
+      expect(later.made).toHaveLength(0);
+    });
+
+    it("lets a handed ticket go when nobody takes it in time (#800's review, M1)", async () => {
+      stubPasskeys();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const transport = createRouterTransport(() => {});
+      const { handOverJoinTicket } = await import("./AddServerSheet");
+      handOverJoinTicket(transport);
+      await vi.advanceTimersByTimeAsync(11_000);
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers?add=1", { ...release, ...passkey([]), servers: api.servers });
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      expect(within(sheet).getByRole("button", { name: "Show the command" })).toBeEnabled();
+      // The stale ticket, whose transport answers nothing, would have failed here had it been taken.
+      await vi.advanceTimersByTimeAsync(200);
+      expect(within(sheet).queryByText("No command yet")).toBeNull();
+      vi.useRealTimers();
     });
 
     it("says nothing was made when the passkey doesn't confirm it", async () => {

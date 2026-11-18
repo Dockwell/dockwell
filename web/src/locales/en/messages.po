@@ -9401,8 +9401,14 @@ msgstr "Labels are changed on {on}"
 msgid "Leave it for an admin"
 msgstr "Leave it for an admin"
 
-msgid "Left as it was"
-msgstr "Left as it was"
+msgid "Leaves the fleet"
+msgstr "Leaves the fleet"
+
+msgid "Left on the server"
+msgstr "Left on the server"
+
+msgid "Left the fleet"
+msgstr "Left the fleet"
 
 msgid "Masked {name} on {server}"
 msgstr "Masked {name} on {server}"
@@ -9484,6 +9490,9 @@ msgstr "Starting {name} again on {server}"
 
 msgid "Starting {name} on {server}"
 msgstr "Starting {name} on {server}"
+
+msgid "Stays on the server"
+msgstr "Stays on the server"
 
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "Steps run one at a time on each server, servers side by side."
@@ -15731,6 +15740,9 @@ msgstr "Show the command"
 
 msgid "Such as region:eu. The server joins with them."
 msgstr "Such as region:eu. The server joins with them."
+
+msgid "The command above still works until it expires"
+msgstr "The command above still works until it expires"
 
 msgid "This command expired"
 msgstr "This command expired"

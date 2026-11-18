@@ -21,6 +21,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useOnePanelLeft } from "./onePanelHere";
 import "./OnePanelImport.css";
@@ -145,14 +146,16 @@ export function OnePanelImport({ server }: { server: Server }) {
     });
   };
 
-  // It reads as the page opens (#800): a read changes nothing, and it's what the page is for.
+  // It reads as the page opens (#800): a read changes nothing, and it's what the page is for. Only for
+  // someone who may, as the tab is an admin's and the address isn't (#800's review, L2).
+  const may = useMay()(ImportService.method.importOnePanel);
   const asked = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: read runs once, as the page opens.
   useEffect(() => {
-    if (asked.current) return;
+    if (asked.current || !may.allowed) return;
     asked.current = true;
     void read();
-  }, []);
+  }, [may.allowed]);
 
   const steps = found?.steps ?? [];
   const groups = useGroups(steps, "1Panel");
@@ -177,7 +180,7 @@ export function OnePanelImport({ server }: { server: Server }) {
           </p>
           <div className="onepanel-actions">
             {toTake ? reviewButton : null}
-            <Button variant="ghost" icon="refresh" loading={reading} onClick={() => void read()}>
+            <Button variant="ghost" icon="refresh" loading={reading} onClick={() => void read()} {...may.off}>
               <Trans>Read it again</Trans>
             </Button>
           </div>

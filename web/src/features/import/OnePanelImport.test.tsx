@@ -12,6 +12,7 @@ import {
   ImportOnePanelResponseSchema,
   ImportWaitsFor,
   ListContainersResponseSchema,
+  Role,
   ServerContainerSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -20,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -174,6 +176,38 @@ describe("Moving in from 1Panel", () => {
     await waitFor(() => expect(importOnePanel).toHaveBeenCalledTimes(2));
     expect(importOnePanel.mock.lastCall?.[0].skipPlan).toBeFalsy();
     expect(discardChange).not.toHaveBeenCalled();
+  });
+
+  it("reads nothing for someone who may not, and waits for Coolify's and Dokploy's check (#800's review, L2)", async () => {
+    const importOnePanel = vi.fn(() => found());
+    const { unmount } = renderAt(
+      "/servers/srv_1/import",
+      api({
+        imports: { importOnePanel },
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "hz-1" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(importOnePanel).not.toHaveBeenCalled();
+    unmount();
+
+    // While the containers are still being read, it waits; once they say no other panel runs, it reads.
+    let answer: (res: ReturnType<typeof containers>) => void = () => {};
+    const listContainers = vi.fn(() => new Promise<ReturnType<typeof containers>>((resolve) => (answer = resolve)));
+    const reads = vi.fn(() => found());
+    renderAt("/servers/srv_1/import", api({ imports: { importOnePanel: reads }, containers: { listContainers } }));
+    await waitFor(() => expect(listContainers).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 100));
+    expect(reads).not.toHaveBeenCalled();
+    answer(containers(["1Panel-mysql-AbCd"]));
+    await waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
   });
 
   it("leaves nothing planned when the page is left mid-read", async () => {

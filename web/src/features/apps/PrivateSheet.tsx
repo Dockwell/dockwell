@@ -57,6 +57,17 @@ function groupsOf(address: string): string[] | undefined {
 }
 
 /**
+ * Your own address to let in, as the control plane saw this request: the /64 for IPv6,
+ * which a browser's address keeps to as it changes, and the address for IPv4. The one
+ * rule for every list that offers it, a database's external access and a firewall rule
+ * alike (#800's review, M3). Undefined from loopback, as through an SSH tunnel.
+ */
+export function useOwnAddress(): string | undefined {
+  const sessions = useQuery(AuthService.method.listSessions, {});
+  return ownEntries(sessions.data?.sessions.find((s) => s.current)?.address ?? "")[0];
+}
+
+/**
  * What the list can offer of your own address, as the control plane saw your request:
  * an IPv4 address alone, and for IPv6 its /64 first, as a browser's IPv6 address changes
  * every day or so within it. Loopback, as through the SSH tunnel, is nothing to offer.

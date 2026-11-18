@@ -63,29 +63,47 @@ export function startJoinTicket(transport: Transport, labels: readonly string[] 
   return started;
 }
 
-/** A ticket a click elsewhere started, such as the command bar's, for the Servers page to take as it opens. */
-let handed: JoinStart | undefined;
+/**
+ * A ticket a click elsewhere started, such as the command bar's, for the Servers page
+ * to take as its address asks for the sheet. It lives a few seconds and is taken once,
+ * so no later visit to that address finds one (#800's review, M1).
+ */
+let handed: { started: JoinStart; at: number } | undefined;
+
+/** How long a handed ticket waits to be taken, which a page change takes well within. */
+const HANDED_FOR_MS = 10_000;
 
 /** Starts a ticket in a click that goes to /servers?add, which the page takes as it opens the sheet. */
 export function handOverJoinTicket(transport: Transport): void {
-  handed = startJoinTicket(transport);
+  handed = { started: startJoinTicket(transport), at: Date.now() };
+}
+
+/** Lets go of a ticket nobody took, as when the sheet closes. */
+export function dropHandedJoinTicket(): void {
+  handed = undefined;
+}
+
+function takeHandedJoinTicket(): JoinStart | undefined {
+  const it = handed;
+  handed = undefined;
+  return it && Date.now() - it.at < HANDED_FOR_MS ? it.started : undefined;
 }
 
 /**
  * What opens the sheet: start() in the click handler, then the sheet takes what it
- * started. Where nobody may make a ticket, it starts nothing. takeHanded takes a
- * ticket a click elsewhere started, once.
+ * started. Where nobody may make a ticket, it starts nothing. take() takes a ticket a
+ * click elsewhere handed over, if one is fresh, and otherwise leaves none, so the
+ * sheet offers Show the command.
  */
-export function useJoinStart(takeHanded = false): { started: JoinStart | undefined; start: () => void } {
+export function useJoinStart(): { started: JoinStart | undefined; start: () => void; take: () => void } {
   const transport = useTransport();
   const may = useMay()(ServerService.method.createJoinTicket).allowed;
-  const [started, setStarted] = useState<JoinStart | undefined>(() => {
-    if (!takeHanded) return undefined;
-    const it = handed;
-    handed = undefined;
-    return it;
-  });
-  return { started, start: () => setStarted(may ? startJoinTicket(transport) : undefined) };
+  const [started, setStarted] = useState<JoinStart>();
+  return {
+    started,
+    start: () => setStarted(may ? startJoinTicket(transport) : undefined),
+    take: () => setStarted(takeHandedJoinTicket()),
+  };
 }
 
 /**
@@ -310,6 +328,8 @@ export function AddServerSheet({
         {labelling ? (
           <div className="servers-add-labelling">
             {labelsField}
+            {/* A ticket can't be taken back yet, so the one above keeps working (#800's review, M2). */}
+            <span className="servers-add-meta">{t`The command above still works until it expires`}</span>
             <div className="servers-add-make">
               <Button size="sm" variant="ghost" onClick={() => setLabelling(false)}>
                 <Trans>Cancel</Trans>

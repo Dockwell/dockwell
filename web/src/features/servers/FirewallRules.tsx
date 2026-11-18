@@ -3,7 +3,6 @@
 import { equals, type MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
-  AuthService,
   Connection,
   type DockwellFirewallRule,
   type DockwellTable,
@@ -33,7 +32,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useRef, useState } from "react";
 
-import { ownEntries } from "../apps/PrivateSheet";
+import { useOwnAddress } from "../apps/PrivateSheet";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
 
@@ -363,13 +362,11 @@ function AddRuleSheet({
   );
   const suggested = suggestedPorts(fw, ruled, user, [t`The server itself`, t`Nothing listens`]);
   // Your own address, as the control plane saw this request, to let in.
-  const sessions = useQuery(AuthService.method.listSessions, {});
-  const own = ownEntries(sessions.data?.sessions.find((s) => s.current)?.address ?? "");
+  const mine = useOwnAddress();
   const listed = from
     .split(/[\s,]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const mine = own.at(-1);
   const pick = (s: Suggested) => {
     setPort(String(s.port));
     setProtocol(s.protocol);

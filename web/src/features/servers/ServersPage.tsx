@@ -24,7 +24,7 @@ import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { AddServerSheet, useJoinStart } from "./AddServerSheet";
+import { AddServerSheet, dropHandedJoinTicket, useJoinStart } from "./AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
 import { LabelChips } from "./LabelChips";
 import {
@@ -95,13 +95,21 @@ export function ServersPage({
   const unread = useFleetUnread();
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
-  const [adding, setAddingHere] = useState(search.add === true);
+  const [adding, setAddingHere] = useState(false);
+  const join = useJoinStart();
+  // The address opens it, whenever it comes to ask, as from the command bar while this page is open: the sheet
+  // takes the ticket that click started, if it's fresh, or offers Show the command (#800's review, M1).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: it opens as the address asks, once each time.
+  useEffect(() => {
+    if (search.add !== true) return;
+    join.take();
+    setAddingHere(true);
+  }, [search.add]);
   // Closing the sheet takes its word out of the address, so a reload doesn't open it again.
-  // Opened by the command bar's Add a server, it takes the ticket that click started.
-  const join = useJoinStart(search.add === true);
   const setAdding = (open: boolean) => {
     // The ticket starts in the click itself, so its passkey may be asked for there (#800).
     if (open) join.start();
+    else dropHandedJoinTicket();
     setAddingHere(open);
     if (!open && search.add) onSearch({ ...search, add: undefined }, { replace: true });
   };
