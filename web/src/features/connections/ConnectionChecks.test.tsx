@@ -136,14 +136,17 @@ describe("a connection's last check (#799)", () => {
 });
 
 describe("what a check says (#799)", () => {
-  it("says only Passed for a read on a schedule that AccessDenied answered, and Keys refused for R2's Unauthorized", async () => {
+  it("says Passed for a read that may read but not list, never green for one that can't confirm, and Keys refused for R2's Unauthorized", async () => {
     renderAt("/connections", {
       ...fleet(),
       resources: places(),
       connections: {
         listConnections: () => ({
           connections: [
-            aBucket("listless", { checks: [{ ...kept(2), step: "list", code: "AccessDenied", status: 403 }] }),
+            aBucket("listless", { checks: [{ ...kept(2), step: "list", code: "NoSuchKey", status: 404 }] }),
+            aBucket("locked", {
+              checks: [{ ...kept(2, { passed: false, code: "AccessDenied", status: 403 }), step: "list" }],
+            }),
             aBucket("revoked", { checks: [kept(1, { passed: false, code: "Unauthorized", status: 401 })] }),
           ],
         }),
@@ -152,21 +155,64 @@ describe("what a check says (#799)", () => {
     const listless = await screen.findByRole("row", { name: /listless/ });
     expect(listless).toHaveTextContent("Passed");
     expect(listless).not.toHaveTextContent("bucket found");
+    // Neither green nor red (#799's review, M3).
+    const locked = screen.getByRole("row", { name: /locked/ });
+    expect(locked).toHaveTextContent("Can't confirm without writing");
+    expect(locked).not.toHaveTextContent("Passed");
+    expect(locked).not.toHaveTextContent("Fails from");
     expect(screen.getByRole("row", { name: /revoked/ })).toHaveTextContent("Keys refused");
   });
 
-  it("never says a bucket is found from a read on its page", async () => {
-    renderAt("/connections/listless", {
+  it("never says a bucket is found from a read on its page, and offers Check where a read can't confirm", async () => {
+    const user = userEvent.setup();
+    let checked = 0;
+    renderAt("/connections/locked", {
       ...fleet(),
       resources: places(),
       connections: {
         listConnections: () => ({
-          connections: [aBucket("listless", { checks: [{ ...kept(2), step: "list", code: "AccessDenied" }] })],
+          connections: [
+            aBucket("locked", {
+              checks: [{ ...kept(2, { passed: false, code: "AccessDenied", status: 403 }), step: "list" }],
+            }),
+          ],
+        }),
+        checkConnection: () => {
+          checked++;
+          return { passed: true, server: "hz-1" };
+        },
+      },
+    });
+    const line = await screen.findByText(/Check writes a test object to confirm them\./);
+    const callout = line.closest(".dw-callout") as HTMLElement;
+    expect(callout).toHaveTextContent("Can't confirm without writing");
+    expect(screen.queryByText(/bucket found/)).toBeNull();
+    await user.click(within(callout).getByRole("button", { name: "Check" }));
+    await waitFor(() => expect(checked).toBe(1));
+  });
+
+  it("says a server's agent needs an update where it can't run the scheduled read, with the way to it", async () => {
+    renderAt("/connections/archive", {
+      ...fleet(),
+      resources: places(),
+      connections: {
+        listConnections: () => ({
+          connections: [
+            aBucket("archive", {
+              checks: [{ ...kept(1, { passed: false, code: "agent-update" }), step: "list" }],
+            }),
+          ],
         }),
       },
     });
-    expect(await screen.findByText("Passed")).toBeVisible();
-    expect(screen.queryByText(/bucket found/)).toBeNull();
+    const line = await screen.findByText(/The agent on hz-1 can't run the scheduled check\./);
+    const callout = line.closest(".dw-callout") as HTMLElement;
+    expect(callout).toHaveTextContent("Agent needs an update");
+    expect(within(callout).getByRole("link", { name: "Open hz-1's updates" })).toHaveAttribute(
+      "href",
+      `/servers/${SERVER}/updates`,
+    );
+    expect(screen.queryByText("Fails from hz-1")).toBeNull();
   });
 });
 

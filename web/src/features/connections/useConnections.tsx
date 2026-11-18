@@ -30,6 +30,22 @@ export function checkServer(
   return (up.find((s) => s.control) ?? up[0] ?? servers[0])?.id ?? "";
 }
 
+/** A scheduled check a server's agent couldn't run, as one from before it: the agent needs an update. */
+export const AGENT_UPDATE = "agent-update";
+
+/**
+ * A scheduled read that can't confirm the keys without writing: AccessDenied on both
+ * the list and the one object it asks for. Shown as unconfirmed, not refused (#799).
+ */
+export function unconfirmed(c: CheckConnectionResponse): boolean {
+  return !c.passed && c.step === "list" && c.code === "AccessDenied";
+}
+
+/** A check that says nothing of the connection, only that it couldn't confirm it, or couldn't run. */
+export function neutral(c: CheckConnectionResponse): boolean {
+  return unconfirmed(c) || c.code === AGENT_UPDATE;
+}
+
 /** The probe's own codes for what kept it from an answer, as the agent says them. */
 const NO_ANSWER = ["refused", "timeout", "unreachable", "tls", "mismatch"] as const;
 
@@ -57,21 +73,40 @@ export function useCheckWords() {
         passed: true,
         state: t`Keys work`,
         line:
-          c.code === "AccessDenied"
-            ? t`The keys may not list the bucket, which apps rarely need.`
+          c.code === "NoSuchKey"
+            ? t`The keys may read, but not list the bucket, which apps rarely need.`
             : t`It listed the bucket, and wrote nothing.`,
       };
     }
     if (c.passed) {
       // What a person wants to know first: the keys work and the bucket is there (#799).
       const server = c.server;
-      const from = server
-        ? t`From ${server}, it wrote, read and deleted a test object.`
-        : t`It wrote, read and deleted a test object.`;
+      const region = c.region;
+      // One message each, so a translation joins its sentences as it reads (#799's review, L7).
+      const line = server
+        ? region
+          ? t`From ${server}, it wrote, read and deleted a test object. It answered from region ${region}.`
+          : t`From ${server}, it wrote, read and deleted a test object.`
+        : region
+          ? t`It wrote, read and deleted a test object. It answered from region ${region}.`
+          : t`It wrote, read and deleted a test object.`;
+      return { passed: true, state: t`Keys work · bucket found`, line };
+    }
+    if (unconfirmed(c)) {
+      // The keys may neither list nor read: a read can't tell that from access taken
+      // away, so it says so, and only Check's write confirms them (#799's review, M3).
       return {
-        passed: true,
-        state: t`Keys work · bucket found`,
-        line: c.region ? `${from} ${t`It answered from region ${c.region}.`}` : from,
+        passed: false,
+        state: t`Can't confirm without writing`,
+        line: t`The keys may not list the bucket or read from it. Check writes a test object to confirm them.`,
+      };
+    }
+    if (c.code === AGENT_UPDATE) {
+      const server = c.server || t`this server`;
+      return {
+        passed: false,
+        state: t`Agent needs an update`,
+        line: t`The agent on ${server} can't run the scheduled check. Update it from the server's page.`,
       };
     }
     const code = c.code;

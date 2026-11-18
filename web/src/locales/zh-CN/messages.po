@@ -12507,6 +12507,9 @@ msgstr "未检查"
 msgid "Objects under"
 msgstr "对象位于"
 
+msgid "Open {name}'s updates"
+msgstr "打开 {name} 的更新"
+
 msgid "Projects"
 msgstr "项目"
 
@@ -12821,8 +12824,14 @@ msgstr "拒绝访问"
 msgid "Address refused"
 msgstr "地址被拒绝"
 
+msgid "Agent needs an update"
+msgstr "代理需要更新"
+
 msgid "Answered wrongly"
 msgstr "返回内容有误"
+
+msgid "Can't confirm without writing"
+msgstr "不写入就无法确认"
 
 msgid "Can't reach it"
 msgstr "无法访问"
@@ -12863,9 +12872,8 @@ msgstr "清空用户名，或换一个支持登录的服务器。"
 msgid "From {server}, it wrote, read and deleted a test object."
 msgstr "从 {server} 写入、读取并删除了一个测试对象。"
 
-#. placeholder {0}: c.region
-msgid "It answered from region {0}."
-msgstr "它从区域 {0} 应答。"
+msgid "From {server}, it wrote, read and deleted a test object. It answered from region {region}."
+msgstr "从 {server} 写入、读取并删除了一个测试对象。它从区域 {region} 作出响应。"
 
 msgid "It answered {code}. Check the user and password."
 msgstr "它返回了 {code}。请检查用户名和密码。"
@@ -12896,6 +12904,9 @@ msgstr "登录成功，Dockwell 没有发送任何邮件。"
 
 msgid "It wrote, read and deleted a test object."
 msgstr "已写入、读取并删除了一个测试对象。"
+
+msgid "It wrote, read and deleted a test object. It answered from region {region}."
+msgstr "已写入、读取并删除了一个测试对象。它从区域 {region} 作出响应。"
 
 msgid "Keys refused"
 msgstr "密钥被拒绝"
@@ -12943,6 +12954,9 @@ msgstr "TLS"
 msgid "TLS never finished"
 msgstr "TLS 未完成"
 
+msgid "The agent on {server} can't run the scheduled check. Update it from the server's page."
+msgstr "{server} 上的代理无法运行定时检查。请在该服务器的页面上更新它。"
+
 msgid "The bucket gave back something other than what was written."
 msgstr "存储桶返回的内容与写入的不同。"
 
@@ -12950,11 +12964,14 @@ msgstr "存储桶返回的内容与写入的不同。"
 msgid "The bucket refused the check with {0}."
 msgstr "存储桶以 {0} 拒绝了检查。"
 
-msgid "The keys may not list the bucket, which apps rarely need."
-msgstr "这些密钥不能列出存储桶内容，应用很少需要这一点。"
+msgid "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
+msgstr "这些密钥不能列出存储桶内容，也不能从中读取。“检查”会写入一个测试对象来确认它们。"
 
 msgid "The keys may not write in this bucket."
 msgstr "这些密钥无权写入此存储桶。"
+
+msgid "The keys may read, but not list the bucket, which apps rarely need."
+msgstr "这些密钥可以读取，但不能列出存储桶内容，应用很少需要这一点。"
 
 msgid "This server can't reach port {port}, so apps on it can't send mail through it."
 msgstr "这台服务器连不到端口 {port}，所以其上的应用无法通过它发信。"
@@ -13033,6 +13050,9 @@ msgstr "发件人名称"
 msgctxt "a step of a mail server's check"
 msgid "sign-in"
 msgstr "登录"
+
+msgid "this server"
+msgstr "此服务器"
 
 msgctxt "who signs in to a mail server"
 msgid "user"

@@ -46,7 +46,16 @@ import { seesWhere, where } from "./ConnectionsPage";
 import { ConnectStorageSheet, useConnectableApps } from "./ConnectStorageSheet";
 import { mailCheckOf, useLastCheck } from "./LastCheck";
 import { appsOn } from "./storage";
-import { checkServer, SILENT, useCheckWords, useConnections, usePartWords, useProjectLabel } from "./useConnections";
+import {
+  AGENT_UPDATE,
+  checkServer,
+  SILENT,
+  unconfirmed,
+  useCheckWords,
+  useConnections,
+  usePartWords,
+  useProjectLabel,
+} from "./useConnections";
 import { WantsMail } from "./WantsMail";
 import "../apps/Apps.css";
 import "./Connections.css";
@@ -168,7 +177,11 @@ export function ConnectionPage({ name }: { name: string }) {
       {check.answer ? (
         <CheckLine answer={check.answer} connection={connection} />
       ) : last?.failing ? (
-        <CheckLine answer={last.failing} connection={connection} />
+        <CheckLine
+          answer={last.failing}
+          connection={connection}
+          onCheck={mayCheck.allowed ? () => void check.run() : undefined}
+        />
       ) : null}
       {unsharedMany ? (
         <Callout
@@ -273,10 +286,60 @@ function CheckState({ answer, connection }: { answer: CheckConnectionResponse; c
 }
 
 /** What a check found, as a line under the page's head, where it didn't pass. */
-function CheckLine({ answer, connection }: { answer: CheckConnectionResponse; connection: ConnectionInfo }) {
+function CheckLine({
+  answer,
+  connection,
+  onCheck,
+}: {
+  answer: CheckConnectionResponse;
+  connection: ConnectionInfo;
+  /** Check, where the read couldn't confirm the keys without writing. */
+  onCheck?: (() => void) | undefined;
+}) {
   const words = useCheckWords()(answer, mailCheckOf(connection));
   const { t } = useLingui();
+  const servers = useFleetView().servers ?? [];
   if (words.passed) return null;
+  if (unconfirmed(answer)) {
+    return (
+      <Callout
+        tone="info"
+        title={words.state}
+        actions={
+          onCheck ? (
+            <Button size="sm" icon="refresh" onClick={onCheck}>
+              <Trans>Check</Trans>
+            </Button>
+          ) : undefined
+        }
+      >
+        {words.line}
+      </Callout>
+    );
+  }
+  if (answer.code === AGENT_UPDATE) {
+    const server = servers.find((s) => s.name === answer.server);
+    const name = answer.server;
+    return (
+      <Callout
+        tone="info"
+        title={words.state}
+        actions={
+          server ? (
+            <Link
+              to="/servers/$serverId/updates"
+              params={{ serverId: server.id }}
+              className="dw-btn dw-btn-secondary dw-btn-sm"
+            >
+              <Trans>Open {name}'s updates</Trans>
+            </Link>
+          ) : undefined
+        }
+      >
+        {words.line}
+      </Callout>
+    );
+  }
   return (
     <Callout tone="warning" title={t`${words.state} from ${answer.server || t`the server`}`}>
       {words.line}

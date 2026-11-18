@@ -12507,6 +12507,9 @@ msgstr "Not checked"
 msgid "Objects under"
 msgstr "Objects under"
 
+msgid "Open {name}'s updates"
+msgstr "Open {name}'s updates"
+
 msgid "Projects"
 msgstr "Projects"
 
@@ -12821,8 +12824,14 @@ msgstr "Access denied"
 msgid "Address refused"
 msgstr "Address refused"
 
+msgid "Agent needs an update"
+msgstr "Agent needs an update"
+
 msgid "Answered wrongly"
 msgstr "Answered wrongly"
+
+msgid "Can't confirm without writing"
+msgstr "Can't confirm without writing"
 
 msgid "Can't reach it"
 msgstr "Can't reach it"
@@ -12863,9 +12872,8 @@ msgstr "Clear the user, or use a server that signs one in."
 msgid "From {server}, it wrote, read and deleted a test object."
 msgstr "From {server}, it wrote, read and deleted a test object."
 
-#. placeholder {0}: c.region
-msgid "It answered from region {0}."
-msgstr "It answered from region {0}."
+msgid "From {server}, it wrote, read and deleted a test object. It answered from region {region}."
+msgstr "From {server}, it wrote, read and deleted a test object. It answered from region {region}."
 
 msgid "It answered {code}. Check the user and password."
 msgstr "It answered {code}. Check the user and password."
@@ -12896,6 +12904,9 @@ msgstr "It took the sign-in, and Dockwell sent no mail."
 
 msgid "It wrote, read and deleted a test object."
 msgstr "It wrote, read and deleted a test object."
+
+msgid "It wrote, read and deleted a test object. It answered from region {region}."
+msgstr "It wrote, read and deleted a test object. It answered from region {region}."
 
 msgid "Keys refused"
 msgstr "Keys refused"
@@ -12943,6 +12954,9 @@ msgstr "TLS"
 msgid "TLS never finished"
 msgstr "TLS never finished"
 
+msgid "The agent on {server} can't run the scheduled check. Update it from the server's page."
+msgstr "The agent on {server} can't run the scheduled check. Update it from the server's page."
+
 msgid "The bucket gave back something other than what was written."
 msgstr "The bucket gave back something other than what was written."
 
@@ -12950,11 +12964,14 @@ msgstr "The bucket gave back something other than what was written."
 msgid "The bucket refused the check with {0}."
 msgstr "The bucket refused the check with {0}."
 
-msgid "The keys may not list the bucket, which apps rarely need."
-msgstr "The keys may not list the bucket, which apps rarely need."
+msgid "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
+msgstr "The keys may not list the bucket or read from it. Check writes a test object to confirm them."
 
 msgid "The keys may not write in this bucket."
 msgstr "The keys may not write in this bucket."
+
+msgid "The keys may read, but not list the bucket, which apps rarely need."
+msgstr "The keys may read, but not list the bucket, which apps rarely need."
 
 msgid "This server can't reach port {port}, so apps on it can't send mail through it."
 msgstr "This server can't reach port {port}, so apps on it can't send mail through it."
@@ -13033,6 +13050,9 @@ msgstr "sender's name"
 msgctxt "a step of a mail server's check"
 msgid "sign-in"
 msgstr "sign-in"
+
+msgid "this server"
+msgstr "this server"
 
 msgctxt "who signs in to a mail server"
 msgid "user"

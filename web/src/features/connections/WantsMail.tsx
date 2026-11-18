@@ -66,9 +66,10 @@ export function useMailWants(connection: ConnectionInfo): { wants: MailWant[]; p
       const read = entries.get(install.pin?.entry ?? "");
       for (const need of read?.entry?.needs ?? []) {
         if (need.kind !== Kind.SMTP || install.pin?.needs[need.name]?.connection) continue;
+        // The control plane says why this connection can't meet it, as its security.
+        // One no app uses yet serves none, as it's shown only then (#799's review, L6).
         const said = read?.needs.find((o) => o.need === need.name && o.connection === connection.name);
-        const serves = connection.uses.length > 0 && !connection.shared;
-        out.push({ install, need, why: said?.why || (serves ? "serves" : "") });
+        out.push({ install, need, why: said?.why ?? "" });
       }
     }
     return out.sort((a, b) => a.install.name.localeCompare(b.install.name));
@@ -112,7 +113,7 @@ export function WantsMail({ connection, onUsed }: { connection: ConnectionInfo; 
     <ul className="connection-wants" aria-label={t`Apps that want mail`}>
       {wants.map((w) => {
         const app = w.install.name;
-        const why = w.why === "serves" ? t`It serves another app already, and isn't shared` : w.why;
+        const why = w.why;
         return (
           <li key={`${w.install.projectId}/${w.need.name}`} className="connection-want">
             <span className="dw-cell">

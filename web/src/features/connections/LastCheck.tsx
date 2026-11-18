@@ -6,7 +6,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
 import { useTickingNow, useTimeWords } from "../../lib/time";
-import { SILENT, useCheckWords } from "./useConnections";
+import { neutral, SILENT, useCheckWords } from "./useConnections";
 
 /** A connection's last checks as one state: the list's Last check, and its page's head. */
 export interface LastCheck {
@@ -35,12 +35,17 @@ export function useLastCheck(connection: ConnectionInfo): LastCheck | undefined 
   const now = useTickingNow(newest || undefined);
   if (checks.length === 0) return undefined;
   const at = (c: CheckConnectionResponse) => (c.time ? time.ago(new Date(Number(c.time.seconds) * 1000), now) : "");
-  const failing = checks.find((c) => !c.passed);
+  // A real failure first, then one that couldn't confirm the keys or couldn't run.
+  const failing = checks.find((c) => !c.passed && !neutral(c)) ?? checks.find((c) => !c.passed);
   if (failing) {
     const said = words(failing, mailCheckOf(connection));
     // Below an admin, a check is whether it passed and when, alone.
     const admin = failing.server !== "";
     const server = failing.server;
+    if (admin && neutral(failing)) {
+      // Not green and not red: what it couldn't say, with Check as the way on (#799's review, M3, L5).
+      return { status: "unknown", label: said.state, meta: [server, at(failing)].join(" · "), why: "", failing };
+    }
     return {
       status: SILENT.includes(failing.code) ? "unknown" : "down",
       label: admin ? t`Fails from ${server}` : t`Failed`,
