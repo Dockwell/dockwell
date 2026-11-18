@@ -130,4 +130,7 @@
 
 .store-tile-name-line > .store-tile-name {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

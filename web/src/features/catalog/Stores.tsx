@@ -138,7 +138,9 @@ export function StoreTile({
       <span className="store-tile-words">
         {/* Its licence beside its name, never on a line of its own, so every tile is the same (#792). */}
         <span className="store-tile-name-line">
-          <span className="store-tile-name">{named(store)}</span>
+          <span className="store-tile-name" title={named(store)}>
+            {named(store)}
+          </span>
           <span className="store-licence">{licence(store.license)}</span>
         </span>
         <StoreFacts store={store} />
