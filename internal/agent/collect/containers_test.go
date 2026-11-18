@@ -116,8 +116,10 @@ func TestACgroupElsewhereIsFoundFromTheContainersProcess(t *testing.T) {
 		"proc/301/cgroup": {Data: []byte("0::/apps.slice/docker-" + parented + ".scope\n")},
 	}
 	docker := &pids{of: map[string]int{rootless: 201, parented: 301}}
-	c := &Collector{Root: root, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil },
-		Containers: func() []string { return []string{rootful, rootless, parented} }, ContainerPID: docker.pid}
+	c := &Collector{
+		Root: root, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil },
+		Containers: func() []string { return []string{rootful, rootless, parented} }, ContainerPID: docker.pid,
+	}
 	got := map[string]uint64{}
 	for _, u := range c.Stats(time.Unix(1_800_000_000, 0)).GetContainers() {
 		got[u.GetContainerId()] = u.GetMemoryBytes()
@@ -137,9 +139,11 @@ func TestACgroupElsewhereIsFoundFromTheContainersProcess(t *testing.T) {
 	// A container that makes cgroups of its own keeps its process below its own cgroup, which is read.
 	nestedTree := fstest.MapFS{"cgroup.controllers": {Data: []byte("memory\n")}}
 	cgroup(nestedTree, "apps.slice/docker-"+nested+".scope", "100")
-	c = &Collector{Root: fstest.MapFS{"proc/401/cgroup": {Data: []byte("0::/apps.slice/docker-" + nested + ".scope/init.scope\n")}}, Cgroups: nestedTree,
+	c = &Collector{
+		Root: fstest.MapFS{"proc/401/cgroup": {Data: []byte("0::/apps.slice/docker-" + nested + ".scope/init.scope\n")}}, Cgroups: nestedTree,
 		Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil }, Containers: func() []string { return []string{nested} },
-		ContainerPID: (&pids{of: map[string]int{nested: 401}}).pid}
+		ContainerPID: (&pids{of: map[string]int{nested: 401}}).pid,
+	}
 	if got := c.Stats(time.Unix(1_800_000_000, 0)).GetContainers(); len(got) != 1 {
 		t.Errorf("a container with cgroups of its own read %v, want its own cgroup", got)
 	}
@@ -147,9 +151,11 @@ func TestACgroupElsewhereIsFoundFromTheContainersProcess(t *testing.T) {
 	// OpenRC's hybrid mount: cgroup v2 at unified/, beside v1's hierarchies.
 	hybrid := fstest.MapFS{"unified/cgroup.controllers": {Data: []byte("memory\n")}, "memory/docker/" + parented + "/memory.usage_in_bytes": {Data: []byte("5\n")}}
 	cgroup(hybrid, "unified/docker/"+parented, "100")
-	c = &Collector{Root: fstest.MapFS{"proc/301/cgroup": {Data: []byte("12:memory:/docker/" + parented + "\n0::/docker/" + parented + "\n")}}, Cgroups: hybrid,
+	c = &Collector{
+		Root: fstest.MapFS{"proc/301/cgroup": {Data: []byte("12:memory:/docker/" + parented + "\n0::/docker/" + parented + "\n")}}, Cgroups: hybrid,
 		Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil }, Containers: func() []string { return []string{parented} },
-		ContainerPID: (&pids{of: map[string]int{parented: 301}}).pid}
+		ContainerPID: (&pids{of: map[string]int{parented: 301}}).pid,
+	}
 	if got := c.Stats(time.Unix(1_800_000_000, 0)).GetContainers(); len(got) != 1 || got[0].GetMemoryBytes() != 1048576 {
 		t.Errorf("on a hybrid host the container read %v, want its unified cgroup", got)
 	}
@@ -170,8 +176,10 @@ func TestAContainersProcessIsCheckedAtEachSample(t *testing.T) {
 	cgroup(tree, "user.slice/user-1000.slice/session-3.scope", "100")
 	root := fstest.MapFS{"proc/201/cgroup": {Data: []byte("0::/" + dir + "\n")}}
 	docker := &pids{of: map[string]int{id: 201}}
-	c := &Collector{Root: root, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil },
-		Containers: func() []string { return []string{id} }, ContainerPID: docker.pid}
+	c := &Collector{
+		Root: root, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil },
+		Containers: func() []string { return []string{id} }, ContainerPID: docker.pid,
+	}
 	at := time.Unix(1_800_000_000, 0)
 	read := func(at time.Time) int { return len(c.Stats(at).GetContainers()) }
 	if read(at) != 1 {
@@ -193,7 +201,8 @@ func TestAContainersProcessIsCheckedAtEachSample(t *testing.T) {
 	}
 	// It waits a minute before asking again, then twice as long.
 	asked := docker.asked
-	if read(at.Add(15 * time.Second)); docker.asked != asked {
+	read(at.Add(15 * time.Second))
+	if docker.asked != asked {
 		t.Errorf("Docker was asked again 5 s after a try that failed")
 	}
 	read(at.Add(70 * time.Second))
