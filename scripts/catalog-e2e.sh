@@ -747,10 +747,13 @@ sealed() {
     logs=$(docker logs "$c" 2>&1) || fail "docker logs $c failed"
     [[ "$logged" == true || "$logs" != *"$value"* ]] || fail "$service writes the secret $name in its log, which takes no passkey to read"
   done <<<"$holds"
-  # The owner's own inputs reach only its steps, never a container (ADR 0105), so
-  # an app whose one secret is its owner's password holds none.
-  [[ -n "$holds" ]] || [[ "$(jq '(.owner // {}) as $o | [.inputs[]? | select(.type == "INPUT_TYPE_SECRET")
-    | select([.name] - [$o.emailInput, $o.userInput, $o.passwordInput] != [])] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
+  # A container holds only the secrets its Compose file names. Those only the owner's
+  # steps read (its password, a token they sign in with) never reach one, and what
+  # the owner's unset_when_made names is taken out once the owner is made (ADR 0105).
+  [[ -n "$holds" ]] || [[ "$(jq '(.compose // "") as $c | (.owner.unsetWhenMade // []) as $u
+    | [.inputs[]? | select(.type == "INPUT_TYPE_SECRET") | .name
+       | select(. as $n | $c | test("\\$\\{?" + $n + "\\b"))
+       | select(. as $n | $u | index($n) | not)] | length' <<<"$entry")" == 0 ]] || fail "$id uses none of its secrets"
 }
 
 # plan_install plans installing $id with its flags, and sets planned, change, installed
