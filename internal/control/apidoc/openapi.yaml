@@ -90,6 +90,13 @@ paths:
                   schema:
                     type: integer
                     format: int32
+                - name: alertId
+                  in: query
+                  description: |-
+                    One alert's messages alone, "alt_…": its firing and resolved message to
+                     each channel, and how each went, with one still being tried as not taken.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -8763,6 +8770,12 @@ components:
                     format: date-time
                 acknowledgedBy:
                     $ref: '#/components/schemas/Actor'
+                undelivered:
+                    type: boolean
+                    description: |-
+                        Whether no channel took its newest message: each one it went to refused it,
+                         or couldn't be reached, at least once and never took it since. Unset while
+                         its first tries are still going, and where nothing went (sent_time unset).
             description: |-
                 Alert is one rule holding for one thing, such as a server's disk, from when
                  it fired until it resolved.
@@ -8972,6 +8985,12 @@ components:
                 channel:
                     type: string
                     description: The channel it went to, by name, as it was named then.
+                alertId:
+                    type: string
+                    description: |-
+                        The alert it was for, "alt_…", in a list asked for one alert. One message
+                         can carry several of a rule's alerts, so the newest messages to every
+                         channel leave it empty.
             description: AlertDelivery is how one message to a channel went.
         AlertDiscord:
             type: object

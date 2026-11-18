@@ -187,8 +187,12 @@ type Alert struct {
 	// what it had.
 	AcknowledgeTime *timestamppb.Timestamp `protobuf:"bytes,21,opt,name=acknowledge_time,json=acknowledgeTime,proto3" json:"acknowledge_time,omitempty"`
 	AcknowledgedBy  *Actor                 `protobuf:"bytes,22,opt,name=acknowledged_by,json=acknowledgedBy,proto3" json:"acknowledged_by,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Whether no channel took its newest message: each one it went to refused it,
+	// or couldn't be reached, at least once and never took it since. Unset while
+	// its first tries are still going, and where nothing went (sent_time unset).
+	Undelivered   bool `protobuf:"varint,23,opt,name=undelivered,proto3" json:"undelivered,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Alert) Reset() {
@@ -373,6 +377,13 @@ func (x *Alert) GetAcknowledgedBy() *Actor {
 		return x.AcknowledgedBy
 	}
 	return nil
+}
+
+func (x *Alert) GetUndelivered() bool {
+	if x != nil {
+		return x.Undelivered
+	}
+	return false
 }
 
 // AcknowledgeAlertRequest names an open alert.
@@ -1182,7 +1193,11 @@ type AlertDelivery struct {
 	// What it was, such as "Disk above 90% on web-1" or "Test message".
 	About string `protobuf:"bytes,4,opt,name=about,proto3" json:"about,omitempty"`
 	// The channel it went to, by name, as it was named then.
-	Channel       string `protobuf:"bytes,5,opt,name=channel,proto3" json:"channel,omitempty"`
+	Channel string `protobuf:"bytes,5,opt,name=channel,proto3" json:"channel,omitempty"`
+	// The alert it was for, "alt_…", in a list asked for one alert. One message
+	// can carry several of a rule's alerts, so the newest messages to every
+	// channel leave it empty.
+	AlertId       string `protobuf:"bytes,6,opt,name=alert_id,json=alertId,proto3" json:"alert_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1248,6 +1263,13 @@ func (x *AlertDelivery) GetAbout() string {
 func (x *AlertDelivery) GetChannel() string {
 	if x != nil {
 		return x.Channel
+	}
+	return ""
+}
+
+func (x *AlertDelivery) GetAlertId() string {
+	if x != nil {
+		return x.AlertId
 	}
 	return ""
 }
@@ -1447,7 +1469,10 @@ func (x *ListAlertChannelsResponse) GetChannels() []*AlertChannelInfo {
 type ListAlertDeliveriesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// How many, 50 unless set, and at most 200.
-	PageSize      int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	// One alert's messages alone, "alt_…": its firing and resolved message to
+	// each channel, and how each went, with one still being tried as not taken.
+	AlertId       string `protobuf:"bytes,2,opt,name=alert_id,json=alertId,proto3" json:"alert_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1487,6 +1512,13 @@ func (x *ListAlertDeliveriesRequest) GetPageSize() int32 {
 		return x.PageSize
 	}
 	return 0
+}
+
+func (x *ListAlertDeliveriesRequest) GetAlertId() string {
+	if x != nil {
+		return x.AlertId
+	}
+	return ""
 }
 
 // ListAlertDeliveriesResponse lists them, newest first.
@@ -2020,7 +2052,7 @@ var File_dockwell_v1_alert_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\n" +
-	"\x17dockwell/v1/alert.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xea\x06\n" +
+	"\x17dockwell/v1/alert.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8c\a\n" +
 	"\x05Alert\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\arule_id\x18\x02 \x01(\tR\x06ruleId\x12\x1b\n" +
@@ -2046,7 +2078,8 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\x05where\x18\x13 \x01(\tR\x05where\x12\x14\n" +
 	"\x05value\x18\x14 \x01(\x05R\x05value\x12E\n" +
 	"\x10acknowledge_time\x18\x15 \x01(\v2\x1a.google.protobuf.TimestampR\x0facknowledgeTime\x12;\n" +
-	"\x0facknowledged_by\x18\x16 \x01(\v2\x12.dockwell.v1.ActorR\x0eacknowledgedBy\")\n" +
+	"\x0facknowledged_by\x18\x16 \x01(\v2\x12.dockwell.v1.ActorR\x0eacknowledgedBy\x12 \n" +
+	"\vundelivered\x18\x17 \x01(\bR\vundelivered\")\n" +
 	"\x17AcknowledgeAlertRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"D\n" +
 	"\x18AcknowledgeAlertResponse\x12(\n" +
@@ -2099,13 +2132,14 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\x06checks\x18\x01 \x03(\v2\x1b.dockwell.v1.AlertCheckInfoR\x06checks\"\x17\n" +
 	"\x15ListAlertRulesRequest\"J\n" +
 	"\x16ListAlertRulesResponse\x120\n" +
-	"\x05rules\x18\x01 \x03(\v2\x1a.dockwell.v1.AlertRuleInfoR\x05rules\"\x93\x01\n" +
+	"\x05rules\x18\x01 \x03(\v2\x1a.dockwell.v1.AlertRuleInfoR\x05rules\"\xae\x01\n" +
 	"\rAlertDelivery\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x0e\n" +
 	"\x02ok\x18\x02 \x01(\bR\x02ok\x12\x12\n" +
 	"\x04said\x18\x03 \x01(\tR\x04said\x12\x14\n" +
 	"\x05about\x18\x04 \x01(\tR\x05about\x12\x18\n" +
-	"\achannel\x18\x05 \x01(\tR\achannel\"\x84\x02\n" +
+	"\achannel\x18\x05 \x01(\tR\achannel\x12\x19\n" +
+	"\balert_id\x18\x06 \x01(\tR\aalertId\"\x84\x02\n" +
 	"\x10AlertChannelInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -2117,9 +2151,10 @@ const file_dockwell_v1_alert_proto_rawDesc = "" +
 	"\x06sealed\x18\b \x03(\tR\x06sealed\"\x1a\n" +
 	"\x18ListAlertChannelsRequest\"V\n" +
 	"\x19ListAlertChannelsResponse\x129\n" +
-	"\bchannels\x18\x01 \x03(\v2\x1d.dockwell.v1.AlertChannelInfoR\bchannels\"9\n" +
+	"\bchannels\x18\x01 \x03(\v2\x1d.dockwell.v1.AlertChannelInfoR\bchannels\"T\n" +
 	"\x1aListAlertDeliveriesRequest\x12\x1b\n" +
-	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\"Y\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x19\n" +
+	"\balert_id\x18\x02 \x01(\tR\aalertId\"Y\n" +
 	"\x1bListAlertDeliveriesResponse\x12:\n" +
 	"\n" +
 	"deliveries\x18\x01 \x03(\v2\x1a.dockwell.v1.AlertDeliveryR\n" +

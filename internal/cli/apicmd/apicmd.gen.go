@@ -65,6 +65,7 @@ func Methods() []*apicli.Method {
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "page_size", Help: "How many, 50 unless set, and at most 200."},
+				{Path: "alert_id", Help: "One alert's messages alone, \"alt_…\": its firing and resolved message to each channel, and how each went, with one still being tried as not taken."},
 			},
 			Call: apicli.Unary[v1.ListAlertDeliveriesRequest, v1.ListAlertDeliveriesResponse](dockwellv1connect.AlertServiceListAlertDeliveriesProcedure),
 		},
