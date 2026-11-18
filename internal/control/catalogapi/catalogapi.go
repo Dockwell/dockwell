@@ -411,7 +411,7 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	var address map[string]map[string]string
 	// A route asked with the install, to its web service, planned in the same change
 	// (#792): where the app is reached is its domain.
-	routeEdit, routeAt, err := installRoute(chosen, m.GetRoute())
+	routeEdit, routeAt, err := installRoute(chosen, m.GetRoute(), filled.Variables)
 	if err != nil {
 		return nil, err
 	}
@@ -1620,12 +1620,12 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 // and name the install's own. A redirect, a port on the server, or a route to an app
 // with no web service is refused; everything else is checked as any route edit is,
 // in the install's change. It says where the app is reached through it.
-func installRoute(entry *catalogv1.Entry, asked *resourcev1.Route) (*dockwellv1.Edit, catalog.Address, error) {
+func installRoute(entry *catalogv1.Entry, asked *resourcev1.Route, variables map[string]string) (*dockwellv1.Edit, catalog.Address, error) {
 	if asked == nil {
 		return nil, catalog.Address{}, nil
 	}
 	web := entry.GetWeb().GetService()
-	port := catalog.WebTarget(entry)
+	port := catalog.WebTarget(entry, variables)
 	domain := strings.ToLower(strings.TrimSpace(asked.GetDomain()))
 	switch {
 	case web == "" || port == 0:
@@ -1636,6 +1636,9 @@ func installRoute(entry *catalogv1.Entry, asked *resourcev1.Route) (*dockwellv1.
 		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route goes to the app's web page, which the install says. Leave its service, port and port on the server out"))
 	case domain == "":
 		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route needs its domain, such as wiki.example.com"))
+	case strings.Trim(asked.GetPath(), "/") != "":
+		// The app's address is its domain's, which a path route isn't (ADR 0103, the review's L2).
+		return nil, catalog.Address{}, authapi.Invalid(errors.New("an install's route covers its whole domain. Leave its path out, and add a path route on Domains once it's installed"))
 	}
 	r := proto.CloneOf(asked)
 	r.Domain, r.Service, r.Port = domain, web, port

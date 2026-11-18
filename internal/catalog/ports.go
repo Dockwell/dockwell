@@ -394,8 +394,9 @@ func mergesPorts(v *yaml.Node) bool {
 }
 
 // WebTarget is the port in its web service's container that the entry publishes on
-// the server, as a route to the app sends to it, or 0 where it publishes none (#792).
-func WebTarget(e *catalogv1.Entry) uint32 {
+// the server, as variables have it, as a route to the app sends to it, or 0 where it
+// publishes none (#792).
+func WebTarget(e *catalogv1.Entry, variables map[string]string) uint32 {
 	cf, err := readCompose(e.GetCompose())
 	if err != nil {
 		return 0
@@ -408,6 +409,13 @@ func WebTarget(e *catalogv1.Entry) uint32 {
 			continue
 		}
 		target, _, _ := strings.Cut(p.target, "/")
+		// A converted store's file names it by a variable, as ${APP_PORT} (the review's L1).
+		if m := portInput.FindStringSubmatch(target); m != nil {
+			target = variables[m[1]]
+			if target == "" {
+				target = m[2]
+			}
+		}
 		if n, err := strconv.ParseUint(target, 10, 16); err == nil && n > 0 {
 			return uint32(n)
 		}
