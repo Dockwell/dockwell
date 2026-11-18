@@ -536,7 +536,11 @@ func smallDisk(t *testing.T) string {
 func waitForLine(t *testing.T, client *docker.Client, id, text string) {
 	t.Helper()
 	waitForLong(t, "the line "+text, func() bool {
-		rd, err := client.ContainerLogs(t.Context(), id, false, docker.LogOptions{Tail: 1})
+		// Each read has its own deadline: a log stream that stops answering would
+		// otherwise block past waitForLong's, until go test's own ten minutes.
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		rd, err := client.ContainerLogs(ctx, id, false, docker.LogOptions{Tail: 1})
 		if err != nil {
 			return false
 		}
