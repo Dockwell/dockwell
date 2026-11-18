@@ -44,7 +44,7 @@ function useSections(): { label: string; sections: Section[] }[] {
       label: t`Install`,
       sections: [
         { to: "/settings/general", label: t`General`, icon: "settings" },
-        { to: "/settings/security", label: t`Security`, icon: "shield" },
+        { to: "/settings/security", label: t`Sign-in policy`, icon: "shield" },
         ...members,
         { to: "/settings/api-tokens", label: t`API tokens`, icon: "key" },
         ...audit,

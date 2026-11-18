@@ -54,8 +54,10 @@ describe("Security", () => {
   it("is in Settings beside General", async () => {
     renderAt("/settings/security", api());
     const nav = await screen.findByRole("navigation", { name: "Settings" });
-    expect(within(nav).getByRole("link", { name: "Security" })).toHaveAttribute("aria-current", "page");
-    expect(await screen.findByRole("heading", { level: 1, name: "Security" })).toBeVisible();
+    // The install-wide passkey policy, named apart from each person's on Profile (#801).
+    expect(within(nav).getByRole("link", { name: "Sign-in policy" })).toHaveAttribute("aria-current", "page");
+    expect(await screen.findByRole("heading", { level: 1, name: "Sign-in policy" })).toBeVisible();
+    expect(screen.getByText("Everyone confirms at least once an hour.")).toBeVisible();
   });
 
   it("lets the owner set the least anyone may choose, with a passkey", async () => {

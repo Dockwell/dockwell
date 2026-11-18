@@ -6551,6 +6551,18 @@ msgstr "Your name"
 msgid "{0} invited you as {where}"
 msgstr "{0} invited you as {where}"
 
+msgid "<0>{recover}</0> on the control server"
+msgstr "<0>{recover}</0> on the control server"
+
+msgid "Account"
+msgstr "Account"
+
+msgid "Last resort"
+msgstr "Last resort"
+
+msgid "member since {since}"
+msgstr "member since {since}"
+
 msgid "Add a passkey here"
 msgstr "Add a passkey here"
 
@@ -17749,6 +17761,12 @@ msgstr "1 event in the last 7 days."
 msgid "1 event, all there is."
 msgstr "1 event, all there is."
 
+msgid "A claim link"
+msgstr "A claim link"
+
+msgid "A sign-in link"
+msgstr "A sign-in link"
+
 msgid "API"
 msgstr "API"
 
@@ -17866,6 +17884,9 @@ msgstr "The audit log, newest first"
 msgid "The newest {count} events. Show more for older ones."
 msgstr "The newest {count} events. Show more for older ones."
 
+msgid "This install"
+msgstr "This install"
+
 msgid "Today · {day}"
 msgstr "Today · {day}"
 
@@ -17890,12 +17911,6 @@ msgstr "{count} events, all there are."
 msgid "{name} and {more} more"
 msgstr "{name} and {more} more"
 
-msgid "A command to run as root"
-msgstr "A command to run as root"
-
-msgid "A command to run as root over SSH"
-msgstr "A command to run as root over SSH"
-
 msgid "A file beside the control plane, for one control plane"
 msgstr "A file beside the control plane, for one control plane"
 
@@ -17917,8 +17932,11 @@ msgstr "Apps' backups"
 msgid "Apps' volumes and databases have backups of their own"
 msgstr "Apps' volumes and databases have backups of their own"
 
-msgid "Back it up by hand"
-msgstr "Back it up by hand"
+msgid "As root over SSH: Dockwell stops while it copies"
+msgstr "As root over SSH: Dockwell stops while it copies"
+
+msgid "As root, with dockwell run stopped"
+msgstr "As root, with dockwell run stopped"
 
 msgid "Built from {commit}"
 msgstr "Built from {commit}"
@@ -17932,20 +17950,14 @@ msgstr "By hand, for now"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell can't say how its control plane is"
 
-msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
-
 msgid "From elsewhere"
 msgstr "From elsewhere"
 
 msgid "From its network"
 msgstr "From its network"
 
-msgid "How to back it up and restore it"
-msgstr "How to back it up and restore it"
-
-msgid "How to change settings"
-msgstr "How to change settings"
+msgid "How to restore it"
+msgstr "How to restore it"
 
 msgctxt "encryption"
 msgid "Key"
@@ -17957,17 +17969,14 @@ msgstr "Location"
 msgid "None: Dockwell doesn't back itself up yet"
 msgstr "None: Dockwell doesn't back itself up yet"
 
-msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
-msgstr "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
-
-msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
-msgstr "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
-
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 
 msgid "Opens every secret the store keeps"
 msgstr "Opens every secret the store keeps"
+
+msgid "Over SSH, to update to the newest release"
+msgstr "Over SSH, to update to the newest release"
 
 msgid "Panel and API"
 msgstr "Panel and API"
@@ -17998,21 +18007,12 @@ msgstr "Releases"
 msgid "Replicas"
 msgstr "Replicas"
 
-msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-msgstr "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-
-msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-msgstr "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-
 msgid "SQLite, on this server"
 msgstr "SQLite, on this server"
 
 msgctxt "when backups run"
 msgid "Schedule"
 msgstr "Schedule"
-
-msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
-msgstr "Set where Dockwell starts; the panel's domain is under <0>General</0>."
 
 msgctxt "on disk"
 msgid "Size"
@@ -18027,9 +18027,6 @@ msgstr "The database and the key, apart"
 msgid "The database isn't in it: back it up with <0>pg_dump</0>."
 msgstr "The database isn't in it: back it up with <0>pg_dump</0>."
 
-msgid "The install script again, over SSH"
-msgstr "The install script again, over SSH"
-
 msgid "The key opens every secret in a copy"
 msgstr "The key opens every secret in a copy"
 
@@ -18039,14 +18036,8 @@ msgstr "The store and the key, apart"
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
-msgstr "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
-
 msgid "This control plane"
 msgstr "This control plane"
-
-msgid "Update by hand"
-msgstr "Update by hand"
 
 #. placeholder {0}: s.name
 msgid "Update the agent on {0}"
@@ -18167,9 +18158,6 @@ msgstr "Served by"
 
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "Shown on the sign-in screen and in browser tabs."
-
-msgid "This install"
-msgstr "This install"
 
 msgid "Time zone"
 msgstr "Time zone"
@@ -18716,9 +18704,6 @@ msgstr "{0, plural, one {# change they planned couldn't be discarded and stays p
 msgid "{name} is removed"
 msgstr "{name} is removed"
 
-msgid "1 browser"
-msgstr "1 browser"
-
 msgid "1 open invite"
 msgstr "1 open invite"
 
@@ -18730,9 +18715,6 @@ msgstr "1 person signs in to this install · {invitesWord}"
 
 msgid "1 person signs in to this install, its owner"
 msgstr "1 person signs in to this install, its owner"
-
-msgid "<0>dockwell recover</0> on the control server"
-msgstr "<0>dockwell recover</0> on the control server"
 
 msgid "A project that's gone"
 msgstr "A project that's gone"
@@ -18772,9 +18754,6 @@ msgstr "Expires"
 msgid "Expires in {0}"
 msgstr "Expires in {0}"
 
-msgid "How you sign in"
-msgstr "How you sign in"
-
 msgid "Invite"
 msgstr "Invite"
 
@@ -18809,9 +18788,6 @@ msgstr "Invites need the panel's domain"
 msgid "Last active"
 msgstr "Last active"
 
-msgid "Last resort"
-msgstr "Last resort"
-
 msgid "Link copied"
 msgstr "Link copied"
 
@@ -18820,9 +18796,6 @@ msgstr "Loading the environments"
 
 msgid "Loading who signs in"
 msgstr "Loading who signs in"
-
-msgid "Locked after too many wrong codes, until you lift it in Profile and security"
-msgstr "Locked after too many wrong codes, until you lift it in Profile and security"
 
 msgid "Member"
 msgstr "Member"
@@ -18833,21 +18806,11 @@ msgstr "No way in that works now"
 msgid "Nobody was invited"
 msgstr "Nobody was invited"
 
-msgid "None linked"
-msgstr "None linked"
-
 msgid "Not accepted yet"
 msgstr "Not accepted yet"
 
 msgid "Now"
 msgstr "Now"
-
-msgid "On, 1 recovery code left"
-msgstr "On, 1 recovery code left"
-
-#. placeholder {0}: member.recoveryCodesLeft
-msgid "On, {0} recovery codes left"
-msgstr "On, {0} recovery codes left"
 
 msgctxt "an environment that isn't protected"
 msgid "Open"
@@ -18907,9 +18870,6 @@ msgstr "Servers, projects and settings"
 msgid "Set the panel's domain"
 msgstr "Set the panel's domain"
 
-msgid "Signed in on"
-msgstr "Signed in on"
-
 msgid "Stop protecting {where}"
 msgstr "Stop protecting {where}"
 
@@ -18937,10 +18897,6 @@ msgstr "all sign in with a passkey"
 
 msgid "their projects"
 msgstr "their projects"
-
-#. placeholder {0}: member.sessions
-msgid "{0} browsers"
-msgstr "{0} browsers"
 
 #. placeholder {0}: invites.length
 msgid "{0} open invites"
@@ -19011,6 +18967,9 @@ msgstr "Getting a certificate for {domain}…"
 
 msgid "How it reaches this server"
 msgstr "How it reaches this server"
+
+msgid "How to change settings"
+msgstr "How to change settings"
 
 #. placeholder {0}: found.addresses.join(", ")
 msgid "It leads to {0}"
@@ -19096,6 +19055,9 @@ msgstr "Each person chooses theirs in <0>Profile and security</0>."
 msgid "Each time, once an hour, or only when they sign in."
 msgstr "Each time, once an hour, or only when they sign in."
 
+msgid "Everyone confirms at least once an hour."
+msgstr "Everyone confirms at least once an hour."
+
 msgid "Everyone confirms every sensitive action."
 msgstr "Everyone confirms every sensitive action."
 
@@ -19105,20 +19067,17 @@ msgstr "How often everyone in this install is asked for their passkey again"
 msgid "Let each person choose"
 msgstr "Let each person choose"
 
-msgid "Nobody can choose only when they sign in."
-msgstr "Nobody can choose only when they sign in."
-
 msgid "Only the owner sets this."
 msgstr "Only the owner sets this."
+
+msgid "Sign-in policy"
+msgstr "Sign-in policy"
 
 msgid "The least anyone may choose"
 msgstr "The least anyone may choose"
 
 msgid "The passkey prompt closed, so the floor didn't change."
 msgstr "The passkey prompt closed, so the floor didn't change."
-
-msgid "Account"
-msgstr "Account"
 
 msgid "Platform"
 msgstr "Platform"
@@ -19192,9 +19151,6 @@ msgstr "Make a token"
 msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
 msgstr "Make one for each script or integration, so you can revoke one without stopping the rest."
 
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "Name the token after what will use it, such as GitHub Actions deploy."
-
 msgctxt "token expiry"
 msgid "Never"
 msgstr "Never"
@@ -19235,6 +19191,9 @@ msgstr "The token wasn't created"
 
 msgid "Token copied"
 msgstr "Token copied"
+
+msgid "Token of {day}"
+msgstr "Token of {day}"
 
 msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
 msgstr "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
@@ -19284,21 +19243,9 @@ msgstr "{count} · 1 expires soon"
 msgid "{count} · {soon} expire soon"
 msgstr "{count} · {soon} expire soon"
 
-msgid "None yet. Make one for each script or integration that calls the API."
-msgstr "None yet. Make one for each script or integration that calls the API."
-
-msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
-msgstr "They're listed, made and revoked in <0>Settings, under API tokens</0>."
-
 #. placeholder {0}: list.length
 msgid "{0, plural, one {# acts for you} other {# act for you}}"
 msgstr "{0, plural, one {# acts for you} other {# act for you}}"
-
-msgid "{acting}, and {expiring}."
-msgstr "{acting}, and {expiring}."
-
-msgid "{acting}."
-msgstr "{acting}."
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"

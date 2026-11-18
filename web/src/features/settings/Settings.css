@@ -12,6 +12,11 @@
   margin-inline: auto;
 }
 
+/* A page of many columns, as the audit log, takes a detail page's width (#801). */
+.settings:has(.page.is-wide) {
+  max-width: calc(var(--settings-nav-width) + var(--space-2) + var(--page-standard));
+}
+
 .settings-nav {
   position: sticky;
   top: 0;
@@ -516,14 +521,32 @@
   gap: var(--space-1);
 }
 
-/* A token's scopes on one line in the table, as each fits its column there. */
-.tokens-table .tokens-tags {
-  flex-wrap: nowrap;
+/* A token's scopes wrap within their column, and a long list of projects ends in an
+   ellipsis within its tag, whole on hover, so the dates and Revoke stay in view at
+   every width (#801). */
+.tokens-table td:nth-child(2) {
+  white-space: normal;
+}
+
+.tokens-table .tokens-tag-where {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.tokens-table .tokens-tags .dw-tag {
+  max-width: 100%;
+}
+
+.tokens-table .tokens-tags .dw-tag-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* A token's name wraps, so a long one leaves its dates and Revoke in view, and stops at two lines. */
 .tokens-table td:first-child {
-  min-width: 200px;
+  min-width: 160px;
   white-space: normal;
 }
 
@@ -926,6 +949,20 @@
   white-space: normal;
 }
 
+/* Detail says each event in a sentence: two lines, before it ends in an ellipsis,
+   and the row's details say all of it (#801). */
+.audit-table td.audit-said {
+  white-space: normal;
+}
+
+.audit-said-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .audit-said {
   color: var(--ink-muted);
 }
@@ -1084,13 +1121,6 @@
 }
 
 /* ---------- Members ---------- */
-
-.members-panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
-  align-items: stretch;
-  gap: var(--space-4);
-}
 
 .members-person {
   display: flex;
@@ -1607,4 +1637,11 @@
   margin: var(--space-1) 0 0;
   padding: 0;
   list-style: none;
+}
+
+/* Two links on one line, apart. */
+.cp-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
 }

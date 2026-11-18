@@ -541,3 +541,39 @@ describe("Audit log", () => {
     expect(await screen.findByText("创建了 API 令牌 GitHub Actions deploy")).toBeVisible();
   });
 });
+
+describe("the audit log's targets (#801)", () => {
+  it("names a person, an uptime check, the install and a link as the panel shows them, not by ID", async () => {
+    const named = [
+      anEvent({ id: "evt_a", action: "auth.sign_in", actor: mira, target: { id: "usr_1" } }),
+      anEvent({
+        id: "evt_b",
+        action: "alert.firing",
+        actor: { kind: ActorKind.DOCKWELL },
+        surface: Surface.AUTOMATIC,
+        target: { id: "chk_1" },
+      }),
+      anEvent({ id: "evt_c", action: "install.create", actor: { kind: ActorKind.DOCKWELL }, target: { id: "ins_1" } }),
+      anEvent({ id: "evt_d", action: "claim_link.create", actor: mira, target: { id: "lnk_1" } }),
+      anEvent({ id: "evt_e", action: "auth.sign_in", actor: mira, target: { id: "usr_gone" } }),
+    ];
+    renderAt("/settings/audit-log", {
+      audit: { listAuditEvents: () => ({ events: named }) },
+      members: { listMembers: () => ({ members: [{ user: { id: "usr_1", name: "Mira Chen" } }] }) },
+      alerts: { listAlertChecks: () => ({ checks: [{ id: "chk_1", name: "shop-home" }] }) },
+    });
+    const table = await screen.findByRole("table", { name: "The audit log, newest first" });
+    const row = (id: string) =>
+      within(table)
+        .getAllByRole("row")
+        .find((r) => r.textContent?.includes(id));
+    await waitFor(() => expect(within(table).getByText("shop-home")).toBeVisible());
+    expect(within(table).getAllByText("Mira Chen").length).toBeGreaterThan(1);
+    expect(within(table).getByText("This install")).toBeVisible();
+    expect(within(table).getByText("A claim link")).toBeVisible();
+    expect(within(table).queryByText("chk_1")).toBeNull();
+    expect(within(table).queryByText("ins_1")).toBeNull();
+    // One it can't name keeps its ID.
+    expect(row("usr_gone")).toBeDefined();
+  });
+});

@@ -282,3 +282,39 @@
   font-size: 13px;
   align-self: center;
 }
+
+/* Your account, as the Profile mock has it: an avatar beside your name, then the facts (#801). */
+.profile-account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.profile-account-who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.profile-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.profile-account-name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}

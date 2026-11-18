@@ -4,7 +4,6 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
-  AuthService,
   type Invite,
   type Member,
   MemberService,
@@ -172,10 +171,9 @@ export function MembersPage() {
         </div>
         {people}
       </section>
-      <div className="members-panels">
-        {solo && !inviting ? null : <RolesCan />}
-        <SignIn member={members.find((m) => m.you)} />
-      </div>
+      {/* What each role can, the whole width, so its labels stay on a line; how you sign
+          in is yours, on Profile and security (#801). */}
+      {solo && !inviting ? null : <RolesCan />}
     </Page>
   );
 }
@@ -911,66 +909,6 @@ function RolesCan() {
           </tbody>
         </table>
       </div>
-    </Panel>
-  );
-}
-
-/** How the person asking signs in, and where they change it. */
-function SignIn({ member }: { member: Member | undefined }) {
-  const { t } = useLingui();
-  const addresses = member?.passkeyAddresses ?? [];
-  // Your accounts at sign-in providers, as Profile and security lists them (ADR 0095).
-  const links = useQuery(AuthService.method.listProviderLinks, {});
-  return (
-    <Panel
-      title={t`How you sign in`}
-      className="settings-panel"
-      actions={
-        <Link to="/profile" className="cp-head-link">
-          <Trans>Profile and security</Trans>
-        </Link>
-      }
-    >
-      <dl className="settings-facts" aria-busy={member === undefined}>
-        <dt>{t`Passkeys`}</dt>
-        <dd>
-          {member ? member.passkeys : "–"}
-          {addresses.map((a) => (
-            <span key={a}>
-              {" · "}
-              <code>{a}</code>
-            </span>
-          ))}
-        </dd>
-        <dt>{t`Authenticator app`}</dt>
-        <dd>
-          {member
-            ? member.codesLocked
-              ? t`Locked after too many wrong codes, until you lift it in Profile and security`
-              : member.authenticator
-                ? member.recoveryCodesLeft === 1
-                  ? t`On, 1 recovery code left`
-                  : t`On, ${member.recoveryCodesLeft} recovery codes left`
-                : t`Off`
-            : "–"}
-        </dd>
-        <dt>{t`Signed in on`}</dt>
-        <dd>{member ? (member.sessions === 1 ? t`1 browser` : t`${member.sessions} browsers`) : "–"}</dd>
-        <dt>{t`Sign-in providers`}</dt>
-        <dd>
-          {links.data
-            ? links.data.links.length === 0
-              ? t`None linked`
-              : links.data.links.map((l) => l.providerName).join(", ")
-            : "–"}
-        </dd>
-        <dt>{t`Last resort`}</dt>
-        <dd>
-          <Trans>
-            <code>dockwell recover</code> on the control server
-          </Trans>
-        </dd>
-      </dl>
     </Panel>
   );
 }

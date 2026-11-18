@@ -40,7 +40,7 @@ export function SecurityPage() {
 
   const words: Record<(typeof STEP_UP_ORDER)[number], Omit<StepUpOption, "value">> = {
     [StepUpPolicy.EACH_TIME]: { label: t`Each time`, hint: t`Everyone confirms every sensitive action.` },
-    [StepUpPolicy.HOURLY]: { label: t`At least once an hour`, hint: t`Nobody can choose only when they sign in.` },
+    [StepUpPolicy.HOURLY]: { label: t`At least once an hour`, hint: t`Everyone confirms at least once an hour.` },
     [StepUpPolicy.AT_SIGN_IN]: {
       label: t`Let each person choose`,
       hint: t`Each time, once an hour, or only when they sign in.`,
@@ -79,7 +79,7 @@ export function SecurityPage() {
   return (
     <Page
       width="narrow"
-      title={t`Security`}
+      title={t`Sign-in policy`}
       lead={t`How often everyone in this install is asked for their passkey again`}
       back="/settings"
     >

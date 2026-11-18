@@ -769,15 +769,31 @@ describe("ProfilePage", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("points to API tokens in Settings, saying how many act for you", async () => {
+  it("says how many API tokens act for you, with Manage, and nothing more (#801)", async () => {
     renderAt("/profile", api());
     const panel = within(await screen.findByRole("region", { name: "API tokens" }));
-    expect(await panel.findByText(/2 act for you, and 1 expires within two weeks\./)).toBeVisible();
+    expect(await panel.findByText("2 act for you · 1 expires within two weeks")).toBeVisible();
     expect(panel.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/settings/api-tokens");
-    expect(panel.getByRole("link", { name: "Settings, under API tokens" })).toHaveAttribute(
-      "href",
-      "/settings/api-tokens",
-    );
+    expect(panel.queryByRole("link", { name: "Settings, under API tokens" })).toBeNull();
+  });
+
+  it("says who you are first, in an Account panel, with the way back in when every other is lost (#801)", async () => {
+    renderAt("/profile", api());
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    expect(account.getByText("Mira Chen")).toBeVisible();
+    expect(account.getByText("mira@acme.dev")).toBeVisible();
+    expect(account.getByText(/on the control server/)).toBeVisible();
+    expect(account.getByText(/recover$/)).toBeVisible();
+  });
+
+  it("offers Add passkey once: the note's, where the note offers it, and the panel's otherwise (#801)", async () => {
+    stubPasskeys();
+    renderAt("/profile?via=link", api());
+    await screen.findByText("You signed in with a one-time link");
+    expect(screen.getAllByRole("button", { name: "Add passkey" })).toHaveLength(1);
+    expect(
+      within(screen.getByRole("region", { name: "Passkeys" })).queryByRole("button", { name: "Add passkey" }),
+    ).toBeNull();
   });
 
   it("groups a secret in fours", () => {

@@ -6551,6 +6551,18 @@ msgstr "你的姓名"
 msgid "{0} invited you as {where}"
 msgstr "{0} 邀请你成为 {where}"
 
+msgid "<0>{recover}</0> on the control server"
+msgstr "在控制服务器上运行 <0>{recover}</0>"
+
+msgid "Account"
+msgstr "账户"
+
+msgid "Last resort"
+msgstr "最后手段"
+
+msgid "member since {since}"
+msgstr "自 {since} 起为成员"
+
 msgid "Add a passkey here"
 msgstr "在此添加通行密钥"
 
@@ -17749,6 +17761,12 @@ msgstr "最近 7 天内有 1 个事件。"
 msgid "1 event, all there is."
 msgstr "共 1 个事件，这是全部。"
 
+msgid "A claim link"
+msgstr "认领链接"
+
+msgid "A sign-in link"
+msgstr "登录链接"
+
 msgid "API"
 msgstr "API"
 
@@ -17866,6 +17884,9 @@ msgstr "审计日志，最新的在前"
 msgid "The newest {count} events. Show more for older ones."
 msgstr "最新的 {count} 个事件。显示更多以查看更早的事件。"
 
+msgid "This install"
+msgstr "此安装"
+
 msgid "Today · {day}"
 msgstr "今天 · {day}"
 
@@ -17890,12 +17911,6 @@ msgstr "共 {count} 个事件，这是全部。"
 msgid "{name} and {more} more"
 msgstr "{name} 等 {more} 项"
 
-msgid "A command to run as root"
-msgstr "一条以 root 运行的命令"
-
-msgid "A command to run as root over SSH"
-msgstr "一条通过 SSH 以 root 运行的命令"
-
 msgid "A file beside the control plane, for one control plane"
 msgstr "控制平面旁的一个文件，适用于单个控制平面"
 
@@ -17917,8 +17932,11 @@ msgstr "应用的备份"
 msgid "Apps' volumes and databases have backups of their own"
 msgstr "应用的卷和数据库有各自的备份"
 
-msgid "Back it up by hand"
-msgstr "手动备份"
+msgid "As root over SSH: Dockwell stops while it copies"
+msgstr "通过 SSH 以 root 运行：复制期间 Dockwell 会停止"
+
+msgid "As root, with dockwell run stopped"
+msgstr "以 root 运行，并先停止 dockwell run"
 
 msgid "Built from {commit}"
 msgstr "由 {commit} 构建"
@@ -17932,20 +17950,14 @@ msgstr "目前需手动"
 msgid "Dockwell can't say how its control plane is"
 msgstr "Dockwell 无法获知其控制平面的状态"
 
-msgid "For a particular release, end it with <0>sudo sh -s -- --version 0.4.0</0>."
-msgstr "要安装特定版本，请将结尾改为 <0>sudo sh -s -- --version 0.4.0</0>。"
-
 msgid "From elsewhere"
 msgstr "从其他网络"
 
 msgid "From its network"
 msgstr "从它所在的网络"
 
-msgid "How to back it up and restore it"
-msgstr "如何备份和恢复"
-
-msgid "How to change settings"
-msgstr "如何更改设置"
+msgid "How to restore it"
+msgstr "如何恢复"
 
 msgctxt "encryption"
 msgid "Key"
@@ -17957,17 +17969,14 @@ msgstr "位置"
 msgid "None: Dockwell doesn't back itself up yet"
 msgstr "无：Dockwell 还不会备份自身"
 
-msgid "Not a service here: stop <0>dockwell run</0>, run this as root, then start it again."
-msgstr "这里没有作为服务运行：先停止 <0>dockwell run</0>，以 root 身份运行以下命令，然后再启动它。"
-
-msgid "On this server, this installs the newest release and restarts Dockwell; apps keep serving."
-msgstr "在这台服务器上运行，它会安装最新版本并重启 Dockwell；应用照常提供服务。"
-
 msgid "One · if it stops, the panel and API stop with it, and servers keep running what they run"
 msgstr "一个 · 它停止时，面板和 API 随之停止，服务器上运行的内容照常运行"
 
 msgid "Opens every secret the store keeps"
 msgstr "能打开存储中的所有机密"
+
+msgid "Over SSH, to update to the newest release"
+msgstr "通过 SSH 运行，更新到最新版本"
 
 msgid "Panel and API"
 msgstr "面板和 API"
@@ -17998,21 +18007,12 @@ msgstr "版本发布"
 msgid "Replicas"
 msgstr "副本"
 
-msgid "Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-msgstr "请以 root 身份通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
-
-msgid "Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving."
-msgstr "请通过 SSH 运行，不要在 Dockwell 的终端里运行：复制期间 Dockwell 会停止；应用照常提供服务。"
-
 msgid "SQLite, on this server"
 msgstr "SQLite，在这台服务器上"
 
 msgctxt "when backups run"
 msgid "Schedule"
 msgstr "时间表"
-
-msgid "Set where Dockwell starts; the panel's domain is under <0>General</0>."
-msgstr "在 Dockwell 启动的地方设置；面板的域名在<0>常规</0>中。"
 
 msgctxt "on disk"
 msgid "Size"
@@ -18027,9 +18027,6 @@ msgstr "数据库和密钥，分开保存"
 msgid "The database isn't in it: back it up with <0>pg_dump</0>."
 msgstr "其中不含数据库：请用 <0>pg_dump</0> 备份它。"
 
-msgid "The install script again, over SSH"
-msgstr "通过 SSH 再次运行安装脚本"
-
 msgid "The key opens every secret in a copy"
 msgstr "密钥能打开副本中的每个机密"
 
@@ -18039,14 +18036,8 @@ msgstr "存储和密钥，分开保存"
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
 
-msgid "Then move <0>/root/dockwell-control.tgz</0> and <1>/root/dockwell-key</1> off this server, to two places: the key opens every secret in the copy."
-msgstr "然后把 <0>/root/dockwell-control.tgz</0> 和 <1>/root/dockwell-key</1> 移出这台服务器，分开存放：密钥能打开副本中的所有机密。"
-
 msgid "This control plane"
 msgstr "当前控制平面"
-
-msgid "Update by hand"
-msgstr "手动更新"
 
 #. placeholder {0}: s.name
 msgid "Update the agent on {0}"
@@ -18167,9 +18158,6 @@ msgstr "提供方"
 
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "显示在登录页和浏览器标签页上。"
-
-msgid "This install"
-msgstr "此安装"
 
 msgid "Time zone"
 msgstr "时区"
@@ -18716,9 +18704,6 @@ msgstr "{0, plural, other {其计划的 # 项变更无法丢弃，仍处于已�
 msgid "{name} is removed"
 msgstr "已移除 {name}"
 
-msgid "1 browser"
-msgstr "1 个浏览器"
-
 msgid "1 open invite"
 msgstr "1 个待接受的邀请"
 
@@ -18730,9 +18715,6 @@ msgstr "1 人可以登录这个安装 · {invitesWord}"
 
 msgid "1 person signs in to this install, its owner"
 msgstr "1 人可以登录这个安装，即其所有者"
-
-msgid "<0>dockwell recover</0> on the control server"
-msgstr "在控制服务器上运行 <0>dockwell recover</0>"
 
 msgid "A project that's gone"
 msgstr "已不存在的项目"
@@ -18772,9 +18754,6 @@ msgstr "过期时间"
 msgid "Expires in {0}"
 msgstr "{0}后过期"
 
-msgid "How you sign in"
-msgstr "你的登录方式"
-
 msgid "Invite"
 msgstr "邀请"
 
@@ -18809,9 +18788,6 @@ msgstr "邀请需要面板的域名"
 msgid "Last active"
 msgstr "上次活动"
 
-msgid "Last resort"
-msgstr "最后手段"
-
 msgid "Link copied"
 msgstr "链接已复制"
 
@@ -18820,9 +18796,6 @@ msgstr "正在加载环境"
 
 msgid "Loading who signs in"
 msgstr "正在加载可以登录的人"
-
-msgid "Locked after too many wrong codes, until you lift it in Profile and security"
-msgstr "错误验证码过多，已锁定，可在“个人资料与安全”中解除"
 
 msgid "Member"
 msgstr "成员"
@@ -18833,21 +18806,11 @@ msgstr "当前没有可用的登录方式"
 msgid "Nobody was invited"
 msgstr "未邀请任何人"
 
-msgid "None linked"
-msgstr "未关联"
-
 msgid "Not accepted yet"
 msgstr "尚未接受"
 
 msgid "Now"
 msgstr "现在"
-
-msgid "On, 1 recovery code left"
-msgstr "已开启，剩余 1 个恢复码"
-
-#. placeholder {0}: member.recoveryCodesLeft
-msgid "On, {0} recovery codes left"
-msgstr "已开启，剩余 {0} 个恢复码"
 
 msgctxt "an environment that isn't protected"
 msgid "Open"
@@ -18907,9 +18870,6 @@ msgstr "服务器、项目和设置"
 msgid "Set the panel's domain"
 msgstr "设置面板域名"
 
-msgid "Signed in on"
-msgstr "已登录于"
-
 msgid "Stop protecting {where}"
 msgstr "停止保护 {where}"
 
@@ -18937,10 +18897,6 @@ msgstr "全部使用通行密钥登录"
 
 msgid "their projects"
 msgstr "其项目内"
-
-#. placeholder {0}: member.sessions
-msgid "{0} browsers"
-msgstr "{0} 个浏览器"
 
 #. placeholder {0}: invites.length
 msgid "{0} open invites"
@@ -19011,6 +18967,9 @@ msgstr "正在为 {domain} 获取证书…"
 
 msgid "How it reaches this server"
 msgstr "如何到达此服务器"
+
+msgid "How to change settings"
+msgstr "如何更改设置"
 
 #. placeholder {0}: found.addresses.join(", ")
 msgid "It leads to {0}"
@@ -19096,6 +19055,9 @@ msgstr "每个人在<0>个人资料和安全</0>中选择自己的方式。"
 msgid "Each time, once an hour, or only when they sign in."
 msgstr "每次、每小时一次，或仅在登录时。"
 
+msgid "Everyone confirms at least once an hour."
+msgstr "每个人至少每小时确认一次。"
+
 msgid "Everyone confirms every sensitive action."
 msgstr "每个人的每个敏感操作都需要确认。"
 
@@ -19105,20 +19067,17 @@ msgstr "此安装中每个人多久需要再次验证通行密钥"
 msgid "Let each person choose"
 msgstr "由每个人自行选择"
 
-msgid "Nobody can choose only when they sign in."
-msgstr "任何人都不能选择仅在登录时验证。"
-
 msgid "Only the owner sets this."
 msgstr "只有所有者可以设置。"
+
+msgid "Sign-in policy"
+msgstr "登录策略"
 
 msgid "The least anyone may choose"
 msgstr "任何人可选的最低要求"
 
 msgid "The passkey prompt closed, so the floor didn't change."
 msgstr "通行密钥提示已关闭，最低要求没有改变。"
-
-msgid "Account"
-msgstr "账户"
 
 msgid "Platform"
 msgstr "平台"
@@ -19192,9 +19151,6 @@ msgstr "创建令牌"
 msgid "Make one for each script or integration, so you can revoke one without stopping the rest."
 msgstr "为每个脚本或集成各创建一个，这样撤销其中一个时不会影响其他。"
 
-msgid "Name the token after what will use it, such as GitHub Actions deploy."
-msgstr "用将要使用它的程序为令牌命名，例如 GitHub Actions deploy。"
-
 msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
@@ -19235,6 +19191,9 @@ msgstr "令牌未创建"
 
 msgid "Token copied"
 msgstr "令牌已复制"
+
+msgid "Token of {day}"
+msgstr "{day} 的令牌"
 
 msgid "Tokens act for you from CI, scripts and the CLI, with only the scope you give them"
 msgstr "令牌在 CI、脚本和 CLI 中代表你行事，权限仅限于你授予的范围"
@@ -19284,21 +19243,9 @@ msgstr "{count} · 1 个即将过期"
 msgid "{count} · {soon} expire soon"
 msgstr "{count} · {soon} 个即将过期"
 
-msgid "None yet. Make one for each script or integration that calls the API."
-msgstr "还没有。请为每个调用 API 的脚本或集成各创建一个。"
-
-msgid "They're listed, made and revoked in <0>Settings, under API tokens</0>."
-msgstr "令牌的列出、创建和撤销都在<0>设置的 API 令牌</0>中。"
-
 #. placeholder {0}: list.length
 msgid "{0, plural, one {# acts for you} other {# act for you}}"
 msgstr "{0, plural, other {# 个令牌代表你行事}}"
-
-msgid "{acting}, and {expiring}."
-msgstr "{acting}，其中 {expiring}。"
-
-msgid "{acting}."
-msgstr "{acting}。"
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, other {# 个将在两周内过期}}"

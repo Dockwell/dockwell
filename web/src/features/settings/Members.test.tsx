@@ -75,12 +75,8 @@ describe("Members", () => {
     expect(within(table).queryByRole("columnheader", { name: "Projects" })).toBeNull();
     expect(screen.queryByRole("region", { name: "What each role can do" })).toBeNull();
 
-    const signIn = screen.getByRole("region", { name: "How you sign in" });
-    expect(signIn).toHaveTextContent("2 · localhost · panel.example.com");
-    expect(signIn).toHaveTextContent("On, 7 recovery codes left");
-    expect(signIn).toHaveTextContent("2 browsers");
-    // The accounts you link at sign-in providers, as Profile and security lists them (ADR 0095).
-    expect(await within(signIn).findByText("Our Authentik")).toBeVisible();
+    // How you sign in is yours, on Profile and security, not here (#801).
+    expect(screen.queryByRole("region", { name: "How you sign in" })).toBeNull();
     await expectAccessible(container);
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Invite someone" }));
@@ -106,7 +102,7 @@ describe("Members", () => {
     expect(screen.getByText("all sign in with a passkey")).toBeVisible();
   });
 
-  it("says when your code sign-in is locked, and where to lift it", async () => {
+  it("says when someone's code sign-in is locked", async () => {
     const locked = create(MemberSchema, {
       ...owner,
       authenticator: false,
@@ -115,9 +111,6 @@ describe("Members", () => {
     });
     renderAt("/settings/members", { members: { listMembers: () => ({ members: [locked] }) } });
     expect(await screen.findByText("2 passkeys, with codes locked")).toBeVisible();
-    expect(screen.getByRole("region", { name: "How you sign in" })).toHaveTextContent(
-      "Locked after too many wrong codes, until you lift it in Profile and security",
-    );
   });
 
   it("says when it can't say who signs in, and tries again", async () => {

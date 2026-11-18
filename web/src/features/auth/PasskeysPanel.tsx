@@ -55,7 +55,7 @@ export function useAddPasskey() {
 }
 
 /** Your passkeys, which address each works on, and how to add or remove one. */
-export function PasskeysPanel({ rpId }: { rpId: string }) {
+export function PasskeysPanel({ rpId, addElsewhere = false }: { rpId: string; addElsewhere?: boolean }) {
   const { t } = useLingui();
   const passkeys = useQuery(AuthService.method.listPasskeys, {});
   const add = useAddPasskey();
@@ -68,9 +68,11 @@ export function PasskeysPanel({ rpId }: { rpId: string }) {
       className="profile-panel"
       flush
       actions={
-        <Button size="sm" icon="plus" loading={add.busy} disabled={!canAdd} onClick={() => void add.run()}>
-          <Trans>Add passkey</Trans>
-        </Button>
+        addElsewhere ? undefined : (
+          <Button size="sm" icon="plus" loading={add.busy} disabled={!canAdd} onClick={() => void add.run()}>
+            <Trans>Add passkey</Trans>
+          </Button>
+        )
       }
     >
       {add.problem ? (

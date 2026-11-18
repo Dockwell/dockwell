@@ -12,8 +12,8 @@ import { expiresWithin, SOON } from "./TokensPage";
 import "./Settings.css";
 
 /**
- * Your API tokens in brief, on Profile and security, leading to where they're
- * listed and made: Settings, under API tokens.
+ * Your API tokens in brief, on Profile and security: how many act for you, how many
+ * expire soon, and Manage, which goes where they're listed and made (#801).
  */
 export function TokensPointer() {
   const { t } = useLingui();
@@ -25,9 +25,9 @@ export function TokensPointer() {
   if (tokens.data) {
     const acting = plural(list.length, { one: "# acts for you", other: "# act for you" });
     const expiring = plural(soon, { one: "# expires within two weeks", other: "# expire within two weeks" });
-    if (list.length === 0) said = t`None yet. Make one for each script or integration that calls the API.`;
-    else if (soon > 0) said = t`${acting}, and ${expiring}.`;
-    else said = t`${acting}.`;
+    if (list.length === 0) said = t`None yet`;
+    else if (soon > 0) said = [acting, expiring].join(" · ");
+    else said = acting;
   }
   return (
     <Panel
@@ -40,14 +40,7 @@ export function TokensPointer() {
       }
     >
       <p className="tokens-pointer" aria-busy={tokens.data === undefined}>
-        {said}{" "}
-        <Trans>
-          They're listed, made and revoked in{" "}
-          <Link to="/settings/api-tokens" className="cp-link">
-            Settings, under API tokens
-          </Link>
-          .
-        </Trans>
+        {said}
       </p>
     </Panel>
   );
