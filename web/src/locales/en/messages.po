@@ -7976,6 +7976,18 @@ msgstr "{where} answers that it isn't open, and port {at} listens on its server 
 msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
 msgstr "{where} answers that it isn't open, so its owner sets it up first, through the panel."
 
+msgid "Choose a way in that the check can take."
+msgstr "Choose a way in that the check can take."
+
+msgid "Only on the server instead"
+msgstr "Only on the server instead"
+
+msgid "Only on the server, at its port"
+msgstr "Only on the server, at its port"
+
+msgid "Type the app's domain, or install it on the server alone."
+msgstr "Type the app's domain, or install it on the server alone."
+
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"
 

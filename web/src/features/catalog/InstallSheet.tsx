@@ -67,12 +67,14 @@ import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useConnections } from "../connections/useConnections";
 import { AddServerSheet } from "../servers/AddServerSheet";
 import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
-import { useFleetView } from "../servers/useFleet";
+import { useFleet, useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { Facts, useEntryFacts } from "./access";
 import { unfitOn } from "./architectures";
 import { type EngineGroup, groupOf } from "./engines";
 import { nextFree } from "./freeName";
+// The form is New app's, so its fields sit apart the same way, however the sheet is reached.
+import { useInstallDomain } from "./InstallDomain";
 import { projectLink } from "./media";
 import {
   ENGINE_ENTRY_IDS,
@@ -87,7 +89,6 @@ import {
 import { type OwnFault, ownFault, ownRule, strongValue } from "./ownSecret";
 import { isConnected, isMail, StorageNeed } from "./StorageNeed";
 import { stranger, useOrigins, useSourceNames } from "./useCatalog";
-// The form is New app's, so its fields sit apart the same way, however the sheet is reached.
 import "../apps/Apps.css";
 // Its lines and the engine picker, wherever the sheet opens: on the Databases page too, which loads no catalog page.
 import "./Catalog.css";
@@ -456,6 +457,18 @@ export function InstallSheet({
     !limitsInvalid;
   const app = entry?.name ?? id;
   const webService = entry?.web?.service ?? "";
+  // Its domain, led with, as #819's sheets ask it, planned with the install (#792).
+  const fleetState = useFleet();
+  const domainServerId = fleet ? (chosenServers[0] ?? "") : (only?.id ?? "");
+  const domainServer =
+    fleetState.status === "connecting" ? undefined : fleetState.servers.find((s) => s.id === domainServerId);
+  const [waitingDomain, setWaitingDomain] = useState(false);
+  const domain = useInstallDomain({
+    server: domainServer,
+    suggest: name,
+    enabled: webService !== "" && !engines,
+    onPlan: (opening) => setPlan({ ...opening, onDone: () => setPlan(undefined), onClose: () => setPlan(undefined) }),
+  });
   const missingLabel = (missing ?? ownEmpty)?.label ?? "";
   const unmetWord = unmet ? inSentence(unmet.label) : "";
   const wrongLabel = ownWrong?.label ?? "";
@@ -568,6 +581,13 @@ export function InstallSheet({
       setServersError(t`Choose where it runs.`);
       return;
     }
+    const wanted = domain.ask();
+    // Review plan pressed while Cloudflare is read goes on once it has.
+    if (wanted.kind === "reading") {
+      setWaitingDomain(true);
+      return;
+    }
+    if (wanted.kind === "fix") return;
     setBusy(true);
     const asked = id;
     try {
@@ -582,6 +602,7 @@ export function InstallSheet({
         restart,
         companions: Object.fromEntries(companions.map((c) => [c.service, isOn(c)])),
         needs: needsRequest(needs, needOptions, needPicks),
+        ...(wanted.kind === "route" ? { route: wanted.route } : {}),
       });
       if (picked.current !== asked) return;
       review(res.change);
@@ -595,6 +616,14 @@ export function InstallSheet({
       setBusy(false);
     }
   };
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: submit reads the state this runs on, and is new each render
+  useEffect(() => {
+    if (waitingDomain && !domain.reading) {
+      setWaitingDomain(false);
+      void submit();
+    }
+  }, [waitingDomain, domain.reading]);
 
   const field = (input: Input) => {
     const port = input.type === InputType.PORT;
@@ -701,7 +730,7 @@ export function InstallSheet({
           <Button
             variant="primary"
             size={phone ? "lg" : "md"}
-            loading={busy}
+            loading={busy || waitingDomain}
             disabled={!ready}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
@@ -745,6 +774,7 @@ export function InstallSheet({
         ) : null}
         {entry ? (
           <>
+            {domain.section}
             <div className="catalog-chosen-list">
               {engines ? (
                 <EnginePicker groups={engines.groups} value={id} onPick={engines.onPick} disabled={busy} />

@@ -1561,3 +1561,16 @@
     padding: 0 var(--space-2);
   }
 }
+
+/* An install's Domain, as #819's sheets ask it (#792), with the server alone a step away. */
+.catalog-domain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.catalog-domain-alone {
+  align-self: flex-start;
+  margin-left: 0;
+}

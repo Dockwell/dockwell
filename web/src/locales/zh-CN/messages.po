@@ -7976,6 +7976,18 @@ msgstr "{where} 会回应它尚未开放，端口 {at} 只在它所在的服务�
 msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
 msgstr "{where} 会回应它尚未开放，以便所有者先通过面板完成设置。"
 
+msgid "Choose a way in that the check can take."
+msgstr "请选择检查结果允许的接入方式。"
+
+msgid "Only on the server instead"
+msgstr "改为仅在服务器上"
+
+msgid "Only on the server, at its port"
+msgstr "仅在服务器上，通过它的端口访问"
+
+msgid "Type the app's domain, or install it on the server alone."
+msgstr "请输入应用的域名，或仅在服务器上安装。"
+
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>，只读"
 
