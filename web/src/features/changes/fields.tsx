@@ -106,6 +106,19 @@ const USES = /^(variables|secrets)\[(.+)\]$/;
 /** Turns a resource's field changes into rows, and names a kind PlanDiff has no word of its own for. */
 export type FieldRows = ((source: FieldSource) => PlanChange[]) & { kindWord?: (kind: string) => string | undefined };
 
+/**
+ * A Go duration, such as "1m30s", as the panel writes one: "1 min 30 s", with no
+ * zero parts. Anything else stays as it is.
+ */
+export function spacedDuration(value: string): string {
+  if (!/^(\d+(\.\d+)?(h|m|s|ms|us|µs|ns))+$/.test(value)) return value;
+  const units: Readonly<Record<string, string>> = { h: "h", m: "min", s: "s", ms: "ms", us: "µs", µs: "µs", ns: "ns" };
+  const parts = [...value.matchAll(/(\d+(?:\.\d+)?)(h|ms|m|s|us|µs|ns)/g)]
+    .filter(([, n]) => Number(n) !== 0)
+    .map(([, n, unit]) => `${n} ${units[unit ?? ""] ?? unit}`);
+  return parts.length > 0 ? parts.join(" ") : "0 s";
+}
+
 export function useFieldRows(): FieldRows {
   const { t } = useLingui();
   return useMemo(() => {
@@ -160,6 +173,10 @@ export function useFieldRows(): FieldRows {
     };
     // What a person reads a value as, where the value itself is long: a commit in 7 digits, a branch by its own name, and an image Dockwell built as its commit.
     const readers: Readonly<Record<string, (value: string) => string>> = {
+      // A duration as the panel writes one, "10 s", not Go's "10s" (#797).
+      "healthcheck.interval": spacedDuration,
+      "healthcheck.timeout": spacedDuration,
+      "healthcheck.start_period": spacedDuration,
       "build.git.commit": (value) => value.slice(0, 7),
       "build.git.ref": shownRef,
       image: shownImage,

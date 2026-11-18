@@ -114,7 +114,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
     fail("the header doesn't say which commit runs");
 
   await page.getByRole("link", { name: /Deployments/ }).click();
-  const table = page.getByRole("table", { name: "Revisions of order-api" });
+  const table = page.getByRole("table", { name: "Deployments of order-api" });
   await table.getByRole("row").filter({ hasText: "Add order export endpoint" }).first().waitFor();
   const log = page.getByRole("log", { name: "Build log" });
   // The step, whether it ran or came from the cache, where it prints nothing.
@@ -282,7 +282,7 @@ export async function buildFlow(page: Page, { origin, step, shoot, git }: BuildF
   await page.goto(overview);
   await page.getByRole("link", { name: /Deployments/ }).click();
   const giftcards = page
-    .getByRole("table", { name: "Revisions of order-api" })
+    .getByRole("table", { name: "Deployments of order-api" })
     .getByRole("row")
     .filter({ hasText: "Add gift cards" });
   await giftcards.first().waitFor({ timeout: 60_000 });

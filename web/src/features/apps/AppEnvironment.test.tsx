@@ -87,7 +87,7 @@ function api(service: ServiceInfo, proposals: ProposeChangeRequest[] = [], ...mo
 
 const form = () => screen.getByRole("form", { name: "Add a variable" });
 const add = async (user: ReturnType<typeof userEvent.setup>, key: string, value: string, secret = false) => {
-  await user.type(within(form()).getByRole("textbox", { name: "Key" }), key);
+  await user.type(within(form()).getByLabelText("Key"), key);
   await user.type(within(form()).getByRole("textbox", { name: "Value" }), value);
   if (secret) await user.click(within(form()).getByRole("switch", { name: "Secret" }));
   await user.click(within(form()).getByRole("button", { name: "Add" }));
@@ -154,15 +154,31 @@ describe("editing an app's environment", () => {
     expect(screen.queryByRole("heading", { level: 2, name: "No variables yet" })).toBeNull();
   });
 
-  it("uses a variable the environment has as it is, rather than change it for every app", async () => {
+  it("counts its values as its Overview does: each variable, shared or its own, and each secret (#797)", async () => {
+    const { unmount } = renderAt("/apps/svc_web/environment", api(anEditedApp()));
+    await ready();
+    expect(screen.getByText("3 variables · 1 secret")).toBeVisible();
+    unmount();
+    renderAt("/apps/svc_web", api(anEditedApp()));
+    const configuration = await screen.findByRole("region", { name: "Configuration" });
+    expect(within(configuration).getByRole("link", { name: "3 variables · 1 secret" })).toBeVisible();
+  });
+
+  it("offers the variables the environment has as the key is typed, and uses one as it is, rather than change it for every app", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     renderAt("/apps/svc_web/environment", api(anEditedApp(), proposals));
     await ready();
-    await add(user, "REGION", "us");
-    expect(within(form()).getByRole("alert")).toHaveTextContent(
-      "The environment has a variable REGION already. Use it as it is, or choose another name.",
-    );
+    // What the environment has is offered as the key is typed, and once one is named,
+    // Use takes Add's place, with nothing more to type (#797).
+    const key = within(form()).getByLabelText("Key");
+    expect(key).toHaveRole("combobox");
+    const offered = document.getElementById(key.getAttribute("list") ?? "");
+    expect([...(offered?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual(["REGION"]);
+    await user.type(key, "REGION");
+    expect(within(form()).getByLabelText("Value")).toBeDisabled();
+    expect(within(form()).queryByRole("switch", { name: "Secret" })).toBeNull();
+    expect(within(form()).getByText("Uses the environment's variable REGION as it is.")).toBeVisible();
     await user.click(within(form()).getByRole("button", { name: "Use REGION" }));
     expect(screen.getByRole("cell", { name: "REGION, added, not applied" })).toBeVisible();
     expect(screen.getByText("eu")).toBeVisible();
@@ -181,7 +197,7 @@ describe("editing an app's environment", () => {
     expect(within(form()).getByRole("alert")).toHaveTextContent(
       "web has LOG_LEVEL already. Change it in its row below.",
     );
-    await user.clear(within(form()).getByRole("textbox", { name: "Key" }));
+    await user.clear(within(form()).getByLabelText("Key"));
     await add(user, "1ST", "x");
     expect(within(form()).getByRole("alert")).toHaveTextContent("Use letters, digits and underscores");
     expect(screen.queryByRole("region", { name: "Unapplied changes" })).toBeNull();

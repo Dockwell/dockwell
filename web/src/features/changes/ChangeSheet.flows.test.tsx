@@ -60,7 +60,7 @@ function Opener({ opening }: { opening: Opening }) {
 
 // The link needs a router and its own data, and Activity's tests have those. Here it's where it goes.
 vi.mock("../logs/DeployLogLinks", () => ({
-  FailedDeployLogs: () => <a href="#logs">Read this deploy's logs</a>,
+  FailedDeployLogs: () => <a href="#logs">Read this deployment's logs</a>,
 }));
 
 function show(change: Change, more: Partial<Opening> = {}, watch = feed<WatchChangeResponse>(), api: Api = {}) {
@@ -1301,7 +1301,7 @@ describe("the logs of a deploy that failed", () => {
   it("are one link away, under why it failed", async () => {
     show(moved(aDeploy(), { state: ChangeState.FAILED, error: "web didn't start." }));
     const sheet = await screen.findByRole("dialog", { name: /Couldn't/ });
-    const link = await within(sheet).findByRole("link", { name: "Read this deploy's logs" });
+    const link = await within(sheet).findByRole("link", { name: "Read this deployment's logs" });
     const notice = within(sheet).getByRole("alert");
     expect(notice.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -1317,7 +1317,7 @@ describe("the logs of a deploy that failed", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "hz-1 went offline during this deploy" });
-    expect(within(sheet).queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(within(sheet).queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
   });
 });
 

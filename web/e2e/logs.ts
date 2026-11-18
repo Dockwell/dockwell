@@ -714,7 +714,7 @@ async function main() {
   await page.getByText("giving up after 3 tries").waitFor({ timeout: 20_000 });
   await page.goto(`${origin}/activity`);
   await page.getByText("Change the app web", { exact: true }).first().click();
-  const logsLink = page.getByRole("link", { name: /Read this deploy's logs/ });
+  const logsLink = page.getByRole("link", { name: /Read this deployment's logs/ });
   await logsLink.first().waitFor();
   await logsLink.first().click();
   await page.getByText("giving up after 3 tries").waitFor();

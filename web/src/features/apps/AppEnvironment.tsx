@@ -16,7 +16,6 @@ import {
   Icon,
   Panel,
   PHONE_QUERY,
-  SelectField,
   Sheet,
   Switch,
   Table,
@@ -33,6 +32,7 @@ import {
   type SetStateAction,
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -55,6 +55,7 @@ import { OwnHiddenValue, SecretValue, useAllVariables } from "../variables/Varia
 import { useApp } from "./AppContext";
 import { environmentOf, isMoving, nameOf } from "./app";
 import { ConnectDatabaseSheet } from "./ConnectDatabaseSheet";
+import { envCountWords } from "./envCounts";
 import {
   alsoRestarts,
   cantMakeSecret,
@@ -433,21 +434,13 @@ function useDraft(
 
 /** "3 variables · 1 secret · 2 set on this app", for what it has now. */
 function useCountsWords(rows: readonly EnvRow[]): string {
-  const { t } = useLingui();
-  let variables = 0;
+  let plain = 0;
   let secrets = 0;
-  let own = 0;
   for (const row of rows) {
-    if (row.now?.kind === "variable") variables++;
-    else if (row.now?.kind === "secret") secrets++;
-    else if (row.now?.kind === "own") own++;
+    if (row.now?.kind === "secret") secrets++;
+    else if (row.now?.kind === "variable" || row.now?.kind === "own") plain++;
   }
-  const parts = [
-    plural(variables, { one: "# variable", other: "# variables" }),
-    plural(secrets, { one: "# secret", other: "# secrets" }),
-  ];
-  if (own > 0) parts.push(t`${own} set on this app`);
-  return parts.join(" · ");
+  return envCountWords(plain, secrets);
 }
 
 const MARK: Record<EnvEdit["op"], string> = { add: "+", use: "+", change: "~", share: "~", secret: "~", remove: "−" };
@@ -816,7 +809,7 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
   const [secret, setSecret] = useState(changing?.now?.kind === "own" && changing.now.value === undefined);
   const [error, setError] = useState<string>();
   const [inStore, setInStore] = useState<EnvironmentVariable>();
-  const [use, setUse] = useState("");
+  const suggestions = useId();
   const valueField = useRef<HTMLInputElement>(null);
   const keyField = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -828,6 +821,10 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
   }, [changing]);
 
   const unused = (store ?? []).filter((v) => !rows.some((row) => row.name === v.name));
+  // What the environment has is offered as the key is typed, and one named takes Use in Add's
+  // place, as it is, with nothing to type (#797).
+  const match = changing ? undefined : unused.find((v) => v.name === key.trim());
+  const matchName = match?.name ?? "";
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -853,6 +850,10 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
       }
       onAdd(own ? { op: "change", name: target, value, secret } : { op: "change", name: target, value });
       onDone();
+      return;
+    }
+    if (match) {
+      takeStored(match);
       return;
     }
     const trimmed = key.trim();
@@ -891,7 +892,6 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
     setValue("");
     setError(undefined);
     setInStore(undefined);
-    setUse("");
   };
 
   const target = changing?.name ?? "";
@@ -918,9 +918,19 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
               setError(undefined);
               setInStore(undefined);
             }}
+            list={unused.length > 0 && !changing ? suggestions : undefined}
             autoComplete="off"
             spellCheck={false}
           />
+          {unused.length > 0 && !changing ? (
+            <datalist id={suggestions}>
+              {unused.map((v) => (
+                <option key={v.id} value={v.name}>
+                  {v.secret ? t`A secret of the environment` : t`A variable of the environment`}
+                </option>
+              ))}
+            </datalist>
+          ) : null}
         </div>
         <div className="app-env-field is-value">
           <TextField
@@ -928,13 +938,15 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
             mono
             placeholder={changing ? t`new value` : t`value`}
             aria-label={changing ? t`New value of ${target}` : t`Value`}
-            value={value}
+            value={match ? "" : value}
+            disabled={match !== undefined}
+            {...(match ? { placeholder: match.secret ? t`the environment's secret` : t`the environment's value` } : {})}
             onChange={(event) => setValue(event.target.value)}
             autoComplete="off"
             spellCheck={false}
           />
         </div>
-        {!changing || own ? (
+        {(!changing && !match) || own ? (
           <Switch
             label={t`Secret`}
             checked={secret}
@@ -955,6 +967,10 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
                 <Trans>Change</Trans>
               </Button>
             </>
+          ) : match ? (
+            <Button type="submit" icon="plus">
+              <Trans>Use {matchName}</Trans>
+            </Button>
           ) : (
             <Button type="submit" icon="plus" disabled={reading}>
               <Trans>Add</Trans>
@@ -969,6 +985,15 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
                 <Trans>Use {storedName}</Trans>
               </Button>
             ) : null}
+          </p>
+        ) : null}
+        {match ? (
+          <p className="app-env-form-note">
+            {match.secret ? (
+              <Trans>Uses the environment's secret {matchName} as it is.</Trans>
+            ) : (
+              <Trans>Uses the environment's variable {matchName} as it is.</Trans>
+            )}
           </p>
         ) : null}
         {changing ? (
@@ -989,33 +1014,6 @@ function AddForm({ name: app, rows, store, reading, changing, askedForKey, onAdd
           </p>
         ) : null}
       </form>
-      {!changing && unused.length > 0 ? (
-        <div className="app-env-use">
-          <SelectField
-            aria-label={t`A variable or secret of the environment`}
-            value={use}
-            onChange={(event) => setUse(event.target.value)}
-            options={[
-              { value: "", label: t`Use one the environment has…` },
-              ...unused.map((v) => {
-                const name = v.name;
-                return { value: v.id, label: v.secret ? t`${name}, secret` : name };
-              }),
-            ]}
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={use === ""}
-            onClick={() => {
-              const chosen = unused.find((v) => v.id === use);
-              if (chosen) takeStored(chosen);
-            }}
-          >
-            <Trans>Use</Trans>
-          </Button>
-        </div>
-      ) : null}
     </Panel>
   );
 }

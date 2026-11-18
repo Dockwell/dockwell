@@ -4,10 +4,10 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import type { Container, ServiceInfo } from "@dockwell/api";
 import { Button, Icon, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
-import { RouterButtonLink } from "../../lib/links";
 import { environmentOf } from "../apps/app";
 import { BackUpSheet } from "./BackUpSheet";
 import { latestDone, useBackups, useVolumes } from "./useBackups";
@@ -30,9 +30,10 @@ export function AppBackups({ service, app }: { service: ServiceInfo; app: Contai
       title={t`Backups`}
       flush
       actions={
-        <RouterButtonLink to="/backups" variant="ghost" size="sm">
+        // A card's header links read alike, as the page's other cards' do (#797).
+        <Link to="/backups" className="app-panel-link">
           <Trans>All backups</Trans>
-        </RouterButtonLink>
+        </Link>
       }
     >
       <ul className="app-backups">

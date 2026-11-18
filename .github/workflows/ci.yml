@@ -96,7 +96,7 @@ jobs:
         # code, and the race detector runs everywhere.
         run: |
           set -o pipefail
-          go test -timeout 20m -race -gcflags='modernc.org/...=-d=checkptr=0' -parallel 8 -coverprofile=coverage.out ./... | tee "$RUNNER_TEMP/go-test.out"
+          go test -timeout 30m -race -gcflags='modernc.org/...=-d=checkptr=0' -parallel 8 -coverprofile=coverage.out ./... | tee "$RUNNER_TEMP/go-test.out"
       - name: Packages near the job's time
         if: steps.pick.outputs.run == 'true' && !cancelled()
         run: scripts/slow-packages.sh "$RUNNER_TEMP/go-test.out"

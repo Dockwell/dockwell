@@ -141,7 +141,7 @@ async function githubAppFlow(page: Page, { origin, step, shoot }: FlowRun, stand
   await lineSays(/started a deploy of [0-9a-f]{7}/, "the push through the App started a deploy");
   await page.getByRole("link", { name: /Deployments/ }).click();
   await page
-    .getByRole("table", { name: "Revisions of private-web" })
+    .getByRole("table", { name: "Deployments of private-web" })
     .getByRole("row")
     .filter({ hasText: "Add gift cards" })
     .first()

@@ -215,7 +215,7 @@ describe("connecting an app to a database", () => {
     await within(sheet).findByText(/reads no variable or secret of its environment/);
     await user.click(within(sheet).getByRole("button", { name: "Add a variable" }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Connect blog to a database" })).toBeNull());
-    expect(screen.getByRole("textbox", { name: "Key" })).toHaveFocus();
+    expect(screen.getByLabelText("Key")).toHaveFocus();
     expect(asked).toHaveLength(0);
   });
 });
