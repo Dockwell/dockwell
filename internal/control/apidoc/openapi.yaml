@@ -15178,11 +15178,11 @@ components:
                     items:
                         type: string
                     description: |-
-                        Where a service, volume, network or route runs, by server ID. Empty keeps it
-                         where it runs now; a new one runs on the only server, and must name its
-                         servers once there are several. Other kinds ignore it: a container or
-                         firewall rule lives on its server, and projects and environments run on
-                         none.
+                        Where a service, volume, network or route runs, by server name or ID.
+                         Empty keeps it where it runs now; a new one runs on the only server, and
+                         must name its servers once there are several. Other kinds ignore it: a
+                         container or firewall rule lives on its server, and projects and
+                         environments run on none.
                 project:
                     type: string
                     description: |-

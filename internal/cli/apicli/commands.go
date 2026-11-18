@@ -452,7 +452,7 @@ func scopeFlags(cmd *cobra.Command, level resource.Level, what string, unplaced 
 		f.StringVar(&p.environment, "environment", "", "the environment it's in, by name or ID; leave it out while its project has only one")
 		p.flagProject, p.flagEnv = true, true
 		if !unplaced {
-			f.StringArrayVar(&p.on, "on", nil, "a server it runs on, by ID; repeat it for each. Leave it out to keep it where it runs, or while there's only one server")
+			f.StringArrayVar(&p.on, "on", nil, "a server it runs on, by name or ID; repeat it for each. Leave it out to keep it where it runs, or while there's only one server")
 			p.flagOn = true
 		}
 	case resource.LevelServer:
