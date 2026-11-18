@@ -2386,7 +2386,7 @@ func Methods() []*apicli.Method {
 			Noun:      "join-tickets",
 			Verb:      "revoke",
 			Short:     "Stop a waiting ticket working at once",
-			Long:      "Stop a waiting ticket working at once: no server joins with it from then on, and\ndockwell join-tickets get reads it as expired. One that has expired already\nstays so. One a server joined with can't be revoked, as the server joined:\nremove the server instead. The panel revokes the ticket its Add server sheet\nmade when the sheet closes unused, and one that labels replace. It isn't managed\nstate, so it takes no plan, as revoking an API token takes none. It's on the\nactivity log.",
+			Long:      "Stop a waiting ticket working at once: no server joins with it from then on, and\ndockwell join-tickets get reads it as expired. One that has expired already\nstays so. One a server joined with can't be revoked, as the server joined:\nremove the server instead. The panel revokes what nobody can still be using: a\nticket new labels replace, and one made after its sheet closed. It isn't managed\nstate, so it takes no plan, as revoking an API token takes none. It's on the\nactivity log.",
 			Effect:    v1.Effect_EFFECT_APPLY,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The ticket's ID, from dockwell join-tickets create.", Arg: true},

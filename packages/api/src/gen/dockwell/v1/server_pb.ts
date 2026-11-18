@@ -2738,8 +2738,8 @@ export const ServerService: GenService<{
    * RevokeJoinTicket stops a waiting ticket working at once: no server joins with
    * it from then on, and GetJoinTicket reads it as expired. One that has expired
    * already stays so. One a server joined with can't be revoked, as the server
-   * joined: remove the server instead. The panel revokes the ticket its Add server
-   * sheet made when the sheet closes unused, and one that labels replace. It isn't
+   * joined: remove the server instead. The panel revokes what nobody can still be
+   * using: a ticket new labels replace, and one made after its sheet closed. It isn't
    * managed state, so it takes no plan, as revoking an API token takes none. It's on
    * the activity log.
    *

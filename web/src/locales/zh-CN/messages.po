@@ -15869,8 +15869,8 @@ msgid "Waiting for the server to join"
 msgstr "正在等待服务器加入"
 
 #. placeholder {0}: left(expires - now)
-msgid "Works once · stops when you close this, or in {0}"
-msgstr "只能用一次 · 关闭此处或 {0} 后失效"
+msgid "Works once · expires in {0}"
+msgstr "仅可使用一次 · {0}后过期"
 
 msgid "Your apps stay where they are. New ones ask where to run."
 msgstr "你的应用保持原位，新应用会询问在哪里运行。"

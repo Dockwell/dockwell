@@ -15869,8 +15869,8 @@ msgid "Waiting for the server to join"
 msgstr "Waiting for the server to join"
 
 #. placeholder {0}: left(expires - now)
-msgid "Works once · stops when you close this, or in {0}"
-msgstr "Works once · stops when you close this, or in {0}"
+msgid "Works once · expires in {0}"
+msgstr "Works once · expires in {0}"
 
 msgid "Your apps stay where they are. New ones ask where to run."
 msgstr "Your apps stay where they are. New ones ask where to run."

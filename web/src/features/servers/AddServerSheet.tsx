@@ -246,7 +246,7 @@ export function AddServerSheet({
     }
   };
 
-  // The ticket on show, and whether it still waits: closing the sheet stops one that does (#800's review, M2).
+  // The ticket on show, and whether it still waits: new labels stop the one they replace (#800's review, M2).
   const live = useRef<{ id: string; waiting: boolean }>(undefined);
   const open = useRef(true);
   useEffect(() => {
@@ -259,11 +259,12 @@ export function AddServerSheet({
     // While it's open, Add a server in the command bar brings it to the front rather than making another (#858's N4).
     // After the command bar has closed and given focus back to where it was.
     focusOpenSheet = () => window.setTimeout(() => done.current?.focus(), 0);
+    // Closing stops nothing on show: a person copies the command, closes this, and pastes it on the new
+    // server, which must work. What nobody can still be using is stopped: the ticket new labels replace,
+    // and one that arrives after this closed.
     return () => {
       open.current = false;
       focusOpenSheet = undefined;
-      const it = live.current;
-      if (it?.waiting) revoke(it.id);
     };
   }, []);
   // Labels as they are now and as the ticket has them, so unchanged ones make nothing new (#858's N4).
@@ -449,9 +450,7 @@ export function AddServerSheet({
           ) : (
             <>
               <StatusBadge status="deploying" label={t`Waiting for the server to join`} labelIsState />
-              <span className="servers-add-meta">
-                {t`Works once · stops when you close this, or in ${left(expires - now)}`}
-              </span>
+              <span className="servers-add-meta">{t`Works once · expires in ${left(expires - now)}`}</span>
             </>
           )}
         </div>

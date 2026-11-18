@@ -438,7 +438,7 @@ describe("Servers", () => {
       expect(steps).toEqual([StepUpAction.ADD_SERVER]);
       expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
       expect(sheet).toHaveTextContent("Waiting for the server to join");
-      expect(sheet).toHaveTextContent("Works once · stops when you close this, or in 59 min");
+      expect(sheet).toHaveTextContent("Works once · expires in 59 min");
       expect(sheet).toHaveTextContent("It reaches web-1 at 203.0.113.7:7443.");
       expect(within(sheet).queryByRole("button", { name: "Set public address" })).toBeNull();
 
@@ -594,7 +594,7 @@ describe("Servers", () => {
       vi.useRealTimers();
     });
 
-    it("stops a waiting ticket as the sheet closes, and the one new labels replace, and keeps it for unchanged ones", async () => {
+    it("stops the ticket new labels replace, keeps it for unchanged ones, and stops nothing on show as it closes", async () => {
       stubPasskeys();
       const user = userEvent.setup();
       const api = tickets(JoinReach.ANYWHERE, [{}]);
@@ -602,7 +602,7 @@ describe("Servers", () => {
       await user.click(await screen.findByRole("button", { name: "Add server" }));
       const sheet = await screen.findByRole("dialog", { name: "Add a server" });
       await within(sheet).findByText("Waiting for the server to join");
-      expect(sheet).toHaveTextContent("Works once · stops when you close this, or in 59 min");
+      expect(sheet).toHaveTextContent("Works once · expires in 59 min");
 
       // Unchanged labels make nothing new.
       await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
@@ -618,9 +618,10 @@ describe("Servers", () => {
       await within(sheet).findByText("Joins with");
       await waitFor(() => expect(api.revoked).toEqual(["jtk_1"]));
 
-      // Closing stops the one on show, which still waits.
+      // Closing stops nothing: the command on show may be pasted on the new server after.
       await user.click(within(sheet).getByRole("button", { name: "Done" }));
-      await waitFor(() => expect(api.revoked).toEqual(["jtk_1", "jtk_2"]));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(api.revoked).toEqual(["jtk_1"]);
     });
 
     it("stops nothing a server joined with as the sheet closes", async () => {
