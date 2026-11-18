@@ -581,6 +581,14 @@ function mailApi(more: Api["catalog"] = {}): Api {
 }
 
 describe("An app's mail as it's installed (ADR 0099)", () => {
+  it("says on its page that it sends mail through a server you pick, with the way to pick one (#792)", async () => {
+    renderAt("/catalog/wordpress", mailApi());
+    const fact = await screen.findByText("Sends mail through a mail server, if you pick one");
+    const row = fact.closest("li");
+    if (!row) throw new Error("the fact is no list item");
+    expect(within(row).getByRole("link", { name: "Pick one" })).toHaveAttribute("href", "/catalog/wordpress/install");
+  });
+
   it("says in a line that an app that can't go without mail has no mail server yet, with Add a mail server beside it", async () => {
     const needsMail = create(EntrySchema, {
       ...withMail,

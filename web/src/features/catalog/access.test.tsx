@@ -108,7 +108,8 @@ describe("What an entry says of itself", () => {
     const known = await screen.findByRole("region", { name: "Good to know" });
     expect(within(known).getByText("Its first account is its owner")).toBeVisible();
     expect(within(known).getByText(/Anyone who reaches it can make an account/)).toBeVisible();
-    expect(within(known).getByText("Its links follow the domain you add: GITEA__server__ROOT_URL")).toBeVisible();
+    expect(within(known).getByText("Its links follow its domain")).toBeVisible();
+    expect(known).not.toHaveTextContent("GITEA__server__ROOT_URL");
     expect(within(known).getByText("Git over SSH answers on its SSH port, on this server alone.")).toBeVisible();
     expect(screen.queryByText("What to do first")).not.toBeInTheDocument();
     await expectAccessible(container);

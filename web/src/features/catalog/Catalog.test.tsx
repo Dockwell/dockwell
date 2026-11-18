@@ -185,6 +185,30 @@ describe("The catalog", () => {
     expect(screen.getByRole("link", { name: "1 installed" })).toHaveAttribute("href", "/apps");
   });
 
+  it("says where an installed app is reached on its card, and opens it from there (#792)", async () => {
+    renderAt(
+      "/catalog",
+      api({
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              pin: { entry: "postgres", version: "17.11" },
+              webServiceId: "svc_adminer",
+              address: "https://db.example.com",
+            },
+          ],
+        }),
+      }),
+    );
+    const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
+    expect(within(card).getByText("db.example.com")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open the installed PostgreSQL" })).toHaveAttribute(
+      "href",
+      "/apps/svc_adminer",
+    );
+  });
+
   it("says when it can't read the catalog", async () => {
     renderAt(
       "/catalog",
