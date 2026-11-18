@@ -264,20 +264,6 @@
   color: var(--ink-muted);
 }
 
-.app-env-use {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--line);
-}
-
-.app-env-use .dw-field {
-  flex: 0 1 304px;
-  min-width: 200px;
-}
-
 .app-env-key {
   display: inline-flex;
   align-items: baseline;
@@ -561,8 +547,7 @@
   }
 
   .app-env-field.is-key,
-  .app-env-field.is-value,
-  .app-env-use .dw-field {
+  .app-env-field.is-value {
     flex: 1 1 100%;
     min-width: 0;
   }
@@ -2178,6 +2163,19 @@
 
 .deploy-diff-row {
   display: contents;
+}
+
+/* A first deployment's settings, behind one line until asked for (#797). */
+.deploy-created > summary {
+  width: fit-content;
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.deploy-created[open] > summary {
+  margin-bottom: var(--space-2);
 }
 
 /* A field's words wrap at spaces, and its column is never narrower than its longest word. */

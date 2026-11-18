@@ -28,7 +28,7 @@ import { keptPrefix } from "../connections/storage";
 import { useConnections } from "../connections/useConnections";
 import { useAllVariables } from "../variables/VariablesPage";
 import type { CardRow } from "./CardRows";
-import { NeedBackups } from "./NeedBackups";
+import { NeedBackups, NeedBackupsSaid } from "./NeedBackups";
 import { engineName } from "./needs";
 import { isMail, isStorage, Reason, useMayLink } from "./StorageNeed";
 
@@ -467,8 +467,9 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
     if (sqlEngines.includes(engine)) {
       rows.push({
         key: `backups-${need.name}`,
-        label: <Trans>Backups</Trans>,
-        value: <Trans>Of its {what} alone</Trans>,
+        // Its database's own backups, apart from its volumes': how, and when last (#797).
+        label: <Trans>Database backups</Trans>,
+        value: <NeedBackupsSaid install={install} need={need.name} />,
         action: (
           <Button
             variant="ghost"
@@ -476,7 +477,7 @@ export function useNeedRows(entry: Entry | undefined, install: CatalogInstall): 
             aria-expanded={backups === need.name}
             onClick={() => setBackups(backups === need.name ? undefined : need.name)}
           >
-            <Trans>Its backups</Trans>
+            {backups === need.name ? <Trans>Hide</Trans> : <Trans>Show</Trans>}
           </Button>
         ),
         under: backups === need.name ? <NeedBackups install={install} need={need.name} /> : undefined,

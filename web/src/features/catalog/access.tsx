@@ -267,7 +267,6 @@ export function useInstallFacts(
     );
     const kept = install.addressKept;
     if (kept.length > 0) {
-      const keptNames = kept.map((k) => k.slice(k.indexOf("/") + 1)).join(", ");
       // Each asked for as its entry writes it, which the control plane renders at the
       // app's address in the plan.
       const byService = new Map<string, Record<string, string>>();
@@ -282,8 +281,9 @@ export function useInstallFacts(
       out.push({
         key: "address",
         icon: "globe",
-        label: t`Its links`,
-        text: t`Not at ${address}: ${keptNames}`,
+        label: t({ message: "Links", context: "catalog card" }),
+        // What's kept is each variable as it was, which Set to changes; their names stay in the plan (#797).
+        text: t`Not at ${address} yet`,
         action: (
           <Button
             size="sm"
@@ -296,11 +296,20 @@ export function useInstallFacts(
         ),
       });
     } else if (following.length > 0) {
-      const names = following.map((a) => a.variable).join(", ");
-      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow ${address}: ${names}` });
+      // A fact, never the variables' raw names, as the Catalog page says it (#792, #797).
+      out.push({
+        key: "address",
+        icon: "globe",
+        label: t({ message: "Links", context: "catalog card" }),
+        text: t`Follow its domain`,
+      });
     } else {
-      const names = entry.addressVariables.map((a) => a.variable).join(", ");
-      out.push({ key: "address", icon: "globe", label: t`Its links`, text: t`Follow the domain you add: ${names}` });
+      out.push({
+        key: "address",
+        icon: "globe",
+        label: t({ message: "Links", context: "catalog card" }),
+        text: t`Follow the domain you add`,
+      });
     }
   }
   // Before a domain, it opens through the panel on localhost (ADR 0061), with a tunnel
@@ -343,7 +352,9 @@ export function useInstallFacts(
   } else if (web && onLocalhost) {
     // On localhost, any port it publishes over TCP opens through the panel, with a
     // domain or without: for an admin tool, that's still the safer way in.
-    const published = appOf(web)?.ports.find((p) => p.protocol !== Protocol.UDP && p.hostPort > 0);
+    // With a domain, the domain is the way in, which the header opens (#797).
+    const published =
+      domains.length > 0 ? undefined : appOf(web)?.ports.find((p) => p.protocol !== Protocol.UDP && p.hostPort > 0);
     if (published) {
       const port = String(published.hostPort);
       out.push({

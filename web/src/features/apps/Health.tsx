@@ -242,11 +242,7 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
               labelIsState
               {...(span ? { meta: t`for ${span}` } : {})}
             />
-            <p className="app-runs-said">
-              <MachineWords names={[server.container, server.serverName]}>{words.says(server, now)}</MachineWords>
-              {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
-            </p>
-            {/* A shell is a way to a place only an admin reads, so it's left out for anyone else (ADR 0059). */}
+            {/* On the server's line, at its end (#797). A shell is a way to a place only an admin reads, so it's left out for anyone else (ADR 0059). */}
             {server.container && showTime && mayShell ? (
               <RouterButtonLink
                 to="/servers/$serverId/terminal"
@@ -261,6 +257,10 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
                 <Trans>Shell</Trans>
               </RouterButtonLink>
             ) : null}
+            <p className="app-runs-said">
+              <MachineWords names={[server.container, server.serverName]}>{words.says(server, now)}</MachineWords>
+              {checked && showTime ? <span className="app-muted"> {checked}</span> : null}
+            </p>
           </li>
         );
       })}

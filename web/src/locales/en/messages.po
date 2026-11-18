@@ -2690,6 +2690,12 @@ msgstr "Commit"
 msgid "Deployed"
 msgstr "Deployed"
 
+msgid "Deployments"
+msgstr "Deployments"
+
+msgid "Deployments of {appName}"
+msgstr "Deployments of {appName}"
+
 msgid "Image"
 msgstr "Image"
 
@@ -2707,12 +2713,6 @@ msgstr "Queued"
 
 msgid "Revision"
 msgstr "Revision"
-
-msgid "Revisions"
-msgstr "Revisions"
-
-msgid "Revisions of {appName}"
-msgstr "Revisions of {appName}"
 
 msgid "Roll back to {name}"
 msgstr "Roll back to {name}"
@@ -2748,13 +2748,16 @@ msgid "changed"
 msgstr "changed"
 
 #. placeholder {0}: Number(latest)
-msgid "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
-msgstr "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
+msgid "{0, plural, one {# deployment · newest first} other {# deployments · newest first}}"
+msgstr "{0, plural, one {# deployment · newest first} other {# deployments · newest first}}"
 
 #. placeholder {0}: image?.to ?? ""
 #. placeholder {0}: shortImage(first.to)
 msgid "{0}, built again"
 msgstr "{0}, built again"
+
+msgid "{count, plural, one {Made with # setting} other {Made with # settings}}"
+msgstr "{count, plural, one {Made with # setting} other {Made with # settings}}"
 
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
@@ -2768,8 +2771,11 @@ msgstr "A name the app has gets the new value."
 msgid "A secret needs a value."
 msgstr "A secret needs a value."
 
-msgid "A variable or secret of the environment"
-msgstr "A variable or secret of the environment"
+msgid "A secret of the environment"
+msgstr "A secret of the environment"
+
+msgid "A variable of the environment"
+msgstr "A variable of the environment"
 
 msgid "Actions for {name}"
 msgstr "Actions for {name}"
@@ -2975,11 +2981,17 @@ msgstr "Updated"
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "Use letters, digits and underscores, starting with a letter or underscore."
 
-msgid "Use one the environment has…"
-msgstr "Use one the environment has…"
+msgid "Use {matchName}"
+msgstr "Use {matchName}"
 
 msgid "Use {storedName}"
 msgstr "Use {storedName}"
+
+msgid "Uses the environment's secret {matchName} as it is."
+msgstr "Uses the environment's secret {matchName} as it is."
+
+msgid "Uses the environment's variable {matchName} as it is."
+msgstr "Uses the environment's variable {matchName} as it is."
 
 msgid "Value"
 msgstr "Value"
@@ -3005,6 +3017,12 @@ msgstr "new value"
 msgid "removed, not applied"
 msgstr "removed, not applied"
 
+msgid "the environment's secret"
+msgstr "the environment's secret"
+
+msgid "the environment's value"
+msgstr "the environment's value"
+
 msgid "value"
 msgstr "value"
 
@@ -3026,12 +3044,6 @@ msgstr "{name} changed after you started. Close this and review your edits again
 msgid "{name}'s spec can't be read"
 msgstr "{name}'s spec can't be read"
 
-msgid "{name}, secret"
-msgstr "{name}, secret"
-
-msgid "{own} set on this app"
-msgstr "{own} set on this app"
-
 msgid "{removed} removed"
 msgstr "{removed} removed"
 
@@ -3041,14 +3053,8 @@ msgstr "{rooted} are as good as root on their servers, so applying this asks for
 msgid "{rooted} is as good as root on its server, so applying this asks for your passkey."
 msgstr "{rooted} is as good as root on its server, so applying this asks for your passkey."
 
-msgid "{secrets, plural, one {# secret} other {# secrets}}"
-msgstr "{secrets, plural, one {# secret} other {# secrets}}"
-
 msgid "{total, plural, one {# unapplied change} other {# unapplied changes}}"
 msgstr "{total, plural, one {# unapplied change} other {# unapplied changes}}"
-
-msgid "{variables, plural, one {# variable} other {# variables}}"
-msgstr "{variables, plural, one {# variable} other {# variables}}"
 
 #. placeholder {0}: shownRepository(source.url)
 #. placeholder {1}: shortCommit(source.commit)
@@ -3098,9 +3104,6 @@ msgstr "Deploy {name}"
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "Deploying <0>{image}</0>, started {ago}"
 
-msgid "Deployments"
-msgstr "Deployments"
-
 msgid "Dockwell can't read what this runs"
 msgstr "Dockwell can't read what this runs"
 
@@ -3126,8 +3129,15 @@ msgstr "No app with this ID"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
 
+msgctxt "open an app at its domain"
+msgid "Open"
+msgstr "Open"
+
 msgid "Open the environment of {name}"
 msgstr "Open the environment of {name}"
+
+msgid "Open {name} at its domain"
+msgstr "Open {name} at its domain"
 
 msgid "Opens a plan"
 msgstr "Opens a plan"
@@ -3533,9 +3543,6 @@ msgstr "{name} may not be running, or may be running the new version. Check it, 
 msgid "{passing} of {total} passing"
 msgstr "{passing} of {total} passing"
 
-msgid "{plain, plural, one {# variable} other {# variables}}"
-msgstr "{plain, plural, one {# variable} other {# variables}}"
-
 msgid "{revision} rolled back by Dockwell {when}"
 msgstr "{revision} rolled back by Dockwell {when}"
 
@@ -3700,20 +3707,14 @@ msgstr "Its runtime mounts this folder at /app."
 msgid "Its runtime sets the command, entrypoint, user and directory."
 msgstr "Its runtime sets the command, entrypoint, user and directory."
 
-msgid "Keep no more for it than its limit, {memory}."
-msgstr "Keep no more for it than its limit, {memory}."
-
-msgid "Kept for it"
-msgstr "Kept for it"
-
-msgid "Memory kept for it"
-msgstr "Memory kept for it"
-
 msgid "Memory limit"
 msgstr "Memory limit"
 
 msgid "Memory limit, typed"
 msgstr "Memory limit, typed"
+
+msgid "Memory reserved"
+msgstr "Memory reserved"
 
 msgid "Minor and patch updates"
 msgstr "Minor and patch updates"
@@ -3746,6 +3747,10 @@ msgctxt "health check"
 msgid "None"
 msgstr "None"
 
+msgctxt "memory reserved"
+msgid "None"
+msgstr "None"
+
 msgid "None, not even the image's"
 msgstr "None, not even the image's"
 
@@ -3760,9 +3765,6 @@ msgstr "Nothing has changed yet."
 
 msgid "Nothing on its own: each update waits for you"
 msgstr "Nothing on its own: each update waits for you"
-
-msgid "Nothing set aside"
-msgstr "Nothing set aside"
 
 msgid "Off: each update waits for you"
 msgstr "Off: each update waits for you"
@@ -3806,6 +3808,12 @@ msgstr "Remove mount {n}"
 
 msgid "Remove port {n}"
 msgstr "Remove port {n}"
+
+msgid "Reserve no more for it than its limit, {memory}."
+msgstr "Reserve no more for it than its limit, {memory}."
+
+msgid "Reserved"
+msgstr "Reserved"
 
 msgid "Resources"
 msgstr "Resources"
@@ -6105,6 +6113,12 @@ msgstr "Static site"
 #. placeholder {2}: p.source
 msgid "{0} {1}, from {2}"
 msgstr "{0} {1}, from {2}"
+
+msgid "{plain, plural, one {# variable} other {# variables}}"
+msgstr "{plain, plural, one {# variable} other {# variables}}"
+
+msgid "{secrets, plural, one {# secret} other {# secrets}}"
+msgstr "{secrets, plural, one {# secret} other {# secrets}}"
 
 msgid "Couldn't read Cloudflare"
 msgstr "Couldn't read Cloudflare"
@@ -8418,14 +8432,15 @@ msgctxt "catalog card"
 msgid "Installed"
 msgstr "Installed"
 
-msgid "Its notes"
-msgstr "Its notes"
-
-msgid "Its secrets"
-msgstr "Its secrets"
+msgctxt "catalog card"
+msgid "Notes"
+msgstr "Notes"
 
 msgid "Read"
 msgstr "Read"
+
+msgid "Secrets"
+msgstr "Secrets"
 
 msgid "Upgrade to {next}"
 msgstr "Upgrade to {next}"
@@ -8452,6 +8467,9 @@ msgstr "Back up {need}'s database daily"
 msgid "Backing up"
 msgstr "Backing up"
 
+msgid "By hand"
+msgstr "By hand"
+
 msgid "It wasn't backed up"
 msgstr "It wasn't backed up"
 
@@ -8473,6 +8491,13 @@ msgstr "Stop backing up {need}'s database on a schedule"
 msgid "Stop the schedule"
 msgstr "Stop the schedule"
 
+#. placeholder {0}: formatDateTime(timestampDate(last), i18n.locale)
+msgid "last {0}"
+msgstr "last {0}"
+
+msgid "none yet"
+msgstr "none yet"
+
 msgid "{how}, keeps {keeps}"
 msgstr "{how}, keeps {keeps}"
 
@@ -8485,6 +8510,9 @@ msgstr "Connections it can use"
 msgid "Copies its data"
 msgstr "Copies its data"
 
+msgid "Database backups"
+msgstr "Database backups"
+
 msgid "It serves another app already"
 msgstr "It serves another app already"
 
@@ -8493,9 +8521,6 @@ msgstr "It serves another app already, and isn't shared"
 
 msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
 msgstr "It serves another app already, and {app} can't keep to a prefix of the bucket"
-
-msgid "Its backups"
-msgstr "Its backups"
 
 msgid "Its data can't be copied there"
 msgstr "Its data can't be copied there"
@@ -8526,9 +8551,6 @@ msgstr "No other mail server this project may use"
 
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Nothing else Dockwell runs takes it"
-
-msgid "Of its {what} alone"
-msgstr "Of its {what} alone"
 
 msgid "On its own disk"
 msgstr "On its own disk"
@@ -9086,11 +9108,11 @@ msgstr "Closed"
 msgid "Copy the SSH tunnel command"
 msgstr "Copy the SSH tunnel command"
 
-msgid "Follow the domain you add: {names}"
-msgstr "Follow the domain you add: {names}"
+msgid "Follow its domain"
+msgstr "Follow its domain"
 
-msgid "Follow {address}: {names}"
-msgstr "Follow {address}: {names}"
+msgid "Follow the domain you add"
+msgstr "Follow the domain you add"
 
 msgid "Its first account"
 msgstr "Its first account"
@@ -9101,17 +9123,18 @@ msgstr "Its first account is its owner"
 msgid "Its first account: make yours before it has a domain"
 msgstr "Its first account: make yours before it has a domain"
 
-msgid "Its links"
-msgstr "Its links"
-
 msgid "Its links follow its domain"
 msgstr "Its links follow its domain"
+
+msgctxt "catalog card"
+msgid "Links"
+msgstr "Links"
 
 msgid "Needs a mail server"
 msgstr "Needs a mail server"
 
-msgid "Not at {address}: {keptNames}"
-msgstr "Not at {address}: {keptNames}"
+msgid "Not at {address} yet"
+msgstr "Not at {address} yet"
 
 msgid "Open to anyone who reaches it"
 msgstr "Open to anyone who reaches it"
@@ -13309,9 +13332,6 @@ msgstr "Some on schedule"
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "Take one on from its page: it keeps running, with no restart."
 
-msgid "none yet"
-msgstr "none yet"
-
 msgid "not scheduled"
 msgstr "not scheduled"
 
@@ -14522,11 +14542,11 @@ msgstr "Stopping it ends its deploys, and what it ran keeps running."
 msgid "{name} runs on this server"
 msgstr "{name} runs on this server"
 
-msgid "Read this deploy's logs"
-msgstr "Read this deploy's logs"
+msgid "Read this deployment's logs"
+msgstr "Read this deployment's logs"
 
-msgid "Read {name}'s logs from this deploy"
-msgstr "Read {name}'s logs from this deploy"
+msgid "Read {name}'s logs from this deployment"
+msgstr "Read {name}'s logs from this deployment"
 
 msgid "Can't read the lines around it"
 msgstr "Can't read the lines around it"

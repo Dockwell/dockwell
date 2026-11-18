@@ -1376,9 +1376,10 @@ describe("A database's admin tool", () => {
         },
       },
     });
-    const backups = await waitFor(() => rowLabelled(document.body, "Backups"));
-    expect(backups).toHaveTextContent("Of its database alone");
-    await user.click(within(backups).getByRole("button", { name: "Its backups" }));
+    const backups = await waitFor(() => rowLabelled(document.body, "Database backups"));
+    // How, and when last, as its volumes' backups are apart from it (#797).
+    await waitFor(() => expect(backups).toHaveTextContent(/^Database backups(By hand|Daily)/));
+    await user.click(within(backups).getByRole("button", { name: "Show" }));
     expect(await screen.findByText("Only by hand")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Back up daily" }));
     await waitFor(() => expect(asked).toContain("schedule db-daily db"));
@@ -1504,7 +1505,7 @@ describe("A database's admin tool", () => {
     const tool = await waitFor(() => rowLabelled(panel, "Adminer"));
     expect(within(tool).getByText("Installed")).toBeVisible();
     // Its notes are one step away, a row of their own.
-    await user.click(within(rowLabelled(panel, "Its notes")).getByRole("button", { name: "Read" }));
+    await user.click(within(rowLabelled(panel, "Notes")).getByRole("button", { name: "Read" }));
     expect(within(panel).getByText("Choose PostgreSQL as Adminer's system.")).toBeVisible();
     await user.click(within(tool).getByRole("button", { name: "Remove Adminer" }));
     await waitFor(() => expect(asked).toEqual({ service: "adminer", on: false }));

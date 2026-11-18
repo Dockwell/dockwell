@@ -431,13 +431,13 @@ describe("an app's frame", () => {
       },
     };
     const first = renderAt("/apps/svc_web/deployments?revision=3", { ...api(), logs });
-    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    const link = await screen.findByRole("link", { name: "Read this deployment's logs" });
     expect(link.getAttribute("href")).toContain("/apps/svc_web/logs");
     first.unmount();
     renderAt("/apps/svc_web/deployments?revision=2", { ...api(), logs });
-    await screen.findByRole("table", { name: "Revisions of web" });
+    await screen.findByRole("table", { name: "Deployments of web" });
     await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
-    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
   });
 
   it("offers no logs of a revision whose server went away", async () => {
@@ -461,9 +461,9 @@ describe("an app's frame", () => {
         },
       },
     });
-    await screen.findByRole("table", { name: "Revisions of web" });
+    await screen.findByRole("table", { name: "Deployments of web" });
     await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
-    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
   });
 
   it("keeps Deploy in reach on a phone, and tells the app's state in the header", async () => {
@@ -1812,6 +1812,21 @@ describe("an app's overview", () => {
       );
       return screen.findByRole("region", { name: "What runs" });
     };
+
+    it("opens the app at its domain from the header once it serves, and leaves a held one to its callout (#797)", async () => {
+      await atPage(() => ({ domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) })] }));
+      const open = await screen.findByRole("link", { name: "Open" });
+      expect(open).toHaveAttribute("href", expect.stringMatching(/^https:\/\/app\.example\.com\/?$/));
+      expect(open).toHaveAttribute("target", "_blank");
+    });
+
+    it("has no Open in the header for a domain that's held until its owner sets it up (#797)", async () => {
+      const running = await atPage(() => ({
+        domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) }, { held: true })],
+      }));
+      await within(running).findByText("app.example.com");
+      expect(screen.queryByRole("link", { name: "Open" })).toBeNull();
+    });
 
     it("gives each state a shape and a word, the port, and how long a certificate has", async () => {
       const running = await atPage(() => ({
@@ -3703,6 +3718,59 @@ describe("an app's overview", () => {
     expect(panel).not.toHaveTextContent(/Deploy ghcr|Roll back web|Run /);
   });
 
+  it("says a first deployment as a line that opens, with names whole and durations as the panel writes them (#797)", async () => {
+    const user = userEvent.setup();
+    const list = [
+      aRevision(1n, "ghcr.io/acme/web:1.5", {
+        changes: [
+          { path: "app.image", op: FieldOp.ADDED, to: "ghcr.io/acme/web:1.5" },
+          { path: "app.healthcheck.interval", op: FieldOp.ADDED, to: "10s" },
+          { path: "app.healthcheck.start_period", op: FieldOp.ADDED, to: "1m30s" },
+          { path: "app.shown_env", op: FieldOp.ADDED, to: "GITEA__security__INSTALL_LOCK" },
+        ],
+      }),
+    ];
+    renderAt(
+      "/apps/svc_web/deployments?revision=1",
+      api([web], {
+        services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
+      }),
+    );
+    const made = await screen.findByText("Made with 4 settings");
+    const details = made.closest("details");
+    expect(details).not.toHaveAttribute("open");
+    await user.click(made);
+    expect(details).toHaveAttribute("open");
+    const diff = details?.querySelector(".deploy-diff");
+    expect(diff).toHaveTextContent("health check interval10 s");
+    expect(diff).toHaveTextContent("health check start period1 min 30 s");
+    // A long name breaks only after its underscores, never inside a word.
+    const name = within(diff as HTMLElement).getByText(
+      (_, el) => el?.textContent === "GITEA__security__INSTALL_LOCK" && el.tagName === "CODE",
+    );
+    expect(name.querySelectorAll("wbr")).toHaveLength(3);
+  });
+
+  it("puts Shell on its server's line, before what it last said (#797)", async () => {
+    const app = anApp("web", "nginx:1.4");
+    renderAt("/apps/svc_web", api([app], { health: running(app) }));
+    const running_ = await screen.findByRole("region", { name: "What runs" });
+    const shell = await within(running_).findByRole("link", { name: /^Open a shell in env_1-svc_web-1/ });
+    const said = running_.querySelector(".app-runs-said");
+    expect(said).not.toBeNull();
+    // Laid out on the line of its state, at its end: in the row, it comes before the line under it.
+    expect(shell.compareDocumentPosition(said as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(shell.closest(".app-runs-row")).toBe(said?.closest(".app-runs-row"));
+  });
+
+  it("names it one thing, a deployment, from its tab to its heading and its log link (#797)", async () => {
+    renderAt("/apps/svc_web/deployments", api([web]));
+    const list = await screen.findByRole("region", { name: "Deployments" });
+    expect(within(list).getByRole("heading", { level: 2, name: "Deployments" })).toBeVisible();
+    expect(await within(list).findByRole("table", { name: "Deployments of web" })).toBeVisible();
+    expect(screen.queryByText(/Revisions/)).toBeNull();
+  });
+
   it("deletes through a plan, then goes to the list", async () => {
     const user = userEvent.setup();
     const proposals: { edits: { delete: boolean; resource?: { name: string } }[] }[] = [];
@@ -3969,7 +4037,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
         builds: { watchBuild: feed<WatchBuildResponse>().stream },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     expect(within(table).getByRole("row", { name: /r2/ })).not.toHaveTextContent("Batch inventory sync");
     await waitFor(
       () => expect(within(table).getByRole("row", { name: /r2/ })).toHaveTextContent("Batch inventory sync"),
@@ -4013,7 +4081,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     expect(within(table).getByRole("columnheader", { name: "Commit" })).toBeVisible();
     const r2 = within(table).getByRole("row", { name: /r2/ });
     expect(r2).toHaveTextContent("Add order export endpoint");
@@ -4058,7 +4126,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
         builds: { readBuildLog: () => ({ lines: [{ number: 1n, step: 0, text: "[1/6] FROM alpine:3.23" }] }) },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     expect(within(table).getByRole("row", { name: /r3/ })).toHaveTextContent("Rolled back after a cancelled build");
     await userEvent.setup().click(within(table).getByRole("row", { name: /r2/ }));
     const log = await screen.findByRole("log", { name: "Build log" });
@@ -4173,7 +4241,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     expect(within(table).getByRole("row", { name: /r2/ })).toHaveTextContent("Building");
     const log = await screen.findByRole("log", { name: "Build log" });
     await waitFor(() => expect(log).toHaveTextContent("npm warn deprecated inflight@1.0.6"));
@@ -4702,7 +4770,7 @@ describe("an app's deployments, for an app that builds from Git", () => {
 describe("an app's deployments", () => {
   it("lists revisions with what changed, who did it and from where, the live one open beside them", async () => {
     const { container } = renderAt("/apps/svc_web/deployments", api());
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     const r3 = await within(table).findByRole("row", { name: /r3/ });
     expect(r3).not.toHaveTextContent("Live");
     expect(r3).toHaveTextContent("Deployed web:1.5");
@@ -4766,7 +4834,7 @@ describe("an app's deployments", () => {
   it("agrees with the header when the server that runs it is offline", async () => {
     const hzOff = aServer({ id: SERVER, name: "hz-1", connection: Connection.UNREACHABLE });
     renderAt("/apps/svc_web/deployments", api([web], {}, hzOff));
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     const r3 = await within(table).findByRole("row", { name: /r3/ });
     await waitFor(() => expect(r3).toHaveTextContent("hz-1 offline"));
     expect(r3).not.toHaveTextContent("Live");
@@ -4795,7 +4863,7 @@ describe("an app's deployments", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Revisions of web" });
+    const table = await screen.findByRole("table", { name: "Deployments of web" });
     expect(await within(table).findByRole("row", { name: /r3/ })).toHaveTextContent("Failed");
   });
 
@@ -4818,7 +4886,7 @@ describe("an app's deployments", () => {
         services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
       }),
     );
-    await screen.findByRole("table", { name: "Revisions of web" });
+    await screen.findByRole("table", { name: "Deployments of web" });
     const diff = await waitFor(() => {
       const found = container.querySelector(".deploy-diff");
       if (!found) throw new Error("no diff yet");
@@ -4846,7 +4914,7 @@ describe("an app's deployments", () => {
         services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
       }),
     );
-    await screen.findByRole("table", { name: "Revisions of web" });
+    await screen.findByRole("table", { name: "Deployments of web" });
     const diff = await waitFor(() => {
       const found = container.querySelector(".deploy-diff");
       if (!found) throw new Error("no diff yet");
@@ -4884,7 +4952,7 @@ describe("an app's deployments", () => {
         services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: list }) },
       }),
     );
-    await screen.findByRole("table", { name: "Revisions of web" });
+    await screen.findByRole("table", { name: "Deployments of web" });
     const diff = await waitFor(() => {
       const found = container.querySelector(".deploy-diff");
       if (!found) throw new Error("no diff yet");

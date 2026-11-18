@@ -243,7 +243,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   }
 
   step("catalog: its secret is sealed, and one step away");
-  await from.getByRole("link", { name: "Its secrets" }).click();
+  await from.getByRole("link", { name: "Secrets" }).click();
   await page.getByRole("heading", { level: 1, name: "Variables" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
 

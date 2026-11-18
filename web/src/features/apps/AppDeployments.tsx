@@ -34,7 +34,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { Fragment, isValidElement, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
@@ -295,13 +295,13 @@ export function AppDeployments() {
   }
 
   const list = (
-    <section className="deploy-list" aria-label={t`Revisions`}>
+    <section className="deploy-list" aria-label={t`Deployments`}>
       <div className="deploy-list-head">
         <h2 className="dw-text-heading">
-          <Trans>Revisions</Trans>
+          <Trans>Deployments</Trans>
         </h2>
         <span className="app-muted">
-          {plural(Number(latest), { one: "# revision · newest first", other: "# revisions · newest first" })}
+          {plural(Number(latest), { one: "# deployment · newest first", other: "# deployments · newest first" })}
         </span>
       </div>
       {!revisions ? (
@@ -333,7 +333,7 @@ export function AppDeployments() {
           columns={columns}
           rows={rows}
           selectedKey={selected?.number.toString() ?? null}
-          caption={t`Revisions of ${appName}`}
+          caption={t`Deployments of ${appName}`}
           onRowClick={(rev) => select(rev)}
         />
       )}
@@ -597,7 +597,25 @@ function DiffValue({ value }: { value: PlanValue | undefined }) {
   if (isValidElement(value)) return value;
   // An image pinned by its digest reads by the digest's first digits, whole on hover and to copy.
   if (typeof value === "string" && hasDigest(value)) return <DigestValue value={value} />;
+  if (typeof value === "string") return <code>{atBreaks(value)}</code>;
   return <code>{value as ReactNode}</code>;
+}
+
+/**
+ * A machine value that may wrap only where a person would break it: after an
+ * underscore, a slash, a comma or a dot, never in the middle of a word, as
+ * GITEA__security__INSTALL_LOCK breaks after "security__" (#797).
+ */
+function atBreaks(value: string): ReactNode {
+  const parts = value.split(/(?<=[_/,.])(?=[^_/,.])/);
+  if (parts.length < 2) return value;
+  return parts.map((part, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one value, in order, never move
+    <Fragment key={i}>
+      {i > 0 ? <wbr /> : null}
+      {part}
+    </Fragment>
+  ));
 }
 
 /** Two images Dockwell built of one commit, as a deploy that builds the same commit again makes. */
@@ -659,6 +677,17 @@ function RevisionDiff({ rev }: { rev: ServiceRevision }) {
   );
 }
 
+/** A deployment that made the app: how many settings it was made with, each a click away. */
+function CreatedWith({ rev }: { rev: ServiceRevision }) {
+  const count = useFieldRows()({ kind: "service", changes: rev.changes }).length;
+  return (
+    <details className="deploy-created">
+      <summary>{plural(count, { one: "Made with # setting", other: "Made with # settings" })}</summary>
+      <RevisionDiff rev={rev} />
+    </details>
+  );
+}
+
 /** What a revision did and how it went. */
 function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnded: () => void }) {
   const { t, i18n } = useLingui();
@@ -714,7 +743,10 @@ function RevisionBody({ rev, onBuildEnded }: { rev: ServiceRevision; onBuildEnde
           <h3 className="dw-text-label">
             <Trans>What changed</Trans>
           </h3>
-          {rev.changes.length > 0 ? (
+          {rev.changes.length > 0 && rev.changes.every((c) => c.op === FieldOp.ADDED) ? (
+            // A first deployment sets every field, which reads as a summary until asked for (#797).
+            <CreatedWith rev={rev} />
+          ) : rev.changes.length > 0 ? (
             <RevisionDiff rev={rev} />
           ) : (
             <p className="app-note">

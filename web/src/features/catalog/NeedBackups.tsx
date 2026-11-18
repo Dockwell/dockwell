@@ -151,3 +151,33 @@ export function NeedBackups({ install, need }: { install: CatalogInstall; need: 
     </div>
   );
 }
+
+/**
+ * How an app's own database is backed up, as a line of the catalog card (#797): on a
+ * schedule or by hand, and when it last was, or not yet. A fact of its own, as its
+ * app's volumes are backed up apart from it.
+ */
+export function NeedBackupsSaid({ install, need }: { install: CatalogInstall; need: string }) {
+  const { t, i18n } = useLingui();
+  const listed = useQuery(CatalogService.method.listCatalogNeedBackups, {
+    id: install.projectId,
+    need,
+    pageSize: shown,
+  });
+  const words = useScheduleWords();
+  const schedule = (usePolicies().data?.policies ?? []).find(
+    (p) => p.environmentId === install.environmentId && p.spec?.link === need,
+  );
+  const how = schedule?.spec ? words(schedule.spec) : t`By hand`;
+  if (listed.isPending) return <>{how}</>;
+  const last = listed.data?.backups.find((b) => b.state === BackupState.DONE)?.startedAt;
+  return (
+    <>
+      {how}
+      <span className="card-row-quiet">
+        {" "}
+        · {last ? t`last ${formatDateTime(timestampDate(last), i18n.locale)}` : t`none yet`}
+      </span>
+    </>
+  );
+}

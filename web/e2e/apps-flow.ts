@@ -727,7 +727,7 @@ export async function appsFlow(
   await page.getByRole("link", { name: "Environment", exact: true }).click();
   const envForm = page.getByRole("form", { name: "Add a variable" });
   const addValue = async (key: string, value: string, secret: boolean) => {
-    await envForm.getByRole("textbox", { name: "Key" }).fill(key);
+    await envForm.getByLabel("Key", { exact: true }).fill(key);
     await envForm.getByRole("textbox", { name: "Value" }).fill(value);
     if (secret) await envForm.getByRole("switch", { name: "Secret" }).click();
     await envForm.getByRole("button", { name: "Add" }).click();
@@ -817,7 +817,7 @@ export async function appsFlow(
     .getByRole("navigation", { name: "App sections" })
     .getByRole("link", { name: "Settings", exact: true })
     .click();
-  await page.getByRole("button", { name: "Edit Resources" }).click();
+  // Its limits are edited in place, with no Edit first (#797).
   const limits = page.getByRole("form", { name: "Edit Resources" });
   // A limit is picked from what fits the server; any other amount is typed under Other, and checked.
   await limits.getByRole("combobox", { name: "Memory limit" }).selectOption("other");
@@ -828,7 +828,11 @@ export async function appsFlow(
   await shoot(page, "apps-settings-resources");
   await limits.getByRole("button", { name: /Review plan/ }).click();
   await applyPlan(page, "Done");
-  await page.getByRole("region", { name: "Resources" }).getByText("256M").waitFor();
+  // The form starts again from what it is now, its new limit picked.
+  const memoryLimit = page.getByRole("region", { name: "Resources" }).getByRole("combobox", { name: "Memory limit" });
+  for (let i = 0; i < 60 && (await memoryLimit.inputValue()) !== "256M"; i++) await page.waitForTimeout(250);
+  if ((await memoryLimit.inputValue()) !== "256M")
+    fail(`after its plan, the memory limit reads ${await memoryLimit.inputValue()}`);
   await atWidth(page, { width: 360, height: 780 });
   await page.reload();
   await page.getByRole("region", { name: "Resources" }).waitFor();
