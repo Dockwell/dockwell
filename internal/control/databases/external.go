@@ -78,10 +78,10 @@ func (h *Handler) SetDatabaseExternalAccess(ctx context.Context, req *connect.Re
 			return p.GetHostPort() == was.GetPort() && revision.EveryAddress(p.GetHostIp())
 		})
 		edits = append(edits, serviceEdit(ref, spec, db.revision))
-		for _, s := range db.servers {
+		for i := range db.servers {
 			for _, which := range []string{revision.ExternalAllow, revision.ExternalDeny} {
 				edits = append(edits, &dockwellv1.Edit{
-					Resource: &dockwellv1.ResourceRef{Kind: firewallRule, Scope: s.ID, Name: revision.ExternalRule(db.db.GetId(), which)},
+					Resource: &dockwellv1.ResourceRef{Kind: firewallRule, Scope: db.servers[i].ID, Name: revision.ExternalRule(db.db.GetId(), which)},
 					Delete:   true,
 				})
 			}
@@ -109,7 +109,8 @@ func (h *Handler) SetDatabaseExternalAccess(ctx context.Context, req *connect.Re
 	}
 	edits = append(edits, serviceEdit(ref, spec, db.revision))
 	comment := "External access to " + ref.Name
-	for _, s := range db.servers {
+	for i := range db.servers {
+		s := &db.servers[i]
 		edits = append(edits,
 			ruleEdit(s.ID, revision.ExternalRule(db.db.GetId(), revision.ExternalAllow), &resourcev1.FirewallRule{
 				Action: resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW, Protocol: resourcev1.Protocol_PROTOCOL_TCP, Port: port, Sources: allow, Comment: comment,
@@ -221,8 +222,8 @@ func (h *Handler) externalAccess(ctx context.Context, tx *store.Tx, list []*plac
 		byName[rules[i].Scope+"/"+rules[i].Name] = &rules[i]
 	}
 	for _, p := range list {
-		for _, s := range p.servers {
-			r := byName[s.ID+"/"+revision.ExternalRule(p.db.GetId(), revision.ExternalAllow)]
+		for i := range p.servers {
+			r := byName[p.servers[i].ID+"/"+revision.ExternalRule(p.db.GetId(), revision.ExternalAllow)]
 			if r == nil {
 				continue
 			}
