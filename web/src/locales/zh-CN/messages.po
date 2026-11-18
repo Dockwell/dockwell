@@ -2690,6 +2690,12 @@ msgstr "提交"
 msgid "Deployed"
 msgstr "部署时间"
 
+msgid "Deployments"
+msgstr "部署"
+
+msgid "Deployments of {appName}"
+msgstr "{appName} 的部署"
+
 msgid "Image"
 msgstr "镜像"
 
@@ -2707,12 +2713,6 @@ msgstr "排队中"
 
 msgid "Revision"
 msgstr "修订版本"
-
-msgid "Revisions"
-msgstr "修订版本"
-
-msgid "Revisions of {appName}"
-msgstr "{appName} 的修订版本"
 
 msgid "Roll back to {name}"
 msgstr "回滚到 {name}"
@@ -2748,13 +2748,16 @@ msgid "changed"
 msgstr "已更改"
 
 #. placeholder {0}: Number(latest)
-msgid "{0, plural, one {# revision · newest first} other {# revisions · newest first}}"
-msgstr "{0, plural, other {# 个修订版本 · 最新在前}}"
+msgid "{0, plural, one {# deployment · newest first} other {# deployments · newest first}}"
+msgstr "{0, plural, other {# 次部署 · 最新在前}}"
 
 #. placeholder {0}: image?.to ?? ""
 #. placeholder {0}: shortImage(first.to)
 msgid "{0}, built again"
 msgstr "{0}，重新构建"
+
+msgid "{count, plural, one {Made with # setting} other {Made with # settings}}"
+msgstr "{count, plural, other {创建时有 # 项设置}}"
 
 msgid "{shown} matches the latest revision. If what runs has drifted from it, rolling back puts it right."
 msgstr "{shown} 与最新版本一致。如果实际运行的内容已与它不同，回滚可以恢复。"
@@ -2768,8 +2771,11 @@ msgstr "应用已有的名称会得到新值。"
 msgid "A secret needs a value."
 msgstr "密钥需要一个值。"
 
-msgid "A variable or secret of the environment"
-msgstr "环境中的变量或密钥"
+msgid "A secret of the environment"
+msgstr "环境的密钥"
+
+msgid "A variable of the environment"
+msgstr "环境的变量"
 
 msgid "Actions for {name}"
 msgstr "{name} 的操作"
@@ -2975,11 +2981,17 @@ msgstr "更新"
 msgid "Use letters, digits and underscores, starting with a letter or underscore."
 msgstr "请使用字母、数字和下划线，并以字母或下划线开头。"
 
-msgid "Use one the environment has…"
-msgstr "使用环境中已有的…"
+msgid "Use {matchName}"
+msgstr "使用 {matchName}"
 
 msgid "Use {storedName}"
 msgstr "使用 {storedName}"
+
+msgid "Uses the environment's secret {matchName} as it is."
+msgstr "按原样使用环境的密钥 {matchName}。"
+
+msgid "Uses the environment's variable {matchName} as it is."
+msgstr "按原样使用环境的变量 {matchName}。"
 
 msgid "Value"
 msgstr "值"
@@ -3005,6 +3017,12 @@ msgstr "新值"
 msgid "removed, not applied"
 msgstr "已移除，未应用"
 
+msgid "the environment's secret"
+msgstr "环境的密钥"
+
+msgid "the environment's value"
+msgstr "环境的值"
+
 msgid "value"
 msgstr "值"
 
@@ -3026,12 +3044,6 @@ msgstr "你开始编辑之后，{name} 发生了变化。请关闭这里，再�
 msgid "{name}'s spec can't be read"
 msgstr "无法读取 {name} 的配置"
 
-msgid "{name}, secret"
-msgstr "{name}，密钥"
-
-msgid "{own} set on this app"
-msgstr "{own} 个仅在此应用上设置的值"
-
 msgid "{removed} removed"
 msgstr "{removed} 项移除"
 
@@ -3041,14 +3053,8 @@ msgstr "{rooted} 在各自的服务器上等同于 root，所以应用这次更�
 msgid "{rooted} is as good as root on its server, so applying this asks for your passkey."
 msgstr "{rooted} 在它的服务器上等同于 root，所以应用这次更改需要你的通行密钥。"
 
-msgid "{secrets, plural, one {# secret} other {# secrets}}"
-msgstr "{secrets, plural, other {# 个密钥}}"
-
 msgid "{total, plural, one {# unapplied change} other {# unapplied changes}}"
 msgstr "{total, plural, other {# 项未应用的更改}}"
-
-msgid "{variables, plural, one {# variable} other {# variables}}"
-msgstr "{variables, plural, other {# 个变量}}"
 
 #. placeholder {0}: shownRepository(source.url)
 #. placeholder {1}: shortCommit(source.commit)
@@ -3098,9 +3104,6 @@ msgstr "部署 {name}"
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "正在部署 <0>{image}</0>，开始于 {ago}"
 
-msgid "Deployments"
-msgstr "部署"
-
 msgid "Dockwell can't read what this runs"
 msgstr "Dockwell 无法读取它运行的内容"
 
@@ -3126,8 +3129,15 @@ msgstr "没有此 ID 的应用"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
 
+msgctxt "open an app at its domain"
+msgid "Open"
+msgstr "打开"
+
 msgid "Open the environment of {name}"
 msgstr "打开 {name} 的环境"
+
+msgid "Open {name} at its domain"
+msgstr "在其域名打开 {name}"
 
 msgid "Opens a plan"
 msgstr "会打开计划"
@@ -3533,9 +3543,6 @@ msgstr "{name} 可能没有运行，也可能正在运行新版本。请检查�
 msgid "{passing} of {total} passing"
 msgstr "{total} 个中有 {passing} 个通过"
 
-msgid "{plain, plural, one {# variable} other {# variables}}"
-msgstr "{plain, plural, other {# 个变量}}"
-
 msgid "{revision} rolled back by Dockwell {when}"
 msgstr "{revision} 由 Dockwell 回滚于 {when}"
 
@@ -3700,20 +3707,14 @@ msgstr "它的运行时将此文件夹挂载到 /app。"
 msgid "Its runtime sets the command, entrypoint, user and directory."
 msgstr "它的运行时设置命令、入口点、用户和目录。"
 
-msgid "Keep no more for it than its limit, {memory}."
-msgstr "为它预留的不能超过它的限制 {memory}。"
-
-msgid "Kept for it"
-msgstr "为它预留"
-
-msgid "Memory kept for it"
-msgstr "为它预留的内存"
-
 msgid "Memory limit"
 msgstr "内存限制"
 
 msgid "Memory limit, typed"
 msgstr "内存上限（手动输入）"
+
+msgid "Memory reserved"
+msgstr "预留内存"
 
 msgid "Minor and patch updates"
 msgstr "次版本和补丁更新"
@@ -3746,6 +3747,10 @@ msgctxt "health check"
 msgid "None"
 msgstr "无"
 
+msgctxt "memory reserved"
+msgid "None"
+msgstr "无"
+
 msgid "None, not even the image's"
 msgstr "无，连镜像自带的也不用"
 
@@ -3760,9 +3765,6 @@ msgstr "还没有任何更改。"
 
 msgid "Nothing on its own: each update waits for you"
 msgstr "不自动更新：每次更新都等你来确认"
-
-msgid "Nothing set aside"
-msgstr "没有预留"
 
 msgid "Off: each update waits for you"
 msgstr "关闭：每次更新都等你来确认"
@@ -3806,6 +3808,12 @@ msgstr "移除挂载 {n}"
 
 msgid "Remove port {n}"
 msgstr "移除端口 {n}"
+
+msgid "Reserve no more for it than its limit, {memory}."
+msgstr "预留不能超过其上限 {memory}。"
+
+msgid "Reserved"
+msgstr "预留"
 
 msgid "Resources"
 msgstr "资源"
@@ -6105,6 +6113,12 @@ msgstr "静态网站"
 #. placeholder {2}: p.source
 msgid "{0} {1}, from {2}"
 msgstr "{0} {1}，来自 {2}"
+
+msgid "{plain, plural, one {# variable} other {# variables}}"
+msgstr "{plain, plural, other {# 个变量}}"
+
+msgid "{secrets, plural, one {# secret} other {# secrets}}"
+msgstr "{secrets, plural, other {# 个密钥}}"
 
 msgid "Couldn't read Cloudflare"
 msgstr "无法读取 Cloudflare"
@@ -8418,14 +8432,15 @@ msgctxt "catalog card"
 msgid "Installed"
 msgstr "已安装"
 
-msgid "Its notes"
-msgstr "它的说明"
-
-msgid "Its secrets"
-msgstr "它的密钥"
+msgctxt "catalog card"
+msgid "Notes"
+msgstr "备注"
 
 msgid "Read"
 msgstr "查看"
+
+msgid "Secrets"
+msgstr "密钥"
 
 msgid "Upgrade to {next}"
 msgstr "升级到 {next}"
@@ -8452,6 +8467,9 @@ msgstr "每天备份 {need} 的数据库"
 msgid "Backing up"
 msgstr "正在备份"
 
+msgid "By hand"
+msgstr "手动"
+
 msgid "It wasn't backed up"
 msgstr "未能备份"
 
@@ -8473,6 +8491,13 @@ msgstr "停止按计划备份 {need} 的数据库"
 msgid "Stop the schedule"
 msgstr "停止计划"
 
+#. placeholder {0}: formatDateTime(timestampDate(last), i18n.locale)
+msgid "last {0}"
+msgstr "最近一次 {0}"
+
+msgid "none yet"
+msgstr "尚无"
+
 msgid "{how}, keeps {keeps}"
 msgstr "{how}，保留 {keeps} 个"
 
@@ -8485,6 +8510,9 @@ msgstr "它可以使用的连接"
 msgid "Copies its data"
 msgstr "复制它的数据"
 
+msgid "Database backups"
+msgstr "数据库备份"
+
 msgid "It serves another app already"
 msgstr "它已在为另一个应用服务"
 
@@ -8493,9 +8521,6 @@ msgstr "它已在为另一个应用服务，且未共享"
 
 msgid "It serves another app already, and {app} can't keep to a prefix of the bucket"
 msgstr "它已在为另一个应用服务，而 {app} 无法限定在存储桶的某个前缀下"
-
-msgid "Its backups"
-msgstr "它的备份"
 
 msgid "Its data can't be copied there"
 msgstr "它的数据无法复制到那里"
@@ -8526,9 +8551,6 @@ msgstr "此项目没有其他可用的邮件服务器"
 
 msgid "Nothing else Dockwell runs takes it"
 msgstr "Dockwell 运行的其他服务都不适用"
-
-msgid "Of its {what} alone"
-msgstr "仅它的{what}"
 
 msgid "On its own disk"
 msgstr "在它自己的磁盘上"
@@ -9086,11 +9108,11 @@ msgstr "已关闭"
 msgid "Copy the SSH tunnel command"
 msgstr "复制 SSH 隧道命令"
 
-msgid "Follow the domain you add: {names}"
-msgstr "跟随你添加的域名：{names}"
+msgid "Follow its domain"
+msgstr "随其域名变化"
 
-msgid "Follow {address}: {names}"
-msgstr "跟随 {address}：{names}"
+msgid "Follow the domain you add"
+msgstr "随你添加的域名变化"
 
 msgid "Its first account"
 msgstr "它的第一个账户"
@@ -9101,17 +9123,18 @@ msgstr "它的第一个账号就是所有者"
 msgid "Its first account: make yours before it has a domain"
 msgstr "它的第一个账户：在它有域名之前先创建你的账户"
 
-msgid "Its links"
-msgstr "它的链接"
-
 msgid "Its links follow its domain"
 msgstr "它的链接随其域名变化"
+
+msgctxt "catalog card"
+msgid "Links"
+msgstr "链接"
 
 msgid "Needs a mail server"
 msgstr "需要邮件服务器"
 
-msgid "Not at {address}: {keptNames}"
-msgstr "未指向 {address}：{keptNames}"
+msgid "Not at {address} yet"
+msgstr "尚未指向 {address}"
 
 msgid "Open to anyone who reaches it"
 msgstr "对能访问到它的任何人开放"
@@ -13309,9 +13332,6 @@ msgstr "部分按计划运行"
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "在它的页面接管：它会继续运行，无需重启。"
 
-msgid "none yet"
-msgstr "尚无"
-
 msgid "not scheduled"
 msgstr "未安排"
 
@@ -14522,11 +14542,11 @@ msgstr "停止后它不再部署，它运行的应用继续运行。"
 msgid "{name} runs on this server"
 msgstr "此服务器上运行着 {name}"
 
-msgid "Read this deploy's logs"
-msgstr "查看此次部署的日志"
+msgid "Read this deployment's logs"
+msgstr "查看这次部署的日志"
 
-msgid "Read {name}'s logs from this deploy"
-msgstr "阅读此次部署中 {name} 的日志"
+msgid "Read {name}'s logs from this deployment"
+msgstr "查看 {name} 在这次部署中的日志"
 
 msgid "Can't read the lines around it"
 msgstr "无法读取它前后的日志"

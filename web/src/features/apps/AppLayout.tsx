@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { BuildState, ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
+import { Button, ButtonLink, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
@@ -35,6 +35,7 @@ import {
 import { shortCommit, shownRepository } from "./Build";
 import { DeploySheet } from "./DeploySheet";
 import { AppDeployAction } from "./deployAction";
+import { lookOf, useAppDomains, visitorUrl } from "./domains";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
@@ -245,10 +246,28 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const mayRestart = may(ChangeService.method.restartService, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
+  // One Open, in the header, to the app's domain once it serves and anyone may reach it (#797):
+  // a held one opens from its callout, through the panel.
+  const reached = useAppDomains(service).domains.flatMap((domain) =>
+    lookOf(domain).state === "serving"
+      ? domain.routes.filter((route) => !route.held && route.path === "").map((route) => visitorUrl(domain, route))
+      : [],
+  );
+  const opensAt = reached[0];
   // The command bar offers what the header does, first (#795): only what the reader may do.
   const navigate = useNavigate();
   const mayChange = runtime ? mayChangeVersion : mayDeploy;
   usePageCommands([
+    ...(opensAt
+      ? [
+          {
+            id: "open",
+            icon: "external" as const,
+            label: t`Open ${name} at its domain`,
+            run: () => void window.open(opensAt, "_blank", "noopener"),
+          },
+        ]
+      : []),
     ...(changeable && mayChange.allowed
       ? [
           {
@@ -386,6 +405,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       }
       actions={
         <>
+          {opensAt ? (
+            <ButtonLink href={opensAt} target="_blank" rel="noreferrer" icon="external">
+              <Trans context="open an app at its domain">Open</Trans>
+            </ButtonLink>
+          ) : null}
           {restartable ? (
             <Button icon="refresh" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>

@@ -103,6 +103,8 @@
   font-size: 12.5px;
   line-height: 18px;
   color: var(--ink-muted);
+  /* A long name with no break in it, such as a server's, wraps rather than widen the page (#797). */
+  overflow-wrap: anywhere;
 }
 .dw-field-error {
   color: var(--critical);

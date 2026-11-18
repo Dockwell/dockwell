@@ -1255,7 +1255,7 @@ describe("Activity", () => {
         watchLogs: quietLogs,
       },
     });
-    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    const link = await screen.findByRole("link", { name: "Read this deployment's logs" });
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${failedChange.id}`);
     await userEvent.setup().click(link);
     await waitFor(() => expect(router.state.location.pathname).toBe(`/apps/${service?.id}/logs`));
@@ -1274,7 +1274,7 @@ describe("Activity", () => {
         watchLogs: quietLogs,
       },
     });
-    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    const link = await screen.findByRole("link", { name: "Read this deployment's logs" });
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${done.id}`);
   });
 
@@ -1302,10 +1302,10 @@ describe("Activity", () => {
     );
     await waitFor(() => expect(listLogSources).toHaveBeenCalledTimes(1));
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
-    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
     hasContainer = true;
     act(() => watch.push(since([changeEvent(done)])));
-    const link = await screen.findByRole("link", { name: "Read this deploy's logs" });
+    const link = await screen.findByRole("link", { name: "Read this deployment's logs" });
     expect(link).toHaveAttribute("href", `/apps/${service?.id}/logs?change=${done.id}`);
     expect(listLogSources).toHaveBeenCalledTimes(2);
   });
@@ -1326,7 +1326,7 @@ describe("Activity", () => {
     });
     await waitFor(() => expect(listLogSources).toHaveBeenCalled());
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
-    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
   });
 
   it("offers no logs of a deploy whose server went away", async () => {
@@ -1349,7 +1349,7 @@ describe("Activity", () => {
     });
     await waitFor(() => expect(getChange).toHaveBeenCalled());
     await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
-    expect(screen.queryByRole("link", { name: "Read this deploy's logs" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Read this deployment's logs" })).toBeNull();
   });
 
   it("still offers them while a server can't say", async () => {
@@ -1365,7 +1365,7 @@ describe("Activity", () => {
         watchLogs: quietLogs,
       },
     });
-    expect(await screen.findByRole("link", { name: "Read this deploy's logs" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "Read this deployment's logs" })).toBeVisible();
   });
 
   it("counts only the steps that ran to the end", async () => {

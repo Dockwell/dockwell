@@ -93,6 +93,8 @@ export function AppSettings() {
   const latest = useRef(service);
   latest.current = service;
   const editButtons = useRef(new Map<SectionId, HTMLElement | null>());
+  // How often each form edited in place was put back, which starts it again.
+  const [resets, setResets] = useState<Partial<Record<SectionId, number>>>({});
   const [returnTo, setReturnTo] = useState<SectionId>();
   const app = appOf(service);
   const name = nameOf(service);
@@ -176,7 +178,13 @@ export function AppSettings() {
     move: t`Project`,
     danger: t`Danger zone`,
   };
-  const section = (id: SectionId, facts: (app: Container) => ReactNode, form: (props: FormProps) => ReactNode) => {
+  const section = (
+    id: SectionId,
+    facts: (app: Container) => ReactNode,
+    form: (props: FormProps) => ReactNode,
+    /** Its fields are there to change, with no Edit first, as a common setting's are (#797). */
+    inPlace = false,
+  ) => {
     const open = editing?.id === id ? editing : undefined;
     const from = open?.from ?? service;
     const fromApp = appOf(from) ?? app;
@@ -187,10 +195,26 @@ export function AppSettings() {
         title={label[id]}
         wide={id === "mounts"}
         editing={open !== undefined}
+        inPlace={inPlace}
         editRef={(el) => editButtons.current.set(id, el)}
         onEdit={() => setEditing({ id, from: service, form: service.revision })}
       >
-        {open ? (
+        {inPlace && !open ? (
+          // As it is now, and again from each new revision; Cancel puts back what it is.
+          <div key={`${service.revision}:${resets[id] ?? 0}`}>
+            {form({
+              service,
+              app,
+              image,
+              name,
+              root: service.hostAccess.some((a) => a.sameAsRoot),
+              moving,
+              inPlace: true,
+              plan: plan(id, service),
+              onCancel: () => setResets((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 })),
+            })}
+          </div>
+        ) : open ? (
           <div key={`${open.form}`}>
             {open.note ? (
               <Callout tone="info" className="app-settings-note">
@@ -259,6 +283,7 @@ export function AppSettings() {
             (props) => (
               <ResourcesForm {...props} />
             ),
+            true,
           )}
           {section(
             "ports",
@@ -283,6 +308,7 @@ export function AppSettings() {
                 "updates",
                 () => <UpdatesFacts service={service} />,
                 (props) => <UpdatesForm {...props} />,
+                true,
               )
             : null}
           <div id="move" className="app-settings-anchor is-wide">
@@ -343,6 +369,7 @@ function Section({
   title,
   wide,
   editing,
+  inPlace = false,
   editRef,
   onEdit,
   children,
@@ -352,6 +379,8 @@ function Section({
   /** Spans both columns, as what it lists runs wide. */
   wide?: boolean;
   editing: boolean;
+  /** Its form is open as it is, so there's no Edit. */
+  inPlace?: boolean;
   editRef: (el: HTMLButtonElement | null) => void;
   onEdit: () => void;
   children: ReactNode;
@@ -375,7 +404,7 @@ function Section({
         title={title}
         className={cx("app-settings-section", editing && "is-editing")}
         actions={
-          editing ? null : (
+          editing || inPlace ? null : (
             <Button ref={editRef} size="sm" variant="ghost" icon="edit" aria-label={t`Edit ${title}`} onClick={onEdit}>
               <Trans>Edit</Trans>
             </Button>
@@ -399,6 +428,8 @@ interface FormProps {
   moving: boolean;
   plan: (summary: string, edits: Edits) => void;
   onCancel: () => void;
+  /** Open as it is, on the page: its foot shows once something changes (#797). */
+  inPlace?: boolean;
 }
 
 /** Cancel and Review plan, after what applying this asks of you. */
@@ -408,6 +439,7 @@ function Foot({
   moving,
   limits,
   unchanged,
+  inPlace = false,
   onCancel,
 }: {
   name: string;
@@ -416,9 +448,12 @@ function Foot({
   /** Limits never ask for a passkey, whatever the app reaches. */
   limits?: boolean;
   unchanged: boolean;
+  /** A form open on the page says nothing until something in it changes. */
+  inPlace?: boolean;
   onCancel: () => void;
 }) {
   const { t } = useLingui();
+  if (inPlace && unchanged) return null;
   const note = moving
     ? t`A change is applying to ${name}. Review this once it ends.`
     : unchanged
@@ -968,8 +1003,12 @@ function ResourcesFacts({ app }: { app: Container }) {
     <Facts>
       <Fact term={t`CPU`}>{r?.cpus ? <Trans>{r.cpus} vCPU</Trans> : <Muted>{t`No limit`}</Muted>}</Fact>
       <Fact term={t`Memory`}>{r?.memory ? <code>{r.memory}</code> : <Muted>{t`No limit`}</Muted>}</Fact>
-      <Fact term={t`Kept for it`}>
-        {r?.memoryReservation ? <code>{r.memoryReservation}</code> : <Muted>{t`Nothing set aside`}</Muted>}
+      <Fact term={t`Reserved`}>
+        {r?.memoryReservation ? (
+          <code>{r.memoryReservation}</code>
+        ) : (
+          <Muted>{t({ message: "None", context: "memory reserved" })}</Muted>
+        )}
       </Fact>
     </Facts>
   );
@@ -988,7 +1027,7 @@ const MEMORY_PICKS = [
 const CPU_PICKS = ["0.5", "1", "2", "4", "8"];
 const OTHER = "other";
 
-function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPlace }: FormProps) {
   const { t, i18n } = useLingui();
   // What its server has, so a limit is picked from what fits.
   const fleet = useFleet();
@@ -1020,7 +1059,7 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: For
         reserved.trim() !== "" && !validMemory(reserved)
           ? mem
           : reserved.trim() !== "" && memory.trim() !== "" && (parseMemory(reserved) ?? 0) > (parseMemory(memory) ?? 0)
-            ? t`Keep no more for it than its limit, ${memory}.`
+            ? t`Reserve no more for it than its limit, ${memory}.`
             : undefined,
     };
     setErrors(next);
@@ -1092,12 +1131,12 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: For
         </div>
       </div>
       <Advanced
-        label={t`Memory kept for it`}
-        summary={reserved.trim() ? reserved.trim() : t`Nothing set aside`}
+        label={t`Memory reserved`}
+        summary={reserved.trim() ? reserved.trim() : t({ message: "None", context: "memory reserved" })}
         defaultOpen={errors.reserved !== undefined || reserved !== ""}
       >
         <TextField
-          label={t`Memory kept for it`}
+          label={t`Memory reserved`}
           mono
           value={reserved}
           placeholder={t`None`}
@@ -1106,10 +1145,21 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel }: For
           onChange={(event) => setReserved(event.target.value)}
         />
       </Advanced>
-      <p className="app-settings-help">
-        <Trans>Docker changes a limit on the running container, except to lift one, which replaces it.</Trans>
-      </p>
-      <Foot name={name} root={root} moving={moving} limits unchanged={unchanged} onCancel={onCancel} />
+      {/* On the page as it is, it says how a limit applies once there's one to apply. */}
+      {inPlace && unchanged ? null : (
+        <p className="app-settings-help">
+          <Trans>Docker changes a limit on the running container, except to lift one, which replaces it.</Trans>
+        </p>
+      )}
+      <Foot
+        name={name}
+        root={root}
+        moving={moving}
+        limits
+        unchanged={unchanged}
+        inPlace={inPlace ?? false}
+        onCancel={onCancel}
+      />
     </form>
   );
 }
@@ -1758,7 +1808,7 @@ function useWeekdayNames(): string[] {
   return Array.from({ length: 7 }, (_, d) => format.format(new Date(Date.UTC(1970, 0, 4 + d))));
 }
 
-function UpdatesForm({ service, app, name, root, moving, plan, onCancel }: FormProps) {
+function UpdatesForm({ service, app, name, root, moving, plan, onCancel, inPlace }: FormProps) {
   const { t } = useLingui();
   const level = useLevelWords();
   const movingWords = useMovingTagWords();
@@ -1883,7 +1933,14 @@ function UpdatesForm({ service, app, name, root, moving, plan, onCancel }: FormP
           </p>
         </>
       )}
-      <Foot name={name} root={root} moving={moving} unchanged={unchanged} onCancel={onCancel} />
+      <Foot
+        name={name}
+        root={root}
+        moving={moving}
+        unchanged={unchanged}
+        inPlace={inPlace ?? false}
+        onCancel={onCancel}
+      />
     </form>
   );
 }

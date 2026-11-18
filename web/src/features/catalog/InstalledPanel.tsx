@@ -6,8 +6,8 @@ import { CatalogInstallSchema, CatalogService, type ServiceInfo } from "@dockwel
 import { Button, Panel } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-
 import { RouterButtonLink } from "../../lib/links";
 import { environmentOf } from "../apps/app";
 import { useUpgrade } from "../apps/upgrade";
@@ -102,7 +102,7 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
   if (notes.length > 0) {
     rows.push({
       key: "notes",
-      label: <Trans>Its notes</Trans>,
+      label: <Trans context="catalog card">Notes</Trans>,
       value: plural(notes.length, { one: "# note from its catalog", other: "# notes from its catalog" }),
       action: (
         <Button variant="ghost" size="sm" aria-expanded={notesOpen} onClick={() => setNotesOpen(!notesOpen)}>
@@ -123,9 +123,10 @@ export function InstalledPanel({ service }: { service: ServiceInfo }) {
       <Panel
         title={t`From the catalog`}
         actions={
-          <RouterButtonLink to="/variables" search={{ environment }} variant="ghost" size="sm">
-            <Trans>Its secrets</Trans>
-          </RouterButtonLink>
+          // A card's header links read alike, as the page's other cards' do (#797).
+          <Link to="/variables" search={{ environment }} className="app-panel-link">
+            <Trans>Secrets</Trans>
+          </Link>
         }
       >
         {/* An install whose owner Dockwell makes, or that's held until a person sets it up, says

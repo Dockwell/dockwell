@@ -80,6 +80,7 @@ import {
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
 import { type DomainRead, lookOf, mayBeBehind, routeWhere, useAppDomains, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
+import { envCountWords } from "./envCounts";
 import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
 import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
@@ -1377,12 +1378,7 @@ function ConfigurationPanel() {
         <dd>
           {values.length > 0 ? (
             <Link to="/apps/$serviceId/environment" params={{ serviceId: service.id }}>
-              {[
-                plain > 0 ? plural(plain, { one: "# variable", other: "# variables" }) : "",
-                secrets > 0 ? plural(secrets, { one: "# secret", other: "# secrets" }) : "",
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              {envCountWords(plain, secrets)}
             </Link>
           ) : (
             <span className="app-muted">{t`None set`}</span>

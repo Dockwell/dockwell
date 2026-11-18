@@ -45,7 +45,7 @@ export function DeployLogLink({
       search={change ? { change } : { revision: Number(revision ?? 0) }}
     >
       <Icon name="terminal" size={14} />
-      {name ? <Trans>Read {name}'s logs from this deploy</Trans> : <Trans>Read this deploy's logs</Trans>}
+      {name ? <Trans>Read {name}'s logs from this deployment</Trans> : <Trans>Read this deployment's logs</Trans>}
     </Link>
   );
 }

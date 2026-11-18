@@ -81,7 +81,6 @@ const appOf = (request: ProposeChangeRequest | undefined): Container | undefined
 
 describe("an app's settings", () => {
   it("says what its image runs where the app sets nothing, and offers limits that fit its server", async () => {
-    const user = userEvent.setup();
     const service = anApp("web", "nginx:1.27", { ports: [{ hostPort: 8080, containerPort: 80 }] });
     service.revision = 4n;
     const watch = feed<WatchServersResponse>();
@@ -118,7 +117,6 @@ describe("an app's settings", () => {
     expect(screen.getByRole("region", { name: "Health check" })).toHaveTextContent(
       "curl -f http://localhost/ the image's",
     );
-    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
     const form = screen.getByRole("form", { name: "Edit Resources" });
     const memory = within(form).getByRole("combobox", { name: "Memory limit" });
     expect(
@@ -225,7 +223,6 @@ describe("an app's settings", () => {
       within(screen.getByRole("form", { name: "Edit General" })).getByRole("button", { name: "Cancel" }),
     );
 
-    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
     const form = screen.getByRole("form", { name: "Edit Resources" });
     await user.selectOptions(within(form).getByRole("combobox", { name: "Memory limit" }), "256M");
     expect(within(form).getByText("A limit never asks for your passkey, whatever web reaches.")).toBeVisible();
@@ -240,10 +237,13 @@ describe("an app's settings", () => {
     const proposals: ProposeChangeRequest[] = [];
     renderAt("/apps/svc_web/settings", api(anEditedApp(), proposals));
     await ready();
-    expect(section("Automatic updates")).toHaveTextContent("Nothing on its own: each update waits for you");
-    await user.click(screen.getByRole("button", { name: "Edit Automatic updates" }));
-    const form = screen.getByRole("form", { name: "Edit Automatic updates" });
-    expect(within(form).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    // Edited in place, as a common setting is: nothing to review until something changes (#797).
+    const form = within(section("Automatic updates")).getByRole("form", { name: "Edit Automatic updates" });
+    expect(within(form).getByRole("combobox", { name: "Updates it takes on its own" })).toHaveDisplayValue(
+      "Off: each update waits for you",
+    );
+    expect(within(form).queryByRole("button", { name: /Review plan/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Automatic updates" })).toBeNull();
     await user.selectOptions(
       within(form).getByRole("combobox", { name: "Updates it takes on its own" }),
       "Patch updates",
@@ -276,7 +276,6 @@ describe("an app's settings", () => {
     const user = userEvent.setup();
     renderAt("/apps/svc_web/settings", api(anApp("web", "nginx:1.27.3")));
     await ready();
-    await user.click(screen.getByRole("button", { name: "Edit Automatic updates" }));
     const form = screen.getByRole("form", { name: "Edit Automatic updates" });
     await user.selectOptions(
       within(form).getByRole("combobox", { name: "Updates it takes on its own" }),
@@ -506,7 +505,6 @@ describe("an app's settings, where it could go wrong", () => {
     };
     renderAt("/apps/svc_web/settings", stale);
     await ready();
-    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Memory limit" }), "256M");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
     expect(
@@ -664,21 +662,20 @@ describe("an app's settings, where it could go wrong", () => {
     expect(within(form).queryByText(/asks for your passkey/)).toBeNull();
   });
 
-  it("keeps no more memory for it than its limit, and reads amounts as the server does", async () => {
+  it("reserves no more memory for it than its limit, and reads amounts as the server does", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     renderAt("/apps/svc_web/settings", api(anEditedApp(), proposals));
     await ready();
-    await user.click(screen.getByRole("button", { name: "Edit Resources" }));
     // An amount that isn't one of the picks is typed, under Other.
     await user.selectOptions(screen.getByRole("combobox", { name: "Memory limit" }), "other");
     await user.type(screen.getByRole("textbox", { name: "Memory limit, typed" }), "1.5G");
-    await user.click(screen.getByRole("button", { name: "Memory kept for it" }));
-    await user.type(screen.getByRole("textbox", { name: "Memory kept for it" }), "2Gi");
+    await user.click(screen.getByRole("button", { name: "Memory reserved" }));
+    await user.type(screen.getByRole("textbox", { name: "Memory reserved" }), "2Gi");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
-    expect(screen.getByText("Keep no more for it than its limit, 1.5G.")).toBeVisible();
-    await user.clear(screen.getByRole("textbox", { name: "Memory kept for it" }));
-    await user.type(screen.getByRole("textbox", { name: "Memory kept for it" }), "1Gi");
+    expect(screen.getByText("Reserve no more for it than its limit, 1.5G.")).toBeVisible();
+    await user.clear(screen.getByRole("textbox", { name: "Memory reserved" }));
+    await user.type(screen.getByRole("textbox", { name: "Memory reserved" }), "1Gi");
     await user.click(screen.getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(proposals).toHaveLength(1));
     expect(appOf(proposals[0])?.resources).toEqual(

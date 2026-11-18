@@ -204,7 +204,9 @@ describe("What an installed app says of itself", () => {
     expect(closing?.case === "service" && closing.value.shownEnv).toContain("GITEA__service__DISABLE_REGISTRATION");
     await user.keyboard("{Escape}");
     // What follows the domain is state alone: a route moves it, in the plan that routes it.
-    expect(within(panel).getByText(/Follow git\.example\.com: GITEA__server__ROOT_URL/)).toBeVisible();
+    expect(within(panel).getByText("Follow its domain")).toBeVisible();
+    // The plain words, never the variable's raw name (#797).
+    expect(panel).not.toHaveTextContent("GITEA__server__ROOT_URL");
     expect(within(panel).queryByRole("button", { name: /Set to/ })).toBeNull();
   });
 
@@ -239,7 +241,7 @@ describe("What an installed app says of itself", () => {
       ),
     );
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    expect(await within(panel).findByText(/Not at git\.example\.com: GITEA__server__ROOT_URL/)).toBeVisible();
+    expect(await within(panel).findByText("Not at git.example.com yet")).toBeVisible();
     await user.click(within(panel).getByRole("button", { name: "Set to git.example.com" }));
     await waitFor(() => expect(proposed).toHaveLength(1));
     // The value as the entry writes it, which the control plane renders at the address.
@@ -380,15 +382,27 @@ describe("What an installed app says of itself", () => {
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("opens it on localhost from any port it publishes, with a domain or without", async () => {
+  it("opens it on localhost from a port it publishes, until it has a domain", async () => {
+    renderAt(
+      "/apps/svc_gitea",
+      openable(() => {}, { ports: [{ hostIp: "", hostPort: 3000, containerPort: 3000 }] }).api,
+    );
+    const panel = await screen.findByRole("region", { name: "From the catalog" });
+    expect(await within(panel).findByText("Published on port 3000")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Open Gitea" })).toBeVisible();
+  });
+
+  it("leaves the way in to its domain, once it has one, to the header's Open (#797)", async () => {
     renderAt(
       "/apps/svc_gitea",
       openable(() => {}, { ports: [{ hostIp: "", hostPort: 3000, containerPort: 3000 }], domains: ["git.example.com"] })
         .api,
     );
     const panel = await screen.findByRole("region", { name: "From the catalog" });
-    expect(await within(panel).findByText("Published on port 3000")).toBeVisible();
-    expect(within(panel).getByRole("button", { name: "Open Gitea" })).toBeVisible();
+    // Once its domain is read, as the Owner row says with one.
+    await within(panel).findByText("Its first account");
+    expect(within(panel).queryByText("Published on port 3000")).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Open Gitea" })).toBeNull();
   });
 
   it("leaves Close sign-ups and the sign-in's Reveal in place for a viewer, off, with why", async () => {
