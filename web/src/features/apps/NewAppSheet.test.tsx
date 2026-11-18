@@ -1582,7 +1582,7 @@ describe("New app, from an image", () => {
         {},
         aServer({ id: SERVER, name: "hz-1", stats: sample(10, 7) }),
         aServer({ id: "srv_2", name: "hz-2", stats: sample(10, 1) }),
-        aServer({ id: "srv_3", name: "db-3", connection: Connection.DISCONNECTED, stats: sample(10, 0.1) }),
+        aServer({ id: "srv_3", name: "db-3", connection: Connection.UNREACHABLE, stats: sample(10, 0.1) }),
       ),
     );
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });

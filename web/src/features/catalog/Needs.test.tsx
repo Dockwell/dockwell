@@ -581,7 +581,34 @@ function mailApi(more: Api["catalog"] = {}): Api {
 }
 
 describe("An app's mail as it's installed (ADR 0099)", () => {
-  it("installs with no mail by default, sets up a connection with who it sends as, one that can't off with why", async () => {
+  it("says in a line that an app that can't go without mail has no mail server yet, with Add a mail server beside it", async () => {
+    const needsMail = create(EntrySchema, {
+      ...withMail,
+      needs: withMail.needs.map((n) => (n.name === "mail" ? create(NeedSchema, { ...n, optional: false }) : n)),
+    });
+    const options = [ownMariaDB, plain];
+    const base = api(options);
+    renderAt("/catalog/wordpress/install", {
+      ...base,
+      catalog: {
+        ...base.catalog,
+        getCatalogEntry: () => ({
+          entry: needsMail,
+          project: "wordpress",
+          values: { PORT: "8085" },
+          parts: [{ service: "wordpress", image: "wordpress:7.1.3-apache", opens: true }],
+          needs: options,
+        }),
+      },
+      connections: { listConnections: () => ({ connections: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Mail" });
+    expect(row).toHaveTextContent("No mail server yet, and WordPress needs one");
+    expect(within(row).getByRole("button", { name: "Add a mail server" })).toBeVisible();
+  });
+
+  it("installs with the only mail server that can meet it by default, with no mail a step away, and one that can't off with why", async () => {
     const user = userEvent.setup();
     let asked: InstallCatalogEntryRequest | undefined;
     const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
@@ -595,12 +622,13 @@ describe("An app's mail as it's installed (ADR 0099)", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    // The only one that can meet it is chosen at once (#792).
     const row = await within(sheet).findByRole("group", { name: "Mail" });
-    expect(row).toHaveTextContent("Not set");
-    await user.click(within(row).getByRole("button", { name: "Set up" }));
+    expect(row).toHaveTextContent("Resend");
+    await user.click(within(row).getByRole("button", { name: "Change mail" }));
     const picker = within(sheet).getByRole("group", { name: "Mail" });
     expect(picker).toHaveTextContent("Any mail server");
-    expect(within(picker).getByRole("radio", { name: /Not set/ })).toBeChecked();
+    expect(within(picker).getByRole("radio", { name: /Resend/ })).toBeChecked();
     expect(picker).toHaveTextContent("WordPress sends no mail");
     expect(
       within(picker)

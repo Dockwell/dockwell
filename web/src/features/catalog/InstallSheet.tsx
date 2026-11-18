@@ -405,7 +405,12 @@ export function InstallSheet({
   ]);
   // The way each need is met: the one picked, or the first new one. A server is shared
   // only because someone picked it (ADR 0084).
-  const pickOf = (name: string) => pickedWay(needOptions.get(name) ?? [], needPicks[name]);
+  const pickOf = (name: string) =>
+    pickedWay(
+      needOptions.get(name) ?? [],
+      needPicks[name],
+      needs.some((n) => n.name === name && isMail(n)),
+    );
   const unmet = needs.find((need) => pickOf(need.name) === undefined);
   const unmetShares = unmet !== undefined && (needOptions.get(unmet.name) ?? []).some((o) => o.why === "");
   // Where it runs, as its catalog says: a server of another architecture, or one that
