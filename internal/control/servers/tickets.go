@@ -128,7 +128,8 @@ func (s *Service) GetJoinTicket(ctx context.Context, req *connect.Request[dockwe
 	case tok.UsedAt != nil:
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_JOINED
 		out.ServerId, out.ServerName = tok.UsedBy, name
-	case !time.Now().Before(tok.ExpiresAt):
+	// By the clock Join, the list and revoke decide by, so the four agree (#800's re-check, N2).
+	case !s.ident.Now().Before(tok.ExpiresAt):
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED
 	default:
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING

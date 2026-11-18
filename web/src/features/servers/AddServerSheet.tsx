@@ -269,7 +269,6 @@ export function AddServerSheet({
     if (live.current) live.current.waiting = state === JoinTicketState.WAITING;
   }, [state]);
   const done = useRef<HTMLButtonElement>(null);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: once, as the sheet opens and closes.
   useEffect(() => {
     open.current = true;
     // While it's open, Add a server in the command bar brings it to the front rather than making another (#858's N4).

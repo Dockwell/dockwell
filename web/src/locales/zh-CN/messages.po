@@ -17676,8 +17676,11 @@ msgstr "等待中的加入命令，逐条列出"
 msgid "Stop all"
 msgstr "全部停止"
 
-msgid "Stop the join command that expires in {expires}"
-msgstr "停止 {expires}后过期的加入命令"
+msgid "Stop join command {place} of {n}, which expires in {expires}"
+msgstr "停止第 {place} 条（共 {n} 条）加入命令，它在 {expires}后过期"
+
+msgid "Stop the join command for {labels} that expires in {expires}"
+msgstr "停止 {labels} 的加入命令，它在 {expires}后过期"
 
 msgid "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"
 msgstr "{failedCount, plural, other {无法停止 # 条加入命令：{failedWhy} 它们在过期前仍然有效。请再次点击停止。}}"

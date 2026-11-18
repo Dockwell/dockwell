@@ -17676,8 +17676,11 @@ msgstr "Join commands waiting, one by one"
 msgid "Stop all"
 msgstr "Stop all"
 
-msgid "Stop the join command that expires in {expires}"
-msgstr "Stop the join command that expires in {expires}"
+msgid "Stop join command {place} of {n}, which expires in {expires}"
+msgstr "Stop join command {place} of {n}, which expires in {expires}"
+
+msgid "Stop the join command for {labels} that expires in {expires}"
+msgstr "Stop the join command for {labels} that expires in {expires}"
 
 msgid "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"
 msgstr "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"

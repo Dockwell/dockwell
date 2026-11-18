@@ -529,3 +529,31 @@ func testJoinAndRevokeRaceToOneWinner(t *testing.T, backend store.Backend) {
 	}
 	t.Logf("joins first %d, revokes first %d", joins, revokes)
 }
+
+func TestTicketsWaitByTheAuthoritysClock(t *testing.T) {
+	storetest.Each(t, testTicketsWaitByTheAuthoritysClock)
+}
+
+// What waits is the Authority's clock's to say, for GetJoinTicket, the list,
+// join and revoke alike: a ticket an hour long waits now, and two hours on
+// it's expired to all of them (#800's re-check, N2).
+func testTicketsWaitByTheAuthoritysClock(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+	tk := newTicket(t, f, time.Hour)
+	waiting, err := f.a.WaitingTickets(ctx)
+	if err != nil || len(waiting) != 1 || !f.a.Now().Before(waiting[0].ExpiresAt) {
+		t.Fatalf("now, the waiting tickets = %v, %v", waiting, err)
+	}
+	later := time.Now().Add(2 * time.Hour)
+	f.a.now = func() time.Time { return later }
+	if !f.a.Now().Equal(later) || f.a.Now().Before(waiting[0].ExpiresAt) {
+		t.Errorf("Now = %v, want the injected %v, past the ticket's %v", f.a.Now(), later, waiting[0].ExpiresAt)
+	}
+	if waiting, err := f.a.WaitingTickets(ctx); err != nil || len(waiting) != 0 {
+		t.Errorf("two hours on, the waiting tickets = %v, %v", waiting, err)
+	}
+	if _, err := f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), "late", "198.51.100.9"); !errors.Is(err, ErrTicketRejected) {
+		t.Errorf("two hours on, joining = %v, want rejected", err)
+	}
+}

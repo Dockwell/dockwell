@@ -7,11 +7,12 @@ import { type JoinTicket, ServerService } from "@dockwell/api";
 import { Button, Glyph, Icon, STATUS, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useNow } from "../../lib/time";
 import { useMay } from "../auth/may";
+import { labelText } from "./labels";
 import "./WaitingJoinTickets.css";
 
 /** How often the list is read while the page is open, so a ticket used or expired elsewhere goes. */
@@ -63,6 +64,11 @@ export function WaitingJoinTickets() {
   const [stopping, setStopping] = useState<string>();
   const [failure, setFailure] = useState<{ count: number; why: string }>();
   const waiting = list.data?.tickets ?? [];
+  // Down to one, the rows close, so a second that comes later doesn't open them by itself (#800's re-check, N3).
+  const several = waiting.length > 1;
+  useEffect(() => {
+    if (!several) setOpen(false);
+  }, [several]);
   if (!mayList || waiting.length === 0) return null;
   // How long until a time, in the largest whole unit: "52 min", "23 h", and never less than a minute.
   const left = (at: number) => {
@@ -124,9 +130,15 @@ export function WaitingJoinTickets() {
       </span>
       {n > 1 && open ? (
         <ul id={rowsId} className="servers-waiting-rows" aria-label={t`Join commands waiting, one by one`}>
-          {waiting.map((ticket) => {
+          {waiting.map((ticket, i) => {
             const keys = Object.keys(ticket.labels).sort();
             const expires = left(expiryOf(ticket));
+            // A name of its own for each Stop: by its labels, or by its place where it has none (#800's re-check, N1).
+            const labels = keys.map((k) => labelText(k, ticket.labels[k] ?? "")).join(" ");
+            const place = i + 1;
+            const name = labels
+              ? t`Stop the join command for ${labels} that expires in ${expires}`
+              : t`Stop join command ${place} of ${n}, which expires in ${expires}`;
             return (
               <li key={ticket.id} className="servers-waiting-row">
                 <span className="servers-waiting-when">{t`Expires in ${expires}`}</span>
@@ -142,7 +154,7 @@ export function WaitingJoinTickets() {
                   variant="ghost"
                   loading={stopping === ticket.id}
                   disabled={stopping !== undefined && stopping !== ticket.id}
-                  aria-label={t`Stop the join command that expires in ${expires}`}
+                  aria-label={name}
                   onClick={() => void stop([ticket], ticket.id)}
                   {...mayStop.off}
                 >

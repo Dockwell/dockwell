@@ -364,6 +364,10 @@ func (a *Authority) CreateLabeledTicket(ctx context.Context, controlURL, actor s
 	return Ticket{Value: value, TokenID: tok.ID, ExpiresAt: tok.ExpiresAt}, nil
 }
 
+// Now is the time by the clock Join, RevokeTicket and WaitingTickets decide by, for
+// anything else that says whether a ticket still waits.
+func (a *Authority) Now() time.Time { return a.now() }
+
 // WaitingTickets returns the join tokens still waiting, newest first, by the same
 // clock Join and RevokeTicket decide by, so the three agree on what waits.
 func (a *Authority) WaitingTickets(ctx context.Context) ([]store.JoinToken, error) {

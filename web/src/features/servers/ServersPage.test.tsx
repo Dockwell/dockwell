@@ -1212,11 +1212,48 @@ describe("join commands waiting (#800)", () => {
     );
     expect(rows.map((r) => r.textContent)).toEqual(["Expires in 40 minpool:webregion:euStop", "Expires in 12 minStop"]);
     await user.click(
-      within(rows[0] as HTMLElement).getByRole("button", { name: "Stop the join command that expires in 40 min" }),
+      within(rows[0] as HTMLElement).getByRole("button", {
+        name: "Stop the join command for pool:web region:eu that expires in 40 min",
+      }),
     );
     await waitFor(() => expect(band).toHaveTextContent("1 join command waiting · expires in 12 min"));
     expect(revoked).toEqual(["jtk_2"]);
     expect(within(band).getByRole("button", { name: "Stop" })).toBeVisible();
+  });
+
+  it("names each row's Stop apart, and opens its rows only when asked (#800's re-check, N1, N3)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let open = [waiting("jtk_2", 30), waiting("jtk_1", 30)];
+    let read = 0;
+    const listJoinTickets = vi.fn(() => {
+      read++;
+      return { tickets: open };
+    });
+    renderServers([web1, web2()], "/servers", { servers: { listJoinTickets } });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: /2 join commands waiting/ }));
+    // Two made in the same minute, with no labels: told apart by their place.
+    expect(
+      within(band).getByRole("button", { name: "Stop join command 1 of 2, which expires in 30 min" }),
+    ).toBeVisible();
+    expect(
+      within(band).getByRole("button", { name: "Stop join command 2 of 2, which expires in 30 min" }),
+    ).toBeVisible();
+
+    // Down to one, then two again: the rows stay closed until asked.
+    open = [waiting("jtk_2", 30)];
+    const reads = read;
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    await waitFor(() => expect(read).toBeGreaterThan(reads));
+    await waitFor(() => expect(band).toHaveTextContent("1 join command waiting"));
+    open = [waiting("jtk_3", 50), waiting("jtk_2", 30)];
+    const again = read;
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    await waitFor(() => expect(read).toBeGreaterThan(again));
+    const toggle = await within(band).findByRole("button", { name: /2 join commands waiting/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(band).queryByRole("list")).toBeNull();
   });
 
   it("shows what the server lists, though the browser's clock has run past it (#800's review, L3)", async () => {
