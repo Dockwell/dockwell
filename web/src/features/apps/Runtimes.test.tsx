@@ -442,7 +442,9 @@ describe("New app, from a folder", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
-    await user.click(within(runsOn).getByRole("checkbox", { name: "hz-1" }));
+    // hz-1 is chosen at once (#792); hz-2 is added beside it.
+    await user.click(await within(runsOn).findByRole("button", { name: "Change where it runs" }));
+    expect(within(runsOn).getByRole("checkbox", { name: "hz-1" })).toBeChecked();
     await user.click(within(runsOn).getByRole("checkbox", { name: "hz-2" }));
     await user.type(within(sheet).getByLabelText("Folder"), "/srv/api");
     const on1 = await within(sheet).findByText("hz-1", { selector: ".app-folder-on span" });
