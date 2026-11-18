@@ -141,7 +141,9 @@ export function StoreTile({
           <span className="store-tile-name" title={named(store)}>
             {named(store)}
           </span>
-          <span className="store-licence">{licence(store.license)}</span>
+          <span className="store-licence" title={licence(store.license)}>
+            {licence(store.license)}
+          </span>
         </span>
         <StoreFacts store={store} />
       </span>

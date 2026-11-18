@@ -71,6 +71,7 @@ import { nextFree } from "../catalog/freeName";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { registryOf, useRegistryLogins } from "../registries/registries";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
+import { serverStatus } from "../servers/server";
 import { useFleet, useFleetView } from "../servers/useFleet";
 import { useGitRepositories } from "../settings/github";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -2835,7 +2836,11 @@ export function defaultServer(
   unfit?: (server: FleetServer) => string | undefined,
 ): { id: string; why: "only" | "memory" } | undefined {
   const can = servers.filter((s) => s.connection === Connection.CONNECTED && unfit?.(s) === undefined);
-  const best = [...can].sort((a, b) => free(b.id) - free(a.id) || a.name.localeCompare(b.name))[0];
+  // A degraded server comes after every healthy one (the review's L3).
+  const worse = (s: FleetServer) => (serverStatus(s) === "degraded" ? 1 : 0);
+  const best = [...can].sort(
+    (a, b) => worse(a) - worse(b) || free(b.id) - free(a.id) || a.name.localeCompare(b.name),
+  )[0];
   if (!best) return undefined;
   return { id: best.id, why: can.length === 1 ? "only" : "memory" };
 }

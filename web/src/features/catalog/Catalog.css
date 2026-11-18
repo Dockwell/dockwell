@@ -1043,6 +1043,13 @@
   min-width: 0;
 }
 
+/* Why an install stays on its server, under the line (#792's review, M3). */
+.catalog-domain-why {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+
 .catalog-chosen-state {
   display: inline-flex;
   align-items: center;

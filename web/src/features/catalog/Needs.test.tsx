@@ -712,6 +712,49 @@ describe("An app's domain as it's installed (#792)", () => {
     });
   });
 
+  it("stays on the server alone, saying why, where the server has no way in, and says why when asked for a domain anyway", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    const base = zoned({
+      installCatalogEntry: (req) => {
+        asked = req;
+        return { change };
+      },
+    });
+    const off = "web-1 has no public address and no tunnel";
+    renderAt("/catalog/wordpress/install", {
+      ...base,
+      domains: {
+        ...base.domains,
+        checkDomain: () => ({
+          cloudflare: {
+            zone: "example.com",
+            provider: "cloudflare",
+            state: CloudflareName.FREE,
+            way: RouteWay.SERVER_TUNNEL,
+            ways: [{ way: RouteWay.SERVER_TUNNEL, off }],
+            sslMode: "full",
+          },
+        }),
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Domain" }, { timeout: 3000 });
+    expect(row).toHaveTextContent("Only on the server, at its port");
+    expect(row).toHaveTextContent(off);
+    await user.click(within(row).getByRole("button", { name: "Add a domain" }));
+    expect(await within(sheet).findByRole("textbox", { name: "Subdomain" })).toHaveValue("wordpress");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    // Review plan never stops without a word: the reason is under the field.
+    await waitFor(() => expect(within(sheet).getAllByText(off).length).toBeGreaterThan(0));
+    expect(asked).toBeUndefined();
+    await user.click(within(sheet).getByRole("button", { name: "Only on the server instead" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.route).toBeUndefined();
+  });
+
   it("stays on the server alone where no zone is connected, with a domain a step away", async () => {
     const user = userEvent.setup();
     let asked: InstallCatalogEntryRequest | undefined;

@@ -229,6 +229,37 @@ describe("The catalog", () => {
     expect(within(card).queryByText(/localhost/)).not.toBeInTheDocument();
   });
 
+  it("says the domain its web service's route serves where the install has no address (#792's review, L5)", async () => {
+    renderAt("/catalog", {
+      ...api({
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              environmentId: ENV,
+              pin: { entry: "postgres", version: "17.11" },
+              webServiceId: "svc_adminer",
+            },
+          ],
+        }),
+      }),
+      services: { listServices: () => ({ services: [anApp("adminer", "adminer:6.2.0")] }) },
+      domains: {
+        listDomains: () => ({
+          domains: [
+            {
+              name: "db.example.com",
+              environmentId: ENV,
+              routes: [{ name: "db-example-com", service: "adminer", port: 8080 }],
+            },
+          ],
+        }),
+      },
+    });
+    const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
+    expect(await within(card).findByText("db.example.com")).toBeVisible();
+  });
+
   it("says when it can't read the catalog", async () => {
     renderAt(
       "/catalog",

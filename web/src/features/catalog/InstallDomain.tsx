@@ -66,7 +66,6 @@ export function useInstallDomain({
   // and the install's change has that provider serve its project (ADR 0104).
   const { zones, providers } = useZones("", admin);
   const [onServer, setOnServer] = useState<boolean>();
-  const alone = !enabled || (onServer ?? zones.length === 0);
   const [sub, setSub] = useState<string>();
   const [zonePicked, setZonePicked] = useState<string>();
   const [error, setError] = useState<string>();
@@ -76,13 +75,23 @@ export function useInstallDomain({
       : zonePicked !== undefined && (zonePicked === "" || zones.some((z) => z.zone === zonePicked))
         ? zonePicked
         : (zones[0]?.zone ?? "");
-  const publishing = !alone && zone !== "";
+  // The check runs wherever a domain is wanted, so a server with no way in is known
+  // before the field leads with a domain it couldn't take (the review's M3).
+  const wanted = enabled && onServer !== true && zones.length > 0 && zone !== "";
   const name = sub ?? (zone !== "" ? suggest : "");
   const typed = nameIn(name, zone);
-  const cf = useCloudflareCheck(server?.id ?? "", typed, "", publishing);
+  const cf = useCloudflareCheck(server?.id ?? "", typed, "", wanted);
+  const picked = pickedOf(cf.check);
+  const noWay =
+    wanted && !cf.checking && !cf.failed && cf.check !== undefined && !cf.check.ways.some((w) => w.off === "");
+  // With no way in on the server, and no domain asked for yet, it stays on the server
+  // and says why; Add a domain is still one step away.
+  const fellBack = noWay && onServer === undefined;
+  const whyAlone = fellBack ? wayOf(cf.check, picked.way, picked.tunnel)?.off || cf.check?.ways[0]?.off || "" : "";
+  const alone = !enabled || (onServer ?? zones.length === 0) || fellBack;
+  const publishing = !alone && zone !== "";
   const [wayPicked, setWayPicked] = useState<{ way: number; tunnel: string }>();
-  const way =
-    wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
+  const way = wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : picked;
   const wayTakeable = wayOf(cf.check, way.way, way.tunnel)?.off === "";
   const [waysOpen, setWaysOpen] = useState(false);
   const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>({ domain: "", items: [] });
@@ -125,8 +134,11 @@ export function useInstallDomain({
     if (!publishing) return { kind: "route", route: { domain: typed.trim().toLowerCase() } };
     if (cf.checking) return { kind: "reading" };
     if (cf.failed || !cf.check || !wayTakeable) {
+      // Said under the field, so Review plan never stops without a word (the review's M3).
+      const why = cf.failed || wayOf(cf.check, way.way, way.tunnel)?.off || t`Choose a way in that the check can take.`;
       setWaysOpen(true);
-      return { kind: "fix", why: cf.failed || t`Choose a way in that the check can take.` };
+      setError(why);
+      return { kind: "fix", why };
     }
     const publish = publishOf(way.way, way.tunnel, provider, takesOver);
     return {
@@ -147,6 +159,7 @@ export function useInstallDomain({
         <button type="button" className="catalog-change" onClick={() => setOnServer(false)}>
           <Trans>Add a domain</Trans>
         </button>
+        {whyAlone ? <span className="catalog-domain-why">{whyAlone}</span> : null}
       </span>
     </fieldset>
   ) : (

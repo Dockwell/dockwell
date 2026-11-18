@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CatalogInstall, CatalogOrder, type CatalogSourceInfo, type Entry, type ServiceInfo } from "@dockwell/api";
+import {
+  type CatalogInstall,
+  CatalogOrder,
+  type CatalogSourceInfo,
+  type Domain,
+  type Entry,
+  type ServiceInfo,
+} from "@dockwell/api";
 import { Button, Callout, cx, Icon, SegmentedControl, SelectField, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -9,6 +16,8 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { nameOf } from "../apps/app";
+import { useAllDomains } from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -479,7 +488,8 @@ function Card({
   const latest = entry.version;
   // Where the one install is reached: its domain, or the server it runs on (#792).
   const services = useServices().data ?? [];
-  const where = count === 1 && first ? installedAt(first, services) : undefined;
+  const domains = useAllDomains().last?.domains ?? [];
+  const where = count === 1 && first ? installedAt(first, services, domains) : undefined;
   const body = (
     <>
       <span className="catalog-card-head">
@@ -559,6 +569,7 @@ function Card({
 function installedAt(
   install: CatalogInstall,
   services: readonly ServiceInfo[],
+  domains: readonly Domain[],
 ): { domain?: string; server?: string } | undefined {
   if (install.address) {
     try {
@@ -570,6 +581,16 @@ function installedAt(
     }
   }
   const web = services.find((s) => s.id === install.webServiceId);
+  // An entry that names no address variable has none: its web service's route says
+  // its domain (#792's review, L5).
+  const service = web ? nameOf(web) : "";
+  const routed = domains.find(
+    (d) =>
+      service !== "" &&
+      d.environmentId === install.environmentId &&
+      d.routes.some((r) => r.service === service && (r.path === "" || r.path === "/")),
+  );
+  if (routed) return { domain: routed.name };
   const server = web?.deployments.find((d) => d.serverName)?.serverName;
   return server ? { server } : undefined;
 }

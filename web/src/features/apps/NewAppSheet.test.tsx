@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
@@ -1592,6 +1593,19 @@ describe("New app, from an image", () => {
     expect(within(runsOn).getByRole("checkbox", { name: /hz-2/ })).toBeChecked();
     expect(within(runsOn).getByRole("checkbox", { name: /db-3/ })).toBeDisabled();
     expect(runsOn).toHaveTextContent("Offline, so it can't take a new app now");
+  });
+
+  it("chooses a healthy server before a degraded one with more free memory", async () => {
+    const { sheet } = await openImage(
+      api(
+        {},
+        aServer({ id: SERVER, name: "hz-1", stats: sample(10, 7) }),
+        aServer({ id: "srv_2", name: "hz-2", stats: sample(10, 1), strainedSince: timestampFromDate(new Date()) }),
+      ),
+    );
+    const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    expect(await within(runsOn).findByText("hz-1")).toBeVisible();
+    expect(within(runsOn).queryByText("hz-2")).toBeNull();
   });
 
   it("fills a phone, with room for a thumb", async () => {
