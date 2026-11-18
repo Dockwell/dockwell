@@ -38,8 +38,8 @@ type Backend interface {
 // 0052). It judges the state the edit leaves: actual is what's there now, nil
 // for nothing, and desired what it becomes, nil to delete it.
 type Checker interface {
-	CheckRule(actual, desired *resourcev1.FirewallRule) error
-	CheckPolicy(desired *resourcev1.FirewallPolicy) error
+	CheckRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) error
+	CheckPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) error
 }
 
 // Ways are the ports someone reaches a server by, over TCP and over UDP, each
@@ -58,7 +58,7 @@ type Ways struct {
 // Reacher is a backend that knows the ways into the server. Plan warns only for
 // a rule that may close one of them (#850, ADR 0052).
 type Reacher interface {
-	WaysIn() Ways
+	WaysIn(ctx context.Context) Ways
 }
 
 // Waiter is a backend whose changes wait for their confirmation: the change's
@@ -150,7 +150,13 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 // let in, of a port someone reaches the server by, as a Reacher says. Without
 // one, or where it can't say, every deny and narrowing is flagged. It lets the
 // backend refuse what leaves the server unsafe to reach.
-func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.Judge(context.Background(), resource.Ref{}, actual, desired, changes)
+}
+
+// Judge is Plan within a plan's context, whose checks share one read of the
+// server (#850's re-check, N4).
+func (d *Driver) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
 	case actual == nil:
@@ -162,16 +168,16 @@ func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resou
 	}
 	was, _ := actual.(*resourcev1.FirewallRule)
 	r, _ := desired.(*resourcev1.FirewallRule)
-	if mayCutOff(d.Backend, was, r) {
+	if mayCutOff(ctx, d.Backend, was, r) {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
 	}
 	if c, ok := d.Backend.(Checker); ok {
-		if err := c.CheckRule(was, r); err != nil {
+		if err := c.CheckRule(ctx, was, r); err != nil {
 			return dec, err
 		}
 	}
 	if s, ok := d.Backend.(Stayer); ok {
-		dec.Stays = s.StaysAfterRule(was, r)
+		dec.Stays = s.StaysAfterRule(ctx, was, r)
 	}
 	return dec, nil
 }
@@ -218,7 +224,7 @@ func covers(sources, others []string) bool {
 // edit deletes or narrows (#850). A deny of another port, such as a database's
 // under external access, can't cut anyone off. Where the backend can't say which
 // ports those are, any deny or narrowing over that protocol may.
-func mayCutOff(backend Backend, was, r *resourcev1.FirewallRule) bool {
+func mayCutOff(ctx context.Context, backend Backend, was, r *resourcev1.FirewallRule) bool {
 	deny := r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY
 	narrowed := narrows(was, r)
 	if !deny && !narrowed {
@@ -228,7 +234,7 @@ func mayCutOff(backend Backend, was, r *resourcev1.FirewallRule) bool {
 	if !ok {
 		return true
 	}
-	ways := reacher.WaysIn()
+	ways := reacher.WaysIn(ctx)
 	return deny && reaches(r, ways) || narrowed && reaches(was, ways)
 }
 

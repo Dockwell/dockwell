@@ -14,6 +14,7 @@ import (
 	"net/http/httputil"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -323,6 +324,28 @@ func TestViaProxyBelievesOnlyLoopback(t *testing.T) {
 	}
 	if authapi.ViaProxy("", nil) != nil {
 		t.Error("with no domain, ViaProxy wraps anything")
+	}
+}
+
+// The port the proxy takes the panel's public address on is told for each
+// request it marks, as its Host names it, or 443; a request it doesn't mark
+// tells nothing (#850's re-check, N1).
+func TestViaProxyTellsThePortItCameOn(t *testing.T) {
+	t.Parallel()
+	var seen []uint16
+	h := authapi.ViaProxySeen(tunnelDomain, func(port uint16) { seen = append(seen, port) }, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	for _, tt := range []struct{ host, remote string }{
+		{tunnelDomain + ":8443", "127.0.0.1:50000"},
+		{tunnelDomain, "127.0.0.1:50000"},
+		{tunnelDomain + ":9443", "192.0.2.10:50000"},
+	} {
+		r := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+		r.Host, r.RemoteAddr = tt.host, tt.remote
+		r.Header.Set("X-Forwarded-Proto", "https")
+		h.ServeHTTP(httptest.NewRecorder(), r)
+	}
+	if !slices.Equal(seen, []uint16{8443, 443}) {
+		t.Errorf("the ports told are %v, want 8443 then 443, and none from outside loopback", seen)
 	}
 }
 

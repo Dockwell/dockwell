@@ -38,8 +38,8 @@ type Closer interface {
 // Stayer is a backend that says who still reaches SSH once an edit that narrows
 // it is kept, for the plan to name (ADR 0052).
 type Stayer interface {
-	StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource.AccessStays
-	StaysAfterRule(actual, desired *resourcev1.FirewallRule) *resource.AccessStays
+	StaysAfterPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) *resource.AccessStays
+	StaysAfterRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) *resource.AccessStays
 }
 
 // PolicyDriver manages a server's firewall policy.
@@ -91,7 +91,13 @@ func (d *PolicyDriver) Observe(ctx context.Context, _ resource.Ref) (proto.Messa
 
 // Plan flags turning deny everything else on as able to cut off access, and
 // lets the backend refuse a policy that leaves the server unsafe to reach.
-func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+func (d *PolicyDriver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.Judge(context.Background(), resource.Ref{}, actual, desired, changes)
+}
+
+// Judge is Plan within a plan's context, whose checks share one read of the
+// server (#850's re-check, N4).
+func (d *PolicyDriver) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
 	case actual == nil:
@@ -109,12 +115,12 @@ func (d *PolicyDriver) Plan(actual, desired proto.Message, _ []resource.Change) 
 		}
 	}
 	if c, ok := d.Backend.(Checker); ok {
-		if err := c.CheckPolicy(p); err != nil {
+		if err := c.CheckPolicy(ctx, p); err != nil {
 			return dec, err
 		}
 	}
 	if s, ok := d.Backend.(Stayer); ok {
-		dec.Stays = s.StaysAfterPolicy(p)
+		dec.Stays = s.StaysAfterPolicy(ctx, p)
 	}
 	return dec, nil
 }

@@ -570,17 +570,27 @@ func TestOwnPortsAreEveryListener(t *testing.T) {
 	}
 }
 
-// Behind a proxy, the ports it holds for the panel and its agents are ways in
-// for the firewall's plan; with no proxy, or no domain, there are none (#850's
-// review, H1).
-func TestAProxysPortsAreWaysIn(t *testing.T) {
-	if got := proxiedPorts(runFlags{domain: "panel.example.com", behindProxy: true}); !slices.Equal(got, []int{443, 80}) {
-		t.Errorf("behind a proxy: %v, want 443 and 80", got)
+// The ports in front of the control plane are ways in for the firewall's plan:
+// behind a proxy, https's 443 and each port the proxy's requests name; and the
+// port of the address agents are given, whatever it is. Plain http's 80 isn't
+// one, as nothing serves it behind a proxy (#850's review, H1, and its
+// re-check, N1).
+func TestThePortsInFrontOfTheControlPlaneAreWaysIn(t *testing.T) {
+	behind := runFlags{domain: "panel.example.com", behindProxy: true}
+	p := newFrontPorts(behind, "https://203.0.113.7:7443")
+	if got := p.list(); !slices.Equal(got, []uint16{443, 7443}) {
+		t.Errorf("behind a proxy, agents given 7443: %v, want 443 and 7443", got)
 	}
-	for _, f := range []runFlags{{domain: "panel.example.com"}, {behindProxy: true}, {}} {
-		if got := proxiedPorts(f); got != nil {
-			t.Errorf("%+v: %v, want none", f, got)
-		}
+	p.add(8443)
+	p.add(8443)
+	if got := p.list(); !slices.Equal(got, []uint16{443, 7443, 8443}) {
+		t.Errorf("once a request names 8443: %v", got)
+	}
+	if got := newFrontPorts(runFlags{domain: "panel.example.com"}, "https://agents.example.com").list(); !slices.Equal(got, []uint16{443}) {
+		t.Errorf("no proxy, agents given https on its default port: %v, want 443", got)
+	}
+	if got := newFrontPorts(runFlags{}, "https://203.0.113.7:7443").list(); !slices.Equal(got, []uint16{7443}) {
+		t.Errorf("no domain: %v, want the agents' 7443 alone", got)
 	}
 }
 

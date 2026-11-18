@@ -191,22 +191,32 @@ fail2ban is read where it's installed: its jails and recent bans, through `fail2
 A plan warns that it may cut off access, which makes it destructive (the typed code beside the passkey), only for a rule that can close a way into the server: a deny of a way in, or an allow of one that's deleted, narrowed or moved, each over its own protocol. The ways in are:
 
 - **Over TCP, SSH's ports:**
-  - every port SSH listens on now, as the pin reads them: what the SSH server holds, or what systemd holds for it;
-  - what `sshd -T` names, only where something listens on that port beyond loopback, as inetd does for sshd. An sshd installed but stopped answers `sshd -T` too, and on such a server people come in some other way, so its ports aren't taken as known;
+  - every port sshd itself (or Dropbear) listens on now, as the pin reads it from the listener's process;
+  - what systemd holds for `ssh.socket` or `sshd.socket`;
   - those Dockwell keeps pinned.
-- **Over TCP, on the control server,** the control plane's own listeners, the panel's and its agents'. Behind a proxy (`--behind-proxy`, or the setting), 443 and 80 count too, as the proxy holds them for the panel and for agents that join through its domain. They aren't the control plane's own, so a rule of them is warned of, not refused.
-- **Over UDP, the tunnels' ports,** such as WireGuard's.
+
+  A port that only `sshd -T` names is held by something other than sshd, if anything: inetd, or a container on the port of a stopped sshd. It still pins SSH, but SSH's ports are then unknown, as below.
+- **Over TCP, on the control server:**
+  - the control plane's own listeners, the panel's and its agents';
+  - the ports in front of them:
+    - behind a proxy (`--behind-proxy`, or the setting), the port the panel's public address names, as each request through the proxy says, and https's 443 until one names another;
+    - the port of the address agents are given (`--advertise-url`), whatever stands in front of the agent listener there.
+
+  Agents join through that address, never through the panel's domain, and nothing serves plain http behind a proxy, so 80 isn't counted. These ports aren't the control plane's own, so a rule of them is warned of, not refused.
+- **Over UDP:**
+  - every port bound beyond loopback, as an OpenVPN's, a userspace WireGuard's or Tailscale's is;
+  - kernel WireGuard's tunnels' ports, which no socket shows.
 
 **What warns nothing:** a deny of any other port, such as a database's under external access ([ADR 0038](0038-databases.md)) or an app's. Neither can cut anyone off the server, and a warning on each would stop meaning anything.
 
 **Where the ways in over a protocol can't be read,** every deny and every deleted or narrowed allow over it warns, as before:
-- over TCP, where SSH's ports aren't found;
-- over UDP, where a tunnel's port can't be read;
+- over TCP, where SSH's ports aren't found, or are only what `sshd -T` names;
+- over UDP, where the sockets, the tunnels or a tunnel's port can't be read;
 - on a server that isn't connected, which the control plane plans without its agent.
 
 Not knowing is the case the warning is for.
 
-**Who judges it:** the agent, where the ports are known (`firewall.Reacher`, beside `Checker`). A plan's checks share one read of the server's processes, from the start of the agent's plan to its end; a check outside a plan reads afresh.
+**Who judges it:** the agent, where the ports are known (`firewall.Reacher`, beside `Checker`). Each plan call's checks share one read of the server's processes, carried in that call's context; another call, and a check outside a plan, reads afresh.
 
 **What stays as it was:**
 - The refusals this record sets out.

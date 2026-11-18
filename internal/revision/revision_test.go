@@ -694,11 +694,12 @@ func testARuleThatBlocksSSHFromEverywhereIsFlagged(t *testing.T, backend store.B
 }
 
 // proxied is a firewall on a control server whose panel is behind a proxy on
-// 443 and 80, with SSH on 22 and the control plane on 7600 and 7601.
+// 443, and one on 8443 its requests name, with SSH on 22 and the control plane
+// on 7600 and 7601.
 type proxied struct{ *firewall.Fake }
 
-func (proxied) WaysIn() firewall.Ways {
-	return firewall.Ways{TCP: []uint16{22, 7600, 7601, 443, 80}, TCPKnown: true, UDPKnown: true}
+func (proxied) WaysIn(context.Context) firewall.Ways {
+	return firewall.Ways{TCP: []uint16{22, 7600, 7601, 443, 8443}, TCPKnown: true, UDPKnown: true}
 }
 
 // Behind a proxy, its port is how the panel and its agents come in: a deny of
@@ -719,6 +720,10 @@ func TestAProxysPortIsAWayIn(t *testing.T) {
 		}
 		if p := propose(t, e, "Close the proxy", deny("no-https", 443)); !mayCutOff(p) {
 			t.Errorf("a deny of 443 behind a proxy: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
+		}
+		// A proxy on another port, as the panel's requests name it (#850's re-check, N1).
+		if p := propose(t, e, "Close the other proxy", deny("no-8443", 8443)); !mayCutOff(p) {
+			t.Errorf("a deny of 8443 behind a proxy on it: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())
 		}
 		if p := propose(t, e, "Close postgres", deny("no-pg", 5432)); mayCutOff(p) || p.Destructive() {
 			t.Errorf("a deny of 5432: warnings %v, destructive %v", p.Steps()[0].Warnings, p.Destructive())

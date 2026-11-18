@@ -206,10 +206,36 @@ func TestSSHIsFoundHoweverItRuns(t *testing.T) {
 			if c.systemctl != nil || c.sshd != "" {
 				r.Tools = tools(t, c.systemctl, c.sshd)
 			}
-			if got := fmt.Sprint(read(t, r).SSHPorts); got != c.want {
+			pins := read(t, r)
+			if got := fmt.Sprint(pins.SSHPorts); got != c.want {
 				t.Errorf("SSH's ports %v, want %s", got, c.want)
 			}
+			// Only what sshd -T names, held by something other than sshd, isn't a
+			// known way in (#850's re-check, N3).
+			if byConfig := name == "inetd, with sshd -T"; pins.SSHByConfig != byConfig {
+				t.Errorf("SSH's ports by config alone: %v, want %v", pins.SSHByConfig, byConfig)
+			}
 		})
+	}
+}
+
+// The UDP ports bound beyond loopback are read from the kernel's tables, over
+// IPv4 and IPv6, as an OpenVPN's or a userspace WireGuard's would be, and where
+// they can't be, they're not taken as none (#850's re-check, N2).
+func TestUDPPortsAreReadBeyondLoopback(t *testing.T) {
+	p := newProc().
+		// OpenVPN on 0.0.0.0:1194
+		socket("net/udp", "   0: 00000000:04AA 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 2001").
+		// a resolver on 127.0.0.53:53
+		socket("net/udp", "   1: 3500007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 2002").
+		// a userspace WireGuard on [::]:41641
+		socket("net/udp6", "   0: 00000000000000000000000000000000:A2A9 00000000000000000000000000000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 2003")
+	pins := read(t, &PinReader{Proc: p.fs})
+	if !pins.UDPRead || fmt.Sprint(pins.UDPPorts) != "[1194 41641]" {
+		t.Errorf("UDP ports %v, read %v; want 1194 and 41641", pins.UDPPorts, pins.UDPRead)
+	}
+	if pins := read(t, &PinReader{Proc: newProc().fs}); pins.UDPRead {
+		t.Errorf("with no UDP table, UDP ports read as %v", pins.UDPPorts)
 	}
 }
 
@@ -234,7 +260,7 @@ func TestAnUnreadableProcIsAnError(t *testing.T) {
 	}
 	r := &PinReader{Proc: errFS{fail: "."}}
 	m := &Manager{Dir: t.TempDir(), Table: &table{}, Pins: r.Read}
-	if err := m.CheckPolicy(policy); err == nil || !strings.Contains(err.Error(), "won't narrow it") {
+	if err := m.CheckPolicy(t.Context(), policy); err == nil || !strings.Contains(err.Error(), "won't narrow it") {
 		t.Errorf("the policy's check with /proc unreadable: %v", err)
 	}
 }

@@ -39,6 +39,16 @@ type Pins struct {
 	// Own are the ports the control plane on this server listens on, for the
 	// panel and its agents, open to anywhere. Empty on a server that joined.
 	Own []uint16
+	// SSHByConfig says SSHPorts are only what sshd -T names, as something other
+	// than sshd itself listens on them, such as inetd, or a container's SSH on
+	// the port of a stopped sshd. They keep SSH's pin, but aren't taken as
+	// known ways in (#850's re-check, N3).
+	SSHByConfig bool
+	// UDPPorts are the UDP ports bound beyond loopback, any of which may be
+	// how someone reaches the server, as an OpenVPN or a userspace WireGuard is
+	// (#850's re-check, N2). UDPRead says they could be read.
+	UDPPorts []uint16
+	UDPRead  bool
 }
 
 // Rules are the pins as the table writes them.
@@ -214,13 +224,17 @@ func (r *PinReader) Read(ctx context.Context) (Pins, error) {
 	if len(pins.SSHPorts) == 0 {
 		// What sshd -T says counts only where something listens on it, as inetd
 		// does for sshd: an sshd installed but stopped answers too, and on such a
-		// server people come in some other way (#850's review, L1).
+		// server people come in some other way (#850's review, L1). Even then
+		// something other than sshd holds it, so it pins SSH but isn't known as a
+		// way in (#850's re-check, N3).
 		for _, port := range r.configuredPorts(ctx) {
 			if listening[port] {
 				pins.SSHPorts = appendNew(pins.SSHPorts, port)
+				pins.SSHByConfig = true
 			}
 		}
 	}
+	pins.UDPPorts, pins.UDPRead = r.udpPorts()
 	for _, s := range sockets {
 		if s.listening || !s.signedIn || !slices.Contains(pins.SSHPorts, s.local.Port()) || s.peer.Addr().IsLoopback() || s.local.Addr().IsLoopback() {
 			continue
@@ -540,4 +554,38 @@ func DockerReader(client *docker.Client, socket string) func(ctx context.Context
 		slices.Sort(out.Interfaces)
 		return out, nil
 	}
+}
+
+// udpPorts are the UDP ports bound beyond loopback, from /proc/net/udp and
+// udp6, and whether they could be read. Kernel WireGuard's port isn't there:
+// the tunnels say it.
+func (r *PinReader) udpPorts() ([]uint16, bool) {
+	var out []uint16
+	for _, file := range []string{"net/udp", "net/udp6"} {
+		f, err := r.Proc.Open(file)
+		if file == "net/udp6" && errors.Is(err, fs.ErrNotExist) {
+			continue // the kernel has no IPv6
+		}
+		if err != nil {
+			return nil, false
+		}
+		sc := bufio.NewScanner(f)
+		sc.Scan() // the header
+		for sc.Scan() {
+			fields := strings.Fields(sc.Text())
+			if len(fields) < 4 {
+				continue
+			}
+			if local, ok := address(fields[1]); ok && local.Port() != 0 && !local.Addr().IsLoopback() {
+				out = appendNew(out, local.Port())
+			}
+		}
+		err = sc.Err()
+		_ = f.Close()
+		if err != nil {
+			return nil, false
+		}
+	}
+	slices.Sort(out)
+	return out, true
 }
