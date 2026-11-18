@@ -245,12 +245,12 @@ func testJoinTicketsAreAnAdminsToListAndStop(t *testing.T, backend store.Backend
 		if err := list(secret); connect.CodeOf(err) != connect.CodePermissionDenied {
 			t.Errorf("a %v token listing: %v, want refused", role, err)
 		}
-		real, none := revoke(secret, tk.TokenID), revoke(secret, unknown)
-		if connect.CodeOf(real) != connect.CodePermissionDenied || connect.CodeOf(none) != connect.CodePermissionDenied {
-			t.Errorf("a %v token revoking: %v and %v, want both refused", role, real, none)
+		existing, none := revoke(secret, tk.TokenID), revoke(secret, unknown)
+		if connect.CodeOf(existing) != connect.CodePermissionDenied || connect.CodeOf(none) != connect.CodePermissionDenied {
+			t.Errorf("a %v token revoking: %v and %v, want both refused", role, existing, none)
 		}
-		if strings.ReplaceAll(real.Error(), tk.TokenID, "ID") != strings.ReplaceAll(none.Error(), unknown, "ID") {
-			t.Errorf("a refusal tells a real ticket from an unknown one: %q, %q", real, none)
+		if strings.ReplaceAll(existing.Error(), tk.TokenID, "ID") != strings.ReplaceAll(none.Error(), unknown, "ID") {
+			t.Errorf("a refusal tells a real ticket from an unknown one: %q, %q", existing, none)
 		}
 	}
 	readOnly := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY)
