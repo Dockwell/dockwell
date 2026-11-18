@@ -286,6 +286,8 @@ Decided against design/system/README.md's interaction principles, and mocked fir
 
 **Websites** take the same domain step: the new-website sheet's domain field, and a site's Add domain, use the same name-and-way component.
 
+**Catalog installs** take it too, as built for #792: the install sheet leads with the app's domain, a name under a connected zone suggested from the project, checked live, with the way in one line and Change; another domain typed whole, with the record it needs; or "Only on the server", the default where no zone is connected. The sheet sends the route whole in `InstallCatalogEntryRequest.route` (11). The install binds its service, port and name to the app's web page, refuses a redirect or a port on the server, and plans it in the install's change, where the hold (ADR 0105), the publish rules and a take-over's passkey apply as to any route edit. The provider that publishes it serves the new project in the same change, as a website's does, and the app's address follows its domain (ADR 0103).
+
 **The catalog's cloudflared entry** drops its "In Cloudflare, publish your domain on this tunnel…" step. The install guide says to give cloudflared its token in a file (`--token-file`, or `TUNNEL_TOKEN_FILE`), or else through `TUNNEL_TOKEN` as the entry does, never `--token`, which shows in the server's process list.
 
 **Mocks,** in design/mocks, beside Domain-Add:
