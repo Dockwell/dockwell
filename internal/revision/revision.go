@@ -6568,7 +6568,9 @@ func (e *Engine) undoPart(ctx context.Context, tx *store.Tx, rev *store.Revision
 	if err != nil {
 		return nil, false, err
 	}
-	return &Edit{Ref: ref, Reverses: true, Spec: spec, Servers: servers}, true, nil
+	// Made from latest, so a change between this read and the plan makes it stale,
+	// to be planned again, rather than dropped (#792's re-check, L9).
+	return &Edit{Ref: ref, Reverses: true, Spec: spec, Servers: servers, Base: latest.Revision}, true, nil
 }
 
 // pinIfMoved is spec, of an earlier revision, pinned to what that revision ran if
