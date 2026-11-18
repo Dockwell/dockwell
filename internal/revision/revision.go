@@ -6483,6 +6483,17 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 				return err
 			}
 			if latest.Revision != rev.Revision {
+				// What the change added to a set comes out of it as it is now, as a DNS
+				// provider's project does, where adding was all the change did (#792).
+				if ed, ok, err := e.undoPart(ctx, tx, rev, latest, changeID); err != nil || ok {
+					if err != nil {
+						return err
+					}
+					if ed != nil {
+						edits = append(edits, *ed)
+					}
+					continue
+				}
 				return fault.New(ErrCantUndo, "%s changed again in %s, so %s can't be undone whole. Undo %s first, or edit %s directly", ref, latest.ChangeID, changeID, latest.ChangeID, rev.Name)
 			}
 			ed := Edit{Ref: ref, Reverses: true}
@@ -6515,6 +6526,49 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 		return nil
 	})
 	return edits, err
+}
+
+// undoPart is the undo of rev, a change's revision of a resource changed again since,
+// as latest, where its kind takes out only what the change added
+// (resource.PartUndoer): nil, and true, where that's out of it already.
+func (e *Engine) undoPart(ctx context.Context, tx *store.Tx, rev *store.Revision, latest store.Resource, changeID string) (*Edit, bool, error) {
+	t, err := e.kinds.Type(resource.Kind(rev.Kind))
+	if err != nil {
+		return nil, false, nil //nolint:nilerr // a kind not known here is undone whole, or not
+	}
+	pu, ok := t.(resource.PartUndoer)
+	if !ok || rev.Revision < 2 || rev.Spec == nil || latest.Spec == nil {
+		return nil, false, nil
+	}
+	prev, err := tx.GetRevision(ctx, rev.ID, rev.Revision-1)
+	if err != nil || prev.Spec == nil {
+		return nil, false, err
+	}
+	before, err := e.decode(ctx, tx, store.InRevision(rev.ID, rev.Kind, prev.Revision), prev.Spec)
+	if err != nil {
+		return nil, false, err
+	}
+	after, err := e.decode(ctx, tx, store.InRevision(rev.ID, rev.Kind, rev.Revision), rev.Spec)
+	if err != nil {
+		return nil, false, err
+	}
+	now, err := e.decode(ctx, tx, store.InRevision(latest.ID, latest.Kind, latest.Revision), latest.Spec)
+	if err != nil {
+		return nil, false, err
+	}
+	spec, ok := pu.UndoPart(before, after, now)
+	if !ok {
+		return nil, false, nil
+	}
+	if proto.Equal(spec, now) {
+		return nil, true, nil
+	}
+	ref := resource.Ref{Kind: resource.Kind(rev.Kind), Scope: rev.Scope, Name: rev.Name}
+	servers, err := inFleet(ctx, tx, ref, rev.ID, latest.Revision, changeID)
+	if err != nil {
+		return nil, false, err
+	}
+	return &Edit{Ref: ref, Reverses: true, Spec: spec, Servers: servers}, true, nil
 }
 
 // pinIfMoved is spec, of an earlier revision, pinned to what that revision ran if
