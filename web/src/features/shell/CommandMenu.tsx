@@ -33,7 +33,7 @@ import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { planDeletingProject } from "../projects/contents";
-import { handOverJoinTicket } from "../servers/AddServerSheet";
+import { focusAddServerSheet, handOverJoinTicket } from "../servers/AddServerSheet";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
@@ -248,6 +248,8 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         label: t`Add a server`,
         hint: t`Shows the command to run on it`,
         run: () => {
+          // A sheet that's open already is brought to the front, and nothing is made (#858's N4).
+          if (focusAddServerSheet()) return;
           handOverJoinTicket(transport);
           void navigate({ to: "/servers", search: { add: true } });
         },

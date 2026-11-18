@@ -266,6 +266,25 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	return j, nil
 }
 
+// ExpireJoinToken stops an unused join token working from at: its expiry moves to
+// at, so it reads as expired, and Join refuses it as it refuses any expired token.
+// One that expired before at keeps its own expiry. A used token is ErrConflict, as
+// a server joined with it, and one that isn't there is ErrNotFound.
+func (t *Tx) ExpireJoinToken(ctx context.Context, id string, at time.Time) error {
+	if _, err := t.exec(ctx, `UPDATE join_tokens SET expires_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
+		millis(at), id, millis(at)); err != nil {
+		return fmt.Errorf("can't revoke join token %s: %w", id, err)
+	}
+	tok, err := t.GetJoinToken(ctx, id)
+	if err != nil {
+		return err
+	}
+	if tok.UsedAt != nil {
+		return fmt.Errorf("join token %s was used by %s: %w", id, tok.UsedBy, ErrConflict)
+	}
+	return nil
+}
+
 // JoinLabels are the labels server joined with, as its join token had them, or
 // none (ADR 0091).
 func (t *Tx) JoinLabels(ctx context.Context, server string) (map[string]string, error) {

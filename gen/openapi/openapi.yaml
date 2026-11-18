@@ -3937,6 +3937,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/joinTickets/{id}:revoke:
+        post:
+            tags:
+                - ServerService
+            description: |-
+                RevokeJoinTicket stops a waiting ticket working at once: no server joins with
+                 it from then on, and GetJoinTicket reads it as expired. One that has expired
+                 already stays so. One a server joined with can't be revoked, as the server
+                 joined: remove the server instead. The panel revokes the ticket its Add server
+                 sheet made when the sheet closes unused, and one that labels replace. It isn't
+                 managed state, so it takes no plan, as revoking an API token takes none. It's on
+                 the activity log.
+            operationId: ServerService_RevokeJoinTicket
+            parameters:
+                - name: id
+                  in: path
+                  description: The ticket's ID, from CreateJoinTicket.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RevokeJoinTicketRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RevokeJoinTicketResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/members:
         get:
             tags:
@@ -24657,6 +24696,21 @@ components:
             type: object
             properties: {}
             description: RevokeInviteResponse is empty.
+        RevokeJoinTicketRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The ticket's ID, from CreateJoinTicket.
+            description: RevokeJoinTicketRequest names a waiting ticket to stop.
+        RevokeJoinTicketResponse:
+            type: object
+            properties:
+                ticket:
+                    allOf:
+                        - $ref: '#/components/schemas/JoinTicket'
+                    description: 'The ticket, without its secret: expired, as revoked.'
+            description: RevokeJoinTicketResponse carries the ticket as it stands once revoked.
         RevokeOtherSessionsRequest:
             type: object
             properties: {}

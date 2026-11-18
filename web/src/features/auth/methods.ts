@@ -241,6 +241,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ServerService.createJoinTicket": "may",
   "ServerService.getJoinTicket": { within: "ServerService.createJoinTicket" },
+  // The Add server sheet revokes what it made and nobody used, which only someone who may make one opens (#800).
+  "ServerService.revokeJoinTicket": { within: "ServerService.createJoinTicket" },
   "ServerService.getServer": "unused",
   "ServerService.checkServerPorts": "may",
   "ServerService.getServerDiskUse": "may",

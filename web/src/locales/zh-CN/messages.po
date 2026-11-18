@@ -1155,6 +1155,9 @@ msgstr "已吊销一台已移除的服务器持有的证书密钥"
 msgid "Revoked a certificate's key {name} had, as it's gone"
 msgstr "{name} 已移除，已吊销它持有的证书密钥"
 
+msgid "Revoked a join ticket nobody used"
+msgstr "撤销了一张未使用的加入票据"
+
 msgid "Revoked an API token"
 msgstr "撤销了 API 令牌"
 
@@ -15856,8 +15859,8 @@ msgstr "显示命令"
 msgid "Such as region:eu. The server joins with them."
 msgstr "例如 region:eu。服务器加入时带上这些标签。"
 
-msgid "The command above still works until it expires"
-msgstr "上面的命令在过期前仍然有效"
+msgid "The command above stops working once the new one is made"
+msgstr "新命令生成后，上面的命令将失效"
 
 msgid "This command expired"
 msgstr "此命令已过期"
@@ -15866,8 +15869,8 @@ msgid "Waiting for the server to join"
 msgstr "正在等待服务器加入"
 
 #. placeholder {0}: left(expires - now)
-msgid "Works once · expires in {0}"
-msgstr "仅可使用一次 · {0}后过期"
+msgid "Works once · stops when you close this, or in {0}"
+msgstr "只能用一次 · 关闭此处或 {0} 后失效"
 
 msgid "Your apps stay where they are. New ones ask where to run."
 msgstr "你的应用保持原位，新应用会询问在哪里运行。"

@@ -1155,6 +1155,9 @@ msgstr "Revoked a certificate's key a server that's gone had"
 msgid "Revoked a certificate's key {name} had, as it's gone"
 msgstr "Revoked a certificate's key {name} had, as it's gone"
 
+msgid "Revoked a join ticket nobody used"
+msgstr "Revoked a join ticket nobody used"
+
 msgid "Revoked an API token"
 msgstr "Revoked an API token"
 
@@ -15856,8 +15859,8 @@ msgstr "Show the command"
 msgid "Such as region:eu. The server joins with them."
 msgstr "Such as region:eu. The server joins with them."
 
-msgid "The command above still works until it expires"
-msgstr "The command above still works until it expires"
+msgid "The command above stops working once the new one is made"
+msgstr "The command above stops working once the new one is made"
 
 msgid "This command expired"
 msgstr "This command expired"
@@ -15866,8 +15869,8 @@ msgid "Waiting for the server to join"
 msgstr "Waiting for the server to join"
 
 #. placeholder {0}: left(expires - now)
-msgid "Works once · expires in {0}"
-msgstr "Works once · expires in {0}"
+msgid "Works once · stops when you close this, or in {0}"
+msgstr "Works once · stops when you close this, or in {0}"
 
 msgid "Your apps stay where they are. New ones ask where to run."
 msgstr "Your apps stay where they are. New ones ask where to run."

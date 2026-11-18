@@ -19,13 +19,14 @@ import {
   type PlanServerLabelsRequest,
   type Server,
   ServerInventorySchema,
+  ServerService,
   ServerStrain,
   StepUpAction,
   Surface,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -375,6 +376,7 @@ describe("Servers", () => {
       expireTime = inAnHour(),
     ) {
       const made: CreateJoinTicketRequest[] = [];
+      const revoked: string[] = [];
       const ticket = {
         id: "jtk_1",
         state: JoinTicketState.WAITING,
@@ -382,15 +384,24 @@ describe("Servers", () => {
         addresses: [{ url: "https://203.0.113.7:7443", reach }],
       };
       let read = 0;
+      // Each ticket made has an ID of its own, from jtk_1.
+      let minted = 0;
       return {
         made,
+        revoked,
         servers: {
           createJoinTicket: (req: CreateJoinTicketRequest) => {
             made.push(req);
             if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
-            return { ticket, value: "TICKET" };
+            minted++;
+            const labels = Object.fromEntries(req.labels.map((l) => l.split(":") as [string, string]));
+            return { ticket: { ...ticket, id: `jtk_${minted}`, labels }, value: `TICKET${minted > 1 ? minted : ""}` };
           },
           getJoinTicket: () => ({ ticket: { ...ticket, ...states[Math.min(read++, states.length - 1)] } }),
+          revokeJoinTicket: (req: { id: string }) => {
+            revoked.push(req.id);
+            return { ticket: { ...ticket, id: req.id, state: JoinTicketState.EXPIRED } };
+          },
         },
       };
     }
@@ -427,7 +438,7 @@ describe("Servers", () => {
       expect(steps).toEqual([StepUpAction.ADD_SERVER]);
       expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
       expect(sheet).toHaveTextContent("Waiting for the server to join");
-      expect(sheet).toHaveTextContent("Works once · expires in 59 min");
+      expect(sheet).toHaveTextContent("Works once · stops when you close this, or in 59 min");
       expect(sheet).toHaveTextContent("It reaches web-1 at 203.0.113.7:7443.");
       expect(within(sheet).queryByRole("button", { name: "Set public address" })).toBeNull();
 
@@ -581,6 +592,115 @@ describe("Servers", () => {
       await vi.advanceTimersByTimeAsync(200);
       expect(within(sheet).queryByText("No command yet")).toBeNull();
       vi.useRealTimers();
+    });
+
+    it("stops a waiting ticket as the sheet closes, and the one new labels replace, and keeps it for unchanged ones", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await within(sheet).findByText("Waiting for the server to join");
+      expect(sheet).toHaveTextContent("Works once · stops when you close this, or in 59 min");
+
+      // Unchanged labels make nothing new.
+      await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
+      expect(within(sheet).queryByText("The command above stops working once the new one is made")).toBeNull();
+      await user.click(within(sheet).getByRole("button", { name: "Make it with these labels" }));
+      expect(api.made.filter((r) => r.proof)).toHaveLength(1);
+
+      // New ones make another, and the one they replace stops.
+      await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
+      await user.type(within(sheet).getByRole("combobox", { name: /^Labels/ }), "region:eu{Enter}");
+      expect(within(sheet).getByText("The command above stops working once the new one is made")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Make it with these labels" }));
+      await within(sheet).findByText("Joins with");
+      await waitFor(() => expect(api.revoked).toEqual(["jtk_1"]));
+
+      // Closing stops the one on show, which still waits.
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await waitFor(() => expect(api.revoked).toEqual(["jtk_1", "jtk_2"]));
+    });
+
+    it("stops nothing a server joined with as the sheet closes", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [
+        {},
+        { state: JoinTicketState.JOINED, serverId: "srv_3", serverName: "web-3" },
+      ]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await within(sheet).findByText("web-3 joined, starting its agent", {}, { timeout: 5000 });
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(api.revoked).toEqual([]);
+    });
+
+    it("brings an open sheet to the front from the command bar, and makes nothing (#858's N4)", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers?add=1", { ...release, ...passkey([]), servers: api.servers });
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Show the command" }));
+      await within(sheet).findByText("Waiting for the server to join");
+      const before = api.made.length;
+      await user.keyboard("{Control>}k{/Control}");
+      await user.click(
+        await within(screen.getByRole("dialog", { name: "Command bar" })).findByRole("option", {
+          name: /Add a server/,
+        }),
+      );
+      await waitFor(() => expect(within(sheet).getByRole("button", { name: "Done" })).toHaveFocus());
+      expect(api.made).toHaveLength(before);
+      expect(api.revoked).toEqual([]);
+    });
+
+    it("keeps the command bar's ticket through a page that mounts twice, and stops one nothing took (#858's N2)", async () => {
+      stubPasskeys();
+      configure({ reactStrictMode: true });
+      try {
+        const user = userEvent.setup();
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        const first = renderServers([web1, web2()], "/servers/srv_1", {
+          ...release,
+          ...passkey([]),
+          servers: api.servers,
+        });
+        await screen.findByRole("heading", { level: 1, name: "web-1" });
+        await user.click(screen.getByRole("button", { name: "Search or run a command" }));
+        await user.click(
+          await within(screen.getByRole("dialog", { name: "Command bar" })).findByRole("option", {
+            name: /Add a server/,
+          }),
+        );
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
+        expect(api.made.filter((r) => r.proof)).toHaveLength(1);
+        first.unmount();
+      } finally {
+        configure({ reactStrictMode: false });
+      }
+
+      // Handed over, then let go of before anything took it: it's stopped once made.
+      const revoked: string[] = [];
+      const transport = createRouterTransport(({ service }) =>
+        service(ServerService, {
+          // Within the hour a passkey covers, it's made with no proof.
+          createJoinTicket: () => ({ ticket: { id: "jtk_9", state: JoinTicketState.WAITING }, value: "TICKET" }),
+          revokeJoinTicket: (req) => {
+            revoked.push(req.id);
+            return {};
+          },
+        }),
+      );
+      const { handOverJoinTicket, dropHandedJoinTicket } = await import("./AddServerSheet");
+      handOverJoinTicket(transport);
+      dropHandedJoinTicket();
+      await waitFor(() => expect(revoked).toEqual(["jtk_9"]));
     });
 
     it("says nothing was made when the passkey doesn't confirm it", async () => {

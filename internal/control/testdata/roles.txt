@@ -197,6 +197,7 @@ ServerService.GetServer                        read         viewer     viewer   
 ServerService.GetServerDiskUse                 read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named
 ServerService.ReadSystemLog                    read         admin      admin      install  session
+ServerService.RevokeJoinTicket                 apply        admin      admin      install
 ServerService.SetServerPublicAddress           apply        admin      admin      install
 ServerService.WatchServers                     read         viewer     viewer     named
 ServerService.WatchSystemLog                   read         admin      admin      install  session

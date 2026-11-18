@@ -430,3 +430,66 @@ func TestServerName(t *testing.T) {
 		}
 	}
 }
+
+func TestARevokedTicketCantJoin(t *testing.T) { storetest.Each(t, testARevokedTicketCantJoin) }
+
+// A revoked ticket joins nothing and reads as expired, and one a server joined
+// with can't be revoked into anything: it stays used, by that server (#800).
+func testARevokedTicketCantJoin(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+
+	tk := newTicket(t, f, time.Hour)
+	revoked, err := f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revoked.ExpiresAt.After(time.Now()) {
+		t.Errorf("a revoked ticket expires at %v, after now", revoked.ExpiresAt)
+	}
+	if _, err := f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), "hz-2", "198.51.100.4"); !errors.Is(err, ErrTicketRejected) {
+		t.Fatalf("joining with a revoked ticket = %v, want it rejected", err)
+	}
+	// Revoking it again changes nothing and records nothing more.
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId()); err != nil {
+		t.Fatalf("revoking a revoked ticket again = %v", err)
+	}
+
+	used := newTicket(t, f, time.Hour)
+	joined, err := f.a.Join(ctx, used.GetTokenId(), used.GetSecret(), csr(t), "hz-3", "198.51.100.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", used.GetTokenId()); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("revoking a used ticket = %v, want a conflict", err)
+	}
+	_ = f.db.View(ctx, func(tx *store.Tx) error {
+		tok, err := tx.GetJoinToken(ctx, used.GetTokenId())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tok.UsedBy != joined.Server.ID || !tok.ExpiresAt.After(time.Now()) {
+			t.Errorf("a used ticket after a refused revoke: used by %q, expires %v", tok.UsedBy, tok.ExpiresAt)
+		}
+		if _, err := tx.GetJoinToken(ctx, "jtk_nope"); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("an unknown ticket = %v", err)
+		}
+		events, _ := tx.ListEvents(ctx, 20)
+		var revokes int
+		for i := range events {
+			if events[i].Action == "join_token.revoke" {
+				revokes++
+				if events[i].Subject != tk.GetTokenId() || events[i].Actor != "user:usr_1" {
+					t.Errorf("revoke event = %+v", events[i])
+				}
+			}
+		}
+		if revokes != 1 {
+			t.Errorf("%d revoke events, want 1", revokes)
+		}
+		return nil
+	})
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", "jtk_nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("revoking an unknown ticket = %v, want not found", err)
+	}
+}

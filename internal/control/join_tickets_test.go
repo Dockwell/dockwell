@@ -130,6 +130,34 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 		t.Errorf("once web-2 joined, it reads %v, %v", read, err)
 	}
 
+	// Revoking: the waiting ticket stops at once and reads as expired; the one web-2 joined with can't be (#800).
+	revoke := func(id string) (*dockwellv1.JoinTicket, error) {
+		res, err := servers.RevokeJoinTicket(t.Context(), connect.NewRequest(&dockwellv1.RevokeJoinTicketRequest{Id: id}))
+		if err != nil {
+			return nil, err
+		}
+		return res.Msg.GetTicket(), nil
+	}
+	gone, err := revoke(next.GetTicket().GetId())
+	if err != nil || gone.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED || gone.GetExpireTime().AsTime().After(time.Now()) {
+		t.Fatalf("revoking a waiting ticket = %v, %v", gone, err)
+	}
+	if read, err := get(next.GetTicket().GetId()); err != nil || read.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED {
+		t.Errorf("a revoked ticket reads %v, %v", read, err)
+	}
+	if _, err := revoke(tk.GetId()); connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "Remove the server") {
+		t.Errorf("revoking the ticket web-2 joined with = %v", err)
+	}
+	if read, err := get(tk.GetId()); err != nil || read.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_JOINED {
+		t.Errorf("after a refused revoke, web-2's ticket reads %v, %v", read, err)
+	}
+	if _, err := revoke("srv_nobody"); reasonOf(err) != "invalid" {
+		t.Errorf("revoking a server's ID: %v", err)
+	}
+	if _, err := revoke("jtk_" + strings.Repeat("0", 26)); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Errorf("revoking an unknown ticket: %v", err)
+	}
+
 	audit := dockwellv1connect.NewAuditServiceClient(b, b.origin)
 	events, err := audit.ListAuditEvents(t.Context(), connect.NewRequest(&dockwellv1.ListAuditEventsRequest{}))
 	if err != nil {
@@ -143,5 +171,14 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 	}
 	if !made1 {
 		t.Errorf("the audit log has no join_token.create for %s from the panel", tk.GetId())
+	}
+	var revoked1 bool
+	for _, e := range events.Msg.GetEvents() {
+		if e.GetAction() == "join_token.revoke" && e.GetSubject() == next.GetTicket().GetId() {
+			revoked1 = true
+		}
+	}
+	if !revoked1 {
+		t.Errorf("the audit log has no join_token.revoke for %s", next.GetTicket().GetId())
 	}
 }
