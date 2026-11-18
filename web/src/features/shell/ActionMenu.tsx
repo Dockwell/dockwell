@@ -67,13 +67,20 @@ export function ActionMenu({
   }, [open]);
   useEffect(() => {
     if (!open) return;
-    root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+    root.current
+      ?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
+      ?.focus({ preventScroll: true });
     const away = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
-    // Placed on the viewport, it would stay put as the page moves under it, so it closes.
-    const moved = (e: Event) => {
-      if (!menu.current?.contains(e.target as Node)) setOpen(false);
+    // Placed on the viewport, it would stay put as the page moves its button away, so
+    // it closes then, and only then: a scroll that leaves the button where it was is no
+    // reason to.
+    const button = () => root.current?.querySelector("button")?.getBoundingClientRect();
+    const was = button();
+    const moved = () => {
+      const now = button();
+      if (!was || !now || Math.abs(now.top - was.top) > 1 || Math.abs(now.left - was.left) > 1) setOpen(false);
     };
     document.addEventListener("pointerdown", away);
     window.addEventListener("scroll", moved, true);

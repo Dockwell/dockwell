@@ -80,7 +80,13 @@ export function ExternalAccess({ db }: { db: Database }) {
           onChange={flip}
           disabled={!may.allowed}
           description={
-            !may.allowed ? may.reason : open ? t`On port ${port}, from ${list}` : t`Off. Only apps on ${where} reach it`
+            !may.allowed
+              ? may.reason
+              : open
+                ? t`On port ${port}, from ${list}`
+                : editing
+                  ? t`Off until you apply its plan`
+                  : t`Off. Only apps on ${where} reach it`
           }
         />
         {open && !editing ? (

@@ -13414,6 +13414,9 @@ msgstr "请填写允许的地址或范围，例如 203.0.113.7。它从不对所
 msgid "Nothing beyond {where} reaches it"
 msgstr "{where} 之外无法访问它"
 
+msgid "Off until you apply its plan"
+msgstr "在应用其计划前保持关闭"
+
 msgid "Off. Only apps on {where} reach it"
 msgstr "已关闭。只有 {where} 上的应用可以访问它"
 

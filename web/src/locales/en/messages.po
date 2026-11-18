@@ -13414,6 +13414,9 @@ msgstr "Name an address or a range to let in, such as 203.0.113.7. It's never op
 msgid "Nothing beyond {where} reaches it"
 msgstr "Nothing beyond {where} reaches it"
 
+msgid "Off until you apply its plan"
+msgstr "Off until you apply its plan"
+
 msgid "Off. Only apps on {where} reach it"
 msgstr "Off. Only apps on {where} reach it"
 
