@@ -939,6 +939,15 @@ func TestARollbackStepThatStartedStaysPutBack(t *testing.T) {
 		}
 		if st := back.Rollback; st == nil || st.State != RollbackApplied || st.Steps != 1 || !slices.Contains(st.Restored, "web") {
 			t.Errorf("the rollback's status is %+v, and should say it put web back", st)
+			// What held it, for the next time this fails on a busy runner, as it did
+			// twice in CI and never in 900 runs here (#809).
+			e := r.engine
+			e.pmu.Lock()
+			t.Logf("engine: owned %v, busy %v, waiters %v, waking %v", e.owned, e.busy, e.waiters, e.waking)
+			e.pmu.Unlock()
+			_, online := r.agents.Agent("srv_A")
+			c := stored(t, r.db, ferr.Rollback)
+			t.Logf("server online %v; rollback %s, error %q, progress %s", online, c.State, c.Error, c.Progress)
 		}
 	})
 }
