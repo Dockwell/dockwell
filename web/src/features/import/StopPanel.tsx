@@ -97,6 +97,22 @@ export function usePanelOn(server: Server, allowedToo = true): PanelOn | undefin
   return readable && allowed ? panelOn(list.data?.containers ?? []) : undefined;
 }
 
+/**
+ * Whether the read usePanelOn rests on has settled, so a page can tell "none of them
+ * runs here" from "not read yet" (#800's review, L2). One that can't be read is settled.
+ */
+export function usePanelCheckSettled(server: Server): boolean {
+  const may = useMay();
+  const readable = server.connection === Connection.CONNECTED && server.dockerUnreadableSince === undefined;
+  const allowed = may(ContainerService.method.listContainers).allowed;
+  const list = useQuery(
+    ContainerService.method.listContainers,
+    { server: server.id },
+    { retry: false, enabled: readable && allowed },
+  );
+  return !readable || !allowed || !list.isPending;
+}
+
 function notNowKey(serverId: string): string {
   return `dockwell.stopPanel.notNow.${serverId}`;
 }

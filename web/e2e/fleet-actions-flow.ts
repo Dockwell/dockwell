@@ -73,7 +73,17 @@ export async function fleetActionsFlow(
   await page.getByRole("heading", { name: "New fleet action" }).first().waitFor({ timeout: SEEN_WITHIN });
   await page.getByRole("radio", { name: /Apply OS updates/ }).waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth);
-  if (wide > 390) fail(`New fleet action is ${wide} px wide on a 390 px phone`);
+  if (wide > 390) {
+    // What runs past the edge, so the failure says where to look.
+    const past = await page.evaluate(() =>
+      [...document.querySelectorAll("main *")]
+        .filter((el) => el.getBoundingClientRect().right > 391)
+        .slice(-3)
+        .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join(".")} "${el.textContent?.slice(0, 40)}"`)
+        .join("; "),
+    );
+    fail(`New fleet action is ${wide} px wide on a 390 px phone: ${past}`);
+  }
   await shoot(page, "fleet-action-phone");
   await atWidth(page, { width: 1440, height: 900 });
 }

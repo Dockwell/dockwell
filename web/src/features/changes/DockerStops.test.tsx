@@ -130,7 +130,7 @@ describe("what stops while Docker restarts", () => {
         }),
       },
     });
-    await user.click(await screen.findByRole("button", { name: "Install security updates" }));
+    await user.click(await screen.findByRole("button", { name: "Review plan" }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     const list = await within(sheet).findByRole("list", { name: "What stops on web-1" });
     expect(

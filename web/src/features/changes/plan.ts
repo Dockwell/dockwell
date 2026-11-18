@@ -245,7 +245,8 @@ export function diffResources(
   options: {
     expanded?: boolean;
     tag?: (intent: Intent) => string;
-    letsGo?: string;
+    /** What a removal's row says of what it lets go of, by the resource's kind (#800). */
+    letsGo?: (kind: string) => string;
     serverName?: (id: string) => string | undefined;
     /** A word for a resource its kind's doesn't fit, such as "database" for a service that runs one (#798). */
     kindLabel?: (resource: PlannedResource) => string | undefined;
@@ -291,7 +292,7 @@ export function diffResources(
       if (options.tag) out.note = options.tag(intent);
     }
     // What a removal lets go of on its server takes no step there: it stays as it is (ADR 0090).
-    if (resource.letsGo && options.letsGo) out.note = options.letsGo;
+    if (resource.letsGo && options.letsGo) out.note = options.letsGo(kind);
     // What is at risk is never folded away, as what a plan deletes otherwise starts.
     if (changes.some((c) => c.tone === "critical" || c.tone === "warning")) out.expanded = true;
     if (options.expanded !== undefined) out.expanded = options.expanded;

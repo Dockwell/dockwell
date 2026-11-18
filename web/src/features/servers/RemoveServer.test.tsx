@@ -19,7 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { anApp } from "../../test/apps";
-import { feed, renderAt } from "../../test/render";
+import { feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
 const hz1 = aServer({ id: "srv_1", name: "hz-1", controlServer: true });
@@ -56,7 +56,7 @@ function removal(compromised: boolean): Change {
       notes: [
         {
           reason: "removal_final",
-          message: "hz-2 can't come back once it's removed: it joins again with a new ticket, as a new server",
+          message: "hz-2 can't come back: to add it again, it joins as a new server",
           names: ["hz-2"],
         },
       ],
@@ -106,7 +106,8 @@ describe("Removing a server", () => {
     const user = userEvent.setup();
     const plan = vi.fn((req: PlanRemoveServerRequest) => ({ change: removal(req.compromised) }));
     renderAt("/servers/srv_2", api(plan));
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     const sheet = await screen.findByRole("dialog", { name: "Remove hz-2" });
     expect(sheet).toHaveTextContent("1 app runs on it");
     expect(within(sheet).getByRole("radio", { name: /Leave them running/ })).toBeChecked();
@@ -120,35 +121,57 @@ describe("Removing a server", () => {
     expect(await within(review).findByRole("button", { name: "Remove hz-2" })).toBeVisible();
     expect(within(review).getByText("No undo")).toBeVisible();
     expect(within(review).getByText("Applying this asks for your passkey")).toBeVisible();
-    expect(review).toHaveTextContent("hz-2 can't come back once it's removed");
+    expect(review).toHaveTextContent("hz-2 can't come back: to add it again");
     // What it says of the server itself, what stays as it is, and nothing of an undo it hasn't.
-    expect(review).toHaveTextContent("hz-2 leaves the fleet for good");
-    expect(review).toHaveTextContent("It's revoked once its steps have passed");
-    expect(within(review).getByText("Let go of")).toBeVisible();
+    expect(review).toHaveTextContent("hz-2 leaves the fleet for goodIts agent is refused from then on.");
+    // When it's revoked is the switch's to say, once (#800).
+    expect(review.textContent?.match(/revoked once its steps have passed/gi)).toHaveLength(1);
+    // The server's own row says what becomes of it (#800's review, L4).
+    expect(within(review).getByText("Leaves the fleet")).toBeVisible();
+    expect(within(review).queryByText("Stays as it is")).toBeNull();
+    // One confirmation: the passkey, with no code to type, as nothing else in it destroys data (#800).
+    expect(within(review).queryByRole("textbox", { name: /to apply it/ })).toBeNull();
     expect(review).not.toHaveTextContent(/undo this until|Undoing this brings/);
 
     // A compromised server takes no step, so its apps are left running, not stopped.
     await user.click(within(review).getByRole("switch", { name: /It may be compromised/ }));
     await waitFor(() => expect(plan).toHaveBeenCalledTimes(2));
     expect(plan.mock.calls[1]?.[0]).toMatchObject({ serverId: "srv_2", apps: AppsOnRemoval.LEAVE, compromised: true });
+    // What it leaves running stays on the server, outside Dockwell.
+    expect(await within(review).findByText("Stays on the server")).toBeVisible();
+  });
+
+  it("is in the command bar on a phone, which has no header menu", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const plan = vi.fn((_req: PlanRemoveServerRequest) => ({ change: emptyRemoval() }));
+    renderAt("/servers/srv_2", api(plan, false));
+    await screen.findByRole("heading", { level: 1, name: "hz-2" });
+    await user.click(screen.getByRole("button", { name: "Search or run a command" }));
+    const bar = screen.getByRole("dialog", { name: "Command bar" });
+    await user.click(await within(bar).findByRole("option", { name: /Remove hz-2 from the fleet/ }));
+    await waitFor(() => expect(plan).toHaveBeenCalledTimes(1));
   });
 
   it("plans it at once for a server that runs nothing, and the control server has no such way", async () => {
     const user = userEvent.setup();
     const plan = vi.fn((_req: PlanRemoveServerRequest) => ({ change: emptyRemoval() }));
     const { unmount } = renderAt("/servers/srv_2", api(plan, false));
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     await waitFor(() => expect(plan).toHaveBeenCalledTimes(1));
     expect(plan.mock.calls[0]?.[0]).toMatchObject({ serverId: "srv_2", apps: AppsOnRemoval.LEAVE, compromised: false });
     expect(screen.queryByRole("dialog", { name: "Remove hz-2" })).toBeNull();
     // A plan with nothing on the server to change still has it leave: it's no plan of nothing.
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(within(sheet).getByRole("button", { name: "Remove hz-2" })).toBeVisible();
-    expect(sheet).toHaveTextContent("hz-2 can't come back once it's removed");
+    expect(sheet).toHaveTextContent("hz-2 can't come back: to add it again");
     unmount();
 
     renderAt("/servers/srv_1", api(plan));
     await screen.findByRole("region", { name: "Agent" });
-    expect(screen.queryByRole("button", { name: "Remove from fleet" })).toBeNull();
+    await user.click(await screen.findByRole("button", { name: "Actions for hz-1" }));
+    expect(screen.getByRole("menuitem", { name: "Reboot" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "Remove from fleet" })).toBeNull();
   });
 });

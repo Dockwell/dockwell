@@ -74,7 +74,9 @@ export async function serverRemovalFlow(
     await agentPanel.getByText("Connected", { exact: true }).first().waitFor({ timeout: SEEN_WITHIN });
 
     step("server removal: it asks what becomes of the apps there, and stopping them plans their containers off it");
-    await agentPanel.getByRole("button", { name: "Remove from fleet" }).click();
+    // It's in the server's header menu, where what acts on the server as a whole is (#800).
+    await page.getByRole("button", { name: "Actions for second" }).click();
+    await page.getByRole("menuitem", { name: "Remove from fleet" }).click();
     const choosing = page.getByRole("dialog", { name: "Remove second" });
     await choosing.getByText(/apps? runs? on it/).waitFor();
     if (!(await choosing.getByRole("radio", { name: /Leave them running/ }).isChecked())) {
@@ -89,13 +91,15 @@ export async function serverRemovalFlow(
     await remove.waitFor({ timeout: SEEN_WITHIN });
     await plan.getByText("No undo").waitFor();
     await plan.getByText("Applying this asks for your passkey").waitFor();
-    await plan.getByText(/second can't come back once it's removed/).waitFor();
+    await plan.getByText(/second can't come back: to add it again/).waitFor();
     await plan.getByRole("switch", { name: /It may be compromised/ }).waitFor();
     await shoot(page, "server-removal-plan");
 
-    step("server removal: applied with the passkey and the typed code, the server leaves the fleet");
-    const code = await plan.locator("#plan-confirm-why code").innerText();
-    await plan.getByRole("textbox", { name: /to apply it/ }).fill(code);
+    step("server removal: applied with the passkey alone, the server leaves the fleet");
+    // One confirmation (#800): stopping its apps destroys no data, so there's no code to type.
+    if ((await plan.getByRole("textbox", { name: /to apply it/ }).count()) !== 0) {
+      throw new Error("a removal that destroys nothing more asks for a typed code too");
+    }
     await remove.click();
     // Applied, the plan says so, and Done goes back to the list, as the server's page has nothing left to show.
     const done = page.getByRole("dialog").last().getByRole("button", { name: "Done", exact: true });
@@ -118,14 +122,12 @@ export async function serverRemovalFlow(
     await page.goto(`${origin}/servers`);
     await table.getByRole("row", { name: /^spare\b/ }).click({ timeout: SEEN_WITHIN });
     await page.getByRole("link", { name: "Open spare" }).click();
-    await page.getByRole("region", { name: "Agent" }).getByRole("button", { name: "Remove from fleet" }).click();
+    await page.getByRole("button", { name: "Actions for spare" }).click();
+    await page.getByRole("menuitem", { name: "Remove from fleet" }).click();
     const empty = onTop(page.getByRole("dialog", { name: "Review plan" }));
     const leave = empty.getByRole("button", { name: "Remove spare" });
     await leave.waitFor({ timeout: SEEN_WITHIN });
-    await empty.getByText(/spare can't come back once it's removed/).waitFor();
-    await empty
-      .getByRole("textbox", { name: /to apply it/ })
-      .fill(await empty.locator("#plan-confirm-why code").innerText());
+    await empty.getByText(/spare can't come back: to add it again/).waitFor();
     await leave.click();
     const left = page.getByRole("dialog").last().getByRole("button", { name: "Done", exact: true });
     await left.waitFor({ timeout: 60_000 });

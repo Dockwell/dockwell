@@ -655,8 +655,8 @@ function JailSheet({
           <Button variant="ghost" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button variant="primary" onClick={() => submit()}>
-            <Trans>Plan it</Trans>
+          <Button variant="primary" icon="commit" onClick={() => submit()}>
+            <Trans>Review plan</Trans>
           </Button>
         </>
       }

@@ -17,12 +17,13 @@ import { Button, Callout, Icon, type IconName, Panel, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { useOnePanelHere } from "./onePanelHere";
+import { useOnePanelLeft } from "./onePanelHere";
 import "./OnePanelImport.css";
 
 /*
@@ -53,9 +54,9 @@ function saidNotNow(serverId: string): boolean {
  */
 export function OnePanelCallout({ server }: { server: Server }) {
   const { t } = useLingui();
-  const here = useOnePanelHere(server);
+  const left = useOnePanelLeft(server);
   const [notNow, setNotNow] = useState(() => saidNotNow(server.id));
-  if (!here || notNow) return null;
+  if (left.length === 0 || notNow) return null;
   const dismiss = () => {
     try {
       localStorage.setItem(notNowKey(server.id), "1");
@@ -64,19 +65,25 @@ export function OnePanelCallout({ server }: { server: Server }) {
     }
     setNotNow(true);
   };
+  const name = server.name;
+  // What would move, in one line: the first few by name, then how many more (#800).
+  const shown = left.slice(0, 4).join(", ");
+  const more = left.length - 4;
+  const what = more > 0 ? plural(more, { one: `${shown} and # more`, other: `${shown} and # more` }) : shown;
   return (
     <Callout
       tone="info"
-      title={t`Containers 1Panel made run on this server`}
+      title={t`1Panel found on ${name}`}
       actions={
         <>
           <RouterButtonLink
             size="sm"
+            variant="primary"
             to="/servers/$serverId/import"
             params={{ serverId: server.id }}
             icon="arrow-right"
           >
-            <Trans>Move in from 1Panel</Trans>
+            <Trans>Move in</Trans>
           </RouterButtonLink>
           <Button size="sm" variant="ghost" onClick={dismiss}>
             <Trans>Not now</Trans>
@@ -84,10 +91,7 @@ export function OnePanelCallout({ server }: { server: Server }) {
         </>
       }
     >
-      <Trans>
-        Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it
-        would leave.
-      </Trans>
+      {t`Left to move: ${what}`}
     </Callout>
   );
 }
@@ -142,6 +146,17 @@ export function OnePanelImport({ server }: { server: Server }) {
     });
   };
 
+  // It reads as the page opens (#800): a read changes nothing, and it's what the page is for. Only for
+  // someone who may, as the tab is an admin's and the address isn't (#800's review, L2).
+  const may = useMay()(ImportService.method.importOnePanel);
+  const asked = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: read runs once, as the page opens.
+  useEffect(() => {
+    if (asked.current || !may.allowed) return;
+    asked.current = true;
+    void read();
+  }, [may.allowed]);
+
   const steps = found?.steps ?? [];
   const groups = useGroups(steps, "1Panel");
   const toTake = steps.some((s) => s.action === ImportAction.TAKE_ON);
@@ -157,22 +172,17 @@ export function OnePanelImport({ server }: { server: Server }) {
       <Panel title={t`Move in from 1Panel`}>
         <div className="onepanel-intro">
           <p>
-            <Trans>
-              Dockwell reads what 1Panel keeps on {server.name}, from its own records, read-only, and says what it would
-              take on as it runs, with no restart, what it would make again, and what it would leave, and why. Review
-              the plan to see each change. Nothing changes on the server until you apply it.
-            </Trans>
+            {reading && !found ? (
+              <Trans>Reading what 1Panel keeps on {server.name}</Trans>
+            ) : (
+              <Trans>Read-only. Nothing changes until you apply the plan.</Trans>
+            )}
           </p>
           <div className="onepanel-actions">
-            <Button
-              variant={found ? "secondary" : "primary"}
-              icon="search"
-              loading={reading}
-              onClick={() => void read()}
-            >
-              {found ? <Trans>Read it again</Trans> : <Trans>Read what 1Panel keeps</Trans>}
-            </Button>
             {toTake ? reviewButton : null}
+            <Button variant="ghost" icon="refresh" loading={reading} onClick={() => void read()} {...may.off}>
+              <Trans>Read it again</Trans>
+            </Button>
           </div>
         </div>
       </Panel>

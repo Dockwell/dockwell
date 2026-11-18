@@ -11,6 +11,9 @@ function readSearch(search: Record<string, unknown>): FilesSearch {
     const value = search[key];
     if (typeof value === "string" && value.startsWith("/")) out[key] = value;
   }
+  // A line of the file, as an error that names one links to it.
+  const line = Number(search["line"]);
+  if (out.file && Number.isInteger(line) && line > 0) out.line = line;
   return out;
 }
 

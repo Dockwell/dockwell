@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   FileService,
   FirewallService,
   ImportService,
@@ -10,21 +13,24 @@ import {
   TerminalService,
   UpdateService,
 } from "@dockwell/api";
-import { TabNav, Tag } from "@dockwell/ui";
+import { type IconName, TabNav, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useMemo } from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useOnePanelHere } from "../import/onePanelHere";
 import { usePanelOn } from "../import/StopPanel";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { usePageCommands } from "../shell/CommandMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { summarize, useServerUpdates } from "../updates/updates";
 import { Connecting, usePageReconnecting } from "./FleetNotes";
 import { publicAddressOf } from "./network";
+import { useRemoveServer } from "./RemoveServer";
 import { ServerAddress } from "./ServerAddress";
 import { ServerLabels } from "./ServerLabels";
 import { primaryAddress, useServerWords } from "./server";
@@ -133,7 +139,20 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
   const navigate = useNavigate();
   const name = server.name;
   const serverId = server.id;
+  const removal = useRemoveServer(server);
+  const reboot = useRebootAction(server);
+  // What acts on the server as a whole, in one menu at its header (#800), so no card ends with it.
+  const actions = [reboot, removal.action].filter((a) => a !== undefined);
   usePageCommands([
+    // The header menu's steps, which a phone reaches from its search, as it has no header menu (#795).
+    ...actions
+      .filter((a) => a.onSelect !== undefined && !a.off && !a.disabled)
+      .map((a) => ({
+        id: a.id,
+        icon: (a.icon ?? "more") as IconName,
+        label: a.id === "remove" ? t`Remove ${name} from the fleet` : t`Reboot ${name}`,
+        run: () => a.onSelect?.(),
+      })),
     ...(may(TerminalService.method.listTerminals).allowed
       ? [
           {
@@ -169,6 +188,7 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
     <ServerFramePage
       title={server.name}
       machineTitle
+      actions={actions.length > 0 ? <ActionMenu label={t`Actions for ${name}`} actions={actions} /> : undefined}
       badge={
         <>
           {server.controlServer ? <Tag>{t`Runs the control plane`}</Tag> : null}
@@ -223,8 +243,25 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
         </TabNav>
       )}
       {children}
+      {removal.sheet}
     </ServerFramePage>
   );
+}
+
+/** Reboot, as a header menu's step: the plan says what goes offline, and asks for the passkey. */
+function useRebootAction(server: Server): MenuAction | undefined {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const client = useMemo(() => createClient(ChangeService, transport), [transport]);
+  const may = useMay()(ChangeService.method.planReboot, { install: true });
+  if (!may.allowed) return undefined;
+  return {
+    id: "reboot",
+    icon: "refresh",
+    label: t`Reboot`,
+    onSelect: () => sheet.open({ kind: "plan", make: () => client.planReboot({ serverIds: [server.id] }) }),
+  };
 }
 
 /**

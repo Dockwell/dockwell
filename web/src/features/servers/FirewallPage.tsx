@@ -506,6 +506,8 @@ function PublishedPanel({
   }
   if (ports.length === 0) return null;
   const rows: PortRow[] = ports.map((port) => ({ id: `${port.hostIp}-${port.hostPort}-${port.protocol}`, port }));
+  // What the input rules don't see: a port on more than loopback that Docker's proxy doesn't take.
+  const past = ports.filter((p) => !p.proxied && !p.hostIp.startsWith("127.") && p.hostIp !== "::1");
   const ipv4 = boundOnIPv4(ports.map((p) => ({ address: p.hostIp, port: p.hostPort, protocol: p.protocol })));
   // Each on a line of its own: the address, then what Docker's proxy means for it.
   const where = (p: PublishedPort) => (
@@ -566,20 +568,18 @@ function PublishedPanel({
       actions={<span className="firewall-meta">{plural(ports.length, { one: "# port", other: "# ports" })}</span>}
       flush
     >
-      {filtered ? (
+      {/* Said only where it matters: a port that answers beyond loopback, past Docker's proxy (#800). */}
+      {filtered && past.length > 0 ? (
         <p className="firewall-note">
-          <Trans>
-            Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't
-            cover them, but for what Docker's proxy takes, as marked.
-          </Trans>
+          {plural(past.length, {
+            one: "ufw and firewalld don't cover # port here, as Docker forwards it first.",
+            other: "ufw and firewalld don't cover # ports here, as Docker forwards them first.",
+          })}
         </p>
       ) : null}
       {dockwellDenies ? (
         <p className="firewall-note">
-          <Trans>
-            Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule
-            of Dockwell's allows reaches its container.
-          </Trans>
+          <Trans>Deny everything else covers these too: only a port Dockwell allows reaches its container.</Trans>
         </p>
       ) : null}
       {fw.dockerUserRules > 0 ? (

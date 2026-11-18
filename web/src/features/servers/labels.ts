@@ -222,6 +222,22 @@ export function labelSuggestions(fleet: Map<string, string[]>, has: Readonly<Rec
   return out;
 }
 
+/** The keys a fleet is most often grouped by, offered where it has no labels yet. */
+export const STARTER_KEYS = ["region", "pool", "role", "env"] as const;
+
+/**
+ * What a labels field offers under it, a click each: the fleet's own labels this
+ * server doesn't have, up to six, or the starter keys where the fleet has none.
+ */
+export function quickLabels(fleet: Map<string, string[]>, has: Readonly<Record<string, string>> = {}): string[] {
+  if (fleet.size === 0) return STARTER_KEYS.filter((k) => !Object.hasOwn(has, k)).map((k) => `${k}:`);
+  const out: string[] = [];
+  for (const [k, values] of fleet) {
+    for (const v of values) if (has[k] !== v) out.push(labelText(k, v));
+  }
+  return out.slice(0, 6);
+}
+
 /** How many servers have no region label, for a lead that counts the regions servers are in. */
 export function withoutRegion(servers: readonly Server[]): number {
   return servers.filter((s) => !Object.hasOwn(s.labels, "region")).length;

@@ -295,11 +295,10 @@ services:
     });
   cli("login", "--local");
   // The second server's ticket comes from the panel, as a person adds one: Add server,
-  // a passkey, and the command with the ticket in place.
+  // a passkey as it opens, and the command with the ticket in place (#800).
   await page.goto(`${origin}/servers`);
   await page.getByRole("button", { name: "Add server" }).first().click();
   const adding = page.getByRole("dialog", { name: "Add a server" });
-  await adding.getByRole("button", { name: "Make the command" }).click();
   const command =
     (await adding.locator(".servers-add-command code").first().textContent({ timeout: SEEN_WITHIN })) ?? "";
   const ticket =

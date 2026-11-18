@@ -364,7 +364,8 @@
   }
   .dw-log-line,
   .dw-log.no-source .dw-log-line {
-    grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+    /* The source gives way, so the level's word is whole at the end (#800). */
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "time src lvl"
       "text text text";
@@ -381,6 +382,7 @@
     grid-area: lvl;
     justify-self: end;
     gap: 6px;
+    white-space: nowrap;
   }
   .dw-log-text {
     grid-area: text;

@@ -27,6 +27,7 @@ What was settled already:
   - **which certificates by DNS it re-issues and revokes;**
   - **backups:** those on its disk go with it, and those with a copy in storage stay, to fetch onto a server that has the volume.
 - **A removal can't be undone.** A removed server joins again with a new ticket, as a new server. The plan says so, and undoing the change is refused.
+- **The passkey is its one confirmation** (#800). The panel asks for no typed code beside it, unless a step of the removal destroys data, warns, or lets two containers write to one place, which asks for the code as any such plan does. Remove from fleet is in the server's header menu, beside Reboot, where what acts on the server as a whole is.
 - **The control server can't be removed.** The panel and the control plane run on it; moving the control plane comes first.
 
 ### What happens to a server's apps is one choice

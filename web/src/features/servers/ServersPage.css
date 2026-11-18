@@ -246,6 +246,22 @@
   gap: var(--space-2) var(--space-3);
 }
 
+/* Where the command comes, while the passkey confirms it: the well's height, so nothing moves as it lands. */
+.servers-add-command.is-waiting {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.servers-add-labelling {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .servers-add-meta {
   color: var(--ink-muted);
   font-size: 13px;

@@ -1398,7 +1398,16 @@ function PlanBody({
       // Many apps have been read through once: what is left to see once they are live is that they are.
       ...(cameToNothing || (landed && goesLive(plan).length > 1) ? { expanded: false } : {}),
       tag: (intent) => words.intentTag(intent, landed),
-      letsGo: words.letsGo(landed ? "done" : "plan"),
+      // What a removal does to each thing it lets go of (#800): the server leaves the fleet, and what's on it
+      // stays there, outside Dockwell.
+      letsGo: (kind) =>
+        kind === "server.host"
+          ? landed
+            ? t`Left the fleet`
+            : t`Leaves the fleet`
+          : landed
+            ? t`Left on the server`
+            : t`Stays on the server`,
       // A server's host goes by its server's name (ADR 0091).
       serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
       // A service that runs a database is one (#798).

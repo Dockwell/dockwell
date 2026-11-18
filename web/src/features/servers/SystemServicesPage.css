@@ -115,3 +115,10 @@
   align-self: flex-start;
   gap: var(--space-1);
 }
+
+/* The file a failure names, a step away under its line. */
+.sys-why-open {
+  align-self: flex-start;
+  color: var(--link);
+  font-size: 13px;
+}

@@ -228,10 +228,14 @@ describe("UpdatesPage", () => {
     const { container } = await renderUpdates(() => answer());
     const lead = await callout("3 security updates are ready to install");
     expect(lead).toHaveAttribute("role", "status");
-    expect(lead).toHaveTextContent("One needs a reboot, and apps and websites go offline while hz-1 restarts.");
-    expect(lead).toHaveTextContent("unattended-upgrades installs them within about a day.");
-    expect(within(lead).getByRole("button", { name: "Install security updates" })).toBeEnabled();
-    expect(within(lead).getByRole("button", { name: "Install every update" })).toBeEnabled();
+    expect(lead).toHaveTextContent("One needs a reboot: apps and websites go offline while hz-1 restarts.");
+    // One way to install them from here (#800): the plan, and nothing beside it.
+    expect(
+      within(lead)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Review plan"]);
+    expect(within(lead).getByRole("button", { name: "Review plan" })).toBeEnabled();
     expect(screen.getByText("3 from noble-security · checked 20 min ago")).toBeVisible();
     const table = screen.getByRole("table", { name: "Security updates for hz-1" });
     const rows = within(table).getAllByRole("row").slice(1);
@@ -260,7 +264,7 @@ describe("UpdatesPage", () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("table", { name: "Other updates for hz-1" })).toBeVisible();
-    expect(screen.getByText(/1 more is held back: python3-distupgrade/)).toBeVisible();
+    expect(screen.getByText("Held back for now, as a phased update: python3-distupgrade")).toBeVisible();
   });
 
   it("says how the server updates itself, and Docker's and Dockwell's versions", async () => {
@@ -392,7 +396,7 @@ describe("UpdatesPage", () => {
     );
     expect(await screen.findByRole("link", { name: "Updates 5" })).toBeVisible();
     const lead = await callout("5 security updates are ready to install");
-    expect(lead).toHaveTextContent("2 need a reboot, and apps and websites go offline while hz-1 restarts.");
+    expect(lead).toHaveTextContent("2 need a reboot: apps and websites go offline while hz-1 restarts.");
     // The plan says the rest: what it installs, and that it takes a passkey.
     expect(lead).not.toHaveTextContent("Review the plan");
   });
@@ -404,7 +408,7 @@ describe("UpdatesPage", () => {
       changes: { planInstallUpdates, watchChange: feed<WatchChangeResponse>().stream },
     });
     const lead = await callout("3 security updates are ready to install");
-    await user.click(within(lead).getByRole("button", { name: "Install security updates" }));
+    await user.click(within(lead).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(1));
     expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({ serverIds: ["srv_1"], all: false });
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
@@ -428,8 +432,10 @@ describe("UpdatesPage", () => {
     expect(within(sheet).getByText(/apps and websites stop while Docker restarts/)).toBeVisible();
     expect(within(sheet).queryByText(/no downtime expected/)).toBeNull();
 
+    // Every update at once is beside the other updates, not a second button on the lead (#800).
     await user.click(within(sheet).getByRole("button", { name: "Cancel" }));
-    await user.click(within(lead).getByRole("button", { name: "Install every update" }));
+    expect(within(lead).queryByRole("button", { name: "Install every update" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Install every update" }));
     await waitFor(() => expect(planInstallUpdates).toHaveBeenCalledTimes(2));
     expect(planInstallUpdates.mock.calls[1]?.[0]).toMatchObject({ serverIds: ["srv_1"], all: true });
   });
@@ -527,7 +533,7 @@ describe("UpdatesPage", () => {
     const rows = within(list).getAllByRole("listitem");
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("0.10.6-2ubuntu0.1from 0.10.6-2build2");
-    expect(within(rows[0] as HTMLElement).getByRole("button", { name: "Update libssh-4" })).toBeVisible();
+    expect(within(rows[0] as HTMLElement).getByRole("checkbox", { name: "Select libssh-4" })).toBeVisible();
     await expectAccessible(container);
   });
 
@@ -712,7 +718,7 @@ function rowOf(table: HTMLElement, name: string): HTMLElement {
 }
 
 describe("updating packages one by one", () => {
-  it("plans one package from its own row, and its row says so until the plan is up", async () => {
+  it("plans one package picked on its row, and its row says so until the plan is up", async () => {
     const user = userEvent.setup();
     let answerPlan: (c: { change: Change }) => void = () => {};
     const planInstallUpdates = vi.fn(
@@ -723,16 +729,20 @@ describe("updating packages one by one", () => {
       changes: { planInstallUpdates, watchChange: watch.watchChange },
     });
     const table = await screen.findByRole("table", { name: "Security updates for hz-1" });
-    const update = within(rowOf(table, "openssl")).getByRole("button", { name: "Update openssl" });
+    // No button on each row (#800): its checkbox picks it, and the selection bar plans what's picked.
+    expect(within(rowOf(table, "openssl")).queryByRole("button")).toBeNull();
+    await user.click(within(rowOf(table, "openssl")).getByRole("checkbox", { name: "Select openssl" }));
+    const update = within(screen.getByRole("region", { name: "Selected updates" })).getByRole("button", {
+      name: "Update 1 selected",
+    });
     await user.click(update);
     expect(planInstallUpdates.mock.calls[0]?.[0]).toMatchObject({
       serverIds: ["srv_1"],
       packages: ["openssl"],
       all: false,
     });
-    // Planning shows on the row's own button; the others wait for it, and nothing moves.
-    expect(update).toHaveAttribute("aria-busy", "true");
-    expect(within(rowOf(table, "libssh-4")).getByRole("button", { name: "Update libssh-4" })).toBeDisabled();
+    // Planning shows on the row; nothing moves meanwhile.
+    expect(await within(rowOf(table, "openssl")).findByText("Planning")).toBeInTheDocument();
     watch.push(opensslUpdate(ChangeState.PLANNED));
     act(() => answerPlan({ change: opensslUpdate(ChangeState.PLANNED) }));
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
@@ -810,9 +820,7 @@ describe("updating packages one by one", () => {
     expect(lead).toHaveTextContent("Downloading the packages");
     const table = screen.getByRole("table", { name: "Security updates for hz-1" });
     expect(await within(rowOf(table, "openssl")).findByText("Downloading")).toBeVisible();
-    const other = within(rowOf(table, "libssh-4")).getByRole("button", { name: "Update libssh-4" });
-    expect(other).toHaveAttribute("aria-disabled", "true");
-    expect(other).toHaveAccessibleDescription("An install is running on hz-1. This one can start once it ends.");
+    expect(within(rowOf(table, "libssh-4")).getByRole("checkbox", { name: "Select libssh-4" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Check now" })).toHaveAttribute("aria-disabled", "true");
 
     watch.push(

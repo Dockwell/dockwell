@@ -61,6 +61,8 @@ export interface FilesSearch {
   path?: string;
   /** The file open beside it. */
   file?: string;
+  /** The line of it to bring into view, from 1. */
+  line?: number;
 }
 
 /** A path that isn't answering won't by the next try, and each try costs someone the wait. */
@@ -184,7 +186,7 @@ export function FilesPage({ serverId, search }: { serverId: string; search: File
           : undefined
       }
     >
-      {(server) => <Files server={server} folder={folder} file={file} reading={reading} />}
+      {(server) => <Files server={server} folder={folder} file={file} line={search.line} reading={reading} />}
     </ServerFrame>
   );
 }
@@ -247,6 +249,8 @@ interface FilesProps {
   server: Server;
   folder: string;
   file: string | undefined;
+  /** The line of the open file to bring into view, as an error that names it links here. */
+  line: number | undefined;
   /** An open file has the screen to itself. It stays where it is in the tree, so turning a phone keeps what you typed. */
   reading: boolean;
 }
@@ -254,7 +258,7 @@ interface FilesProps {
 /** Where the folders sit beside the list, and the panes fill the window (FilesPage.css). */
 const BESIDE_FOLDERS = "(min-width: 860px)";
 
-function Files({ server, folder, file, reading }: FilesProps) {
+function Files({ server, folder, file, line, reading }: FilesProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const besideFolders = useMediaQuery(BESIDE_FOLDERS);
@@ -684,7 +688,7 @@ function Files({ server, folder, file, reading }: FilesProps) {
           </div>
         )}
         {file ? (
-          <FileViewer serverId={serverId} path={file} folder={shown} key={file} />
+          <FileViewer serverId={serverId} path={file} folder={shown} line={line} key={file} />
         ) : (
           // On a wide screen the viewer's place stays, so the list keeps the width it has with a file open and a
           // name doesn't sit far from its size. Below 1600px the stylesheet hides it, as the list needs the room.

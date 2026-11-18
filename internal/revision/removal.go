@@ -129,12 +129,12 @@ func (e *Engine) RemoveServer(ctx context.Context, r RemoveServer, by By) (*Plan
 	if stays := stayNames(edits); len(stays) > 0 {
 		notes = append(notes, Note{
 			Reason: "stays_on_server", Names: stays,
-			Message: fmt.Sprintf("What stays on %s as it is, which Dockwell lets go of: %s", name, human.List(stays)),
+			Message: fmt.Sprintf("Stays on %s as it is: %s", name, human.List(stays)),
 		})
 	}
 	notes = append(notes, Note{
 		Reason: "removal_final", Names: []string{name},
-		Message: name + " can't come back once it's removed: it joins again with a new ticket, as a new server",
+		Message: name + " can't come back: to add it again, it joins as a new server",
 	})
 	return e.propose(ctx, Proposal{
 		Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits, Notes: notes,

@@ -7,12 +7,13 @@ import { Button, cx, Icon, SelectField, Sheet } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { useId, useMemo, useState } from "react";
+import { type ReactNode, useId, useMemo, useState } from "react";
 
 import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { appsUnfitOn, type Unfit } from "../catalog/architectures";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
+import type { MenuAction } from "../shell/ActionMenu";
 import { useFleetView } from "./useFleet";
 import "../apps/Apps.css";
 
@@ -66,11 +67,11 @@ function removal(
 }
 
 /**
- * Remove from fleet, on a server's page (ADR 0090). A server that runs apps asks
- * what becomes of them first; then the plan is the confirmation, with the
+ * Remove from fleet, in a server's header menu (ADR 0090, #800). A server that runs
+ * apps asks what becomes of them first; then the plan is the confirmation, with the
  * passkey. The control server has none: the control plane runs on it.
  */
-export function RemoveServerButton({ server }: { server: Server }) {
+export function useRemoveServer(server: Server): { action: MenuAction | undefined; sheet: ReactNode } {
   const { t } = useLingui();
   const may = useMay()(ChangeService.method.planRemoveServer, { install: true });
   const sheet = useChangeSheet();
@@ -79,7 +80,7 @@ export function RemoveServerButton({ server }: { server: Server }) {
   const client = useMemo(() => createClient(ChangeService, transport), [transport]);
   const apps = useApps();
   const [choosing, setChoosing] = useState(false);
-  if (server.controlServer || !may.allowed) return null;
+  if (server.controlServer || !may.allowed) return { action: undefined, sheet: null };
   const here = (apps.data ?? []).filter((s) => s.deployments.some((d) => d.serverId === server.id));
   const words: SwitchWords = {
     label: t`It may be compromised`,
@@ -97,26 +98,30 @@ export function RemoveServerButton({ server }: { server: Server }) {
     }
     sheet.open(removal(client, server, { apps: AppsOnRemoval.LEAVE, moveTo: "", compromised: false }, words, closed));
   };
-  return (
-    <>
-      <Button size="sm" variant="secondary" icon="trash" loading={apps.isPending} onClick={start} {...may.off}>
-        <Trans>Remove from fleet</Trans>
-      </Button>
-      {choosing ? (
-        <RemoveServerSheet
-          server={server}
-          apps={here.length}
-          moving={here.map((s) => ({ name: s.resource?.name ?? s.id, architectures: s.spec?.architectures ?? [] }))}
-          // The plan opens in the app's own sheet, which stays as the server leaves the fleet and its page goes.
-          plan={(ask) => {
-            setChoosing(false);
-            sheet.open(removal(client, server, ask, words, closed));
-          }}
-          onClose={() => setChoosing(false)}
-        />
-      ) : null}
-    </>
-  );
+  return {
+    action: {
+      id: "remove",
+      icon: "trash",
+      danger: true,
+      label: t`Remove from fleet`,
+      disabled: apps.isPending,
+      off: may.off.off,
+      onSelect: start,
+    },
+    sheet: choosing ? (
+      <RemoveServerSheet
+        server={server}
+        apps={here.length}
+        moving={here.map((s) => ({ name: s.resource?.name ?? s.id, architectures: s.spec?.architectures ?? [] }))}
+        // The plan opens in the app's own sheet, which stays as the server leaves the fleet and its page goes.
+        plan={(ask) => {
+          setChoosing(false);
+          sheet.open(removal(client, server, ask, words, closed));
+        }}
+        onClose={() => setChoosing(false)}
+      />
+    ) : null,
+  };
 }
 
 /**

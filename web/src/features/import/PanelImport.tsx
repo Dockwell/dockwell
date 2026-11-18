@@ -26,7 +26,7 @@ import { ServerFrame } from "../servers/ServerFrame";
 import { HandOverSheet } from "./HandOverSheet";
 import { OnePanelImport, StepGroup, useGroups } from "./OnePanelImport";
 import { useOnePanelHere } from "./onePanelHere";
-import { PANEL_PROXIES, usePanelOn } from "./StopPanel";
+import { PANEL_PROXIES, usePanelCheckSettled, usePanelOn } from "./StopPanel";
 import "./OnePanelImport.css";
 
 /*
@@ -53,12 +53,15 @@ export function MoveInPage({ serverId }: { serverId: string }) {
 function MoveIn({ server }: { server: Server }) {
   const onePanel = useOnePanelHere(server);
   const panel = usePanelOn(server);
+  // 1Panel's page reads as it opens, so it waits until Coolify's and Dokploy's check
+  // has said whether one of them runs here (#800's review, L2).
+  const settled = usePanelCheckSettled(server);
   return (
     <>
       {panel !== undefined ? (
         <PanelImport server={server} kind={panel.kind} running={panel.running} proxyStopped={panel.proxyStopped} />
       ) : null}
-      {onePanel || panel === undefined ? <OnePanelImport server={server} /> : null}
+      {settled && (onePanel || panel === undefined) ? <OnePanelImport server={server} /> : null}
     </>
   );
 }

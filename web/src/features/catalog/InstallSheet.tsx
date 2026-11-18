@@ -65,7 +65,7 @@ import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { asGoodAsRoot } from "../changes/plan";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useConnections } from "../connections/useConnections";
-import { AddServerSheet } from "../servers/AddServerSheet";
+import { AddServerSheet, useJoinStart } from "../servers/AddServerSheet";
 import { lentRangeOf, type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleet, useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -155,7 +155,13 @@ export function InstallSheet({
   // Where no server can take the app, adding one is the way on, here, as the form
   // keeps what's typed and offers the new server once its agent says what it is (#771).
   const mayAddServer = useMay()(ServerService.method.createJoinTicket);
-  const [addingServer, setAddingServer] = useState(false);
+  const [addingServer, setAddingServerHere] = useState(false);
+  const join = useJoinStart();
+  // The ticket starts in the click itself, so its passkey may be asked for there (#800).
+  const setAddingServer = (open: boolean) => {
+    if (open) join.start();
+    setAddingServerHere(open);
+  };
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
   const navigate = useNavigate();
@@ -1026,6 +1032,7 @@ export function InstallSheet({
       {addingServer ? (
         <AddServerSheet
           control={controlServer ? { id: controlServer.id, name: controlServer.name } : undefined}
+          started={join.started}
           onClose={() => setAddingServer(false)}
           overForm
         />

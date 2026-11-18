@@ -32,6 +32,7 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useRef, useState } from "react";
 
+import { useOwnAddress } from "../apps/PrivateSheet";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
 
@@ -281,6 +282,7 @@ export function DockwellRules({
       {adding ? (
         <AddRuleSheet
           server={server}
+          fw={fw}
           taken={rows.map((r) => r.id)}
           onClose={() => setAdding(false)}
           open={sheet.open}
@@ -298,14 +300,50 @@ export function ruleName(action: "allow" | "deny", port: number, udp: boolean, t
   return name;
 }
 
+/** A port that answers beyond the server, as a rule could name it: what listens there, and the protocol. */
+interface Suggested {
+  port: number;
+  protocol: "tcp" | "udp";
+  user: string;
+}
+
+/**
+ * The ports a new rule is likely for: what listens beyond loopback and what Docker
+ * publishes, each once, without those Dockwell has a rule for already.
+ */
+export function suggestedPorts(
+  fw: ServerFirewall | undefined,
+  ruled: readonly { port: number; protocol: string }[],
+  user: (ports: readonly { port: number; protocol?: string }[]) => string,
+  generic: readonly string[] = [],
+): Suggested[] {
+  if (!fw) return [];
+  const loopback = (address: string) => address.startsWith("127.") || address === "::1";
+  const seen = new Set(ruled.map((r) => `${r.port}/${r.protocol}`));
+  const out: Suggested[] = [];
+  const add = (port: number, protocol: string) => {
+    const key = `${port}/${protocol}`;
+    if (seen.has(key) || (protocol !== "tcp" && protocol !== "udp")) return;
+    seen.add(key);
+    // What uses it, where that's an app or SSH; "the server itself" on every chip says nothing.
+    const who = user([{ port, protocol }]);
+    out.push({ port, protocol, user: generic.includes(who) ? "" : who });
+  };
+  for (const p of fw.published) if (!loopback(p.hostIp)) add(p.hostPort, p.protocol);
+  for (const l of fw.listening) if (!loopback(l.address)) add(l.port, l.protocol);
+  return out.sort((a, b) => a.port - b.port).slice(0, 8);
+}
+
 /** A new rule: what it does, to which port, from where, planned as a change. */
 function AddRuleSheet({
   server,
+  fw,
   taken,
   onClose,
   open,
 }: {
   server: Server;
+  fw: ServerFirewall | undefined;
   taken: readonly string[];
   onClose: () => void;
   open: (opening: Opening) => void;
@@ -318,6 +356,22 @@ function AddRuleSheet({
   const [from, setFrom] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string>();
+  const user = usePortUser(server, fw);
+  const ruled = (fw?.dockwell?.rules ?? []).flatMap((r) =>
+    r.rule ? [{ port: r.rule.port, protocol: r.rule.protocol === Protocol.UDP ? "udp" : "tcp" }] : [],
+  );
+  const suggested = suggestedPorts(fw, ruled, user, [t`The server itself`, t`Nothing listens`]);
+  // Your own address, as the control plane saw this request, to let in.
+  const mine = useOwnAddress();
+  const listed = from
+    .split(/[\s,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const pick = (s: Suggested) => {
+    setPort(String(s.port));
+    setProtocol(s.protocol);
+    setError(undefined);
+  };
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     const n = Number(port.trim());
@@ -326,10 +380,7 @@ function AddRuleSheet({
       field.current?.focus();
       return;
     }
-    const sources = from
-      .split(/[\s,]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const sources = listed;
     const name = ruleName(action, n, protocol === "udp", taken);
     const edit: Edit = {
       resource: ruleRef(server, name),
@@ -360,15 +411,15 @@ function AddRuleSheet({
       open
       initialFocusRef={field}
       title={t`Add a rule to ${server.name}`}
-      subtitle={t`It applies as a plan, and stays only once you confirm you can still reach the server`}
+      subtitle={t`It stays only once you confirm you can still reach the server`}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button variant="primary" onClick={() => submit()}>
-            <Trans>Plan it</Trans>
+          <Button variant="primary" icon="commit" onClick={() => submit()}>
+            <Trans>Review plan</Trans>
           </Button>
         </>
       }
@@ -384,17 +435,36 @@ function AddRuleSheet({
             { value: "deny", label: t`Deny` },
           ]}
         />
-        <TextField
-          ref={field}
-          label={t`Port`}
-          mono
-          inputMode="numeric"
-          value={port}
-          onChange={(e) => {
-            setPort(e.target.value);
-            setError(undefined);
-          }}
-        />
+        <div className="firewall-add-port">
+          <TextField
+            ref={field}
+            label={t`Port`}
+            mono
+            inputMode="numeric"
+            placeholder="443"
+            value={port}
+            onChange={(e) => {
+              setPort(e.target.value);
+              setError(undefined);
+            }}
+          />
+          {suggested.length > 0 ? (
+            <ul className="firewall-suggest" aria-label={t`What answers on ${server.name}`}>
+              {suggested.map((s) => {
+                const on = port.trim() === String(s.port) && protocol === s.protocol;
+                const what = `${s.port}/${s.protocol}`;
+                return (
+                  <li key={what}>
+                    <button type="button" className="firewall-suggest-chip" aria-pressed={on} onClick={() => pick(s)}>
+                      <code>{what}</code>
+                      {s.user ? <span>{s.user}</span> : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </div>
         <SelectField
           label={t`Protocol`}
           value={protocol}
@@ -410,14 +480,23 @@ function AddRuleSheet({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
+          placeholder="203.0.113.0/24"
           value={from}
-          hint={t`Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere.`}
+          hint={t`Addresses or ranges, separated by commas. Empty lets anyone in.`}
           onChange={(e) => setFrom(e.target.value)}
+          action={
+            mine && !listed.includes(mine) ? (
+              <Button size="sm" variant="ghost" onClick={() => setFrom([...listed, mine].join(", "))}>
+                <Trans>Use my address</Trans>
+              </Button>
+            ) : undefined
+          }
         />
         <TextField
           label={t`Note`}
           value={note}
-          hint={t`Why the rule is there, shown beside it.`}
+          optional
+          placeholder={t`Office VPN`}
           onChange={(e) => setNote(e.target.value)}
         />
       </form>

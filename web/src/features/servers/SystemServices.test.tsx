@@ -129,6 +129,31 @@ describe("SystemServicesPage", () => {
     expect(await screen.findByText("No system service matches.")).toBeVisible();
   });
 
+  it("opens the file a failure names, at its line, from its row and its facts", async () => {
+    const user = userEvent.setup();
+    const { system } = await renderServices();
+    const broken = unit({
+      name: "nginx.service",
+      description: "A high performance web server",
+      state: SystemServiceState.FAILED,
+      detail: "failed",
+      atBoot: "enabled",
+      result: "exit-code",
+      why: ["nginx: [emerg] unknown directive in /etc/nginx/sites-enabled/default:12"],
+    });
+    system.push(listOf(SystemInit.SYSTEMD, [broken, ...services.slice(1)]));
+    await screen.findByRole("table", { name: "System services on hz-1" });
+    const href = "/servers/srv_1/files?file=%2Fetc%2Fnginx%2Fsites-enabled%2Fdefault&line=12";
+    expect(within(rows()[0] as HTMLElement).getByRole("link", { name: "Open default at line 12" })).toHaveAttribute(
+      "href",
+      href,
+    );
+    await user.click(within(rows()[0] as HTMLElement).getByText("nginx.service"));
+    const sheet = await screen.findByRole("dialog", { name: "nginx.service" });
+    expect(within(sheet).getByRole("link", { name: "Open default at line 12" })).toHaveAttribute("href", href);
+    expect(within(sheet).getByRole("button", { name: /Restart/ })).toBeVisible();
+  });
+
   it("opens a service's facts from its row", async () => {
     const user = userEvent.setup();
     const { system } = await renderServices();

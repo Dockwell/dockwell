@@ -12,6 +12,7 @@ import {
   ImportOnePanelResponseSchema,
   ImportWaitsFor,
   ListContainersResponseSchema,
+  Role,
   ServerContainerSchema,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -20,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
+import { authState, mira } from "../../test/auth";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -85,15 +87,14 @@ afterEach(() => {
 describe("Moving in from 1Panel", () => {
   it("is offered on a server's Overview where 1Panel's containers run, until someone says not now", async () => {
     renderAt("/servers/srv_1", api({ containers: { listContainers: () => containers(["1Panel-mysql-AbCd", "web"]) } }));
-    const offer = await screen.findByText("Containers 1Panel made run on this server");
-    expect(offer).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Move in from 1Panel" }).getAttribute("href")).toBe(
-      "/servers/srv_1/import",
-    );
-    // The server's own tabs have a way in that doesn't rest on the callout.
-    expect(screen.getByRole("link", { name: "Move in" }).getAttribute("href")).toBe("/servers/srv_1/import");
-    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
-    await waitFor(() => expect(screen.queryByText("Containers 1Panel made run on this server")).toBeNull());
+    // One line: that it's there, and what's left to move, by app (#800).
+    const offer = (await screen.findByText("1Panel found on hz-1")).closest('[role="status"]') as HTMLElement;
+    expect(offer).toHaveTextContent("Left to move: mysql");
+    const links = screen.getAllByRole("link", { name: "Move in" });
+    // The callout's, and the server's own tab, a way in that doesn't rest on the callout.
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/servers/srv_1/import", "/servers/srv_1/import"]);
+    await userEvent.click(within(offer).getByRole("button", { name: "Not now" }));
+    await waitFor(() => expect(screen.queryByText("1Panel found on hz-1")).toBeNull());
     expect(screen.getByRole("link", { name: "Move in" })).toBeTruthy();
   });
 
@@ -102,7 +103,7 @@ describe("Moving in from 1Panel", () => {
     renderAt("/servers/srv_1", api({ containers: { listContainers } }));
     await waitFor(() => expect(listContainers).toHaveBeenCalled());
     await screen.findByText("web");
-    expect(screen.queryByText("Containers 1Panel made run on this server")).toBeNull();
+    expect(screen.queryByText("1Panel found on hz-1")).toBeNull();
     expect(screen.queryByRole("link", { name: "Move in" })).toBeNull();
   });
 
@@ -114,7 +115,7 @@ describe("Moving in from 1Panel", () => {
       servers: { watchServers: watch.stream },
       containers: { listContainers },
     });
-    const offer = "Containers 1Panel made run on this server";
+    const offer = "1Panel found on hz-1";
     await screen.findByText(offer);
     for (const fields of [
       { connection: Connection.UNREACHABLE },
@@ -146,10 +147,7 @@ describe("Moving in from 1Panel", () => {
         },
       }),
     );
-    const read = await screen.findByRole("button", { name: "Read what 1Panel keeps" });
-    expect(importOnePanel).not.toHaveBeenCalled();
-    await expectAccessible(document.body);
-    await userEvent.click(read);
+    // It reads as the page opens (#800), planning nothing.
     await waitFor(() => expect(importOnePanel).toHaveBeenCalledTimes(1));
     expect(importOnePanel.mock.lastCall?.[0]).toMatchObject({ serverId: "srv_1", skipPlan: true });
 
@@ -180,6 +178,38 @@ describe("Moving in from 1Panel", () => {
     expect(discardChange).not.toHaveBeenCalled();
   });
 
+  it("reads nothing for someone who may not, and waits for Coolify's and Dokploy's check (#800's review, L2)", async () => {
+    const importOnePanel = vi.fn(() => found());
+    const { unmount } = renderAt(
+      "/servers/srv_1/import",
+      api({
+        imports: { importOnePanel },
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+      }),
+    );
+    await screen.findByRole("heading", { level: 1, name: "hz-1" });
+    await new Promise((r) => setTimeout(r, 100));
+    expect(importOnePanel).not.toHaveBeenCalled();
+    unmount();
+
+    // While the containers are still being read, it waits; once they say no other panel runs, it reads.
+    let answer: (res: ReturnType<typeof containers>) => void = () => {};
+    const listContainers = vi.fn(() => new Promise<ReturnType<typeof containers>>((resolve) => (answer = resolve)));
+    const reads = vi.fn(() => found());
+    renderAt("/servers/srv_1/import", api({ imports: { importOnePanel: reads }, containers: { listContainers } }));
+    await waitFor(() => expect(listContainers).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 100));
+    expect(reads).not.toHaveBeenCalled();
+    answer(containers(["1Panel-mysql-AbCd"]));
+    await waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
+  });
+
   it("leaves nothing planned when the page is left mid-read", async () => {
     let finish: (res: ReturnType<typeof found>) => void = () => {};
     const importOnePanel = vi.fn(
@@ -197,7 +227,6 @@ describe("Moving in from 1Panel", () => {
         containers: { listContainers: () => containers([]) },
       }),
     );
-    await userEvent.click(await screen.findByRole("button", { name: "Read what 1Panel keeps" }));
     await waitFor(() => expect(importOnePanel).toHaveBeenCalledTimes(1));
     await router.navigate({ to: "/servers/$serverId", params: { serverId: "srv_1" } });
     finish(found());
@@ -216,7 +245,6 @@ describe("Moving in from 1Panel", () => {
     });
     const discardChange = vi.fn((_req: { id: string }) => ({}));
     renderAt("/servers/srv_1/import", api({ imports: { importOnePanel }, changes: { discardChange } }));
-    await userEvent.click(await screen.findByRole("button", { name: "Read what 1Panel keeps" }));
     await screen.findByRole("list", { name: "In this plan" });
     fail = true;
     await userEvent.click(screen.getByRole("button", { name: "Read it again" }));
@@ -236,7 +264,6 @@ describe("Moving in from 1Panel", () => {
       );
     });
     renderAt("/servers/srv_1/import", api({ imports: { importOnePanel } }));
-    await userEvent.click(await screen.findByRole("button", { name: "Read what 1Panel keeps" }));
     await screen.findByText("1Panel isn't on this server");
     expect(screen.queryByText("Couldn't read what 1Panel keeps")).toBeNull();
     expect(screen.getByText(/hz-1 doesn't run 1Panel/)).toBeTruthy();
@@ -246,7 +273,6 @@ describe("Moving in from 1Panel", () => {
     const other = found();
     if (other.found) other.found = { ...other.found, version: "v2.6.0", knownVersion: false };
     renderAt("/servers/srv_1/import", api({ imports: { importOnePanel: () => other } }));
-    await userEvent.click(await screen.findByRole("button", { name: "Read what 1Panel keeps" }));
     await screen.findByText("A version of 1Panel this wasn't written from");
     expect(screen.getByText(/written from 1Panel v2.0 to v2.4.2, and v1.10, and this server runs v2.6.0/)).toBeTruthy();
     expect(screen.getByRole("link", { name: "Move in" })).toBeTruthy();

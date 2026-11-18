@@ -277,7 +277,20 @@
 }
 
 /* Other updates: a panel that opens on its own row. */
+/* The fold's toggle, with Install every update at its end. */
+.updates-other-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.updates-other-head .updates-other-every {
+  flex: none;
+  margin-inline-end: var(--space-3);
+}
+
 .updates-other-toggle {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -448,6 +461,21 @@
 @media (max-width: 639px) {
   .updates-selection {
     bottom: calc(var(--tabbar-height) + var(--space-2));
+  }
+
+  /* A phone reads the fold's title and line whole: the chevron toggles it, so Show all goes, and Install
+     every update takes a row of its own under them (#800's review, L5). */
+  .updates-other-head {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+
+  .updates-other-show {
+    display: none;
+  }
+
+  .updates-other-head .updates-other-every {
+    margin: 0 var(--space-4) var(--space-3) calc(var(--space-4) + 16px + var(--space-3));
   }
 }
 

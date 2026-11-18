@@ -233,9 +233,8 @@ describe("a server's Firewall tab", () => {
   it("lists the ports Docker publishes, what its proxy takes, and the rules in DOCKER-USER", async () => {
     await renderFirewall({ tools: [ufw], published, dockerUserRules: 2 });
     const panel = await screen.findByRole("region", { name: "Ports Docker publishes" });
-    expect(panel).toHaveTextContent(
-      "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked.",
-    );
+    // Said for the one port past loopback that Docker's proxy doesn't take, 8080 on 0.0.0.0.
+    expect(panel).toHaveTextContent("ufw and firewalld don't cover 1 port here, as Docker forwards it first.");
     expect(panel).toHaveTextContent(
       "Docker's DOCKER-USER chain holds 2 rules, which filter these, and which Dockwell doesn't weigh one by one.",
     );
@@ -441,7 +440,11 @@ describe("a server's Firewall tab", () => {
       {
         tools: [ufw],
         published,
-        listening: [{ address: "0.0.0.0", port: 443, protocol: "tcp", reach: ListenerReach.OPEN }],
+        listening: [
+          { address: "0.0.0.0", port: 443, protocol: "tcp", reach: ListenerReach.OPEN },
+          { address: "0.0.0.0", port: 3000, protocol: "tcp", reach: ListenerReach.OPEN },
+          { address: "127.0.0.1", port: 6379, protocol: "tcp", reach: ListenerReach.OPEN },
+        ],
         dockwell: {
           rules: [
             {
@@ -460,7 +463,10 @@ describe("a server's Firewall tab", () => {
         },
       },
       hz1,
-      { changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream } },
+      {
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+        auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "198.51.100.23", current: true }] }) },
+      },
     );
     const panel = await screen.findByRole("region", { name: "Dockwell's rules" });
     // Used by: what Docker publishes the port for, what listens there, or nothing.
@@ -475,9 +481,24 @@ describe("a server's Firewall tab", () => {
 
     await user.click(within(panel).getByRole("button", { name: "Add a rule" }));
     const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    // What answers beyond the server and has no rule yet is one click away; loopback and ruled ports aren't offered.
+    const offered = within(add).getByRole("list", { name: "What answers on hz-1" });
+    expect(
+      within(offered)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["3000/tcp"]);
+    await user.click(within(offered).getByRole("button", { name: /3000\/tcp/ }));
+    expect(within(add).getByLabelText("Port")).toHaveValue("3000");
+    expect(within(offered).getByRole("button", { name: /3000\/tcp/ })).toHaveAttribute("aria-pressed", "true");
+    await user.clear(within(add).getByLabelText("Port"));
     await user.type(within(add).getByLabelText("Port"), "443");
     await user.type(within(add).getByLabelText("From"), "203.0.113.0/24, 2001:db8::/32");
-    await user.click(within(add).getByRole("button", { name: "Plan it" }));
+    // Your own address is a click, once.
+    await user.click(within(add).getByRole("button", { name: "Use my address" }));
+    expect(within(add).getByLabelText("From")).toHaveValue("203.0.113.0/24, 2001:db8::/32, 198.51.100.23");
+    expect(within(add).queryByRole("button", { name: "Use my address" })).toBeNull();
+    await user.click(within(add).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalledTimes(1));
     const added = proposed.mock.calls[0]?.[0];
     expect(added?.summary).toBe("Allow 443/tcp on hz-1");
@@ -485,7 +506,7 @@ describe("a server's Firewall tab", () => {
     expect(added?.edits[0]?.resource).toMatchObject({ kind: "firewall.rule", scope: "srv_1", name: "allow-443-2" });
     expect(added?.edits[0]?.spec?.kind.value).toMatchObject({
       port: 443,
-      sources: ["203.0.113.0/24", "2001:db8::/32"],
+      sources: ["203.0.113.0/24", "2001:db8::/32", "198.51.100.23"],
     });
 
     await user.click(within(panel).getByRole("button", { name: "Remove the rule deny-5432" }));
@@ -502,6 +523,18 @@ describe("a server's Firewall tab", () => {
     });
   });
 
+  it("lets in the /64 of your IPv6 address, as the database page does, not the address that changes (#800's review, M3)", async () => {
+    const user = userEvent.setup();
+    await renderFirewall({ tools: [ufw] }, hz1, {
+      changes: { proposeChange: vi.fn(() => ({})), watchChange: feed<WatchChangeResponse>().stream },
+      auth: { listSessions: () => ({ sessions: [{ id: "ses_1", address: "2001:db8:5:6:a:b:c:d", current: true }] }) },
+    });
+    await user.click(await screen.findByRole("button", { name: "Add a rule" }));
+    const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
+    await user.click(await within(add).findByRole("button", { name: "Use my address" }));
+    expect(within(add).getByLabelText("From")).toHaveValue("2001:db8:5:6::/64");
+  });
+
   it("refuses a port that isn't one, before planning anything", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((_req: ProposeChangeRequest) => ({}));
@@ -511,7 +544,7 @@ describe("a server's Firewall tab", () => {
     await user.click(await screen.findByRole("button", { name: "Add a rule" }));
     const add = await screen.findByRole("dialog", { name: "Add a rule to hz-1" });
     await user.type(within(add).getByLabelText("Port"), "70000");
-    await user.click(within(add).getByRole("button", { name: "Plan it" }));
+    await user.click(within(add).getByRole("button", { name: "Review plan" }));
     expect(await within(add).findByText("Name a port from 1 to 65535, such as 443.")).toBeVisible();
     expect(proposed).not.toHaveBeenCalled();
   });
@@ -570,7 +603,7 @@ describe("a server's Firewall tab", () => {
     );
     expect(screen.queryByText(/Nothing filters what comes in/)).toBeNull();
     expect(await screen.findByRole("region", { name: "Ports Docker publishes" })).toHaveTextContent(
-      "with deny everything else on, only a port a rule of Dockwell's allows reaches its container.",
+      "Deny everything else covers these too: only a port Dockwell allows reaches its container.",
     );
   });
 

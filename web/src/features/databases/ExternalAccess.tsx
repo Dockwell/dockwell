@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { createClient } from "@connectrpc/connect";
-import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { AuthService, type Database, DatabaseService, Protocol, ServiceService } from "@dockwell/api";
+import { useTransport } from "@connectrpc/connect-query";
+import { type Database, DatabaseService, Protocol, ServiceService } from "@dockwell/api";
 import { Button, CopyButton, Panel, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useState } from "react";
 import { appOf } from "../apps/app";
 import { StateLine } from "../apps/DomainStep";
-import { ownEntries } from "../apps/PrivateSheet";
+import { useOwnAddress } from "../apps/PrivateSheet";
 import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
@@ -37,13 +37,12 @@ export function ExternalAccess({ db }: { db: Database }) {
   const reading = db.readings[0];
   const serverName = reading?.serverName ?? "";
   // Your own address, as the control plane saw this request, is what's let in first.
-  const sessions = useQuery(AuthService.method.listSessions, {});
-  const own = ownEntries(sessions.data?.sessions.find((s) => s.current)?.address ?? "");
+  const own = useOwnAddress();
   const [editing, setEditing] = useState(false);
   const [typed, setTyped] = useState<string>();
   const [error, setError] = useState<string>();
   const [tunnel, setTunnel] = useState(false);
-  const shown = typed ?? (open ? open.allowFrom.join(", ") : (own[0] ?? ""));
+  const shown = typed ?? (open ? open.allowFrom.join(", ") : (own ?? ""));
   const port = String(open?.port ?? db.port);
   const plan = (request: { allowFrom?: string[]; off?: boolean }): Opening => ({
     kind: "plan",

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
+import { createClient, type Transport } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   Connection,
+  type CreateJoinTicketResponse,
   JoinReach,
   type JoinTicket,
   JoinTicketState,
@@ -14,7 +15,7 @@ import {
 } from "@dockwell/api";
 import { Button, Callout, Sheet, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -44,17 +45,83 @@ export function joinCommand(releases: string, controlPlane: string, ticket = "<t
   return install ? `${install} --join ${ticket}` : undefined;
 }
 
+/** A ticket on its way, started in the click that opens the sheet (#800). */
+export type JoinStart = Promise<CreateJoinTicketResponse>;
+
 /**
- * Adds a server as Add-Server has it: the panel makes the ticket, with a passkey, and
- * shows the one command to run on the new server with it in place; then it waits, and
- * says when the server has joined, with the way to its page. What the ticket's address
- * means for a server elsewhere is a state with its fix, the server's public address.
+ * Starts making a ticket, passkey and all, in the click that opens the sheet: the
+ * browser lets a passkey be asked for in that click's own activation, which Safari
+ * insists on, and an effect after the sheet renders is past it.
+ */
+export function startJoinTicket(transport: Transport, labels: readonly string[] = []): JoinStart {
+  const client = createClient(ServerService, transport);
+  const started = withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
+    client.createJoinTicket({ proof, labels: [...labels] }),
+  );
+  // The sheet takes it as it mounts; until then, a refusal isn't a stray error.
+  started.catch(() => {});
+  return started;
+}
+
+/**
+ * A ticket a click elsewhere started, such as the command bar's, for the Servers page
+ * to take as its address asks for the sheet. It lives a few seconds and is taken once,
+ * so no later visit to that address finds one (#800's review, M1).
+ */
+let handed: { started: JoinStart; at: number } | undefined;
+
+/** How long a handed ticket waits to be taken, which a page change takes well within. */
+const HANDED_FOR_MS = 10_000;
+
+/** Starts a ticket in a click that goes to /servers?add, which the page takes as it opens the sheet. */
+export function handOverJoinTicket(transport: Transport): void {
+  handed = { started: startJoinTicket(transport), at: Date.now() };
+}
+
+/** Lets go of a ticket nobody took, as when the sheet closes. */
+export function dropHandedJoinTicket(): void {
+  handed = undefined;
+}
+
+function takeHandedJoinTicket(): JoinStart | undefined {
+  const it = handed;
+  handed = undefined;
+  return it && Date.now() - it.at < HANDED_FOR_MS ? it.started : undefined;
+}
+
+/**
+ * What opens the sheet: start() in the click handler, then the sheet takes what it
+ * started. Where nobody may make a ticket, it starts nothing. take() takes a ticket a
+ * click elsewhere handed over, if one is fresh, and otherwise leaves none, so the
+ * sheet offers Show the command.
+ */
+export function useJoinStart(): { started: JoinStart | undefined; start: () => void; take: () => void } {
+  const transport = useTransport();
+  const may = useMay()(ServerService.method.createJoinTicket).allowed;
+  const [started, setStarted] = useState<JoinStart>();
+  return {
+    started,
+    start: () => setStarted(may ? startJoinTicket(transport) : undefined),
+    take: () => setStarted(takeHandedJoinTicket()),
+  };
+}
+
+/**
+ * Adds a server as Add-Server has it: the click that opens it starts the ticket, with
+ * a passkey, so the browser lets the passkey be asked for there, and it shows the one command
+ * to run on the new server with it in place (#800); then it waits, and says when the
+ * server has joined, with the way to its page. Labels to join with are a step away,
+ * and make the command again. What the ticket's address means for a server elsewhere
+ * is a state with its fix, the server's public address.
  */
 export function AddServerSheet({
   control,
   onClose,
   overForm = false,
+  started,
 }: {
+  /** The ticket the click that opened it started, from useJoinStart; without one, Show the command makes it. */
+  started?: JoinStart | undefined;
   /** The control server, whose release the new one's agent takes. */
   control: { id: string; name: string } | undefined;
   onClose: () => void;
@@ -77,6 +144,7 @@ export function AddServerSheet({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const [addressing, setAddressing] = useState(false);
+  const [labelling, setLabelling] = useState(false);
   const may = useMay();
   const mayMake = may(ServerService.method.createJoinTicket);
   const maySetAddress = may(ServerService.method.setServerPublicAddress);
@@ -112,15 +180,24 @@ export function AddServerSheet({
   const joined = servers?.find((s) => s.id === joinedId);
   const joinedName = joined?.name || read.data?.ticket?.serverName || joinedId;
 
-  const make = async () => {
-    if (busy) return;
+  const make = (asked?: JoinStart) => {
+    if (busy && !asked) return;
+    void take(
+      asked ??
+        withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
+          client.createJoinTicket({ proof, labels: labelTexts(labels) }),
+        ),
+    );
+  };
+  const take = async (asked: JoinStart) => {
     setBusy(true);
     setFailure(undefined);
     try {
-      const res = await withStepUpIfAsked(transport, StepUpAction.ADD_SERVER, "", (proof) =>
-        client.createJoinTicket({ proof, labels: labelTexts(labels) }),
-      );
-      if (res.ticket) setMade({ ticket: res.ticket, value: res.value });
+      const res = await asked;
+      if (res.ticket) {
+        setMade({ ticket: res.ticket, value: res.value });
+        setLabelling(false);
+      }
     } catch (err) {
       if (err instanceof StepUpDeclined) return;
       setFailure(
@@ -132,6 +209,27 @@ export function AddServerSheet({
       setBusy(false);
     }
   };
+
+  // The command on open (#800): what the opening click started, taken once.
+  const taken = useRef<JoinStart>(undefined);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: each ticket the click started is taken once.
+  useEffect(() => {
+    if (!started || taken.current === started) return;
+    taken.current = started;
+    make(started);
+  }, [started]);
+
+  const labelsField = (
+    <LabelsField
+      labels={labels}
+      onChange={setLabels}
+      fleet={servers ?? []}
+      label={t`Labels`}
+      shownLabel
+      optional
+      hint={t`Such as region:eu. The server joins with them.`}
+    />
+  );
 
   const first = made?.ticket.addresses[0];
   const host = first ? hostOf(first.url) : "";
@@ -150,28 +248,27 @@ export function AddServerSheet({
         <p>
           <Trans>Any Linux server you have root on: another provider, a home lab or a VM.</Trans>
         </p>
-        <LabelsField
-          labels={labels}
-          onChange={setLabels}
-          fleet={servers ?? []}
-          label={t`Labels`}
-          shownLabel
-          optional
-          hint={t`Such as region:eu. The server joins with them.`}
-        />
+        {busy ? (
+          <div className="servers-add-command is-waiting" aria-busy="true">
+            <StatusBadge status="deploying" label={t`Confirm with your passkey to show it`} labelIsState />
+          </div>
+        ) : null}
         {failure ? (
           <Callout tone="critical" title={t`No command yet`}>
             {failure}
           </Callout>
         ) : null}
-        <div className="servers-add-make">
-          <Button variant="primary" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
-            {busy ? t`Making the command` : t`Make the command`}
-          </Button>
-          <span className="servers-add-meta">
-            <Trans>Confirm with your passkey. The command works once, for an hour.</Trans>
-          </span>
-        </div>
+        {/* Where the passkey was turned down, or isn't this person's to give, the way to it again. */}
+        {busy ? null : (
+          <div className="servers-add-make">
+            <Button variant="primary" icon="key" onClick={() => make()} {...mayMake.off}>
+              <Trans>Show the command</Trans>
+            </Button>
+            <span className="servers-add-meta">
+              <Trans>It works once, for an hour.</Trans>
+            </span>
+          </div>
+        )}
       </section>
     );
   } else if (state === JoinTicketState.JOINED) {
@@ -228,23 +325,52 @@ export function AddServerSheet({
             <CopyCommand command="dockwell run" />
           </>
         )}
-        {Object.keys(made.ticket.labels).length > 0 ? (
-          <div className="servers-add-labels">
-            <span className="servers-add-meta">
-              <Trans>Joins with</Trans>
-            </span>
-            {Object.keys(made.ticket.labels)
-              .sort()
-              .map((k) => (
-                <Tag key={k} label={k} value={made.ticket.labels[k] || undefined} />
-              ))}
+        {labelling ? (
+          <div className="servers-add-labelling">
+            {labelsField}
+            {/* A ticket can't be taken back yet, so the one above keeps working (#800's review, M2). */}
+            <span className="servers-add-meta">{t`The command above still works until it expires`}</span>
+            <div className="servers-add-make">
+              <Button size="sm" variant="ghost" onClick={() => setLabelling(false)}>
+                <Trans>Cancel</Trans>
+              </Button>
+              <Button size="sm" icon="key" loading={busy} onClick={() => make()} {...mayMake.off}>
+                <Trans>Make it with these labels</Trans>
+              </Button>
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="servers-add-labels">
+            {Object.keys(made.ticket.labels).length > 0 ? (
+              <>
+                <span className="servers-add-meta">
+                  <Trans>Joins with</Trans>
+                </span>
+                {Object.keys(made.ticket.labels)
+                  .sort()
+                  .map((k) => (
+                    <Tag key={k} label={k} value={made.ticket.labels[k] || undefined} />
+                  ))}
+              </>
+            ) : null}
+            {expired ? null : (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={Object.keys(made.ticket.labels).length > 0 ? "edit" : "plus"}
+                onClick={() => setLabelling(true)}
+                {...mayMake.off}
+              >
+                {Object.keys(made.ticket.labels).length > 0 ? <Trans>Change labels</Trans> : <Trans>Add labels</Trans>}
+              </Button>
+            )}
+          </div>
+        )}
         <div className="servers-add-wait" aria-live="polite">
           {expired ? (
             <>
               <StatusBadge status="stopped" label={t`This command expired`} labelIsState />
-              <Button size="sm" icon="key" loading={busy} onClick={() => void make()} {...mayMake.off}>
+              <Button size="sm" icon="key" loading={busy} onClick={() => make()} {...mayMake.off}>
                 <Trans>Make a new command</Trans>
               </Button>
             </>

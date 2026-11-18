@@ -77,6 +77,7 @@ export function LabelChips({
   onRemove,
   check,
   suggestions,
+  quick = [],
   placeholder,
   icon,
   after,
@@ -94,6 +95,11 @@ export function LabelChips({
   /** What's wrong with what's typed, or undefined. */
   check: (text: string) => LabelProblem | undefined;
   suggestions: readonly string[];
+  /**
+   * Labels or keys offered under the field, a click each (#800): a whole label adds
+   * it, a key such as "region:" puts it in the field to type its value.
+   */
+  quick?: readonly string[];
   placeholder: string;
   icon?: IconName;
   /** At the end of the field, such as how many servers match. */
@@ -160,6 +166,19 @@ export function LabelChips({
   };
   const messageId = `${id}-message`;
   const message = shown ?? hint;
+  const taken = new Set(chips.map((chip) => chip.text));
+  const offered = quick.filter(
+    (q) => !taken.has(q) && !(q.endsWith(":") && chips.some((c) => c.key === q.slice(0, -1))),
+  );
+  const pick = (q: string) => {
+    if (q.endsWith(":")) {
+      setText(q);
+      setTried(false);
+      input.current?.focus();
+      return;
+    }
+    add(q);
+  };
   return (
     <div className={cx("dw-field", "label-chips", shown && "is-invalid", className)}>
       {shownLabel ? (
@@ -219,6 +238,18 @@ export function LabelChips({
         </datalist>
         {after}
       </div>
+      {offered.length > 0 ? (
+        <ul className="label-chips-quick" aria-label={t`Labels to add`}>
+          {offered.map((q) => (
+            <li key={q}>
+              <button type="button" className="label-chips-pick" onClick={() => pick(q)}>
+                <Icon name="plus" size={12} />
+                <span>{q}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {message ? (
         <div id={messageId} className={shown ? "dw-field-error" : "dw-field-hint"} role={shown ? "alert" : undefined}>
           {shown ? <Glyph shape={TONE.critical.shape} size={9} /> : null}

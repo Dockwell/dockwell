@@ -9401,6 +9401,15 @@ msgstr "{on} 的标签已更改"
 msgid "Leave it for an admin"
 msgstr "留给管理员处理"
 
+msgid "Leaves the fleet"
+msgstr "离开服务器群"
+
+msgid "Left on the server"
+msgstr "已留在服务器上"
+
+msgid "Left the fleet"
+msgstr "已离开服务器群"
+
 msgid "Masked {name} on {server}"
 msgstr "已在 {server} 上屏蔽 {name}"
 
@@ -9481,6 +9490,9 @@ msgstr "正在 {server} 上重新启动 {name}"
 
 msgid "Starting {name} on {server}"
 msgstr "正在 {server} 上启动 {name}"
+
+msgid "Stays on the server"
+msgstr "留在服务器上"
 
 msgid "Steps run one at a time on each server, servers side by side."
 msgstr "每台服务器上的步骤依次运行，各服务器同时进行。"
@@ -11055,11 +11067,8 @@ msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其
 msgid "It uses the device <0>{path}</0>, which is the same as root."
 msgstr "它使用设备 <0>{path}</0>，这等同于 root。"
 
-msgid "It's revoked as this applies, before any step, and its agent is refused from then on."
-msgstr "应用时立即吊销，先于任何步骤，此后它的代理会被拒绝。"
-
-msgid "It's revoked once its steps have passed, and its agent is refused from then on."
-msgstr "它的步骤完成后吊销，此后它的代理会被拒绝。"
+msgid "Its agent is refused from then on."
+msgstr "此后它的代理会被拒绝。"
 
 msgid "Its apps leave the catalog"
 msgstr "它的应用将离开应用目录"
@@ -14410,8 +14419,14 @@ msgstr "操作"
 msgid "Add a label to the selector"
 msgstr "向筛选条件添加标签"
 
+msgid "Apply OS security updates"
+msgstr "应用系统安全更新"
+
 msgid "Apply OS updates"
 msgstr "安装系统更新"
+
+msgid "Apply every OS update"
+msgstr "应用所有系统更新"
 
 msgid "Auto: {auto}"
 msgstr "自动：{auto}"
@@ -14434,20 +14449,14 @@ msgstr "每一批的服务器一起重启，它们恢复后才开始下一批"
 msgid "Every server"
 msgstr "所有服务器"
 
-msgid "Every server, until you add a label"
-msgstr "在添加标签之前，目标是所有服务器"
+msgid "Every server, or a label such as {example}"
+msgstr "所有服务器，或某个标签，例如 {example}"
 
 msgid "Every update"
 msgstr "所有更新"
 
 msgid "How fast, and when to stop"
 msgstr "推进速度，以及何时停止"
-
-msgid "Install every update"
-msgstr "安装所有更新"
-
-msgid "Install security fixes"
-msgstr "安装安全修复"
 
 msgid "Minutes between waves"
 msgstr "每批之间的分钟数"
@@ -14494,6 +14503,9 @@ msgstr "重启"
 msgid "Reboot servers"
 msgstr "重启服务器"
 
+msgid "Recent fleet actions"
+msgstr "最近的集群操作"
+
 msgid "Reload"
 msgstr "重新加载"
 
@@ -14506,8 +14518,8 @@ msgstr "重启 {service}"
 msgid "Restart, reload, start or stop one service on each server"
 msgstr "在每台服务器上重启、重新加载、启动或停止一个服务"
 
-msgid "Security fixes"
-msgstr "安全修复"
+msgid "Security updates"
+msgstr "安全更新"
 
 msgid "Servers in each wave"
 msgstr "每批的服务器数"
@@ -14572,11 +14584,14 @@ msgstr "在每台服务器上执行的操作"
 msgid "What to do to it"
 msgstr "对它执行的操作"
 
-msgid "label:value"
-msgstr "label:value"
+msgid "failed"
+msgstr "失败"
 
 msgid "min between waves"
 msgstr "分钟（每批之间）"
+
+msgid "running"
+msgstr "运行中"
 
 msgid "servers a wave"
 msgstr "台服务器（每批）"
@@ -14589,6 +14604,9 @@ msgstr "{count, plural, other {# 台服务器匹配}}"
 
 msgid "{count, plural, one {# server picked} other {# servers picked}}"
 msgstr "{count, plural, other {已选择 # 台服务器}}"
+
+msgid "{n, plural, one {# server} other {# servers}}"
+msgstr "{n, plural, other {# 台服务器}}"
 
 msgid "{names} is the control server, which upgrades by the install script on it"
 msgstr "{names} 是控制服务器，需要在其上运行安装脚本来升级"
@@ -14605,8 +14623,8 @@ msgstr "每批之间 {pauseMinutes} 分钟"
 msgid "{serverWords} in {waveWords}"
 msgstr "{serverWords}，分 {waveWords}"
 
-msgid "{sizes} servers"
-msgstr "{sizes} 台服务器"
+msgid "{servers, plural, one {# server} other {# servers}}"
+msgstr "{servers, plural, other {# 台服务器}}"
 
 msgid "Asked from {askedFrom}: an address limit that lets in this server or private networks can't be seen."
 msgstr "从 {askedFrom} 发出请求：放行本服务器或私有网络的地址限制无法从这里看出。"
@@ -14638,6 +14656,9 @@ msgstr "没有可接管的域名"
 msgid "Redirects to {to}"
 msgstr "重定向到 {to}"
 
+msgid "1Panel found on {name}"
+msgstr "在 {name} 上发现了 1Panel"
+
 msgid "1Panel isn't on this server"
 msgstr "此服务器上没有 1Panel"
 
@@ -14662,21 +14683,11 @@ msgstr "Compose 项目"
 msgid "Containers"
 msgstr "容器"
 
-msgid "Containers 1Panel made run on this server"
-msgstr "此服务器上运行着 1Panel 创建的容器"
-
 msgid "Couldn't read what 1Panel keeps"
 msgstr "无法读取 1Panel 保存的内容"
 
 msgid "Cron job"
 msgstr "计划任务"
-
-msgid "Dockwell can take on what 1Panel runs as it is, with no restart, and say what it would make again and what it would leave."
-msgstr "Dockwell 可以原样接管 1Panel 运行的内容，无需重启，并说明哪些会重新创建、哪些会保留。"
-
-#. placeholder {0}: server.name
-msgid "Dockwell reads what 1Panel keeps on {0}, from its own records, read-only, and says what it would take on as it runs, with no restart, what it would make again, and what it would leave, and why. Review the plan to see each change. Nothing changes on the server until you apply it."
-msgstr "Dockwell 以只读方式从 1Panel 自己的记录中读取它在 {0} 上保存的内容，并说明哪些会原样接管（无需重启）、哪些会重新创建、哪些会保留，以及原因。审阅计划可查看每项变更。在你应用计划之前，服务器上不会有任何改变。"
 
 msgid "Each thing below says whether it's in Dockwell already, what it waits for, or why it stays."
 msgstr "下面每一项都说明了它是否已在 Dockwell 中、它在等待什么，或它为何保留。"
@@ -14711,6 +14722,12 @@ msgstr "稍后，待 Dockwell 支持网站"
 msgid "Later, once {panel}'s proxy hands over ports 80 and 443"
 msgstr "稍后，在 {panel} 的代理交出 80 和 443 端口之后"
 
+msgid "Left to move: {what}"
+msgstr "待迁移：{what}"
+
+msgid "Move in"
+msgstr "迁入"
+
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
@@ -14723,8 +14740,12 @@ msgstr "现在没有可计划的内容"
 msgid "Read it again"
 msgstr "重新读取"
 
-msgid "Read what 1Panel keeps"
-msgstr "读取 1Panel 保存的内容"
+msgid "Read-only. Nothing changes until you apply the plan."
+msgstr "只读。应用计划之前什么都不会改变。"
+
+#. placeholder {0}: server.name
+msgid "Reading what 1Panel keeps on {0}"
+msgstr "正在读取 1Panel 在 {0} 上保存的内容"
 
 msgid "Review the plan"
 msgstr "查看计划"
@@ -14742,6 +14763,9 @@ msgstr "{0, plural, other {找到 # 项}}"
 
 msgid "{count, plural, one {Show it} other {Show all #}}"
 msgstr "{count, plural, other {显示全部 # 项}}"
+
+msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
+msgstr "{more, plural, other {{shown} 等另外 # 个}}"
 
 msgid "A version of {name} this wasn't written from"
 msgstr "不是本导入所依据的 {name} 版本"
@@ -15193,9 +15217,6 @@ msgstr "自动换行"
 
 msgid "You can't read these logs"
 msgstr "你无法读取这些日志"
-
-msgid "failed"
-msgstr "失败"
 
 #. placeholder {0}: now.store.matches
 msgid "{0, plural, one {{count} line matches.} other {{count} lines match.}}"
@@ -15760,11 +15781,17 @@ msgstr "此镜像仓库"
 msgid "Add a server"
 msgstr "添加服务器"
 
+msgid "Add labels"
+msgstr "添加标签"
+
 msgid "Any Linux server you have root on: another provider, a home lab or a VM."
 msgstr "任何你有 root 权限的 Linux 服务器：其他云服务商、家庭实验室或虚拟机。"
 
-msgid "Confirm with your passkey. The command works once, for an hour."
-msgstr "用通行密钥确认。命令只能使用一次，一小时内有效。"
+msgid "Change labels"
+msgstr "更改标签"
+
+msgid "Confirm with your passkey to show it"
+msgstr "用你的通行密钥确认后显示"
 
 msgid "Install an agent of the control server's version as <0>dockwell</0> first."
 msgstr "先安装与控制服务器同版本的代理，命名为 <0>dockwell</0>。"
@@ -15784,6 +15811,9 @@ msgstr "它通过私有地址 {host} 加入。"
 msgid "It reaches {controlName} at {host}."
 msgstr "它通过 {host} 连接 {controlName}。"
 
+msgid "It works once, for an hour."
+msgstr "只能用一次，一小时内有效。"
+
 msgid "It's the address {controlName} goes out from."
 msgstr "这是 {controlName} 访问外网所用的地址。"
 
@@ -15796,11 +15826,8 @@ msgstr "标签"
 msgid "Make a new command"
 msgstr "生成新命令"
 
-msgid "Make the command"
-msgstr "生成命令"
-
-msgid "Making the command"
-msgstr "正在生成命令"
+msgid "Make it with these labels"
+msgstr "用这些标签重新生成"
 
 msgid "No command yet"
 msgstr "尚未生成命令"
@@ -15823,8 +15850,14 @@ msgstr "在新服务器上运行此命令"
 msgid "Set public address"
 msgstr "设置公网地址"
 
+msgid "Show the command"
+msgstr "显示命令"
+
 msgid "Such as region:eu. The server joins with them."
 msgstr "例如 region:eu。服务器加入时带上这些标签。"
+
+msgid "The command above still works until it expires"
+msgstr "上面的命令在过期前仍然有效"
 
 msgid "This command expired"
 msgstr "此命令已过期"
@@ -16020,8 +16053,8 @@ msgstr "{name} 的标签"
 msgid "No plan yet"
 msgstr "还没有计划"
 
-msgid "Nothing runs on {name}"
-msgstr "{name} 上不会运行任何步骤"
+msgid "Nothing restarts"
+msgstr "不会重启任何东西"
 
 msgid "What the fleet groups and selects servers by"
 msgstr "集群据此分组和筛选服务器"
@@ -16163,9 +16196,6 @@ msgstr "无来源"
 
 msgid "Password login"
 msgstr "密码登录"
-
-msgid "Plan it"
-msgstr "生成计划"
 
 msgid "Protect SSH"
 msgstr "保护 SSH"
@@ -16360,15 +16390,12 @@ msgstr "默认区域 · 只读"
 msgid "Deny"
 msgstr "拒绝"
 
-msgid "Docker forwards these to their containers before ufw's or firewalld's rules see them, so those rules don't cover them, but for what Docker's proxy takes, as marked."
-msgstr "Docker 会在 ufw 或 firewalld 的规则看到之前把这些流量转发给容器，因此这些规则不覆盖它们，标注为经 Docker 代理的除外。"
+msgid "Deny everything else covers these too: only a port Dockwell allows reaches its container."
+msgstr "“拒绝其他一切流量”也覆盖这些端口：只有 Dockwell 放行的端口才能到达其容器。"
 
 #. placeholder {0}: server.name
 msgid "Dockwell can't read {0}'s firewall"
 msgstr "Dockwell 无法读取 {0} 的防火墙"
-
-msgid "Dockwell's rules cover these too, as Docker forwards them: with deny everything else on, only a port a rule of Dockwell's allows reaches its container."
-msgstr "Docker 转发这些端口时，Dockwell 的规则同样覆盖它们：开启拒绝其他一切流量后，只有 Dockwell 规则放行的端口能到达其容器。"
 
 msgid "Every IPv4 address"
 msgstr "所有 IPv4 地址"
@@ -16530,6 +16557,10 @@ msgstr "{0, plural, other {全部 # 个端口都已被防火墙关闭。}}"
 msgid "{0, plural, one {Show # closed port} other {Show # closed ports}}"
 msgstr "{0, plural, other {显示 # 个已关闭的端口}}"
 
+#. placeholder {0}: past.length
+msgid "{0, plural, one {ufw and firewalld don't cover # port here, as Docker forwards it first.} other {ufw and firewalld don't cover # ports here, as Docker forwards them first.}}"
+msgstr "{0, plural, other {ufw 和 firewalld 管不到这里的 # 个端口，因为 Docker 会先转发它们。}}"
+
 #. placeholder {0}: server.name
 msgid "{0} isn't reporting, so what filters its traffic can't be read now."
 msgstr "{0} 未在上报，因此现在无法读取过滤其流量的规则。"
@@ -16553,8 +16584,8 @@ msgstr "添加规则"
 msgid "Add a rule to {0}"
 msgstr "为 {0} 添加规则"
 
-msgid "Addresses or ranges, such as 203.0.113.0/24, separated by commas. Empty is anywhere."
-msgstr "地址或范围，例如 203.0.113.0/24，用逗号分隔。留空表示任意来源。"
+msgid "Addresses or ranges, separated by commas. Empty lets anyone in."
+msgstr "地址或网段，用逗号分隔。留空则允许任何人。"
 
 msgid "Allow {n}/{protocol} on {serverName}"
 msgstr "在 {serverName} 上允许 {n}/{protocol}"
@@ -16592,8 +16623,8 @@ msgstr "Dockwell 的规则"
 msgid "Drops what no rule lets in. Connections already open, SSH from where people come in now, and on the control server its own ports, stay let in."
 msgstr "丢弃没有规则放行的流量。已建立的连接、来自当前登录来源的 SSH，以及控制服务器上它自己的端口，仍然放行。"
 
-msgid "It applies as a plan, and stays only once you confirm you can still reach the server"
-msgstr "它以计划的形式应用，只有在你确认仍能访问服务器后才会保留"
+msgid "It stays only once you confirm you can still reach the server"
+msgstr "只有在你确认仍能访问服务器后才会保留"
 
 msgid "Let in what no rule drops on {name}"
 msgstr "在 {name} 上放行没有规则丢弃的流量"
@@ -16606,6 +16637,9 @@ msgstr "备注"
 
 msgid "Nothing listens"
 msgstr "没有监听"
+
+msgid "Office VPN"
+msgstr "办公室 VPN"
 
 msgid "Removal waiting for Keep"
 msgstr "移除等待保留"
@@ -16621,11 +16655,15 @@ msgstr "从 {name} 移除规则 {0}"
 msgid "The server itself"
 msgstr "服务器本身"
 
+msgid "Use my address"
+msgstr "使用我的地址"
+
 msgid "Waiting for Keep"
 msgstr "等待保留"
 
-msgid "Why the rule is there, shown beside it."
-msgstr "说明这条规则的用途，显示在它旁边。"
+#. placeholder {0}: server.name
+msgid "What answers on {0}"
+msgstr "{0} 上在响应的端口"
 
 msgid "{name} can't hold Dockwell's firewall, so no rule or policy can be planned for it: {why}"
 msgstr "{name} 无法承载 Dockwell 的防火墙，因此无法为它规划任何规则或策略：{why}"
@@ -16684,14 +16722,14 @@ msgstr "前缀共 {length} 个字符，超过了前缀最多可有的 {LABEL_PRE
 msgid "Its prefix isn't a domain: lowercase letters, digits, - and ., such as example.com"
 msgstr "前缀不是域名：只能用小写字母、数字、- 和 .，例如 example.com"
 
+msgid "Labels to add"
+msgstr "可添加的标签"
+
 msgid "Write a prefix before /, such as example.com/, or leave / out"
 msgstr "在 / 前写上前缀，例如 example.com/，或去掉 /"
 
 msgid "{badText} can't be read, so no server matches. {badWords}"
 msgstr "无法读取 {badText}，因此没有服务器匹配。{badWords}"
-
-msgid "key:value"
-msgstr "key:value"
 
 msgid "All activity"
 msgstr "全部动态"
@@ -16996,9 +17034,6 @@ msgstr "{0, plural, other {# 个需要查看}}"
 msgid "{healthy, plural, one {# healthy} other {# healthy}}"
 msgstr "{healthy, plural, other {# 个健康}}"
 
-msgid "{more, plural, one {{shown} and # more} other {{shown} and # more}}"
-msgstr "{more, plural, other {{shown} 等另外 # 个}}"
-
 msgid "{n, plural, one {# PHP {version}} other {# PHP {version}}}"
 msgstr "{n, plural, other {# 个 PHP {version}}}"
 
@@ -17059,14 +17094,17 @@ msgstr "浏览 {name} 上的文件"
 msgid "Firewall"
 msgstr "防火墙"
 
-msgid "Move in"
-msgstr "迁入"
-
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
 
 msgid "Open a terminal on {name}"
 msgstr "在 {name} 上打开终端"
+
+msgid "Reboot {name}"
+msgstr "重启 {name}"
+
+msgid "Remove {name} from the fleet"
+msgstr "从服务器群中移除 {name}"
 
 msgid "Runs the control plane"
 msgstr "运行控制平面"
@@ -17098,9 +17136,6 @@ msgstr "这里没有运行任何应用。"
 
 msgid "Provider"
 msgstr "云服务商"
-
-msgid "Add labels"
-msgstr "添加标签"
 
 msgid "Edit labels"
 msgstr "编辑标签"
@@ -17294,6 +17329,9 @@ msgstr "显示全部 {count} 台"
 
 msgid "Showing {shown} of {count} · sorted by name"
 msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
+
+msgid "label:value"
+msgstr "label:value"
 
 msgid "sorted by name"
 msgstr "按名称排序"
@@ -17528,6 +17566,9 @@ msgstr "不随开机启动"
 #. placeholder {0}: server.name
 msgid "Nothing has failed on {0}."
 msgstr "{0} 上没有失败的服务。"
+
+msgid "Open {name} at line {line}"
+msgstr "打开 {name} 的第 {line} 行"
 
 msgctxt "system service"
 msgid "Reload"
@@ -19534,6 +19575,9 @@ msgstr "显示 {name} 的动态"
 msgid "Show what happened on {name}"
 msgstr "显示 {name} 上发生的事"
 
+msgid "Shows the command to run on it"
+msgstr "显示要在新服务器上运行的命令"
+
 msgid "Use the dark theme"
 msgstr "使用深色主题"
 
@@ -20459,9 +20503,6 @@ msgstr "{name} 上正在安装更新。安装结束后才能更新 Docker。"
 msgid "An install is running on {name}. These can start once it ends."
 msgstr "{name} 上正在安装更新。安装结束后才能开始这些更新。"
 
-msgid "An install is running on {name}. This one can start once it ends."
-msgstr "{name} 上正在安装更新。安装结束后才能开始这一个。"
-
 #. placeholder {0}: server.name
 msgid "Asking {0} which updates wait…"
 msgstr "正在询问 {0} 有哪些待装更新…"
@@ -20506,9 +20547,6 @@ msgstr "Dockwell 目前只用 apt 安装更新，请用 {name} 自己的包管�
 msgid "Dockwell installs updates with apt for now; the command installs every update waiting, not only these."
 msgstr "Dockwell 目前只用 apt 安装更新；这条命令会安装所有待装的更新，不只是这些。"
 
-msgid "Dockwell refreshes them once they're a day old, when someone looks"
-msgstr "列表超过一天时，Dockwell 会在有人查看时刷新"
-
 msgid "Downloading"
 msgstr "下载中"
 
@@ -20522,8 +20560,8 @@ msgstr "来自 {0} 个来源"
 msgid "In review"
 msgstr "待审阅"
 
-msgid "Install security updates"
-msgstr "安装安全更新"
+msgid "Install every update"
+msgstr "安装所有更新"
 
 msgctxt "a package an install has set up"
 msgid "Installed"
@@ -20538,8 +20576,8 @@ msgstr "正在 {name} 上安装更新"
 msgid "Installing updates on {name} failed"
 msgstr "在 {name} 上安装更新失败"
 
-msgid "It needs a reboot, and apps and websites go offline while {name} restarts."
-msgstr "它需要重启，{name} 重启期间应用和网站会离线。"
+msgid "It needs a reboot: apps and websites go offline while {name} restarts."
+msgstr "它需要重启：{name} 重启期间，应用和网站会下线。"
 
 msgid "Its newest release isn't known"
 msgstr "最新版本未知"
@@ -20612,9 +20650,6 @@ msgstr "重启 Docker"
 msgid "Retry updating {name}"
 msgstr "重试更新 {name}"
 
-msgid "Security updates"
-msgstr "安全更新"
-
 #. placeholder {0}: server.name
 msgid "Security updates for {0}"
 msgstr "{0} 的安全更新"
@@ -20643,9 +20678,6 @@ msgstr "更新 Docker"
 
 msgid "Update it on the control server, as root, which keeps what runs:"
 msgstr "在控制服务器上以 root 身份更新，正在运行的内容不受影响："
-
-msgid "Update {name}"
-msgstr "更新 {name}"
 
 msgctxt "a package an install took"
 msgid "Updated"
@@ -20711,14 +20743,14 @@ msgstr "{0} 不标明哪些更新修复安全问题，所以这里都不加标�
 msgid "{0} is up to date, as far as its lists say."
 msgstr "据软件包列表，{0} 已是最新。"
 
-msgid "{n, plural, one {# more is held back: {names}. An upgrade doesn't take it yet, as with a phased update that hasn't reached this server.} other {# more are held back: {names}. An upgrade doesn't take them yet, as with phased updates that haven't reached this server.}}"
-msgstr "{n, plural, other {另有 # 个被暂缓：{names}。升级暂不安装它们，例如尚未分阶段推送到这台服务器的更新。}}"
-
 msgid "{n, plural, one {# security update is ready to install} other {# security updates are ready to install}}"
 msgstr "{n, plural, other {# 个安全更新可以安装}}"
 
 msgid "{n, plural, one {# update is ready to install} other {# updates are ready to install}}"
 msgstr "{n, plural, other {# 个更新可以安装}}"
+
+msgid "{n, plural, one {Held back for now, as a phased update: {names}} other {# held back for now, as phased updates: {names}}}"
+msgstr "{n, plural, other {暂缓 # 个分阶段更新：{names}}}"
 
 msgid "{n, plural, one {Installing # package on {name}} other {Installing # packages on {name}}}"
 msgstr "{n, plural, other {正在 {name} 上安装 # 个软件包}}"
@@ -20735,8 +20767,8 @@ msgstr "{n} 个，来自 {source}"
 msgid "{reboots, plural, one {# needs a reboot} other {# need a reboot}}"
 msgstr "{reboots, plural, other {# 个需要重启}}"
 
-msgid "{reboots, plural, one {One needs a reboot, and apps and websites go offline while {name} restarts.} other {# need a reboot, and apps and websites go offline while {name} restarts.}}"
-msgstr "{reboots, plural, other {其中 # 个需要重启，{name} 重启期间应用和网站会离线。}}"
+msgid "{reboots, plural, one {One needs a reboot: apps and websites go offline while {name} restarts.} other {# need a reboot: apps and websites go offline while {name} restarts.}}"
+msgstr "{reboots, plural, other {有 # 个需要重启：{name} 重启期间，应用和网站会下线。}}"
 
 msgid "Dockwell can't read its updates until it's back."
 msgstr "它恢复连接前，Dockwell 无法读取它的更新。"

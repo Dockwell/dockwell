@@ -81,3 +81,25 @@
   background: var(--surface-raised);
   color: var(--ink);
 }
+
+/* A system log is read for its errors, so their word stands beside the glyph wherever there's room (#800). */
+@container (min-width: 560px) {
+  .syslog-pane .dw-log-line {
+    grid-template-columns: 96px 120px 64px minmax(0, 1fr);
+  }
+  .syslog-pane .dw-log.no-source .dw-log-line {
+    grid-template-columns: 96px 64px minmax(0, 1fr);
+  }
+  .syslog-pane .dw-log-lvl {
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .syslog-pane .dw-log-lvl-word {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+  }
+}

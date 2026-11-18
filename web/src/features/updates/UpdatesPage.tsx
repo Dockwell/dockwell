@@ -331,10 +331,10 @@ function Lead({
       reboots === 0
         ? ""
         : n === 1
-          ? t`It needs a reboot, and apps and websites go offline while ${name} restarts.`
+          ? t`It needs a reboot: apps and websites go offline while ${name} restarts.`
           : plural(reboots, {
-              one: `One needs a reboot, and apps and websites go offline while ${name} restarts.`,
-              other: `# need a reboot, and apps and websites go offline while ${name} restarts.`,
+              one: `One needs a reboot: apps and websites go offline while ${name} restarts.`,
+              other: `# need a reboot: apps and websites go offline while ${name} restarts.`,
             });
     if (install.offered) {
       return (
@@ -342,29 +342,26 @@ function Lead({
           tone="warning"
           title={title}
           actions={
-            <>
-              <Button
-                size="sm"
-                variant="primary"
-                loading={plansSecurity}
-                onClick={() => install.plan({ all: false })}
-                {...offFor(plansSecurity)}
-              >
-                <Trans>Install security updates</Trans>
-              </Button>
-              <Button size="sm" loading={plansAll} onClick={() => install.plan({ all: true })} {...offFor(plansAll)}>
-                <Trans>Install every update</Trans>
-              </Button>
-            </>
+            <Button
+              size="sm"
+              variant="primary"
+              icon="commit"
+              loading={plansSecurity}
+              onClick={() => install.plan({ all: false })}
+              {...offFor(plansSecurity)}
+            >
+              <Trans>Review plan</Trans>
+            </Button>
           }
         >
-          {/* The plan says what it installs and that it takes a passkey; the lead says only what's urgent. */}
-          {rebooting ? `${rebooting} ` : null}
-          {tool ? (
-            <Trans>
-              <code>{tool}</code> installs them within about a day.
-            </Trans>
-          ) : null}
+          {/* One way to install them from here (#800): the plan says what it installs and that it takes a passkey,
+              the rows below pick any others, and the lead says only what's urgent. */}
+          {rebooting ||
+            (tool ? (
+              <Trans>
+                <code>{tool}</code> installs them within about a day.
+              </Trans>
+            ) : null)}
         </Callout>
       );
     }
@@ -573,31 +570,50 @@ function OtherUpdates({ rows, summary }: { rows: RowProps; summary: UpdatesSumma
   const shown = others.slice(0, 4).map((p) => p.name);
   const more = others.length - shown.length;
   const names = more > 0 ? t`${shown.join(", ")} and ${more} more` : shown.join(", ");
+  const planning = install.planning;
+  const plansAll = planning !== undefined && "all" in planning && planning.all;
+  // Every update at once, beside the rest it adds to the security ones, not on the lead (#800).
+  const every =
+    install.offered && others.length > 0 ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        className="updates-other-every"
+        loading={plansAll}
+        onClick={() => install.plan({ all: true })}
+        {...(planning !== undefined && !plansAll ? { disabled: true as const } : install.may.off)}
+      >
+        <Trans>Install every update</Trans>
+      </Button>
+    ) : null;
   return (
     <section className="dw-panel updates-other">
-      <button
-        type="button"
-        className="updates-other-toggle"
-        aria-expanded={open}
-        aria-controls={id}
-        onClick={() => setOpen((was) => !was)}
-      >
-        <span className="updates-other-chevron">
-          <Icon name={open ? "chevron-down" : "chevron-right"} size={16} />
-        </span>
-        <span className="updates-other-text">
-          <span className="updates-other-title">
-            <span>
-              <Trans>Other updates</Trans>
+      <div className="updates-other-head">
+        <button
+          type="button"
+          className="updates-other-toggle"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((was) => !was)}
+        >
+          <span className="updates-other-chevron">
+            <Icon name={open ? "chevron-down" : "chevron-right"} size={16} />
+          </span>
+          <span className="updates-other-text">
+            <span className="updates-other-title">
+              <span>
+                <Trans>Other updates</Trans>
+              </span>
+              <span className="dw-tab-count">{others.length}</span>
             </span>
-            <span className="dw-tab-count">{others.length}</span>
+            <span className="updates-other-sub">
+              {[fromWords ? `${fromWords}, ${rebootWords}` : rebootWords, names].filter(Boolean).join(" · ")}
+            </span>
           </span>
-          <span className="updates-other-sub">
-            {[fromWords ? `${fromWords}, ${rebootWords}` : rebootWords, names].filter(Boolean).join(" · ")}
-          </span>
-        </span>
-        <span className="updates-other-show">{open ? t`Hide` : t`Show all`}</span>
-      </button>
+          <span className="updates-other-show">{open ? t`Hide` : t`Show all`}</span>
+        </button>
+        {every}
+      </div>
       <div id={id} hidden={!open} className="updates-other-body">
         {open ? <UpdatesTable rows={rows} packages={packages} caption={t`Other updates for ${server.name}`} /> : null}
       </div>
@@ -613,8 +629,8 @@ function Held({ updates }: { updates: ServerUpdates }) {
   return (
     <p className="updates-note">
       {plural(n, {
-        one: `# more is held back: ${names}. An upgrade doesn't take it yet, as with a phased update that hasn't reached this server.`,
-        other: `# more are held back: ${names}. An upgrade doesn't take them yet, as with phased updates that haven't reached this server.`,
+        one: `Held back for now, as a phased update: ${names}`,
+        other: `# held back for now, as phased updates: ${names}`,
       })}
     </p>
   );
@@ -720,20 +736,14 @@ function Name({
   );
 }
 
-/** Where a package is, or its Update button: the row's last cell, the same width in every state. */
+/** Where a package is, once it's in a plan or an install: the row's last cell, the same width in every state. */
 function RowAction({ p, state, rows }: { p: PackageUpdate; state: RowState; rows: RowProps }) {
   const { t } = useLingui();
-  const { server, install } = rows;
-  const rowOff = useRowOff();
+  const { install } = rows;
   const name = p.name;
-  const label = t`Update ${name}`;
   switch (state.kind) {
     case "planning":
-      return (
-        <Button size="sm" loading aria-label={label}>
-          <Trans>Update</Trans>
-        </Button>
-      );
+      return <span className="updates-row-state">{t`Planning`}</span>;
     case "reviewing":
       return <span className="updates-row-state">{t`In review`}</span>;
     case "waiting":
@@ -777,25 +787,8 @@ function RowAction({ p, state, rows }: { p: PackageUpdate; state: RowState; rows
       );
     }
   }
-  return (
-    <Button size="sm" aria-label={label} onClick={() => install.plan({ names: [name] })} {...rowOff(rows, server)}>
-      <Trans>Update</Trans>
-    </Button>
-  );
-}
-
-/** Why a row's Update is off: a role that can't, an install under way, or another plan being made. */
-function useRowOff() {
-  const { t } = useLingui();
-  return (rows: RowProps, server: Server): { off?: string; disabled?: true } => {
-    if (!rows.install.may.allowed) return rows.install.may.off;
-    if (rows.install.busy) {
-      const name = server.name;
-      return { off: t`An install is running on ${name}. This one can start once it ends.` };
-    }
-    if (rows.install.planning) return { disabled: true };
-    return {};
-  };
+  // Idle, the row's checkbox picks it, and the selection bar installs what's picked (#800).
+  return null;
 }
 
 /** A checkbox that can be part-checked, as a column's head is when some of its rows are. */
@@ -1009,7 +1002,6 @@ function HowItUpdates({ updates }: { updates: ServerUpdates }) {
         <dt>{t`Package lists`}</dt>
         <dd>
           {updates.listsTime ? t`Refreshed ${words.ago(timestampDate(updates.listsTime), now)}` : t`Never refreshed`}
-          <span className="updates-dd-sub">{t`Dockwell refreshes them once they're a day old, when someone looks`}</span>
         </dd>
         <dt>{t`Reboot`}</dt>
         <dd>{updates.rebootRequired ? t`Needed now` : t`Not needed`}</dd>

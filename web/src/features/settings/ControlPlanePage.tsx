@@ -21,7 +21,7 @@ import { formatBytes, formatDay, formatFixed } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
-import { AddServerSheet } from "../servers/AddServerSheet";
+import { AddServerSheet, useJoinStart } from "../servers/AddServerSheet";
 import { serverStatus } from "../servers/server";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
 import { Page } from "../shell/Page";
@@ -373,6 +373,7 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
   const { t } = useLingui();
   const mayAdd = useMay()(ServerService.method.createJoinTicket);
   const [adding, setAdding] = useState(false);
+  const join = useJoinStart();
   const controlServer = servers?.find((s) => s.controlServer);
   const control = controlServer ? { id: controlServer.id, name: controlServer.name } : undefined;
   const words = useTimeWords();
@@ -455,11 +456,19 @@ function AgentsPanel({ cp, servers }: { cp: ControlPlane | undefined; servers: S
         ) : null}
       </div>
       <div className="cp-foot">
-        <Button size="sm" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
+        <Button
+          size="sm"
+          icon="plus"
+          onClick={() => {
+            join.start();
+            setAdding(true);
+          }}
+          {...mayAdd.off}
+        >
           <Trans>Add server</Trans>
         </Button>
       </div>
-      {adding ? <AddServerSheet control={control} onClose={() => setAdding(false)} /> : null}
+      {adding ? <AddServerSheet control={control} started={join.started} onClose={() => setAdding(false)} /> : null}
     </Panel>
   );
 }

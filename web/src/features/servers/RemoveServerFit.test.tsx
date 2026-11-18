@@ -60,7 +60,8 @@ describe("Removing a server whose apps run on one architecture", () => {
       "/servers/srv_2",
       api([server("srv_1", "hz-1", "arm64", true), server("srv_2", "hz-2", "amd64"), server("srv_3", "hz-3", "amd64")]),
     );
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     const sheet = await screen.findByRole("dialog", { name: "Remove hz-2" });
     await user.click(within(sheet).getByRole("radio", { name: /Move them to another server/ }));
     const to = within(sheet).getByRole("combobox", { name: "Move them to" });
@@ -73,7 +74,8 @@ describe("Removing a server whose apps run on one architecture", () => {
   it("says the apps can't move where no other server is one they run on", async () => {
     const user = userEvent.setup();
     renderAt("/servers/srv_2", api([server("srv_1", "hz-1", "arm64", true), server("srv_2", "hz-2", "amd64")]));
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     const sheet = await screen.findByRole("dialog", { name: "Remove hz-2" });
     const move = within(sheet).getByRole("radio", { name: /Move them to hz-1/ });
     expect(move).toBeDisabled();
@@ -90,7 +92,8 @@ describe("Removing a server whose apps run on one architecture", () => {
         [app("web", "amd64"), app("api", "arm64")],
       ),
     );
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     const sheet = await screen.findByRole("dialog", { name: "Remove hz-2" });
     expect(within(sheet).getByRole("radio", { name: /Move them to another server/ })).toBeDisabled();
     expect(sheet).toHaveTextContent("web and api run on different architectures, so no one server takes them all");
@@ -103,7 +106,8 @@ describe("Removing a server whose apps run on one architecture", () => {
       "/servers/srv_2",
       api([server("srv_1", "hz-1", "arm64", true), server("srv_2", "hz-2", "amd64"), server("srv_3", "hz-3", "")]),
     );
-    await user.click(await screen.findByRole("button", { name: "Remove from fleet" }));
+    await user.click(await screen.findByRole("button", { name: /^Actions for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from fleet" }));
     const sheet = await screen.findByRole("dialog", { name: "Remove hz-2" });
     expect(within(sheet).getByRole("radio", { name: /Move them to another server/ })).toBeDisabled();
     expect(sheet).toHaveTextContent("web runs on amd64 alone, and no other server has said it's amd64 yet");

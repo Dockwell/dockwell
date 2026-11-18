@@ -7,6 +7,7 @@ import {
   EventService,
   type Resource,
   ResourceService,
+  ServerService,
   SettingsService,
   SystemService,
 } from "@dockwell/api";
@@ -32,6 +33,7 @@ import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { planDeletingProject } from "../projects/contents";
+import { handOverJoinTicket } from "../servers/AddServerSheet";
 import { isPrivateAddress, serverStatus } from "../servers/server";
 import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
@@ -235,6 +237,20 @@ function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands
         keepOpen: "step",
         // Which project it is for is asked once the projects are in, and only if there is a choice.
         run: () => setPrompt({ kind: "environment" }),
+      });
+    // A server is added from anywhere, as on a phone that reaches it here (#800); the
+    // click starts its ticket, so the passkey may be asked for in it.
+    if (may(ServerService.method.createJoinTicket).allowed)
+      list.push({
+        id: "add-server",
+        group: actions,
+        icon: "plus",
+        label: t`Add a server`,
+        hint: t`Shows the command to run on it`,
+        run: () => {
+          handOverJoinTicket(transport);
+          void navigate({ to: "/servers", search: { add: true } });
+        },
       });
     // The organization keeps a project, so the only one has nothing to offer.
     if (plansProjects && (projects?.length ?? 0) > 1) {

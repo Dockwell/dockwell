@@ -315,10 +315,12 @@ async function main() {
 
   step("it leads with the security fixes, then the rest, as Server-Updates has them");
   await page.getByText("6 security updates are ready to install").waitFor();
-  // On apt, installing them is a plan away (ADR 0064).
-  await page.getByRole("button", { name: "Install security updates" }).waitFor();
-  await page.getByRole("button", { name: "Install every update" }).first().waitFor();
-  await page.getByText("installs them within about a day.", { exact: false }).first().waitFor();
+  // On apt, installing them is a plan away (ADR 0064), one way from the lead (#800), with every update beside the rest.
+  const lead = page.getByRole("status").filter({ hasText: "6 security updates are ready to install" });
+  await lead.getByRole("button", { name: "Review plan" }).waitFor();
+  if ((await lead.getByRole("button").count()) !== 1) fail("the lead offers more than one way to install");
+  await lead.getByText("need a reboot: apps and websites go offline", { exact: false }).waitFor();
+  await page.getByRole("button", { name: "Install every update" }).waitFor();
   await page.getByText("6 from noble-security", { exact: false }).waitFor();
   const table = page.getByRole("table", { name: /^Security updates for / });
   await table.waitFor();
@@ -339,7 +341,7 @@ async function main() {
     .getByRole("table", { name: /^Other updates for / })
     .getByText("systemd")
     .waitFor();
-  await page.getByText("3 more are held back", { exact: false }).waitFor();
+  await page.getByText("3 held back for now", { exact: false }).waitFor();
   const versions = page.getByRole("region", { name: "Docker and Dockwell" });
   await versions.getByText("27.4.0").waitFor();
   await versions.getByText("Containers stop with it, and only those set to restart start again").waitFor();
@@ -418,9 +420,13 @@ async function main() {
       has: page.locator(".updates-name", { hasText: new RegExp(`^${name.replace(/\./g, "\\.")}$`) }),
     });
 
-  step("Update on one package's row plans it and what it needs, and nothing else waiting");
+  step("One package picked on its row plans it and what it needs, and nothing else waiting");
   await page.goto(`${origin}/servers/${serverId}/updates`);
-  await row("openssl").getByRole("button", { name: "Update openssl", exact: true }).click();
+  await row("openssl").getByRole("checkbox", { name: "Select openssl" }).check();
+  await page
+    .getByRole("region", { name: "Selected updates" })
+    .getByRole("button", { name: "Update 1 selected" })
+    .click();
   const one = onTop(page.getByRole("dialog", { name: "Review plan" }));
   const onePackages = one.getByRole("list", { name: /^Packages it installs on / });
   await onePackages.waitFor({ timeout: 30_000 });
@@ -466,7 +472,7 @@ async function main() {
   }
 
   step("Install every update plans what the server simulated, what it pulls in too, and what restarts");
-  await page.getByRole("button", { name: "Install every update" }).first().click();
+  await page.getByRole("button", { name: "Install every update" }).click();
   const plan = onTop(page.getByRole("dialog", { name: "Review plan" }));
   const packages = plan.getByRole("list", { name: /^Packages it installs on / });
   await packages.waitFor({ timeout: 30_000 });

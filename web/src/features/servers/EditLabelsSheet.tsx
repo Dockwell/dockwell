@@ -70,7 +70,7 @@ export function EditLabelsSheet({ server, onClose }: { server: Server; onClose: 
         <>
           <span className="dw-sheet-note">
             <Icon name="commit" size={14} />
-            <Trans>Nothing runs on {name}</Trans>
+            <Trans>Nothing restarts</Trans>
           </span>
           <Button variant="ghost" size={phone ? "lg" : "md"} onClick={onClose}>
             <Trans>Cancel</Trans>

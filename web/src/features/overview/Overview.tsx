@@ -8,7 +8,7 @@ import { type ReactNode, useState } from "react";
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
-import { AddServerSheet } from "../servers/AddServerSheet";
+import { AddServerSheet, useJoinStart } from "../servers/AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "../servers/FleetNotes";
 import { ServerCallout } from "../servers/ServerCallout";
 import { ServerMetrics } from "../servers/ServerMetrics";
@@ -119,6 +119,7 @@ function OneServer({ server, status }: { server: Server; status: ReactNode }) {
 /** No server has joined: adding one is the way on. */
 function NoServers() {
   const [adding, setAdding] = useState(false);
+  const join = useJoinStart();
   const mayAdd = useMay()(ServerService.method.createJoinTicket);
   return (
     <>
@@ -126,12 +127,20 @@ function NoServers() {
         icon="server"
         title={<Trans>No servers yet</Trans>}
         action={
-          <Button variant="primary" icon="plus" onClick={() => setAdding(true)} {...mayAdd.off}>
+          <Button
+            variant="primary"
+            icon="plus"
+            onClick={() => {
+              join.start();
+              setAdding(true);
+            }}
+            {...mayAdd.off}
+          >
             <Trans>Add server</Trans>
           </Button>
         }
       />
-      {adding ? <AddServerSheet control={undefined} onClose={() => setAdding(false)} /> : null}
+      {adding ? <AddServerSheet control={undefined} started={join.started} onClose={() => setAdding(false)} /> : null}
     </>
   );
 }

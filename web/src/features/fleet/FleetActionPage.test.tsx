@@ -130,8 +130,13 @@ describe("New fleet action", () => {
 
     const target = await screen.findByRole("region", { name: "Target" });
     expect(within(target).getByText("3 servers match")).toBeVisible();
-    const tiles = within(target).getByRole("region", { name: "Servers targeted" });
-    expect(within(tiles).getAllByRole("button")).toHaveLength(3);
+    // A handful of servers reads by name (#800).
+    const named = within(target).getByRole("list", { name: "Servers targeted" });
+    expect(
+      within(named)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(["Healthy: alpha", "Healthy: bravo", "Healthy: charlie"]);
 
     await user.click(screen.getByRole("radio", { name: /Act on a system service/ }));
     const review = screen.getByRole("button", { name: "Review plan" });
@@ -150,7 +155,7 @@ describe("New fleet action", () => {
     const summary = screen.getByRole("complementary", { name: "Summary" });
     expect(summary).toHaveTextContent("3 servers in 2 waves");
     expect(summary).toHaveTextContent("Restart nginx.service");
-    expect(summary).toHaveTextContent("1 → 2 servers");
+    expect(summary).toHaveTextContent("1 server → 2 servers");
     expect(summary).toHaveTextContent("5 min between waves");
     expect(summary).toHaveTextContent("Never; fails at the end if any step did");
     await expectAccessible(container);
@@ -171,6 +176,81 @@ describe("New fleet action", () => {
     expect(sheet).toHaveTextContent("Wave 1alpha");
     expect(sheet).toHaveTextContent("Wave 2bravo");
     expect(sheet).toHaveTextContent("charlie needs nothing, so it takes no step");
+  });
+
+  it("asks which updates inside its card, says it one way, and lists the fleet actions run lately", async () => {
+    const user = userEvent.setup();
+    const fleet = (id: string, summary: string, state: ChangeState) =>
+      create(ChangeSchema, {
+        id,
+        summary,
+        plan: planned(summary).plan,
+        state,
+        appliedBy: { name: "Mira Chen" },
+        applyTime: { seconds: 1_763_000_000n },
+      });
+    renderFleetAction([control, alpha, bravo], "/fleet-actions", {
+      changes: {
+        listChanges: () => ({
+          changes: [
+            fleet("chg_1", "Reboot alpha and bravo", ChangeState.APPLIED),
+            // A plan nobody applied isn't an action, and a change on one server without waves isn't the fleet's.
+            fleet("chg_2", "Apply OS updates on alpha and bravo", ChangeState.PLANNED),
+            create(ChangeSchema, { id: "chg_3", summary: "Deploy web", state: ChangeState.APPLIED, plan: {} }),
+            fleet("chg_4", "Upgrade the agents", ChangeState.FAILED),
+          ],
+        }),
+      },
+    });
+    const card = (await screen.findByRole("radio", { name: /Apply OS updates/ })).closest(".fleet-action-card");
+    expect(card).not.toBeNull();
+    const which = within(card as HTMLElement).getByRole("radiogroup", { name: "Which updates" });
+    await user.click(within(which).getByRole("radio", { name: "Every update" }));
+    expect(screen.getByRole("complementary", { name: "Summary" })).toHaveTextContent("Apply every OS update");
+    // Another action picked, the choice goes with its card.
+    await user.click(screen.getByRole("radio", { name: /Reboot servers/ }));
+    expect(screen.queryByRole("radiogroup", { name: "Which updates" })).toBeNull();
+
+    const recent = await screen.findByRole("region", { name: "Recent fleet actions" });
+    const items = within(recent).getAllByRole("listitem");
+    expect(items.map((li) => li.querySelector(".fleet-recent-summary")?.textContent)).toEqual([
+      "Reboot alpha and bravo",
+      "Upgrade the agents",
+    ]);
+    expect(items[0]).toHaveTextContent("Mira Chen · 2 servers");
+    expect(items[1]).toHaveTextContent("failed");
+    expect(within(recent).getByRole("link", { name: "Reboot alpha and bravo" })).toHaveAttribute(
+      "href",
+      "/changes/chg_1",
+    );
+  });
+
+  it("pages through the changes for fleet actions, past the first 200 (#800's review, L3)", async () => {
+    const pages: string[] = [];
+    const other = (i: number) =>
+      create(ChangeSchema, { id: `chg_x${i}`, summary: `Deploy web ${i}`, state: ChangeState.APPLIED, plan: {} });
+    renderFleetAction([control, alpha, bravo], "/fleet-actions", {
+      changes: {
+        listChanges: (req: { pageToken: string }) => {
+          pages.push(req.pageToken);
+          return req.pageToken === ""
+            ? { changes: Array.from({ length: 200 }, (_, i) => other(i)), nextPageToken: "p2" }
+            : {
+                changes: [
+                  create(ChangeSchema, {
+                    id: "chg_old",
+                    summary: "Reboot alpha and bravo",
+                    plan: planned("Reboot alpha and bravo").plan,
+                    state: ChangeState.APPLIED,
+                  }),
+                ],
+              };
+        },
+      },
+    });
+    const recent = await screen.findByRole("region", { name: "Recent fleet actions" });
+    expect(within(recent).getByRole("link", { name: "Reboot alpha and bravo" })).toBeVisible();
+    expect(pages).toContain("p2");
   });
 
   it("matches nothing while the selector has a term it can't read", async () => {

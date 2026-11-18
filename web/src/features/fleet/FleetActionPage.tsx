@@ -1,10 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { durationFromMs } from "@bufbuild/protobuf/wkt";
+import { durationFromMs, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeService, type FleetRollout, FleetRolloutSchema, type Server, SystemServiceAction } from "@dockwell/api";
+import {
+  type Change,
+  ChangeService,
+  ChangeState,
+  type FleetRollout,
+  FleetRolloutSchema,
+  type Server,
+  SystemServiceAction,
+} from "@dockwell/api";
 import {
   Button,
   cx,
@@ -13,14 +21,18 @@ import {
   Icon,
   type IconName,
   SegmentedControl,
+  StatusBadge,
   Switch,
   TextField,
   useUIStrings,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQuery as useAnyQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useId, useMemo, useState } from "react";
 
+import { formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -34,6 +46,7 @@ import {
   matchesSelector,
   parseSelector,
   parseTerm,
+  quickLabels,
   type Selector,
   selectorText,
   termText,
@@ -64,6 +77,9 @@ const UNIT_ACTIONS: Record<UnitVerb, SystemServiceAction> = {
   start: SystemServiceAction.START,
   stop: SystemServiceAction.STOP,
 };
+
+/** How many servers a target names one by one, before it draws them as tiles. */
+const NAMED_UP_TO = 12;
 
 /** What a system service's name may be, as the control plane takes it. */
 const SERVICE_NAME = /^(?:[A-Za-z0-9:_.@\\-]+\.(?:service|socket)|[A-Za-z0-9_][A-Za-z0-9_.@-]*)$/;
@@ -154,19 +170,26 @@ export function FleetActionPage({
             <Leaving offline={offline} control={control} current={current} release={release} />
           </Step>
           <Step number={2} title={t`Action`} sub={t`What runs on each server`}>
-            <Actions value={action} onChange={setAction} release={release} targets={targets} current={current.length} />
-            {action === "updates" ? (
-              <SegmentedControl<"security" | "all">
-                label={t`Which updates`}
-                size="sm"
-                value={everyUpdate ? "all" : "security"}
-                onChange={(v) => setEveryUpdate(v === "all")}
-                options={[
-                  { value: "security", label: t`Security fixes` },
-                  { value: "all", label: t`Every update` },
-                ]}
-              />
-            ) : null}
+            <Actions
+              value={action}
+              onChange={setAction}
+              release={release}
+              targets={targets}
+              current={current.length}
+              // Which updates is the updates card's own choice, inside it (#800).
+              updatesChoice={
+                <SegmentedControl<"security" | "all">
+                  label={t`Which updates`}
+                  size="sm"
+                  value={everyUpdate ? "all" : "security"}
+                  onChange={(v) => setEveryUpdate(v === "all")}
+                  options={[
+                    { value: "security", label: t`Security updates` },
+                    { value: "all", label: t`Every update` },
+                  ]}
+                />
+              }
+            />
             {action === "unit" ? (
               <div className="fleet-action-unit">
                 <TextField
@@ -215,33 +238,36 @@ export function FleetActionPage({
             />
           </Step>
         </div>
-        <Summary
-          targets={acting.length}
-          waves={waves}
-          target={picked ? pickedText : selectorText(selector.terms) || t`Every server`}
-          action={action}
-          everyUpdate={everyUpdate}
-          unitVerb={unitVerb}
-          unitName={unitName.trim()}
-          release={release}
-          pauseMinutes={pauseMinutes}
-          stopFirst={stopFirst}
-          ready={acting.length > 0 && unitOk && (action !== "upgrade" || release !== undefined)}
-          plan={{
-            servers: picked ?? (search.selector ? undefined : all.map((s) => s.id)),
-            selector: picked ? "" : selectorText(selector.terms, selector.bad),
-            rollout: create(FleetRolloutSchema, {
-              noCanary: !canary,
-              batchSize,
-              keepGoing: !stopFirst,
-              ...(pauseMinutes > 0 ? { pause: durationFromMs(Math.round(pauseMinutes * 60_000)) } : {}),
-            }),
-            action,
-            everyUpdate,
-            unitName: unitName.trim(),
-            unitAction: UNIT_ACTIONS[unitVerb],
-          }}
-        />
+        <div className="fleet-side">
+          <Summary
+            targets={acting.length}
+            waves={waves}
+            target={picked ? pickedText : selectorText(selector.terms) || t`Every server`}
+            action={action}
+            everyUpdate={everyUpdate}
+            unitVerb={unitVerb}
+            unitName={unitName.trim()}
+            release={release}
+            pauseMinutes={pauseMinutes}
+            stopFirst={stopFirst}
+            ready={acting.length > 0 && unitOk && (action !== "upgrade" || release !== undefined)}
+            plan={{
+              servers: picked ?? (search.selector ? undefined : all.map((s) => s.id)),
+              selector: picked ? "" : selectorText(selector.terms, selector.bad),
+              rollout: create(FleetRolloutSchema, {
+                noCanary: !canary,
+                batchSize,
+                keepGoing: !stopFirst,
+                ...(pauseMinutes > 0 ? { pause: durationFromMs(Math.round(pauseMinutes * 60_000)) } : {}),
+              }),
+              action,
+              everyUpdate,
+              unitName: unitName.trim(),
+              unitAction: UNIT_ACTIONS[unitVerb],
+            }}
+          />
+          <RecentFleetActions />
+        </div>
       </div>
     </Page>
   );
@@ -309,6 +335,7 @@ function Target({
   }, [used, tiles, targets, none]);
   const { terms, bad } = selector;
   const count = targets.length;
+  const example = labelSuggestions(used)[0] ?? "region:eu";
   const matching = plural(count, { one: "# server matches", other: "# servers match" });
   return (
     <>
@@ -350,12 +377,22 @@ function Target({
             return isProblem(term) ? term : undefined;
           }}
           suggestions={labelSuggestions(used)}
-          placeholder={t`label:value`}
-          hint={terms.length === 0 && bad.length === 0 ? t`Every server, until you add a label` : undefined}
+          // The labels the fleet uses, a click each (#800); a selector can only match what's there.
+          quick={used.size > 0 ? quickLabels(used) : []}
+          placeholder={used.size > 0 ? t`Every server, or a label such as ${example}` : t`Every server`}
           after={<span className="label-chips-after">{matching}</span>}
         />
       )}
-      {count > 0 ? (
+      {count > 0 && !groups && count <= NAMED_UP_TO ? (
+        // A handful of servers reads by name, each with its state (#800); a fleet reads as tiles.
+        <ul className="fleet-target-names" aria-label={t`Servers targeted`}>
+          {tiles.map((tile) => (
+            <li key={tile.id}>
+              <StatusBadge status={tile.status} label={tile.name} />
+            </li>
+          ))}
+        </ul>
+      ) : count > 0 ? (
         <section className="fleet-target-tiles" aria-label={t`Servers targeted`}>
           <FleetGrid servers={groups ? undefined : tiles} groups={groups} legend={false} readout={false} />
         </section>
@@ -429,12 +466,15 @@ function Actions({
   release,
   targets,
   current,
+  updatesChoice,
 }: {
   value: ActionKind;
   onChange: (next: ActionKind) => void;
   release: string | undefined;
   targets: readonly Server[];
   current: number;
+  /** Which updates, shown inside the updates card while it's picked. */
+  updatesChoice: React.ReactNode;
 }) {
   const { t } = useLingui();
   const name = useId();
@@ -466,23 +506,28 @@ function Actions({
     <fieldset className="fleet-actions-cards">
       <legend className="dw-sr">{t`Action`}</legend>
       {cards.map((c) => (
-        <label
+        <div
           key={c.kind}
           className={cx("fleet-action-card", c.kind === value && "is-picked", c.disabled && "is-disabled")}
         >
-          <input
-            type="radio"
-            name={name}
-            value={c.kind}
-            checked={c.kind === value}
-            disabled={c.disabled}
-            onChange={() => onChange(c.kind)}
-          />
-          <span className="fleet-action-card-text">
-            <span className="fleet-action-card-title">{c.title}</span>
-            <span className="fleet-action-card-sub">{c.sub}</span>
-          </span>
-        </label>
+          <label className="fleet-action-card-pick">
+            <input
+              type="radio"
+              name={name}
+              value={c.kind}
+              checked={c.kind === value}
+              disabled={c.disabled}
+              onChange={() => onChange(c.kind)}
+            />
+            <span className="fleet-action-card-text">
+              <span className="fleet-action-card-title">{c.title}</span>
+              <span className="fleet-action-card-sub">{c.sub}</span>
+            </span>
+          </label>
+          {c.kind === "updates" && value === "updates" ? (
+            <div className="fleet-action-card-choice">{updatesChoice}</div>
+          ) : null}
+        </div>
       ))}
     </fieldset>
   );
@@ -647,7 +692,7 @@ function Summary({
   const count = waves.length;
   const waveWords = plural(count, { one: "# wave", other: "# waves" });
   const headline = count > 1 ? t`${serverWords} in ${waveWords}` : serverWords;
-  const sizes = waves.join(" → ");
+  const sizes = waves.map((n) => plural(n, { one: "# server", other: "# servers" })).join(" → ");
   const service = unitName || "…";
   const unitWords = {
     restart: t`Restart ${service}`,
@@ -656,7 +701,7 @@ function Summary({
     stop: t`Stop ${service}`,
   }[unitVerb];
   const actionWords = {
-    updates: everyUpdate ? t`Install every update` : t`Install security fixes`,
+    updates: everyUpdate ? t`Apply every OS update` : t`Apply OS security updates`,
     unit: unitWords,
     upgrade: release ? t`Upgrade the agent to ${release}` : t`Upgrade the agent`,
     reboot: t`Reboot`,
@@ -698,7 +743,7 @@ function Summary({
           <dt>{t`Action`}</dt>
           <dd className={action === "unit" ? "is-mono" : undefined}>{actionWords}</dd>
           <dt>{t`Waves`}</dt>
-          <dd>{count > 1 ? t`${sizes} servers` : t`None`}</dd>
+          <dd>{count > 1 ? sizes : t`None`}</dd>
           <dt>{t`Pause`}</dt>
           <dd>{pauseMinutes > 0 ? t`${pauseMinutes} min between waves` : t`None`}</dd>
           <dt>{t`Stops`}</dt>
@@ -718,5 +763,88 @@ function Summary({
         <p className="fleet-summary-note">{t`The plan says what each server would do, before anything runs.`}</p>
       </div>
     </aside>
+  );
+}
+
+/** How many fleet actions the panel lists, and how many pages of changes it reads at most to find them. */
+const RECENT = 5;
+const RECENT_PAGES = 25;
+
+/** A change that ran over a fleet in waves: applied, failed or running, not a plan nobody applied. */
+function fleetAction(c: Change): boolean {
+  return (
+    (c.plan?.rollout?.waves.length ?? 0) > 0 && c.state !== ChangeState.PLANNED && c.state !== ChangeState.DISCARDED
+  );
+}
+
+/**
+ * The fleet actions run lately, newest first, each a link to its change (#800): what
+ * it did, on how many servers, by whom and when. Plans nobody applied aren't actions.
+ */
+function RecentFleetActions() {
+  const { t, i18n } = useLingui();
+  const transport = useTransport();
+  // Page by page, newest first, until five are found or the changes run out, as ListChanges has no filter for
+  // a plan with waves. PAGES bounds what one look reads: past it, an install with that much else since its last
+  // fleet action shows none, and a filter on the server is the way past that (#800's review, L3).
+  const changes = useAnyQuery({
+    // Under ChangeService's own key, so sign-out drops it with the rest and a change applied reads it again
+    // (#800's re-check, N1).
+    queryKey: ["connect-query", { serviceName: ChangeService.typeName, methodName: "RecentFleetActions" }],
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const client = createClient(ChangeService, transport);
+      const found: Change[] = [];
+      let pageToken = "";
+      for (let page = 0; page < RECENT_PAGES && found.length < RECENT; page++) {
+        const res = await client.listChanges({ pageSize: 200, pageToken }, { signal });
+        found.push(...res.changes.filter(fleetAction));
+        pageToken = res.nextPageToken;
+        if (pageToken === "") break;
+      }
+      return found.slice(0, RECENT);
+    },
+  });
+  const recent = changes.data ?? [];
+  if (recent.length === 0) return null;
+  return (
+    <section className="dw-panel fleet-recent" aria-labelledby="fleet-recent-title">
+      <div className="dw-panel-head">
+        <h2 className="dw-panel-title" id="fleet-recent-title">
+          {t`Recent fleet actions`}
+        </h2>
+        <Link to="/activity" className="fleet-recent-all">
+          <Trans>Activity</Trans>
+        </Link>
+      </div>
+      <ul className="fleet-recent-list">
+        {recent.map((c) => {
+          const servers = c.plan?.servers.length ?? 0;
+          const when = c.applyTime ?? c.createTime;
+          const by = c.appliedBy?.name || c.proposedBy?.name || "";
+          return (
+            <li key={c.id} className={cx("fleet-recent-item", c.state === ChangeState.FAILED && "is-failed")}>
+              <Link to="/changes/$changeId" params={{ changeId: c.id }} className="fleet-recent-summary">
+                {c.summary}
+              </Link>
+              <span className="fleet-recent-meta">
+                {[
+                  by,
+                  plural(servers, { one: "# server", other: "# servers" }),
+                  c.state === ChangeState.FAILED ? t`failed` : c.state === ChangeState.APPLYING ? t`running` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              {when ? (
+                <time className="fleet-recent-when" dateTime={timestampDate(when).toISOString()}>
+                  {formatDay(timestampDate(when), i18n.locale)}
+                </time>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

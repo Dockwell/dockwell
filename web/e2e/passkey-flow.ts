@@ -62,7 +62,6 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     await page.goto(`${origin}/servers`);
     await page.getByRole("button", { name: "Add server" }).first().click();
     const adding = page.getByRole("dialog", { name: "Add a server" });
-    await adding.getByRole("button", { name: "Make the command" }).click();
     const command =
       (await adding.locator(".servers-add-command code").first().textContent({ timeout: SEEN_WITHIN })) ?? "";
     if (!/(?:--join|dockwell join) \S+/.test(command)) fail(`the sheet's command has no ticket: ${command}`);
