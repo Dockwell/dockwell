@@ -36,6 +36,7 @@ var (
 	_ resource.Rotates    = Type{}
 	_ resource.Keeper     = Type{}
 	_ resource.NewChecker = Type{}
+	_ resource.PartUndoer = Type{}
 )
 
 // Kind returns "dns.provider".
@@ -182,6 +183,50 @@ func (Type) Validate(spec proto.Message) error {
 // no project proves none.
 func Serves(p *resourcev1.DnsProvider, project string) bool {
 	return slices.Contains(p.GetProjects(), project)
+}
+
+// Serving is p as the edit that has it serve project too, or nil where it serves it
+// already. Its tokens are left out, so the provider keeps them, and a plan shows only
+// the project it gains (the review's B-M5, and #792's M1).
+func Serving(p *resourcev1.DnsProvider, project string) *resourcev1.DnsProvider {
+	if Serves(p, project) {
+		return nil
+	}
+	out := proto.CloneOf(p)
+	out.ApiToken, out.TunnelApiToken = "", ""
+	out.Projects = append(out.Projects, project)
+	return out
+}
+
+// UndoPart takes out of latest the projects a change added to before, where that's
+// all it did, as an install's or a website's change is, and keeps every other
+// project, so undoing one of several installs needs no other undone first (#792).
+func (Type) UndoPart(before, after, latest proto.Message) (proto.Message, bool) {
+	was, ok := before.(*resourcev1.DnsProvider)
+	is, same := after.(*resourcev1.DnsProvider)
+	now, still := latest.(*resourcev1.DnsProvider)
+	if !ok || !same || !still {
+		return nil, false
+	}
+	added := map[string]bool{}
+	for _, p := range is.GetProjects() {
+		if !slices.Contains(was.GetProjects(), p) {
+			added[p] = true
+		}
+	}
+	for _, p := range was.GetProjects() {
+		if !slices.Contains(is.GetProjects(), p) {
+			return nil, false
+		}
+	}
+	rest, more := proto.CloneOf(was), proto.CloneOf(is)
+	rest.Projects, more.Projects = nil, nil
+	if len(added) == 0 || !proto.Equal(rest, more) {
+		return nil, false
+	}
+	out := proto.CloneOf(now)
+	out.Projects = slices.DeleteFunc(out.Projects, func(p string) bool { return added[p] })
+	return out, true
 }
 
 // ErrGlobalKey is a Cloudflare Global API Key, which can do anything the account can,

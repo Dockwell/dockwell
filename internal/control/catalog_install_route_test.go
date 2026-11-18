@@ -21,8 +21,8 @@ import (
 
 // An install that asks for a route plans it in the same change, to the app's web
 // service at the port its container serves, held as the install is, and the app's
-// address follows its domain; a redirect, a port on the server, or a service of its
-// own is refused (#792).
+// address follows its domain; a redirect, a port on the server, a service of its
+// own, or a path is refused (#792).
 func TestAnInstallsRouteIsPlannedWithIt(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
@@ -34,6 +34,7 @@ func TestAnInstallsRouteIsPlannedWithIt(t *testing.T) {
 			"a port on the host": {Domain: "thing.example.com", HostPort: 18100},
 			"its own service":    {Domain: "thing.example.com", Service: "db", Port: 5432},
 			"no domain":          {},
+			"a path":             {Domain: "thing.example.com", Path: "/admin"},
 		} {
 			if _, err := o.cat.InstallCatalogEntry(t.Context(), connect.NewRequest(&dockwellv1.InstallCatalogEntryRequest{Id: "thing", Route: bad})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 				t.Errorf("%s: %v", name, err)
@@ -56,7 +57,8 @@ func TestAnInstallsRouteIsPlannedWithIt(t *testing.T) {
 
 // An install's route that takes over a record made in Cloudflare is an admin's to
 // apply with a passkey, as any route's take-over is: the install's change says so,
-// and has the DNS provider serve its new project (#792).
+// and has the DNS provider serve its new project, with only that project changing in
+// it (#792).
 func TestAnInstallsRouteTakingOverARecordTakesAPasskey(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -90,6 +92,17 @@ func TestAnInstallsRouteTakingOverARecordTakesAPasskey(t *testing.T) {
 		return strings.HasPrefix(r.GetResource().GetKind(), "dns")
 	}) {
 		t.Errorf("the install's change doesn't have the DNS provider serve its project: %v", resources)
+	}
+	// The provider gains the project alone: its tokens show as no change (the review's M1).
+	for _, r := range resources {
+		if r.GetResource().GetKind() != "dns.provider" {
+			continue
+		}
+		for _, c := range r.GetChanges() {
+			if c.GetPath() != "projects" {
+				t.Errorf("the install's change changes the provider's %s", c.GetPath())
+			}
+		}
 	}
 	if _, err := s.script.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint()})); err == nil {
 		t.Error("a token applied an install that takes over a record at Cloudflare")

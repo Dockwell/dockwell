@@ -303,7 +303,9 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		if err != nil {
 			return nil, err
 		}
-		place.made = append(place.made, edit)
+		if edit.Spec != nil {
+			place.made = append(place.made, edit)
+		}
 	}
 	useSecrets(stack, in.Stands)
 	setAddress(stack, in.Address)
@@ -1715,12 +1717,9 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
 }
 
-// reachNew is the edit that has the connection name reach the project an install
-// makes, by the ID the change gives it, beside the projects it reaches already, from
-// the revision it reads (ADR 0099).
 // serveNew is the edit that has a DNS provider serve the project an install makes, so
 // the route the install makes may publish through it: an admin's, as a provider is
-// (#792).
+// (#792). Its tokens are left out, so the provider keeps them (dnsprovider.Serving).
 func (h *Handler) serveNew(ctx context.Context, org, name, project string) (revision.Edit, error) {
 	ref := resource.Ref{Kind: dnsprovider.Kind, Scope: org, Name: name}
 	var out revision.Edit
@@ -1740,16 +1739,21 @@ func (h *Handler) serveNew(ctx context.Context, org, name, project string) (revi
 		if !ok {
 			return fmt.Errorf("%s isn't a DNS provider", name)
 		}
-		p = proto.CloneOf(p)
-		if !slices.Contains(p.GetProjects(), project) {
-			p.Projects = append(p.Projects, project)
+		if serving := dnsprovider.Serving(p, project); serving != nil {
+			out = revision.Edit{Ref: ref, Spec: serving, Base: r.Revision}
 		}
-		out = revision.Edit{Ref: ref, Spec: p, Base: r.Revision}
 		return nil
 	})
+	var cerr *connect.Error
+	if err != nil && !errors.As(err, &cerr) {
+		return out, h.internal(ctx, err)
+	}
 	return out, err
 }
 
+// reachNew is the edit that has the connection name reach the project an install
+// makes, by the ID the change gives it, beside the projects it reaches already, from
+// the revision it reads (ADR 0099).
 func (h *Handler) reachNew(ctx context.Context, org, name, project string) (revision.Edit, error) {
 	ref := resource.Ref{Kind: connection.Kind, Scope: org, Name: name}
 	var out revision.Edit
