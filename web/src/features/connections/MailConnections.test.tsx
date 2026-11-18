@@ -161,8 +161,8 @@ describe("a mail server's connection", () => {
     await user.type(within(sheet).getByLabelText("API key"), "re_right");
     expect(review).toBeDisabled();
     await user.click(within(sheet).getByRole("button", { name: "Check" }));
-    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
-    expect(within(sheet).getByText("It took the sign-in, and Dockwell sent no mail.")).toBeVisible();
+    expect(await within(sheet).findByText("Sign-in works", {}, { timeout: 3000 })).toBeVisible();
+    expect(within(sheet).getByText("Checked from hz-1. It took the sign-in, and Dockwell sent no mail.")).toBeVisible();
     expect(checks.at(-1)?.smtp).toMatchObject({
       host: "smtp.resend.com",
       port: 587,
@@ -214,7 +214,7 @@ describe("a mail server's connection", () => {
     // Postmark's server token is its user and its password both.
     expect(checks.at(-1)?.smtp).toMatchObject({ host: "smtp.postmarkapp.com", user: "pm-token", password: "pm-token" });
     await user.click(within(sheet).getByRole("button", { name: "Use port 2525" }));
-    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
+    expect(await within(sheet).findByText("Sign-in works", {}, { timeout: 3000 })).toBeVisible();
     expect(checks.at(-1)?.smtp?.port).toBe(2525);
   });
 
@@ -253,9 +253,9 @@ describe("a mail server's connection", () => {
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
     expect(checks.at(-1)?.smtp).toMatchObject({ host: "email-smtp.us-east-1.amazonaws.com", port: 2587 });
     await user.click(within(sheet).getByRole("button", { name: "Use TLS" }));
-    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
+    expect(await within(sheet).findByText("Sign-in works", {}, { timeout: 3000 })).toBeVisible();
     expect(checks.at(-1)?.smtp).toMatchObject({ port: 2465, security: SmtpSecurity.TLS });
-    expect(within(sheet).getByText("It took the sign-in, and Dockwell sent no mail.")).toBeVisible();
+    expect(within(sheet).getByText("Checked from hz-1. It took the sign-in, and Dockwell sent no mail.")).toBeVisible();
   });
 
   it("lists a mail server by its service and who mail comes from", async () => {

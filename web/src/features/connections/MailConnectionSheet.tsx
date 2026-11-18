@@ -39,6 +39,10 @@ import { ServiceTiles } from "./ServiceTiles";
 import { checkServer, SILENT, useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
 
+/** Examples, which read as examples beside "e.g.", not as values someone typed (#799). */
+const EXAMPLE_HOST = "smtp.example.com";
+const EXAMPLE_SENDER = "notes@example.com";
+const EXAMPLE_NAME = "Notes";
 /**
  * Adds a connection to a mail server, or changes one, as a plan (ADR 0099). A person
  * picks the service, which fills in where its server is and who signs in, and pastes
@@ -295,6 +299,23 @@ export function MailConnectionSheet({
   };
   const summary = [t`Named ${name}`, t`for ${who}`, t`port ${port}`, securityWords[security] ?? ""].join(" · ");
   const said = fresh && answer ? words(answer, { port, signedIn: password !== "" && signsInAs !== "" }) : undefined;
+  // Why Review plan is off, beside it, as the first thing still to do (#799). What a
+  // check found, or that it's checking, the line above says already.
+  const why = ready
+    ? undefined
+    : !hostOk
+      ? t`Type the host`
+      : !editing && !typedSignIn
+        ? p.user || p.userIsKey
+          ? t`Type the key`
+          : t`Type the user and password`
+        : !senderOk
+          ? t`Fix the address it sends as`
+          : !reaching
+            ? t`Pick a project`
+            : !checking && !fresh && !clearRefused
+              ? t`Check it first`
+              : undefined;
   // A port the server can't reach may be blocked by the server's provider, as 25 and
   // 587 often are: the service's own other ports are one step away (the review's M1).
   const blocked = fresh && answer?.step === "connect" && SILENT.includes(answer.code);
@@ -320,6 +341,7 @@ export function MailConnectionSheet({
               <Trans>Remove</Trans>
             </Button>
           ) : null}
+          {why && mayPlan.allowed ? <span className="connection-sheet-why">{why}</span> : null}
           <Button variant="secondary" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
@@ -346,7 +368,7 @@ export function MailConnectionSheet({
             autoComplete="off"
             spellCheck={false}
             value={typedHost}
-            placeholder="smtp.example.com"
+            placeholder={t`e.g. ${EXAMPLE_HOST}`}
             hint={typedHost !== "" && !hostOk ? t`Its name or address alone, with the port apart` : undefined}
             onChange={(event) => setTypedHost(event.target.value.trim())}
           />
@@ -382,14 +404,14 @@ export function MailConnectionSheet({
             autoComplete="off"
             spellCheck={false}
             value={sender}
-            placeholder="notes@example.com"
+            placeholder={t`e.g. ${EXAMPLE_SENDER}`}
             hint={!senderOk ? t`An email address alone, such as notes@example.com` : undefined}
             onChange={(event) => setSender(event.target.value.trim())}
           />
           <TextField
             label={t`Sender's name`}
             value={senderName}
-            placeholder={t`Notes`}
+            placeholder={t`e.g. ${EXAMPLE_NAME}`}
             onChange={(event) => setSenderName(event.target.value)}
           />
         </div>

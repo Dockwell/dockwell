@@ -12438,11 +12438,17 @@ msgstr "objects under {0}"
 msgid "{app} reads no variable or secret of its environment yet."
 msgstr "{app} reads no variable or secret of its environment yet."
 
+msgid "Address style"
+msgstr "Address style"
+
 msgid "An admin or the owner disconnects an install's storage"
 msgstr "An admin or the owner disconnects an install's storage"
 
-msgid "Bucket goes"
-msgstr "Bucket goes"
+msgid "Bucket in the hostname"
+msgstr "Bucket in the hostname"
+
+msgid "Bucket in the path"
+msgstr "Bucket in the path"
 
 msgid "Connections"
 msgstr "Connections"
@@ -12464,12 +12470,6 @@ msgstr "Each sends as any sender the server takes"
 
 msgid "Every project"
 msgstr "Every project"
-
-msgid "In the host"
-msgstr "In the host"
-
-msgid "In the path"
-msgstr "In the path"
 
 msgid "It serves an app already, and isn't shared"
 msgstr "It serves an app already, and isn't shared"
@@ -12569,14 +12569,14 @@ msgstr "1 project"
 msgid "3 to 63 lowercase letters, digits, dots and dashes"
 msgstr "3 to 63 lowercase letters, digits, dots and dashes"
 
+msgid "32 letters and digits"
+msgstr "32 letters and digits"
+
 msgid "32 letters and digits, as Cloudflare shows it"
 msgstr "32 letters and digits, as Cloudflare shows it"
 
 msgid "A bucket of S3-compatible storage, for apps to keep files in"
 msgstr "A bucket of S3-compatible storage, for apps to keep files in"
-
-msgid "Bucket in the path"
-msgstr "Bucket in the path"
 
 msgid "Change the connection {name}"
 msgstr "Change the connection {name}"
@@ -12612,14 +12612,29 @@ msgstr "Moved: type its keys again"
 msgid "Only some projects"
 msgstr "Only some projects"
 
+msgid "Pick a project"
+msgstr "Pick a project"
+
 msgid "Remove the connection {name}"
 msgstr "Remove the connection {name}"
 
 msgid "Their apps alone may use it."
 msgstr "Their apps alone may use it."
 
+msgid "Type a valid account ID"
+msgstr "Type a valid account ID"
+
 msgid "Type both keys"
 msgstr "Type both keys"
+
+msgid "Type the account ID"
+msgstr "Type the account ID"
+
+msgid "Type the bucket"
+msgstr "Type the bucket"
+
+msgid "Type the endpoint"
+msgstr "Type the endpoint"
 
 msgid "What an app's link names it by, and the CLI."
 msgstr "What an app's link names it by, and the CLI."
@@ -12627,11 +12642,20 @@ msgstr "What an app's link names it by, and the CLI."
 msgid "Where browsers fetch its objects, if it has one."
 msgstr "Where browsers fetch its objects, if it has one."
 
-msgid "bucket in the host"
-msgstr "bucket in the host"
+msgid "bucket in the hostname"
+msgstr "bucket in the hostname"
 
 msgid "bucket in the path"
 msgstr "bucket in the path"
+
+msgid "e.g. {EXAMPLE_BUCKET}"
+msgstr "e.g. {EXAMPLE_BUCKET}"
+
+msgid "e.g. {EXAMPLE_ENDPOINT}"
+msgstr "e.g. {EXAMPLE_ENDPOINT}"
+
+msgid "e.g. {EXAMPLE_PUBLIC}"
+msgstr "e.g. {EXAMPLE_PUBLIC}"
 
 msgid "every project"
 msgstr "every project"
@@ -12661,6 +12685,9 @@ msgstr "Add connection"
 msgid "An admin adds the buckets and mail servers your apps may use."
 msgstr "An admin adds the buckets and mail servers your apps may use."
 
+msgid "Last check"
+msgstr "Last check"
+
 msgid "No app yet"
 msgstr "No app yet"
 
@@ -12683,6 +12710,13 @@ msgstr "{0, plural, one {# connection} other {# connections}}"
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, one {used by # app} other {used by # apps}}"
 
+msgid "Fails from {server}"
+msgstr "Fails from {server}"
+
+msgctxt "a connection's last check"
+msgid "Passed"
+msgstr "Passed"
+
 msgid "A mail server, for apps to send mail through"
 msgstr "A mail server, for apps to send mail through"
 
@@ -12691,6 +12725,12 @@ msgstr "API key"
 
 msgid "An email address alone, such as notes@example.com"
 msgstr "An email address alone, such as notes@example.com"
+
+msgid "Check it first"
+msgstr "Check it first"
+
+msgid "Fix the address it sends as"
+msgstr "Fix the address it sends as"
 
 msgid "Its name or address alone, with the port apart"
 msgstr "Its name or address alone, with the port apart"
@@ -12716,6 +12756,12 @@ msgstr "Server token"
 msgid "Signs in only to a private address, such as 10.0.0.5."
 msgstr "Signs in only to a private address, such as 10.0.0.5."
 
+msgid "Type the host"
+msgstr "Type the host"
+
+msgid "Type the key"
+msgstr "Type the key"
+
 msgid "Type the user and password"
 msgstr "Type the user and password"
 
@@ -12728,6 +12774,15 @@ msgstr "Use port {alt}"
 msgid "Without TLS, give the server's private address, such as 10.0.0.5, or use STARTTLS or TLS."
 msgstr "Without TLS, give the server's private address, such as 10.0.0.5, or use STARTTLS or TLS."
 
+msgid "e.g. {EXAMPLE_HOST}"
+msgstr "e.g. {EXAMPLE_HOST}"
+
+msgid "e.g. {EXAMPLE_NAME}"
+msgstr "e.g. {EXAMPLE_NAME}"
+
+msgid "e.g. {EXAMPLE_SENDER}"
+msgstr "e.g. {EXAMPLE_SENDER}"
+
 msgid "Another S3-compatible store"
 msgstr "Another S3-compatible store"
 
@@ -12736,6 +12791,29 @@ msgstr "Another mail server"
 
 msgid "Mail"
 msgstr "Mail"
+
+msgctxt "another S3-compatible store, as a tile"
+msgid "Other"
+msgstr "Other"
+
+msgctxt "another mail server, as a tile"
+msgid "Other"
+msgstr "Other"
+
+msgid "Apps that want mail"
+msgstr "Apps that want mail"
+
+msgid "No app sends through it yet, and none installed wants mail."
+msgstr "No app sends through it yet, and none installed wants mail."
+
+msgid "Use for {app}"
+msgstr "Use for {app}"
+
+msgid "mail set by hand"
+msgstr "mail set by hand"
+
+msgid "no mail yet"
+msgstr "no mail yet"
 
 msgid "Access denied"
 msgstr "Access denied"
@@ -12776,8 +12854,14 @@ msgstr "Check the host and port."
 msgid "Check the host."
 msgstr "Check the host."
 
+msgid "Checked from {server}."
+msgstr "Checked from {server}."
+
 msgid "Clear the user, or use a server that signs one in."
 msgstr "Clear the user, or use a server that signs one in."
+
+msgid "From {server}, it wrote, read and deleted a test object."
+msgstr "From {server}, it wrote, read and deleted a test object."
 
 #. placeholder {0}: c.region
 msgid "It answered from region {0}."
@@ -12788,6 +12872,9 @@ msgstr "It answered {code}. Check the user and password."
 
 msgid "It answered, and Dockwell sent no mail."
 msgstr "It answered, and Dockwell sent no mail."
+
+msgid "It listed the bucket, and wrote nothing."
+msgstr "It listed the bucket, and wrote nothing."
 
 msgid "It refused at its {step} step with {code}."
 msgstr "It refused at its {step} step with {code}."
@@ -12807,8 +12894,17 @@ msgstr "It took the connection on port {port} and answered nothing, so apps can'
 msgid "It took the sign-in, and Dockwell sent no mail."
 msgstr "It took the sign-in, and Dockwell sent no mail."
 
+msgid "It wrote, read and deleted a test object."
+msgstr "It wrote, read and deleted a test object."
+
 msgid "Keys refused"
 msgstr "Keys refused"
+
+msgid "Keys work"
+msgstr "Keys work"
+
+msgid "Keys work · bucket found"
+msgstr "Keys work · bucket found"
 
 msgid "No STARTTLS"
 msgstr "No STARTTLS"
@@ -12828,15 +12924,14 @@ msgstr "No greeting"
 msgid "No such bucket"
 msgstr "No such bucket"
 
-msgid "Reached"
-msgstr "Reached"
-
-#. placeholder {0}: c.server
-msgid "Reached from {0}"
-msgstr "Reached from {0}"
+msgid "Server answers"
+msgstr "Server answers"
 
 msgid "Sign-in refused"
 msgstr "Sign-in refused"
+
+msgid "Sign-in works"
+msgstr "Sign-in works"
 
 msgid "Signs no one in"
 msgstr "Signs no one in"
@@ -12854,6 +12949,9 @@ msgstr "The bucket gave back something other than what was written."
 #. placeholder {0}: code || String(c.status)
 msgid "The bucket refused the check with {0}."
 msgstr "The bucket refused the check with {0}."
+
+msgid "The keys may not list the bucket, which apps rarely need."
+msgstr "The keys may not list the bucket, which apps rarely need."
 
 msgid "The keys may not write in this bucket."
 msgstr "The keys may not write in this bucket."
@@ -12876,9 +12974,6 @@ msgstr "Use TLS on port 465, or a server that offers STARTTLS."
 
 msgid "Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS."
 msgstr "Without TLS, Dockwell sends a password only to a private address. Use STARTTLS or TLS."
-
-msgid "Wrote, read and deleted a test object."
-msgstr "Wrote, read and deleted a test object."
 
 msgid "access key ID"
 msgstr "access key ID"
@@ -21162,6 +21257,9 @@ msgstr "Over HTTPS, with its own certificate"
 
 msgid "Over plain HTTP, to anyone who reaches the server"
 msgstr "Over plain HTTP, to anyone who reaches the server"
+
+msgid "Reached"
+msgstr "Reached"
 
 msgid "Route"
 msgstr "Route"

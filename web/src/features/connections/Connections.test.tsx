@@ -276,7 +276,7 @@ describe("Connections", () => {
     expect(review).toBeDisabled();
     await user.clear(within(sheet).getByLabelText("Secret access key"));
     await user.type(within(sheet).getByLabelText("Secret access key"), "right-secret");
-    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
+    expect(await within(sheet).findByText("Keys work · bucket found", {}, { timeout: 3000 })).toBeVisible();
     expect(checks.at(-1)?.s3).toMatchObject({
       endpoint: `https://${R2}.r2.cloudflarestorage.com`,
       region: "auto",
@@ -339,7 +339,7 @@ describe("Connections", () => {
     expect(checks).toHaveLength(0);
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeEnabled();
     await user.click(within(sheet).getByRole("button", { name: "Check" }));
-    expect(await within(sheet).findByText("Reached from hz-1", {}, { timeout: 3000 })).toBeVisible();
+    expect(await within(sheet).findByText("Keys work · bucket found", {}, { timeout: 3000 })).toBeVisible();
     expect(checks).toHaveLength(1);
     expect(checks[0]).toMatchObject({ name: "outline-uploads", server: SERVER });
     expect(checks[0]?.s3?.secretKey).toBe("");
@@ -511,11 +511,11 @@ describe("Connections", () => {
     const details = screen.getByRole("region", { name: "Details" });
     expect(details).toHaveTextContent(`https://${R2}.r2.cloudflarestorage.com`);
     expect(details).toHaveTextContent("Sealed, never shown");
-    // No check is kept: until one runs here, it says so (review L4).
-    expect(screen.getByText("Not checked")).toBeVisible();
+    // Until the control plane's first check, it says so (review L4, #799).
+    expect(screen.getByText("Not checked yet")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Check" }));
     expect(await screen.findByText("Check the bucket's name.")).toBeVisible();
-    expect(screen.queryByText("Not checked")).toBeNull();
+    expect(screen.queryByText("Not checked yet")).toBeNull();
     await expectAccessible(container);
   });
 });

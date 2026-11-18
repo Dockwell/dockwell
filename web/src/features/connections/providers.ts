@@ -12,6 +12,8 @@ export interface Provider {
   id: ProviderId;
   /** The store's name, which no translation changes. */
   name: string;
+  /** A shorter name for its tile, where its own doesn't fit one line. */
+  short?: string;
   /** Two letters for its tile, as the mocks have them. */
   mark: string;
   /** Its regions, where a person picks one, first the default. Empty where the store has none. */
@@ -84,6 +86,7 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "gcs",
     name: "Google Cloud Storage",
+    short: "Google Cloud",
     mark: "GC",
     regions: [],
     account: false,

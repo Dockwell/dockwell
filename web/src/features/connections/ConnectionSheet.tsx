@@ -28,6 +28,11 @@ import { type ConnectionKindPick, ServiceTiles } from "./ServiceTiles";
 import { checkServer, SILENT, useCheckWords, useConnections } from "./useConnections";
 import "./Connections.css";
 
+/** Examples, which read as examples beside "e.g.", not as values someone typed (#799). */
+const EXAMPLE_ENDPOINT = "https://s3.example.com";
+const EXAMPLE_BUCKET = "my-app-files";
+const EXAMPLE_PUBLIC = "https://files.example.com";
+
 /** How long typing pauses before a connection is checked. */
 const CHECK_AFTER_MS = 700;
 
@@ -318,10 +323,27 @@ function StorageSheet({
       : picked.length === 1
         ? (projects.find((x) => x.id === picked[0])?.label ?? t`1 project`)
         : plural(picked.length, { one: "# project", other: "# projects" });
-  const summary = [t`Named ${name}`, t`for ${who}`, pathStyle ? t`bucket in the path` : t`bucket in the host`].join(
+  const summary = [t`Named ${name}`, t`for ${who}`, pathStyle ? t`bucket in the path` : t`bucket in the hostname`].join(
     " · ",
   );
   const check = answer ? words(answer) : undefined;
+  // Why Review plan is off, beside it, as the first thing still to do (#799). What a
+  // check found, or that it's checking, the line above the fields says already.
+  const why = ready
+    ? undefined
+    : p.account && account === ""
+      ? t`Type the account ID`
+      : store === "other" && endpoint === ""
+        ? t`Type the endpoint`
+        : endpoint === ""
+          ? t`Type a valid account ID`
+          : !bucketOk
+            ? t`Type the bucket`
+            : !editing && !typedKeys
+              ? t`Type both keys`
+              : !reaching
+                ? t`Pick a project`
+                : undefined;
 
   return (
     <Sheet
@@ -336,6 +358,7 @@ function StorageSheet({
               <Trans>Remove</Trans>
             </Button>
           ) : null}
+          {why && mayPlan.allowed ? <span className="connection-sheet-why">{why}</span> : null}
           <Button variant="secondary" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
@@ -359,7 +382,7 @@ function StorageSheet({
             autoComplete="off"
             spellCheck={false}
             value={account}
-            placeholder="0123456789abcdef0123456789abcdef"
+            placeholder={t`32 letters and digits`}
             hint={
               account !== "" && !R2_ACCOUNT.test(account.trim())
                 ? t`32 letters and digits, as Cloudflare shows it`
@@ -383,7 +406,7 @@ function StorageSheet({
             autoComplete="off"
             spellCheck={false}
             value={typedEndpoint}
-            placeholder="https://s3.example.com"
+            placeholder={t`e.g. ${EXAMPLE_ENDPOINT}`}
             onChange={(event) => setTypedEndpoint(event.target.value)}
           />
         ) : null}
@@ -393,7 +416,7 @@ function StorageSheet({
           autoComplete="off"
           spellCheck={false}
           value={bucket}
-          placeholder="outline-uploads"
+          placeholder={t`e.g. ${EXAMPLE_BUCKET}`}
           hint={bucket !== "" && !bucketOk ? t`3 to 63 lowercase letters, digits, dots and dashes` : undefined}
           onChange={(event) => setBucket(event.target.value.trim())}
         />
@@ -524,7 +547,7 @@ function StorageSheet({
             label={t`Public address`}
             mono
             value={publicUrl}
-            placeholder="https://files.example.com"
+            placeholder={t`e.g. ${EXAMPLE_PUBLIC}`}
             hint={t`Where browsers fetch its objects, if it has one.`}
             onChange={(event) => setPublicUrl(event.target.value)}
           />

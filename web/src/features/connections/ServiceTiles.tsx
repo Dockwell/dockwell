@@ -32,17 +32,29 @@ export function ServiceTiles({
   const groups: {
     kind: ConnectionKindPick;
     label: string;
-    tiles: { id: ProviderId | MailProviderId; mark: string; name: string }[];
+    tiles: { id: ProviderId | MailProviderId; mark: string; name: string; full: string }[];
   }[] = [
     {
       kind: "storage",
       label: t`Storage`,
-      tiles: PROVIDERS.map((p) => ({ id: p.id, mark: p.mark, name: p.name || t`Another S3-compatible store` })),
+      // Each tile's name fits one line, so the tiles are one height (#799): the full
+      // name is what a screen reader says, and a hover shows.
+      tiles: PROVIDERS.map((p) => ({
+        id: p.id,
+        mark: p.mark,
+        name: p.short || p.name || t({ message: "Other", context: "another S3-compatible store, as a tile" }),
+        full: p.name || t`Another S3-compatible store`,
+      })),
     },
     {
       kind: "mail",
       label: t`Mail`,
-      tiles: MAIL_PROVIDERS.map((p) => ({ id: p.id, mark: p.mark, name: p.name || t`Another mail server` })),
+      tiles: MAIL_PROVIDERS.map((p) => ({
+        id: p.id,
+        mark: p.mark,
+        name: p.name || t({ message: "Other", context: "another mail server, as a tile" }),
+        full: p.name || t`Another mail server`,
+      })),
     },
   ];
   const shown = groups.filter((g) => only === undefined || g.kind === only);
@@ -58,12 +70,14 @@ export function ServiceTiles({
                 type="button"
                 className={cx("connection-store", pressed && picked === x.id && "is-picked")}
                 aria-pressed={pressed ? picked === x.id : undefined}
+                aria-label={x.full}
+                title={x.full === x.name ? undefined : x.full}
                 onClick={() => onPick(x.id)}
               >
                 <span className="connection-mark" aria-hidden>
                   {x.mark}
                 </span>
-                <span>{x.name}</span>
+                <span className="connection-store-name">{x.name}</span>
               </button>
             ))}
           </div>

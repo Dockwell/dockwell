@@ -50,11 +50,28 @@ export function useCheckWords() {
   const mailWords = useMailCheckWords();
   return (c: CheckConnectionResponse, mail?: MailCheck): { passed: boolean; state: string; line: string } => {
     if (mail || MAIL_STEPS.includes(c.step)) return mailWords(c, mail ?? {});
-    if (c.passed) {
+    if (c.passed && c.step === "list") {
+      // A check on a schedule read the bucket and wrote nothing: the keys work, and
+      // only a check that saw the bucket says it's found (ADR 0099, #799).
       return {
         passed: true,
-        state: c.server ? t`Reached from ${c.server}` : t`Reached`,
-        line: c.region ? t`It answered from region ${c.region}.` : t`Wrote, read and deleted a test object.`,
+        state: t`Keys work`,
+        line:
+          c.code === "AccessDenied"
+            ? t`The keys may not list the bucket, which apps rarely need.`
+            : t`It listed the bucket, and wrote nothing.`,
+      };
+    }
+    if (c.passed) {
+      // What a person wants to know first: the keys work and the bucket is there (#799).
+      const server = c.server;
+      const from = server
+        ? t`From ${server}, it wrote, read and deleted a test object.`
+        : t`It wrote, read and deleted a test object.`;
+      return {
+        passed: true,
+        state: t`Keys work · bucket found`,
+        line: c.region ? `${from} ${t`It answered from region ${c.region}.`}` : from,
       };
     }
     const code = c.code;
@@ -80,6 +97,8 @@ export function useCheckWords() {
         };
       case "SignatureDoesNotMatch":
       case "InvalidAccessKeyId":
+      // R2 answers a key it doesn't know with Unauthorized (its 10002).
+      case "Unauthorized":
         return { passed: false, state: t`Keys refused`, line: t`Check the access key ID and its secret.` };
       case "AccessDenied":
         return { passed: false, state: t`Access denied`, line: t`The keys may not write in this bucket.` };
@@ -116,13 +135,18 @@ function useMailCheckWords() {
   };
   return (c: CheckConnectionResponse, m: MailCheck): { passed: boolean; state: string; line: string } => {
     if (c.passed) {
+      const server = c.server;
+      const from = server ? t`Checked from ${server}.` : "";
       return {
         passed: true,
-        state: c.server ? t`Reached from ${c.server}` : t`Reached`,
         // Only a check sent a user signed in (the SMTP review's L2).
-        line: m.signedIn
-          ? t`It took the sign-in, and Dockwell sent no mail.`
-          : t`It answered, and Dockwell sent no mail.`,
+        state: m.signedIn ? t`Sign-in works` : t`Server answers`,
+        line: [
+          from,
+          m.signedIn ? t`It took the sign-in, and Dockwell sent no mail.` : t`It answered, and Dockwell sent no mail.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
       };
     }
     const said = c.words;
