@@ -14,6 +14,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -224,11 +225,30 @@ func TestExternalAccessTakesOnThePortThereAndTurnsOffFromAnyState(t *testing.T) 
 			t.Fatalf("turning it on ended %v: %v", done.GetState(), done.GetError())
 		}
 
-		// The tag taken away by hand, as a version from before it would leave things:
-		// the port with its rules reads as on, and Off takes the port and both rules.
+		// The port with its rules and no tag, as an earlier build could leave things,
+		// made here as Off and then the port and both rules written by hand: it reads as
+		// on, and Off takes the port and both rules.
+		off, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		applyWithPasskey(t, ch, off.Msg.GetChange())
+		db, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		server := db.Msg.GetDatabase().GetReadings()[0].GetServerId()
 		untag := postgresEdit()
 		untag.Spec.GetService().GetApp().Ports = []*resourcev1.PortMapping{{HostPort: 5432, ContainerPort: 5432}}
-		applyWithPasskey(t, ch, propose(t, ch, "Take the tag away", untag))
+		rule := func(which string, action resourcev1.FirewallAction, sources ...string) *dockwellv1.Edit {
+			return &dockwellv1.Edit{
+				Resource: &dockwellv1.ResourceRef{Kind: "firewall.rule", Scope: server, Name: revision.ExternalRule(db.Msg.GetDatabase().GetId(), which)},
+				Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_FirewallRule{FirewallRule: &resourcev1.FirewallRule{Action: action, Port: 5432, Sources: sources}}},
+			}
+		}
+		applyWithPasskey(t, ch, propose(t, ch, "The port and its rules, untagged", untag,
+			rule(revision.ExternalAllow, resourcev1.FirewallAction_FIREWALL_ACTION_ALLOW, "203.0.113.0/24"),
+			rule(revision.ExternalDeny, resourcev1.FirewallAction_FIREWALL_ACTION_DENY)))
 		read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
 		if err != nil {
 			t.Fatal(err)
@@ -236,7 +256,7 @@ func TestExternalAccessTakesOnThePortThereAndTurnsOffFromAnyState(t *testing.T) 
 		if got := read.Msg.GetDatabase().GetExternalAccess(); got.GetPort() != 5432 {
 			t.Errorf("a port with its rules and no tag reads as %v, want it on, so it can be turned off", got)
 		}
-		off, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true}))
+		off, err = dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -262,4 +282,39 @@ func postgresEdit() *dockwellv1.Edit {
 			Secrets: map[string]string{"POSTGRES_PASSWORD": "DB_PASSWORD"},
 		}}},
 	}
+}
+
+// The app page's Ports form, saving db's port without its tag while its rules stay,
+// is refused, so nothing can run it on another server unguarded (#849's re-check, N1).
+// A developer deleting a database with external access is told why it's an admin's
+// (L4).
+func TestTheTagCantBeDroppedWhileItsRulesStay(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addServerWith(t, func() []resource.Type { return []resource.Type{&firewall.Driver{Backend: firewall.NewFake()}} })
+		ch := changeClient(b, b.origin)
+		apply(t, ch, propose(t, ch, "Run the database", secretSpec("DB_PASSWORD", "first-password"), postgresEdit()))
+		dc := databaseClient(b, b.origin)
+		on, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", AllowFrom: []string{"203.0.113.0/24"}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done := applyWithPasskey(t, ch, on.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("turning it on ended %v: %v", done.GetState(), done.GetError())
+		}
+		untag := postgresEdit()
+		untag.Spec.GetService().GetApp().Ports = []*resourcev1.PortMapping{{HostPort: 5432, ContainerPort: 5432, Protocol: resourcev1.Protocol_PROTOCOL_TCP}}
+		_, err = ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Change the ports of db", Edits: []*dockwellv1.Edit{untag}}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "turn its external access off from its page") {
+			t.Errorf("saving db's port without its tag = %v, want it refused", err)
+		}
+		hold := aMember(t, f)
+		hold(store.Grant{ProjectID: envProjectByName(t, f, scope.DefaultProject), Role: store.RoleDeveloper})
+		_, err = ch.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Delete db", Edits: []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: "service", Name: "db"}, Delete: true}}}))
+		if connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "db has external access") {
+			t.Errorf("a developer deleting db = %v, want it refused, saying why", err)
+		}
+	})
 }

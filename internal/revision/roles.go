@@ -652,6 +652,19 @@ func (e *Engine) spotOf(ctx context.Context, tx *store.Tx, it *item, byID map[st
 		}
 		return spot{Place: place.Place{Project: env.Scope, Environment: env.ID, Protected: scope.ProtectedSpec(env.Name, env.Spec)}}, nil
 	case resource.LevelServer:
+		// A database's external rules come with it, as it moves or goes: say why (the
+		// re-check's L4).
+		if it.ref.Kind == firewallRuleKind {
+			for _, which := range []string{ExternalAllow, ExternalDeny} {
+				if svcID, ok := ExternalOf(it.ref.Name, which); ok {
+					name := svcID
+					if r, err := tx.GetResourceByID(ctx, svcID); err == nil {
+						name = r.Name
+					}
+					return spot{admins: name + " has external access, whose rules are a server's, which is an admin's. Ask an admin, or turn its external access off first"}, nil
+				}
+			}
+		}
 		return spot{admins: "what runs on a server alone, outside a project, is an admin's"}, nil
 	case resource.LevelProject, resource.LevelOrganization:
 	}

@@ -278,6 +278,7 @@ func TestExternalAccessNeverLetsEveryoneIn(t *testing.T) {
 		{"::ffff:0.0.0.0/96"},
 		{"::ffff:0:0/95"},
 		{"::/64"},
+		{"64:ff9b::/96"},
 		{"0.0.0.0/1", "128.0.0.0/1"},
 		{"::/1", "8000::/1"},
 		{"10.0.0.0/7"},
@@ -354,4 +355,143 @@ func TestExternalRulesLoadBeforeThePortOpens(t *testing.T) {
 			t.Errorf("turning it on ran %v, want both rules before the service", order)
 		}
 	})
+}
+
+// stepOrder is the order a change's steps started in: kind, server and action.
+func (s *externalStand) stepOrder(change string) []string {
+	s.t.Helper()
+	s.e.Wait()
+	var out []string
+	if err := s.db.View(s.t.Context(), func(tx *store.Tx) error {
+		c, err := tx.GetChange(s.t.Context(), change)
+		if err != nil {
+			return err
+		}
+		p, err := decodeProgress(c.Progress)
+		if err != nil {
+			return err
+		}
+		steps := slices.Clone(p.Steps)
+		slices.SortStableFunc(steps, func(a, b StepProgress) int { return a.Started.Compare(b.Started) })
+		for i := range steps {
+			out = append(out, fmt.Sprintf("%s %s %v", steps[i].Ref.Kind, steps[i].Server, steps[i].Action))
+		}
+		return nil
+	}); err != nil {
+		s.t.Fatal(err)
+	}
+	return out
+}
+
+// rulesOn are the firewall rules a server has.
+func (s *externalStand) rulesOn(server string) []string {
+	s.t.Helper()
+	var out []string
+	if err := s.db.View(s.t.Context(), func(tx *store.Tx) error {
+		rs, err := tx.ListResources(s.t.Context(), server, string(firewall.Kind))
+		for i := range rs {
+			if rs[i].Spec != nil {
+				out = append(out, rs[i].Name)
+			}
+		}
+		return err
+	}); err != nil {
+		s.t.Fatal(err)
+	}
+	return out
+}
+
+// The tag is never all that's relied on (#849's re-check, N1): a form that rebuilds
+// the port without it is refused while its rules stay, and a port beyond the server
+// that its rules guard, tagged or not, as an earlier build could leave it, still has
+// its rules follow it to another server. Before, dropping the tag planned, and then
+// running db on srv_B planned with 5432 open to everyone there.
+func TestTheRulesGuardAPortWhetherTaggedOrNot(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		s := newExternalStand(t, b)
+		untagged := &resourcev1.PortMapping{HostPort: 5432, ContainerPort: 5432}
+		s.refused("the Ports form's save, 5432 kept, the tag dropped", "Keep the port as it is, or turn its external access off from its page", s.run([]string{"srv_A"}, untagged))
+		// An untagged port its rules guard, as an earlier build could leave it.
+		legacy := propose(t, s.e, "Off, then on as an earlier build did", s.run([]string{"srv_A"}), Edit{Ref: s.allowA}, Edit{Ref: s.denyA})
+		apply(t, s.e, legacy)
+		apply(t, s.e, propose(t, s.e, "On, untagged", s.run([]string{"srv_A"}, untagged), s.allow(s.allowA, "203.0.113.0/24"), s.deny(s.denyA)))
+		beside := propose(t, s.e, "Run db on srv_B too", s.run([]string{"srv_A", "srv_B"}, untagged))
+		apply(t, s.e, beside)
+		if got := s.rulesOn("srv_B"); !slices.Contains(got, s.allowB.Name) || !slices.Contains(got, s.denyB.Name) {
+			t.Errorf("running db, untagged with its rules, on srv_B too leaves srv_B with %v, want both rules", got)
+		}
+	})
+}
+
+// A move creates the new server's rules first, and deletes the old server's only once
+// the database has left it; a delete closes the port before its rules go: neither
+// server answers everyone in between (#849's re-check, N2). Before, both rule deletes
+// ran first.
+func TestRulesGoOnlyOnceThePortIsClosed(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		s := newExternalStand(t, b)
+		moved := propose(t, s.e, "Move db to srv_B", s.run([]string{"srv_B"}, s.tagged))
+		apply(t, s.e, moved)
+		order := s.stepOrder(moved.Change)
+		at := func(line string) int { return slices.Index(order, line) }
+		create, del := resource.ActionCreate.String(), resource.ActionDelete.String()
+		if at("firewall.rule srv_B "+create) > at("service srv_B "+create) || at("firewall.rule srv_A "+del) < at("service srv_A "+del) {
+			t.Errorf("a move ran %q, want srv_B's rules before db there, and srv_A's after db left it", order)
+		}
+		gone := propose(t, s.e, "Delete db", Edit{Ref: resource.Ref{Kind: "service", Scope: s.env, Name: "db"}})
+		apply(t, s.e, gone)
+		order = s.stepOrder(gone.Change)
+		if at("firewall.rule srv_B "+del) < at("service srv_B "+del) {
+			t.Errorf("a delete ran %q, want the rules after the port closed", order)
+		}
+	})
+}
+
+// An allow from anywhere on the port, there before external access goes on or left
+// beside it, reaches past the list: turning it on is refused until it's narrowed or
+// gone (#849's re-check, N3). And a second mapping beyond the server of the same
+// container port beside the external one is refused (L3).
+func TestExternalAccessRefusesWhatReachesPastItsList(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		e, _, db := setup(t, b, "srv_A")
+		s := &externalStand{t: t, e: e, db: db, env: production(t, db)}
+		apply(t, e, propose(t, e, "Run db", s.run([]string{"srv_A"})))
+		apply(t, e, propose(t, e, "Open pg", rule("srv_A", "open-pg", 5432)))
+		if err := db.View(t.Context(), func(tx *store.Tx) error {
+			r, err := tx.GetResource(t.Context(), "service", s.env, "db")
+			s.id = r.ID
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		allowA := resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: ExternalRule(s.id, ExternalAllow)}
+		denyA := resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: ExternalRule(s.id, ExternalDeny)}
+		tagged := &resourcev1.PortMapping{HostPort: 5432, ContainerPort: 5432, External: true}
+		s.refused("on, beside an allow from anywhere on 5432", "open-pg already lets anyone reach port 5432", s.run([]string{"srv_A"}, tagged), s.allow(allowA, "203.0.113.0/24"), s.deny(denyA))
+		apply(t, e, propose(t, e, "On, with open-pg gone", s.run([]string{"srv_A"}, tagged), s.allow(allowA, "203.0.113.0/24"), s.deny(denyA), Edit{Ref: resource.Ref{Kind: firewall.Kind, Scope: "srv_A", Name: "open-pg"}}))
+		second := &resourcev1.PortMapping{HostPort: 15432, ContainerPort: 5432}
+		s.refused("a second public mapping of 5432", "publishes port 15432 to everyone beside its external access", s.run([]string{"srv_A"}, tagged, second))
+		loopback := &resourcev1.PortMapping{HostPort: 15432, ContainerPort: 5432, HostIp: "127.0.0.1"}
+		if _, err := e.Propose(t.Context(), Proposal{Summary: "a tunnel's port beside it", Actor: "usr_test", Edits: []Edit{s.run([]string{"srv_A"}, tagged, loopback)}}); err != nil {
+			t.Errorf("a port on 127.0.0.1 beside external access = %v, want it planned", err)
+		}
+	})
+}
+
+// Drift that's kept, from a container that reads back without the label, keeps the
+// tag on a port it still publishes beyond the server (#849's re-check, N1).
+func TestKeptDriftKeepsTheExternalTag(t *testing.T) {
+	current := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Ports: []*resourcev1.PortMapping{
+		{HostPort: 5432, ContainerPort: 5432, External: true},
+	}}}}
+	observed := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Ports: []*resourcev1.PortMapping{
+		{HostPort: 5432, ContainerPort: 5432}, {HostPort: 8080, ContainerPort: 80},
+	}}}}
+	kept, _ := keepExternalTag(current, observed).(*resourcev1.Service)
+	if ports := kept.GetApp().GetPorts(); !ports[0].GetExternal() || ports[1].GetExternal() {
+		t.Errorf("kept drift reads %v, want 5432 tagged and 8080 not", ports)
+	}
+	if observed.GetApp().GetPorts()[0].GetExternal() {
+		t.Error("keeping the tag changed what was observed")
+	}
 }

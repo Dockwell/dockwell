@@ -103,6 +103,9 @@ func AllowFrom(given []string) ([]string, error) {
 			p = netip.PrefixFrom(a.Unmap(), max(p.Bits()-96, 0))
 		} else if a.Is6() && p.Bits() < 96 && netip.MustParsePrefix("::ffff:0.0.0.0/96").Overlaps(p) {
 			return nil, fmt.Errorf("%s takes in every IPv4 address, and external access is never open to everyone. Name the addresses that reach it", g)
+		} else if a.Is6() && p.Bits() <= 96 && netip.MustParsePrefix("64:ff9b::/96").Overlaps(p) {
+			// Behind a NAT64 gateway, that's every IPv4 host (the re-check's L2).
+			return nil, fmt.Errorf("%s is NAT64's prefix, which behind a gateway is every IPv4 address. Name the addresses that reach it", g)
 		}
 		p = p.Masked()
 		switch {
@@ -127,10 +130,51 @@ func AllowFrom(given []string) ([]string, error) {
 // ExternalPorts are the ports a service publishes as its external access, beyond
 // its server: tagged, and not on loopback alone.
 func ExternalPorts(svc *resourcev1.Service) []*resourcev1.PortMapping {
+	return externalPorts(svc, nil)
+}
+
+// externalPorts are a service's external ports, beyond its server: those tagged, and
+// any its external rules guard, by host port, whether tagged or not. The tag alone is
+// never what's relied on: a writer that drops it leaves the rules saying what the
+// port is (the re-check's N1).
+func externalPorts(svc *resourcev1.Service, guarded map[uint32]bool) []*resourcev1.PortMapping {
 	var out []*resourcev1.PortMapping
 	for _, p := range svc.GetApp().GetPorts() {
-		if p.GetExternal() && Public(p.GetHostIp()) && !p.GetHeld() {
+		if (p.GetExternal() || guarded[p.GetHostPort()]) && Public(p.GetHostIp()) && !p.GetHeld() {
 			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// rulePorts are the ports a service's external rules cover.
+func rulePorts(rules []store.Resource) map[uint32]bool {
+	out := map[uint32]bool{}
+	for i := range rules {
+		spec := &resourcev1.FirewallRule{}
+		if proto.Unmarshal(rules[i].Spec, spec) == nil && spec.GetPort() != 0 {
+			out[spec.GetPort()] = true
+		}
+	}
+	return out
+}
+
+// keepExternalTag puts a tagged port's tag back on what a server has, for a port it
+// still publishes beyond the server, as drift that's kept becomes the latest revision:
+// a container made outside Dockwell, or by an agent from before the tag, reads back
+// without it (the re-check's N1).
+func keepExternalTag(current, kept proto.Message) proto.Message {
+	cur, _ := current.(*resourcev1.Service)
+	obs, ok := kept.(*resourcev1.Service)
+	if !ok || len(ExternalPorts(cur)) == 0 || obs.GetApp() == nil {
+		return kept
+	}
+	out := proto.CloneOf(obs)
+	for _, p := range out.GetApp().GetPorts() {
+		for _, t := range ExternalPorts(cur) {
+			if p.GetHostPort() == t.GetHostPort() && p.GetProtocol() == t.GetProtocol() && Public(p.GetHostIp()) {
+				p.External = true
+			}
 		}
 	}
 	return out
@@ -189,7 +233,7 @@ func (e *Engine) withExternalAccessFollowing(ctx context.Context, tx *store.Tx, 
 			continue
 		}
 		svc, _ := it.spec.(*resourcev1.Service)
-		keeps := svc != nil && len(ExternalPorts(svc)) > 0
+		keeps := svc != nil && len(externalPorts(svc, rulePorts(stored[it.id]))) > 0
 		have := map[string]map[string]*store.Resource{} // by server, then which
 		for j := range stored[it.id] {
 			r := &stored[it.id][j]
@@ -276,12 +320,47 @@ func (e *Engine) withExternalAccessFollowing(ctx context.Context, tx *store.Tx, 
 }
 
 // checkExternalAccess refuses a change that leaves a database's external port
-// answering more than its list, however the change comes about: its tagged port
-// on a server without both its rules there, its rules on another port than the
-// tagged one, an allow rule that lets in more than a list may, or another allow
-// rule that lets anyone in on that port, past the list, as allows run before
-// denies (ADR 0052).
+// answering more than its list, however the change comes about: its external port on
+// a server without both its rules there, its rules on another port than its tagged
+// one, an allow rule that lets in more than a list may, another allow that lets
+// anyone in on that port, past the list, as allows run before denies (ADR 0052),
+// whether the change writes it or it's there already, a second public mapping of the
+// same port in the app, or the tag dropped from a port its rules still guard.
 func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []item) error {
+	stored, err := e.externalRulesIfAny(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	// The ports a service's rules guard once the change applies: those stored that it
+	// leaves, and those it writes.
+	guarded := func(svcID string) map[uint32]bool {
+		var after []store.Resource
+		for i := range stored[svcID] {
+			r := stored[svcID][i]
+			gone := slices.ContainsFunc(items, func(it item) bool {
+				return it.ref.Kind == firewallRuleKind && it.ref.Scope == r.Scope && it.ref.Name == r.Name && it.spec == nil
+			})
+			if !gone {
+				after = append(after, r)
+			}
+		}
+		out := rulePorts(after)
+		for i := range items {
+			it := &items[i]
+			if it.ref.Kind != firewallRuleKind || it.spec == nil {
+				continue
+			}
+			if id, ok := ExternalOf(it.ref.Name, ExternalAllow); !ok || id != svcID {
+				if id, ok := ExternalOf(it.ref.Name, ExternalDeny); !ok || id != svcID {
+					continue
+				}
+			}
+			if r, ok := it.spec.(*resourcev1.FirewallRule); ok && r.GetPort() != 0 {
+				out[r.GetPort()] = true
+			}
+		}
+		return out
+	}
 	// What to look at: each service the change runs, on the servers it runs on after
 	// it, and each service whose rules the change touches, on that rule's server.
 	type target struct {
@@ -319,11 +398,18 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 		switch it.ref.Kind {
 		case serviceKind:
 			svc, _ := it.spec.(*resourcev1.Service)
-			if len(ExternalPorts(svc)) == 0 {
+			if it.id == "" {
+				if len(ExternalPorts(svc)) > 0 {
+					return fault.New(ErrInvalid, "%s publishes a port as external access before it exists, which only its page can give it. Make it first, then turn its external access on", it.ref.Name)
+				}
 				continue
 			}
-			if it.id == "" {
-				return fault.New(ErrInvalid, "%s publishes a port as external access before it exists, which only its page can give it. Make it first, then turn its external access on", it.ref.Name)
+			ports := guarded(it.id)
+			if err := untagged(it, ports); err != nil {
+				return err
+			}
+			if len(externalPorts(svc, ports)) == 0 {
+				continue
 			}
 			if err := look(it.id, it.servers...); err != nil {
 				return err
@@ -343,7 +429,10 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 	}
 	for _, svcID := range slices.Sorted(maps.Keys(targets)) {
 		t := targets[svcID]
-		ports := ExternalPorts(t.svc)
+		ports := externalPorts(t.svc, guarded(svcID))
+		if err := secondPublic(t.name, t.svc, ports); err != nil {
+			return err
+		}
 		slices.Sort(t.servers)
 		for _, p := range ports {
 			for _, server := range t.servers {
@@ -362,6 +451,11 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 				if missing := externalMissing(p, allow, deny); missing != "" {
 					return fault.New(ErrInvalid, "%s publishes port %d to the addresses its external access lets in, and on %s %s, so anyone could reach it there. "+
 						"Turn its external access off, or on again, from its page", t.name, p.GetHostPort(), serverWords(ctx, tx, server), missing)
+				}
+				// An allow there already that lets anyone in reaches past the list (the
+				// re-check's N3).
+				if err := e.wideAllowOn(ctx, tx, items, server, p.GetHostPort(), t.name); err != nil {
+					return err
 				}
 			}
 		}
@@ -383,6 +477,92 @@ func (e *Engine) checkExternalAccess(ctx context.Context, tx *store.Tx, items []
 		if guarded {
 			return fault.New(ErrInvalid, "%s lets anyone reach port %d on %s, past %s's external access list, as an allow comes before every deny. "+
 				"Change who reaches %s on its page instead", it.ref.Name, r.GetPort(), serverWords(ctx, tx, it.ref.Scope), name, name)
+		}
+	}
+	return nil
+}
+
+// externalRulesIfAny are the stored external rules, by service, read only where the
+// change has a service or a firewall rule in it.
+func (e *Engine) externalRulesIfAny(ctx context.Context, tx *store.Tx, items []item) (map[string][]store.Resource, error) {
+	if !slices.ContainsFunc(items, func(it item) bool { return it.ref.Kind == serviceKind || it.ref.Kind == firewallRuleKind }) {
+		return nil, nil
+	}
+	return externalRules(ctx, tx)
+}
+
+// untagged refuses an edit that drops the tag from a port beyond the server that its
+// external rules still guard: the tag is what has the rules follow it, so a form that
+// rebuilds the port without it isn't to take that away. Turning external access off
+// takes the port and the rules together, and a port moved to loopback answers no one
+// beyond the server.
+func untagged(it *item, guarded map[uint32]bool) error {
+	cur, _ := it.current.(*resourcev1.Service)
+	svc, _ := it.spec.(*resourcev1.Service)
+	if svc == nil || len(guarded) == 0 {
+		return nil
+	}
+	for _, was := range ExternalPorts(cur) {
+		for _, p := range svc.GetApp().GetPorts() {
+			if p.GetHostPort() == was.GetHostPort() && p.GetProtocol() == was.GetProtocol() && Public(p.GetHostIp()) && !p.GetHeld() && !p.GetExternal() && guarded[p.GetHostPort()] {
+				return fault.New(ErrInvalid, "%s's port %d is its external access, and this change drops that while its rules stay. "+
+					"Keep the port as it is, or turn its external access off from its page", it.ref.Name, p.GetHostPort())
+			}
+		}
+	}
+	return nil
+}
+
+// secondPublic refuses another mapping beyond the server of the container port an
+// external port maps, which would answer everyone beside the list.
+func secondPublic(name string, svc *resourcev1.Service, external []*resourcev1.PortMapping) error {
+	for _, p := range svc.GetApp().GetPorts() {
+		if slices.Contains(external, p) || !Public(p.GetHostIp()) || p.GetHeld() {
+			continue
+		}
+		for _, x := range external {
+			if p.GetContainerPort() == x.GetContainerPort() && p.GetProtocol() == x.GetProtocol() {
+				return fault.New(ErrInvalid, "%s publishes port %d to everyone beside its external access on port %d, which would let anyone past its list. "+
+					"Put port %d on 127.0.0.1, or remove it", name, p.GetHostPort(), x.GetHostPort(), p.GetHostPort())
+			}
+		}
+	}
+	return nil
+}
+
+// wideAllowOn refuses where another allow on a server's port, as the change leaves
+// it, lets in more than a list may: it reaches past the list.
+func (e *Engine) wideAllowOn(ctx context.Context, tx *store.Tx, items []item, server string, port uint32, name string) error {
+	stored, err := tx.ListResources(ctx, server, string(firewallRuleKind))
+	if err != nil {
+		return err
+	}
+	names := map[string]bool{}
+	for i := range stored {
+		names[stored[i].Name] = true
+	}
+	for i := range items {
+		if items[i].ref.Kind == firewallRuleKind && items[i].ref.Scope == server {
+			names[items[i].ref.Name] = true
+		}
+	}
+	for _, rule := range slices.Sorted(maps.Keys(names)) {
+		if _, own := ExternalOf(rule, ExternalAllow); own {
+			continue
+		}
+		if _, own := ExternalOf(rule, ExternalDeny); own {
+			continue
+		}
+		r, err := e.ruleAfter(ctx, tx, items, resource.Ref{Kind: firewallRuleKind, Scope: server, Name: rule})
+		if err != nil {
+			return err
+		}
+		if r == nil || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || r.GetPort() != port {
+			continue
+		}
+		if _, err := AllowFrom(r.GetSources()); err != nil {
+			return fault.New(ErrInvalid, "%s already lets anyone reach port %d on %s, past %s's list, as an allow comes before every deny. Narrow it or delete it first",
+				rule, port, serverWords(ctx, tx, server), name)
 		}
 	}
 	return nil
@@ -544,19 +724,38 @@ func writesExternalRule(ref resource.Ref) bool {
 	return allow || deny
 }
 
-// rulesFirst moves the run of steps under the firewall's timer, which accessBetween
-// puts between a queue's other builds and its other deletes, ahead of those builds:
-// what a change opens beyond a server then opens only once the rules that guard it
-// have loaded and been confirmed, and a change nobody confirms rolls back before it
-// opens anything.
-func rulesFirst[Q any](e *Engine, queue []Q, kind func(Q) resource.Kind) []Q {
-	first := slices.IndexFunc(queue, func(q Q) bool { return e.guardsAccess(kind(q)) })
+// rulesAround moves each server's steps under the firewall's timer, which
+// accessBetween puts between a queue's other builds and its other deletes: a server
+// whose firewall steps make or change a rule has them run first, so what a change
+// opens beyond it opens only once the rules that guard it have loaded and been
+// confirmed; a server whose firewall steps only delete has them run last, after the
+// database's own step there, so its rules go only once its port is closed, as a
+// database moves off it or is deleted (the re-check's N2). Each server's steps stay
+// together, under one timer.
+func rulesAround[Q any](e *Engine, queue []Q, of func(Q) (server string, kind resource.Kind, builds bool)) []Q {
+	guards := func(q Q) bool { _, kind, _ := of(q); return e.guardsAccess(kind) }
+	first := slices.IndexFunc(queue, guards)
 	if first < 0 {
 		return queue
 	}
 	last := first
-	for last+1 < len(queue) && e.guardsAccess(kind(queue[last+1])) {
+	for last+1 < len(queue) && guards(queue[last+1]) {
 		last++
 	}
-	return slices.Concat(queue[first:last+1], queue[:first], queue[last+1:])
+	run := queue[first : last+1]
+	builds := map[string]bool{}
+	for _, q := range run {
+		if server, _, b := of(q); b {
+			builds[server] = true
+		}
+	}
+	var front, back []Q
+	for _, q := range run {
+		if server, _, _ := of(q); builds[server] {
+			front = append(front, q)
+		} else {
+			back = append(back, q)
+		}
+	}
+	return slices.Concat(front, queue[:first], queue[last+1:], back)
 }

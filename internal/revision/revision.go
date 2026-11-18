@@ -4578,8 +4578,10 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
 	// A change that writes a database's external rules loads them before the port they
 	// guard opens, so the port never answers before its list does (ADR 0038).
-	if slices.ContainsFunc(builds, func(q queued) bool { return writesExternalRule(q.step.Ref) }) {
-		queue = rulesFirst(e, queue, func(q queued) resource.Kind { return q.step.Ref.Kind })
+	if slices.ContainsFunc(queue, func(q queued) bool { return writesExternalRule(q.step.Ref) }) {
+		queue = rulesAround(e, queue, func(q queued) (string, resource.Kind, bool) {
+			return q.server, q.step.Ref.Kind, q.step.Action != resource.ActionDelete
+		})
 	}
 	digests := map[at]string{}
 	// over is how many servers the change was planned over. A resumed run's plan has
@@ -7018,7 +7020,7 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts, with what only the control
 	// plane keeps put back where it still holds.
-	kept := e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed)
+	kept := keepExternalTag(it.current, e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed))
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: kept, Observed: true}}}, "", false)
 }
 
