@@ -135,6 +135,23 @@ func testInstallingFromTheCatalog(t *testing.T, backend store.Backend) {
 	if slices.Index(order, "service db") > slices.Index(order, "service adminer") {
 		t.Errorf("planned %v: adminer before the database it depends on", order)
 	}
+	// Its database is backed up daily from the start, a line of its own in the plan,
+	// kept on the server as no storage is connected (#793).
+	if !slices.Contains(order, "backup.policy db-daily") {
+		t.Errorf("the plan has %v, and no daily backup of the database", order)
+	}
+	for _, r := range planned.GetPlan().GetResources() {
+		if r.GetResource().GetKind() != "backup.policy" {
+			continue
+		}
+		said := map[string]string{}
+		for _, c := range r.GetChanges() {
+			said[c.GetPath()] = c.GetTo()
+		}
+		if said["volume"] != "data" || said["every"] != "day" || said["at"] != "03:00" || said["keep"] != "7" || said["destination"] != "" {
+			t.Errorf("the database's daily backup: %v", said)
+		}
+	}
 	// What a person needs to know is in the plan, so it's there before they apply it,
 	// from the panel and the CLI alike.
 	var steps string
