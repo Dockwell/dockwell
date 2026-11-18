@@ -212,7 +212,7 @@ func n8nOwner() *resourcev1.OwnerRun {
 
 // run starts a container of Dockwell's for env's service, on network where one is
 // named.
-func run(t *testing.T, client *docker.Client, env, service, image, network string, cfg docker.Config) string {
+func run(t *testing.T, client *docker.Client, env, service, image, network string, cfg docker.Config, volumes ...string) string {
 	t.Helper()
 	project := docker.Project(env)
 	if err := client.PullImage(t.Context(), image, nil); err != nil {
@@ -221,6 +221,15 @@ func run(t *testing.T, client *docker.Client, env, service, image, network strin
 	cfg.Image = image
 	cfg.Labels = map[string]string{docker.LabelProject: project, docker.LabelService: service, docker.LabelNumber: "1", docker.LabelRevision: "1"}
 	req := &docker.CreateRequest{Config: cfg}
+	// Each a volume of the project's, at the path it names, as an entry's volumes are:
+	// Vaultwarden refuses to start without one at /data.
+	for _, at := range volumes {
+		name := project + "_" + strings.Trim(strings.ReplaceAll(at, "/", "-"), "-")
+		if _, err := client.CreateVolume(t.Context(), &docker.VolumeCreate{Name: name, Labels: map[string]string{docker.LabelProject: project}}); err != nil {
+			t.Fatal(err)
+		}
+		req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{Type: "volume", Source: name, Target: at})
+	}
 	if network != "" {
 		req.NetworkingConfig = docker.NetworkingConfig{EndpointsConfig: map[string]*docker.EndpointSettings{network: {Aliases: []string{service}}}}
 	}
@@ -484,7 +493,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		}
 		run(t, client, env, "web", vaultImage, "", docker.Config{Env: []string{
 			"ADMIN_TOKEN=" + phc, "SIGNUPS_ALLOWED=false", "ADMIN_RATELIMIT_SECONDS=60", "ADMIN_RATELIMIT_MAX_BURST=30",
-		}})
+		}}, "/data")
 		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 80)
 		answers(t, "http://"+addr+"/alive")
