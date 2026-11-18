@@ -38,7 +38,9 @@ export const AGENT_UPDATE = "agent-update";
  * the list and the one object it asks for. Shown as unconfirmed, not refused (#799).
  */
 export function unconfirmed(c: CheckConnectionResponse): boolean {
-  return !c.passed && c.step === "list" && c.code === "AccessDenied";
+  // Below an admin it comes as Dockwell's own word, unconfirmed, with nothing the
+  // provider said (#799's re-check, N1).
+  return !c.passed && c.step === "list" && (c.code === "AccessDenied" || c.code === "unconfirmed");
 }
 
 /** A check that says nothing of the connection, only that it couldn't confirm it, or couldn't run. */

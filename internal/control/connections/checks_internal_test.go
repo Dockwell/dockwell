@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -152,6 +153,8 @@ type fake struct {
 	targets map[string][]Target
 	answer  func(conn Saved, at Target, full bool) (*dockwellv1.CheckConnectionResponse, error)
 	ran     []string
+	// opened counts the looks that opened the connections, which decodes every one.
+	opened int
 }
 
 func newFake(t *testing.T) *fake {
@@ -170,6 +173,7 @@ func newFake(t *testing.T) *fake {
 	f.saved = func(context.Context) ([]Saved, []string, error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
+		f.opened++
 		var opened []Saved
 		for _, s := range f.listed {
 			if !slices.Contains(f.unread, s.Name) {
@@ -515,3 +519,87 @@ func (h *lineHandler) Handle(_ context.Context, r slog.Record) error {
 
 func (h *lineHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
 func (h *lineHandler) WithGroup(string) slog.Handler      { return h }
+
+// A due connection with no server to check it from, as while the control server's
+// agent is away, waits as one no server could run does: it doesn't open every
+// connection each minute; once a server is back, it's checked at its next try
+// (#799's re-check, N4).
+func TestAConnectionWithNowhereToBeCheckedFromWaits(t *testing.T) {
+	t.Parallel()
+	f := newFake(t)
+	f.set(func() {
+		f.listed = []Saved{{ID: "cnx_u", Name: "uploads", Revision: 1}}
+		f.targets["uploads"] = nil
+	})
+	for range 60 {
+		if got := f.look(); len(got) != 0 {
+			t.Fatalf("with nowhere to check from, it ran %v", got)
+		}
+		f.set(func() { f.at = f.at.Add(time.Minute) })
+	}
+	f.mu.Lock()
+	opened := f.opened
+	f.mu.Unlock()
+	// Tried at 0, 1, 3, 7, 15, 31 and 63 minutes: 1, 2, 4, 8, 16 and then 32 apart.
+	if opened > 8 {
+		t.Errorf("in an hour with nowhere to check from, the connections were opened %d times, want at most 8", opened)
+	}
+	f.set(func() { delete(f.targets, "uploads") })
+	var ran []string
+	for range 33 {
+		f.set(func() { f.at = f.at.Add(time.Minute) })
+		if ran = f.look(); len(ran) > 0 {
+			break
+		}
+	}
+	if !slices.Equal(ran, []string{"uploads read srv_1"}) {
+		t.Errorf("once a server is back, within its 32 minutes: %v", ran)
+	}
+}
+
+// An agent is taken for one from before the scheduled read only where its version
+// is a release older than ReadsSince: a build between releases, or one whose version
+// can't be read, isn't, so a current agent's probe that stops is tried again rather
+// than told to update (#799's re-check, N3).
+func TestOnlyAnOlderReleaseNeedsAnUpdateForTheRead(t *testing.T) {
+	t.Parallel()
+	for v, want := range map[string]bool{
+		"v0.3.0":                               true,
+		"0.2.0":                                true,
+		"v0.1.0":                               true,
+		"v0.3.1":                               false,
+		"v0.4.0":                               false,
+		"v0.3.1-0.20261118125647-73adc5b5bdc1": false,
+		"v0.3.1-rc.1":                          false,
+		"(devel)":                              false,
+		"":                                     false,
+	} {
+		if got := beforeReads(v); got != want {
+			t.Errorf("beforeReads(%q) = %v, want %v", v, got, want)
+		}
+	}
+}
+
+// Below an admin, a check is whether it passed and when, and of one neither passed
+// nor failed, which of the two, in Dockwell's own words: never its server, its
+// provider's code or words (#799's re-check, N1).
+func TestATrimmedCheckKeepsOnlyWhatItIs(t *testing.T) {
+	t.Parallel()
+	at := timestamppb.New(time.Unix(1_800_000_000, 0))
+	for _, c := range []struct {
+		in         *dockwellv1.CheckConnectionResponse
+		step, code string
+	}{
+		{&dockwellv1.CheckConnectionResponse{Passed: true, Step: "list", Code: "NoSuchKey", Status: 404, Server: "web-1", Time: at}, "", ""},
+		{&dockwellv1.CheckConnectionResponse{Step: "list", Code: "AccessDenied", Status: 403, Message: "no", Server: "web-1", Time: at}, "list", CodeUnconfirmed},
+		{&dockwellv1.CheckConnectionResponse{Step: "list", Code: CodeAgentUpdate, Words: "the agent on web-1 couldn't", Server: "web-1", Time: at}, "list", CodeAgentUpdate},
+		{&dockwellv1.CheckConnectionResponse{Step: "write", Code: "AccessDenied", Status: 403, Server: "web-1", Time: at}, "", ""},
+		{&dockwellv1.CheckConnectionResponse{Step: "list", Code: "SignatureDoesNotMatch", Status: 403, Server: "web-1", Time: at}, "", ""},
+	} {
+		got := trimmedCheck(c.in)
+		want := &dockwellv1.CheckConnectionResponse{Passed: c.in.GetPassed(), Time: at, Step: c.step, Code: c.code}
+		if !proto.Equal(got, want) {
+			t.Errorf("trimmed %v to %v, want %v", c.in, got, want)
+		}
+	}
+}

@@ -42,9 +42,16 @@ export function useLastCheck(connection: ConnectionInfo): LastCheck | undefined 
     // Below an admin, a check is whether it passed and when, alone.
     const admin = failing.server !== "";
     const server = failing.server;
-    if (admin && neutral(failing)) {
-      // Not green and not red: what it couldn't say, with Check as the way on (#799's review, M3, L5).
-      return { status: "unknown", label: said.state, meta: [server, at(failing)].join(" · "), why: "", failing };
+    if (neutral(failing)) {
+      // Not green and not red: what it couldn't say, with Check as the way on (#799's
+      // review, M3, L5), and the same to someone below an admin, without where (N1).
+      return {
+        status: "unknown",
+        label: said.state,
+        meta: [server, at(failing)].filter(Boolean).join(" · "),
+        why: "",
+        failing: admin ? failing : undefined,
+      };
     }
     return {
       status: SILENT.includes(failing.code) ? "unknown" : "down",

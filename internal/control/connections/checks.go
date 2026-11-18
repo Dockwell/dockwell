@@ -30,7 +30,8 @@ import (
 // requests, or that refuses the keys or the sign-in, is asked half as often each
 // time, down to once in Every times 4, until it answers again: a revoked password
 // tried every 6 hours could lock its account. A check no server could run is owed,
-// and tried again at the next look, then less often while it can't run (M1).
+// and tried again at the next look, then less often, up to 32 minutes, while it
+// can't run, or has no server to run on (M1, and #799's re-check, N4).
 type Checker struct {
 	s *Service
 	// Every is how often each connection is checked again, and Tick how often the
@@ -96,8 +97,8 @@ const (
 	checkTick  = time.Minute
 	// checkWait is how long one check may take, from a server's agent.
 	checkWait = 2 * time.Minute
-	// maxMissed caps how far off a check no server could run is put: 2^6 ticks, an
-	// hour.
+	// maxMissed caps how far off a check no server could run is put: Tick << 5, 32
+	// minutes, after 1, 2, 4, 8 and 16 (#799's re-check, N2).
 	maxMissed = 6
 )
 
@@ -163,6 +164,7 @@ func (c *Checker) Check(ctx context.Context) {
 	}
 	var starts []start
 	opened := map[string]bool{}
+	nowhere := map[string]bool{}
 	for _, conn := range all {
 		opened[conn.ID] = true
 		if rev, ok := due[conn.ID]; !ok || rev != conn.Revision {
@@ -170,8 +172,12 @@ func (c *Checker) Check(ctx context.Context) {
 		}
 		if at := c.targets(ctx, conn.Name); len(at) > 0 {
 			starts = append(starts, start{conn, at})
+		} else {
+			// Nothing can check it now, so nothing went out: it waits as one no server
+			// could run does, rather than open every connection again each minute
+			// while, say, the control server's agent is away (#799's re-check, N4).
+			nowhere[conn.ID] = true
 		}
-		// Nothing can check it now, so nothing went out: the next look asks again.
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -181,7 +187,7 @@ func (c *Checker) Check(ctx context.Context) {
 	// One that can't be opened waits as one no server could check does, rather
 	// than open every connection again each minute.
 	for id := range due {
-		if p := c.plans[id]; p != nil && !opened[id] {
+		if p := c.plans[id]; p != nil && !p.busy && (!opened[id] || nowhere[id]) {
 			c.missedOne(p, now)
 		}
 	}
@@ -262,8 +268,9 @@ func (c *Checker) due(p *plan, now time.Time) bool {
 }
 
 // missedOne puts off a connection no server could check, by Tick at first, then
-// twice as long each time, up to an hour: at the next look, then less often while
-// its servers can't run it, as an agent busy with checks of its own.
+// twice as long each time, up to 32 minutes: at the next look, then less often while
+// its servers can't run it, as an agent busy with checks of its own, or while it has
+// no server to be checked from at all.
 func (c *Checker) missedOne(p *plan, now time.Time) {
 	p.missed = min(p.missed+1, maxMissed)
 	p.retry = now.Add(c.Tick << (p.missed - 1))

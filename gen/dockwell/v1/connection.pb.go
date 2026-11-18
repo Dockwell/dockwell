@@ -449,7 +449,8 @@ type ConnectionInfo struct {
 	// from each server an app linked to it runs on, on that app's networks, or the
 	// control server where none does; and keeps a check someone runs of it as saved too. Only its revision's,
 	// newest first, kept in memory, so none until the first after a start. Below an
-	// admin, whether each passed and when, alone.
+	// admin, whether each passed and when, and of one neither passed nor failed, which:
+	// step "list" with code "unconfirmed" or "agent-update", and nothing else.
 	Checks        []*CheckConnectionResponse `protobuf:"bytes,20,rep,name=checks,proto3" json:"checks,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
