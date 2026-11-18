@@ -89,11 +89,11 @@ type DatabaseServiceClient interface {
 	// away. It's three edits that go together: the database publishes its engine's
 	// port on every address of its server, and two firewall rules there let the
 	// listed addresses in and keep everyone else out. Turning it off removes all
-	// three. The port is public on purpose, which a person approves, and the rules
-	// change who reaches the server, which takes a passkey, so no API token may
-	// apply it. It changes nothing until the plan is applied, and an empty list is
-	// refused: external access is never open to anywhere (ADR 0038, "External
-	// access, as built").
+	// three. The rules are a server's, so it's an admin's, as any firewall rule is.
+	// The port is public on purpose, which a person approves, and the rules change
+	// who reaches the server, which takes a passkey, so no API token may apply it.
+	// It changes nothing until the plan is applied, and a list that's empty, or
+	// reaches everyone, is refused (ADR 0038, "External access, as built").
 	SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error)
 	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
 	// Dockwell runs signs in to one of its databases with the password an app's secret
@@ -255,11 +255,11 @@ type DatabaseServiceHandler interface {
 	// away. It's three edits that go together: the database publishes its engine's
 	// port on every address of its server, and two firewall rules there let the
 	// listed addresses in and keep everyone else out. Turning it off removes all
-	// three. The port is public on purpose, which a person approves, and the rules
-	// change who reaches the server, which takes a passkey, so no API token may
-	// apply it. It changes nothing until the plan is applied, and an empty list is
-	// refused: external access is never open to anywhere (ADR 0038, "External
-	// access, as built").
+	// three. The rules are a server's, so it's an admin's, as any firewall rule is.
+	// The port is public on purpose, which a person approves, and the rules change
+	// who reaches the server, which takes a passkey, so no API token may apply it.
+	// It changes nothing until the plan is applied, and a list that's empty, or
+	// reaches everyone, is refused (ADR 0038, "External access, as built").
 	SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error)
 	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
 	// Dockwell runs signs in to one of its databases with the password an app's secret

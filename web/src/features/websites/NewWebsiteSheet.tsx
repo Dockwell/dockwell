@@ -96,7 +96,16 @@ export function NewWebsiteSheet({
     const disk = disks.find((d) => d.mountPoint === "/") ?? disks[0];
     return disk ? Number(disk.sizeBytes - disk.usedBytes) : -1;
   };
-  const server = picked || (defaultServer(view, freeDisk)?.id ?? "");
+  // Chosen once, as the fleet first reads, so it holds still as stats come in (#849's L7).
+  const best = defaultServer(view, freeDisk)?.id ?? "";
+  const [first, setFirst] = useState("");
+  // Once the servers say how much disk they have, or there's one, as before that every
+  // server reads as having none.
+  const read = view.length === 1 || servers.some((s) => (s.stats?.disks.length ?? 0) > 0);
+  useEffect(() => {
+    if (first === "" && best !== "" && read) setFirst(best);
+  }, [first, best, read]);
+  const server = picked || first || best;
   const [domain, setDomain] = useState("");
   const [settings, setSettings] = useState<Settings>({
     ...BLANK,

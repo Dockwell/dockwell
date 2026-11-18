@@ -1900,6 +1900,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		if items, err = e.withTiesGoing(ctx, tx, items, seen); err != nil {
 			return err
 		}
+		if items, err = e.withExternalAccessFollowing(ctx, tx, items, seen); err != nil {
+			return err
+		}
 		if items, err = e.withRoutesSigningIn(ctx, tx, items, seen); err != nil {
 			return err
 		}
@@ -4573,6 +4576,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		slices.SortStableFunc(builds, func(a, b queued) int { return waves.waveOf(a.server) - waves.waveOf(b.server) })
 	}
 	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
+	// A change that writes a database's external rules loads them before the port they
+	// guard opens, so the port never answers before its list does (ADR 0038).
+	if slices.ContainsFunc(builds, func(q queued) bool { return writesExternalRule(q.step.Ref) }) {
+		queue = rulesFirst(e, queue, func(q queued) resource.Kind { return q.step.Ref.Kind })
+	}
 	digests := map[at]string{}
 	// over is how many servers the change was planned over. A resumed run's plan has
 	// only those with steps left, and a change's error names its server once there's

@@ -10369,6 +10369,9 @@ msgctxt "bytes pulled"
 msgid "{0} of {1}"
 msgstr "{0} / {1}"
 
+msgid ", external access"
+msgstr "，外部访问"
+
 msgid "<0>{name}</0> as <1>{key}</1>"
 msgstr "<0>{name}</0>，作为 <1>{key}</1>"
 
@@ -10446,6 +10449,9 @@ msgstr "不再恢复"
 
 msgid "driver"
 msgstr "驱动"
+
+msgid "external access"
+msgstr "外部访问"
 
 msgid "health check interval"
 msgstr "健康检查间隔"
@@ -13408,14 +13414,17 @@ msgstr "更改地址"
 msgid "External access"
 msgstr "外部访问"
 
+msgid "Let addresses in"
+msgstr "允许这些地址访问"
+
 msgid "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
 msgstr "请填写允许的地址或范围，例如 203.0.113.7。它从不对所有地址开放。"
 
-msgid "Nothing beyond {where} reaches it"
-msgstr "{where} 之外无法访问它"
-
 msgid "Off until you apply its plan"
 msgstr "在应用其计划前保持关闭"
+
+msgid "Off. An admin can turn it on"
+msgstr "已关闭。管理员可以开启它"
 
 msgid "Off. Only apps on {where} reach it"
 msgstr "已关闭。只有 {where} 上的应用可以访问它"
@@ -13423,11 +13432,17 @@ msgstr "已关闭。只有 {where} 上的应用可以访问它"
 msgid "On port {port}, from {list}"
 msgstr "已在端口 {port} 开放，来源 {list}"
 
+msgid "On port {port}, from {list}. An admin can change it"
+msgstr "已在端口 {port} 开放，来源 {list}。管理员可以更改"
+
 msgid "Port {port} then answers these addresses alone"
 msgstr "端口 {port} 将只响应这些地址"
 
 msgid "Publish it on this server alone"
 msgstr "仅在此服务器上发布"
+
+msgid "Then connect to {there}"
+msgstr "然后连接到 {there}"
 
 msgid "Unencrypted over the network"
 msgstr "网络传输未加密"

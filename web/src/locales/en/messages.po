@@ -10369,6 +10369,9 @@ msgctxt "bytes pulled"
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
 
+msgid ", external access"
+msgstr ", external access"
+
 msgid "<0>{name}</0> as <1>{key}</1>"
 msgstr "<0>{name}</0> as <1>{key}</1>"
 
@@ -10446,6 +10449,9 @@ msgstr "doesn't come back"
 
 msgid "driver"
 msgstr "driver"
+
+msgid "external access"
+msgstr "external access"
 
 msgid "health check interval"
 msgstr "health check interval"
@@ -13408,14 +13414,17 @@ msgstr "Change addresses"
 msgid "External access"
 msgstr "External access"
 
+msgid "Let addresses in"
+msgstr "Let addresses in"
+
 msgid "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
 msgstr "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
 
-msgid "Nothing beyond {where} reaches it"
-msgstr "Nothing beyond {where} reaches it"
-
 msgid "Off until you apply its plan"
 msgstr "Off until you apply its plan"
+
+msgid "Off. An admin can turn it on"
+msgstr "Off. An admin can turn it on"
 
 msgid "Off. Only apps on {where} reach it"
 msgstr "Off. Only apps on {where} reach it"
@@ -13423,11 +13432,17 @@ msgstr "Off. Only apps on {where} reach it"
 msgid "On port {port}, from {list}"
 msgstr "On port {port}, from {list}"
 
+msgid "On port {port}, from {list}. An admin can change it"
+msgstr "On port {port}, from {list}. An admin can change it"
+
 msgid "Port {port} then answers these addresses alone"
 msgstr "Port {port} then answers these addresses alone"
 
 msgid "Publish it on this server alone"
 msgstr "Publish it on this server alone"
+
+msgid "Then connect to {there}"
+msgstr "Then connect to {there}"
 
 msgid "Unencrypted over the network"
 msgstr "Unencrypted over the network"

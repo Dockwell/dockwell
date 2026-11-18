@@ -121,7 +121,7 @@ DatabaseService.ConnectDatabase                plan         developer  developer
 DatabaseService.CreateDatabaseUser             plan         developer  developer  project
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
-DatabaseService.SetDatabaseExternalAccess      plan         developer  developer  project
+DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project
 DomainService.CheckDnsProvider                 plan         admin      admin      install  session
 DomainService.CheckDomain                      plan         developer  developer  named
 DomainService.CheckSigninProvider              read         admin      admin      install  session

@@ -14,6 +14,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/firewall"
+	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -158,4 +159,107 @@ func applyWithPasskey(t *testing.T, c dockwellv1connect.ChangeServiceClient, ch 
 		t.Fatalf("ApplyChange %s: %v", ch.GetSummary(), err)
 	}
 	return waitWatch(t, w).last()
+}
+
+// The rules are a server's, so turning external access on is an admin's: a developer
+// in the project is refused, as the roles table says (#849's M1). And a list that
+// reaches everyone, however it's written, is refused at its field (#849's M2).
+func TestOnlyAnAdminGivesADatabaseExternalAccess(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		f.addServerWith(t, func() []resource.Type { return []resource.Type{&firewall.Driver{Backend: firewall.NewFake()}} })
+		ch := changeClient(b, b.origin)
+		apply(t, ch, propose(t, ch, "Run the database", secretSpec("DB_PASSWORD", "first-password"), postgresEdit()))
+		dc := databaseClient(b, b.origin)
+		set := func(allow ...string) error {
+			_, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", AllowFrom: allow}))
+			return err
+		}
+		for _, allow := range [][]string{{"::ffff:0.0.0.0/96"}, {"0.0.0.0/1", "128.0.0.0/1"}, {"::/1", "8000::/1"}} {
+			if err := set(allow...); reasonOf(err) != "invalid_allow_from" {
+				t.Errorf("letting %v in = %v, want invalid_allow_from", allow, err)
+			}
+		}
+		hold := aMember(t, f)
+		hold(store.Grant{ProjectID: envProjectByName(t, f, scope.DefaultProject), Role: store.RoleDeveloper})
+		if err := set("203.0.113.7"); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Errorf("a developer planning external access = %v, want it refused as an admin's", err)
+		}
+	})
+}
+
+// A database that publishes its engine's port beyond its server already has that port
+// held to the list, not a second one opened beside it (#849's M5). And external access
+// from before the tag, the port with rules but no tag, still reads as on, and turns off
+// whole: the port and both rules (#849's H1, "turning it off from any state").
+func TestExternalAccessTakesOnThePortThereAndTurnsOffFromAnyState(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		srv := f.addServerWith(t, func() []resource.Type { return []resource.Type{&firewall.Driver{Backend: firewall.NewFake()}} })
+		_ = srv
+		ch := changeClient(b, b.origin)
+		open := postgresEdit()
+		open.Spec.GetService().GetApp().Ports = []*resourcev1.PortMapping{{HostPort: 5432, ContainerPort: 5432}}
+		applyWithPasskey(t, ch, propose(t, ch, "Run the database on every address", secretSpec("DB_PASSWORD", "first-password"), open))
+		dc := databaseClient(b, b.origin)
+		on, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", AllowFrom: []string{"203.0.113.0/24"}}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := on.Msg.GetChange().GetSummary(); got != "Let 203.0.113.0/24 reach db on port 5432" {
+			t.Errorf("taking on the port it publishes plans %q, want port 5432", got)
+		}
+		for _, r := range on.Msg.GetChange().GetPlan().GetResources() {
+			for _, c := range r.GetChanges() {
+				if strings.Contains(c.GetTo(), "5433") {
+					t.Errorf("turning it on opens another port: %v", c)
+				}
+			}
+		}
+		if done := applyWithPasskey(t, ch, on.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("turning it on ended %v: %v", done.GetState(), done.GetError())
+		}
+
+		// The tag taken away by hand, as a version from before it would leave things:
+		// the port with its rules reads as on, and Off takes the port and both rules.
+		untag := postgresEdit()
+		untag.Spec.GetService().GetApp().Ports = []*resourcev1.PortMapping{{HostPort: 5432, ContainerPort: 5432}}
+		applyWithPasskey(t, ch, propose(t, ch, "Take the tag away", untag))
+		read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := read.Msg.GetDatabase().GetExternalAccess(); got.GetPort() != 5432 {
+			t.Errorf("a port with its rules and no tag reads as %v, want it on, so it can be turned off", got)
+		}
+		off, err := dc.SetDatabaseExternalAccess(t.Context(), connect.NewRequest(&dockwellv1.SetDatabaseExternalAccessRequest{Id: "db", Off: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done := applyWithPasskey(t, ch, off.Msg.GetChange()); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("turning it off ended %v: %v", done.GetState(), done.GetError())
+		}
+		read, err = dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := read.Msg.GetDatabase().GetExternalAccess(); got != nil {
+			t.Errorf("after Off, db still reads as reached from beyond its server: %v", got)
+		}
+	})
+}
+
+// postgresEdit runs db on postgres:17 with its password in DB_PASSWORD.
+func postgresEdit() *dockwellv1.Edit {
+	return &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "db"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+			Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17"}},
+			Secrets: map[string]string{"POSTGRES_PASSWORD": "DB_PASSWORD"},
+		}}},
+	}
 }

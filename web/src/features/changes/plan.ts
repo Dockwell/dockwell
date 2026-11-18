@@ -158,6 +158,12 @@ export function shownName(
   if (!planned) return "";
   if (planned.resource?.kind === "route") return routeWhereOf(planned) ?? planned.resource.name;
   if (planned.resource?.kind === "server.host") return serverName?.(planned.resource.scope) ?? planned.resource.name;
+  // A database's external rule goes by what it's for, such as "External access to db, allow", not
+  // its name made from the database's ID (#849's L5).
+  if (planned.resource?.kind === "firewall.rule" && /^external-[0-9a-z]+-(allow|deny)$/.test(planned.resource.name)) {
+    const comment = planned.changes.find((c) => c.path === "comment");
+    return comment?.to || comment?.from || planned.resource.name;
+  }
   return planned.resource?.name ?? "";
 }
 

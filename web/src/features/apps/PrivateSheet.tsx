@@ -63,7 +63,8 @@ function groupsOf(address: string): string[] | undefined {
  */
 export function ownEntries(address: string): string[] {
   const bare = address.replace(/%.*$/, "").replace(/^::ffff:(?=\d+\.)/i, "");
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare)) return bare.startsWith("127.") ? [] : [bare];
+  // An address the request couldn't be read from, 0.0.0.0, is nobody's (#849's L2).
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare)) return bare.startsWith("127.") || bare === "0.0.0.0" ? [] : [bare];
   const groups = groupsOf(bare);
   if (!groups || groups.slice(0, 7).every((g) => /^0+$/.test(g))) return [];
   return [`${canonical([...groups.slice(0, 4), "0", "0", "0", "0"])}/64`, canonical(groups)];

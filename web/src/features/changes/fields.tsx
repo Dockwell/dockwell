@@ -229,7 +229,9 @@ export function useFieldRows(): FieldRows {
         const ip = side("host_ip", at);
         const host = side("host_port", at);
         const out = `${ip ? `${ip.includes(":") ? `[${ip}]` : ip}:` : ""}${host} → ${side("container_port", at)}`;
-        return `${out}, ${protocol(side("protocol", at) || "tcp")}`;
+        // A database's external port says so, as its rules are what hold it to a list (ADR 0038).
+        const external = side("external", at) === "true" ? t`, external access` : "";
+        return `${out}, ${protocol(side("protocol", at) || "tcp")}${external}`;
       });
       if (row) return [row];
       const words: Readonly<Record<string, string>> = {
@@ -237,6 +239,7 @@ export function useFieldRows(): FieldRows {
         container_port: t`port in the app`,
         protocol: t`protocol`,
         host_ip: t`port's address`,
+        external: t`external access`,
       };
       return [...fields].map(([name, change]) =>
         plain(`${path}.${name}`, change, words[name] ?? humanize(name), name === "protocol" ? protocol : yesNo),

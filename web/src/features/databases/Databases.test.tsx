@@ -1688,7 +1688,7 @@ describe("external access", () => {
     const asked: SetDatabaseExternalAccessRequest[] = [];
     renderAt("/databases/svc_db", externalApi(aDatabase(), asked));
     const panel = await screen.findByRole("region", { name: "External access" });
-    const toggle = within(panel).getByRole("switch", { name: "External access" });
+    const toggle = within(panel).getByRole("switch", { name: "Let addresses in" });
     expect(toggle).not.toBeChecked();
     expect(panel).toHaveTextContent("Off. Only apps on hz-1 reach it");
     await user.click(toggle);
@@ -1724,11 +1724,29 @@ describe("external access", () => {
     const panel = await screen.findByRole("region", { name: "External access" });
     expect(panel).toHaveTextContent("On port 5432, from 203.0.113.0/24");
     expect(panel).toHaveTextContent("Unencrypted over the network");
-    await user.click(within(panel).getByRole("switch", { name: "External access" }));
+    await user.click(within(panel).getByRole("switch", { name: "Let addresses in" }));
     await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "svc_db", off: true })]));
-    // The tunnel forwards the port it publishes, which answers on the server's own address too.
+    // The tunnel forwards the port it publishes, which answers on the server's own address too,
+    // to one beside the engine's own on your side, as your computer may have a database on that.
     await user.click(within(panel).getByRole("button", { name: "Use an SSH tunnel" }));
-    expect(within(panel).getByText(/^ssh -N -L 5432:127\.0\.0\.1:5432 /)).toBeVisible();
+    expect(within(panel).getByText(/^ssh -N -L 15432:127\.0\.0\.1:5432 /)).toBeVisible();
+    expect(within(panel).getByText("Then connect to 127.0.0.1:15432")).toBeVisible();
+  });
+
+  it("says where it stands below admin, in one line, with no switch to try (#849's M1)", async () => {
+    const db = aDatabase();
+    renderAt("/databases/svc_db", {
+      ...externalApi(db, []),
+      auth: {
+        getAuthState: () => authState({ user: { ...mira, role: Role.DEVELOPER } }),
+        listSessions: () => ({ sessions: [] }),
+      },
+    });
+    const panel = await screen.findByRole("region", { name: "External access" });
+    expect(await within(panel).findByText("Off. An admin can turn it on")).toBeVisible();
+    expect(within(panel).queryByRole("switch")).toBeNull();
+    // The tunnel is the way in that's theirs.
+    expect(within(panel).getByRole("button", { name: "Use an SSH tunnel" })).toBeVisible();
   });
 });
 

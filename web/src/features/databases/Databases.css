@@ -661,12 +661,18 @@ a.databases-engine:hover .databases-engine-plus {
 
 .database-tunnel {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   max-width: 100%;
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
+}
+
+.database-external-tunnel {
+  font-size: 13px;
+  line-height: 18px;
 }
 
 .database-tunnel-command {

@@ -71,26 +71,35 @@ export function ExternalAccess({ db }: { db: Database }) {
   };
   const where = serverName || t`its server`;
   const list = open?.allowFrom.join(", ") ?? "";
+  const tunnelLink = (
+    <button type="button" className="domain-step-act" aria-expanded={tunnel} onClick={() => setTunnel(!tunnel)}>
+      <Trans>Use an SSH tunnel</Trans>
+    </button>
+  );
   return (
     <Panel title={t`External access`} className="database-external">
       <div className="database-external-body">
-        <Switch
-          label={t`External access`}
-          checked={open !== undefined || editing}
-          onChange={flip}
-          disabled={!may.allowed}
-          description={
-            !may.allowed
-              ? may.reason
-              : open
+        {/* Its rules are a server's, so the switch is an admin's: below that, one line says so (#849's M1). */}
+        {may.allowed ? (
+          <Switch
+            label={t`Let addresses in`}
+            checked={open !== undefined || editing}
+            onChange={flip}
+            description={
+              open
                 ? t`On port ${port}, from ${list}`
                 : editing
                   ? t`Off until you apply its plan`
                   : t`Off. Only apps on ${where} reach it`
-          }
-        />
-        {open && !editing ? (
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)} {...may.off}>
+            }
+          />
+        ) : (
+          <StateLine status={open ? "degraded" : "stopped"}>
+            {open ? t`On port ${port}, from ${list}. An admin can change it` : t`Off. An admin can turn it on`}
+          </StateLine>
+        )}
+        {open && !editing && may.allowed ? (
+          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
             <Trans>Change addresses</Trans>
           </Button>
         ) : null}
@@ -118,16 +127,14 @@ export function ExternalAccess({ db }: { db: Database }) {
             </div>
           </form>
         ) : null}
-        <StateLine
-          status={open ? "degraded" : "stopped"}
-          action={
-            <button type="button" className="domain-step-act" aria-expanded={tunnel} onClick={() => setTunnel(!tunnel)}>
-              <Trans>Use an SSH tunnel</Trans>
-            </button>
-          }
-        >
-          {open ? t`Unencrypted over the network` : t`Nothing beyond ${where} reaches it`}
-        </StateLine>
+        {/* Once on, that it's unencrypted, with the tunnel beside it; off, the tunnel alone (#849's L4). */}
+        {open ? (
+          <StateLine status="degraded" action={tunnelLink}>
+            {t`Unencrypted over the network`}
+          </StateLine>
+        ) : (
+          <span className="database-external-tunnel">{tunnelLink}</span>
+        )}
         {tunnel ? <Tunnel db={db} /> : null}
       </div>
     </Panel>
@@ -186,7 +193,11 @@ function Tunnel({ db }: { db: Database }) {
       </div>
     );
   }
-  const command = `ssh -N -L ${local}:127.0.0.1:${local} ${address}`;
+  // On your side, a port beside the engine's own, as a database on your computer may
+  // have that one (#849's L6).
+  const yours = local + 10000 <= 65535 ? local + 10000 : local;
+  const command = `ssh -N -L ${yours}:127.0.0.1:${local} ${address}`;
+  const there = `127.0.0.1:${yours}`;
   return (
     <div className="database-tunnel">
       <code className="database-tunnel-command">{command}</code>
@@ -196,6 +207,7 @@ function Tunnel({ db }: { db: Database }) {
         copiedLabel={t`SSH tunnel command copied`}
         variant="ghost"
       />
+      <span className="database-tunnel-then">{t`Then connect to ${there}`}</span>
     </div>
   );
 }

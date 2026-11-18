@@ -87,15 +87,15 @@ service DatabaseService {
   // away. It's three edits that go together: the database publishes its engine's
   // port on every address of its server, and two firewall rules there let the
   // listed addresses in and keep everyone else out. Turning it off removes all
-  // three. The port is public on purpose, which a person approves, and the rules
-  // change who reaches the server, which takes a passkey, so no API token may
-  // apply it. It changes nothing until the plan is applied, and an empty list is
-  // refused: external access is never open to anywhere (ADR 0038, "External
-  // access, as built").
+  // three. The rules are a server's, so it's an admin's, as any firewall rule is.
+  // The port is public on purpose, which a person approves, and the rules change
+  // who reaches the server, which takes a passkey, so no API token may apply it.
+  // It changes nothing until the plan is applied, and a list that's empty, or
+  // reaches everyone, is refused (ADR 0038, "External access, as built").
   rpc SetDatabaseExternalAccess(SetDatabaseExternalAccessRequest) returns (SetDatabaseExternalAccessResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
-    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
-    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {verb: "external-access"};
     option (google.api.http) = {
@@ -487,8 +487,8 @@ message SetDatabaseExternalAccessRequest {
   // has more than one.
   string environment = 3;
   // The addresses its firewall lets in, each an address or a range, such as
-  // "203.0.113.7" or "203.0.113.0/24". At least one, unless off: external access
-  // is never open to anywhere.
+  // "203.0.113.7" or "203.0.113.0/24": at least one, unless off, and at most 32,
+  // none wider than a /8 for IPv4 or a /32 for IPv6, so no list reaches everyone.
   repeated string allow_from = 4;
   // Takes external access away: the port and both rules, in one change.
   bool off = 5;

@@ -2,10 +2,10 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampNow } from "@bufbuild/protobuf/wkt";
-import { PlanSchema, StepProgressSchema, StepState } from "@dockwell/api";
+import { PlannedResourceSchema, PlanSchema, StepProgressSchema, StepState } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { factAndRest, shownQuotes, stepGroups, waveProgress, withoutIds } from "./plan";
+import { factAndRest, shownName, shownQuotes, stepGroups, waveProgress, withoutIds } from "./plan";
 
 describe("factAndRest", () => {
   it("leads with what a check answered, and follows with what to do", () => {
@@ -98,5 +98,22 @@ describe("waves", () => {
     });
     expect(waveProgress(second, [step("b", StepState.FAILED), step("c", StepState.SKIPPED)]).state).toBe("failed");
     expect(waveProgress(second, [step("b", StepState.SKIPPED), step("c", StepState.SKIPPED)]).state).toBe("skipped");
+  });
+});
+
+describe("a database's external rule in a plan", () => {
+  it("goes by what it's for, from its comment, not its name made from an ID (#849's L5)", () => {
+    const rule = (name: string, from: string, to: string) =>
+      create(PlannedResourceSchema, {
+        resource: { kind: "firewall.rule", scope: "srv_1", name },
+        changes: [{ path: "comment", from, to }],
+      });
+    expect(shownName(rule("external-01m7pwvffejvfn636wn6aef71g-allow", "", "External access to db, allow"))).toBe(
+      "External access to db, allow",
+    );
+    expect(shownName(rule("external-01m7pwvffejvfn636wn6aef71g-deny", "External access to db, deny", ""))).toBe(
+      "External access to db, deny",
+    );
+    expect(shownName(rule("http", "", "the web app"))).toBe("http");
   });
 });

@@ -934,6 +934,20 @@ func TestAHeldPortListensOnTheServerAlone(t *testing.T) {
 	unchanged(t, l, web, spec)
 }
 
+// A database's external port reads back tagged, as its spec has it, so a server that
+// runs it as asked shows no drift (ADR 0038, "External access, as built").
+func TestAnExternalPortReadsBackTagged(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	l := resource.Local{Drivers: drivers(e)}
+	db := resource.Ref{Kind: service.Kind, Scope: env, Name: "db"}
+	spec := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Ports: []*resourcev1.PortMapping{
+		{HostPort: 5432, ContainerPort: 5432, External: true},
+	}}}}
+	apply(t, l, db, spec)
+	unchanged(t, l, db, spec)
+}
+
 // A server is on a database copy's network while a copy loads into it, which isn't
 // drift (#595).
 func TestACopysNetworkIsntDrift(t *testing.T) {

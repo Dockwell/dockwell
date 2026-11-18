@@ -125,7 +125,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   );
   const external = page.getByRole("region", { name: "External access" });
   await external.getByText(/^Off\. Only apps on .+ reach it$/).waitFor();
-  await external.getByRole("switch", { name: "External access" }).click();
+  await external.getByRole("switch", { name: "Let addresses in" }).click();
   const allow = external.getByRole("textbox", { name: "Allow from" });
   await allow.fill("");
   await external.getByRole("button", { name: /Review plan/ }).click();

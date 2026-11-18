@@ -1525,6 +1525,10 @@ describe("New website on a fleet", () => {
     const server = await within(sheet).findByRole("combobox", { name: "Server" });
     await waitFor(() => expect(server).toHaveValue("srv_2"));
     expect(within(server).queryByRole("option", { name: "Choose a server" })).toBeNull();
+    // It holds still as stats come in, though hz-1 now has more room (#849's L7).
+    watch.push(changed(aServer({ id: SERVER, name: "hz-1", stats: disk(90) })));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(server).toHaveValue("srv_2");
     await user.selectOptions(server, "hz-1");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked[0]?.servers).toEqual([SERVER]));

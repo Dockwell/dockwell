@@ -1599,8 +1599,8 @@ type SetDatabaseExternalAccessRequest struct {
 	// has more than one.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// The addresses its firewall lets in, each an address or a range, such as
-	// "203.0.113.7" or "203.0.113.0/24". At least one, unless off: external access
-	// is never open to anywhere.
+	// "203.0.113.7" or "203.0.113.0/24": at least one, unless off, and at most 32,
+	// none wider than a /8 for IPv4 or a /32 for IPv6, so no list reaches everyone.
 	AllowFrom []string `protobuf:"bytes,4,rep,name=allow_from,json=allowFrom,proto3" json:"allow_from,omitempty"`
 	// Takes external access away: the port and both rules, in one change.
 	Off           bool `protobuf:"varint,5,opt,name=off,proto3" json:"off,omitempty"`
@@ -1928,7 +1928,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x12CreateDatabaseUser\x12&.dockwell.v1.CreateDatabaseUserRequest\x1a'.dockwell.v1.CreateDatabaseUserResponse\"A\xa0\xbb\x18\x02\xaa\xbb\x18\n" +
 	"\x12\badd-user\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/databases/{id}/users\x12\xc4\x01\n" +
 	"\x16ChangeDatabasePassword\x12*.dockwell.v1.ChangeDatabasePasswordRequest\x1a+.dockwell.v1.ChangeDatabasePasswordResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fchange-password\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:changePassword\x12\xcd\x01\n" +
-	"\x19SetDatabaseExternalAccess\x12-.dockwell.v1.SetDatabaseExternalAccessRequest\x1a..dockwell.v1.SetDatabaseExternalAccessResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fexternal-access\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:externalAccess\x12\xb6\x01\n" +
+	"\x19SetDatabaseExternalAccess\x12-.dockwell.v1.SetDatabaseExternalAccessRequest\x1a..dockwell.v1.SetDatabaseExternalAccessResponse\"Q\xa0\xbb\x18\x02\xaa\xbb\x18\x11\x12\x0fexternal-access\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02&:\x01*\"!/v1/databases/{id}:externalAccess\x12\xb6\x01\n" +
 	"\x13CheckDatabaseSignIn\x12'.dockwell.v1.CheckDatabaseSignInRequest\x1a(.dockwell.v1.CheckDatabaseSignInResponse\"L\xa0\xbb\x18\x01\xaa\xbb\x18\x0f\x12\rcheck-sign-in\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02 \x12\x1e/v1/databases/{id}:checkSignIn\x90\x02\x01\x12\xa0\x01\n" +
 	"\x0fConnectDatabase\x12#.dockwell.v1.ConnectDatabaseRequest\x1a$.dockwell.v1.ConnectDatabaseResponse\"B\xa0\xbb\x18\x02\xaa\xbb\x18\t\x12\aconnect\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/databases/{id}:connectB\xa6\x01\n" +
 	"\x0fcom.dockwell.v1B\rDatabaseProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"

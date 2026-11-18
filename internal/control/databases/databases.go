@@ -143,6 +143,8 @@ type placed struct {
 	// method that edits it with the rest as it is.
 	spec     *resourcev1.Service
 	revision int
+	// rules are its external access's firewall rules, on any server (ADR 0038).
+	rules []store.Resource
 }
 
 // ListDatabases returns every database.
