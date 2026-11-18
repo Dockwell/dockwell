@@ -513,6 +513,9 @@ msgstr "这里还没有内容"
 msgid "Nothing matches these filters."
 msgstr "没有符合这些筛选条件的内容。"
 
+msgid "Open Variables"
+msgstr "打开变量"
+
 msgid "Open plan"
 msgstr "打开计划"
 
@@ -527,9 +530,6 @@ msgstr "打开文件"
 
 msgid "Open the folder"
 msgstr "打开文件夹"
-
-msgid "Open the variables and secrets"
-msgstr "打开变量和密钥"
 
 msgctxt "terminal"
 msgid "Opened"
@@ -2794,8 +2794,8 @@ msgstr "由它的运行时设置"
 msgid "Set on this app"
 msgstr "在此应用上设置"
 
-msgid "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
-msgstr "共享的值在<0>变量和密钥</0>中更改，对使用它们的每个应用生效。"
+msgid "Shared values change in <0>Variables</0>, for every app that uses them."
+msgstr "共享的值在<0>变量</0>中更改，对使用它们的每个应用生效。"
 
 msgid "Shared variable"
 msgstr "共享变量"
@@ -2827,11 +2827,11 @@ msgstr "环境中已有变量 {target}。重命名其中一个后才能将它保
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "环境中已经有变量 {trimmed}。可以直接使用它，或换一个名称。"
 
-msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
-msgstr "环境中已经有 {usedList}，所以应用使用它的值：请到变量和密钥中更改。"
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables."
+msgstr "环境中已经有 {usedList}，所以应用使用它的值：请到变量中更改。"
 
-msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
-msgstr "环境中已经有 {usedList}，所以应用使用它们的值：请到变量和密钥中更改。"
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables."
+msgstr "环境中已经有 {usedList}，所以应用使用它们的值：请到变量中更改。"
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "它们的值会被隐藏，显示其中一个需要你的通行密钥。"
@@ -3843,6 +3843,9 @@ msgstr "清除筛选词"
 msgid "Clear the filters"
 msgstr "清除筛选"
 
+msgid "Database"
+msgstr "数据库"
+
 msgid "Export"
 msgstr "导出"
 
@@ -4019,9 +4022,6 @@ msgstr "连接 URL"
 
 msgid "Couldn't check now. The plan checks it as it applies."
 msgstr "现在无法检查。应用计划时会再检查。"
-
-msgid "Database"
-msgstr "数据库"
 
 msgctxt "what a variable holds"
 msgid "Database name"
@@ -9111,6 +9111,9 @@ msgstr "只有信任它运行的内容时才应用。"
 msgid "Applying this approves a change a push planned, with your passkey"
 msgstr "应用此计划即批准一次推送计划的变更，需要验证你的通行密钥"
 
+msgid "Applying this approves a change planned from the CLI on {plannedOn}, with your passkey"
+msgstr "应用此计划即批准从 {plannedOn} 上的 CLI 计划的变更，需要验证你的通行密钥"
+
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
 msgstr "应用此计划即批准用 API 令牌 {0} 计划的变更，需要验证你的通行密钥"
@@ -11106,8 +11109,8 @@ msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过
 msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
 msgstr "此操作恢复旧版本，但不恢复数据。如果新版本改动过这些数据（例如迁移），旧版本可能拒绝或误读。升级前已做过备份。"
 
-msgid "To go back on a value, change it in Variables and secrets."
-msgstr "要改回某个值，请在“变量和密钥”中修改。"
+msgid "To go back on a value, change it in Variables."
+msgstr "要撤回一个值，请到变量中更改。"
 
 msgid "To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "要隐藏它，请把{where}写成列表，每个词使用各自的变量。"
@@ -15144,9 +15147,6 @@ msgstr "到 {to}"
 msgid "URLs and the CLI keep its name, {0}."
 msgstr "URL 和 CLI 仍使用它的名称 {0}。"
 
-msgid "Variables and secrets"
-msgstr "变量和密钥"
-
 msgid "What runs in it isn't affected."
 msgstr "其中运行的内容不受影响。"
 
@@ -18117,8 +18117,8 @@ msgstr "再显示 {hidden} 条"
 msgid "Sign-in provider"
 msgstr "登录提供方"
 
-msgid "Values your apps use live in <0>Variables and secrets</0>"
-msgstr "应用使用的值保存在<0>变量和机密</0>中"
+msgid "Values your apps use live in <0>Variables</0>"
+msgstr "应用使用的值保存在<0>变量</0>中"
 
 msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "已连接 {all} 个 · Dockwell 用来构建、部署、路由和备份的服务"
@@ -19071,6 +19071,9 @@ msgstr "为新环境命名，例如 staging"
 msgid "Name the new project, such as shop"
 msgstr "为新项目命名，例如 shop"
 
+msgid "Open Variables for {name}"
+msgstr "打开 {name} 的变量"
+
 msgid "Open the activity"
 msgstr "打开动态"
 
@@ -19097,9 +19100,6 @@ msgstr "打开项目列表"
 
 msgid "Open the server list"
 msgstr "打开服务器列表"
-
-msgid "Open the variables and secrets of {name}"
-msgstr "打开 {name} 的变量和密钥"
 
 msgid "Open the websites"
 msgstr "打开网站"
@@ -20490,8 +20490,8 @@ msgstr "旧值仍保留在该变量的历史中"
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "请使用字母、数字和下划线，并以字母或下划线开头，例如 DATABASE_URL。"
 
-msgid "Variables and secrets in {envName}"
-msgstr "{envName} 中的变量和密钥"
+msgid "Variables in {envName}"
+msgstr "{envName} 中的变量"
 
 msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 msgstr "{envName} 中的应用运行时使用的值，包括共享的和各自的。更改一个值后，应用其计划时会重启使用它的每个应用。"

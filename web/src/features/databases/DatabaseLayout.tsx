@@ -15,6 +15,7 @@ import { useTimeWords } from "../../lib/time";
 import { environmentOf, nameOf } from "../apps/app";
 import { HealthBadge, useHealthTitle, useHealthWords } from "../apps/Health";
 import { useHealth } from "../apps/health";
+import { useShownName } from "../apps/names";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useSignedIn } from "../auth/useAuthState";
 import { OpenAppButton } from "../catalog/access";
@@ -172,16 +173,20 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const backedUp = db.volumeId !== "";
   const newest = db.newestBackup?.startedAt ? timestampDate(db.newestBackup.startedAt) : undefined;
   const now = useAgoNow(newest);
-  const name = db.resource?.name ?? db.id;
+  // A catalog install's database goes by the name the person gave the install (#796).
+  const shown = useShownName()(db, "database");
+  const name = shown.title;
   const read = readOf(firstReading(db));
   const place = places.place(db.resource?.scope ?? "");
   const users = read?.users.filter((u) => !u.system).length ?? 0;
   const placeName = place?.label ?? "";
   const others = db.beside.map(label).join(", ");
   const ago = newest ? time.ago(newest, now) : "";
+  const app = shown.app;
   const lead = [
     engineAndVersion(db, read),
-    place && !place.isDefault ? t`in ${placeName}` : "",
+    // The title is the install's own name already, and beside says the app it serves.
+    !app && place && !place.isDefault ? t`in ${placeName}` : "",
     others ? t`beside ${others}` : "",
     !db.volume ? t`not in a volume` : newest ? t`backed up ${ago}` : db.volumeExternal ? "" : t`not backed up yet`,
     unavailable,
@@ -193,7 +198,10 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       title={name}
       machineTitle
       breadcrumb={
-        <Crumbs name={name} project={place && !place.isDefault ? { id: place.scope, label: placeName } : undefined} />
+        <Crumbs
+          name={name}
+          project={place && !place.isDefault && placeName !== name ? { id: place.scope, label: placeName } : undefined}
+        />
       }
       badge={<HealthBadge health={health} title={healthTitle} />}
       lead={lead}

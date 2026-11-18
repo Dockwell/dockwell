@@ -133,7 +133,7 @@ describe("the variables and secrets page", () => {
   it("lists an environment's variables with their values, and its secrets hidden", async () => {
     const { container } = renderAt("/variables", api());
     // The first render in this file loads the route, which takes a while on a busy machine.
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    const table = await screen.findByRole("table", { name: "Variables in production" }, { timeout: 5000 });
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.textContent)).toEqual([
       expect.stringContaining("DB_PASSWORD, secret"),
@@ -167,7 +167,7 @@ describe("the variables and secrets page", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    const table = await screen.findByRole("table", { name: "Variables in production" });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(3));
     expect(asked.map((r) => r.pageToken)).toEqual(["", "page-2"]);
     expect(screen.getByText("1 variable · 1 secret")).toBeVisible();
@@ -190,7 +190,7 @@ describe("the variables and secrets page", () => {
       "/variables",
       api([production], { variables: { listVariables: () => ({ environmentId: "env_prod", variables: [twice] }) } }),
     );
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    const table = await screen.findByRole("table", { name: "Variables in production" });
     const secret = within(table).getAllByRole("row")[1] as HTMLElement;
     expect(secret).toHaveTextContent("as DATABASE_PASSWORD");
     expect(secret).toHaveTextContent("as REPLICA_PASSWORD");
@@ -441,7 +441,7 @@ describe("the variables and secrets page", () => {
   it("stacks each one on a phone, with Reveal in words", async () => {
     onPhone();
     const { container } = renderAt("/variables", api());
-    const list = await screen.findByRole("list", { name: "Variables and secrets in production" });
+    const list = await screen.findByRole("list", { name: "Variables in production" });
     const items = within(list)
       .getAllByRole("listitem", { name: undefined })
       .filter((li) => li.parentElement === list);
@@ -457,8 +457,8 @@ describe("the variables and secrets page", () => {
     await activateLocale("zh-CN");
     try {
       const { container } = renderAt("/variables", api());
-      expect(await screen.findByRole("table", { name: "production 中的变量和密钥" })).toBeVisible();
-      expect(screen.getByRole("heading", { level: 1, name: "变量和密钥" })).toBeVisible();
+      expect(await screen.findByRole("table", { name: "production 中的变量" })).toBeVisible();
+      expect(screen.getByRole("heading", { level: 1, name: "变量" })).toBeVisible();
       expect(screen.getByRole("button", { name: "显示 DB_PASSWORD" })).toBeVisible();
       expect(screen.getByRole("form", { name: "向 production 添加变量或密钥" })).toBeVisible();
       expect(screen.getByText("1 个变量 · 1 个密钥")).toBeVisible();
@@ -501,7 +501,7 @@ describe("who changed a value", () => {
 describe("each app's own values beside the shared ones", () => {
   it("lists what each app sets on itself, shown where it holds no secret, with where it comes from and who uses it", async () => {
     const { container } = renderAt("/variables", api([production], withApps()));
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    const table = await screen.findByRole("table", { name: "Variables in production" }, { timeout: 5000 });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
     const row = (name: string) => within(table).getByRole("row", { name: new RegExp(`^${name}`) });
     expect(within(row("DB_HOST")).getByText("db")).toBeVisible();
@@ -527,7 +527,7 @@ describe("each app's own values beside the shared ones", () => {
   it("filters by where values come from, with how many each holds, and keeps it in the URL", async () => {
     const user = userEvent.setup();
     const { router } = renderAt("/variables", api([production], withApps()));
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    const table = await screen.findByRole("table", { name: "Variables in production" }, { timeout: 5000 });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
     const from = screen.getByRole("radiogroup", { name: "Where values come from" });
     const segment = (name: string) => within(from).getByRole("radio", { name: new RegExp(`^${name}`) });
@@ -577,7 +577,7 @@ describe("each app's own values beside the shared ones", () => {
     const from = screen.getByRole("radiogroup", { name: "Where values come from" });
     expect(within(from).getByRole("radio", { name: /^Shared/ })).toHaveTextContent("Shared, 0");
     await user.click(within(from).getByRole("radio", { name: /^Set on apps/ }));
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    const table = await screen.findByRole("table", { name: "Variables in production" });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(4));
     expect(screen.getByText("3 variables · 0 secrets")).toBeVisible();
   });
@@ -592,7 +592,7 @@ describe("each app's own values beside the shared ones", () => {
     expect(within(from).getByRole("radio", { name: /^Set on apps/ })).toHaveTextContent("Set on apps, 1");
     expect(screen.queryByRole("button", { name: "Clear the filter" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Show all" }));
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" });
+    const table = await screen.findByRole("table", { name: "Variables in production" });
     await waitFor(() => expect(within(table).getByRole("row", { name: /^QUEUE/ })).toBeVisible());
     expect(router.state.location.search).toMatchObject({ q: "QUEUE" });
     expect(router.state.location.search).not.toHaveProperty("from");
@@ -613,7 +613,7 @@ describe("each app's own values beside the shared ones", () => {
   it("shows only what one app runs with, as its Environment tab does", async () => {
     const user = userEvent.setup();
     renderAt("/variables?app=svc_worker", api([production], withApps()));
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    const table = await screen.findByRole("table", { name: "Variables in production" }, { timeout: 5000 });
     await waitFor(() =>
       expect(
         within(table)
@@ -631,7 +631,7 @@ describe("each app's own values beside the shared ones", () => {
     const user = userEvent.setup();
     const stand = api([production], withApps());
     renderAt("/variables", stand);
-    const table = await screen.findByRole("table", { name: "Variables and secrets in production" }, { timeout: 5000 });
+    const table = await screen.findByRole("table", { name: "Variables in production" }, { timeout: 5000 });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(6));
     // One it hides isn't here to share.
     expect(screen.queryByRole("button", { name: "Make DB_TOKEN on api shared" })).toBeNull();

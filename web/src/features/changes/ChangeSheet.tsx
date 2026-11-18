@@ -146,7 +146,7 @@ import { UpgradeLine, UpgradePhases } from "./UpgradeLead";
 import { upgradeOf, upgradePhases } from "./upgrade";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
-import { useActorWords } from "../activity/actor";
+import { localHost, useActorWords } from "../activity/actor";
 import { placesOfChange, useMay } from "../auth/may";
 
 /** What every opening may say about what comes next. */
@@ -627,6 +627,7 @@ function ChangeSheet({
   const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(change));
   const waits = phase === "review" && (change?.waits ?? "") !== "";
   const approves = phase === "review" && change?.approves === true;
+  const plannedOn = localHost(change?.proposedBy) ?? "";
   // Theirs to discard, as the sheet's own plan is: one they planned, or one their
   // hook or a token of theirs planned, as the control plane says (ADR 0071).
   const theirs =
@@ -875,6 +876,12 @@ function ChangeSheet({
           <span className="dw-sheet-note">
             <Icon name="key" size={14} />
             <Trans>Applying this approves a change a push planned, with your passkey</Trans>
+          </span>
+        ) : approves && change?.proposedBy?.kind === ActorKind.TOKEN && localHost(change.proposedBy) ? (
+          // Local access is the CLI on its server, as Activity names it, never its token's name (#796).
+          <span className="dw-sheet-note">
+            <Icon name="key" size={14} />
+            <Trans>Applying this approves a change planned from the CLI on {plannedOn}, with your passkey</Trans>
           </span>
         ) : approves && change?.proposedBy?.kind === ActorKind.TOKEN ? (
           <span className="dw-sheet-note">

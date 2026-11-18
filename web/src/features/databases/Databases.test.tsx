@@ -1184,7 +1184,8 @@ describe("a database's backups and upgrades", () => {
         },
       }),
     );
-    await screen.findByRole("heading", { level: 1, name: "db" });
+    // An install's database goes by the name the person gave the install (#796).
+    await screen.findByRole("heading", { level: 1, name: "nextcloud" });
     expect(screen.queryByText(/is out/)).toBeNull();
     expect(screen.queryByRole("button", { name: /Upgrade to/ })).toBeNull();
   });

@@ -82,7 +82,7 @@ export function MorePage() {
           </Link>
         ) : null}
         <Link to="/variables" className="more-row">
-          <RowBody icon="key" label={t`Variables and secrets`} />
+          <RowBody icon="key" label={t`Variables`} />
         </Link>
         <Link to="/websites" className="more-row">
           <RowBody icon="browser" label={t`Websites`} />

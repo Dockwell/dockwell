@@ -18,7 +18,7 @@ interface Section {
  * with a screen gets its own route, which takes over its path, as Backups has.
  */
 export const UPCOMING = {
-  connections: { label: msg`Connections`, icon: "key", inMore: true },
+  connections: { label: msg`Connections`, icon: "network", inMore: true },
   backups: { label: msg`Backups`, icon: "archive", inMore: true },
   "fleet-actions": { label: msg`Fleet actions`, icon: "play", inMore: true },
   alerts: { label: msg`Alerts`, icon: "bell", inMore: true },

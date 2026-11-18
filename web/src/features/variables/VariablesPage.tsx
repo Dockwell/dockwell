@@ -147,13 +147,26 @@ function remember(id: string): void {
 const FILTER_FROM = 8;
 
 /** The environment shown when none is chosen: production in the first project, or the first there is. */
-function defaultEnvironment(envs: readonly Resource[], projects: readonly Resource[]): Resource | undefined {
+function defaultEnvironment(
+  envs: readonly Resource[],
+  projects: readonly Resource[],
+  apps: ReadonlyMap<string, number>,
+): Resource | undefined {
   const first = projects[0]?.id;
-  return (
+  const usual =
     envs.find((e) => e.resource?.scope === first && e.resource?.name === "production") ??
     envs.find((e) => e.resource?.scope === first) ??
-    envs[0]
-  );
+    envs[0];
+  if (usual && (apps.get(usual.id) ?? 0) > 0) return usual;
+  // Where the apps are, never an empty default while they live elsewhere (#796): the
+  // environment with the most, by name where two have as many.
+  const busiest = [...envs]
+    .filter((e) => (apps.get(e.id) ?? 0) > 0)
+    .sort(
+      (a, b) =>
+        (apps.get(b.id) ?? 0) - (apps.get(a.id) ?? 0) || (a.resource?.name ?? "").localeCompare(b.resource?.name ?? ""),
+    )[0];
+  return busiest ?? usual;
 }
 
 export interface VariablesPageProps {
@@ -220,10 +233,19 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
   const environments = envs.data?.resources ?? [];
   const views = useProjects().projects;
   const [last] = useState(remembered);
+  const services = useServices();
+  const appsIn = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const s of services.data ?? []) {
+      const env = s.resource?.scope ?? "";
+      out.set(env, (out.get(env) ?? 0) + 1);
+    }
+    return out;
+  }, [services.data]);
   const chosen =
     environments.find((e) => e.id === environment) ??
     environments.find((e) => e.id === last) ??
-    defaultEnvironment(environments, projects);
+    defaultEnvironment(environments, projects, appsIn);
   const view = views?.find((v) => v.id === chosen?.resource?.scope);
   const siblings = environments.filter((e) => e.resource?.scope === chosen?.resource?.scope);
   // A choice made here is remembered; a link that names an environment isn't one.
@@ -242,7 +264,6 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
   // environment alone, so nothing is said twice.
   const [adding, setAdding] = useState<string>();
   const envName = chosen ? environmentLabel(chosen, projects, environments) : "";
-  const services = useServices();
   const here = useMemo(
     () => (services.data ?? []).filter((s) => s.resource?.scope === chosen?.id && s.spec !== undefined),
     [services.data, chosen?.id],
@@ -283,8 +304,7 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
 
   return (
     <Page
-      title={t`Variables and secrets`}
-      phoneTitle={t`Variables`}
+      title={t`Variables`}
       phoneSub={envName || undefined}
       back="/more"
       lead={
@@ -298,7 +318,7 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
       className="variables-page"
     >
       <RevealsProvider value={reveals}>
-        <section className="variables-section" aria-label={t`Variables and secrets in ${envName}`}>
+        <section className="variables-section" aria-label={t`Variables in ${envName}`}>
           <div className="variables-bar">
             {/* A project to choose, from the second, searchable, in place of a switch with every environment (ADR 0074). */}
             {projects.length > 1 && views ? (
@@ -453,7 +473,7 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               />
             )
           ) : phone ? (
-            <ul className="variables-list" aria-label={t`Variables and secrets in ${envName}`}>
+            <ul className="variables-list" aria-label={t`Variables in ${envName}`}>
               {shown.map((r) => (
                 <li key={r.id} className="variables-item">
                   <div className="variables-item-head">
@@ -473,7 +493,7 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               rows={shown}
               scope={chosen?.id ?? ""}
               store={list.data?.variables}
-              caption={t`Variables and secrets in ${envName}`}
+              caption={t`Variables in ${envName}`}
               onEdit={setEditing}
             />
           )}

@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery as useConnectQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  CatalogService,
   ChangeState,
   DomainService,
   EventKind,
@@ -242,6 +243,11 @@ export interface Place {
   label: string;
   /** Its project's name, as a request names it. */
   project: string;
+  /**
+   * The catalog app its project was installed as, such as "Gitea", where it was: a
+   * label beside the name the person gave the install, which is its title (#796).
+   */
+  app: string;
   /** In the hidden default project: the one named default, or the only one there is. */
   isDefault: boolean;
   /** Protected, where a developer's change waits for an admin or the owner (ADR 0049). */
@@ -274,6 +280,8 @@ export const DEFAULT_PROJECT = "default";
 export function usePlaces(): Places {
   const projectsQuery = useConnectQuery(ResourceService.method.listResources, { kind: "project" });
   const environmentsQuery = useConnectQuery(ResourceService.method.listResources, { kind: "environment" });
+  // Which projects are catalog installs, so each is called what the person named it (#796).
+  const installs = useConnectQuery(CatalogService.method.listCatalogInstalls, {}).data?.installs;
   const projects = projectsQuery.data?.resources;
   const environments = environmentsQuery.data?.resources;
   const isPending = projectsQuery.isPending || environmentsQuery.isPending;
@@ -291,7 +299,11 @@ export function usePlaces(): Places {
       const shown = env.displayName || name;
       const project = projects?.find((p) => p.id === scope);
       const projectName = project?.resource?.name ?? "";
-      const projectLabel = project?.displayName || projectName;
+      // An install's project shows the app's name as its display name, as the install
+      // wrote it: the person's name for it is the project's own, which leads (#796).
+      const install = installs?.find((i) => i.projectId === scope);
+      const app = install ? project?.displayName || install.pin?.entry || "" : "";
+      const projectLabel = install ? projectName : project?.displayName || projectName;
       const own = (inProject.get(scope) ?? 0) > 1;
       const label = !several || !projectLabel ? shown : own ? `${projectLabel} / ${shown}` : projectLabel;
       return {
@@ -300,6 +312,7 @@ export function usePlaces(): Places {
         name,
         label,
         project: projectName,
+        app,
         isDefault: !several || projectName === DEFAULT_PROJECT,
         protected: env.protected,
       };
@@ -315,5 +328,5 @@ export function usePlaces(): Places {
       projects: (projects ?? []).map((p) => p.resource?.name ?? "").filter(Boolean),
       isPending,
     };
-  }, [projects, environments, isPending]);
+  }, [projects, environments, installs, isPending]);
 }

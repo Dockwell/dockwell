@@ -106,7 +106,8 @@ export function TasksPage() {
     },
     {
       key: "target",
-      header: t`Runs in`,
+      // What it runs or asks: an app, a command's server, or a URL, each a target (#796).
+      header: t`Target`,
       width: 176,
       render: (task) => (
         <span className="tasks-target">

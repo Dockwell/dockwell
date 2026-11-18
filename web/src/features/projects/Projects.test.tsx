@@ -176,7 +176,7 @@ describe("a project's page", () => {
     const contents = screen.getByRole("region", { name: "What's in it" });
     expect(within(contents).getByRole("link", { name: /ghost/ })).toHaveAttribute("href", "/apps/svc_ghost");
     expect(contents).toHaveTextContent("content");
-    const values = screen.getByRole("region", { name: "Variables and secrets" });
+    const values = screen.getByRole("region", { name: "Variables" });
     expect(within(values).getByRole("link", { name: /1 variable · 1 secret/ })).toHaveAttribute(
       "href",
       "/variables?environment=env_blog",

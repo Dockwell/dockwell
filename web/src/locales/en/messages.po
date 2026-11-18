@@ -513,6 +513,9 @@ msgstr "Nothing here yet"
 msgid "Nothing matches these filters."
 msgstr "Nothing matches these filters."
 
+msgid "Open Variables"
+msgstr "Open Variables"
+
 msgid "Open plan"
 msgstr "Open plan"
 
@@ -527,9 +530,6 @@ msgstr "Open the file"
 
 msgid "Open the folder"
 msgstr "Open the folder"
-
-msgid "Open the variables and secrets"
-msgstr "Open the variables and secrets"
 
 msgctxt "terminal"
 msgid "Opened"
@@ -2794,8 +2794,8 @@ msgstr "Set by its runtime"
 msgid "Set on this app"
 msgstr "Set on this app"
 
-msgid "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
-msgstr "Shared values change in <0>Variables and secrets</0>, for every app that uses them."
+msgid "Shared values change in <0>Variables</0>, for every app that uses them."
+msgstr "Shared values change in <0>Variables</0>, for every app that uses them."
 
 msgid "Shared variable"
 msgstr "Shared variable"
@@ -2827,11 +2827,11 @@ msgstr "The environment has a variable {target} already. Rename one to keep this
 msgid "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 msgstr "The environment has a variable {trimmed} already. Use it as it is, or choose another name."
 
-msgid "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
-msgstr "The environment has {usedList} already, so the app uses its value: change it in Variables and secrets."
+msgid "The environment has {usedList} already, so the app uses its value: change it in Variables."
+msgstr "The environment has {usedList} already, so the app uses its value: change it in Variables."
 
-msgid "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
-msgstr "The environment has {usedList} already, so the app uses their values: change them in Variables and secrets."
+msgid "The environment has {usedList} already, so the app uses their values: change them in Variables."
+msgstr "The environment has {usedList} already, so the app uses their values: change them in Variables."
 
 msgid "Their values are hidden, and revealing one takes your passkey."
 msgstr "Their values are hidden, and revealing one takes your passkey."
@@ -3843,6 +3843,9 @@ msgstr "Clear the filter"
 msgid "Clear the filters"
 msgstr "Clear the filters"
 
+msgid "Database"
+msgstr "Database"
+
 msgid "Export"
 msgstr "Export"
 
@@ -4019,9 +4022,6 @@ msgstr "Connection URL"
 
 msgid "Couldn't check now. The plan checks it as it applies."
 msgstr "Couldn't check now. The plan checks it as it applies."
-
-msgid "Database"
-msgstr "Database"
 
 msgctxt "what a variable holds"
 msgid "Database name"
@@ -9111,6 +9111,9 @@ msgstr "Apply this only if you trust what it runs."
 msgid "Applying this approves a change a push planned, with your passkey"
 msgstr "Applying this approves a change a push planned, with your passkey"
 
+msgid "Applying this approves a change planned from the CLI on {plannedOn}, with your passkey"
+msgstr "Applying this approves a change planned from the CLI on {plannedOn}, with your passkey"
+
 #. placeholder {0}: change.proposedBy.name
 msgid "Applying this approves a change planned with the API token {0}, with your passkey"
 msgstr "Applying this approves a change planned with the API token {0}, with your passkey"
@@ -11106,8 +11109,8 @@ msgstr "This puts the old version back, not its data. If the new version changed
 msgid "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
 msgstr "This puts the old version back, not its data. If the new version changed that data, such as with a migration, the old one may refuse it or misread it. The upgrade backed it up first."
 
-msgid "To go back on a value, change it in Variables and secrets."
-msgstr "To go back on a value, change it in Variables and secrets."
+msgid "To go back on a value, change it in Variables."
+msgstr "To go back on a value, change it in Variables."
 
 msgid "To keep it hidden, write the {where} as a list, with each word its own variable."
 msgstr "To keep it hidden, write the {where} as a list, with each word its own variable."
@@ -15144,9 +15147,6 @@ msgstr "To {to}"
 msgid "URLs and the CLI keep its name, {0}."
 msgstr "URLs and the CLI keep its name, {0}."
 
-msgid "Variables and secrets"
-msgstr "Variables and secrets"
-
 msgid "What runs in it isn't affected."
 msgstr "What runs in it isn't affected."
 
@@ -18117,8 +18117,8 @@ msgstr "Show {hidden} more"
 msgid "Sign-in provider"
 msgstr "Sign-in provider"
 
-msgid "Values your apps use live in <0>Variables and secrets</0>"
-msgstr "Values your apps use live in <0>Variables and secrets</0>"
+msgid "Values your apps use live in <0>Variables</0>"
+msgstr "Values your apps use live in <0>Variables</0>"
 
 msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
@@ -19071,6 +19071,9 @@ msgstr "Name the new environment, such as staging"
 msgid "Name the new project, such as shop"
 msgstr "Name the new project, such as shop"
 
+msgid "Open Variables for {name}"
+msgstr "Open Variables for {name}"
+
 msgid "Open the activity"
 msgstr "Open the activity"
 
@@ -19097,9 +19100,6 @@ msgstr "Open the projects"
 
 msgid "Open the server list"
 msgstr "Open the server list"
-
-msgid "Open the variables and secrets of {name}"
-msgstr "Open the variables and secrets of {name}"
 
 msgid "Open the websites"
 msgstr "Open the websites"
@@ -20490,8 +20490,8 @@ msgstr "The old value stays in this variable's history"
 msgid "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 msgstr "Use letters, digits and underscores, starting with a letter or an underscore, such as DATABASE_URL."
 
-msgid "Variables and secrets in {envName}"
-msgstr "Variables and secrets in {envName}"
+msgid "Variables in {envName}"
+msgstr "Variables in {envName}"
 
 msgid "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."
 msgstr "What the apps in {envName} run with, shared and their own. Changing a value restarts each app that uses it, once you apply its plan."

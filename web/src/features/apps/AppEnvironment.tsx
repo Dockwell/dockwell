@@ -291,7 +291,7 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             <Trans>
               Shared values change in{" "}
               <Link to="/variables" search={{ environment, app: service.id }}>
-                Variables and secrets
+                Variables
               </Link>
               , for every app that uses them.
             </Trans>
@@ -1125,13 +1125,10 @@ function ImportSheet({ rows, store, onClose, onImport }: ImportSheetProps) {
         {used.length > 0 ? (
           <p className="app-env-form-note" role="status">
             {used.length === 1 ? (
-              <Trans>
-                The environment has {usedList} already, so the app uses its value: change it in Variables and secrets.
-              </Trans>
+              <Trans>The environment has {usedList} already, so the app uses its value: change it in Variables.</Trans>
             ) : (
               <Trans>
-                The environment has {usedList} already, so the app uses their values: change them in Variables and
-                secrets.
+                The environment has {usedList} already, so the app uses their values: change them in Variables.
               </Trans>
             )}
           </p>

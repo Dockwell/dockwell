@@ -167,7 +167,7 @@ describe("Integrations", () => {
     expect(
       screen.getByText("1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"),
     ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Variables and secrets" })).toHaveAttribute("href", "/variables");
+    expect(screen.getByRole("link", { name: "Variables" })).toHaveAttribute("href", "/variables");
   });
 
   it("speaks Simplified Chinese", async () => {

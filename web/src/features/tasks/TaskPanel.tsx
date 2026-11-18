@@ -108,7 +108,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
         {spec?.paused ? (
           <StatusBadge status="stopped" label={t`Paused`} />
         ) : (
-          <StatusBadge status="healthy" label={t`Enabled`} />
+          // Plain, as on is how a task is: the healthy glyph is for how something runs (#796).
+          <span className="tasks-enabled">{t`Enabled`}</span>
         )}
       </div>
       <div className="dw-panel-body tasks-panel-body">
@@ -129,7 +130,8 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
             <dd>
               <code>{spec?.schedule}</code> · {spec?.timeZone || "UTC"}
             </dd>
-            <dt>{t`Runs in`}</dt>
+            {/* In its app, or on the servers it runs on: never a URL, which is the table's target (#796). */}
+            <dt>{task.kind === TaskKind.APP ? t`Runs in` : t`Runs on`}</dt>
             <dd>{where}</dd>
             <dt>{t`Timeout`}</dt>
             <dd>

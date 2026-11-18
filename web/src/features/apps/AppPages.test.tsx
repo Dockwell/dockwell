@@ -293,10 +293,10 @@ describe("an app's frame", () => {
     expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
     expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
     expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Variables and secrets" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/variables?environment=env_prod"),
-    );
+    // The note's link, beside the rail's of the same name, opens this app's environment there.
+    expect(
+      screen.getAllByRole("link", { name: "Variables" }).find((l) => l.getAttribute("href")?.includes("environment=")),
+    ).toHaveAttribute("href", expect.stringContaining("/variables?environment=env_prod"));
     await expectAccessible(container);
   });
 

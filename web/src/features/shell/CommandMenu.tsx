@@ -216,7 +216,7 @@ function Commands({ onClose }: { onClose: () => void }) {
       id: "variables",
       group: pages,
       icon: "key",
-      label: t`Open the variables and secrets`,
+      label: t`Open Variables`,
       run: () => navigate({ to: "/variables" }),
     });
     list.push({
@@ -314,7 +314,7 @@ function Commands({ onClose }: { onClose: () => void }) {
         id: `environment-variables:${env.id}`,
         group: t`Environments`,
         icon: "key",
-        label: t`Open the variables and secrets of ${name}`,
+        label: t`Open Variables for ${name}`,
         hint: env.displayName || undefined,
         run: () => navigate({ to: "/variables", search: { environment: env.id } }),
       });

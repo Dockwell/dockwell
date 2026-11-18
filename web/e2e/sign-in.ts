@@ -784,7 +784,7 @@ async function main() {
 
   step("secrets: add one in the panel, reveal it with the passkey, and check an API token can't");
   await page.goto(`${origin}/variables`);
-  await expectPage(page, "Variables and secrets");
+  await expectPage(page, "Variables");
   // By now there are several projects, so the environment goes by its project's name.
   const valueForm = page.getByRole("form", { name: /^Add a variable or secret to (default|production)$/ });
   // An environment with nothing yet shows its empty state, whose Add the first opens the form.

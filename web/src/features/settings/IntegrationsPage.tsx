@@ -95,7 +95,7 @@ export function IntegrationsPage() {
       <Trans>
         Values your apps use live in{" "}
         <Link to="/variables" className="cp-link">
-          Variables and secrets
+          Variables
         </Link>
       </Trans>
     </p>

@@ -82,7 +82,8 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
 
   step("databases: a database's page lists what to connect with, its password masked until a passkey reveals it");
   await row.click();
-  await page.getByRole("heading", { level: 1, name: "db" }).waitFor();
+  // The catalog's PostgreSQL, titled by its install's name, postgres (#796).
+  await page.getByRole("heading", { level: 1, name: "postgres", exact: true }).waitFor();
   const connect = page.getByRole("region", { name: "Connect" });
   await connect.getByText("postgres://postgres:••••••••••••@db:5432/app", { exact: true }).waitFor();
   await connect.getByText("Kept in the secret POSTGRES_PASSWORD").waitFor();

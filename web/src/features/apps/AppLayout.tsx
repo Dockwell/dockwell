@@ -27,7 +27,6 @@ import {
   environmentOf,
   imageOf,
   isMoving,
-  nameOf,
   recordSaysMore,
   revisionName,
   shortImage,
@@ -38,6 +37,7 @@ import { AppDeployAction } from "./deployAction";
 import { HealthBadge, useHealthTitle, useHealthWords } from "./Health";
 import { useHealth } from "./health";
 import { WholeImage } from "./ImageName";
+import { useShownName } from "./names";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useWhoWords } from "./revision";
 import { runtimeOf, runtimeWords } from "./runtime";
@@ -199,7 +199,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const [deploying, setDeploying] = useState(false);
   const searchButton = useRef<(() => void) | null>(null);
   const serviceId = service.id;
-  const name = nameOf(service);
+  // A catalog install's app goes by the name the person gave it, with the app's beside it (#796).
+  const shown = useShownName()(service, "app");
+  const name = shown.title;
   const image = imageOf(service);
   // An app from a folder says what it runs on, and changes its version where another deploys an image.
   const runtime = runtimeOf(service);
@@ -273,11 +275,18 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       fullBody={onLogs}
       back="/apps"
       breadcrumb={
-        <Crumbs name={name} project={place && !place.isDefault ? { id: place.scope, label: place.label } : undefined} />
+        // An install's app goes by its project's name, so the project's crumb would only say it twice (#796).
+        <Crumbs
+          name={name}
+          project={
+            place && !place.isDefault && place.label !== name ? { id: place.scope, label: place.label } : undefined
+          }
+        />
       }
       badge={
         <>
           <HealthBadge health={health} title={healthTitle} />
+          {shown.app ? <Tag className="app-catalog-name">{shown.app}</Tag> : null}
           {source ? (
             <Tag icon="branch" className="app-branch">
               {shownRef(source.ref) || t`default branch`}

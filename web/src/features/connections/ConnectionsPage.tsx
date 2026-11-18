@@ -79,7 +79,7 @@ export function ConnectionsPage() {
       ) : null}
       {query.isPending ? null : connections.length === 0 && !query.error ? (
         <EmptyState
-          icon="key"
+          icon="network"
           title={t`No connections yet`}
           className="connections-empty"
           choices={

@@ -461,3 +461,9 @@ code.tasks-sub,
     display: none;
   }
 }
+
+/* On, said plainly: the healthy glyph is for how something runs (#796). */
+.tasks-enabled {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
