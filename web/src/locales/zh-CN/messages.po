@@ -17601,6 +17601,9 @@ msgstr "此安装的名称、时区以及面板的访问方式 · 设置于 {sin
 msgid "Your tunnel or proxy, which ends TLS and sends it here"
 msgstr "你的隧道或代理，它终止 TLS 并将请求转发到这里"
 
+msgid "1 app"
+msgstr "1 个应用"
+
 msgid "An organization"
 msgstr "某个组织"
 
@@ -17665,8 +17668,8 @@ msgstr "组织"
 msgid "Owned by"
 msgstr "所有者"
 
-msgid "Private repositories, and deploy on push with nothing to paste."
-msgstr "私有仓库，以及无需粘贴任何内容的推送时部署。"
+msgid "Private repositories, and deploy on push"
+msgstr "私有仓库，以及推送即部署"
 
 msgid "The GitHub App isn't installed on an account yet."
 msgstr "GitHub 应用尚未安装到任何账户。"
@@ -17674,8 +17677,8 @@ msgstr "GitHub 应用尚未安装到任何账户。"
 msgid "The webhook secret didn't change."
 msgstr "Webhook 密钥未更改。"
 
-msgid "private repositories, and deploy on push"
-msgstr "私有仓库，以及推送时部署"
+msgid "{live} apps"
+msgstr "{live} 个应用"
 
 msgid "1 repository"
 msgstr "1 个仓库"
@@ -17814,17 +17817,23 @@ msgstr "需要组织所有者先批准"
 msgid "1 backup, {0}"
 msgstr "1 份备份，{0}"
 
-msgid "1 bucket · where backups go beside each server's disk"
-msgstr "1 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+msgid "1 bucket"
+msgstr "1 个存储桶"
 
 msgid "1 connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "已连接 1 个 · Dockwell 用来构建、部署、路由和备份的服务"
 
-msgid "1 login · for images a registry keeps private"
-msgstr "1 个登录 · 用于镜像仓库设为私有的镜像"
+msgid "1 login"
+msgstr "1 个登录"
 
-msgid "1 provider · for private routes"
-msgstr "1 个提供方 · 用于私有路由"
+msgid "1 provider"
+msgstr "1 个提供方"
+
+msgid "1 record kept"
+msgstr "保留了 1 条记录"
+
+msgid "1 zone"
+msgstr "1 个区域"
 
 #. placeholder {0}: l.name
 #. placeholder {0}: p.name
@@ -17848,8 +17857,8 @@ msgstr "任何 DNS 服务商"
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
 
-msgid "Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel."
-msgstr "通过 DNS 获取证书，适用于 NAT 之后或通配符域名。路由也可以位于其代理或 Tunnel 之后。"
+msgid "Certificates by DNS, its proxy and tunnels"
+msgstr "通过 DNS 签发证书，以及它的代理和隧道"
 
 msgid "Client <0>{clientId}</0>"
 msgstr "客户端 <0>{clientId}</0>"
@@ -17871,9 +17880,6 @@ msgstr "Dockwell 无法列出登录提供方"
 
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
-
-msgid "Dockwell says which record to make, then gets the certificate."
-msgstr "Dockwell 会说明要创建哪条记录，然后获取证书。"
 
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
@@ -17907,14 +17913,14 @@ msgstr "对象存储"
 msgid "Open Domains"
 msgstr "打开域名"
 
-msgid "People sign in to private routes as themselves, with Authentik, Google or another."
-msgstr "成员以自己的身份登录私有路由，可使用 Authentik、Google 或其他提供方。"
+msgid "Private images, past its pull limits"
+msgstr "私有镜像，不受其拉取限制"
 
-msgid "Private images from GitHub, such as those Actions push."
-msgstr "来自 GitHub 的私有镜像，例如 Actions 推送的镜像。"
+msgid "Private images, such as Actions push"
+msgstr "私有镜像，例如 Actions 推送的"
 
-msgid "Private images, and pulls past Docker Hub's limits."
-msgstr "私有镜像，以及不受 Docker Hub 拉取限制的拉取。"
+msgid "Private routes, with Authentik, Google or another"
+msgstr "私有路由，用 Authentik、Google 或其他登录"
 
 msgid "Put the record for {name} back"
 msgstr "恢复 {name} 的记录"
@@ -17932,11 +17938,14 @@ msgstr "保留的记录"
 msgid "Registries"
 msgstr "镜像仓库"
 
-msgid "S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave."
-msgstr "S3、R2、B2、MinIO 或任何 S3 API。备份在离开服务器之前就已加密封存。"
+msgid "S3, R2, B2, MinIO or any S3 API"
+msgstr "S3、R2、B2、MinIO 或任何 S3 API"
 
 msgid "S3-compatible storage"
 msgstr "S3 兼容存储"
+
+msgid "Says which record to make, then gets the certificate"
+msgstr "告诉你要添加哪条记录，然后获取证书"
 
 msgid "Show {hidden} more"
 msgstr "再显示 {hidden} 条"
@@ -17947,21 +17956,23 @@ msgstr "登录提供方"
 msgid "Values your apps use live in <0>Variables and secrets</0>"
 msgstr "应用使用的值保存在<0>变量和机密</0>中"
 
-msgid "in front of a server's routes"
-msgstr "位于服务器路由之前"
-
-#. placeholder {0}: loginList.length
-msgid "{0} logins · for images a registry keeps private"
-msgstr "{0} 个登录 · 用于镜像仓库设为私有的镜像"
-
 msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "已连接 {all} 个 · Dockwell 用来构建、部署、路由和备份的服务"
 
-msgid "{connected} buckets · where backups go beside each server's disk"
-msgstr "{connected} 个存储桶 · 备份在各服务器磁盘之外存放的地方"
+msgid "{connected} buckets"
+msgstr "{connected} 个存储桶"
 
-msgid "{signinCount} providers · for private routes"
-msgstr "{signinCount} 个提供方 · 用于私有路由"
+msgid "{keptCount} records kept"
+msgstr "保留了 {keptCount} 条记录"
+
+msgid "{loginCount} logins"
+msgstr "{loginCount} 个登录"
+
+msgid "{signinCount} providers"
+msgstr "{signinCount} 个提供方"
+
+msgid "{zoneCount} zones"
+msgstr "{zoneCount} 个区域"
 
 msgid "API tokens revoked"
 msgstr "吊销的 API 令牌"

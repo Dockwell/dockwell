@@ -196,6 +196,9 @@ describe("records kept at Cloudflare", () => {
       changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
     });
     const card = await screen.findByRole("article", { name: "Cloudflare" });
+    // A line until asked for, so the card stays as tall as its row (#786).
+    expect(card).toHaveTextContent("2 records kept");
+    await user.click(within(card).getByRole("button", { name: "Show" }));
     const kept = await within(card).findByRole("list", { name: "Records kept" });
     expect(kept).toHaveTextContent("Kept: vpn.example.com, CNAME elsewhere.example.net");
     expect(kept).toHaveTextContent("Kept: mail.example.com, A 203.0.113.9. Put back once its name is free");

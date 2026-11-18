@@ -87,7 +87,7 @@ describe("Sign-in providers", () => {
       domains: { listSigninProviders: () => ({ providers: [authentik] }) },
     });
     const listed = await screen.findByRole("region", { name: "Sign-in" });
-    expect(await within(listed).findByText("1 provider · for private routes")).toBeVisible();
+    expect(await within(listed).findByText("1 provider")).toBeVisible();
     const card = within(listed).getByRole("article", { name: "Our Authentik" });
     expect(card).toHaveTextContent("auth.example.com");
     expect(card).toHaveTextContent("our-authentik for every project");
