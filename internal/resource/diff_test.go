@@ -9,6 +9,10 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/types/dynamicpb"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -235,5 +239,46 @@ func TestDiffMatchesMountsByTarget(t *testing.T) {
 	twice := &resourcev1.Container{Mounts: []*resourcev1.Mount{mount("a", "/x", false), mount("b", "/x", false)}}
 	if got := paths(resource.Diff(twice, a)); len(got) == 0 || !strings.HasPrefix(got[0], "mounts[0].volume") {
 		t.Errorf("mounts sharing a target read as %q", got)
+	}
+}
+
+// An agent from before PortMapping.external (81) diffs with the fields its own build
+// knows, so a database's tagged port, which such an agent reads back without the tag,
+// is no drift there: it keeps running the port as it is, and a newer agent writes
+// the tag's label when it next makes the container (ADR 0038, "External access, as
+// built").
+func TestAnAgentFromBeforeTheTagSeesNoDrift(t *testing.T) {
+	file := protodesc.ToFileDescriptorProto(resourcev1.File_dockwell_resource_v1alpha1_specs_proto)
+	for _, m := range file.GetMessageType() {
+		if m.GetName() == "PortMapping" {
+			m.Field = slices.DeleteFunc(m.Field, func(f *descriptorpb.FieldDescriptorProto) bool { return f.GetName() == "external" })
+		}
+	}
+	old, err := protodesc.NewFile(file, protoregistry.GlobalFiles)
+	if err != nil {
+		t.Fatal(err)
+	}
+	asOld := func(m proto.Message) proto.Message {
+		b, err := proto.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := dynamicpb.NewMessage(old.Messages().ByName("Service"))
+		if err := proto.Unmarshal(b, out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	run := func(external bool) *resourcev1.Service {
+		return &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "postgres:17", Ports: []*resourcev1.PortMapping{
+			{HostPort: 5432, ContainerPort: 5432, External: external},
+		}}}}
+	}
+	if got := resource.Diff(asOld(run(true)), asOld(run(false))); len(got) != 0 {
+		t.Errorf("an agent from before the tag reads it as drift: %v", got)
+	}
+	// This build knows it, and reads it as a change.
+	if got := resource.Diff(run(true), run(false)); len(got) == 0 {
+		t.Error("this build doesn't see the tag")
 	}
 }
