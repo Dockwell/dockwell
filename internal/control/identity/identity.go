@@ -364,6 +364,46 @@ func (a *Authority) CreateLabeledTicket(ctx context.Context, controlURL, actor s
 	return Ticket{Value: value, TokenID: tok.ID, ExpiresAt: tok.ExpiresAt}, nil
 }
 
+// Now is the time by the clock Join, RevokeTicket and WaitingTickets decide by, for
+// anything else that says whether a ticket still waits.
+func (a *Authority) Now() time.Time { return a.now() }
+
+// WaitingTickets returns the join tokens still waiting, newest first, by the same
+// clock Join and RevokeTicket decide by, so the three agree on what waits.
+func (a *Authority) WaitingTickets(ctx context.Context) ([]store.JoinToken, error) {
+	var toks []store.JoinToken
+	err := a.db.View(ctx, func(tx *store.Tx) (err error) {
+		toks, err = tx.ListWaitingJoinTokens(ctx, a.now())
+		return err
+	})
+	return toks, err
+}
+
+// RevokeTicket stops a waiting join token working at once, and records who did,
+// for the activity log. One that expired already is left as it is, and isn't
+// recorded again; one a server joined with is store.ErrConflict.
+func (a *Authority) RevokeTicket(ctx context.Context, actor, tokenID string) (store.JoinToken, error) {
+	var tok store.JoinToken
+	err := a.db.Update(ctx, func(tx *store.Tx) error {
+		before, err := tx.GetJoinToken(ctx, tokenID)
+		if err != nil {
+			return err
+		}
+		now := a.now()
+		if err := tx.ExpireJoinToken(ctx, tokenID, now); err != nil {
+			return err
+		}
+		if tok, err = tx.GetJoinToken(ctx, tokenID); err != nil {
+			return err
+		}
+		if !before.ExpiresAt.After(now) {
+			return nil
+		}
+		return a.audit(ctx, tx, actor, store.SurfaceOf(actor), "join_token.revoke", tok.ID, "", "")
+	})
+	return tok, err
+}
+
 // Joined is a server that has just joined.
 type Joined struct {
 	Server store.Server

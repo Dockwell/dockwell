@@ -5,10 +5,12 @@ package identity
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -428,5 +430,130 @@ func TestServerName(t *testing.T) {
 		if got := ServerName(in); got != want {
 			t.Errorf("ServerName(%q) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestARevokedTicketCantJoin(t *testing.T) { storetest.Each(t, testARevokedTicketCantJoin) }
+
+// A revoked ticket joins nothing and reads as expired, and one a server joined
+// with can't be revoked into anything: it stays used, by that server (#800).
+func testARevokedTicketCantJoin(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+
+	tk := newTicket(t, f, time.Hour)
+	revoked, err := f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revoked.ExpiresAt.After(time.Now()) {
+		t.Errorf("a revoked ticket expires at %v, after now", revoked.ExpiresAt)
+	}
+	if _, err := f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), "hz-2", "198.51.100.4"); !errors.Is(err, ErrTicketRejected) {
+		t.Fatalf("joining with a revoked ticket = %v, want it rejected", err)
+	}
+	// Revoking it again changes nothing and records nothing more.
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId()); err != nil {
+		t.Fatalf("revoking a revoked ticket again = %v", err)
+	}
+
+	used := newTicket(t, f, time.Hour)
+	joined, err := f.a.Join(ctx, used.GetTokenId(), used.GetSecret(), csr(t), "hz-3", "198.51.100.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", used.GetTokenId()); !errors.Is(err, store.ErrConflict) {
+		t.Fatalf("revoking a used ticket = %v, want a conflict", err)
+	}
+	_ = f.db.View(ctx, func(tx *store.Tx) error {
+		tok, err := tx.GetJoinToken(ctx, used.GetTokenId())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tok.UsedBy != joined.Server.ID || !tok.ExpiresAt.After(time.Now()) {
+			t.Errorf("a used ticket after a refused revoke: used by %q, expires %v", tok.UsedBy, tok.ExpiresAt)
+		}
+		if _, err := tx.GetJoinToken(ctx, "jtk_nope"); !errors.Is(err, store.ErrNotFound) {
+			t.Errorf("an unknown ticket = %v", err)
+		}
+		events, _ := tx.ListEvents(ctx, 20)
+		var revokes int
+		for i := range events {
+			if events[i].Action == "join_token.revoke" {
+				revokes++
+				if events[i].Subject != tk.GetTokenId() || events[i].Actor != "user:usr_1" {
+					t.Errorf("revoke event = %+v", events[i])
+				}
+			}
+		}
+		if revokes != 1 {
+			t.Errorf("%d revoke events, want 1", revokes)
+		}
+		return nil
+	})
+	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", "jtk_nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("revoking an unknown ticket = %v, want not found", err)
+	}
+}
+
+func TestJoinAndRevokeRaceToOneWinner(t *testing.T) {
+	storetest.Each(t, testJoinAndRevokeRaceToOneWinner)
+}
+
+// A join and a revoke of the same ticket at once: exactly one wins, every time.
+// Either the server joins and the revoke is refused as used, or the revoke stops
+// it and the join is rejected; never both (#800's review).
+func testJoinAndRevokeRaceToOneWinner(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+	var joins, revokes int
+	for round := range 20 {
+		tk := newTicket(t, f, time.Hour)
+		var joinErr, revokeErr error
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			_, joinErr = f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), fmt.Sprintf("race-%d", round), "198.51.100.9")
+		})
+		wg.Go(func() {
+			_, revokeErr = f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId())
+		})
+		wg.Wait()
+		switch {
+		case joinErr == nil && errors.Is(revokeErr, store.ErrConflict):
+			joins++
+		case revokeErr == nil && errors.Is(joinErr, ErrTicketRejected):
+			revokes++
+		default:
+			t.Fatalf("round %d: join = %v, revoke = %v; want exactly one to win", round, joinErr, revokeErr)
+		}
+	}
+	t.Logf("joins first %d, revokes first %d", joins, revokes)
+}
+
+func TestTicketsWaitByTheAuthoritysClock(t *testing.T) {
+	storetest.Each(t, testTicketsWaitByTheAuthoritysClock)
+}
+
+// What waits is the Authority's clock's to say, for GetJoinTicket, the list,
+// join and revoke alike: a ticket an hour long waits now, and two hours on
+// it's expired to all of them (#800's re-check, N2).
+func testTicketsWaitByTheAuthoritysClock(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+	tk := newTicket(t, f, time.Hour)
+	waiting, err := f.a.WaitingTickets(ctx)
+	if err != nil || len(waiting) != 1 || !f.a.Now().Before(waiting[0].ExpiresAt) {
+		t.Fatalf("now, the waiting tickets = %v, %v", waiting, err)
+	}
+	later := time.Now().Add(2 * time.Hour)
+	f.a.now = func() time.Time { return later }
+	if !f.a.Now().Equal(later) || f.a.Now().Before(waiting[0].ExpiresAt) {
+		t.Errorf("Now = %v, want the injected %v, past the ticket's %v", f.a.Now(), later, waiting[0].ExpiresAt)
+	}
+	if waiting, err := f.a.WaitingTickets(ctx); err != nil || len(waiting) != 0 {
+		t.Errorf("two hours on, the waiting tickets = %v, %v", waiting, err)
+	}
+	if _, err := f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), "late", "198.51.100.9"); !errors.Is(err, ErrTicketRejected) {
+		t.Errorf("two hours on, joining = %v, want rejected", err)
 	}
 }

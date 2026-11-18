@@ -266,6 +266,54 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	return j, nil
 }
 
+// ListWaitingJoinTokens returns the join tokens still waiting at now, newest
+// first: unused, and expiring after now. It scans join_tokens, which has no
+// index on what waits and keeps every token: an index or a prune of old used and
+// expired rows would need a migration, and at the sizes an install reaches the
+// scan is cheap (#800's review, L7).
+func (t *Tx) ListWaitingJoinTokens(ctx context.Context, now time.Time) ([]JoinToken, error) {
+	rows, err := t.query(ctx, `SELECT id, created_at, created_by, expires_at, labels FROM join_tokens
+		WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC, id DESC`, millis(now))
+	if err != nil {
+		return nil, fmt.Errorf("can't list the join tokens waiting: %w", err)
+	}
+	defer rows.Close()
+	var out []JoinToken
+	for rows.Next() {
+		var j JoinToken
+		var created, expires int64
+		var labels string
+		if err := rows.Scan(&j.ID, &created, &j.CreatedBy, &expires, &labels); err != nil {
+			return nil, fmt.Errorf("can't read a join token waiting: %w", err)
+		}
+		j.CreatedAt, j.ExpiresAt = fromMillis(created), fromMillis(expires)
+		if j.Labels, err = labelsOf(labels); err != nil {
+			return nil, fmt.Errorf("can't read the labels of join token %s: %w", j.ID, err)
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
+// ExpireJoinToken stops an unused join token working from at: its expiry moves to
+// at, so it reads as expired, and Join refuses it as it refuses any expired token.
+// One that expired before at keeps its own expiry. A used token is ErrConflict, as
+// a server joined with it, and one that isn't there is ErrNotFound.
+func (t *Tx) ExpireJoinToken(ctx context.Context, id string, at time.Time) error {
+	if _, err := t.exec(ctx, `UPDATE join_tokens SET expires_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?`,
+		millis(at), id, millis(at)); err != nil {
+		return fmt.Errorf("can't revoke join token %s: %w", id, err)
+	}
+	tok, err := t.GetJoinToken(ctx, id)
+	if err != nil {
+		return err
+	}
+	if tok.UsedAt != nil {
+		return fmt.Errorf("join token %s was used by %s: %w", id, tok.UsedBy, ErrConflict)
+	}
+	return nil
+}
+
 // JoinLabels are the labels server joined with, as its join token had them, or
 // none (ADR 0091).
 func (t *Tx) JoinLabels(ctx context.Context, server string) (map[string]string, error) {

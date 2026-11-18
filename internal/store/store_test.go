@@ -336,6 +336,106 @@ func TestServers(t *testing.T) {
 	})
 }
 
+func TestExpireJoinToken(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		now := time.Now().Truncate(time.Millisecond)
+		earlier := now.Add(-time.Hour)
+		if err := db.Update(ctx, func(tx *Tx) error {
+			for _, j := range []JoinToken{
+				{ID: "jtk_wait", ExpiresAt: now.Add(time.Hour)},
+				{ID: "jtk_used", ExpiresAt: now.Add(time.Hour)},
+				{ID: "jtk_gone", ExpiresAt: earlier},
+			} {
+				j.SecretHash, j.CreatedAt, j.CreatedBy = []byte{1}, earlier, "cli"
+				if err := tx.CreateJoinToken(ctx, j); err != nil {
+					return err
+				}
+			}
+			if err := tx.CreateServer(ctx, Server{ID: "srv_1", Name: "a", CreatedAt: now, CertSerial: "1", CertNotAfter: now}); err != nil {
+				return err
+			}
+			return tx.MarkJoinTokenUsed(ctx, "jtk_used", "srv_1", now)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		err := db.Update(ctx, func(tx *Tx) error {
+			if err := tx.ExpireJoinToken(ctx, "jtk_wait", now); err != nil {
+				t.Errorf("expiring a waiting token = %v", err)
+			}
+			if err := tx.ExpireJoinToken(ctx, "jtk_used", now); !errors.Is(err, ErrConflict) {
+				t.Errorf("expiring a used token = %v, want ErrConflict", err)
+			}
+			if err := tx.ExpireJoinToken(ctx, "jtk_gone", now); err != nil {
+				t.Errorf("expiring an expired token = %v", err)
+			}
+			if err := tx.ExpireJoinToken(ctx, "jtk_none", now); !errors.Is(err, ErrNotFound) {
+				t.Errorf("expiring a missing token = %v, want ErrNotFound", err)
+			}
+			for want, id := range map[time.Time]string{now: "jtk_wait", now.Add(time.Hour): "jtk_used", earlier: "jtk_gone"} {
+				j, err := tx.GetJoinToken(ctx, id)
+				if err != nil {
+					return err
+				}
+				if !j.ExpiresAt.Equal(want) {
+					t.Errorf("%s expires %v, want %v", id, j.ExpiresAt, want)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestListWaitingJoinTokens(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, _ := storetest.Open(t, b)
+		ctx := t.Context()
+		now := time.Now().Truncate(time.Millisecond)
+		err := db.Update(ctx, func(tx *Tx) error {
+			for i, j := range []JoinToken{
+				{ID: "jtk_old", ExpiresAt: now.Add(time.Hour), Labels: map[string]string{"region": "eu"}},
+				{ID: "jtk_new", ExpiresAt: now.Add(2 * time.Hour)},
+				{ID: "jtk_used", ExpiresAt: now.Add(time.Hour)},
+				{ID: "jtk_gone", ExpiresAt: now.Add(-time.Minute)},
+			} {
+				j.SecretHash, j.CreatedAt, j.CreatedBy = []byte{1}, now.Add(time.Duration(i)*time.Minute), "cli"
+				if err := tx.CreateJoinToken(ctx, j); err != nil {
+					return err
+				}
+			}
+			if err := tx.CreateServer(ctx, Server{ID: "srv_1", Name: "a", CreatedAt: now, CertSerial: "1", CertNotAfter: now}); err != nil {
+				return err
+			}
+			return tx.MarkJoinTokenUsed(ctx, "jtk_used", "srv_1", now)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = db.View(ctx, func(tx *Tx) error {
+			got, err := tx.ListWaitingJoinTokens(ctx, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ids []string
+			for _, j := range got {
+				ids = append(ids, j.ID)
+			}
+			// Unused and not expired, newest first.
+			if strings.Join(ids, ",") != "jtk_new,jtk_old" {
+				t.Errorf("waiting = %v, want jtk_new,jtk_old", ids)
+			}
+			if len(got) == 2 && got[1].Labels["region"] != "eu" {
+				t.Errorf("jtk_old's labels = %v", got[1].Labels)
+			}
+			return nil
+		})
+	})
+}
+
 func TestJoinTokensAreSingleUse(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, b store.Backend) {
 		db, _ := storetest.Open(t, b)

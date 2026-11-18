@@ -128,12 +128,65 @@ func (s *Service) GetJoinTicket(ctx context.Context, req *connect.Request[dockwe
 	case tok.UsedAt != nil:
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_JOINED
 		out.ServerId, out.ServerName = tok.UsedBy, name
-	case !time.Now().Before(tok.ExpiresAt):
+	// By the clock Join, the list and revoke decide by, so the four agree (#800's re-check, N2).
+	case !s.ident.Now().Before(tok.ExpiresAt):
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED
 	default:
 		out.State = dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING
 	}
 	return connect.NewResponse(&dockwellv1.GetJoinTicketResponse{Ticket: out}), nil
+}
+
+// ListJoinTickets lists the tickets still waiting, newest first, without their secrets.
+func (s *Service) ListJoinTickets(ctx context.Context, _ *connect.Request[dockwellv1.ListJoinTicketsRequest]) (*connect.Response[dockwellv1.ListJoinTicketsResponse], error) {
+	if s.ident == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errNoTickets)
+	}
+	toks, err := s.ident.WaitingTickets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*dockwellv1.JoinTicket, 0, len(toks))
+	for i := range toks {
+		out = append(out, &dockwellv1.JoinTicket{
+			Id:         toks[i].ID,
+			State:      dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING,
+			ExpireTime: timestamppb.New(toks[i].ExpiresAt),
+			Labels:     toks[i].Labels,
+		})
+	}
+	return connect.NewResponse(&dockwellv1.ListJoinTicketsResponse{Tickets: out}), nil
+}
+
+// RevokeJoinTicket stops a waiting ticket working at once. It isn't managed state,
+// so it takes no plan, as revoking an API token takes none.
+func (s *Service) RevokeJoinTicket(ctx context.Context, req *connect.Request[dockwellv1.RevokeJoinTicketRequest]) (*connect.Response[dockwellv1.RevokeJoinTicketResponse], error) {
+	p, ok := authapi.PrincipalFrom(ctx)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, authapi.ReasonUnauthenticated)
+	}
+	if s.ident == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errNoTickets)
+	}
+	ref := strings.TrimSpace(req.Msg.GetId())
+	if !strings.HasPrefix(ref, id.JoinToken+"_") {
+		return nil, authapi.Invalid(fmt.Errorf("%q isn't a join ticket's ID, which starts %s_. Use the one CreateJoinTicket returned", ref, id.JoinToken))
+	}
+	tok, err := s.ident.RevokeTicket(ctx, p.Actor(), ref)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no join ticket %s, so there's nothing to stop. dockwell join-tickets list shows the ones waiting", ref))
+	case errors.Is(err, store.ErrConflict):
+		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("a server joined with join ticket %s already, so there's nothing to revoke. Remove the server from the fleet instead", ref))
+	case err != nil:
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.RevokeJoinTicketResponse{Ticket: &dockwellv1.JoinTicket{
+		Id:         tok.ID,
+		State:      dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED,
+		ExpireTime: timestamppb.New(tok.ExpiresAt),
+		Labels:     tok.Labels,
+	}}), nil
 }
 
 // joinAddresses says who reaches each address a ticket names: a name or a public

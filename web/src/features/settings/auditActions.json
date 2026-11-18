@@ -83,6 +83,7 @@
   "github_app.uninstall",
   "install.create",
   "join_token.create",
+  "join_token.revoke",
   "logs.read",
   "member.invite",
   "member.invite_revoke",

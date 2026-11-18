@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, createRouterTransport } from "@connectrpc/connect";
+import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
   ChangeSchema,
@@ -17,21 +17,23 @@ import {
   JoinTicketState,
   PlanAction,
   type PlanServerLabelsRequest,
+  Role,
   type Server,
   ServerInventorySchema,
+  ServerService,
   ServerStrain,
   StepUpAction,
   Surface,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
-import { authError, stubPasskeys } from "../../test/auth";
+import { authError, authState, mira, stubPasskeys } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
@@ -375,6 +377,7 @@ describe("Servers", () => {
       expireTime = inAnHour(),
     ) {
       const made: CreateJoinTicketRequest[] = [];
+      const revoked: string[] = [];
       const ticket = {
         id: "jtk_1",
         state: JoinTicketState.WAITING,
@@ -382,15 +385,24 @@ describe("Servers", () => {
         addresses: [{ url: "https://203.0.113.7:7443", reach }],
       };
       let read = 0;
+      // Each ticket made has an ID of its own, from jtk_1.
+      let minted = 0;
       return {
         made,
+        revoked,
         servers: {
           createJoinTicket: (req: CreateJoinTicketRequest) => {
             made.push(req);
             if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
-            return { ticket, value: "TICKET" };
+            minted++;
+            const labels = Object.fromEntries(req.labels.map((l) => l.split(":") as [string, string]));
+            return { ticket: { ...ticket, id: `jtk_${minted}`, labels }, value: `TICKET${minted > 1 ? minted : ""}` };
           },
           getJoinTicket: () => ({ ticket: { ...ticket, ...states[Math.min(read++, states.length - 1)] } }),
+          revokeJoinTicket: (req: { id: string }) => {
+            revoked.push(req.id);
+            return { ticket: { ...ticket, id: req.id, state: JoinTicketState.EXPIRED } };
+          },
         },
       };
     }
@@ -581,6 +593,193 @@ describe("Servers", () => {
       await vi.advanceTimersByTimeAsync(200);
       expect(within(sheet).queryByText("No command yet")).toBeNull();
       vi.useRealTimers();
+    });
+
+    it("stops the ticket new labels replace, keeps it for unchanged ones, and stops nothing on show as it closes", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await within(sheet).findByText("Waiting for the server to join");
+      expect(sheet).toHaveTextContent("Works once · expires in 59 min");
+
+      // Unchanged labels make nothing new.
+      await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
+      expect(within(sheet).queryByText("The command above stops working once the new one is made")).toBeNull();
+      await user.click(within(sheet).getByRole("button", { name: "Make it with these labels" }));
+      expect(api.made.filter((r) => r.proof)).toHaveLength(1);
+
+      // New ones make another, and the one they replace stops.
+      await user.click(within(sheet).getByRole("button", { name: "Add labels" }));
+      await user.type(within(sheet).getByRole("combobox", { name: /^Labels/ }), "region:eu{Enter}");
+      expect(within(sheet).getByText("The command above stops working once the new one is made")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Make it with these labels" }));
+      await within(sheet).findByText("Joins with");
+      await waitFor(() => expect(api.revoked).toEqual(["jtk_1"]));
+
+      // Closing stops nothing: the command on show may be pasted on the new server after.
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(api.revoked).toEqual(["jtk_1"]);
+    });
+
+    it("has the waiting commands read again once it makes one (#800)", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      const listJoinTickets = vi.fn(() => ({ tickets: [] }));
+      renderServers([web1, web2()], "/servers", {
+        ...release,
+        ...passkey([]),
+        servers: { ...api.servers, listJoinTickets },
+      });
+      await waitFor(() => expect(listJoinTickets).toHaveBeenCalled());
+      const before = listJoinTickets.mock.calls.length;
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      await within(await screen.findByRole("dialog", { name: "Add a server" })).findByText(
+        "Waiting for the server to join",
+      );
+      await waitFor(() => expect(listJoinTickets.mock.calls.length).toBeGreaterThan(before));
+    });
+
+    it("stops a ticket that arrives after the sheet closed, as nothing will show it", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      let answer: () => void = () => {};
+      const revoked: string[] = [];
+      renderServers([web1, web2()], "/servers", {
+        ...release,
+        ...passkey([]),
+        servers: {
+          createJoinTicket: (req: CreateJoinTicketRequest) => {
+            if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
+            return new Promise((resolve) => {
+              answer = () =>
+                resolve({
+                  ticket: {
+                    id: "jtk_late",
+                    state: JoinTicketState.WAITING,
+                    expireTime: timestampFromDate(new Date(Date.now() + 3_600_000)),
+                  },
+                  value: "TICKET",
+                });
+            });
+          },
+          getJoinTicket: () => ({ ticket: { id: "jtk_late", state: JoinTicketState.WAITING } }),
+          revokeJoinTicket: (req: { id: string }) => {
+            revoked.push(req.id);
+            return {};
+          },
+        },
+      });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a server" })).toBeNull());
+      answer();
+      await waitFor(() => expect(revoked).toEqual(["jtk_late"]));
+    });
+
+    it("stops a command bar's ticket nothing took once its time is up (#800's review, L4)", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const revoked: string[] = [];
+      const transport = createRouterTransport(({ service }) =>
+        service(ServerService, {
+          createJoinTicket: () => ({ ticket: { id: "jtk_lost", state: JoinTicketState.WAITING }, value: "TICKET" }),
+          revokeJoinTicket: (req) => {
+            revoked.push(req.id);
+            return {};
+          },
+        }),
+      );
+      const { handOverJoinTicket } = await import("./AddServerSheet");
+      handOverJoinTicket(transport);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(revoked).toEqual([]);
+      await vi.advanceTimersByTimeAsync(6_000);
+      await waitFor(() => expect(revoked).toEqual(["jtk_lost"]));
+    });
+
+    it("stops nothing a server joined with as the sheet closes", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [
+        {},
+        { state: JoinTicketState.JOINED, serverId: "srv_3", serverName: "web-3" },
+      ]);
+      renderServers([web1, web2()], "/servers", { ...release, ...passkey([]), servers: api.servers });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await within(sheet).findByText("web-3 joined, starting its agent", {}, { timeout: 5000 });
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(api.revoked).toEqual([]);
+    });
+
+    it("brings an open sheet to the front from the command bar, and makes nothing (#858's N4)", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      renderServers([web1, web2()], "/servers?add=1", { ...release, ...passkey([]), servers: api.servers });
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Show the command" }));
+      await within(sheet).findByText("Waiting for the server to join");
+      const before = api.made.length;
+      await user.keyboard("{Control>}k{/Control}");
+      await user.click(
+        await within(screen.getByRole("dialog", { name: "Command bar" })).findByRole("option", {
+          name: /Add a server/,
+        }),
+      );
+      await waitFor(() => expect(within(sheet).getByRole("button", { name: "Done" })).toHaveFocus());
+      expect(api.made).toHaveLength(before);
+      expect(api.revoked).toEqual([]);
+    });
+
+    it("keeps the command bar's ticket through a page that mounts twice, and stops one nothing took (#858's N2)", async () => {
+      stubPasskeys();
+      configure({ reactStrictMode: true });
+      try {
+        const user = userEvent.setup();
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        const first = renderServers([web1, web2()], "/servers/srv_1", {
+          ...release,
+          ...passkey([]),
+          servers: api.servers,
+        });
+        await screen.findByRole("heading", { level: 1, name: "web-1" });
+        await user.click(screen.getByRole("button", { name: "Search or run a command" }));
+        await user.click(
+          await within(screen.getByRole("dialog", { name: "Command bar" })).findByRole("option", {
+            name: /Add a server/,
+          }),
+        );
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText("Waiting for the server to join")).toBeVisible();
+        expect(api.made.filter((r) => r.proof)).toHaveLength(1);
+        first.unmount();
+      } finally {
+        configure({ reactStrictMode: false });
+      }
+
+      // Handed over, then let go of before anything took it: it's stopped once made.
+      const revoked: string[] = [];
+      const transport = createRouterTransport(({ service }) =>
+        service(ServerService, {
+          // Within the hour a passkey covers, it's made with no proof.
+          createJoinTicket: () => ({ ticket: { id: "jtk_9", state: JoinTicketState.WAITING }, value: "TICKET" }),
+          revokeJoinTicket: (req) => {
+            revoked.push(req.id);
+            return {};
+          },
+        }),
+      );
+      const { handOverJoinTicket, dropHandedJoinTicket } = await import("./AddServerSheet");
+      handOverJoinTicket(transport);
+      dropHandedJoinTicket();
+      await waitFor(() => expect(revoked).toEqual(["jtk_9"]));
     });
 
     it("says nothing was made when the passkey doesn't confirm it", async () => {
@@ -889,5 +1088,204 @@ describe("Servers", () => {
     const phone = renderServers([web1, web2({ connection: Connection.UNREACHABLE })]);
     await screen.findByRole("region", { name: "Chosen server" });
     await expectAccessible(phone.container);
+  });
+});
+
+describe("join commands waiting (#800)", () => {
+  const inMinutes = (m: number) => timestampFromDate(new Date(Date.now() + m * 60_000 + 30_000));
+  const waiting = (id: string, minutes: number) => ({
+    id,
+    state: JoinTicketState.WAITING,
+    expireTime: inMinutes(minutes),
+  });
+
+  it("says one is waiting, with Stop, which revokes it and the line goes", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_1", 52)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("1 join command waiting · expires in 52 min");
+    await user.click(within(band).getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull());
+    expect(revoked).toEqual(["jtk_1"]);
+  });
+
+  it("says how many wait and when the first expires, and Stop all revokes each", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_3", 40), waiting("jtk_2", 12), waiting("jtk_1", 55)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("3 join commands waiting · the first expires in 12 min");
+    await user.click(within(band).getByRole("button", { name: "Stop all" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull());
+    expect([...revoked].sort()).toEqual(["jtk_1", "jtk_2", "jtk_3"]);
+  });
+
+  it("says what a failed Stop means and what to do, and keeps the line", async () => {
+    const user = userEvent.setup();
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: [waiting("jtk_1", 30)] }),
+        revokeJoinTicket: () => {
+          throw new ConnectError("the control plane's store is read-only just now", Code.Unavailable);
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: "Stop" }));
+    expect(await within(band).findByRole("alert")).toHaveTextContent(
+      /^Couldn't stop 1 join command: .*read-only just now.* It works until it expires\. Try Stop again\.$/,
+    );
+    expect(band).toHaveTextContent("1 join command waiting");
+  });
+
+  it("counts a ticket that joined or went meanwhile as stopped, and explains only the rest (#800's review, M1)", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_1", 40), waiting("jtk_2", 12), waiting("jtk_3", 55)];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          if (req.id === "jtk_1") {
+            open = open.filter((w) => w.id !== "jtk_1");
+            throw new ConnectError(
+              "a server joined with join ticket jtk_1 already, so there's nothing to revoke. Remove the server from the fleet instead",
+              Code.FailedPrecondition,
+            );
+          }
+          if (req.id === "jtk_2") throw new ConnectError("the store is read-only just now", Code.Unavailable);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: "Stop all" }));
+    const alert = await within(band).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /^Couldn't stop 1 join command: .*read-only just now.* It works until it expires\. Try Stop again\.$/,
+    );
+    expect(alert).not.toHaveTextContent("Remove the server");
+    expect(band).toHaveTextContent("1 join command waiting · expires in 12 min");
+  });
+
+  it("opens into a row each, with its expiry, its labels and its own Stop (#800's review, M2)", async () => {
+    const user = userEvent.setup();
+    let open = [{ ...waiting("jtk_2", 40), labels: { region: "eu", pool: "web" } }, waiting("jtk_1", 12)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    const toggle = within(band).getByRole("button", { name: /2 join commands waiting/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    const rows = within(within(band).getByRole("list", { name: "Join commands waiting, one by one" })).getAllByRole(
+      "listitem",
+    );
+    expect(rows.map((r) => r.textContent)).toEqual(["Expires in 40 minpool:webregion:euStop", "Expires in 12 minStop"]);
+    await user.click(
+      within(rows[0] as HTMLElement).getByRole("button", {
+        name: "Stop the join command for pool:web region:eu that expires in 40 min",
+      }),
+    );
+    await waitFor(() => expect(band).toHaveTextContent("1 join command waiting · expires in 12 min"));
+    expect(revoked).toEqual(["jtk_2"]);
+    expect(within(band).getByRole("button", { name: "Stop" })).toBeVisible();
+  });
+
+  it("names each row's Stop apart, and opens its rows only when asked (#800's re-check, N1, N3)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let open = [waiting("jtk_2", 30), waiting("jtk_1", 30)];
+    let read = 0;
+    const listJoinTickets = vi.fn(() => {
+      read++;
+      return { tickets: open };
+    });
+    renderServers([web1, web2()], "/servers", { servers: { listJoinTickets } });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: /2 join commands waiting/ }));
+    // Two made in the same minute, with no labels: told apart by their place.
+    expect(
+      within(band).getByRole("button", { name: "Stop join command 1 of 2, which expires in 30 min" }),
+    ).toBeVisible();
+    expect(
+      within(band).getByRole("button", { name: "Stop join command 2 of 2, which expires in 30 min" }),
+    ).toBeVisible();
+
+    // Down to one, then two again: the rows stay closed until asked.
+    open = [waiting("jtk_2", 30)];
+    const reads = read;
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    await waitFor(() => expect(read).toBeGreaterThan(reads));
+    await waitFor(() => expect(band).toHaveTextContent("1 join command waiting"));
+    open = [waiting("jtk_3", 50), waiting("jtk_2", 30)];
+    const again = read;
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    await waitFor(() => expect(read).toBeGreaterThan(again));
+    const toggle = await within(band).findByRole("button", { name: /2 join commands waiting/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(band).queryByRole("list")).toBeNull();
+  });
+
+  it("shows what the server lists, though the browser's clock has run past it (#800's review, L3)", async () => {
+    renderServers([web1, web2()], "/servers", {
+      // The server, by its own clock, still lists it; the browser's says it expired a while ago.
+      servers: { listJoinTickets: () => ({ tickets: [{ ...waiting("jtk_1", -30) }] }) },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("1 join command waiting · expires in 1 min");
+  });
+
+  it("isn't there with none waiting, nor for someone who may not read them", async () => {
+    const listJoinTickets = vi.fn(() => ({ tickets: [] }));
+    const { unmount } = renderServers([web1, web2()], "/servers", { servers: { listJoinTickets } });
+    await waitFor(() => expect(listJoinTickets).toHaveBeenCalled());
+    expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull();
+    unmount();
+
+    const asked = vi.fn(() => ({ tickets: [waiting("jtk_1", 30)] }));
+    renderServers([web1, web2()], "/servers", {
+      servers: { listJoinTickets: asked },
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+    });
+    await screen.findByRole("heading", { level: 1, name: "Servers" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(asked).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull();
   });
 });

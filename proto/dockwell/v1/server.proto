@@ -35,7 +35,7 @@ service ServerService {
   };
   option (dockwell.v1.nouns) = {
     name: "join-tickets"
-    help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server."
+    help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, GetJoinTicket says whether a server has used it, ListJoinTickets lists the ones still waiting, and RevokeJoinTicket stops one. dockwell token create makes the same ticket on the control server."
   };
 
   // ListServers returns every server, connected or not, without history.
@@ -157,6 +157,44 @@ service ServerService {
     };
     option (google.api.http) = {get: "/v1/joinTickets/{id}"};
   }
+
+  // ListJoinTickets lists the tickets still waiting for a server, newest first:
+  // unused, and not expired or revoked. It never returns a ticket itself. The
+  // Servers page shows them with Stop, and dockwell join-tickets list prints them.
+  rpc ListJoinTickets(ListJoinTicketsRequest) returns (ListJoinTicketsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "join-tickets"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/joinTickets"};
+  }
+
+  // RevokeJoinTicket stops a waiting ticket working at once: no server joins with
+  // it from then on, and GetJoinTicket reads it as expired. One that has expired
+  // already stays so. One a server joined with can't be revoked, as the server
+  // joined: remove the server instead. The panel revokes what nobody can still be
+  // using: a ticket new labels replace, and one made after its sheet closed. It isn't
+  // managed state, so it takes no plan, as revoking an API token takes none. It's on
+  // the activity log.
+  rpc RevokeJoinTicket(RevokeJoinTicketRequest) returns (RevokeJoinTicketResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "join-tickets"
+      verb: "revoke"
+    };
+    option (google.api.http) = {
+      post: "/v1/joinTickets/{id}:revoke"
+      body: "*"
+    };
+  }
   // WatchSystemServices streams a server's system services, its systemd units
   // or its OpenRC services, about every 10 s for as long as it's open: each
   // with its state, whether it starts at boot, since when, and for one that
@@ -241,6 +279,27 @@ message GetJoinTicketRequest {
 // GetJoinTicketResponse carries the ticket as it stands.
 message GetJoinTicketResponse {
   // The ticket, without its secret.
+  JoinTicket ticket = 1;
+}
+
+// ListJoinTicketsRequest asks for the tickets still waiting.
+message ListJoinTicketsRequest {}
+
+// ListJoinTicketsResponse carries the waiting tickets, newest first.
+message ListJoinTicketsResponse {
+  // Each ticket as GetJoinTicket reads it, without its secret.
+  repeated JoinTicket tickets = 1;
+}
+
+// RevokeJoinTicketRequest names a waiting ticket to stop.
+message RevokeJoinTicketRequest {
+  // The ticket's ID, from CreateJoinTicket.
+  string id = 1;
+}
+
+// RevokeJoinTicketResponse carries the ticket as it stands once revoked.
+message RevokeJoinTicketResponse {
+  // The ticket, without its secret: expired, as revoked.
   JoinTicket ticket = 1;
 }
 

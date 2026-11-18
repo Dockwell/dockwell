@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The join commands still waiting, as one quiet line above the fleet, with Stop at its end. */
+.servers-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.servers-waiting-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.servers-waiting-line .dw-btn {
+  margin-inline-start: auto;
+}
+
+.servers-waiting-glyph {
+  display: inline-flex;
+}
+
+.servers-waiting-failed {
+  margin: 0;
+  color: var(--critical);
+}
+
+/* With several, the line opens into a row each. */
+.servers-waiting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.servers-waiting-toggle:hover {
+  color: var(--ink);
+}
+
+.servers-waiting-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.servers-waiting-rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 0 0 calc(8px + var(--space-2));
+  list-style: none;
+}
+
+.servers-waiting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  border-top: 1px solid var(--line);
+}
+
+.servers-waiting-labels {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.servers-waiting-row .dw-btn {
+  margin-inline-start: auto;
+}

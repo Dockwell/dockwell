@@ -15,6 +15,7 @@ import {
 } from "@dockwell/api";
 import { Button, Callout, Sheet, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -27,9 +28,10 @@ import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import { installCommand } from "../updates/updates";
 import { LabelsField } from "./LabelsField";
-import { labelTexts } from "./labels";
+import { labelText, labelTexts } from "./labels";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { useFleet } from "./useFleet";
+import { waitingJoinTicketsKey } from "./WaitingJoinTickets";
 import "./ServersPage.css";
 
 /**
@@ -63,30 +65,62 @@ export function startJoinTicket(transport: Transport, labels: readonly string[] 
   return started;
 }
 
+/** Stops a ticket once it's made, if it's made: for one nothing will show, or the sheet let go of. */
+function revokeOnceMade(transport: Transport, started: JoinStart): void {
+  const client = createClient(ServerService, transport);
+  started.then((res) => (res.ticket ? client.revokeJoinTicket({ id: res.ticket.id }) : undefined)).catch(() => {});
+}
+
 /**
  * A ticket a click elsewhere started, such as the command bar's, for the Servers page
- * to take as its address asks for the sheet. It lives a few seconds and is taken once,
- * so no later visit to that address finds one (#800's review, M1).
+ * to take as its address asks for the sheet. Taking it is idempotent, so a page that
+ * mounts twice, as React's StrictMode has it, gets the same ticket both times (#858's
+ * N2). It lives a few seconds: one nothing took by then, or that the sheet let go of
+ * untaken, is revoked, so no later visit to that address finds one, and none is left
+ * working that nothing showed (#800's review, M1).
  */
-let handed: { started: JoinStart; at: number } | undefined;
+let handed: { started: JoinStart; at: number; taken: boolean; transport: Transport } | undefined;
 
 /** How long a handed ticket waits to be taken, which a page change takes well within. */
 const HANDED_FOR_MS = 10_000;
 
 /** Starts a ticket in a click that goes to /servers?add, which the page takes as it opens the sheet. */
 export function handOverJoinTicket(transport: Transport): void {
-  handed = { started: startJoinTicket(transport), at: Date.now() };
+  dropHandedJoinTicket();
+  const it = { started: startJoinTicket(transport), at: Date.now(), taken: false, transport };
+  handed = it;
+  // Nothing took it in its time, as when the tab closed or the page went elsewhere: it's stopped then, not at
+  // the next hand-off (#800's review, L4).
+  window.setTimeout(() => {
+    if (handed === it && !it.taken) dropHandedJoinTicket();
+  }, HANDED_FOR_MS);
 }
 
-/** Lets go of a ticket nobody took, as when the sheet closes. */
+/** Lets go of a handed ticket, as when the sheet closes, and revokes it if nothing took it. */
 export function dropHandedJoinTicket(): void {
+  const it = handed;
   handed = undefined;
+  if (it && !it.taken) revokeOnceMade(it.transport, it.started);
 }
 
 function takeHandedJoinTicket(): JoinStart | undefined {
   const it = handed;
-  handed = undefined;
-  return it && Date.now() - it.at < HANDED_FOR_MS ? it.started : undefined;
+  if (!it) return undefined;
+  if (Date.now() - it.at >= HANDED_FOR_MS) {
+    dropHandedJoinTicket();
+    return undefined;
+  }
+  it.taken = true;
+  return it.started;
+}
+
+/** Brings an Add server sheet that's open to the front, where one is, so a second asks nothing (#858's N4). */
+let focusOpenSheet: (() => void) | undefined;
+
+/** Whether an Add server sheet is open, which it then brings to the front. */
+export function focusAddServerSheet(): boolean {
+  focusOpenSheet?.();
+  return focusOpenSheet !== undefined;
 }
 
 /**
@@ -189,14 +223,32 @@ export function AddServerSheet({
         ),
     );
   };
+  // The Servers page's list of waiting commands reads again whenever this makes or stops one.
+  const queryClient = useQueryClient();
+  const readWaitingAgain = () => void queryClient.invalidateQueries({ queryKey: waitingJoinTicketsKey });
+  const revoke = (id: string) =>
+    void client
+      .revokeJoinTicket({ id })
+      .then(readWaitingAgain)
+      .catch(() => {});
   const take = async (asked: JoinStart) => {
     setBusy(true);
     setFailure(undefined);
     try {
       const res = await asked;
       if (res.ticket) {
+        // Made after the sheet closed, nothing will show it: it stops at once.
+        if (!open.current) {
+          revoke(res.ticket.id);
+          return;
+        }
+        // The one new labels replace stops as this one shows (#800's review, M2).
+        const before = live.current;
+        live.current = { id: res.ticket.id, waiting: true };
+        if (before?.waiting && before.id !== res.ticket.id) revoke(before.id);
         setMade({ ticket: res.ticket, value: res.value });
         setLabelling(false);
+        readWaitingAgain();
       }
     } catch (err) {
       if (err instanceof StepUpDeclined) return;
@@ -209,6 +261,35 @@ export function AddServerSheet({
       setBusy(false);
     }
   };
+
+  // The ticket on show, and whether it still waits: new labels stop the one they replace (#800's review, M2).
+  const live = useRef<{ id: string; waiting: boolean }>(undefined);
+  const open = useRef(true);
+  useEffect(() => {
+    if (live.current) live.current.waiting = state === JoinTicketState.WAITING;
+  }, [state]);
+  const done = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    open.current = true;
+    // While it's open, Add a server in the command bar brings it to the front rather than making another (#858's N4).
+    // After the command bar has closed and given focus back to where it was.
+    focusOpenSheet = () => window.setTimeout(() => done.current?.focus(), 0);
+    // Closing stops nothing on show: a person copies the command, closes this, and pastes it on the new
+    // server, which must work. What nobody can still be using is stopped: the ticket new labels replace,
+    // and one that arrives after this closed.
+    return () => {
+      open.current = false;
+      focusOpenSheet = undefined;
+    };
+  }, []);
+  // Labels as they are now and as the ticket has them, so unchanged ones make nothing new (#858's N4).
+  const sameLabels =
+    made !== undefined &&
+    [...labelTexts(labels)].sort().join(" ") ===
+      Object.keys(made.ticket.labels)
+        .sort()
+        .map((k) => labelText(k, made.ticket.labels[k] ?? ""))
+        .join(" ");
 
   // The command on open (#800): what the opening click started, taken once.
   const taken = useRef<JoinStart>(undefined);
@@ -328,13 +409,20 @@ export function AddServerSheet({
         {labelling ? (
           <div className="servers-add-labelling">
             {labelsField}
-            {/* A ticket can't be taken back yet, so the one above keeps working (#800's review, M2). */}
-            <span className="servers-add-meta">{t`The command above still works until it expires`}</span>
+            {sameLabels ? null : (
+              <span className="servers-add-meta">{t`The command above stops working once the new one is made`}</span>
+            )}
             <div className="servers-add-make">
               <Button size="sm" variant="ghost" onClick={() => setLabelling(false)}>
                 <Trans>Cancel</Trans>
               </Button>
-              <Button size="sm" icon="key" loading={busy} onClick={() => make()} {...mayMake.off}>
+              <Button
+                size="sm"
+                icon="key"
+                loading={busy}
+                onClick={() => (sameLabels ? setLabelling(false) : make())}
+                {...mayMake.off}
+              >
                 <Trans>Make it with these labels</Trans>
               </Button>
             </div>
@@ -416,7 +504,7 @@ export function AddServerSheet({
       onClose={onClose}
       className="servers-add"
       footer={
-        <Button variant={state === JoinTicketState.JOINED ? "primary" : "secondary"} onClick={onClose}>
+        <Button ref={done} variant={state === JoinTicketState.JOINED ? "primary" : "secondary"} onClick={onClose}>
           <Trans>Done</Trans>
         </Button>
       }

@@ -58,6 +58,12 @@ const (
 	// ServerServiceGetJoinTicketProcedure is the fully-qualified name of the ServerService's
 	// GetJoinTicket RPC.
 	ServerServiceGetJoinTicketProcedure = "/dockwell.v1.ServerService/GetJoinTicket"
+	// ServerServiceListJoinTicketsProcedure is the fully-qualified name of the ServerService's
+	// ListJoinTickets RPC.
+	ServerServiceListJoinTicketsProcedure = "/dockwell.v1.ServerService/ListJoinTickets"
+	// ServerServiceRevokeJoinTicketProcedure is the fully-qualified name of the ServerService's
+	// RevokeJoinTicket RPC.
+	ServerServiceRevokeJoinTicketProcedure = "/dockwell.v1.ServerService/RevokeJoinTicket"
 	// ServerServiceWatchSystemServicesProcedure is the fully-qualified name of the ServerService's
 	// WatchSystemServices RPC.
 	ServerServiceWatchSystemServicesProcedure = "/dockwell.v1.ServerService/WatchSystemServices"
@@ -110,6 +116,18 @@ type ServerServiceClient interface {
 	// GetJoinTicket says whether a ticket is still waiting for a server, which server
 	// joined with it, or that it expired. It never returns the ticket itself.
 	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
+	// ListJoinTickets lists the tickets still waiting for a server, newest first:
+	// unused, and not expired or revoked. It never returns a ticket itself. The
+	// Servers page shows them with Stop, and dockwell join-tickets list prints them.
+	ListJoinTickets(context.Context, *connect.Request[v1.ListJoinTicketsRequest]) (*connect.Response[v1.ListJoinTicketsResponse], error)
+	// RevokeJoinTicket stops a waiting ticket working at once: no server joins with
+	// it from then on, and GetJoinTicket reads it as expired. One that has expired
+	// already stays so. One a server joined with can't be revoked, as the server
+	// joined: remove the server instead. The panel revokes what nobody can still be
+	// using: a ticket new labels replace, and one made after its sheet closed. It isn't
+	// managed state, so it takes no plan, as revoking an API token takes none. It's on
+	// the activity log.
+	RevokeJoinTicket(context.Context, *connect.Request[v1.RevokeJoinTicketRequest]) (*connect.Response[v1.RevokeJoinTicketResponse], error)
 	// WatchSystemServices streams a server's system services, its systemd units
 	// or its OpenRC services, about every 10 s for as long as it's open: each
 	// with its state, whether it starts at boot, since when, and for one that
@@ -209,6 +227,19 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listJoinTickets: connect.NewClient[v1.ListJoinTicketsRequest, v1.ListJoinTicketsResponse](
+			httpClient,
+			baseURL+ServerServiceListJoinTicketsProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("ListJoinTickets")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		revokeJoinTicket: connect.NewClient[v1.RevokeJoinTicketRequest, v1.RevokeJoinTicketResponse](
+			httpClient,
+			baseURL+ServerServiceRevokeJoinTicketProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("RevokeJoinTicket")),
+			connect.WithClientOptions(opts...),
+		),
 		watchSystemServices: connect.NewClient[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse](
 			httpClient,
 			baseURL+ServerServiceWatchSystemServicesProcedure,
@@ -241,6 +272,8 @@ type serverServiceClient struct {
 	setServerPublicAddress *connect.Client[v1.SetServerPublicAddressRequest, v1.SetServerPublicAddressResponse]
 	createJoinTicket       *connect.Client[v1.CreateJoinTicketRequest, v1.CreateJoinTicketResponse]
 	getJoinTicket          *connect.Client[v1.GetJoinTicketRequest, v1.GetJoinTicketResponse]
+	listJoinTickets        *connect.Client[v1.ListJoinTicketsRequest, v1.ListJoinTicketsResponse]
+	revokeJoinTicket       *connect.Client[v1.RevokeJoinTicketRequest, v1.RevokeJoinTicketResponse]
 	watchSystemServices    *connect.Client[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse]
 	readSystemLog          *connect.Client[v1.ReadSystemLogRequest, v1.ReadSystemLogResponse]
 	watchSystemLog         *connect.Client[v1.WatchSystemLogRequest, v1.WatchSystemLogResponse]
@@ -284,6 +317,16 @@ func (c *serverServiceClient) CreateJoinTicket(ctx context.Context, req *connect
 // GetJoinTicket calls dockwell.v1.ServerService.GetJoinTicket.
 func (c *serverServiceClient) GetJoinTicket(ctx context.Context, req *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error) {
 	return c.getJoinTicket.CallUnary(ctx, req)
+}
+
+// ListJoinTickets calls dockwell.v1.ServerService.ListJoinTickets.
+func (c *serverServiceClient) ListJoinTickets(ctx context.Context, req *connect.Request[v1.ListJoinTicketsRequest]) (*connect.Response[v1.ListJoinTicketsResponse], error) {
+	return c.listJoinTickets.CallUnary(ctx, req)
+}
+
+// RevokeJoinTicket calls dockwell.v1.ServerService.RevokeJoinTicket.
+func (c *serverServiceClient) RevokeJoinTicket(ctx context.Context, req *connect.Request[v1.RevokeJoinTicketRequest]) (*connect.Response[v1.RevokeJoinTicketResponse], error) {
+	return c.revokeJoinTicket.CallUnary(ctx, req)
 }
 
 // WatchSystemServices calls dockwell.v1.ServerService.WatchSystemServices.
@@ -342,6 +385,18 @@ type ServerServiceHandler interface {
 	// GetJoinTicket says whether a ticket is still waiting for a server, which server
 	// joined with it, or that it expired. It never returns the ticket itself.
 	GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error)
+	// ListJoinTickets lists the tickets still waiting for a server, newest first:
+	// unused, and not expired or revoked. It never returns a ticket itself. The
+	// Servers page shows them with Stop, and dockwell join-tickets list prints them.
+	ListJoinTickets(context.Context, *connect.Request[v1.ListJoinTicketsRequest]) (*connect.Response[v1.ListJoinTicketsResponse], error)
+	// RevokeJoinTicket stops a waiting ticket working at once: no server joins with
+	// it from then on, and GetJoinTicket reads it as expired. One that has expired
+	// already stays so. One a server joined with can't be revoked, as the server
+	// joined: remove the server instead. The panel revokes what nobody can still be
+	// using: a ticket new labels replace, and one made after its sheet closed. It isn't
+	// managed state, so it takes no plan, as revoking an API token takes none. It's on
+	// the activity log.
+	RevokeJoinTicket(context.Context, *connect.Request[v1.RevokeJoinTicketRequest]) (*connect.Response[v1.RevokeJoinTicketResponse], error)
 	// WatchSystemServices streams a server's system services, its systemd units
 	// or its OpenRC services, about every 10 s for as long as it's open: each
 	// with its state, whether it starts at boot, since when, and for one that
@@ -437,6 +492,19 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceListJoinTicketsHandler := connect.NewUnaryHandler(
+		ServerServiceListJoinTicketsProcedure,
+		svc.ListJoinTickets,
+		connect.WithSchema(serverServiceMethods.ByName("ListJoinTickets")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	serverServiceRevokeJoinTicketHandler := connect.NewUnaryHandler(
+		ServerServiceRevokeJoinTicketProcedure,
+		svc.RevokeJoinTicket,
+		connect.WithSchema(serverServiceMethods.ByName("RevokeJoinTicket")),
+		connect.WithHandlerOptions(opts...),
+	)
 	serverServiceWatchSystemServicesHandler := connect.NewServerStreamHandler(
 		ServerServiceWatchSystemServicesProcedure,
 		svc.WatchSystemServices,
@@ -474,6 +542,10 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceCreateJoinTicketHandler.ServeHTTP(w, r)
 		case ServerServiceGetJoinTicketProcedure:
 			serverServiceGetJoinTicketHandler.ServeHTTP(w, r)
+		case ServerServiceListJoinTicketsProcedure:
+			serverServiceListJoinTicketsHandler.ServeHTTP(w, r)
+		case ServerServiceRevokeJoinTicketProcedure:
+			serverServiceRevokeJoinTicketHandler.ServeHTTP(w, r)
 		case ServerServiceWatchSystemServicesProcedure:
 			serverServiceWatchSystemServicesHandler.ServeHTTP(w, r)
 		case ServerServiceReadSystemLogProcedure:
@@ -519,6 +591,14 @@ func (UnimplementedServerServiceHandler) CreateJoinTicket(context.Context, *conn
 
 func (UnimplementedServerServiceHandler) GetJoinTicket(context.Context, *connect.Request[v1.GetJoinTicketRequest]) (*connect.Response[v1.GetJoinTicketResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetJoinTicket is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) ListJoinTickets(context.Context, *connect.Request[v1.ListJoinTicketsRequest]) (*connect.Response[v1.ListJoinTicketsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.ListJoinTickets is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) RevokeJoinTicket(context.Context, *connect.Request[v1.RevokeJoinTicketRequest]) (*connect.Response[v1.RevokeJoinTicketResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.RevokeJoinTicket is not implemented"))
 }
 
 func (UnimplementedServerServiceHandler) WatchSystemServices(context.Context, *connect.Request[v1.WatchSystemServicesRequest], *connect.ServerStream[v1.WatchSystemServicesResponse]) error {

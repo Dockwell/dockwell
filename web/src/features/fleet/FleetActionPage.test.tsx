@@ -253,6 +253,33 @@ describe("New fleet action", () => {
     expect(pages).toContain("p2");
   });
 
+  it("reads its recent actions once for a few minutes, not again on a remount (#858's N3)", async () => {
+    const asked: number[] = [];
+    const { router } = renderFleetAction([control, alpha, bravo], "/fleet-actions", {
+      changes: {
+        listChanges: (req: { pageSize: number }) => {
+          asked.push(req.pageSize);
+          return {
+            changes: [
+              create(ChangeSchema, {
+                id: "chg_1",
+                summary: "Reboot alpha and bravo",
+                plan: planned("Reboot alpha and bravo").plan,
+                state: ChangeState.APPLIED,
+              }),
+            ],
+          };
+        },
+      },
+    });
+    await screen.findByRole("region", { name: "Recent fleet actions" });
+    await router.navigate({ to: "/servers" });
+    await router.navigate({ to: "/fleet-actions" });
+    await screen.findByRole("region", { name: "Recent fleet actions" });
+    // The panel's own reads ask 200 a page; the command bar's are its own.
+    expect(asked.filter((n) => n === 200)).toHaveLength(1);
+  });
+
   it("matches nothing while the selector has a term it can't read", async () => {
     renderFleetAction([control, alpha, bravo], "/fleet-actions?selector=pool%3Aweb+bad%21term");
     expect(await screen.findByText("No server matches while the selector has a term it can't read")).toBeVisible();

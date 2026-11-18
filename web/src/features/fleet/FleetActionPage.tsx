@@ -769,6 +769,7 @@ function Summary({
 /** How many fleet actions the panel lists, and how many pages of changes it reads at most to find them. */
 const RECENT = 5;
 const RECENT_PAGES = 25;
+const RECENT_STALE_MS = 5 * 60_000;
 
 /** A change that ran over a fleet in waves: applied, failed or running, not a plan nobody applied. */
 function fleetAction(c: Change): boolean {
@@ -792,6 +793,10 @@ function RecentFleetActions() {
     // (#800's re-check, N1).
     queryKey: ["connect-query", { serviceName: ChangeService.typeName, methodName: "RecentFleetActions" }],
     retry: false,
+    // A look can read 25 pages, so a remount or the window's focus keeps what it read for a few minutes; a
+    // change applied still reads it again, as its key is ChangeService's (#858's N3).
+    staleTime: RECENT_STALE_MS,
+    refetchOnWindowFocus: false,
     queryFn: async ({ signal }) => {
       const client = createClient(ChangeService, transport);
       const found: Change[] = [];
