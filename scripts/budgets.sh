@@ -224,7 +224,6 @@ connections() {
   done
 }
 
-
 # run measures a control plane of the full build $2 and an agent of the
 # agent build $3, called $4, as run $1, and writes their figures to
 # $work/$1/figures.
