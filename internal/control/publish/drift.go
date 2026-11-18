@@ -7,10 +7,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -122,6 +125,135 @@ func (p *Publisher) Watch(ctx context.Context, logger *slog.Logger) {
 // marks what it finds: still published, gone, or changed. Nothing is fixed: a domain
 // gone says so, with Put it back as a plan (ADR 0104, section 4).
 func (p *Publisher) Drift(ctx context.Context) error {
+	return p.readOnce(ctx, "")
+}
+
+// syncFor bounds a Sync's read, which goes on if the person who asked leaves, as
+// whoever joined it waits for it too.
+const syncFor = 2 * time.Minute
+
+// SlowDownError is a Sync refused while Cloudflare asks Dockwell to wait.
+type SlowDownError struct {
+	// Until is when Dockwell reads Cloudflare again.
+	Until time.Time
+	now   time.Time
+}
+
+func (e *SlowDownError) Error() string {
+	wait := max(e.Until.Sub(e.now).Round(time.Second), time.Second)
+	return fmt.Sprintf("Cloudflare said too many requests, so Dockwell waits before it reads again. Sync again in %s", wait)
+}
+
+// Sync reads now what Dockwell keeps at one DNS provider, as the drift timer does for
+// all of them (#820). A read already running that covers the provider is joined, not
+// repeated; while Cloudflare asks Dockwell to wait, it refuses with when to try again.
+func (p *Publisher) Sync(ctx context.Context, provider string) error {
+	now := p.now()
+	p.cache.mu.Lock()
+	until := p.cache.slow
+	p.cache.mu.Unlock()
+	if now.Before(until) {
+		return &SlowDownError{Until: until, now: now}
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), syncFor)
+	defer cancel()
+	return p.readOnce(ctx, provider)
+}
+
+// drifting is the drift read under way, if one is: the timer's, of every provider, or
+// a Sync's, of one.
+type drifting struct {
+	mu  sync.Mutex
+	run *driftRun
+	// joined is told of each read that joins one under way, for a test to wait on.
+	joined func(provider string)
+	// readAt is when each provider was last read whole, by name. It's kept here, not
+	// on each row, as a read that finds nothing new writes nothing; the timer reads
+	// once as the control plane starts.
+	readAt map[string]time.Time
+}
+
+// OnJoin tells joined of each read that joins one under way rather than reading
+// again, with the provider it asked for, empty for every one: a test's hook.
+func (p *Publisher) OnJoin(joined func(provider string)) {
+	p.drifting.mu.Lock()
+	p.drifting.joined = joined
+	p.drifting.mu.Unlock()
+}
+
+type driftRun struct {
+	// provider is the one it reads; empty reads every one.
+	provider string
+	done     chan struct{}
+	err      error
+}
+
+// readOnce reads provider, or every provider for empty, one read at a time: a read
+// that comes while another covers what it would read joins it, and one that doesn't
+// waits for it and then reads.
+func (p *Publisher) readOnce(ctx context.Context, provider string) error {
+	for {
+		p.drifting.mu.Lock()
+		run := p.drifting.run
+		if run == nil {
+			run = &driftRun{provider: provider, done: make(chan struct{})}
+			p.drifting.run = run
+			p.drifting.mu.Unlock()
+			var read []string
+			read, run.err = p.drift(ctx, provider)
+			p.drifting.mu.Lock()
+			p.drifting.run = nil
+			if run.err == nil {
+				if p.drifting.readAt == nil {
+					p.drifting.readAt = map[string]time.Time{}
+				}
+				for _, name := range read {
+					p.drifting.readAt[name] = p.now()
+				}
+			}
+			p.drifting.mu.Unlock()
+			close(run.done)
+			return run.err
+		}
+		if joined := p.drifting.joined; joined != nil {
+			joined(provider)
+		}
+		p.drifting.mu.Unlock()
+		select {
+		case <-run.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if run.provider == "" || run.provider == provider {
+			return run.err
+		}
+	}
+}
+
+// Managed says how many records Dockwell keeps at provider, not counting one still
+// being written, and when it last read what it keeps there whole, or nil before it
+// has since the control plane started.
+func (p *Publisher) Managed(ctx context.Context, provider string) (records int32, readAt *time.Time, err error) {
+	p.drifting.mu.Lock()
+	if at, ok := p.drifting.readAt[provider]; ok {
+		readAt = &at
+	}
+	p.drifting.mu.Unlock()
+	err = p.DB.View(ctx, func(tx *store.Tx) error {
+		all, err := tx.CloudflareRecordsAll(ctx)
+		for i := range all {
+			if all[i].Provider == provider && all[i].Type != store.CloudflarePendingType {
+				records++
+			}
+		}
+		return err
+	})
+	return records, readAt, err
+}
+
+// drift is one read of provider, or of every provider for empty, and says which
+// providers it read.
+func (p *Publisher) drift(ctx context.Context, provider string) (read []string, err error) {
 	var rules []store.CloudflareRule
 	var records []store.CloudflareRecord
 	if err := p.DB.View(ctx, func(tx *store.Tx) error {
@@ -132,7 +264,11 @@ func (p *Publisher) Drift(ctx context.Context) error {
 		records, err = tx.CloudflareRecordsAll(ctx)
 		return err
 	}); err != nil {
-		return err
+		return nil, err
+	}
+	if provider != "" {
+		rules = slices.DeleteFunc(rules, func(r store.CloudflareRule) bool { return r.Provider != provider })
+		records = slices.DeleteFunc(records, func(r store.CloudflareRecord) bool { return r.Provider != provider })
 	}
 	// Each tunnel and zone is read on its own: one that fails says so and the rest
 	// are read. Once Cloudflare says too many requests, the tick ends, leaving the
@@ -153,7 +289,7 @@ func (p *Publisher) Drift(ctx context.Context) error {
 	for tunnel, held := range byTunnel {
 		if err := p.driftTunnel(ctx, tunnel, held); err != nil {
 			if tooMany(err) {
-				return err
+				return nil, err
 			}
 			errs = append(errs, err)
 		}
@@ -167,12 +303,24 @@ func (p *Publisher) Drift(ctx context.Context) error {
 	for _, held := range byZone {
 		if err := p.driftZone(ctx, held); err != nil {
 			if tooMany(err) {
-				return err
+				return nil, err
 			}
 			errs = append(errs, err)
 		}
 	}
-	return errors.Join(errs...)
+	// What it read is every provider a row names, and the one asked for, which may
+	// keep nothing yet.
+	names := map[string]bool{}
+	if provider != "" {
+		names[provider] = true
+	}
+	for i := range rules {
+		names[rules[i].Provider] = true
+	}
+	for i := range records {
+		names[records[i].Provider] = true
+	}
+	return slices.Sorted(maps.Keys(names)), errors.Join(errs...)
 }
 
 func (p *Publisher) driftTunnel(ctx context.Context, tunnel string, held []store.CloudflareRule) error {

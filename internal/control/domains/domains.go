@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -84,6 +85,12 @@ type CloudflareChecker interface {
 	// ZoneRecordsAt is what a connected zone holds at name, from one listing of the
 	// zone kept a while; inZone says a connected zone holds it.
 	ZoneRecordsAt(ctx context.Context, name string) (recs []dnsproviders.Record, inZone bool, err error)
+	// Managed says how many records Dockwell keeps at a provider, and when it last
+	// read them, or nil before it has.
+	Managed(ctx context.Context, provider string) (records int32, readAt *time.Time, err error)
+	// Sync reads now what Dockwell keeps at a provider, joining a read already
+	// running; while Cloudflare asks Dockwell to wait, a *publish.SlowDownError.
+	Sync(ctx context.Context, provider string) error
 }
 
 var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)

@@ -153,6 +153,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DomainService.listCertificates": "unused",
   "DomainService.checkDomain": "may",
   "DomainService.listDnsProviders": "read",
+  "DomainService.syncDnsProvider": "may",
   "DomainService.checkSigninProvider": "may",
   "DomainService.listDomains": "read",
   "DomainService.listSigninProviders": "read",

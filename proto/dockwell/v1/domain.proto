@@ -89,6 +89,20 @@ service DomainService {
     option (google.api.http) = {get: "/v1/dnsProviders"};
   }
 
+  // SyncDnsProvider reads, now, what Dockwell keeps at a DNS provider, as the drift
+  // timer does every five minutes: each tunnel it wrote a rule in and each zone's
+  // records it wrote, and marks what it finds. It changes nothing there. A read
+  // already running, the timer's or another Sync's, is joined, not repeated, and
+  // while Cloudflare says too many requests it waits for that to pass (#820). An
+  // admin's, as a provider is install-wide.
+  rpc SyncDnsProvider(SyncDnsProviderRequest) returns (SyncDnsProviderResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {post: "/v1/dnsProviders/{id}:sync"};
+  }
+
   // CheckDnsProvider checks a DNS provider's token from the control plane, as a
   // certificate would use it, and saves nothing: with a token as typed, or a
   // saved provider's again. It lists the zones the token reaches, and in each
@@ -248,6 +262,18 @@ message ListDnsProvidersResponse {
   repeated DnsProviderInfo providers = 1;
 }
 
+// SyncDnsProviderRequest names the DNS provider to read now.
+message SyncDnsProviderRequest {
+  // The provider's ID.
+  string id = 1;
+}
+
+// SyncDnsProviderResponse holds the provider as the read left it.
+message SyncDnsProviderResponse {
+  // With managed_records and read_at as of the read.
+  DnsProviderInfo provider = 1;
+}
+
 // DnsProviderInfo is a DNS provider, without its token.
 message DnsProviderInfo {
   // Its ID, dnp_….
@@ -271,6 +297,12 @@ message DnsProviderInfo {
   // The zones it set to Full (strict), and keeps so: an admin's alone. A form that
   // changes the provider sends them back, or the plan puts their mode back.
   repeated string strict_zones = 8;
+  // How many DNS records Dockwell wrote and keeps at it, made or taken on, not
+  // counting one still being written: an admin's alone (#820).
+  int32 managed_records = 9;
+  // When Dockwell last read what it keeps at it, as the drift timer or Sync now
+  // does; unset before the first read: an admin's alone (#820).
+  google.protobuf.Timestamp read_at = 10;
 }
 
 // KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).

@@ -2716,6 +2716,38 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/dnsProviders/{id}:sync:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                SyncDnsProvider reads, now, what Dockwell keeps at a DNS provider, as the drift
+                 timer does every five minutes: each tunnel it wrote a rule in and each zone's
+                 records it wrote, and marks what it finds. It changes nothing there. A read
+                 already running, the timer's or another Sync's, is joined, not repeated, and
+                 while Cloudflare says too many requests it waits for that to pass (#820). An
+                 admin's, as a provider is install-wide.
+            operationId: DomainService_SyncDnsProvider
+            parameters:
+                - name: id
+                  in: path
+                  description: The provider's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SyncDnsProviderResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/dnsProviders:check:
         post:
             tags:
@@ -14461,6 +14493,18 @@ components:
                     description: |-
                         The zones it set to Full (strict), and keeps so: an admin's alone. A form that
                          changes the provider sends them back, or the plan puts their mode back.
+                managedRecords:
+                    type: integer
+                    description: |-
+                        How many DNS records Dockwell wrote and keeps at it, made or taken on, not
+                         counting one still being written: an admin's alone (#820).
+                    format: int32
+                readAt:
+                    type: string
+                    description: |-
+                        When Dockwell last read what it keeps at it, as the drift timer or Sync now
+                         does; unset before the first read: an admin's alone (#820).
+                    format: date-time
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object
@@ -27792,6 +27836,14 @@ components:
                  with no password, as an address no list names. A request from there can't be
                  told apart from a stranger's where the server is on the route's list, or where
                  the route answers only proxies the server isn't.
+        SyncDnsProviderResponse:
+            type: object
+            properties:
+                provider:
+                    allOf:
+                        - $ref: '#/components/schemas/DnsProviderInfo'
+                    description: With managed_records and read_at as of the read.
+            description: SyncDnsProviderResponse holds the provider as the read left it.
         SystemLogLine:
             type: object
             properties:

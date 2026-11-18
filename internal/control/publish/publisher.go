@@ -70,6 +70,8 @@ type Publisher struct {
 
 	// cache keeps what a live check reads that changes slowly.
 	cache cache
+	// drifting is the drift read under way, which another joins (#820).
+	drifting drifting
 }
 
 var _ revision.Publisher = (*Publisher)(nil)
