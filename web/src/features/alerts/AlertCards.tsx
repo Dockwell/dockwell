@@ -21,13 +21,13 @@ import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime, formatDay } from "../../lib/format";
-import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useActorWords } from "../activity/actor";
 import { alertTitle } from "../activity/describe";
 import { useSignedInUser } from "../auth/useAuthState";
 import { trend } from "../servers/history";
 import { useControlPlaneNow, useFleet } from "../servers/useFleet";
+import { AlertActions } from "./AlertActions";
 
 /** What an alert is about, as its card's mark draws it. */
 const MARK: Partial<Record<Condition, IconName>> = {
@@ -203,7 +203,8 @@ function AlertCard({
         ) : null}
         <MemoryTrend alert={alert} server={server} />
       </div>
-      {alert.detail ? <p className="alerts-card-detail">{alert.detail}</p> : null}
+      {/* What to do, as buttons: the detail's sentence of what to check is what these do (#794). */}
+      <AlertActions alert={alert} />
       <div className="alerts-card-foot">
         {/* A status, so a change of who has it is said to someone who can't see it change. */}
         <span role="status" className={cx("alerts-card-seen", by === undefined && "alerts-muted")}>
@@ -227,7 +228,7 @@ function AlertCard({
         <span className="alerts-muted">
           <code>{alert.ruleName}</code>
           {" · "}
-          {alert.muted ? t`Held by a mute` : sent ? t`Sent ${sent}` : t`Nothing sent`}
+          <Sending alert={alert} sent={sent} />
         </span>
         {mine ? (
           <Button
@@ -250,7 +251,6 @@ function AlertCard({
             {by === undefined ? <Trans>Acknowledge</Trans> : <Trans>Take over</Trans>}
           </Button>
         )}
-        <Inspect alert={alert} title={title} />
       </div>
       {failed ? (
         <Callout
@@ -270,68 +270,15 @@ function AlertCard({
   );
 }
 
-/** The way to what an alert is about: its app, its server, its change, or the list it's in. */
-function Inspect({ alert, title }: { alert: Alert; title: string }) {
+/**
+ * Whether what an alert sent reached anyone: held by a mute, nothing sent, sent at
+ * a time, or failed to send where no channel took its newest message (#794).
+ */
+export function Sending({ alert, sent }: { alert: Alert; sent: string }) {
   const { t } = useLingui();
-  const label = t`Inspect: ${title}`;
-  const words = (
-    <>
-      <Trans>Inspect</Trans>
-      <Icon name="arrow-right" size={14} />
-    </>
-  );
-  const small = { size: "sm" as const, "aria-label": label };
-  switch (alert.condition) {
-    case Condition.SERVICE_DOWN:
-    case Condition.UPDATE_AVAILABLE:
-      if (!alert.subjectId) break;
-      return (
-        <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: alert.subjectId }} {...small}>
-          {words}
-        </RouterButtonLink>
-      );
-    case Condition.CHANGE_FAILED:
-      if (!alert.subjectId) break;
-      return (
-        <RouterButtonLink to="/changes/$changeId" params={{ changeId: alert.subjectId }} {...small}>
-          {words}
-        </RouterButtonLink>
-      );
-    case Condition.CERTIFICATE_EXPIRING:
-    case Condition.CERTIFICATE_FAILED:
-    case Condition.DOMAIN_UNPUBLISHED:
-      return (
-        <RouterButtonLink to="/domains" {...small}>
-          {words}
-        </RouterButtonLink>
-      );
-    case Condition.BACKUP_FAILED:
-    case Condition.BACKUP_LATE:
-    case Condition.RESTORE_DRILL_FAILED:
-    case Condition.RESTORE_DRILL_LATE:
-      return (
-        <RouterButtonLink to="/backups" {...small}>
-          {words}
-        </RouterButtonLink>
-      );
-    case Condition.CATALOG_SOURCE_STUCK:
-      return (
-        <RouterButtonLink to="/catalog/sources" {...small}>
-          {words}
-        </RouterButtonLink>
-      );
-  }
-  // Whatever else it's about is on a server, and so is an app or a change the alert doesn't name by ID.
-  // With nowhere better, the alert's own page.
-  return alert.serverId ? (
-    <RouterButtonLink to="/servers/$serverId" params={{ serverId: alert.serverId }} {...small}>
-      {words}
-    </RouterButtonLink>
-  ) : (
-    <RouterButtonLink to="/alerts/$alertId" params={{ alertId: alert.id }} {...small}>
-      {words}
-    </RouterButtonLink>
-  );
+  if (alert.muted) return <>{t`Held by a mute`}</>;
+  if (alert.undelivered) return <span className="alerts-undelivered">{t`Failed to send`}</span>;
+  return <>{sent ? t`Sent ${sent}` : t`Nothing sent`}</>;
 }
 
 /** A server's memory over the minutes the control plane keeps, for an alert that's about it, while it reports. */

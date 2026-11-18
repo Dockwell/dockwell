@@ -7,12 +7,14 @@ import {
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
 import { Button, SegmentedControl, SelectField, Sheet, Switch } from "@dockwell/ui";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { useChannels } from "./useAlerts";
+import { useChannels, useRules } from "./useAlerts";
 
 /** What a condition takes, as internal/resource/alert checks a rule. */
 const PERCENT = new Set([Condition.DISK_FULL, Condition.MEMORY_HIGH]);
@@ -43,21 +45,81 @@ function minutesOf(d: string): number {
   return Number(h ?? 0) * 60 + Number(m ?? 0);
 }
 
+/** What a new rule can watch for, in the words its picker says, in the order it lists them. */
+export const CONDITIONS: readonly { condition: Condition; label: MessageDescriptor; name: string }[] = [
+  { condition: Condition.SERVICE_DOWN, label: msg`An app is down`, name: "app-down" },
+  { condition: Condition.CHECK_DOWN, label: msg`An uptime check fails`, name: "check-down" },
+  { condition: Condition.SERVER_UNREACHABLE, label: msg`A server stops answering`, name: "server-unreachable" },
+  { condition: Condition.DISK_FULL, label: msg`A disk fills up`, name: "disk-full" },
+  { condition: Condition.MEMORY_HIGH, label: msg`Memory runs high`, name: "memory-high" },
+  {
+    condition: Condition.CERTIFICATE_EXPIRING,
+    label: msg`A certificate is about to expire`,
+    name: "certificate-expiring",
+  },
+  { condition: Condition.CERTIFICATE_FAILED, label: msg`A certificate can't be renewed`, name: "certificate-failed" },
+  { condition: Condition.DOMAIN_UNPUBLISHED, label: msg`A published domain goes missing`, name: "domain-unpublished" },
+  { condition: Condition.BACKUP_FAILED, label: msg`A backup fails`, name: "backup-failed" },
+  { condition: Condition.BACKUP_LATE, label: msg`A backup is late`, name: "backup-late" },
+  { condition: Condition.RESTORE_DRILL_FAILED, label: msg`A restore drill fails`, name: "drill-failed" },
+  { condition: Condition.RESTORE_DRILL_LATE, label: msg`A restore drill is late`, name: "drill-late" },
+  { condition: Condition.CHANGE_FAILED, label: msg`A change fails`, name: "change-failed" },
+  { condition: Condition.UPDATE_AVAILABLE, label: msg`An app has an update`, name: "update-available" },
+  { condition: Condition.CATALOG_SOURCE_STUCK, label: msg`A catalog source is stuck`, name: "catalog-source-stuck" },
+];
+
+/** What makes two rules fire on the same thing, as the control plane fills in what they leave out. */
+function sameKey(spec: {
+  condition: Condition;
+  threshold: number;
+  duration: string;
+  channels: readonly string[];
+}): string {
+  const threshold = spec.threshold || defaultThreshold(spec.condition);
+  const duration = NO_DURATION.has(spec.condition)
+    ? ""
+    : spec.duration || (spec.condition === Condition.BACKUP_LATE ? DEFAULT_LATE : "");
+  return [spec.condition, threshold, minutesOf(duration), [...spec.channels].sort().join(",")].join("|");
+}
+
 /**
- * Changes a rule, as a plan: on or off, the level and how long it has to hold, how
+ * Another rule that watches for the same thing, at the same level, after the same
+ * wait and to the same channels: a hint, as two rules may differ in what they say
+ * (#794). Off rules count too, as turning one on makes the pair.
+ */
+export function sameAs(
+  spec: { condition: Condition; threshold: number; duration: string; channels: readonly string[] },
+  rules: readonly AlertRuleInfo[],
+  name: string,
+): AlertRuleInfo | undefined {
+  const key = sameKey(spec);
+  return rules.find((r) => r.name !== name && r.spec && sameKey(r.spec) === key);
+}
+
+/** A name no rule has, from what it watches for: "disk-full", then "disk-full-2". */
+function freeName(base: string, rules: readonly AlertRuleInfo[]): string {
+  const taken = new Set(rules.map((r) => r.name));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+}
+
+/**
+ * Changes a rule, as a plan, or makes a new one where there's no rule: on or off, the level and how long it has to hold, how
  * much it matters, where it sends and how often it says it again. Each choice is
  * from the values the control plane takes for that condition; a value set some other
  * way, as with the CLI, stays on the list as it is.
  */
-export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () => void }) {
+export function RuleSheet({ rule, onClose }: { rule?: AlertRuleInfo; onClose: () => void }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   // A rule is the install's, in no project.
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   const channels = useChannels().data?.channels ?? [];
-  const spec = rule.spec;
-  const ruleName = rule.name;
-  const condition = spec?.condition ?? Condition.UNSPECIFIED;
+  const rules = useRules().data?.rules ?? [];
+  const spec = rule?.spec;
+  const [picked, setPicked] = useState(CONDITIONS[0]?.condition ?? Condition.SERVICE_DOWN);
+  const condition = spec?.condition ?? picked;
+  const ruleName = rule?.name ?? freeName(CONDITIONS.find((c) => c.condition === condition)?.name ?? "rule", rules);
   const [on, setOn] = useState(!spec?.disabled);
   // What's shown is what's planned: an empty level or wait starts at the default the control plane would fill in,
   // so a rule left as it was plans no change either way.
@@ -96,15 +158,27 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
     }
   };
   const withCurrent = (list: string[], current: string) => (list.includes(current) ? list : [current, ...list]);
+  // A new rule starts at what its condition defaults to, as the picker moves.
+  const pick = (next: Condition) => {
+    setPicked(next);
+    setThreshold(defaultThreshold(next));
+    setDuration(next === Condition.BACKUP_LATE ? DEFAULT_LATE : "");
+    setRepeat("");
+  };
+  const twin = sameAs({ condition, threshold, duration, channels: some ? named : [] }, rules, ruleName);
   const listFormat = new Intl.ListFormat(i18n.locale, { style: "short", type: "conjunction" });
 
   const review = () =>
     sheet.open({
       kind: "propose",
-      summary: on ? t`Change the alert rule ${ruleName}` : t`Turn off the alert rule ${ruleName}`,
+      summary: !rule
+        ? t`Add the alert rule ${ruleName}`
+        : on
+          ? t`Change the alert rule ${ruleName}`
+          : t`Turn off the alert rule ${ruleName}`,
       edits: [
         {
-          resource: { kind: "alert.rule", name: rule.name },
+          resource: { kind: "alert.rule", name: ruleName },
           spec: {
             kind: {
               case: "alertRule",
@@ -130,8 +204,8 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
     <Sheet
       open
       onClose={onClose}
-      title={rule.title}
-      subtitle={rule.expression}
+      title={rule ? rule.title : t`New rule`}
+      subtitle={rule ? rule.expression : ruleName}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -144,12 +218,27 @@ export function RuleSheet({ rule, onClose }: { rule: AlertRuleInfo; onClose: () 
       }
     >
       <div className="alerts-sheet">
-        <Switch
-          checked={on}
-          onChange={setOn}
-          label={t`Watch for this`}
-          description={on ? undefined : t`Nothing fires, and what's open now resolves.`}
-        />
+        {rule ? (
+          <Switch
+            checked={on}
+            onChange={setOn}
+            label={t`Watch for this`}
+            description={on ? undefined : t`Nothing fires, and what's open now resolves.`}
+          />
+        ) : (
+          <SelectField
+            label={t`Watch for`}
+            value={String(condition)}
+            options={CONDITIONS.map((c) => ({ value: String(c.condition), label: i18n._(c.label) }))}
+            onChange={(event) => pick(Number(event.target.value) as Condition)}
+          />
+        )}
+        {twin ? (
+          // A hint, never a block: two rules may differ in what they say or how often.
+          <p className="alerts-sheet-twin" role="status">
+            {t`Same as ${twin.name}, which watches for this already`}
+          </p>
+        ) : null}
         {on ? (
           <>
             <div className="alerts-sheet-row">

@@ -404,8 +404,11 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               <Trans>Remove</Trans>
             </Button>
           ) : null}
-          <Button variant="secondary" disabled={!canSend || testing} onClick={() => void test()} {...mayTest.off}>
+          <Button variant="ghost" disabled={!canSend || testing} onClick={() => void test()} {...mayTest.off}>
             {testing ? <Trans>Sending a test…</Trans> : <Trans>Send a test</Trans>}
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
+            <Trans>Cancel</Trans>
           </Button>
           <Button variant="primary" disabled={!canSend} onClick={review} {...mayPlan.off}>
             <Trans>Review plan</Trans>

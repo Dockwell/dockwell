@@ -513,7 +513,8 @@ describe("Alerts and rules", () => {
     expect(within(card).getByRole("heading", { level: 3 })).toHaveTextContent("web fails its health check on hz-1");
     expect(card).toHaveTextContent("Critical");
     expect(card).toHaveTextContent("app-down");
-    expect(within(card).getByRole("link", { name: /^Inspect: web fails/ })).toHaveAttribute("href", "/apps/svc_web");
+    // What to do is a button, never a sentence of what to check (#794).
+    expect(within(card).getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/apps/svc_web");
     // What resolved is beside it, with the way to the rest.
     const resolved = screen.getByRole("complementary", { name: "Resolved" });
     const [today, before] = within(resolved).getAllByRole("listitem");
@@ -579,9 +580,15 @@ describe("Alerts and rules", () => {
     expect(second).toHaveTextContent("Held by a mute");
     // 7.5 of 8 GiB, from the minutes the control plane keeps.
     expect(await within(second as HTMLElement).findByRole("img", { name: "Memory on hz-1, now 94%" })).toBeVisible();
-    expect(within(second as HTMLElement).getByRole("link", { name: /^Inspect: hz-1 uses/ })).toHaveAttribute(
+    expect(within(second as HTMLElement).getByRole("link", { name: "Open the server" })).toHaveAttribute(
       "href",
       "/servers/srv_1",
+    );
+    // A server gone quiet copies the command that starts its agent again, and opens it.
+    expect(within(first as HTMLElement).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
+    expect(within(first as HTMLElement).getByRole("link", { name: "Open the server" })).toHaveAttribute(
+      "href",
+      "/servers/srv_2",
     );
     // Nothing resolved, so nothing beside them says so.
     expect(screen.queryByRole("complementary", { name: "Resolved" })).toBeNull();
@@ -975,7 +982,7 @@ describe("Alerts and rules", () => {
     const open = await screen.findByRole("region", { name: "Open" });
     expect(screen.queryByRole("table")).toBeNull();
     const alert = within(open).getByRole("article");
-    expect(alert).toHaveTextContent("Its visitors get an error there.");
+    expect(alert).not.toHaveTextContent("Its visitors get an error there.");
     expect(alert).toHaveTextContent("Critical");
     expect(alert).toHaveTextContent("app-down");
     first.unmount();

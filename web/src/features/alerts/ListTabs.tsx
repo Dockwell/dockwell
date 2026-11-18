@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type AlertRuleInfo, AlertState, AlertRule_Severity as Severity } from "@dockwell/api";
-import { PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import { Button, Icon, PHONE_QUERY, StatusBadge, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -11,7 +11,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 import { OpenAlerts, ResolvedAlerts } from "./AlertCards";
 import { AlertsPage } from "./AlertsPage";
-import { RuleSheet } from "./RuleSheet";
+import { RuleSheet, sameAs } from "./RuleSheet";
 import { useAlerts, useChannels, useRules } from "./useAlerts";
 
 function SeverityBadge({ severity }: { severity: Severity | undefined }) {
@@ -78,8 +78,16 @@ export function RulesTab() {
   const phone = useMediaQuery(PHONE_QUERY);
   const rules = useRules();
   const channels = useChannels().data?.channels ?? [];
-  const [editing, setEditing] = useState<AlertRuleInfo>();
+  const [editing, setEditing] = useState<AlertRuleInfo | "new">();
   const list = rules.data?.rules ?? [];
+  // A rule that repeats another says so, as a hint: either may go (#794).
+  const twinOf = (r: AlertRuleInfo) => (r.spec ? sameAs(r.spec, list, r.name) : undefined);
+  const twinTag = (r: AlertRuleInfo) => {
+    const twin = twinOf(r);
+    if (!twin) return null;
+    const other = twin.name;
+    return <Tag words>{t`Same as ${other}`}</Tag>;
+  };
   const sendsTo = (r: AlertRuleInfo) => {
     const named = r.spec?.channels ?? [];
     if (channels.length === 0) return t`No channel yet`;
@@ -98,7 +106,9 @@ export function RulesTab() {
       header: t`Rule`,
       render: (r) => (
         <div className="dw-cell">
-          <span className="dw-cell-title">{r.title}</span>
+          <span className="dw-cell-title">
+            {r.title} {twinTag(r)}
+          </span>
           <code className="alerts-channel-sub">{r.expression}</code>
         </div>
       ),
@@ -113,7 +123,23 @@ export function RulesTab() {
     { key: "to", header: t`Sends to`, width: 200, muted: true, render: sendsTo },
   ];
   return (
-    <AlertsPage>
+    <AlertsPage
+      actions={
+        <Button variant="primary" icon="plus" onClick={() => setEditing("new")}>
+          <Trans>New rule</Trans>
+        </Button>
+      }
+      phoneAction={
+        <button
+          type="button"
+          className="mobile-header-button"
+          aria-label={t`New rule`}
+          onClick={() => setEditing("new")}
+        >
+          <Icon name="plus" size={20} />
+        </button>
+      }
+    >
       {rules.error ? (
         <ReadFailed error={rules.error} title={t`Can't load the rules`} />
       ) : !rules.data ? null : phone ? (
@@ -121,7 +147,9 @@ export function RulesTab() {
           {list.map((r) => (
             <li key={r.id} className="alerts-phone-row">
               <button type="button" className="alerts-phone-item alerts-phone-button" onClick={() => setEditing(r)}>
-                <span className="alerts-phone-title">{r.title}</span>
+                <span className="alerts-phone-title">
+                  {r.title} {twinTag(r)}
+                </span>
                 <code className="alerts-channel-sub">{r.expression}</code>
                 <span className="alerts-phone-meta">
                   {severity(r)}
@@ -136,7 +164,9 @@ export function RulesTab() {
       ) : (
         <Table columns={columns} rows={list} caption={t`Alert rules`} onRowClick={(r) => setEditing(r)} />
       )}
-      {editing ? <RuleSheet rule={editing} onClose={() => setEditing(undefined)} /> : null}
+      {editing ? (
+        <RuleSheet rule={editing === "new" ? undefined : editing} onClose={() => setEditing(undefined)} />
+      ) : null}
     </AlertsPage>
   );
 }

@@ -129,6 +129,8 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
     }
   };
 
+  const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
+  const browserZoneName = browserZone.replaceAll("_", " ");
   const zoneOptions = [
     { value: "", label: t`Not set: UTC` },
     ...zones().map((z) => ({ value: z, label: z.replaceAll("_", " ") })),
@@ -165,6 +167,22 @@ function InstallPanel({ settings }: { settings: Settings | undefined }) {
             setSaved(false);
           }}
         />
+        {/* Unset reads as UTC: this browser's zone is one click away, saved as any setting is (#794). */}
+        {shownZone === "" && browserZone && browserZone !== "UTC" ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="general-zone-use"
+            onClick={() => {
+              setZone(browserZone);
+              setZoneError(undefined);
+              setSaved(false);
+            }}
+            {...maySave.off}
+          >
+            {t`Use ${browserZoneName}, this browser's zone`}
+          </Button>
+        ) : null}
         <div className="general-foot">
           <span className="general-note" role="status">
             {saved && !changedName && !changedZone

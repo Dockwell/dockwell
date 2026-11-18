@@ -19,7 +19,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessible } from "../../test/a11y";
 import { applied, changeEvent, webPlanned } from "../../test/changes";
 import { type Api, onPhone, renderAt } from "../../test/render";
-import { messagesAbout } from "./AlertPage";
 
 const NOW = Date.now();
 const ago = (minutes: number) => timestampFromDate(new Date(NOW - minutes * 60_000));
@@ -83,14 +82,15 @@ function api(alerts: ReturnType<typeof down>[], more: Api = {}): Api {
         rules: [{ id: "alr_1", name: "app-down", title: "App down", expression: "service.health != healthy" }],
       }),
       listAlertChannels: () => ({ channels: [] }),
-      listAlertDeliveries: () => ({
-        deliveries: [
-          delivery("web fails its health check on hz-1", 19),
-          delivery("web fails its health check on hz-1", 19, false, "ops-hook"),
-          // Another alert's, and this one's title from a day ago, which aren't about this one.
-          delivery("api fails its health check on hz-1", 18),
-          delivery("web fails its health check on hz-1", 60 * 24),
-        ],
+      // The control plane keeps an alert's own messages, which it lists for it alone (#794).
+      listAlertDeliveries: (req) => ({
+        deliveries:
+          req.alertId === "alt_1"
+            ? [
+                delivery("web fails its health check on hz-1", 19),
+                delivery("web fails its health check on hz-1", 19, false, "ops-hook"),
+              ]
+            : [],
       }),
       ...more.alerts,
     },
@@ -173,7 +173,9 @@ describe("an alert's page", () => {
     // Above the title, apart from the rail's.
     expect(container.querySelector("a.alerts-back")).toHaveAttribute("href", "/alerts");
     const saw = screen.getByRole("region", { name: "What the rule saw" });
-    expect(saw).toHaveTextContent("Its visitors get an error there.");
+    // What to do is buttons, not the detail's sentence of what to check (#794).
+    expect(saw).not.toHaveTextContent("Its visitors get an error there.");
+    expect(within(saw).getByRole("link", { name: "Open the app" })).toHaveAttribute("href", "/apps/svc_web");
     expect(saw).toHaveTextContent("Open for20 min");
     // The rule's own words and expression, once the rules are read.
     await waitFor(() => expect(saw).toHaveTextContent("RuleApp down · service.health != healthy"));
@@ -190,7 +192,10 @@ describe("an alert's page", () => {
     const listEvents = vi.fn(api([]).events?.listEvents as () => object);
     renderAt("/alerts/alt_1", api([down()], { events: { listEvents } }));
     const before = await screen.findByRole("region", { name: "What changed before it fired" });
-    await within(before).findByText("Deploy web 1.5");
+    // The newest change before it fired is marked as what likely set it off.
+    const trigger = await within(before).findByRole("link", { name: "Deploy web 1.5" });
+    expect(trigger).toHaveAttribute("href", "/changes/chg_bad");
+    expect(trigger.closest("p")).toHaveTextContent("Likely trigger");
     // Not the deploy of five hours ago, nor the one made since.
     expect(before).not.toHaveTextContent("Deploy web 1.4");
     expect(before).not.toHaveTextContent("Roll web back");
@@ -210,6 +215,39 @@ describe("an alert's page", () => {
     await within(own).findByText("Acknowledged the alert: web fails its health check on hz-1");
     expect(within(own).getByText("Alert opened: web fails its health check on hz-1")).toBeVisible();
     expect(within(own).getAllByText(/web fails its health check on hz-1/)).toHaveLength(2);
+  });
+
+  it("says when no channel took what it sent", async () => {
+    renderAt("/alerts/alt_1", api([down({ undelivered: true })]));
+    const saw = await screen.findByRole("region", { name: "What the rule saw" });
+    expect(saw).toHaveTextContent("SendingFailed to send");
+  });
+
+  it("reads only its own events where it's about neither an app nor a server", async () => {
+    const listEvents = vi.fn(() => ({ events: [] }));
+    renderAt(
+      "/alerts/alt_1",
+      api(
+        [
+          down({
+            condition: Condition.CHECK_DOWN,
+            subjectId: "achk_1",
+            subjectName: "shop",
+            serverId: "",
+            serverName: "",
+            where: "shop.example.com",
+            variant: "",
+          }),
+        ],
+        { events: { listEvents } },
+      ),
+    );
+    await waitFor(() => expect(listEvents).toHaveBeenCalled());
+    expect((listEvents.mock.calls as unknown as [object][])[0]?.[0]).toMatchObject({
+      resourceId: "",
+      serverId: "",
+      kinds: [EventKind.ALERT],
+    });
   });
 
   it("lists the messages about it, by what they said and when, and how each went", async () => {
@@ -293,22 +331,5 @@ describe("an alert's page", () => {
       resourceId: "",
       serverId: "srv_1",
     });
-  });
-});
-
-describe("messagesAbout", () => {
-  it("takes an alert's firing and resolved messages, and no other time's or alert's", () => {
-    const alert = down({ state: AlertState.RESOLVED, resolveTime: ago(2) });
-    const got = messagesAbout(alert, [
-      delivery("web fails its health check on hz-1", 19),
-      delivery("Resolved: web fails its health check on hz-1", 2),
-      delivery("api fails its health check on hz-1", 19),
-      delivery("web fails its health check on hz-1", 21),
-      delivery("Test message", 10),
-    ]);
-    expect(got.map((d) => d.about)).toEqual([
-      "web fails its health check on hz-1",
-      "Resolved: web fails its health check on hz-1",
-    ]);
   });
 });

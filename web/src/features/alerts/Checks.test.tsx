@@ -97,7 +97,7 @@ describe("Checks of a URL", () => {
       "/alerts/checks",
       api(() => [blog, shop]),
     );
-    const table = await screen.findByRole("table", { name: "Checks" });
+    const table = await screen.findByRole("table", { name: "Uptime checks" });
     const up = within(table).getByRole("row", { name: /shop\.example\.com/ });
     expect(up).toHaveTextContent("Up");
     expect(up).toHaveTextContent("200 in 142 ms");
@@ -107,20 +107,20 @@ describe("Checks of a URL", () => {
     expect(down).toHaveTextContent(/since/);
     expect(down).toHaveTextContent("502, outside 200 to 399");
     expect(within(down).getByRole("img", { name: "Last 2 runs" })).toBeVisible();
-    expect(screen.getByRole("link", { name: /Checks/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Uptime checks/ })).toHaveAttribute("aria-current", "page");
     await expectAccessible(container);
   });
 
-  it("offers Watch an address in the phone header", async () => {
+  it("offers New uptime check in the phone header", async () => {
     onPhone();
     const user = userEvent.setup();
     renderAt(
       "/alerts/checks",
       api(() => [aCheck("shop-example-com", "https://shop.example.com/")]),
     );
-    expect(await screen.findByRole("list", { name: "Checks" })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Watch an address" }));
-    expect(await screen.findByRole("dialog", { name: "Watch this address" })).toBeVisible();
+    expect(await screen.findByRole("list", { name: "Uptime checks" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "New uptime check" }));
+    expect(await screen.findByRole("dialog", { name: "New uptime check" })).toBeVisible();
   });
 
   it("says nothing is watched yet, and how to start", async () => {
@@ -129,7 +129,7 @@ describe("Checks of a URL", () => {
       api(() => []),
     );
     expect(await screen.findByText("No address is watched yet")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Watch an address" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "New uptime check" })).toBeVisible();
   });
 
   it("watches an address on its defaults, with a plan, and shows its first answer", async () => {
@@ -159,8 +159,8 @@ describe("Checks of a URL", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Watch an address" }));
-    const sheet = await screen.findByRole("dialog", { name: "Watch this address" });
+    await user.click(await screen.findByRole("button", { name: "New uptime check" }));
+    const sheet = await screen.findByRole("dialog", { name: "New uptime check" });
     // The defaults in one line, with Change one step away.
     expect(within(sheet).getByText("Every minute · down after 2 failures · alerts every channel")).toBeVisible();
     const review = within(sheet).getByRole("button", { name: "Review plan" });
@@ -228,7 +228,7 @@ describe("Checks of a URL", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Checks" });
+    const table = await screen.findByRole("table", { name: "Uptime checks" });
     await user.click(within(table).getByRole("row", { name: /shop\.example\.com/ }));
     const sheet = await screen.findByRole("dialog", { name: "shop-example-com" });
     await user.click(within(sheet).getByRole("button", { name: /Change/ }));
@@ -265,8 +265,8 @@ describe("Checks of a URL", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Watch an address" }));
-    const sheet = await screen.findByRole("dialog", { name: "Watch this address" });
+    await user.click(await screen.findByRole("button", { name: "New uptime check" }));
+    const sheet = await screen.findByRole("dialog", { name: "New uptime check" });
     expect(within(sheet).getByText(/leave tokens and passwords out of it/)).toBeVisible();
     await user.type(within(sheet).getByLabelText("Address"), "http://intranet.example.com/");
     await user.click(within(sheet).getByRole("button", { name: /Change/ }));
@@ -301,7 +301,7 @@ describe("Checks of a URL", () => {
       "/alerts/checks",
       api(() => [intranet, lost]),
     );
-    const table = await screen.findByRole("table", { name: "Checks" });
+    const table = await screen.findByRole("table", { name: "Uptime checks" });
     const inside = within(table).getByRole("row", { name: /intranet\.example\.com/ });
     expect(inside).toHaveTextContent("Inside the network");
     expect(inside).toHaveTextContent("skipped: all 16 runs at once were taken");
@@ -328,7 +328,7 @@ describe("Checks of a URL", () => {
         },
       }),
     );
-    const table = await screen.findByRole("table", { name: "Checks" });
+    const table = await screen.findByRole("table", { name: "Uptime checks" });
     await user.click(within(table).getByRole("row", { name: /shop\.example\.com/ }));
     const sheet = await screen.findByRole("dialog", { name: "shop-example-com" });
     await user.click(within(sheet).getByRole("button", { name: "Stop watching" }));
@@ -356,7 +356,7 @@ describe("Checks of a URL", () => {
       }),
     );
     expect(await screen.findByRole("link", { name: /Rules/ })).toBeVisible();
-    expect(screen.queryByRole("link", { name: /Checks/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Uptime checks/ })).toBeNull();
     expect(listAlertChecks).not.toHaveBeenCalled();
   });
 });

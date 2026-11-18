@@ -18,8 +18,8 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-
 import { sentence } from "../../lib/errors";
+import { dateLocale } from "../../lib/format";
 import { useNow, useTimeWords } from "../../lib/time";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -292,14 +292,18 @@ function NextDay({ tasks, chosen, now }: { tasks: readonly TaskInfo[]; chosen: T
     if (d.getTime() <= now) d.setDate(d.getDate() + 1);
     return d;
   };
-  const time = new Intl.DateTimeFormat(i18n.locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const time = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
   // A phone's track has no room for the weekday, which the panel's head says anyway.
-  const date = new Intl.DateTimeFormat(i18n.locale, {
+  const date = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
     ...(phone ? {} : { weekday: "short" }),
     day: "numeric",
     month: "short",
   });
-  const long = new Intl.DateTimeFormat(i18n.locale, {
+  const long = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
     weekday: "long",
     hour: "2-digit",
     minute: "2-digit",
