@@ -62,12 +62,34 @@ func TestAnAppsFiguresReachWhoHoldsItsProjectAlone(t *testing.T) {
 		}
 
 		// A container's service is found from its Compose project, its environment's ID in lowercase.
-		find := (&serviceIDs{db: f.store}).find
+		clock := time.Now()
+		look := &serviceIDs{db: f.store, now: func() time.Time { return clock }}
+		find := look.find
 		if got := find(t.Context(), projects["shop"], "db"); got != ids["shop"] {
 			t.Errorf("shop's db from %s is %q, want %q", projects["shop"], got, ids["shop"])
 		}
 		if got := find(t.Context(), projects["shop"], "nothing"); got != "" {
 			t.Errorf("a service there's none of is %q", got)
+		}
+		// What it found and what it missed are both remembered: with no store to ask,
+		// each reads as before, a miss for a minute (#848's re-check, L-B).
+		look.db = nil
+		if got := find(t.Context(), projects["shop"], "db"); got != ids["shop"] {
+			t.Errorf("shop's db, remembered, is %q, want %q", got, ids["shop"])
+		}
+		clock = clock.Add(missFor - time.Second)
+		if got := find(t.Context(), projects["shop"], "nothing"); got != "" {
+			t.Errorf("a miss, remembered, is %q", got)
+		}
+		// After the minute it asks again, so a service made since is found.
+		look.db = f.store
+		clock = clock.Add(2 * time.Second)
+		look.missed[projects["shop"]+"/db2"] = clock.Add(-time.Second)
+		if got := find(t.Context(), projects["shop"], "nothing"); got != "" || look.missed[projects["shop"]+"/nothing"] != clock.Add(missFor) {
+			t.Errorf("a miss past its minute is %q, remembered until %v, want asked again", got, look.missed[projects["shop"]+"/nothing"])
+		}
+		if _, ok := look.missed[projects["shop"]+"/db2"]; ok {
+			t.Error("a miss that ran out is still held")
 		}
 
 		server := f.lastDocker.id.ServerID

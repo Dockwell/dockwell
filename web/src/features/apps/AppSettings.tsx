@@ -1042,19 +1042,17 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPla
   const totalWords = formatBytes(memoryTotal, i18n.locale);
   const serverName = server?.name ?? "";
   // What it uses now, beside what it may and what its server has (#797), once its servers' samples carry it.
+  // A limit here is each replica's, so with several, each one's share is said beside it (#848's re-check, M-A).
   const usage = useAppUsage(service);
-  const cpuNow = usage ? shareWords(usage.cpuNow) : "";
-  const memoryNow = usage ? formatBytes(usage.memoryNow, i18n.locale) : "";
-  const cpuHint = [
-    usage ? t`Uses ${cpuNow}% of a CPU` : "",
-    server && cpuCount > 0 ? t`${serverName} has ${cpuCount} vCPU` : "",
-  ]
+  const replicas = Math.max(1, usage?.replicasNow ?? 1);
+  const cpuNow = usage ? shareWords(usage.cpuNow / replicas) : "";
+  const memoryNow = usage ? formatBytes(usage.memoryNow / replicas, i18n.locale) : "";
+  const cpuUse = !usage ? "" : replicas > 1 ? t`Uses ${cpuNow}% of a CPU each` : t`Uses ${cpuNow}% of a CPU`;
+  const memoryUse = !usage ? "" : replicas > 1 ? t`Uses ${memoryNow} each` : t`Uses ${memoryNow}`;
+  const cpuHint = [cpuUse, server && cpuCount > 0 ? t`${serverName} has ${cpuCount} vCPU` : ""]
     .filter(Boolean)
     .join(" · ");
-  const memoryHint = [
-    usage ? t`Uses ${memoryNow}` : "",
-    server && memoryTotal > 0 ? t`${serverName} has ${totalWords}` : "",
-  ]
+  const memoryHint = [memoryUse, server && memoryTotal > 0 ? t`${serverName} has ${totalWords}` : ""]
     .filter(Boolean)
     .join(" · ");
   const r = app.resources;

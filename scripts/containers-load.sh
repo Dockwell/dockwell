@@ -155,4 +155,18 @@ each=$((($(date +%s%N) - went) / reads / 1000000))
 most=$(peak "$agent_pid")
 echo "read $reads times, $each ms each with the CLI's own start: agent at most $most MB, budget $max_mb MB"
 awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory came to $most MB, past its budget of $max_mb"
+# The run measures the agent while it reads each watched container's cgroup, so a
+# change that stops the reads fails here rather than pass with a lower figure
+# (#848's re-check, L-C). A file read after it was written has its atime past its
+# mtime, which relatime keeps; a disk that keeps no atime can't say.
+probe=$work/atime-probe
+echo probe >"$probe"
+cat "$probe" >/dev/null
+if [[ $(stat -c '%.9X' "$probe") > $(stat -c '%.9Y' "$probe") ]]; then
+  read_cgroups=$(find "$work/cgroup" -name memory.stat -exec stat -c '%.9X %.9Y' {} + | awk '($1 "") > ($2 "") { n++ } END { print n + 0 }')
+  echo "the agent read $read_cgroups of $containers containers' cgroups"
+  ((read_cgroups > 0)) || fail "the agent read no container's cgroup, so this run didn't measure the reads"
+else
+  echo "this disk keeps no atime, so whether the agent read the cgroups isn't checked"
+fi
 echo "containers-load: ok"

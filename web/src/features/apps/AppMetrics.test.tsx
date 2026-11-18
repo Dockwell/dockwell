@@ -113,6 +113,19 @@ describe("an app's Metrics card (#797)", () => {
   });
 });
 
+describe("Settings' Resources with several replicas (#848's re-check, M-A)", () => {
+  it("says each replica's use beside a limit that's each replica's", async () => {
+    // 3 replicas, each at half a CPU and 200 MB, under 1 CPU and 256M each.
+    renderAt("/apps/svc_web/settings", api([full(40, 150, 600, 256, 3)], { cpus: "1", memory: "256M" }));
+    const resources = await screen.findByRole("region", { name: "Resources" });
+    const cpu = await within(resources).findByRole("combobox", { name: "CPU limit" });
+    await waitFor(() => expect(cpu).toHaveAccessibleDescription(/^Uses 50% of a CPU each/));
+    expect(within(resources).getByRole("combobox", { name: "Memory limit" })).toHaveAccessibleDescription(
+      "Uses 200 MB each",
+    );
+  });
+});
+
 describe("a server's samples that hold only apps' figures (#797)", () => {
   it("stay out of the server's own figures, and go to its apps'", () => {
     const own = full(40, 25, 200);

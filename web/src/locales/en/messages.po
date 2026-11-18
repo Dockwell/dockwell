@@ -3923,8 +3923,14 @@ msgstr "Use letters, digits, dots, dashes and underscores for a volume's name."
 msgid "Uses {cpuNow}% of a CPU"
 msgstr "Uses {cpuNow}% of a CPU"
 
+msgid "Uses {cpuNow}% of a CPU each"
+msgstr "Uses {cpuNow}% of a CPU each"
+
 msgid "Uses {memoryNow}"
 msgstr "Uses {memoryNow}"
+
+msgid "Uses {memoryNow} each"
+msgstr "Uses {memoryNow} each"
 
 msgid "Volume or server path"
 msgstr "Volume or server path"

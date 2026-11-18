@@ -3923,8 +3923,14 @@ msgstr "卷名只能使用字母、数字、点、短横线和下划线。"
 msgid "Uses {cpuNow}% of a CPU"
 msgstr "使用 {cpuNow}% 单核 CPU"
 
+msgid "Uses {cpuNow}% of a CPU each"
+msgstr "每个副本使用 {cpuNow}% 单核 CPU"
+
 msgid "Uses {memoryNow}"
 msgstr "使用 {memoryNow}"
+
+msgid "Uses {memoryNow} each"
+msgstr "每个副本使用 {memoryNow}"
 
 msgid "Volume or server path"
 msgstr "卷或服务器路径"
