@@ -1496,7 +1496,10 @@ describe("New website on a fleet", () => {
     const user = userEvent.setup();
     const watch = feed<WatchServersResponse>();
     const GiB = 1024 ** 3;
+    // A whole server's sample, with its memory and uptime, as one with apps' figures alone isn't its own (#848).
     const disk = (free: number) => ({
+      memoryTotalBytes: BigInt(8 * GiB),
+      uptime: { seconds: 3600n },
       disks: [{ mountPoint: "/", sizeBytes: BigInt(100 * GiB), usedBytes: BigInt((100 - free) * GiB) }],
     });
     watch.push(
