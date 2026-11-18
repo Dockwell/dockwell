@@ -744,8 +744,12 @@ export async function appsFlow(
     await page
       .getByRole("columnheader", { name: "Value", exact: true })
       .waitFor({ state: width < 640 ? "hidden" : "visible" });
+    // A phone stacks them in a list, each with one menu, in the table's place (#795).
+    if (width < 640) await page.getByRole("list", { name: /^Environment variables of / }).waitFor();
     const fits = await page.evaluate(() => {
-      const wrap = document.querySelector(".app-environment .dw-table-wrap");
+      const wrap =
+        document.querySelector(".app-environment .dw-table-wrap") ??
+        document.querySelector(".app-environment .app-env-phone-list");
       const keys = [...document.querySelectorAll(".app-environment .app-env-name")];
       return {
         table: wrap ? wrap.scrollWidth - wrap.clientWidth : -1,
@@ -756,6 +760,18 @@ export async function appsFlow(
     if (fits.table !== 0 || fits.page > 0)
       fail(`at ${width} px a long value widens the table by ${fits.table} px, the page by ${fits.page}`);
     if (fits.broken.length > 0) fail(`at ${width} px a long value breaks the keys ${fits.broken.join(", ")}`);
+    if (width < 640) {
+      // The header's three ways in are one menu on a phone, which fits it and closes on Escape (#795).
+      await page.getByRole("button", { name: "Import or connect" }).click();
+      const ways = page.getByRole("menu", { name: "Import or connect" });
+      const items = await ways.getByRole("menuitem").allInnerTexts();
+      if (items.join() !== "Import .env,Connect a database,Connect storage")
+        fail(`on a phone the header's menu offers ${items.join()}`);
+      const past = await ways.evaluate((menu) => menu.getBoundingClientRect().right - window.innerWidth);
+      if (past > 0) fail(`on a phone the header's menu runs ${past} px past the screen`);
+      await page.keyboard.press("Escape");
+      await ways.waitFor({ state: "hidden" });
+    }
   }
   await atWidth(page, { width: 1440, height: 900 });
   await page.getByRole("button", { name: "Revert LONG_NOTE" }).click();

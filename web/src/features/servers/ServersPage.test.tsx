@@ -525,6 +525,9 @@ describe("Servers", () => {
     expect(row).toHaveAttribute("aria-pressed", "true");
     expect(row).toHaveTextContent("Down · Agent not connected");
     expect(within(attention).queryByRole("button", { name: /web-1/ })).toBeNull();
+    // Every other server is there by name too, a tap away (#795).
+    const others = screen.getByRole("region", { name: "Every other server" });
+    expect(within(others).getByRole("button", { name: /web-1/ })).toHaveTextContent("Healthy");
     const chosen = screen.getByRole("region", { name: "Chosen server" });
     expect(within(chosen).getByRole("link", { name: "Open" })).toHaveAttribute("href", "/servers/srv_2");
 
@@ -532,6 +535,16 @@ describe("Servers", () => {
     expect(
       within(screen.getByRole("region", { name: "Chosen server" })).getByRole("link", { name: "Open" }),
     ).toHaveAttribute("href", "/servers/srv_1");
+  });
+
+  it("lists every server by name on a phone when none needs attention (#795)", async () => {
+    onPhone();
+    renderServers([web1, web2()]);
+    const every = await screen.findByRole("region", { name: "Every server" });
+    expect(within(every).getAllByRole("button")).toHaveLength(2);
+    expect(within(every).getByRole("button", { name: /web-1/ })).toBeVisible();
+    expect(within(every).getByRole("button", { name: /web-2/ })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull();
   });
 
   it("picks servers for a fleet action, and runs one on them", async () => {

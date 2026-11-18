@@ -1764,7 +1764,7 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       servers.map((s, i) => (
         <span key={s.serverId}>
           {i > 0 ? ", " : null}
-          <code className="plan-server">
+          <code className="plan-server-chip">
             <MiddleName name={s.serverName} />
           </code>
         </span>
@@ -2565,8 +2565,10 @@ function Effects({
     detail?: ReactNode;
     more?: ReactNode;
     key: string;
+    /** A fact to read, not a step to note, so it's a quiet line (#795). */
+    plain?: boolean;
   }[] = [];
-  if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} /> });
+  if (phone) rows.push({ key: "reach", icon: "activity", title: <Impact plan={plan} />, plain: true });
   // What is there today: a step that fails puts back what ran, as ADR 0017 has it. Waves are ADR 0094's.
   // A restart changes no spec, so it has nothing to roll back to.
   const restarting = restarts(plan);
@@ -2638,7 +2640,7 @@ function Effects({
       {rows.length > 0 ? (
         <section className="plan-effects" aria-label={t`What applying means`}>
           {rows.map((row) => (
-            <div key={row.key} className="plan-effect">
+            <div key={row.key} className={cx("plan-effect", row.plain && "is-plain")}>
               {row.warn ? (
                 <span className="plan-effect-warn">
                   <Glyph shape="triangle" size={12} />

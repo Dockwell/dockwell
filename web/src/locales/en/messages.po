@@ -2771,6 +2771,9 @@ msgstr "A secret needs a value."
 msgid "A variable or secret of the environment"
 msgstr "A variable or secret of the environment"
 
+msgid "Actions for {name}"
+msgstr "Actions for {name}"
+
 msgid "Add"
 msgstr "Add"
 
@@ -2819,6 +2822,9 @@ msgstr "From {connection}"
 msgid "Import .env"
 msgstr "Import .env"
 
+msgid "Import or connect"
+msgstr "Import or connect"
+
 msgid "It becomes a secret of the environment, which takes a passkey to reveal."
 msgstr "It becomes a secret of the environment, which takes a passkey to reveal."
 
@@ -2833,6 +2839,12 @@ msgstr "Keep the new ones as secrets"
 
 msgid "Key"
 msgstr "Key"
+
+msgid "Make it a secret"
+msgstr "Make it a secret"
+
+msgid "Make it shared"
+msgstr "Make it shared"
 
 msgid "Make {key} on {name} a secret"
 msgstr "Make {key} on {name} a secret"
@@ -3071,11 +3083,17 @@ msgstr "Building and deploying <0>{0}</0>, started {ago}"
 msgid "Can't load this app"
 msgstr "Can't load this app"
 
+msgid "Change the version of {name}"
+msgstr "Change the version of {name}"
+
 msgid "Change version"
 msgstr "Change version"
 
 msgid "Deploy"
 msgstr "Deploy"
+
+msgid "Deploy {name}"
+msgstr "Deploy {name}"
 
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "Deploying <0>{image}</0>, started {ago}"
@@ -3108,17 +3126,29 @@ msgstr "No app with this ID"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "Nothing changed on the server. Reload the page to try again."
 
+msgid "Open the environment of {name}"
+msgstr "Open the environment of {name}"
+
+msgid "Opens a plan"
+msgstr "Opens a plan"
+
 msgid "Overview"
 msgstr "Overview"
 
 msgid "Putting <0>{image}</0> back failed, {ago}"
 msgstr "Putting <0>{image}</0> back failed, {ago}"
 
+msgid "Restart {name}"
+msgstr "Restart {name}"
+
 msgid "Search logs"
 msgstr "Search logs"
 
 msgid "Settings"
 msgstr "Settings"
+
+msgid "Show the logs of {name}"
+msgstr "Show the logs of {name}"
 
 msgid "build cancelled {ago}"
 msgstr "build cancelled {ago}"
@@ -3146,6 +3176,9 @@ msgstr "A connection to port {0}"
 
 msgid "A file Dockwell writes"
 msgstr "A file Dockwell writes"
+
+msgid "Actions for {where}"
+msgstr "Actions for {where}"
 
 msgid "Add a port"
 msgstr "Add a port"
@@ -3271,6 +3304,9 @@ msgstr "Its password is guessable"
 
 msgid "Loading deployments"
 msgstr "Loading deployments"
+
+msgid "Make it private"
+msgstr "Make it private"
 
 msgid "Networks"
 msgstr "Networks"
@@ -3434,6 +3470,9 @@ msgstr "What runs"
 
 msgid "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
 msgstr "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
+
+msgid "Who gets in"
+msgstr "Who gets in"
 
 #. placeholder {0}: check.http.port
 #. placeholder {0}: check?.http?.port
@@ -4235,9 +4274,6 @@ msgstr "<0>{current}</0> is still deploying. You can review this plan once that 
 
 msgid "Check the image and tag, then deploy again."
 msgstr "Check the image and tag, then deploy again."
-
-msgid "Deploy {name}"
-msgstr "Deploy {name}"
 
 msgid "Deploy {wanted} to {name}"
 msgstr "Deploy {wanted} to {name}"
@@ -5516,9 +5552,6 @@ msgstr "Keep the password somewhere else"
 msgid "Let anyone in to {where}"
 msgstr "Let anyone in to {where}"
 
-msgid "Make it private"
-msgstr "Make it private"
-
 msgid "Make {where} private"
 msgstr "Make {where} private"
 
@@ -5624,9 +5657,6 @@ msgstr "Visitors reach it over plain HTTP, so a password would cross the network
 
 msgid "What a stranger gets"
 msgstr "What a stranger gets"
-
-msgid "Who gets in"
-msgstr "Who gets in"
 
 msgid "Who gets in to {where}"
 msgstr "Who gets in to {where}"
@@ -16750,6 +16780,9 @@ msgstr "Last heard {seen}; the numbers here are from then."
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> may have been removed, or the link may be wrong."
 
+msgid "Browse the files on {name}"
+msgstr "Browse the files on {name}"
+
 msgid "Firewall"
 msgstr "Firewall"
 
@@ -16759,12 +16792,18 @@ msgstr "Move in"
 msgid "No server with this ID"
 msgstr "No server with this ID"
 
+msgid "Open a terminal on {name}"
+msgstr "Open a terminal on {name}"
+
 msgid "Runs the control plane"
 msgstr "Runs the control plane"
 
 #. placeholder {0}: server.name
 msgid "Server {0}"
 msgstr "Server {0}"
+
+msgid "Show the processes on {name}"
+msgstr "Show the processes on {name}"
 
 msgid "System log"
 msgstr "System log"
@@ -16934,6 +16973,9 @@ msgstr "Chosen server"
 
 msgid "Clear the selector"
 msgstr "Clear the selector"
+
+msgid "Every other server"
+msgstr "Every other server"
 
 msgid "Group by {k}"
 msgstr "Group by {k}"
@@ -19209,9 +19251,6 @@ msgstr "Open the websites"
 
 msgid "Open your profile and security settings"
 msgstr "Open your profile and security settings"
-
-msgid "Opens a plan"
-msgstr "Opens a plan"
 
 msgid "Pages"
 msgstr "Pages"

@@ -2771,6 +2771,9 @@ msgstr "密钥需要一个值。"
 msgid "A variable or secret of the environment"
 msgstr "环境中的变量或密钥"
 
+msgid "Actions for {name}"
+msgstr "{name} 的操作"
+
 msgid "Add"
 msgstr "添加"
 
@@ -2819,6 +2822,9 @@ msgstr "来自 {connection}"
 msgid "Import .env"
 msgstr "导入 .env"
 
+msgid "Import or connect"
+msgstr "导入或连接"
+
 msgid "It becomes a secret of the environment, which takes a passkey to reveal."
 msgstr "它会成为环境的密钥，查看它需要通行密钥。"
 
@@ -2833,6 +2839,12 @@ msgstr "把新的保存为密钥"
 
 msgid "Key"
 msgstr "键"
+
+msgid "Make it a secret"
+msgstr "改为密钥"
+
+msgid "Make it shared"
+msgstr "设为共享"
 
 msgid "Make {key} on {name} a secret"
 msgstr "将 {name} 上的 {key} 改为密钥"
@@ -3071,11 +3083,17 @@ msgstr "正在构建并部署 <0>{0}</0>，开始于{ago}"
 msgid "Can't load this app"
 msgstr "无法加载此应用"
 
+msgid "Change the version of {name}"
+msgstr "更改 {name} 的版本"
+
 msgid "Change version"
 msgstr "更改版本"
 
 msgid "Deploy"
 msgstr "部署"
+
+msgid "Deploy {name}"
+msgstr "部署 {name}"
 
 msgid "Deploying <0>{image}</0>, started {ago}"
 msgstr "正在部署 <0>{image}</0>，开始于 {ago}"
@@ -3108,17 +3126,29 @@ msgstr "没有此 ID 的应用"
 msgid "Nothing changed on the server. Reload the page to try again."
 msgstr "服务器上没有任何变化。请重新加载页面再试。"
 
+msgid "Open the environment of {name}"
+msgstr "打开 {name} 的环境"
+
+msgid "Opens a plan"
+msgstr "会打开计划"
+
 msgid "Overview"
 msgstr "概览"
 
 msgid "Putting <0>{image}</0> back failed, {ago}"
 msgstr "恢复 <0>{image}</0> 失败，{ago}"
 
+msgid "Restart {name}"
+msgstr "重启 {name}"
+
 msgid "Search logs"
 msgstr "搜索日志"
 
 msgid "Settings"
 msgstr "设置"
+
+msgid "Show the logs of {name}"
+msgstr "显示 {name} 的日志"
 
 msgid "build cancelled {ago}"
 msgstr "构建已于{ago}取消"
@@ -3146,6 +3176,9 @@ msgstr "连接端口 {0}"
 
 msgid "A file Dockwell writes"
 msgstr "Dockwell 写入的文件"
+
+msgid "Actions for {where}"
+msgstr "{where} 的操作"
 
 msgid "Add a port"
 msgstr "添加端口"
@@ -3271,6 +3304,9 @@ msgstr "它的密码可被猜到"
 
 msgid "Loading deployments"
 msgstr "正在加载部署"
+
+msgid "Make it private"
+msgstr "设为私有"
 
 msgid "Networks"
 msgstr "网络"
@@ -3434,6 +3470,9 @@ msgstr "运行内容"
 
 msgid "What the control plane stores for it was changed, or sealed with keys this install hasn't got, so Dockwell won't use it, and can't change {name}. Its containers keep running as they are. Restore the database and the key file from the same backup."
 msgstr "控制平面为它存储的内容已被改动，或是用此安装没有的密钥加密的，所以 Dockwell 不会使用它，也无法更改 {name}。它的容器会继续照常运行。请从同一份备份恢复数据库和密钥文件。"
+
+msgid "Who gets in"
+msgstr "谁可以进入"
 
 #. placeholder {0}: check.http.port
 #. placeholder {0}: check?.http?.port
@@ -4235,9 +4274,6 @@ msgstr "<0>{current}</0> 仍在部署中。部署结束后即可审阅这个计�
 
 msgid "Check the image and tag, then deploy again."
 msgstr "请检查镜像和标签，然后重新部署。"
-
-msgid "Deploy {name}"
-msgstr "部署 {name}"
 
 msgid "Deploy {wanted} to {name}"
 msgstr "将 {wanted} 部署到 {name}"
@@ -5516,9 +5552,6 @@ msgstr "把密码保存在别处"
 msgid "Let anyone in to {where}"
 msgstr "允许任何人进入 {where}"
 
-msgid "Make it private"
-msgstr "设为私有"
-
 msgid "Make {where} private"
 msgstr "将 {where} 设为私有"
 
@@ -5624,9 +5657,6 @@ msgstr "访客通过明文 HTTP 访问它，因此密码会以明文在网络上
 
 msgid "What a stranger gets"
 msgstr "陌生人会遇到什么"
-
-msgid "Who gets in"
-msgstr "谁可以进入"
 
 msgid "Who gets in to {where}"
 msgstr "谁可以进入 {where}"
@@ -16750,6 +16780,9 @@ msgstr "最后一次收到于{seen}；这里的数据来自那时。"
 msgid "<0>{id}</0> may have been removed, or the link may be wrong."
 msgstr "<0>{id}</0> 可能已被移除，或者链接有误。"
 
+msgid "Browse the files on {name}"
+msgstr "浏览 {name} 上的文件"
+
 msgid "Firewall"
 msgstr "防火墙"
 
@@ -16759,12 +16792,18 @@ msgstr "迁入"
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
 
+msgid "Open a terminal on {name}"
+msgstr "在 {name} 上打开终端"
+
 msgid "Runs the control plane"
 msgstr "运行控制平面"
 
 #. placeholder {0}: server.name
 msgid "Server {0}"
 msgstr "服务器 {0}"
+
+msgid "Show the processes on {name}"
+msgstr "显示 {name} 上的进程"
 
 msgid "System log"
 msgstr "系统日志"
@@ -16934,6 +16973,9 @@ msgstr "选中的服务器"
 
 msgid "Clear the selector"
 msgstr "清除筛选条件"
+
+msgid "Every other server"
+msgstr "其他所有服务器"
 
 msgid "Group by {k}"
 msgstr "按 {k} 分组"
@@ -19209,9 +19251,6 @@ msgstr "打开网站"
 
 msgid "Open your profile and security settings"
 msgstr "打开你的个人资料和安全设置"
-
-msgid "Opens a plan"
-msgstr "会打开计划"
 
 msgid "Pages"
 msgstr "页面"

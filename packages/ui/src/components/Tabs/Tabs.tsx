@@ -44,6 +44,37 @@ function useMoreEdges<E extends HTMLElement>() {
   return { ref, more };
 }
 
+/**
+ * Where more tabs are past the end, a chevron held at that edge says so, as a
+ * fade alone reads as a clipped word on a phone (#795). A tap scrolls on by most
+ * of a width. It's for a pointer only: a keyboard moves along the tabs, and a
+ * screen reader hears them all, so it's hidden from both.
+ */
+function MoreEnd({
+  list,
+  more,
+}: {
+  list: { current: HTMLElement | null };
+  more: "start" | "end" | "both" | undefined;
+}) {
+  if (more !== "end" && more !== "both") return null;
+  return (
+    <button
+      type="button"
+      className="dw-tabs-more"
+      aria-hidden="true"
+      tabIndex={-1}
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={() => {
+        const el = list.current;
+        if (el) el.scrollBy({ left: el.clientWidth * 0.75, behavior: "smooth" });
+      }}
+    >
+      <Icon name="chevron-right" size={16} />
+    </button>
+  );
+}
+
 export interface TabItem<Id extends string = string> {
   id: Id;
   /** One or two words. */
@@ -120,6 +151,7 @@ export function Tabs<Id extends string = string>({
           </button>
         );
       })}
+      <MoreEnd list={ref} more={more} />
     </div>
   );
 }
@@ -165,7 +197,8 @@ export function TabNav({ label, children, className }: TabNavProps) {
     const nav = ref.current;
     if (!nav) return;
     const onFocus = (event: FocusEvent) => {
-      if (event.target instanceof Element && event.target !== nav) reveal(nav, event.target);
+      if (event.target instanceof Element && event.target !== nav && !event.target.closest(".dw-tabs-more"))
+        reveal(nav, event.target);
     };
     nav.addEventListener("focusin", onFocus);
     return () => nav.removeEventListener("focusin", onFocus);
@@ -173,6 +206,7 @@ export function TabNav({ label, children, className }: TabNavProps) {
   return (
     <nav ref={ref} data-more={more} className={cx("dw-tabs", className)} aria-label={label}>
       {children}
+      <MoreEnd list={ref} more={more} />
     </nav>
   );
 }

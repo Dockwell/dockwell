@@ -6,7 +6,7 @@ import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { BuildState, ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link, useMatch } from "@tanstack/react-router";
+import { Link, useMatch, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
 import { shownRef } from "../../lib/built";
 import { sentence } from "../../lib/errors";
@@ -16,6 +16,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { usePageCommands } from "../shell/CommandMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { useRuntimes } from "../websites/website";
@@ -242,6 +243,36 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const mayRestart = may(ChangeService.method.restartService, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
+  // The command bar offers what the header does, first (#795): only what the reader may do.
+  const navigate = useNavigate();
+  const mayChange = runtime ? mayChangeVersion : mayDeploy;
+  usePageCommands([
+    ...(changeable && mayChange.allowed
+      ? [
+          {
+            id: "deploy",
+            icon: "deploy" as const,
+            label: runtime ? t`Change the version of ${name}` : t`Deploy ${name}`,
+            run: deploy,
+          },
+        ]
+      : []),
+    ...(restartable && mayRestart.allowed
+      ? [{ id: "restart", icon: "refresh" as const, label: t`Restart ${name}`, hint: t`Opens a plan`, run: restart }]
+      : []),
+    {
+      id: "logs",
+      icon: "terminal",
+      label: t`Show the logs of ${name}`,
+      run: () => void navigate({ to: "/apps/$serviceId/logs", params: { serviceId } }),
+    },
+    {
+      id: "environment",
+      icon: "key",
+      label: t`Open the environment of ${name}`,
+      run: () => void navigate({ to: "/apps/$serviceId/environment", params: { serviceId } }),
+    },
+  ]);
   // Where it answers, on every tab, as soon as it publishes a port anyone outside the server reaches.
   const { servers: fleet } = useFleetView();
   const published = appOf(service)?.ports.find(

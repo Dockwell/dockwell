@@ -48,6 +48,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { ConnectStorageSheet } from "../connections/ConnectStorageSheet";
 import { type LinkedName, useLinkedNames, usePartWords } from "../connections/useConnections";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { RevealsProvider, useReveals } from "../variables/useReveal";
 import { OwnHiddenValue, SecretValue, useAllVariables } from "../variables/VariablesPage";
@@ -210,32 +211,66 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
           <div className="app-env-head">
             <span className="app-env-counts">{counts}</span>
             <span className="app-env-spacer" />
-            <Button
-              variant="ghost"
-              icon="upload"
-              disabled={store.data === undefined}
-              onClick={() => setImporting(true)}
-            >
-              <Trans>Import .env</Trans>
-            </Button>
-            <Button
-              variant="secondary"
-              icon="database"
-              disabled={moving}
-              off={mayConnect.allowed ? undefined : mayConnect.reason || undefined}
-              onClick={() => setConnecting(true)}
-            >
-              <Trans>Connect a database</Trans>
-            </Button>
-            <Button
-              variant="secondary"
-              icon="archive"
-              disabled={moving}
-              off={mayStore.allowed ? undefined : mayStore.reason || undefined}
-              onClick={() => setStoring(true)}
-            >
-              <Trans>Connect storage</Trans>
-            </Button>
+            {phone ? (
+              // Three buttons don't fit a phone's line, so they're one menu there (#795).
+              <ActionMenu
+                label={t`Import or connect`}
+                actions={[
+                  {
+                    id: "import",
+                    icon: "upload",
+                    label: t`Import .env`,
+                    disabled: store.data === undefined,
+                    onSelect: () => setImporting(true),
+                  },
+                  {
+                    id: "database",
+                    icon: "database",
+                    label: t`Connect a database`,
+                    disabled: moving,
+                    off: mayConnect.allowed ? undefined : mayConnect.reason || undefined,
+                    onSelect: () => setConnecting(true),
+                  },
+                  {
+                    id: "storage",
+                    icon: "archive",
+                    label: t`Connect storage`,
+                    disabled: moving,
+                    off: mayStore.allowed ? undefined : mayStore.reason || undefined,
+                    onSelect: () => setStoring(true),
+                  },
+                ]}
+              />
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  icon="upload"
+                  disabled={store.data === undefined}
+                  onClick={() => setImporting(true)}
+                >
+                  <Trans>Import .env</Trans>
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon="database"
+                  disabled={moving}
+                  off={mayConnect.allowed ? undefined : mayConnect.reason || undefined}
+                  onClick={() => setConnecting(true)}
+                >
+                  <Trans>Connect a database</Trans>
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon="archive"
+                  disabled={moving}
+                  off={mayStore.allowed ? undefined : mayStore.reason || undefined}
+                  onClick={() => setStoring(true)}
+                >
+                  <Trans>Connect storage</Trans>
+                </Button>
+              </>
+            )}
           </div>
 
           {store.error ? (
@@ -277,13 +312,27 @@ export function AppEnvironment({ changeFirst }: { changeFirst?: string | undefin
             </EmptyState>
           ) : (
             <Panel flush>
-              <Table
-                columns={columns}
-                rows={rows.map((row) => ({ ...row, id: row.name }))}
-                rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
-                density="compact"
-                caption={t`Environment variables of ${name}`}
-              />
+              {phone ? (
+                // A phone stacks each one, as a table's columns don't fit (#795).
+                <ul className="app-env-phone-list" aria-label={t`Environment variables of ${name}`}>
+                  {rows.map((row) => (
+                    <li
+                      key={row.name}
+                      className={cx("app-env-phone-row", row.pending?.op === "remove" && "app-env-removed")}
+                    >
+                      {columns[0]?.render?.({ ...row, id: row.name })}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Table
+                  columns={columns}
+                  rows={rows.map((row) => ({ ...row, id: row.name }))}
+                  rowClassName={(row) => (row.pending?.op === "remove" ? "app-env-removed" : undefined)}
+                  density="compact"
+                  caption={t`Environment variables of ${name}`}
+                />
+              )}
             </Panel>
           )}
 
@@ -534,6 +583,33 @@ function useColumns(
       </span>
     );
   };
+  // A phone's row: the key, then its value and where it's from beneath, and its actions one menu (#795).
+  const menu = (row: EnvRow) => {
+    const name = row.name;
+    if (linkOf(row, linked)) return null;
+    if (row.pending) return actions(row);
+    const items: MenuAction[] = [];
+    if (!runtimePort(row)) items.push({ id: "change", icon: "edit", label: t`Change`, onSelect: () => on.change(row) });
+    if (row.now?.kind === "own" && row.now.value !== undefined)
+      items.push({
+        id: "share",
+        icon: "layers",
+        label: t`Make it shared`,
+        off: shareOff(cantShare(row, store), name) || undefined,
+        onSelect: () => on.share(row),
+      });
+    else if (row.now?.kind === "own")
+      items.push({
+        id: "secret",
+        icon: "lock",
+        label: t`Make it a secret`,
+        off: secretOff(cantMakeSecret(row, store), name) || undefined,
+        onSelect: () => on.secret(row),
+      });
+    if (row.now?.kind !== "runtime")
+      items.push({ id: "remove", icon: "trash", label: t`Remove`, danger: true, onSelect: () => on.remove(row) });
+    return <ActionMenu label={t`Actions for ${name}`} actions={items} />;
+  };
   if (phone) {
     return [
       {
@@ -541,13 +617,15 @@ function useColumns(
         header: t`Key`,
         render: (row) => (
           <>
-            {key(row)}
+            <span className="app-env-phone-head">
+              {key(row)}
+              {menu(row)}
+            </span>
             <span className="app-env-phone-value">{value(row)}</span>
             <span className="app-env-source">{source(row)}</span>
           </>
         ),
       },
-      { key: "more", header: <span className="dw-sr">{t`Actions`}</span>, width: 100, align: "right", render: actions },
     ];
   }
   return [

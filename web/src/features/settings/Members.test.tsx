@@ -198,6 +198,15 @@ describe("Members", () => {
     expect(screen.queryByRole("table", { name: "Who signs in to this install" })).toBeNull();
   });
 
+  it("invites someone from a phone's header, as the owner's first step (#795)", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });
+    await user.click(await screen.findByRole("button", { name: "Invite someone" }));
+    expect(screen.queryByRole("button", { name: "Invite someone" })).toBeNull();
+    expect(await screen.findByText(/Invites need the panel's domain|Invite by email/)).toBeVisible();
+  });
+
   it("speaks Simplified Chinese", async () => {
     await activateLocale("zh-CN");
     renderAt("/settings/members", { members: { listMembers: () => ({ members: [owner] }) } });

@@ -1603,6 +1603,20 @@ describe("the plan sheet", () => {
     );
   });
 
+  it("says on a phone what goes down where in one quiet line, the server at its own width (#795)", async () => {
+    onPhone();
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: webPlanned() }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const effects = await within(sheet).findByRole("region", { name: "What applying means" });
+    const chip = effects.querySelector("code.plan-server-chip");
+    expect(chip).not.toBeNull();
+    // Not the box a server's steps are in, which spans the sheet.
+    expect(chip).not.toHaveClass("plan-server");
+    expect(chip?.closest(".plan-effect")).toHaveClass("is-plain");
+  });
+
   it("fills a phone's screen, and reads in Chinese", async () => {
     onPhone();
     await activateLocale("zh-CN");

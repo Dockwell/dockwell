@@ -3,8 +3,9 @@
    back by margins leaves room for the focus ring without moving the tabs, and
    the rule under the tabs is drawn on the content box so it lines up with them. */
 .dw-tabs {
+  --dw-tabs-gap: var(--space-5);
   display: flex;
-  gap: var(--space-5);
+  gap: var(--dw-tabs-gap);
   margin: -4px;
   padding: 4px;
   overflow-x: auto;
@@ -15,25 +16,40 @@
   background-origin: content-box;
   background-clip: content-box;
 }
-/* Where more of the list is out of sight, its edge fades, so it reads as one that scrolls. */
-.dw-tabs[data-more="end"] {
-  mask-image: linear-gradient(to left, transparent, #000 var(--space-8));
-}
-.dw-tabs[data-more="start"] {
+/* Where more of the list is out of sight at its start, that edge fades; past its
+   end, a chevron held at the edge says so, as a fade alone reads as a clipped word (#795). */
+.dw-tabs[data-more="start"],
+.dw-tabs[data-more="both"] {
   mask-image: linear-gradient(to right, transparent, #000 var(--space-8));
 }
-.dw-tabs[data-more="both"] {
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    #000 var(--space-8),
-    #000 calc(100% - var(--space-8)),
-    transparent
-  );
+.dw-tabs-more {
+  position: sticky;
+  /* Into the list's padding, which it clips at, so nothing shows past it. */
+  right: -4px;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: stretch;
+  width: 44px;
+  /* It takes no room of its own: it lies over the end of the last tab in sight. */
+  margin-left: calc(-44px - var(--dw-tabs-gap));
+  padding: 0;
+  border: 0;
+  /* Short of the rule under the tabs, which runs on under it. */
+  background:
+    linear-gradient(to right, transparent, var(--dw-tabs-ground, var(--canvas)) 55%) no-repeat top left / 100%
+    calc(100% - 1px);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.dw-tabs-more:hover {
+  color: var(--ink);
 }
 @media (max-width: 639.98px) {
   .dw-tabs {
-    gap: var(--space-4);
+    --dw-tabs-gap: var(--space-4);
   }
 }
 .dw-tab {

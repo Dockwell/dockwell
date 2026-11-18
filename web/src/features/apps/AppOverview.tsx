@@ -40,12 +40,12 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe, useHealthEventWords } from "../activity/describe";
-import { WatchAddress } from "../alerts/WatchAddress";
+import { useWatchAddress, WatchAddressView } from "../alerts/WatchAddress";
 import { type Offer, useMay } from "../auth/may";
 import { AppBackups } from "../backups/AppBackups";
 import { InstalledPanel } from "../catalog/InstalledPanel";
@@ -56,6 +56,7 @@ import { useWaitingFor } from "../changes/waiting";
 import { CopyButton } from "../servers/CopyButton";
 import { PrivateTag } from "../servers/ServerAddress";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu } from "../shell/ActionMenu";
 import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { useRuntimes } from "../websites/website";
@@ -82,7 +83,7 @@ import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, RunsOnServers, useHealthWords, useRunsNow } from "./Health";
 import { type AppHealth, type RunsOnServer, runsAsFarAsAnyoneKnows, useHealth } from "./health";
 import { ImageName, WholeImage } from "./ImageName";
-import { type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } from "./PrivateSheet";
+import { isPrivate, type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } from "./PrivateSheet";
 import { RuntimeSheet } from "./RuntimeSheet";
 import { useRevisionLook, useRevisionTitle, useWhoWords } from "./revision";
 import { knownVersion, newerBuild, runtimeEnv, runtimeOf, runtimeWords } from "./runtime";
@@ -609,6 +610,18 @@ function RunningPanel() {
  * Domains belong here too, first, when routes land (#27), and the way to add
  * one sits beside the way to add a port.
  */
+/** A domain whose line may break only after a dot or a slash, never inside a word of its name (#795). */
+function atDots(where: string): ReactNode {
+  const parts = where.split(/(?<=[./])/);
+  return parts.map((part, i) => (
+    // biome-ignore lint/suspicious/noArrayIndexKey: the parts of one name, in order, never move
+    <Fragment key={i}>
+      {part}
+      {i < parts.length - 1 ? <wbr /> : null}
+    </Fragment>
+  ));
+}
+
 /**
  * A domain the app is reached at: open once it serves; until then, what the server
  * says of its certificate, which it keeps trying by itself.
@@ -645,6 +658,9 @@ function DomainRow({
   const where = routeWhere(domain, route);
   // Past how long a reading stands, its row stays, and says nothing of how it was.
   const said = read === "read";
+  // A phone gives the name its own line and the actions one menu (#795).
+  const phone = useMediaQuery(PHONE_QUERY);
+  const watch = useWatchAddress({ url: visitorUrl(domain, route), where, serving: look.state === "serving" });
   return (
     <li
       className={cx(
@@ -656,8 +672,9 @@ function DomainRow({
     >
       <Icon name="globe" size={16} />
       <div className="app-reach-main">
-        <code className="app-reach-at">{where}</code>
+        <code className="app-reach-at">{atDots(where)}</code>
         <DomainFacts domain={domain} route={route} look={look} silent={silent} read={read} />
+        {phone && said && watch.badge ? watch.badge : null}
         <PrivateFact domain={domain} route={route} open={open} />
         {redirectsHere.map((at) => {
           const from = routeWhere(at.domain, at.route);
@@ -683,31 +700,60 @@ function DomainRow({
           );
         })}
       </div>
-      <div className="app-reach-acts">
-        {said ? (
-          <WatchAddress url={visitorUrl(domain, route)} where={where} serving={look.state === "serving"} />
-        ) : null}
-        {said && look.state === "serving" ? (
-          <a
-            className="app-reach-open"
-            href={visitorUrl(domain, route)}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={t`Open ${where}`}
-          >
-            <Icon name="external" size={16} />
-          </a>
-        ) : null}
-        <PrivateButton domain={domain} route={route} onOpen={onPrivate} off={offer.off} />
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="trash"
-          aria-label={t`Remove ${where}`}
-          onClick={onRemove}
-          {...offer.off}
+      {phone ? (
+        <ActionMenu
+          className="app-reach-menu"
+          label={t`Actions for ${where}`}
+          actions={[
+            ...(said && look.state === "serving"
+              ? [{ id: "open", icon: "external" as const, label: t`Open ${where}`, href: visitorUrl(domain, route) }]
+              : []),
+            ...(said && watch.watch ? [watch.watch] : []),
+            {
+              id: "private",
+              icon: "lock",
+              label: isPrivate(route) ? t`Who gets in` : t`Make it private`,
+              off: offer.off.off,
+              disabled: offer.off.disabled ?? false,
+              onSelect: onPrivate,
+            },
+            {
+              id: "remove",
+              icon: "trash",
+              label: t`Remove ${where}`,
+              danger: true,
+              off: offer.off.off,
+              disabled: offer.off.disabled ?? false,
+              onSelect: onRemove,
+            },
+          ]}
         />
-      </div>
+      ) : (
+        <div className="app-reach-acts">
+          {said ? <WatchAddressView state={watch} where={where} /> : null}
+          {said && look.state === "serving" ? (
+            <a
+              className="app-reach-open"
+              href={visitorUrl(domain, route)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={t`Open ${where}`}
+            >
+              <Icon name="external" size={16} />
+            </a>
+          ) : null}
+          <PrivateButton domain={domain} route={route} onOpen={onPrivate} off={offer.off} />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="trash"
+            aria-label={t`Remove ${where}`}
+            onClick={onRemove}
+            {...offer.off}
+          />
+        </div>
+      )}
+      {phone && said ? watch.sheet : null}
       {said ? (
         <p className="app-domain-note">
           <DomainNote domain={domain} look={look} silent={silent} />

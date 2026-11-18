@@ -10,12 +10,19 @@ import {
   SettingsService,
   SystemService,
 } from "@dockwell/api";
-import { CommandBar, type CommandItem, type ThemePreference, useThemePreference, useUIStrings } from "@dockwell/ui";
+import {
+  CommandBar,
+  type CommandItem,
+  type IconName,
+  type ThemePreference,
+  useThemePreference,
+  useUIStrings,
+} from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { onApple } from "../../lib/platform";
 import { appState, imageOf, nameOf } from "../apps/app";
@@ -30,6 +37,35 @@ import { useFleetView } from "../servers/useFleet";
 import { shortVersion } from "./version";
 
 const OpenContext = createContext<() => void>(() => {});
+
+/** Something the page you're on does, which the bar offers first (#795). */
+export interface PageCommand {
+  id: string;
+  icon: IconName;
+  label: string;
+  hint?: string | undefined;
+  run: () => void;
+}
+
+/** Where the page you're on says what it does: a reader of the newest list, which the bar asks as it opens. */
+type PageCommandsBoard = {
+  put: (read: () => readonly PageCommand[]) => () => void;
+  read: () => readonly PageCommand[];
+};
+const PageCommandsContext = createContext<PageCommandsBoard>({ put: () => () => {}, read: () => [] });
+
+/**
+ * Offers what the page does, such as Deploy and Restart on an app's, first in the
+ * command bar while the page is open (#795). Leave out what the reader may not
+ * do: an entry is something to run (ADR 0059). The bar reads the newest list as
+ * it opens, so a page that changes it renders nothing again for it.
+ */
+export function usePageCommands(commands: readonly PageCommand[]): void {
+  const board = useContext(PageCommandsContext);
+  const latest = useRef(commands);
+  latest.current = commands;
+  useEffect(() => board.put(() => latest.current), [board]);
+}
 
 /** Opens the command bar, for the buttons that offer it. */
 export function useOpenCommandBar(): () => void {
@@ -52,6 +88,20 @@ export function useCommandShortcut(): string {
 export function CommandMenu({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const openBar = useCallback(() => setOpen(true), []);
+  // The page that put its commands last, as the one in sight is: one leaving takes back only its own.
+  const page = useRef<(() => readonly PageCommand[]) | null>(null);
+  const board = useMemo<PageCommandsBoard>(
+    () => ({
+      put: (read) => {
+        page.current = read;
+        return () => {
+          if (page.current === read) page.current = null;
+        };
+      },
+      read: () => page.current?.() ?? [],
+    }),
+    [],
+  );
 
   useEffect(() => {
     const apple = onApple();
@@ -69,8 +119,10 @@ export function CommandMenu({ children }: { children: ReactNode }) {
 
   return (
     <OpenContext value={openBar}>
-      {children}
-      {open ? <Commands onClose={() => setOpen(false)} /> : null}
+      <PageCommandsContext value={board}>
+        {children}
+        {open ? <Commands onClose={() => setOpen(false)} pageCommands={board.read()} /> : null}
+      </PageCommandsContext>
     </OpenContext>
   );
 }
@@ -112,7 +164,7 @@ function projectFor(prompt: Prompt, projects: readonly Resource[] | undefined): 
   return prompt.project ?? (projects?.length === 1 ? projects[0] : undefined);
 }
 
-function Commands({ onClose }: { onClose: () => void }) {
+function Commands({ onClose, pageCommands }: { onClose: () => void; pageCommands: readonly PageCommand[] }) {
   const { t, i18n } = useLingui();
   const strings = useUIStrings();
   const navigate = useNavigate();
@@ -148,6 +200,55 @@ function Commands({ onClose }: { onClose: () => void }) {
         },
         (project, summary) => planDeletingProject(transport, project, summary),
       );
+    // What the page you're on does leads, then what can be made from anywhere, as M-CommandBar has it (#795).
+    const actions = t`Actions`;
+    for (const command of pageCommands) list.push({ ...command, id: `page:${command.id}`, group: actions });
+    const plans = may(ChangeService.method.proposeChange).allowed;
+    // A project itself is in no project, so making or deleting one is an admin's (ADR 0049).
+    const plansProjects = may(ChangeService.method.proposeChange, { install: true }).allowed;
+    if (plans)
+      list.push({
+        id: "new-app",
+        group: actions,
+        icon: "plus",
+        label: t`New app`,
+        hint: t`Opens a plan`,
+        run: () => navigate({ to: "/apps/new" }),
+      });
+    if (plansProjects)
+      list.push({
+        id: "create-project",
+        group: actions,
+        icon: "plus",
+        label: t`Create a project`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "project" }),
+      });
+    if (plans)
+      list.push({
+        id: "create-environment",
+        group: actions,
+        icon: "plus",
+        label: t`Create an environment`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        // Which project it is for is asked once the projects are in, and only if there is a choice.
+        run: () => setPrompt({ kind: "environment" }),
+      });
+    // The organization keeps a project, so the only one has nothing to offer.
+    if (plansProjects && (projects?.length ?? 0) > 1) {
+      list.push({
+        id: "delete-project",
+        group: actions,
+        icon: "trash",
+        label: t`Delete a project`,
+        hint: t`Opens a plan`,
+        keepOpen: "step",
+        run: () => setPrompt({ kind: "delete-project" }),
+      });
+    }
+
     const pages = t`Pages`;
     list.push({
       id: "overview",
@@ -172,26 +273,6 @@ function Commands({ onClose }: { onClose: () => void }) {
         label: t`Open the server list`,
         hint: String(servers?.length ?? ""),
         run: () => navigate({ to: "/servers" }),
-      });
-    }
-    for (const server of servers ?? []) {
-      const name = server.name;
-      const address = server.address;
-      const where = address && isPrivateAddress(address) ? t`${address}, private` : address;
-      list.push({
-        id: `server:${server.id}`,
-        group: fleet ? t`Servers` : pages,
-        icon: "server",
-        label: t`Open ${name}`,
-        hint: [strings.status[serverStatus(server)], where].filter(Boolean).join(" · "),
-        run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
-      });
-      list.push({
-        id: `server-activity:${server.id}`,
-        group: fleet ? t`Servers` : pages,
-        icon: "activity",
-        label: t`Show what happened on ${name}`,
-        run: () => navigate({ to: "/activity", search: { server: server.id } }),
       });
     }
     list.push({
@@ -260,6 +341,27 @@ function Commands({ onClose }: { onClose: () => void }) {
       run: () => navigate({ to: "/profile" }),
     });
 
+    // Each server after every page, so the pages are one group (#795).
+    for (const server of servers ?? []) {
+      const name = server.name;
+      const address = server.address;
+      const where = address && isPrivateAddress(address) ? t`${address}, private` : address;
+      list.push({
+        id: `server:${server.id}`,
+        group: fleet ? t`Servers` : pages,
+        icon: "server",
+        label: t`Open ${name}`,
+        hint: [strings.status[serverStatus(server)], where].filter(Boolean).join(" · "),
+        run: () => navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
+      });
+      list.push({
+        id: `server-activity:${server.id}`,
+        group: fleet ? t`Servers` : pages,
+        icon: "activity",
+        label: t`Show what happened on ${name}`,
+        run: () => navigate({ to: "/activity", search: { server: server.id } }),
+      });
+    }
     for (const app of apps ?? []) {
       const name = nameOf(app);
       list.push({
@@ -334,53 +436,6 @@ function Commands({ onClose }: { onClose: () => void }) {
       });
     }
 
-    const actions = t`Actions`;
-    const plans = may(ChangeService.method.proposeChange).allowed;
-    // A project itself is in no project, so making or deleting one is an admin's (ADR 0049).
-    const plansProjects = may(ChangeService.method.proposeChange, { install: true }).allowed;
-    if (plans)
-      list.push({
-        id: "new-app",
-        group: actions,
-        icon: "plus",
-        label: t`New app`,
-        hint: t`Opens a plan`,
-        run: () => navigate({ to: "/apps/new" }),
-      });
-    if (plansProjects)
-      list.push({
-        id: "create-project",
-        group: actions,
-        icon: "plus",
-        label: t`Create a project`,
-        hint: t`Opens a plan`,
-        keepOpen: "step",
-        run: () => setPrompt({ kind: "project" }),
-      });
-    if (plans)
-      list.push({
-        id: "create-environment",
-        group: actions,
-        icon: "plus",
-        label: t`Create an environment`,
-        hint: t`Opens a plan`,
-        keepOpen: "step",
-        // Which project it is for is asked once the projects are in, and only if there is a choice.
-        run: () => setPrompt({ kind: "environment" }),
-      });
-    // The organization keeps a project, so the only one has nothing to offer.
-    if (plansProjects && (projects?.length ?? 0) > 1) {
-      list.push({
-        id: "delete-project",
-        group: actions,
-        icon: "trash",
-        label: t`Delete a project`,
-        hint: t`Opens a plan`,
-        keepOpen: "step",
-        run: () => setPrompt({ kind: "delete-project" }),
-      });
-    }
-
     const themes: { id: ThemePreference; label: string; icon: CommandItem["icon"] }[] = [
       { id: "light", label: t`Use the light theme`, icon: "sun" },
       { id: "dark", label: t`Use the dark theme`, icon: "moon" },
@@ -419,6 +474,7 @@ function Commands({ onClose }: { onClose: () => void }) {
     onClose,
     transport,
     may,
+    pageCommands,
   ]);
 
   const project = prompt ? projectFor(prompt, projects) : undefined;
