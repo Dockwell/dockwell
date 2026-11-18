@@ -13038,6 +13038,54 @@ msgstr "Wrong token"
 msgid "Zones"
 msgstr "Zones"
 
+msgid "Can't edit DNS"
+msgstr "Can't edit DNS"
+
+msgid "Cloudflare"
+msgstr "Cloudflare"
+
+msgid "Cloudflare · {name}"
+msgstr "Cloudflare · {name}"
+
+msgid "Connected"
+msgstr "Connected"
+
+msgid "Edits DNS"
+msgstr "Edits DNS"
+
+msgid "Edits DNS in its zone"
+msgstr "Edits DNS in its zone"
+
+msgid "Edits DNS in {zones} zones"
+msgstr "Edits DNS in {zones} zones"
+
+msgid "Last sync"
+msgstr "Last sync"
+
+msgid "Not read yet"
+msgstr "Not read yet"
+
+msgid "Records"
+msgstr "Records"
+
+msgid "Replace token"
+msgstr "Replace token"
+
+msgid "Sync now"
+msgstr "Sync now"
+
+msgid "{dns}, a second token for tunnels"
+msgstr "{dns}, a second token for tunnels"
+
+msgid "{dns}, no tunnels"
+msgstr "{dns}, no tunnels"
+
+msgid "{dns}, publishes through tunnels"
+msgstr "{dns}, publishes through tunnels"
+
+msgid "{records} managed by Dockwell"
+msgstr "{records} managed by Dockwell"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "A domain sends people to an app, so run one first."
 
@@ -13099,6 +13147,9 @@ msgstr "Not served on {server}"
 
 msgid "Reading DNS"
 msgstr "Reading DNS"
+
+msgid "Redirects"
+msgstr "Redirects"
 
 msgid "Redirects to {where}"
 msgstr "Redirects to {where}"
@@ -13172,20 +13223,38 @@ msgstr "Manage in Dockwell"
 msgid "Not in the tunnel any more"
 msgstr "Not in the tunnel any more"
 
+msgid "Published"
+msgstr "Published"
+
+msgid "Published at Cloudflare"
+msgstr "Published at Cloudflare"
+
+msgid "Published at Cloudflare, {way}"
+msgstr "Published at Cloudflare, {way}"
+
 msgid "Put it back"
 msgstr "Put it back"
 
 msgid "Put {name} back at Cloudflare"
 msgstr "Put {name} back at Cloudflare"
 
+msgid "by *.{zone}"
+msgstr "by *.{zone}"
+
+msgid "proxied"
+msgstr "proxied"
+
+msgid "through Dockwell's tunnel"
+msgstr "through Dockwell's tunnel"
+
+msgid "through {tunnel}"
+msgstr "through {tunnel}"
+
 msgid "Can't tell where it points"
 msgstr "Can't tell where it points"
 
 msgid "No record yet"
 msgstr "No record yet"
-
-msgid "Not read yet"
-msgstr "Not read yet"
 
 msgid "Proxied by Cloudflare"
 msgstr "Proxied by Cloudflare"
@@ -16441,9 +16510,6 @@ msgstr "Addresses"
 
 msgid "Can't read Docker"
 msgstr "Can't read Docker"
-
-msgid "Connected"
-msgstr "Connected"
 
 msgid "Control plane"
 msgstr "Control plane"

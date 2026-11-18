@@ -13038,6 +13038,54 @@ msgstr "令牌错误"
 msgid "Zones"
 msgstr "区域"
 
+msgid "Can't edit DNS"
+msgstr "无法编辑 DNS"
+
+msgid "Cloudflare"
+msgstr "Cloudflare"
+
+msgid "Cloudflare · {name}"
+msgstr "Cloudflare · {name}"
+
+msgid "Connected"
+msgstr "已连接"
+
+msgid "Edits DNS"
+msgstr "可编辑 DNS"
+
+msgid "Edits DNS in its zone"
+msgstr "可编辑其区域的 DNS"
+
+msgid "Edits DNS in {zones} zones"
+msgstr "可编辑 {zones} 个区域的 DNS"
+
+msgid "Last sync"
+msgstr "上次同步"
+
+msgid "Not read yet"
+msgstr "尚未读取"
+
+msgid "Records"
+msgstr "记录"
+
+msgid "Replace token"
+msgstr "更换令牌"
+
+msgid "Sync now"
+msgstr "立即同步"
+
+msgid "{dns}, a second token for tunnels"
+msgstr "{dns}，另有一个用于隧道的令牌"
+
+msgid "{dns}, no tunnels"
+msgstr "{dns}，不含隧道"
+
+msgid "{dns}, publishes through tunnels"
+msgstr "{dns}，可通过隧道发布"
+
+msgid "{records} managed by Dockwell"
+msgstr "{records} 条由 Dockwell 管理"
+
 msgid "A domain sends people to an app, so run one first."
 msgstr "域名把访问者带到应用，所以请先运行一个应用。"
 
@@ -13099,6 +13147,9 @@ msgstr "{server} 上未提供此重定向"
 
 msgid "Reading DNS"
 msgstr "正在读取 DNS"
+
+msgid "Redirects"
+msgstr "重定向"
 
 msgid "Redirects to {where}"
 msgstr "重定向到 {where}"
@@ -13172,20 +13223,38 @@ msgstr "在 Dockwell 中管理"
 msgid "Not in the tunnel any more"
 msgstr "已不在隧道中"
 
+msgid "Published"
+msgstr "已发布"
+
+msgid "Published at Cloudflare"
+msgstr "已在 Cloudflare 发布"
+
+msgid "Published at Cloudflare, {way}"
+msgstr "已在 Cloudflare 发布，{way}"
+
 msgid "Put it back"
 msgstr "恢复"
 
 msgid "Put {name} back at Cloudflare"
 msgstr "在 Cloudflare 恢复 {name}"
 
+msgid "by *.{zone}"
+msgstr "经 *.{zone}"
+
+msgid "proxied"
+msgstr "经代理"
+
+msgid "through Dockwell's tunnel"
+msgstr "经 Dockwell 的隧道"
+
+msgid "through {tunnel}"
+msgstr "经 {tunnel}"
+
 msgid "Can't tell where it points"
 msgstr "无法判断指向哪里"
 
 msgid "No record yet"
 msgstr "还没有记录"
-
-msgid "Not read yet"
-msgstr "尚未读取"
 
 msgid "Proxied by Cloudflare"
 msgstr "由 Cloudflare 代理"
@@ -16441,9 +16510,6 @@ msgstr "地址"
 
 msgid "Can't read Docker"
 msgstr "无法读取 Docker"
-
-msgid "Connected"
-msgstr "已连接"
 
 msgid "Control plane"
 msgstr "控制平面"

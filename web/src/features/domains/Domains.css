@@ -210,9 +210,72 @@
   min-width: 0;
 }
 
-.domains-certificates {
+/* What's beside the list: each Cloudflare connection, then the certificates (#820). */
+.domains-side {
+  display: flex;
   flex: 1 1 280px;
+  flex-direction: column;
+  gap: var(--space-4);
   min-width: 0;
+}
+
+.domains-certificates,
+.domains-cloudflare {
+  min-width: 0;
+}
+
+/* With the At Cloudflare column, the list takes the width and the panels sit under it, side by side. */
+.domains-layout.is-wide .domains-main {
+  flex-basis: 1200px;
+}
+
+.domains-layout.is-wide .domains-side {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.domains-layout.is-wide .domains-cloudflare,
+.domains-layout.is-wide .domains-certificates {
+  flex: 1 1 320px;
+}
+
+.domains-cloudflare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* A name's state at Cloudflare in its column: the badge, and its action under it. */
+.domains-at-cloudflare {
+  gap: var(--space-1);
+}
+
+.domains-at-cloudflare-state {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.domains-at-cloudflare-act {
+  padding-left: 16px;
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+.domains-sources {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* Long names and states wrap in their cells, never past them. */
+.domains-sources code,
+.domains-at-cloudflare-state .dw-status {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .domains-certificates-meta {
