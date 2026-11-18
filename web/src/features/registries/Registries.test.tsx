@@ -47,7 +47,7 @@ describe("Registry logins", () => {
       images: { listRegistryLogins: () => ({ logins: [ghcr] }) },
     });
     const section = await screen.findByRole("region", { name: "Registries" });
-    expect(await within(section).findByText("1 login · for images a registry keeps private")).toBeVisible();
+    expect(await within(section).findByText("1 login")).toBeVisible();
     const card = within(section).getByRole("article", { name: "GitHub Container Registry" });
     expect(within(card).getByText("Connected")).toBeVisible();
     expect(card).toHaveTextContent("ghcr-ci for every project");

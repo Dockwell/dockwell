@@ -1266,31 +1266,113 @@
 /* ---------- Integrations ---------- */
 
 /*
- * The sections side by side, as Settings-Integrations has them: each takes room for its cards and grows with the row,
- * and one that doesn't fit goes to the next, so a row is full rather than a section's few cards beside nothing.
+ * Every section on one grid of the page's columns, as Settings-Integrations has them (#786): a section takes a
+ * column a card, up to the row, and its cards sit on those columns, so cards line up from section to section.
+ * Sections in a row are as tall as each other, their headers one line each, so their cards start together, are
+ * as tall as each other, and keep their actions at the foot.
  */
 .integrations-sections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6) var(--space-4);
+  container: integrations / inline-size;
+}
+
+.integrations-board {
+  --cols: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: var(--space-6) var(--space-3);
 }
 
 .integrations-section {
-  display: flex;
-  flex: var(--cards, 1) 1 calc(var(--cards, 1) * 220px + (var(--cards, 1) - 1) * var(--space-3));
-  flex-direction: column;
+  display: grid;
+  grid-column: span 1;
+  grid-template-columns: subgrid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
   min-width: 0;
-  /* At most 360 px a card, so a section with one card alone on a row stays a card's width rather than stretching. */
-  max-width: calc(var(--cards, 1) * 360px + (var(--cards, 1) - 1) * var(--space-3));
 }
 
-.integrations-sections .integrations-grid {
-  /* As Settings-Integrations' grid: a card at least 200 px, wrapping where a section's cards don't fit, down to
-     one a row on a phone. A section's card count sets only how much of its row it takes. */
-  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
-  /* Sections in a row are as tall as each other, so their cards line up at the foot, as a head that wraps
-     to two lines in a narrower section would otherwise push its cards below the others. */
-  margin-top: auto;
+/* The header, and what stands for the cards when they can't be read, take the section's width. */
+.integrations-section > :not(.integrations-grid) {
+  grid-column: 1 / -1;
+}
+
+/* A section's cards are its own grid's, on the page's columns. */
+.integrations-section > .integrations-grid {
+  display: contents;
+}
+
+@container integrations (min-width: 480px) {
+  .integrations-board {
+    --cols: 2;
+  }
+
+  .integrations-section:is([data-cards="2"], [data-cards="3"], [data-cards="4"]) {
+    grid-column: span 2;
+  }
+}
+
+@container integrations (min-width: 720px) {
+  .integrations-board {
+    --cols: 3;
+  }
+
+  .integrations-section:is([data-cards="3"], [data-cards="4"]) {
+    grid-column: span 3;
+  }
+}
+
+@container integrations (min-width: 900px) {
+  .integrations-board {
+    --cols: 4;
+  }
+
+  .integrations-section[data-cards="4"] {
+    grid-column: span 4;
+  }
+}
+
+/*
+ * A section of one column beside others has no room for its action's words beside its name: the action is its
+ * mark alone there, named for a screen reader and on hover by its title.
+ */
+@container integrations (min-width: 480px) {
+  .integrations-section[data-cards="1"] .integrations-more {
+    width: var(--control-sm);
+    padding-inline: 0;
+    justify-content: center;
+  }
+
+  .integrations-section[data-cards="1"] .integrations-more .dw-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* A section's header in one line: its name, how many, and its action at the end, as tall as a button. */
+.integrations-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--control-sm);
+}
+
+.integrations-head h2 {
+  flex: none;
+  margin: 0;
+}
+
+.integrations-count {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .integrations-aside {
@@ -1307,6 +1389,7 @@
 }
 
 .integrations-more {
+  flex: none;
   margin-left: auto;
 }
 

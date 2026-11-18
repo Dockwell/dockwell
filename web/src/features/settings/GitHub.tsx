@@ -6,7 +6,7 @@ import { type GitHubAppInfo, GitProviderService, StepUpAction } from "@dockwell/
 import { Button, ButtonLink, Callout, Icon, SegmentedControl, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type CSSProperties, useState } from "react";
+import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
@@ -34,15 +34,16 @@ export function GitHubSection() {
   const [removed, setRemoved] = useState<Removed>();
   const list = apps.data?.apps ?? [];
   const managed = list.find((a) => a.id === managing);
-  // As wide as its cards, as the page lays out each section (IntegrationsPage).
-  const style = { "--cards": Math.max(1, list.length) } as CSSProperties;
+  // As many of the page's columns as its cards, as the page lays out each section (IntegrationsPage, #786).
+  const cards = String(Math.min(4, Math.max(1, list.length)));
+  const live = list.filter((a) => !a.gone).length;
   return (
-    <section className="integrations-section" aria-labelledby="integrations-git" style={style}>
-      <div className="cp-section-head">
+    <section className="integrations-section" aria-labelledby="integrations-git" data-cards={cards}>
+      <div className="integrations-head">
         <h2 id="integrations-git" className="dw-text-heading">
           <Trans>Git</Trans>
         </h2>
-        {apps.data ? <span className="settings-meta">{t`private repositories, and deploy on push`}</span> : null}
+        {live > 0 ? <span className="integrations-count">{live === 1 ? t`1 app` : t`${live} apps`}</span> : null}
       </div>
       {apps.error && !apps.data ? (
         <ReadFailed
@@ -80,7 +81,7 @@ export function GitHubSection() {
               </div>
               <div className="integrations-card-text">
                 <h3 className="integrations-name">GitHub</h3>
-                <p className="integrations-desc">{t`Private repositories, and deploy on push with nothing to paste.`}</p>
+                <p className="integrations-desc">{t`Private repositories, and deploy on push`}</p>
               </div>
               <div>
                 <Button size="sm" icon="plus" onClick={() => setConnecting(true)} {...mayConnect.off}>

@@ -76,7 +76,7 @@ describe("GitHub in Integrations", () => {
     const { container } = renderAt("/settings/integrations", api([], { gitProviders: { startGitHubApp: started } }));
     const card = await screen.findByRole("article", { name: "GitHub" });
     expect(card).toHaveTextContent("Not connected");
-    expect(card).toHaveTextContent("Private repositories, and deploy on push with nothing to paste.");
+    expect(card).toHaveTextContent("Private repositories, and deploy on push");
     // What comes later is a line, never a card to connect.
     expect(screen.getByText("Cloud providers come later.")).toBeVisible();
     await user.click(within(card).getByRole("button", { name: "Connect" }));

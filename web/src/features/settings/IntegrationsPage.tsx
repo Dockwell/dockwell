@@ -12,7 +12,7 @@ import {
 import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type CSSProperties, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
@@ -53,6 +53,7 @@ export function IntegrationsPage() {
   // A registry login to add, from a card's registry, or to change.
   const [login, setLogin] = useState<{ host?: string; editing?: RegistryLoginInfo }>();
   const loginList = logins.data?.logins ?? [];
+  const loginCount = loginList.length;
   const signins = useSigninProviders();
   // A sign-in provider to add, or to change.
   const [signin, setSignin] = useState<{ editing?: SigninProviderInfo }>();
@@ -104,9 +105,9 @@ export function IntegrationsPage() {
       <Trans>Connect</Trans>
     </Button>
   );
-  // How many cards each section holds, so the sections sit side by side, each as wide as its cards, as
-  // Settings-Integrations lays them out, rather than a row each with most of it empty.
-  const cards = (n: number) => ({ "--cards": Math.max(1, n) }) as CSSProperties;
+  // How many of the page's columns each section takes: one a card, up to four, so every section's cards sit on
+  // the same columns, as Settings-Integrations lays them out (#786).
+  const cards = (n: number) => ({ "data-cards": String(Math.min(4, Math.max(1, n))) });
   const storageCards = read ? list.length + (connected === 0 ? 1 : 0) : 1;
   // While a list loads, as many as it shows once it arrives empty, so a section doesn't change rows on every visit.
   const registryCards = logins.data
@@ -115,264 +116,264 @@ export function IntegrationsPage() {
       (loginList.some((l) => l.registry === "ghcr.io") ? 0 : 1)
     : 2;
   const dnsCards = dns.data || dns.error ? dnsList.length + (dnsList.length > 0 ? 0 : 1) + 1 : 2;
+  const signinCards = Math.max(1, signinList.length);
+  const zoneCount = dnsList.reduce((n, p) => n + p.zones.length, 0);
   return (
     <Page width="narrow" title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
       <div className="integrations-sections">
-        <GitHubSection />
+        <div className="integrations-board">
+          <GitHubSection />
 
-        <section className="integrations-section" aria-labelledby="integrations-storage" style={cards(storageCards)}>
-          <div className="cp-section-head">
-            <h2 id="integrations-storage" className="dw-text-heading">
-              <Trans>Object storage</Trans>
-            </h2>
-            {read ? (
-              <span className="settings-meta">
-                {connected === 1
-                  ? t`1 bucket · where backups go beside each server's disk`
-                  : t`${connected} buckets · where backups go beside each server's disk`}
-              </span>
-            ) : null}
-            {/* Once storage is connected, more is connected from here rather than from a card of its own. */}
-            {connected > 0 ? (
+          <section className="integrations-section" aria-labelledby="integrations-storage" {...cards(storageCards)}>
+            <div className="integrations-head">
+              <h2 id="integrations-storage" className="dw-text-heading">
+                <Trans>Object storage</Trans>
+              </h2>
+              {read && connected > 0 ? (
+                <span className="integrations-count">{connected === 1 ? t`1 bucket` : t`${connected} buckets`}</span>
+              ) : null}
+              {/* Once storage is connected, more is connected from here rather than from a card of its own. */}
+              {connected > 0 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="plus"
+                  title={t`Connect storage`}
+                  className="integrations-more"
+                  onClick={() => setAdding(true)}
+                  {...mayPlan.off}
+                >
+                  <Trans>Connect storage</Trans>
+                </Button>
+              ) : null}
+            </div>
+            {destinations.error && !destinations.data ? (
+              <ReadFailed
+                error={destinations.error}
+                title={t`Dockwell can't list where backups go`}
+                actions={
+                  <Button
+                    size="sm"
+                    icon="refresh"
+                    loading={destinations.isFetching}
+                    onClick={() => void destinations.refetch()}
+                  >
+                    <Trans>Try again</Trans>
+                  </Button>
+                }
+              />
+            ) : !read ? (
+              <div className="integrations-grid" aria-busy="true">
+                <div className="dw-panel integrations-card integrations-skeleton" />
+                <span className="dw-sr">{t`Loading where backups go`}</span>
+              </div>
+            ) : (
+              <div className="integrations-grid">
+                {list.map((d) => (
+                  <DestinationCard key={d.id} destination={d} />
+                ))}
+                {connected === 0 ? (
+                  <Card
+                    icon="archive"
+                    name={t`S3-compatible storage`}
+                    state={<span className="settings-meta">{t`Not connected`}</span>}
+                    text={t`S3, R2, B2, MinIO or any S3 API`}
+                    action={connect}
+                  />
+                ) : null}
+              </div>
+            )}
+          </section>
+
+          <section className="integrations-section" aria-labelledby="integrations-registries" {...cards(registryCards)}>
+            <div className="integrations-head">
+              <h2 id="integrations-registries" className="dw-text-heading">
+                <Trans>Registries</Trans>
+              </h2>
+              {logins.data && loginList.length > 0 ? (
+                <span className="integrations-count">{loginCount === 1 ? t`1 login` : t`${loginCount} logins`}</span>
+              ) : null}
               <Button
                 size="sm"
                 variant="ghost"
                 icon="plus"
+                title={t`Connect a registry`}
                 className="integrations-more"
-                onClick={() => setAdding(true)}
+                onClick={() => setLogin({})}
                 {...mayPlan.off}
               >
-                <Trans>Connect storage</Trans>
+                <Trans>Connect a registry</Trans>
               </Button>
-            ) : null}
-          </div>
-          {destinations.error && !destinations.data ? (
-            <ReadFailed
-              error={destinations.error}
-              title={t`Dockwell can't list where backups go`}
-              actions={
-                <Button
-                  size="sm"
-                  icon="refresh"
-                  loading={destinations.isFetching}
-                  onClick={() => void destinations.refetch()}
-                >
-                  <Trans>Try again</Trans>
-                </Button>
-              }
-            />
-          ) : !read ? (
-            <div className="integrations-grid" aria-busy="true">
-              <div className="dw-panel integrations-card integrations-skeleton" />
-              <span className="dw-sr">{t`Loading where backups go`}</span>
             </div>
-          ) : (
-            <div className="integrations-grid">
-              {list.map((d) => (
-                <DestinationCard key={d.id} destination={d} />
-              ))}
-              {connected === 0 ? (
-                <Card
-                  icon="archive"
-                  name={t`S3-compatible storage`}
-                  state={<span className="settings-meta">{t`Not connected`}</span>}
-                  text={t`S3, R2, B2, MinIO or any S3 API. Backups are sealed before they leave.`}
-                  action={connect}
-                />
-              ) : null}
-            </div>
-          )}
-        </section>
-
-        <section
-          className="integrations-section"
-          aria-labelledby="integrations-registries"
-          style={cards(registryCards)}
-        >
-          <div className="cp-section-head">
-            <h2 id="integrations-registries" className="dw-text-heading">
-              <Trans>Registries</Trans>
-            </h2>
-            {logins.data ? (
-              <span className="settings-meta">
-                {loginList.length === 1
-                  ? t`1 login · for images a registry keeps private`
-                  : t`${loginList.length} logins · for images a registry keeps private`}
-              </span>
-            ) : null}
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="plus"
-              className="integrations-more"
-              onClick={() => setLogin({})}
-              {...mayPlan.off}
-            >
-              <Trans>Connect a registry</Trans>
-            </Button>
-          </div>
-          {logins.error && !logins.data ? (
-            <ReadFailed
-              error={logins.error}
-              title={t`Dockwell can't list its registry logins`}
-              actions={
-                <Button size="sm" icon="refresh" loading={logins.isFetching} onClick={() => void logins.refetch()}>
-                  <Trans>Try again</Trans>
-                </Button>
-              }
-            />
-          ) : !logins.data ? (
-            <div className="integrations-grid" aria-busy="true">
-              <div className="dw-panel integrations-card integrations-skeleton" />
-              <span className="dw-sr">{t`Loading registry logins`}</span>
-            </div>
-          ) : (
-            <div className="integrations-grid">
-              {loginList.map((l) => (
-                <LoginCard key={l.id} login={l} onManage={() => setLogin({ editing: l })} manage={mayPlan.off} />
-              ))}
-              {/* Docker Hub and GitHub's, the registries most images come from, until one is connected. */}
-              {loginList.some((l) => l.registry === "docker.io") ? null : (
-                <Card
-                  icon="layers"
-                  name="Docker Hub"
-                  state={<span className="settings-meta">{t`Not connected`}</span>}
-                  text={t`Private images, and pulls past Docker Hub's limits.`}
-                  action={
-                    <Button size="sm" icon="plus" onClick={() => setLogin({ host: "docker.io" })} {...mayPlan.off}>
-                      <Trans>Connect</Trans>
-                    </Button>
-                  }
-                />
-              )}
-              {loginList.some((l) => l.registry === "ghcr.io") ? null : (
-                <Card
-                  icon="layers"
-                  name="GitHub Container Registry"
-                  state={<span className="settings-meta">{t`Not connected`}</span>}
-                  text={t`Private images from GitHub, such as those Actions push.`}
-                  action={
-                    <Button size="sm" icon="plus" onClick={() => setLogin({ host: "ghcr.io" })} {...mayPlan.off}>
-                      <Trans>Connect</Trans>
-                    </Button>
-                  }
-                />
-              )}
-            </div>
-          )}
-        </section>
-
-        <section className="integrations-section" aria-labelledby="integrations-dns" style={cards(dnsCards)}>
-          <div className="cp-section-head">
-            <h2 id="integrations-dns" className="dw-text-heading">
-              <Trans>DNS and proxies</Trans>
-            </h2>
-            <span className="settings-meta">{t`in front of a server's routes`}</span>
-          </div>
-          <div className="integrations-grid">
-            {dnsList.map((p) => (
-              <ProviderCard key={p.id} provider={p} onManage={() => setProvider({ editing: p })} manage={mayPlan.off} />
-            ))}
-            {/* Not connected only once the list says so, never while it loads. */}
-            {dnsList.length > 0 || (!dns.data && !dns.error) ? null : (
-              <Card
-                icon="globe"
-                name="Cloudflare"
-                state={<span className="settings-meta">{t`Not connected`}</span>}
-                text={t`Certificates by DNS, behind NAT or for a wildcard. A route can also sit behind its proxy or a Tunnel.`}
-                action={
-                  <div className="integrations-actions">
-                    <Button size="sm" icon="plus" onClick={() => setProvider({})} {...mayPlan.off}>
-                      <Trans>Connect</Trans>
-                    </Button>
-                    <a href={CLOUDFLARE} target="_blank" rel="noreferrer" className="dw-btn dw-btn-ghost dw-btn-sm">
-                      <Icon name="external" size={14} />
-                      <span>
-                        <Trans>How to route behind it</Trans>
-                      </span>
-                    </a>
-                  </div>
-                }
-              />
-            )}
-            <Card
-              icon="link"
-              name={t`Domains`}
-              state={<span className="settings-meta">{t`Any DNS provider`}</span>}
-              text={t`Dockwell says which record to make, then gets the certificate.`}
-              action={
-                <Link to="/domains" className="dw-btn dw-btn-secondary dw-btn-sm">
-                  <span>
-                    <Trans>Open Domains</Trans>
-                  </span>
-                </Link>
-              }
-            />
-          </div>
-        </section>
-      </div>
-
-      <section className="integrations-section" aria-labelledby="integrations-signin">
-        <div className="cp-section-head">
-          <h2 id="integrations-signin" className="dw-text-heading">
-            <Trans>Sign-in</Trans>
-          </h2>
-          {signins.data ? (
-            <span className="settings-meta">
-              {signinList.length === 1
-                ? t`1 provider · for private routes`
-                : t`${signinCount} providers · for private routes`}
-            </span>
-          ) : null}
-          {signinList.length > 0 ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              icon="plus"
-              className="integrations-more"
-              onClick={() => setSignin({})}
-              {...mayPlan.off}
-            >
-              <Trans>Add a provider</Trans>
-            </Button>
-          ) : null}
-        </div>
-        {signins.error && !signins.data ? (
-          <ReadFailed
-            error={signins.error}
-            title={t`Dockwell can't list its sign-in providers`}
-            actions={
-              <Button size="sm" icon="refresh" loading={signins.isFetching} onClick={() => void signins.refetch()}>
-                <Trans>Try again</Trans>
-              </Button>
-            }
-          />
-        ) : !signins.data ? (
-          <div className="integrations-grid" aria-busy="true">
-            <div className="dw-panel integrations-card integrations-skeleton" />
-            <span className="dw-sr">{t`Loading sign-in providers`}</span>
-          </div>
-        ) : (
-          <div className="integrations-grid">
-            {signinList.map((p) => (
-              <SigninCard key={p.id} provider={p} onManage={() => setSignin({ editing: p })} manage={mayPlan.off} />
-            ))}
-            {signinList.length > 0 ? null : (
-              <Card
-                icon="lock"
-                name={t`Sign-in provider`}
-                state={<span className="settings-meta">{t`Not connected`}</span>}
-                text={t`People sign in to private routes as themselves, with Authentik, Google or another.`}
-                action={
-                  <Button size="sm" icon="plus" onClick={() => setSignin({})} {...mayPlan.off}>
-                    <Trans>Connect</Trans>
+            {logins.error && !logins.data ? (
+              <ReadFailed
+                error={logins.error}
+                title={t`Dockwell can't list its registry logins`}
+                actions={
+                  <Button size="sm" icon="refresh" loading={logins.isFetching} onClick={() => void logins.refetch()}>
+                    <Trans>Try again</Trans>
                   </Button>
                 }
               />
+            ) : !logins.data ? (
+              <div className="integrations-grid" aria-busy="true">
+                <div className="dw-panel integrations-card integrations-skeleton" />
+                <span className="dw-sr">{t`Loading registry logins`}</span>
+              </div>
+            ) : (
+              <div className="integrations-grid">
+                {loginList.map((l) => (
+                  <LoginCard key={l.id} login={l} onManage={() => setLogin({ editing: l })} manage={mayPlan.off} />
+                ))}
+                {/* Docker Hub and GitHub's, the registries most images come from, until one is connected. */}
+                {loginList.some((l) => l.registry === "docker.io") ? null : (
+                  <Card
+                    icon="layers"
+                    name="Docker Hub"
+                    state={<span className="settings-meta">{t`Not connected`}</span>}
+                    text={t`Private images, past its pull limits`}
+                    action={
+                      <Button size="sm" icon="plus" onClick={() => setLogin({ host: "docker.io" })} {...mayPlan.off}>
+                        <Trans>Connect</Trans>
+                      </Button>
+                    }
+                  />
+                )}
+                {loginList.some((l) => l.registry === "ghcr.io") ? null : (
+                  <Card
+                    icon="layers"
+                    name="GitHub Container Registry"
+                    state={<span className="settings-meta">{t`Not connected`}</span>}
+                    text={t`Private images, such as Actions push`}
+                    action={
+                      <Button size="sm" icon="plus" onClick={() => setLogin({ host: "ghcr.io" })} {...mayPlan.off}>
+                        <Trans>Connect</Trans>
+                      </Button>
+                    }
+                  />
+                )}
+              </div>
             )}
-          </div>
-        )}
-      </section>
+          </section>
+
+          <section className="integrations-section" aria-labelledby="integrations-dns" {...cards(dnsCards)}>
+            <div className="integrations-head">
+              <h2 id="integrations-dns" className="dw-text-heading">
+                <Trans>DNS and proxies</Trans>
+              </h2>
+              {zoneCount > 0 ? (
+                <span className="integrations-count">{zoneCount === 1 ? t`1 zone` : t`${zoneCount} zones`}</span>
+              ) : null}
+            </div>
+            <div className="integrations-grid">
+              {dnsList.map((p) => (
+                <ProviderCard
+                  key={p.id}
+                  provider={p}
+                  onManage={() => setProvider({ editing: p })}
+                  manage={mayPlan.off}
+                />
+              ))}
+              {/* Not connected only once the list says so, never while it loads. */}
+              {dnsList.length > 0 || (!dns.data && !dns.error) ? null : (
+                <Card
+                  icon="globe"
+                  name="Cloudflare"
+                  state={<span className="settings-meta">{t`Not connected`}</span>}
+                  text={t`Certificates by DNS, its proxy and tunnels`}
+                  action={
+                    <div className="integrations-actions">
+                      <Button size="sm" icon="plus" onClick={() => setProvider({})} {...mayPlan.off}>
+                        <Trans>Connect</Trans>
+                      </Button>
+                      <a href={CLOUDFLARE} target="_blank" rel="noreferrer" className="dw-btn dw-btn-ghost dw-btn-sm">
+                        <Icon name="external" size={14} />
+                        <span>
+                          <Trans>How to route behind it</Trans>
+                        </span>
+                      </a>
+                    </div>
+                  }
+                />
+              )}
+              <Card
+                icon="link"
+                name={t`Domains`}
+                state={<span className="settings-meta">{t`Any DNS provider`}</span>}
+                text={t`Says which record to make, then gets the certificate`}
+                action={
+                  <Link to="/domains" className="dw-btn dw-btn-secondary dw-btn-sm">
+                    <span>
+                      <Trans>Open Domains</Trans>
+                    </span>
+                  </Link>
+                }
+              />
+            </div>
+          </section>
+
+          <section className="integrations-section" aria-labelledby="integrations-signin" {...cards(signinCards)}>
+            <div className="integrations-head">
+              <h2 id="integrations-signin" className="dw-text-heading">
+                <Trans>Sign-in</Trans>
+              </h2>
+              {signins.data && signinCount > 0 ? (
+                <span className="integrations-count">
+                  {signinCount === 1 ? t`1 provider` : t`${signinCount} providers`}
+                </span>
+              ) : null}
+              {signinList.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="plus"
+                  title={t`Add a provider`}
+                  className="integrations-more"
+                  onClick={() => setSignin({})}
+                  {...mayPlan.off}
+                >
+                  <Trans>Add a provider</Trans>
+                </Button>
+              ) : null}
+            </div>
+            {signins.error && !signins.data ? (
+              <ReadFailed
+                error={signins.error}
+                title={t`Dockwell can't list its sign-in providers`}
+                actions={
+                  <Button size="sm" icon="refresh" loading={signins.isFetching} onClick={() => void signins.refetch()}>
+                    <Trans>Try again</Trans>
+                  </Button>
+                }
+              />
+            ) : !signins.data ? (
+              <div className="integrations-grid" aria-busy="true">
+                <div className="dw-panel integrations-card integrations-skeleton" />
+                <span className="dw-sr">{t`Loading sign-in providers`}</span>
+              </div>
+            ) : (
+              <div className="integrations-grid">
+                {signinList.map((p) => (
+                  <SigninCard key={p.id} provider={p} onManage={() => setSignin({ editing: p })} manage={mayPlan.off} />
+                ))}
+                {signinList.length > 0 ? null : (
+                  <Card
+                    icon="lock"
+                    name={t`Sign-in provider`}
+                    state={<span className="settings-meta">{t`Not connected`}</span>}
+                    text={t`Private routes, with Authentik, Google or another`}
+                    action={
+                      <Button size="sm" icon="plus" onClick={() => setSignin({})} {...mayPlan.off}>
+                        <Trans>Connect</Trans>
+                      </Button>
+                    }
+                  />
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
 
       <p className="settings-meta integrations-later">{t`Cloud providers come later.`}</p>
 
@@ -541,6 +542,8 @@ function ProviderCard({
   const sheet = useChangeSheet();
   // A few kept records show; the rest are one step away (the review's B-L8).
   const [allKept, setAllKept] = useState(false);
+  const [showKept, setShowKept] = useState(false);
+  const keptCount = p.kept.length;
   const hidden = p.kept.length - KEPT_SHOWN;
   // Putting a kept record back is the provider's own plan, which sends the rest of it as it is (ADR 0104).
   const putBack = (id: string, name: string) =>
@@ -578,7 +581,20 @@ function ProviderCard({
           <span className="integrations-sub">
             <code>{p.zones.join(", ")}</code>
           </span>
-          {p.kept.length > 0 ? (
+          {p.kept.length > 0 && !showKept ? (
+            // The records it keeps are a line until asked for, so the card is as tall as the rest of its row.
+            <StateLine
+              status={p.kept.some((k) => k.nameFree) ? "degraded" : "unknown"}
+              action={
+                <button type="button" className="domain-step-act" onClick={() => setShowKept(true)}>
+                  <Trans>Show</Trans>
+                </button>
+              }
+            >
+              {keptCount === 1 ? t`1 record kept` : t`${keptCount} records kept`}
+            </StateLine>
+          ) : null}
+          {p.kept.length > 0 && showKept ? (
             <ul className="integrations-kept" aria-label={t`Records kept`}>
               {p.kept.slice(0, allKept ? p.kept.length : KEPT_SHOWN).map((k) => {
                 const name = k.name;
@@ -645,23 +661,28 @@ function SigninCard({
         : t`${p.projects.length} projects`;
   const host = issuerHost(p.issuer);
   const clientId = p.clientId;
+  const shownHost = host && host !== (p.displayName || p.name) ? host : "";
   return (
     <Card
       icon="lock"
       name={p.displayName || p.name}
-      state={host ? <code className="settings-meta">{host}</code> : null}
+      state={<StatusBadge status="healthy" label={t`Connected`} title={host || undefined} />}
       text={
         <>
           <Trans>
             <code>{p.name}</code> for {who}
           </Trans>
-          {p.clientId ? (
-            <span className="integrations-sub">
+          {/* Its issuer, and the client it signs in as, in one line of facts. */}
+          <span className="integrations-sub">
+            {/* Its host, where the card isn't already called by it. */}
+            {shownHost ? <code>{shownHost}</code> : null}
+            {shownHost && clientId ? " · " : null}
+            {clientId ? (
               <Trans>
                 Client <code>{clientId}</code>
               </Trans>
-            </span>
-          ) : null}
+            ) : null}
+          </span>
         </>
       }
       action={

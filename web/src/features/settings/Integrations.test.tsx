@@ -82,6 +82,29 @@ describe("Integrations", () => {
     await expectAccessible(container);
   });
 
+  it("lays every section on one board of columns, a column a card, each with a one-line header (#786)", async () => {
+    const { container } = renderAt("/settings/integrations", {
+      backups: { listBackupDestinations: () => ({ destinations: [r2, fresh, refused] }) },
+    });
+    const storage = await screen.findByRole("region", { name: "Object storage" });
+    await within(storage).findByText("3 buckets");
+    const board = container.querySelector(".integrations-board");
+    const sections = [...(board?.querySelectorAll(":scope > .integrations-section") ?? [])];
+    expect(sections.map((s) => s.querySelector("h2")?.textContent)).toEqual([
+      "Git",
+      "Object storage",
+      "Registries",
+      "DNS and proxies",
+      "Sign-in",
+    ]);
+    // Storage holds three cards, Registries Docker Hub's and GitHub's, DNS Cloudflare's and Domains.
+    expect(sections.map((s) => s.getAttribute("data-cards"))).toEqual(["1", "3", "2", "2", "1"]);
+    // Each header is its name, how many, and its action, in one line: no sentence under it.
+    const head = storage.querySelector(".integrations-head");
+    expect(head?.children).toHaveLength(3);
+    expect(head).toHaveTextContent("Object storage3 bucketsConnect storage");
+  });
+
   it("says a destination is failing once its newest backup didn't get there, whatever got there before", async () => {
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [refused] }) } });
     const b2 = await screen.findByRole("article", { name: "b2" });
