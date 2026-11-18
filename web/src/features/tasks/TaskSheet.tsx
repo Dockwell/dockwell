@@ -237,8 +237,8 @@ export function TaskSheet({
   }[retries];
   const summary = [
     task ? "" : t`Named ${name}`,
-    // Its own context: "in {0}" is also a time ("in 3 min"), which zh-CN puts after the number.
-    kind === "shell" ? t({ message: `in ${folder.trim() || "/"}`, context: "the folder a task runs in" }) : "",
+    // "in folder /", as "in /" alone read as a time or nothing (#802).
+    kind === "shell" ? t`in folder ${folder.trim() || "/"}` : "",
     t`stops after ${minutes || "?"} min`,
     failing ?? "",
     skipMissed ? t`skips missed runs` : "",
@@ -316,7 +316,7 @@ export function TaskSheet({
             label={t`URL`}
             value={url}
             mono
-            placeholder="https://example.com/cron"
+            placeholder={t`e.g. https://example.com/cron`}
             error={tried ? errors.url : undefined}
             hint={t`The server asks it, so it reaches what the server reaches.`}
             onChange={(event) => setUrl(event.target.value)}
@@ -327,7 +327,8 @@ export function TaskSheet({
             value={command}
             mono
             spellCheck={false}
-            placeholder={kind === "shell" ? "find /var/log/app -mtime +7 -delete" : "/app/api report sales"}
+            // Examples, which a placeholder alone reads as already filled in (#802).
+            placeholder={kind === "shell" ? t`e.g. find /var/log/app -mtime +7 -delete` : t`e.g. /app/api report sales`}
             error={tried ? errors.command : undefined}
             hint={
               kind === "shell"
@@ -347,7 +348,7 @@ export function TaskSheet({
           label={t`Name`}
           value={display}
           optional
-          placeholder={t`Nightly sales report`}
+          placeholder={t`e.g. Nightly sales report`}
           onChange={(event) => setDisplay(event.target.value)}
         />
         {kind !== "app" && places.environments.length > 1 && !task ? (

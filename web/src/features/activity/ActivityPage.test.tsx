@@ -49,6 +49,7 @@ import {
 } from "../../test/changes";
 import { expectNamesLinked } from "../../test/links";
 import { type Api, feed, onPhone, quietWatch, renderAt, untilAborted } from "../../test/render";
+import { foldFailures } from "./ActivityPage";
 
 const HOUR = 3_600_000;
 // Midday, so that what these say about "today" and "yesterday" holds at any hour:
@@ -281,6 +282,58 @@ describe("Activity", () => {
     await within(sheet).findByText("to delete");
     expect(sheet).toHaveTextContent("Undo Create the project shop");
     expect(sheet).toHaveTextContent("2 to delete");
+  });
+
+  it("folds a failed change's rollback and alert into its row, and links the alert from it (#802)", async () => {
+    const user = userEvent.setup();
+    const at = (min: number) => new Date(Date.now() - min * 60_000);
+    const failed = moved(applied(shopPlanned(), at(5)), {
+      id: "chg_fail",
+      summary: "Create route blog-web",
+      state: ChangeState.FAILED,
+      rolledBackBy: "chg_back",
+    });
+    const back = moved(applied(shopPlanned(), at(4)), {
+      id: "chg_back",
+      summary: "Roll back: Create route blog-web",
+      rollback: true,
+      reverts: "chg_fail",
+    });
+    const alert = auditEvent({
+      id: "evt_alert",
+      kind: EventKind.ALERT,
+      action: "alert.firing",
+      time: timestampFromDate(at(3)),
+      actor: { kind: ActorKind.DOCKWELL, name: "Dockwell" },
+      surface: Surface.AUTOMATIC,
+      alert: { id: "alt_1", title: "A change failed: Create route blog-web", path: "/changes/chg_fail" },
+    });
+    const watch = feed<WatchEventsResponse>();
+    watch.push(snapshot([alert, changeEvent(back), changeEvent(failed), shopEvent]));
+    renderActivity(watch, {
+      changes: { getChange: () => ({ change: failed }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const row = await screen.findByRole("row", { name: /Create route blog-web/ });
+    expect(row).toHaveTextContent("Rollback made");
+    expect(row).toHaveTextContent("Alert opened");
+    expect(screen.queryByRole("row", { name: /Roll back: Create route blog-web/ })).toBeNull();
+    expect(screen.queryByRole("row", { name: /A change failed/ })).toBeNull();
+    // The day counts what happened, folded or not.
+    expect(screen.getByText(/· 4 events$/)).toBeVisible();
+    await user.click(row);
+    const detail = await screen.findByRole("region", { name: /Create route blog-web/ });
+    expect(within(detail).getByRole("link", { name: "A change failed: Create route blog-web" })).toHaveAttribute(
+      "href",
+      "/alerts/alt_1",
+    );
+  });
+
+  it("keeps a rollback and an alert as rows of their own where the failure isn't listed (#802)", () => {
+    const back = changeEvent(moved(shop, { id: "chg_back", rollback: true, reverts: "chg_gone" }));
+    const alert = auditEvent({ id: "evt_alert", kind: EventKind.ALERT, alert: { path: "/changes/chg_gone" } });
+    const { shown, folded } = foldFailures([alert, back, shopEvent]);
+    expect(shown.map((e) => e.id)).toEqual(["evt_alert", "chg_back", "chg_shop"]);
+    expect(folded.size).toBe(0);
   });
 
   it("says why Dockwell rolled a change back, where a person reads the rollback", async () => {

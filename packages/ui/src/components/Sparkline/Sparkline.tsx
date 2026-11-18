@@ -20,7 +20,7 @@ export interface SparklineProps {
   /** Pixels or a CSS length such as "100%". The line stretches to fit. */
   width?: number | string;
   height?: number;
-  /** ink by default; cobalt for live traffic; a status tone only when the series itself is in that state. */
+  /** muted ink by default; cobalt for live traffic; a status tone only when the series itself is in that state. */
   tone?: SparklineTone;
   /** Set min and max when values have a known range (0 and 100 for percentages), so rows compare. */
   min?: number;

@@ -10,6 +10,8 @@ import {
   BackupSchema,
   BackupState,
   BuildInfoSchema,
+  ChangeSchema,
+  ChangeState,
   Connection,
   DeploymentState,
   EventKind,
@@ -341,6 +343,10 @@ describe("Overview with a fleet", () => {
     expect(callout).toHaveTextContent("Last heard 3 min ago; its numbers are left out of the fleet's.");
     expect(within(callout).getByRole("button", { name: "Copy the restart command" })).toBeVisible();
     expect(within(callout).getByRole("link", { name: "Inspect" })).toHaveAttribute("href", "/servers/srv_2");
+    // Inspect leads, and the command follows it (#802).
+    const inspect = within(callout).getByRole("link", { name: "Inspect" });
+    const copy = within(callout).getByRole("button", { name: "Copy the restart command" });
+    expect(inspect.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expectMetric("Servers serving", "1", "of 2", "1 down");
     expectMetric("CPU", "23.4", "%", "Across 4 vCPU");
     expect(screen.getByRole("button", { name: "hz-2, Down" })).toBeVisible();
@@ -663,6 +669,67 @@ describe("what the overview shows below the numbers", () => {
     expect(screen.getByText("2 apps · 1 needs a look")).toBeVisible();
     expect(screen.getByRole("link", { name: "View all" })).toHaveAttribute("href", "/apps");
     expect(screen.getByRole("link", { name: "Files" })).toHaveAttribute("href", "/servers/srv_1/files");
+  });
+
+  it("shows only changes that happened, and plans nobody applied as one line to review (#802)", async () => {
+    const plan = (id: string, summary: string, state: ChangeState) =>
+      changeEvent(create(ChangeSchema, { ...webPlanned(), id, summary, state }));
+    const events = [
+      plan("chg_restore_1", "Restore data", ChangeState.PLANNED),
+      plan("chg_restore_2", "Restore data", ChangeState.PLANNED),
+      plan("chg_gone", "Remove web-2", ChangeState.DISCARDED),
+      changeEvent(applied(webPlanned())),
+    ];
+    renderAt("/", {
+      ...overviewApi(),
+      events: { watchEvents: eventsWatch(...events), listEvents: () => ({ events }) },
+    });
+    const changes = await screen.findByRole("region", { name: "Recent changes" });
+    expect(await within(changes).findByText("Update web")).toBeVisible();
+    expect(within(changes).queryByText("Restore data")).toBeNull();
+    expect(within(changes).queryByText("Remove web-2")).toBeNull();
+    expect(within(changes).getByText("2 plans not applied")).toBeVisible();
+    expect(within(changes).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/activity?kind=changes");
+  });
+
+  it("shows a failed change's rollback in its row, as Activity does (#802)", async () => {
+    const failed = changeEvent(
+      create(ChangeSchema, {
+        ...applied(webPlanned()),
+        id: "chg_fail",
+        state: ChangeState.FAILED,
+        rolledBackBy: "chg_back",
+      }),
+    );
+    const back = changeEvent(
+      create(ChangeSchema, {
+        ...applied(webPlanned()),
+        id: "chg_back",
+        summary: "Roll back: Update web",
+        rollback: true,
+        reverts: "chg_fail",
+      }),
+    );
+    const events = [back, failed];
+    renderAt("/", {
+      ...overviewApi(),
+      events: { watchEvents: eventsWatch(...events), listEvents: () => ({ events }) },
+    });
+    const changes = await screen.findByRole("region", { name: "Recent changes" });
+    expect(await within(changes).findByText("Update web")).toBeVisible();
+    expect(within(changes).queryByText("Roll back: Update web")).toBeNull();
+  });
+
+  it("opens the one plan nobody applied, and says nothing has changed when nothing has (#802)", async () => {
+    const events = [changeEvent(create(ChangeSchema, { ...webPlanned(), id: "chg_restore", summary: "Restore data" }))];
+    renderAt("/", {
+      ...overviewApi(),
+      events: { watchEvents: eventsWatch(...events), listEvents: () => ({ events }) },
+    });
+    const changes = await screen.findByRole("region", { name: "Recent changes" });
+    expect(await within(changes).findByText("1 plan not applied")).toBeVisible();
+    expect(within(changes).getByRole("heading", { name: "Nothing has changed yet" })).toBeVisible();
+    expect(within(changes).getByRole("link", { name: "Review" })).toHaveAttribute("href", "/changes/chg_restore");
   });
 
   it("leaves out a website's own web service, which Websites shows, from the apps and their count", async () => {

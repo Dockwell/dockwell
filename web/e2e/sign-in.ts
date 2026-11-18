@@ -345,10 +345,14 @@ async function main() {
   await expectText(reuse, "This install already has an owner");
   await reuse.close();
 
-  step("the status page sits behind the gate too, outside the shell");
+  step("the status page sits behind the gate too, outside the shell, with the way into the panel");
   await page.goto(`${origin}/status`);
   await expectPage(page, "The control plane is running");
   if ((await nav(page).count()) !== 0) fail("the status page shows the shell's navigation");
+  // What it says is so, and the panel is a click away (#802).
+  if (await page.getByText(/come next/).count()) fail("the status page still says what comes next");
+  await page.getByRole("link", { name: "Open the panel" }).click();
+  await expectPage(page, "Overview");
 
   step("sign out from your profile, reached from the rail, then sign in again with the passkey");
   await page.goto(`${origin}/`);

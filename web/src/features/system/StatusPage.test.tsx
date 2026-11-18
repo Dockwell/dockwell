@@ -34,6 +34,12 @@ describe("StatusPage", () => {
     expect(panel).toHaveTextContent("linux/arm64");
     expect(panel).toHaveTextContent("Connected");
     expect(screen.getByRole("link", { name: "Dockwell" })).toHaveAttribute("href", "/");
+    // What it says is what's so, and the way into the panel is a button (#802).
+    expect(
+      screen.getByText(`Dockwell answers on ${window.location.host}. Servers appear below as they join.`),
+    ).toBeVisible();
+    expect(screen.queryByText(/come next/)).toBeNull();
+    expect(screen.getByRole("link", { name: "Open the panel" })).toHaveAttribute("href", "/");
   });
 
   it("copies the health check command", async () => {

@@ -202,7 +202,7 @@ function FleetMetrics({ servers, compact }: { servers: readonly Server[]; compac
   );
 }
 
-/** Up to this many servers, the panel names each on a line of its own under the tiles. */
+/** Up to this many servers, the panel names each on a line of its own, in place of the tiles (#802). */
 const FEW_SERVERS = 6;
 
 /** A tile's state, which says Unknown for every server once what the fleet last said can't stand. */
@@ -218,8 +218,8 @@ function FleetMap({ servers, compact, byRegion }: { servers: readonly Server[]; 
   const navigate = useNavigate();
   const unknown = useFleetUnread() !== undefined;
   const tiles = useServerTiles(servers, unknown);
-  // A few servers leave the tiles room to spare beside the changes: each gets the line the
-  // readout would give one, so the panel says how every server is without a hover.
+  // A few servers each get the line the readout would give one, so the panel says how every
+  // server is without a hover. The lines say what the tiles would, so Overview.css hides them.
   const few = !compact && tiles.length <= FEW_SERVERS;
   // Otherwise the server to look at first, named under the tiles until another is hovered,
   // as Overview-Fleet draws it, by the same ranking as the lines: any that isn't running.

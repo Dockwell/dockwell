@@ -1028,3 +1028,32 @@ code.plan-server-chip .middle-name-head {
   height: 100%;
   background: var(--healthy);
 }
+
+/* What a landed change is about, each a link to its page (#802). */
+.plan-links {
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.plan-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--link);
+  text-decoration: none;
+}
+
+.plan-links a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.plan-links a:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
+
+.plan-lead.plan-links .dw-icon {
+  color: var(--ink-muted);
+}
