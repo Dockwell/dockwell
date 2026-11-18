@@ -173,12 +173,7 @@ export function ChecksTab() {
           ))}
         </ul>
       ) : (
-        <Table
-          columns={columns}
-          rows={list}
-          caption={t`Uptime checks`}
-          onRowClick={(c) => setEditing(c)}
-        />
+        <Table columns={columns} rows={list} caption={t`Uptime checks`} onRowClick={(c) => setEditing(c)} />
       )}
       {editing ? <WatchSheet check={editing} onClose={() => setEditing(undefined)} /> : null}
       {making ? <WatchSheet onClose={() => setMaking(false)} /> : null}
