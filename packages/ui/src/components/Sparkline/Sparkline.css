@@ -3,6 +3,11 @@
   display: block;
   overflow: visible;
 }
+/* Ink, the default, is muted: the line is the number's shape, not brighter than the number,
+   as full ink is the brightest thing on a dark page (#802). */
+.dw-spark.dw-tone-ink {
+  color: var(--ink-muted);
+}
 .dw-spark-line {
   fill: none;
   stroke: currentColor;

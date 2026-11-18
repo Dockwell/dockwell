@@ -348,9 +348,15 @@ describe("scheduled tasks", () => {
     expect(within(sheet).getByText(/as root, so applying it takes your passkey/)).toBeVisible();
     // Only what to run and when are asked; the rest is a line under Advanced.
     expect(within(sheet).queryByLabelText("Timeout, in minutes")).toBeNull();
+    // Placeholders read as examples, not as values already there (#802).
+    expect(within(sheet).getByLabelText("Command")).toHaveAttribute(
+      "placeholder",
+      "e.g. find /var/log/app -mtime +7 -delete",
+    );
+    expect(within(sheet).getByLabelText(/^Name/)).toHaveAttribute("placeholder", "e.g. Nightly sales report");
     await user.type(within(sheet).getByLabelText("Command"), "find /var/log/app -mtime +7 -delete");
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveTextContent(
-      "Named find · in / · stops after 10 min · no retries",
+      "Named find · in folder / · stops after 10 min · no retries",
     );
     expect(within(sheet).getByText(/^Next, in UTC: /)).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -457,7 +463,7 @@ describe("scheduled tasks", () => {
       await user.type(within(sheet).getByLabelText("命令"), "find /var/log/app -mtime +7 -delete");
       const advanced = within(sheet)
         .getAllByRole("button")
-        .find((b) => b.textContent?.includes("在 / 中运行"));
+        .find((b) => b.textContent?.includes("在文件夹 / 中运行"));
       expect(advanced).toBeDefined();
       expect(sheet.textContent).not.toContain("/后");
     } finally {

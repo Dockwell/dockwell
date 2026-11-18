@@ -19,7 +19,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
-import { type Api, renderAt, untilAborted } from "../../test/render";
+import { type Api, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { archiveKind, PART_BYTES, unpackedName } from "./transfer";
 
@@ -157,6 +157,15 @@ describe("Archives and links", () => {
 });
 
 describe("Uploading and downloading", () => {
+  it("asks a phone only to choose files, as it drops none (#802)", async () => {
+    onPhone();
+    await renderFiles({ listFiles: vi.fn(() => site) });
+    await userEvent.click(screen.getAllByRole("button", { name: "Upload" })[0] as HTMLElement);
+    const sheet = await screen.findByRole("dialog", { name: "Upload to www" });
+    expect(within(sheet).queryByText("Drop files here, or choose them.")).toBeNull();
+    expect(within(sheet).getByRole("button", { name: "Choose files" })).toBeTruthy();
+  });
+
   it("uploads a file in parts, goes on from where a dropped part got, and puts it in place", async () => {
     const size = PART_BYTES + 5000;
     const upload = anUpload("/var/www/backup.sql", size);
@@ -171,6 +180,10 @@ describe("Uploading and downloading", () => {
     await userEvent.click(screen.getByRole("button", { name: "Upload" }));
     const sheet = await screen.findByRole("dialog", { name: "Upload to www" });
     expect(within(sheet).getByText(/Up to 16 GB a file/)).toBeTruthy();
+    // The server, then where, under the folder's name; and nothing to upload reads "Upload" (#802).
+    expect(within(sheet).getByText("hz-1 · /var/www")).toBeTruthy();
+    expect(within(sheet).getByRole("button", { name: "Upload" })).toBeDisabled();
+    expect(within(sheet).getByText("Drop files here, or choose them.")).toBeTruthy();
     await userEvent.upload(
       within(sheet).getByLabelText("Choose files to upload"),
       new File([new Uint8Array(size)], "backup.sql"),

@@ -53,7 +53,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { applied, moved, openHowItWorks, shopPlanned, watched, webPlanned } from "../../test/changes";
-import { type Api, type CacheOptions, feed, onPhone, quietWatch, renderWithApi, untilAborted } from "../../test/render";
+import {
+  type Api,
+  type CacheOptions,
+  feed,
+  onPhone,
+  quietWatch,
+  renderAt,
+  renderWithApi,
+  untilAborted,
+} from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 import { ChangeSheetProvider, type Opening, useChangeSheet } from "./ChangeSheet";
 import { PlanSteps } from "./PlanSteps";
@@ -3135,6 +3144,49 @@ describe("the plan sheet, once it runs", () => {
     const record = await screen.findByRole("dialog", { name: "Applied" });
     expect(record).toHaveTextContent(/Applied .* by Mira Chen/);
     expect(record).toHaveTextContent("1 replaced");
+  });
+
+  it("links a landed change's app and domain, and not what it deleted (#802)", async () => {
+    const change = applied(aServicePlan());
+    if (change.plan) {
+      change.plan.resources = [
+        create(PlannedResourceSchema, {
+          id: "rte_code",
+          resource: { kind: "route", scope: "env_1", name: "code-web" },
+          action: PlanAction.CREATE,
+          changes: [
+            { path: "domain", op: FieldOp.ADDED, to: "git.example.com" },
+            { path: "service", op: FieldOp.ADDED, to: "gitea" },
+          ],
+        }),
+        create(PlannedResourceSchema, {
+          id: "rte_old",
+          resource: { kind: "route", scope: "env_1", name: "old-web" },
+          action: PlanAction.DELETE,
+          changes: [{ path: "domain", op: FieldOp.REMOVED, from: "old.example.com" }],
+        }),
+      ];
+    }
+    // Its own page, which opens the sheet over Activity, under the router as the panel has it.
+    renderAt("/changes/chg_web", {
+      changes: { getChange: () => ({ change }), watchChange: feed<WatchChangeResponse>().stream },
+      events: { watchEvents: quietWatch },
+      services: {
+        listServices: () => ({
+          services: [{ id: "svc_gitea", resource: { kind: "service", scope: "env_1", name: "gitea" } }],
+        }),
+      },
+    });
+    const record = await screen.findByRole("dialog", { name: "Applied" });
+    expect(await within(record).findByRole("link", { name: "Open the app gitea" })).toHaveAttribute(
+      "href",
+      "/apps/svc_gitea",
+    );
+    expect(within(record).getByRole("link", { name: "Open git.example.com in Domains" })).toHaveAttribute(
+      "href",
+      "/domains?q=git.example.com",
+    );
+    expect(within(record).queryByRole("link", { name: /old\.example\.com/ })).toBeNull();
   });
 
   it("deleting says what it does: it stops, for good, with Delete all the way and the danger button", async () => {

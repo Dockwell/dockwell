@@ -8,6 +8,7 @@ import { Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatDateTime } from "../../lib/format";
+import { RouterButtonLink } from "../../lib/links";
 import { useElapsed } from "../../lib/useElapsed";
 import { ServersPanel } from "../servers/ServersPanel";
 import { CopyCommand } from "./CopyCommand";
@@ -16,9 +17,9 @@ import { Unreachable } from "./Unreachable";
 import "./StatusPage.css";
 
 /**
- * What the panel shows until the first-run screens exist: whether this
- * control plane answers, which build it runs, and how to check it from a
- * terminal.
+ * A page of its own, outside the panel and its sign-in: whether this control
+ * plane answers, its servers, which build it runs, how to check it from a
+ * terminal, and the way into the panel (#802).
  */
 export function StatusPage() {
   const { t } = useLingui();
@@ -57,8 +58,13 @@ function Running({ host, build }: { host: string; build: BuildInfo | undefined }
           <Trans>The control plane is running</Trans>
         </h1>
         <p className="standalone-lead">
-          <Trans>Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next.</Trans>
+          <Trans>Dockwell answers on {host}. Servers appear below as they join.</Trans>
         </p>
+        <div className="status-open">
+          <RouterButtonLink to="/" variant="primary">
+            <Trans>Open the panel</Trans>
+          </RouterButtonLink>
+        </div>
       </header>
       <ServersPanel />
       <Panel

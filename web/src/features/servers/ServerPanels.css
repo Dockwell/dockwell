@@ -140,8 +140,9 @@ code.panel-meta {
   border-radius: 2px 4px 4px 2px;
 }
 
+/* Muted, as ink is the brightest thing on a dark page (#802); it still reads darkest in light. */
 .disk-used {
-  background: var(--ink);
+  background: var(--ink-muted);
 }
 
 .disk-free {
@@ -180,7 +181,7 @@ code.panel-meta {
 }
 
 .disk-swatch.is-used {
-  background: var(--ink);
+  background: var(--ink-muted);
 }
 
 .disk-swatch.is-free {

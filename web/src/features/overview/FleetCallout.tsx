@@ -39,12 +39,23 @@ export function FleetCallout({ servers }: { servers: readonly Server[] }) {
   const button = phone
     ? ({ size: "md", variant: "secondary", className: "overview-callout-action" } as const)
     : ({ size: "sm", variant: "ghost" } as const);
+  // Inspect leads: what's wrong is on the server's page, and the command is a fallback (#802).
+  const inspect = phone ? button : ({ ...button, variant: "secondary" } as const);
   return (
     <Callout
       tone={notice.tone}
       title={notice.title}
       actions={
         <>
+          {notice.serverId ? (
+            <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} {...inspect}>
+              {t`Inspect`}
+            </RouterButtonLink>
+          ) : (
+            <RouterButtonLink to="/servers" {...inspect}>
+              {t`Inspect`}
+            </RouterButtonLink>
+          )}
           {notice.command ? (
             <CopyButton
               text={notice.command.text}
@@ -53,15 +64,6 @@ export function FleetCallout({ servers }: { servers: readonly Server[] }) {
               {...button}
             />
           ) : null}
-          {notice.serverId ? (
-            <RouterButtonLink to="/servers/$serverId" params={{ serverId: notice.serverId }} {...button}>
-              {t`Inspect`}
-            </RouterButtonLink>
-          ) : (
-            <RouterButtonLink to="/servers" {...button}>
-              {t`Inspect`}
-            </RouterButtonLink>
-          )}
         </>
       }
     >

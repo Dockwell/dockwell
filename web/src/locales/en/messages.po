@@ -420,6 +420,9 @@ msgstr "{samples, plural, one {Trend over # sample, latest {latest}} other {Tren
 msgid "{size} more not kept"
 msgstr "{size} more not kept"
 
+msgid "A change failed"
+msgstr "A change failed"
+
 msgid "About"
 msgstr "About"
 
@@ -431,6 +434,12 @@ msgstr "Activity"
 
 msgid "Actor"
 msgstr "Actor"
+
+msgid "Alert"
+msgstr "Alert"
+
+msgid "Alert opened"
+msgstr "Alert opened"
 
 msgid "Alerts"
 msgstr "Alerts"
@@ -1632,9 +1641,6 @@ msgstr "A mute holds what it would send."
 
 msgid "Acknowledged"
 msgstr "Acknowledged"
-
-msgid "Alert"
-msgstr "Alert"
 
 msgid "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
 msgstr "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
@@ -9494,6 +9500,12 @@ msgstr "Nothing outside the server reaches these yet."
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "Nothing outside {server} reaches {name} yet."
 
+msgid "Open the app {name}"
+msgstr "Open the app {name}"
+
+msgid "Open {domain} in Domains"
+msgstr "Open {domain} in Domains"
+
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
 
@@ -15501,6 +15513,9 @@ msgstr "Apps with an update"
 msgid "{more, plural, one {# more on Apps} other {# more on Apps}}"
 msgstr "{more, plural, one {# more on Apps} other {# more on Apps}}"
 
+msgid "1 plan not applied"
+msgstr "1 plan not applied"
+
 msgid "Each change you make shows here."
 msgstr "Each change you make shows here."
 
@@ -15512,6 +15527,12 @@ msgstr "Nothing has changed yet"
 
 msgid "Recent changes"
 msgstr "Recent changes"
+
+msgid "Review"
+msgstr "Review"
+
+msgid "{plans} plans not applied"
+msgstr "{plans} plans not applied"
 
 msgid "A Compose file"
 msgstr "A Compose file"
@@ -18929,9 +18950,6 @@ msgstr "Read apps, activity and logs"
 msgid "Reveal secrets"
 msgstr "Reveal secrets"
 
-msgid "Review"
-msgstr "Review"
-
 msgid "Revoke"
 msgstr "Revoke"
 
@@ -19332,9 +19350,6 @@ msgstr "{0, plural, one {# acts for you} other {# act for you}}"
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
-
-msgid "A change failed"
-msgstr "A change failed"
 
 msgid "A passkey may have been copied"
 msgstr "A passkey may have been copied"
@@ -19756,11 +19771,14 @@ msgstr "Connecting to the control plane"
 msgid "Control plane status"
 msgstr "Control plane status"
 
-msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
-msgstr "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
+msgid "Dockwell answers on {host}. Servers appear below as they join."
+msgstr "Dockwell answers on {host}. Servers appear below as they join."
 
 msgid "Go"
 msgstr "Go"
+
+msgid "Open the panel"
+msgstr "Open the panel"
 
 msgid "The control plane is running"
 msgstr "The control plane is running"
@@ -19934,9 +19952,6 @@ msgstr "Method"
 msgid "New task"
 msgstr "New task"
 
-msgid "Nightly sales report"
-msgstr "Nightly sales report"
-
 msgid "Open {shownName}"
 msgstr "Open {shownName}"
 
@@ -20014,10 +20029,21 @@ msgstr "What the CLI and the API call it."
 msgid "Where it runs now: {0}"
 msgstr "Where it runs now: {0}"
 
+msgid "e.g. /app/api report sales"
+msgstr "e.g. /app/api report sales"
+
+msgid "e.g. Nightly sales report"
+msgstr "e.g. Nightly sales report"
+
+msgid "e.g. find /var/log/app -mtime +7 -delete"
+msgstr "e.g. find /var/log/app -mtime +7 -delete"
+
+msgid "e.g. https://example.com/cron"
+msgstr "e.g. https://example.com/cron"
+
 #. placeholder {0}: folder.trim() || "/"
-msgctxt "the folder a task runs in"
-msgid "in {0}"
-msgstr "in {0}"
+msgid "in folder {0}"
+msgstr "in folder {0}"
 
 msgid "no retries"
 msgstr "no retries"

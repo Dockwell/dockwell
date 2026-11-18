@@ -1106,10 +1106,14 @@ volumes:
     await expectContrast(page, "a failed check, dark");
     await light();
     await page.goto(`${origin}/activity`);
+    // The rollback is in its failure's row (#802), and its details lead to it.
     await page
-      .getByText(/^Roll back: /)
+      .getByRole("row")
+      .filter({ hasText: "answers-503" })
+      .filter({ hasText: /Rolled back|Rollback/ })
       .first()
       .click();
+    await page.locator(".activity-detail").getByRole("button", { name: /^chg_/ }).click();
     const inActivity = page.locator(".plan-because");
     await inActivity.waitFor({ timeout: 30_000 });
     if (!(await inActivity.innerText()).includes(`${answered}. ${toDo}`)) {

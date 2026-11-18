@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { StepUpAction, StreamError, Unpack, uploadFilePart } from "@dockwell/api";
-import { Button, Icon, Sheet, Switch } from "@dockwell/ui";
+import { Button, Icon, PHONE_QUERY, Sheet, Switch, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type DragEvent, useEffect, useRef, useState } from "react";
@@ -10,6 +10,7 @@ import { isTransient } from "../../app/api";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatBytesOf, formatPercent } from "../../lib/format";
 import { withStepUpIfAsked } from "../auth/stepUp";
+import { useFleetView } from "../servers/useFleet";
 import { useFiles } from "./manage";
 import { join, nameOf } from "./paths";
 import { archiveKind, MAX_UPLOAD_BYTES, PART_BYTES, unpackedName } from "./transfer";
@@ -138,6 +139,10 @@ export function UploadSheet({
 }) {
   const { t, i18n } = useLingui();
   const { transport, client, changed, problem } = useFiles(serverId);
+  // The server leads the subtitle, as the title names the folder already (#802).
+  const serverName = useFleetView().servers?.find((s) => s.id === serverId)?.name ?? "";
+  // A phone drops nothing, so it's asked only to choose.
+  const phone = useMediaQuery(PHONE_QUERY);
   const picker = useRef<HTMLInputElement>(null);
   const items = useRef<Item[]>(chosen ? itemsOf(chosen) : []);
   const [shown, setShown] = useState<Item[]>(items.current);
@@ -345,7 +350,7 @@ export function UploadSheet({
     <Sheet
       open
       title={t`Upload to ${nameOf(folder)}`}
-      subtitle={folder}
+      subtitle={[serverName, nameOf(folder) === folder ? "" : folder].filter(Boolean).join(" · ") || undefined}
       onClose={onClose}
       footer={
         <>
@@ -366,7 +371,11 @@ export function UploadSheet({
                 <Trans>Cancel</Trans>
               </Button>
               <Button variant="primary" icon="upload" disabled={pending.length === 0} onClick={() => void start()}>
-                {plural(pending.length, { one: "Upload # file", other: "Upload # files" })}
+                {pending.length === 0 ? (
+                  <Trans>Upload</Trans>
+                ) : (
+                  plural(pending.length, { one: "Upload # file", other: "Upload # files" })
+                )}
               </Button>
             </>
           )}
@@ -388,9 +397,11 @@ export function UploadSheet({
             onDrop={drop}
           >
             <Icon name="upload" size={20} />
-            <p className="files-sheet-line">
-              <Trans>Drop files here, or choose them.</Trans>
-            </p>
+            {phone ? null : (
+              <p className="files-sheet-line">
+                <Trans>Drop files here, or choose them.</Trans>
+              </p>
+            )}
             <Button size="sm" onClick={() => picker.current?.click()}>
               <Trans>Choose files</Trans>
             </Button>

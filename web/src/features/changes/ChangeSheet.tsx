@@ -58,7 +58,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
@@ -1532,6 +1532,7 @@ function PlanBody({
         <Arrival reach={reach} change={change} phone={phone} onLeave={onLeave} />
       ) : null}
       {phase === "history" && change ? <OnRecord change={change} /> : null}
+      {phase === "history" && change ? <PlanLinks plan={plan} /> : null}
       {phase !== "discarded" ? <Places plan={plan} /> : null}
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
       {showSteps ? null : <CloudflareSteps plan={plan} />}
@@ -2550,6 +2551,52 @@ function TookLine({ change }: { change: Change }) {
 }
 
 /** What a change's record says, for one that applied a while ago. */
+/**
+ * The apps and domains a landed change is about, each a link to its page (#802): an app
+ * it changed or a route sends to, as the list of apps has it now, and a route's domain,
+ * on Domains. What it deleted, and an app since gone, aren't linked.
+ */
+function PlanLinks({ plan }: { plan: Plan | undefined }) {
+  const { t } = useLingui();
+  const listed = useServices().data;
+  // The sheet sits under the router in the panel; a test may mount it alone.
+  const routed = useRouter({ warn: false }) !== undefined;
+  const kept = (plan?.resources ?? []).filter((r) => r.action !== PlanAction.DELETE);
+  const apps = new Map<string, string>();
+  for (const r of kept) {
+    const kind = r.resource?.kind;
+    const found =
+      kind === "service"
+        ? listed?.find((s) => s.id === r.id)
+        : kind === "route"
+          ? listed?.find(
+              (s) =>
+                s.resource?.name === (changeTo(r, "service") ?? r.changes.find((c) => c.path === "service")?.from) &&
+                s.resource?.scope === r.resource?.scope,
+            )
+          : undefined;
+    if (found) apps.set(found.id, found.resource?.name ?? found.id);
+  }
+  const domains = [...new Set(kept.filter((r) => r.resource?.kind === "route").flatMap((r) => routeDomain(r) ?? []))];
+  if (!routed || (apps.size === 0 && domains.length === 0)) return null;
+  return (
+    <div className="plan-lead plan-links">
+      {[...apps].map(([id, name]) => (
+        <Link key={id} to="/apps/$serviceId" params={{ serviceId: id }} aria-label={t`Open the app ${name}`}>
+          <Icon name="service" size={16} />
+          <code>{name}</code>
+        </Link>
+      ))}
+      {domains.map((domain) => (
+        <Link key={domain} to="/domains" search={{ q: domain }} aria-label={t`Open ${domain} in Domains`}>
+          <Icon name="globe" size={16} />
+          <code>{domain}</code>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function OnRecord({ change }: { change: Change }) {
   const time = useTimeWords();
   const actor = useActorWords();

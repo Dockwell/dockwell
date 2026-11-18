@@ -420,6 +420,9 @@ msgstr "{samples, plural, other {# 个样本的趋势，最新值 {latest}}}"
 msgid "{size} more not kept"
 msgstr "另有 {size} 未保留"
 
+msgid "A change failed"
+msgstr "一项变更失败"
+
 msgid "About"
 msgstr "关于"
 
@@ -431,6 +434,12 @@ msgstr "动态"
 
 msgid "Actor"
 msgstr "执行者"
+
+msgid "Alert"
+msgstr "告警"
+
+msgid "Alert opened"
+msgstr "已发出告警"
 
 msgid "Alerts"
 msgstr "告警"
@@ -1632,9 +1641,6 @@ msgstr "静默暂时拦住了它要发送的消息。"
 
 msgid "Acknowledged"
 msgstr "确认人"
-
-msgid "Alert"
-msgstr "告警"
 
 msgid "Alerts lists what's open and the newest that resolved. This one resolved before those, or was never there. Activity keeps what fired and resolved."
 msgstr "告警页列出未恢复的告警和最近恢复的告警。这一条在那之前已经恢复，或者从未存在。动态里保留了触发和恢复的记录。"
@@ -9494,6 +9500,12 @@ msgstr "服务器之外还无法访问这些应用。"
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "{server} 之外还无法访问 {name}。"
 
+msgid "Open the app {name}"
+msgstr "打开应用 {name}"
+
+msgid "Open {domain} in Domains"
+msgstr "在“域名”中打开 {domain}"
+
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
 
@@ -15501,6 +15513,9 @@ msgstr "有更新的应用"
 msgid "{more, plural, one {# more on Apps} other {# more on Apps}}"
 msgstr "{more, plural, other {应用页还有 # 个}}"
 
+msgid "1 plan not applied"
+msgstr "1 个计划未应用"
+
 msgid "Each change you make shows here."
 msgstr "你做的每项变更都会显示在这里。"
 
@@ -15512,6 +15527,12 @@ msgstr "还没有任何变更"
 
 msgid "Recent changes"
 msgstr "最近的变更"
+
+msgid "Review"
+msgstr "查看"
+
+msgid "{plans} plans not applied"
+msgstr "{plans} 个计划未应用"
 
 msgid "A Compose file"
 msgstr "Compose 文件"
@@ -18929,9 +18950,6 @@ msgstr "查看应用、动态和日志"
 msgid "Reveal secrets"
 msgstr "查看密钥的值"
 
-msgid "Review"
-msgstr "查看"
-
 msgid "Revoke"
 msgstr "撤销"
 
@@ -19332,9 +19350,6 @@ msgstr "{0, plural, other {# 个令牌代表你行事}}"
 
 msgid "{soon, plural, one {# expires within two weeks} other {# expire within two weeks}}"
 msgstr "{soon, plural, other {# 个将在两周内过期}}"
-
-msgid "A change failed"
-msgstr "一项变更失败"
 
 msgid "A passkey may have been copied"
 msgstr "某个通行密钥可能已被复制"
@@ -19756,11 +19771,14 @@ msgstr "正在连接控制平面"
 msgid "Control plane status"
 msgstr "控制平面状态"
 
-msgid "Dockwell answers on {host}. Servers appear below as they join; apps and deploys come next."
-msgstr "Dockwell 正在 {host} 上响应。服务器加入后会显示在下方；应用和部署功能即将推出。"
+msgid "Dockwell answers on {host}. Servers appear below as they join."
+msgstr "Dockwell 在 {host} 上响应。服务器加入后会显示在下方。"
 
 msgid "Go"
 msgstr "Go"
+
+msgid "Open the panel"
+msgstr "打开面板"
 
 msgid "The control plane is running"
 msgstr "控制平面正在运行"
@@ -19934,9 +19952,6 @@ msgstr "方法"
 msgid "New task"
 msgstr "新建任务"
 
-msgid "Nightly sales report"
-msgstr "每晚销售报表"
-
 msgid "Open {shownName}"
 msgstr "打开 {shownName}"
 
@@ -20014,10 +20029,21 @@ msgstr "CLI 和 API 用它来指代此任务。"
 msgid "Where it runs now: {0}"
 msgstr "当前运行位置：{0}"
 
+msgid "e.g. /app/api report sales"
+msgstr "例如 /app/api report sales"
+
+msgid "e.g. Nightly sales report"
+msgstr "例如 每晚销售报告"
+
+msgid "e.g. find /var/log/app -mtime +7 -delete"
+msgstr "例如 find /var/log/app -mtime +7 -delete"
+
+msgid "e.g. https://example.com/cron"
+msgstr "例如 https://example.com/cron"
+
 #. placeholder {0}: folder.trim() || "/"
-msgctxt "the folder a task runs in"
-msgid "in {0}"
-msgstr "在 {0} 中运行"
+msgid "in folder {0}"
+msgstr "在文件夹 {0} 中运行"
 
 msgid "no retries"
 msgstr "不重试"

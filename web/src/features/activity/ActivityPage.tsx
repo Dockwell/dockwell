@@ -38,7 +38,8 @@ import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { keepPreviousData } from "@tanstack/react-query";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import { Link } from "@tanstack/react-router";
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
@@ -144,8 +145,10 @@ export function ActivityPage({
   }, [events]);
   // A run of the same thing done again, as reading one file over and over, is one row on a
   // wide screen, which says how many times. A phone's timeline has no room to say so.
-  const { shown, repeats } = useMemo(() => collapseRepeats(events ?? []), [events]);
-  const days = useMemo(() => byDay(phone ? (events ?? []) : shown), [events, shown, phone]);
+  // A failed change's rollback and the alert it raised are one row with it, where the failure is listed (#802).
+  const { shown: unfolded, folded } = useMemo(() => foldFailures(events ?? []), [events]);
+  const { shown, repeats } = useMemo(() => collapseRepeats(unfolded), [unfolded]);
+  const days = useMemo(() => byDay(phone ? unfolded : shown), [unfolded, shown, phone]);
   const selected = search.event ? events?.find((e) => e.id === search.event) : undefined;
   const select = (id: string | undefined) => onSearch({ ...search, event: id });
   // Below the list, where a narrow screen puts it, an event chosen comes into view.
@@ -255,7 +258,10 @@ export function ActivityPage({
       <>
         {days.map((day) => {
           const label = dayLabel(day.date, now, i18n);
-          const count = day.events.reduce((n, e) => n + (phone ? 1 : (repeats.get(e.id)?.length ?? 1)), 0);
+          const count = day.events.reduce(
+            (n, e) => n + (phone ? 1 : (repeats.get(e.id)?.length ?? 1)) + (folded.get(e.id)?.length ?? 0),
+            0,
+          );
           const long = formatWeekday(day.date, i18n.locale);
           const meta = plural(count, { one: `${long} · # event`, other: `${long} · # events` });
           return (
@@ -265,11 +271,12 @@ export function ActivityPage({
                 <span className="activity-day-meta">{meta}</span>
               </div>
               {phone ? (
-                <EventTimeline events={day.events} summaries={summaries} now={now} />
+                <EventTimeline events={day.events} summaries={summaries} now={now} folded={folded} />
               ) : (
                 <DayTable
                   events={day.events}
                   repeats={repeats}
+                  folded={folded}
                   summaries={summaries}
                   now={now}
                   caption={label}
@@ -329,6 +336,7 @@ export function ActivityPage({
           <Detail
             event={selected}
             repeats={repeats.get(selected.id)}
+            folded={folded.get(selected.id)}
             described={describe(selected, summaries)}
             now={now}
             time={time}
@@ -356,6 +364,37 @@ interface Day {
   key: string;
   date: Date;
   events: Event[];
+}
+
+/** A change-failed alert's path, which names the change it's about. */
+const changePath = (id: string) => `/changes/${id}`;
+
+/**
+ * Each failed change with what followed from it, as one row (#802): the change that
+ * rolled it back, and the alert it raised, which say nothing the failure's row
+ * can't. Each is folded only where the failure is listed too, as a view without it,
+ * such as Alerts, still has to show it. Folded events go under the failure's ID.
+ */
+export function foldFailures(events: readonly Event[]): { shown: Event[]; folded: Map<string, Event[]> } {
+  const failed = new Set(events.filter((e) => e.change?.state === ChangeState.FAILED).map((e) => e.id));
+  const folded = new Map<string, Event[]>();
+  const shown: Event[] = [];
+  for (const event of events) {
+    const into =
+      event.change?.rollback && failed.has(event.change.reverts)
+        ? event.change.reverts
+        : event.kind === EventKind.ALERT && event.alert?.path
+          ? [...failed].find((id) => event.alert?.path === changePath(id))
+          : undefined;
+    if (into) folded.set(into, [...(folded.get(into) ?? []), event]);
+    else shown.push(event);
+  }
+  return { shown, folded };
+}
+
+/** What a failure's row adds for what was folded into it: that an alert was raised, as the rollback says itself. */
+function foldedParts(folded: readonly Event[] | undefined, alerted: string): string[] {
+  return folded?.some((e) => e.kind === EventKind.ALERT) ? [alerted] : [];
 }
 
 /** How far apart the same thing done again may be, to be one row. */
@@ -497,6 +536,7 @@ interface DayProps {
 function DayTable({
   events,
   repeats,
+  folded,
   summaries,
   now,
   caption,
@@ -504,6 +544,7 @@ function DayTable({
   onSelect,
 }: DayProps & {
   repeats: ReadonlyMap<string, Event[]>;
+  folded: ReadonlyMap<string, Event[]>;
   caption: string;
   selected: string | undefined;
   onSelect: (event: Event) => void;
@@ -520,6 +561,7 @@ function DayTable({
         const d = describe(event, summaries);
         const line = meta(event);
         const times = repeats.get(event.id)?.length ?? 1;
+        const parts = [...line.parts, ...foldedParts(folded.get(event.id), t`Alert opened`)];
         return (
           <div className="activity-event">
             <Mark icon={d.icon} tone={d.tone} />
@@ -527,7 +569,7 @@ function DayTable({
               <span className="activity-event-title">{d.title}</span>
               <MetaLine
                 look={line.look}
-                parts={times > 1 ? [...line.parts, plural(times, { one: "# time", other: "# times" })] : line.parts}
+                parts={times > 1 ? [...parts, plural(times, { one: "# time", other: "# times" })] : parts}
               />
             </div>
           </div>
@@ -569,9 +611,12 @@ export function EventTimeline({
   summaries,
   now,
   framed = true,
+  folded,
 }: DayProps & {
   /** Drawn in a frame of its own, as a day on a phone is; the overview's sits in its panel. */
   framed?: boolean;
+  /** What foldFailures put under each failure's row. */
+  folded?: ReadonlyMap<string, Event[]>;
 }) {
   const { t } = useLingui();
   const describe = useDescribe();
@@ -598,7 +643,10 @@ export function EventTimeline({
       ),
       actor: event.actor?.name ?? "",
       // A timeline's line under the title is one run of text, so its parts are joined.
-      meta: (({ look, parts }) => (look ? [look.word, ...parts] : parts).join(" · "))(meta(event)),
+      meta: (({ look, parts }) =>
+        [...(look ? [look.word] : []), ...parts, ...foldedParts(folded?.get(event.id), t`Alert opened`)].join(" · "))(
+        meta(event),
+      ),
       time: time.ago(date, now),
       datetime: date.toISOString(),
       // Where each of its items is: undoing plans in every one of them.
@@ -749,6 +797,8 @@ interface DetailProps {
   event: Event;
   /** The run it heads, when the same was done again, newest first. */
   repeats?: readonly Event[] | undefined;
+  /** What foldFailures put under it: its rollback and the alert it raised. */
+  folded?: readonly Event[] | undefined;
   described: Described;
   now: number;
   time: ReturnType<typeof useTimeWords>;
@@ -759,7 +809,7 @@ interface DetailProps {
 }
 
 /** The selected event beside the list: who, when, from where, and for a change what it changed. */
-function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
+function Detail({ event, repeats, folded, described, now, time, onClose, onSelect, onOpen, onUndo }: DetailProps) {
   // Undoing plans a change, which a viewer can't: off, with why (ADR 0059).
   const mayUndo = useMay()(ChangeService.method.undoChange, placesOfChange(event.change));
   const { t, i18n } = useLingui();
@@ -892,6 +942,20 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
                 ) : null}
               </>
             ) : null}
+            {/* The alert a failure raised, which its row folds in (#802). */}
+            {(folded ?? [])
+              .filter((e) => e.kind === EventKind.ALERT && e.alert?.id)
+              .slice(0, 1)
+              .map((e) => (
+                <Fragment key={e.id}>
+                  <dt>{t`Alert`}</dt>
+                  <dd>
+                    <Link to="/alerts/$alertId" params={{ alertId: e.alert?.id ?? "" }} className="activity-link">
+                      {e.alert?.title || t`A change failed`}
+                    </Link>
+                  </dd>
+                </Fragment>
+              ))}
             {/* A mute's subject is its rule, which the Rule row names. */}
             {!change && event.subject && (event.subject.name || !event.alert) ? (
               <>
