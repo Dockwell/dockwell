@@ -601,3 +601,11 @@ a.databases-engine:hover .databases-engine-plus {
   cursor: pointer;
   color: var(--ink);
 }
+
+/* A database with no schedule: the state, and the one step that gives it one (#793). */
+.databases-backup-off {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}

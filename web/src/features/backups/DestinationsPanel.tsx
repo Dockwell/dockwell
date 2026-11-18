@@ -8,11 +8,11 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
+import { StateLine } from "../apps/DomainStep";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { DestinationSheet } from "./DestinationSheet";
 import "./Backups.css";
 import { useMay } from "../auth/may";
-import { EmptyState } from "../shell/EmptyState";
 
 /** The storage backups can go to. */
 export function useDestinations() {
@@ -45,19 +45,25 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
       }
     >
       {destinations.length === 0 ? (
-        <EmptyState
-          icon="archive"
-          title={<Trans>Only on each server's disk</Trans>}
-          action={
-            <Button size="sm" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
-              <Trans>Add storage</Trans>
-            </Button>
-          }
-        >
-          <p>
-            <Trans>Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server.</Trans>
-          </p>
-        </EmptyState>
+        // A state with its one action, not an empty page, so this column stays as short as its neighbour (#793).
+        <div className="backup-destinations-none">
+          <StateLine
+            status="degraded"
+            action={
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={() => setAdding(true)}
+                disabled={!mayPlan.allowed}
+                title={mayPlan.reason || undefined}
+              >
+                <Trans>Add storage</Trans>
+              </button>
+            }
+          >
+            {t`Only on each server's disk, unencrypted`}
+          </StateLine>
+        </div>
       ) : (
         <ul className="backup-policies">
           {destinations.map((d) => (

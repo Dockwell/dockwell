@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupService, ChangeService, type VolumeInfo, VolumeService } from "@dockwell/api";
-import { Button, Callout, Panel, PHONE_QUERY, Tag, useMediaQuery } from "@dockwell/ui";
+import { type BackupPolicyInfo, BackupService, ChangeService, type VolumeInfo, VolumeService } from "@dockwell/api";
+import { Button, Callout, Icon, Panel, PHONE_QUERY, Tag, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
+import { useId, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -60,6 +60,7 @@ export function VolumePage({ volumeId }: { volumeId: string }) {
       title={name}
       machineTitle
       back="/more"
+      backLink={<BackButton />}
       breadcrumb={
         <nav className="volume-crumbs" aria-label={t`Breadcrumb`}>
           <Link to="/projects">
@@ -71,7 +72,8 @@ export function VolumePage({ volumeId }: { volumeId: string }) {
       }
       lead={<Lead volume={volume} />}
       phoneSub={<Lead volume={volume} />}
-      actions={<DeleteVolume volume={volume} />}
+      // On a phone, Delete and why it's off come last, together, not split across the page (#793).
+      actions={phone ? undefined : <DeleteVolume volume={volume} />}
     >
       <div className="volume-page">
         <OnServers volume={volume} />
@@ -184,7 +186,7 @@ function Backups({ volume }: { volume: VolumeInfo }) {
   );
   const destinations = useDestinations().data?.destinations ?? [];
   const [taking, setTaking] = useState(false);
-  const [scheduling, setScheduling] = useState(false);
+  const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
   const may = useMay();
   const choice = [{ id: volume.id, name, environment: env }];
   const backUp = (
@@ -206,7 +208,11 @@ function Backups({ volume }: { volume: VolumeInfo }) {
         <span className="volume-spacer" />
         {backups.length > 0 ? backUp : null}
       </div>
-      <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} />
+      <PoliciesPanel
+        policies={policies}
+        onAdd={() => setScheduling({})}
+        onEdit={(policy) => setScheduling({ editing: policy })}
+      />
       {backups.length === 0 ? (
         <EmptyState icon="archive" title={t`No backups of ${name} yet`} action={backUp} />
       ) : (
@@ -216,7 +222,12 @@ function Backups({ volume }: { volume: VolumeInfo }) {
         <BackUpSheet volumes={choice} chosen={volume.id} destinations={destinations} onClose={() => setTaking(false)} />
       ) : null}
       {scheduling ? (
-        <PolicySheet volumes={choice} destinations={destinations} onClose={() => setScheduling(false)} />
+        <PolicySheet
+          volumes={choice}
+          destinations={destinations}
+          editing={scheduling.editing}
+          onClose={() => setScheduling(undefined)}
+        />
       ) : null}
     </section>
   );
@@ -228,28 +239,65 @@ function DeleteVolume({ volume, size }: { volume: VolumeInfo; size?: "lg" }) {
   const sheet = useChangeSheet();
   const may = useMay();
   const name = volume.resource?.name ?? "";
-  const users = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format([
-    ...new Set(volume.mountedBy.map((m) => m.service)),
-  ]);
-  const off =
-    volume.mountedBy.length > 0
-      ? t`${users} mounts it. Take it off first, then delete it.`
-      : may(ChangeService.method.proposeChange, { environment: volume.resource?.scope ?? "" }).reason;
+  const mounting = [...new Map(volume.mountedBy.map((m) => [m.serviceId, m.service])).entries()];
+  const users = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(mounting.map(([, n]) => n));
+  const whyId = useId();
+  // While an app mounts it, why sits beside it, with the way to that app, not on hover or
+  // at the top of the page alone (#793). Otherwise a role's refusal says why, as everywhere.
+  const mounted = mounting.length > 0;
+  const off = mounted
+    ? ""
+    : may(ChangeService.method.proposeChange, { environment: volume.resource?.scope ?? "" }).reason;
+  const first = mounting[0];
+  const firstName = first?.[1] ?? "";
+  const why =
+    mounted && first ? (
+      <span className="volume-delete-why" id={whyId}>
+        {t`${users} mounts it. Take it off first, then delete it.`}{" "}
+        <RefLink kind="app" id={first[0]}>
+          {t`Open ${firstName}`}
+        </RefLink>
+      </span>
+    ) : null;
   return (
-    <Button
-      variant="danger"
-      icon="trash"
-      {...(size ? { size } : {})}
-      off={off || undefined}
-      onClick={() =>
-        sheet.open({
-          kind: "propose",
-          summary: t`Delete the volume ${name}`,
-          edits: [{ resource: { kind: "volume", scope: volume.resource?.scope ?? "", name }, delete: true }],
-        })
-      }
-    >
-      <Trans>Delete</Trans>
-    </Button>
+    <span className="volume-delete">
+      {why}
+      <Button
+        variant="danger"
+        icon="trash"
+        {...(size ? { size } : {})}
+        off={off || undefined}
+        disabled={mounted}
+        aria-describedby={mounted ? whyId : undefined}
+        onClick={() =>
+          sheet.open({
+            kind: "propose",
+            summary: t`Delete the volume ${name}`,
+            edits: [{ resource: { kind: "volume", scope: volume.resource?.scope ?? "", name }, delete: true }],
+          })
+        }
+      >
+        <Trans>Delete</Trans>
+      </Button>
+    </span>
+  );
+}
+
+/** Back where you came from, as the page opens from a database, a backup or a project; More with nowhere before (#793). */
+function BackButton() {
+  const { t } = useLingui();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  if (!canGoBack) {
+    return (
+      <Link to="/more" className="mobile-header-button" aria-label={t`Back`}>
+        <Icon name="arrow-left" size={20} />
+      </Link>
+    );
+  }
+  return (
+    <button type="button" className="mobile-header-button" aria-label={t`Back`} onClick={() => router.history.back()}>
+      <Icon name="arrow-left" size={20} />
+    </button>
   );
 }

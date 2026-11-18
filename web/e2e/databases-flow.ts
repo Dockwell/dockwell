@@ -170,7 +170,7 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   const plan = page.locator(".plan-sheet");
   await plan
     .locator(".plan-risk")
-    .getByText(/is replaced with the dump from/)
+    .getByText(/with the dump from/)
     .waitFor({ timeout: 30_000 });
   await plan.getByRole("button", { name: "Cancel" }).click();
   await plan.waitFor({ state: "hidden" });

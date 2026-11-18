@@ -5,6 +5,8 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   BackupMethod,
+  BackupPolicy_Drill,
+  BackupPolicy_Every,
   BackupSchema,
   BackupState,
   type ChangeDatabasePasswordRequest,
@@ -46,7 +48,7 @@ import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { expectNamesLinked } from "../../test/links";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
-import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 import { gist } from "./DatabaseOverview";
 import { balancedColumns } from "./DatabasesPage";
 import { connectionURL, engineOfImage } from "./useDatabases";
@@ -347,7 +349,7 @@ describe("the databases list", () => {
     expect(rows[1]).toHaveTextContent("PostgreSQL 17.2");
     expect(rows[1]).toHaveTextContent("9 MB");
     expect(rows[1]).toHaveTextContent("24 of 100");
-    expect(rows[1]).toHaveTextContent("By hand · 3 h ago");
+    expect(rows[1]).toHaveTextContent("Not scheduled · 3 h ago");
     expect(rows[1]).toHaveTextContent("adminer");
     expect(rows[0]).toHaveTextContent("Redis 7.4.1");
     expect(rows[0]).toHaveTextContent("No volume");
@@ -538,6 +540,37 @@ describe("the databases list", () => {
     expect(screen.getByRole("dialog", { name: "New database" })).toBe(sheet);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toEqual([{ id: "mysql", project: "mysql" }]));
+  });
+
+  it("plans on the server with the most free memory, with none ticked by hand (#792, #793)", async () => {
+    const user = userEvent.setup();
+    const asked: string[][] = [];
+    const watch = feed<WatchServersResponse>();
+    watch.push(
+      changed(aServer({ id: SERVER, name: "hz-1", stats: sample(10, 7) })),
+      changed(aServer({ id: "srv_2", name: "web-1", stats: sample(10, 1) })),
+      snapshotComplete,
+    );
+    renderAt(
+      "/databases",
+      api([aDatabase()], {
+        servers: { watchServers: watch.stream },
+        catalog: {
+          listCatalogEntries: () => listed([postgres]),
+          getCatalogEntry: catalogEntry,
+          installCatalogEntry: (req) => {
+            asked.push([...req.servers]);
+            throw new ConnectError("stop here", Code.FailedPrecondition);
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("link", { name: "New database" }));
+    const sheet = await screen.findByRole("dialog", { name: "New database" });
+    const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    expect(await within(runsOn).findByText("most free memory")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toEqual([["srv_2"]]));
   });
 
   it("keeps the engine as it is while its plan is asked for", async () => {
@@ -899,7 +932,7 @@ describe("a database's page", () => {
     });
     renderAt("/databases", api([db]));
     const table = await screen.findByRole("table", { name: "Databases" });
-    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("By hand · the last failed, 1 min ago");
+    expect(within(table).getAllByRole("row")[1]).toHaveTextContent("Not scheduled · the last failed, 1 min ago");
     expect(screen.getByRole("region", { name: "Backups" })).toHaveTextContent("which failed: The disk is full.");
   });
 
@@ -1588,5 +1621,127 @@ describe("deleting a database", () => {
     expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.name, e.delete, e.withContents])).toEqual([
       ["project", "pg", true, true],
     ]);
+  });
+});
+
+describe("how a database is backed up (#793)", () => {
+  const r2 = { id: "bds_r2", name: "r2", endpoint: "https://r2.example.com", bucket: "acme-backups" };
+  const nightly = {
+    id: "bpl_1",
+    name: "nightly",
+    environmentId: ENV,
+    spec: { volume: "data", every: BackupPolicy_Every.DAY, at: "02:00", keep: 7, drill: BackupPolicy_Drill.WEEKLY },
+  };
+  const proposing = () => {
+    const edits: ProposeChangeRequest["edits"][] = [];
+    const changes = {
+      proposeChange: (req: ProposeChangeRequest) => {
+        edits.push(req.edits);
+        return { change: webPlanned() };
+      },
+      watchChange: feed<WatchChangeResponse>().stream,
+      discardChange: () => ({}),
+    };
+    return { edits, changes };
+  };
+
+  it("says a database has no schedule, and Back up daily plans one, sent to the storage there is", async () => {
+    const user = userEvent.setup();
+    const { edits, changes } = proposing();
+    renderAt(
+      "/databases/svc_db/backups",
+      api([aDatabase()], {
+        backups: {
+          listBackups: () => ({ backups: [] }),
+          listBackupPolicies: () => ({ policies: [] }),
+          listBackupDestinations: () => ({ destinations: [r2] }),
+          previewBackup: () => ({ method: BackupMethod.DUMP, database: "PostgreSQL" }),
+        },
+        changes,
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "How it's backed up" });
+    await waitFor(() => expect(panel).toHaveTextContent("Not backed up on a schedule"));
+    await user.click(within(panel).getByRole("button", { name: "Back up daily" }));
+    await waitFor(() => expect(edits).toHaveLength(1));
+    expect(edits[0]?.[0]).toMatchObject({
+      resource: { kind: "backup.policy", scope: ENV, name: "data-daily" },
+      spec: {
+        kind: {
+          value: {
+            volume: "data",
+            every: BackupPolicy_Every.DAY,
+            at: "03:00",
+            keep: 7,
+            drill: BackupPolicy_Drill.WEEKLY,
+            destination: "r2",
+          },
+        },
+      },
+    });
+  });
+
+  it("warns of a schedule kept on the server alone, with Add storage, and changes the schedule as it is", async () => {
+    const user = userEvent.setup();
+    const { edits, changes } = proposing();
+    renderAt(
+      "/databases/svc_db/backups",
+      api([aDatabase()], {
+        backups: {
+          listBackups: () => ({ backups: [] }),
+          listBackupPolicies: () => ({ policies: [nightly] }),
+          listBackupDestinations: () => ({ destinations: [] }),
+          previewBackup: () => ({ method: BackupMethod.DUMP, database: "PostgreSQL" }),
+        },
+        changes,
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "How it's backed up" });
+    await waitFor(() => expect(panel).toHaveTextContent("Kept only on the server, unencrypted"));
+    await user.click(within(panel).getByRole("button", { name: "Add storage" }));
+    expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Add a destination" })).getByRole("button", { name: "Cancel" }),
+    );
+
+    await user.click(within(panel).getByRole("button", { name: "Edit schedule" }));
+    const sheet = await screen.findByRole("dialog", { name: "Change the schedule" });
+    const keep = within(sheet).getByRole("textbox", { name: "Backups to keep" });
+    expect(keep).toHaveValue("7");
+    expect(within(sheet).getByRole("textbox", { name: "At" })).toHaveValue("02:00");
+    await user.clear(keep);
+    await user.type(keep, "14");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(edits).toHaveLength(1));
+    expect(edits[0]?.[0]).toMatchObject({
+      resource: { kind: "backup.policy", scope: ENV, name: "nightly" },
+      spec: { kind: { value: { volume: "data", at: "02:00", keep: 14 } } },
+    });
+  });
+
+  it("offers Back up daily on each database in the list that has no schedule", async () => {
+    const user = userEvent.setup();
+    const { edits, changes } = proposing();
+    renderAt(
+      "/databases",
+      api([aDatabase()], {
+        backups: {
+          listBackupPolicies: () => ({ policies: [] }),
+          listBackupDestinations: () => ({ destinations: [] }),
+        },
+        changes,
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Databases" });
+    const row = within(table).getAllByRole("row")[1] as HTMLElement;
+    await waitFor(() => expect(row).toHaveTextContent("Not scheduled"));
+    await user.click(within(row).getByRole("button", { name: "Back up daily" }));
+    await waitFor(() => expect(edits).toHaveLength(1));
+    expect(edits[0]?.[0]).toMatchObject({
+      resource: { name: "data-daily" },
+      spec: { kind: { value: { destination: "" } } },
+    });
+    const backups = screen.getByRole("region", { name: "Backups" });
+    expect(backups).toHaveTextContent("1 isn't backed up on a schedule");
   });
 });

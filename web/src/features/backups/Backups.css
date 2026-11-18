@@ -365,3 +365,14 @@
 .backup-actionbar .dw-btn {
   flex: 1 1 auto;
 }
+
+/* No storage yet: one state line with its action, in the panel's padding (#793). */
+.backup-destinations-none {
+  padding: var(--space-4);
+}
+
+/* A schedule's actions, Edit beside Stop. */
+.backup-policy-actions {
+  display: flex;
+  gap: var(--space-1);
+}

@@ -100,8 +100,11 @@ describe("a volume's page", () => {
     const user = userEvent.setup();
     const { unmount } = renderAt("/volumes/vol_1", api(aVolume()));
     const held = await screen.findByRole("button", { name: "Delete" }, { timeout: 5000 });
-    expect(held).toHaveAttribute("aria-disabled", "true");
-    expect(held).toHaveAccessibleDescription("shop mounts it. Take it off first, then delete it.");
+    expect(held).toBeDisabled();
+    expect(held).toHaveAccessibleDescription(/^shop mounts it\. Take it off first, then delete it\./);
+    // Why, beside the button, with the way to what mounts it, not on hover alone (#793).
+    const why = held.closest(".volume-delete") as HTMLElement;
+    expect(within(why).getByRole("link", { name: /Open shop/ })).toBeVisible();
     unmount();
 
     const proposals: ProposeChangeRequest[] = [];

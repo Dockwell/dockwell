@@ -168,12 +168,12 @@ describe("the backups page", () => {
     // With the count of what it took, as New app sits with the count on Apps.
     const runs = screen.getByRole("region", { name: "Recent runs" });
     expect(within(runs).getByRole("button", { name: "Back up now" })).toBeVisible();
-    expect(screen.getByText(/unencrypted, so they go if the server does/)).toBeVisible();
+    expect(screen.getByText(/On each server's disk alone, unencrypted/)).toBeVisible();
   });
 
   it("says a backup on a server's disk isn't encrypted", async () => {
     renderAt("/backups", api([aBackup()]));
-    expect(await screen.findByText(/unencrypted, so they go if the server does/)).toBeVisible();
+    expect(await screen.findByText(/On each server's disk alone, unencrypted/)).toBeVisible();
   });
 
   it("says a word before a copy of a running app, and stops it unless told not to", async () => {
@@ -315,10 +315,8 @@ describe("the backups page", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Restore" }));
     const risk = (await screen.findByRole("alert")).closest(".plan-risk") as HTMLElement;
-    expect(risk.querySelector(".dw-callout-title")).toHaveTextContent(
-      /^Everything in orders on hz-1 is replaced with the dump from/,
-    );
-    expect(within(risk).getAllByText("db and web stop while this happens.")[0]).toBeVisible();
+    expect(risk.querySelector(".dw-callout-title")).toHaveTextContent(/^Replaces orders on hz-1 with the dump from/);
+    expect(within(risk).getAllByText("db and web stop while it loads, and what was made since goes.")[0]).toBeVisible();
     // How it goes is one step away.
     openHowItWorks(risk);
     expect(
@@ -352,7 +350,7 @@ describe("the backups page", () => {
       within(warning as HTMLElement).getByText("Deploy postgres:16.4 first, or restore a dump instead."),
     ).toBeVisible();
     expect(warning).toHaveTextContent("may not start on files from another release");
-    expect(screen.getByRole("alert")).toHaveTextContent(/^Everything in orders on hz-1 is replaced/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
   });
 
   it("asks for a shared server's name typed before it plans restoring it whole", async () => {
@@ -392,7 +390,7 @@ describe("the backups page", () => {
     await user.type(within(dialog).getByLabelText("Type db to confirm"), "db");
     await user.click(review);
     await waitFor(() => expect(asked).toEqual(["", "db"]));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/^Everything in orders on hz-1 is replaced/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
   });
 
   it("says what a schedule costs, and plans it", async () => {
@@ -647,10 +645,10 @@ describe("the backups page", () => {
         changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
-    expect(await screen.findByText("2 schedules never check a restore")).toBeVisible();
+    expect(await screen.findByText("2 schedules never test a restore")).toBeVisible();
     const panel = screen.getByRole("region", { name: "Schedules" });
-    expect(within(panel).getByText("Checks a restore weekly")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Check weekly" }));
+    expect(within(panel).getByText("Tests a restore weekly")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Test weekly" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
     const edits = proposed.mock.calls[0]?.[0].edits ?? [];
     expect(edits.map((e) => e.resource?.name)).toEqual(["orders-daily", "logs-daily"]);
@@ -697,7 +695,7 @@ describe("the backups page", () => {
     // In the schedule's zone, as its time is: 03:00 UTC is 11:00 there.
     expect(within(panel).getByText(/Next run .*11:00/)).toBeVisible();
     expect(within(panel).getByText("Keeps 7, holding 3 now (936 MB)")).toBeVisible();
-    expect(within(panel).getByText("Doesn't check a restore")).toBeVisible();
+    expect(within(panel).getByText("Never tests a restore")).toBeVisible();
     expect(within(panel).getByText("Last run failed")).toBeVisible();
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
@@ -977,16 +975,16 @@ describe("the backups page", () => {
         },
       }),
     );
-    expect(await screen.findByText("Restored and checked 2 h ago")).toBeVisible();
+    expect(await screen.findByText("Restore tested 2 h ago")).toBeVisible();
     expect(screen.getByText("Unpacked whole 2 h ago")).toBeVisible();
     expect(
-      screen.getByText("Restore check failed 2 h ago: orders.items has no rows, and the dump fills it"),
+      screen.getByText("Restore test failed 2 h ago: orders.items has no rows, and the dump fills it"),
     ).toBeVisible();
-    expect(screen.getByText("Not checked: the disk it restores to has 1 GB free")).toBeVisible();
-    expect(screen.getByText("Checking it restores")).toBeVisible();
-    expect(screen.getAllByRole("button", { name: "Check again" })).toHaveLength(4);
+    expect(screen.getByText("Not tested: the disk it restores to has 1 GB free")).toBeVisible();
+    expect(screen.getByText("Testing a restore")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: "Test again" })).toHaveLength(4);
     await expectAccessible(container);
-    await user.click(screen.getByRole("button", { name: "Check it restores" }));
+    await user.click(screen.getByRole("button", { name: "Test restore" }));
     await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "bkp_never" })]));
   });
 
@@ -1003,12 +1001,12 @@ describe("the backups page", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Check it restores" }));
+    await user.click(await screen.findByRole("button", { name: "Test restore" }));
     const row = screen.getAllByRole("row")[1] as HTMLElement;
     expect(await within(row).findByRole("alert")).toHaveTextContent(/^Can't check it now: .*checks one at a time/);
   });
 
-  it("keeps Check it restores busy while it asks, so a second click sends nothing", async () => {
+  it("keeps Test restore busy while it asks, so a second click sends nothing", async () => {
     const user = userEvent.setup();
     let asked = 0;
     let answer: () => void = () => {};
@@ -1023,7 +1021,7 @@ describe("the backups page", () => {
         },
       }),
     );
-    const check = await screen.findByRole("button", { name: "Check it restores" });
+    const check = await screen.findByRole("button", { name: "Test restore" });
     await user.click(check);
     expect(check).toHaveAttribute("aria-busy", "true");
     await user.click(check);
@@ -1217,5 +1215,54 @@ describe("a backup's own page", () => {
         .getAllByRole("link")
         .map((a) => a.getAttribute("href")),
     ).toContain("/backups/bkp_1");
+  });
+});
+
+describe("the backups page, laid out as its mock (#793)", () => {
+  it("puts restore tests beside where backups go, says a run's time within a day as how long ago, and edits a schedule", async () => {
+    const user = userEvent.setup();
+    const recent = aBackup({
+      startedAt: timestampFromDate(new Date(Date.now() - 5 * 60_000)),
+      finishedAt: timestampFromDate(new Date(Date.now() - 5 * 60_000 + 40_000)),
+      drill: {
+        result: DrillResult.PASSED,
+        finishedAt: timestampFromDate(new Date(Date.now() - 2 * 3_600_000)),
+      },
+    });
+    renderAt(
+      "/backups",
+      api([recent], {
+        backups: {
+          listBackups: () => ({ backups: [recent] }),
+          listBackupDestinations: () => ({}),
+          previewBackup: () => ({ method: BackupMethod.COPY }),
+          listBackupPolicies: () => ({
+            policies: [
+              {
+                id: "bpl_1",
+                name: "orders-daily",
+                environmentId: "env_1",
+                spec: {
+                  volume: "orders",
+                  every: BackupPolicy_Every.DAY,
+                  at: "03:00",
+                  keep: 7,
+                  drill: BackupPolicy_Drill.WEEKLY,
+                },
+              },
+            ],
+          }),
+        },
+      }),
+    );
+    const tests = await screen.findByRole("region", { name: "Restore tests" });
+    expect(await within(tests).findByText("Passed 2 h ago")).toBeVisible();
+    expect(tests).toHaveTextContent("Weekly");
+    const runs = screen.getByRole("region", { name: "Recent runs" });
+    expect(within(runs).getByText("5 min ago")).toBeVisible();
+    const schedules = screen.getByRole("region", { name: "Schedules" });
+    expect(schedules).toHaveTextContent("Kept only on the server, unencrypted");
+    await user.click(within(schedules).getByRole("button", { name: "Edit this schedule" }));
+    expect(await screen.findByRole("dialog", { name: "Change the schedule" })).toBeVisible();
   });
 });

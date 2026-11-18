@@ -54,22 +54,22 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await row.getByText("PostgreSQL dump").waitFor();
   await shoot(page, "backups-list");
 
-  step("backups: Check it restores runs a drill of its own, and its row says how that went");
-  await row.getByRole("button", { name: "Check it restores" }).click();
+  step("backups: Test restore runs a drill of its own, and its row says how that went");
+  await row.getByRole("button", { name: "Test restore" }).click();
   // The fake engine's PostgreSQL answers whatever it's asked, so any end will do: what
   // a drill checks is internal/backup's tests' to say.
-  await row
-    .getByText(/^(Restored and checked|Unpacked whole|Restore check failed|Not checked)/)
-    .waitFor({ timeout: 60_000 });
-  await row.getByRole("button", { name: "Check again" }).waitFor();
+  await row.getByText(/^(Restore tested|Unpacked whole|Restore test failed|Not tested)/).waitFor({ timeout: 60_000 });
+  await row.getByRole("button", { name: "Test again" }).waitFor();
   await shoot(page, "backups-drilled");
 
   step("backups: a restore is a plan, which says what it replaces and what stops, and takes a confirmation");
   await row.getByRole("button", { name: "Restore", exact: true }).click();
   const plan = page.locator(".plan-sheet");
   const risk = plan.locator(".plan-risk");
-  await risk.getByText(/is replaced with the dump from/).waitFor({ timeout: 30_000 });
-  await risk.getByText(/stop while this happens|stops while this happens/).waitFor();
+  await risk.getByText(/with the dump from/).waitFor({ timeout: 30_000 });
+  await risk.getByText(/stops? while it loads, and what was made since goes/).waitFor();
+  // How it goes is one step away, under the title and its one sentence (#793).
+  await risk.getByText("How this works").click();
   await risk.getByText(/starts anew on an empty volume/).waitFor();
   await plan.getByText("replaced, and undoing this puts it back").waitFor();
   await shoot(page, "backups-restore-plan");
@@ -93,22 +93,30 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
   await restored.click();
   await page.getByRole("button", { name: "Undo this change" }).waitFor({ timeout: 15_000 });
 
-  step("backups: a schedule says what it costs, and is a plan");
+  step(
+    "backups: the catalog's database came with a daily schedule, which says what it costs, and changes through a plan",
+  );
   await page.goto(`${origin}/backups`);
   const schedules = page.getByRole("region", { name: "Schedules" });
-  // While there's none, Add is the empty state's.
-  await schedules.getByRole("button", { name: /^Add( a schedule)?$/ }).click();
-  const schedule = page.getByRole("dialog", { name: "Back up on a schedule" });
-  await pickTheDatabase(schedule);
+  // Its install planned it, a line of its own, kept on the server as no storage is connected yet (#793).
+  const daily = schedules.getByRole("listitem").filter({ hasText: "Daily at 03:00" }).first();
+  await daily.waitFor({ timeout: 15_000 });
+  await daily.getByText("Kept only on the server, unencrypted").waitFor();
+  await daily.getByRole("button", { name: "Edit this schedule" }).click();
+  const schedule = page.getByRole("dialog", { name: "Change the schedule" });
   await schedule.getByText(/takes about/).waitFor({ timeout: 20_000 });
+  const keep = schedule.getByLabel("Backups to keep");
+  await keep.fill("14");
   await shoot(page, "backups-schedule");
   await schedule.getByRole("button", { name: "Review plan" }).click();
   const planned = page.locator(".plan-sheet");
   await planned.getByRole("button", { name: /Apply plan/ }).click();
   await planned.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
   await planned.getByRole("button", { name: "Done" }).click();
-  await schedules.getByText("Daily at 03:00").waitFor({ timeout: 15_000 });
-  await schedules.getByText("Hasn't run yet").waitFor();
+  await schedules
+    .getByText(/Keeps 14/)
+    .first()
+    .waitFor({ timeout: 15_000 });
 
   step("backups: a destination asks for what signs in, keeps a passphrase out of the way, and the plan shows neither");
   const destinations = page.getByRole("region", { name: "Destinations" });

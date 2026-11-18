@@ -20,6 +20,7 @@ import {
   Button,
   Callout,
   cx,
+  Panel,
   PHONE_QUERY,
   SelectField,
   Sheet,
@@ -39,7 +40,7 @@ import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { useFleetView } from "../servers/useFleet";
+import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { BackUpSheet } from "./BackUpSheet";
@@ -48,7 +49,7 @@ import { PoliciesPanel, usePolicies } from "./PoliciesPanel";
 import { PolicySheet } from "./PolicySheet";
 import { useRestoreWhole } from "./RestoreWhole";
 import { useBackups, useVolumes } from "./useBackups";
-import { backupStatus, useMethodWord, useStateWord } from "./words";
+import { backupStatus, useMethodWord, useStateWord, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
 import { RefLink } from "../shell/RefLink";
@@ -63,7 +64,7 @@ export function BackupsPage() {
   const volumes = useVolumes();
   const query = useBackups();
   const [taking, setTaking] = useState(false);
-  const [scheduling, setScheduling] = useState(false);
+  const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
   const backups = query.data?.backups ?? [];
   const policies = usePolicies().data?.policies ?? [];
   const destinations = useDestinations().data?.destinations ?? [];
@@ -85,8 +86,8 @@ export function BackupsPage() {
     .join(" · ");
   const where =
     destinations.length > 0
-      ? t`On each server's own disk, unencrypted, and sealed on a destination where you ask for it`
-      : t`On each server's own disk, unencrypted, so they go if the server does`;
+      ? t`On each server's disk, and sealed off it where a schedule says`
+      : t`On each server's disk alone, unencrypted`;
   const recent = (
     <section className="backups-runs" aria-labelledby="backups-runs">
       <div className="backups-runs-head">
@@ -109,7 +110,13 @@ export function BackupsPage() {
       <div className="backups-columns">
         <div className="backups-main">
           <UncheckedSchedules policies={policies} />
-          {volumes.length > 0 ? <PoliciesPanel policies={policies} onAdd={() => setScheduling(true)} /> : null}
+          {volumes.length > 0 ? (
+            <PoliciesPanel
+              policies={policies}
+              onAdd={() => setScheduling({})}
+              onEdit={(policy) => setScheduling({ editing: policy })}
+            />
+          ) : null}
           {query.isPending ? null : backups.length === 0 ? (
             volumes.length > 0 ? (
               <EmptyState icon="archive" title={t`No backups yet`} action={action}>
@@ -138,15 +145,22 @@ export function BackupsPage() {
             recent
           ) : null}
         </div>
+        {/* Where they go, and how their restores test, in one column, as the Backups mock has them (#793). */}
         <div className="backups-side">
           <DestinationsPanel destinations={destinations} />
+          <RestoreTests policies={policies} backups={backups} />
         </div>
       </div>
       {/* Under both columns on a wide screen, so each run's volume, state and reason have the page's width. */}
       {!phone && !query.isPending && backups.length > 0 ? recent : null}
       {taking ? <BackUpSheet volumes={volumes} destinations={destinations} onClose={() => setTaking(false)} /> : null}
       {scheduling ? (
-        <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
+        <PolicySheet
+          volumes={volumes}
+          destinations={destinations}
+          editing={scheduling.editing}
+          onClose={() => setScheduling(undefined)}
+        />
       ) : null}
     </Page>
   );
@@ -284,6 +298,8 @@ function BackupsList({
   const method = useMethodWord();
   const stateWord = useStateWord();
   const time = useTimeWords();
+  const whenWords = useWhen();
+  const now = useControlPlaneNow(30_000);
   const fleet = view.fleet;
   const several = new Set(backups.map((b) => b.environmentId)).size > 1;
   const where = (b: Backup) => {
@@ -294,9 +310,12 @@ function BackupsList({
   // When it started, which opens the backup's own page.
   const when = (b: Backup) =>
     b.startedAt ? (
-      <RefLink kind="backup" id={b.id} look="plain">
-        {formatDateTime(timestampDate(b.startedAt), i18n.locale)}
-      </RefLink>
+      // Relative within a day, with the whole date on hover (#793).
+      <span title={formatDateTime(timestampDate(b.startedAt), i18n.locale)}>
+        <RefLink kind="backup" id={b.id} look="plain">
+          {whenWords(timestampDate(b.startedAt), now)}
+        </RefLink>
+      </span>
     ) : (
       ""
     );
@@ -607,10 +626,10 @@ export function DrillLine({ backup, onCheck, pending }: { backup: Backup; onChec
         {label}
       </Button>
     ) : null;
-  if (!drill) return onCheck ? <span className="backup-why backup-drill">{check(t`Check it restores`)}</span> : null;
+  if (!drill) return onCheck ? <span className="backup-why backup-drill">{check(t`Test restore`)}</span> : null;
   const ago = drill.finishedAt ? time.ago(timestampDate(drill.finishedAt), Date.now()) : "";
   const why = drill.why.replace(/\.$/, "");
-  const again = check(t`Check again`);
+  const again = check(t`Test again`);
   // What it says is two lines at most, whole on hover, and its action stays in sight after it.
   const said = (text: string, failed = false) => (
     <span className={cx("backup-why", "backup-drill", failed && "is-failed")}>
@@ -622,13 +641,13 @@ export function DrillLine({ backup, onCheck, pending }: { backup: Backup; onChec
   );
   switch (drill.result) {
     case DrillResult.RUNNING:
-      return <span className="backup-why backup-drill">{t`Checking it restores`}</span>;
+      return <span className="backup-why backup-drill">{t`Testing a restore`}</span>;
     case DrillResult.PASSED:
-      return said(drill.unpackedOnly ? t`Unpacked whole ${ago}` : t`Restored and checked ${ago}`);
+      return said(drill.unpackedOnly ? t`Unpacked whole ${ago}` : t`Restore tested ${ago}`);
     case DrillResult.FAILED:
-      return said(t`Restore check failed ${ago}: ${why}`, true);
+      return said(t`Restore test failed ${ago}: ${why}`, true);
   }
-  return said(t`Not checked: ${why}`);
+  return said(t`Not tested: ${why}`);
 }
 
 /**
@@ -645,8 +664,8 @@ function UncheckedSchedules({ policies }: { policies: readonly BackupPolicyInfo[
     sheet.open({
       kind: "propose",
       summary: plural(unchecked.length, {
-        one: "Check a restore of # schedule's backups weekly",
-        other: "Check a restore of # schedules' backups weekly",
+        one: "Test a restore of # schedule's backups weekly",
+        other: "Test a restore of # schedules' backups weekly",
       }),
       edits: unchecked.map((p) => {
         // The whole policy as it is, but its check.
@@ -662,8 +681,8 @@ function UncheckedSchedules({ policies }: { policies: readonly BackupPolicyInfo[
     <Callout
       tone="info"
       title={plural(unchecked.length, {
-        one: "# schedule never checks a restore",
-        other: "# schedules never check a restore",
+        one: "# schedule never tests a restore",
+        other: "# schedules never test a restore",
       })}
       actions={
         <Button
@@ -671,9 +690,62 @@ function UncheckedSchedules({ policies }: { policies: readonly BackupPolicyInfo[
           onClick={plan}
           {...may(ChangeService.method.proposeChange, { environment: unchecked[0]?.environmentId ?? "" }).off}
         >
-          <Trans>Check weekly</Trans>
+          <Trans>Test weekly</Trans>
         </Button>
       }
     />
+  );
+}
+
+/**
+ * How each schedule's restores test, beside where its backups go, as the Backups mock
+ * draws Restore drills: how often, and how the newest test of its volume went (#793).
+ */
+function RestoreTests({ policies, backups }: { policies: readonly BackupPolicyInfo[]; backups: readonly Backup[] }) {
+  const { t } = useLingui();
+  const time = useTimeWords();
+  const now = useControlPlaneNow(30_000);
+  const places = usePlaces();
+  const several = new Set(policies.map((p) => p.environmentId)).size > 1;
+  if (policies.length === 0) return null;
+  return (
+    <Panel title={t`Restore tests`} flush>
+      <ul className="backup-policies">
+        {policies.map((p) => {
+          const volume = p.spec?.volume || p.spec?.link || "";
+          const tested = backups.find(
+            (b) => b.drill?.finishedAt && b.environmentId === p.environmentId && b.volume === p.spec?.volume,
+          );
+          const drill = tested?.drill;
+          const ago = drill?.finishedAt ? time.ago(timestampDate(drill.finishedAt), now) : "";
+          const cadence =
+            p.spec?.drill === BackupPolicy_Drill.WEEKLY
+              ? t`Weekly`
+              : p.spec?.drill === BackupPolicy_Drill.MONTHLY
+                ? t`Monthly`
+                : t`Never`;
+          return (
+            <li key={p.id} className="backup-policy">
+              <div className="backup-state">
+                <span>
+                  <code>{volume}</code>
+                  {several ? <span className="backup-why backup-place"> · {places.label(p.environmentId)}</span> : null}
+                </span>
+                <span className="backup-why">{cadence}</span>
+              </div>
+              <div className="backup-state">
+                {drill?.result === DrillResult.PASSED ? (
+                  <StatusBadge status="healthy" label={t`Passed ${ago}`} labelIsState />
+                ) : drill?.result === DrillResult.FAILED ? (
+                  <StatusBadge status="down" label={t`Failed ${ago}`} labelIsState />
+                ) : (
+                  <StatusBadge status="unknown" label={t`Not tested yet`} labelIsState />
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
   );
 }

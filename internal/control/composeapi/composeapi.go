@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/appowner"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
@@ -158,6 +159,44 @@ type Install struct {
 	// plan has each serve the project the install makes, in the same change, which it
 	// shows, as a website's does (ADR 0104, #792).
 	Serves []string
+	// BackUpDaily gives each database the install runs a daily backup schedule in
+	// the same plan, as its own line there, so no database starts with none (#793).
+	BackUpDaily bool
+	// BackupDestination is the storage those schedules also send each backup to, by
+	// name; empty keeps them on the server alone.
+	BackupDestination string
+}
+
+// Daily backups of a new database, until a person changes them (#793).
+const (
+	dailyAt   = "03:00"
+	dailyKeep = 7
+)
+
+// dailyBackups is a daily backup schedule for each database a stack runs on a volume
+// of its own: a dump while it runs, kept 7 deep, a restore tested weekly, sent to
+// destination as well where there's one. Its name is the service's, then "daily".
+func dailyBackups(stack *compose.Stack, destination string) []*dockwellv1.Edit {
+	var out []*dockwellv1.Edit
+	for _, svc := range stack.Services {
+		found, ok := database.FromSpec(svc.Spec)
+		if !ok || found.Volume == "" || found.External {
+			continue
+		}
+		out = append(out, &dockwellv1.Edit{
+			// No scope: it's in the environment the install makes.
+			Resource: &dockwellv1.ResourceRef{Kind: string(backuppolicy.Kind), Name: svc.Name + "-daily"},
+			Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_BackupPolicy{BackupPolicy: &resourcev1.BackupPolicy{
+				Volume:      found.Volume,
+				Every:       resourcev1.BackupPolicy_EVERY_DAY,
+				At:          dailyAt,
+				Keep:        dailyKeep,
+				Drill:       resourcev1.BackupPolicy_DRILL_WEEKLY,
+				Destination: destination,
+			}}},
+		})
+	}
+	return out
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -317,6 +356,9 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 	showPlain(stack)
 	runsOn(stack, in.Architectures)
 	req := &dockwellv1.ImportComposeRequest{Summary: in.Summary, Servers: in.Servers, Variables: in.Variables}
+	if in.BackUpDaily {
+		in.Needs.Extra = append(in.Needs.Extra, dailyBackups(stack, in.BackupDestination)...)
+	}
 	var notes []revision.Note
 	if in.FirstSteps != "" {
 		notes = []revision.Note{{

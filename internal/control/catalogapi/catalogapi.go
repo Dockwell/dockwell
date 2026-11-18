@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/holds"
 	newid "github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/registry"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/route"
@@ -450,6 +451,12 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 	if err := (scope.ProjectType{}).CheckName(project); err != nil {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid")
 	}
+	// Each database it runs is backed up daily from the start, to storage off the
+	// server where there's some (#793).
+	offsite, err := h.firstDestination(ctx)
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
 	change, err := h.imports.PlanInstall(ctx, composeapi.Install{
 		Project:    project,
 		Summary:    fmt.Sprintf("Install %s %s as %s", entry.GetName(), entry.GetVersion(), project),
@@ -475,11 +482,33 @@ func (h *Handler) InstallCatalogEntry(ctx context.Context, req *connect.Request[
 		Env: closedSignups(chosen, ask, m.GetSignupsOpen()),
 		// The DNS provider that publishes the route it asked for serves its project too (#792).
 		Serves: routeServes(m.GetRoute()),
+		// Each database it runs is backed up daily from the start (#793).
+		BackUpDaily:       true,
+		BackupDestination: offsite,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.InstallCatalogEntryResponse{Change: change}), nil
+}
+
+// firstDestination is the storage a new database's daily backups go to as well: the
+// first backup destination by name, or none, which keeps them on the server (#793).
+func (h *Handler) firstDestination(ctx context.Context) (string, error) {
+	var names []string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
+		for i := range stored {
+			if stored[i].Spec != nil {
+				names = append(names, stored[i].Name)
+			}
+		}
+		return err
+	})
+	if err != nil || len(names) == 0 {
+		return "", err
+	}
+	return slices.Min(names), nil
 }
 
 // limitsOf is what an install sets for each service, by its name.
