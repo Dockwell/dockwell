@@ -65,13 +65,15 @@ type Collector struct {
 	Containers func() []string
 	// Cgroups is the cgroup tree, for a test. Nil reads sys/fs/cgroup under Root.
 	Cgroups fs.FS
+	// ContainerPID is a running container's first process's ID on the server, as
+	// Docker's inspect says it, for finding the cgroup of a container in neither
+	// of Docker's usual places (#852). Nil reads those places alone.
+	ContainerPID func(ctx context.Context, id string) (int, error)
 
 	prev    *sample
 	prevCPU map[string]cpuUsage
-	// Where containers' cgroups were found beyond Docker's two usual places, and
-	// when the tree was last searched for one in none of them (#852).
-	cgroupPlaces   []cgroupPlace
-	cgroupLookedAt time.Time
+	// What's known of the process of each container in neither of Docker's usual places (#852).
+	byPID map[string]pidCgroup
 }
 
 type sample struct {
