@@ -77,6 +77,13 @@ describe("what asks for a passkey up front (ADR 0105)", () => {
     expect(needsPasskey(open)).toBe(true);
     expect(needsPasskey(create(PlanSchema, { notes: [{ reason: "owner_held", message: "Held" }] }))).toBe(false);
   });
+
+  it("asks for an Open of an app that signs in with a password everyone knows", () => {
+    const open = create(PlanSchema, {
+      notes: [{ reason: "known_password", message: "It signs in as admin with a password everyone knows" }],
+    });
+    expect(needsPasskey(open)).toBe(true);
+  });
 });
 
 describe("taking on a record made in Cloudflare (ADR 0104, section 5)", () => {

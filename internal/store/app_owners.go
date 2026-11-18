@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -39,6 +40,58 @@ type AppOwnerState struct {
 	// Opening are the planned changes that open the install, apart by spaces, any of
 	// which makes the owner opened once it applies (ADR 0105).
 	Opening string
+	// Rotation names a new password being set, by the entry's reset steps, and
+	// Pending is that password, sealed for it; both empty where none is. RotateError
+	// is what the app said where the last one couldn't be set, scrubbed, and
+	// RotateTries how often the outcome was read.
+	Rotation    string
+	Pending     []byte
+	RotateError string
+	RotateTries int
+	// Settled says what only making the owner needed is gone, once it's made or
+	// opened: the secrets it held, and the variables its entry takes out. Until then,
+	// SettleTries is how often that failed, SettleNext when it's tried again,
+	// SettleSince since when it fails, SettleError why, UnsetLeft the variables still
+	// set, apart by spaces, and SettleAlerted that Activity has said so.
+	Settled       bool
+	SettleTries   int
+	SettleNext    time.Time
+	SettleSince   time.Time
+	SettleError   string
+	UnsetLeft     string
+	SettleAlerted bool
+}
+
+// RotateStuck is how many reads of a rotation's outcome pass, with neither password
+// reading signing in, before a person is offered to settle it (ADR 0105).
+const RotateStuck = 12
+
+// ownerColumns are what an owner's row is read as, in scanOwners' order.
+const ownerColumns = `resource_id, environment, state, error, tries, updated_at, opening, rotation, pending, rotate_error, rotate_tries,
+	settled, settle_tries, settle_next, settle_since, settle_error, unset_left, settle_alerted`
+
+// scanOwners reads owners' rows, as ownerColumns names them.
+func scanOwners(rows *sql.Rows) ([]AppOwnerState, error) {
+	defer rows.Close()
+	var out []AppOwnerState
+	for rows.Next() {
+		var s AppOwnerState
+		var at, next, since int64
+		var settled, alerted int
+		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening, &s.Rotation, &s.Pending, &s.RotateError, &s.RotateTries,
+			&settled, &s.SettleTries, &next, &since, &s.SettleError, &s.UnsetLeft, &alerted); err != nil {
+			return nil, err
+		}
+		s.UpdatedAt, s.Settled, s.SettleAlerted = fromMillis(at), settled != 0, alerted != 0
+		if next > 0 {
+			s.SettleNext = fromMillis(next)
+		}
+		if since > 0 {
+			s.SettleSince = fromMillis(since)
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
 }
 
 // AppOwnerStates reads what's observed of each app.owner resource of ids, by ID. One
@@ -52,21 +105,15 @@ func (t *Tx) AppOwnerStates(ctx context.Context, ids []string) (map[string]AppOw
 	for i, id := range ids {
 		args[i] = id
 	}
-	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening FROM app_owners WHERE resource_id IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")+`)`, args...)
+	rows, err := t.query(ctx, `SELECT `+ownerColumns+` FROM app_owners WHERE resource_id IN (`+strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ")+`)`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the app owners: %w", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var s AppOwnerState
-		var at int64
-		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening); err != nil {
-			return nil, err
-		}
-		s.UpdatedAt = fromMillis(at)
-		out[s.ResourceID] = s
+	list, err := scanOwners(rows)
+	for i := range list {
+		out[list[i].ResourceID] = list[i]
 	}
-	return out, rows.Err()
+	return out, err
 }
 
 // SetAppOwnerState records what's observed of an app.owner resource. A row that's
@@ -105,20 +152,102 @@ func (t *Tx) SetAppOwnerOpening(ctx context.Context, resourceID, environment, ch
 // AppOwnersOpenToChange reads what's observed of every app owner not yet made or
 // opened, for the control plane to make or watch.
 func (t *Tx) AppOwnersOpenToChange(ctx context.Context) ([]AppOwnerState, error) {
-	rows, err := t.query(ctx, `SELECT resource_id, environment, state, error, tries, updated_at, opening FROM app_owners WHERE state NOT IN ('made', 'opened') ORDER BY resource_id`)
+	rows, err := t.query(ctx, `SELECT `+ownerColumns+` FROM app_owners WHERE state NOT IN ('made', 'opened') ORDER BY resource_id`)
 	if err != nil {
 		return nil, fmt.Errorf("can't read the app owners: %w", err)
 	}
-	defer rows.Close()
-	var out []AppOwnerState
-	for rows.Next() {
-		var s AppOwnerState
-		var at int64
-		if err := rows.Scan(&s.ResourceID, &s.Environment, &s.State, &s.Error, &s.Tries, &at, &s.Opening); err != nil {
-			return nil, err
-		}
-		s.UpdatedAt = fromMillis(at)
-		out = append(out, s)
+	return scanOwners(rows)
+}
+
+// StartAppOwnerRotation seals a new password for a made owner as pending, for
+// rotation, beside the current one, and says whether it did: not where one is
+// already being set, nor for an owner that isn't made.
+func (t *Tx) StartAppOwnerRotation(ctx context.Context, resourceID, rotation string, pending []byte, at time.Time) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE app_owners SET rotation = ?, pending = ?, rotate_error = '', rotate_tries = 0, updated_at = ?
+		WHERE resource_id = ? AND state = 'made' AND rotation = ''`, rotation, pending, millis(at), resourceID)
+	if err != nil {
+		return false, fmt.Errorf("can't keep app owner %s's new password: %w", resourceID, err)
 	}
-	return out, rows.Err()
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AppOwnerPendingAt is where a rotation's pending password is sealed: beside its
+// app.owner's ID and the rotation, so it opens for that rotation alone.
+func AppOwnerPendingAt(resourceID, rotation string) SpecAt {
+	return SpecAt{ResourceID: resourceID, Kind: "app.owner.pending", Change: rotation, Position: 0}
+}
+
+// CountAppOwnerRotation records that a rotation's outcome was read once more, with
+// what the app said, if anything, where it couldn't tell yet.
+func (t *Tx) CountAppOwnerRotation(ctx context.Context, resourceID, rotation, rotateError string, at time.Time) error {
+	_, err := t.exec(ctx, `UPDATE app_owners SET rotate_tries = rotate_tries + 1, rotate_error = ?, updated_at = ? WHERE resource_id = ? AND rotation = ?`,
+		rotateError, millis(at), resourceID, rotation)
+	if err != nil {
+		return fmt.Errorf("can't record app owner %s's new password: %w", resourceID, err)
+	}
+	return nil
+}
+
+// EndAppOwnerRotation forgets a rotation's pending password, with what the app said
+// where it couldn't be set, and says whether it was this rotation's to end.
+func (t *Tx) EndAppOwnerRotation(ctx context.Context, resourceID, rotation, rotateError string, at time.Time) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE app_owners SET rotation = '', pending = NULL, rotate_error = ?, updated_at = ? WHERE resource_id = ? AND rotation = ?`,
+		rotateError, millis(at), resourceID, rotation)
+	if err != nil {
+		return false, fmt.Errorf("can't end app owner %s's new password: %w", resourceID, err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// AppOwnersRotating reads every owner a new password is being set for.
+func (t *Tx) AppOwnersRotating(ctx context.Context) ([]AppOwnerState, error) {
+	rows, err := t.query(ctx, `SELECT `+ownerColumns+` FROM app_owners WHERE rotation <> '' ORDER BY resource_id`)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the app owners: %w", err)
+	}
+	return scanOwners(rows)
+}
+
+// AppOwnersUnsettled reads every owner made or opened whose settling isn't done: what
+// only making it needed is still to go.
+func (t *Tx) AppOwnersUnsettled(ctx context.Context) ([]AppOwnerState, error) {
+	rows, err := t.query(ctx, `SELECT `+ownerColumns+` FROM app_owners WHERE state IN ('made', 'opened') AND settled = 0 ORDER BY resource_id`)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the app owners: %w", err)
+	}
+	return scanOwners(rows)
+}
+
+// SettleAppOwner records that what only making an owner needed is gone.
+func (t *Tx) SettleAppOwner(ctx context.Context, resourceID string, at time.Time) error {
+	_, err := t.exec(ctx, `UPDATE app_owners SET settled = 1, settle_error = '', unset_left = '', updated_at = ? WHERE resource_id = ?`, millis(at), resourceID)
+	if err != nil {
+		return fmt.Errorf("can't record app owner %s settled: %w", resourceID, err)
+	}
+	return nil
+}
+
+// CountAppOwnerSettle records that settling an owner failed once more: why, the
+// variables still set, and when it's tried again.
+func (t *Tx) CountAppOwnerSettle(ctx context.Context, resourceID, why, unsetLeft string, next, at time.Time) error {
+	_, err := t.exec(ctx, `UPDATE app_owners SET settle_tries = settle_tries + 1, settle_error = ?, unset_left = ?, settle_next = ?,
+		settle_since = CASE WHEN settle_since = 0 THEN ? ELSE settle_since END, updated_at = ? WHERE resource_id = ?`,
+		why, unsetLeft, millis(next), millis(at), millis(at), resourceID)
+	if err != nil {
+		return fmt.Errorf("can't record app owner %s's settling: %w", resourceID, err)
+	}
+	return nil
+}
+
+// AlertAppOwnerSettle records that Activity has said an owner's settling fails, and
+// says whether this call is the one that did.
+func (t *Tx) AlertAppOwnerSettle(ctx context.Context, resourceID string) (bool, error) {
+	res, err := t.exec(ctx, `UPDATE app_owners SET settle_alerted = 1 WHERE resource_id = ? AND settle_alerted = 0`, resourceID)
+	if err != nil {
+		return false, fmt.Errorf("can't record app owner %s's alert: %w", resourceID, err)
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }

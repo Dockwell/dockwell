@@ -554,6 +554,17 @@ func (v *view) ownersWrite(ed *revision.Edit) error {
 	if was.GetService() != now.GetService() || was.GetPassword() != now.GetPassword() || was.GetApp() != now.GetApp() {
 		return fault.New(revision.ErrInvalid, "an app's owner keeps its service, its password's secret and its app; only its email and user change")
 	}
+	// The secrets it holds go only once the owner is made or opened, and all at once
+	// (ADR 0105).
+	if !slices.Equal(was.GetHeldSecrets(), now.GetHeldSecrets()) {
+		final, err := v.ownerFinal(ed.Ref)
+		if err != nil {
+			return err
+		}
+		if len(now.GetHeldSecrets()) > 0 || !final {
+			return fault.New(revision.ErrInvalid, "an app's owner holds the secrets its steps read until it's made, and lets them go only then")
+		}
+	}
 	return nil
 }
 

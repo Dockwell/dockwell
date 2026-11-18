@@ -67,6 +67,7 @@ CatalogService.BackUpCatalogNeed               apply        developer  admin    
 CatalogService.CheckCatalogSource              apply        admin      admin      install
 CatalogService.GetCatalogEntry                 read         viewer     viewer     shared
 CatalogService.InstallCatalogEntry             plan         admin      admin      install
+CatalogService.KeepCatalogOwnerPassword        apply        developer  admin      project  session
 CatalogService.ListCatalogEntries              read         viewer     viewer     shared
 CatalogService.ListCatalogInstalls             read         viewer     viewer     project
 CatalogService.ListCatalogNeedBackups          read         viewer     viewer     project
@@ -75,13 +76,16 @@ CatalogService.ListCatalogSources              read         viewer     viewer   
 CatalogService.ListCatalogStores               read         viewer     viewer     shared
 CatalogService.OpenCatalogInstall              plan         developer  developer  project
 CatalogService.RemoveCatalogSource             plan         admin      admin      install
+CatalogService.ResetCatalogOwnerPassword       apply        developer  admin      project  session
 CatalogService.RestoreCatalogNeed              plan         developer  developer  project
 CatalogService.RetryCatalogOwner               apply        developer  admin      project
+CatalogService.RevealCatalogOwnerPendingPassword read         developer  admin      project  session
 CatalogService.SetCatalogCompanion             plan         developer  developer  project
 CatalogService.SetCatalogNeed                  plan         developer  developer  project
 CatalogService.SetCatalogOwnerEmail            plan         developer  developer  project
 CatalogService.SetCatalogSource                plan         admin      admin      install
 CatalogService.SetUpCatalogInstall             apply        developer  admin      project  session
+CatalogService.SettleCatalogOwner              plan         developer  developer  project
 CatalogService.UpgradeCatalogInstall           plan         developer  developer  project
 ChangeService.AdoptDrift                       plan         developer  developer  project
 ChangeService.ApplyChange                      apply        developer  admin      project

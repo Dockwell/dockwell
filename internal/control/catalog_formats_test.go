@@ -151,6 +151,10 @@ func TestAStoreIsReadAsItsOwnFormat(t *testing.T) {
 	if in.GetUpgrade() != nil {
 		t.Errorf("the digest an install pinned reads as an upgrade: %v", in.GetUpgrade())
 	}
+	// Its entry says no way it's owned, so it's held until a person opens it (ADR 0105).
+	if !in.GetHeld() || in.GetOwner() != nil {
+		t.Errorf("a store's app with no owner way reads held %v, owner %v", in.GetHeld(), in.GetOwner())
+	}
 
 	// A format a person names that the folder isn't says where that store keeps
 	// its apps.

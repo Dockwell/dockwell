@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -102,11 +103,26 @@ func ownerEdit(entry *catalogv1.Entry, ask ownerAsk, filled *catalog.Filled) *do
 		User:     filled.Plain[o.GetUserInput()],
 		Password: o.GetPasswordInput(),
 		App:      entry.GetName(),
+		// The secrets its steps read stay until it's made (the review's H2).
+		HeldSecrets: ownerSecrets(entry),
 	}
 	return &dockwellv1.Edit{
 		Resource: &dockwellv1.ResourceRef{Kind: string(appowner.Kind), Name: appowner.Name},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_AppOwner{AppOwner: owner}},
 	}
+}
+
+// ownerSecrets are the secret inputs an entry's owner steps read, by name, sorted.
+func ownerSecrets(entry *catalogv1.Entry) []string {
+	named := catalog.OwnerInputs(entry)
+	var out []string
+	for _, in := range entry.GetInputs() {
+		if named[in.GetName()] && catalog.Secret(in) {
+			out = append(out, in.GetName())
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // ErrNoRelease is an install whose catalog no longer has the release it runs, whose
@@ -209,10 +225,19 @@ func closedSignups(entry *catalogv1.Entry, ask ownerAsk, signupsOpen bool) map[s
 }
 
 // heldAtInstall says an install starts held: its first visitor makes its owner, and
-// nothing makes it first (ADR 0105).
-func heldAtInstall(entry *catalogv1.Entry) bool {
+// nothing makes it first; or it's converted from another store, with web, and its
+// entry says no way it's owned: no owner steps, no admin its environment makes
+// (sign_in with a password input), and not none. A password everyone knows, which
+// nothing changes, is no way (ADR 0105).
+func heldAtInstall(entry *catalogv1.Entry, converted bool) bool {
 	o := entry.GetOwner()
-	return entry.GetFirstVisitorOwns() && len(o.GetSteps()) == 0 && !o.GetNone()
+	if len(o.GetSteps()) > 0 || o.GetNone() {
+		return false
+	}
+	if entry.GetFirstVisitorOwns() {
+		return true
+	}
+	return converted && entry.GetWeb().GetService() != "" && entry.GetSignIn().GetPasswordInput() == ""
 }
 
 // OwnerRetrier has a failed owner tried again (owners.Runner).
@@ -235,6 +260,17 @@ func (h *Handler) ownerUnmade(ctx context.Context, environment string) (bool, er
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		owner, err := h.ownerIn(ctx, tx, environment)
 		out = owner != nil && !store.OwnerFinal(owner.state.State)
+		return err
+	})
+	return out, err
+}
+
+// ownerMade says whether an environment's owner is made or opened.
+func (h *Handler) ownerMade(ctx context.Context, environment string) (bool, error) {
+	var out bool
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		owner, err := h.ownerIn(ctx, tx, environment)
+		out = owner != nil && store.OwnerFinal(owner.state.State)
 		return err
 	})
 	return out, err
@@ -287,7 +323,22 @@ func ownerProto(o *installOwner) *dockwellv1.CatalogOwner {
 		store.OwnerFailed:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_FAILED,
 		store.OwnerOpened:       dockwellv1.CatalogOwnerState_CATALOG_OWNER_STATE_OPENED,
 	}[o.state.State]
-	return &dockwellv1.CatalogOwner{Email: o.spec.GetEmail(), User: o.spec.GetUser(), State: state, Error: o.state.Error}
+	out := &dockwellv1.CatalogOwner{Email: o.spec.GetEmail(), User: o.spec.GetUser(), State: state, Error: o.state.Error, Rotating: o.state.Rotation != ""}
+	// A made owner's error is what kept its last new password from being set, or,
+	// while one is being set, why neither password reads signing in once a person
+	// is asked to settle it (the review's H1).
+	if o.state.State == store.OwnerMade {
+		out.Error = o.state.RotateError
+		if out.Rotating && o.state.RotateTries < store.RotateStuck {
+			out.Error = ""
+		}
+	}
+	// What only making the owner needed, still set an hour after it's failed to go
+	// (the review's M1).
+	if since := o.state.SettleSince; !o.state.Settled && !since.IsZero() && time.Since(since) >= time.Hour {
+		out.UnsetLeft = strings.Fields(o.state.UnsetLeft)
+	}
+	return out
 }
 
 // RetryCatalogOwner tries again to make an install's owner where it failed: the

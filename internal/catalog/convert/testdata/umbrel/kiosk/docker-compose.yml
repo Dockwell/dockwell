@@ -1,0 +1,10 @@
+version: "3.7"
+services:
+  app_proxy:
+    environment:
+      APP_HOST: kiosk_web_1
+      APP_PORT: 8080
+  web:
+    image: example/kiosk:1.2.0@sha256:f767ab97b878265ea1fff826867718d6ffa95dac04cd979fb5db82489806fb51
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

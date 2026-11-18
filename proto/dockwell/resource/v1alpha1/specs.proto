@@ -695,6 +695,11 @@ message AppOwner {
   reserved "steps", "done", "made_when_done", "values", "secrets", "signups_steps", "signups_check";
   // What people call the app, such as "Gitea", for what a plan says.
   string app = 12;
+  // The environment's secrets its steps read, by name, which it holds as references
+  // while the owner isn't made, so none can be deleted then. Dockwell clears them
+  // once the owner is made or opened, so a person may forget a password they
+  // changed in the app (ADR 0105).
+  repeated string held_secrets = 13;
 }
 
 // OwnerRun is what the control plane sends an agent to make an app's owner, or read
@@ -792,6 +797,13 @@ message OwnerCheck {
   // answers only its own loopback as it's reached: it means yes where it exits 0,
   // and its output holds contains.
   OwnerCommand command = 4;
+  // A request sent first, whose captures request may name, as a sign-in whose
+  // cookie the read needs. What it captures is kept for this check alone.
+  OwnerRequest before = 5;
+  // What the answer must say, as JSON: path=value, where a path's part may pick a
+  // list's element by one of its fields, as [email=${OWNER_EMAIL}]._status=0. A
+  // small grammar, never an expression (ADR 0105).
+  string where = 6;
 }
 
 // PinnedNeed is how an install met one of its entry's needs.

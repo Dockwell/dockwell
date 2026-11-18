@@ -57,8 +57,6 @@ func (Type) Validate(spec proto.Message) error {
 	switch {
 	case o.GetService() == "":
 		return errors.New("an app's owner needs the service it's made in, by name")
-	case o.GetPassword() == "":
-		return errors.New("an app's owner needs the secret its password is in, by name")
 	case strings.ContainsAny(o.GetUser(), "\r\n") || strings.ContainsAny(o.GetApp(), "\r\n"):
 		return errors.New("an app's owner and its app's name are each one line")
 	}
@@ -70,13 +68,19 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// References are its service and its password's secret.
+// References are its service, and the secrets its steps read while its owner isn't
+// made (held_secrets), so none can be deleted then. Dockwell clears those once the
+// owner is made or opened: a person who changed the password in the app may then
+// forget the copy Dockwell keeps (ADR 0105).
 func (Type) References(spec proto.Message) []resource.Reference {
 	o := spec.(*resourcev1.AppOwner)
-	return []resource.Reference{
+	out := []resource.Reference{
 		{Kind: "service", Name: o.GetService(), Verb: "make its owner in", Apart: true},
-		{Kind: "secret", Name: o.GetPassword(), Verb: "read"},
 	}
+	for _, name := range o.GetHeldSecrets() {
+		out = append(out, resource.Reference{Kind: "secret", Name: name, Verb: "read"})
+	}
+	return out
 }
 
 // ReferenceKinds are a service and a secret.

@@ -59,6 +59,18 @@ const (
 	// CatalogServiceSetCatalogOwnerEmailProcedure is the fully-qualified name of the CatalogService's
 	// SetCatalogOwnerEmail RPC.
 	CatalogServiceSetCatalogOwnerEmailProcedure = "/dockwell.v1.CatalogService/SetCatalogOwnerEmail"
+	// CatalogServiceResetCatalogOwnerPasswordProcedure is the fully-qualified name of the
+	// CatalogService's ResetCatalogOwnerPassword RPC.
+	CatalogServiceResetCatalogOwnerPasswordProcedure = "/dockwell.v1.CatalogService/ResetCatalogOwnerPassword"
+	// CatalogServiceRevealCatalogOwnerPendingPasswordProcedure is the fully-qualified name of the
+	// CatalogService's RevealCatalogOwnerPendingPassword RPC.
+	CatalogServiceRevealCatalogOwnerPendingPasswordProcedure = "/dockwell.v1.CatalogService/RevealCatalogOwnerPendingPassword"
+	// CatalogServiceKeepCatalogOwnerPasswordProcedure is the fully-qualified name of the
+	// CatalogService's KeepCatalogOwnerPassword RPC.
+	CatalogServiceKeepCatalogOwnerPasswordProcedure = "/dockwell.v1.CatalogService/KeepCatalogOwnerPassword"
+	// CatalogServiceSettleCatalogOwnerProcedure is the fully-qualified name of the CatalogService's
+	// SettleCatalogOwner RPC.
+	CatalogServiceSettleCatalogOwnerProcedure = "/dockwell.v1.CatalogService/SettleCatalogOwner"
 	// CatalogServiceSetUpCatalogInstallProcedure is the fully-qualified name of the CatalogService's
 	// SetUpCatalogInstall RPC.
 	CatalogServiceSetUpCatalogInstallProcedure = "/dockwell.v1.CatalogService/SetUpCatalogInstall"
@@ -151,6 +163,31 @@ type CatalogServiceClient interface {
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
 	// (ADR 0105).
 	SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error)
+	// ResetCatalogOwnerPassword sets a new password for an install's owner, by its
+	// entry's reset steps: it seals a new one as pending beside the current one, has
+	// the app's server run the steps, and keeps whichever the app takes, by the steps'
+	// answer or, where that's lost, by the owner's done signing in with one of them.
+	// The new one replaces the install's secret as a change of Dockwell's. It takes a
+	// signed-in person and a passkey, and is refused with the reason no_reset where the
+	// entry has no reset steps, and rotating while a new password is being set
+	// (ADR 0105).
+	ResetCatalogOwnerPassword(context.Context, *connect.Request[v1.ResetCatalogOwnerPasswordRequest]) (*connect.Response[v1.ResetCatalogOwnerPasswordResponse], error)
+	// RevealCatalogOwnerPendingPassword says the new password a rotation keeps sealed
+	// beside the current one, where neither reads signing in, so a person can try it.
+	// It takes a signed-in person and a passkey, and goes to no log, event or cache
+	// (ADR 0105).
+	RevealCatalogOwnerPendingPassword(context.Context, *connect.Request[v1.RevealCatalogOwnerPendingPasswordRequest]) (*connect.Response[v1.RevealCatalogOwnerPendingPasswordResponse], error)
+	// KeepCatalogOwnerPassword ends a rotation whose outcome isn't known, keeping the
+	// current password and forgetting the new one. It takes a signed-in person and a
+	// passkey, and is refused with the reason not_rotating where none is being set
+	// (ADR 0105).
+	KeepCatalogOwnerPassword(context.Context, *connect.Request[v1.KeepCatalogOwnerPasswordRequest]) (*connect.Response[v1.KeepCatalogOwnerPasswordResponse], error)
+	// SettleCatalogOwner plans taking out of a made owner's service what its entry
+	// says only making the owner needed, such as Vaultwarden's ADMIN_TOKEN, where
+	// Dockwell couldn't (CatalogOwner.unset_left). It changes nothing until the plan
+	// is applied, and is refused with the reason settled where nothing is left
+	// (ADR 0105).
+	SettleCatalogOwner(context.Context, *connect.Request[v1.SettleCatalogOwnerRequest]) (*connect.Response[v1.SettleCatalogOwnerResponse], error)
 	// SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
 	// and for an hour, which lets the browser that opens it through the hold, to set
 	// the app up on its real domain, and no one else. It writes the key's hash on the
@@ -293,6 +330,30 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(catalogServiceMethods.ByName("SetCatalogOwnerEmail")),
 			connect.WithClientOptions(opts...),
 		),
+		resetCatalogOwnerPassword: connect.NewClient[v1.ResetCatalogOwnerPasswordRequest, v1.ResetCatalogOwnerPasswordResponse](
+			httpClient,
+			baseURL+CatalogServiceResetCatalogOwnerPasswordProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("ResetCatalogOwnerPassword")),
+			connect.WithClientOptions(opts...),
+		),
+		revealCatalogOwnerPendingPassword: connect.NewClient[v1.RevealCatalogOwnerPendingPasswordRequest, v1.RevealCatalogOwnerPendingPasswordResponse](
+			httpClient,
+			baseURL+CatalogServiceRevealCatalogOwnerPendingPasswordProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("RevealCatalogOwnerPendingPassword")),
+			connect.WithClientOptions(opts...),
+		),
+		keepCatalogOwnerPassword: connect.NewClient[v1.KeepCatalogOwnerPasswordRequest, v1.KeepCatalogOwnerPasswordResponse](
+			httpClient,
+			baseURL+CatalogServiceKeepCatalogOwnerPasswordProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("KeepCatalogOwnerPassword")),
+			connect.WithClientOptions(opts...),
+		),
+		settleCatalogOwner: connect.NewClient[v1.SettleCatalogOwnerRequest, v1.SettleCatalogOwnerResponse](
+			httpClient,
+			baseURL+CatalogServiceSettleCatalogOwnerProcedure,
+			connect.WithSchema(catalogServiceMethods.ByName("SettleCatalogOwner")),
+			connect.WithClientOptions(opts...),
+		),
 		setUpCatalogInstall: connect.NewClient[v1.SetUpCatalogInstallRequest, v1.SetUpCatalogInstallResponse](
 			httpClient,
 			baseURL+CatalogServiceSetUpCatalogInstallProcedure,
@@ -373,26 +434,30 @@ func NewCatalogServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // catalogServiceClient implements CatalogServiceClient.
 type catalogServiceClient struct {
-	listCatalogEntries     *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
-	getCatalogEntry        *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
-	listCatalogInstalls    *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
-	upgradeCatalogInstall  *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
-	setCatalogCompanion    *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
-	setCatalogNeed         *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
-	retryCatalogOwner      *connect.Client[v1.RetryCatalogOwnerRequest, v1.RetryCatalogOwnerResponse]
-	setCatalogOwnerEmail   *connect.Client[v1.SetCatalogOwnerEmailRequest, v1.SetCatalogOwnerEmailResponse]
-	setUpCatalogInstall    *connect.Client[v1.SetUpCatalogInstallRequest, v1.SetUpCatalogInstallResponse]
-	openCatalogInstall     *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
-	backUpCatalogNeed      *connect.Client[v1.BackUpCatalogNeedRequest, v1.BackUpCatalogNeedResponse]
-	listCatalogNeedBackups *connect.Client[v1.ListCatalogNeedBackupsRequest, v1.ListCatalogNeedBackupsResponse]
-	restoreCatalogNeed     *connect.Client[v1.RestoreCatalogNeedRequest, v1.RestoreCatalogNeedResponse]
-	installCatalogEntry    *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
-	setCatalogSource       *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
-	listCatalogSources     *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
-	listCatalogStores      *connect.Client[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse]
-	listCatalogSourceRefs  *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
-	checkCatalogSource     *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
-	removeCatalogSource    *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
+	listCatalogEntries                *connect.Client[v1.ListCatalogEntriesRequest, v1.ListCatalogEntriesResponse]
+	getCatalogEntry                   *connect.Client[v1.GetCatalogEntryRequest, v1.GetCatalogEntryResponse]
+	listCatalogInstalls               *connect.Client[v1.ListCatalogInstallsRequest, v1.ListCatalogInstallsResponse]
+	upgradeCatalogInstall             *connect.Client[v1.UpgradeCatalogInstallRequest, v1.UpgradeCatalogInstallResponse]
+	setCatalogCompanion               *connect.Client[v1.SetCatalogCompanionRequest, v1.SetCatalogCompanionResponse]
+	setCatalogNeed                    *connect.Client[v1.SetCatalogNeedRequest, v1.SetCatalogNeedResponse]
+	retryCatalogOwner                 *connect.Client[v1.RetryCatalogOwnerRequest, v1.RetryCatalogOwnerResponse]
+	setCatalogOwnerEmail              *connect.Client[v1.SetCatalogOwnerEmailRequest, v1.SetCatalogOwnerEmailResponse]
+	resetCatalogOwnerPassword         *connect.Client[v1.ResetCatalogOwnerPasswordRequest, v1.ResetCatalogOwnerPasswordResponse]
+	revealCatalogOwnerPendingPassword *connect.Client[v1.RevealCatalogOwnerPendingPasswordRequest, v1.RevealCatalogOwnerPendingPasswordResponse]
+	keepCatalogOwnerPassword          *connect.Client[v1.KeepCatalogOwnerPasswordRequest, v1.KeepCatalogOwnerPasswordResponse]
+	settleCatalogOwner                *connect.Client[v1.SettleCatalogOwnerRequest, v1.SettleCatalogOwnerResponse]
+	setUpCatalogInstall               *connect.Client[v1.SetUpCatalogInstallRequest, v1.SetUpCatalogInstallResponse]
+	openCatalogInstall                *connect.Client[v1.OpenCatalogInstallRequest, v1.OpenCatalogInstallResponse]
+	backUpCatalogNeed                 *connect.Client[v1.BackUpCatalogNeedRequest, v1.BackUpCatalogNeedResponse]
+	listCatalogNeedBackups            *connect.Client[v1.ListCatalogNeedBackupsRequest, v1.ListCatalogNeedBackupsResponse]
+	restoreCatalogNeed                *connect.Client[v1.RestoreCatalogNeedRequest, v1.RestoreCatalogNeedResponse]
+	installCatalogEntry               *connect.Client[v1.InstallCatalogEntryRequest, v1.InstallCatalogEntryResponse]
+	setCatalogSource                  *connect.Client[v1.SetCatalogSourceRequest, v1.SetCatalogSourceResponse]
+	listCatalogSources                *connect.Client[v1.ListCatalogSourcesRequest, v1.ListCatalogSourcesResponse]
+	listCatalogStores                 *connect.Client[v1.ListCatalogStoresRequest, v1.ListCatalogStoresResponse]
+	listCatalogSourceRefs             *connect.Client[v1.ListCatalogSourceRefsRequest, v1.ListCatalogSourceRefsResponse]
+	checkCatalogSource                *connect.Client[v1.CheckCatalogSourceRequest, v1.CheckCatalogSourceResponse]
+	removeCatalogSource               *connect.Client[v1.RemoveCatalogSourceRequest, v1.RemoveCatalogSourceResponse]
 }
 
 // ListCatalogEntries calls dockwell.v1.CatalogService.ListCatalogEntries.
@@ -433,6 +498,27 @@ func (c *catalogServiceClient) RetryCatalogOwner(ctx context.Context, req *conne
 // SetCatalogOwnerEmail calls dockwell.v1.CatalogService.SetCatalogOwnerEmail.
 func (c *catalogServiceClient) SetCatalogOwnerEmail(ctx context.Context, req *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error) {
 	return c.setCatalogOwnerEmail.CallUnary(ctx, req)
+}
+
+// ResetCatalogOwnerPassword calls dockwell.v1.CatalogService.ResetCatalogOwnerPassword.
+func (c *catalogServiceClient) ResetCatalogOwnerPassword(ctx context.Context, req *connect.Request[v1.ResetCatalogOwnerPasswordRequest]) (*connect.Response[v1.ResetCatalogOwnerPasswordResponse], error) {
+	return c.resetCatalogOwnerPassword.CallUnary(ctx, req)
+}
+
+// RevealCatalogOwnerPendingPassword calls
+// dockwell.v1.CatalogService.RevealCatalogOwnerPendingPassword.
+func (c *catalogServiceClient) RevealCatalogOwnerPendingPassword(ctx context.Context, req *connect.Request[v1.RevealCatalogOwnerPendingPasswordRequest]) (*connect.Response[v1.RevealCatalogOwnerPendingPasswordResponse], error) {
+	return c.revealCatalogOwnerPendingPassword.CallUnary(ctx, req)
+}
+
+// KeepCatalogOwnerPassword calls dockwell.v1.CatalogService.KeepCatalogOwnerPassword.
+func (c *catalogServiceClient) KeepCatalogOwnerPassword(ctx context.Context, req *connect.Request[v1.KeepCatalogOwnerPasswordRequest]) (*connect.Response[v1.KeepCatalogOwnerPasswordResponse], error) {
+	return c.keepCatalogOwnerPassword.CallUnary(ctx, req)
+}
+
+// SettleCatalogOwner calls dockwell.v1.CatalogService.SettleCatalogOwner.
+func (c *catalogServiceClient) SettleCatalogOwner(ctx context.Context, req *connect.Request[v1.SettleCatalogOwnerRequest]) (*connect.Response[v1.SettleCatalogOwnerResponse], error) {
+	return c.settleCatalogOwner.CallUnary(ctx, req)
 }
 
 // SetUpCatalogInstall calls dockwell.v1.CatalogService.SetUpCatalogInstall.
@@ -549,6 +635,31 @@ type CatalogServiceHandler interface {
 	// without one, which waits held for it. Once applied, Dockwell makes the owner
 	// (ADR 0105).
 	SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error)
+	// ResetCatalogOwnerPassword sets a new password for an install's owner, by its
+	// entry's reset steps: it seals a new one as pending beside the current one, has
+	// the app's server run the steps, and keeps whichever the app takes, by the steps'
+	// answer or, where that's lost, by the owner's done signing in with one of them.
+	// The new one replaces the install's secret as a change of Dockwell's. It takes a
+	// signed-in person and a passkey, and is refused with the reason no_reset where the
+	// entry has no reset steps, and rotating while a new password is being set
+	// (ADR 0105).
+	ResetCatalogOwnerPassword(context.Context, *connect.Request[v1.ResetCatalogOwnerPasswordRequest]) (*connect.Response[v1.ResetCatalogOwnerPasswordResponse], error)
+	// RevealCatalogOwnerPendingPassword says the new password a rotation keeps sealed
+	// beside the current one, where neither reads signing in, so a person can try it.
+	// It takes a signed-in person and a passkey, and goes to no log, event or cache
+	// (ADR 0105).
+	RevealCatalogOwnerPendingPassword(context.Context, *connect.Request[v1.RevealCatalogOwnerPendingPasswordRequest]) (*connect.Response[v1.RevealCatalogOwnerPendingPasswordResponse], error)
+	// KeepCatalogOwnerPassword ends a rotation whose outcome isn't known, keeping the
+	// current password and forgetting the new one. It takes a signed-in person and a
+	// passkey, and is refused with the reason not_rotating where none is being set
+	// (ADR 0105).
+	KeepCatalogOwnerPassword(context.Context, *connect.Request[v1.KeepCatalogOwnerPasswordRequest]) (*connect.Response[v1.KeepCatalogOwnerPasswordResponse], error)
+	// SettleCatalogOwner plans taking out of a made owner's service what its entry
+	// says only making the owner needed, such as Vaultwarden's ADMIN_TOKEN, where
+	// Dockwell couldn't (CatalogOwner.unset_left). It changes nothing until the plan
+	// is applied, and is refused with the reason settled where nothing is left
+	// (ADR 0105).
+	SettleCatalogOwner(context.Context, *connect.Request[v1.SettleCatalogOwnerRequest]) (*connect.Response[v1.SettleCatalogOwnerResponse], error)
 	// SetUpCatalogInstall gives a held install's domain a setup link: a key, good once
 	// and for an hour, which lets the browser that opens it through the hold, to set
 	// the app up on its real domain, and no one else. It writes the key's hash on the
@@ -687,6 +798,30 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 		connect.WithSchema(catalogServiceMethods.ByName("SetCatalogOwnerEmail")),
 		connect.WithHandlerOptions(opts...),
 	)
+	catalogServiceResetCatalogOwnerPasswordHandler := connect.NewUnaryHandler(
+		CatalogServiceResetCatalogOwnerPasswordProcedure,
+		svc.ResetCatalogOwnerPassword,
+		connect.WithSchema(catalogServiceMethods.ByName("ResetCatalogOwnerPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceRevealCatalogOwnerPendingPasswordHandler := connect.NewUnaryHandler(
+		CatalogServiceRevealCatalogOwnerPendingPasswordProcedure,
+		svc.RevealCatalogOwnerPendingPassword,
+		connect.WithSchema(catalogServiceMethods.ByName("RevealCatalogOwnerPendingPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceKeepCatalogOwnerPasswordHandler := connect.NewUnaryHandler(
+		CatalogServiceKeepCatalogOwnerPasswordProcedure,
+		svc.KeepCatalogOwnerPassword,
+		connect.WithSchema(catalogServiceMethods.ByName("KeepCatalogOwnerPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
+	catalogServiceSettleCatalogOwnerHandler := connect.NewUnaryHandler(
+		CatalogServiceSettleCatalogOwnerProcedure,
+		svc.SettleCatalogOwner,
+		connect.WithSchema(catalogServiceMethods.ByName("SettleCatalogOwner")),
+		connect.WithHandlerOptions(opts...),
+	)
 	catalogServiceSetUpCatalogInstallHandler := connect.NewUnaryHandler(
 		CatalogServiceSetUpCatalogInstallProcedure,
 		svc.SetUpCatalogInstall,
@@ -780,6 +915,14 @@ func NewCatalogServiceHandler(svc CatalogServiceHandler, opts ...connect.Handler
 			catalogServiceRetryCatalogOwnerHandler.ServeHTTP(w, r)
 		case CatalogServiceSetCatalogOwnerEmailProcedure:
 			catalogServiceSetCatalogOwnerEmailHandler.ServeHTTP(w, r)
+		case CatalogServiceResetCatalogOwnerPasswordProcedure:
+			catalogServiceResetCatalogOwnerPasswordHandler.ServeHTTP(w, r)
+		case CatalogServiceRevealCatalogOwnerPendingPasswordProcedure:
+			catalogServiceRevealCatalogOwnerPendingPasswordHandler.ServeHTTP(w, r)
+		case CatalogServiceKeepCatalogOwnerPasswordProcedure:
+			catalogServiceKeepCatalogOwnerPasswordHandler.ServeHTTP(w, r)
+		case CatalogServiceSettleCatalogOwnerProcedure:
+			catalogServiceSettleCatalogOwnerHandler.ServeHTTP(w, r)
 		case CatalogServiceSetUpCatalogInstallProcedure:
 			catalogServiceSetUpCatalogInstallHandler.ServeHTTP(w, r)
 		case CatalogServiceOpenCatalogInstallProcedure:
@@ -843,6 +986,22 @@ func (UnimplementedCatalogServiceHandler) RetryCatalogOwner(context.Context, *co
 
 func (UnimplementedCatalogServiceHandler) SetCatalogOwnerEmail(context.Context, *connect.Request[v1.SetCatalogOwnerEmailRequest]) (*connect.Response[v1.SetCatalogOwnerEmailResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SetCatalogOwnerEmail is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) ResetCatalogOwnerPassword(context.Context, *connect.Request[v1.ResetCatalogOwnerPasswordRequest]) (*connect.Response[v1.ResetCatalogOwnerPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.ResetCatalogOwnerPassword is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) RevealCatalogOwnerPendingPassword(context.Context, *connect.Request[v1.RevealCatalogOwnerPendingPasswordRequest]) (*connect.Response[v1.RevealCatalogOwnerPendingPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.RevealCatalogOwnerPendingPassword is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) KeepCatalogOwnerPassword(context.Context, *connect.Request[v1.KeepCatalogOwnerPasswordRequest]) (*connect.Response[v1.KeepCatalogOwnerPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.KeepCatalogOwnerPassword is not implemented"))
+}
+
+func (UnimplementedCatalogServiceHandler) SettleCatalogOwner(context.Context, *connect.Request[v1.SettleCatalogOwnerRequest]) (*connect.Response[v1.SettleCatalogOwnerResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.CatalogService.SettleCatalogOwner is not implemented"))
 }
 
 func (UnimplementedCatalogServiceHandler) SetUpCatalogInstall(context.Context, *connect.Request[v1.SetUpCatalogInstallRequest]) (*connect.Response[v1.SetUpCatalogInstallResponse], error) {

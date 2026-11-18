@@ -86,6 +86,15 @@ Rules for every step:
 - **Rotate:**
   - Where the entry has `reset`, "Make a new password" generates one and seals it as pending before the call, beside the current one. It then runs `reset`, and keeps both until the outcome is known, by `reset`'s answer or, where that's lost, by `done` signing in with one of them. The one that signs in stays.
   - Where it has none, "Changed it in Gitea? · Forget it" is a plan that deletes the sealed copy, and the card says where the app changes it (`sign_in.changed_in`).
+  - **As built in slice 3:**
+    - `ResetCatalogOwnerPassword` takes a person signed in to the panel and a passkey (step-up 261, by the install's project ID). It refuses an owner that isn't made, one whose new password is being set (`rotating`), and an entry without `reset_steps` (`no_reset`).
+    - It generates the password as the entry's password input does, and seals it beside the owner's row, for that rotation alone (`app_owners.pending`, sealed as `app.owner.pending` at the rotation's ID). The owners runner runs `reset_steps` with it in place of the current one.
+    - Where the steps answer made, a change of Dockwell's puts it on the password's secret, holding no password, and the rotation ends. Where the answer is lost, it tries again, reading `done` with the new one first. Where a step says no, `done` reads which one signs in: the new one is kept, or the current one stays, with what the app said, scrubbed. Where neither does yet, both are kept.
+    - After the slice 3 review (H1), only a password read signing in ends a rotation: the new one read yes is kept, the current one read yes stays and the new one goes. A no, no answer, an upgrade to a release without reset steps (done is then read from the run that makes the owner), an unreadable catalog or a store error keeps both sealed. The reset steps run three times at most, then done is read every five minutes, and after twelve reads hourly, with no end. Past those twelve, the card says why ("Neither password signs in now", or that Dockwell can't read which one it takes) and offers "Show the new one" and "Keep the current one", each with a passkey and the role that reveals the owner's password. What's shown goes to no log, event or cache. A refusal's words are scrubbed of both passwords (L2), and a rotation whose owner is gone or isn't made ends (L3).
+    - The card's "Make a new password" says "Setting a new password in Gitea" while it's set. The current one works until then.
+    - "Forget it" is a plan that deletes the password's secret, with no passkey, as any secret's deletion, which undo puts back (L1). An `app.owner` holds the secrets its steps read as references (`held_secrets`) only while its owner isn't made, so none can be deleted then (the review's H2), and Dockwell clears them once the owner is made or opened, so the plan isn't refused. An upgrade never generates a made owner's forgotten password again (L1). An invite's owner (Vaultwarden) has no password.
+    - The owners runner goes on past one owner's error. A secret its steps read that's gone fails that owner alone: "its secret OWNER_PASSWORD, which the owner's steps read, was deleted. Undo that change on Activity, then try again".
+    - Gitea's entry resets with the steps after making the user. Umami's has none: its reset would need the current password, which `reset_steps` don't send.
 
 ### The owner is a resource, and its being made is observed
 
@@ -212,6 +221,15 @@ A held app needs a way in for the person setting it up, and for no one else. Of 
 - **The only way in:** the owner registers through the setup link, on HTTPS. With no mail set up, an invited address registers without a token, so the hold and the link are the only way in. Sign-ups stay closed throughout.
 - **Once the owner has registered:** the release also takes `ADMIN_TOKEN` out, which turns `/admin` off. A later need for it sets it again, as a plan.
 
+- **As built in slice 3:**
+  - The steps sign in to `/admin` with the sealed token, capturing the `VW_ADMIN` cookie, and invite the owner's email, skipped where `/admin/users` has them. `done` signs in the same way first (`before`) and reads `[email=${OWNER_EMAIL}]._status=0`, where 1 is invited.
+  - Its entry raises the admin page's rate limit to 30 sign-ins a minute, as Dockwell signs in for each read, until the page goes off.
+  - ADMIN_TOKEN goes once the owner is made or opened, as observed state the runner works towards at each look (the review's M1): a change of its own, which also lets go of the secrets the owner held, and an upgrade's three-way merge keeps. Where it fails, it's tried again a minute later, then five, then fifteen, then hourly. After an hour, Activity says so once (`app_owner.unset_failed`), and the app's page says "Vaultwarden still takes ADMIN_TOKEN · Turn it off", which plans the same change (`SettleCatalogOwner`). Once done, it's recorded settled, so a later write that sets it again on purpose stays.
+  - The invite's skip reads `[email=${OWNER_EMAIL}].object=profile`, the object Vaultwarden 1.37 says a user is, and a pick compares in any case, so an owner's email in mixed case, which Vaultwarden keeps in lower case, skips a second invite (M3, and #829's real run, where `object=user` read nothing and the second invite got 409 "User already exists").
+  - The plain token and its hash stay as secrets once the page is off (L5), unused and revealable only with a passkey: deleting them would have an upgrade generate them again. Each read of done while the owner hasn't registered sends the plain token to the agent for the sign-in, in a request body and never in argv, scrubbed from what's said (L6).
+  - The real-Docker test signs in with Vaultwarden's own check of the PHC Dockwell writes, invites, reads the owner invited, registers as an invited address does with no mail, and reads them registered.
+  - The plain token is a sealed secret of the environment, as every generated input is. Nothing Dockwell writes, logs or says holds it; a person with a passkey can reveal it, as any secret, while the admin page is on.
+
 ### Installs by token
 
 - `InstallCatalogEntryRequest.owner_email` gives the owner's email, and `signups_open` the switch. A person in the panel starts from their own email.
@@ -229,6 +247,10 @@ A held app needs a way in for the person setting it up, and for no one else. Of 
   - Where the store uses a variable for them, the converter generates it.
   - Where they're fixed and no steps change them, the app is held, and opening it can't be one click: the Open plan says "It signs in as admin with a password everyone knows · Change it first". The plan is refused until `done` reads the known sign-in refused.
 - **Never held:** imports and takeovers of running apps (ADR 0056, 0089), and upgrades of installs from before.
+- **As built in slice 3:**
+  - An install's source says whether it's converted. A converted entry with web installs held unless it has owner steps, `none`, or `sign_in` with a password input. An overlay's `owner` carries over.
+  - Umbrel's `deterministicPassword` becomes `sign_in`, with `defaultUsername` and its own APP_PASSWORD, which its environment makes. A fixed `defaultPassword` becomes `known_user` and `known_password` with no steps, which the check takes for a converted entry: it's held. Its held page shows the user and password to copy, and its Open plan notes `known_password`, "It signs in as admin with a password everyone knows. Change it in Kiosk first: its held page shows it", for which the panel asks a passkey up front and for "I changed its password" before Apply (the review's M2). A password with no user says so alone, never "admin" (L4).
+  - Not built: refusing that Open until the known sign-in reads refused, as a converted entry has no `done` to read it; and CasaOS's tips, which are prose.
 
 ### Per app
 
@@ -239,7 +261,7 @@ Each entry's owner way is proven on its real image in the catalog's checks befor
 | Steps, a command and a request | Gitea: `gitea admin user create --admin --random-password`, run as `git` in the running container, as it refuses root; the step captures the password Gitea made up, and a request then sets the owner's own over `PATCH /api/v1/admin/users/<user>`, so no process's arguments hold it. |
 | Environment | OpenList: `OPENLIST_ADMIN_PASSWORD`, set once. Its user is the fixed `admin`, which the page shows in place of the email. |
 | Steps, requests | Ghost: its setup and its `done` as commands in its container, `node` asking its own loopback, the only address whose `X-Forwarded-Proto` Ghost believes, with the app's Host and scheme, so a Ghost reached over HTTPS answers rather than redirects. n8n: `/rest/owner/setup`. Jellyfin: read `/Startup/User`, post it, set `/Startup/Configuration`, then `/Startup/Complete`. Home Assistant: `/api/onboarding/users`, with a `client_id` that's a URL of the instance; the person finishes onboarding after signing in. Coder: `/api/v2/users/first`. new-api: `/api/setup`, then registration off; the proof also tries the one-api line's old `root` and `123456` and fails the entry if it works. WordPress: `/wp-admin/install.php?step=2`, as a form; its `WP_HOME` and `WP_SITEURL` are address variables (ADR 0103), so its stored address follows its domain. Memos: its sign-up, whose first account is its host, then registration off. |
-| Known password | Umami: sign in as `admin` with `umami`, capture the token and the user's ID, change the password, then the user name. |
+| Known password | Umami: sign in as `admin` with `umami`, capture the token and the user's ID, change the password, then the user name. As built in slice 3, one request changes both, `POST /api/users/<id>` as admin, so no try that stops part-way leaves the known password under the owner's name; its `done` signs in from inside its container as the owner, and as `admin` and the owner's name with `umami`, refused. |
 | Invite | Vaultwarden, as above. |
 | None | Adminer. |
 | Held | Uptime Kuma (setup is a socket.io event) and Plausible (its form carries a CSRF token). |
@@ -301,9 +323,18 @@ These were checked against main, every pushed branch and the local worktrees on 
   - 382 `ReadAppOwnerCall` and 383 `ReadAppOwnerResult`, for `done` and `signups.check`;
   - 384 `Hello.makes_app_owners`;
   - 385 to 389 kept for this record.
+- **Slice 3:**
+  - `Input.hash_of` = 10: a secret that's the Argon2id PHC of another secret of the entry's own, with OWASP's parameters (m=19456, t=2, p=1), written at install, kept on upgrade, and never asked of a person.
+  - `Owner.unset_when_made` = 13: variables of the owner's service its entry takes out once the owner is made, as a change of Dockwell's. Vaultwarden's ADMIN_TOKEN, which turns its admin page off.
+  - `OwnerCheck.before` = 5, a request sent first whose captures are the check's alone, and `OwnerCheck.where` = 6, what the JSON answer must say as `path=value`, where a part may pick a list's object by one of its fields, in any case. A small grammar, never an expression: a key is letters, digits, `_` and `-`, and no value holds `[`, `]` or `=`.
+  - A request's capture takes `cookie:NAME` beside a JSON path: the cookie its answer sets, a secret scrubbed as every capture is and kept nowhere.
+  - `CatalogOwner.rotating` = 6, and `CatalogOwner.error` says, for a made owner, what kept its last new password from being set, or, past twelve reads of a rotation, why neither password reads signing in.
+  - After the review: `AppOwner.held_secrets` = 13 (5 to 11 and the name "secrets" stay reserved), `CatalogOwner.unset_left` = 7, `StepUpAction` 262 (show the new password) and 263 (keep the current one), and the RPCs `RevealCatalogOwnerPendingPassword`, `KeepCatalogOwnerPassword` and `SettleCatalogOwner`. Migration 0050 also holds the settled state: `settled`, `settle_tries`, `settle_next`, `settle_since`, `settle_error`, `unset_left` and `settle_alerted`.
+  - `StepUpAction.STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD` = 261.
+  - Migration `0050_app_owner_rotation.sql`: `app_owners.pending`, `rotation`, `rotate_error` and `rotate_tries`. It follows ADR 0104's `0049_cloudflare_slice2.sql` (#819).
 - **Store:** migration `0048_app_owners.sql` (`app_owners`, with the states `waiting_email`, `waiting`, `made`, `failed` and `opened`, and the changes that open it while they're planned). It follows ADR 0104's `0046_cloudflare.sql` and the fix to Cloudflare's pending-row index, which takes 0047.
 - **Plans:** `Plan.unholds`, a plan that lifts a hold, which ApplyChange takes from a person with a passkey, never a token.
-- **Note reasons** (words, no numbers): `owner_made`, `owner_failed`, `owner_held`, `signups_closed`, `known_password`, `setup_link`, and `opens_to_everyone`, an Open whose owner isn't made, which the panel asks a passkey for up front.
+- **Note reasons** (words, no numbers): `owner_made`, `owner_failed`, `owner_held`, `signups_closed`, `known_password`, `setup_link`, and `opens_to_everyone`, an Open whose owner isn't made, which the panel asks a passkey for up front, as it does for `known_password`, an Open of a store's app that signs in with a password everyone knows. Slice 3 adds `owner_password`, a change that keeps an owner's new password, and `owner_unset`, one that takes out what only making the owner needed.
 
 ## What we turned down
 
@@ -320,9 +351,9 @@ These were checked against main, every pushed branch and the local worktrees on 
 - No catalog app is open to a stranger once it has a domain: its owner is made at install, it starts with a password no one else knows, or it's held until its owner sets it up.
 - Gitea, Vaultwarden, Memos and new-api install with sign-ups closed, and opening a held app closes them.
 - A domain added to a held app answers that it isn't open, except to the browser with the setup link.
-- A converted store app with no owner way takes one more click to open to everyone, and one with a published password can't be opened until it's changed.
+- A converted store app with no owner way takes one more click to open to everyone. One with a published password shows it on its held page to copy, and opening it takes a passkey and the person saying "I changed its password", which Dockwell can't read for itself, as a converted entry has no `done`.
 - An entry's owner steps are a contract with the app's version. An upgrade runs nothing again, as the account exists, but a release that changes how its app makes an owner needs its steps proven again in the catalog's checks.
-- The catalog's check refuses an entry with web that has neither an owner way nor `first_visitor_owns`, and one that speaks of a default password without `known_password`.
+- The catalog's check refuses an entry with web that has neither an owner way nor `first_visitor_owns`, and one that speaks of a default password without `known_password`. As built in slice 3, the second is the catalog's own check of its folder (`dockwell-catalog check`), never a server's read, so a store's converted words don't drop its app; the first isn't built yet.
 
 ## Order of work
 

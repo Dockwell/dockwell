@@ -49,10 +49,16 @@ const (
 	Poll  = 5 * time.Minute
 )
 
-// Runner makes owners and releases what their holds kept.
+// Keeper decodes a resource's spec, and opens a rotation's pending password.
+type Keeper interface {
+	holds.Decoder
+	Open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error)
+}
+
+// Runner makes owners, sets their new passwords, and releases what their holds kept.
 type Runner struct {
 	DB     *store.DB
-	Keeper holds.Decoder
+	Keeper Keeper
 	Engine *revision.Engine
 	Holds  *holds.Holds
 	// Agent is the connected agent of a server, if any.
@@ -86,10 +92,20 @@ func (r *Runner) SetUp(environment string) bool {
 }
 
 func (r *Runner) now() time.Time {
-	if r.Now != nil {
-		return r.Now()
+	r.mu.Lock()
+	now := r.Now
+	r.mu.Unlock()
+	if now != nil {
+		return now()
 	}
 	return time.Now()
+}
+
+// SetNow has the runner read the time from now, as a test does while it runs.
+func (r *Runner) SetNow(now func() time.Time) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.Now = now
 }
 
 func (r *Runner) logger() *slog.Logger {
@@ -128,6 +144,13 @@ type job struct {
 	tries int
 	// since is when what's observed of it last changed.
 	since time.Time
+	// rotation names a new password to set, by the entry's reset steps, and
+	// pending is it, which values never hold: they hold the current one
+	// (ADR 0105).
+	rotation, pending string
+	// readsOnly reads which password signs in and runs no reset step, where the
+	// reset steps can't be read.
+	readsOnly bool
 }
 
 // Runs reads what makes an environment's install's owner from its catalog entry at
@@ -135,6 +158,26 @@ type job struct {
 // steps name, and the secrets they name, by name.
 type Runs interface {
 	OwnerRun(ctx context.Context, environment string) (*resourcev1.OwnerRun, map[string]string, []string, error)
+}
+
+// ResetRuns reads what sets a new password for an environment's install's owner
+// (catalogapi.Handler.OwnerResetRun), as Runs does.
+type ResetRuns interface {
+	OwnerResetRun(ctx context.Context, environment string) (*resourcev1.OwnerRun, map[string]string, []string, error)
+}
+
+// Unsets reads what an environment's install takes out of its owner's service once
+// its owner is made (catalogapi.Handler.OwnerUnset): the service, and the names of
+// its environment's variables.
+type Unsets interface {
+	OwnerUnset(ctx context.Context, environment string) (string, []string, error)
+}
+
+// RunsNow is what the runner reads what makes an owner from, as a test wraps it.
+func (r *Runner) RunsNow() Runs {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.runs
 }
 
 // SetRuns has the runner read what makes an owner from runs.
@@ -148,7 +191,7 @@ func (r *Runner) SetRuns(runs Runs) {
 // holds of installs no longer held kept. A make runs on its own, as waiting for an
 // app to come up takes minutes.
 func (r *Runner) Tick(ctx context.Context) error {
-	var jobs []job
+	var jobs, ends []job
 	var states []store.AppOwnerState
 	var released []string
 	err := r.DB.View(ctx, func(tx *store.Tx) error {
@@ -158,13 +201,20 @@ func (r *Runner) Tick(ctx context.Context) error {
 		}
 		for _, p := range tree.Projects {
 			for _, e := range p.Environments {
+				// One environment's error leaves every other's to go on (the review's H2).
 				js, ss, err := r.look(ctx, tx, e.ID)
 				if err != nil {
-					return err
+					r.logger().WarnContext(ctx, "can't look at an app's owner now; looking again", slog.String("environment", e.ID), slog.String("error", err.Error()))
+					continue
 				}
 				jobs, states = append(jobs, js...), append(states, ss...)
 			}
 		}
+		js, es, err := r.rotations(ctx, tx)
+		if err != nil {
+			r.logger().WarnContext(ctx, "can't look at apps' owners' new passwords now; looking again", slog.String("error", err.Error()))
+		}
+		jobs, ends = append(jobs, js...), es
 		return nil
 	})
 	if err != nil {
@@ -173,14 +223,22 @@ func (r *Runner) Tick(ctx context.Context) error {
 	if err := r.record(ctx, states...); err != nil {
 		return err
 	}
-	for _, j := range jobs {
-		ready, failed, err := r.ready(ctx, j)
+	for i := range ends {
+		r.endRotation(ctx, ends[i], "")
+	}
+	for i := range jobs {
+		// A job's error is that job's alone: the rest go on (the review's H2).
+		ready, failed, err := r.ready(ctx, jobs[i])
 		if err != nil {
-			return err
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			r.logger().WarnContext(ctx, "can't make an app's owner now; trying again", slog.String("environment", jobs[i].environment), slog.String("error", err.Error()))
+			continue
 		}
 		if failed != nil {
 			if err := r.record(ctx, *failed); err != nil {
-				return err
+				r.logger().WarnContext(ctx, "can't record what came of making an app's owner", slog.String("error", err.Error()))
 			}
 			continue
 		}
@@ -188,6 +246,8 @@ func (r *Runner) Tick(ctx context.Context) error {
 			r.start(ctx, *ready)
 		}
 	}
+	// What only making an owner needed goes, once it's made or opened (the review's M1).
+	r.settleAll(ctx)
 	// Whatever an owner made or opened lifted, released, as a change of Dockwell's.
 	err = r.DB.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
@@ -380,6 +440,10 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	if runs == nil {
 		return nil, nil, nil
 	}
+	if j.rotation != "" {
+		ready, err := r.readyRotation(ctx, j, runs)
+		return ready, nil, err
+	}
 	run, plain, secretNames, err := runs.OwnerRun(ctx, j.environment)
 	if err != nil && j.setUp {
 		// A read for the page says nothing it can't read.
@@ -395,13 +459,39 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	if j.readOnly && r.now().Sub(j.since) < Poll {
 		return nil, nil, nil
 	}
+	values, err := r.secrets(ctx, j.environment, plain, secretNames)
+	var gone secretGone
+	if errors.As(err, &gone) && !j.setUp {
+		// That owner fails alone, saying how to fix it (the review's H2).
+		return nil, &store.AppOwnerState{ResourceID: j.id, Environment: j.environment, State: store.OwnerFailed, Error: cut(gone.Error()), Tries: j.tries, UpdatedAt: r.now()}, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	j.owner, j.values = run, values
+	return &j, nil, nil
+}
+
+// secretGone is a secret an owner's steps read that isn't there: deleted, or never
+// made.
+type secretGone struct{ name string }
+
+func (g secretGone) Error() string {
+	return fmt.Sprintf("its secret %s, which the owner's steps read, was deleted. Undo that change on Activity, then try again", g.name)
+}
+
+// secrets adds to plain the values of the secrets the owner's steps name.
+func (r *Runner) secrets(ctx context.Context, environment string, plain map[string]string, secretNames []string) (map[string]string, error) {
 	values := plain
 	if values == nil {
 		values = map[string]string{}
 	}
-	err = r.DB.View(ctx, func(tx *store.Tx) error {
+	err := r.DB.View(ctx, func(tx *store.Tx) error {
 		for _, name := range secretNames {
-			res, err := tx.GetResource(ctx, string(variable.SecretKind), j.environment, name)
+			res, err := tx.GetResource(ctx, string(variable.SecretKind), environment, name)
+			if errors.Is(err, store.ErrNotFound) || err == nil && res.Spec == nil {
+				return secretGone{name: name}
+			}
 			if err != nil {
 				return fmt.Errorf("can't read the secret %s the owner's steps name: %w", name, err)
 			}
@@ -416,10 +506,9 @@ func (r *Runner) ready(ctx context.Context, j job) (*job, *store.AppOwnerState, 
 	})
 	if err != nil {
 		clear(values)
-		return nil, nil, err
+		return nil, err
 	}
-	j.owner, j.values = run, values
-	return &j, nil, nil
+	return values, nil
 }
 
 // start runs a job on its own, once at a time for each owner.
@@ -444,6 +533,11 @@ func (r *Runner) start(ctx context.Context, j job) {
 			r.mu.Unlock()
 		}()
 		defer clear(j.values)
+		if j.rotation != "" {
+			r.rotate(ctx, j)
+			j.pending = ""
+			return
+		}
 		if j.setUp {
 			r.readSetUp(ctx, j)
 			return
@@ -539,12 +633,13 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 		return nil
 	}
 	return r.DB.Update(ctx, func(tx *store.Tx) error {
-		for _, st := range states {
+		for i := range states {
+			st := &states[i]
 			before, err := tx.AppOwnerStates(ctx, []string{st.ResourceID})
 			if err != nil {
 				return err
 			}
-			wrote, err := tx.SetAppOwnerState(ctx, st)
+			wrote, err := tx.SetAppOwnerState(ctx, *st)
 			if err != nil {
 				return err
 			}
@@ -554,11 +649,11 @@ func (r *Runner) record(ctx context.Context, states ...store.AppOwnerState) erro
 			}
 			switch st.State {
 			case store.OwnerMade:
-				err = r.recordEvent(ctx, tx, ActionMade, st)
+				err = r.recordEvent(ctx, tx, ActionMade, *st)
 			case store.OwnerFailed:
-				err = r.recordEvent(ctx, tx, ActionFailed, st)
+				err = r.recordEvent(ctx, tx, ActionFailed, *st)
 			case store.OwnerOpened:
-				err = r.recordEvent(ctx, tx, ActionOpened, st)
+				err = r.recordEvent(ctx, tx, ActionOpened, *st)
 			}
 			if err != nil {
 				return err
@@ -576,7 +671,7 @@ const (
 )
 
 // Actions are the events the runner records.
-var Actions = []string{ActionMade, ActionFailed, ActionOpened}
+var Actions = []string{ActionMade, ActionFailed, ActionOpened, ActionUnsetFailed}
 
 // Told is what an event says of an owner, in its detail: who, and how it stands,
 // with what the app said scrubbed, and never a value its steps sent.

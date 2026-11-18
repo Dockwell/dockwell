@@ -984,7 +984,11 @@ type Owner struct {
 	KnownPassword string `protobuf:"bytes,11,opt,name=known_password,json=knownPassword,proto3" json:"known_password,omitempty"`
 	// The steps succeeding isn't the owner being made, as an invite's: the owner is
 	// made only once done reads it too.
-	MadeWhenDone  bool `protobuf:"varint,12,opt,name=made_when_done,json=madeWhenDone,proto3" json:"made_when_done,omitempty"`
+	MadeWhenDone bool `protobuf:"varint,12,opt,name=made_when_done,json=madeWhenDone,proto3" json:"made_when_done,omitempty"`
+	// Variables of the owner's service the release takes out once the owner is made,
+	// as Vaultwarden's ADMIN_TOKEN, which turns its admin page off: what only making
+	// the owner needed. A later need for one sets it again, as a plan.
+	UnsetWhenMade []string `protobuf:"bytes,13,rep,name=unset_when_made,json=unsetWhenMade,proto3" json:"unset_when_made,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1101,6 +1105,13 @@ func (x *Owner) GetMadeWhenDone() bool {
 		return x.MadeWhenDone
 	}
 	return false
+}
+
+func (x *Owner) GetUnsetWhenMade() []string {
+	if x != nil {
+		return x.UnsetWhenMade
+	}
+	return nil
 }
 
 // Need is something an app reads from outside its own containers, such as a
@@ -2147,6 +2158,11 @@ type Input struct {
 	// keeps with it, so setting the secret anew changes nothing or loses what it
 	// encrypted. The panel marks it, and says where to change it, if anywhere.
 	SetOnce bool `protobuf:"varint,9,opt,name=set_once,json=setOnce,proto3" json:"set_once,omitempty"`
+	// The secret input whose Argon2id hash, in PHC form, this one holds, generated as
+	// the install fills it: an app such as Vaultwarden keeps the hash of an admin
+	// token, and Dockwell keeps the token sealed for the steps alone. It's never given
+	// by a person, revealed or logged (ADR 0105).
+	HashOf string `protobuf:"bytes,10,opt,name=hash_of,json=hashOf,proto3" json:"hash_of,omitempty"`
 	// A port the app publishes on every address of the server, on purpose, such as
 	// a proxy's 80 and 443: anyone who reaches the server reaches it. Only a port
 	// input takes it. Every other port answers on the server alone, 127.0.0.1, and
@@ -2271,6 +2287,13 @@ func (x *Input) GetSetOnce() bool {
 	return false
 }
 
+func (x *Input) GetHashOf() string {
+	if x != nil {
+		return x.HashOf
+	}
+	return ""
+}
+
 func (x *Input) GetPublic() bool {
 	if x != nil {
 		return x.Public
@@ -2372,7 +2395,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\x05owner\x18! \x01(\v2 .dockwell.catalog.v1alpha1.OwnerR\x05owner\x1ag\n" +
 	"\x11TranslationsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12<\n" +
-	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\xec\x03\n" +
+	"\x05value\x18\x02 \x01(\v2&.dockwell.catalog.v1alpha1.TranslationR\x05value:\x028\x01\"\x94\x04\n" +
 	"\x05Owner\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice\x12\x1f\n" +
 	"\vemail_input\x18\x02 \x01(\tR\n" +
@@ -2390,7 +2413,8 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"known_user\x18\n" +
 	" \x01(\tR\tknownUser\x12%\n" +
 	"\x0eknown_password\x18\v \x01(\tR\rknownPassword\x12$\n" +
-	"\x0emade_when_done\x18\f \x01(\bR\fmadeWhenDone\"\xa2\x03\n" +
+	"\x0emade_when_done\x18\f \x01(\bR\fmadeWhenDone\x12&\n" +
+	"\x0funset_when_made\x18\r \x03(\tR\runsetWhenMade\"\xa2\x03\n" +
 	"\x04Need\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12?\n" +
@@ -2463,7 +2487,7 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"repository\x18\x01 \x01(\tR\n" +
 	"repository\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x16\n" +
-	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xd5\x03\n" +
+	"\x06commit\x18\x03 \x01(\tR\x06commit\"\xee\x03\n" +
 	"\x05Input\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05label\x18\x02 \x01(\tR\x05label\x12\x12\n" +
@@ -2480,7 +2504,9 @@ const file_dockwell_catalog_v1alpha1_entry_proto_rawDesc = "" +
 	"\n" +
 	"characters\x18R \x01(\x0e2%.dockwell.catalog.v1alpha1.CharactersR\n" +
 	"characters\x12\x19\n" +
-	"\bset_once\x18\t \x01(\bR\asetOnce\x12\x16\n" +
+	"\bset_once\x18\t \x01(\bR\asetOnce\x12\x17\n" +
+	"\ahash_of\x18\n" +
+	" \x01(\tR\x06hashOf\x12\x16\n" +
 	"\x06public\x18S \x01(\bR\x06public\"\x1f\n" +
 	"\x03Web\x12\x18\n" +
 	"\aservice\x18\x01 \x01(\tR\aservice*8\n" +

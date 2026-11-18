@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/catalog"
 	"github.com/dockwell/dockwell/internal/delivery"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
@@ -29,6 +31,9 @@ const (
 	ghostImage = "ghost:6.72.0@sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6"
 	mysqlImage = "mysql:8.4.11@sha256:0f51e63e537a1f176423fa03ef559aabe6fa4372a53160a44bc7e75da7d15364"
 	n8nImage   = "n8nio/n8n:2.45.5@sha256:9f6d0a5987ab5a297c4b0b38fbf1a22285dd1364551478e93f03d506908fa74c"
+	umamiImage = "ghcr.io/umami-software/umami:3.4.1@sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8"
+	pgImage    = "postgres:17.11@sha256:748a18a54d3842d43bc156f0840d78029b8d349e0feca98c12b9c4ce3404a6b3"
+	vaultImage = "vaultwarden/server:1.37.5@sha256:4fe17f415f90087377d37c755e0ea3cf189dcc6794e49cdd2a9adbb4937d9e1f"
 )
 
 func jsonRequest(port uint32, method, path, body string, headers map[string]string) *resourcev1.OwnerStep {
@@ -71,6 +76,83 @@ func giteaOwner() *resourcev1.OwnerRun {
 	}
 }
 
+// giteaReset sets a new password for Gitea's owner, as its entry's reset steps do:
+// the make's steps after the user, with a token Gitea makes, then deleted signing in
+// with the new password (ADR 0105, Rotate).
+func giteaReset() *resourcev1.OwnerRun {
+	o := giteaOwner()
+	o.Steps = o.GetSteps()[1:]
+	return o
+}
+
+// umamiSignIns signs in to Umami from inside its container with each body it's
+// given, each filled from its environment as {{NAME}}, and says yes where the first
+// signs in and every other is refused: the owner with their password, then the
+// known password for the known user and for the owner's (ADR 0105). It names no
+// value, so its words hold none.
+const umamiSignIns = `const fill = (s) => s.replace(/\{\{(\w+)\}\}/g, (_, k) => JSON.stringify(process.env[k] || "").slice(1, -1));
+const login = (b) => fetch("http://127.0.0.1:3000/api/auth/login", {method: "POST", headers: {"content-type": "application/json"}, body: fill(b)}).then((r) => r.status);
+const [own, ...known] = process.argv.slice(1);
+Promise.all([login(own), ...known.map(login)]).then(([o, ...k]) => {
+  console.log(o + " " + k.join(" "));
+  process.exit(o === 200 && k.every((s) => s === 401) ? 0 : 1);
+}, (e) => { console.error(e.message); process.exit(1); });`
+
+// umamiOwner makes Umami's owner from the account it starts with, admin with the
+// password umami: it signs in with them, then changes the user name and the password
+// to the owner's in one request, so no try that stops part-way leaves the known
+// password with a name of the owner's. Its done reads the owner signs in, and the
+// known password is refused for both names.
+func umamiOwner() *resourcev1.OwnerRun {
+	login := jsonRequest(3000, http.MethodPost, "/api/auth/login", `{"username":"${KNOWN_USER}","password":"${KNOWN_PASSWORD}"}`, nil)
+	login.GetRequest().Capture = map[string]string{"TOKEN": "token", "ADMIN_ID": "user.id"}
+	return &resourcev1.OwnerRun{
+		Service: "web", Email: "owner@example.com", User: "owner", Password: "OWNER_PASSWORD",
+		Steps: []*resourcev1.OwnerStep{
+			login,
+			jsonRequest(3000, http.MethodPost, "/api/users/${ADMIN_ID}", `{"username":"${OWNER_USER}","password":"${OWNER_PASSWORD}"}`,
+				map[string]string{"Authorization": "Bearer ${TOKEN}"}),
+		},
+		Done: &resourcev1.OwnerCheck{Command: &resourcev1.OwnerCommand{Words: []string{
+			"node", "-e", umamiSignIns,
+			`{"username":"{{OWNER_USER}}","password":"{{OWNER_PASSWORD}}"}`,
+			`{"username":"{{KNOWN_USER}}","password":"{{KNOWN_PASSWORD}}"}`,
+			`{"username":"{{OWNER_USER}}","password":"{{KNOWN_PASSWORD}}"}`,
+		}}},
+	}
+}
+
+// vaultSignIn signs in to Vaultwarden's admin page with its admin token, which
+// ADMIN_TOKEN holds as an Argon2id PHC, and captures the session's cookie.
+func vaultSignIn() *resourcev1.OwnerRequest {
+	return &resourcev1.OwnerRequest{
+		Method: http.MethodPost, Path: "/admin", ContentType: "application/x-www-form-urlencoded", Body: "token=${ADMIN_TOKEN_PLAIN}", Port: 80,
+		Capture: map[string]string{"VW_SESSION": "cookie:VW_ADMIN"},
+	}
+}
+
+// vaultOwner invites Vaultwarden's owner through its admin API, as its entry does:
+// a sign-in with the admin token, then the invite, skipped where the user is there
+// already. It's made once done reads the invited user registered (made_when_done),
+// as only the person makes their account, from their master password (ADR 0105).
+func vaultOwner() *resourcev1.OwnerRun {
+	users := func(where string) *resourcev1.OwnerCheck {
+		return &resourcev1.OwnerCheck{
+			Before:  vaultSignIn(),
+			Request: &resourcev1.OwnerRequest{Path: "/admin/users", Port: 80, Headers: map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"}},
+			Where:   where,
+		}
+	}
+	invite := jsonRequest(80, http.MethodPost, "/admin/invite", `{"email":"${OWNER_EMAIL}"}`, map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"})
+	invite.Unless = users("[email=${OWNER_EMAIL}].object=profile")
+	login := &resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Request{Request: vaultSignIn()}}
+	return &resourcev1.OwnerRun{
+		Service: "web", Email: "owner@example.com", MadeWhenDone: true,
+		Steps: []*resourcev1.OwnerStep{login, invite},
+		Done:  users("[email=${OWNER_EMAIL}]._status=0"),
+	}
+}
+
 // ghostScript asks Ghost from inside its container, on its own loopback, which is
 // the only address whose X-Forwarded-Proto Ghost believes, as the address its url
 // says, so a Ghost reached at an https address answers rather than redirects (the
@@ -97,7 +179,7 @@ func ghostStep(method, path, body string) *resourcev1.OwnerCommand {
 // secret there either.
 func TestTheOwnersStepsAreOnesAnEntryMayHold(t *testing.T) {
 	t.Parallel()
-	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "ghost": ghostOwner(), "n8n": n8nOwner()} {
+	for name, o := range map[string]*resourcev1.OwnerRun{"gitea": giteaOwner(), "gitea reset": giteaReset(), "ghost": ghostOwner(), "n8n": n8nOwner(), "umami": umamiOwner(), "vaultwarden": vaultOwner()} {
 		if err := ownerstep.Check(o.GetSteps()); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -130,7 +212,7 @@ func n8nOwner() *resourcev1.OwnerRun {
 
 // run starts a container of Dockwell's for env's service, on network where one is
 // named.
-func run(t *testing.T, client *docker.Client, env, service, image, network string, cfg docker.Config) string {
+func run(t *testing.T, client *docker.Client, env, service, image, network string, cfg docker.Config, volumes ...string) string {
 	t.Helper()
 	project := docker.Project(env)
 	if err := client.PullImage(t.Context(), image, nil); err != nil {
@@ -139,6 +221,15 @@ func run(t *testing.T, client *docker.Client, env, service, image, network strin
 	cfg.Image = image
 	cfg.Labels = map[string]string{docker.LabelProject: project, docker.LabelService: service, docker.LabelNumber: "1", docker.LabelRevision: "1"}
 	req := &docker.CreateRequest{Config: cfg}
+	// Each a volume of the project's, at the path it names, as an entry's volumes are:
+	// Vaultwarden refuses to start without one at /data.
+	for _, at := range volumes {
+		name := project + "_" + strings.Trim(strings.ReplaceAll(at, "/", "-"), "-")
+		if _, err := client.CreateVolume(t.Context(), &docker.VolumeCreate{Name: name, Labels: map[string]string{docker.LabelProject: project}}); err != nil {
+			t.Fatal(err)
+		}
+		req.HostConfig.Mounts = append(req.HostConfig.Mounts, docker.Mount{Type: "volume", Source: name, Target: at})
+	}
 	if network != "" {
 		req.NetworkingConfig = docker.NetworkingConfig{EndpointsConfig: map[string]*docker.EndpointSettings{network: {Aliases: []string{service}}}}
 	}
@@ -150,6 +241,54 @@ func run(t *testing.T, client *docker.Client, env, service, image, network strin
 		t.Fatal(err)
 	}
 	return id
+}
+
+// waitHealthy is healthyContainer for the web service, and where it gives up,
+// what each of its containers says of why: its state, its health check's last runs, and
+// the end of its log, so a run that fails on CI names the cause.
+func waitHealthy(t *testing.T, client *docker.Client, env string) *ownerContainer {
+	t.Helper()
+	const service = "web"
+	target, err := healthyContainer(t.Context(), client, env, service)
+	if err == nil {
+		return target
+	}
+	ctx := context.WithoutCancel(t.Context())
+	list, lerr := client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + docker.Project(env), docker.LabelService + "=" + service}})
+	if lerr != nil {
+		t.Logf("can't list %s's containers: %v", service, lerr)
+	}
+	for i := range list {
+		c, ierr := client.InspectContainer(ctx, list[i].ID)
+		if ierr != nil {
+			t.Logf("can't inspect %s: %v", list[i].ID, ierr)
+			continue
+		}
+		s := c.State
+		t.Logf("%s's container is %s, exit code %d, error %q, killed for memory %t, started %s, finished %s",
+			service, s.Status, s.ExitCode, s.Error, s.OOMKilled, s.StartedAt.Format(time.RFC3339), s.FinishedAt.Format(time.RFC3339))
+		if h := s.Health; h != nil {
+			t.Logf("its health check is %s, failing %d in a row", h.Status, h.FailingStreak)
+			for _, r := range h.Log {
+				t.Logf("  a run ended %s with %d: %s", r.End.Format(time.RFC3339), r.ExitCode, strings.TrimSpace(r.Output))
+			}
+		}
+		logs, oerr := client.ContainerLogs(ctx, c.ID, c.Config.Tty, docker.LogOptions{Tail: 60})
+		if oerr != nil {
+			t.Logf("can't read its log: %v", oerr)
+			continue
+		}
+		for {
+			e, rerr := logs.Next()
+			if rerr != nil {
+				break
+			}
+			t.Logf("  log: %s", e.Text)
+		}
+		_ = logs.Close()
+	}
+	t.Fatal(err)
+	return nil
 }
 
 // answers waits for url to answer below 500, for 5 minutes at most.
@@ -207,10 +346,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		env := dockertest.Scope(t)
 		dockertest.Cleanup(t, client, docker.Project(env))
 		run(t, client, env, "web", giteaImage, "", docker.Config{Env: []string{"GITEA__database__DB_TYPE=sqlite3", "GITEA__security__INSTALL_LOCK=true"}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 3000)
 		answers(t, "http://"+addr+"/api/healthz")
 		password := newPassword()
@@ -233,6 +369,25 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		}
 		if res := ownerstep.Run(t.Context(), target, giteaOwner(), values, true); !res.Made {
 			t.Errorf("a second run, reading done first: %+v", res)
+		}
+		// A new password, by the reset steps: the new one signs in, done reads it, and
+		// the one before is refused.
+		fresh := maps.Clone(values)
+		fresh["OWNER_PASSWORD"] = newPassword() + "n"
+		if res := ownerstep.Run(t.Context(), target, giteaReset(), fresh, false); !res.Made {
+			t.Fatalf("setting a new password for Gitea's owner: %+v", res)
+		}
+		if got := basicStatus(t, "http://"+addr+"/api/v1/user", "owner", fresh["OWNER_PASSWORD"]); got != http.StatusOK {
+			t.Errorf("the owner signs in to Gitea with the new password: %d", got)
+		}
+		if got := basicStatus(t, "http://"+addr+"/api/v1/user", "owner", password); got != http.StatusUnauthorized {
+			t.Errorf("the password before still signs in: %d", got)
+		}
+		if yes, _ := ownerstep.Read(t.Context(), target, giteaReset(), giteaReset().GetDone(), fresh); !yes {
+			t.Error("done doesn't read the new password signs in")
+		}
+		if yes, _ := ownerstep.Read(t.Context(), target, giteaReset(), giteaReset().GetDone(), values); yes {
+			t.Error("done reads the password before signs in")
 		}
 	})
 	t.Run("ghost", func(t *testing.T) {
@@ -257,10 +412,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			"NODE_ENV=production", "url=https://blog.example.com", "security__staffDeviceVerification=false", "database__client=mysql", "database__connection__host=db",
 			"database__connection__user=ghost", "database__connection__password=the-blogs", "database__connection__database=ghost",
 		}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		// Ghost answers once MySQL is up and its tables are made, from inside.
 		site := ghostStep(http.MethodGet, "/ghost/api/admin/site/", "")
 		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
@@ -292,14 +444,95 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Errorf("a second run, reading done first: %+v", res)
 		}
 	})
+	t.Run("umami", func(t *testing.T) {
+		env := dockertest.Scope(t)
+		project := docker.Project(env)
+		dockertest.Cleanup(t, client, project)
+		network := project + "_default"
+		if _, err := client.CreateNetwork(t.Context(), &docker.NetworkCreate{Name: network, Labels: map[string]string{docker.LabelProject: project}}); err != nil {
+			t.Fatal(err)
+		}
+		run(t, client, env, "db", pgImage, network, docker.Config{Env: []string{"POSTGRES_USER=umami", "POSTGRES_DB=umami", "POSTGRES_PASSWORD=the-sites"}})
+		run(t, client, env, "web", umamiImage, network, docker.Config{Env: []string{
+			"DATABASE_URL=postgresql://umami:the-sites@db:5432/umami", "APP_SECRET=" + newPassword(),
+		}})
+		target := waitHealthy(t, client, env)
+		// Umami signs in once its migrations ran: a user it doesn't have is refused.
+		probe := []string{"node", "-e", umamiSignIns, `{"username":"nobody","password":"nobody-at-all"}`}
+		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
+			out, _, err := target.Exec(t.Context(), probe, "", nil)
+			if err == nil && strings.HasPrefix(string(out), "401") {
+				break
+			}
+			if time.Now().After(until) {
+				t.Fatalf("Umami never answered a sign-in: %v %s", err, out)
+			}
+		}
+		password := newPassword()
+		values := map[string]string{"OWNER_EMAIL": "owner@example.com", "OWNER_USER": "owner", "OWNER_PASSWORD": password, "KNOWN_USER": "admin", "KNOWN_PASSWORD": "umami"}
+		if yes, _ := ownerstep.Read(t.Context(), target, umamiOwner(), umamiOwner().GetDone(), values); yes {
+			t.Fatal("done reads Umami's owner made before its steps ran")
+		}
+		if res := ownerstep.Run(t.Context(), target, umamiOwner(), values, false); !res.Made {
+			t.Fatalf("making Umami's owner: %+v", res)
+		}
+		if yes, said := ownerstep.Read(t.Context(), target, umamiOwner(), umamiOwner().GetDone(), values); !yes {
+			t.Errorf("done doesn't read Umami's owner made, and admin with umami refused: %s", said)
+		}
+		if res := ownerstep.Run(t.Context(), target, umamiOwner(), values, true); !res.Made {
+			t.Errorf("a second run, reading done first: %+v", res)
+		}
+	})
+	t.Run("vaultwarden", func(t *testing.T) {
+		env := dockertest.Scope(t)
+		dockertest.Cleanup(t, client, docker.Project(env))
+		token := newPassword() + newPassword()
+		phc, err := catalog.HashOf(token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run(t, client, env, "web", vaultImage, "", docker.Config{Env: []string{
+			"ADMIN_TOKEN=" + phc, "SIGNUPS_ALLOWED=false", "ADMIN_RATELIMIT_SECONDS=60", "ADMIN_RATELIMIT_MAX_BURST=30",
+		}}, "/data")
+		target := waitHealthy(t, client, env)
+		addr, _ := target.Address(t.Context(), 80)
+		answers(t, "http://"+addr+"/alive")
+		// An email in mixed case, which Vaultwarden keeps in lower case (the review's M3).
+		values := map[string]string{"OWNER_EMAIL": "Owner@Example.com", "ADMIN_TOKEN_PLAIN": token}
+		// Vaultwarden's own check takes the token against the PHC Dockwell wrote, and
+		// refuses another.
+		wrong := maps.Clone(values)
+		wrong["ADMIN_TOKEN_PLAIN"] = "not-the-token"
+		if res := ownerstep.Run(t.Context(), target, &resourcev1.OwnerRun{Steps: vaultOwner().GetSteps()[:1]}, wrong, false); res.Made {
+			t.Fatal("Vaultwarden took a token that isn't its admin token's")
+		}
+		res := ownerstep.Run(t.Context(), target, vaultOwner(), values, false)
+		if res.Made || !res.Waiting {
+			t.Fatalf("inviting Vaultwarden's owner: %+v, want waiting for them to register", res)
+		}
+		if strings.Contains(res.Said, token) {
+			t.Error("what the steps said holds the admin token")
+		}
+		// A second run skips the invite of a user who's there, and still waits.
+		if res := ownerstep.Run(t.Context(), target, vaultOwner(), values, true); res.Made || !res.Waiting {
+			t.Fatalf("a second run: %+v, want waiting", res)
+		}
+		// The owner registers as Bitwarden's web vault does, with what stands for the
+		// keys it would make from their master password: invited, with no mail, they
+		// take a token without one (Vaultwarden's register_verification_email).
+		said, _ := vaultRegister(t, addr)
+		if said != http.StatusOK {
+			t.Fatalf("the invited owner couldn't register: %d", said)
+		}
+		if yes, said := ownerstep.Read(t.Context(), target, vaultOwner(), vaultOwner().GetDone(), values); !yes {
+			t.Errorf("done doesn't read the owner registered: %s", said)
+		}
+	})
 	t.Run("n8n", func(t *testing.T) {
 		env := dockertest.Scope(t)
 		dockertest.Cleanup(t, client, docker.Project(env))
 		run(t, client, env, "web", n8nImage, "", docker.Config{Env: []string{"N8N_LISTEN_ADDRESS=0.0.0.0", "N8N_PORT=5678", "N8N_SECURE_COOKIE=false"}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 5678)
 		answers(t, "http://"+addr+"/healthz/readiness")
 		password := newPassword()
@@ -335,4 +568,35 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			t.Errorf("a second call, reading done first: %v, %v", again, err)
 		}
 	})
+}
+
+// vaultRegister registers owner@example.com at Vaultwarden as an invited user does:
+// a token for the address, which an invite without mail gives at once, then the
+// account, with what stands for the keys a web vault makes from a master password.
+func vaultRegister(t *testing.T, addr string) (int, string) {
+	t.Helper()
+	post := func(path, body string) (int, []byte) {
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+addr+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, b
+	}
+	status, said := post("/identity/accounts/register/send-verification-email", `{"email":"owner@example.com","name":"Owner"}`)
+	var token string
+	if status != http.StatusOK || json.Unmarshal(said, &token) != nil || token == "" {
+		t.Fatalf("Vaultwarden gave the invited owner no token: %d %s", status, said)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"email": "owner@example.com", "masterPasswordHash": "ZTJlLW1hc3Rlci1wYXNzd29yZC1oYXNoLXN0YW5kLWlu", "emailVerificationToken": token,
+		"kdf": 0, "kdfIterations": 600000,
+		"userSymmetricKey": "2.AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAA==|AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+	})
+	status, said = post("/identity/accounts/register/finish", string(body))
+	return status, string(said)
 }

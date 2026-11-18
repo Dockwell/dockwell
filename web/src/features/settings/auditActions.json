@@ -9,6 +9,7 @@
   "app_owner.failed",
   "app_owner.made",
   "app_owner.opened",
+  "app_owner.unset_failed",
   "auth.sessions_ended",
   "auth.sign_in",
   "auth.sign_in_failed",

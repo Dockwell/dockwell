@@ -26,6 +26,11 @@ type umbrelApp struct {
 	Website      string   `yaml:"website"`
 	Repo         string   `yaml:"repo"`
 	Dependencies []string `yaml:"dependencies"`
+	// How a person signs in: a user, and a password Umbrel shows, either fixed, or
+	// the app's own APP_PASSWORD, where deterministicPassword is true.
+	DefaultUsername       string `yaml:"defaultUsername"`
+	DefaultPassword       string `yaml:"defaultPassword"`
+	DeterministicPassword bool   `yaml:"deterministicPassword"`
 }
 
 // umbrelCategories are the categories Umbrel's suggest, where one does.
@@ -116,12 +121,27 @@ func umbrelRead(t *tree, dir string) App {
 		return app
 	}
 	app.Web = len(app.Fields) > 0 && app.Fields[0].Web
+	umbrelSignIn(&app, meta)
 	// Umbrel writes no file beside a Compose file that the app binds.
 	app.Shipped = func(string) bool { return false }
 	if app.Version == "" || unversioned[app.Version] {
 		app.Version = webTag(app.Compose, app.Fields)
 	}
 	return app
+}
+
+// umbrelSignIn reads how a person signs in, as Umbrel shows it: the app's own
+// APP_PASSWORD, which the entry generates, so its environment makes the admin, or a
+// password everyone knows (ADR 0105).
+func umbrelSignIn(app *App, meta umbrelApp) {
+	user, password := strings.TrimSpace(meta.DefaultUsername), strings.TrimSpace(meta.DefaultPassword)
+	if meta.DeterministicPassword || strings.Contains(password, "APP_PASSWORD") {
+		app.SignIn = &catalogv1.SignIn{User: user, PasswordInput: "APP_PASSWORD"}
+		return
+	}
+	if password != "" && !strings.Contains(password, "$") {
+		app.KnownUser, app.KnownPassword = user, password
+	}
 }
 
 // umbrelCompose writes what Umbrel does at an install into the file: its proxy goes,

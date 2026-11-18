@@ -315,6 +315,28 @@ describe("the plan sheet", () => {
     expect(text).toContain("Applying this asks for your passkey");
   });
 
+  it("an Open of an app that signs in with a password everyone knows waits for the person to say they changed it", async () => {
+    const user = userEvent.setup();
+    const reaching = webPlanned();
+    const plan = reaching.plan;
+    if (!plan) throw new Error("webPlanned has no plan");
+    plan.notes = [
+      create(PlanNoteSchema, {
+        reason: "known_password",
+        message:
+          "It signs in as admin with a password everyone knows. Change it in Kiosk first: its held page shows it",
+      }),
+    ];
+    renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: reaching }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Review plan" });
+    const apply = await within(sheet).findByRole("button", { name: /Apply/ });
+    expect(apply).toBeDisabled();
+    await user.click(within(sheet).getByRole("switch", { name: "I changed its password" }));
+    expect(apply).toBeEnabled();
+  });
+
   it("says a backup can hold what its volume reached, and asks as root does", async () => {
     const reaching = webPlanned();
     const plan = reaching.plan;

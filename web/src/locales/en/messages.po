@@ -869,6 +869,13 @@ msgstr "Couldn't save {path} on {server}"
 msgid "Couldn't stop PID {pid} on {server}"
 msgstr "Couldn't stop PID {pid} on {server}"
 
+msgid "Couldn't take out what only making {app}'s owner needed"
+msgstr "Couldn't take out what only making {app}'s owner needed"
+
+#. placeholder {0}: owned.error
+msgid "Couldn't take out what only making {app}'s owner needed: {0}"
+msgstr "Couldn't take out what only making {app}'s owner needed: {0}"
+
 msgid "Couldn't upload {path} to {server}"
 msgstr "Couldn't upload {path} to {server}"
 
@@ -8417,6 +8424,18 @@ msgstr "As {who}, once {runs} runs. Until then, only people in this project reac
 msgid "As {who}. Until then, only people in this project reach it."
 msgstr "As {who}. Until then, only people in this project reach it."
 
+msgid "Changed it in {app}? <0>Forget it</0>"
+msgstr "Changed it in {app}? <0>Forget it</0>"
+
+msgid "Copy the new password"
+msgstr "Copy the new password"
+
+msgid "Copy the user"
+msgstr "Copy the user"
+
+msgid "Forget {app}'s owner password"
+msgstr "Forget {app}'s owner password"
+
 msgid "Held"
 msgstr "Held"
 
@@ -8432,9 +8451,15 @@ msgstr "It's held until Dockwell makes its owner account."
 msgid "It's held until then."
 msgstr "It's held until then."
 
+msgid "Keep the current one"
+msgstr "Keep the current one"
+
 msgctxt "a long text, shown whole"
 msgid "Less"
 msgstr "Less"
+
+msgid "Make a new password"
+msgstr "Make a new password"
 
 msgid "Make it as {mine}"
 msgstr "Make it as {mine}"
@@ -8454,6 +8479,9 @@ msgstr "Needs its owner's email"
 msgid "New setup link"
 msgstr "New setup link"
 
+msgid "Only making its owner needed it, and Dockwell couldn't take it out."
+msgstr "Only making its owner needed it, and Dockwell couldn't take it out."
+
 msgid "Only people in this project reach it until you open it to everyone."
 msgstr "Only people in this project reach it until you open it to everyone."
 
@@ -8472,6 +8500,27 @@ msgstr "Set it up at {secure}"
 msgid "Set it up yourself"
 msgstr "Set it up yourself"
 
+msgid "Setting a new password"
+msgstr "Setting a new password"
+
+msgid "Setting a new password in {app}. The current one works until then."
+msgstr "Setting a new password in {app}. The current one works until then."
+
+msgid "Show the new one"
+msgstr "Show the new one"
+
+#. placeholder {0}: known.user
+#. placeholder {1}: known.password
+msgid "Signs in as <0>{0}</0><1/> with <2>{1}</2><3/>, which everyone knows. Change it in {app}, then open it."
+msgstr "Signs in as <0>{0}</0><1/> with <2>{1}</2><3/>, which everyone knows. Change it in {app}, then open it."
+
+#. placeholder {0}: known.password
+msgid "Signs in with <0>{0}</0><1/>, which everyone knows. Change it in {app}, then open it."
+msgstr "Signs in with <0>{0}</0><1/>, which everyone knows. Change it in {app}, then open it."
+
+msgid "Turn it off"
+msgstr "Turn it off"
+
 msgid "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 msgstr "Your setup link to {secure} works for {left} min. Everyone else finds it isn't open yet."
 
@@ -8486,6 +8535,13 @@ msgstr "{0} answers that it isn't open yet, so only people in this project reach
 
 msgid "{app} is set up"
 msgstr "{app} is set up"
+
+#. placeholder {0}: owner.error
+msgid "{app} kept its password. {0}"
+msgstr "{app} kept its password. {0}"
+
+msgid "{app} still takes {names}"
+msgstr "{app} still takes {names}"
 
 msgid "{app} waits for its owner's email"
 msgstr "{app} waits for its owner's email"
@@ -9083,6 +9139,9 @@ msgstr "Handing over {name}'s domains on {server}"
 
 msgid "How this works"
 msgstr "How this works"
+
+msgid "I changed its password"
+msgstr "I changed its password"
 
 msgid "If you close this without keeping it, the change goes back on its own."
 msgstr "If you close this without keeping it, the change goes back on its own."

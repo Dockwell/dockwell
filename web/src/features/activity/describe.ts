@@ -126,6 +126,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             };
           case "app_owner.opened":
             return { title: t`${app} opened to everyone before its owner was made`, icon: "user", tone: "warning" };
+          case "app_owner.unset_failed":
+            return {
+              title: owned?.error
+                ? t`Couldn't take out what only making ${app}'s owner needed: ${owned.error}`
+                : t`Couldn't take out what only making ${app}'s owner needed`,
+              icon: "user",
+              tone: "warning",
+            };
         }
       }
       const task = event.taskRun?.displayName || event.taskRun?.task || name;

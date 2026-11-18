@@ -168,6 +168,10 @@ message Owner {
   // The steps succeeding isn't the owner being made, as an invite's: the owner is
   // made only once done reads it too.
   bool made_when_done = 12;
+  // Variables of the owner's service the release takes out once the owner is made,
+  // as Vaultwarden's ADMIN_TOKEN, which turns its admin page off: what only making
+  // the owner needed. A later need for one sets it again, as a plan.
+  repeated string unset_when_made = 13;
 }
 
 // Need is something an app reads from outside its own containers, such as a
@@ -551,6 +555,11 @@ message Input {
   // keeps with it, so setting the secret anew changes nothing or loses what it
   // encrypted. The panel marks it, and says where to change it, if anywhere.
   bool set_once = 9;
+  // The secret input whose Argon2id hash, in PHC form, this one holds, generated as
+  // the install fills it: an app such as Vaultwarden keeps the hash of an admin
+  // token, and Dockwell keeps the token sealed for the steps alone. It's never given
+  // by a person, revealed or logged (ADR 0105).
+  string hash_of = 10;
   // A port the app publishes on every address of the server, on purpose, such as
   // a proxy's 80 and 443: anyone who reaches the server reaches it. Only a port
   // input takes it. Every other port answers on the server alone, 127.0.0.1, and

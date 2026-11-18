@@ -508,6 +508,10 @@ func check(e *catalogv1.Entry, byTag bool) error {
 			return fmt.Errorf("the input %s takes at least %d characters, and generates %d. Generate at least %d", name, in.GetMinLength(), in.GetGenerate(), in.GetMinLength())
 		case in.GetCharacters() == catalogv1.Characters_CHARACTERS_URL_SAFE && in.GetGenerateAs() == catalogv1.GenerateAs_GENERATE_AS_BASE64:
 			return fmt.Errorf("the input %s takes what a URL carries, and generates base64, which has + / and =. Take characters or generate_as away", name)
+		case in.GetHashOf() != "":
+			if err := checkHashOf(e, in); err != nil {
+				return err
+			}
 		}
 		seen[name] = true
 		if Secret(in) {
@@ -520,6 +524,24 @@ func check(e *catalogv1.Entry, byTag bool) error {
 		return err
 	}
 	return checkNeeds(e, cf)
+}
+
+// checkHashOf refuses an input that's the hash of another unless it's a secret that
+// takes nothing else, of a secret input of the entry's own that isn't a hash too.
+func checkHashOf(e *catalogv1.Entry, in *catalogv1.Input) error {
+	name, of := in.GetName(), in.GetHashOf()
+	i := slices.IndexFunc(e.GetInputs(), func(o *catalogv1.Input) bool { return o.GetName() == of })
+	switch {
+	case !Secret(in):
+		return fmt.Errorf("the input %s is the hash of %s, which only a secret is. Make it a secret", name, of)
+	case in.GetGenerate() > 0 || in.GetMinLength() > 0 || in.GetCharacters() != catalogv1.Characters_CHARACTERS_UNSPECIFIED || in.GetOptional():
+		return fmt.Errorf("the input %s is the hash of %s, which Dockwell writes, and says how else to fill it. Take generate, min_length, characters and optional away", name, of)
+	case of == name || i < 0:
+		return fmt.Errorf("the input %s is the hash of %s, which isn't another of its inputs. Name one", name, of)
+	case !Secret(e.GetInputs()[i]) || e.GetInputs()[i].GetHashOf() != "":
+		return fmt.Errorf("the input %s is the hash of %s, which isn't a secret of its own. Hash a secret", name, of)
+	}
+	return nil
 }
 
 // checkOwners refuses an owner a service's x-dockwell gives a server path, as only
@@ -604,6 +626,9 @@ func checkAccess(e *catalogv1.Entry, cf *composeFile) error {
 	if err := checkOwner(e, cf, inputs); err != nil {
 		return err
 	}
+	if o := e.GetOwner(); (o.GetKnownPassword() == "") != (o.GetKnownUser() == "") {
+		return errors.New("its owner says what the app starts with, and needs both its known_user and its known_password")
+	}
 	for _, a := range e.GetAddressVariables() {
 		if _, ok := services[a.GetService()]; !ok || !envName.MatchString(a.GetVariable()) || a.GetValue() == "" {
 			return fmt.Errorf("its address sets %s on %s, which needs a service it runs, a variable's name and a value", a.GetVariable(), a.GetService())
@@ -633,6 +658,11 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 		return nil
 	}
 	if len(o.GetSteps()) == 0 {
+		// A store's app that starts with a password everyone knows, which no steps
+		// change: it's held, and a person changes it before opening it (ADR 0105).
+		if o.GetKnownPassword() != "" && o.GetPasswordInput() == "" && !e.GetFirstVisitorOwns() {
+			return nil
+		}
 		return errors.New("its owner says no steps that make it. Give its steps, or say none for an app with no accounts")
 	}
 	if e.GetFirstVisitorOwns() {
@@ -643,7 +673,7 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 	}
 	password := inputs[o.GetPasswordInput()]
 	switch {
-	case o.GetKnownPassword() == "" && (password == nil || !Secret(password) || password.GetGenerate() == 0):
+	case o.GetKnownPassword() == "" && (!o.GetMadeWhenDone() || o.GetPasswordInput() != "") && (password == nil || !Secret(password) || password.GetGenerate() == 0):
 		return fmt.Errorf("its owner's password is %s, which isn't a secret input Dockwell generates", o.GetPasswordInput())
 	case o.GetEmailInput() != "" && (inputs[o.GetEmailInput()] == nil || inputs[o.GetEmailInput()].GetType() != catalogv1.InputType_INPUT_TYPE_EMAIL):
 		return fmt.Errorf("its owner's email is %s, which isn't an email input of its own", o.GetEmailInput())
@@ -651,6 +681,11 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 		return fmt.Errorf("its owner's user is %s, which isn't an input of its own that isn't a secret", o.GetUserInput())
 	case o.GetDone() == nil:
 		return errors.New("its owner's steps say no done, so a second try can't tell what the first one made, and runs them again. Give done, a check that the owner signs in")
+	}
+	for _, name := range o.GetUnsetWhenMade() {
+		if !serviceSets(cf.services[o.GetService()], name) {
+			return fmt.Errorf("its owner takes %s out of %s once made, which %s doesn't set. Name a variable of its environment", name, o.GetService(), o.GetService())
+		}
 	}
 	if p := o.GetUserPattern(); p != "" {
 		if _, err := regexp.Compile(p); err != nil {
@@ -682,6 +717,47 @@ func checkOwner(e *catalogv1.Entry, cf *composeFile, inputs map[string]*catalogv
 		}
 	}
 	return nil
+}
+
+// speaksOfKnownPassword is words that tell a person the password an app starts
+// with, as Umami's "It starts with the account admin and the password umami".
+var speaksOfKnownPassword = regexp.MustCompile(`(?i)\b(default|initial|starts with)\b[^.:]*\bpassword\b`)
+
+// CheckWords refuses what an entry says that tells a person to do by hand what
+// Dockwell does, as the catalog's own check reads its entries, never a server: the
+// password an app starts with, which known_password and the owner's steps change
+// (ADR 0105). A store's converted entry says it as it is, and is held.
+func CheckWords(e *catalogv1.Entry) error {
+	o := e.GetOwner()
+	if o.GetKnownPassword() != "" {
+		if len(o.GetSteps()) == 0 || o.GetPasswordInput() == "" {
+			return errors.New("its owner starts with a password everyone knows, and no steps change it to the owner's. Give the steps, and the password input they change it to")
+		}
+		return nil
+	}
+	for _, text := range append([]string{e.GetFirstSteps()}, e.GetNotes()...) {
+		if speaksOfKnownPassword.MatchString(text) {
+			return fmt.Errorf("it says %q, a password everyone knows, which a person would change by hand. Give its owner known_user, known_password and the steps that change them, and take the words away", text)
+		}
+	}
+	return nil
+}
+
+// serviceSets says whether a service of a Compose file sets name in its environment,
+// as a mapping or a list.
+func serviceSets(svc any, name string) bool {
+	switch env := mapGet(svc, "environment").(type) {
+	case map[string]any:
+		_, ok := env[name]
+		return ok
+	case []any:
+		for _, e := range env {
+			if s, ok := e.(string); ok && (s == name || strings.HasPrefix(s, name+"=")) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // OwnerInputs are the inputs an entry's owner names, and its steps, which its Compose
@@ -927,7 +1003,7 @@ func typed(in *catalogv1.Input) bool {
 
 // Asks reports an input a person gives: one Dockwell generates isn't, though a person
 // may give their own value for it.
-func Asks(in *catalogv1.Input) bool { return in.GetGenerate() == 0 }
+func Asks(in *catalogv1.Input) bool { return in.GetGenerate() == 0 && in.GetHashOf() == "" }
 
 // OwnFloor is how many characters a person's own value for a secret Dockwell
 // generates has at least, where its input says no more.
@@ -1159,6 +1235,9 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 		if i < 0 {
 			return nil, fmt.Errorf("%s takes no input %s. It takes %s", e.GetName(), name, names(e))
 		}
+		if in := e.GetInputs()[i]; in.GetHashOf() != "" && strings.TrimSpace(given[name]) != "" {
+			return nil, fmt.Errorf("%s is what Dockwell writes from %s for %s. Leave %s out", name, in.GetHashOf(), e.GetName(), name)
+		}
 		if in := e.GetInputs()[i]; !Asks(in) && held[name] && strings.TrimSpace(given[name]) != "" {
 			return nil, fmt.Errorf("an upgrade keeps the %s that Dockwell generated for %s. Leave %s out, and set a new value on the secret's page", name, e.GetName(), name)
 		}
@@ -1166,6 +1245,10 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 	for _, in := range e.GetInputs() {
 		name := in.GetName()
 		value := strings.TrimSpace(cmp.Or(given[name], suggested[name]))
+		// A hash of another input is written once that input has its value.
+		if in.GetHashOf() != "" && !held[name] {
+			continue
+		}
 		if Secret(in) && held[name] && value == "" {
 			stands, err := generate(32)
 			if err != nil {
@@ -1205,7 +1288,35 @@ func fill(e *catalogv1.Entry, given, suggested map[string]string, held map[strin
 			out.Variables[name] = ""
 		}
 	}
+	if err := fillHashes(e, out, held); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// fillHashes writes each input that's the hash of another, as a secret, from the
+// value that input has now. An install's upgrade keeps the hash it has (held).
+func fillHashes(e *catalogv1.Entry, out *Filled, held map[string]bool) error {
+	for _, in := range e.GetInputs() {
+		name, of := in.GetName(), in.GetHashOf()
+		if of == "" || held[name] {
+			continue
+		}
+		value, ok := out.Secrets[of]
+		if !ok || held[of] {
+			return fmt.Errorf("%s is the hash of %s, which this install keeps as it is, so Dockwell can't write it. Set a new value for %s, then try again", in.GetLabel(), of, of)
+		}
+		hash, err := HashOf(value)
+		if err != nil {
+			return err
+		}
+		stands, err := generate(32)
+		if err != nil {
+			return err
+		}
+		out.Variables[name], out.Secrets[name] = stands, hash
+	}
+	return nil
 }
 
 // checkValue refuses a value that isn't what its input takes, and one a person gave
@@ -1320,6 +1431,15 @@ func generateAs(n int, as catalogv1.GenerateAs) (string, error) {
 	default:
 		return generate(n)
 	}
+}
+
+// Generate makes a new value for a secret input that generates one, as an install
+// does, such as a new password for an app's owner (ADR 0105).
+func Generate(in *catalogv1.Input) (string, error) {
+	if in.GetGenerate() <= 0 {
+		return "", fmt.Errorf("the input %s generates nothing", in.GetName())
+	}
+	return generateAs(int(in.GetGenerate()), in.GetGenerateAs())
 }
 
 // generatePassword makes a password of n letters and digits with at least one

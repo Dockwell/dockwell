@@ -338,6 +338,14 @@ const (
 	// A setup link to a held catalog install's domain, by the install's project ID
 	// (ADR 0105). 260 to 269 are this record's.
 	StepUpAction_STEP_UP_ACTION_SET_UP_CATALOG_INSTALL StepUpAction = 260
+	// A new password for a catalog app's owner, by the install's project ID (ADR 0105).
+	StepUpAction_STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD StepUpAction = 261
+	// Showing a rotation's new password, kept beside the current one, by the
+	// install's project ID (ADR 0105).
+	StepUpAction_STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD StepUpAction = 262
+	// Keeping the current password and forgetting a rotation's new one, by the
+	// install's project ID (ADR 0105).
+	StepUpAction_STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD StepUpAction = 263
 	// Reveals one of a service's own environment variables that reads hidden.
 	// Its target is the service's ID and the name, as "svc_…:NAME". Numbered
 	// apart, as open work adds to this enum.
@@ -382,45 +390,51 @@ var (
 		241: "STEP_UP_ACTION_SET_STEP_UP_FLOOR",
 		250: "STEP_UP_ACTION_LINK_PROVIDER",
 		260: "STEP_UP_ACTION_SET_UP_CATALOG_INSTALL",
+		261: "STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD",
+		262: "STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD",
+		263: "STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD",
 		60:  "STEP_UP_ACTION_REVEAL_SERVICE_VALUE",
 	}
 	StepUpAction_value = map[string]int32{
-		"STEP_UP_ACTION_UNSPECIFIED":               0,
-		"STEP_UP_ACTION_REVEAL_SECRET":             1,
-		"STEP_UP_ACTION_ADD_PASSKEY":               2,
-		"STEP_UP_ACTION_REMOVE_PASSKEY":            3,
-		"STEP_UP_ACTION_SET_UP_CODES":              4,
-		"STEP_UP_ACTION_DISABLE_CODES":             5,
-		"STEP_UP_ACTION_REGENERATE_RECOVERY_CODES": 6,
-		"STEP_UP_ACTION_CREATE_TOKEN":              7,
-		"STEP_UP_ACTION_APPLY_ROOT_CHANGE":         8,
-		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":          9,
-		"STEP_UP_ACTION_CREATE_GIT_HOOK":           100,
-		"STEP_UP_ACTION_ROTATE_GIT_HOOK":           101,
-		"STEP_UP_ACTION_CONNECT_GITHUB_APP":        102,
-		"STEP_UP_ACTION_ROTATE_GITHUB_APP":         103,
-		"STEP_UP_ACTION_REMOVE_GITHUB_APP":         104,
-		"STEP_UP_ACTION_WIDEN_GIT_HOOK":            109,
-		"STEP_UP_ACTION_END_PROCESS":               20,
-		"STEP_UP_ACTION_OPEN_TERMINAL":             10,
-		"STEP_UP_ACTION_MAKE_WAY_BACK_IN":          90,
-		"STEP_UP_ACTION_MOVE_WAY_BACK_IN":          91,
-		"STEP_UP_ACTION_DELETE_WAY_BACK_IN":        92,
-		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":       93,
-		"STEP_UP_ACTION_APPROVE_CHANGE":            114,
-		"STEP_UP_ACTION_INVITE":                    110,
-		"STEP_UP_ACTION_CHANGE_ROLE":               111,
-		"STEP_UP_ACTION_REMOVE_MEMBER":             112,
-		"STEP_UP_ACTION_TRANSFER_OWNERSHIP":        113,
-		"STEP_UP_ACTION_ADD_SERVER":                130,
-		"STEP_UP_ACTION_OPEN_SERVICE":              200,
-		"STEP_UP_ACTION_SET_PANEL_DOMAIN":          230,
-		"STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN":   231,
-		"STEP_UP_ACTION_SET_STEP_UP_POLICY":        240,
-		"STEP_UP_ACTION_SET_STEP_UP_FLOOR":         241,
-		"STEP_UP_ACTION_LINK_PROVIDER":             250,
-		"STEP_UP_ACTION_SET_UP_CATALOG_INSTALL":    260,
-		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":      60,
+		"STEP_UP_ACTION_UNSPECIFIED":                           0,
+		"STEP_UP_ACTION_REVEAL_SECRET":                         1,
+		"STEP_UP_ACTION_ADD_PASSKEY":                           2,
+		"STEP_UP_ACTION_REMOVE_PASSKEY":                        3,
+		"STEP_UP_ACTION_SET_UP_CODES":                          4,
+		"STEP_UP_ACTION_DISABLE_CODES":                         5,
+		"STEP_UP_ACTION_REGENERATE_RECOVERY_CODES":             6,
+		"STEP_UP_ACTION_CREATE_TOKEN":                          7,
+		"STEP_UP_ACTION_APPLY_ROOT_CHANGE":                     8,
+		"STEP_UP_ACTION_SAVE_WAY_BACK_IN":                      9,
+		"STEP_UP_ACTION_CREATE_GIT_HOOK":                       100,
+		"STEP_UP_ACTION_ROTATE_GIT_HOOK":                       101,
+		"STEP_UP_ACTION_CONNECT_GITHUB_APP":                    102,
+		"STEP_UP_ACTION_ROTATE_GITHUB_APP":                     103,
+		"STEP_UP_ACTION_REMOVE_GITHUB_APP":                     104,
+		"STEP_UP_ACTION_WIDEN_GIT_HOOK":                        109,
+		"STEP_UP_ACTION_END_PROCESS":                           20,
+		"STEP_UP_ACTION_OPEN_TERMINAL":                         10,
+		"STEP_UP_ACTION_MAKE_WAY_BACK_IN":                      90,
+		"STEP_UP_ACTION_MOVE_WAY_BACK_IN":                      91,
+		"STEP_UP_ACTION_DELETE_WAY_BACK_IN":                    92,
+		"STEP_UP_ACTION_RESTORE_WAY_BACK_IN":                   93,
+		"STEP_UP_ACTION_APPROVE_CHANGE":                        114,
+		"STEP_UP_ACTION_INVITE":                                110,
+		"STEP_UP_ACTION_CHANGE_ROLE":                           111,
+		"STEP_UP_ACTION_REMOVE_MEMBER":                         112,
+		"STEP_UP_ACTION_TRANSFER_OWNERSHIP":                    113,
+		"STEP_UP_ACTION_ADD_SERVER":                            130,
+		"STEP_UP_ACTION_OPEN_SERVICE":                          200,
+		"STEP_UP_ACTION_SET_PANEL_DOMAIN":                      230,
+		"STEP_UP_ACTION_SIGN_IN_ON_PANEL_DOMAIN":               231,
+		"STEP_UP_ACTION_SET_STEP_UP_POLICY":                    240,
+		"STEP_UP_ACTION_SET_STEP_UP_FLOOR":                     241,
+		"STEP_UP_ACTION_LINK_PROVIDER":                         250,
+		"STEP_UP_ACTION_SET_UP_CATALOG_INSTALL":                260,
+		"STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD":          261,
+		"STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD": 262,
+		"STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD":           263,
+		"STEP_UP_ACTION_REVEAL_SERVICE_VALUE":                  60,
 	}
 )
 
@@ -4929,8 +4943,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1fPROVIDER_LINK_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19PROVIDER_LINK_STATE_WORKS\x10\x01\x12$\n" +
 	" PROVIDER_LINK_STATE_PROVIDER_OFF\x10\x02\x12$\n" +
-	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xac\n" +
-	"\n" +
+	" PROVIDER_LINK_STATE_ISSUER_MOVED\x10\x03*\xca\v\n" +
 	"\fStepUpAction\x12\x1e\n" +
 	"\x1aSTEP_UP_ACTION_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cSTEP_UP_ACTION_REVEAL_SECRET\x10\x01\x12\x1e\n" +
@@ -4967,7 +4980,10 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"!STEP_UP_ACTION_SET_STEP_UP_POLICY\x10\xf0\x01\x12%\n" +
 	" STEP_UP_ACTION_SET_STEP_UP_FLOOR\x10\xf1\x01\x12!\n" +
 	"\x1cSTEP_UP_ACTION_LINK_PROVIDER\x10\xfa\x01\x12*\n" +
-	"%STEP_UP_ACTION_SET_UP_CATALOG_INSTALL\x10\x84\x02\x12'\n" +
+	"%STEP_UP_ACTION_SET_UP_CATALOG_INSTALL\x10\x84\x02\x120\n" +
+	"+STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD\x10\x85\x02\x129\n" +
+	"4STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD\x10\x86\x02\x12/\n" +
+	"*STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD\x10\x87\x02\x12'\n" +
 	"#STEP_UP_ACTION_REVEAL_SERVICE_VALUE\x10<*\x86\x01\n" +
 	"\fStepUpPolicy\x12\x1e\n" +
 	"\x1aSTEP_UP_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +
