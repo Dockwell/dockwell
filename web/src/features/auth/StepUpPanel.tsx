@@ -135,7 +135,7 @@ export function StepUpPanel() {
         ) : null}
         <p className="step-up-line">
           <Icon name="shield" size={14} />
-          <span>{t`Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask.`}</span>
+          <span>{t`Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask.`}</span>
         </p>
       </div>
     </Panel>

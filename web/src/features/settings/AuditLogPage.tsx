@@ -6,6 +6,7 @@ import { createClient } from "@connectrpc/connect";
 import { useInfiniteQuery, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
+  AlertService,
   AuditActor,
   type AuditEvent,
   AuditEventSchema,
@@ -14,6 +15,7 @@ import {
   ChangeService,
   ChangeState,
   ListAuditEventsRequestSchema,
+  MemberService,
   Surface,
 } from "@dockwell/api";
 import {
@@ -155,7 +157,7 @@ export function AuditLogPage() {
 
   return (
     <Page
-      width="narrow"
+      width="wide"
       title={t`Audit log`}
       lead={t`Every change and every way in, by people, tokens, servers and Dockwell · kept as long as this install exists`}
       back="/settings"
@@ -400,19 +402,40 @@ function useChangeWhere(): (change: Change | undefined) => string {
   };
 }
 
-/** What it acted on: a change's service and environment, a name where Dockwell has one, the ID otherwise. */
+/**
+ * What it acted on: a change's service and environment, a name where Dockwell has
+ * one, or the name the panel shows it by, as a person's or an uptime check's, and
+ * the ID only where none is known (#801).
+ */
 function TargetCell({ event }: { event: AuditEvent }) {
   const where = useChangeWhere()(event.event?.change);
+  const named = useTargetNames();
   if (where) return <span>{where}</span>;
   const target = event.target;
-  if (!target) {
-    return event.subject ? (
-      <code className="audit-id">{event.subject}</code>
-    ) : (
-      <span className="settings-muted">–</span>
-    );
-  }
-  return target.name ? <span>{target.name}</span> : <code className="audit-id">{target.id}</code>;
+  const id = target?.id || event.subject;
+  if (target?.name) return <span>{target.name}</span>;
+  if (!id) return <span className="settings-muted">–</span>;
+  // The name the server read for it, which a removed person keeps, as Members no longer lists them (#801's review, L3).
+  const said = event.event?.subject?.id === id ? event.event.subject.name : "";
+  const name = said || named(id, event.action);
+  return name ? <span title={id}>{name}</span> : <code className="audit-id">{id}</code>;
+}
+
+/**
+ * The name the panel shows a target by, from its ID: a person's, an uptime check's,
+ * the install itself, or which kind of link it is. Undefined for one it can't name.
+ */
+function useTargetNames(): (id: string, action: string) => string | undefined {
+  const { t } = useLingui();
+  const members = useQuery(MemberService.method.listMembers, {}, { staleTime: 60_000 }).data?.members;
+  const checks = useQuery(AlertService.method.listAlertChecks, {}, { staleTime: 60_000 }).data?.checks;
+  return (id, action) => {
+    if (id.startsWith("usr_")) return members?.find((m) => m.user?.id === id)?.user?.name;
+    if (id.startsWith("chk_")) return checks?.find((c) => c.id === id)?.name;
+    if (id.startsWith("ins_")) return t`This install`;
+    if (id.startsWith("lnk_")) return action.startsWith("claim_link") ? t`A claim link` : t`A sign-in link`;
+    return undefined;
+  };
 }
 
 /** The sentence a row says, with the address of someone who wasn't signed in. */
@@ -626,7 +649,9 @@ function LogTable({ events }: { events: readonly AuditEvent[] }) {
                         <Source surface={event.surface} />
                       </td>
                       <td className="audit-said" title={words(event).title}>
-                        <Said event={event} />
+                        <span className="audit-said-text">
+                          <Said event={event} />
+                        </span>
                       </td>
                       <td className="audit-toggle">
                         <Button

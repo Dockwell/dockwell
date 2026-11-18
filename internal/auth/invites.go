@@ -384,7 +384,11 @@ func (s *Service) BeginAcceptInvite(ctx context.Context, client Client, secret, 
 		if inv, err = s.openInvite(ctx, tx, secret); err != nil {
 			return err
 		}
-		return s.notAMember(ctx, tx, inv.Email)
+		if err := s.notAMember(ctx, tx, inv.Email); err != nil {
+			return err
+		}
+		// A name that reads as someone's here would pass for them (#801's review, M1).
+		return nameFree(ctx, tx, "", name)
 	})
 	if err != nil {
 		return Ceremony{}, err

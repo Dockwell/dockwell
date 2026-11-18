@@ -142,6 +142,8 @@ describe("API tokens", () => {
     expect(form.getByRole("checkbox", { name: /write:undoable/ })).not.toBeChecked();
     expect(form.getByRole("combobox", { name: "Expires" })).toHaveValue("90");
 
+    await userEvent.clear(form.getByRole("textbox", { name: "Name" }));
+
     await userEvent.type(form.getByRole("textbox", { name: "Name" }), "  Nightly backup check ");
     await userEvent.click(form.getByRole("checkbox", { name: /write:undoable/ }));
     await userEvent.selectOptions(form.getByRole("combobox", { name: "Expires" }), "In 30 days");
@@ -172,7 +174,8 @@ describe("API tokens", () => {
     expect(within(made).getByRole("button", { name: "Token copied" })).toBeVisible();
     expect(listTokens.mock.calls.length).toBeGreaterThan(1);
     // The form starts over for the next one.
-    expect(form.getByRole("textbox", { name: "Name" })).toHaveValue("");
+    // The form starts again from a name to start from (#801).
+    expect((form.getByRole("textbox", { name: "Name" }) as HTMLInputElement).value).toMatch(/^Token of /);
 
     await userEvent.click(within(made).getByRole("button", { name: "Done" }));
     expect(screen.queryByText(secret)).toBeNull();
@@ -198,6 +201,7 @@ describe("API tokens", () => {
     }));
     renderAt("/settings/api-tokens", api({ createToken }));
     const form = within(await screen.findByRole("region", { name: "Create a token" }));
+    await userEvent.clear(form.getByRole("textbox", { name: "Name" }));
     await userEvent.type(form.getByRole("textbox", { name: "Name" }), "CI");
     await userEvent.click(form.getByRole("button", { name: "Create token" }));
     expect(await screen.findByText("Copy this token now. It won't be shown again.")).toBeVisible();
@@ -218,6 +222,7 @@ describe("API tokens", () => {
     }));
     renderAt("/settings/api-tokens", api({ createToken }));
     const form = within(await screen.findByRole("region", { name: "Create a token" }));
+    await userEvent.clear(form.getByRole("textbox", { name: "Name" }));
     await userEvent.type(form.getByRole("textbox", { name: "Name" }), "Log shipper");
     await userEvent.click(form.getByRole("checkbox", { name: /logs:read/ }));
     await userEvent.selectOptions(form.getByRole("combobox", { name: "Expires" }), "Never");
@@ -267,6 +272,8 @@ describe("API tokens", () => {
     expect(form.getByText("Its changes in a protected environment wait for an admin.")).toBeVisible();
     expect(form.getByText("In blog, as a developer")).toBeVisible();
 
+    await userEvent.clear(form.getByRole("textbox", { name: "Name" }));
+
     await userEvent.type(form.getByRole("textbox", { name: "Name" }), "Blog deploy");
     await userEvent.click(form.getByRole("button", { name: "Create token" }));
     await waitFor(() => expect(createToken).toHaveBeenCalledTimes(2));
@@ -312,7 +319,7 @@ describe("API tokens", () => {
     expect(second).not.toHaveTextContent("as:");
   });
 
-  it("asks for a name before making a token, and says why one wasn't made", async () => {
+  it("starts with a name that says when it was made, takes it when cleared, and says why one wasn't made (#801)", async () => {
     const passkeys = stubPasskeys();
     const createToken = vi.fn(() =>
       Promise.reject(
@@ -325,12 +332,17 @@ describe("API tokens", () => {
     );
     renderAt("/settings/api-tokens", api({ createToken }));
     const form = within(await screen.findByRole("region", { name: "Create a token" }));
+    const name = form.getByRole("textbox", { name: "Name" });
+    expect((name as HTMLInputElement).value).toMatch(/^Token of /);
+    // Cleared, it's made with the name it started with, rather than stop at an error.
+    await userEvent.clear(name);
     await userEvent.click(form.getByRole("button", { name: "Create token" }));
-    expect(form.getByText("Name the token after what will use it, such as GitHub Actions deploy.")).toBeVisible();
-    expect(createToken).not.toHaveBeenCalled();
-
-    await userEvent.type(form.getByRole("textbox", { name: "Name" }), "CI");
-    await userEvent.click(form.getByRole("button", { name: "Create token" }));
+    await waitFor(() =>
+      expect(createToken).toHaveBeenCalledWith(
+        expect.objectContaining({ name: expect.stringMatching(/^Token of /) }),
+        expect.anything(),
+      ),
+    );
     expect(await form.findByRole("alert")).toHaveTextContent(
       "You have 100 API tokens, the most you can have. Revoke one you no longer use, then try again.",
     );

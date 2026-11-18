@@ -18,6 +18,7 @@ import {
   TokenSchema,
   TokenScope,
   TotpSchema,
+  type UpdateProfileRequest,
 } from "@dockwell/api";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -25,8 +26,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { authError, authState, creationOptions, requestOptions, stubPasskeys } from "../../test/auth";
+import { authError, authState, creationOptions, mira, requestOptions, stubPasskeys } from "../../test/auth";
 import { onPhone, renderAt } from "../../test/render";
+import { looksLikeEmail } from "./AccountPanel";
 import { groupSecret } from "./TotpPanel";
 
 const minutesAgo = (m: number) => timestampFromDate(new Date(Date.now() - m * 60_000));
@@ -769,15 +771,161 @@ describe("ProfilePage", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("points to API tokens in Settings, saying how many act for you", async () => {
+  it("says how many API tokens act for you, with Manage, and nothing more (#801)", async () => {
     renderAt("/profile", api());
     const panel = within(await screen.findByRole("region", { name: "API tokens" }));
-    expect(await panel.findByText(/2 act for you, and 1 expires within two weeks\./)).toBeVisible();
+    expect(await panel.findByText("2 act for you · 1 expires within two weeks")).toBeVisible();
     expect(panel.getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/settings/api-tokens");
-    expect(panel.getByRole("link", { name: "Settings, under API tokens" })).toHaveAttribute(
-      "href",
-      "/settings/api-tokens",
+    expect(panel.queryByRole("link", { name: "Settings, under API tokens" })).toBeNull();
+  });
+
+  it("says who you are first, in an Account panel, with the way back in when every other is lost (#801)", async () => {
+    renderAt("/profile", api());
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    expect(account.getByText("Mira Chen")).toBeVisible();
+    expect(await account.findByLabelText("Email")).toHaveValue("mira@acme.dev");
+    expect(account.getByLabelText("Name")).toHaveValue("Mira Chen");
+    expect(account.getByText(/on the control server/)).toBeVisible();
+    expect(account.getByText(/recover$/)).toBeVisible();
+    // Nothing changed, nothing to save.
+    expect(account.getByRole("button", { name: "Save" })).toBeDisabled();
+  });
+
+  it("saves a new name with no passkey, and shows it at once (#801)", async () => {
+    let user = mira;
+    const updateProfile = vi.fn((req: UpdateProfileRequest) => {
+      user = { ...user, name: req.name ?? user.name };
+      return { user };
+    });
+    const beginStepUp = vi.fn();
+    renderAt("/profile", api({ getAuthState: () => authState({ user }), updateProfile, beginStepUp }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const name = await account.findByLabelText("Name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "  Mira   Okafor ");
+    await userEvent.click(account.getByRole("button", { name: "Save" }));
+    expect(await account.findByText("Saved")).toBeVisible();
+    expect(updateProfile).toHaveBeenCalledTimes(1);
+    expect(updateProfile.mock.calls[0]?.[0]).toMatchObject({ name: "Mira Okafor", proof: "" });
+    expect(updateProfile.mock.calls[0]?.[0].email).toBeUndefined();
+    expect(beginStepUp).not.toHaveBeenCalled();
+    expect(await account.findByText("Mira Okafor")).toBeVisible();
+  });
+
+  it("asks for the passkey for a new email, sent as typed for the server to write (#801's review, L1)", async () => {
+    let user = mira;
+    const updateProfile = confirmed((req: UpdateProfileRequest) => {
+      user = { ...user, email: req.email?.toLowerCase() ?? user.email };
+      return { user };
+    });
+    stubPasskeys();
+    const auth = api({ getAuthState: () => authState({ user }), updateProfile });
+    renderAt("/profile", auth);
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    expect(account.getByText("Your passkey confirms a new one.")).toBeVisible();
+    const email = await account.findByLabelText("Email");
+    await userEvent.clear(email);
+    await userEvent.type(email, "Mira.Chen@Example.com");
+    await userEvent.click(account.getByRole("button", { name: "Save" }));
+    expect(await account.findByText("Saved")).toBeVisible();
+    expect(auth.auth.beginStepUp).toHaveBeenCalledWith(
+      expect.objectContaining({ action: StepUpAction.CHANGE_EMAIL, target: "Mira.Chen@Example.com" }),
+      expect.anything(),
     );
+    expect(updateProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ email: "Mira.Chen@Example.com", proof: proofFor(StepUpAction.CHANGE_EMAIL) }),
+      expect.anything(),
+    );
+    expect(updateProfile.mock.lastCall?.[0].name).toBeUndefined();
+    await waitFor(() => expect(account.getByLabelText("Email")).toHaveValue("mira.chen@example.com"));
+  });
+
+  it.each([
+    ["member_exists", "Someone else here signs in with this email, so it can't be yours too. Choose another."],
+    [
+      "email_invited",
+      "An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members.",
+    ],
+    [
+      "email_lookalike",
+      "This email reads the same as one someone else here signs in with or is invited as, so it would pass for theirs. Choose another.",
+    ],
+  ])("says at the field why a new email was refused: %s (#801)", async (reason, words) => {
+    const updateProfile = confirmed(() => {
+      throw authError(Code.AlreadyExists, reason);
+    });
+    stubPasskeys();
+    renderAt("/profile", api({ updateProfile }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const email = await account.findByLabelText("Email");
+    await userEvent.clear(email);
+    await userEvent.type(email, "lee@example.com");
+    await userEvent.click(account.getByRole("button", { name: "Save" }));
+    expect(await account.findByText(words)).toBeVisible();
+    expect(account.queryByText("Saved")).toBeNull();
+    // Typing again clears it, for the next try.
+    await userEvent.type(email, "m");
+    expect(account.queryByText(words)).toBeNull();
+  });
+
+  it("says at the name why it was refused: one that reads as someone else's (#801's review, M1)", async () => {
+    const updateProfile = vi.fn(() => {
+      throw authError(Code.AlreadyExists, "name_taken");
+    });
+    renderAt("/profile", api({ updateProfile }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const name = await account.findByLabelText("Name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Ada Lovelace");
+    await userEvent.click(account.getByRole("button", { name: "Save" }));
+    const words =
+      "Someone else here goes by a name that reads the same, so the two of you would be hard to tell apart. Choose another.";
+    expect(await account.findByText(words)).toBeVisible();
+    await userEvent.type(name, "x");
+    expect(account.queryByText(words)).toBeNull();
+  });
+
+  it("won't save an empty name or what isn't an email, and says so at the field (#801)", async () => {
+    const updateProfile = vi.fn();
+    renderAt("/profile", api({ updateProfile }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const name = await account.findByLabelText("Name");
+    await userEvent.clear(name);
+    await userEvent.tab();
+    expect(
+      account.getByText("Your name is empty, so it can't be saved. Type the name people here know you by."),
+    ).toBeVisible();
+    expect(account.getByRole("button", { name: "Save" })).toBeDisabled();
+    await userEvent.type(name, "Mira Okafor");
+    const email = account.getByLabelText("Email");
+    await userEvent.clear(email);
+    await userEvent.type(email, "mira at example.com");
+    await userEvent.tab();
+    expect(
+      account.getByText("That isn't an email address, so it can't be saved. Type one such as mira@example.com."),
+    ).toBeVisible();
+    expect(account.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(updateProfile).not.toHaveBeenCalled();
+    expect(looksLikeEmail("mira@example.com")).toBe(true);
+    expect(looksLikeEmail("@example.com")).toBe(false);
+    expect(looksLikeEmail("mira@")).toBe(false);
+  });
+
+  it("says the way back in as the server says it for you (#801's review, M2)", async () => {
+    const recoverCommand = "sudo dockwell recover --data-dir /srv/dockwell --user ada@example.com";
+    renderAt("/profile", api({ getAuthState: () => authState({ recoverCommand }) }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    expect(await account.findByText(recoverCommand)).toBeVisible();
+  });
+
+  it("offers Add passkey once: the note's, where the note offers it, and the panel's otherwise (#801)", async () => {
+    stubPasskeys();
+    renderAt("/profile?via=link", api());
+    await screen.findByText("You signed in with a one-time link");
+    expect(screen.getAllByRole("button", { name: "Add passkey" })).toHaveLength(1);
+    expect(
+      within(screen.getByRole("region", { name: "Passkeys" })).queryByRole("button", { name: "Add passkey" }),
+    ).toBeNull();
   });
 
   it("groups a secret in fours", () => {

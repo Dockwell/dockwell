@@ -110,7 +110,19 @@ func sudoUserDir(getenv func(string) string) (string, datadir.Dir) {
 // whose URL may hold a password: one on Postgres needs DOCKWELL_DATABASE in the
 // shell too, and sudo leaves that out unless it's told to keep it.
 func claimCommand(dir datadir.Dir, location string, getenv func(string) string) string {
-	command := "dockwell claim"
+	return controlCommand("claim", dir, location, getenv)
+}
+
+// recoverCommand is claimCommand for dockwell recover, which prints a one-time
+// sign-in link, as the panel shows it for someone signed in (#801). The panel's
+// API adds --user for anyone who isn't the owner.
+func recoverCommand(dir datadir.Dir, location string, getenv func(string) string) string {
+	return controlCommand("recover", dir, location, getenv)
+}
+
+// controlCommand is dockwell verb as claimCommand describes it.
+func controlCommand(verb string, dir datadir.Dir, location string, getenv func(string) string) string {
+	command := "dockwell " + verb
 	var def datadir.Dir
 	if geteuid() == 0 {
 		def = datadir.Dir{Root: systemDataDir}

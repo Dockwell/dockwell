@@ -12,7 +12,7 @@ import {
   SettingsService,
   StateStoreEngine,
 } from "@dockwell/api";
-import { Advanced, Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
+import { Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -231,58 +231,33 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <span className="settings-sub">{t`The key opens every secret in a copy`}</span>
           </dd>
         </dl>
-        {copy || postgres ? (
-          <Advanced
-            label={t`Back it up by hand`}
-            summary={
-              manager === ServiceManager.NONE ? t`A command to run as root` : t`A command to run as root over SSH`
-            }
-          >
-            <div className="cp-how">
-              {copy ? (
-                <>
-                  {/* Dockwell's own terminal ends when Dockwell stops, so nothing after the stop would run. */}
-                  <p className="cp-text">
-                    {manager === ServiceManager.SYSTEMD ? (
-                      <Trans>
-                        Run it over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep serving.
-                      </Trans>
-                    ) : manager === ServiceManager.OPENRC ? (
-                      <Trans>
-                        Run it as root over SSH, not in Dockwell's terminal: Dockwell stops while it copies; apps keep
-                        serving.
-                      </Trans>
-                    ) : (
-                      <Trans>
-                        Not a service here: stop <code>dockwell run</code>, run this as root, then start it again.
-                      </Trans>
-                    )}
-                  </p>
-                  <CopyCommand command={copy} className="cp-commands" />
-                  <p className="cp-note">
-                    <Trans>
-                      Then move <code>/root/dockwell-control.tgz</code> and <code>/root/dockwell-key</code> off this
-                      server, to two places: the key opens every secret in the copy.
-                    </Trans>
-                  </p>
-                </>
-              ) : null}
-              {postgres ? (
-                <p className="cp-note">
-                  <Trans>
-                    The database isn't in it: back it up with <code>pg_dump</code>.
-                  </Trans>
-                </p>
-              ) : null}
-              <p className="cp-note">
-                <a href={`${DOCS}#back-up-the-control-plane`} target="_blank" rel="noreferrer" className="cp-link">
-                  <Trans>How to back it up and restore it</Trans>
-                </a>
-              </p>
-            </div>
-          </Advanced>
+        {/* The command, with Copy, until Dockwell backs itself up (#34, #801): over SSH, as
+            Dockwell stops while it copies, and its own terminal stops with it. */}
+        {copy ? (
+          <div className="cp-how">
+            <span className="settings-meta">
+              {manager === ServiceManager.NONE
+                ? t`As root, with dockwell run stopped`
+                : manager === ServiceManager.SYSTEMD
+                  ? t`Over SSH, with sudo: Dockwell stops while it copies`
+                  : t`As root over SSH: Dockwell stops while it copies`}
+            </span>
+            <CopyCommand command={copy} className="cp-commands" />
+            {/* A copy left on the server it's for is no backup (#801's review, L6). */}
+            <span className="settings-meta">{t`Then move both files off this server, each to a place of its own`}</span>
+          </div>
         ) : null}
-        <p className="cp-note">
+        {postgres ? (
+          <p className="cp-note">
+            <Trans>
+              The database isn't in it: back it up with <code>pg_dump</code>.
+            </Trans>
+          </p>
+        ) : null}
+        <p className="cp-note cp-links">
+          <a href={`${DOCS}#back-up-the-control-plane`} target="_blank" rel="noreferrer" className="cp-link">
+            <Trans>How to restore it</Trans>
+          </a>
           <Link to="/backups" className="cp-link">
             <Trans>Apps' backups</Trans>
           </Link>
@@ -347,19 +322,11 @@ function UpdatesPanel({ cp }: { cp: ControlPlane | undefined }) {
             {sub ? <span className="settings-meta">{sub}</span> : null}
           </div>
         </div>
-        <Advanced label={t`Update by hand`} summary={t`The install script again, over SSH`}>
-          <div className="cp-how">
-            <p className="cp-text">
-              <Trans>On this server, this installs the newest release and restarts Dockwell; apps keep serving.</Trans>
-            </p>
-            <CopyCommand command={INSTALL_COMMAND} />
-            <p className="cp-note">
-              <Trans>
-                For a particular release, end it with <code>sudo sh -s -- --version 0.4.0</code>.
-              </Trans>
-            </p>
-          </div>
-        </Advanced>
+        {/* The install script again, with Copy, until Dockwell updates itself (#801). */}
+        <div className="cp-how">
+          <span className="settings-meta">{t`Over SSH, to update to the newest release`}</span>
+          <CopyCommand command={INSTALL_COMMAND} />
+        </div>
       </div>
     </Panel>
   );
@@ -513,18 +480,6 @@ function AddressesPanel({ cp }: { cp: ControlPlane | undefined }) {
           )}
         </dd>
       </dl>
-      <p className="settings-how">
-        <Trans>
-          Set where Dockwell starts; the panel's domain is under{" "}
-          <Link to="/settings/general" className="cp-link">
-            General
-          </Link>
-          .
-        </Trans>{" "}
-        <a href={`${DOCS}#change-settings`} target="_blank" rel="noreferrer" className="cp-link">
-          <Trans>How to change settings</Trans>
-        </a>
-      </p>
     </Panel>
   );
 }

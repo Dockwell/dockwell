@@ -686,6 +686,11 @@ func TestTheClaimCommandFitsHowDockwellRuns(t *testing.T) {
 		if got := claimCommand(datadir.Dir{Root: tt.dir}, tt.location, env); got != tt.want {
 			t.Errorf("as root %v, with sudo %v, in %s on %q: %q, want %q", tt.root, tt.sudo, tt.dir, tt.location, got, tt.want)
 		}
+		// dockwell recover runs as dockwell claim does, for the panel's Last resort (#801).
+		want := strings.Replace(tt.want, "dockwell claim", "dockwell recover", 1)
+		if got := recoverCommand(datadir.Dir{Root: tt.dir}, tt.location, env); got != want {
+			t.Errorf("recover as root %v, with sudo %v, in %s on %q: %q, want %q", tt.root, tt.sudo, tt.dir, tt.location, got, want)
+		}
 	}
 }
 

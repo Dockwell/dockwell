@@ -269,5 +269,15 @@ func TestMembersAreManagedOverTheAPI(t *testing.T) {
 		if r := seen["member.role"]; r.GetEmail() != "sam@example.com" || r.GetPreviousRole() != dockwellv1.Role_ROLE_VIEWER || r.GetRole() != dockwellv1.Role_ROLE_UNSPECIFIED || r.GetSessions() != 1 {
 			t.Errorf("Activity's latest member.role reads %v", r)
 		}
+		// The audit log names her once she's gone, as Members no longer lists her (#801's review, L3).
+		audit, err := dockwellv1connect.NewAuditServiceClient(s.owner, s.origin).ListAuditEvents(ctx, connect.NewRequest(&dockwellv1.ListAuditEventsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range audit.Msg.GetEvents() {
+			if e.GetAction() == "member.remove" && (e.GetTarget().GetName() != "Ada Lovelace" || e.GetEvent().GetSubject().GetName() != "Ada Lovelace") {
+				t.Errorf("the audit log's member.remove names %q and %q, want Ada Lovelace", e.GetTarget().GetName(), e.GetEvent().GetSubject().GetName())
+			}
+		}
 	})
 }

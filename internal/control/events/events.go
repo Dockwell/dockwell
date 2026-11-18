@@ -158,8 +158,23 @@ var (
 		// An account at a sign-in provider linked or unlinked, as a passkey added or
 		// removed is, and the sessions a stopped provider's link began, ended (ADR 0095).
 		"provider_link.create", "provider_link.delete", "auth.sessions_ended",
+		// Someone changing their own name or email, which admins see where they look,
+		// as a copy of someone else's would read as them (#801's review, M1).
+		auth.ActionAccountName, auth.ActionAccountEmail,
 	}
+	// adminActions are on the timeline for admins and the owner alone: what each
+	// person was called, and the emails they signed in with.
+	adminActions = []string{auth.ActionAccountName, auth.ActionAccountEmail}
 )
+
+// forReader leaves out of f what only admins see on the timeline, for a caller
+// below an admin.
+func forReader(ctx context.Context, f store.TimelineFilter) store.TimelineFilter {
+	if _, narrowed := authapi.Narrowed(ctx); narrowed {
+		f.Actions = slices.DeleteFunc(slices.Clone(f.Actions), func(a string) bool { return slices.Contains(adminActions, a) })
+	}
+	return f
+}
 
 // ActionRevealServiceValue is the audit log's word for revealing one of an app's own
 // values that reads hidden. Its subject is the value's name, and its target the
@@ -192,6 +207,7 @@ func (h *Handler) ListEvents(ctx context.Context, req *connect.Request[dockwellv
 	if err != nil {
 		return nil, err
 	}
+	f = forReader(ctx, f)
 	size, err := paging.Size(m.GetPageSize(), DefaultPageSize, MaxPageSize)
 	if err != nil {
 		return nil, err
@@ -226,6 +242,7 @@ func (h *Handler) CountEvents(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, err
 	}
+	every = forReader(ctx, every)
 	grants, narrowed := authapi.Narrowed(ctx)
 	counts := map[dockwellv1.EventKind]int{}
 	capped := false
@@ -380,6 +397,7 @@ func (h *Handler) WatchEvents(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return err
 	}
+	f = forReader(ctx, f)
 	size, err := paging.Size(m.GetPageSize(), DefaultPageSize, MaxPageSize)
 	if err != nil {
 		return err
@@ -843,6 +861,13 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			if m.Project != store.Install {
 				e.Member.ProjectName = look.Name(m.Project)
 			}
+		}
+	}
+	if a.Action == auth.ActionAccountName || a.Action == auth.ActionAccountEmail {
+		// What they were called and are now, which the actor's name alone can't say (#801's review, M1).
+		if was, is, ok := auth.ReadAccountDetail(a.Detail); ok {
+			e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
+			e.Setting = &dockwellv1.EventSetting{Setting: a.Action, Value: is, Previous: was}
 		}
 	}
 	if setting, ok := settings.ReadEvent(a.Action, a.Detail); ok {

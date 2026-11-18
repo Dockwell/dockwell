@@ -4244,6 +4244,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/profile:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                UpdateProfile changes your own name or email. What's unset stays as it is.
+                 Either takes a signed-in session, which no API token gives, as nothing acts
+                 as who you are. Your email names you for signing in with an authenticator
+                 code, and to dockwell recover on the server, so a change of it also takes a
+                 proof from FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL on the new email,
+                 each time. A name or an email that reads the same as someone else's here is
+                 refused: an email someone signs in with by the reason member_exists, one an
+                 open invite is for by email_invited, one that only looks like either by
+                 email_lookalike, and a name by name_taken. Sessions, passkeys, the
+                 authenticator app and accounts linked at sign-in providers stay as they
+                 are. Each change is in the audit log, with what it was and what it is, and
+                 on Activity for admins (#801).
+            operationId: AuthService_UpdateProfile
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateProfileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateProfileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/projects/{project}/git-repositories:
         get:
             tags:
@@ -10244,6 +10281,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_CHANGE_EMAIL
                         - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_CHANGE_ROLE
                         - STEP_UP_ACTION_REMOVE_MEMBER
@@ -16293,7 +16331,10 @@ components:
             properties:
                 setting:
                     type: string
-                    description: 'Which: "name", "time_zone" or "panel_domain".'
+                    description: |-
+                        Which: "name", "time_zone" or "panel_domain"; or, on an access event,
+                         "account.name" or "account.email" for someone changing their own, which
+                         only admins see (#801).
                 value:
                     type: string
                     description: What it is now. Empty when they cleared it.
@@ -17108,6 +17149,15 @@ components:
                     description: |-
                         What the install is called, as its settings have it, for the sign-in screen
                          to say. Empty when nobody has named it.
+                recoverCommand:
+                    type: string
+                    description: |-
+                        The command that prints a one-time sign-in link for you on the control
+                         server, your way back in when every other is lost: as Dockwell runs there,
+                         such as "sudo dockwell recover", with --data-dir where that isn't the
+                         default, and with --user and your email unless you're the owner. Set only
+                         for a signed-in session, as its own person's, once the install has an
+                         owner; claim_command applies before that (#801).
                 grants:
                     type: array
                     items:
@@ -29083,6 +29133,27 @@ components:
             type: object
             properties: {}
             description: UnmuteAlertsResponse says nothing more.
+        UpdateProfileRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: 'Your name, as the panel and the audit log show it: 1 to 100 characters.'
+                email:
+                    type: string
+                    description: The email you sign in with, which no one else here does or is invited as.
+                proof:
+                    type: string
+                    description: |-
+                        From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
+                         typed it, where the email changes.
+            description: UpdateProfileRequest is what to change of your own account.
+        UpdateProfileResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+            description: UpdateProfileResponse is your account as it now is.
         UpdateWebsiteRequest:
             type: object
             properties:

@@ -84,7 +84,7 @@ func policyOf(u store.User) StepUpPolicy {
 // choice and the floor, as it would loosen its own checks first; approving
 // someone else's change, which is the point of a protected environment; and
 // transferring ownership, which a stolen session would make for good, as only
-// the new owner can undo it (ADR 0049).
+// the new owner can undo it (ADR 0049); and changing your email (#801).
 var alwaysAsks = map[StepUpAction]bool{
 	StepUpAddPasskey:    true,
 	StepUpRemovePasskey: true,
@@ -97,6 +97,9 @@ var alwaysAsks = map[StepUpAction]bool{
 	StepUpLinkProvider:  true,
 	// The owner's session within its hour would otherwise give the install away.
 	StepUpTransferOwnership: true,
+	// The email names someone for code sign-in and dockwell recover, so a stolen
+	// session would move those to an address of its own (#801).
+	StepUpChangeEmail: true,
 }
 
 // AlwaysAsks reports an action a passkey confirms each time, whatever anyone chose.

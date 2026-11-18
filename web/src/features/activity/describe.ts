@@ -409,6 +409,24 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           const who = event.subject?.name ?? "";
           return { title: who ? t`Made ${who} the owner` : t`Moved ownership of this install`, icon: "users" };
         }
+        // Someone's own name or email, which only admins see: what it was, as a copy of
+        // someone else's would read as them by its new one alone (#801's review, M1).
+        case "account.name": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          return {
+            title: value && previous ? t`Changed their name from ${previous} to ${value}` : t`Changed their name`,
+            icon: "user",
+          };
+        }
+        case "account.email": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          return {
+            title: value && previous ? t`Changed their email from ${previous} to ${value}` : t`Changed their email`,
+            icon: "user",
+          };
+        }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
           const value = event.setting?.value ?? "";

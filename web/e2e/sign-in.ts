@@ -415,7 +415,11 @@ async function main() {
     await route.continue();
   });
   const stepUps = await watchFor(page, ["needs your passkey just now", "The passkey prompt closed"]);
-  await passkeyList.getByRole("button", { name: "Add passkey" }).click();
+  // One Add passkey on the page: the note's, where it says to add a second way in,
+  // and the Passkeys panel's otherwise (#801).
+  const addPasskey = page.getByRole("button", { name: "Add passkey" });
+  if ((await addPasskey.count()) !== 1) fail(`Profile offers Add passkey ${await addPasskey.count()} times, want once`);
+  await addPasskey.click();
   await passkeyList.getByRole("listitem").nth(1).waitFor({ timeout: 15_000 });
   await page.unroute(beginAdd);
   await cdp.send("WebAuthn.setAutomaticPresenceSimulation", { authenticatorId, enabled: true });

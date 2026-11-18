@@ -344,14 +344,16 @@ func normalizeEmail(email string) (string, error) {
 	e := strings.ToLower(strings.TrimSpace(email))
 	at := strings.LastIndexByte(e, '@')
 	if len(e) > maxEmailLen || at < 1 || at == len(e)-1 || strings.ContainsAny(e, " \t\r\n<>\"") ||
-		!utf8.ValidString(e) || strings.IndexFunc(e, unicode.IsControl) >= 0 {
+		!utf8.ValidString(e) || strings.IndexFunc(e, unicode.IsControl) >= 0 || strings.IndexFunc(e, invisible) >= 0 {
 		return "", fmt.Errorf("%w: enter an email address, such as mira@acme.dev", ErrInvalid)
 	}
 	return e, nil
 }
 
+// normalizeName is a name as it's kept: in NFKC, without what prints as nothing or
+// reorders the text around it, its words one space apart (#801's review, M1).
 func normalizeName(name string) (string, error) {
-	n := strings.Join(strings.Fields(cleanText(name)), " ")
+	n := strings.Join(strings.Fields(withoutInvisible(cleanText(name))), " ")
 	if n == "" || len([]rune(n)) > maxNameLen {
 		return "", fmt.Errorf("%w: enter your name, up to %d characters", ErrInvalid, maxNameLen)
 	}

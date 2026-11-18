@@ -164,6 +164,10 @@ const (
 	// a way to sign in that outlives the session (ADR 0095). Its target is the
 	// provider's ID.
 	StepUpLinkProvider StepUpAction = "provider_link.create"
+	// StepUpChangeEmail changes the person's own email, which names them for
+	// signing in with an authenticator code and to dockwell recover (#801). Its
+	// target is the new email, normalized. It always asks.
+	StepUpChangeEmail StepUpAction = "account.email"
 )
 
 // ServiceValueTarget is what a step-up for revealing a service's own value
@@ -216,6 +220,7 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpSetFloor:            {"setting how often everyone is asked for a passkey at least", false},
 	StepUpRevealServiceValue:  {"revealing", true},
 	StepUpLinkProvider:        {"linking an account at", true},
+	StepUpChangeEmail:         {"changing your email to", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".
@@ -394,6 +399,12 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 		// CreateInvite checks against agree whatever the letters (İ lowercases two ways).
 		var err error
 		if target, err = normalizeInviteTarget(target); err != nil {
+			return Ceremony{}, err
+		}
+	case action == StepUpChangeEmail:
+		// The new email as UpdateProfile keeps it, whatever the panel typed (#801's review, L1).
+		var err error
+		if target, err = normalizeEmail(target); err != nil {
 			return Ceremony{}, err
 		}
 	}

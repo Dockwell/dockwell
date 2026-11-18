@@ -475,6 +475,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),
 		ClaimCommand:   claim,
+		RecoverCommand: recoverCommand(dir, f.database, stdio.Getenv),
 		Changes:        engine,
 		Agents:         agents,
 		Store:          db,

@@ -2,7 +2,7 @@
 
 // How often your passkey is asked for again (ADR 0075): Profile's choice, confirmed
 // with a passkey, then an action a step-up guards done with no prompt at all within
-// the hour; the owner's floor in Settings, Security, and what it does to the choice;
+// the hour; the owner's floor in Settings, Sign-in policy, and what it does to the choice;
 // then each put back, so the flows after this one are asked as before.
 
 import type { Page } from "playwright-core";
@@ -44,7 +44,7 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     await settled(page, "EACH_TIME");
     await choice
       .getByText(
-        "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask.",
+        "Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask.",
       )
       .waitFor();
     await shoot(page, "passkey-each-time");
@@ -101,7 +101,7 @@ export async function passkeyFlow(page: Page, { origin, step, shoot }: Pick<Flow
     await page.goto(`${origin}/settings/security`);
     await page.getByRole("group", { name: "The least anyone may choose" }).waitFor();
     const wideSecurity = await page.evaluate(() => document.documentElement.scrollWidth);
-    if (wideSecurity > 390) fail(`Security is ${wideSecurity} px wide on a 390 px phone`);
+    if (wideSecurity > 390) fail(`Sign-in policy is ${wideSecurity} px wide on a 390 px phone`);
 
     step("passkey: both go back, so the flows after this are asked as before");
     await atWidth(page, { width: 1440, height: 900 });

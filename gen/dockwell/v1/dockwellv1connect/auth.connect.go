@@ -89,6 +89,9 @@ const (
 	// AuthServiceSetStepUpPolicyProcedure is the fully-qualified name of the AuthService's
 	// SetStepUpPolicy RPC.
 	AuthServiceSetStepUpPolicyProcedure = "/dockwell.v1.AuthService/SetStepUpPolicy"
+	// AuthServiceUpdateProfileProcedure is the fully-qualified name of the AuthService's UpdateProfile
+	// RPC.
+	AuthServiceUpdateProfileProcedure = "/dockwell.v1.AuthService/UpdateProfile"
 	// AuthServiceListPasskeysProcedure is the fully-qualified name of the AuthService's ListPasskeys
 	// RPC.
 	AuthServiceListPasskeysProcedure = "/dockwell.v1.AuthService/ListPasskeys"
@@ -214,6 +217,19 @@ type AuthServiceClient interface {
 	// whichever way it goes, and refuses a choice below the install's floor
 	// with the reason below_floor.
 	SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error)
+	// UpdateProfile changes your own name or email. What's unset stays as it is.
+	// Either takes a signed-in session, which no API token gives, as nothing acts
+	// as who you are. Your email names you for signing in with an authenticator
+	// code, and to dockwell recover on the server, so a change of it also takes a
+	// proof from FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL on the new email,
+	// each time. A name or an email that reads the same as someone else's here is
+	// refused: an email someone signs in with by the reason member_exists, one an
+	// open invite is for by email_invited, one that only looks like either by
+	// email_lookalike, and a name by name_taken. Sessions, passkeys, the
+	// authenticator app and accounts linked at sign-in providers stay as they
+	// are. Each change is in the audit log, with what it was and what it is, and
+	// on Activity for admins (#801).
+	UpdateProfile(context.Context, *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -404,6 +420,12 @@ func NewAuthServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(authServiceMethods.ByName("SetStepUpPolicy")),
 			connect.WithClientOptions(opts...),
 		),
+		updateProfile: connect.NewClient[v1.UpdateProfileRequest, v1.UpdateProfileResponse](
+			httpClient,
+			baseURL+AuthServiceUpdateProfileProcedure,
+			connect.WithSchema(authServiceMethods.ByName("UpdateProfile")),
+			connect.WithClientOptions(opts...),
+		),
 		listPasskeys: connect.NewClient[v1.ListPasskeysRequest, v1.ListPasskeysResponse](
 			httpClient,
 			baseURL+AuthServiceListPasskeysProcedure,
@@ -516,6 +538,7 @@ type authServiceClient struct {
 	finishStepUp            *connect.Client[v1.FinishStepUpRequest, v1.FinishStepUpResponse]
 	getStepUpPolicy         *connect.Client[v1.GetStepUpPolicyRequest, v1.GetStepUpPolicyResponse]
 	setStepUpPolicy         *connect.Client[v1.SetStepUpPolicyRequest, v1.SetStepUpPolicyResponse]
+	updateProfile           *connect.Client[v1.UpdateProfileRequest, v1.UpdateProfileResponse]
 	listPasskeys            *connect.Client[v1.ListPasskeysRequest, v1.ListPasskeysResponse]
 	beginAddPasskey         *connect.Client[v1.BeginAddPasskeyRequest, v1.BeginAddPasskeyResponse]
 	finishAddPasskey        *connect.Client[v1.FinishAddPasskeyRequest, v1.FinishAddPasskeyResponse]
@@ -630,6 +653,11 @@ func (c *authServiceClient) GetStepUpPolicy(ctx context.Context, req *connect.Re
 // SetStepUpPolicy calls dockwell.v1.AuthService.SetStepUpPolicy.
 func (c *authServiceClient) SetStepUpPolicy(ctx context.Context, req *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error) {
 	return c.setStepUpPolicy.CallUnary(ctx, req)
+}
+
+// UpdateProfile calls dockwell.v1.AuthService.UpdateProfile.
+func (c *authServiceClient) UpdateProfile(ctx context.Context, req *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error) {
+	return c.updateProfile.CallUnary(ctx, req)
 }
 
 // ListPasskeys calls dockwell.v1.AuthService.ListPasskeys.
@@ -785,6 +813,19 @@ type AuthServiceHandler interface {
 	// whichever way it goes, and refuses a choice below the install's floor
 	// with the reason below_floor.
 	SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error)
+	// UpdateProfile changes your own name or email. What's unset stays as it is.
+	// Either takes a signed-in session, which no API token gives, as nothing acts
+	// as who you are. Your email names you for signing in with an authenticator
+	// code, and to dockwell recover on the server, so a change of it also takes a
+	// proof from FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL on the new email,
+	// each time. A name or an email that reads the same as someone else's here is
+	// refused: an email someone signs in with by the reason member_exists, one an
+	// open invite is for by email_invited, one that only looks like either by
+	// email_lookalike, and a name by name_taken. Sessions, passkeys, the
+	// authenticator app and accounts linked at sign-in providers stay as they
+	// are. Each change is in the audit log, with what it was and what it is, and
+	// on Activity for admins (#801).
+	UpdateProfile(context.Context, *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error)
 	// ListPasskeys returns your passkeys, oldest first.
 	ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error)
 	// BeginAddPasskey starts adding a passkey for the address of this request.
@@ -971,6 +1012,12 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(authServiceMethods.ByName("SetStepUpPolicy")),
 		connect.WithHandlerOptions(opts...),
 	)
+	authServiceUpdateProfileHandler := connect.NewUnaryHandler(
+		AuthServiceUpdateProfileProcedure,
+		svc.UpdateProfile,
+		connect.WithSchema(authServiceMethods.ByName("UpdateProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	authServiceListPasskeysHandler := connect.NewUnaryHandler(
 		AuthServiceListPasskeysProcedure,
 		svc.ListPasskeys,
@@ -1100,6 +1147,8 @@ func NewAuthServiceHandler(svc AuthServiceHandler, opts ...connect.HandlerOption
 			authServiceGetStepUpPolicyHandler.ServeHTTP(w, r)
 		case AuthServiceSetStepUpPolicyProcedure:
 			authServiceSetStepUpPolicyHandler.ServeHTTP(w, r)
+		case AuthServiceUpdateProfileProcedure:
+			authServiceUpdateProfileHandler.ServeHTTP(w, r)
 		case AuthServiceListPasskeysProcedure:
 			authServiceListPasskeysHandler.ServeHTTP(w, r)
 		case AuthServiceBeginAddPasskeyProcedure:
@@ -1215,6 +1264,10 @@ func (UnimplementedAuthServiceHandler) GetStepUpPolicy(context.Context, *connect
 
 func (UnimplementedAuthServiceHandler) SetStepUpPolicy(context.Context, *connect.Request[v1.SetStepUpPolicyRequest]) (*connect.Response[v1.SetStepUpPolicyResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.SetStepUpPolicy is not implemented"))
+}
+
+func (UnimplementedAuthServiceHandler) UpdateProfile(context.Context, *connect.Request[v1.UpdateProfileRequest]) (*connect.Response[v1.UpdateProfileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AuthService.UpdateProfile is not implemented"))
 }
 
 func (UnimplementedAuthServiceHandler) ListPasskeys(context.Context, *connect.Request[v1.ListPasskeysRequest]) (*connect.Response[v1.ListPasskeysResponse], error) {

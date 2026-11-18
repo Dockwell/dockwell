@@ -163,6 +163,7 @@ export function TokensPage() {
         {body}
       </section>
       <CreateToken
+        taken={list.map((token) => token.name)}
         onCreated={(m) => {
           setMade(m);
           void tokens.refetch();
@@ -170,6 +171,22 @@ export function TokensPage() {
       />
     </Page>
   );
+}
+
+/**
+ * A new token's name to start from: the day it's made, as "Token of 18 Nov", with a
+ * number after where one of yours has it already.
+ */
+function useSuggestedName(taken: readonly string[]): string {
+  const { t, i18n } = useLingui();
+  const now = useControlPlaneNow();
+  const day = formatDay(new Date(now), i18n.locale);
+  const base = t`Token of ${day}`;
+  if (!taken.includes(base)) return base;
+  for (let n = 2; ; n++) {
+    const next = `${base} (${n})`;
+    if (!taken.includes(next)) return next;
+  }
 }
 
 /** True for a token that stops working within ms of now. */
@@ -193,7 +210,9 @@ function Scopes({ token }: { token: Token }) {
       <Tag label="read" value="*" />
       {token.scope === TokenScope.READ_WRITE ? <Tag label="write" value="undoable" /> : null}
       {token.grants.includes(TokenGrant.LOGS) ? <Tag label="logs" value="read" /> : null}
-      <Tag label="in" value={where} />
+      <span className="tokens-tag-where" title={where}>
+        <Tag label="in" value={where} />
+      </span>
       {token.role === TokenRole.DEVELOPER ? <Tag label="as" value="developer" /> : null}
       {token.role === TokenRole.VIEWER ? <Tag label="as" value="viewer" /> : null}
     </span>
@@ -284,14 +303,15 @@ function TokensTable({
   const { t } = useLingui();
   const columns: TableColumn<Token>[] = [
     { key: "name", header: t`Token`, render: (token) => <TokenName token={token} isNew={token.id === newId} /> },
-    { key: "scopes", header: t`Scopes`, width: 272, render: (token) => <Scopes token={token} /> },
+    // Scopes wrap, so the name takes what's left over (#801's review, L5).
+    { key: "scopes", header: t`Scopes`, width: 200, render: (token) => <Scopes token={token} /> },
     { key: "created", header: t`Created`, width: 96, render: (token) => <Created token={token} /> },
-    { key: "used", header: t`Last used`, width: 128, render: (token) => <LastUsed token={token} now={now} /> },
+    { key: "used", header: t`Last used`, width: 112, render: (token) => <LastUsed token={token} now={now} /> },
     { key: "expires", header: t`Expires`, width: 148, render: (token) => <Expires token={token} now={now} /> },
     {
       key: "act",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 144,
+      width: 136,
       align: "right",
       render: (token) => <RevokeButton token={token} onRevoked={onRevoked} />,
     },
@@ -431,29 +451,28 @@ function NewToken({ made, onDone }: { made: Made; onDone: () => void }) {
 }
 
 /** Names the token, picks what it may do and when it stops, and makes it, which your passkey confirms. */
-function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
+function CreateToken({ onCreated, taken }: { onCreated: (made: Made) => void; taken: readonly string[] }) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
   const formId = useId();
-  const [name, setName] = useState("");
+  // A name to start from, which says when it was made, so Create token works as it
+  // opens; a person types over it with what will use the token (#801).
+  const suggested = useSuggestedName(taken);
+  const [typed, setName] = useState<string>();
+  const name = typed ?? suggested;
   const [writes, setWrites] = useState(false);
   const [readsLogs, setReadsLogs] = useState(false);
   const [expiry, setExpiry] = useState<Expiry>("90");
   const [projects, setProjects] = useState<readonly string[]>([]);
   const [role, setRole] = useState<TokenRole>(TokenRole.UNSPECIFIED);
-  const [nameError, setNameError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
 
   const create = async (event: FormEvent) => {
     event.preventDefault();
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setNameError(t`Name the token after what will use it, such as GitHub Actions deploy.`);
-      return;
-    }
-    setNameError(undefined);
+    // Cleared, it takes the name it started with, rather than stop at an error.
+    const trimmed = name.trim() || suggested;
     setBusy(true);
     setProblem(undefined);
     try {
@@ -478,7 +497,7 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
         hint: res.token?.hint ?? "",
         expires: res.token?.expireTime ? timestampDate(res.token.expireTime) : undefined,
       });
-      setName("");
+      setName(undefined);
       setWrites(false);
       setReadsLogs(false);
       setExpiry("90");
@@ -522,7 +541,6 @@ function CreateToken({ onCreated }: { onCreated: (made: Made) => void }) {
             placeholder={t`What will use this token?`}
             value={name}
             maxLength={MAX_NAME}
-            error={nameError}
             onChange={(e) => setName(e.target.value)}
           />
           <SelectField

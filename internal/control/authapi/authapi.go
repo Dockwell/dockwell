@@ -36,15 +36,20 @@ type Config struct {
 	// ClaimCommand prints a new claim link on the control server, such as
 	// "sudo dockwell claim". Empty leaves the panel to say "dockwell claim".
 	ClaimCommand string
+	// RecoverCommand prints a one-time sign-in link on the control server, such
+	// as "sudo dockwell recover", for the owner. GetAuthState adds --user for
+	// anyone else. Empty leaves it "dockwell recover" (#801).
+	RecoverCommand string
 }
 
 // Handler implements AuthService.
 type Handler struct {
-	auth          *auth.Service
-	logger        *slog.Logger
-	controlServer func() *dockwellv1.Server
-	publicAddress string
-	claimCommand  string
+	auth           *auth.Service
+	logger         *slog.Logger
+	controlServer  func() *dockwellv1.Server
+	publicAddress  string
+	claimCommand   string
+	recoverCommand string
 }
 
 var _ dockwellv1connect.AuthServiceHandler = (*Handler)(nil)
@@ -54,7 +59,7 @@ func New(cfg Config) *Handler {
 	if cfg.ControlServer == nil {
 		cfg.ControlServer = func() *dockwellv1.Server { return nil }
 	}
-	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress, claimCommand: cfg.ClaimCommand}
+	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress, claimCommand: cfg.ClaimCommand, recoverCommand: cfg.RecoverCommand}
 }
 
 func (h *Handler) client(ctx context.Context) (auth.Client, error) {
@@ -120,6 +125,10 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.User = userProto(p.User)
 		msg.SessionId = p.Session.ID
 		msg.SignInMethod = methodProto(p.Session.Method)
+		// Their own way back in, never anyone else's, and only from a session (#801).
+		if claimed && p.Token == nil && p.Session.ID != "" {
+			msg.RecoverCommand = h.recoverFor(p.User)
+		}
 		// What they hold, for the panel to offer only what they may do (ADR 0059).
 		grants, err := h.auth.Grants(ctx, p)
 		if err != nil {
@@ -435,6 +444,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:                    auth.StepUpSetPolicy,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR:                     auth.StepUpSetFloor,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_LINK_PROVIDER:                         auth.StepUpLinkProvider,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CHANGE_EMAIL:                          auth.StepUpChangeEmail,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE:                  auth.StepUpRevealServiceValue,
 }
 
@@ -466,6 +476,23 @@ func (h *Handler) SetStepUpPolicy(ctx context.Context, req *connect.Request[dock
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.SetStepUpPolicyResponse{Choice: stepUpChoiceProto(c)}), nil
+}
+
+// UpdateProfile changes the caller's own name or email (#801).
+func (h *Handler) UpdateProfile(ctx context.Context, req *connect.Request[dockwellv1.UpdateProfileRequest]) (*connect.Response[dockwellv1.UpdateProfileResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	u, err := h.auth.UpdateProfile(ctx, client, p, req.Msg.Name, req.Msg.Email, req.Msg.GetProof())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.UpdateProfileResponse{User: userProto(u)}), nil
 }
 
 // StepUpPolicyProto is a choice of how often a passkey is asked for, as the API
@@ -908,6 +935,9 @@ func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
 		{auth.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
 		{auth.ErrNotFound, connect.CodeNotFound, "not_found"},
 		{auth.ErrMemberExists, connect.CodeAlreadyExists, "member_exists"},
+		{auth.ErrEmailInvited, connect.CodeAlreadyExists, "email_invited"},
+		{auth.ErrEmailLookalike, connect.CodeAlreadyExists, "email_lookalike"},
+		{auth.ErrNameTaken, connect.CodeAlreadyExists, "name_taken"},
 		{auth.ErrOnYourself, connect.CodeFailedPrecondition, "on_yourself"},
 		{auth.ErrTheOwner, connect.CodeFailedPrecondition, "the_owner"},
 		{auth.ErrLastGrant, connect.CodeFailedPrecondition, "last_grant"},
@@ -982,4 +1012,26 @@ func passkeyProto(pk *auth.Passkey) *dockwellv1.Passkey {
 		out.LastUsedTime = timestamppb.New(*pk.LastUsedAt)
 	}
 	return out
+}
+
+// recoverFor is the command that prints a one-time sign-in link for u: the
+// control server's as it runs, which signs in as the owner, with --user and u's
+// email for anyone else (#801).
+func (h *Handler) recoverFor(u store.User) string {
+	command := h.recoverCommand
+	if command == "" {
+		command = "dockwell recover"
+	}
+	if u.Role == store.RoleOwner {
+		return command
+	}
+	return command + " --user " + shellWord(u.Email)
+}
+
+// shellWord quotes s for a POSIX shell when it needs it, as an email may.
+func shellWord(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+:@") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

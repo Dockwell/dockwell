@@ -1,4 +1,6 @@
 [
+  "account.email",
+  "account.name",
   "alert.acknowledge",
   "alert.firing",
   "alert.mute",

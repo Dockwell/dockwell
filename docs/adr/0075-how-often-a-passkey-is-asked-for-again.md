@@ -38,16 +38,17 @@ Each person chooses, in Profile and security, how often their passkey is asked f
 
 Each of these needs a proof just now, for itself, as before:
 
-- **Changing how you sign in:** adding or removing a passkey, setting up or turning off codes, and making new recovery codes. Otherwise a stolen session makes itself a way back in, and every later check passes with it.
+- **Changing how you sign in:** adding or removing a passkey, setting up or turning off codes, making new recovery codes, and linking an account at a sign-in provider (`STEP_UP_ACTION_LINK_PROVIDER`, [ADR 0095](0095-signing-in-to-the-panel-with-a-provider.md)). Otherwise a stolen session makes itself a way back in, and every later check passes with it.
 - **Changing the choice, or the install's floor** (`STEP_UP_ACTION_SET_STEP_UP_FLOOR`, 241). Otherwise a stolen session loosens its own checks first.
 - **Transferring ownership** (`STEP_UP_ACTION_TRANSFER_OWNERSHIP`, 113, [ADR 0049](0049-roles-and-invites-by-project.md)). Otherwise the owner's session, stolen within its hour, gives the install away for good, as only the new owner can undo it. Changing a role and removing someone follow the choice, as inviting does.
 - **Approving someone else's change in a protected environment** (`STEP_UP_ACTION_APPROVE_CHANGE`, 114), which includes a change a narrowed token planned ([ADR 0071](0071-api-tokens-narrowed-to-projects-and-a-role.md)). The approval is the point of protection, and it's bound to the plan's fingerprint.
+- **Changing your own email** (`STEP_UP_ACTION_CHANGE_EMAIL`, 115, #801), bound to the new email. The email names you for code sign-in and `dockwell recover`, so a stolen session would otherwise move those to an address of its own. A name changes with no passkey.
 
 Profile says so in one line beside the choice.
 
 ### An install-wide floor
 
-The owner sets the least anyone may choose, in Settings → Security (`Settings.step_up_floor`, `SettingsService.SetStepUpFloor`): any of the three (the default, as a solo owner is the common case), at least once an hour, or each time.
+The owner sets the least anyone may choose, in Settings → Sign-in policy (`Settings.step_up_floor`, `SettingsService.SetStepUpFloor`): any of the three (the default, as a solo owner is the common case), at least once an hour, or each time.
 
 - **What applies is the stricter** of a person's choice and the floor. A choice below a floor raised later reads as the floor, and Profile says the install asks at least that, with who sets it.
 - **Choosing below the floor is refused** (`below_floor`), and the panel offers those choices off, with why (ADR 0059).

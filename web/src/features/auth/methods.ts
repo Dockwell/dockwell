@@ -69,6 +69,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "AuthService.signInWithLink": "open",
   "AuthService.signOut": "open",
   "AuthService.unlockCodeSignIn": "open",
+  "AuthService.updateProfile": "open",
 
   "BackupService.createBackup": "may",
   "BackupService.deleteBackup": "may",

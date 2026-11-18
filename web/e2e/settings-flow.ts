@@ -64,7 +64,9 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.goto(`${origin}/settings/general`);
   await page.getByRole("heading", { level: 1, name: "General" }).waitFor();
 
-  step("settings: Control plane says what runs it, where its state is, and how to back it up and upgrade it");
+  step(
+    "settings: Control plane says what runs it, where its state is, and the commands that back it up and upgrade it",
+  );
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Control plane" }).click();
   await page.getByRole("heading", { level: 1, name: "Control plane" }).waitFor();
   const store = page.getByRole("region", { name: "State store" });
@@ -73,10 +75,11 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   // Started by hand, as here, nothing it could name would stop it, so it says to, and only copies.
   const backups = page.getByRole("region", { name: "Backups" });
   await backups.getByText(/^None: Dockwell doesn't back itself up yet/).waitFor();
-  // How to copy it by hand is a step away.
-  await backups.getByRole("button", { name: /^Back it up by hand/ }).click();
+  // The command, with Copy, and one line: no disclosure, no prose (#801).
   await backups.getByText(/--exclude 'control\/key\*' -czf \/root\/dockwell-control\.tgz control agent &&/).waitFor();
-  await backups.getByText(/run this as root, then start it again/).waitFor();
+  await backups.getByText("As root, with dockwell run stopped").waitFor();
+  await backups.getByText("Then move both files off this server, each to a place of its own").waitFor();
+  await page.getByRole("region", { name: "Updates" }).getByText("Over SSH, to update to the newest release").waitFor();
   await page
     .getByRole("region", { name: "Updates" })
     .getByText(/ runs here$/)
@@ -110,7 +113,47 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("button", { name: "Invite someone" }).click();
   await page.getByText("Invites need the panel's domain", { exact: true }).waitFor();
   await page.getByRole("region", { name: "What each role can do" }).waitFor();
+  // How you sign in is on Profile and security, not here (#801).
+  if (await page.getByRole("region", { name: "How you sign in" }).count()) fail("Members still says how you sign in");
   await shoot(page, "settings-members-invite");
+
+  step("settings: the install's passkey policy is Sign-in policy, and Profile says who you are first (#801)");
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Sign-in policy" }).click();
+  await page.getByRole("heading", { level: 1, name: "Sign-in policy" }).waitFor();
+  await page.getByText("Everyone confirms at least once an hour.").waitFor();
+  await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Profile and security" }).click();
+  const account = page.getByRole("region", { name: "Account" });
+  await account.waitFor();
+  await account.getByText(/ on the control server$/).waitFor();
+  await page
+    .getByRole("region", { name: "API tokens" })
+    .getByText(/act(s)? for you|None yet/)
+    .waitFor();
+
+  step("settings: Profile changes your name with no passkey and your email with one, then back (#801)");
+  const nameField = account.getByRole("textbox", { name: "Name" });
+  const emailField = account.getByRole("textbox", { name: "Email" });
+  const save = account.getByRole("button", { name: "Save" });
+  const saved = account.getByText("Saved", { exact: true });
+  const was = { name: await nameField.inputValue(), email: await emailField.inputValue() };
+  if (!(await save.isDisabled())) fail("Save is on before anything changed");
+  await nameField.fill("Mira Okafor");
+  await save.click();
+  await saved.waitFor();
+  await account.locator(".profile-account-name", { hasText: "Mira Okafor" }).waitFor();
+  // The virtual passkey confirms the new email.
+  await emailField.fill("Mira.Okafor@example.com");
+  await save.click();
+  await saved.waitFor();
+  if ((await emailField.inputValue()) !== "mira.okafor@example.com") {
+    fail(`the email reads ${await emailField.inputValue()} after saving`);
+  }
+  // As it was, for the flows after this one, which sign in by it.
+  await nameField.fill(was.name);
+  await emailField.fill(was.email);
+  await save.click();
+  await saved.waitFor();
+  await account.locator(".profile-account-name", { hasText: was.name }).waitFor();
 
   step("settings: the audit log lists every event, narrows to an action, and saves what it keeps as CSV");
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Audit log" }).click();
@@ -128,6 +171,20 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("textbox", { name: "Filter events" }).fill("owner.claim");
   await log.getByRole("cell", { name: "owner.claim", exact: true }).waitFor();
   await page.getByText("1 event, all there is.", { exact: true }).waitFor();
+  // Changing your name and email, each with what it was and what it is (#801).
+  await page.getByRole("textbox", { name: "Filter events" }).fill("account.");
+  await log
+    .getByRole("row")
+    .filter({ hasText: "account.email" })
+    .filter({ hasText: "Changed their email" })
+    .first()
+    .waitFor();
+  await log
+    .getByRole("row")
+    .filter({ hasText: "account.name" })
+    .filter({ hasText: "Changed their name" })
+    .first()
+    .waitFor();
   // What this flow did, which the newest page has whatever came before.
   await page.getByRole("textbox", { name: "Filter events" }).fill("settings.");
   await log.getByRole("cell", { name: "settings.time_zone", exact: true }).first().waitFor();

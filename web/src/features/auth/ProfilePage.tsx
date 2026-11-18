@@ -13,6 +13,7 @@ import { passkeysAvailable } from "../../lib/webauthn";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { TokensPointer } from "../settings/TokensPointer";
 import { Page } from "../shell/Page";
+import { AccountPanel } from "./AccountPanel";
 import { AddPasskeyHere } from "./AddPasskeyHere";
 import { useAuthError } from "./messages";
 import { PasskeysPanel, useAddPasskey } from "./PasskeysPanel";
@@ -40,6 +41,7 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
   const signOut = useSignOut();
   const how = useSignedInWith(auth?.signInMethod ?? SignInMethod.UNSPECIFIED);
   const user = auth?.user;
+  const calloutAdds = useCalloutAdds(via, auth?.rpId ?? "");
 
   return (
     <Page
@@ -64,8 +66,10 @@ export function ProfilePage({ via }: { via?: ProfileVia }) {
           Read in order, they're the order on a phone, with Preferences first, where the mock has it. */}
       <div className="profile-grid">
         <div className="profile-stack">
+          <AccountPanel />
           <PreferencesPanel />
-          <PasskeysPanel rpId={auth?.rpId ?? ""} />
+          {/* One Add passkey on the page: the callout's, where it offers one (#801). */}
+          <PasskeysPanel rpId={auth?.rpId ?? ""} addElsewhere={calloutAdds} />
           <ProviderLinksPanel providers={auth?.providers ?? []} />
           <StepUpPanel />
         </div>
@@ -98,6 +102,22 @@ function useSignedInWith(method: SignInMethod): string {
     default:
       return "";
   }
+}
+
+/**
+ * Whether the callout ProfileCallout shows offers Add passkey, as it reads the same
+ * passkeys and authenticator app: then the Passkeys panel doesn't offer it too.
+ */
+function useCalloutAdds(via: ProfileVia | undefined, rpId: string): boolean {
+  const passkeys = useQuery(AuthService.method.listPasskeys, {});
+  const totp = useQuery(AuthService.method.getTotp, {});
+  if (!passkeys.data || !totp.data || !rpId || !passkeysAvailable()) return false;
+  const state = totp.data.totp;
+  if (state?.lockTime || via === "recovery-code") return false;
+  if (via === "link") return true;
+  const usable = passkeys.data.passkeys.filter((p) => !p.suspectedCopy);
+  if (!usable.some((p) => p.rpId === rpId)) return true;
+  return usable.length + (state?.enabled ? 1 : 0) < 2;
 }
 
 /** At most one callout: the most pressing thing to do on this page. */

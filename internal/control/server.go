@@ -194,6 +194,10 @@ type Config struct {
 	// there, such as "sudo dockwell claim", for the panel to show while the
 	// install has no owner.
 	ClaimCommand string
+	// RecoverCommand prints a one-time sign-in link on the control server, as
+	// ClaimCommand does a claim link, for the panel to show someone signed in as
+	// their way back in (#801).
+	RecoverCommand string
 	// Changes is the revision engine, which ChangeService serves, and
 	// Agents how it reaches each server's agent over its stream. Store is
 	// the state they read. Without Changes there is no ChangeService.
@@ -594,7 +598,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			controlServer = cfg.Fleet.ControlServer
 		}
 		h := authapi.New(authapi.Config{
-			Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress, ClaimCommand: cfg.ClaimCommand,
+			Auth: cfg.Auth, Logger: cfg.Logger, ControlServer: controlServer, PublicAddress: cfg.PublicAddress, ClaimCommand: cfg.ClaimCommand, RecoverCommand: cfg.RecoverCommand,
 		})
 		handle(dockwellv1connect.NewAuthServiceHandler(h, opts...))
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
