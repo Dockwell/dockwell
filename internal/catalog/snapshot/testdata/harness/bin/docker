@@ -4,6 +4,9 @@
 # dockwell runs: a file each in $FAKE_STATE/containers, of key=value lines. A label
 # filter matches its value exactly, as Docker's does, an empty one included. Its
 # ports are port=<in the container>:<on this server> lines, in the entry's order.
+# While a change the fake dockwell makes of its own applies, a container reads
+# unhealthy, as one it stops to start again does; after it, one with a starting=<n>
+# line reads starting for its next n looks, then its health (#853).
 set -euo pipefail
 S=$FAKE_STATE/containers
 mkdir -p "$S"
@@ -35,7 +38,15 @@ inspect)
   fmt=$3 n=$4
   case "$fmt" in
   '{{.Config.Image}}') get "$n" image ;;
-  *State.Health*) get "$n" health ;;
+  *State.Health*)
+    left=$(get "$n" starting)
+    if (($(cat "$FAKE_STATE/busy" 2>/dev/null || echo 0) > 0)); then
+      echo unhealthy
+    elif ((${left:-0} > 0)); then
+      sed -i "s/^starting=.*/starting=$((left - 1))/" "$S/$n" && echo starting
+    else
+      get "$n" health
+    fi ;;
   '{{json .HostConfig.PortBindings}}')
     get "$n" port | jq -Rnc '[inputs | split(":") | {key: (.[0] + "/tcp"), value: [{HostIp: (if .[2] == "all" then "" else "127.0.0.1" end), HostPort: .[1]}]}] | from_entries' ;;
   *com.docker.compose.service*) get "$n" service ;;

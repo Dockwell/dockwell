@@ -12,7 +12,12 @@
 # x-fake: refused does both, as a tunnel its far end refuses does. A change whose
 # container reads unhealthy fails, as Dockwell's verify fails it. A companion runs
 # only where its entry turns it on, or the install's --companions <service>=true
-# does, as Dockwell's install leaves one out unless asked (ADR 0076).
+# does, as Dockwell's install leaves one out unless asked (ADR 0076). A change it
+# makes of its own, as Dockwell's taking an owner's first password out once the
+# owner is made: $FAKE_STATE/busy says for how many more lists of changes it reads
+# applying, and $FAKE_STATE/busy-next becomes it at the next read of the installs, a
+# moment after a check. Planning an upgrade or a removal meanwhile is refused as busy
+# (#853).
 set -euo pipefail
 S=$FAKE_STATE
 mkdir -p "$S/changes" "$S/installs" "$S/containers"
@@ -30,6 +35,10 @@ entry_file() {
   echo "$cat_dir/$1.yaml"
 }
 new_change() { echo "chg_$(($(find "$S/changes" -type f | wc -l) + 1))"; }
+busy() { (($(cat "$S/busy" 2>/dev/null || echo 0) > 0)); }
+refuse_busy() {
+  ! busy || { echo "dockwell: another change is applying on this app (busy). Try again once it ends" >&2 && exit 1; }
+}
 planned() {
   jq -nc --arg c "$1" --arg p "$2" '{change: {id: $c, state: "CHANGE_STATE_PLANNED", plan: {fingerprint: "f", destructive: false, hostAccess: false,
     notes: [], servers: [{steps: []}], resources: [{resource: {kind: "project", name: $p}}, {resource: {kind: "service", name: "app", scope: ($p + "-production")}}]}}}'
@@ -106,10 +115,12 @@ case "$1 ${2:-}" in
   jq -nc --arg p "$id" --argjson v "$values" --argjson off "$off" --slurpfile e "$file" '{kind: "install", project: $p, values: $v, off: $off, entry: $e[0]}' >"$S/changes/$c"
   planned "$c" "$id" ;;
 "catalog upgrade")
+  refuse_busy
   p=$3 c=$(new_change) file=$(entry_file "$3")
   jq -nc --arg p "$p" --slurpfile e "$file" '{kind: "upgrade", project: $p, entry: $e[0]}' >"$S/changes/$c"
   planned "$c" "$p" | jq -c '.change.plan.resources = []' ;;
 "catalog installs")
+  [[ ! -f "$S/busy-next" ]] || mv "$S/busy-next" "$S/busy"
   for f in "$S/installs"/*.json; do
     [[ -f "$f" ]] || continue
     now=$(jq -r .version "$cat_dir/$(jq -r .project "$f").yaml" 2>/dev/null || true)
@@ -141,11 +152,19 @@ case "$1 ${2:-}" in
   echo "$3" >>"$S/read-back"
   jq -c --arg c "$3" '{change: {id: $c, state: (if .applied then "CHANGE_STATE_APPLIED" elif .failed then "CHANGE_STATE_FAILED" else "CHANGE_STATE_PLANNED" end), plan: {fingerprint: "f", destructive: false, hostAccess: false, resources: []}}}' "$S/changes/$3" ;;
 "changes propose")
+  refuse_busy
   c=$(new_change) p=""
   for a in "$@"; do [[ "$a" != *'"kind":"project"'* ]] || p=$(jq -r .resource.name <<<"$a"); done
   jq -nc --arg p "$p" '{kind: "remove", project: $p}' >"$S/changes/$c"
   jq -nc --arg c "$c" '{change: {id: $c}}' ;;
-"changes list" | "events list" | "services list") echo '{}' ;;
+"changes list")
+  if busy; then
+    echo $(($(<"$S/busy") - 1)) >"$S/busy"
+    echo '{"changes":[{"id":"chg_own","summary":"Settle its owner","state":"CHANGE_STATE_APPLYING"}]}'
+  else
+    echo '{}'
+  fi ;;
+"events list" | "services list") echo '{}' ;;
 "compose export") echo "services: {}" ;;
 "resources list") echo '{"resources":[]}' ;;
 *) echo "fake dockwell: $*" >&2 && exit 1 ;;
