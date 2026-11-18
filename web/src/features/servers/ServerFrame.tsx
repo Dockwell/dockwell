@@ -12,13 +12,14 @@ import {
 } from "@dockwell/api";
 import { TabNav, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Fragment, type ReactNode } from "react";
 
 import { RouterTabLink } from "../../lib/links";
 import { useMay } from "../auth/may";
 import { useOnePanelHere } from "../import/onePanelHere";
 import { usePanelOn } from "../import/StopPanel";
+import { usePageCommands } from "../shell/CommandMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page, type PageProps } from "../shell/Page";
 import { summarize, useServerUpdates } from "../updates/updates";
@@ -128,6 +129,42 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
           </Fragment>
         ))
       : undefined;
+  // The command bar offers this server's places first (#795), as its tabs do, where the reader may go.
+  const navigate = useNavigate();
+  const name = server.name;
+  const serverId = server.id;
+  usePageCommands([
+    ...(may(TerminalService.method.listTerminals).allowed
+      ? [
+          {
+            id: "terminal",
+            icon: "terminal" as const,
+            label: t`Open a terminal on ${name}`,
+            run: () => void navigate({ to: "/servers/$serverId/terminal", params: { serverId } }),
+          },
+        ]
+      : []),
+    ...(may(FileService.method.listFiles).allowed
+      ? [
+          {
+            id: "files",
+            icon: "folder" as const,
+            label: t`Browse the files on ${name}`,
+            run: () => void navigate({ to: "/servers/$serverId/files", params: { serverId } }),
+          },
+        ]
+      : []),
+    ...(may(ProcessService.method.watchProcesses).allowed
+      ? [
+          {
+            id: "processes",
+            icon: "gauge" as const,
+            label: t`Show the processes on ${name}`,
+            run: () => void navigate({ to: "/servers/$serverId/processes", params: { serverId } }),
+          },
+        ]
+      : []),
+  ]);
   return (
     <ServerFramePage
       title={server.name}

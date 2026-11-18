@@ -22,6 +22,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -89,7 +90,6 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
   return (
     <ServerFrame
       id={serverId}
-      noTabs={phone}
       phoneHead={
         phone
           ? {
@@ -169,6 +169,23 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const [ctrl, setCtrl] = useState(false);
   const [phoneFont, setPhoneFont] = useState(readTextSize);
   const visible = useVisibleHeight();
+  // On a phone the server's tabs stay above it, so the way to its other pages is a tap
+  // away (#795): it fills what's below where it starts.
+  const layout = useRef<HTMLDivElement>(null);
+  const [top, setTop] = useState<number>();
+  const measure = useCallback(() => {
+    const el = layout.current;
+    if (el) setTop(Math.round(el.getBoundingClientRect().top + window.scrollY));
+  }, []);
+  // After each render, as a note above it may come or go; the same number renders nothing again.
+  useLayoutEffect(() => {
+    if (phone) measure();
+  });
+  useEffect(() => {
+    if (!phone) return;
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [phone, measure]);
   const merged = useRef(false);
 
   // The tabs come back from what the control plane lists once it has answered since the page
@@ -442,8 +459,16 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   // terminal where it is, with its scrollback and what's typed that hasn't gone.
   return (
     <div
+      ref={layout}
       className={phone ? "terminal-layout terminal-phone" : "terminal-layout"}
-      style={phone && visible ? ({ "--visible-height": `${visible}px` } as CSSProperties) : undefined}
+      style={
+        phone
+          ? ({
+              ...(visible ? { "--visible-height": `${visible}px` } : {}),
+              ...(top !== undefined ? { "--terminal-top": `${top}px` } : {}),
+            } as CSSProperties)
+          : undefined
+      }
     >
       {askingCallout}
       {problemCallout}

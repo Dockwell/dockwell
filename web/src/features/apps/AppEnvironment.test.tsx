@@ -334,15 +334,43 @@ describe("editing an app's environment", () => {
     expect(within(changing).getByRole("button", { name: "Change" })).toBeEnabled();
   });
 
-  it("lays its rows out for a phone, and keeps the bar's buttons in reach", async () => {
+  it("stacks each on a phone with its actions one menu, the header's three in another, and keeps the bar's buttons in reach (#795)", async () => {
     onPhone();
     const user = userEvent.setup();
     const { container } = renderAt("/apps/svc_web/environment", api(anEditedApp()));
     await ready();
     await add(user, "A", "1");
     expect(within(bar()).getByRole("button", { name: /Review plan/ })).toBeVisible();
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Key", "Actions"]);
+    // What's pending goes back with one tap, as it's the one thing to do with it.
+    expect(screen.getByRole("button", { name: "Revert A" })).toBeVisible();
+    const list = screen.getByRole("list", { name: "Environment variables of web" });
+    expect(screen.queryByRole("columnheader")).toBeNull();
+    const own = within(list)
+      .getAllByRole("listitem")
+      .find((row) => row.textContent?.startsWith("·OWN"));
+    if (!own) throw new Error("no row for OWN");
+    await user.click(within(own).getByRole("button", { name: "Actions for OWN" }));
+    const menu = within(own).getByRole("menu", { name: "Actions for OWN" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Change", "Make it a secret", "Remove"]);
     await expectAccessible(container);
+    await user.click(within(menu).getByRole("menuitem", { name: "Change" }));
+    expect(screen.getByRole("form", { name: "Change OWN" })).toBeVisible();
+    expect(screen.queryByRole("menu")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Import or connect" }));
+    const ways = screen.getByRole("menu", { name: "Import or connect" });
+    expect(
+      within(ways)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Import .env", "Connect a database", "Connect storage"]);
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("button", { name: "Import or connect" })).toHaveFocus();
   });
 });
 

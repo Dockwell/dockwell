@@ -17,7 +17,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useApps } from "../apps/useServices";
@@ -660,6 +660,64 @@ function useRunsByServer(): Map<string, string> {
   }, [services.data]);
 }
 
+/** One section of the phone's list: a heading, how many, and a row for each server, its status and why. */
+function PhoneList({
+  id,
+  heading,
+  servers,
+  byId,
+  chosen,
+  select,
+}: {
+  id: string;
+  heading: ReactNode;
+  servers: readonly Server[];
+  byId: ReadonlyMap<string, FleetServer>;
+  chosen: string | undefined;
+  select: (id: string) => void;
+}) {
+  const strings = useUIStrings();
+  return (
+    <section className="servers-phone-section" aria-labelledby={id}>
+      <div className="servers-phone-head">
+        <h2 className="dw-text-heading" id={id}>
+          {heading}
+        </h2>
+        <span>{strings.fleetGrid.servers(servers.length)}</span>
+      </div>
+      <ul className="dw-panel servers-phone-list">
+        {servers.map((s) => {
+          const status = byId.get(s.id)?.status ?? serverStatus(s);
+          const why = byId.get(s.id)?.note;
+          return (
+            <li key={s.id}>
+              <button
+                type="button"
+                className={cx("servers-phone-row", s.id === chosen && "is-chosen")}
+                aria-pressed={s.id === chosen}
+                onClick={() => select(s.id)}
+              >
+                <StatusBadge status={status} label="" />
+                <span className="servers-phone-text">
+                  <span className="servers-phone-name">{s.name}</span>
+                  <span className="servers-phone-sub">
+                    <span
+                      className={cx("servers-phone-word", status !== "healthy" && `dw-tone-${STATUS[status].tone}`)}
+                    >
+                      {strings.status[status]}
+                    </span>
+                    {why ? <span> · {why}</span> : null}
+                  </span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * On a phone: the tiles, the servers that need attention (or every server, when
  * none does), and the one chosen, above the tab bar, with the way to its page.
@@ -670,8 +728,10 @@ function PhoneServers({ servers, chosen, select, unknown, groups, groupKey }: Li
   const tiles = useServerTiles(servers, unknown);
   const tileGroups = useTileGroups(tiles, groups, groupKey);
   const attention = servers.filter(needsLook);
-  const listed = attention.length > 0 ? attention : servers;
+  // Those that need a look come first, and then every other by name, so each is a tap away (#795).
+  const others = servers.filter((s) => !needsLook(s));
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
+  const row = { byId, chosen: chosen?.id, select };
   const tile = chosen ? byId.get(chosen.id) : undefined;
   const cpuWords = (cpu: number) => t`CPU ${cpu}%`;
   return (
@@ -688,43 +748,17 @@ function PhoneServers({ servers, chosen, select, unknown, groups, groupKey }: Li
           />
         </section>
       ) : null}
-      <section className="servers-phone-section" aria-labelledby="servers-phone-heading">
-        <div className="servers-phone-head">
-          <h2 className="dw-text-heading" id="servers-phone-heading">
-            {attention.length > 0 ? <Trans>Needs attention</Trans> : <Trans>Every server</Trans>}
-          </h2>
-          <span>{strings.fleetGrid.servers(listed.length)}</span>
-        </div>
-        <ul className="dw-panel servers-phone-list">
-          {listed.map((s) => {
-            const status = byId.get(s.id)?.status ?? serverStatus(s);
-            const why = byId.get(s.id)?.note;
-            return (
-              <li key={s.id}>
-                <button
-                  type="button"
-                  className={cx("servers-phone-row", s.id === chosen?.id && "is-chosen")}
-                  aria-pressed={s.id === chosen?.id}
-                  onClick={() => select(s.id)}
-                >
-                  <StatusBadge status={status} label="" />
-                  <span className="servers-phone-text">
-                    <span className="servers-phone-name">{s.name}</span>
-                    <span className="servers-phone-sub">
-                      <span
-                        className={cx("servers-phone-word", status !== "healthy" && `dw-tone-${STATUS[status].tone}`)}
-                      >
-                        {strings.status[status]}
-                      </span>
-                      {why ? <span> · {why}</span> : null}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+      {attention.length > 0 ? (
+        <PhoneList id="servers-phone-heading" heading={<Trans>Needs attention</Trans>} servers={attention} {...row} />
+      ) : null}
+      {others.length > 0 ? (
+        <PhoneList
+          id="servers-phone-others"
+          heading={attention.length > 0 ? <Trans>Every other server</Trans> : <Trans>Every server</Trans>}
+          servers={others}
+          {...row}
+        />
+      ) : null}
       {chosen && tile ? (
         <section className="servers-phone-chosen" aria-label={t`Chosen server`}>
           <div className="servers-phone-chosen-text">

@@ -66,6 +66,9 @@ export function MembersPage() {
   const withPasskeys = members.filter((m) => m.signIn.includes(SignInKind.PASSKEY)).length;
   const solo = count <= 1 && invites.length === 0;
   const [inviting, setInviting] = useState(false);
+  const mayInvite = useMay()(MemberService.method.createInvite).allowed;
+  // Before anyone else signs in, Invite someone opens the form, from a phone's header too (#795).
+  const offersInvite = solo && !inviting && list.data !== undefined;
 
   let people: ReactNode;
   if (list.error && !list.data) {
@@ -124,10 +127,23 @@ export function MembersPage() {
       lead={lead}
       back="/settings"
       actions={
-        solo && !inviting && list.data ? (
+        offersInvite ? (
           <Button icon="plus" onClick={() => setInviting(true)}>
             <Trans>Invite someone</Trans>
           </Button>
+        ) : undefined
+      }
+      phoneAction={
+        // As Servers has Add server: an icon, for whoever may invite.
+        offersInvite && mayInvite ? (
+          <button
+            type="button"
+            className="mobile-header-button"
+            aria-label={t`Invite someone`}
+            onClick={() => setInviting(true)}
+          >
+            <Icon name="plus" size={20} />
+          </button>
         ) : undefined
       }
     >

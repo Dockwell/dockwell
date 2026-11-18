@@ -471,7 +471,7 @@ describe("TerminalPage", () => {
     await expectAccessible(document.body);
   });
 
-  it("takes the phone's screen under a header of its own", async () => {
+  it("takes the phone's screen under a header of its own, with the server's tabs a tap away (#795)", async () => {
     onPhone();
     const sh = shell();
     renderTerminal({
@@ -482,6 +482,9 @@ describe("TerminalPage", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Terminal" })).toBeInTheDocument();
     expect(await screen.findByText("root@hz-1 · through the agent")).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    const tabs = screen.getByRole("navigation", { name: "Server hz-1" });
+    expect(within(tabs).getByRole("link", { name: "Terminal" })).toHaveAttribute("aria-current", "page");
+    expect(within(tabs).getByRole("link", { name: "Overview" })).toBeVisible();
     await waitFor(() => expect(sh.attaches).toHaveLength(1));
   });
 });

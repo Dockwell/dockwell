@@ -2088,6 +2088,50 @@ describe("an app's overview", () => {
       ]);
     });
 
+    it("gives a domain its own line on a phone, what's said of it the next, and its actions one menu (#795)", async () => {
+      onPhone();
+      const user = userEvent.setup();
+      const edits: { resource?: { kind: string; name: string }; delete: boolean }[] = [];
+      const running = await atPage(
+        () => ({ domains: [aDomain({ certificate: certificate(CertificateState.ISSUED) })] }),
+        {
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(...(req.edits as never[]));
+              return { change: webPlanned() };
+            },
+          },
+        },
+      );
+      const name = await within(running).findByText("app.example.com");
+      // It breaks only after a dot, never inside a word of the name.
+      expect(name.querySelectorAll("wbr")).toHaveLength(2);
+      // No row of icons beside it: one button holds what it does.
+      expect(within(running).queryByRole("button", { name: "Remove app.example.com" })).toBeNull();
+      expect(within(running).queryByRole("link", { name: "Open app.example.com" })).toBeNull();
+      await user.click(within(running).getByRole("button", { name: "Actions for app.example.com" }));
+      const menu = within(running).getByRole("menu", { name: "Actions for app.example.com" });
+      expect(
+        within(menu)
+          .getAllByRole("menuitem")
+          .map((item) => item.textContent),
+      ).toEqual(["Open app.example.com", "Make it private", "Remove app.example.com"]);
+      expect(within(menu).getByRole("menuitem", { name: "Open app.example.com" })).toHaveAttribute(
+        "href",
+        expect.stringMatching(/^https:\/\/app\.example\.com\/?$/),
+      );
+      await user.click(within(menu).getByRole("menuitem", { name: "Remove app.example.com" }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits).toEqual([
+        expect.objectContaining({
+          resource: expect.objectContaining({ kind: "route", name: "app-example-com" }),
+          delete: true,
+        }),
+      ]);
+    });
+
     it("says which domain redirects to its domain, and stops it as a plan", async () => {
       const user = userEvent.setup();
       const edits: { resource?: { kind: string; name: string }; delete: boolean }[] = [];

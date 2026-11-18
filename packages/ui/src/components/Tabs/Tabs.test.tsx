@@ -155,6 +155,64 @@ describe("a tab list that doesn't fit", () => {
   });
 });
 
+describe("the chevron at the end of a list that scrolls (#795)", () => {
+  function sized(el: HTMLElement, sizes: { clientWidth: number; scrollWidth: number; scrollLeft?: number }) {
+    for (const [key, value] of Object.entries(sizes)) {
+      Object.defineProperty(el, key, { configurable: true, value });
+    }
+  }
+
+  it("shows while more is past the end, and a tap scrolls on, out of the keyboard's and a screen reader's way", async () => {
+    const { container } = render(
+      <TabNav label="App sections">
+        <TabLink href="/a">Overview</TabLink>
+        <TabLink href="/b">Settings</TabLink>
+      </TabNav>,
+    );
+    const nav = screen.getByRole("navigation", { name: "App sections" });
+    expect(container.querySelector(".dw-tabs-more")).toBeNull();
+
+    const scrollBy = vi.fn();
+    nav.scrollBy = scrollBy;
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 0 });
+    fireEvent.scroll(nav);
+    const more = container.querySelector<HTMLButtonElement>(".dw-tabs-more");
+    expect(more).not.toBeNull();
+    expect(more).toHaveAttribute("aria-hidden", "true");
+    expect(more).toHaveAttribute("tabindex", "-1");
+    expect(screen.getAllByRole("link")).toHaveLength(2);
+    if (more) fireEvent.click(more);
+    expect(scrollBy).toHaveBeenCalledWith({ left: 225, behavior: "smooth" });
+    await expectAccessible(container);
+
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 50 });
+    fireEvent.scroll(nav);
+    expect(container.querySelector(".dw-tabs-more")).not.toBeNull();
+
+    sized(nav, { clientWidth: 300, scrollWidth: 400, scrollLeft: 100 });
+    fireEvent.scroll(nav);
+    expect(container.querySelector(".dw-tabs-more")).toBeNull();
+  });
+
+  it("is there for Tabs too, and leaves the tab list's tabs as they are", async () => {
+    const { container } = render(
+      <Tabs
+        label="Views"
+        tabs={[
+          { id: "a", label: "One" },
+          { id: "b", label: "Two" },
+        ]}
+      />,
+    );
+    const list = screen.getByRole("tablist", { name: "Views" });
+    sized(list, { clientWidth: 100, scrollWidth: 400, scrollLeft: 0 });
+    fireEvent.scroll(list);
+    expect(container.querySelector(".dw-tabs-more")).not.toBeNull();
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    await expectAccessible(container);
+  });
+});
+
 describe("TabNav where its tabs don't fit", () => {
   /** A row 100 px wide, its tabs 60 px apart, and where it has scrolled to. */
   function laidOut(nav: HTMLElement) {

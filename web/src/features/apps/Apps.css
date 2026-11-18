@@ -389,6 +389,56 @@
 .app-env-phone-value {
   display: block;
   margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+/* A phone's list: each a row of its own, the key and its menu on the first line (#795). */
+.app-env-phone-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-env-phone-row {
+  padding: var(--space-2) var(--space-1) var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.app-env-phone-row:first-child {
+  border-top: 0;
+}
+
+.app-env-phone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 44px;
+  margin-bottom: -6px;
+}
+
+.app-env-phone-head .app-env-key {
+  align-items: center;
+}
+
+.app-env-phone-head .app-env-name {
+  overflow-wrap: anywhere;
+}
+
+.app-env-phone-head .app-env-actions {
+  display: flex;
+}
+
+.app-env-phone-head .app-env-act-remove {
+  width: 44px;
+  height: 44px;
+}
+
+/* Beneath the key's name, past the mark that says what's changing. */
+.app-env-phone-row .app-env-phone-value,
+.app-env-phone-row .app-env-source {
+  padding-right: var(--space-3);
+  padding-left: calc(10px + var(--space-2));
 }
 
 .app-env-empty {
@@ -2472,6 +2522,18 @@
   .app-reach-open {
     width: 44px;
     height: 44px;
+  }
+
+  /* A domain has a line of its own, what's said of it the next, and its actions one menu (#795). */
+  .app-reach-domain .app-reach-main .app-reach-at {
+    flex-basis: 100%;
+  }
+
+  .app-reach-menu {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: start;
+    margin-block: -10px;
   }
 
   .app-running-image .copy-button {

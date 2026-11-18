@@ -369,4 +369,37 @@ describe("the command bar", () => {
     await user.click(within(again).getByRole("option", { name: /New app/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/new"));
   });
+
+  it("leads with what the page does, and keeps its pages in one group (#795)", async () => {
+    const { user, bar, router } = await openBar(
+      {
+        services: {
+          listServices: () => ({ services: [anApp("storefront", "ghcr.io/acme/storefront:1")] }),
+          listServiceRevisions: () => ({}),
+        },
+      },
+      "/apps/svc_storefront",
+    );
+    expect(within(bar).getAllByRole("group")[0]).toBe(within(bar).getByRole("group", { name: "Actions" }));
+    expect(within(bar).getAllByRole("group", { name: "Pages" })).toHaveLength(1);
+    const actions = within(within(bar).getByRole("group", { name: "Actions" }))
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(actions[0]).toMatch(/^Deploy storefront/);
+    expect(actions).toEqual(
+      expect.arrayContaining(["Show the logs of storefront", "Open the environment of storefront"]),
+    );
+    // What the page does comes before what can be made from anywhere.
+    expect(actions.findIndex((a) => a?.startsWith("New app"))).toBeGreaterThan(
+      actions.indexOf("Open the environment of storefront"),
+    );
+    await user.click(within(bar).getByRole("option", { name: "Show the logs of storefront" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_storefront/logs"));
+
+    // Elsewhere, the app's own are gone.
+    await act(() => router.navigate({ to: "/" }));
+    await user.keyboard("{Control>}k{/Control}");
+    const again = await screen.findByRole("dialog", { name: "Command bar" });
+    expect(within(again).queryByRole("option", { name: /Deploy storefront/ })).toBeNull();
+  });
 });
