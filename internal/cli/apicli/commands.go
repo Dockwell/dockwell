@@ -3,6 +3,7 @@
 package apicli
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -299,6 +300,38 @@ func holdsOthers(kind resource.Kind) bool {
 	return kind == "project" || kind == "environment"
 }
 
+// productNouns are what the panel calls a kind, where that isn't its own name, so a
+// change's title reads as the rail does: an app, not a service (#796).
+var productNouns = map[resource.Kind]string{
+	"service":       "app",
+	"route":         "domain",
+	"task":          "scheduled task",
+	"alert.check":   "uptime check",
+	"alert.rule":    "alert rule",
+	"alert.channel": "alert channel",
+	"dns.provider":  "DNS provider",
+}
+
+// changeVerbs are the words a change's title starts with for each command.
+var changeVerbs = map[string]string{"create": "Add", "update": "Change", "delete": "Remove"}
+
+// changeSummary is what a change the CLI proposes is titled, unless --summary says
+// otherwise, in the product's words: "Add the app web", "Change the scheduled task
+// backup", and for a route, "Add the domain git.example.com to gitea" (#796).
+func changeSummary(verb string, kind resource.Kind, name string, spec *resourcev1.Spec) string {
+	start := cmp.Or(changeVerbs[verb], capitalize(verb))
+	if r := spec.GetRoute(); r != nil && r.GetDomain() != "" {
+		switch {
+		case verb == "create" && r.GetService() != "":
+			return start + " the domain " + r.GetDomain() + " to " + r.GetService()
+		default:
+			return start + " the domain " + r.GetDomain()
+		}
+	}
+	noun := cmp.Or(productNouns[kind], kindWords(kind))
+	return start + " the " + noun + " " + name
+}
+
 // kindVerbs are the commands for a kind of resource.
 var kindVerbs = []struct{ verb, short, long string }{
 	{"create", "Create %s", "Proposes a change that creates %s %s, shows its plan and asks before applying it."},
@@ -352,7 +385,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 		}
 		where := scopeFlags(cmd, t.Level(), what, unplaced)
 		var summary string
-		cmd.Flags().StringVar(&summary, "summary", "", "what the change is for, in your words, for the timeline; defaults to what the command does, such as \""+capitalize(v.verb)+" "+what+" web\"")
+		cmd.Flags().StringVar(&summary, "summary", "", "what the change is for, in your words, for the timeline; defaults to what the command does, such as \""+changeSummary(v.verb, kind, "web", nil)+"\"")
 		cmd.Flags().BoolVarP(&o.yes, "yes", "y", false, "apply without asking")
 		cmd.Flags().BoolVar(&o.planOnly, "plan-only", false, "show the plan and leave it planned, without applying it")
 		var b *binding
@@ -391,7 +424,7 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 			}
 			where.apply(edit)
 			if summary == "" {
-				summary = capitalize(verb) + " " + what + " " + name
+				summary = changeSummary(verb, kind, name, edit.GetSpec())
 			}
 			req := &dockwellv1.ProposeChangeRequest{Summary: summary, Edits: []*dockwellv1.Edit{edit}}
 			r := &runner{env: env, opts: o, command: cmd.CommandPath(), choiceFlag: where.flagFor}
