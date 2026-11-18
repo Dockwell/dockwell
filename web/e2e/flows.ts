@@ -35,6 +35,8 @@ export interface FlowRun {
   env: NodeJS.ProcessEnv;
   /** The directory the control plane reads more catalog entries from. */
   catalogDir: string;
+  /** The folder the agent reads containers' cgroups from, laid out as /sys/fs/cgroup (#797). */
+  cgroups: string;
   /** Stops a container on the fake engine, as someone at the server would. */
   stopByHand: (id: string) => Promise<void>;
   /** Makes Docker stop answering, and returns what makes it answer again. */

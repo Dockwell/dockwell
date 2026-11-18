@@ -921,3 +921,21 @@ func TestEachListIsTold(t *testing.T) {
 		t.Fatal("told nothing")
 	}
 }
+
+// What runs, by ID, is what the agent reads each container's figures for: one
+// that stops goes from it, with no call of its own to Docker (#797).
+func TestItSaysWhichContainersRun(t *testing.T) {
+	e := dockertest.New(t)
+	web := add(e, "web")
+	name := docker.InstanceName(project, "web", 1)
+	m := start(t, e, nil)
+	eventually(t, "it reads web", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NO_CHECK))
+	if got := m.Running(); len(got) != 1 || got[0] != web.ID {
+		t.Fatalf("running = %v, want web's %s", got, web.ID)
+	}
+	e.Stop(name)
+	eventually(t, "it reads as not running", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING))
+	if got := m.Running(); len(got) != 0 {
+		t.Errorf("running after web stopped = %v, want none", got)
+	}
+}

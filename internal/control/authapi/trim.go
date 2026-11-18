@@ -4,6 +4,7 @@ package authapi
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -128,4 +129,92 @@ func briefMessage(m protoreflect.Message) {
 		briefMessage(v.Message())
 		return true
 	})
+}
+
+// trimKeepingApps trims a response as trim does, and gives back of each server's
+// samples what its caller's own apps use, and nothing else of them (#797): each
+// sample's time and pace, with the containers whose service is in the caller's
+// places, as filter narrows a list of a project's objects. A server where none of
+// theirs runs keeps no samples at all, as before.
+func (i *interceptor) trimKeepingApps(ctx context.Context, msg any) {
+	servers := serversIn(msg)
+	type samples struct {
+		stats   *dockwellv1.ServerStats
+		history []*dockwellv1.ServerStats
+	}
+	before := make(map[*dockwellv1.Server]samples, len(servers))
+	for _, s := range servers {
+		if s.GetStats() != nil || len(s.GetHistory()) > 0 {
+			before[s] = samples{stats: s.GetStats(), history: s.GetHistory()}
+		}
+	}
+	trim(msg)
+	if len(before) == 0 {
+		return
+	}
+	grants, ok := grantsFrom(ctx)
+	if !ok {
+		return
+	}
+	err := i.svc.View(ctx, func(tx *store.Tx) error {
+		within, _ := scopeOf(ctx, tx, grants)
+		var failed error
+		keep := func(st *dockwellv1.ServerStats) *dockwellv1.ServerStats {
+			if st == nil {
+				return nil
+			}
+			var theirs []*dockwellv1.ContainerUsage
+			for _, c := range st.GetContainers() {
+				if c.GetServiceId() == "" {
+					continue
+				}
+				ok, err := within(c.GetServiceId())
+				if err != nil {
+					failed = err
+					return nil
+				}
+				if ok {
+					theirs = append(theirs, c)
+				}
+			}
+			if len(theirs) == 0 {
+				return nil
+			}
+			return &dockwellv1.ServerStats{Time: st.GetTime(), Interval: st.GetInterval(), Containers: theirs}
+		}
+		for s, was := range before {
+			s.Stats = keep(was.stats)
+			s.History = nil
+			for _, h := range was.history {
+				if kept := keep(h); kept != nil {
+					s.History = append(s.History, kept)
+				}
+			}
+		}
+		return failed
+	})
+	if err != nil {
+		// Nothing of a server's samples, as before, rather than what can't be checked.
+		for s := range before {
+			s.Stats, s.History = nil, nil
+		}
+		i.logger.ErrorContext(ctx, "can't narrow a server's samples to its caller's apps", slog.Any("error", err))
+	}
+}
+
+// serversIn is each server a response carries.
+func serversIn(msg any) []*dockwellv1.Server {
+	switch m := msg.(type) {
+	case *dockwellv1.WatchServersResponse:
+		if m.GetServer() != nil {
+			return []*dockwellv1.Server{m.GetServer()}
+		}
+	case *dockwellv1.GetServerResponse:
+		if m.GetServer() != nil {
+			return []*dockwellv1.Server{m.GetServer()}
+		}
+	case *dockwellv1.ListServersResponse:
+		return m.GetServers()
+	}
+	return nil
 }

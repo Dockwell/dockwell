@@ -783,6 +783,29 @@ message ServerStats {
   // Bytes written to the server's whole disks since it booted, counted as
   // disk_read_bytes is.
   uint64 disk_written_bytes = 19;
+  // What each of Dockwell's containers here uses, as the kernel counts it for
+  // the container's cgroup: for an app's own figures beside the server's
+  // (#797). Read for the containers the agent's health monitor already lists,
+  // with no call to Docker. Empty on a host without cgroup v2, and from an
+  // agent from before this. Someone below an admin, who sees nothing else of a
+  // server's stats, sees these of their own projects' apps alone.
+  repeated ContainerUsage containers = 20;
+}
+
+// ContainerUsage is what one container uses, at one sample.
+message ContainerUsage {
+  // The container's ID in Docker.
+  string container_id = 1;
+  // The service it runs, by ID, as the control plane knows it from the
+  // server's health. Empty for a container it can't place yet.
+  string service_id = 2;
+  // Its share of one CPU since the sample before, as top says it: 0 to 100
+  // times the server's CPUs. 0 on its first sample.
+  double cpu_percent = 3;
+  // What it holds in memory, as its cgroup's memory.current says.
+  uint64 memory_bytes = 4;
+  // Its memory limit, or 0 with none.
+  uint64 memory_limit_bytes = 5;
 }
 
 // DiskUsage is one filesystem's use.

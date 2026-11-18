@@ -3176,6 +3176,21 @@ msgstr "{name} 日志"
 msgid "{runsOn} from <0>{0}</0>"
 msgstr "{runsOn}，来自 <0>{0}</0>"
 
+msgid "% of a CPU"
+msgstr "% 单核 CPU"
+
+msgid "% of its limit"
+msgstr "% 的上限"
+
+msgid "Last 5 minutes"
+msgstr "最近 5 分钟"
+
+msgid "Metrics"
+msgstr "指标"
+
+msgid "of {limit}"
+msgstr "/ {limit}"
+
 msgid "<0>{from}</0> redirects here"
 msgstr "<0>{from}</0> 重定向到这里"
 
@@ -3905,6 +3920,12 @@ msgstr "请填写不小于 6M 的大小，例如 512M 或 2G。"
 msgid "Use letters, digits, dots, dashes and underscores for a volume's name."
 msgstr "卷名只能使用字母、数字、点、短横线和下划线。"
 
+msgid "Uses {cpuNow}% of a CPU"
+msgstr "使用 {cpuNow}% 单核 CPU"
+
+msgid "Uses {memoryNow}"
+msgstr "使用 {memoryNow}"
+
 msgid "Volume or server path"
 msgstr "卷或服务器路径"
 
@@ -3975,11 +3996,11 @@ msgstr "{on} {0} 起，持续 {length}，{zone}"
 msgid "{retries} failed checks in a row"
 msgstr "连续 {retries} 次检查失败"
 
-msgid "{serverName} has {cpuCount} vCPU."
-msgstr "{serverName} 有 {cpuCount} 个 vCPU。"
+msgid "{serverName} has {cpuCount} vCPU"
+msgstr "{serverName} 有 {cpuCount} 个 vCPU"
 
-msgid "{serverName} has {totalWords}."
-msgstr "{serverName} 有 {totalWords}。"
+msgid "{serverName} has {totalWords}"
+msgstr "{serverName} 有 {totalWords}"
 
 msgid "+{others}"
 msgstr "+{others}"

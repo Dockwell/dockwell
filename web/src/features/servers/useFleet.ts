@@ -3,7 +3,7 @@
 import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { Connection, type Server, ServerService } from "@dockwell/api";
+import { Connection, type Server, ServerService, type ServerStats } from "@dockwell/api";
 import {
   createContext,
   createElement,
@@ -26,8 +26,15 @@ import { type FleetView, fleetView } from "./server";
 
 export type FleetState =
   | { status: "connecting"; error?: ConnectError }
-  | { status: "live"; servers: Server[] }
-  | { status: "reconnecting"; servers: Server[]; error: ConnectError };
+  | { status: "live"; servers: Server[]; usage?: AppUsage }
+  | { status: "reconnecting"; servers: Server[]; error: ConnectError; usage?: AppUsage };
+
+/**
+ * Each server's recent samples, by its ID, for what its apps use (#797). Someone
+ * below an admin is sent of a server's samples only their own apps' figures, which
+ * live here alone, so a server's own tiles and charts never read them as its own.
+ */
+export type AppUsage = ReadonlyMap<string, readonly ServerStats[]>;
 
 const BACKOFF = { minMs: 1_000, maxMs: 15_000 };
 
@@ -214,11 +221,13 @@ async function watch(
   const client = createClient(ServerService, transport);
   const clock = new SkewEstimate();
   let known: Server[] | undefined;
+  let knownUsage: AppUsage | undefined;
   await keepTrying(
     signal,
     BACKOFF,
     async (connected, attempt) => {
       const servers = new Map<string, Server>();
+      const usage = new Map<string, ServerStats[]>();
       let synced = false;
       // A try that hears nothing for TRUST_FOR_MS, since it began or since it last
       // heard, has stalled, and makes way for the next.
@@ -239,15 +248,18 @@ async function watch(
           const next = msg.server;
           if (next && msg.removed) {
             servers.delete(next.id);
+            usage.delete(next.id);
           } else if (next) {
             const prev = servers.get(next.id);
             if (synced) clock.observe(prev, next);
-            servers.set(next.id, merge(prev, next));
+            usage.set(next.id, mergeUsage(usage.get(next.id), next));
+            servers.set(next.id, merge(prev, ownOnly(next)));
           }
           synced ||= msg.snapshotComplete;
           if (!synced) continue;
           known = [...servers.values()];
-          publish({ status: "live", servers: known }, clock.skewMs);
+          knownUsage = new Map(usage);
+          publish({ status: "live", servers: known, usage: knownUsage }, clock.skewMs);
           connected();
         }
       } catch (err) {
@@ -265,7 +277,12 @@ async function watch(
       if (!isSessionEnded(err)) {
         publish(
           known
-            ? { status: "reconnecting", servers: known, error: ConnectError.from(err) }
+            ? {
+                status: "reconnecting",
+                servers: known,
+                error: ConnectError.from(err),
+                ...(knownUsage ? { usage: knownUsage } : {}),
+              }
             : { status: "connecting", error: ConnectError.from(err) },
           clock.skewMs,
         );
@@ -309,6 +326,31 @@ function merge(prev: Server | undefined, next: Server): Server {
   const fresh = next.stats && !sameTime(next.stats.time, prev.stats?.time);
   const history = fresh && next.stats ? appendSample(prev.history, next.stats) : prev.history;
   return { ...next, history };
+}
+
+/**
+ * A sample that says only what the caller's own apps use, as one below an admin is
+ * sent (#797): it has none of the server's own figures, which every agent sends.
+ */
+export function appsOnly(sample: ServerStats | undefined): boolean {
+  return sample !== undefined && sample.memoryTotalBytes === 0n && sample.containers.length > 0;
+}
+
+/** A server as its own tiles and charts read it: without samples that hold only apps' figures. */
+export function ownOnly(next: Server): Server {
+  const stats = appsOnly(next.stats) ? undefined : next.stats;
+  const history = next.history.some(appsOnly) ? next.history.filter((s) => !appsOnly(s)) : next.history;
+  if (stats === next.stats && history === next.history) return next;
+  return { ...next, stats, history } as Server;
+}
+
+/** Folds a message's samples into what its apps used, as merge does a server's history. */
+export function mergeUsage(prev: readonly ServerStats[] | undefined, next: Server): ServerStats[] {
+  // The snapshot's history ends with its newest sample, as the control plane keeps it.
+  if (next.history.length > 0) return [...next.history];
+  if (!prev) return next.stats ? [next.stats] : [];
+  const last = prev[prev.length - 1];
+  return next.stats && !sameTime(next.stats.time, last?.time) ? appendSample(prev, next.stats) : [...prev];
 }
 
 function sameTime(a: Timestamp | undefined, b: Timestamp | undefined): boolean {

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"slices"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"github.com/dockwell/dockwell/internal/buildinfo"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/identity"
+	"github.com/dockwell/dockwell/internal/health"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/serve"
@@ -57,7 +59,10 @@ type Handler struct {
 	agents *Agents
 	// history keeps each server's samples a minute at a time (ADR 0065); nil keeps none.
 	history Sampler
-	logger  *slog.Logger
+	// services finds a service's ID from its Compose project and name, for the
+	// containers a sample carries (#797); nil leaves them unplaced.
+	services func(ctx context.Context, project, name string) string
+	logger   *slog.Logger
 	// silence is how long a stream may say nothing before it is closed, and
 	// recheck how often a connected server's revocation is checked.
 	silence time.Duration
@@ -102,6 +107,12 @@ type Sampler interface {
 // WithHistory hands each stats sample to history as well as to the fleet.
 func WithHistory(history Sampler) Option {
 	return func(h *Handler) { h.history = history }
+}
+
+// WithServices has samples' containers placed by their service's ID, found from
+// its Compose project and name (#797).
+func WithServices(find func(ctx context.Context, project, name string) string) Option {
+	return func(h *Handler) { h.services = find }
 }
 
 // NewHandler returns the agent listener's root handler.
@@ -319,6 +330,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				if !hello.GetFollowsPace() {
 					stats.Interval = durationpb.New(told)
 				}
+				stats.Containers = h.placeContainers(ctx, peer.ServerID, stats.GetContainers())
 				h.fleet.Record(peer.ServerID, stats)
 				if h.history != nil {
 					h.history.Sample(peer.ServerID, stats)
@@ -525,4 +537,53 @@ func (s *servingCert) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 		s.cert = &cert
 	}
 	return s.cert, nil
+}
+
+// placeContainers keeps what a sample says each container uses for the containers
+// its server's health has, each placed by its service's ID, as the panel finds an
+// app's figures by it (#797). An agent is trusted with its own server and nothing
+// more, so what it says is held to what its monitor would send: as many containers
+// as it watches, by IDs Docker gives, with figures that are numbers, and a service
+// the control plane places, never one it names.
+func (h *Handler) placeContainers(ctx context.Context, server string, list []*dockwellv1.ContainerUsage) []*dockwellv1.ContainerUsage {
+	if len(list) == 0 || h.agents == nil {
+		return nil
+	}
+	report, _ := h.agents.Health(server)
+	of := make(map[string]*dockwellv1.InstanceHealth, len(report.Instances))
+	for _, i := range report.Instances {
+		of[i.GetContainerId()] = i
+	}
+	out := make([]*dockwellv1.ContainerUsage, 0, min(len(list), health.MaxInstances))
+	for _, c := range list {
+		if len(out) == health.MaxInstances {
+			break
+		}
+		i, ok := of[c.GetContainerId()]
+		if !ok || !containerID(c.GetContainerId()) {
+			continue
+		}
+		c.ServiceId = ""
+		if h.services != nil {
+			c.ServiceId = h.services(ctx, i.GetProject(), i.GetService())
+		}
+		if cpu := c.GetCpuPercent(); math.IsNaN(cpu) || math.IsInf(cpu, 0) || cpu < 0 {
+			c.CpuPercent = 0
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// containerID reports an ID Docker gives a container: 64 lowercase hex digits.
+func containerID(id string) bool {
+	if len(id) != 64 {
+		return false
+	}
+	for _, r := range id {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }

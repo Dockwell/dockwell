@@ -464,6 +464,16 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
+	// Each sample carries what the containers it watches use, read from their cgroups (#797).
+	// A test reads none of the machine's: only the stand-ins under DOCKWELL_TEST_CGROUP.
+	collector.Containers = monitor.Running
+	if isSet(stdio.Getenv(envTest)) {
+		if dir := stdio.Getenv(envTestCgroup); dir != "" {
+			collector.Cgroups = os.DirFS(dir)
+		} else {
+			collector.Containers = nil
+		}
+	}
 	builder := &imagebuild.Builder{Client: client, Logger: logger, StateDir: dir.Root}
 	if dir := testBuildSecrets(stdio.Getenv); dir != "" {
 		// A test's machine may have nowhere in memory a test may write, as /run is

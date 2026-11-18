@@ -686,7 +686,7 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		}
 		i.sealPage(ctx, procedure, res.Any())
 		if trims(ctx, procedure) {
-			trim(res.Any())
+			i.trimKeepingApps(ctx, res.Any())
 		}
 		if briefs(ctx) {
 			brief(res.Any())
@@ -815,7 +815,7 @@ func (c *scopedConn) Send(m any) error {
 	}
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
 	if c.trim {
-		trim(m)
+		c.i.trimKeepingApps(ctx, m)
 	}
 	if briefs(ctx) {
 		brief(m)

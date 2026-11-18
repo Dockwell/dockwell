@@ -491,6 +491,10 @@ func New(cfg Config) (*Server, error) {
 	}
 	if cfg.Identity != nil {
 		opts := []agentapi.Option{agentapi.WithAgents(cfg.Agents)}
+		if cfg.Store != nil {
+			// What each container uses is placed by its service, for an app's figures (#797).
+			opts = append(opts, agentapi.WithServices((&serviceIDs{db: cfg.Store}).find))
+		}
 		if cfg.Store != nil && cfg.Fleet != nil {
 			s.history = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
 			opts = append(opts, agentapi.WithHistory(s.history))

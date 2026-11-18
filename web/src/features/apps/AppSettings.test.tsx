@@ -125,7 +125,7 @@ describe("an app's settings", () => {
         .map((o) => o.textContent),
     ).toEqual(["No limit", "256M", "512M", "1G", "Other"]);
     expect(memory).toHaveAccessibleDescription(/^hz-1 has 2/);
-    expect(within(form).getByRole("combobox", { name: "CPU limit" })).toHaveAccessibleDescription("hz-1 has 2 vCPU.");
+    expect(within(form).getByRole("combobox", { name: "CPU limit" })).toHaveAccessibleDescription("hz-1 has 2 vCPU");
   });
 
   it("shows how it runs, section by section, each with its own Edit", async () => {

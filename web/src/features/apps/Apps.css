@@ -3364,3 +3364,14 @@
   line-height: 18px;
   white-space: nowrap;
 }
+
+/* An app's CPU and memory side by side, as the App-Overview mock's Metrics card has them (#797). */
+.app-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.app-metrics-span {
+  font-size: 12.5px;
+}

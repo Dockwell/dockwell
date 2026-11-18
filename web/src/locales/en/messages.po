@@ -3176,6 +3176,21 @@ msgstr "{name} logs"
 msgid "{runsOn} from <0>{0}</0>"
 msgstr "{runsOn} from <0>{0}</0>"
 
+msgid "% of a CPU"
+msgstr "% of a CPU"
+
+msgid "% of its limit"
+msgstr "% of its limit"
+
+msgid "Last 5 minutes"
+msgstr "Last 5 minutes"
+
+msgid "Metrics"
+msgstr "Metrics"
+
+msgid "of {limit}"
+msgstr "of {limit}"
+
 msgid "<0>{from}</0> redirects here"
 msgstr "<0>{from}</0> redirects here"
 
@@ -3905,6 +3920,12 @@ msgstr "Use an amount from 6M, such as 512M or 2G."
 msgid "Use letters, digits, dots, dashes and underscores for a volume's name."
 msgstr "Use letters, digits, dots, dashes and underscores for a volume's name."
 
+msgid "Uses {cpuNow}% of a CPU"
+msgstr "Uses {cpuNow}% of a CPU"
+
+msgid "Uses {memoryNow}"
+msgstr "Uses {memoryNow}"
+
 msgid "Volume or server path"
 msgstr "Volume or server path"
 
@@ -3975,11 +3996,11 @@ msgstr "{on} from {0} for {length}, {zone}"
 msgid "{retries} failed checks in a row"
 msgstr "{retries} failed checks in a row"
 
-msgid "{serverName} has {cpuCount} vCPU."
-msgstr "{serverName} has {cpuCount} vCPU."
+msgid "{serverName} has {cpuCount} vCPU"
+msgstr "{serverName} has {cpuCount} vCPU"
 
-msgid "{serverName} has {totalWords}."
-msgstr "{serverName} has {totalWords}."
+msgid "{serverName} has {totalWords}"
+msgstr "{serverName} has {totalWords}"
 
 msgid "+{others}"
 msgstr "+{others}"
