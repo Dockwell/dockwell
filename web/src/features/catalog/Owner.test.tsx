@@ -194,6 +194,38 @@ describe("An install's owner, on its app's page (ADR 0105)", () => {
     ).toBeVisible();
   });
 
+  it("counts a new link down from when it was made, not from when the page opened", async () => {
+    const user = userEvent.setup();
+    let clock = Date.UTC(2026, 10, 17, 12);
+    vi.spyOn(Date, "now").mockImplementation(() => clock);
+    vi.stubGlobal(
+      "open",
+      vi.fn(() => ({ opener: {}, location: { href: "" }, close: vi.fn() })),
+    );
+    renderAt(
+      "/apps/svc_gitea",
+      api(
+        { held: true },
+        {
+          catalog: {
+            setUpCatalogInstall: () => ({
+              url: "https://git.example.com/.well-known/dockwell-setup?key=k",
+              until: { seconds: BigInt(Math.floor(clock / 1000) + 3600), nanos: 0 },
+            }),
+          },
+        },
+        true,
+      ),
+    );
+    expect(await screen.findByText("Held until you set it up")).toBeVisible();
+    // Two minutes on the page before the link is made.
+    clock += 120_000;
+    await user.click(screen.getByRole("button", { name: "Set it up at git.example.com" }));
+    expect(
+      await screen.findByText(/Your setup link to git.example.com works for 60 min/, undefined, { timeout: 5_000 }),
+    ).toBeVisible();
+  });
+
   it("set up through its link, says so, with the way to open it to everyone", async () => {
     renderAt(
       "/apps/svc_gitea",

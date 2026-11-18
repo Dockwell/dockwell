@@ -268,15 +268,21 @@ function useSetupLink(install: CatalogInstall) {
   return { make, busy, problem, may, until };
 }
 
-/** Whole minutes left until a time in Unix seconds, read again each minute; 0 once it's past. */
+/**
+ * Whole minutes left until a time in Unix seconds, read again each minute; 0 once
+ * it's past. A link lasts an hour at most, so it never reads more than 60. The clock
+ * is read again whenever the end moves, so a page open before the link was made
+ * doesn't count from when it opened.
+ */
 function useMinutesLeft(until: number): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
+    setNow(Date.now());
     if (until * 1000 <= Date.now()) return;
     const tick = window.setInterval(() => setNow(Date.now()), 30_000);
     return () => window.clearInterval(tick);
   }, [until]);
-  return Math.max(0, Math.ceil((until * 1000 - now) / 60_000));
+  return Math.min(60, Math.max(0, Math.ceil((until * 1000 - now) / 60_000)));
 }
 
 /** Being made: as whom, once its service runs, and held until then. */
