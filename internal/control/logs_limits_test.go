@@ -325,30 +325,32 @@ func TestAQuietSourceKeepsItsLinesAcrossAReconnect(t *testing.T) {
 
 	r := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", Tail: -1})
 	r.waitCaughtUp()
-	// A second container, which a look finds up to half a second on, prints before
-	// the first's last line, which arrives at once.
-	second := e.AddContainer(docker.Container{
-		Name: "/" + name + "-new",
-		Config: docker.Config{Image: "ghcr.io/acme/shop:1.5", Labels: map[string]string{
-			docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2",
-		}},
-		Created: time.Now().UTC(),
-		State:   docker.State{Status: "running", Running: true, StartedAt: time.Now().UTC()},
-	})
-	e.Print(strings.TrimPrefix(second.Name, "/"), docker.Stdout, "the new one said this")
+	// The new container says its line before the old one's last, and the stream
+	// never hears of it: the stream ends once the old one's last line is in, and
+	// only then does the new one appear, made and printing back at that earlier
+	// time. Before, the new one ran beside the stream, and a look that found it
+	// within its half second put its line in the stream too, which a wait for the
+	// old one's line alone never saw end (#860).
+	said := time.Now().UTC()
 	time.Sleep(10 * time.Millisecond)
 	e.Print(name, docker.Stdout, "the old one's last")
 	r.waitLines("the old one's last")
 	r.mu.Lock()
-	token, heard := r.token, slices.Contains(r.lines, "the new one said this")
+	token := r.token
 	r.mu.Unlock()
 	r.cancel()
 	if err := <-r.done; connect.CodeOf(err) != connect.CodeCanceled {
 		t.Fatalf("the first stream ended with %v", err)
 	}
-	if heard {
-		t.Skip("a look found the new one before the old one's line came, which this can't test")
-	}
+	second := e.AddContainer(docker.Container{
+		Name: "/" + name + "-new",
+		Config: docker.Config{Image: "ghcr.io/acme/shop:1.5", Labels: map[string]string{
+			docker.LabelProject: project, docker.LabelService: "web", docker.LabelNumber: "2",
+		}},
+		Created: said,
+		State:   docker.State{Status: "running", Running: true, StartedAt: said},
+	})
+	e.PrintAt(strings.TrimPrefix(second.Name, "/"), said, docker.Stdout, "the new one said this")
 	again := follow(t, lc, &dockwellv1.WatchLogsRequest{Id: "web", ResumeToken: token})
 	again.waitLines("the new one said this")
 }
