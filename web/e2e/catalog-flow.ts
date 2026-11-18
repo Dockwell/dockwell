@@ -210,7 +210,8 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   await open.waitFor({ timeout: 120_000 });
   await shoot(page, "catalog-arrival");
   await open.click();
-  await page.getByRole("heading", { level: 1, name: "db", exact: true }).waitFor();
+  // Titled by the name the install was given, its project's, not its service's "db" (#796).
+  await page.getByRole("heading", { level: 1, name: "postgres", exact: true }).waitFor();
   if (!new URL(page.url()).pathname.startsWith("/databases/")) fail(`a database install lands on ${page.url()}`);
   const databasePage = page.url();
   await page.getByRole("region", { name: "Connect" }).getByText("postgres", { exact: true }).waitFor();
@@ -243,7 +244,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
 
   step("catalog: its secret is sealed, and one step away");
   await from.getByRole("link", { name: "Its secrets" }).click();
-  await page.getByRole("heading", { level: 1, name: "Variables and secrets" }).waitFor();
+  await page.getByRole("heading", { level: 1, name: "Variables" }).waitFor();
   await page.getByText("POSTGRES_PASSWORD", { exact: true }).first().waitFor();
 
   step("catalog: its admin tool is among its tools on the database's page, and removing it is a plan");

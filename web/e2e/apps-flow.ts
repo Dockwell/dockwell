@@ -795,13 +795,14 @@ export async function appsFlow(
   }
   await shoot(page, "apps-environment");
 
-  step("apps: Variables and secrets lists what the app sets on itself beside what it shares, as its tab does");
-  await page.getByRole("link", { name: "Variables and secrets", exact: true }).click();
+  step("apps: Variables lists what the app sets on itself beside what it shares, as its tab does");
+  // The tab's own link, beside the rail's of the same name (#796).
+  await page.getByRole("main").getByRole("link", { name: "Variables", exact: true }).click();
   const ownRow = page.getByRole("row", { name: /^GREETING/ });
   await ownRow.getByText("hello").waitFor();
   await ownRow.getByText("Set on the app").waitFor();
   if (!(await ownRow.getByRole("link", { name: "nginx", exact: true }).isVisible()))
-    fail("Variables and secrets doesn't link GREETING to nginx");
+    fail("Variables doesn't link GREETING to nginx");
   await page
     .getByRole("row", { name: /^SIGNING_KEY/ })
     .getByRole("img", { name: "Hidden" })

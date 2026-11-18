@@ -352,7 +352,8 @@ export function TaskSheet({
         />
         {kind !== "app" && places.environments.length > 1 && !task ? (
           <SelectField
-            label={t`Environment`}
+            // A project, as Variables and New app call it, until a project has more than one environment (#796).
+            label={places.showsEnvironment ? t`Environment` : t`Project`}
             value={environment}
             options={places.environments.map((e) => ({ value: e.id, label: e.label }))}
             onChange={(event) => setEnvironment(event.target.value)}

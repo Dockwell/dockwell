@@ -61,6 +61,7 @@ import { counts, ofInstall, StackUpdates, UpdateMark, updateCount } from "./upda
 import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
 import "./Apps.css";
+import { useDatabases } from "../databases/useDatabases";
 import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { useServicesWatch } from "./ServicesLive";
@@ -727,6 +728,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
   const wide = useMediaQuery(fleet ? FLEET_DOMAIN_COLUMN_QUERY : DOMAIN_COLUMN_QUERY);
   const heads = useColumnHeads(fleet, wide);
   const domainNames = useDomainNames();
+  const databases = useDatabaseIds();
   const newest = useMemo(() => {
     let out: Date | undefined;
     for (const row of rows) {
@@ -755,8 +757,11 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
                 <Icon name={expanded ? "chevron-down" : "chevron-right"} size={14} />
               </button>
               <span className="dw-cell">
-                <span className="dw-cell-title apps-clip" title={title}>
-                  {title}
+                <span className="apps-name-line">
+                  <span className="dw-cell-title apps-clip" title={title}>
+                    {title}
+                  </span>
+                  <NameLabels app={row.group.app} />
                 </span>
                 <span className="apps-stack-sub">
                   <Icon name="layers" size={12} />
@@ -772,15 +777,18 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
         return (
           <span className="dw-cell">
             {/* The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links. */}
-            <Link
-              to="/apps/$serviceId"
-              params={{ serviceId: service.id }}
-              className="dw-cell-title apps-clip apps-name"
-              title={name}
-              tabIndex={-1}
-            >
-              {name}
-            </Link>
+            <span className="apps-name-line">
+              <Link
+                to="/apps/$serviceId"
+                params={{ serviceId: service.id }}
+                className="dw-cell-title apps-clip apps-name"
+                title={name}
+                tabIndex={-1}
+              >
+                {name}
+              </Link>
+              <NameLabels app={row.kind === "app" ? row.group.app : ""} database={databases.has(service.id)} />
+            </span>
             {counts(service.update, now) && marksItsUpdate(row, service) ? (
               <span className="dw-cell-sub update-runs">
                 <WhatRuns service={service} />
@@ -845,7 +853,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
       ...(head.key === "servers" || head.key === "deployed" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [t, i18n, words, servers, time, now, collapsed, onToggle, heads, health, titleOf, domainNames]);
+  }, [t, i18n, words, servers, time, now, collapsed, onToggle, heads, health, titleOf, domainNames, databases]);
   // A column to pick rows by, while any row has an update to pick (ADR 0080).
   const order = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   const shownPicks = [...new Set(rows.flatMap((r) => picksOf(r, picks)))];
@@ -942,6 +950,7 @@ function PhoneList({
   const words = useAppWords();
   const healthWords = useHealthWords();
   const runtimes = useRuntimes().data;
+  const databases = useDatabaseIds();
   const now = useNow(UPDATES_TICK_MS);
   const phoneOrder = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   return (
@@ -964,7 +973,9 @@ function PhoneList({
                 <Glyph shape={STATUS[runs.status].shape} size={10} />
               </span>
               <span className="apps-phone-text">
-                <span className="apps-phone-name">{row.group.name}</span>
+                <span className="apps-phone-name">
+                  {row.group.name} <NameLabels app={row.group.app} />
+                </span>
                 <span className="apps-phone-sub">
                   <span className={phoneWordClass(STATUS[runs.status].tone)}>{healthWords.word(runs)}</span>
                   {recordSaysMore(state) ? (
@@ -1008,7 +1019,8 @@ function PhoneList({
             </span>
             <span className="apps-phone-text">
               <span className="apps-phone-name">
-                {row.kind === "app" && row.group.name ? row.group.name : nameOf(service)}
+                {row.kind === "app" && row.group.name ? row.group.name : nameOf(service)}{" "}
+                <NameLabels app={row.kind === "app" ? row.group.app : ""} database={databases.has(service.id)} />
               </span>
               <span className="apps-phone-sub">
                 <span className={phoneWordClass(STATUS[runs.status].tone)}>{healthWords.word(runs)}</span>
@@ -1086,5 +1098,26 @@ export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number
         ))}
       </div>
     </Panel>
+  );
+}
+
+/** The services Databases lists, by ID, which Apps calls databases too. */
+function useDatabaseIds(): ReadonlySet<string> {
+  const data = useDatabases().data;
+  return useMemo(() => new Set((data?.databases ?? []).map((d) => d.id)), [data]);
+}
+
+/**
+ * What an app is beside the name the person gave it: the catalog app it was
+ * installed as, and a database, called a database as Databases and Projects do (#796).
+ */
+function NameLabels({ app, database = false }: { app: string; database?: boolean }) {
+  const { t } = useLingui();
+  if (!app && !database) return null;
+  return (
+    <span className="apps-name-labels">
+      {app ? <span className="apps-name-label">{app}</span> : null}
+      {database ? <span className="apps-name-label">{t`Database`}</span> : null}
+    </span>
   );
 }

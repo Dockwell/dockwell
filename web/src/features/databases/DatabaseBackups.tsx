@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { StateLine } from "../apps/DomainStep";
+import { useShownName } from "../apps/names";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { BackupRows } from "../backups/BackupsPage";
@@ -54,7 +55,8 @@ function VolumeBackups({ db }: { db: Database }) {
   const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
   // A state's action is a plain button: off, with why on hover, where a plan isn't theirs (ADR 0059).
   const actOff = mayPlan.allowed ? {} : { disabled: true, title: mayPlan.reason || undefined };
-  const name = db.resource?.name ?? "";
+  // As its page is titled: an install's database by the install's name (#796).
+  const name = useShownName()(db, "database").title;
   const engine = engineName(db.engine);
   const dumpOf = how.database || engine;
   const backups = query.data?.backups ?? [];

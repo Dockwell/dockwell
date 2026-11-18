@@ -1142,7 +1142,7 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
         return {
           key,
           title: t`${name} runs with the latest value of ${names}`,
-          detail: t`To go back on a value, change it in Variables and secrets.`,
+          detail: t`To go back on a value, change it in Variables.`,
           more: t`A rollback puts back which variables and secrets it uses, not what they held then.`,
         };
       }

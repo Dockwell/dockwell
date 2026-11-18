@@ -2,6 +2,7 @@
 
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  CatalogService,
   type Change,
   ChangeService,
   ChangeState,
@@ -70,6 +71,7 @@ export function useDeleteApp(
   const resource = service.resource;
   const place = places.place(environmentOf(service));
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
+  const installs = useQuery(CatalogService.method.listCatalogInstalls, {}).data?.installs;
   const project = place && !place.isDefault ? projects?.find((p) => p.id === place.scope) : undefined;
   const environments = project ? places.environments.filter((e) => e.scope === project.id).map((e) => e.id) : [];
   const inside = useResourcesIn(environments, project !== undefined).data;
@@ -89,7 +91,12 @@ export function useDeleteApp(
   // A project itself is in no project, so deleting one is an admin's (ADR 0049).
   const mayProject = may(ChangeService.method.proposeChange, { install: true });
   const refused = mayProject.allowed ? undefined : mayProject.reason || undefined;
-  const label = project ? project.displayName || project.resource?.name || project.id : "";
+  // As Projects names it: an install by the name it was given, never its app's (#796).
+  const label = project
+    ? (installs?.some((i) => i.projectId === project.id) ? project.resource?.name : project.displayName) ||
+      project.resource?.name ||
+      project.id
+    : "";
   const leftWords = left.length > 0 ? words(left) : "";
 
   const onClose = (change: Change | undefined) => {

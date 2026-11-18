@@ -82,7 +82,7 @@ export function ConnectionPage({ name }: { name: string }) {
             {sentence(query.error)}
           </Callout>
         ) : (
-          <EmptyState icon="key" title={t`No connection named ${name}`}>
+          <EmptyState icon="network" title={t`No connection named ${name}`}>
             <Link to="/connections" className="dw-link">
               <Trans>See every connection</Trans>
             </Link>

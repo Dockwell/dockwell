@@ -651,14 +651,16 @@ function ActorView({ actor }: { actor: Actor | undefined }) {
 /** The actor filter: everyone the loaded events name, and Dockwell, as a native select styled as a button. */
 function ActorFilter({ events, value, onChange }: { events: Event[]; value: string; onChange: (v: string) => void }) {
   const { t } = useLingui();
+  // Each named as its rows name it, so local access is "CLI on web-1" here too (#796).
+  const words = useActorWords();
   const actors = useMemo(() => {
     const seen = new Map<string, string>();
     for (const e of events) {
       const a = e.actor;
-      if (a?.id && a.kind !== ActorKind.DOCKWELL) seen.set(a.id, a.name || a.id);
+      if (a?.id && a.kind !== ActorKind.DOCKWELL) seen.set(a.id, words(a).name);
     }
     return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [events]);
+  }, [events, words]);
   const options: [string, string][] = [["", t`All actors`], [DOCKWELL_ACTOR, "Dockwell"], ...actors];
   if (value && !options.some(([id]) => id === value)) options.push([value, value]);
   const current = options.find(([id]) => id === value)?.[1] ?? t`All actors`;
@@ -779,7 +781,7 @@ function Detail({ event, repeats, described, now, time, onClose, onSelect, onOpe
   const toVariables =
     valueEnv !== undefined ? (
       <RouterButtonLink to="/variables" search={{ environment: valueEnv }} variant="ghost" icon="key">
-        <Trans>Open the variables and secrets</Trans>
+        <Trans>Open Variables</Trans>
       </RouterButtonLink>
     ) : null;
   const fileOn =

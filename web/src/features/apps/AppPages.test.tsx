@@ -165,6 +165,46 @@ describe("an app's frame", () => {
     expect(screen.queryByRole("button", { name: "Restart" })).not.toBeInTheDocument();
   });
 
+  it("goes by the name its install was given, with the catalog app's beside it, and a database's tool by its own (#796)", async () => {
+    const gitea = anApp("gitea", "gitea/gitea:28.2.0");
+    const installs = (entry: string, webServiceId: string) => ({
+      listCatalogInstalls: () => ({
+        installs: [
+          {
+            projectId: "prj_1",
+            project: "code",
+            environmentId: ENV,
+            name: entry === "gitea" ? "Gitea" : "PostgreSQL",
+            pin: { entry },
+            webServiceId,
+          },
+        ],
+      }),
+      listCatalogEntries: () => ({
+        entries: [{ id: entry, name: entry, category: entry === "gitea" ? "development" : "databases" }],
+      }),
+    });
+    const first = renderAt("/apps/svc_gitea", api([gitea], { catalog: installs("gitea", "svc_gitea") }));
+    expect(await screen.findByRole("heading", { level: 1, name: "code" })).toBeVisible();
+    expect(document.querySelector(".app-catalog-name")).toHaveTextContent("Gitea");
+    first.unmount();
+
+    // PostgreSQL's install is its database, which Databases titles: Adminer beside it keeps its own name.
+    const adminer = anApp("adminer", "adminer:5.4.1");
+    renderAt(
+      "/apps/svc_adminer",
+      api([adminer], {
+        catalog: installs("postgres", "svc_adminer"),
+        databases: {
+          listDatabases: () => ({
+            databases: [{ id: "svc_db", resource: { kind: "service", scope: ENV, name: "db" } }],
+          }),
+        },
+      }),
+    );
+    expect(await screen.findByRole("heading", { level: 1, name: "adminer" })).toBeVisible();
+  });
+
   it("shows its name, state, revision, and tabs that are places", async () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
@@ -293,10 +333,10 @@ describe("an app's frame", () => {
     expect((await row("API_KEY")).getByRole("cell", { name: "Secret" })).toBeVisible();
     expect((await row("DB_PASS")).getByRole("cell", { name: "Secret DB_PASSWORD" })).toBeVisible();
     expect((await row("OWN")).getByRole("cell", { name: "Set on this app" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Variables and secrets" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/variables?environment=env_prod"),
-    );
+    // The note's link, beside the rail's of the same name, opens this app's environment there.
+    expect(
+      screen.getAllByRole("link", { name: "Variables" }).find((l) => l.getAttribute("href")?.includes("environment=")),
+    ).toHaveAttribute("href", expect.stringContaining("/variables?environment=env_prod"));
     await expectAccessible(container);
   });
 

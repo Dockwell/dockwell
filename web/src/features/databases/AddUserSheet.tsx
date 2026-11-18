@@ -9,6 +9,7 @@ import { type FormEvent, useRef, useState } from "react";
 import { methodCommand } from "../../lib/cli";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
+import { useShownName } from "../apps/names";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { engineName } from "./useDatabases";
@@ -47,7 +48,9 @@ export function AddUserSheet({ db, onClose }: { db: Database; onClose: () => voi
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<Opening>();
-  const name = db.resource?.name ?? "";
+  const own = db.resource?.name ?? "";
+  // As its page is titled: an install's database by the install's name (#796).
+  const name = useShownName()(db, "database").title;
   // A user is a plan in the database's project, which is a developer's: off, with why, for a viewer (ADR 0059).
   const mayAdd = useMay()(DatabaseService.method.createDatabaseUser, { environment: db.resource?.scope ?? "" });
   const engine = engineName(db.engine);
@@ -95,7 +98,7 @@ export function AddUserSheet({ db, onClose }: { db: Database; onClose: () => voi
   if ((databaseCheck || secretCheck) && !advancedOpen) setAdvancedOpen(true);
   const command = wanted
     ? methodCommand(DatabaseService.method.createDatabaseUser, {
-        id: name,
+        id: own,
         user: wanted,
         database: database.trim(),
         secret: secret.trim(),

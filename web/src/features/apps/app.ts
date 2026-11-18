@@ -195,6 +195,8 @@ export interface PlaceOf {
   label: string;
   /** In the hidden default project, where apps stand on their own. */
   isDefault: boolean;
+  /** The catalog app its project was installed as, where it was (#796). */
+  app?: string;
 }
 
 /**
@@ -209,6 +211,8 @@ export interface AppGroup {
   environment: string;
   /** The project's name. Empty for an app in the default project. */
   name: string;
+  /** The catalog app the project was installed as, such as "Gitea", beside its name (#796). */
+  app: string;
   /** By name. */
   services: ServiceInfo[];
   /** More than one service, so it folds. */
@@ -244,7 +248,7 @@ export function groupApps(
     const environment = environmentOf(service);
     const place = placeOf(environment);
     if (!place || place.isDefault) {
-      groups.set(service.id, { key: service.id, environment, name: "", services: [service], stack: false });
+      groups.set(service.id, { key: service.id, environment, name: "", app: "", services: [service], stack: false });
       continue;
     }
     const group = groups.get(environment);
@@ -252,7 +256,14 @@ export function groupApps(
       group.services.push(service);
       group.stack = true;
     } else {
-      groups.set(environment, { key: environment, environment, name: place.label, services: [service], stack: false });
+      groups.set(environment, {
+        key: environment,
+        environment,
+        name: place.label,
+        app: place.app ?? "",
+        services: [service],
+        stack: false,
+      });
     }
   }
   const out = [...groups.values()];

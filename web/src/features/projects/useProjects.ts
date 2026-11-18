@@ -122,18 +122,21 @@ export function useProjects(): {
         const own = services.filter((s) => envIds.has(environmentOf(s)));
         const website = websites?.find((w) => envIds.has(w.environmentId));
         const name = project.resource?.name ?? project.id;
+        const install = installs?.find((i) => i.projectId === project.id);
         return {
           project,
           id: project.id,
           name,
-          label: project.displayName || name,
+          // An install goes by the name the person gave it; its display name is the
+          // catalog app's, which its sub says (#796).
+          label: install ? name : project.displayName || name,
           isDefault: name === DEFAULT_PROJECT,
           environments: envs,
           inside,
           apps: website ? [] : own.filter((s) => !dbIds.has(s.id)),
           databases: own.filter((s) => dbIds.has(s.id)),
           website,
-          install: installs?.find((i) => i.projectId === project.id),
+          install,
           domains: (domains ?? []).filter((d) => envIds.has(d.environmentId)),
           idle: !inside.some((r) => r.resource?.kind === "service" || r.resource?.kind === "route"),
         };

@@ -82,7 +82,8 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
 
   step("databases: a database's page lists what to connect with, its password masked until a passkey reveals it");
   await row.click();
-  await page.getByRole("heading", { level: 1, name: "db" }).waitFor();
+  // The catalog's PostgreSQL, titled by its install's name, postgres (#796).
+  await page.getByRole("heading", { level: 1, name: "postgres", exact: true }).waitFor();
   const connect = page.getByRole("region", { name: "Connect" });
   await connect.getByText("postgres://postgres:••••••••••••@db:5432/app", { exact: true }).waitFor();
   await connect.getByText("Kept in the secret POSTGRES_PASSWORD").waitFor();
@@ -112,19 +113,19 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await connect.getByRole("button", { name: "Hide" }).click();
   await page.getByText("99.2").waitFor();
   await page.getByText(/PostgreSQL's own dump, while it runs/).waitFor();
-  const users = page.getByRole("table", { name: "Users of db" });
+  const users = page.getByRole("table", { name: "Users of postgres" });
   await users.getByRole("row").filter({ hasText: "Can do anything" }).waitFor();
   await fitsItsWidth(page, "a database's page");
   await shoot(page, "database-detail");
 
   step("databases: its users have a tab of their own");
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: /Users/ }).click();
-  await page.getByRole("table", { name: "Databases in db" }).getByText("app", { exact: true }).first().waitFor();
+  await page.getByRole("table", { name: "Databases in postgres" }).getByText("app", { exact: true }).first().waitFor();
   await shoot(page, "database-users");
 
   step("databases: a user with a database of their own is a plan, with a password no one typed");
   await page.getByRole("button", { name: "Add a user" }).click();
-  const adding = page.getByRole("dialog", { name: "Add a user to db" });
+  const adding = page.getByRole("dialog", { name: "Add a user to postgres" });
   await adding.getByLabel("User", { exact: true }).fill("orders");
   await shoot(page, "database-add-user");
   await adding.getByRole("button", { name: /Review plan/ }).click();
@@ -143,16 +144,20 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await done.waitFor({ timeout: 60_000 });
   await done.click();
   const orders = page
-    .getByRole("table", { name: "Users of db" })
+    .getByRole("table", { name: "Users of postgres" })
     .getByRole("row")
     .filter({ hasText: "ORDERS_DATABASE_PASSWORD" });
   await orders.waitFor({ timeout: 30_000 });
-  await page.getByRole("table", { name: "Databases in db" }).getByText("orders", { exact: true }).first().waitFor();
+  await page
+    .getByRole("table", { name: "Databases in postgres" })
+    .getByText("orders", { exact: true })
+    .first()
+    .waitFor();
   await shoot(page, "database-user-added");
 
   step("databases: its backups are a tab, where one is taken and one restores through a plan");
   await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: "Backups" }).click();
-  const backups = page.getByRole("table", { name: "Backups of db, newest first" });
+  const backups = page.getByRole("table", { name: "Backups of postgres, newest first" });
   await backups.getByRole("row").filter({ hasText: "PostgreSQL dump" }).first().waitFor({ timeout: 15_000 });
   const before = await backups.getByRole("row").count();
   await page.getByRole("button", { name: "Back up now" }).first().click();

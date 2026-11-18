@@ -321,7 +321,14 @@ describe("the words an app goes by", () => {
   });
 
   it("keeps a list's order until the page is next opened", () => {
-    const group = (key: string): AppGroup => ({ key, environment: key, name: key, services: [], stack: false });
+    const group = (key: string): AppGroup => ({
+      key,
+      environment: key,
+      name: key,
+      app: "",
+      services: [],
+      stack: false,
+    });
     const first = keepOrder([], [group("a"), group("b"), group("c")]);
     expect(first.groups.map((g) => g.key)).toEqual(["a", "b", "c"]);
     // A deploy would pull c to the top of what is sorted, and it stays where it is.

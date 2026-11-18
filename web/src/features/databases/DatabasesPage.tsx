@@ -43,6 +43,7 @@ import { happenedAt, useDescribe } from "../activity/describe";
 import { StateLine } from "../apps/DomainStep";
 import { HealthBadge, useHealthWords } from "../apps/Health";
 import { type HealthView, useHealth } from "../apps/health";
+import { useShownName } from "../apps/names";
 import { usePlaces, useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
@@ -264,13 +265,20 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
   const mayPlan = useMay();
   const now = useAgoNow(undefined);
   const places = usePlaces();
+  // A catalog install's database goes by the name the person gave the install (#796).
+  const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
   const cells: Record<string, (db: Database) => ReactNode> = {
     name: (db) => (
       <div className="dw-cell">
-        <span className="dw-cell-title databases-name">{db.resource?.name}</span>
+        <span className="dw-cell-title databases-name">{shownName(db, "database").title}</span>
         <span className="databases-sub">
-          {[engineAndVersion(db), several ? places.label(db.resource?.scope ?? "") : ""].filter(Boolean).join(" · ")}
+          {[
+            engineAndVersion(db),
+            shownName(db, "database").app || (several ? places.label(db.resource?.scope ?? "") : ""),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       </div>
     ),
@@ -393,6 +401,8 @@ function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet
   const words = useHealthWords();
   // Where each is, as the table says it, where they're in more than one place.
   const places = usePlaces();
+  // A catalog install's database goes by the name the person gave the install (#796).
+  const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
   return (
     <Panel flush className="databases-phone">
@@ -406,15 +416,15 @@ function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet
               <Glyph shape={STATUS[runs.status].shape} size={10} />
             </span>
             <span className="databases-phone-text">
-              <span className="databases-phone-name">{db.resource?.name}</span>
+              <span className="databases-phone-name">{shownName(db, "database").title}</span>
               <span className="databases-phone-sub">
                 <span className={cx("databases-phone-word", tone)}>{words.word(runs)}</span>
                 <span aria-hidden="true">·</span>
                 <span>{engineAndVersion(db)}</span>
-                {several ? (
+                {shownName(db, "database").app || several ? (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>{places.label(db.resource?.scope ?? "")}</span>
+                    <span>{shownName(db, "database").app || places.label(db.resource?.scope ?? "")}</span>
                   </>
                 ) : null}
                 {read ? (
@@ -637,6 +647,8 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const allDestinations = useDestinations().data?.destinations ?? [];
   // Where each is, as its row says it, where they're in more than one place, as several can share a name such as db.
   const places = usePlaces();
+  // A catalog install's database goes by the name the person gave the install (#796).
+  const shownName = useShownName();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
   const withVolume = databases.filter((db) => db.volumeId !== "");
   const scheduled = withVolume.filter((db) => policiesOf(db, policies).length > 0);
@@ -686,9 +698,11 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
           return (
             <div key={db.id} className="databases-fact">
               <dt>
-                <code className="databases-fact-name">{db.resource?.name}</code>
-                {several ? (
-                  <span className="databases-fact-place">{places.label(db.resource?.scope ?? "")}</span>
+                <code className="databases-fact-name">{shownName(db, "database").title}</code>
+                {shownName(db, "database").app || several ? (
+                  <span className="databases-fact-place">
+                    {shownName(db, "database").app || places.label(db.resource?.scope ?? "")}
+                  </span>
                 ) : null}
               </dt>
               <dd>{how}</dd>

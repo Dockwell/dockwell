@@ -106,7 +106,8 @@ export function TasksPage() {
     },
     {
       key: "target",
-      header: t`Runs in`,
+      // What it runs or asks: an app, a command's server, or a URL, each a target (#796).
+      header: t`Target`,
       width: 176,
       render: (task) => (
         <span className="tasks-target">
@@ -381,12 +382,11 @@ function Target({ task }: { task: TaskInfo }) {
   const runs = task.spec?.runs;
   if (runs?.case === "app") {
     const app = named.get(runs.value.service);
-    return app ? (
+    if (!app) return <>{runs.value.service}</>;
+    return (
       <RefLink kind="app" id={app.id} look="plain">
         {runs.value.service}
       </RefLink>
-    ) : (
-      <>{runs.value.service}</>
     );
   }
   if (runs?.case === "request" || task.servers.length === 0) return <>{targetOf(task)}</>;

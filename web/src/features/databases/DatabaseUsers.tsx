@@ -14,8 +14,8 @@ import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, Tag, useM
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
-
 import { formatBytes } from "../../lib/format";
+import { useShownName } from "../apps/names";
 import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -89,7 +89,8 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const mongo = db.engine === DatabaseEngine.MONGODB;
   // Where Dockwell makes no users yet, there's nothing to add and no secret to name.
   const makes = makesUsers(db.engine);
-  const name = db.resource?.name ?? "";
+  // As its page is titled: an install's database by the install's name (#796).
+  const name = useShownName()(db, "database").title;
   const role = (u: DatabaseAccount) =>
     u.superuser ? t`Can do anything` : u.canSignIn ? t`Signs in` : t`Can't sign in`;
   const theirs = (u: DatabaseAccount): ReactNode =>
@@ -269,7 +270,8 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
 export function SchemasSection({ db, read }: { db: Database; read: DatabaseReading }) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const name = db.resource?.name ?? "";
+  // As its page is titled: an install's database by the install's name (#796).
+  const name = useShownName()(db, "database").title;
   const postgres = db.engine === DatabaseEngine.POSTGRESQL;
   const own = (d: InnerDatabase) => (d.system ? <span className="databases-muted">{t`Its own`}</span> : null);
   const columns: TableColumn<InnerDatabase & { id: string }>[] = [

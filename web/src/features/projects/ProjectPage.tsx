@@ -241,7 +241,7 @@ function Values({ view }: { view: ProjectView }) {
   const { t } = useLingui();
   const several = view.environments.length > 1;
   return (
-    <Panel title={t`Variables and secrets`} className="project-values" flush>
+    <Panel title={t`Variables`} className="project-values" flush>
       <ul className="project-rows">
         {view.environments.map((env) => {
           const kinds = countKinds(view.inside.filter((r) => r.resource?.scope === env.id));

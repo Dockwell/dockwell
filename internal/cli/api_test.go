@@ -213,7 +213,7 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			t.Fatalf("projects create = %d:\n%s%s", r.code, r.out, r.err)
 		}
 		for _, want := range []string{
-			"Create project shop", "Planned ", " by the API token CLI test from the CLI.",
+			"Add the project shop", "Planned ", " by the API token CLI test from the CLI.",
 			"+ project shop", "Create", "+ display_name", "Shop", "+ environment production", "2 to create · 0 to change · 0 to delete",
 			"Applied chg_", "Undo it within 7 days",
 		} {

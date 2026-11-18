@@ -82,9 +82,9 @@ describe("the command bar", () => {
         .map((o) => o.textContent),
     ).toEqual([
       "Show the activity of default / production",
-      "Open the variables and secrets of default / production",
+      "Open Variables for default / production",
       "Show the activity of default / staging",
-      "Open the variables and secrets of default / staging",
+      "Open Variables for default / staging",
     ]);
     await expectAccessible(document.body);
     await user.click(within(bar).getByRole("option", { name: /Show the activity of shop/ }));

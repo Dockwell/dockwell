@@ -4,9 +4,8 @@ import type { Resource, ServiceInfo } from "@dockwell/api";
 import { Button, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
-
-import { nameOf } from "./app";
 import { useDeleteApp } from "./deleteApp";
+import { useShownName } from "./names";
 import "./Apps.css";
 
 /**
@@ -31,7 +30,8 @@ export function DangerZone({
 }) {
   const { t } = useLingui();
   const remove = useDeleteApp(service, { ...(after ? { after } : {}), ...(alongside ? { alongside } : {}) });
-  const name = nameOf(service);
+  // What its page is titled: an install's app or database by the install's name (#796).
+  const name = useShownName()(service, after === "/databases" ? "database" : "app").title;
   const project = remove.project;
   const withProject = project?.last && !project.refused;
   return (
