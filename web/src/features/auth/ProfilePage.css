@@ -318,3 +318,17 @@
   line-height: 24px;
   overflow-wrap: anywhere;
 }
+
+/* Your name and email, with Save under them (#801). */
+.profile-account-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.profile-account-save {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}

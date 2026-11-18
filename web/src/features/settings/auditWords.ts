@@ -54,6 +54,11 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Confirmed by signing in` };
         case "auth.step_up_policy":
           return { title: t`Changed how often their passkey is asked for` };
+        // The detail says what it was and what it is (#801).
+        case "account.name":
+          return { title: t`Changed their name` };
+        case "account.email":
+          return { title: t`Changed their email` };
         case "token.refuse":
           return { title: t`Refused a call this token can't make`, tone: "warning" };
         case "role.refuse":

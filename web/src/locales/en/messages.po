@@ -6557,8 +6557,26 @@ msgstr "<0>{recover}</0> on the control server"
 msgid "Account"
 msgstr "Account"
 
+msgid "An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members."
+msgstr "An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members."
+
 msgid "Last resort"
 msgstr "Last resort"
+
+msgid "Saved"
+msgstr "Saved"
+
+msgid "Someone else here signs in with this email, so it can't be yours too. Choose another."
+msgstr "Someone else here signs in with this email, so it can't be yours too. Choose another."
+
+msgid "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
+msgstr "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
+
+msgid "Your name is empty, so it can't be saved. Type the name people here know you by."
+msgstr "Your name is empty, so it can't be saved. Type the name people here know you by."
+
+msgid "Your passkey confirms a new one."
+msgstr "Your passkey confirms a new one."
 
 msgid "member since {since}"
 msgstr "member since {since}"
@@ -7024,8 +7042,8 @@ msgstr "A passkey covers this session for the next hour."
 msgid "Ask for my passkey"
 msgstr "Ask for my passkey"
 
-msgid "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
-msgstr "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
+msgid "Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask."
+msgstr "Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask."
 
 msgid "Confirmed at {since} · asks again at {until}"
 msgstr "Confirmed at {since} · asks again at {until}"
@@ -19276,6 +19294,12 @@ msgstr "Asked to cancel a build on {name}"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "Changed how often their passkey is asked for"
+
+msgid "Changed their email"
+msgstr "Changed their email"
+
+msgid "Changed their name"
+msgstr "Changed their name"
 
 msgid "Confirmed by signing in"
 msgstr "Confirmed by signing in"

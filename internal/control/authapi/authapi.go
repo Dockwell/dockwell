@@ -444,6 +444,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_POLICY:                    auth.StepUpSetPolicy,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_SET_STEP_UP_FLOOR:                     auth.StepUpSetFloor,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_LINK_PROVIDER:                         auth.StepUpLinkProvider,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_CHANGE_EMAIL:                          auth.StepUpChangeEmail,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE:                  auth.StepUpRevealServiceValue,
 }
 
@@ -475,6 +476,23 @@ func (h *Handler) SetStepUpPolicy(ctx context.Context, req *connect.Request[dock
 		return nil, h.rpcError(ctx, err)
 	}
 	return connect.NewResponse(&dockwellv1.SetStepUpPolicyResponse{Choice: stepUpChoiceProto(c)}), nil
+}
+
+// UpdateProfile changes the caller's own name or email (#801).
+func (h *Handler) UpdateProfile(ctx context.Context, req *connect.Request[dockwellv1.UpdateProfileRequest]) (*connect.Response[dockwellv1.UpdateProfileResponse], error) {
+	client, err := h.client(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p, err := principal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	u, err := h.auth.UpdateProfile(ctx, client, p, req.Msg.Name, req.Msg.Email, req.Msg.GetProof())
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	return connect.NewResponse(&dockwellv1.UpdateProfileResponse{User: userProto(u)}), nil
 }
 
 // StepUpPolicyProto is a choice of how often a passkey is asked for, as the API
@@ -917,6 +935,7 @@ func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
 		{auth.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
 		{auth.ErrNotFound, connect.CodeNotFound, "not_found"},
 		{auth.ErrMemberExists, connect.CodeAlreadyExists, "member_exists"},
+		{auth.ErrEmailInvited, connect.CodeAlreadyExists, "email_invited"},
 		{auth.ErrOnYourself, connect.CodeFailedPrecondition, "on_yourself"},
 		{auth.ErrTheOwner, connect.CodeFailedPrecondition, "the_owner"},
 		{auth.ErrLastGrant, connect.CodeFailedPrecondition, "last_grant"},

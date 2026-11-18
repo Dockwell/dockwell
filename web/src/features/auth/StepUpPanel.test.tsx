@@ -79,7 +79,7 @@ describe("Ask for my passkey", () => {
     await waitFor(() => expect(p.getByRole("radio", { name: /Each time/ })).toBeChecked());
     expect(
       p.getByText(
-        "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask.",
+        "Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask.",
       ),
     ).toBeVisible();
     expect(p.queryByText(/Confirmed/)).toBeNull();

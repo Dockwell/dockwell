@@ -172,6 +172,21 @@ func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) erro
 	return nil
 }
 
+// SetUserName changes the name a user goes by (#801).
+func (t *Tx) SetUserName(ctx context.Context, userID, name string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET name = ? WHERE id = ?`, name, userID)
+}
+
+// SetUserEmail changes the lowercase email a user signs in with (#801). One that
+// someone else here signs in with fails on the unique index, as ErrConflict says.
+func (t *Tx) SetUserEmail(ctx context.Context, userID, email string) error {
+	err := t.updateUser(ctx, userID, `UPDATE users SET email = ? WHERE id = ?`, email, userID)
+	if t.unique(err) {
+		return fmt.Errorf("someone else signs in as %s: %w", email, ErrConflict)
+	}
+	return err
+}
+
 // SetStepUpPolicy records how often a user is asked for their passkey again.
 func (t *Tx) SetStepUpPolicy(ctx context.Context, userID, policy string) error {
 	return t.updateUser(ctx, userID, `UPDATE users SET step_up_policy = ? WHERE id = ?`, policy, userID)

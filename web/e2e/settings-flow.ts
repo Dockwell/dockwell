@@ -130,6 +130,31 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
     .getByText(/act(s)? for you|None yet/)
     .waitFor();
 
+  step("settings: Profile changes your name with no passkey and your email with one, then back (#801)");
+  const nameField = account.getByRole("textbox", { name: "Name" });
+  const emailField = account.getByRole("textbox", { name: "Email" });
+  const save = account.getByRole("button", { name: "Save" });
+  const saved = account.getByText("Saved", { exact: true });
+  const was = { name: await nameField.inputValue(), email: await emailField.inputValue() };
+  if (!(await save.isDisabled())) fail("Save is on before anything changed");
+  await nameField.fill("Mira Okafor");
+  await save.click();
+  await saved.waitFor();
+  await account.locator(".profile-account-name", { hasText: "Mira Okafor" }).waitFor();
+  // The virtual passkey confirms the new email.
+  await emailField.fill("Mira.Okafor@example.com");
+  await save.click();
+  await saved.waitFor();
+  if ((await emailField.inputValue()) !== "mira.okafor@example.com") {
+    fail(`the email reads ${await emailField.inputValue()} after saving`);
+  }
+  // As it was, for the flows after this one, which sign in by it.
+  await nameField.fill(was.name);
+  await emailField.fill(was.email);
+  await save.click();
+  await saved.waitFor();
+  await account.locator(".profile-account-name", { hasText: was.name }).waitFor();
+
   step("settings: the audit log lists every event, narrows to an action, and saves what it keeps as CSV");
   await page.getByRole("navigation", { name: "Settings" }).getByRole("link", { name: "Audit log" }).click();
   await page.getByRole("heading", { level: 1, name: "Audit log" }).waitFor();
@@ -146,6 +171,20 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   await page.getByRole("textbox", { name: "Filter events" }).fill("owner.claim");
   await log.getByRole("cell", { name: "owner.claim", exact: true }).waitFor();
   await page.getByText("1 event, all there is.", { exact: true }).waitFor();
+  // Changing your name and email, each with what it was and what it is (#801).
+  await page.getByRole("textbox", { name: "Filter events" }).fill("account.");
+  await log
+    .getByRole("row")
+    .filter({ hasText: "account.email" })
+    .filter({ hasText: "Changed their email" })
+    .first()
+    .waitFor();
+  await log
+    .getByRole("row")
+    .filter({ hasText: "account.name" })
+    .filter({ hasText: "Changed their name" })
+    .first()
+    .waitFor();
   // What this flow did, which the newest page has whatever came before.
   await page.getByRole("textbox", { name: "Filter events" }).fill("settings.");
   await log.getByRole("cell", { name: "settings.time_zone", exact: true }).first().waitFor();

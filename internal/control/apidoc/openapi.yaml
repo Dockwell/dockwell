@@ -4244,6 +4244,40 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/profile:
+        post:
+            tags:
+                - AuthService
+            description: |-
+                UpdateProfile changes your own name or email. What's unset stays as it is.
+                 Your email names you for signing in with an authenticator code, and to
+                 dockwell recover on the server, so a change of it takes a proof from
+                 FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL, bound to the new email in
+                 lowercase, each time; a change of name takes none. An email someone else here
+                 signs in with is refused with the reason member_exists, and one an open invite
+                 is for with email_invited. Sessions, passkeys, the authenticator app and
+                 accounts linked at sign-in providers stay as they are. Each change is in the
+                 audit log, with what it was and what it is (#801).
+            operationId: AuthService_UpdateProfile
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateProfileRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateProfileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/projects/{project}/git-repositories:
         get:
             tags:
@@ -10244,6 +10278,7 @@ components:
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
+                        - STEP_UP_ACTION_CHANGE_EMAIL
                         - STEP_UP_ACTION_INVITE
                         - STEP_UP_ACTION_CHANGE_ROLE
                         - STEP_UP_ACTION_REMOVE_MEMBER
@@ -29091,6 +29126,27 @@ components:
             type: object
             properties: {}
             description: UnmuteAlertsResponse says nothing more.
+        UpdateProfileRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: 'Your name, as the panel and the audit log show it: 1 to 100 characters.'
+                email:
+                    type: string
+                    description: The email you sign in with, which no one else here does or is invited as.
+                proof:
+                    type: string
+                    description: |-
+                        From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email in
+                         lowercase, where the email changes.
+            description: UpdateProfileRequest is what to change of your own account.
+        UpdateProfileResponse:
+            type: object
+            properties:
+                user:
+                    $ref: '#/components/schemas/User'
+            description: UpdateProfileResponse is your account as it now is.
         UpdateWebsiteRequest:
             type: object
             properties:

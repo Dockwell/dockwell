@@ -42,6 +42,7 @@ Each of these needs a proof just now, for itself, as before:
 - **Changing the choice, or the install's floor** (`STEP_UP_ACTION_SET_STEP_UP_FLOOR`, 241). Otherwise a stolen session loosens its own checks first.
 - **Transferring ownership** (`STEP_UP_ACTION_TRANSFER_OWNERSHIP`, 113, [ADR 0049](0049-roles-and-invites-by-project.md)). Otherwise the owner's session, stolen within its hour, gives the install away for good, as only the new owner can undo it. Changing a role and removing someone follow the choice, as inviting does.
 - **Approving someone else's change in a protected environment** (`STEP_UP_ACTION_APPROVE_CHANGE`, 114), which includes a change a narrowed token planned ([ADR 0071](0071-api-tokens-narrowed-to-projects-and-a-role.md)). The approval is the point of protection, and it's bound to the plan's fingerprint.
+- **Changing your own email** (`STEP_UP_ACTION_CHANGE_EMAIL`, 115, #801), bound to the new email. The email names you for code sign-in and `dockwell recover`, so a stolen session would otherwise move those to an address of its own. A name changes with no passkey.
 
 Profile says so in one line beside the choice.
 

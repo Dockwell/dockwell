@@ -6557,8 +6557,26 @@ msgstr "在控制服务器上运行 <0>{recover}</0>"
 msgid "Account"
 msgstr "账户"
 
+msgid "An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members."
+msgstr "有一份未接受的邀请发给了这个邮箱，所以它暂时不能用作你的邮箱。换一个邮箱，或者请管理员在“成员”中撤销这份邀请。"
+
 msgid "Last resort"
 msgstr "最后手段"
+
+msgid "Saved"
+msgstr "已保存"
+
+msgid "Someone else here signs in with this email, so it can't be yours too. Choose another."
+msgstr "这里已有其他人用这个邮箱登录，所以它不能再用作你的邮箱。换一个邮箱。"
+
+msgid "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
+msgstr "这不是邮箱地址，所以无法保存。输入一个邮箱，例如 mira@example.com。"
+
+msgid "Your name is empty, so it can't be saved. Type the name people here know you by."
+msgstr "你的名字为空，所以无法保存。输入这里的人认识你的名字。"
+
+msgid "Your passkey confirms a new one."
+msgstr "更换邮箱需要用通行密钥确认。"
 
 msgid "member since {since}"
 msgstr "自 {since} 起为成员"
@@ -7024,8 +7042,8 @@ msgstr "一次通行密钥验证在接下来一小时内对本会话有效。"
 msgid "Ask for my passkey"
 msgstr "何时要求验证通行密钥"
 
-msgid "Changing how you sign in, this choice, approving someone else's change and transferring ownership always ask."
-msgstr "更改登录方式、更改此选项、批准他人的变更以及转让所有权时，始终需要验证。"
+msgid "Changing how you sign in or your email, this choice, approving someone else's change and transferring ownership always ask."
+msgstr "更改登录方式或邮箱、更改此选项、批准他人的变更以及转让所有权时，始终需要验证。"
 
 msgid "Confirmed at {since} · asks again at {until}"
 msgstr "已于 {since} 确认 · {until} 再次验证"
@@ -19276,6 +19294,12 @@ msgstr "请求取消 {name} 上的构建"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "更改了通行密钥的验证频率"
+
+msgid "Changed their email"
+msgstr "更改了自己的邮箱"
+
+msgid "Changed their name"
+msgstr "更改了自己的名字"
 
 msgid "Confirmed by signing in"
 msgstr "已通过登录确认"

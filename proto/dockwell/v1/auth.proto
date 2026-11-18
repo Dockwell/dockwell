@@ -53,6 +53,10 @@ service AuthService {
     help: "Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security."
   };
   option (dockwell.v1.nouns) = {
+    name: "profile"
+    help: "Your profile is the name the panel and the audit log show for you, and the email you sign in with by an authenticator code, and that dockwell recover takes on the control server. A token acting for you can change the name. Changing the email takes a signed-in session and your passkey each time, so you do it in the panel, under Profile and security."
+  };
+  option (dockwell.v1.nouns) = {
     name: "provider-links"
     help: "A provider link is an account at a sign-in provider that signs you in to Dockwell, on the panel's own domain, once an admin turns that on for the provider. Linking one needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security. Unlinking ends the sessions it began."
   };
@@ -62,7 +66,7 @@ service AuthService {
   };
   option (dockwell.v1.nouns) = {
     name: "step-up-policy"
-    help: "How often you're asked for your passkey again: each time, once an hour, or only when you sign in, but never below the least the install's owner allows. Changing how you sign in, this choice, and approving someone else's protected change ask each time. Choosing takes a signed-in session, which no API token gives, and your passkey, so you do it in the panel, under Profile and security."
+    help: "How often you're asked for your passkey again: each time, once an hour, or only when you sign in, but never below the least the install's owner allows. Changing how you sign in or your email, this choice, approving someone else's protected change and transferring ownership ask each time. Choosing takes a signed-in session, which no API token gives, and your passkey, so you do it in the panel, under Profile and security."
   };
   option (dockwell.v1.nouns) = {
     name: "totp"
@@ -344,6 +348,26 @@ service AuthService {
     option (dockwell.v1.reach) = REACH_SELF;
     option (google.api.http) = {
       post: "/v1/stepUpPolicy:set"
+      body: "*"
+    };
+  }
+
+  // UpdateProfile changes your own name or email. What's unset stays as it is.
+  // Your email names you for signing in with an authenticator code, and to
+  // dockwell recover on the server, so a change of it takes a proof from
+  // FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL, bound to the new email in
+  // lowercase, each time; a change of name takes none. An email someone else here
+  // signs in with is refused with the reason member_exists, and one an open invite
+  // is for with email_invited. Sessions, passkeys, the authenticator app and
+  // accounts linked at sign-in providers stay as they are. Each change is in the
+  // audit log, with what it was and what it is (#801).
+  rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_SELF;
+    option (google.api.http) = {
+      post: "/v1/profile"
       body: "*"
     };
   }
@@ -1062,6 +1086,9 @@ enum StepUpAction {
   // "chg_…:fingerprint", so the proof is good for that plan alone. It also
   // stands for applying a change that gives something as much as root.
   STEP_UP_ACTION_APPROVE_CHANGE = 114;
+  // Changing your own email, which names you for code sign-in and recovery
+  // (#801). The target is the new email, lowercased. It always asks.
+  STEP_UP_ACTION_CHANGE_EMAIL = 115;
   // Inviting someone, with MemberService.CreateInvite. The target is the
   // email, lowercased, the role's name and the place, apart by spaces, as
   // "ada@example.com developer prj_…", or "install" for the whole install.
@@ -1161,6 +1188,22 @@ message GetStepUpPolicyRequest {}
 // GetStepUpPolicyResponse carries the choice.
 message GetStepUpPolicyResponse {
   StepUpChoice choice = 1;
+}
+
+// UpdateProfileRequest is what to change of your own account.
+message UpdateProfileRequest {
+  // Your name, as the panel and the audit log show it: 1 to 100 characters.
+  optional string name = 1;
+  // The email you sign in with, which no one else here does or is invited as.
+  optional string email = 2;
+  // From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email in
+  // lowercase, where the email changes.
+  string proof = 3;
+}
+
+// UpdateProfileResponse is your account as it now is.
+message UpdateProfileResponse {
+  User user = 1;
 }
 
 // SetStepUpPolicyRequest carries the new choice.
