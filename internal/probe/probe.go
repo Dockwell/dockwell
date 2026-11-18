@@ -38,6 +38,9 @@ const maxRequest = 64 << 10
 const (
 	KindS3   = "s3"
 	KindSMTP = "smtp"
+	// KindS3Read reads a bucket and writes nothing, for a check on a schedule
+	// (ADR 0099): an agent from before it refuses the kind, rather than write.
+	KindS3Read = "s3-read"
 )
 
 // Request is one check, as the agent writes it on the probe's input.
@@ -111,6 +114,11 @@ func Check(ctx context.Context, req *Request) (Result, error) {
 			return Result{}, errors.New("the probe was asked of S3 with no bucket")
 		}
 		return checkS3(ctx, req.S3, guard), nil
+	case KindS3Read:
+		if req.S3 == nil {
+			return Result{}, errors.New("the probe was asked of S3 with no bucket")
+		}
+		return readS3(ctx, req.S3, guard), nil
 	case KindSMTP:
 		if err := req.SMTP.valid(); err != nil {
 			return Result{}, err

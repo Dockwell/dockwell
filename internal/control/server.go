@@ -159,6 +159,9 @@ type Config struct {
 	// it starts and every 30 s of real time, would run beside the test's. What
 	// was running when it last stopped is failed all the same.
 	ManualBackups bool
+	// ManualConnectionChecks leaves checking each connection on its schedule to a
+	// test, which calls the checker itself (#799).
+	ManualConnectionChecks bool
 	// AgentHosts are the names and addresses agents dial; the agent
 	// listener's certificate is valid for them.
 	AgentHosts []string
@@ -210,8 +213,10 @@ type Config struct {
 	// (ADR 0105).
 	appHolds  *holds.Holds
 	appOwners *owners.Runner
-	// connections are the connections apps use (ADR 0099).
-	connections *connections.Connections
+	// connections are the connections apps use (ADR 0099), and connectionChecks
+	// where apiRoutes puts what checks them on a schedule (#799).
+	connections      *connections.Connections
+	connectionChecks **connections.Checker
 	// ConnectionChecks checks a connection's bucket before an install links an app to
 	// it: each server's agent, from a network made for the check, unless a test
 	// passes one that stands in for a bucket on loopback, which no check reaches.
@@ -289,9 +294,13 @@ type Server struct {
 	autoupdates *autoupdate.Runner
 	// history keeps each server's samples a minute at a time, and by the hour
 	// (ADR 0065).
-	history       *history.Recorder
-	manualAlerts  bool
-	manualBackups bool
+	history *history.Recorder
+	// connectionChecks checks each connection on a schedule (#799), unless
+	// manualConnectionChecks leaves that to a test.
+	connectionChecks       *connections.Checker
+	manualConnectionChecks bool
+	manualAlerts           bool
+	manualBackups          bool
 	// backups takes backups, and those under way end with the control plane.
 	backups *backups.Handler
 	// hooks deploys on push, and what deploys wait for ends with the control plane.
@@ -440,6 +449,7 @@ func New(cfg Config) (*Server, error) {
 			}
 		}
 	}
+	cfg.connectionChecks = new(*connections.Checker)
 	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
 	if err != nil {
 		return nil, err
@@ -451,6 +461,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	s := &Server{logger: cfg.Logger, api: api, logs: logs, backups: backupHandler, hooks: hooks, apps: gitApps, tasks: taskHandler, updates: updateKeeper, alerts: evaluator, manualAlerts: cfg.ManualAlerts, manualBackups: cfg.ManualBackups, public: cfg.Public, changes: cfg.Changes, store: cfg.Store, stepGrace: cfg.StepGrace, autoupdates: autoupdates, certificates: cfg.certificates, publisher: cfg.publisher, owners: cfg.appOwners}
 	s.catalogs = follower
+	s.connectionChecks, s.manualConnectionChecks = *cfg.connectionChecks, cfg.ManualConnectionChecks
 	if cfg.Agents != nil {
 		agents := cfg.Agents
 		s.connected = func(server string) bool {
@@ -877,6 +888,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			// The connections apps use, their check from where an app is, and an app
 			// connected to one (ADR 0099).
 			conns := connections.New(cfg.connections, cfg.Fleet, cfg.Agents, ch, cfg.Store)
+			*cfg.connectionChecks = conns.Checks()
 			handle(dockwellv1connect.NewConnectionServiceHandler(conns, opts...))
 			// An install checks a connection's bucket from where the app is to run
 			// before it links the app to it.
@@ -1213,6 +1225,10 @@ func (s *Server) Run(ctx context.Context, ls Listeners) error {
 	}
 	if s.certificates != nil && !s.manualAlerts {
 		api.Go(func() { s.certificates.Run(apiCtx) })
+	}
+	// Each connection is checked once it's saved or changed, and every 6 hours (#799).
+	if s.connectionChecks != nil && !s.manualConnectionChecks {
+		api.Go(func() { s.connectionChecks.Run(apiCtx) })
 	}
 	// Installs from before Dockwell showed an app's plain values show them, once its
 	// servers' agents are back (ADR 0081).

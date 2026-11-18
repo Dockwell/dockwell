@@ -8,6 +8,7 @@ import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 // ConnectionService reads the connections apps use, and checks one from where an
 // app is. A connection is one set of values of one kind, such as a bucket of
@@ -180,6 +181,14 @@ message ConnectionInfo {
   dockwell.resource.v1alpha1.SmtpSecurity security = 17;
   string sender = 18;
   string sender_name = 19;
+  // Its last check from each server it's checked from, as saved: the control plane
+  // checks each connection once it's saved or changed, with the full check, and every
+  // 6 hours after with one that writes nothing, whose step is "list" for storage;
+  // from each server an app linked to it runs on, or the control server where none
+  // does; and keeps a check someone runs of it as saved too. Only its revision's,
+  // newest first, kept in memory, so none until the first after a start. Below an
+  // admin, whether each passed and when, alone.
+  repeated CheckConnectionResponse checks = 20;
 }
 
 // ConnectionUse is one link to a connection, and the apps that read it.
@@ -228,7 +237,9 @@ message CheckConnectionResponse {
   // It did everything asked of it.
   bool passed = 1;
   // Where it stopped: write, read, presign or delete for storage; connect, hello,
-  // tls or sign-in for a mail server.
+  // tls or sign-in for a mail server. A check on a schedule reads storage alone, as
+  // one list, and says "list" whether it passed or not: it saw no object, and
+  // passes where AccessDenied answered, as the keys work and may not list.
   string step = 2;
   // What the storage said, such as an S3 error's code, or a mail server's reply
   // code and its enhanced code, such as "535 5.7.8", or what kept it from
@@ -243,4 +254,6 @@ message CheckConnectionResponse {
   string region = 7;
   // The server that checked it, by name.
   string server = 8;
+  // When it checked.
+  google.protobuf.Timestamp time = 9;
 }

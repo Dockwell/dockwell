@@ -43,6 +43,8 @@ const (
 	StepRead    = "read"
 	StepPresign = "presign"
 	StepDelete  = "delete"
+	// StepList is a check on a schedule's one read, which writes nothing.
+	StepList = "list"
 )
 
 // What kept a check from an answer, where the service gave none.
@@ -116,6 +118,33 @@ func checkS3(ctx context.Context, c *S3, guard netguard.Options) Result {
 		return failed(out, StepDelete, err, c)
 	}
 	out.Passed = true
+	return out
+}
+
+// readS3 lists at most one key under the prefix, which writes nothing, for a check
+// on a schedule (ADR 0099). AccessDenied passes: the service took the keys and the
+// bucket answered, and a key that may only put and get objects may not list. A
+// passed read says so in its step and code, as it saw no object.
+func readS3(ctx context.Context, c *S3, guard netguard.Options) Result {
+	b := &s3.Bucket{
+		Endpoint: c.Endpoint, Region: c.Region, Name: c.Bucket, VirtualHost: c.VirtualHost,
+		AccessKey: c.AccessKey, SecretKey: c.SecretKey, Client: netguard.Client(guard), Stall: ConnectWait * 3,
+	}
+	out := Result{}
+	err := b.ListOne(ctx, strings.TrimLeft(c.Prefix, "/"))
+	var se *s3.Error
+	if errors.As(err, &se) && se.Region != "" && se.Region != b.Region {
+		b.Region, out.Region = se.Region, se.Region
+		err = b.ListOne(ctx, strings.TrimLeft(c.Prefix, "/"))
+	}
+	if errors.As(err, &se) && se.Code == "AccessDenied" {
+		out.Passed, out.Step, out.Code, out.Status = true, StepList, se.Code, se.Status
+		return out
+	}
+	if err != nil {
+		return failed(out, StepList, err, c)
+	}
+	out.Passed, out.Step = true, StepList
 	return out
 }
 

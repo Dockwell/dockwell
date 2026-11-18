@@ -332,6 +332,8 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		// of real time, would run beside it with the same clock, and record a run
 		// the test then reads half done (#668).
 		ManualBackups: true,
+		// A test checks connections on their schedule itself (#799).
+		ManualConnectionChecks: true,
 	}
 	// Cloudflare's stand-in, the one DNS provider a test reaches (ADR 0088).
 	cloudflare := cftest.New(dnsToken, "example.com", "example.org")

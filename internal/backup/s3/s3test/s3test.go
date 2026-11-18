@@ -41,8 +41,10 @@ type Server struct {
 	MovedTo string
 	// FinishFails has an upload's last step answer 200 and say it failed, as S3 can.
 	FinishFails bool
-	// Authorizations are the Authorization headers it was sent.
+	// Authorizations are the Authorization headers it was sent, and Methods the
+	// method of each request, in order.
 	Authorizations []string
+	Methods        []string
 	// Expires are how long each presigned URL it was sent lasts, in seconds, as
 	// X-Amz-Expires says.
 	Expires []string
@@ -94,6 +96,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	auth := r.Header.Get("Authorization")
 	s.Authorizations = append(s.Authorizations, auth)
+	s.Methods = append(s.Methods, r.Method)
 	// Signed in its header, or presigned in its query.
 	credential, presigned := strings.TrimPrefix(auth, "AWS4-HMAC-SHA256 Credential="), r.URL.Query().Get("X-Amz-Signature") != ""
 	if presigned {
@@ -131,6 +134,39 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if bucket, _, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/"); s.Buckets != nil && !slices.Contains(s.Buckets, bucket) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, "<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message></Error>")
+		return
+	}
+	// ListObjectsV2 of a bucket, path style: at most max-keys of its keys under prefix.
+	if bucket, rest, _ := strings.Cut(strings.TrimPrefix(key, "/"), "/"); r.Method == http.MethodGet && q.Get("list-type") == "2" && rest == "" {
+		limit, _ := strconv.Atoi(q.Get("max-keys"))
+		var keys []string
+		for path := range s.objects {
+			if k, ok := strings.CutPrefix(path, "/"+bucket+"/"); ok && strings.HasPrefix(k, q.Get("prefix")) {
+				keys = append(keys, k)
+			}
+		}
+		slices.Sort(keys)
+		if limit > 0 && len(keys) > limit {
+			keys = keys[:limit]
+		}
+		type contents struct {
+			Key string
+		}
+		list := struct {
+			XMLName  xml.Name `xml:"ListBucketResult"`
+			Contents []contents
+			KeyCount int
+		}{KeyCount: len(keys)}
+		for _, k := range keys {
+			list.Contents = append(list.Contents, contents{Key: k})
+		}
+		raw, err := xml.Marshal(list)
+		if err != nil {
+			s.t.Errorf("can't write a list: %v", err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/xml")
+		_, _ = w.Write(raw)
 		return
 	}
 	id, inUpload := q["uploadId"]

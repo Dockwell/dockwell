@@ -185,3 +185,72 @@ func TestTheLogHoldsNoFormOfAKey(t *testing.T) {
 		t.Errorf("with no key in it, the log says %q", got)
 	}
 }
+
+// A check on a schedule reads the bucket and writes nothing (ADR 0099, #799): one
+// signed list of at most one key, GET alone, whatever it finds.
+func TestAReadOnScheduleWritesNothing(t *testing.T) {
+	t.Parallel()
+	srv := s3test.New(t)
+	srv.Set("/uploads/outline/a.png", []byte("a"))
+	req := s3Request(srv, true)
+	req.Kind = KindS3Read
+	got, err := Check(t.Context(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Passed || got.Step != StepList || got.Code != "" {
+		t.Errorf("a bucket that answers its list reads as %+v", got)
+	}
+	if !slices.Equal(srv.Methods, []string{"GET"}) {
+		t.Errorf("the read sent %v, want one GET", srv.Methods)
+	}
+	if left := srv.Objects(); len(left) != 1 {
+		t.Errorf("the read changed the bucket to %v", left)
+	}
+}
+
+// What each code a provider answers a list with means for a check on a schedule,
+// as R2, B2, GCS and AWS answer it: AccessDenied took the keys, as a key that may
+// only put and get objects is refused a list, so it passes; a refused key or
+// signature is Keys refused, R2's Unauthorized among them; a missing bucket and the
+// rest fail with the provider's code.
+func TestAReadSaysWhatTheProviderSaid(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		code   string
+		status int
+		passed bool
+	}{
+		{"AccessDenied", 403, true},           // every provider, a key with no list permission
+		{"InvalidAccessKeyId", 403, false},    // AWS, GCS and B2's unknown key
+		{"Unauthorized", 401, false},          // R2's unknown key (its 10002)
+		{"SignatureDoesNotMatch", 403, false}, // a wrong secret, everywhere
+		{"NoSuchBucket", 404, false},          // a missing bucket, everywhere
+		{"SlowDown", 503, false},              // AWS and GCS asking for fewer
+		{"TooManyRequests", 429, false},       // R2 asking for fewer
+		{"InternalError", 500, false},
+	} {
+		srv := s3test.New(t)
+		srv.Refuse, srv.RefuseStatus = c.code, c.status
+		req := s3Request(srv, false)
+		req.Kind = KindS3Read
+		got, err := Check(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Passed != c.passed || got.Step != StepList || got.Code != c.code || got.Status != c.status {
+			t.Errorf("%s reads as %+v, want passed %v at %s", c.code, got, c.passed, StepList)
+		}
+		if !slices.Equal(srv.Methods, []string{"GET"}) {
+			t.Errorf("%s: the read sent %v, want one GET", c.code, srv.Methods)
+		}
+	}
+	// A bucket in another region is read there, once more, as the full check does.
+	srv := s3test.New(t)
+	srv.MovedTo = "eu-central-1"
+	req := s3Request(srv, false)
+	req.Kind = KindS3Read
+	if got, _ := Check(t.Context(), req); !got.Passed || got.Region != "eu-central-1" {
+		t.Errorf("a bucket in eu-central-1 reads as %+v", got)
+	}
+}
