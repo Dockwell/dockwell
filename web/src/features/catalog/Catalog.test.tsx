@@ -209,6 +209,26 @@ describe("The catalog", () => {
     );
   });
 
+  it("says the server an install runs on, not the panel's Open address, where it has no domain (#792)", async () => {
+    renderAt(
+      "/catalog",
+      api({
+        listCatalogInstalls: () => ({
+          installs: [
+            {
+              project: "postgres",
+              pin: { entry: "postgres", version: "17.11" },
+              webServiceId: "svc_adminer",
+              address: "http://qhkgjvlnnd.localhost:7600",
+            },
+          ],
+        }),
+      }),
+    );
+    const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
+    expect(within(card).queryByText(/localhost/)).not.toBeInTheDocument();
+  });
+
   it("says when it can't read the catalog", async () => {
     renderAt(
       "/catalog",

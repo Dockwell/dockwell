@@ -563,7 +563,8 @@ function installedAt(
   if (install.address) {
     try {
       const host = new URL(install.address).hostname;
-      if (host && host !== "localhost" && host !== "127.0.0.1") return { domain: host };
+      // The panel's Open address, as <id>.localhost, and a port on this machine are no domain.
+      if (host && host !== "localhost" && !host.endsWith(".localhost") && host !== "127.0.0.1") return { domain: host };
     } catch {
       // An address that isn't a URL says nothing of where it's reached.
     }
