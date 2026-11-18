@@ -81,7 +81,8 @@ func (s *externalStand) refused(what, says string, edits ...Edit) {
 // planLines is what a plan does, a line for each resource: its ref and action.
 func planLines(p *Plan) []string {
 	var out []string
-	for _, r := range p.Resources {
+	for i := range p.Resources {
+		r := &p.Resources[i]
 		out = append(out, fmt.Sprintf("%s %s %v", r.Ref.Kind, r.Ref.Scope+"/"+r.Ref.Name, r.Action))
 	}
 	slices.Sort(out)
@@ -104,7 +105,7 @@ func TestExternalAccessRulesFollowTheDatabase(t *testing.T) {
 				}
 			}
 		}
-		create, del := fmt.Sprint(resource.ActionCreate), fmt.Sprint(resource.ActionDelete)
+		create, del := resource.ActionCreate.String(), resource.ActionDelete.String()
 		moved := propose(t, s.e, "Move db to srv_B", s.run([]string{"srv_B"}, s.tagged))
 		has("moving db to srv_B", moved,
 			"firewall.rule srv_B/"+s.allowB.Name+" "+create, "firewall.rule srv_B/"+s.denyB.Name+" "+create,
@@ -270,8 +271,18 @@ func TestAnExternalRuleNamesItsService(t *testing.T) {
 // and never everyone, however it's written (#849's M2).
 func TestExternalAccessNeverLetsEveryoneIn(t *testing.T) {
 	for _, given := range [][]string{
-		nil, {""}, {"0.0.0.0/0"}, {"::/0"}, {"::ffff:0.0.0.0/96"}, {"::ffff:0:0/95"}, {"::/64"},
-		{"0.0.0.0/1", "128.0.0.0/1"}, {"::/1", "8000::/1"}, {"10.0.0.0/7"}, {"2001:db8::/31"}, {"not an address"},
+		nil,
+		{""},
+		{"0.0.0.0/0"},
+		{"::/0"},
+		{"::ffff:0.0.0.0/96"},
+		{"::ffff:0:0/95"},
+		{"::/64"},
+		{"0.0.0.0/1", "128.0.0.0/1"},
+		{"::/1", "8000::/1"},
+		{"10.0.0.0/7"},
+		{"2001:db8::/31"},
+		{"not an address"},
 	} {
 		if got, err := AllowFrom(given); err == nil {
 			t.Errorf("AllowFrom(%q) = %v, want it refused", given, got)
