@@ -203,7 +203,7 @@ describe("Catalog sources", () => {
         },
       }),
     );
-    const empty = (await screen.findByRole("heading", { name: "No catalogs to install from" })).closest(
+    const empty = (await screen.findByRole("heading", { name: "No sources to install from" })).closest(
       ".empty-state",
     ) as HTMLElement;
     expect(empty.querySelectorAll("p")).toHaveLength(1);
@@ -226,7 +226,7 @@ describe("Catalog sources", () => {
     const user = userEvent.setup();
     renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [] }) }));
     await user.click(await screen.findByRole("button", { name: "Add another source" }));
-    expect(await screen.findByRole("dialog", { name: "Add a catalog source" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Add a source" })).toBeVisible();
   });
 
   it("calls Dockwell's own catalog so, and no other", async () => {
@@ -238,7 +238,7 @@ describe("Catalog sources", () => {
     });
     renderAt("/catalog/sources", api({ listCatalogSources: () => ({ sources: [own, community] }) }));
     const panel = (await screen.findByRole("heading", { name: "Dockwell's own" })).closest("section") as HTMLElement;
-    expect(within(panel).getByTitle("From the catalog dockwell")).toBeVisible();
+    expect(within(panel).getByTitle("The source dockwell")).toBeVisible();
     expect(within(panel).getByRole("button", { name: "Change Dockwell's own" })).toBeVisible();
     const other = (await screen.findByRole("heading", { name: "example/catalog" })).closest("section") as HTMLElement;
     expect(within(other).queryByText("Dockwell's own")).not.toBeInTheDocument();
@@ -269,7 +269,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add another source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     // Nothing to fill but the repository: no name, folder or commit field until asked for.
     expect(within(sheet).getAllByRole("textbox")).toHaveLength(1);
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
@@ -316,7 +316,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/example/apps");
     // At once, before the address has stood still long enough to be read.
     await user.keyboard("{Control>}{Enter}{/Control}");
@@ -344,7 +344,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(await within(sheet).findByLabelText("Commit")).toBeVisible();
@@ -370,7 +370,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     expect(await within(sheet).findByText("Read. It has 500 or more branches and tags.")).toBeVisible();
     expect(within(sheet).getByLabelText("Branch")).toHaveValue("refs/heads/trunk");
@@ -394,7 +394,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     expect(await within(sheet).findByText(/example.com answered 404 Not Found/)).toBeVisible();
     // A power user can still pin a commit by hand.
@@ -409,7 +409,7 @@ describe("Catalog sources", () => {
       api({ listCatalogSourceRefs: () => ({ refs: [{ name: "refs/heads/main", commit: COMMIT }] }) }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     await user.selectOptions(await within(sheet).findByLabelText("Branch"), "Another commit");
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
@@ -424,7 +424,7 @@ describe("Catalog sources", () => {
     const set = vi.fn();
     renderAt("/catalog/sources", api({ setCatalogSource: set }));
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/community/apps");
     // The default steps aside from the one that's taken.
     expect(await within(sheet).findByText("Named community-2 · entries at its top")).toBeVisible();
@@ -452,7 +452,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.click(within(sheet).getByRole("button", { name: "Change" }));
     await user.clear(within(sheet).getByLabelText("Name"));
     await user.type(within(sheet).getByLabelText("Name"), "Community");
@@ -498,7 +498,7 @@ describe("Catalog sources", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), REPO);
     await user.type(await within(sheet).findByLabelText("Commit"), COMMIT);
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
@@ -1047,7 +1047,7 @@ describe("Other stores' catalogs", () => {
         },
       }),
     );
-    const gallery = (await screen.findByRole("heading", { name: "App stores" })).closest("section") as HTMLElement;
+    const gallery = (await screen.findByRole("heading", { name: "Sources to add" })).closest("section") as HTMLElement;
     const tiles = within(gallery).getAllByRole("listitem");
     expect(tiles.map((tile) => within(tile).getByText(/app store|templates/).textContent)).toEqual([
       "1Panel's app store",
@@ -1105,7 +1105,7 @@ describe("Other stores' catalogs", () => {
         }),
       }),
     );
-    const gallery = (await screen.findByRole("heading", { name: "App stores" })).closest("section") as HTMLElement;
+    const gallery = (await screen.findByRole("heading", { name: "Sources to add" })).closest("section") as HTMLElement;
     const added = within(gallery).getAllByRole("listitem")[0] as HTMLElement;
     expect(within(added).getByText("Added")).toBeVisible();
     expect(within(added).getByText("72 of 269 apps install")).toBeVisible();
@@ -1128,28 +1128,14 @@ describe("Other stores' catalogs", () => {
     for (const link of back) expect(link).toHaveAttribute("href", "/catalog");
   });
 
-  it("offers the stores first in Add a source, one click each, with a link for anything else", async () => {
+  it("asks for a repository alone in Add a source, as the page lists the stores (#792)", async () => {
     const user = userEvent.setup();
-    let asked: SetCatalogSourceRequest | undefined;
-    renderAt(
-      "/catalog/sources",
-      api({
-        setCatalogSource: (req) => {
-          asked = req;
-          return { change: planned(["catalog_source_reads", ["notes-src"]]) };
-        },
-      }),
-    );
+    renderAt("/catalog/sources", api());
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
-    const pick = within(sheet).getByRole("group", { name: "App stores" });
-    expect(within(pick).getByText("1Panel's app store")).toBeVisible();
-    expect(within(sheet).getByText("Or any public Git repository")).toBeVisible();
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
+    expect(within(sheet).queryByRole("group", { name: "Sources to add" })).not.toBeInTheDocument();
+    expect(within(sheet).queryByText("1Panel's app store")).not.toBeInTheDocument();
     expect(within(sheet).getByLabelText("Repository")).toHaveValue("");
-    await user.click(within(pick).getByRole("button", { name: "Add Dokploy's templates" }));
-    await waitFor(() =>
-      expect(asked).toMatchObject({ name: "dokploy", follow: "canary", format: CatalogFormat.DOKPLOY }),
-    );
   });
 
   it("names a store's own link by the store, read as that store", async () => {
@@ -1175,7 +1161,7 @@ describe("Other stores' catalogs", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add another source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), ONEPANEL);
     expect(await within(sheet).findByText("269 apps")).toBeVisible();
     expect(within(sheet).getByText(/Named onepanel/)).toBeVisible();
@@ -1213,7 +1199,7 @@ describe("Other stores' catalogs", () => {
       }),
     );
     await user.click(await screen.findByRole("button", { name: "Add a source" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a catalog source" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a source" });
     await user.type(within(sheet).getByLabelText("Repository"), "https://github.com/example/stores");
     const choice = await within(sheet).findByRole("radiogroup", { name: "Read it as" });
     expect(within(choice).getByRole("radio", { name: "Dokploy's templates" })).toBeChecked();
