@@ -136,6 +136,31 @@ func (s *Service) GetJoinTicket(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.GetJoinTicketResponse{Ticket: out}), nil
 }
 
+// ListJoinTickets lists the tickets still waiting, newest first, without their secrets.
+func (s *Service) ListJoinTickets(ctx context.Context, _ *connect.Request[dockwellv1.ListJoinTicketsRequest]) (*connect.Response[dockwellv1.ListJoinTicketsResponse], error) {
+	if s.ident == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errNoTickets)
+	}
+	var toks []store.JoinToken
+	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
+		toks, err = tx.ListWaitingJoinTokens(ctx, time.Now())
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*dockwellv1.JoinTicket, 0, len(toks))
+	for i := range toks {
+		out = append(out, &dockwellv1.JoinTicket{
+			Id:         toks[i].ID,
+			State:      dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING,
+			ExpireTime: timestamppb.New(toks[i].ExpiresAt),
+			Labels:     toks[i].Labels,
+		})
+	}
+	return connect.NewResponse(&dockwellv1.ListJoinTicketsResponse{Tickets: out}), nil
+}
+
 // RevokeJoinTicket stops a waiting ticket working at once. It isn't managed state,
 // so it takes no plan, as revoking an API token takes none.
 func (s *Service) RevokeJoinTicket(ctx context.Context, req *connect.Request[dockwellv1.RevokeJoinTicketRequest]) (*connect.Response[dockwellv1.RevokeJoinTicketResponse], error) {

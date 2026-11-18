@@ -2,7 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { Code, createRouterTransport } from "@connectrpc/connect";
+import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import {
   BuildInfoSchema,
   ChangeSchema,
@@ -17,6 +17,7 @@ import {
   JoinTicketState,
   PlanAction,
   type PlanServerLabelsRequest,
+  Role,
   type Server,
   ServerInventorySchema,
   ServerService,
@@ -32,7 +33,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
-import { authError, stubPasskeys } from "../../test/auth";
+import { authError, authState, mira, stubPasskeys } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
@@ -624,6 +625,25 @@ describe("Servers", () => {
       expect(api.revoked).toEqual(["jtk_1"]);
     });
 
+    it("has the waiting commands read again once it makes one (#800)", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      const api = tickets(JoinReach.ANYWHERE, [{}]);
+      const listJoinTickets = vi.fn(() => ({ tickets: [] }));
+      renderServers([web1, web2()], "/servers", {
+        ...release,
+        ...passkey([]),
+        servers: { ...api.servers, listJoinTickets },
+      });
+      await waitFor(() => expect(listJoinTickets).toHaveBeenCalled());
+      const before = listJoinTickets.mock.calls.length;
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      await within(await screen.findByRole("dialog", { name: "Add a server" })).findByText(
+        "Waiting for the server to join",
+      );
+      await waitFor(() => expect(listJoinTickets.mock.calls.length).toBeGreaterThan(before));
+    });
+
     it("stops nothing a server joined with as the sheet closes", async () => {
       stubPasskeys();
       const user = userEvent.setup();
@@ -1010,5 +1030,98 @@ describe("Servers", () => {
     const phone = renderServers([web1, web2({ connection: Connection.UNREACHABLE })]);
     await screen.findByRole("region", { name: "Chosen server" });
     await expectAccessible(phone.container);
+  });
+});
+
+describe("join commands waiting (#800)", () => {
+  const inMinutes = (m: number) => timestampFromDate(new Date(Date.now() + m * 60_000 + 30_000));
+  const waiting = (id: string, minutes: number) => ({
+    id,
+    state: JoinTicketState.WAITING,
+    expireTime: inMinutes(minutes),
+  });
+
+  it("says one is waiting, with Stop, which revokes it and the line goes", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_1", 52)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("1 join command waiting · expires in 52 min");
+    await user.click(within(band).getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull());
+    expect(revoked).toEqual(["jtk_1"]);
+  });
+
+  it("says how many wait and when the first expires, and Stop all revokes each", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_3", 40), waiting("jtk_2", 12), waiting("jtk_1", 55)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("3 join commands waiting · the first expires in 12 min");
+    await user.click(within(band).getByRole("button", { name: "Stop all" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull());
+    expect([...revoked].sort()).toEqual(["jtk_1", "jtk_2", "jtk_3"]);
+  });
+
+  it("says what a failed Stop means and what to do, and keeps the line", async () => {
+    const user = userEvent.setup();
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: [waiting("jtk_1", 30)] }),
+        revokeJoinTicket: () => {
+          throw new ConnectError("the control plane's store is read-only just now", Code.Unavailable);
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: "Stop" }));
+    expect(await within(band).findByRole("alert")).toHaveTextContent(
+      /^Couldn't stop 1 join command: .*read-only just now.* It works until it expires\. Try Stop again\.$/,
+    );
+    expect(band).toHaveTextContent("1 join command waiting");
+  });
+
+  it("isn't there with none waiting, nor for someone who may not read them", async () => {
+    const listJoinTickets = vi.fn(() => ({ tickets: [] }));
+    const { unmount } = renderServers([web1, web2()], "/servers", { servers: { listJoinTickets } });
+    await waitFor(() => expect(listJoinTickets).toHaveBeenCalled());
+    expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull();
+    unmount();
+
+    const asked = vi.fn(() => ({ tickets: [waiting("jtk_1", 30)] }));
+    renderServers([web1, web2()], "/servers", {
+      servers: { listJoinTickets: asked },
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+    });
+    await screen.findByRole("heading", { level: 1, name: "Servers" });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(asked).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "Join commands waiting" })).toBeNull();
   });
 });

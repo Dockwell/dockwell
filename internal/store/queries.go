@@ -266,6 +266,32 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 	return j, nil
 }
 
+// ListWaitingJoinTokens returns the join tokens still waiting at now, newest
+// first: unused, and expiring after now.
+func (t *Tx) ListWaitingJoinTokens(ctx context.Context, now time.Time) ([]JoinToken, error) {
+	rows, err := t.query(ctx, `SELECT id, created_at, created_by, expires_at, labels FROM join_tokens
+		WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC, id DESC`, millis(now))
+	if err != nil {
+		return nil, fmt.Errorf("can't list the join tokens waiting: %w", err)
+	}
+	defer rows.Close()
+	var out []JoinToken
+	for rows.Next() {
+		var j JoinToken
+		var created, expires int64
+		var labels string
+		if err := rows.Scan(&j.ID, &created, &j.CreatedBy, &expires, &labels); err != nil {
+			return nil, fmt.Errorf("can't read a join token waiting: %w", err)
+		}
+		j.CreatedAt, j.ExpiresAt = fromMillis(created), fromMillis(expires)
+		if j.Labels, err = labelsOf(labels); err != nil {
+			return nil, fmt.Errorf("can't read the labels of join token %s: %w", j.ID, err)
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
+}
+
 // ExpireJoinToken stops an unused join token working from at: its expiry moves to
 // at, so it reads as expired, and Join refuses it as it refuses any expired token.
 // One that expired before at keeps its own expiry. A used token is ErrConflict, as

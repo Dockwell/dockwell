@@ -120,6 +120,13 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	waiting, err := servers.ListJoinTickets(t.Context(), connect.NewRequest(&dockwellv1.ListJoinTicketsRequest{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ws := waiting.Msg.GetTickets(); len(ws) != 2 || ws[0].GetId() != next.GetTicket().GetId() || ws[1].GetId() != tk.GetId() {
+		t.Errorf("before a join, the waiting list = %v, want the newer ticket first", ws)
+	}
 	joined, err := f.ident.Join(t.Context(), decoded.GetTokenId(), decoded.GetSecret(), csr, "web-2", "198.51.100.20")
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +135,25 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 	if err != nil || read.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_JOINED ||
 		read.GetServerId() != joined.Server.ID || read.GetServerName() != "web-2" {
 		t.Errorf("once web-2 joined, it reads %v, %v", read, err)
+	}
+
+	// The list has what waits, newest first, without secrets; once a ticket is used or revoked it goes (#800).
+	list := func() []string {
+		res, err := servers.ListJoinTickets(t.Context(), connect.NewRequest(&dockwellv1.ListJoinTicketsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []string
+		for _, w := range res.Msg.GetTickets() {
+			if w.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_WAITING {
+				t.Errorf("a listed ticket reads %v", w.GetState())
+			}
+			ids = append(ids, w.GetId())
+		}
+		return ids
+	}
+	if got := list(); strings.Join(got, ",") != next.GetTicket().GetId() {
+		t.Errorf("once web-2 joined, the waiting list = %v, want only %s", got, next.GetTicket().GetId())
 	}
 
 	// Revoking: the waiting ticket stops at once and reads as expired; the one web-2 joined with can't be (#800).
@@ -144,6 +170,9 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 	}
 	if read, err := get(next.GetTicket().GetId()); err != nil || read.GetState() != dockwellv1.JoinTicketState_JOIN_TICKET_STATE_EXPIRED {
 		t.Errorf("a revoked ticket reads %v, %v", read, err)
+	}
+	if got := list(); len(got) != 0 {
+		t.Errorf("once revoked, the waiting list = %v, want none", got)
 	}
 	if _, err := revoke(tk.GetId()); connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), "Remove the server") {
 		t.Errorf("revoking the ticket web-2 joined with = %v", err)

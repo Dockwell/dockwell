@@ -15,6 +15,7 @@ import {
 } from "@dockwell/api";
 import { Button, Callout, Sheet, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -30,6 +31,7 @@ import { LabelsField } from "./LabelsField";
 import { labelText, labelTexts } from "./labels";
 import { SetPublicAddressSheet } from "./SetPublicAddressSheet";
 import { useFleet } from "./useFleet";
+import { waitingJoinTicketsKey } from "./WaitingJoinTickets";
 import "./ServersPage.css";
 
 /**
@@ -215,7 +217,14 @@ export function AddServerSheet({
         ),
     );
   };
-  const revoke = (id: string) => void client.revokeJoinTicket({ id }).catch(() => {});
+  // The Servers page's list of waiting commands reads again whenever this makes or stops one.
+  const queryClient = useQueryClient();
+  const readWaitingAgain = () => void queryClient.invalidateQueries({ queryKey: waitingJoinTicketsKey });
+  const revoke = (id: string) =>
+    void client
+      .revokeJoinTicket({ id })
+      .then(readWaitingAgain)
+      .catch(() => {});
   const take = async (asked: JoinStart) => {
     setBusy(true);
     setFailure(undefined);
@@ -233,6 +242,7 @@ export function AddServerSheet({
         if (before?.waiting && before.id !== res.ticket.id) revoke(before.id);
         setMade({ ticket: res.ticket, value: res.value });
         setLabelling(false);
+        readWaitingAgain();
       }
     } catch (err) {
       if (err instanceof StepUpDeclined) return;

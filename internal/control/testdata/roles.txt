@@ -195,6 +195,7 @@ ServerService.CreateJoinTicket                 apply        admin      admin    
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
+ServerService.ListJoinTickets                  read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named
 ServerService.ReadSystemLog                    read         admin      admin      install  session
 ServerService.RevokeJoinTicket                 apply        admin      admin      install

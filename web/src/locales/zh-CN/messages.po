@@ -3967,6 +3967,7 @@ msgstr "镜像自带"
 msgid "{0} h"
 msgstr "{0} 小时"
 
+#. placeholder {0}: Math.max(1, Math.floor(ms / 60_000))
 #. placeholder {0}: a.minutes
 msgid "{0} min"
 msgstr "{0} 分钟"
@@ -17659,6 +17660,21 @@ msgstr "{name} 通过它连接网络"
 
 msgid "{name}'s services and sign-ins go through it"
 msgstr "{name} 的服务和登录都依赖它"
+
+msgid "1 join command waiting · expires in {left}"
+msgstr "1 条加入命令等待中 · {left}后过期"
+
+msgid "Join commands waiting"
+msgstr "等待中的加入命令"
+
+msgid "Stop all"
+msgstr "全部停止"
+
+msgid "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"
+msgstr "{failedCount, plural, other {无法停止 # 条加入命令：{failedWhy} 它们在过期前仍然有效。请再次点击停止。}}"
+
+msgid "{n, plural, other {# join commands waiting · the first expires in {left}}}"
+msgstr "{n, plural, other {# 条加入命令等待中 · 最早的 {left}后过期}}"
 
 msgid "Being removed"
 msgstr "正在移除"

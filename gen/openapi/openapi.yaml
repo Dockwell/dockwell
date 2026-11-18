@@ -3877,6 +3877,27 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
     /v1/joinTickets:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                ListJoinTickets lists the tickets still waiting for a server, newest first:
+                 unused, and not expired or revoked. It never returns a ticket itself. The
+                 Servers page shows them with Stop, and dockwell join-tickets list prints them.
+            operationId: ServerService_ListJoinTickets
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListJoinTicketsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
         post:
             tags:
                 - ServerService
@@ -20094,6 +20115,15 @@ components:
                     description: How the registry answered.
                     format: enum
             description: ListImageTagsResponse lists a repository's tags.
+        ListJoinTicketsResponse:
+            type: object
+            properties:
+                tickets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/JoinTicket'
+                    description: Each ticket as GetJoinTicket reads it, without its secret.
+            description: ListJoinTicketsResponse carries the waiting tickets, newest first.
         ListLogSourcesResponse:
             type: object
             properties:

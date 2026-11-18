@@ -47,6 +47,7 @@ import { ServerInspector } from "./ServerInspector";
 import { byNeed, serverStatus } from "./server";
 import { useServerTiles } from "./tiles";
 import { useFleet, useFleetUnread } from "./useFleet";
+import { WaitingJoinTickets } from "./WaitingJoinTickets";
 import "./ServersPage.css";
 
 /** Which server Servers inspects, or that none is, and which servers it lists, as its URL says. */
@@ -204,6 +205,7 @@ export function ServersPage({
       }
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
+      <WaitingJoinTickets />
       {used.size > 0 || terms.length > 0 || selector.bad.length > 0 ? (
         <ServersSelector
           selector={selector}
