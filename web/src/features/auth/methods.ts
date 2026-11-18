@@ -241,8 +241,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "ServerService.createJoinTicket": "may",
   "ServerService.getJoinTicket": { within: "ServerService.createJoinTicket" },
-  // The Add server sheet revokes what it made and nobody used, which only someone who may make one opens (#800).
-  "ServerService.revokeJoinTicket": { within: "ServerService.createJoinTicket" },
+  // The Add server sheet revokes what nobody can still be using, and the Servers page's band offers Stop
+  // for each command waiting, which it asks may for by name (#800).
+  "ServerService.revokeJoinTicket": "may",
   // The Servers page lists the join commands waiting, with Stop, for whoever may read them (#800).
   "ServerService.listJoinTickets": "may",
   "ServerService.getServer": "unused",

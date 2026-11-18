@@ -644,6 +644,64 @@ describe("Servers", () => {
       await waitFor(() => expect(listJoinTickets.mock.calls.length).toBeGreaterThan(before));
     });
 
+    it("stops a ticket that arrives after the sheet closed, as nothing will show it", async () => {
+      stubPasskeys();
+      const user = userEvent.setup();
+      let answer: () => void = () => {};
+      const revoked: string[] = [];
+      renderServers([web1, web2()], "/servers", {
+        ...release,
+        ...passkey([]),
+        servers: {
+          createJoinTicket: (req: CreateJoinTicketRequest) => {
+            if (!req.proof) throw authError(Code.PermissionDenied, "needs_step_up", "this needs your passkey just now");
+            return new Promise((resolve) => {
+              answer = () =>
+                resolve({
+                  ticket: {
+                    id: "jtk_late",
+                    state: JoinTicketState.WAITING,
+                    expireTime: timestampFromDate(new Date(Date.now() + 3_600_000)),
+                  },
+                  value: "TICKET",
+                });
+            });
+          },
+          getJoinTicket: () => ({ ticket: { id: "jtk_late", state: JoinTicketState.WAITING } }),
+          revokeJoinTicket: (req: { id: string }) => {
+            revoked.push(req.id);
+            return {};
+          },
+        },
+      });
+      await user.click(await screen.findByRole("button", { name: "Add server" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+      await user.click(within(sheet).getByRole("button", { name: "Done" }));
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a server" })).toBeNull());
+      answer();
+      await waitFor(() => expect(revoked).toEqual(["jtk_late"]));
+    });
+
+    it("stops a command bar's ticket nothing took once its time is up (#800's review, L4)", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const revoked: string[] = [];
+      const transport = createRouterTransport(({ service }) =>
+        service(ServerService, {
+          createJoinTicket: () => ({ ticket: { id: "jtk_lost", state: JoinTicketState.WAITING }, value: "TICKET" }),
+          revokeJoinTicket: (req) => {
+            revoked.push(req.id);
+            return {};
+          },
+        }),
+      );
+      const { handOverJoinTicket } = await import("./AddServerSheet");
+      handOverJoinTicket(transport);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(revoked).toEqual([]);
+      await vi.advanceTimersByTimeAsync(6_000);
+      await waitFor(() => expect(revoked).toEqual(["jtk_lost"]));
+    });
+
     it("stops nothing a server joined with as the sheet closes", async () => {
       stubPasskeys();
       const user = userEvent.setup();
@@ -1099,6 +1157,75 @@ describe("join commands waiting (#800)", () => {
       /^Couldn't stop 1 join command: .*read-only just now.* It works until it expires\. Try Stop again\.$/,
     );
     expect(band).toHaveTextContent("1 join command waiting");
+  });
+
+  it("counts a ticket that joined or went meanwhile as stopped, and explains only the rest (#800's review, M1)", async () => {
+    const user = userEvent.setup();
+    let open = [waiting("jtk_1", 40), waiting("jtk_2", 12), waiting("jtk_3", 55)];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          if (req.id === "jtk_1") {
+            open = open.filter((w) => w.id !== "jtk_1");
+            throw new ConnectError(
+              "a server joined with join ticket jtk_1 already, so there's nothing to revoke. Remove the server from the fleet instead",
+              Code.FailedPrecondition,
+            );
+          }
+          if (req.id === "jtk_2") throw new ConnectError("the store is read-only just now", Code.Unavailable);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    await user.click(within(band).getByRole("button", { name: "Stop all" }));
+    const alert = await within(band).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      /^Couldn't stop 1 join command: .*read-only just now.* It works until it expires\. Try Stop again\.$/,
+    );
+    expect(alert).not.toHaveTextContent("Remove the server");
+    expect(band).toHaveTextContent("1 join command waiting · expires in 12 min");
+  });
+
+  it("opens into a row each, with its expiry, its labels and its own Stop (#800's review, M2)", async () => {
+    const user = userEvent.setup();
+    let open = [{ ...waiting("jtk_2", 40), labels: { region: "eu", pool: "web" } }, waiting("jtk_1", 12)];
+    const revoked: string[] = [];
+    renderServers([web1, web2()], "/servers", {
+      servers: {
+        listJoinTickets: () => ({ tickets: open }),
+        revokeJoinTicket: (req: { id: string }) => {
+          revoked.push(req.id);
+          open = open.filter((w) => w.id !== req.id);
+          return {};
+        },
+      },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    const toggle = within(band).getByRole("button", { name: /2 join commands waiting/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(toggle);
+    const rows = within(within(band).getByRole("list", { name: "Join commands waiting, one by one" })).getAllByRole(
+      "listitem",
+    );
+    expect(rows.map((r) => r.textContent)).toEqual(["Expires in 40 minpool:webregion:euStop", "Expires in 12 minStop"]);
+    await user.click(
+      within(rows[0] as HTMLElement).getByRole("button", { name: "Stop the join command that expires in 40 min" }),
+    );
+    await waitFor(() => expect(band).toHaveTextContent("1 join command waiting · expires in 12 min"));
+    expect(revoked).toEqual(["jtk_2"]);
+    expect(within(band).getByRole("button", { name: "Stop" })).toBeVisible();
+  });
+
+  it("shows what the server lists, though the browser's clock has run past it (#800's review, L3)", async () => {
+    renderServers([web1, web2()], "/servers", {
+      // The server, by its own clock, still lists it; the browser's says it expired a while ago.
+      servers: { listJoinTickets: () => ({ tickets: [{ ...waiting("jtk_1", -30) }] }) },
+    });
+    const band = await screen.findByRole("region", { name: "Join commands waiting" });
+    expect(band).toHaveTextContent("1 join command waiting · expires in 1 min");
   });
 
   it("isn't there with none waiting, nor for someone who may not read them", async () => {

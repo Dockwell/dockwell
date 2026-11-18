@@ -211,3 +211,60 @@ func testAJoinTicketIsMadeInThePanel(t *testing.T, backend store.Backend) {
 		t.Errorf("the audit log has no join_token.revoke for %s", next.GetTicket().GetId())
 	}
 }
+
+func TestJoinTicketsAreAnAdminsToListAndStop(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, testJoinTicketsAreAnAdminsToListAndStop)
+}
+
+// Listing and stopping join tickets is an admin's: a token capped at a developer
+// or a viewer is refused both, with the same words whether the ticket exists or
+// not; an admin's read-only token lists but can't stop; an admin's read-write
+// token stops one, with no session (#800's review).
+func testJoinTicketsAreAnAdminsToListAndStop(t *testing.T, backend store.Backend) {
+	f := startFull(t, backend, nil)
+	b := signedIn(t, f)
+	tk, err := f.ident.CreateTicket(t.Context(), "https://203.0.113.7:7443", "cli:test", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := func(secret string) dockwellv1connect.ServerServiceClient {
+		return dockwellv1connect.NewServerServiceClient(bearer{token: secret, rt: b.client.Transport}, b.origin, connect.WithProtoJSON())
+	}
+	list := func(secret string) error {
+		_, err := client(secret).ListJoinTickets(t.Context(), connect.NewRequest(&dockwellv1.ListJoinTicketsRequest{}))
+		return err
+	}
+	revoke := func(secret, id string) error {
+		_, err := client(secret).RevokeJoinTicket(t.Context(), connect.NewRequest(&dockwellv1.RevokeJoinTicketRequest{Id: id}))
+		return err
+	}
+	unknown := "jtk_" + strings.Repeat("0", 26)
+	for _, role := range []dockwellv1.TokenRole{dockwellv1.TokenRole_TOKEN_ROLE_DEVELOPER, dockwellv1.TokenRole_TOKEN_ROLE_VIEWER} {
+		secret, _ := narrowedToken(t, b, &dockwellv1.CreateTokenRequest{Role: role})
+		if err := list(secret); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Errorf("a %v token listing: %v, want refused", role, err)
+		}
+		real, none := revoke(secret, tk.TokenID), revoke(secret, unknown)
+		if connect.CodeOf(real) != connect.CodePermissionDenied || connect.CodeOf(none) != connect.CodePermissionDenied {
+			t.Errorf("a %v token revoking: %v and %v, want both refused", role, real, none)
+		}
+		if strings.ReplaceAll(real.Error(), tk.TokenID, "ID") != strings.ReplaceAll(none.Error(), unknown, "ID") {
+			t.Errorf("a refusal tells a real ticket from an unknown one: %q, %q", real, none)
+		}
+	}
+	readOnly := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY)
+	if err := list(readOnly); err != nil {
+		t.Errorf("an admin's read-only token listing: %v", err)
+	}
+	if err := revoke(readOnly, tk.TokenID); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Errorf("an admin's read-only token revoking: %v, want refused", err)
+	}
+	readWrite := createToken(t, b, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE)
+	if err := revoke(readWrite, tk.TokenID); err != nil {
+		t.Errorf("an admin's read-write token revoking: %v", err)
+	}
+	if err := revoke(readWrite, unknown); connect.CodeOf(err) != connect.CodeNotFound || !strings.Contains(err.Error(), "nothing to stop") {
+		t.Errorf("revoking an unknown ticket: %v", err)
+	}
+}

@@ -5,10 +5,12 @@ package identity
 import (
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -492,4 +494,38 @@ func testARevokedTicketCantJoin(t *testing.T, backend store.Backend) {
 	if _, err := f.a.RevokeTicket(ctx, "user:usr_1", "jtk_nope"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("revoking an unknown ticket = %v, want not found", err)
 	}
+}
+
+func TestJoinAndRevokeRaceToOneWinner(t *testing.T) {
+	storetest.Each(t, testJoinAndRevokeRaceToOneWinner)
+}
+
+// A join and a revoke of the same ticket at once: exactly one wins, every time.
+// Either the server joins and the revoke is refused as used, or the revoke stops
+// it and the join is rejected; never both (#800's review).
+func testJoinAndRevokeRaceToOneWinner(t *testing.T, backend store.Backend) {
+	f := newFixture(t, backend)
+	ctx := t.Context()
+	var joins, revokes int
+	for round := range 20 {
+		tk := newTicket(t, f, time.Hour)
+		var joinErr, revokeErr error
+		var wg sync.WaitGroup
+		wg.Go(func() {
+			_, joinErr = f.a.Join(ctx, tk.GetTokenId(), tk.GetSecret(), csr(t), fmt.Sprintf("race-%d", round), "198.51.100.9")
+		})
+		wg.Go(func() {
+			_, revokeErr = f.a.RevokeTicket(ctx, "user:usr_1", tk.GetTokenId())
+		})
+		wg.Wait()
+		switch {
+		case joinErr == nil && errors.Is(revokeErr, store.ErrConflict):
+			joins++
+		case revokeErr == nil && errors.Is(joinErr, ErrTicketRejected):
+			revokes++
+		default:
+			t.Fatalf("round %d: join = %v, revoke = %v; want exactly one to win", round, joinErr, revokeErr)
+		}
+	}
+	t.Logf("joins first %d, revokes first %d", joins, revokes)
 }

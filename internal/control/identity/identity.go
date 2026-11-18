@@ -364,6 +364,17 @@ func (a *Authority) CreateLabeledTicket(ctx context.Context, controlURL, actor s
 	return Ticket{Value: value, TokenID: tok.ID, ExpiresAt: tok.ExpiresAt}, nil
 }
 
+// WaitingTickets returns the join tokens still waiting, newest first, by the same
+// clock Join and RevokeTicket decide by, so the three agree on what waits.
+func (a *Authority) WaitingTickets(ctx context.Context) ([]store.JoinToken, error) {
+	var toks []store.JoinToken
+	err := a.db.View(ctx, func(tx *store.Tx) (err error) {
+		toks, err = tx.ListWaitingJoinTokens(ctx, a.now())
+		return err
+	})
+	return toks, err
+}
+
 // RevokeTicket stops a waiting join token working at once, and records who did,
 // for the activity log. One that expired already is left as it is, and isn't
 // recorded again; one a server joined with is store.ErrConflict.

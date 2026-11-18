@@ -35,7 +35,7 @@ service ServerService {
   };
   option (dockwell.v1.nouns) = {
     name: "join-tickets"
-    help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, and GetJoinTicket says whether a server has used it. dockwell token create makes the same ticket on the control server."
+    help: "A join ticket adds one server: dockwell join with it, on the new server, gives that server a name and a certificate, and its agent connects. CreateJoinTicket makes one with a passkey, GetJoinTicket says whether a server has used it, ListJoinTickets lists the ones still waiting, and RevokeJoinTicket stops one. dockwell token create makes the same ticket on the control server."
   };
 
   // ListServers returns every server, connected or not, without history.

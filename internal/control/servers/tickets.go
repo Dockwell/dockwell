@@ -141,11 +141,7 @@ func (s *Service) ListJoinTickets(ctx context.Context, _ *connect.Request[dockwe
 	if s.ident == nil {
 		return nil, connect.NewError(connect.CodeUnimplemented, errNoTickets)
 	}
-	var toks []store.JoinToken
-	err := s.db.View(ctx, func(tx *store.Tx) (err error) {
-		toks, err = tx.ListWaitingJoinTokens(ctx, time.Now())
-		return err
-	})
+	toks, err := s.ident.WaitingTickets(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +174,7 @@ func (s *Service) RevokeJoinTicket(ctx context.Context, req *connect.Request[doc
 	tok, err := s.ident.RevokeTicket(ctx, p.Actor(), ref)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
-		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no join ticket %s. Make one with CreateJoinTicket", ref))
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no join ticket %s, so there's nothing to stop. dockwell join-tickets list shows the ones waiting", ref))
 	case errors.Is(err, store.ErrConflict):
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("a server joined with join ticket %s already, so there's nothing to revoke. Remove the server from the fleet instead", ref))
 	case err != nil:

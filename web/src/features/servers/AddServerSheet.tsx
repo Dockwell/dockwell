@@ -87,7 +87,13 @@ const HANDED_FOR_MS = 10_000;
 /** Starts a ticket in a click that goes to /servers?add, which the page takes as it opens the sheet. */
 export function handOverJoinTicket(transport: Transport): void {
   dropHandedJoinTicket();
-  handed = { started: startJoinTicket(transport), at: Date.now(), taken: false, transport };
+  const it = { started: startJoinTicket(transport), at: Date.now(), taken: false, transport };
+  handed = it;
+  // Nothing took it in its time, as when the tab closed or the page went elsewhere: it's stopped then, not at
+  // the next hand-off (#800's review, L4).
+  window.setTimeout(() => {
+    if (handed === it && !it.taken) dropHandedJoinTicket();
+  }, HANDED_FOR_MS);
 }
 
 /** Lets go of a handed ticket, as when the sheet closes, and revokes it if nothing took it. */

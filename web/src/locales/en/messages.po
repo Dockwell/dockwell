@@ -17661,20 +17661,29 @@ msgstr "{name} reaches the network through it"
 msgid "{name}'s services and sign-ins go through it"
 msgstr "{name}'s services and sign-ins go through it"
 
-msgid "1 join command waiting · expires in {left}"
-msgstr "1 join command waiting · expires in {left}"
+msgid "1 join command waiting · expires in {first}"
+msgstr "1 join command waiting · expires in {first}"
+
+msgid "Expires in {expires}"
+msgstr "Expires in {expires}"
 
 msgid "Join commands waiting"
 msgstr "Join commands waiting"
 
+msgid "Join commands waiting, one by one"
+msgstr "Join commands waiting, one by one"
+
 msgid "Stop all"
 msgstr "Stop all"
+
+msgid "Stop the join command that expires in {expires}"
+msgstr "Stop the join command that expires in {expires}"
 
 msgid "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"
 msgstr "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It works until it expires. Try Stop again.} other {Couldn't stop # join commands: {failedWhy} They work until they expire. Try Stop again.}}"
 
-msgid "{n, plural, other {# join commands waiting · the first expires in {left}}}"
-msgstr "{n, plural, other {# join commands waiting · the first expires in {left}}}"
+msgid "{n, plural, other {# join commands waiting · the first expires in {first}}}"
+msgstr "{n, plural, other {# join commands waiting · the first expires in {first}}}"
 
 msgid "Being removed"
 msgstr "Being removed"

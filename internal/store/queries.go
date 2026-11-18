@@ -267,7 +267,10 @@ func (t *Tx) GetJoinToken(ctx context.Context, id string) (JoinToken, error) {
 }
 
 // ListWaitingJoinTokens returns the join tokens still waiting at now, newest
-// first: unused, and expiring after now.
+// first: unused, and expiring after now. It scans join_tokens, which has no
+// index on what waits and keeps every token: an index or a prune of old used and
+// expired rows would need a migration, and at the sizes an install reaches the
+// scan is cheap (#800's review, L7).
 func (t *Tx) ListWaitingJoinTokens(ctx context.Context, now time.Time) ([]JoinToken, error) {
 	rows, err := t.query(ctx, `SELECT id, created_at, created_by, expires_at, labels FROM join_tokens
 		WHERE used_at IS NULL AND expires_at > ? ORDER BY created_at DESC, id DESC`, millis(now))
