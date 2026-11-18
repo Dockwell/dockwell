@@ -104,7 +104,7 @@ func TestStatsRates(t *testing.T) {
 	fsys := fixture("cpu 100 0 100 800 0 0 0 0 0 0\n", netdev(1000, 2000))
 	c := newFixtureCollector(fsys)
 
-	first := c.Stats(t0)
+	first := c.Stats(t.Context(), t0)
 	if first.GetCpuPercent() != 0 || first.GetNetworkRxBytesPerSecond() != 0 {
 		t.Error("the first sample has nothing to compare with and should report 0 rates")
 	}
@@ -131,7 +131,7 @@ func TestStatsRates(t *testing.T) {
 	// 5 s later: 300 of 1000 new jiffies were busy, and eth0 moved 5 KB in, 10 KB out.
 	fsys["proc/stat"].Data = []byte("cpu 300 0 200 1500 0 0 0 0 0 0\n")
 	fsys["proc/net/dev"].Data = []byte(netdev(6000, 12000))
-	second := c.Stats(t0.Add(5 * time.Second))
+	second := c.Stats(t.Context(), t0.Add(5*time.Second))
 	if second.GetCpuPercent() != 30 {
 		t.Errorf("CPU = %v%%, want 30%%", second.GetCpuPercent())
 	}
@@ -143,7 +143,7 @@ func TestStatsRates(t *testing.T) {
 	// CPU accounting wobbled) reports 0, not a wrapped huge number.
 	fsys["proc/stat"].Data = []byte("cpu 290 0 200 1600 0 0 0 0 0 0\n")
 	fsys["proc/net/dev"].Data = []byte(netdev(10, 10))
-	third := c.Stats(t0.Add(10 * time.Second))
+	third := c.Stats(t.Context(), t0.Add(10*time.Second))
 	if third.GetNetworkRxBytesPerSecond() != 0 {
 		t.Errorf("after a reset, rx = %d", third.GetNetworkRxBytesPerSecond())
 	}
@@ -163,7 +163,7 @@ func TestMissingFilesAreHarmless(t *testing.T) {
 	if inv.GetCpuCount() == 0 {
 		t.Error("CPU count should fall back to the runtime's")
 	}
-	_ = c.Stats(time.Now())
+	_ = c.Stats(t.Context(), time.Now())
 }
 
 func TestParsers(t *testing.T) {
@@ -185,9 +185,9 @@ func TestOnThisMachine(t *testing.T) {
 	if inv.GetCpuCount() == 0 || inv.GetMemoryBytes() == 0 || inv.GetKernel() == "" {
 		t.Errorf("inventory of this machine looks empty: %v", inv)
 	}
-	_ = c.Stats(time.Now())
+	_ = c.Stats(t.Context(), time.Now())
 	time.Sleep(50 * time.Millisecond)
-	st := c.Stats(time.Now())
+	st := c.Stats(t.Context(), time.Now())
 	if st.GetMemoryTotalBytes() == 0 || st.GetUptime().AsDuration() <= 0 || st.GetCpuPercent() < 0 || st.GetCpuPercent() > 100 || st.GetAgentMemoryBytes() == 0 {
 		t.Errorf("stats of this machine look wrong: %v", st)
 	}
@@ -288,7 +288,7 @@ func TestDiskBytesCountEachWholeDiskOnce(t *testing.T) {
 	for _, layer := range []string{"dm-0", "md0", "loop0", "zram0"} {
 		fsys["sys/block/"+layer+"/size"] = &fstest.MapFile{Data: []byte("1\n")}
 	}
-	st := newFixtureCollector(fsys).Stats(time.Now())
+	st := newFixtureCollector(fsys).Stats(t.Context(), time.Now())
 	if want := uint64(2000+200+10+4) * 512; st.GetDiskReadBytes() != want {
 		t.Errorf("read %d bytes, want %d", st.GetDiskReadBytes(), want)
 	}
@@ -297,7 +297,7 @@ func TestDiskBytesCountEachWholeDiskOnce(t *testing.T) {
 	}
 	// With no diskstats, as in some containers, it says nothing.
 	delete(fsys, "proc/diskstats")
-	if st := newFixtureCollector(fsys).Stats(time.Now()); st.GetDiskReadBytes() != 0 || st.GetDiskWrittenBytes() != 0 {
+	if st := newFixtureCollector(fsys).Stats(t.Context(), time.Now()); st.GetDiskReadBytes() != 0 || st.GetDiskWrittenBytes() != 0 {
 		t.Errorf("no diskstats read %d and wrote %d", st.GetDiskReadBytes(), st.GetDiskWrittenBytes())
 	}
 }

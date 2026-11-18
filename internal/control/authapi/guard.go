@@ -701,8 +701,7 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 // checks the request against them.
 type scopedConn struct {
 	connect.StreamingHandlerConn
-	i    *interceptor
-	trim bool
+	i *interceptor
 
 	mu     sync.Mutex
 	ctx    context.Context //nolint:containedctx // the stream's own, with the grants last read
@@ -808,10 +807,26 @@ func (c *scopedConn) endedBy() error {
 	return c.ended
 }
 
-func (c *scopedConn) Send(m any) error {
+// narrowing is what a send narrows by: the stream's context, with the grants last
+// read, and what's known of its caller's apps by those same grants. They're read
+// together, so a recheck between two reads can't leave a new cache of apps filled
+// from the grants before it, which would keep a lost project's apps in samples
+// until the recheck after (#852). The maps are this stream's alone, and a recheck
+// only swaps one for a new one.
+func (c *scopedConn) narrowing() (context.Context, appsSeen) {
 	c.mu.Lock()
-	ctx := c.ctx
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	if c.apps.placed == nil {
+		c.apps.placed = map[string]bool{}
+	}
+	if c.apps.shown == nil {
+		c.apps.shown = map[string]bool{}
+	}
+	return c.ctx, c.apps
+}
+
+func (c *scopedConn) Send(m any) error {
+	ctx, seen := c.narrowing()
 	skip, err := c.i.filter(ctx, c.Spec().Procedure, m)
 	if err != nil {
 		return ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
@@ -820,17 +835,10 @@ func (c *scopedConn) Send(m any) error {
 		return nil
 	}
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
-	if c.trim {
-		// The maps are this stream's alone, and a recheck only swaps one for a new one.
-		c.mu.Lock()
-		if c.apps.placed == nil {
-			c.apps.placed = map[string]bool{}
-		}
-		if c.apps.shown == nil {
-			c.apps.shown = map[string]bool{}
-		}
-		seen := c.apps
-		c.mu.Unlock()
+	// Whether to trim is asked of the grants just read, as a role can change while
+	// the stream stays open: an admin made a viewer is trimmed from the next send
+	// after a recheck (#852's review, H1).
+	if trims(ctx, c.Spec().Procedure) {
 		c.i.trimKeepingApps(ctx, m, &seen)
 	}
 	if briefs(ctx) {
@@ -857,7 +865,7 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		}
 		client, _ := ClientFrom(ctx)
 		procedure := conn.Spec().Procedure
-		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, trim: trims(ctx, procedure), ctx: ctx}
+		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, ctx: ctx}
 		// Each recheck asks the gate and the request's places again, so a stream
 		// ends once its caller's role, or a token's maker's, no longer lets them
 		// make it, or reach what it names (ADR 0048).

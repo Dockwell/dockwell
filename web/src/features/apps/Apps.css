@@ -3375,3 +3375,8 @@
 .app-metrics-span {
   font-size: 12.5px;
 }
+
+/* Figures the panel can't say are current, as the overview's are while it can't hear the fleet. */
+.app-metrics.is-stale {
+  opacity: 0.45;
+}

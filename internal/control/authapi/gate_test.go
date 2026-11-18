@@ -23,7 +23,13 @@ import (
 // or nothing when role is "", with Ada as a principal.
 func gated(t *testing.T, role string) (*interceptor, auth.Principal, *store.DB) {
 	t.Helper()
-	db, _ := storetest.Open(t, store.SQLite)
+	return gatedOn(t, store.SQLite, role)
+}
+
+// gatedOn is gated on the store given.
+func gatedOn(t *testing.T, backend store.Backend, role string) (*interceptor, auth.Principal, *store.DB) {
+	t.Helper()
+	db, _ := storetest.Open(t, backend)
 	key, err := seal.LoadOrCreate(filepath.Join(t.TempDir(), "key"))
 	if err != nil {
 		t.Fatal(err)

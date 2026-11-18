@@ -467,7 +467,20 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	// Each sample carries what the containers it watches use, read from their cgroups (#797).
 	// A test reads none of the machine's: only the stand-ins under DOCKWELL_TEST_CGROUP.
 	collector.Containers = monitor.Running
+	// One in neither of Docker's usual places is found from its own process (#852).
+	collector.ContainerPID = func(ctx context.Context, id string) (int, error) {
+		c, err := client.InspectContainer(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if !c.State.Running {
+			return 0, nil
+		}
+		return c.State.Pid, nil
+	}
 	if isSet(stdio.Getenv(envTest)) {
+		// A test's stand-ins have no process on the machine to read.
+		collector.ContainerPID = nil
 		if dir := stdio.Getenv(envTestCgroup); dir != "" {
 			collector.Cgroups = os.DirFS(dir)
 		} else {

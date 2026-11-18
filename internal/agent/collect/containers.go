@@ -4,18 +4,53 @@ package collect
 
 import (
 	"bytes"
+	"context"
 	"io/fs"
+	"os"
+	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
-// cpuUsage is what a container's cgroup said its CPU time was, at a sample.
+// cpuUsage is what a container's cgroup said its CPU time was, at a sample, and
+// which cgroup said it: a restart that keeps the container's ID makes a new one
+// (#852).
 type cpuUsage struct {
 	at   time.Time
 	usec uint64
+	ino  uint64
+}
+
+// dockerPlaces are where a rootful Docker puts a container's cgroup, under
+// systemd's driver and cgroupfs', read first: only root can make a folder there.
+func dockerPlaces(id string) [2]string {
+	return [2]string{"system.slice/docker-" + id + ".scope", "docker/" + id}
+}
+
+const (
+	// pidAsksPerSample is how many containers a sample looks up at most, and
+	// pidAskBudget how long all its asks of Docker may take together, as the
+	// agent's send loop waits for the sample (#852's re-check, N3).
+	pidAsksPerSample = 4
+	pidAskBudget     = 2 * time.Second
+	// pidRetryFirst is how long a container whose cgroup wasn't found waits
+	// before the next try, twice as long after each that fails, up to pidRetryMost.
+	pidRetryFirst = time.Minute
+	pidRetryMost  = time.Hour
+)
+
+// pidCgroup is what's known of a container in neither of Docker's usual places:
+// its process and the cgroup that process is in, or, after a try that found
+// none, how many have failed and when to try again.
+type pidCgroup struct {
+	pid     int
+	dir     string
+	fails   int
+	retryAt time.Time
 }
 
 // containerUsage reads what each running container uses from its cgroup, for an
@@ -24,23 +59,40 @@ type cpuUsage struct {
 // files of the kernel's for each, cpu.stat, memory.current, memory.stat and
 // memory.max.
 // It reads cgroup v2 alone, under systemd's driver ("system.slice/docker-<id>.scope")
-// or cgroupfs' ("docker/<id>"); a host without it reads as none.
-func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
+// or cgroupfs' ("docker/<id>"), and elsewhere where the container's own process
+// says (#852); a host without it reads as none.
+func (c *Collector) containerUsage(ctx context.Context, now time.Time) []*dockwellv1.ContainerUsage {
 	if c.Containers == nil {
 		return nil
 	}
 	ids := c.Containers()
 	seen := make(map[string]cpuUsage, len(ids))
+	running := make(map[string]bool, len(ids))
+	asks := 0
+	// One budget for the whole sample's asks, ended with the loop that sends it.
+	ctx, cancel := context.WithTimeout(ctx, pidAskBudget)
+	defer cancel()
 	var out []*dockwellv1.ContainerUsage
 	for _, id := range ids {
+		if !containerIDish(id) {
+			continue
+		}
+		running[id] = true
 		dir, current, ok := c.cgroupOf(id)
+		if !ok {
+			dir, current, ok = c.cgroupByPID(ctx, id, now, &asks)
+		}
 		if !ok {
 			continue
 		}
 		u := &dockwellv1.ContainerUsage{ContainerId: id}
 		if usec, ok := usageUsec(c.cgroupFile(dir + "/cpu.stat")); ok {
-			seen[id] = cpuUsage{at: now, usec: usec}
-			if p, ok := c.prevCPU[id]; ok && usec >= p.usec {
+			ino := c.cgroupIno(dir)
+			seen[id] = cpuUsage{at: now, usec: usec, ino: ino}
+			// A cgroup made again since, as a restart that keeps the ID makes one,
+			// counts from 0: its time can pass the last run's within one interval,
+			// and the difference would mix two runs (#852).
+			if p, ok := c.prevCPU[id]; ok && usec >= p.usec && ino == p.ino {
 				if elapsed := now.Sub(p.at).Microseconds(); elapsed > 0 {
 					u.CpuPercent = float64(usec-p.usec) / float64(elapsed) * 100
 				}
@@ -58,23 +110,204 @@ func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
 		u.MemoryLimitBytes, _ = number(c.cgroupFile(dir + "/memory.max")) // "max" reads as none
 		out = append(out, u)
 	}
-	// Only the containers that still run keep a sample to measure from.
+	// Only the containers that still run keep a sample to measure from, and what's known of their process.
 	c.prevCPU = seen
+	for id := range c.byPID {
+		if !running[id] {
+			delete(c.byPID, id)
+		}
+	}
 	return out
 }
 
-// cgroupOf is where a container's cgroup is, under either of Docker's drivers,
+// cgroupOf is where a container's cgroup is under either of Docker's drivers,
 // with its memory.current, read once to find it (L2).
 func (c *Collector) cgroupOf(id string) (string, []byte, bool) {
 	if !containerIDish(id) {
 		return "", nil, false
 	}
-	for _, dir := range []string{"system.slice/docker-" + id + ".scope", "docker/" + id} {
+	for _, dir := range dockerPlaces(id) {
 		if current := c.cgroupFile(dir + "/memory.current"); len(current) > 0 {
 			return dir, current, true
 		}
 	}
 	return "", nil, false
+}
+
+// cgroupByPID finds the cgroup of a container in neither of Docker's usual
+// places from its own process: rootless Docker's, a daemon's or a service's
+// cgroup parent, and OpenRC's unified mount (#852). Docker's inspect says its
+// PID, and /proc/<pid>/cgroup names the cgroup the kernel keeps it in, so a
+// folder someone made elsewhere with the container's name is never read.
+//
+// A lookup takes the folder only where it's root's or the Docker daemon's user's,
+// and only once Docker, asked again after the read, still says the container
+// runs with that PID, so a PID that went to another process between the two
+// isn't taken (#852's re-check, N1). What's found is checked at each sample in
+// the same way: the PID's cgroup must still be that folder, and still be root's
+// or the daemon's. Once the container's PID changes, its old one ends or goes to
+// another process, so the check fails, and Docker is asked again.
+//
+// A lookup that finds nothing, as where /proc can't be read, waits a minute
+// before the next, and twice as long after each that fails, up to an hour. A
+// sample looks up pidAsksPerSample containers at most, within ctx.
+func (c *Collector) cgroupByPID(ctx context.Context, id string, now time.Time, asks *int) (string, []byte, bool) {
+	if c.ContainerPID == nil {
+		return "", nil, false
+	}
+	if c.byPID == nil {
+		c.byPID = map[string]pidCgroup{}
+	}
+	known := c.byPID[id]
+	if known.dir != "" {
+		if dir, current, ok := c.cgroupAt(id, known.pid); ok && dir == known.dir {
+			return dir, current, true
+		}
+		known = pidCgroup{}
+		c.byPID[id] = known
+	}
+	if now.Before(known.retryAt) || *asks >= pidAsksPerSample || ctx.Err() != nil {
+		return "", nil, false
+	}
+	*asks++
+	if pid, err := c.ContainerPID(ctx, id); err == nil && pid > 0 {
+		if dir, current, ok := c.cgroupAt(id, pid); ok {
+			if again, err := c.ContainerPID(ctx, id); err == nil && again == pid {
+				c.byPID[id] = pidCgroup{pid: pid, dir: dir}
+				return dir, current, true
+			}
+		}
+	}
+	c.byPID[id] = pidCgroup{fails: known.fails + 1, retryAt: now.Add(min(pidRetryFirst<<min(known.fails, 6), pidRetryMost))}
+	return "", nil, false
+}
+
+// cgroupAt is the cgroup a process is in, as cgroupOfPID finds it, with its
+// memory.current, where it's root's or the Docker daemon's user's: a folder a
+// local user made, named for a container, is theirs.
+func (c *Collector) cgroupAt(id string, pid int) (string, []byte, bool) {
+	dir, ok := c.cgroupOfPID(id, pid)
+	if !ok || !c.dockersFolder(dir) {
+		return "", nil, false
+	}
+	current := c.cgroupFile(dir + "/memory.current")
+	return dir, current, len(current) > 0
+}
+
+// dockersFolder reports a folder of the cgroup tree owned by root or by the user
+// the Docker daemon runs as, the owner of its socket: a rootful daemon's
+// cgroups are root's, and a rootless one's are its user's. One whose owner
+// can't be read isn't.
+func (c *Collector) dockersFolder(dir string) bool {
+	tree := c.cgroupTree()
+	if tree == nil {
+		return false
+	}
+	fi, err := fs.Stat(tree, dir)
+	if err != nil {
+		return false
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false
+	}
+	if st.Uid == 0 {
+		return true
+	}
+	uid, ok := c.daemonUID()
+	return ok && st.Uid == uid
+}
+
+// daemonUID is the user the Docker daemon runs as: DaemonUID's, or the owner of
+// DockerSocket.
+func (c *Collector) daemonUID() (uint32, bool) {
+	if c.DaemonUID != nil {
+		return c.DaemonUID()
+	}
+	if c.DockerSocket == "" {
+		return 0, false
+	}
+	fi, err := os.Stat(c.DockerSocket)
+	if err != nil {
+		return 0, false
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, false
+	}
+	return st.Uid, true
+}
+
+// cgroupOfPID is the cgroup v2 folder in the tree that a process is in, cut at
+// the first folder named for the container's ID, the one its daemon made: what
+// the container makes inside it, even a folder named for its ID, is part of it
+// (#852's re-check, N2). A process in no folder named for the ID isn't the
+// container's, as one whose PID was reused isn't.
+func (c *Collector) cgroupOfPID(id string, pid int) (string, bool) {
+	var at string
+	found := false
+	for line := range bytes.Lines(c.read("proc/" + strconv.Itoa(pid) + "/cgroup")) {
+		if rest, ok := bytes.CutPrefix(line, []byte("0::")); ok {
+			at, found = strings.TrimSpace(string(rest)), true
+			break
+		}
+	}
+	if !found {
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(at, "/"), "/")
+	end := slices.IndexFunc(parts, func(part string) bool { return part == "docker-"+id+".scope" || part == id })
+	if end < 0 {
+		return "", false
+	}
+	dir := strings.Join(parts[:end+1], "/")
+	// On a hybrid host, as OpenRC's, cgroup v2 is mounted at unified/.
+	if !c.cgroupHas("cgroup.controllers") && c.cgroupHas("unified/cgroup.controllers") {
+		dir = "unified/" + dir
+	}
+	if !fs.ValidPath(dir) {
+		return "", false
+	}
+	return dir, true
+}
+
+// cgroupHas reports a file of the cgroup tree that's there.
+func (c *Collector) cgroupHas(name string) bool {
+	tree := c.cgroupTree()
+	if tree == nil {
+		return false
+	}
+	_, err := fs.Stat(tree, name)
+	return err == nil
+}
+
+// cgroupTree is the cgroup tree: Cgroups, or the root's sys/fs/cgroup.
+func (c *Collector) cgroupTree() fs.FS {
+	if c.Cgroups != nil {
+		return c.Cgroups
+	}
+	tree, err := fs.Sub(c.Root, "sys/fs/cgroup")
+	if err != nil {
+		return nil
+	}
+	return tree
+}
+
+// cgroupIno is a cgroup folder's inode, which a cgroup made again has new, or 0
+// where the tree doesn't say.
+func (c *Collector) cgroupIno(dir string) uint64 {
+	tree := c.cgroupTree()
+	if tree == nil {
+		return 0
+	}
+	fi, err := fs.Stat(tree, dir)
+	if err != nil {
+		return 0
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+		return st.Ino
+	}
+	return 0
 }
 
 // statOf reads one key's number from a cgroup's memory.stat: "key value" lines.

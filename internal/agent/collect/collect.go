@@ -65,9 +65,18 @@ type Collector struct {
 	Containers func() []string
 	// Cgroups is the cgroup tree, for a test. Nil reads sys/fs/cgroup under Root.
 	Cgroups fs.FS
+	// ContainerPID is a running container's first process's ID on the server, as
+	// Docker's inspect says it, for finding the cgroup of a container in neither
+	// of Docker's usual places (#852). Nil reads those places alone.
+	ContainerPID func(ctx context.Context, id string) (int, error)
+	// DaemonUID is the user the Docker daemon runs as, for a test. Nil reads the
+	// owner of DockerSocket.
+	DaemonUID func() (uint32, bool)
 
 	prev    *sample
 	prevCPU map[string]cpuUsage
+	// What's known of the process of each container in neither of Docker's usual places (#852).
+	byPID map[string]pidCgroup
 }
 
 type sample struct {
@@ -174,7 +183,7 @@ func ephemeralPorts(b []byte) (low, high uint32) {
 
 // Stats samples the server's resource use. Rates (CPU, network) cover the
 // time since the previous call; the first call primes them and reports 0.
-func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
+func (c *Collector) Stats(ctx context.Context, now time.Time) *dockwellv1.ServerStats {
 	st := &dockwellv1.ServerStats{Time: timestamppb.New(now)}
 	cur := &sample{at: now}
 
@@ -229,7 +238,7 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 		st.Disks = append(st.Disks, &dockwellv1.DiskUsage{MountPoint: m.point, UsedBytes: used, SizeBytes: size})
 	}
 	st.DiskReadBytes, st.DiskWrittenBytes = c.diskTotals()
-	st.Containers = c.containerUsage(now)
+	st.Containers = c.containerUsage(ctx, now)
 
 	c.prev = cur
 	return st
