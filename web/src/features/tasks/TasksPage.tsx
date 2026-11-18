@@ -378,12 +378,11 @@ function Target({ task }: { task: TaskInfo }) {
   const runs = task.spec?.runs;
   if (runs?.case === "app") {
     const app = named.get(runs.value.service);
-    return app ? (
+    if (!app) return <>{runs.value.service}</>;
+    return (
       <RefLink kind="app" id={app.id} look="plain">
         {runs.value.service}
       </RefLink>
-    ) : (
-      <>{runs.value.service}</>
     );
   }
   if (runs?.case === "request" || task.servers.length === 0) return <>{targetOf(task)}</>;
