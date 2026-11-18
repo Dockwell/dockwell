@@ -177,6 +177,51 @@ func CompanionList(e *catalogv1.Entry) string {
 	return "It has " + strings.Join(names, ", ")
 }
 
+// WithoutEnv is a Compose file whose service sets none of the variables named in its
+// environment, as a map or a list. It edits the file's YAML as written, so the rest
+// means what it did.
+func WithoutEnv(file, service string, names []string) (string, error) {
+	if len(names) == 0 {
+		return file, nil
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal([]byte(file), &doc); err != nil {
+		return "", fmt.Errorf("its Compose file isn't YAML: %w", err)
+	}
+	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
+		return "", errors.New("its Compose file isn't a mapping")
+	}
+	svc := nodeGet(nodeGet(doc.Content[0], "services"), service)
+	env := nodeGet(svc, "environment")
+	switch {
+	case env == nil:
+		return file, nil
+	case env.Kind == yaml.MappingNode:
+		var kept []*yaml.Node
+		for i := 0; i+1 < len(env.Content); i += 2 {
+			if !slices.Contains(names, env.Content[i].Value) {
+				kept = append(kept, env.Content[i], env.Content[i+1])
+			}
+		}
+		env.Content = kept
+	case env.Kind == yaml.SequenceNode:
+		env.Content = slices.DeleteFunc(env.Content, func(n *yaml.Node) bool {
+			name, _, _ := strings.Cut(n.Value, "=")
+			return slices.Contains(names, name)
+		})
+	}
+	var b bytes.Buffer
+	enc := yaml.NewEncoder(&b)
+	enc.SetIndent(2)
+	if err := enc.Encode(&doc); err != nil {
+		return "", fmt.Errorf("writing its Compose file: %w", err)
+	}
+	if err := enc.Close(); err != nil {
+		return "", fmt.Errorf("writing its Compose file: %w", err)
+	}
+	return b.String(), nil
+}
+
 // Without is a Compose file without the services named, and without the volumes only
 // they used. It edits the file's YAML as written, so the rest means what it did.
 func Without(file string, services []string) (string, error) {

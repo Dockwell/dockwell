@@ -197,3 +197,67 @@ func TestAnInvitesOwnerIsMadeOnceTheyveRegistered(t *testing.T) {
 }
 
 func b64raw(s string) ([]byte, error) { return base64.RawStdEncoding.DecodeString(s) }
+
+// An install from before its entry made owners, whose owner a person made on their own,
+// upgraded to a release whose owner registers through an invite: the release's
+// ADMIN_TOKEN, there only to make the owner, stays out, as the owner is made already.
+// Before, the upgrade turned Vaultwarden's admin page on with a token nobody was shown,
+// which nothing then took away (catalog#37's proof).
+func TestAnUpgradeGainingAnInviteOwnerTurnsNoAdminPageOn(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		o := startOwning(t, backend, inviteEntryBefore(), &dockwellv1.InstallCatalogEntryRequest{Id: "thing"})
+		o.release(strings.Replace(inviteEntry(), "release: 1", "release: 2", 1))
+		o.applied(o.upgrade())
+		web, _ := o.spec(service.Kind, o.env, "web").(*resourcev1.Service)
+		if _, ok := web.GetSecrets()["ADMIN_TOKEN"]; ok || web.GetApp().GetEnv()["ADMIN_TOKEN"] != "" {
+			t.Errorf("an install from before, upgraded, takes ADMIN_TOKEN: %v", web.GetSecrets())
+		}
+		if env := o.web().Config.Env; slices.ContainsFunc(env, func(e string) bool { return strings.HasPrefix(e, "ADMIN_TOKEN=") }) {
+			t.Errorf("web runs with %v, want no ADMIN_TOKEN", env)
+		}
+		if in := o.install(); in.GetOwner() != nil {
+			t.Errorf("an install from before reads %v, want no owner to make", in.GetOwner())
+		}
+	})
+}
+
+// inviteEntryBefore is inviteEntry as a release from before it made owners: its first
+// visitor makes the owner, and it has no admin token.
+func inviteEntryBefore() string {
+	return fmt.Sprintf(`id: thing
+name: Thing
+summary: Something whose owner registers
+category: storage
+version: "1.0"
+release: 1
+license: AGPL-3.0-only
+appLicense: MIT
+source:
+  repository: https://github.com/Dockwell/dockwell
+web:
+  service: web
+firstVisitorOwns: true
+signups:
+  service: web
+  variable: SIGNUPS_ALLOWED
+  closed: "false"
+inputs:
+  - name: PORT
+    label: Port
+    type: INPUT_TYPE_PORT
+    defaultValue: "18100"
+compose: |
+  services:
+    web:
+      image: %s
+      environment:
+        SIGNUPS_ALLOWED: "true"
+      ports:
+        - "${PORT}:80"
+      volumes:
+        - data:/data
+  volumes:
+    data: {}
+`, firstRelease)
+}

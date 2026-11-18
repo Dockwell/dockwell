@@ -201,3 +201,44 @@ func TestCompanionValues(t *testing.T) {
 		t.Errorf("an input not its own = %v", err)
 	}
 }
+
+// WithoutEnv takes the variables named out of one service's environment, written as a
+// map or as a list, and leaves the rest of the file as it means (ADR 0105).
+func TestWithoutEnvTakesOnlyTheNamesOutOfOneService(t *testing.T) {
+	for what, file := range map[string]string{
+		"a map": `services:
+  web:
+    image: example/web:1
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      SIGNUPS_ALLOWED: "true"
+  worker:
+    image: example/worker:1
+    environment:
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+`,
+		"a list": `services:
+  web:
+    image: example/web:1
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - SIGNUPS_ALLOWED=true
+  worker:
+    image: example/worker:1
+    environment:
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+`,
+	} {
+		got, err := catalog.WithoutEnv(file, "web", []string{"ADMIN_TOKEN"})
+		if err != nil {
+			t.Fatalf("%s: %v", what, err)
+		}
+		web, worker, _ := strings.Cut(got, "worker:")
+		if strings.Contains(web, "ADMIN_TOKEN") || !strings.Contains(web, "SIGNUPS_ALLOWED") || !strings.Contains(worker, "ADMIN_TOKEN") {
+			t.Errorf("%s: without ADMIN_TOKEN in web reads\n%s", what, got)
+		}
+	}
+	if got, err := catalog.WithoutEnv("services:\n  web:\n    image: example/web:1\n", "web", []string{"ADMIN_TOKEN"}); err != nil || !strings.Contains(got, "image: example/web:1") {
+		t.Errorf("a service with no environment = %q, %v", got, err)
+	}
+}
