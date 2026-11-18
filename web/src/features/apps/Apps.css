@@ -3365,11 +3365,11 @@
   white-space: nowrap;
 }
 
-/* An app's CPU and memory side by side, as the App-Overview mock's Metrics card has them (#797). */
+/* An app's CPU and memory side by side, as the App-Overview mock's Metrics card lays them out (#797). */
 .app-metrics {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: 20px 24px;
 }
 
 .app-metrics-span {

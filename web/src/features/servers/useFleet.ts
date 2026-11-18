@@ -330,10 +330,11 @@ function merge(prev: Server | undefined, next: Server): Server {
 
 /**
  * A sample that says only what the caller's own apps use, as one below an admin is
- * sent (#797): it has none of the server's own figures, which every agent sends.
+ * sent (#797), its apps or none of them: it has none of the server's own figures,
+ * neither memory nor uptime, both of which every agent sends (#848's review, M1, L5).
  */
 export function appsOnly(sample: ServerStats | undefined): boolean {
-  return sample !== undefined && sample.memoryTotalBytes === 0n && sample.containers.length > 0;
+  return sample !== undefined && sample.memoryTotalBytes === 0n && sample.uptime === undefined;
 }
 
 /** A server as its own tiles and charts read it: without samples that hold only apps' figures. */

@@ -18,6 +18,7 @@ func TestASampleCarriesWhatEachContainerUses(t *testing.T) {
 		"sys/fs/cgroup/system.slice/docker-" + web + ".scope/cpu.stat":       {Data: []byte("usage_usec 1000000\nuser_usec 800000\n")},
 		"sys/fs/cgroup/system.slice/docker-" + web + ".scope/memory.current": {Data: []byte("268435456\n")},
 		"sys/fs/cgroup/system.slice/docker-" + web + ".scope/memory.max":     {Data: []byte("536870912\n")},
+		"sys/fs/cgroup/system.slice/docker-" + web + ".scope/memory.stat":    {Data: []byte("anon 100000000\nfile 168435456\nactive_file 100000000\ninactive_file 68435456\n")},
 		"sys/fs/cgroup/docker/" + db + "/cpu.stat":                           {Data: []byte("usage_usec 500\n")},
 		"sys/fs/cgroup/docker/" + db + "/memory.current":                     {Data: []byte("1048576\n")},
 		"sys/fs/cgroup/docker/" + db + "/memory.max":                         {Data: []byte("max\n")},
@@ -30,9 +31,11 @@ func TestASampleCarriesWhatEachContainerUses(t *testing.T) {
 	if len(first) != 2 {
 		t.Fatalf("the first sample has %d containers, want web and db alone: what has no cgroup, or isn't an ID, is left out", len(first))
 	}
-	if first[0].GetContainerId() != web || first[0].GetCpuPercent() != 0 || first[0].GetMemoryBytes() != 268435456 || first[0].GetMemoryLimitBytes() != 536870912 {
-		t.Errorf("web's first sample = %v, want no CPU yet, 256 MiB of 512 MiB", first[0])
+	// What it holds is memory.current less the file cache the kernel takes back, as docker stats says it.
+	if first[0].GetContainerId() != web || first[0].GetCpuPercent() != 0 || first[0].GetMemoryBytes() != 200000000 || first[0].GetMemoryLimitBytes() != 536870912 {
+		t.Errorf("web's first sample = %v, want no CPU yet, 200 MB held of 512 MiB", first[0])
 	}
+	// With no memory.stat to read, memory.current is what it holds.
 	if first[1].GetContainerId() != db || first[1].GetMemoryBytes() != 1048576 || first[1].GetMemoryLimitBytes() != 0 {
 		t.Errorf("db under cgroupfs = %v, want 1 MiB and no limit", first[1])
 	}

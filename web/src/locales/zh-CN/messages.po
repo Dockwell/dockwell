@@ -3179,11 +3179,11 @@ msgstr "{runsOn}，来自 <0>{0}</0>"
 msgid "% of a CPU"
 msgstr "% 单核 CPU"
 
-msgid "% of its limit"
+msgid "% of limit"
 msgstr "% 的上限"
 
-msgid "Last 5 minutes"
-msgstr "最近 5 分钟"
+msgid "Last 5 minutes, all replicas"
+msgstr "最近 5 分钟，所有副本"
 
 msgid "Metrics"
 msgstr "指标"

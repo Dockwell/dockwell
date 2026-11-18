@@ -133,19 +133,45 @@ func briefMessage(m protoreflect.Message) {
 
 // trimKeepingApps trims a response as trim does, and gives back of each server's
 // samples what its caller's own apps use, and nothing else of them (#797): each
-// sample's time and pace, with the containers whose service is in the caller's
-// places, as filter narrows a list of a project's objects. A server where none of
-// theirs runs keeps no samples at all, as before.
-func (i *interceptor) trimKeepingApps(ctx context.Context, msg any) {
+// sample's time and pace, with the apps whose service is in the caller's places,
+// as filter narrows a list of a project's objects. On a server whose samples
+// have had any of theirs, each sample keeps its time even with none of theirs in
+// it, as one where their app stopped says so; a time says no more than the
+// server's last_seen_time does (#848's review, M1). A server where none of
+// theirs has run keeps no samples, its name and state alone, as before.
+//
+// seen keeps, for a stream, what's known of each service by its ID until the
+// next recheck, so a sample asks the store only of a service it hasn't placed
+// (M5), and which servers have shown theirs. Nil keeps it for this call.
+func (i *interceptor) trimKeepingApps(ctx context.Context, msg any, seen *appsSeen) {
+	if seen == nil {
+		seen = &appsSeen{}
+	}
+	if seen.placed == nil {
+		seen.placed = map[string]bool{}
+	}
+	if seen.shown == nil {
+		seen.shown = map[string]bool{}
+	}
+	placed := seen.placed
 	servers := serversIn(msg)
 	type samples struct {
 		stats   *dockwellv1.ServerStats
 		history []*dockwellv1.ServerStats
 	}
 	before := make(map[*dockwellv1.Server]samples, len(servers))
+	unknown := false
 	for _, s := range servers {
-		if s.GetStats() != nil || len(s.GetHistory()) > 0 {
-			before[s] = samples{stats: s.GetStats(), history: s.GetHistory()}
+		if s.GetStats() == nil && len(s.GetHistory()) == 0 {
+			continue
+		}
+		before[s] = samples{stats: s.GetStats(), history: s.GetHistory()}
+		for _, st := range append(s.GetHistory(), s.GetStats()) {
+			for _, u := range st.GetContainers() {
+				if _, known := placed[u.GetServiceId()]; !known && u.GetServiceId() != "" {
+					unknown = true
+				}
+			}
 		}
 	}
 	trim(msg)
@@ -156,50 +182,73 @@ func (i *interceptor) trimKeepingApps(ctx context.Context, msg any) {
 	if !ok {
 		return
 	}
-	err := i.svc.View(ctx, func(tx *store.Tx) error {
-		within, _ := scopeOf(ctx, tx, grants)
-		var failed error
-		keep := func(st *dockwellv1.ServerStats) *dockwellv1.ServerStats {
-			if st == nil {
-				return nil
-			}
-			var theirs []*dockwellv1.ContainerUsage
-			for _, c := range st.GetContainers() {
-				if c.GetServiceId() == "" {
-					continue
-				}
-				ok, err := within(c.GetServiceId())
-				if err != nil {
-					failed = err
-					return nil
-				}
-				if ok {
-					theirs = append(theirs, c)
+	// The store is asked only of services this caller's samples haven't placed yet.
+	if unknown {
+		err := i.svc.View(ctx, func(tx *store.Tx) error {
+			within, _ := scopeOf(ctx, tx, grants)
+			for _, was := range before {
+				for _, st := range append(was.history, was.stats) {
+					for _, u := range st.GetContainers() {
+						id := u.GetServiceId()
+						if _, known := placed[id]; known || id == "" {
+							continue
+						}
+						ok, err := within(id)
+						if err != nil {
+							return err
+						}
+						placed[id] = ok
+					}
 				}
 			}
-			if len(theirs) == 0 {
-				return nil
+			return nil
+		})
+		if err != nil {
+			// Nothing of a server's samples, as before, rather than what can't be checked.
+			clear(placed)
+			for s := range before {
+				s.Stats, s.History = nil, nil
 			}
-			return &dockwellv1.ServerStats{Time: st.GetTime(), Interval: st.GetInterval(), Containers: theirs}
+			i.logger.ErrorContext(ctx, "can't narrow a server's samples to its caller's apps", slog.Any("error", err))
+			return
 		}
-		for s, was := range before {
-			s.Stats = keep(was.stats)
-			s.History = nil
-			for _, h := range was.history {
-				if kept := keep(h); kept != nil {
-					s.History = append(s.History, kept)
-				}
-			}
-		}
-		return failed
-	})
-	if err != nil {
-		// Nothing of a server's samples, as before, rather than what can't be checked.
-		for s := range before {
-			s.Stats, s.History = nil, nil
-		}
-		i.logger.ErrorContext(ctx, "can't narrow a server's samples to its caller's apps", slog.Any("error", err))
 	}
+	keep := func(st *dockwellv1.ServerStats) *dockwellv1.ServerStats {
+		if st == nil {
+			return nil
+		}
+		var theirs []*dockwellv1.ContainerUsage
+		for _, u := range st.GetContainers() {
+			if placed[u.GetServiceId()] {
+				theirs = append(theirs, u)
+			}
+		}
+		return &dockwellv1.ServerStats{Time: st.GetTime(), Interval: st.GetInterval(), Containers: theirs}
+	}
+	for s, was := range before {
+		stats := keep(was.stats)
+		history := make([]*dockwellv1.ServerStats, 0, len(was.history))
+		theirs := len(stats.GetContainers()) > 0
+		for _, h := range was.history {
+			kept := keep(h)
+			theirs = theirs || len(kept.GetContainers()) > 0
+			history = append(history, kept)
+		}
+		if theirs {
+			seen.shown[s.GetId()] = true
+		}
+		if !seen.shown[s.GetId()] {
+			continue
+		}
+		s.Stats, s.History = stats, history
+	}
+}
+
+// appsSeen is what a stream knows of its caller's apps: which services they hold,
+// by ID, as read at the last recheck, and which servers have shown any of them.
+type appsSeen struct {
+	placed map[string]bool
+	shown  map[string]bool
 }
 
 // serversIn is each server a response carries.

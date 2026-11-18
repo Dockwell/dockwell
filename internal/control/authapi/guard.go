@@ -686,7 +686,7 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 		}
 		i.sealPage(ctx, procedure, res.Any())
 		if trims(ctx, procedure) {
-			i.trimKeepingApps(ctx, res.Any())
+			i.trimKeepingApps(ctx, res.Any(), nil)
 		}
 		if briefs(ctx) {
 			brief(res.Any())
@@ -709,6 +709,10 @@ type scopedConn struct {
 	req    any             // the request, once received
 	ended  error           // why a recheck ended the stream
 	failed int             // rechecks in a row that couldn't read the grants
+	// apps is what the stream knows of its caller's apps in servers' samples:
+	// which services they hold until the next recheck, and which servers have
+	// shown any (#797).
+	apps appsSeen
 }
 
 // failedRechecks is how many rechecks in a row may fail to read a stream's
@@ -756,6 +760,8 @@ func (c *scopedConn) recheck(ctx context.Context, p auth.Principal) error {
 		return err
 	}
 	c.failed = 0
+	// What was placed by the grants before is asked again.
+	c.apps.placed = nil
 	// The stream's own context, with the grants just read.
 	if caller, ok := place.CallerFrom(gated); ok {
 		c.ctx = place.WithCaller(c.ctx, caller)
@@ -815,7 +821,17 @@ func (c *scopedConn) Send(m any) error {
 	}
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
 	if c.trim {
-		c.i.trimKeepingApps(ctx, m)
+		// The maps are this stream's alone, and a recheck only swaps one for a new one.
+		c.mu.Lock()
+		if c.apps.placed == nil {
+			c.apps.placed = map[string]bool{}
+		}
+		if c.apps.shown == nil {
+			c.apps.shown = map[string]bool{}
+		}
+		seen := c.apps
+		c.mu.Unlock()
+		c.i.trimKeepingApps(ctx, m, &seen)
 	}
 	if briefs(ctx) {
 		brief(m)

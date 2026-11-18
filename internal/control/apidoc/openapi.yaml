@@ -13481,25 +13481,37 @@ components:
             properties:
                 containerId:
                     type: string
-                    description: The container's ID in Docker.
+                    description: |-
+                        The container's ID in Docker, as the agent sends it. Empty once the
+                         control plane folds a service's containers into one.
                 serviceId:
                     type: string
                     description: |-
-                        The service it runs, by ID, as the control plane knows it from the
-                         server's health. Empty for a container it can't place yet.
+                        The service, by ID, as the control plane knows it from the server's
+                         health. Empty from the agent, which never names one.
                 cpuPercent:
                     type: number
                     description: |-
-                        Its share of one CPU since the sample before, as top says it: 0 to 100
-                         times the server's CPUs. 0 on its first sample.
+                        Its share of one CPU since the sample before, as top says it, summed over
+                         its containers: 0 to 100 times the server's CPUs. 0 on its first sample.
                     format: double
                 memoryBytes:
                     type: string
-                    description: What it holds in memory, as its cgroup's memory.current says.
+                    description: |-
+                        What it holds in memory, as docker stats says it: memory.current less
+                         memory.stat's inactive_file, summed over its containers.
                 memoryLimitBytes:
                     type: string
-                    description: Its memory limit, or 0 with none.
-            description: ContainerUsage is what one container uses, at one sample.
+                    description: Its memory limit, summed over its containers, or 0 where any has none.
+                replicas:
+                    type: integer
+                    description: 'How many containers it runs here: 0 from the agent, which sends each.'
+                    format: uint32
+            description: |-
+                ContainerUsage is what a service's containers use on a server, at one sample.
+                 The agent sends one for each container, by its ID; the control plane folds a
+                 service's into one, by the service, with how many there are, before it keeps
+                 or sends them (#848's review, M4).
         ControlPlane:
             type: object
             properties:
@@ -26366,12 +26378,14 @@ components:
                     items:
                         $ref: '#/components/schemas/ContainerUsage'
                     description: |-
-                        What each of Dockwell's containers here uses, as the kernel counts it for
-                         the container's cgroup: for an app's own figures beside the server's
-                         (#797). Read for the containers the agent's health monitor already lists,
-                         with no call to Docker. Empty on a host without cgroup v2, and from an
-                         agent from before this. Someone below an admin, who sees nothing else of a
-                         server's stats, sees these of their own projects' apps alone.
+                        What each of Dockwell's services here uses, as the kernel counts it for its
+                         containers' cgroups: for an app's own figures beside the server's (#797).
+                         Read for the containers the agent's health monitor already lists, with no
+                         call to Docker, and folded by the control plane into one for each service.
+                         Empty on a host without cgroup v2, and from an agent from before this.
+                         Someone below an admin, who sees nothing else of a server's stats, sees
+                         these of their own projects' apps alone, and each sample's time, so an app
+                         that stops reads as stopped.
             description: ServerStats is one sample of a server's resource use.
         ServerUpdates:
             type: object

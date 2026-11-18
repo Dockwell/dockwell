@@ -20,8 +20,9 @@ type cpuUsage struct {
 
 // containerUsage reads what each running container uses from its cgroup, for an
 // app's figures beside the server's (#797). The IDs are the ones the health
-// monitor's latest list of Docker's has, so it asks Docker nothing: two small
-// files of the kernel's for each, cpu.stat and memory.current, and memory.max.
+// monitor's latest list of Docker's has, so it asks Docker nothing: four small
+// files of the kernel's for each, cpu.stat, memory.current, memory.stat and
+// memory.max.
 // It reads cgroup v2 alone, under systemd's driver ("system.slice/docker-<id>.scope")
 // or cgroupfs' ("docker/<id>"); a host without it reads as none.
 func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
@@ -32,7 +33,7 @@ func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
 	seen := make(map[string]cpuUsage, len(ids))
 	var out []*dockwellv1.ContainerUsage
 	for _, id := range ids {
-		dir, ok := c.cgroupOf(id)
+		dir, current, ok := c.cgroupOf(id)
 		if !ok {
 			continue
 		}
@@ -45,7 +46,15 @@ func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
 				}
 			}
 		}
-		u.MemoryBytes, _ = number(c.cgroupFile(dir + "/memory.current"))
+		// As docker stats says it: what it holds, less the file cache the kernel can
+		// take back at once (#848's review, M3).
+		held, _ := number(current)
+		if cache, ok := statOf(c.cgroupFile(dir+"/memory.stat"), "inactive_file"); ok && cache < held {
+			held -= cache
+		} else if ok {
+			held = 0
+		}
+		u.MemoryBytes = held
 		u.MemoryLimitBytes, _ = number(c.cgroupFile(dir + "/memory.max")) // "max" reads as none
 		out = append(out, u)
 	}
@@ -54,17 +63,29 @@ func (c *Collector) containerUsage(now time.Time) []*dockwellv1.ContainerUsage {
 	return out
 }
 
-// cgroupOf is where a container's cgroup is, under either of Docker's drivers.
-func (c *Collector) cgroupOf(id string) (string, bool) {
+// cgroupOf is where a container's cgroup is, under either of Docker's drivers,
+// with its memory.current, read once to find it (L2).
+func (c *Collector) cgroupOf(id string) (string, []byte, bool) {
 	if !containerIDish(id) {
-		return "", false
+		return "", nil, false
 	}
 	for _, dir := range []string{"system.slice/docker-" + id + ".scope", "docker/" + id} {
-		if len(c.cgroupFile(dir+"/memory.current")) > 0 {
-			return dir, true
+		if current := c.cgroupFile(dir + "/memory.current"); len(current) > 0 {
+			return dir, current, true
 		}
 	}
-	return "", false
+	return "", nil, false
+}
+
+// statOf reads one key's number from a cgroup's memory.stat: "key value" lines.
+func statOf(b []byte, key string) (uint64, bool) {
+	prefix := []byte(key + " ")
+	for line := range bytes.Lines(b) {
+		if rest, ok := bytes.CutPrefix(line, prefix); ok {
+			return number(rest)
+		}
+	}
+	return 0, false
 }
 
 // cgroupFile reads a file of the cgroup tree: Cgroups, or the root's sys/fs/cgroup.

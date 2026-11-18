@@ -13,17 +13,24 @@ export function shareWords(percent: number): string {
   return percent >= 10 ? String(Math.round(percent)) : String(Math.round(percent * 10) / 10);
 }
 
-/** Its CPU against what it may use: its limit's share where it has one, or of one CPU. */
+/**
+ * Its CPU against what it may use: where it has a limit, the share of every
+ * replica's limit together, the sum against the sum, so 3 replicas at half a CPU
+ * each under a limit of 1 read 50%, not 150% (#848's review, M2); with none, of
+ * one CPU.
+ */
 export function cpuOfLimit(service: ServiceInfo, usage: AppUsageSeries): { value: number; ofLimit: boolean } {
   const cpus = Number(appOf(service)?.resources?.cpus ?? "");
-  return cpus > 0 ? { value: usage.cpuNow / cpus, ofLimit: true } : { value: usage.cpuNow, ofLimit: false };
+  return cpus > 0
+    ? { value: usage.cpuNow / (cpus * usage.replicasNow), ofLimit: true }
+    : { value: usage.cpuNow, ofLimit: false };
 }
 
 /**
- * What the app uses, as the App-Overview mock's Metrics card has it, above
- * Configuration (#797): its CPU and memory over the last 5 minutes, every replica
- * together, each against its limit where it has one. Nothing until its servers'
- * samples carry it.
+ * What the app uses, as the App-Overview mock's Metrics card has it, first in the
+ * aside (#797): its CPU and memory over the last 5 minutes, all replicas together,
+ * each against its limit where it has one. Nothing until its servers' samples
+ * carry it, and nothing once it stops running.
  */
 export function AppMetrics({ service }: { service: ServiceInfo }) {
   const { t, i18n } = useLingui();
@@ -32,14 +39,19 @@ export function AppMetrics({ service }: { service: ServiceInfo }) {
   const cpu = cpuOfLimit(service, usage);
   const cpus = Number(appOf(service)?.resources?.cpus ?? "");
   const limit = usage.memoryLimit > 0 ? formatBytes(usage.memoryLimit, i18n.locale) : "";
+  const cpuData =
+    cpus > 0 ? usage.cpu.map((c, i) => (c === null ? null : c / (cpus * (usage.replicas[i] ?? 1)))) : usage.cpu;
   return (
-    <Panel title={t`Metrics`} actions={<span className="app-muted app-metrics-span">{t`Last 5 minutes`}</span>}>
+    <Panel
+      title={t`Metrics`}
+      actions={<span className="app-muted app-metrics-span">{t`Last 5 minutes, all replicas`}</span>}
+    >
       <div className="app-metrics">
         <Metric
           label={t`CPU`}
           value={shareWords(cpu.value)}
-          unit={cpu.ofLimit ? t`% of its limit` : t`% of a CPU`}
-          data={cpus > 0 ? usage.cpu.map((c) => (c === null ? null : c / cpus)) : usage.cpu}
+          unit={cpu.ofLimit ? t`% of limit` : t`% of a CPU`}
+          data={cpuData}
           min={0}
           {...(cpu.ofLimit ? { max: 100 } : {})}
         />

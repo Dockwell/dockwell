@@ -3,7 +3,6 @@
 package control
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -72,12 +71,12 @@ func TestAnAppsFiguresReachWhoHoldsItsProjectAlone(t *testing.T) {
 		}
 
 		server := f.lastDocker.id.ServerID
-		shopContainer, blogContainer := strings.Repeat("a", 64), strings.Repeat("b", 64)
+		shopApp, blogApp := ids["shop"], ids["blog"]
 		f.config.Fleet.Record(server, &dockwellv1.ServerStats{
 			Time: timestamppb.New(time.Now()), CpuPercent: 37, MemoryUsedBytes: 3 << 30, MemoryTotalBytes: 8 << 30,
 			Containers: []*dockwellv1.ContainerUsage{
-				{ContainerId: shopContainer, ServiceId: ids["shop"], CpuPercent: 25, MemoryBytes: 100 << 20, MemoryLimitBytes: 512 << 20},
-				{ContainerId: blogContainer, ServiceId: ids["blog"], CpuPercent: 5, MemoryBytes: 50 << 20},
+				{ServiceId: shopApp, CpuPercent: 25, MemoryBytes: 100 << 20, MemoryLimitBytes: 512 << 20, Replicas: 1},
+				{ServiceId: blogApp, CpuPercent: 5, MemoryBytes: 50 << 20, Replicas: 1},
 			},
 		})
 
@@ -92,20 +91,20 @@ func TestAnAppsFiguresReachWhoHoldsItsProjectAlone(t *testing.T) {
 			found := map[string]*dockwellv1.ContainerUsage{}
 			for _, st := range append(s.GetHistory(), s.GetStats()) {
 				for _, u := range st.GetContainers() {
-					found[u.GetContainerId()] = u
+					found[u.GetServiceId()] = u
 				}
 			}
 			return found
 		}
 
 		all := usages()
-		if all[shopContainer].GetServiceId() != ids["shop"] || all[blogContainer].GetServiceId() != ids["blog"] {
+		if all[shopApp] == nil || all[blogApp] == nil {
 			t.Fatalf("an admin reads %v, want both apps' figures", all)
 		}
 
 		aMember(t, f)(store.Grant{ProjectID: shopProject, Role: store.RoleViewer})
 		theirs := usages()
-		if len(theirs) != 1 || theirs[shopContainer].GetMemoryBytes() != 100<<20 || theirs[shopContainer].GetCpuPercent() != 25 {
+		if len(theirs) != 1 || theirs[shopApp].GetMemoryBytes() != 100<<20 || theirs[shopApp].GetCpuPercent() != 25 {
 			t.Errorf("a viewer of shop reads %v, want shop's container alone, as it is", theirs)
 		}
 		res, err := servers.GetServer(t.Context(), connect.NewRequest(&dockwellv1.GetServerRequest{Id: server}))

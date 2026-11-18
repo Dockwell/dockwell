@@ -124,8 +124,8 @@ export function AppOverview() {
         <RecentDeployments />
       </div>
       <div className="app-aside">
-        <SourcePanel />
         <AppMetrics service={service} />
+        <SourcePanel />
         <ConfigurationPanel />
         {update && !offered(update) ? <UpdateCard service={service} /> : null}
         <HealthCheckPanel />

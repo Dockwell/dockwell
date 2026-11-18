@@ -539,14 +539,17 @@ func (s *servingCert) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return s.cert, nil
 }
 
-// placeContainers keeps what a sample says each container uses for the containers
-// its server's health has, each placed by its service's ID, as the panel finds an
-// app's figures by it (#797). An agent is trusted with its own server and nothing
-// more, so what it says is held to what its monitor would send: as many containers
-// as it watches, by IDs Docker gives, with figures that are numbers, and a service
-// the control plane places, never one it names.
+// placeContainers folds what a sample says each container uses into one figure
+// for each service, by its ID, with how many containers it has, as the panel only
+// ever reads an app's whole (#797; #848's review, M4): what's kept and sent is a
+// service's, never a container's, and costs as many entries as there are apps.
+// An agent is trusted with its own server and nothing more, so what it says is
+// held to what its monitor would send: as many containers as it watches, by IDs
+// Docker gives, with figures that are numbers, each placed by the control plane
+// from the server's health, never by what the agent names. A container it can't
+// place goes.
 func (h *Handler) placeContainers(ctx context.Context, server string, list []*dockwellv1.ContainerUsage) []*dockwellv1.ContainerUsage {
-	if len(list) == 0 || h.agents == nil {
+	if len(list) == 0 || h.agents == nil || h.services == nil {
 		return nil
 	}
 	report, _ := h.agents.Health(server)
@@ -554,23 +557,45 @@ func (h *Handler) placeContainers(ctx context.Context, server string, list []*do
 	for _, i := range report.Instances {
 		of[i.GetContainerId()] = i
 	}
-	out := make([]*dockwellv1.ContainerUsage, 0, min(len(list), health.MaxInstances))
-	for _, c := range list {
-		if len(out) == health.MaxInstances {
+	var out []*dockwellv1.ContainerUsage
+	byService := map[string]*dockwellv1.ContainerUsage{}
+	limited := map[string]bool{}
+	for n, c := range list {
+		if n == health.MaxInstances {
 			break
 		}
 		i, ok := of[c.GetContainerId()]
 		if !ok || !containerID(c.GetContainerId()) {
 			continue
 		}
-		c.ServiceId = ""
-		if h.services != nil {
-			c.ServiceId = h.services(ctx, i.GetProject(), i.GetService())
+		id := h.services(ctx, i.GetProject(), i.GetService())
+		if id == "" {
+			continue
 		}
-		if cpu := c.GetCpuPercent(); math.IsNaN(cpu) || math.IsInf(cpu, 0) || cpu < 0 {
-			c.CpuPercent = 0
+		cpu := c.GetCpuPercent()
+		if math.IsNaN(cpu) || math.IsInf(cpu, 0) || cpu < 0 {
+			cpu = 0
 		}
-		out = append(out, c)
+		u, seen := byService[id]
+		if !seen {
+			u = &dockwellv1.ContainerUsage{ServiceId: id}
+			byService[id] = u
+			limited[id] = true
+			out = append(out, u)
+		}
+		u.Replicas++
+		u.CpuPercent += cpu
+		u.MemoryBytes += c.GetMemoryBytes()
+		// A limit for the whole is one where every container has its own (L4).
+		if c.GetMemoryLimitBytes() == 0 {
+			limited[id] = false
+		}
+		u.MemoryLimitBytes += c.GetMemoryLimitBytes()
+	}
+	for _, u := range out {
+		if !limited[u.GetServiceId()] {
+			u.MemoryLimitBytes = 0
+		}
 	}
 	return out
 }

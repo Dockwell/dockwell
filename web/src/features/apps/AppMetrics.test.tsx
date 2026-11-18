@@ -19,26 +19,30 @@ import { mergeUsage, ownOnly } from "../servers/useFleet";
 
 const MiB = 1024 * 1024;
 
-/** A sample of the server's own, with what web and another app use. */
-function full(cpu: number, webCpu: number, webMiB: number, limitMiB = 512): ServerStats {
+/** A sample of the server's own, with what web's replicas and another app use, each service's folded into one. */
+function full(cpu: number, webCpu: number, webMiB: number, limitMiB = 512, replicas = 1): ServerStats {
   const s = sample(cpu);
   s.containers = [
     create(ContainerUsageSchema, {
-      containerId: "a".repeat(64),
       serviceId: "svc_web",
       cpuPercent: webCpu,
       memoryBytes: BigInt(webMiB * MiB),
-      memoryLimitBytes: BigInt(limitMiB * MiB),
+      memoryLimitBytes: BigInt(limitMiB * MiB * replicas),
+      replicas,
     }),
-    create(ContainerUsageSchema, { containerId: "b".repeat(64), serviceId: "svc_other", cpuPercent: 80 }),
+    create(ContainerUsageSchema, { serviceId: "svc_other", cpuPercent: 80, replicas: 1 }),
   ];
   return s;
 }
 
-/** A sample as someone below an admin is sent it: its time, and their app alone. */
-function theirs(webCpu: number, webMiB: number): ServerStats {
+/** A sample as someone below an admin is sent it: its time, and their app alone, or none of it. */
+function theirs(webCpu: number, webMiB: number, running = true): ServerStats {
   const s = full(0, webCpu, webMiB);
-  return create(ServerStatsSchema, { time: s.time, interval: s.interval, containers: [s.containers[0] ?? {}] });
+  return create(ServerStatsSchema, {
+    time: s.time,
+    interval: s.interval,
+    containers: running ? [s.containers[0] ?? {}] : [],
+  });
 }
 
 function api(history: ServerStats[], resources: { cpus?: string; memory?: string } = {}): Api {
@@ -57,9 +61,9 @@ describe("an app's Metrics card (#797)", () => {
   it("says what it uses over the last 5 minutes, against its limit, with nothing of the server's or another app's", async () => {
     const { container } = renderAt("/apps/svc_web", api([full(40, 10, 100), full(40, 25, 200)], { cpus: "0.5" }));
     const metrics = await screen.findByRole("region", { name: "Metrics" });
-    expect(metrics).toHaveTextContent("Last 5 minutes");
+    expect(metrics).toHaveTextContent("Last 5 minutes, all replicas");
     // 25% of a CPU is half its limit of 0.5 vCPU.
-    expect(metrics).toHaveTextContent("CPU50% of its limit");
+    expect(metrics).toHaveTextContent("CPU50% of limit");
     expect(metrics).toHaveTextContent("Memory200 MBof 512 MB");
     expect(metrics).not.toHaveTextContent("80");
     await expectAccessible(container);
@@ -75,7 +79,20 @@ describe("an app's Metrics card (#797)", () => {
   it("reads the same from what someone below an admin is sent, its server's own figures left out", async () => {
     renderAt("/apps/svc_web", api([theirs(10, 100), theirs(25, 200)], { cpus: "0.5" }));
     const metrics = await screen.findByRole("region", { name: "Metrics" });
-    expect(metrics).toHaveTextContent("CPU50% of its limit");
+    expect(metrics).toHaveTextContent("CPU50% of limit");
+  });
+
+  it("compares every replica with every replica's limit: 3 at half a CPU under a limit of 1 read 50% (#848's review, M2)", async () => {
+    renderAt("/apps/svc_web", api([full(40, 150, 300, 256, 3)], { cpus: "1" }));
+    const metrics = await screen.findByRole("region", { name: "Metrics" });
+    expect(metrics).toHaveTextContent("CPU50% of limit");
+    expect(metrics).toHaveTextContent("Memory300 MBof 768 MB");
+  });
+
+  it("goes once its app stops, rather than show its last figures as now (#848's review, M1)", async () => {
+    renderAt("/apps/svc_web", api([theirs(10, 100), theirs(25, 200), theirs(0, 0, false)], { cpus: "0.5" }));
+    await screen.findByRole("region", { name: "Configuration" });
+    expect(screen.queryByRole("region", { name: "Metrics" })).toBeNull();
   });
 
   it("isn't there until its servers' samples say what it uses", async () => {
@@ -108,6 +125,12 @@ describe("a server's samples that hold only apps' figures (#797)", () => {
     // A server's own samples are its own, as before.
     const admin = aServer({ id: SERVER, name: "hz-1", history: [own], stats: own });
     expect(ownOnly(admin)).toBe(admin);
+    // A viewer's sample with none of their apps in it stays off the server's own too (M1).
+    expect(ownOnly(aServer({ id: SERVER, name: "hz-1", stats: theirs(0, 0, false) })).stats).toBeUndefined();
+    // An admin's sample from an agent that couldn't read the server's memory is the server's (L5).
+    const noMemory = full(40, 25, 200);
+    noMemory.memoryTotalBytes = 0n;
+    expect(ownOnly(aServer({ id: SERVER, name: "hz-1", stats: noMemory })).stats).toBe(noMemory);
     // A later message appends its newest sample, once.
     const next = theirs(30, 210);
     const after = mergeUsage([apps], aServer({ id: SERVER, name: "hz-1", stats: next }));

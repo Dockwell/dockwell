@@ -7,6 +7,9 @@
 # and sends a bounded message, so this should read about the same at any number of
 # containers. It fails past the agent's budget of 40 MB, which budgets.sh holds an
 # idle agent with no containers to. See docs/adr/0031-containers-dockwell-didnt-make.md.
+# Half of them are in projects named as Dockwell's are, so the health monitor
+# watches them and each stats sample reads what each uses from a cgroup tree this
+# writes for every container, as a server's kernel keeps it (#797).
 #
 #   scripts/containers-load.sh bin/dockwell bin/dockwell-agent [containers]
 set -euo pipefail
@@ -66,8 +69,11 @@ done
 # another holds, so each gets its own.
 engine() { curl --fail --silent --show-error --unix-socket "$socket" "$@"; }
 engine -X POST 'http://docker/v1.47/images/create?fromImage=load/app&tag=1' >/dev/null || fail "the fake engine won't pull"
+mkdir -p "$work/cgroup/system.slice"
 for ((i = 0; i < containers; i++)); do
   project=stack-$((i / 4))
+  # Every other one is as one of Dockwell's environments would run it.
+  ((i % 2)) || project=env_load$((i / 4))
   body=$(jq -nc --arg name "load-$i" --arg project "$project" --arg service "app-$((i % 4))" --argjson port "$((20000 + i))" '{
     Image: "load/app:1",
     Env: ["PASSWORD=not-for-a-list", "DATABASE_URL=postgres://user:not-for-a-list@db/app"],
@@ -88,6 +94,13 @@ for ((i = 0; i < containers; i++)); do
   id=$(engine -X POST -H 'Content-Type: application/json' -d "$body" "http://docker/v1.47/containers/create?name=load-$i" | jq -r .Id) ||
     fail "the fake engine won't make load-$i"
   engine -X POST "http://docker/v1.47/containers/$id/start" >/dev/null || fail "the fake engine won't start load-$i"
+  # What its cgroup says it uses: a little CPU time, 64 MiB held, 16 of them file cache, under 256 MiB.
+  dir=$work/cgroup/system.slice/docker-$id.scope
+  mkdir -p "$dir"
+  printf 'usage_usec %d\n' "$((i * 1000))" >"$dir/cpu.stat"
+  echo 67108864 >"$dir/memory.current"
+  printf 'anon 50331648\nfile 16777216\ninactive_file 16777216\n' >"$dir/memory.stat"
+  echo 268435456 >"$dir/memory.max"
 done
 
 # The control plane's own agent has no Docker, so what's measured is the agent build's.
@@ -111,7 +124,7 @@ link=$("$full" claim 2>>"$work/control.log" | grep -o 'http://localhost:[0-9]*/c
 ticket=$("$full" token create 2>>"$work/control.log" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [[ -n "$ticket" ]] || fail "dockwell token create printed no ticket"
 "$agent" join --data-dir "$work/agent.d" --name load-agent "$ticket" >"$work/join.log" 2>&1 || fail "the agent build didn't join"
-DOCKER_HOST=unix://$socket "$agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
+DOCKER_HOST=unix://$socket DOCKWELL_TEST_CGROUP=$work/cgroup "$agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
 agent_pid=$!
 pids+=("$agent_pid")
 for _ in $(seq 150); do

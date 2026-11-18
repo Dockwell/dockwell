@@ -2910,12 +2910,14 @@ type ServerStats struct {
 	// Bytes written to the server's whole disks since it booted, counted as
 	// disk_read_bytes is.
 	DiskWrittenBytes uint64 `protobuf:"varint,19,opt,name=disk_written_bytes,json=diskWrittenBytes,proto3" json:"disk_written_bytes,omitempty"`
-	// What each of Dockwell's containers here uses, as the kernel counts it for
-	// the container's cgroup: for an app's own figures beside the server's
-	// (#797). Read for the containers the agent's health monitor already lists,
-	// with no call to Docker. Empty on a host without cgroup v2, and from an
-	// agent from before this. Someone below an admin, who sees nothing else of a
-	// server's stats, sees these of their own projects' apps alone.
+	// What each of Dockwell's services here uses, as the kernel counts it for its
+	// containers' cgroups: for an app's own figures beside the server's (#797).
+	// Read for the containers the agent's health monitor already lists, with no
+	// call to Docker, and folded by the control plane into one for each service.
+	// Empty on a host without cgroup v2, and from an agent from before this.
+	// Someone below an admin, who sees nothing else of a server's stats, sees
+	// these of their own projects' apps alone, and each sample's time, so an app
+	// that stops reads as stopped.
 	Containers    []*ContainerUsage `protobuf:"bytes,20,rep,name=containers,proto3" json:"containers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3091,23 +3093,30 @@ func (x *ServerStats) GetContainers() []*ContainerUsage {
 	return nil
 }
 
-// ContainerUsage is what one container uses, at one sample.
+// ContainerUsage is what a service's containers use on a server, at one sample.
+// The agent sends one for each container, by its ID; the control plane folds a
+// service's into one, by the service, with how many there are, before it keeps
+// or sends them (#848's review, M4).
 type ContainerUsage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The container's ID in Docker.
+	// The container's ID in Docker, as the agent sends it. Empty once the
+	// control plane folds a service's containers into one.
 	ContainerId string `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
-	// The service it runs, by ID, as the control plane knows it from the
-	// server's health. Empty for a container it can't place yet.
+	// The service, by ID, as the control plane knows it from the server's
+	// health. Empty from the agent, which never names one.
 	ServiceId string `protobuf:"bytes,2,opt,name=service_id,json=serviceId,proto3" json:"service_id,omitempty"`
-	// Its share of one CPU since the sample before, as top says it: 0 to 100
-	// times the server's CPUs. 0 on its first sample.
+	// Its share of one CPU since the sample before, as top says it, summed over
+	// its containers: 0 to 100 times the server's CPUs. 0 on its first sample.
 	CpuPercent float64 `protobuf:"fixed64,3,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
-	// What it holds in memory, as its cgroup's memory.current says.
+	// What it holds in memory, as docker stats says it: memory.current less
+	// memory.stat's inactive_file, summed over its containers.
 	MemoryBytes uint64 `protobuf:"varint,4,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
-	// Its memory limit, or 0 with none.
+	// Its memory limit, summed over its containers, or 0 where any has none.
 	MemoryLimitBytes uint64 `protobuf:"varint,5,opt,name=memory_limit_bytes,json=memoryLimitBytes,proto3" json:"memory_limit_bytes,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// How many containers it runs here: 0 from the agent, which sends each.
+	Replicas      uint32 `protobuf:"varint,6,opt,name=replicas,proto3" json:"replicas,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ContainerUsage) Reset() {
@@ -3171,6 +3180,13 @@ func (x *ContainerUsage) GetMemoryBytes() uint64 {
 func (x *ContainerUsage) GetMemoryLimitBytes() uint64 {
 	if x != nil {
 		return x.MemoryLimitBytes
+	}
+	return 0
+}
+
+func (x *ContainerUsage) GetReplicas() uint32 {
+	if x != nil {
+		return x.Replicas
 	}
 	return 0
 }
@@ -4258,7 +4274,7 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\x12disk_written_bytes\x18\x13 \x01(\x04R\x10diskWrittenBytes\x12;\n" +
 	"\n" +
 	"containers\x18\x14 \x03(\v2\x1b.dockwell.v1.ContainerUsageR\n" +
-	"containers\"\xc4\x01\n" +
+	"containers\"\xe0\x01\n" +
 	"\x0eContainerUsage\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\x12\x1d\n" +
 	"\n" +
@@ -4266,7 +4282,8 @@ const file_dockwell_v1_server_proto_rawDesc = "" +
 	"\vcpu_percent\x18\x03 \x01(\x01R\n" +
 	"cpuPercent\x12!\n" +
 	"\fmemory_bytes\x18\x04 \x01(\x04R\vmemoryBytes\x12,\n" +
-	"\x12memory_limit_bytes\x18\x05 \x01(\x04R\x10memoryLimitBytes\"j\n" +
+	"\x12memory_limit_bytes\x18\x05 \x01(\x04R\x10memoryLimitBytes\x12\x1a\n" +
+	"\breplicas\x18\x06 \x01(\rR\breplicas\"j\n" +
 	"\tDiskUsage\x12\x1f\n" +
 	"\vmount_point\x18\x01 \x01(\tR\n" +
 	"mountPoint\x12\x1d\n" +
