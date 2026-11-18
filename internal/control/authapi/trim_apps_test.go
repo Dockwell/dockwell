@@ -13,6 +13,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/store"
+	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
 // A stream's samples ask the store only of a service its caller hasn't been
@@ -78,7 +79,7 @@ func TestAStreamsSamplesAskTheStoreOnlyOfAServiceNotPlacedYet(t *testing.T) {
 func TestARecheckGivesTheNextSendAFreshCacheOfApps(t *testing.T) {
 	i, ada, _ := gated(t, store.RoleViewer)
 	before := place.WithCaller(t.Context(), place.Caller{UserID: ada.User.ID, Grants: []store.Grant{{ProjectID: "prj_shop", Role: store.RoleViewer}}})
-	c := &scopedConn{StreamingHandlerConn: fakeStream{procedure: dockwellv1connect.ServerServiceWatchServersProcedure}, i: i, trim: true, ctx: before}
+	c := &scopedConn{StreamingHandlerConn: fakeStream{procedure: dockwellv1connect.ServerServiceWatchServersProcedure}, i: i, ctx: before}
 	ctx, seen := c.narrowing()
 	if ctx != before || seen.placed == nil || seen.shown == nil {
 		t.Fatalf("the first send narrows by %v with %+v, want the stream's own context and empty maps", ctx, seen)
@@ -103,4 +104,60 @@ func TestARecheckGivesTheNextSendAFreshCacheOfApps(t *testing.T) {
 	if !next.shown["srv_1"] {
 		t.Errorf("the next send forgot the servers that showed theirs: %v", next.shown)
 	}
+}
+
+// sentStream is a stream of procedure that keeps what it sends.
+type sentStream struct {
+	fakeStream
+	sent []any
+}
+
+func (s *sentStream) Send(m any) error {
+	s.sent = append(s.sent, m)
+	return nil
+}
+
+// Whether a stream trims what it sends is asked at each send, of the grants its
+// last recheck read: an install admin made a viewer while the panel holds
+// WatchServers open is sent the server's names and states alone from the first
+// send after a recheck, not the server's own figures and every project's apps
+// for as long as the stream stays open (#852's review, H1).
+func TestADemotedAdminsOpenStreamIsTrimmedAfterARecheck(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		i, ada, db := gatedOn(t, backend, store.RoleAdmin)
+		admin := place.WithCaller(t.Context(), place.Caller{UserID: ada.User.ID, Grants: []store.Grant{{UserID: ada.User.ID, ProjectID: store.Install, Role: store.RoleAdmin}}})
+		stream := &sentStream{fakeStream: fakeStream{procedure: dockwellv1connect.ServerServiceWatchServersProcedure}}
+		c := &scopedConn{StreamingHandlerConn: stream, i: i, ctx: admin}
+		sample := func() *dockwellv1.WatchServersResponse {
+			return &dockwellv1.WatchServersResponse{Server: &dockwellv1.Server{
+				Id: "srv_1", Name: "hz-1",
+				Stats: &dockwellv1.ServerStats{
+					Time: timestamppb.New(time.Unix(1_800_000_000, 0)), CpuPercent: 40, MemoryTotalBytes: 8 << 30,
+					Containers: []*dockwellv1.ContainerUsage{{ServiceId: "svc_other", CpuPercent: 25, Replicas: 1}},
+				},
+			}}
+		}
+		if err := c.Send(sample()); err != nil {
+			t.Fatal(err)
+		}
+		if got := stream.sent[0].(*dockwellv1.WatchServersResponse).GetServer().GetStats(); got.GetCpuPercent() != 40 {
+			t.Fatalf("an admin was sent %v, want the server's own figures", got)
+		}
+
+		if err := db.Update(t.Context(), func(tx *store.Tx) error {
+			return tx.SetGrant(t.Context(), store.Grant{UserID: ada.User.ID, ProjectID: store.Install, Role: store.RoleViewer, CreatedAt: time.Now()})
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := c.recheck(t.Context(), ada); err != nil {
+			t.Fatalf("a viewer may still watch servers: %v", err)
+		}
+		if err := c.Send(sample()); err != nil {
+			t.Fatal(err)
+		}
+		got := stream.sent[1].(*dockwellv1.WatchServersResponse).GetServer()
+		if got.GetName() != "hz-1" || got.GetStats().GetCpuPercent() != 0 || got.GetStats().GetMemoryTotalBytes() != 0 || len(got.GetStats().GetContainers()) != 0 {
+			t.Errorf("after a recheck, the demoted viewer was sent %v, want its name and state alone", got)
+		}
+	})
 }

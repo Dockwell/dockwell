@@ -701,8 +701,7 @@ func (i *interceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 // checks the request against them.
 type scopedConn struct {
 	connect.StreamingHandlerConn
-	i    *interceptor
-	trim bool
+	i *interceptor
 
 	mu     sync.Mutex
 	ctx    context.Context //nolint:containedctx // the stream's own, with the grants last read
@@ -836,7 +835,10 @@ func (c *scopedConn) Send(m any) error {
 		return nil
 	}
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
-	if c.trim {
+	// Whether to trim is asked of the grants just read, as a role can change while
+	// the stream stays open: an admin made a viewer is trimmed from the next send
+	// after a recheck (#852's review, H1).
+	if trims(ctx, c.Spec().Procedure) {
 		c.i.trimKeepingApps(ctx, m, &seen)
 	}
 	if briefs(ctx) {
@@ -863,7 +865,7 @@ func (i *interceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) co
 		}
 		client, _ := ClientFrom(ctx)
 		procedure := conn.Spec().Procedure
-		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, trim: trims(ctx, procedure), ctx: ctx}
+		scoped := &scopedConn{StreamingHandlerConn: conn, i: i, ctx: ctx}
 		// Each recheck asks the gate and the request's places again, so a stream
 		// ends once its caller's role, or a token's maker's, no longer lets them
 		// make it, or reach what it names (ADR 0048).
