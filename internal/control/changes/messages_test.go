@@ -181,7 +181,7 @@ func testErrorMessagesStateTheFactFirst(t *testing.T, backend store.Backend) {
 	_, err = h.edits(ctx, []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Name: "http"}, Spec: ruleSpec}})
 	expect("a server-level edit with no server, of two", "choice", "there are 2 servers, hz-1 and hz-2, so say which one you mean", err)
 	_, err = h.edits(ctx, []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Scope: "hz-9", Name: "http"}, Spec: ruleSpec}})
-	expect("a server that isn't there", "not_found", "there's no server hz-9 in the fleet", err)
+	expect("a server that isn't there", "not_found", "there's no server hz-9 in the fleet. Choose hz-1 or hz-2, by name or ID", err)
 	_, err = h.edits(ctx, []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Scope: "production", Name: "web"}, Project: "nowhere",
 		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{Image: "nginx:1.27"}}}}},

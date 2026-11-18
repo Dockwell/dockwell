@@ -1061,9 +1061,10 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 			if spec, err = h.withGitLogin(ctx, tx, ref, spec); err != nil {
 				return err
 			}
-			var servers []string // none keeps a service where it runs
-			if len(e.GetServers()) > 0 {
-				servers = e.GetServers()
+			// None keeps a service where it runs.
+			var servers []string
+			if servers, err = onServers(ctx, tx, e.GetServers()); err != nil {
+				return err
 			}
 			switch {
 			case e.GetBaseRevision() < 0:
@@ -1269,7 +1270,50 @@ func resolve(ctx context.Context, tx *store.Tx, tree *scope.Tree, level resource
 			return servers[i].ID, nil
 		}
 	}
-	return "", fault.New(scope.ErrNotFound, "there's no server %s in the fleet", given)
+	return "", noServerNamed(servers, given)
+}
+
+// onServers finds the servers an edit runs on, each named by its ID or by its
+// name, as the CLI's --on and the hint that lists them name it (#841). An ID
+// goes as it is, so planning says when its server was removed from the fleet.
+// No two servers in the fleet share a name (servers_active_name), so a name
+// is one server or none.
+func onServers(ctx context.Context, tx *store.Tx, given []string) ([]string, error) {
+	if len(given) == 0 {
+		return nil, nil
+	}
+	var fleet []store.Server
+	out := make([]string, 0, len(given))
+	for _, g := range given {
+		if strings.HasPrefix(g, id.Server+"_") {
+			out = append(out, g)
+			continue
+		}
+		if fleet == nil {
+			var err error
+			if fleet, err = tx.ListServers(ctx); err != nil {
+				return nil, err
+			}
+		}
+		i := slices.IndexFunc(fleet, func(s store.Server) bool { return s.Name == g })
+		if i < 0 {
+			return nil, noServerNamed(fleet, g)
+		}
+		out = append(out, fleet[i].ID)
+	}
+	return out, nil
+}
+
+// noServerNamed says there's no server by a name, with the names there are.
+func noServerNamed(fleet []store.Server, given string) error {
+	if len(fleet) == 0 {
+		return fault.New(scope.ErrNotFound, "there's no server %s, as the fleet has none yet. Add one first", given)
+	}
+	names := make([]string, len(fleet))
+	for i := range fleet {
+		names[i] = fleet[i].Name
+	}
+	return fault.New(scope.ErrNotFound, "there's no server %s in the fleet. Choose %s, by name or ID", given, human.Either(names))
 }
 
 // protos are records for the schema, with their actors named in one read.

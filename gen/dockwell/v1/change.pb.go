@@ -1821,11 +1821,11 @@ type Edit struct {
 	// gone, in this change or an earlier one. A project takes its environments
 	// with it, and goes only once what lives in them has gone too.
 	Delete bool `protobuf:"varint,3,opt,name=delete,proto3" json:"delete,omitempty"`
-	// Where a service, volume, network or route runs, by server ID. Empty keeps it
-	// where it runs now; a new one runs on the only server, and must name its
-	// servers once there are several. Other kinds ignore it: a container or
-	// firewall rule lives on its server, and projects and environments run on
-	// none.
+	// Where a service, volume, network or route runs, by server name or ID.
+	// Empty keeps it where it runs now; a new one runs on the only server, and
+	// must name its servers once there are several. Other kinds ignore it: a
+	// container or firewall rule lives on its server, and projects and
+	// environments run on none.
 	Servers []string `protobuf:"bytes,4,rep,name=servers,proto3" json:"servers,omitempty"`
 	// The project of the environment the resource lives in, by name or ID,
 	// for a kind that lives in an environment, such as a service. Leave it
