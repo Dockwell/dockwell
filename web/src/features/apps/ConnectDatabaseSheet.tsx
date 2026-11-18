@@ -38,10 +38,13 @@ const UNSET = String(LinkPart.UNSPECIFIED);
  */
 export function ConnectDatabaseSheet({
   service,
+  preset,
   onClose,
   onAddVariable,
 }: {
   service: ServiceInfo;
+  /** What's chosen already, as a database's Users tab opens it for one of its users (#798). */
+  preset?: { server: string; database?: string; user?: string; password?: string };
   onClose: () => void;
   /** Closes the sheet for the Environment tab's own form, with its key ready to type. */
   onAddVariable: () => void;
@@ -65,12 +68,12 @@ export function ConnectDatabaseSheet({
     [databases.data, service, may],
   );
   const names = useMemo(() => appNames(service, store.data?.variables), [service, store.data]);
-  const [picked, setServer] = useState<string>();
+  const [picked, setServer] = useState<string | undefined>(preset?.server);
   const server = servers.find((db) => db.id === picked) ?? servers[0];
   const has = holds(server);
-  const [database, setDatabase] = useState(NEW);
-  const [user, setUser] = useState<string>();
-  const [password, setPassword] = useState<string>();
+  const [database, setDatabase] = useState(preset?.database ?? NEW);
+  const [user, setUser] = useState<string | undefined>(preset?.user);
+  const [password, setPassword] = useState<string | undefined>(preset?.password);
   const [chosen, setParts] = useState<Map<string, LinkPart>>();
   const parts = chosen ?? suggested(names);
   const existing = database !== NEW;

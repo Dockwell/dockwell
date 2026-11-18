@@ -70,8 +70,8 @@ import { useMay } from "../auth/may";
 import { nextFree } from "../catalog/freeName";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { registryOf, useRegistryLogins } from "../registries/registries";
+import { defaultServer } from "../servers/pick";
 import { type PortHolder, type ServerPorts, useServerPorts } from "../servers/ports";
-import { serverStatus } from "../servers/server";
 import { useFleet, useFleetView } from "../servers/useFleet";
 import { useGitRepositories } from "../settings/github";
 import { CopyAsCommand } from "../system/CopyCommand";
@@ -2820,29 +2820,6 @@ function ComposePreview({ check }: { check: CheckComposeResponse | undefined }) 
       ) : null}
     </section>
   );
-}
-
-/** Where it runs, once there is a choice (PRD principle 4). There is no scheduler yet, so a person says. */
-type FleetServer = NonNullable<ReturnType<typeof useFleetView>["servers"]>[number];
-
-/**
- * The server a new app runs on unless a person says otherwise (#792): of those
- * connected that can take it, the one with the most free memory, by each one's
- * free bytes, and why, as the field says it. Undefined where none can.
- */
-export function defaultServer(
-  servers: readonly FleetServer[],
-  free: (id: string) => number,
-  unfit?: (server: FleetServer) => string | undefined,
-): { id: string; why: "only" | "memory" } | undefined {
-  const can = servers.filter((s) => s.connection === Connection.CONNECTED && unfit?.(s) === undefined);
-  // A degraded server comes after every healthy one (the review's L3).
-  const worse = (s: FleetServer) => (serverStatus(s) === "degraded" ? 1 : 0);
-  const best = [...can].sort(
-    (a, b) => worse(a) - worse(b) || free(b.id) - free(a.id) || a.name.localeCompare(b.name),
-  )[0];
-  if (!best) return undefined;
-  return { id: best.id, why: can.length === 1 ? "only" : "memory" };
 }
 
 /** Each server's free memory, in bytes, by ID, as its latest stats say: -1 where they say nothing. */

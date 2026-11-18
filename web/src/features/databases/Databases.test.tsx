@@ -763,18 +763,16 @@ describe("a database's page", () => {
   it("counts a group that can't sign in as a user, and says so", async () => {
     const db = aDatabase();
     db.readings[0]?.users.push(create(DatabaseAccountSchema, { name: "readers", canSignIn: false }));
-    renderAt("/databases/svc_db", api([db]));
+    renderAt("/databases/svc_db/users", api([db]));
     expect(await screen.findByText("3 users of db, 2 of whom can sign in")).toBeVisible();
     const table = screen.getByRole("table", { name: "Users of db" });
     expect(within(table).getByText("readers", { selector: ".databases-name" }).closest("tr")).toHaveTextContent(
       "Can't sign in",
     );
-    // None of them is a user Dockwell made, so there's no column of actions to leave empty.
-    expect(within(table).queryByRole("columnheader", { name: "Actions" })).toBeNull();
   });
 
   it("lists who can sign in and the databases in it, leaving out what the server made for itself", async () => {
-    renderAt("/databases/svc_db", api([aDatabase()]));
+    renderAt("/databases/svc_db/users", api([aDatabase()]));
     const users = await screen.findByRole("table", { name: "Users of db" });
     const rows = within(users).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
@@ -795,28 +793,31 @@ describe("a database's page", () => {
         "Data at 7.0's features, which its next upgrade raises · Runs alone: a backup isn't one moment while something writes",
       ),
     ).toBeVisible();
-    const users = screen.getByRole("table", { name: "Users of docs" });
+    // Its users are counted here and listed on their tab, which the Overview doesn't repeat (#798).
+    expect(screen.queryByRole("table", { name: "Users of docs" })).toBeNull();
+    expect(screen.getByText("2 users · 1 database of your own")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open Users" })).toHaveAttribute("href", "/databases/svc_docs/users");
+    expect(screen.queryByText(/lets anyone in/)).toBeNull();
+    // Nor a new password: MongoDB keeps its root user's in its data, which a new secret wouldn't change.
+    expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();
+    await expectAccessible(container);
+  });
+
+  it("offers no way to add a MongoDB user on its Users tab either", async () => {
+    renderAt("/databases/svc_docs/users", api([mongo()]));
+    const users = await screen.findByRole("table", { name: "Users of docs" });
     expect(
       within(users)
         .getAllByRole("row")
         .slice(1)
         .map((r) => r.textContent),
     ).toEqual(["rootadminCan do anythingNone of their own", "shoppershopSigns inshop"]);
-    expect(screen.queryByText(/lets anyone in/)).toBeNull();
-    // Dockwell makes no MongoDB users yet, so there's nothing to add, and no secret to name.
-    expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
+    // Dockwell makes no MongoDB users yet, so there's nothing to add, no secret to name, and no menu.
     expect(within(users).queryByRole("columnheader", { name: "Password in" })).toBeNull();
-    // Nor a new password: MongoDB keeps its root user's in its data, which a new secret wouldn't change.
-    expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();
+    expect(within(users).queryByRole("button", { name: /^Actions for/ })).toBeNull();
     expect(screen.getByText(/Dockwell can't add a MongoDB user yet/)).toHaveTextContent(
       "Dockwell can't add a MongoDB user yet. Add one with db.createUser in mongosh.",
     );
-    await expectAccessible(container);
-  });
-
-  it("offers no way to add a MongoDB user on its Users tab either", async () => {
-    renderAt("/databases/svc_docs/users", api([mongo()]));
-    expect(await screen.findByRole("table", { name: "Users of docs" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Add a user" })).toBeNull();
     expect(screen.getByText(/can't add a MongoDB user yet/)).toBeVisible();
   });
@@ -1301,11 +1302,16 @@ describe("adding a user", () => {
     );
   });
 
-  it("says that inside its container PostgreSQL lets anything sign in without a password", async () => {
+  it("says that inside its container PostgreSQL asks no password, as a state with why a click away", async () => {
+    const user = userEvent.setup();
     renderAt("/databases/svc_db/users", api([aDatabase()]));
     expect(
-      await screen.findByText(/Inside its own container, PostgreSQL's image lets anything sign in as any user/),
+      await screen.findByText(/^Apps sign in with a password\. Inside its own container, nothing asks for one/),
     ).toBeVisible();
+    expect(screen.queryByText(/trusts what runs in its container/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Why" }));
+    expect(screen.getByText(/trusts what runs in its container/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Hide why" })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("says a default that's taken beside it, as it's typed, under an Advanced that opens for it", async () => {
@@ -1469,8 +1475,14 @@ describe("changing a password", () => {
     );
     const table = await screen.findByRole("table", { name: "Users of db" });
     expect(within(table).getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
-    expect(within(table).queryByRole("button", { name: "Change shop's password" })).toBeNull();
-    await user.click(within(table).getByRole("button", { name: "Change orders's password" }));
+    // One Dockwell didn't make keeps the item, off, with why, as a phone has no hover.
+    await user.click(within(table).getByRole("button", { name: "Actions for shop" }));
+    const off = screen.getByRole("menuitem", { name: /Change password/ });
+    expect(off).toHaveAttribute("aria-disabled", "true");
+    expect(off).toHaveTextContent("Its password isn't one Dockwell keeps");
+    await user.keyboard("{Escape}");
+    await user.click(within(table).getByRole("button", { name: "Actions for orders" }));
+    await user.click(screen.getByRole("menuitem", { name: /Change password/ }));
     await waitFor(() =>
       expect(asked).toHaveBeenCalledWith(expect.objectContaining({ id: "svc_db", user: "orders" }), expect.anything()),
     );
@@ -1490,7 +1502,7 @@ describe("changing a password", () => {
     expect(reveal).toHaveAccessibleDescription(/developer or more/);
   });
 
-  it("offers it on a phone too, on the user's row", async () => {
+  it("offers it on a phone too, in the user's menu", async () => {
     const user = userEvent.setup();
     onPhone();
     const asked = vi.fn((req: ChangeDatabasePasswordRequest) => {
@@ -1517,10 +1529,128 @@ describe("changing a password", () => {
         changes: { getChange: () => ({ change: planned }), watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Change password" }));
+    await user.click(await screen.findByRole("button", { name: "Actions for orders" }));
+    await user.click(screen.getByRole("menuitem", { name: /Change password/ }));
     await waitFor(() =>
       expect(asked).toHaveBeenCalledWith(expect.objectContaining({ user: "orders" }), expect.anything()),
     );
+  });
+});
+
+describe("a user's menu", () => {
+  const planned = create(ChangeSchema, {
+    id: "chg_user",
+    summary: "Remove the database user orders",
+    state: ChangeState.PLANNED,
+    plan: { fingerprint: "abc", resources: [] },
+  });
+  const web = anApp(
+    "web",
+    "ghcr.io/example/web:1",
+    {},
+    { id: "svc_web", resource: { kind: "service", scope: ENV, name: "web" } },
+  );
+  const dbApp = anApp("db", "postgres:17", {}, { id: "svc_db", resource: { kind: "service", scope: ENV, name: "db" } });
+  // Its first user's password is in its own secret, as the control plane says (#798), and orders is one Dockwell made.
+  const withUsers = () => {
+    const db = aDatabase();
+    const users = db.readings[0]?.users ?? [];
+    const first = users.find((u) => u.name === "postgres");
+    if (first) first.secret = "POSTGRES_PASSWORD";
+    users.push(
+      create(DatabaseAccountSchema, {
+        name: "orders",
+        canSignIn: true,
+        databases: ["orders"],
+        secret: "ORDERS_DATABASE_PASSWORD",
+        resourceId: "dbu_orders",
+      }),
+    );
+    return db;
+  };
+  const menuApi = (asked: ChangeDatabasePasswordRequest[], proposals: ProposeChangeRequest[]) => {
+    const db = withUsers();
+    return api([db], {
+      databases: {
+        listDatabases: () => ({ databases: [db] }),
+        getDatabase: () => ({ database: db }),
+        changeDatabasePassword: (req) => {
+          asked.push(req);
+          return { change: planned };
+        },
+      },
+      services: { listServices: () => ({ services: [dbApp, web] }) },
+      changes: {
+        proposeChange: (req) => {
+          proposals.push(req);
+          return { change: planned };
+        },
+        getChange: () => ({ change: planned }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        discardChange: () => ({}),
+      },
+    });
+  };
+  const open = async (user: ReturnType<typeof userEvent.setup>, who: string) => {
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    await user.click(within(table).getByRole("button", { name: `Actions for ${who}` }));
+  };
+
+  it("says Connect's secret for its first user, and plans its new password from its row", async () => {
+    const user = userEvent.setup();
+    const asked: ChangeDatabasePasswordRequest[] = [];
+    renderAt("/databases/svc_db/users", menuApi(asked, []));
+    const table = await screen.findByRole("table", { name: "Users of db" });
+    const row = within(table).getByText("postgres", { selector: ".databases-name" }).closest("tr") as HTMLElement;
+    expect(row).toHaveTextContent("POSTGRES_PASSWORD");
+    expect(row).not.toHaveTextContent("Not one of Dockwell's");
+    await open(user, "postgres");
+    await user.click(screen.getByRole("menuitem", { name: /Change password/ }));
+    // Its first user is the request's empty user, as Connect's own Change password asks.
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "svc_db", user: "" })]));
+  });
+
+  it("gives a user to an app, with this database and the user chosen already, but not one who can do anything", async () => {
+    const user = userEvent.setup();
+    renderAt("/databases/svc_db/users", menuApi([], []));
+    await open(user, "postgres");
+    const off = screen.getByRole("menuitem", { name: /Use in an app/ });
+    expect(off).toHaveAttribute("aria-disabled", "true");
+    expect(off).toHaveTextContent("One who can do anything isn't an app's. Add a user for it");
+    await user.keyboard("{Escape}");
+    await open(user, "shop");
+    await user.click(screen.getByRole("menuitem", { name: /Use in an app/ }));
+    const pick = await screen.findByRole("dialog", { name: "Use shop in an app" });
+    // An app is what doesn't run a database itself.
+    const apps = within(pick).getByLabelText("App");
+    expect(
+      within(apps)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["web"]);
+    await user.click(within(pick).getByRole("button", { name: "Continue" }));
+    const connect = await screen.findByRole("dialog", { name: "Connect web to a database" });
+    expect(within(connect).getByLabelText("Database server")).toHaveValue("svc_db");
+  });
+
+  it("removes a user Dockwell made through a plan, and keeps Remove off, with why, for one it didn't", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/databases/svc_db/users", menuApi([], proposals));
+    await open(user, "shop");
+    const off = screen.getByRole("menuitem", { name: /Remove/ });
+    expect(off).toHaveAttribute("aria-disabled", "true");
+    expect(off).toHaveTextContent("Dockwell didn't make shop, so it doesn't remove them");
+    await user.keyboard("{Escape}");
+    await open(user, "orders");
+    const remove = screen.getByRole("menuitem", { name: /Remove/ });
+    expect(remove).not.toHaveAttribute("aria-disabled", "true");
+    await user.click(remove);
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    expect(proposals[0]?.summary).toBe("Remove the database user orders");
+    expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.scope, e.resource?.name, e.delete])).toEqual([
+      ["database.user", ENV, "orders", true],
+    ]);
   });
 });
 

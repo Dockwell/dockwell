@@ -258,7 +258,7 @@ describe("LogsPage", () => {
     await user.type(field, "far");
     await user.click(await screen.findByRole("button", { name: "Search all the servers keep" }));
     await waitFor(() => expect(readLogs).toHaveBeenCalled());
-    await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
+    await user.click(screen.getByRole("radio", { name: "What's shown" }));
     await user.clear(field);
     const head = () => container.querySelector(".dw-log-name")?.textContent ?? "";
     // What the search saw and still runs goes on counting, as what's read live says so.
@@ -466,7 +466,7 @@ describe("LogsPage", () => {
     expect(readLogs.mock.calls.length).toBe(1);
     await screen.findByText(/1 match in 1,500 lines, back to/);
     await screen.findByText(/That is all the servers keep\./);
-    expect(screen.getByRole("radio", { name: "All the servers keep" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Everything kept" })).toBeChecked();
     // Typing doesn't search again, nor go back to the lines loaded: Enter does the one.
     await user.type(field, "ther");
     await screen.findByText("Press Enter to search all the servers keep.");
@@ -475,7 +475,7 @@ describe("LogsPage", () => {
     expect(readLogs.mock.calls.length).toBe(1);
     await user.keyboard("{Enter}");
     await waitFor(() => expect(readLogs.mock.calls.length).toBe(2));
-    await user.click(screen.getByRole("radio", { name: "Lines loaded" }));
+    await user.click(screen.getByRole("radio", { name: "What's shown" }));
     await waitFor(() => expect(screen.getByRole("log")).not.toHaveTextContent("found far back"));
   });
 

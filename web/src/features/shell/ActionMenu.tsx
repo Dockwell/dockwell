@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Button, cx, Icon, type IconName } from "@dockwell/ui";
-import { type FocusEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import "./ActionMenu.css";
 
@@ -38,15 +48,41 @@ export function ActionMenu({
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   const id = useId();
+  // Where it opens, on the viewport, so a table's scrolling box doesn't cut it off (#798):
+  // under the button, or over it where there's no room under it.
+  const [at, setAt] = useState<CSSProperties>();
+  useLayoutEffect(() => {
+    if (!open) {
+      setAt(undefined);
+      return;
+    }
+    const button = root.current?.querySelector("button")?.getBoundingClientRect();
+    const height = menu.current?.getBoundingClientRect().height ?? 0;
+    if (!button) return;
+    const right = Math.max(window.innerWidth - button.right, 16);
+    const below = button.bottom + 4 + height <= window.innerHeight || button.top - 4 - height < 0;
+    setAt(below ? { top: button.bottom + 4, right } : { bottom: window.innerHeight - button.top + 4, right });
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
     const away = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Placed on the viewport, it would stay put as the page moves under it, so it closes.
+    const moved = (e: Event) => {
+      if (!menu.current?.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
+    window.addEventListener("scroll", moved, true);
+    window.addEventListener("resize", moved);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      window.removeEventListener("scroll", moved, true);
+      window.removeEventListener("resize", moved);
+    };
   }, [open]);
   if (actions.length === 0) return null;
   const close = () => {
@@ -134,7 +170,16 @@ export function ActionMenu({
         onClick={() => setOpen(!open)}
       />
       {open ? (
-        <div id={id} className="action-menu" role="menu" aria-label={label} onKeyDown={keys} onBlur={left}>
+        <div
+          id={id}
+          ref={menu}
+          className={cx("action-menu", at && "is-placed")}
+          style={at}
+          role="menu"
+          aria-label={label}
+          onKeyDown={keys}
+          onBlur={left}
+        >
           {actions.map(item)}
         </div>
       ) : null}

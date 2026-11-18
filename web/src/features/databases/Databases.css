@@ -549,6 +549,20 @@ a.databases-engine:hover .databases-engine-plus {
   color: var(--ink);
 }
 
+/* What PostgreSQL's image trusts, as a state under its users, with why a click away (#798). */
+.database-trust {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.database-trust-why {
+  margin: 0 0 0 16px;
+}
+
 /* What a database or Docker said, which may hold a path or a command no space breaks. */
 .database-said {
   overflow-wrap: anywhere;

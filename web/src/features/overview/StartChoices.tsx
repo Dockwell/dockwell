@@ -135,7 +135,7 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
     <ul
       className={cx("start-choices", compact && "is-compact", lead && "has-lead")}
       style={lead ? rest : undefined}
-      aria-label={t`Ways to run your first app`}
+      aria-label={t`Ways to run an app`}
     >
       {choices.map((c, i) => (
         <li key={c.key} className={cx("start-choice", lead && i === 0 && "is-lead")}>
@@ -157,7 +157,12 @@ export function StartChoices({ compact = false, ways }: { compact?: boolean; way
   );
 }
 
-/** The start page's lead: what's ready, in a line. */
-export function StartLead({ server }: { server: string }) {
-  return server ? <Trans>{server} is ready. Pick what your first app comes from.</Trans> : null;
+/** The start page's lead: what's ready, in a line, and the first app only while there's none (#798). */
+export function StartLead({ server, first = true }: { server: string; first?: boolean }) {
+  if (!server) return null;
+  return first ? (
+    <Trans>{server} is ready. Pick what your first app comes from.</Trans>
+  ) : (
+    <Trans>{server} is ready. Pick what the next app comes from.</Trans>
+  );
 }

@@ -1318,6 +1318,21 @@
   padding-top: 8px;
 }
 
+/* Every engine on one row, under its label, sharing the sheet's width (#798). */
+.catalog-engines.is-all {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.catalog-engines.is-all .catalog-chosen-label {
+  padding-top: 0;
+}
+
+.catalog-engines.is-all .catalog-engine {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: max-content;
+}
+
 .catalog-engines-list {
   display: flex;
   flex-wrap: wrap;

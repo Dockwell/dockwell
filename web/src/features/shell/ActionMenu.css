@@ -23,6 +23,11 @@
   box-shadow: var(--shadow-float);
 }
 
+/* Placed on the viewport once measured, out of any box that scrolls (#798). */
+.action-menu.is-placed {
+  position: fixed;
+}
+
 .action-menu-item {
   display: flex;
   align-items: center;

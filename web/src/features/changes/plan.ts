@@ -241,6 +241,8 @@ export function diffResources(
     tag?: (intent: Intent) => string;
     letsGo?: string;
     serverName?: (id: string) => string | undefined;
+    /** A word for a resource its kind's doesn't fit, such as "database" for a service that runs one (#798). */
+    kindLabel?: (resource: PlannedResource) => string | undefined;
   } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
@@ -274,6 +276,8 @@ export function diffResources(
       changes,
     };
     if (diffKind(kind) === "resource") out.kindLabel = rows.kindWord?.(kind) ?? kindWord(kind);
+    const label = options.kindLabel?.(resource);
+    if (label) out.kindLabel = label;
     if (maybe.has(resource.id)) out.ifNewer = true;
     if (steps.some((s) => s.restart !== "")) out.restart = true;
     if (intent?.resourceId === resource.id && resource.action !== PlanAction.DELETE) {

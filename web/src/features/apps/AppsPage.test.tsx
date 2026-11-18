@@ -71,7 +71,7 @@ describe("the apps list", () => {
   it("offers the ways to a first app when there is none, each opening its own flow", async () => {
     const { container } = renderAt("/apps", api([]));
     expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
-    const ways = screen.getByRole("list", { name: "Ways to run your first app" });
+    const ways = screen.getByRole("list", { name: "Ways to run an app" });
     expect(within(ways).getByRole("link", { name: "From the catalog" })).toHaveAttribute("href", "/catalog");
     expect(within(ways).getByRole("link", { name: "A Git repository" })).toHaveAttribute(
       "href",
@@ -96,7 +96,7 @@ describe("the apps list", () => {
   it("stands fewer than a row of the catalog's apps in the middle of the lead", async () => {
     const entries = ["wordpress", "postgres", "gitea"].map((id) => ({ id, name: id, icon: "" }));
     renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
-    const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
+    const ways = await screen.findByRole("list", { name: "Ways to run an app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(3));
     const apps = lead.querySelector(".start-apps") as HTMLElement;
@@ -108,7 +108,7 @@ describe("the apps list", () => {
     const ids = ["wordpress", "postgres", "nextcloud", "gitea", "n8n", "uptime-kuma", "ghost", "a", "b", "c"];
     const entries = ids.map((id) => ({ id, name: id, icon: "" }));
     renderAt("/apps", { ...api([]), catalog: { listCatalogEntries: catalogPages(entries) } });
-    const ways = await screen.findByRole("list", { name: "Ways to run your first app" });
+    const ways = await screen.findByRole("list", { name: "Ways to run an app" });
     const lead = within(ways).getByRole("link", { name: "From the catalog" }).closest("li") as HTMLElement;
     expect(lead).toHaveClass("is-lead");
     await waitFor(() => expect(within(lead).getAllByRole("link", { name: /^Install / })).toHaveLength(7));

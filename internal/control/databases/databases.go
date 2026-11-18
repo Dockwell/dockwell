@@ -653,7 +653,8 @@ func (h *Handler) complete(ctx context.Context, list []*placed) error {
 
 // made marks the users Dockwell made in each database, with the secret each signs in
 // with and the services that use it. A spec of a database user holds nothing secret,
-// so it's stored as it is.
+// so it's stored as it is. Its first user, whose password is in the database's own
+// secret, is marked the same way, so Users says what Connect says (#798).
 func (h *Handler) made(ctx context.Context, list []*placed) error {
 	byScope := map[string][]*placed{}
 	for _, p := range list {
@@ -661,14 +662,34 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 	}
 	return h.db.View(ctx, func(tx *store.Tx) error {
 		for env, dbs := range byScope {
-			users, err := tx.ListResources(ctx, env, string(database.UserKind))
+			uses, err := tx.UsersOf(ctx, env, string(variable.SecretKind))
 			if err != nil {
 				return err
 			}
-			if len(users) == 0 {
-				continue
+			// The services that use a secret, but the database that has it as its own.
+			usedBy := func(secret, own string) []string {
+				var out []string
+				for j := range uses {
+					if uses[j].Kind == string(service.Kind) && uses[j].Uses.Name == secret && uses[j].Name != own && !slices.Contains(out, uses[j].Name) {
+						out = append(out, uses[j].Name)
+					}
+				}
+				return out
 			}
-			uses, err := tx.UsersOf(ctx, env, string(variable.SecretKind))
+			for _, p := range dbs {
+				secret := p.db.GetPasswordSecret()
+				if secret == "" {
+					continue
+				}
+				for _, r := range p.db.GetReadings() {
+					for _, a := range r.GetUsers() {
+						if r.GetUser() != "" && a.GetName() == r.GetUser() && a.GetSecret() == "" {
+							a.Secret, a.UsedBy = secret, usedBy(secret, p.ref.Name)
+						}
+					}
+				}
+			}
+			users, err := tx.ListResources(ctx, env, string(database.UserKind))
 			if err != nil {
 				return err
 			}
@@ -678,12 +699,7 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 				if err := proto.Unmarshal(u.Spec, spec); err != nil {
 					return fmt.Errorf("can't read the database user %s: %w", u.Name, err)
 				}
-				var usedBy []string
-				for j := range uses {
-					if uses[j].Kind == string(service.Kind) && uses[j].Uses.Name == spec.GetPassword() && !slices.Contains(usedBy, uses[j].Name) {
-						usedBy = append(usedBy, uses[j].Name)
-					}
-				}
+				usedBy := usedBy(spec.GetPassword(), "")
 				for _, p := range dbs {
 					if p.ref.Name != spec.GetService() {
 						continue

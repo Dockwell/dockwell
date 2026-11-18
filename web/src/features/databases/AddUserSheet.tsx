@@ -210,7 +210,11 @@ export function AddUserSheet({ db, onClose }: { db: Database; onClose: () => voi
         <Advanced
           open={advancedOpen}
           onOpenChange={setAdvancedOpen}
-          summary={theDatabase ? t`Database ${theDatabase} · secret ${theSecret}` : undefined}
+          summary={
+            theDatabase
+              ? t`Database ${theDatabase} · secret ${theSecret}`
+              : t`A database and a secret named for the user`
+          }
         >
           <TextField
             label={t`Database`}

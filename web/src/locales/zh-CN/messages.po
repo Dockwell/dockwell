@@ -11757,8 +11757,8 @@ msgstr "{server} 下次重启时，Docker 会再次启动 {list}，它可能从�
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "位于 {path} 的 Docker 套接字，可控制服务器上的 Docker，等同于 root 权限"
 
-msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
-msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止。如果应用支持，请将其发布顺序设置为先启动"
+msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first"
+msgstr "Dockwell 无法读取 {cantTell} 的实际位置，因此无法确定两个容器不会写入同一处，所以旧容器先停止"
 
 msgid "Frees {ports}"
 msgstr "释放 {ports}"
@@ -11787,6 +11787,9 @@ msgstr "其 HTTPS 会短暂中断"
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "{path} 上的 HTTPS，它将停止：https:// 地址会报错，见过其 HSTS 的浏览器在该设置到期前也会拒绝纯 HTTP"
 
+msgid "If the app can, set its rollout order to start first"
+msgstr "如果应用支持，请将其发布顺序设置为先启动"
+
 msgid "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
 msgstr "如果新容器无法启动，此服务将没有任何容器运行，而重启没有可回退的版本"
 
@@ -11811,8 +11814,8 @@ msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，新容器会被移除，已停止的容器保持停止"
 
-msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first"
+msgstr "其镜像将数据保存在 {imageData}，两个容器不能同时写入，因此旧容器会先停止"
 
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "其镜像会在那里放置一个空卷。{source} 原样保留在服务器上"
@@ -12024,11 +12027,11 @@ msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在�
 msgid "Two containers can't publish {ports} at once, so the old one stops first"
 msgstr "两个容器不能同时发布 {ports}，因此旧容器会先停止"
 
-msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "两个容器不能同时写入服务器路径 {paths}，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first"
+msgstr "两个容器不能同时写入服务器路径 {paths}，因此旧容器会先停止"
 
-msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停止。如果应用支持同时写入，请将其发布顺序设置为先启动"
+msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
+msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停止"
 
 msgid "Update"
 msgstr "更新"
@@ -12901,6 +12904,9 @@ msgctxt "who signs in to a mail server"
 msgid "user"
 msgstr "用户名"
 
+msgid "A database and a secret named for the user"
+msgstr "以用户命名的数据库和密钥"
+
 msgid "Add a user to {name}"
 msgstr "为 {name} 添加用户"
 
@@ -13120,6 +13126,9 @@ msgstr "尚未读取任何数据"
 msgid "One is running now"
 msgstr "正在进行一次备份"
 
+msgid "Open Users"
+msgstr "打开用户"
+
 msgid "Reads served from memory"
 msgstr "从内存读取的比例"
 
@@ -13185,17 +13194,26 @@ msgstr "{engine} {next} 已发布"
 msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 msgstr "{keys, plural, other {内存占用，共 # 个键}}"
 
+msgid "{own, plural, one {# database of your own} other {# databases of your own}}"
+msgstr "{own, plural, other {# 个自有数据库}}"
+
 msgid "{servers}, and sealed on {destination}"
 msgstr "{servers}，并加密存放在 {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}，未加密"
 
+msgid "{users, plural, one {# user} other {# users}}"
+msgstr "{users, plural, other {# 个用户}}"
+
+msgid "Actions for {who}"
+msgstr "{who} 的操作"
+
+msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
+msgstr "应用使用密码登录。在它自己的容器内，不需要密码"
+
 msgid "Can do anything"
 msgstr "拥有全部权限"
-
-msgid "Change {who}'s password"
-msgstr "修改 {who} 的密码"
 
 msgid "Databases in {name}"
 msgstr "{name} 中的数据库"
@@ -13203,17 +13221,23 @@ msgstr "{name} 中的数据库"
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell 暂时无法添加 MongoDB 用户。请在 <1>mongosh</1> 中用 <0>db.createUser</0> 添加。"
 
+msgid "Dockwell didn't make {who}, so it doesn't remove them"
+msgstr "{who} 不是 Dockwell 创建的，因此 Dockwell 不会删除"
+
 msgid "Granted on"
 msgstr "已授权"
 
 msgid "Has roles in"
 msgstr "拥有角色于"
 
-msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
-msgstr "在其容器内部，PostgreSQL 镜像允许任何进程无需密码以任意用户登录。"
+msgid "Hide why"
+msgstr "隐藏原因"
 
 msgid "Its own"
 msgstr "系统自带"
+
+msgid "Its password isn't one Dockwell keeps"
+msgstr "它的密码不由 Dockwell 保管"
 
 msgid "Its users show again once it does."
 msgstr "它报告后，这里会重新显示用户。"
@@ -13227,17 +13251,29 @@ msgstr "没有自己的数据库"
 msgid "Not one of Dockwell's"
 msgstr "非 Dockwell 创建"
 
+msgid "One who can do anything isn't an app's. Add a user for it"
+msgstr "拥有全部权限的用户不交给应用。请为应用添加一个用户"
+
 msgid "Owns"
 msgstr "拥有"
 
 msgid "Password in"
 msgstr "密码所在"
 
+msgid "PostgreSQL's image trusts what runs in its container, as only a shell there reaches it that way."
+msgstr "PostgreSQL 的镜像信任在其容器内运行的内容，因为只有那里的 shell 能以这种方式连接。"
+
+msgid "Remove the database user {who}"
+msgstr "删除数据库用户 {who}"
+
 msgid "Role"
 msgstr "角色"
 
 msgid "Signs in to"
 msgstr "登录到"
+
+msgid "They can't sign in"
+msgstr "该用户无法登录"
 
 msgid "Users of {name}"
 msgstr "{name} 的用户"
@@ -13356,6 +13392,18 @@ msgstr "{failedAt}，失败：{failedWhy}"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} / {ofWords}"
+
+msgid "Continue"
+msgstr "继续"
+
+msgid "No app runs yet"
+msgstr "尚无运行中的应用"
+
+msgid "The app signs in as {name}, through a link that follows the database"
+msgstr "应用以 {name} 登录，通过一个跟随数据库的链接"
+
+msgid "Use {name} in an app"
+msgstr "在应用中使用 {name}"
 
 msgid "An API token with Zone:Read and DNS:Edit for your zones."
 msgstr "一个对你的区域具有 Zone:Read 和 DNS:Edit 权限的 API 令牌。"
@@ -14728,9 +14776,6 @@ msgstr "全部容器"
 msgid "All levels"
 msgstr "全部级别"
 
-msgid "All the servers keep"
-msgstr "服务器保留的全部日志"
-
 msgid "Can't read these logs now"
 msgstr "现在无法读取这些日志"
 
@@ -14766,6 +14811,9 @@ msgstr "错误"
 
 msgid "Errors in this log"
 msgstr "此日志中的错误"
+
+msgid "Everything kept"
+msgstr "保留的全部日志"
 
 msgid "Filter log lines"
 msgstr "筛选日志"
@@ -14811,9 +14859,6 @@ msgstr "级别"
 
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "级别根据每行文本判断。未标明级别的行算作信息。双击或按住 Shift 点击可只显示该级别。"
-
-msgid "Lines loaded"
-msgstr "已加载的行"
 
 msgid "Live"
 msgstr "实时"
@@ -14865,6 +14910,9 @@ msgstr "重新搜索"
 
 msgid "Search all the servers keep"
 msgstr "搜索服务器保留的全部内容"
+
+msgid "Search in"
+msgstr "搜索范围"
 
 msgid "Search lines"
 msgstr "搜索日志行"
@@ -14932,11 +14980,11 @@ msgstr "警告"
 msgid "What the servers keep goes back further than what is loaded here."
 msgstr "服务器保留的日志比这里加载的更久远。"
 
-msgid "What to search"
-msgstr "搜索范围"
-
 msgid "What to show"
 msgstr "显示内容"
+
+msgid "What's shown"
+msgstr "已显示的行"
 
 msgid "Wrap long lines"
 msgstr "自动换行"
@@ -15221,12 +15269,15 @@ msgstr "把多个容器作为一个整体"
 msgid "Static files or PHP, with HTTPS"
 msgstr "静态文件或 PHP，带 HTTPS"
 
-msgid "Ways to run your first app"
-msgstr "运行第一个应用的方式"
+msgid "Ways to run an app"
+msgstr "运行应用的方式"
 
 msgctxt "apps in the catalog past those shown"
 msgid "more"
 msgstr "更多"
+
+msgid "{server} is ready. Pick what the next app comes from."
+msgstr "{server} 已就绪。选择下一个应用从何而来。"
 
 msgid "{server} is ready. Pick what your first app comes from."
 msgstr "{server} 已就绪。选择你的第一个应用从何而来。"

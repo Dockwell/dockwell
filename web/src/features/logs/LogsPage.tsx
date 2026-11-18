@@ -698,13 +698,13 @@ export function LogsPage({
   const scopeControl = showScope ? (
     <SegmentedControl
       size="sm"
-      label={t`What to search`}
+      label={t`Search in`}
       value={search.deep ? "all" : "loaded"}
       onChange={setScope}
       className="logs-scope"
       options={[
-        { value: "loaded", label: t`Lines loaded` },
-        { value: "all", label: t`All the servers keep` },
+        { value: "loaded", label: t`What's shown` },
+        { value: "all", label: t`Everything kept` },
       ]}
     />
   ) : null;

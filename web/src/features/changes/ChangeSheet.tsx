@@ -99,6 +99,7 @@ import {
   useAsides,
   useDataLeft,
   useRisks,
+  useRunsADatabase,
   useWarnings,
 } from "./notices";
 import { panelName } from "./PanelPlan";
@@ -1329,6 +1330,7 @@ function PlanBody({
   const warnings = useWarnings(plan, phase !== "review", serving);
   const dataLeft = useDataLeft(plan, change?.steps ?? []);
   const asides = useAsides(plan);
+  const runsADatabase = useRunsADatabase(plan);
   const fleet = isFleet(plan);
   if (phase === "planning") {
     return (
@@ -1377,6 +1379,8 @@ function PlanBody({
       letsGo: words.letsGo(landed ? "done" : "plan"),
       // A server's host goes by its server's name (ADR 0091).
       serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
+      // A service that runs a database is one (#798).
+      kindLabel: (resource) => (runsADatabase(resource.id) ? t`database` : undefined),
     }),
   );
   const steps = change?.steps ?? [];

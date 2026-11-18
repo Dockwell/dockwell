@@ -113,10 +113,7 @@ export async function appsFlow(
   step("apps: the list offers the ways to a first app, and a Docker image asks only for the image");
   await page.goto(`${origin}/apps`);
   await page.getByRole("heading", { name: "No apps yet" }).waitFor();
-  await page
-    .getByRole("list", { name: "Ways to run your first app" })
-    .getByRole("link", { name: "A Docker image" })
-    .click();
+  await page.getByRole("list", { name: "Ways to run an app" }).getByRole("link", { name: "A Docker image" }).click();
   const sheet = page.getByRole("dialog", { name: "New app" });
   await sheet.waitFor();
   // A Docker image opens New app on an image, where New app on its own opens on the catalog (#617).

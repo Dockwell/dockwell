@@ -449,7 +449,6 @@ func testADatabaseUserIsAPlanWithAGeneratedSecret(t *testing.T, backend store.Ba
 	if shop.GetSecret() != "SHOP_DATABASE_PASSWORD" || shop.GetResourceId() == "" {
 		t.Errorf("the database says of shop %v", shop)
 	}
-
 	_, err = dc.CreateDatabaseUser(t.Context(), connect.NewRequest(&dockwellv1.CreateDatabaseUserRequest{Id: "db", User: "shop"}))
 	var refused *connect.Error
 	if !errors.As(err, &refused) || refused.Code() != connect.CodeInvalidArgument || refused.Meta().Get("Dockwell-Error") != "invalid_user" ||
@@ -721,6 +720,29 @@ func testADatabasesFirstPasswordChangesThroughAPlan(t *testing.T, backend store.
 	_, err = dc.ChangeDatabasePassword(t.Context(), connect.NewRequest(&dockwellv1.ChangeDatabasePasswordRequest{Id: "cache"}))
 	if !errors.As(err, &refused) || refused.Meta().Get("Dockwell-Error") != "no_secret" {
 		t.Errorf("a database whose password isn't in a secret: %v", err)
+	}
+
+	// Users says what Connect says of the first user: its password is in the database's own
+	// secret, which the apps that sign in as it use, and the database that has it isn't one (#798).
+	apply(t, ch, propose(t, ch, "Run the shop", &dockwellv1.Edit{
+		Resource: &dockwellv1.ResourceRef{Name: "web"},
+		Spec: &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: &resourcev1.Service{
+			Runs:    &resourcev1.Service_App{App: &resourcev1.Container{Image: "redis:7"}},
+			Secrets: map[string]string{"DATABASE_PASSWORD": "DB_PASSWORD"},
+		}}},
+	}))
+	read, err := dc.GetDatabase(t.Context(), connect.NewRequest(&dockwellv1.GetDatabaseRequest{Id: "db"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var first *dockwellv1.DatabaseAccount
+	for _, a := range read.Msg.GetDatabase().GetReadings()[0].GetUsers() {
+		if a.GetName() == "postgres" {
+			first = a
+		}
+	}
+	if first.GetSecret() != "DB_PASSWORD" || !slices.Equal(first.GetUsedBy(), []string{"web"}) || first.GetResourceId() != "" {
+		t.Errorf("db says of postgres %v, want its password in DB_PASSWORD, used by web", first)
 	}
 
 	// A server that's away can't say whether its agent changes the password as the

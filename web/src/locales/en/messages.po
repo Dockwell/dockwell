@@ -11757,8 +11757,8 @@ msgstr "Docker starts {list} again when {server} next restarts, which may take p
 msgid "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 msgstr "Docker's socket at {path}, which gives control of Docker on the server, the same as root"
 
-msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
-msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first"
+msgid "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first"
+msgstr "Dockwell can't read where {cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first"
 
 msgid "Frees {ports}"
 msgstr "Frees {ports}"
@@ -11787,6 +11787,9 @@ msgstr "HTTPS on it drops for a moment"
 msgid "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 msgstr "HTTPS on {path}, which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 
+msgid "If the app can, set its rollout order to start first"
+msgstr "If the app can, set its rollout order to start first"
+
 msgid "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
 msgstr "If the new one doesn't come up, nothing of this runs, and a restart has nothing to go back to"
 
@@ -11811,8 +11814,8 @@ msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWi
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, the new one goes, and what was stopped stays stopped"
 
-msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgid "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first"
+msgstr "Its image keeps data at {imageData}, which two containers mustn't write to at once, so the old one stops first"
 
 msgid "Its image puts an empty volume there. {source} stays on the server, as it was"
 msgstr "Its image puts an empty volume there. {source} stays on the server, as it was"
@@ -12024,11 +12027,11 @@ msgstr "Traffic for this route reaches {server} unencrypted, as TLS ends before 
 msgid "Two containers can't publish {ports} at once, so the old one stops first"
 msgstr "Two containers can't publish {ports} at once, so the old one stops first"
 
-msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "Two containers mustn't write to the server path {paths} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgid "Two containers mustn't write to the server path {paths} at once, so the old one stops first"
+msgstr "Two containers mustn't write to the server path {paths} at once, so the old one stops first"
 
-msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
-msgstr "Two containers mustn't write to the volume {volumes} at once, so the old one stops first. If the app can, set its rollout order to start first"
+msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
+msgstr "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
 
 msgid "Update"
 msgstr "Update"
@@ -12901,6 +12904,9 @@ msgctxt "who signs in to a mail server"
 msgid "user"
 msgstr "user"
 
+msgid "A database and a secret named for the user"
+msgstr "A database and a secret named for the user"
+
 msgid "Add a user to {name}"
 msgstr "Add a user to {name}"
 
@@ -13120,6 +13126,9 @@ msgstr "Nothing read yet"
 msgid "One is running now"
 msgstr "One is running now"
 
+msgid "Open Users"
+msgstr "Open Users"
+
 msgid "Reads served from memory"
 msgstr "Reads served from memory"
 
@@ -13185,17 +13194,26 @@ msgstr "{engine} {next} is out"
 msgid "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 msgstr "{keys, plural, one {In memory, with # key} other {In memory, with # keys}}"
 
+msgid "{own, plural, one {# database of your own} other {# databases of your own}}"
+msgstr "{own, plural, one {# database of your own} other {# databases of your own}}"
+
 msgid "{servers}, and sealed on {destination}"
 msgstr "{servers}, and sealed on {destination}"
 
 msgid "{servers}, unencrypted"
 msgstr "{servers}, unencrypted"
 
+msgid "{users, plural, one {# user} other {# users}}"
+msgstr "{users, plural, one {# user} other {# users}}"
+
+msgid "Actions for {who}"
+msgstr "Actions for {who}"
+
+msgid "Apps sign in with a password. Inside its own container, nothing asks for one"
+msgstr "Apps sign in with a password. Inside its own container, nothing asks for one"
+
 msgid "Can do anything"
 msgstr "Can do anything"
-
-msgid "Change {who}'s password"
-msgstr "Change {who}'s password"
 
 msgid "Databases in {name}"
 msgstr "Databases in {name}"
@@ -13203,17 +13221,23 @@ msgstr "Databases in {name}"
 msgid "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 msgstr "Dockwell can't add a MongoDB user yet. Add one with <0>db.createUser</0> in <1>mongosh</1>."
 
+msgid "Dockwell didn't make {who}, so it doesn't remove them"
+msgstr "Dockwell didn't make {who}, so it doesn't remove them"
+
 msgid "Granted on"
 msgstr "Granted on"
 
 msgid "Has roles in"
 msgstr "Has roles in"
 
-msgid "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
-msgstr "Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password."
+msgid "Hide why"
+msgstr "Hide why"
 
 msgid "Its own"
 msgstr "Its own"
+
+msgid "Its password isn't one Dockwell keeps"
+msgstr "Its password isn't one Dockwell keeps"
 
 msgid "Its users show again once it does."
 msgstr "Its users show again once it does."
@@ -13227,17 +13251,29 @@ msgstr "None of their own"
 msgid "Not one of Dockwell's"
 msgstr "Not one of Dockwell's"
 
+msgid "One who can do anything isn't an app's. Add a user for it"
+msgstr "One who can do anything isn't an app's. Add a user for it"
+
 msgid "Owns"
 msgstr "Owns"
 
 msgid "Password in"
 msgstr "Password in"
 
+msgid "PostgreSQL's image trusts what runs in its container, as only a shell there reaches it that way."
+msgstr "PostgreSQL's image trusts what runs in its container, as only a shell there reaches it that way."
+
+msgid "Remove the database user {who}"
+msgstr "Remove the database user {who}"
+
 msgid "Role"
 msgstr "Role"
 
 msgid "Signs in to"
 msgstr "Signs in to"
+
+msgid "They can't sign in"
+msgstr "They can't sign in"
 
 msgid "Users of {name}"
 msgstr "Users of {name}"
@@ -13356,6 +13392,18 @@ msgstr "{failedAt}, which failed: {failedWhy}"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"
+
+msgid "Continue"
+msgstr "Continue"
+
+msgid "No app runs yet"
+msgstr "No app runs yet"
+
+msgid "The app signs in as {name}, through a link that follows the database"
+msgstr "The app signs in as {name}, through a link that follows the database"
+
+msgid "Use {name} in an app"
+msgstr "Use {name} in an app"
 
 msgid "An API token with Zone:Read and DNS:Edit for your zones."
 msgstr "An API token with Zone:Read and DNS:Edit for your zones."
@@ -14728,9 +14776,6 @@ msgstr "All containers"
 msgid "All levels"
 msgstr "All levels"
 
-msgid "All the servers keep"
-msgstr "All the servers keep"
-
 msgid "Can't read these logs now"
 msgstr "Can't read these logs now"
 
@@ -14766,6 +14811,9 @@ msgstr "Errors"
 
 msgid "Errors in this log"
 msgstr "Errors in this log"
+
+msgid "Everything kept"
+msgstr "Everything kept"
 
 msgid "Filter log lines"
 msgstr "Filter log lines"
@@ -14811,9 +14859,6 @@ msgstr "Levels"
 
 msgid "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
 msgstr "Levels are read from each line's text. A line that names none counts as info. Double-click or Shift-click one to show it alone."
-
-msgid "Lines loaded"
-msgstr "Lines loaded"
 
 msgid "Live"
 msgstr "Live"
@@ -14865,6 +14910,9 @@ msgstr "Search again"
 
 msgid "Search all the servers keep"
 msgstr "Search all the servers keep"
+
+msgid "Search in"
+msgstr "Search in"
 
 msgid "Search lines"
 msgstr "Search lines"
@@ -14932,11 +14980,11 @@ msgstr "Warnings"
 msgid "What the servers keep goes back further than what is loaded here."
 msgstr "What the servers keep goes back further than what is loaded here."
 
-msgid "What to search"
-msgstr "What to search"
-
 msgid "What to show"
 msgstr "What to show"
+
+msgid "What's shown"
+msgstr "What's shown"
 
 msgid "Wrap long lines"
 msgstr "Wrap long lines"
@@ -15221,12 +15269,15 @@ msgstr "Several containers as one stack"
 msgid "Static files or PHP, with HTTPS"
 msgstr "Static files or PHP, with HTTPS"
 
-msgid "Ways to run your first app"
-msgstr "Ways to run your first app"
+msgid "Ways to run an app"
+msgstr "Ways to run an app"
 
 msgctxt "apps in the catalog past those shown"
 msgid "more"
 msgstr "more"
+
+msgid "{server} is ready. Pick what the next app comes from."
+msgstr "{server} is ready. Pick what the next app comes from."
 
 msgid "{server} is ready. Pick what your first app comes from."
 msgstr "{server} is ready. Pick what your first app comes from."

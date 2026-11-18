@@ -3,6 +3,7 @@
 import { useLingui } from "@lingui/react/macro";
 
 import { RouterButtonLink } from "../../lib/links";
+import { useServices } from "../apps/useServices";
 import { useFleet } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { StartChoices, StartLead } from "./StartChoices";
@@ -16,10 +17,11 @@ export function StartPage() {
   const { t } = useLingui();
   const fleet = useFleet();
   const server = fleet.status === "connecting" ? "" : (fleet.servers.find((s) => s.controlServer)?.name ?? "");
+  const apps = useServices().data;
   return (
     <Page
       title={t`What do you want to run?`}
-      lead={<StartLead server={server} />}
+      lead={<StartLead server={server} first={apps === undefined || apps.length === 0} />}
       back="/"
       actions={
         <RouterButtonLink to="/" variant="ghost" icon="home">
