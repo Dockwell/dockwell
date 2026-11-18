@@ -82,6 +82,28 @@ service DatabaseService {
     };
   }
 
+  // SetDatabaseExternalAccess plans letting apps and people beyond a database's
+  // server reach it, from the addresses listed and nowhere else, or taking that
+  // away. It's three edits that go together: the database publishes its engine's
+  // port on every address of its server, and two firewall rules there let the
+  // listed addresses in and keep everyone else out. Turning it off removes all
+  // three. The port is public on purpose, which a person approves, and the rules
+  // change who reaches the server, which takes a passkey, so no API token may
+  // apply it. It changes nothing until the plan is applied, and an empty list is
+  // refused: external access is never open to anywhere (ADR 0038, "External
+  // access, as built").
+  rpc SetDatabaseExternalAccess(SetDatabaseExternalAccessRequest) returns (SetDatabaseExternalAccessResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "external-access"};
+    option (google.api.http) = {
+      post: "/v1/databases/{id}:externalAccess"
+      body: "*"
+    };
+  }
+
   // CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
   // Dockwell runs signs in to one of its databases with the password an app's secret
   // holds, from another host, as connecting the app takes that user on (ADR 0084,
@@ -186,6 +208,20 @@ message Database {
   // The catalog entry it was installed from, by ID, such as "postgres". Empty
   // for anything else.
   string catalog_entry = 16;
+  // How apps and people beyond its server reach it, where they do: the port it
+  // publishes on every address of its server, and the addresses its firewall
+  // lets in there. Unset while it has no external access
+  // (SetDatabaseExternalAccess).
+  DatabaseExternalAccess external_access = 17;
+}
+
+// DatabaseExternalAccess is a database's port on its server's every address, and
+// who its firewall lets in there: the listed addresses, and nobody else.
+message DatabaseExternalAccess {
+  // The port on the server, such as 5432.
+  uint32 port = 1;
+  // The addresses let in, each an address or a range, such as "203.0.113.0/24".
+  repeated string allow_from = 2;
 }
 
 // DatabaseReading is what a database said of itself on one server.
@@ -435,6 +471,32 @@ message ChangeDatabasePasswordRequest {
 
 // ChangeDatabasePasswordResponse is the change that gives the user a new password.
 message ChangeDatabasePasswordResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// SetDatabaseExternalAccessRequest names a database, and who reaches it from
+// beyond its server, or that nobody does.
+message SetDatabaseExternalAccessRequest {
+  // The service that runs it, by ID or by name.
+  string id = 1;
+  // The project of a database named by name, by name or ID, when more than one has
+  // a service of that name.
+  string project = 2;
+  // The environment of a database named by name, by name or ID, when its project
+  // has more than one.
+  string environment = 3;
+  // The addresses its firewall lets in, each an address or a range, such as
+  // "203.0.113.7" or "203.0.113.0/24". At least one, unless off: external access
+  // is never open to anywhere.
+  repeated string allow_from = 4;
+  // Takes external access away: the port and both rules, in one change.
+  bool off = 5;
+}
+
+// SetDatabaseExternalAccessResponse is the change that gives or takes external
+// access, planned.
+message SetDatabaseExternalAccessResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

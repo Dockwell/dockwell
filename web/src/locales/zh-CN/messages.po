@@ -10744,6 +10744,9 @@ msgstr "请先把它加入这个 jail 永不封禁的地址，或在知情的情
 msgid "Adds {names}."
 msgstr "添加 {names}。"
 
+msgid "An SSH tunnel is the safer way"
+msgstr "SSH 隧道是更安全的方式"
+
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "放行本服务器或私有网络的地址限制无法从这里看出。"
 
@@ -11172,6 +11175,9 @@ msgstr "这是服务器在 {taken} 保留的内容，大小为 {size}。"
 
 msgid "The catalog shows no apps from this commit."
 msgstr "应用目录不会显示这个提交中的任何应用。"
+
+msgid "The connection to {name} isn't encrypted"
+msgstr "到 {name} 的连接未加密"
 
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "控制平面通过 DNS 证明 {path}。服务器上的密钥会从那里为其域名提供服务，因此第一次需要你用通行密钥确认。"
@@ -13389,6 +13395,42 @@ msgstr "{server} 上的 {engine}"
 
 msgid "{failedAt}, which failed: {failedWhy}"
 msgstr "{failedAt}，失败：{failedWhy}"
+
+msgid "A tunnel needs its port on the server first"
+msgstr "隧道需要它先在服务器上发布端口"
+
+msgid "Allow from"
+msgstr "允许来自"
+
+msgid "Change addresses"
+msgstr "更改地址"
+
+msgid "External access"
+msgstr "外部访问"
+
+msgid "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
+msgstr "请填写允许的地址或范围，例如 203.0.113.7。它从不对所有地址开放。"
+
+msgid "Nothing beyond {where} reaches it"
+msgstr "{where} 之外无法访问它"
+
+msgid "Off. Only apps on {where} reach it"
+msgstr "已关闭。只有 {where} 上的应用可以访问它"
+
+msgid "On port {port}, from {list}"
+msgstr "已在端口 {port} 开放，来源 {list}"
+
+msgid "Port {port} then answers these addresses alone"
+msgstr "端口 {port} 将只响应这些地址"
+
+msgid "Publish it on this server alone"
+msgstr "仅在此服务器上发布"
+
+msgid "Unencrypted over the network"
+msgstr "网络传输未加密"
+
+msgid "Use an SSH tunnel"
+msgstr "使用 SSH 隧道"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} / {ofWords}"

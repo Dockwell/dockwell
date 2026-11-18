@@ -48,6 +48,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
 import { useThisDatabase } from "./DatabaseLayout";
+import { ExternalAccess } from "./ExternalAccess";
 import "../servers/ServerMetrics.css";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
@@ -87,6 +88,7 @@ export function DatabaseOverview() {
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
+      <ExternalAccess db={db} />
       <CompanionsPanel install={install} />
       {speaksSQL(db.engine) && read ? <WhoIsIn db={db} read={read} /> : null}
       <DatabaseDanger db={db} />

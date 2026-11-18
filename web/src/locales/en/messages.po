@@ -10744,6 +10744,9 @@ msgstr "Add it to what the jail never bans first, or apply this knowing it."
 msgid "Adds {names}."
 msgstr "Adds {names}."
 
+msgid "An SSH tunnel is the safer way"
+msgstr "An SSH tunnel is the safer way"
+
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "An address limit that lets in this server or private networks can't be seen."
 
@@ -11172,6 +11175,9 @@ msgstr "That's what the server kept on {taken}, {size}."
 
 msgid "The catalog shows no apps from this commit."
 msgstr "The catalog shows no apps from this commit."
+
+msgid "The connection to {name} isn't encrypted"
+msgstr "The connection to {name} isn't encrypted"
 
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
@@ -13389,6 +13395,42 @@ msgstr "{engine} on {server}"
 
 msgid "{failedAt}, which failed: {failedWhy}"
 msgstr "{failedAt}, which failed: {failedWhy}"
+
+msgid "A tunnel needs its port on the server first"
+msgstr "A tunnel needs its port on the server first"
+
+msgid "Allow from"
+msgstr "Allow from"
+
+msgid "Change addresses"
+msgstr "Change addresses"
+
+msgid "External access"
+msgstr "External access"
+
+msgid "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
+msgstr "Name an address or a range to let in, such as 203.0.113.7. It's never open to anywhere."
+
+msgid "Nothing beyond {where} reaches it"
+msgstr "Nothing beyond {where} reaches it"
+
+msgid "Off. Only apps on {where} reach it"
+msgstr "Off. Only apps on {where} reach it"
+
+msgid "On port {port}, from {list}"
+msgstr "On port {port}, from {list}"
+
+msgid "Port {port} then answers these addresses alone"
+msgstr "Port {port} then answers these addresses alone"
+
+msgid "Publish it on this server alone"
+msgstr "Publish it on this server alone"
+
+msgid "Unencrypted over the network"
+msgstr "Unencrypted over the network"
+
+msgid "Use an SSH tunnel"
+msgstr "Use an SSH tunnel"
 
 msgid "{usedWords} of {ofWords}"
 msgstr "{usedWords} of {ofWords}"

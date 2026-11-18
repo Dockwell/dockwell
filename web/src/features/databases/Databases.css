@@ -623,3 +623,44 @@ a.databases-engine:hover .databases-engine-plus {
   align-items: baseline;
   gap: var(--space-2);
 }
+
+/* Who reaches it from beyond its server, with the tunnel a step away (#798). */
+.database-external-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.database-external-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(100%, 480px);
+}
+
+.database-external-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.database-tunnel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.database-tunnel-command {
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken, var(--canvas));
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

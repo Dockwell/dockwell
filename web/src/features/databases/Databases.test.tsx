@@ -24,12 +24,14 @@ import {
   EntrySchema,
   EventKind,
   type ListBackupsRequest,
+  PlanNoteSchema,
   type ProposeChangeRequest,
   type Resource,
   ResourceSchema,
   type RestoreBackupRequest,
   Role,
   type SetCatalogCompanionRequest,
+  type SetDatabaseExternalAccessRequest,
   UpdateCheck,
   UpdateKind,
   UpdateSource,
@@ -1651,6 +1653,82 @@ describe("a user's menu", () => {
     expect(proposals[0]?.edits.map((e) => [e.resource?.kind, e.resource?.scope, e.resource?.name, e.delete])).toEqual([
       ["database.user", ENV, "orders", true],
     ]);
+  });
+});
+
+describe("external access", () => {
+  // A plan with something in it, and the note that what reaches it is unencrypted.
+  const planned = webPlanned();
+  planned.plan?.notes.push(
+    create(PlanNoteSchema, { reason: "unencrypted", resource: { kind: "service", scope: ENV, name: "db" } }),
+  );
+  const externalApi = (db: Database, asked: SetDatabaseExternalAccessRequest[]) =>
+    api([db], {
+      databases: {
+        listDatabases: () => ({ databases: [db] }),
+        getDatabase: () => ({ database: db }),
+        setDatabaseExternalAccess: (req) => {
+          asked.push(req);
+          return { change: planned };
+        },
+      },
+      auth: {
+        getAuthState: () => authState(),
+        listSessions: () => ({ sessions: [{ id: "ses_1", current: true, address: "203.0.113.7" }] }),
+      },
+      changes: {
+        getChange: () => ({ change: planned }),
+        watchChange: feed<WatchChangeResponse>().stream,
+        discardChange: () => ({}),
+      },
+    });
+
+  it("lets in your own address first, refuses none at all, and plans it with the tunnel a step away", async () => {
+    const user = userEvent.setup();
+    const asked: SetDatabaseExternalAccessRequest[] = [];
+    renderAt("/databases/svc_db", externalApi(aDatabase(), asked));
+    const panel = await screen.findByRole("region", { name: "External access" });
+    const toggle = within(panel).getByRole("switch", { name: "External access" });
+    expect(toggle).not.toBeChecked();
+    expect(panel).toHaveTextContent("Off. Only apps on hz-1 reach it");
+    await user.click(toggle);
+    const allow = await within(panel).findByRole("textbox", { name: "Allow from" });
+    await waitFor(() => expect(allow).toHaveValue("203.0.113.7"));
+    expect(allow).toHaveAccessibleDescription("Port 5432 then answers these addresses alone");
+    // Never anywhere: with nothing listed, it says so at the field, and plans nothing.
+    await user.clear(allow);
+    await user.click(within(panel).getByRole("button", { name: /Review plan/ }));
+    expect(allow).toHaveAccessibleDescription(/Name an address or a range to let in/);
+    expect(asked).toHaveLength(0);
+    await user.type(allow, "203.0.113.7, 198.51.100.0/24");
+    await user.click(within(panel).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() =>
+      expect(asked).toEqual([
+        expect.objectContaining({ id: "svc_db", allowFrom: ["203.0.113.7", "198.51.100.0/24"], off: false }),
+      ]),
+    );
+    // The plan says it's unencrypted, with the tunnel one step away: it closes the plan and opens it.
+    const note = await screen.findByText(/The connection to db isn't encrypted/);
+    const sheet = note.closest("[role=dialog]") as HTMLElement;
+    await user.click(within(sheet).getByRole("button", { name: "Use an SSH tunnel" }));
+    await waitFor(() => expect(screen.queryByText(/The connection to db isn't encrypted/)).toBeNull());
+    expect(within(panel).getByRole("button", { name: "Use an SSH tunnel" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("says where it's open, and takes all of it away in one plan", async () => {
+    const user = userEvent.setup();
+    const asked: SetDatabaseExternalAccessRequest[] = [];
+    const db = aDatabase();
+    db.externalAccess = { $typeName: "dockwell.v1.DatabaseExternalAccess", port: 5432, allowFrom: ["203.0.113.0/24"] };
+    renderAt("/databases/svc_db", externalApi(db, asked));
+    const panel = await screen.findByRole("region", { name: "External access" });
+    expect(panel).toHaveTextContent("On port 5432, from 203.0.113.0/24");
+    expect(panel).toHaveTextContent("Unencrypted over the network");
+    await user.click(within(panel).getByRole("switch", { name: "External access" }));
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ id: "svc_db", off: true })]));
+    // The tunnel forwards the port it publishes, which answers on the server's own address too.
+    await user.click(within(panel).getByRole("button", { name: "Use an SSH tunnel" }));
+    expect(within(panel).getByText(/^ssh -N -L 5432:127\.0\.0\.1:5432 /)).toBeVisible();
   });
 });
 

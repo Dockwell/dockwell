@@ -139,6 +139,10 @@ type placed struct {
 	unguarded, unprefixed bool
 	// prefixed are the users Dockwell made on it that keep to a key prefix, by name.
 	prefixed []string
+	// spec is its service as it's stored, and revision the revision that is, for a
+	// method that edits it with the rest as it is.
+	spec     *resourcev1.Service
+	revision int
 }
 
 // ListDatabases returns every database.
@@ -578,6 +582,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			p := &placed{
 				db: db, ref: resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}, made: strconv.Itoa(r.Revision),
 				firstUser: firstUserOf(f.Engine, svc.GetApp().GetEnv()), unguarded: f.Unguarded, unprefixed: unprefixed[r.Scope+"/"+r.Name], prefixed: prefixed[r.Scope+"/"+r.Name],
+				spec: svc, revision: r.Revision,
 			}
 			for _, u := range users[r.Scope+"/"+r.Name] {
 				p.made += " " + u
@@ -590,7 +595,7 @@ func (h *Handler) list(ctx context.Context) ([]*placed, error) {
 			slices.SortFunc(p.servers, func(a, b store.Server) int { return cmp.Compare(a.Name, b.Name) })
 			out = append(out, p)
 		}
-		return nil
+		return h.externalAccess(ctx, tx, out)
 	})
 	slices.SortStableFunc(out, func(a, b *placed) int { return cmp.Compare(a.ref.Name, b.ref.Name) })
 	return out, err

@@ -57,6 +57,8 @@ export interface Notice {
   amber?: boolean;
   /** The server its title names, shortened in the middle where it's long. */
   server?: string;
+  /** The plan note it says, by reason, for a way out the page that opened it offers. */
+  reason?: string;
 }
 
 /** Everything a plan says it reaches, on its resources and its steps. */
@@ -1425,6 +1427,17 @@ export function useAsides(plan: Plan | undefined): Notice[] {
           image && name
             ? t`Pulls ${image} again, and replaces ${name} with what that names now, in place of the digest it's pinned to.`
             : note.message,
+      });
+    }
+    // External access crosses the network unencrypted, which it says once, with the safer
+    // way beside it where the page that opened the plan offers one (#798).
+    if (note.reason === "unencrypted") {
+      out.push({
+        key: `unencrypted-${i}`,
+        reason: note.reason,
+        notice: true,
+        title: t`The connection to ${name} isn't encrypted`,
+        detail: t`An SSH tunnel is the safer way`,
       });
     }
     // Only the server can say a plan will start what isn't running, and it says how it found it.

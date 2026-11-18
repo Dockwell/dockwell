@@ -104,7 +104,7 @@ The Databases section is built to `Databases-List` and `Database-Detail`, at `/d
 - **No point-in-time recovery.** The design puts it in phase 4. The backups panel shows the newest backup of the database's volume, as Backups takes it.
 - **The numbers have no sparkline,** as nothing keeps a database's history yet. The mock's fourth number, slow queries, needs an extension PostgreSQL doesn't have on by default, so the page shows how long the database has been up instead.
 - **A server holds several databases,** so the page lists them all with their sizes and owners, where the mock shows the users of one.
-- **No external access switch.** A database publishes no port (ADR 0029), and adding one is a port on the app's page.
+- **No external access switch.** A database publishes no port (ADR 0029), and adding one is a port on the app's page. *Replaced by "External access, as built" below (#798).*
 - **Containers Dockwell didn't make that run a database** are named on the list, each a link to its page, where it's taken on. That's where the servers looked at start.
 
 ### The passwords of a database's own users
@@ -115,6 +115,22 @@ The Databases section is built to `Databases-List` and `Database-Detail`, at `/d
 - **The agent changes it in the database before the container is replaced,** in the container that runs, as the service's step begins (`database.FirstPasswords`, called by the service driver for a replace). MySQL and MariaDB are signed in to as `root`, with the old root password from that container's environment, or, where a step that stopped partway changed it already, with the new one, on the first line of the tool's stdin, never on a command line; PostgreSQL's image trusts its own container. It writes each password as user steps do: a SCRAM-SHA-256 verifier for PostgreSQL, MariaDB's own hash, and for MySQL the password over stdin. If MySQL or MariaDB refuses both, or the step can't name a user or a host safely, nothing restarts, and the step says so.
 - **A rollout that fails puts it back.** Where what runs afterwards is the container from before, the agent sets the old password again, signing in with the new one. Where the new container runs, the new password is its, and stays. Where nothing runs, there's nothing to sign in to, and the step's error says which password the database has.
 - **`DatabaseService.ChangeDatabasePassword` is the way in:** it generates a password as `CreateDatabaseUser` does and sets the first user's secret, or a user Dockwell made, to it, as one plan: the database restarts, as does every app that uses the secret. Undoing it puts the old one back the same way. It refuses a database whose password isn't in a secret, as there's nothing to set, and a server whose agent doesn't say `first_passwords` in its hello, as an older one would restart the database with a password it doesn't take. Redis and Valkey read theirs on every start, so theirs needs nothing more.
+
+### External access, as built
+
+*Added with #798, from the UX audit of 2026-11-17: a desktop client or another server meant editing ports by hand, and that path opens a port to everyone.*
+
+- **Why a switch now:** "no switch" never meant a database can't be reached from beyond its server. It meant the way there was a port on the app's page, which answers anyone who reaches the server. A switch that opens the port only to addresses someone lists is safer than that path, so the database's page offers one, and the app's page stays as it was.
+- **Three edits that go together,** as one plan from `DatabaseService.SetDatabaseExternalAccess`:
+  - the database's service publishes its engine's port, such as 5432, on every address of its server, or the next port no service publishes;
+  - a firewall rule on each server it runs on lets that port in from the addresses listed;
+  - a second rule there keeps everyone else out of that port.
+  ADR 0052 applies every allow before every deny, so the two mean "these addresses, and nobody else". The rules are named for the service's ID, `external-<id>-allow` and `-deny`, as several installs' databases are each called `db` on one server. `Database.external_access` says the port and the list, from the allow rule.
+- **Never anywhere:** the list takes at least one address or range, and `0.0.0.0/0` or `::/0` is refused. Someone who means everyone has the app's page.
+- **Who applies it:** the same as a port public on purpose (ADR 0101). The port is `HOST_ACCESS_KIND_PUBLIC_PORT`, which a person approves, and the rules change who reaches the server, which takes a passkey, so no API token may apply it. A developer in the project may plan it, as with `ChangeDatabasePassword`.
+- **Unencrypted:** the engines run without TLS, so the plan says once that what reaches the database crosses the network unencrypted, with the SSH tunnel as the safer way one step away on the database's page.
+- **Off takes all three,** in one change: the port, and both rules on each server. Changing the list edits the allow rule alone.
+- **The deny rule stays while the port does.** The revision engine refuses any change that takes away or loosens a database's deny rule while its service still publishes that port on every address, however it comes: a whole-spec edit of the service that keeps the port, or a delete of the rule alone. Moving the port to the server alone, or turning external access off, leaves nothing to refuse.
 
 ## Consequences
 
