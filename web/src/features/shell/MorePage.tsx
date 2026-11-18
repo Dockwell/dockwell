@@ -10,7 +10,7 @@ import {
   SettingsService,
   SystemService,
 } from "@dockwell/api";
-import { Icon, type IconName, type ThemePreference, useThemePreference } from "@dockwell/ui";
+import { Icon, type IconName, StatusBadge, type ThemePreference, useThemePreference } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -21,6 +21,7 @@ import { useSignOut } from "../auth/useSignOut";
 import { useBackups } from "../backups/useBackups";
 import { useUpgrades } from "../catalog/useCatalog";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { useOpenAlerts } from "./openAlerts";
 import { Page } from "./Page";
 import { AFTER_DOMAINS, BEFORE_DOMAINS, UPCOMING, type UpcomingSection } from "./sections";
 import { shortVersion } from "./version";
@@ -54,8 +55,18 @@ export function MorePage() {
   // Projects appear once there are two: the only one is the hidden default (ADR 0074).
   const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources.length ?? 0;
   const lastBackup = useBackups().data?.backups.find((b) => b.state === BackupState.DONE)?.startedAt;
-  const values: Partial<Record<UpcomingSection, string>> = {
+  const open = useOpenAlerts();
+  const values: Partial<Record<UpcomingSection, ReactNode>> = {
     backups: lastBackup ? time.ago(timestampDate(lastBackup), now) : undefined,
+    // What's open, and how much it matters, as a phone has no rail to show it (#794).
+    alerts:
+      open.count > 0 ? (
+        <StatusBadge
+          status={open.critical ? "down" : "degraded"}
+          label={open.critical ? t`${open.count} open, critical` : t`${open.count} open`}
+          labelIsState
+        />
+      ) : undefined,
   };
   const section = (id: UpcomingSection) => {
     const { label, icon } = UPCOMING[id];

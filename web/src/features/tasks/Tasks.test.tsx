@@ -11,7 +11,7 @@ import {
   TaskRunReason,
   TaskRunState,
 } from "@dockwell/api";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -377,8 +377,11 @@ describe("scheduled tasks", () => {
     await user.type(within(sheet).getByLabelText(/^Name/), "Back up photos");
     await user.selectOptions(within(sheet).getByLabelText("Schedule"), "week");
     await user.selectOptions(within(sheet).getByLabelText("On"), "5");
-    // A time input takes the whole time at once, as a browser's picker gives it.
-    fireEvent.change(within(sheet).getByLabelText("At"), { target: { value: "21:30" } });
+    // A 24-hour list, never the browser's own 12-hour clock (#794).
+    const at = within(sheet).getByLabelText("At");
+    expect(within(at).getByRole("option", { name: "21:30" })).toBeInTheDocument();
+    expect(within(at).queryByRole("option", { name: /AM|PM/ })).toBeNull();
+    await user.selectOptions(at, "21:30");
     expect(within(sheet).getByText("30 21 * * 5")).toBeVisible();
     expect(within(sheet).getByText(/^Next, in UTC: Fri/)).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
@@ -537,7 +540,7 @@ describe("a schedule in words", () => {
     expect(say("0 4 1 * *")).toBe("On day 1 of every month at 04:00");
     expect(say("0 */6 * * *")).toBe("Every 6 hours");
     expect(say("15 */2 * * *")).toBe("Every 2 hours at :15");
-    expect(say("@yearly")).toBe("Every year on January 1 at 00:00");
+    expect(say("@yearly")).toBe("Every year on 1 January at 00:00");
     expect(say("0 4 * * 1,3")).toBe("");
   });
 });

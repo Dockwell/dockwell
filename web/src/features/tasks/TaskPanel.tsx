@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatDateTime, formatDay } from "../../lib/format";
+import { dateLocale, formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
@@ -209,7 +209,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                   <span key={i} className={line.own ? "tasks-output-line is-own" : "tasks-output-line"}>
                     <span className="tasks-output-time">
                       {line.time
-                        ? new Intl.DateTimeFormat(i18n.locale, {
+                        ? new Intl.DateTimeFormat(dateLocale(i18n.locale), {
                             hour: "2-digit",
                             minute: "2-digit",
                             second: "2-digit",

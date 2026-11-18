@@ -75,6 +75,26 @@ describe("Settings", () => {
     expect(await within(install).findByText("Saved. It's on Activity.")).toBeVisible();
   });
 
+  it("offers this browser's zone where the install has none, saved as any setting is (#794)", async () => {
+    const user = userEvent.setup();
+    const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+    const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (
+      this: Intl.DateTimeFormat,
+    ) {
+      return { ...resolved.call(this), timeZone: "Europe/Amsterdam" };
+    });
+    const setTimeZone = vi.fn(({ timeZone }: { timeZone: string }) => ({ settings: settings({ timeZone }) }));
+    renderSettings("/settings/general", { settings: { setTimeZone } });
+    const install = await screen.findByRole("region", { name: "This install" });
+    await user.click(await within(install).findByRole("button", { name: "Use Europe/Amsterdam, this browser's zone" }));
+    expect(within(install).getByRole("combobox", { name: "Time zone" })).toHaveValue("Europe/Amsterdam");
+    // Nothing changes until it's saved.
+    expect(setTimeZone).not.toHaveBeenCalled();
+    await user.click(within(install).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(setTimeZone.mock.calls[0]?.[0]).toMatchObject({ timeZone: "Europe/Amsterdam" }));
+    spy.mockRestore();
+  });
+
   it("sets what new apps' automatic updates start as, and says apps made already keep their own", async () => {
     const user = userEvent.setup();
     const setAutoUpdateDefault = vi.fn((req: SetAutoUpdateDefaultRequest) => ({

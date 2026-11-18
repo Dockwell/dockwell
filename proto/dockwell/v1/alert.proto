@@ -257,6 +257,10 @@ message Alert {
   // what it had.
   google.protobuf.Timestamp acknowledge_time = 21;
   Actor acknowledged_by = 22;
+  // Whether no channel took its newest message: each one it went to refused it,
+  // or couldn't be reached, at least once and never took it since. Unset while
+  // its first tries are still going, and where nothing went (sent_time unset).
+  bool undelivered = 23;
 }
 
 // AcknowledgeAlertRequest names an open alert.
@@ -404,6 +408,10 @@ message AlertDelivery {
   string about = 4;
   // The channel it went to, by name, as it was named then.
   string channel = 5;
+  // The alert it was for, "alt_…", in a list asked for one alert. One message
+  // can carry several of a rule's alerts, so the newest messages to every
+  // channel leave it empty.
+  string alert_id = 6;
 }
 
 // AlertChannelInfo is a channel, with nothing that signs in to it.
@@ -438,6 +446,9 @@ message ListAlertChannelsResponse {
 message ListAlertDeliveriesRequest {
   // How many, 50 unless set, and at most 200.
   int32 page_size = 1;
+  // One alert's messages alone, "alt_…": its firing and resolved message to
+  // each channel, and how each went, with one still being tried as not taken.
+  string alert_id = 2;
 }
 
 // ListAlertDeliveriesResponse lists them, newest first.

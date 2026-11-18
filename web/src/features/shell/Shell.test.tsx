@@ -3,6 +3,8 @@
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  AlertRule_Severity,
+  AlertState,
   BackupSchema,
   BackupState,
   ChangeSchema,
@@ -519,6 +521,30 @@ describe("the shell on phones", () => {
       name: "Activity 1 change needs your approval",
     });
     expect(tab.querySelector(".tabbar-dot")).not.toBeNull();
+  });
+
+  it("marks More, and its Alerts row, with what's open and how much it matters (#794)", async () => {
+    onPhone();
+    const watch = feed<WatchServersResponse>();
+    watch.push(changed(hz1), snapshotComplete);
+    renderAt("/more", {
+      servers: { watchServers: watch.stream },
+      alerts: {
+        listAlerts: () => ({
+          firing: 2,
+          alerts: [
+            { id: "alt_1", state: AlertState.FIRING, severity: AlertRule_Severity.CRITICAL },
+            { id: "alt_2", state: AlertState.FIRING, severity: AlertRule_Severity.WARNING },
+          ],
+        }),
+      },
+    });
+    await screen.findByRole("heading", { level: 1 });
+    const tab = await within(screen.getByRole("navigation", { name: "Main" })).findByRole("link", {
+      name: "More 2 alerts open",
+    });
+    expect(tab.querySelector(".tabbar-dot.is-critical")).not.toBeNull();
+    expect(await screen.findByRole("link", { name: /^Alerts 2 open, critical/ })).toHaveAttribute("href", "/alerts");
   });
 
   it("names the Servers tab for a fleet", async () => {

@@ -123,13 +123,39 @@
   line-height: 16px;
 }
 
-.alerts-card-detail {
-  grid-column: 2;
-  max-width: 64ch;
-  margin: 0;
+/* What to do about it, as buttons, where the detail's sentence was (#794). */
+.alerts-actions {
+  display: flex;
+  grid-column: 2 / 4;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.alert-main .alerts-actions {
+  margin: 0 0 var(--space-4);
+}
+
+/* Nothing reached anyone: the one word on the card's foot that's in red. */
+.alerts-undelivered {
+  color: var(--critical);
+  font-weight: 500;
+}
+
+.alerts-sheet-twin {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.alert-trigger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0 0 var(--space-3);
   font-size: 14px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
 }
 
 .alerts-card-foot {
@@ -259,7 +285,7 @@
     padding-top: 0;
   }
 
-  .alerts-card-detail,
+  .alerts-actions,
   .alerts-card-foot,
   .alerts-card-failed {
     grid-column: 1 / -1;
@@ -505,14 +531,6 @@ a.alerts-resolved-title:hover {
 
 .alert-main {
   gap: var(--space-4);
-}
-
-.alert-detail {
-  max-width: 72ch;
-  margin: 0 0 var(--space-4);
-  font-size: 14px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
 }
 
 .alert-facts {

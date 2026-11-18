@@ -141,7 +141,7 @@ func (h *Handler) ListAlerts(ctx context.Context, req *connect.Request[dockwellv
 			}
 		}
 		if m.GetFiringOnly() {
-			return nil
+			return markUndelivered(ctx, tx, res.Alerts)
 		}
 		var at *time.Time
 		if more {
@@ -159,12 +159,54 @@ func (h *Handler) ListAlerts(ctx context.Context, req *connect.Request[dockwellv
 		for i := range page {
 			res.Alerts = append(res.Alerts, alertOf(page[i], servers[page[i].ServerID], mutes, names, now))
 		}
-		return nil
+		return markUndelivered(ctx, tx, res.Alerts)
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	return connect.NewResponse(res), nil
+}
+
+// markUndelivered sets undelivered on each alert no channel took the newest
+// message of: every send of its newest status was tried and none was taken (#794).
+func markUndelivered(ctx context.Context, tx *store.Tx, list []*dockwellv1.Alert) error {
+	ids := make([]string, 0, len(list))
+	for _, a := range list {
+		if a.GetSentTime() != nil {
+			ids = append(ids, a.GetId())
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	sends, err := tx.SendsOf(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, a := range list {
+		a.Undelivered = undelivered(sends[a.GetId()])
+	}
+	return nil
+}
+
+// undelivered says whether no channel took an alert's newest message, of the
+// sends it has, oldest first: each of its newest status's was tried at least once,
+// and none was taken. One still on its first try says nothing yet.
+func undelivered(sends []store.AlertSend) bool {
+	if len(sends) == 0 {
+		return false
+	}
+	status := sends[len(sends)-1].Status
+	for i := range sends {
+		s := &sends[i]
+		if s.Status != status {
+			continue
+		}
+		if s.OK || s.Tries == 0 && s.DoneAt == nil {
+			return false
+		}
+	}
+	return true
 }
 
 func serverNames(ctx context.Context, tx *store.Tx) (map[string]string, error) {
@@ -285,6 +327,9 @@ func (h *Handler) ListAlertDeliveries(ctx context.Context, req *connect.Request[
 		size = maxDeliveries
 	}
 	res := &dockwellv1.ListAlertDeliveriesResponse{}
+	if alertID := req.Msg.GetAlertId(); alertID != "" {
+		return h.deliveriesOf(ctx, alertID, size)
+	}
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		recent, err := tx.RecentDeliveries(ctx, size)
 		for i := range recent {
@@ -292,6 +337,54 @@ func (h *Handler) ListAlertDeliveries(ctx context.Context, req *connect.Request[
 		}
 		return err
 	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return connect.NewResponse(res), nil
+}
+
+// deliveriesOf lists one alert's messages, newest first: its firing and resolved
+// message to each channel, from its sends, and how each went (#794). A send still
+// being tried reads as not taken, with what the far end said last.
+func (h *Handler) deliveriesOf(ctx context.Context, alertID string, size int) (*connect.Response[dockwellv1.ListAlertDeliveriesResponse], error) {
+	res := &dockwellv1.ListAlertDeliveriesResponse{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		a, err := tx.GetAlert(ctx, alertID)
+		if err != nil {
+			return err
+		}
+		sends, err := tx.SendsOf(ctx, []string{alertID})
+		if err != nil {
+			return err
+		}
+		stored, err := tx.ListKind(ctx, string(alert.ChannelKind))
+		if err != nil {
+			return err
+		}
+		names := make(map[string]string, len(stored))
+		for i := range stored {
+			names[stored[i].ID] = stored[i].Name
+		}
+		list := sends[alertID]
+		for i := len(list) - 1; i >= 0 && len(res.Deliveries) < size; i-- {
+			s := &list[i]
+			at := s.QueuedAt
+			if s.DoneAt != nil {
+				at = *s.DoneAt
+			}
+			about := a.Title
+			if s.Status == "resolved" {
+				about = "Resolved: " + a.Title
+			}
+			res.Deliveries = append(res.Deliveries, &dockwellv1.AlertDelivery{
+				Time: timestamppb.New(at), Ok: s.OK, Said: s.Said, About: about, Channel: names[s.ChannelID], AlertId: alertID,
+			})
+		}
+		return nil
+	})
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("there's no alert %s. It may have closed long enough ago to be forgotten", alertID))
+	}
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}

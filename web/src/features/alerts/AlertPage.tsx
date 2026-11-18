@@ -2,11 +2,11 @@
 
 import { type Timestamp, timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   ActorKind,
   type Alert,
-  type AlertDelivery,
+  AlertService,
   AlertState,
   AlertRule_Condition as Condition,
   type Event,
@@ -14,7 +14,7 @@ import {
   EventService,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import { Callout, Icon, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import { Callout, Icon, Panel, PHONE_QUERY, StatusBadge, Tag, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useAnyQuery } from "@tanstack/react-query";
@@ -26,12 +26,16 @@ import { useTimeWords } from "../../lib/time";
 import { EventTimeline } from "../activity/ActivityPage";
 import { useActorWords } from "../activity/actor";
 import { alertTitle, happenedAt } from "../activity/describe";
+import { useAllDomains } from "../apps/domains";
+import { useServices } from "../apps/useServices";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
-import { AlertAcknowledge } from "./AlertCards";
-import { useAlerts, useDeliveries, useRules } from "./useAlerts";
+import { AlertActions, serviceAt } from "./AlertActions";
+import { AlertAcknowledge, Sending } from "./AlertCards";
+import { useChecks } from "./checks";
+import { useAlerts, useRules } from "./useAlerts";
 import "./Alerts.css";
 
 /** How long before an alert fired its page looks for what changed. */
@@ -50,9 +54,10 @@ function useEventsAround(alert: Alert | undefined) {
   const transport = useTransport();
   const client = useMemo(() => createClient(EventService, transport), [transport]);
   const from = (ms(alert?.openTime) ?? 0) - BEFORE_MS;
-  // An app's alert is read by the app; anything else by its server.
-  const about = alert?.condition === Condition.SERVICE_DOWN && alert.subjectId ? alert.subjectId : "";
-  const serverId = about ? "" : (alert?.serverId ?? "");
+  // An app's alert is read by the app, and an address's by the app behind it; anything else by its server.
+  // An alert about neither reads only its own events, never every change of the hour (#794).
+  const { about, serverId } = useTargetOf(alert);
+  const kinds = about || serverId ? [EventKind.CHANGE, EventKind.HEALTH, EventKind.ALERT] : [EventKind.ALERT];
   return useAnyQuery({
     queryKey: ["alert-events", alert?.id, about, serverId, alert?.state],
     enabled: alert !== undefined,
@@ -65,7 +70,7 @@ function useEventsAround(alert: Alert | undefined) {
           {
             pageSize: 100,
             pageToken,
-            kinds: [EventKind.CHANGE, EventKind.HEALTH, EventKind.ALERT],
+            kinds,
             resourceId: about,
             serverId,
             actorId: "",
@@ -81,6 +86,22 @@ function useEventsAround(alert: Alert | undefined) {
       return { events, reached };
     },
   });
+}
+
+/** What an alert is about, as its page reads what changed: an app by its ID, or else its server. */
+function useTargetOf(alert: Alert | undefined): { about: string; serverId: string } {
+  const services = useServices().data ?? [];
+  const domains = useAllDomains().last?.domains ?? [];
+  const checks = useChecks().data?.checks ?? [];
+  if (!alert) return { about: "", serverId: "" };
+  if ((alert.condition === Condition.SERVICE_DOWN || alert.condition === Condition.UPDATE_AVAILABLE) && alert.subjectId)
+    return { about: alert.subjectId, serverId: "" };
+  if (alert.condition === Condition.CHECK_DOWN) {
+    const address = checks.find((c) => c.id === alert.subjectId)?.spec?.address ?? "";
+    const app = serviceAt(address, domains, services);
+    if (app) return { about: app.id, serverId: "" };
+  }
+  return { about: "", serverId: alert.serverId };
 }
 
 /**
@@ -183,7 +204,9 @@ function Body({ alert }: { alert: Alert }) {
   const now = useControlPlaneNow(30_000);
   const rule = useRules().data?.rules.find((r) => r.id === alert.ruleId);
   const around = useEventsAround(alert);
-  const deliveries = useDeliveries();
+  const target = useTargetOf(alert);
+  // Its own messages, as the control plane keeps them for it, each with how it went (#794).
+  const deliveries = useQuery(AlertService.method.listAlertDeliveries, { alertId: alert.id });
 
   const opened = ms(alert.openTime) ?? 0;
   const resolved = ms(alert.resolveTime);
@@ -198,15 +221,16 @@ function Body({ alert }: { alert: Alert }) {
   const during = others.filter((e) => at(e) >= opened && at(e) <= (resolved ?? Number.POSITIVE_INFINITY));
   const own = events.filter((e) => e.kind === EventKind.ALERT && e.alert?.id === alert.id);
   // Where Activity has the rest of it: what the alert is about, as this page reads it.
-  const about = alert.condition === Condition.SERVICE_DOWN && alert.subjectId ? alert.subjectId : "";
-  const further = about ? { resource: about } : alert.serverId ? { server: alert.serverId } : {};
+  const further = target.about ? { resource: target.about } : target.serverId ? { server: target.serverId } : {};
+  // The newest change before it fired, the likeliest to have set it off.
+  const trigger = before.find((e) => e.kind === EventKind.CHANGE);
   const summaries = useMemo(() => {
     const out = new Map<string, string>();
     for (const e of around.data?.events ?? []) if (e.change) out.set(e.id, e.change.summary);
     return out;
   }, [around.data]);
 
-  const sent = messagesAbout(alert, deliveries.data?.deliveries ?? []);
+  const sent = deliveries.data?.deliveries ?? [];
   const by = alert.acknowledgeTime ? actorWords(alert.acknowledgedBy) : undefined;
   const firedAt = alert.openTime ? formatClock(timestampDate(alert.openTime), i18n.locale) : "";
 
@@ -234,10 +258,7 @@ function Body({ alert }: { alert: Alert }) {
       t`Nobody did`
     ),
   ]);
-  facts.push([
-    t`Sending`,
-    alert.muted ? t`Held by a mute` : alert.sentTime ? t`Sent ${when(alert.sentTime)}` : t`Nothing sent`,
-  ]);
+  facts.push([t`Sending`, <Sending key="sending" alert={alert} sent={when(alert.sentTime)} />]);
 
   return (
     <div className="alerts-columns">
@@ -245,7 +266,7 @@ function Body({ alert }: { alert: Alert }) {
         {/* How it ended comes first once it has: nothing here needs doing any more. */}
         {!open ? <Callout tone="info">{t`It resolved ${when(alert.resolveTime)}, after ${lasted}.`}</Callout> : null}
         <Panel title={t`What the rule saw`}>
-          {alert.detail ? <p className="alert-detail">{alert.detail}</p> : null}
+          {open ? <AlertActions alert={alert} size="md" /> : null}
           <dl className="alert-facts">
             {facts.map(([term, value]) => (
               <div key={term}>
@@ -270,7 +291,17 @@ function Body({ alert }: { alert: Alert }) {
               actions={<span className="alerts-muted">{t`The hour before ${firedAt}`}</span>}
             >
               {!around.data ? null : before.length > 0 ? (
-                <EventTimeline events={before} summaries={summaries} now={now} framed={false} />
+                <>
+                  {trigger ? (
+                    <p className="alert-trigger">
+                      <Tag words>{t`Likely trigger`}</Tag>{" "}
+                      <Link to="/changes/$changeId" params={{ changeId: trigger.id }}>
+                        {trigger.change?.summary || trigger.id}
+                      </Link>
+                    </p>
+                  ) : null}
+                  <EventTimeline events={before} summaries={summaries} now={now} framed={false} />
+                </>
               ) : (
                 <p className="alerts-muted alerts-note">
                   {around.data.reached ? (
@@ -332,11 +363,7 @@ function Body({ alert }: { alert: Alert }) {
         >
           {sent.length === 0 ? (
             <p className="alerts-muted alerts-note">
-              {alert.muted ? (
-                <Trans>A mute holds what it would send.</Trans>
-              ) : (
-                <Trans>None among the newest messages. Channels has what was sent lately.</Trans>
-              )}
+              {alert.muted ? <Trans>A mute holds what it would send.</Trans> : <Trans>Nothing was sent for it.</Trans>}
             </p>
           ) : (
             <ul className="alert-sent">
@@ -361,20 +388,4 @@ function Body({ alert }: { alert: Alert }) {
       </aside>
     </div>
   );
-}
-
-/**
- * The messages that were about an alert, among the newest the control plane lists. A message doesn't
- * name its alert, so they're matched by what they said and when: the alert's own title, firing or
- * resolved, from when it fired until shortly after it resolved.
- */
-export function messagesAbout(alert: Alert, deliveries: readonly AlertDelivery[]): AlertDelivery[] {
-  const from = ms(alert.openTime);
-  if (from === undefined || alert.title === "") return [];
-  const until = (ms(alert.resolveTime) ?? Number.POSITIVE_INFINITY) + 15 * 60_000;
-  return deliveries.filter((d) => {
-    const at = ms(d.time);
-    if (at === undefined || at < from - 1000 || at > until) return false;
-    return d.about === alert.title || d.about.endsWith(`: ${alert.title}`);
-  });
 }

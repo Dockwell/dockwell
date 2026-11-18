@@ -7,12 +7,14 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
+import { useAllDomains } from "../apps/domains";
 import { durationWords } from "../apps/specEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import {
   alertsTo,
   CHECK_DEFAULTS,
+  checkOf,
   checkStatus,
   DOWN_AFTER,
   EVERIES,
@@ -24,6 +26,9 @@ import {
   withDefaults,
 } from "./checks";
 import { useChannels, useRules } from "./useAlerts";
+
+/** The address picker's way to type one, beside the routed domains it offers. */
+const OTHER = "other";
 
 /** Why an address can't be checked, in the control plane's terms, or undefined when it can. */
 function refusalOf(url: string): "empty" | "url" | "user" | undefined {
@@ -63,7 +68,14 @@ export function WatchSheet({
   const rules = useRules().data?.rules;
   const channels = useChannels().data?.channels;
   const was = withDefaults(check?.spec);
-  const [url, setUrl] = useState(check?.spec?.address ?? start);
+  // Routed domains not watched yet, offered first, with another address one step away (#794).
+  const domains = useAllDomains().last?.domains ?? [];
+  const offered = check || start ? [] : domains.map((d) => d.url).filter((u) => u !== "" && !checkOf(checks, u));
+  const [typed, setTyped] = useState(check?.spec?.address ?? start);
+  const [choice, setChoice] = useState<string>();
+  const chosen = choice ?? offered[0] ?? OTHER;
+  const url = offered.length > 0 && chosen !== OTHER ? chosen : typed;
+  const setUrl = setTyped;
   const [every, setEvery] = useState(was.every);
   const [downAfter, setDownAfter] = useState(was.downAfter);
   // A check reaches the internet alone unless it says it's inside the network (ADR 0066).
@@ -101,7 +113,7 @@ export function WatchSheet({
         : sends.to === "none"
           ? t`no channel yet, so nothing is sent`
           : sends.to === "off"
-            ? t`the Address down rule is off, so nothing is sent`
+            ? t`the uptime check rule is off, so nothing is sent`
             : "";
   const summary = [everyWord(every), downWord(downAfter), inside ? t`inside the network` : "", sendsWord]
     .filter(Boolean)
@@ -188,7 +200,7 @@ export function WatchSheet({
     <Sheet
       open
       onClose={onClose}
-      title={check ? check.name : t`Watch this address`}
+      title={check ? check.name : t`New uptime check`}
       subtitle={check ? undefined : t`Dockwell asks it from the control server, and alerts when it stops answering.`}
       footer={
         <>
@@ -207,18 +219,28 @@ export function WatchSheet({
       }
     >
       <div className="alerts-sheet">
-        <TextField
-          label={t`Address`}
-          value={url}
-          mono
-          inputMode="url"
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(event) => setUrl(event.target.value)}
-          onBlur={() => setTouched(true)}
-          error={error}
-          hint={t`It shows in plans and on Activity, so leave tokens and passwords out of it.`}
-        />
+        {offered.length > 0 ? (
+          <SelectField
+            label={t`Address`}
+            value={chosen}
+            options={[...offered.map((u) => ({ value: u, label: u })), { value: OTHER, label: t`Another address` }]}
+            onChange={(event) => setChoice(event.target.value)}
+          />
+        ) : null}
+        {offered.length > 0 && chosen !== OTHER ? null : (
+          <TextField
+            label={offered.length > 0 ? t`Another address` : t`Address`}
+            value={url}
+            mono
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => setUrl(event.target.value)}
+            onBlur={() => setTouched(true)}
+            error={error}
+            hint={t`It shows in plans and on Activity, so leave tokens and passwords out of it.`}
+          />
+        )}
         <Advanced label={t`Change`} summary={summary} open={changing} onOpenChange={setChanging}>
           <div className="alerts-sheet-row">
             <SelectField
@@ -253,7 +275,7 @@ export function WatchSheet({
           <p className="alerts-muted">
             <Trans>
               Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the
-              Address down rule's, under Rules.
+              uptime check rule's, under Rules.
             </Trans>
           </p>
         </Advanced>

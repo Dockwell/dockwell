@@ -16,6 +16,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
+import { dateLocale } from "../../lib/format";
 import { READ_EVERY_MS } from "../../lib/standing";
 
 /** Every task, read again while a screen shows them. */
@@ -134,7 +135,7 @@ export function useTaskWords() {
     const two = (n: number) => String(n).padStart(2, "0");
     const weekday = (d: number) =>
       // 1 November 2026 is a Sunday.
-      new Intl.DateTimeFormat(i18n.locale, { weekday: "long", timeZone: "UTC" }).format(
+      new Intl.DateTimeFormat(dateLocale(i18n.locale), { weekday: "long", timeZone: "UTC" }).format(
         new Date(Date.UTC(2026, 10, 1 + (d % 7))),
       );
     const single = (field: string) => (/^\d+$/.test(field) ? Number(field) : undefined);
@@ -315,9 +316,11 @@ export function useTaskWords() {
         const date = single(dom);
         if (date !== undefined && month === "*" && dow === "*") return t`On day ${date} of every month at ${at}`;
         if (date !== undefined && single(month) !== undefined && dow === "*") {
-          const on = new Intl.DateTimeFormat(i18n.locale, { day: "numeric", month: "long", timeZone: "UTC" }).format(
-            new Date(Date.UTC(2026, Number(month) - 1, date)),
-          );
+          const on = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
+            day: "numeric",
+            month: "long",
+            timeZone: "UTC",
+          }).format(new Date(Date.UTC(2026, Number(month) - 1, date)));
           return t`Every year on ${on} at ${at}`;
         }
         return "";
@@ -339,7 +342,7 @@ export function useTaskWords() {
       },
       /** A day and time: "Today 15:00", "Tomorrow 02:30", or the date. */
       when(then: Date, now: number): string {
-        const time = new Intl.DateTimeFormat(i18n.locale, {
+        const time = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
           hour: "2-digit",
           minute: "2-digit",
           hourCycle: "h23",
@@ -349,7 +352,7 @@ export function useTaskWords() {
         if (days === 0) return t`Today ${time}`;
         if (days === 1) return t`Tomorrow ${time}`;
         if (days === -1) return t`Yesterday ${time}`;
-        const date = new Intl.DateTimeFormat(i18n.locale, { day: "numeric", month: "short" }).format(then);
+        const date = new Intl.DateTimeFormat(dateLocale(i18n.locale), { day: "numeric", month: "short" }).format(then);
         return `${date} ${time}`;
       },
       /** How long a run took: "180 ms" under a second, then as spans read. */

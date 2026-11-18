@@ -1344,7 +1344,7 @@ describe("A PHP website", () => {
     const { unmount } = renderAt("/websites/prj_blog", api([blog], { alerts }));
     const parts = await screen.findByRole("region", { name: "How it serves" });
     await user.click(await within(parts).findByRole("button", { name: "Watch blog.example.com" }));
-    const sheet = await screen.findByRole("dialog", { name: "Watch this address" });
+    const sheet = await screen.findByRole("dialog", { name: "New uptime check" });
     expect(within(sheet).getByLabelText("Address")).toHaveValue("https://blog.example.com");
     unmount();
 

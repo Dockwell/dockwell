@@ -350,6 +350,11 @@
   box-shadow: 0 0 0 2px var(--surface-raised);
 }
 
+/* Something critical, as an alert is, in red rather than waiting's amber (#794). */
+.tabbar-dot.is-critical {
+  background: var(--critical);
+}
+
 .tabbar-item:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);

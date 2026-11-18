@@ -169,6 +169,12 @@
   gap: var(--space-4);
 }
 
+/* This browser's zone, one click from an unset one, under the field (#794). */
+.general-zone-use {
+  align-self: flex-start;
+  margin-top: calc(var(--space-2) * -1);
+}
+
 .general-foot {
   display: flex;
   align-items: center;

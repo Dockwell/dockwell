@@ -124,7 +124,7 @@ export function ChecksTab() {
   ];
   const add = (
     <Button variant="secondary" icon="plus" onClick={() => setMaking(true)} {...mayPlan.off}>
-      <Trans>Watch an address</Trans>
+      <Trans>New uptime check</Trans>
     </Button>
   );
   return (
@@ -135,7 +135,7 @@ export function ChecksTab() {
           <button
             type="button"
             className="mobile-header-button"
-            aria-label={t`Watch an address`}
+            aria-label={t`New uptime check`}
             onClick={() => setMaking(true)}
           >
             <Icon name="plus" size={20} />
@@ -150,7 +150,7 @@ export function ChecksTab() {
           {t`Watch one from its app's or website's domain, and Dockwell alerts when it stops answering.`}
         </EmptyState>
       ) : phone ? (
-        <ul className="alerts-phone-list" aria-label={t({ context: "checks of a URL", message: "Checks" })}>
+        <ul className="alerts-phone-list" aria-label={t`Uptime checks`}>
           {list.map((c) => (
             <li key={c.id} className="alerts-phone-row">
               <button type="button" className="alerts-phone-item alerts-phone-button" onClick={() => setEditing(c)}>
@@ -173,12 +173,7 @@ export function ChecksTab() {
           ))}
         </ul>
       ) : (
-        <Table
-          columns={columns}
-          rows={list}
-          caption={t({ context: "checks of a URL", message: "Checks" })}
-          onRowClick={(c) => setEditing(c)}
-        />
+        <Table columns={columns} rows={list} caption={t`Uptime checks`} onRowClick={(c) => setEditing(c)} />
       )}
       {editing ? <WatchSheet check={editing} onClose={() => setEditing(undefined)} /> : null}
       {making ? <WatchSheet onClose={() => setMaking(false)} /> : null}

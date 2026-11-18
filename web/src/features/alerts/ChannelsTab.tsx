@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
-import { type AlertChannelInfo, type AlertDelivery, AlertService, AlertRule_Severity as Severity } from "@dockwell/api";
+import { type AlertChannelInfo, type AlertDelivery, AlertRule_Severity as Severity } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -17,8 +15,8 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime } from "../../lib/format";
@@ -26,7 +24,16 @@ import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { ChannelSheet } from "./ChannelSheet";
-import { CHANNEL_KIND, channelStatus, isChannelType, routing, useChannels, useDeliveries, useRules } from "./useAlerts";
+import {
+  CHANNEL_KIND,
+  channelStatus,
+  isChannelType,
+  routing,
+  useChannels,
+  useDeliveries,
+  useRules,
+  useSendTest,
+} from "./useAlerts";
 
 /** When something was sent: the time today, or the date and time before. */
 function useWhen() {
@@ -63,31 +70,6 @@ function ChannelName({ channel }: { channel: AlertChannelInfo }) {
   );
 }
 
-/** Sends a test through a channel by its name, and says how it went in a line. */
-function useSendTest() {
-  const transport = useTransport();
-  const queryClient = useQueryClient();
-  const client = useMemo(() => createClient(AlertService, transport), [transport]);
-  const [sending, setSending] = useState<string>();
-  const [last, setLast] = useState<{ name: string; delivery?: AlertDelivery; error?: unknown }>();
-  const send = async (name: string) => {
-    setSending(name);
-    setLast(undefined);
-    try {
-      const res = await client.testAlertChannel({ name });
-      setLast({ name, delivery: res.delivery });
-    } catch (error) {
-      setLast({ name, error });
-    } finally {
-      setSending(undefined);
-      void queryClient.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: AlertService, cardinality: undefined }),
-      });
-    }
-  };
-  return { sending, last, send, clear: () => setLast(undefined) };
-}
-
 /**
  * The Channels tab: where alerts go, how each last went, what was sent lately,
  * and which channels each severity reaches, with a test for each.
@@ -101,6 +83,15 @@ export function ChannelsTab() {
   const test = useSendTest();
   const [editing, setEditing] = useState<AlertChannelInfo | "new">();
   const list = channels.data?.channels ?? [];
+  // A link that names a channel, as Alerts' "Edit channel" is, opens it once the list is read (#794).
+  const { edit } = useSearch({ from: "/_shell/alerts/channels" });
+  const navigate = useNavigate();
+  const named = edit ? list.find((c) => c.name === edit) : undefined;
+  useEffect(() => {
+    if (!named) return;
+    setEditing(named);
+    void navigate({ to: "/alerts/channels", search: {}, replace: true });
+  }, [named, navigate]);
   // The rules on, which send to every channel once there is one.
   const waiting = (useRules().data?.rules ?? []).filter((r) => !r.spec?.disabled).length;
 

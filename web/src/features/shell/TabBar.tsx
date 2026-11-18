@@ -7,6 +7,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 
 import { useWaitingForAPerson } from "../changes/waiting";
 import type { FleetView } from "../servers/server";
+import { useOpenAlerts } from "./openAlerts";
 import { firstSegment, inActivity, isUpcoming, UPCOMING } from "./sections";
 
 type Tab = "overview" | "apps" | "servers" | "activity" | "more";
@@ -42,6 +43,7 @@ export function TabBar({ view }: { view: FleetView }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const tab = tabOf(pathname);
   const waiting = useWaitingForAPerson().length;
+  const alerts = useOpenAlerts();
   const props = (id: Tab) => ({
     className: cx("tabbar-item", tab === id && "is-active"),
     "aria-current": tab === id ? ("page" as const) : undefined,
@@ -78,19 +80,35 @@ export function TabBar({ view }: { view: FleetView }) {
         />
       </Link>
       <Link to="/more" {...props("more")}>
-        <TabBody icon="menu" label={t`More`} />
+        <TabBody
+          icon="menu"
+          label={t`More`}
+          tone={alerts.critical ? "critical" : undefined}
+          count={alerts.count > 0 ? plural(alerts.count, { one: "# alert open", other: "# alerts open" }) : undefined}
+        />
       </Link>
     </nav>
   );
 }
 
 /** A tab: its icon and name, and with count, a dot that says something waits there, in words for those who don't see it. */
-function TabBody({ icon, label, count }: { icon: IconName; label: string; count?: string | undefined }) {
+function TabBody({
+  icon,
+  label,
+  count,
+  tone,
+}: {
+  icon: IconName;
+  label: string;
+  count?: string | undefined;
+  /** A dot for something critical, in place of one that waits. */
+  tone?: "critical" | undefined;
+}) {
   return (
     <>
       <span className="tabbar-icon">
         <Icon name={icon} size={22} />
-        {count ? <span className="tabbar-dot" aria-hidden="true" /> : null}
+        {count ? <span className={cx("tabbar-dot", tone === "critical" && "is-critical")} aria-hidden="true" /> : null}
       </span>
       <span>{label}</span>
       {count ? (

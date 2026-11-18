@@ -1508,6 +1508,36 @@ msgstr "{who} 已加入，成为 {as}"
 msgid "{who} joined as {as}, from {from}"
 msgstr "{who} 已加入，成为 {as}，来自 {from}"
 
+msgid "Copy the restart command"
+msgstr "复制重启命令"
+
+msgid "Its logs"
+msgstr "查看日志"
+
+msgid "Its uptime check"
+msgstr "查看可用性监测"
+
+msgid "Open Backups"
+msgstr "打开备份"
+
+msgid "Open Catalog sources"
+msgstr "打开目录来源"
+
+msgid "Open Domains"
+msgstr "打开域名"
+
+msgid "Open the change"
+msgstr "打开变更"
+
+msgid "Open the server"
+msgstr "打开服务器"
+
+msgid "Open the site"
+msgstr "打开网站"
+
+msgid "Restart command copied"
+msgstr "已复制重启命令"
+
 msgid "Acknowledge"
 msgstr "确认"
 
@@ -1523,17 +1553,14 @@ msgstr "{name} 已确认"
 msgid "Critical"
 msgstr "严重"
 
+msgid "Failed to send"
+msgstr "发送失败"
+
 msgid "Held by a mute"
 msgstr "已被静默"
 
 msgid "History"
 msgstr "历史"
-
-msgid "Inspect"
-msgstr "查看"
-
-msgid "Inspect: {title}"
-msgstr "查看：{title}"
 
 msgid "Memory on {name}, now {percent}%"
 msgstr "{name} 的内存，当前 {percent}%"
@@ -1631,6 +1658,9 @@ msgstr "它的事件超出了本页读取的范围。"
 msgid "Lasted"
 msgstr "持续时间"
 
+msgid "Likely trigger"
+msgstr "可能的起因"
+
 msgid "Messages about it"
 msgstr "与它有关的消息"
 
@@ -1640,14 +1670,14 @@ msgstr "无人确认"
 msgid "Nobody yet"
 msgstr "尚无人确认"
 
-msgid "None among the newest messages. Channels has what was sent lately."
-msgstr "最近的消息里没有与它有关的。渠道页有近期发送的消息。"
-
 msgid "Nothing changed here in the hour before, and no check changed its answer."
 msgstr "此前一小时内这里没有变更，也没有检查改变结果。"
 
 msgid "Nothing more has happened to it."
 msgstr "它没有再发生别的事情。"
+
+msgid "Nothing was sent for it."
+msgstr "没有为它发送任何消息。"
 
 msgid "Open for"
 msgstr "已持续"
@@ -1660,10 +1690,6 @@ msgstr "在动态中查看"
 
 msgid "Sending"
 msgstr "发送"
-
-#. placeholder {0}: when(alert.sentTime)
-msgid "Sent {0}"
-msgstr "已于 {0} 发送"
 
 msgid "The hour before {firedAt}"
 msgstr "{firedAt} 之前的一小时"
@@ -1690,15 +1716,17 @@ msgstr "规则看到了什么"
 msgid "{0, plural, one {# sent} other {# sent}}"
 msgstr "{0, plural, other {已发送 # 条}}"
 
+msgid "Alerts aren't reaching anyone"
+msgstr "告警没有送达任何人"
+
 msgid "Alerts sections"
 msgstr "告警分区"
 
 msgid "Channels"
 msgstr "渠道"
 
-msgctxt "checks of a URL"
-msgid "Checks"
-msgstr "地址监测"
+msgid "Edit channel"
+msgstr "编辑渠道"
 
 msgid "Nothing open"
 msgstr "没有未解决的告警"
@@ -1706,8 +1734,25 @@ msgstr "没有未解决的告警"
 msgid "Rules"
 msgstr "规则"
 
+msgid "Send test"
+msgstr "发送测试"
+
+msgid "Uptime checks"
+msgstr "可用性监测"
+
 msgid "no channel yet, so nothing is sent"
 msgstr "还没有渠道，因此不会发送任何消息"
+
+msgid "reaching no channel"
+msgstr "没有渠道能送达"
+
+#. placeholder {0}: failing.length
+msgid "{0, plural, one {# channel failed its last message.} other {Each of # channels failed its last message.}}"
+msgstr "{0, plural, other {# 个渠道的最近一条消息都发送失败。}}"
+
+#. placeholder {0}: failing.length
+msgid "{0, plural, one {# channel failing} other {# channels failing}}"
+msgstr "{0, plural, other {# 个渠道发送失败}}"
 
 #. placeholder {0}: c.rules
 #. placeholder {0}: r.rules
@@ -1721,6 +1766,12 @@ msgstr "{0, plural, other {发送到 # 个渠道}}"
 
 msgid "{firing} open"
 msgstr "{firing} 个未解决"
+
+msgid "{name} failed its last message."
+msgstr "{name} 的最近一条消息发送失败。"
+
+msgid "{name} failed: {said}"
+msgstr "{name} 发送失败：{said}"
 
 msgid "A channel needs a name: lowercase letters, digits and dashes."
 msgstr "渠道需要一个名称：使用小写字母、数字和连字符。"
@@ -1956,9 +2007,6 @@ msgstr "路由"
 msgid "Send a test to {0}"
 msgstr "向 {0} 发送测试"
 
-msgid "Send test"
-msgstr "发送测试"
-
 msgid "Sending…"
 msgstr "正在发送…"
 
@@ -2031,6 +2079,9 @@ msgstr "最近的响应"
 msgid "Last {0} runs"
 msgstr "最近 {0} 次检查"
 
+msgid "New uptime check"
+msgstr "新建可用性监测"
+
 msgid "No address is watched yet"
 msgstr "还没有监测任何地址"
 
@@ -2040,9 +2091,6 @@ msgstr "尚无响应"
 msgctxt "how a check runs"
 msgid "Runs"
 msgstr "检查方式"
-
-msgid "Watch an address"
-msgstr "监测一个地址"
 
 msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
 msgstr "从应用或网站的域名处监测它，地址无响应时 Dockwell 会发出告警。"
@@ -2066,6 +2114,9 @@ msgstr "无法加载规则"
 msgid "Every channel"
 msgstr "所有渠道"
 
+msgid "New rule"
+msgstr "新建规则"
+
 msgid "No channel yet"
 msgstr "还没有渠道"
 
@@ -2074,6 +2125,9 @@ msgstr "尚未触发任何告警"
 
 msgid "Off"
 msgstr "关闭"
+
+msgid "Same as {other}"
+msgstr "与 {other} 相同"
 
 msgid "See the rules"
 msgstr "查看规则"
@@ -2086,6 +2140,51 @@ msgstr "{watching, plural, other {# 条规则在监视 · 还没有发送渠道}
 
 msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
 msgstr "{watching, plural, other {# 条规则在监视}}"
+
+msgid "A backup fails"
+msgstr "备份失败"
+
+msgid "A backup is late"
+msgstr "备份逾期"
+
+msgid "A catalog source is stuck"
+msgstr "目录来源卡住"
+
+msgid "A certificate can't be renewed"
+msgstr "证书无法续期"
+
+msgid "A certificate is about to expire"
+msgstr "证书即将过期"
+
+msgid "A change fails"
+msgstr "变更失败"
+
+msgid "A disk fills up"
+msgstr "磁盘将满"
+
+msgid "A published domain goes missing"
+msgstr "已发布的域名不见了"
+
+msgid "A restore drill fails"
+msgstr "恢复演练失败"
+
+msgid "A restore drill is late"
+msgstr "恢复演练逾期"
+
+msgid "A server stops answering"
+msgstr "服务器不再响应"
+
+msgid "Add the alert rule {ruleName}"
+msgstr "添加告警规则 {ruleName}"
+
+msgid "An app has an update"
+msgstr "应用有更新"
+
+msgid "An app is down"
+msgstr "应用宕机"
+
+msgid "An uptime check fails"
+msgstr "可用性监测失败"
 
 msgid "Any update"
 msgstr "任何更新"
@@ -2114,6 +2213,9 @@ msgstr "严重程度"
 msgid "Majors only"
 msgstr "仅主要版本"
 
+msgid "Memory runs high"
+msgstr "内存占用过高"
+
 msgid "Never"
 msgstr "从不"
 
@@ -2129,8 +2231,15 @@ msgstr "仅部分渠道"
 msgid "Pick at least one."
 msgstr "至少选择一个。"
 
+#. placeholder {0}: twin.name
+msgid "Same as {0}, which watches for this already"
+msgstr "与 {0} 相同，它已在监测这一项"
+
 msgid "Turn off the alert rule {ruleName}"
 msgstr "关闭告警规则 {ruleName}"
+
+msgid "Watch for"
+msgstr "监测"
 
 msgid "Watch for this"
 msgstr "监视此项"
@@ -2179,6 +2288,9 @@ msgstr "监测中 · {word}"
 
 msgid "{where} is watched: {word}"
 msgstr "{where} 正在监测中：{word}"
+
+msgid "Another address"
+msgstr "其他地址"
 
 msgid "Asking {host} from the control server…"
 msgstr "正在从控制服务器访问 {host}…"
@@ -2243,14 +2355,11 @@ msgstr "停止监测 {host}"
 msgid "Type the address to watch, such as https://shop.example.com/."
 msgstr "输入要监测的地址，例如 https://shop.example.com/。"
 
-msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the Address down rule's, under Rules."
-msgstr "{timeout} 内响应 {from} 到 {to} 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的 Address down 规则决定。"
+msgid "Up is an answer from {from} to {to} within {timeout}, so a redirect counts. Where the alert goes is the uptime check rule's, under Rules."
+msgstr "{timeout} 内响应 {from} 到 {to} 即为正常，因此重定向也算正常。告警发往哪里由“规则”下的可用性监测规则决定。"
 
 msgid "Use an http or https address, such as https://shop.example.com/."
 msgstr "请使用 http 或 https 地址，例如 https://shop.example.com/。"
-
-msgid "Watch this address"
-msgstr "监测这个地址"
 
 msgid "Watch {host}"
 msgstr "监测 {host}"
@@ -2270,8 +2379,8 @@ msgstr "告警发往 {names}"
 msgid "inside the network"
 msgstr "在内网中"
 
-msgid "the Address down rule is off, so nothing is sent"
-msgstr "Address down 规则已关闭，因此不会发送任何告警"
+msgid "the uptime check rule is off, so nothing is sent"
+msgstr "可用性监测规则已关闭，因此不会发送任何内容"
 
 #. placeholder {0}: check.spec?.downAfter || CHECK_DEFAULTS.downAfter
 msgid "{0, plural, one {Dockwell asks again on its own, and the check reads down after # failed run.} other {Dockwell asks again on its own, and the check reads down after # failed runs in a row.}}"
@@ -14851,11 +14960,11 @@ msgstr "命令已复制"
 msgid "Copy the command that restarts Docker"
 msgstr "复制重启 Docker 的命令"
 
-msgid "Copy the restart command"
-msgstr "复制重启命令"
-
 msgid "Copy the start command"
 msgstr "复制启动命令"
+
+msgid "Inspect"
+msgstr "查看"
 
 msgid "It joined, and its agent hasn't connected yet."
 msgstr "它已加入，代理还没有连接。"
@@ -14871,9 +14980,6 @@ msgstr "最后一次收到于{seen}；它的数据未计入集群。"
 
 msgid "On {list}, the agent is connected and Docker doesn't answer."
 msgstr "{list} 上代理已连接，Docker 没有响应。"
-
-msgid "Restart command copied"
-msgstr "已复制重启命令"
 
 msgid "Start command copied"
 msgstr "已复制启动命令"
@@ -17108,9 +17214,6 @@ msgstr "不随开机启动"
 msgid "Nothing has failed on {0}."
 msgstr "{0} 上没有失败的服务。"
 
-msgid "Open the change"
-msgstr "打开变更"
-
 msgctxt "system service"
 msgid "Reload"
 msgstr "重载"
@@ -17756,6 +17859,9 @@ msgstr "此安装"
 msgid "Time zone"
 msgstr "时区"
 
+msgid "Use {browserZoneName}, this browser's zone"
+msgstr "使用此浏览器的时区 {browserZoneName}"
+
 msgid "What this install is called, its time zone and how its panel is served"
 msgstr "此安装的名称、时区以及面板的访问方式"
 
@@ -18073,9 +18179,6 @@ msgstr "尚无备份"
 
 msgid "Object storage"
 msgstr "对象存储"
-
-msgid "Open Domains"
-msgstr "打开域名"
 
 msgid "Private images, past its pull limits"
 msgstr "私有镜像，不受其拉取限制"
@@ -19146,6 +19249,14 @@ msgstr "运维"
 msgid "Settings, status and account"
 msgstr "设置、状态和账户"
 
+#. placeholder {0}: open.count
+msgid "{0} open"
+msgstr "{0} 个未解决"
+
+#. placeholder {0}: open.count
+msgid "{0} open, critical"
+msgstr "{0} 个未解决，有严重告警"
+
 msgid "It arrives in a later release."
 msgstr "它将在之后的版本中推出。"
 
@@ -19166,6 +19277,10 @@ msgstr "{waiting, plural, other {# 个变更等你批准}}"
 
 msgid "Skip to content"
 msgstr "跳到主要内容"
+
+#. placeholder {0}: alerts.count
+msgid "{0, plural, one {# alert open} other {# alerts open}}"
+msgstr "{0, plural, other {# 个告警未解决}}"
 
 msgid "All healthy"
 msgstr "全部健康"

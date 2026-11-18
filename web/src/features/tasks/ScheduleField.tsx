@@ -3,9 +3,16 @@
 import { SelectField, TextField } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useId, useMemo, useState } from "react";
-
 import { CRON_WORDS, nextRuns, parseCron } from "../../lib/cron";
+import { dateLocale } from "../../lib/format";
 import { useNow } from "../../lib/time";
+
+/** Each quarter of an hour of a day, on a 24-hour clock: "00:00" to "23:45". */
+const QUARTERS: readonly string[] = Array.from({ length: 96 }, (_, i) => {
+  const h = String(Math.floor(i / 4)).padStart(2, "0");
+  const m = String((i % 4) * 15).padStart(2, "0");
+  return `${h}:${m}`;
+});
 
 /** How often, as a person picks it: each is one shape of cron, and anything else is cron itself. */
 export type Shape =
@@ -92,7 +99,7 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
   const every: Every = custom ? "cron" : shape.every;
 
   const days = useMemo(() => {
-    const f = new Intl.DateTimeFormat(i18n.locale, { weekday: "long", timeZone: "UTC" });
+    const f = new Intl.DateTimeFormat(dateLocale(i18n.locale), { weekday: "long", timeZone: "UTC" });
     // 4 January 1970 was a Sunday.
     return Array.from({ length: 7 }, (_, d) => f.format(new Date(Date.UTC(1970, 0, 4 + d))));
   }, [i18n.locale]);
@@ -129,14 +136,15 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
   // A zone the browser doesn't know, as one set from the CLI may be, leaves out the preview.
   const when = useMemo(() => {
     try {
-      return new Intl.DateTimeFormat(i18n.locale, {
+      return new Intl.DateTimeFormat(dateLocale(i18n.locale), {
         timeZone: zone,
         weekday: "short",
         day: "numeric",
         month: "short",
-        // The locale's own clock, as the time picker beside it shows it.
+        // A 24-hour clock, as the time picker beside it and every time in the panel shows it (#794).
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
     } catch {
       return undefined;
@@ -203,11 +211,15 @@ export function ScheduleField({ value, onChange, zone, error }: ScheduleFieldPro
         ) : null}
         {!custom &&
         (shape.every === "day" || shape.every === "weekday" || shape.every === "week" || shape.every === "month") ? (
-          <TextField
+          // A 24-hour list, every quarter of an hour, where the browser's time input would
+          // show its own 12-hour clock (#794). A time set otherwise stays on the list.
+          <SelectField
             label={t`At`}
-            type="time"
-            mono
             value={timeOf(shape)}
+            options={(QUARTERS.includes(timeOf(shape)) ? QUARTERS : [timeOf(shape), ...QUARTERS]).map((q) => ({
+              value: q,
+              label: q,
+            }))}
             onChange={(event) => at(event.target.value)}
           />
         ) : null}
