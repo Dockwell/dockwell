@@ -632,6 +632,20 @@ a.databases-engine:hover .databases-engine-plus {
   gap: var(--space-3);
 }
 
+/* A long server name in what the switch says wraps, rather than widen a phone's page. */
+.database-external-body > * {
+  max-width: 100%;
+}
+
+.database-external .dw-switch-text {
+  min-width: 0;
+}
+
+.database-external .dw-switch-desc,
+.database-external .domain-step-state {
+  overflow-wrap: anywhere;
+}
+
 .database-external-form {
   display: flex;
   flex-direction: column;
