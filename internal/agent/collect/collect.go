@@ -59,8 +59,15 @@ type Collector struct {
 	Metadata string
 	// STUN are the servers a lookup asks, for a test. Nil means stunServers.
 	STUN []string
+	// Containers lists the IDs of the containers whose figures each sample
+	// carries: those the health monitor's latest list has running (#797). Nil
+	// reads none.
+	Containers func() []string
+	// Cgroups is the cgroup tree, for a test. Nil reads sys/fs/cgroup under Root.
+	Cgroups fs.FS
 
-	prev *sample
+	prev    *sample
+	prevCPU map[string]cpuUsage
 }
 
 type sample struct {
@@ -222,6 +229,7 @@ func (c *Collector) Stats(now time.Time) *dockwellv1.ServerStats {
 		st.Disks = append(st.Disks, &dockwellv1.DiskUsage{MountPoint: m.point, UsedBytes: used, SizeBytes: size})
 	}
 	st.DiskReadBytes, st.DiskWrittenBytes = c.diskTotals()
+	st.Containers = c.containerUsage(now)
 
 	c.prev = cur
 	return st

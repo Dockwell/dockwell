@@ -63,6 +63,7 @@ import { useRuntimes } from "../websites/website";
 import { AddDomainSheet, type MoveBehind, moveBehindOf } from "./AddDomainSheet";
 import { AddPortSheet } from "./AddPortSheet";
 import { useApp, useRevisions } from "./AppContext";
+import { AppMetrics } from "./AppMetrics";
 import {
   appOf,
   bareImage,
@@ -99,8 +100,8 @@ const RECENT = 5;
 /**
  * One app at a glance (App-Overview, M-App): how it runs now and where it is reached,
  * how that has gone, its recent deployments, how it is configured, and what it runs
- * with. It says what is wrong first, with the way out. There are no metrics or replica
- * counts until the API has them.
+ * with. It says what is wrong first, with the way out. What it uses is its Metrics
+ * card, once its servers' samples carry it (#797).
  */
 export function AppOverview() {
   const { service } = useApp();
@@ -123,6 +124,7 @@ export function AppOverview() {
         <RecentDeployments />
       </div>
       <div className="app-aside">
+        <AppMetrics service={service} />
         <SourcePanel />
         <ConfigurationPanel />
         {update && !offered(update) ? <UpdateCard service={service} /> : null}

@@ -73,6 +73,8 @@ picks "$go swarm-docker" internal/resource/resourcepb/resourcepb.go
 picks "$go swarm-docker" internal/resource/host/host.go
 picks "$go swarm-docker" internal/revision/units.go
 picks "$go" internal/revision/revision.go internal/resource/resource.go
+# What the agent reads of each container is measured by Hundreds of containers, among the Go jobs (#797).
+picks "$go" internal/agent/collect/containers.go
 picks "go docker-go caddy-go" internal/agent/panels/stop_test.go
 picks "$go" scripts/transfers-load.sh
 picks "$go" scripts/fakedocker/main.go

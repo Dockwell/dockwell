@@ -61,6 +61,8 @@ const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
 // The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
 const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
+// What the fake engine's containers use, as a flow writes it, laid out as /sys/fs/cgroup (#797).
+const cgroups = mkdtempSync(join(tmpdir(), "dockwell-e2e-cgroup-"));
 
 let server: ChildProcess | undefined;
 let docker: ChildProcess | undefined;
@@ -191,6 +193,7 @@ async function start(): Promise<string> {
         USER: "mira",
         DOCKWELL_CATALOG_DIR: catalogDir,
         DOCKWELL_TEST_TOOLS: tools,
+        DOCKWELL_TEST_CGROUP: cgroups,
         // What the panel's domain resolves to, as a test asks no DNS server (ADR 0063).
         DOCKWELL_TEST_DNS: "panel.example.com=192.0.2.10",
       },
@@ -896,6 +899,7 @@ async function main() {
       data,
       env: { DOCKER_HOST: `unix://${fakeSocket}` },
       catalogDir,
+      cgroups,
       stopByHand: (id) => dockerStop(fakeSocket, id),
       // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
       hangDocker: () => {
@@ -962,4 +966,5 @@ try {
   docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
   rmSync(tools, { recursive: true, force: true });
+  rmSync(cgroups, { recursive: true, force: true });
 }

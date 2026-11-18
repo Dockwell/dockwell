@@ -88,6 +88,10 @@ const (
 	// as "2s", under DOCKWELL_TEST, and only then, so the chaos tests needn't wait
 	// a minute for each (docs/testing/chaos.md).
 	envTestAway = "DOCKWELL_TEST_AWAY"
+	// envTestCgroup names, in a test, a folder laid out as the cgroup tree, which
+	// the agent reads what each container uses from under DOCKWELL_TEST, and only
+	// then; without it, a test reads none (#797).
+	envTestCgroup = "DOCKWELL_TEST_CGROUP"
 )
 
 // IO carries the streams and environment a command runs with, so tests can

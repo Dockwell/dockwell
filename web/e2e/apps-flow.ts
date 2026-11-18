@@ -10,7 +10,9 @@
 // docker-panel-e2e on real Docker, where publishing a port and reaching it
 // means something.
 
+import { mkdirSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
+import { join } from "node:path";
 
 import type { Page } from "playwright-core";
 
@@ -34,6 +36,8 @@ export interface AppsFlowOptions {
   failing: string;
   /** Whether a certificate authority is there to ask, for a domain over HTTPS on a real engine. */
   certificates?: boolean;
+  /** The folder the agent reads containers' cgroups from, on the fake engine, which has none of its own (#797). */
+  cgroups?: string;
 }
 
 const FIRST = "nginx:1.27-alpine";
@@ -77,7 +81,7 @@ async function statusColumn(page: Page): Promise<number> {
 
 export async function appsFlow(
   page: Page,
-  { origin, step, shoot, docker, port, reachable, failing, certificates }: AppsFlowOptions,
+  { origin, step, shoot, docker, port, reachable, failing, certificates, cgroups }: AppsFlowOptions,
 ) {
   /** The one container of a service, as Docker has it. */
   const running = async (service: string) => {
@@ -850,6 +854,38 @@ export async function appsFlow(
   if ((settingsTab?.wide ?? 1) > 0) fail(`on a phone Settings is ${settingsTab?.wide} px too wide`);
   await shoot(page, "apps-settings-phone");
   await atWidth(page, { width: 1440, height: 900 });
+
+  if (cgroups) {
+    step("apps: its Metrics card says what it uses, read from its container's cgroup, against its limit");
+    const ids = (await docker()).filter((c) => c.service === "nginx" && c.running).map((c) => c.id);
+    if (ids.length === 0) fail("no nginx container runs to read figures of");
+    // As the kernel keeps them: CPU time that grows, 64 MiB held of the 256M limit just set.
+    let usec = 0;
+    const write = () => {
+      usec += 500_000;
+      for (const id of ids) {
+        const dir = join(cgroups, "system.slice", `docker-${id}.scope`);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "cpu.stat"), `usage_usec ${usec}\n`);
+        writeFileSync(join(dir, "memory.current"), `${64 * 1024 * 1024}\n`);
+        writeFileSync(join(dir, "memory.max"), `${256 * 1024 * 1024}\n`);
+      }
+    };
+    write();
+    const ticking = setInterval(write, 1_000);
+    try {
+      await page
+        .getByRole("navigation", { name: "App sections" })
+        .getByRole("link", { name: "Overview", exact: true })
+        .click();
+      const metrics = page.getByRole("region", { name: "Metrics" });
+      await metrics.getByText(`of 256 MB`).waitFor({ timeout: 30_000 });
+      await metrics.getByText("64 MB", { exact: true }).waitFor();
+      await shoot(page, "apps-metrics");
+    } finally {
+      clearInterval(ticking);
+    }
+  }
 
   step("apps: deleting goes through a plan too, and the list follows");
   // A project left with one app is that app's row, under the project's name.

@@ -48,6 +48,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleet } from "../servers/useFleet";
 import { useApp } from "./AppContext";
+import { shareWords } from "./AppMetrics";
 import { appOf, environmentOf, isMoving, nameOf } from "./app";
 import { DangerZone } from "./DangerZone";
 import { isServerPath, pathReach, validPort } from "./form";
@@ -67,6 +68,7 @@ import {
   validDuration,
   validMemory,
 } from "./specEdit";
+import { useAppUsage } from "./usage";
 import { useAppWords } from "./words";
 
 type SectionId = "general" | "health" | "resources" | "ports" | "mounts" | "updates";
@@ -1039,6 +1041,20 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPla
   const cpuPicks = CPU_PICKS.filter((c) => cpuCount === 0 || Number(c) <= cpuCount);
   const totalWords = formatBytes(memoryTotal, i18n.locale);
   const serverName = server?.name ?? "";
+  // What it uses now, beside what it may and what its server has (#797), once its servers' samples carry it.
+  // A limit here is each replica's, so with several, each one's share is said beside it (#848's re-check, M-A).
+  const usage = useAppUsage(service);
+  const replicas = Math.max(1, usage?.replicasNow ?? 1);
+  const cpuNow = usage ? shareWords(usage.cpuNow / replicas) : "";
+  const memoryNow = usage ? formatBytes(usage.memoryNow / replicas, i18n.locale) : "";
+  const cpuUse = !usage ? "" : replicas > 1 ? t`Uses ${cpuNow}% of a CPU each` : t`Uses ${cpuNow}% of a CPU`;
+  const memoryUse = !usage ? "" : replicas > 1 ? t`Uses ${memoryNow} each` : t`Uses ${memoryNow}`;
+  const cpuHint = [cpuUse, server && cpuCount > 0 ? t`${serverName} has ${cpuCount} vCPU` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  const memoryHint = [memoryUse, server && memoryTotal > 0 ? t`${serverName} has ${totalWords}` : ""]
+    .filter(Boolean)
+    .join(" · ");
   const r = app.resources;
   const [cpus, setCpus] = useState(r?.cpus ?? "");
   const [memory, setMemory] = useState(r?.memory ?? "");
@@ -1085,7 +1101,7 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPla
           <SelectField
             label={t`CPU limit`}
             value={cpusOther ? OTHER : cpus}
-            hint={server && cpuCount > 0 ? t`${serverName} has ${cpuCount} vCPU.` : undefined}
+            hint={cpuHint || undefined}
             onChange={(event) => choose(event.target.value, setCpus, setCpusOther)}
             options={[
               { value: "", label: noLimit },
@@ -1110,7 +1126,7 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPla
           <SelectField
             label={t`Memory limit`}
             value={memoryOther ? OTHER : memory}
-            hint={server && memoryTotal > 0 ? t`${serverName} has ${totalWords}.` : undefined}
+            hint={memoryHint || undefined}
             onChange={(event) => choose(event.target.value, setMemory, setMemoryOther)}
             options={[
               { value: "", label: noLimit },

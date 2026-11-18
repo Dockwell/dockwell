@@ -126,6 +126,23 @@ type watched struct {
 	finished               bool      // it exited 0, and nothing starts it again
 }
 
+// Running is the IDs of the containers it watches that run, as its latest list
+// of Docker's says, for the agent's figures of each (#797): what it gathers
+// already, with no call of its own.
+func (m *Monitor) Running() []string {
+	m.init()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	ids := make([]string, 0, len(m.watched))
+	for id, w := range m.watched {
+		if w.seen && w.dockerState == dockerRunning {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 func (m *Monitor) init() {
 	m.once.Do(func() {
 		m.signal = make(chan struct{}, 1)

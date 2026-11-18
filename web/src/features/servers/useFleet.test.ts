@@ -60,7 +60,7 @@ describe("useFleet", () => {
     const watch = feed<WatchServersResponse>();
     watch.push(snapshotComplete);
     const { result } = watchWith(watch);
-    await waitFor(() => expect(result.current).toEqual({ status: "live", servers: [] }));
+    await waitFor(() => expect(result.current).toEqual({ status: "live", servers: [], usage: new Map() }));
   });
 
   it("appends each new sample to the server's history, keeping the latest", async () => {
@@ -186,7 +186,7 @@ describe("useFleet", () => {
     );
 
     await act(() => vi.advanceTimersByTimeAsync(2_000));
-    await waitFor(() => expect(result.current).toEqual({ status: "live", servers: [] }));
+    await waitFor(() => expect(result.current).toEqual({ status: "live", servers: [], usage: new Map() }));
   });
 
   it("stops watching when it unmounts", async () => {
