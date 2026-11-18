@@ -236,7 +236,11 @@ try_apply() {
     # Refused as busy, the change stays planned: it's applied again once the other
     # ends, five times at most. Anything else fails as it did.
     while ! said=$(dw changes apply "$1" --yes 2>&1 >/dev/null); do
-      [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]] && return 1
+      if [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]]; then
+        # What the apply said is the failure's own words, which the check reads.
+        printf '%s\n' "$said" >&2
+        return 1
+      fi
       if [[ "$said" == *"another change is applying"* ]] && ((++tries < 5)); then
         echo "catalog-e2e: $1 waits for another change on the same app: $said" >&2
         quiet
