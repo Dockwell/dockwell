@@ -3203,6 +3203,9 @@ msgstr "Metrics"
 msgid "of {limit}"
 msgstr "of {limit}"
 
+msgid "{missing, plural, one {# server not reporting} other {# servers not reporting}}"
+msgstr "{missing, plural, one {# server not reporting} other {# servers not reporting}}"
+
 msgid "<0>{from}</0> redirects here"
 msgstr "<0>{from}</0> redirects here"
 

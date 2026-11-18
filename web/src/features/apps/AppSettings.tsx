@@ -1043,7 +1043,9 @@ function ResourcesForm({ service, app, name, root, moving, plan, onCancel, inPla
   const serverName = server?.name ?? "";
   // What it uses now, beside what it may and what its server has (#797), once its servers' samples carry it.
   // A limit here is each replica's, so with several, each one's share is said beside it (#848's re-check, M-A).
-  const usage = useAppUsage(service);
+  // What it used as last heard isn't said as what it uses while the panel can't hear the fleet (#852's review, L4).
+  const heard = useAppUsage(service);
+  const usage = heard?.current ? heard : undefined;
   const replicas = Math.max(1, usage?.replicasNow ?? 1);
   const cpuNow = usage ? shareWords(usage.cpuNow / replicas) : "";
   const memoryNow = usage ? formatBytes(usage.memoryNow / replicas, i18n.locale) : "";

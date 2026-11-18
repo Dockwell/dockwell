@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   Connection,
   ContainerUsageSchema,
+  DeploymentState,
   type ServerStats,
   ServerStatsSchema,
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
@@ -131,6 +134,75 @@ describe("an app's Metrics card (#797)", () => {
     expect(within(resources).getByRole("combobox", { name: "Memory limit" })).toHaveAccessibleDescription(
       "Uses 200 MB",
     );
+  });
+});
+
+describe("an app's Metrics card with a server not reporting, or the fleet not heard (#852's review)", () => {
+  /** web, live on hz-1 and hz-2, with hz-2 as connection says, and the watch, to fail. */
+  function twoServers(connection: Connection) {
+    const at = timestampFromDate(new Date(Date.now() - 3_600_000));
+    const web = anApp(
+      "web",
+      "nginx:1.27",
+      { resources: { cpus: "0.5" } },
+      {
+        deployments: [
+          { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE, updateTime: at },
+          { serverId: "srv_2", serverName: "hz-2", state: DeploymentState.LIVE, updateTime: at },
+        ],
+      },
+    );
+    const watch = feed<WatchServersResponse>();
+    const history = [theirs(10, 100), theirs(25, 200)];
+    watch.push(
+      changed(aServer({ id: SERVER, name: "hz-1", history, stats: history.at(-1) })),
+      changed(aServer({ id: "srv_2", name: "hz-2", connection, history, stats: history.at(-1) })),
+      snapshotComplete,
+    );
+    const api: Api = {
+      resources: places(),
+      services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [] }) },
+      servers: { watchServers: watch.stream },
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    };
+    return { api, watch };
+  }
+
+  it("says a server isn't reporting, rather than all replicas, and counts the rest alone (L3)", async () => {
+    renderAt("/apps/svc_web", twoServers(Connection.UNREACHABLE).api);
+    const metrics = await screen.findByRole("region", { name: "Metrics" });
+    expect(metrics).toHaveTextContent("1 server not reporting");
+    expect(metrics).not.toHaveTextContent("all replicas");
+    // hz-1's 200 MB alone, not hz-2's last 200 MB beside it.
+    expect(metrics).toHaveTextContent("Memory200 MB");
+  });
+
+  it("says all replicas while every server reports", async () => {
+    renderAt("/apps/svc_web", twoServers(Connection.CONNECTED).api);
+    const metrics = await screen.findByRole("region", { name: "Metrics" });
+    expect(metrics).toHaveTextContent("Last 5 minutes, all replicas");
+    // Both servers' 200 MB together.
+    expect(metrics).toHaveTextContent("Memory400 MB");
+  });
+
+  it("reads as not current while the panel's watch of the fleet reconnects, as the overview's figures do (L4)", async () => {
+    const { api, watch } = twoServers(Connection.CONNECTED);
+    const { container } = renderAt("/apps/svc_web", api);
+    await screen.findByRole("region", { name: "Metrics" });
+    expect(container.querySelector(".app-metrics")).not.toHaveClass("is-stale");
+    act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
+    await waitFor(() => expect(container.querySelector(".app-metrics")).toHaveClass("is-stale"));
+    expect(container.querySelector(".app-metrics")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("leaves what it used out of Settings' hints while the panel's watch reconnects (L4)", async () => {
+    const { api, watch } = twoServers(Connection.CONNECTED);
+    renderAt("/apps/svc_web/settings", api);
+    const resources = await screen.findByRole("region", { name: "Resources" });
+    const cpu = await within(resources).findByRole("combobox", { name: "CPU limit" });
+    await waitFor(() => expect(cpu).toHaveAccessibleDescription(/^Uses/));
+    act(() => watch.fail(new ConnectError("the watch fell behind", Code.Unavailable)));
+    await waitFor(() => expect(cpu).not.toHaveAccessibleDescription(/Uses/));
   });
 });
 

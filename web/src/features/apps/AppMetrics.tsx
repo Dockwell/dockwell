@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ServiceInfo } from "@dockwell/api";
-import { Metric, Panel } from "@dockwell/ui";
+import { cx, Metric, Panel } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 
 import { formatBytes } from "../../lib/format";
@@ -41,12 +42,16 @@ export function AppMetrics({ service }: { service: ServiceInfo }) {
   const limit = usage.memoryLimit > 0 ? formatBytes(usage.memoryLimit, i18n.locale) : "";
   const cpuData =
     cpus > 0 ? usage.cpu.map((c, i) => (c === null ? null : c / (cpus * (usage.replicas[i] ?? 1)))) : usage.cpu;
+  const missing = usage.missing;
+  // With a server not reporting, its replicas aren't in the figures, so they aren't all (#852's review, L3).
+  const span =
+    missing > 0
+      ? plural(missing, { one: "# server not reporting", other: "# servers not reporting" })
+      : t`Last 5 minutes, all replicas`;
   return (
-    <Panel
-      title={t`Metrics`}
-      actions={<span className="app-muted app-metrics-span">{t`Last 5 minutes, all replicas`}</span>}
-    >
-      <div className="app-metrics">
+    <Panel title={t`Metrics`} actions={<span className="app-muted app-metrics-span">{span}</span>}>
+      {/* While the panel can't hear the fleet, its last figures read as not current, as the overview's do (L4). */}
+      <div className={cx("app-metrics", !usage.current && "is-stale")} aria-disabled={!usage.current || undefined}>
         <Metric
           label={t`CPU`}
           value={shareWords(cpu.value)}

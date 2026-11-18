@@ -3203,6 +3203,9 @@ msgstr "指标"
 msgid "of {limit}"
 msgstr "/ {limit}"
 
+msgid "{missing, plural, one {# server not reporting} other {# servers not reporting}}"
+msgstr "{missing, plural, other {# 台服务器没有上报数据}}"
+
 msgid "<0>{from}</0> redirects here"
 msgstr "<0>{from}</0> 重定向到这里"
 
