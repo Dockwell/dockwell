@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { isFieldSet } from "@bufbuild/protobuf";
 import { type Timestamp, timestampMs } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { Connection, type Server, ServerService, type ServerStats } from "@dockwell/api";
+import { Connection, type Server, ServerService, type ServerStats, ServerStatsSchema } from "@dockwell/api";
 import {
   createContext,
   createElement,
@@ -331,11 +332,22 @@ function merge(prev: Server | undefined, next: Server): Server {
 /**
  * A sample that says only what the caller's own apps use, as one below an admin is
  * sent (#797), its apps or none of them: it has none of the server's own figures,
- * neither memory nor uptime, both of which every agent sends (#848's review, M1, L5).
+ * only its time, interval and apps (#848's review, M1, L5). Memory and uptime alone
+ * weren't enough to tell: a sample of disks alone, as a test's, read as apps-only.
  */
 export function appsOnly(sample: ServerStats | undefined): boolean {
-  return sample !== undefined && sample.memoryTotalBytes === 0n && sample.uptime === undefined;
+  return (
+    sample !== undefined &&
+    ServerStatsSchema.fields.every((f) => APPS_SAMPLE.has(f.localName) || !isFieldSet(sample, f))
+  );
 }
+
+/**
+ * All a sample sent below an admin holds: its time, its interval and the caller's
+ * apps. One with any other figure of the server's own, as a disk, is the server's,
+ * though an agent couldn't read its memory or uptime.
+ */
+const APPS_SAMPLE = new Set(["time", "interval", "containers"]);
 
 /** A server as its own tiles and charts read it: without samples that hold only apps' figures. */
 export function ownOnly(next: Server): Server {

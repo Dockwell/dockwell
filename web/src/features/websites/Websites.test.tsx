@@ -1523,7 +1523,10 @@ describe("New website on a fleet", () => {
     await user.type(within(sheet).getByRole("textbox", { name: "URL" }), "https://backend.example.com");
     // Nothing to choose first: the one with the most room is chosen, and "Choose a server" isn't offered (#798).
     const server = await within(sheet).findByRole("combobox", { name: "Server" });
-    await waitFor(() => expect(server).toHaveValue("srv_2"));
+    // The fleet is heard before the pick reads it: a select with no value shows its
+    // first option, hz-1, until then, which a slow run read as the pick.
+    await within(server).findByRole("option", { name: "hz-2" });
+    await waitFor(() => expect(server).toHaveValue("srv_2"), { timeout: 5000 });
     expect(within(server).queryByRole("option", { name: "Choose a server" })).toBeNull();
     // It holds still as stats come in, though hz-1 now has more room (#849's L7).
     watch.push(changed(aServer({ id: SERVER, name: "hz-1", stats: disk(90) })));
