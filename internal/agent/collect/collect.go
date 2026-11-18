@@ -68,6 +68,10 @@ type Collector struct {
 
 	prev    *sample
 	prevCPU map[string]cpuUsage
+	// Where containers' cgroups were found beyond Docker's two usual places, and
+	// when the tree was last searched for one in none of them (#852).
+	cgroupPlaces   []cgroupPlace
+	cgroupLookedAt time.Time
 }
 
 type sample struct {

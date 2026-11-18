@@ -3,7 +3,9 @@
 package collect
 
 import (
+	"io/fs"
 	"strings"
+	"syscall"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -62,5 +64,77 @@ func TestASampleWithoutContainersReadsNone(t *testing.T) {
 	c := &Collector{Root: fstest.MapFS{}, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil }}
 	if got := c.Stats(time.Unix(1_800_000_000, 0)).GetContainers(); got != nil {
 		t.Errorf("containers = %v, want none", got)
+	}
+}
+
+// cgroup is a container's cgroup v2 files in a tree, at dir: what it has used of
+// the CPU, and its memory.
+func cgroup(tree fstest.MapFS, dir, usec string) {
+	tree[dir+"/cpu.stat"] = &fstest.MapFile{Data: []byte("usage_usec " + usec + "\n")}
+	tree[dir+"/memory.current"] = &fstest.MapFile{Data: []byte("1048576\n")}
+}
+
+// A container whose cgroup is in neither of a rootful Docker's places is found by
+// a search of the tree: rootless Docker's, OpenRC's unified mount, a daemon's
+// cgroup-parent. The place is kept, so another container there is read without
+// one, and a search comes at most once a minute. A cgroup v1 hierarchy's folder,
+// with no memory.current, isn't one (#852).
+func TestACgroupInAnotherPlaceIsFoundAndKept(t *testing.T) {
+	rootless, unified, parented, later, v1, elsewhere := strings.Repeat("1", 64), strings.Repeat("2", 64), strings.Repeat("3", 64),
+		strings.Repeat("4", 64), strings.Repeat("5", 64), strings.Repeat("6", 64)
+	const user = "user.slice/user-1000.slice/user@1000.service/user.slice"
+	tree := fstest.MapFS{"memory/docker/" + v1 + "/memory.usage_in_bytes": {Data: []byte("1048576\n")}}
+	cgroup(tree, user+"/docker-"+rootless+".scope", "100")
+	cgroup(tree, "unified/docker/"+unified, "100")
+	cgroup(tree, "apps.slice/docker-"+parented+".scope", "100")
+	ids := []string{rootless, unified, parented, v1}
+	c := &Collector{Root: fstest.MapFS{}, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil }, Containers: func() []string { return ids }}
+	at := time.Unix(1_800_000_000, 0)
+
+	read := func(at time.Time) map[string]bool {
+		got := map[string]bool{}
+		for _, u := range c.Stats(at).GetContainers() {
+			got[u.GetContainerId()] = true
+		}
+		return got
+	}
+	if got := read(at); len(got) != 3 || !got[rootless] || !got[unified] || !got[parented] {
+		t.Fatalf("the first sample read %v, want the rootless, unified and cgroup-parent containers alone", got)
+	}
+
+	// Another container in a place already found is read with no search.
+	cgroup(tree, user+"/docker-"+later+".scope", "100")
+	cgroup(tree, "elsewhere/"+elsewhere, "100")
+	ids = []string{rootless, later, elsewhere}
+	if got := read(at.Add(5 * time.Second)); !got[later] || got[elsewhere] {
+		t.Errorf("5 s on, the sample read %v, want the one in the rootless place, and not one only a search finds", got)
+	}
+	// One in a new place waits for the next search, a minute after the last.
+	if got := read(at.Add(time.Minute)); !got[elsewhere] {
+		t.Errorf("a minute on, the sample read %v, want the one a search finds", got)
+	}
+}
+
+// A container that restarts keeps its ID, but has a new cgroup, whose CPU time
+// counts from 0. A sample that finds it made again starts over, rather than read
+// the difference from the last run's time, which can mix two runs (#852).
+func TestARestartThatKeepsTheIDStartsItsCPUOver(t *testing.T) {
+	id := strings.Repeat("a", 64)
+	dir := "system.slice/docker-" + id + ".scope"
+	tree := fstest.MapFS{dir: {Mode: fs.ModeDir, Sys: &syscall.Stat_t{Ino: 1}}}
+	cgroup(tree, dir, "1000000")
+	c := &Collector{Root: fstest.MapFS{}, Cgroups: tree, Statfs: func(string) (uint64, uint64, error) { return 0, 0, nil }, Containers: func() []string { return []string{id} }}
+	at := time.Unix(1_800_000_000, 0)
+	c.Stats(at)
+
+	// It restarted, and its new run's time passed the old run's within the interval.
+	tree[dir] = &fstest.MapFile{Mode: fs.ModeDir, Sys: &syscall.Stat_t{Ino: 2}}
+	cgroup(tree, dir, "2000000")
+	if got := c.Stats(at.Add(5 * time.Second)).GetContainers()[0].GetCpuPercent(); got != 0 {
+		t.Errorf("the sample after a restart reads %v%%, want 0 until the next", got)
+	}
+	cgroup(tree, dir, "4500000")
+	if got := c.Stats(at.Add(10 * time.Second)).GetContainers()[0].GetCpuPercent(); got != 50 {
+		t.Errorf("the new run used 2.5 s of CPU in 5 s, read as %v%%, want 50", got)
 	}
 }
