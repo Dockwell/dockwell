@@ -4902,6 +4902,9 @@ msgstr "暂时无法读取此文件"
 msgid "Catalog"
 msgstr "应用目录"
 
+msgid "Change where it runs"
+msgstr "更改运行位置"
+
 msgid "Check the image and its variables, then try again."
 msgstr "请检查镜像及其变量，然后重试。"
 
@@ -5041,8 +5044,8 @@ msgstr "不使用登录"
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "在发布端口之前，服务器外部无法访问它。"
 
-msgid "Offline"
-msgstr "离线"
+msgid "Offline, so it can't take a new app now"
+msgstr "已离线，目前无法接收新应用"
 
 msgid "Open {label}"
 msgstr "打开 {label}"
@@ -5258,6 +5261,9 @@ msgstr "环境变量名称"
 msgid "labels"
 msgstr "标签"
 
+msgid "most free memory"
+msgstr "可用内存最多"
+
 msgid "read from the repository once you choose a server"
 msgstr "选择服务器后从仓库中读取"
 
@@ -5266,6 +5272,9 @@ msgstr "填写仓库后从中读取"
 
 msgid "the network {owner}"
 msgstr "网络 {owner}"
+
+msgid "the only server that can take it"
+msgstr "唯一能运行它的服务器"
 
 msgid "the volume {owner}"
 msgstr "卷 {owner}"
@@ -7337,6 +7346,7 @@ msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
+#. placeholder {0}: where.server
 msgid "On {0}"
 msgstr "在 {0} 上"
 
@@ -7799,6 +7809,9 @@ msgstr "可选，默认开启，可以关闭"
 msgid "Persistent storage"
 msgstr "持久存储"
 
+msgid "Pick one"
+msgstr "选择一个"
+
 msgid "Reading this app"
 msgstr "正在读取此应用"
 
@@ -7882,6 +7895,13 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 
 msgid "Nothing from the catalog is installed yet"
 msgstr "还没有安装应用目录中的应用"
+
+msgid "Open"
+msgstr "打开"
+
+#. placeholder {0}: entry.name
+msgid "Open the installed {0}"
+msgstr "打开已安装的 {0}"
 
 msgid "Order"
 msgstr "排序"
@@ -8557,15 +8577,8 @@ msgstr "{left, plural, other {未收录的 # 个文件及原因}}"
 msgid "A source is already named {name}. Use another name."
 msgstr "已有名为 {name} 的来源。请换一个名称。"
 
-msgctxt "catalog store"
-msgid "Add"
-msgstr "添加"
-
 msgid "Add Dockwell's catalog"
 msgstr "添加 Dockwell 的目录"
-
-msgid "Add a catalog source"
-msgstr "添加目录来源"
 
 msgid "Add a source"
 msgstr "添加来源"
@@ -8573,19 +8586,8 @@ msgstr "添加来源"
 msgid "Add another source"
 msgstr "添加其他来源"
 
-#. placeholder {0}: named(store)
-#. placeholder {0}: storeName(store)
-msgid "Add {0}"
-msgstr "添加 {0}"
-
-msgid "An app store, or any public Git repository"
-msgstr "应用商店，或任意公开 Git 仓库"
-
 msgid "Another commit"
 msgstr "其他提交"
-
-msgid "App stores"
-msgstr "应用商店"
 
 msgid "Apps from a public Git repository"
 msgstr "来自公开 Git 仓库的应用"
@@ -8657,11 +8659,8 @@ msgstr "名称 {name} · 条目位于 {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "没有分支或标签位于此提交。"
 
-msgid "No catalogs to install from"
-msgstr "没有可以安装应用的目录"
-
-msgid "Or any public Git repository"
-msgstr "或任意公开 Git 仓库"
+msgid "No sources to install from"
+msgstr "没有可供安装的来源"
 
 msgctxt "catalog source"
 msgid "Pin here"
@@ -8677,8 +8676,8 @@ msgstr "已读取。共有 {count} 个或更多分支和标签。"
 msgid "Remove {said}"
 msgstr "移除 {said}"
 
-msgid "The catalogs Dockwell installs apps from"
-msgstr "Dockwell 安装应用所用的目录"
+msgid "The source {name}"
+msgstr "来源 {name}"
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
 msgstr "请使用小写字母、数字和短横线，并以字母开头，例如 community。"
@@ -8692,12 +8691,15 @@ msgstr "请填写仓库的 https:// 地址。"
 msgid "Where its entries are. Empty is its top."
 msgstr "条目所在位置。留空表示仓库根目录。"
 
+msgid "Where the catalog's apps come from"
+msgstr "应用目录中应用的来源"
+
 msgid "its top"
 msgstr "仓库根目录"
 
 #. placeholder {0}: list.length
-msgid "{0, plural, one {# catalog you read} other {# catalogs you read}}"
-msgstr "{0, plural, other {你读取的 # 个目录}}"
+msgid "{0, plural, one {# source you read} other {# sources you read}}"
+msgstr "{0, plural, other {你读取的 # 个来源}}"
 
 #. placeholder {0}: at.join(", ")
 msgid "{0} is at this commit."
@@ -8711,6 +8713,9 @@ msgstr "{count, plural, other {已读取。共有 # 个分支和标签。}}"
 
 msgid "{short} (tag)"
 msgstr "{short}（标签）"
+
+msgid "Add a mail server"
+msgstr "添加邮件服务器"
 
 msgid "Any S3-compatible bucket"
 msgstr "任意兼容 S3 的存储桶"
@@ -8730,6 +8735,9 @@ msgstr "需要{list}"
 
 msgid "No connection meets it yet"
 msgstr "还没有满足它的连接"
+
+msgid "No mail server yet, and {app} needs one"
+msgstr "还没有邮件服务器，而 {app} 需要一个"
 
 msgid "Sends as {sender}"
 msgstr "以 {sender} 发信"
@@ -8778,6 +8786,14 @@ msgid "{app} sends no mail"
 msgstr "{app} 不发送邮件"
 
 msgctxt "catalog store"
+msgid "Add"
+msgstr "添加"
+
+#. placeholder {0}: named(store)
+msgid "Add {0}"
+msgstr "添加 {0}"
+
+msgctxt "catalog store"
 msgid "Added"
 msgstr "已添加"
 
@@ -8801,6 +8817,9 @@ msgstr "未声明"
 msgctxt "licence"
 msgid "Not recognised"
 msgstr "无法识别"
+
+msgid "Sources to add"
+msgstr "可添加的来源"
 
 #. placeholder {0}: store.apps
 #. placeholder {1}: store.installs
@@ -8848,8 +8867,11 @@ msgstr "它的第一个账户：在它有域名之前先创建你的账户"
 msgid "Its links"
 msgstr "它的链接"
 
-msgid "Its links follow the domain you add: {names}"
-msgstr "它的链接跟随你添加的域名：{names}"
+msgid "Its links follow its domain"
+msgstr "它的链接随其域名变化"
+
+msgid "Needs a mail server"
+msgstr "需要邮件服务器"
 
 msgid "Not at {address}: {keptNames}"
 msgstr "未指向 {address}：{keptNames}"
@@ -8878,6 +8900,9 @@ msgstr "SSH 隧道"
 
 msgid "SSH tunnel command copied"
 msgstr "已复制 SSH 隧道命令"
+
+msgid "Sends mail through a mail server, if you pick one"
+msgstr "选择邮件服务器后，通过它发送邮件"
 
 msgid "Set as it first started: change it in {app}, in {where}"
 msgstr "首次启动时设定：请在 {app} 的「{where}」中修改"
@@ -9648,6 +9673,9 @@ msgstr "没有步骤：它已离开集群"
 
 msgid "Not run"
 msgstr "未运行"
+
+msgid "Offline"
+msgstr "离线"
 
 msgid "Opens {opening}"
 msgstr "将开放{opening}"
@@ -16562,9 +16590,6 @@ msgstr "不分组"
 
 msgid "No {key}"
 msgstr "无 {key}"
-
-msgid "Open"
-msgstr "打开"
 
 msgid "Pick every server shown"
 msgstr "选择显示的所有服务器"
