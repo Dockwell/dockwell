@@ -599,7 +599,7 @@ describe("a plan from a Compose file", () => {
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     await within(sheet).findByText("to create");
     const also = within(sheet).getByRole("button", { name: /Also creates project blog, a network and 2 volumes/ });
-    expect(rowNames(sheet)).toEqual(["web app", "db app", "Also creates project blog, a network and 2 volumes"]);
+    expect(rowNames(sheet)).toEqual(["web app", "db database", "Also creates project blog, a network and 2 volumes"]);
     expect(also).toHaveAttribute("aria-expanded", "false");
     // Apps start open, with what they run; what comes along doesn't show until asked.
     expect(within(sheet).getByText("wordpress:6.6-apache")).toBeVisible();
@@ -649,7 +649,7 @@ describe("a plan from a Compose file", () => {
     expect(rowNames(sheet)).toEqual([
       "db-data volume",
       "web app",
-      "db app",
+      "db database",
       "default network",
       "Also creates project blog and a volume",
     ]);
