@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone, create } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   type BackupDestinationInfo,
   BackupMethod,
+  type BackupPolicyInfo,
+  BackupPolicySchema,
   BackupService,
   BackupPolicy_Drill as Drill,
   BackupPolicy_Every as Every,
@@ -12,11 +15,13 @@ import {
 import { Button, Callout, SegmentedControl, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
+import { StateLine } from "../apps/DomainStep";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { DestinationSheet } from "./DestinationSheet";
 import { destinationOptions } from "./DestinationsPanel";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import { policyName, useWeekdays } from "./words";
@@ -28,6 +33,62 @@ const EVERY: Readonly<Record<How, Every>> = { hour: Every.HOUR, day: Every.DAY, 
 
 type Check = "week" | "month" | "never";
 const DRILL: Readonly<Record<Check, Drill>> = { week: Drill.WEEKLY, month: Drill.MONTHLY, never: Drill.NEVER };
+
+const HOW_OF: Readonly<Partial<Record<Every, How>>> = {
+  [Every.HOUR]: "hour",
+  [Every.DAY]: "day",
+  [Every.WEEK]: "week",
+};
+const CHECK_OF: Readonly<Partial<Record<Drill, Check>>> = {
+  [Drill.WEEKLY]: "week",
+  [Drill.MONTHLY]: "month",
+  [Drill.NEVER]: "never",
+};
+
+/** Where a new schedule sends its copies: off the server, to the first storage there is, or nowhere else. */
+export function firstDestination(destinations: readonly BackupDestinationInfo[]): string {
+  return destinations[0]?.name ?? "";
+}
+
+/**
+ * Plans a daily backup of each volume in one step, as a database starts with (#793):
+ * at 03:00 in the install's zone, 7 kept, a restore tested weekly, a copy sent off the
+ * server where there's storage. The plan is the review.
+ */
+export function useBackUpDaily(): (
+  volumes: readonly VolumeChoice[],
+  destinations: readonly BackupDestinationInfo[],
+) => void {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  return (volumes, destinations) => {
+    const name = volumes[0]?.name ?? "";
+    sheet.open({
+      kind: "propose",
+      summary:
+        volumes.length === 1
+          ? t`Back up ${name} daily`
+          : plural(volumes.length, { one: "Back up # volume daily", other: "Back up # volumes daily" }),
+      edits: volumes.map((volume) => ({
+        resource: { kind: "backup.policy", scope: volume.environment, name: policyName(volume.name, "day") },
+        spec: {
+          kind: {
+            case: "backupPolicy" as const,
+            value: {
+              volume: volume.name,
+              every: Every.DAY,
+              at: "03:00",
+              timeZone: "",
+              keep: 7,
+              drill: Drill.WEEKLY,
+              destination: firstDestination(destinations),
+            },
+          },
+        },
+      })),
+    });
+  };
+}
 
 /**
  * The time zone at reads in, for the form to say: the install's from Settings, or
@@ -47,25 +108,38 @@ function useScheduleZone(): { zone: string | undefined; set: boolean } {
 export function PolicySheet({
   volumes,
   destinations,
+  editing,
   onClose,
 }: {
   volumes: readonly VolumeChoice[];
   destinations: readonly BackupDestinationInfo[];
+  /** A schedule to change, as it is now; unset makes a new one (#793). */
+  editing?: BackupPolicyInfo;
   onClose: () => void;
 }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
   const { zone, set: zoneSet } = useScheduleZone();
-  const [volumeId, setVolumeId] = useState(volumes[0]?.id ?? "");
-  const [how, setHow] = useState<How>("day");
-  const [at, setAt] = useState("03:00");
-  const [weekday, setWeekday] = useState("0");
-  const [keep, setKeep] = useState("7");
-  const [stop, setStop] = useState(true);
-  const [destination, setDestination] = useState("");
-  // A schedule checks that its backups restore weekly unless someone chooses otherwise (ADR 0068).
-  const [check, setCheck] = useState<Check>("week");
+  const was = editing?.spec;
+  const editedVolume = volumes.find((v) => v.name === was?.volume && v.environment === editing?.environmentId);
+  const [volumeId, setVolumeId] = useState(editedVolume?.id ?? volumes[0]?.id ?? "");
+  const [how, setHow] = useState<How>((was && HOW_OF[was.every]) || "day");
+  const [at, setAt] = useState(was?.at || "03:00");
+  const [weekday, setWeekday] = useState(String(was?.weekday ?? 0));
+  const [keep, setKeep] = useState(String(was?.keep || 7));
+  const [stop, setStop] = useState(was ? was.stop : true);
+  // Off the server by default, to the first storage there is (#793).
+  const [destination, setDestination] = useState(was ? was.destination : firstDestination(destinations));
+  const [addingStorage, setAddingStorage] = useState(false);
+  // Storage added from here is where this schedule's copies go.
+  const had = useRef(destinations.length);
+  useEffect(() => {
+    if (destinations.length > had.current && destination === "") setDestination(destinations.at(-1)?.name ?? "");
+    had.current = destinations.length;
+  }, [destinations, destination]);
+  // A schedule tests that its backups restore weekly unless someone chooses otherwise (ADR 0068).
+  const [check, setCheck] = useState<Check>((was && CHECK_OF[was.drill]) || "week");
   const volume = volumes.find((v) => v.id === volumeId);
   const options = useVolumeOptions(volumes);
   const preview = useQuery(
@@ -87,30 +161,29 @@ export function PolicySheet({
 
   const review = () => {
     if (!volume) return;
-    const name = policyName(volume.name, how);
+    // A schedule changed keeps what this form doesn't say, as an app's link (ADR 0084).
+    const value = was
+      ? clone(BackupPolicySchema, was)
+      : create(BackupPolicySchema, { volume: volume.name, timeZone: "" });
+    value.every = EVERY[how];
+    value.at = at;
+    value.weekday = Number(weekday);
+    value.keep = count;
+    value.stop = risky && stop;
+    value.destination = destination;
+    value.drill = DRILL[check];
+    const volumeName = volume.name;
     sheet.open({
       kind: "propose",
-      summary: t`Back up ${volume.name} on a schedule`,
+      summary: editing ? t`Change how ${volumeName} is backed up` : t`Back up ${volumeName} on a schedule`,
       edits: [
         {
-          resource: { kind: "backup.policy", scope: volume.environment, name },
-          spec: {
-            kind: {
-              case: "backupPolicy",
-              value: {
-                volume: volume.name,
-                every: EVERY[how],
-                at,
-                weekday: Number(weekday),
-                // Left out, so the control plane gives it the install's zone, whichever client makes it.
-                timeZone: "",
-                keep: count,
-                stop: risky && stop,
-                destination,
-                drill: DRILL[check],
-              },
-            },
+          resource: {
+            kind: "backup.policy",
+            scope: editing?.environmentId ?? volume.environment,
+            name: editing?.name ?? policyName(volume.name, how),
           },
+          spec: { kind: { case: "backupPolicy", value } },
         },
       ],
       onClose: (change) => {
@@ -123,7 +196,7 @@ export function PolicySheet({
     <Sheet
       open
       onClose={onClose}
-      title={t`Back up on a schedule`}
+      title={editing ? t`Change the schedule` : t`Back up on a schedule`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -136,7 +209,7 @@ export function PolicySheet({
       }
     >
       <div className="backup-sheet">
-        {volumes.length > 1 ? (
+        {volumes.length > 1 && !editing ? (
           <SelectField
             label={t`Volume`}
             mono
@@ -181,19 +254,19 @@ export function PolicySheet({
           label={t`Backups to keep`}
           inputMode="numeric"
           value={keep}
-          hint={t`The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes.`}
+          hint={t`The oldest goes once a new one is whole`}
           error={validKeep ? undefined : t`Use a number from 1 to 1000.`}
           onChange={(event) => setKeep(event.target.value)}
         />
         <div className="backup-sheet-check">
           <SegmentedControl<Check>
-            label={t`Check that it restores`}
+            label={t`Test restore`}
             value={check}
             onChange={setCheck}
             options={[
-              { value: "week", label: t`Check weekly` },
-              { value: "month", label: t`Check monthly` },
-              { value: "never", label: t`Never check` },
+              { value: "week", label: t`Weekly` },
+              { value: "month", label: t`Monthly` },
+              { value: "never", label: t`Never` },
             ]}
           />
           {check !== "never" ? (
@@ -208,9 +281,24 @@ export function PolicySheet({
           <SelectField
             label={t`Send a copy to`}
             value={destination}
-            options={destinationOptions(destinations, t`Nowhere else`)}
+            options={destinationOptions(destinations, t`Only this server`)}
             onChange={(event) => setDestination(event.target.value)}
           />
+        ) : (
+          // With no storage, the copies stay on the server's disk, and the way off it is here (#793).
+          <StateLine
+            status="degraded"
+            action={
+              <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+                <Trans>Add storage</Trans>
+              </button>
+            }
+          >
+            {t`Kept only on the server, unencrypted`}
+          </StateLine>
+        )}
+        {destination === "" && destinations.length > 0 ? (
+          <StateLine status="degraded">{t`Kept only on the server, unencrypted`}</StateLine>
         ) : null}
         {preview.error ? (
           <Callout tone="warning" title={t`Dockwell can't say what this costs`}>
@@ -250,6 +338,7 @@ export function PolicySheet({
           />
         ) : null}
       </div>
+      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
     </Sheet>
   );
 }

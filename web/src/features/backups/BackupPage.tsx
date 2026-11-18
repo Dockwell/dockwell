@@ -119,7 +119,7 @@ function Actions({ backup, size }: { backup: Backup; size?: "lg" }) {
           onClick={() => actions.check(backup)}
           {...may(BackupService.method.drillBackup, at).off}
         >
-          <Trans>Check it</Trans>
+          <Trans>Test restore</Trans>
         </Button>
       ) : null}
       {backup.copy === BackupCopy.STORED && !backup.onServer && backup.fetchOnto.length > 0 ? (
@@ -221,7 +221,7 @@ function Facts({ backup }: { backup: Backup }) {
           </div>
         ))}
         <div className="backup-fact">
-          <dt>{t`Checked`}</dt>
+          <dt>{t`Tested`}</dt>
           <dd>{backup.drill ? <DrillLine backup={backup} /> : <span className="backup-why">{t`Not yet`}</span>}</dd>
         </div>
       </dl>

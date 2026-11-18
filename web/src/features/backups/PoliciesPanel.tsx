@@ -12,10 +12,16 @@ import {
 } from "@dockwell/api";
 import { Button, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
+import { StateLine } from "../apps/DomainStep";
+import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { useScheduleWords } from "./words";
+import { useControlPlaneNow } from "../servers/useFleet";
+import { DestinationSheet } from "./DestinationSheet";
+import { useDestinations } from "./DestinationsPanel";
+import { useScheduleWords, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
@@ -29,10 +35,22 @@ export function usePolicies() {
 }
 
 /** Each schedule: what it does, when next, and how its last run went. */
-export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPolicyInfo[]; onAdd: () => void }) {
+export function PoliciesPanel({
+  policies,
+  onAdd,
+  onEdit,
+}: {
+  policies: readonly BackupPolicyInfo[];
+  onAdd: () => void;
+  /** Opens a schedule to change it (#793). */
+  onEdit: (policy: BackupPolicyInfo) => void;
+}) {
   const { t } = useLingui();
   // A schedule is a plan, which is a developer's: off, with why, for a viewer (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange);
+  // Where each is, where they're in more than one place, as several volumes share a name such as data.
+  const places = usePlaces();
+  const several = new Set(policies.map((p) => p.environmentId)).size > 1;
   return (
     <Panel
       title={t`Schedules`}
@@ -63,7 +81,12 @@ export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPo
       ) : (
         <ul className="backup-policies">
           {policies.map((policy) => (
-            <PolicyRow key={policy.id} policy={policy} />
+            <PolicyRow
+              key={policy.id}
+              policy={policy}
+              place={several ? places.label(policy.environmentId) : ""}
+              onEdit={() => onEdit(policy)}
+            />
           ))}
         </ul>
       )}
@@ -71,19 +94,27 @@ export function PoliciesPanel({ policies, onAdd }: { policies: readonly BackupPo
   );
 }
 
-function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
+function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place: string; onEdit: () => void }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const words = useScheduleWords();
+  const when = useWhen();
+  const now = useControlPlaneNow(30_000);
+  const destinations = useDestinations().data?.destinations ?? [];
+  const [addingStorage, setAddingStorage] = useState(false);
   // An app's database alone goes by its need's link (ADR 0084).
   const volume = policy.spec?.volume || policy.spec?.link || "";
   const failed = policy.last?.state === BackupState.FAILED;
   const copyFailed = policy.last?.copy === BackupCopy.FAILED;
   // In the schedule's own zone, as its time is, and named, as that may not be yours.
   const zone = policy.spec?.timeZone || "UTC";
-  const next = policy.nextRun ? formatDateTime(timestampDate(policy.nextRun), i18n.locale, zone) : "";
+  const nextAt = policy.nextRun ? timestampDate(policy.nextRun) : undefined;
+  const next = nextAt ? when(nextAt, now, zone) : "";
+  const nextWhole = nextAt ? formatDateTime(nextAt, i18n.locale, zone) : "";
+  const sentTo = policy.spec?.destination ?? "";
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
   const mayRemove = useMay()(ChangeService.method.proposeChange, { environment: policy.environmentId });
+  const actOff = mayRemove.allowed ? {} : { disabled: true, title: mayRemove.reason || undefined };
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -93,17 +124,41 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
   return (
     <li className="backup-policy">
       <div className="backup-state">
-        <code>{volume}</code>
+        <span>
+          <code>{volume}</code>
+          {place ? <span className="backup-why backup-place"> · {place}</span> : null}
+        </span>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
         {policy.spec?.link ? <span className="backup-why">{t`Its app's database alone`}</span> : null}
         <span className="backup-why">{keeps}</span>
         <span className="backup-why">
           {policy.spec?.drill === BackupPolicy_Drill.WEEKLY
-            ? t`Checks a restore weekly`
+            ? t`Tests a restore weekly`
             : policy.spec?.drill === BackupPolicy_Drill.MONTHLY
-              ? t`Checks a restore monthly`
-              : t`Doesn't check a restore`}
+              ? t`Tests a restore monthly`
+              : t`Never tests a restore`}
         </span>
+        {sentTo ? (
+          <span className="backup-why">{t`Copies sent to ${sentTo}, encrypted`}</span>
+        ) : (
+          // Kept on the disk it would be lost with: a warning, with the one thing that fixes it (#793).
+          <StateLine
+            status="degraded"
+            action={
+              destinations.length > 0 ? (
+                <button type="button" className="domain-step-act" onClick={onEdit} {...actOff}>
+                  <Trans>Send copies off the server</Trans>
+                </button>
+              ) : (
+                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+                  <Trans>Add storage</Trans>
+                </button>
+              )
+            }
+          >
+            {t`Kept only on the server, unencrypted`}
+          </StateLine>
+        )}
       </div>
       <div className="backup-state">
         {policy.last ? (
@@ -133,16 +188,29 @@ function PolicyRow({ policy }: { policy: BackupPolicyInfo }) {
         )}
         {failed ? <span className="backup-why">{policy.last?.error}</span> : null}
         {copyFailed ? <span className="backup-why">{policy.last?.copyError}</span> : null}
-        <span className="backup-why">{t`Next run ${next}`}</span>
+        <span className="backup-why" title={nextWhole}>
+          {t`Next run ${next}`}
+        </span>
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="trash"
-        aria-label={t`Stop this schedule`}
-        onClick={remove}
-        {...mayRemove.off}
-      />
+      <div className="backup-policy-actions">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="edit"
+          aria-label={t`Edit this schedule`}
+          onClick={onEdit}
+          {...mayRemove.off}
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          icon="trash"
+          aria-label={t`Stop this schedule`}
+          onClick={remove}
+          {...mayRemove.off}
+        />
+      </div>
+      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
     </li>
   );
 }

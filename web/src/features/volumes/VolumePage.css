@@ -103,3 +103,23 @@
 .volume-actionbar .dw-btn {
   flex: 1 1 auto;
 }
+
+/* Delete, with why it's off beside it and the way to what mounts it (#793). */
+.volume-delete {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2) var(--space-3);
+}
+
+.volume-delete-why {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.volume-actionbar .volume-delete {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}

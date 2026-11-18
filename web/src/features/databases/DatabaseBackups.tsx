@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Database } from "@dockwell/api";
+import type { BackupPolicyInfo, Database } from "@dockwell/api";
+import { BackupPolicy_Drill, ChangeService } from "@dockwell/api";
 import { Button, Callout, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { StateLine } from "../apps/DomainStep";
+import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { BackupRows } from "../backups/BackupsPage";
+import { DestinationSheet } from "../backups/DestinationSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
-import { PolicySheet } from "../backups/PolicySheet";
+import { PolicySheet, useBackUpDaily } from "../backups/PolicySheet";
 import { useBackups, type VolumeChoice } from "../backups/useBackups";
 import { useScheduleWords } from "../backups/words";
 import { EmptyState } from "../shell/EmptyState";
@@ -44,13 +48,20 @@ function VolumeBackups({ db }: { db: Database }) {
   const destinations = useDestinations().data?.destinations ?? [];
   const schedule = useScheduleWords();
   const [taking, setTaking] = useState(false);
-  const [scheduling, setScheduling] = useState(false);
+  const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
+  const [addingStorage, setAddingStorage] = useState(false);
+  const backUpDaily = useBackUpDaily();
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
+  // A state's action is a plain button: off, with why on hover, where a plan isn't theirs (ADR 0059).
+  const actOff = mayPlan.allowed ? {} : { disabled: true, title: mayPlan.reason || undefined };
   const name = db.resource?.name ?? "";
   const engine = engineName(db.engine);
   const dumpOf = how.database || engine;
   const backups = query.data?.backups ?? [];
   const volumes: VolumeChoice[] = [{ id: db.volumeId, name: db.volume, environment: db.resource?.scope ?? "" }];
   const policy = policies[0];
+  const sentTo = policy?.spec?.destination ?? "";
+  const kept = policy?.spec?.keep ?? 0;
   const takeOne = (
     <Button variant="primary" icon="archive" onClick={() => setTaking(true)}>
       <Trans>Back up now</Trans>
@@ -74,6 +85,30 @@ function VolumeBackups({ db }: { db: Database }) {
         }
       >
         <dl className="databases-facts">
+          {policy?.spec ? (
+            <>
+              <div className="databases-fact">
+                <dt>{t`Keeps`}</dt>
+                <dd>{t`The newest ${kept}`}</dd>
+              </div>
+              <div className="databases-fact">
+                <dt>{t`Test restore`}</dt>
+                <dd>
+                  {policy.spec.drill === BackupPolicy_Drill.WEEKLY
+                    ? t`Weekly`
+                    : policy.spec.drill === BackupPolicy_Drill.MONTHLY
+                      ? t`Monthly`
+                      : t`Never`}
+                </dd>
+              </div>
+              {policy.spec.destination ? (
+                <div className="databases-fact">
+                  <dt>{t`Copies`}</dt>
+                  <dd>{t`Sent to ${sentTo}, encrypted`}</dd>
+                </div>
+              ) : null}
+            </>
+          ) : null}
           {how.known ? (
             <div className="databases-fact">
               <dt>{t`How`}</dt>
@@ -89,11 +124,55 @@ function VolumeBackups({ db }: { db: Database }) {
             <dd>{t`A plan, which keeps what it replaces for 7 days`}</dd>
           </div>
         </dl>
+        {/* What's wrong with how it's backed up, as a state with the one thing that fixes it (#793). */}
+        {!policy ? (
+          <StateLine
+            status="degraded"
+            action={
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={() => backUpDaily(volumes, destinations)}
+                {...actOff}
+              >
+                <Trans>Back up daily</Trans>
+              </button>
+            }
+          >
+            {t`Not backed up on a schedule`}
+          </StateLine>
+        ) : policy.spec && !policy.spec.destination ? (
+          <StateLine
+            status="degraded"
+            action={
+              destinations.length > 0 ? (
+                <button
+                  type="button"
+                  className="domain-step-act"
+                  onClick={() => setScheduling({ editing: policy })}
+                  {...actOff}
+                >
+                  <Trans>Send copies off the server</Trans>
+                </button>
+              ) : (
+                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+                  <Trans>Add storage</Trans>
+                </button>
+              )
+            }
+          >
+            {t`Kept only on the server, unencrypted`}
+          </StateLine>
+        ) : null}
         <div className="databases-panel-actions">
           {takeOne}
-          {policy ? null : (
-            <Button variant="secondary" icon="calendar" onClick={() => setScheduling(true)}>
-              <Trans>Back up on a schedule</Trans>
+          {policy ? (
+            <Button variant="secondary" icon="edit" onClick={() => setScheduling({ editing: policy })} {...mayPlan.off}>
+              <Trans>Edit schedule</Trans>
+            </Button>
+          ) : (
+            <Button variant="secondary" icon="calendar" onClick={() => setScheduling({})} {...mayPlan.off}>
+              <Trans>Choose a schedule</Trans>
             </Button>
           )}
         </div>
@@ -116,8 +195,14 @@ function VolumeBackups({ db }: { db: Database }) {
         />
       ) : null}
       {scheduling ? (
-        <PolicySheet volumes={volumes} destinations={destinations} onClose={() => setScheduling(false)} />
+        <PolicySheet
+          volumes={volumes}
+          destinations={destinations}
+          editing={scheduling.editing}
+          onClose={() => setScheduling(undefined)}
+        />
       ) : null}
+      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
     </div>
   );
 }

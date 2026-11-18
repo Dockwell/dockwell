@@ -2,7 +2,16 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
-import { type Backup, BackupState, type Database, Engine, type Event, EventKind, EventService } from "@dockwell/api";
+import {
+  type Backup,
+  BackupState,
+  ChangeService,
+  type Database,
+  Engine,
+  type Event,
+  EventKind,
+  EventService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -31,11 +40,16 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe } from "../activity/describe";
+import { StateLine } from "../apps/DomainStep";
 import { HealthBadge, useHealthWords } from "../apps/Health";
 import { type HealthView, useHealth } from "../apps/health";
 import { usePlaces, useServicesNamed } from "../apps/useServices";
+import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
+import { DestinationSheet } from "../backups/DestinationSheet";
+import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
+import { useBackUpDaily } from "../backups/PolicySheet";
 import type { VolumeChoice } from "../backups/useBackups";
 import { useMethodWord, useScheduleWords } from "../backups/words";
 import { type EngineGroup, useEngineGroups } from "../catalog/engines";
@@ -206,18 +220,19 @@ function useBackupWords() {
   const schedule = useScheduleWords();
   const time = useTimeWords();
   const policies = usePolicies().data?.policies ?? [];
-  return (db: Database, now: number): { how: string; when: string } => {
-    if (!db.volume) return { how: t`No volume`, when: "" };
-    if (db.volumeExternal) return { how: t`In a volume Dockwell didn't make`, when: "" };
+  return (db: Database, now: number): { how: string; when: string; unscheduled: boolean } => {
+    if (!db.volume) return { how: t`No volume`, when: "", unscheduled: false };
+    if (db.volumeExternal) return { how: t`In a volume Dockwell didn't make`, when: "", unscheduled: false };
     const policy = policiesOf(db, policies)[0];
-    const how = policy?.spec ? schedule(policy.spec) : t`By hand`;
+    const how = policy?.spec ? schedule(policy.spec) : t`Not scheduled`;
+    const unscheduled = !policy;
     const failed = db.latestBackup?.state === BackupState.FAILED ? db.latestBackup.startedAt : undefined;
     if (failed) {
       const ago = time.ago(timestampDate(failed), now);
-      return { how, when: t`the last failed, ${ago}` };
+      return { how, when: t`the last failed, ${ago}`, unscheduled };
     }
     const newest = db.newestBackup?.startedAt;
-    return { how, when: newest ? time.ago(timestampDate(newest), now) : t`none yet` };
+    return { how, when: newest ? time.ago(timestampDate(newest), now) : t`none yet`, unscheduled };
   };
 }
 
@@ -244,6 +259,9 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
   const health = useHealth();
   const heads = useColumnHeads(fleet);
   const backups = useBackupWords();
+  const backUpDaily = useBackUpDaily();
+  const destinations = useDestinations().data?.destinations ?? [];
+  const mayPlan = useMay();
   const now = useAgoNow(undefined);
   const places = usePlaces();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
@@ -270,8 +288,29 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
       );
     },
     backups: (db) => {
-      const { how, when } = backups(db, now);
-      return (
+      const { how, when, unscheduled } = backups(db, now);
+      const may = mayPlan(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
+      return unscheduled ? (
+        // A database with no schedule says so, with the one step that gives it one (#793).
+        <span className="databases-backup-off">
+          <span>
+            {how}
+            {when ? <span className="databases-muted">{` · ${when}`}</span> : null}
+          </span>
+          <button
+            type="button"
+            className="domain-step-act"
+            disabled={!may.allowed}
+            title={may.reason || undefined}
+            onClick={(event) => {
+              event.stopPropagation();
+              backUpDaily([{ id: db.volumeId, name: db.volume, environment: db.resource?.scope ?? "" }], destinations);
+            }}
+          >
+            <Trans>Back up daily</Trans>
+          </button>
+        </span>
+      ) : (
         <span>
           {how}
           {when ? <span className="databases-muted">{` · ${when}`}</span> : null}
@@ -593,6 +632,9 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const schedule = useScheduleWords();
   const time = useTimeWords();
   const [taking, setTaking] = useState(false);
+  const [addingStorage, setAddingStorage] = useState(false);
+  const backUpDaily = useBackUpDaily();
+  const allDestinations = useDestinations().data?.destinations ?? [];
   // Where each is, as its row says it, where they're in more than one place, as several can share a name such as db.
   const places = usePlaces();
   const several = new Set(databases.map((d) => d.resource?.scope)).size > 1;
@@ -617,6 +659,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
     name: db.volume,
     environment: db.resource?.scope ?? "",
   }));
+  const unscheduled = withVolume.filter((db) => !db.volumeExternal && policiesOf(db, policies).length === 0);
   const status =
     withVolume.length > 0 && scheduled.length === withVolume.length ? (
       <StatusBadge status="healthy" label={t`On schedule`} />
@@ -638,7 +681,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
               ? t`In a volume Dockwell didn't make`
               : [
                   method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") || engineName(db.engine),
-                  policy?.spec ? schedule(policy.spec) : t`by hand`,
+                  policy?.spec ? schedule(policy.spec) : t`not scheduled`,
                 ].join(", ");
           return (
             <div key={db.id} className="databases-fact">
@@ -670,9 +713,50 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
         </div>
         <div className="databases-fact">
           <dt>{t`Destination`}</dt>
-          <dd>{destinations.length > 0 ? destinations.join(", ") : t`Each server's own disk`}</dd>
+          <dd>{destinations.length > 0 ? destinations.join(", ") : t`Each server's disk alone, unencrypted`}</dd>
         </div>
       </dl>
+      {/* What's missing, as states with the one step that fixes each (#793). */}
+      {unscheduled.length > 0 ? (
+        <StateLine
+          status="degraded"
+          action={
+            <button
+              type="button"
+              className="domain-step-act"
+              onClick={() =>
+                backUpDaily(
+                  unscheduled.map((db) => ({
+                    id: db.volumeId,
+                    name: db.volume,
+                    environment: db.resource?.scope ?? "",
+                  })),
+                  allDestinations,
+                )
+              }
+            >
+              {unscheduled.length === 1 ? <Trans>Back it up daily</Trans> : <Trans>Back them up daily</Trans>}
+            </button>
+          }
+        >
+          {plural(unscheduled.length, {
+            one: "# isn't backed up on a schedule",
+            other: "# aren't backed up on a schedule",
+          })}
+        </StateLine>
+      ) : null}
+      {scheduled.length > 0 && destinations.length === 0 && allDestinations.length === 0 ? (
+        <StateLine
+          status="degraded"
+          action={
+            <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+              <Trans>Add storage</Trans>
+            </button>
+          }
+        >
+          {t`Kept only on each server, unencrypted`}
+        </StateLine>
+      ) : null}
       <div className="databases-panel-actions">
         {volumes.length > 0 ? (
           <Button size="sm" icon="archive" onClick={() => setTaking(true)}>
@@ -684,6 +768,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
         </RouterButtonLink>
       </div>
       {taking ? <BackUpSheet volumes={volumes} onClose={() => setTaking(false)} /> : null}
+      {addingStorage ? <DestinationSheet existing={allDestinations} onClose={() => setAddingStorage(false)} /> : null}
     </Panel>
   );
 }

@@ -5,6 +5,9 @@ import type { Status } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { useCallback } from "react";
 
+import { formatDateTime } from "../../lib/format";
+import { useTimeWords } from "../../lib/time";
+
 /** How a backup's state reads. */
 export function backupStatus(backup: Backup): Status {
   switch (backup.state) {
@@ -93,4 +96,33 @@ export function policyName(volume: string, how: string): string {
     .replace(/^-+|-+$/g, "");
   const every = { hour: "hourly", day: "daily", week: "weekly" }[how] ?? how;
   return /^[a-z]/.test(name) ? `${name.slice(0, 50)}-${every}` : `backup-${name.slice(0, 50)}-${every}`;
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/**
+ * When a run was or will be, as a person reads it: "5 min ago" or "in 7 h" within a
+ * day, the date past that, in zone where a schedule keeps one (#793).
+ */
+export function useWhen(): (date: Date, now: number, zone?: string) => string {
+  const { t, i18n } = useLingui();
+  const time = useTimeWords();
+  return useCallback(
+    (date, now, zone) => {
+      const ms = date.getTime() - now;
+      if (ms < 0 && -ms < DAY) return time.ago(date, now);
+      if (ms >= 0 && ms < HOUR) {
+        const minutes = Math.max(1, Math.round(ms / MINUTE));
+        return t`in ${minutes} min`;
+      }
+      if (ms >= 0 && ms < DAY) {
+        const hours = Math.round(ms / HOUR);
+        return t`in ${hours} h`;
+      }
+      return formatDateTime(date, i18n.locale, zone);
+    },
+    [t, i18n.locale, time],
+  );
 }

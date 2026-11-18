@@ -662,19 +662,24 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
         detail: t`That's what the server kept on ${taken}, ${size}.`,
         more: t`What's in the volume now goes to a copy the server keeps for 7 days.`,
       });
-    } else if (restore.method === BackupMethod.DUMP) {
-      out.push({
-        key: `restore-${key}`,
-        title: t`Everything in ${name} on ${server} is replaced with the dump from ${taken}`,
-        detail: t`${database} starts anew on an empty volume and loads the dump, ${size}, so what was made since goes.`,
-        more: t`Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`,
-      });
     } else {
+      // A title and one sentence, what stops in it; the rest is How this works (#793).
+      const stopping = restore.stops.length > 0;
+      const dump = restore.method === BackupMethod.DUMP;
       out.push({
         key: `restore-${key}`,
-        title: t`Everything in ${name} on ${server} is replaced with the copy from ${taken}`,
-        detail: t`That copy is ${size}, and what was made since goes.`,
-        more: t`The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
+        title: dump
+          ? t`Replaces ${name} on ${server} with the dump from ${taken}`
+          : t`Replaces ${name} on ${server} with the copy from ${taken}`,
+        detail: stopping
+          ? plural(restore.stops.length, {
+              one: `${list} stops while it loads, and what was made since goes.`,
+              other: `${list} stop while it loads, and what was made since goes.`,
+            })
+          : t`What was made since goes.`,
+        more: dump
+          ? t`${database} starts anew on an empty volume and loads the dump, ${size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back.`
+          : t`The copy is ${size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back.`,
       });
     }
     if (restore.method === BackupMethod.COPY_RUNNING) {
@@ -684,7 +689,8 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
         more: t`Files changed as they were read, so it can hold half a write, and the app may not start from it.`,
       });
     }
-    if (restore.stops.length > 0) {
+    // What stops is in the restore's own sentence, but for an undo's.
+    if (restore.stops.length > 0 && restore.undoes !== "") {
       out.push({
         key: `restore-stops-${key}`,
         title: plural(restore.stops.length, {

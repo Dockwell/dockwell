@@ -7221,12 +7221,6 @@ msgstr "{volume} 的备份"
 msgid "Can't check it now: {0}"
 msgstr "现在无法检查：{0}"
 
-msgid "Check it"
-msgstr "检查"
-
-msgid "Checked"
-msgstr "已检查"
-
 msgid "Delete this backup"
 msgstr "删除此备份"
 
@@ -7263,6 +7257,12 @@ msgstr "计划"
 msgid "Started"
 msgstr "开始时间"
 
+msgid "Test restore"
+msgstr "测试恢复"
+
+msgid "Tested"
+msgstr "已测试"
+
 msgid "The server's disk"
 msgstr "服务器磁盘"
 
@@ -7285,15 +7285,6 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
 
-msgid "Check it restores"
-msgstr "检查能否恢复"
-
-msgid "Check weekly"
-msgstr "每周检查"
-
-msgid "Checking it restores"
-msgstr "正在检查能否恢复"
-
 msgid "Delete from both"
 msgstr "从两处都删除"
 
@@ -7306,6 +7297,9 @@ msgstr "删除 {0} 的这份备份"
 
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell 无法读取备份"
+
+msgid "Failed {ago}"
+msgstr "{ago}失败"
 
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
@@ -7329,20 +7323,26 @@ msgstr "未能删除"
 msgid "Its server can't restore this now: it's away, or no longer has the volume"
 msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不再有该卷"
 
+msgid "Monthly"
+msgstr "每月"
+
 msgid "No backups yet"
 msgstr "还没有备份"
 
-msgid "Not checked: {why}"
-msgstr "未检查：{why}"
+msgid "Not tested yet"
+msgstr "尚未测试"
+
+msgid "Not tested: {why}"
+msgstr "未测试：{why}"
 
 msgid "Nothing to back up yet"
 msgstr "还没有可备份的内容"
 
-msgid "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
-msgstr "保存在各服务器自己的磁盘上，未加密；在你要求时也会加密保存到目标位置"
+msgid "On each server's disk alone, unencrypted"
+msgstr "仅在各服务器的磁盘上，未加密"
 
-msgid "On each server's own disk, unencrypted, so they go if the server does"
-msgstr "保存在各服务器自己的磁盘上，未加密，服务器没了它们也就没了"
+msgid "On each server's disk, and sealed off it where a schedule says"
+msgstr "在各服务器的磁盘上，按计划另存加密副本到服务器之外"
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
@@ -7353,17 +7353,23 @@ msgstr "在 {0} 上"
 msgid "Onto"
 msgstr "取回到"
 
+msgid "Passed {ago}"
+msgstr "{ago}通过"
+
 msgid "Recent runs"
 msgstr "最近的运行"
 
 msgid "Remove from the server only"
 msgstr "仅从服务器移除"
 
-msgid "Restore check failed {ago}: {why}"
-msgstr "恢复检查失败（{ago}）：{why}"
+msgid "Restore test failed {ago}: {why}"
+msgstr "恢复测试{ago}失败：{why}"
 
-msgid "Restored and checked {ago}"
-msgstr "已恢复并检查（{ago}）"
+msgid "Restore tested {ago}"
+msgstr "{ago}已测试恢复"
+
+msgid "Restore tests"
+msgstr "恢复测试"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "使用较早的密码短语加密"
@@ -7371,6 +7377,15 @@ msgstr "使用较早的密码短语加密"
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "正在发送到 {0}"
+
+msgid "Test again"
+msgstr "再次测试"
+
+msgid "Test weekly"
+msgstr "每周测试"
+
+msgid "Testing a restore"
+msgstr "正在测试恢复"
 
 msgid "This backup didn't come back"
 msgstr "未能取回此备份"
@@ -7402,12 +7417,12 @@ msgid "{0, plural, one {# file changed while it copied} other {# files changed w
 msgstr "{0, plural, other {# 个文件在复制时发生了变化}}"
 
 #. placeholder {0}: unchecked.length
-msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
-msgstr "{0, plural, other {# 个计划从不检查恢复}}"
+msgid "{0, plural, one {# schedule never tests a restore} other {# schedules never test a restore}}"
+msgstr "{0, plural, other {# 个计划从不测试恢复}}"
 
 #. placeholder {0}: unchecked.length
-msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
-msgstr "{0, plural, other {每周检查 # 个计划的备份能否恢复}}"
+msgid "{0, plural, one {Test a restore of # schedule's backups weekly} other {Test a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, other {每周测试 # 个计划的备份能否恢复}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, other {# 个备份}}"
@@ -7539,9 +7554,6 @@ msgstr "{0, plural, other {已登录 · # 个存储桶}}"
 msgid "{bucket} is in {movedTo}"
 msgstr "{bucket} 在 {movedTo}"
 
-msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
-msgstr "添加兼容 S3 的存储（例如 Cloudflare R2），在服务器之外保留一份副本。"
-
 msgid "Add storage"
 msgstr "添加存储"
 
@@ -7555,8 +7567,8 @@ msgstr "上传前在各服务器上加密"
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
 
-msgid "Only on each server's disk"
-msgstr "只保存在各服务器的磁盘上"
+msgid "Only on each server's disk, unencrypted"
+msgstr "仅在各服务器的磁盘上，未加密"
 
 msgid "Remove this destination"
 msgstr "移除此目的地"
@@ -7576,14 +7588,11 @@ msgstr "手动备份会一直保留，直到你删除它。"
 msgid "Add a schedule"
 msgstr "添加备份计划"
 
-msgid "Checks a restore monthly"
-msgstr "每月检查恢复"
+msgid "Copies sent to {sentTo}, encrypted"
+msgstr "副本加密后发送到 {sentTo}"
 
-msgid "Checks a restore weekly"
-msgstr "每周检查恢复"
-
-msgid "Doesn't check a restore"
-msgstr "不检查恢复"
+msgid "Edit this schedule"
+msgstr "编辑此计划"
 
 msgid "Hasn't run yet"
 msgstr "尚未运行"
@@ -7597,11 +7606,17 @@ msgstr "只有它的应用的数据库"
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "保留 {0} 份，当前有 {1} 份（{2}）"
 
+msgid "Kept only on the server, unencrypted"
+msgstr "仅保存在服务器上，未加密"
+
 msgid "Last copy failed"
 msgstr "上次副本发送失败"
 
 msgid "Last run failed"
 msgstr "上次运行失败"
+
+msgid "Never tests a restore"
+msgstr "从不测试恢复"
 
 msgid "Next run {next}"
 msgstr "下次运行 {next}"
@@ -7615,11 +7630,20 @@ msgstr "按计划运行"
 msgid "Schedules"
 msgstr "备份计划"
 
+msgid "Send copies off the server"
+msgstr "把副本发送到服务器之外"
+
 msgid "Stop backing up {volume} on a schedule"
 msgstr "停止按计划备份 {volume}"
 
 msgid "Stop this schedule"
 msgstr "停止此计划"
+
+msgid "Tests a restore monthly"
+msgstr "每月测试一次恢复"
+
+msgid "Tests a restore weekly"
+msgstr "每周测试一次恢复"
 
 #. placeholder {0}: words(policy.spec)
 msgid "{0}, {zone}"
@@ -7631,18 +7655,20 @@ msgstr "时间"
 msgid "Back up on a schedule"
 msgstr "按计划备份"
 
-#. placeholder {0}: volume.name
-msgid "Back up {0} on a schedule"
-msgstr "按计划备份 {0}"
+msgid "Back up {name} daily"
+msgstr "每天备份 {name}"
+
+msgid "Back up {volumeName} on a schedule"
+msgstr "按计划备份 {volumeName}"
 
 msgid "Backups to keep"
 msgstr "保留的备份数"
 
-msgid "Check monthly"
-msgstr "每月检查"
+msgid "Change how {volumeName} is backed up"
+msgstr "更改 {volumeName} 的备份方式"
 
-msgid "Check that it restores"
-msgstr "检查能否恢复"
+msgid "Change the schedule"
+msgstr "更改计划"
 
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell 无法估算占用空间"
@@ -7667,8 +7693,8 @@ msgstr "保留 {count} 份在下次备份期间约占 {0}；磁盘还有 {1}。�
 msgid "Minutes past the hour, as 00:MM"
 msgstr "每小时的分钟数，格式为 00:MM"
 
-msgid "Never check"
-msgstr "从不检查"
+msgid "Only this server"
+msgstr "仅此服务器"
 
 msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
 msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即弃的副本中，最长 6 小时。"
@@ -7680,8 +7706,8 @@ msgstr "在每次运行一小时后，把最新的备份恢复到一个用后即
 msgid "Stop {running} for each backup"
 msgstr "每次备份时停止 {running}"
 
-msgid "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
-msgstr "新备份完整后才会删除最旧的备份。失败的运行不会删除任何内容，手动备份也不会被删除。"
+msgid "The oldest goes once a new one is whole"
+msgstr "新备份完整后删除最旧的"
 
 msgid "This may not fit"
 msgstr "可能放不下"
@@ -7694,6 +7720,10 @@ msgstr "正在运行的内容会继续运行，因此每份副本都可能包含
 
 msgid "What stops starts again once the copy ends, however that goes. Each copy is exact."
 msgstr "无论结果如何，复制结束后被停止的内容都会重新启动。每份副本都是精确的。"
+
+#. placeholder {0}: volumes.length
+msgid "{0, plural, one {Back up # volume daily} other {Back up # volumes daily}}"
+msgstr "{0, plural, other {每天备份 # 个卷}}"
 
 #. placeholder {0}: formatBytes(each, i18n.locale)
 #. placeholder {1}: formatBytes(total, i18n.locale)
@@ -10635,12 +10665,6 @@ msgstr "它们会照常运行。"
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
 
-msgid "Everything in {name} on {server} is replaced with the copy from {taken}"
-msgstr "{server} 上 {name} 的全部内容会被替换为 {taken} 的副本"
-
-msgid "Everything in {name} on {server} is replaced with the dump from {taken}"
-msgstr "{server} 上 {name} 的全部内容会被替换为 {taken} 的转储"
-
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "文件在读取时发生了变化，因此可能包含写到一半的内容，应用可能无法从中启动。"
 
@@ -10845,9 +10869,6 @@ msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "从此目录安装的应用不会升级到它们。"
 
-msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
-msgstr "密码会恢复为当时的值。如果无法加载，现在的内容会恢复回来。服务器会将其副本保留 7 天，撤销此操作即可恢复。"
-
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "将重新拉取 {image}，只有镜像更新时才会替换 {name}。"
 
@@ -10862,6 +10883,12 @@ msgstr "Railpack 提示：{warning}"
 
 msgid "Read it for the rest before you pass one a secret."
 msgstr "在向其中传入密钥之前，请先阅读文件中的其余部分。"
+
+msgid "Replaces {name} on {server} with the copy from {taken}"
+msgstr "用 {taken} 的副本替换 {server} 上的 {name}"
+
+msgid "Replaces {name} on {server} with the dump from {taken}"
+msgstr "用 {taken} 的转储替换 {server} 上的 {name}"
 
 msgid "Restore {which}, from {when}, from Backups after this."
 msgstr "完成后请在“备份”中恢复 {which}，创建于 {when}。"
@@ -10898,9 +10925,6 @@ msgstr "移除 {names}"
 msgid "Takes {ids} from another catalog"
 msgstr "从另一个目录接管 {ids}"
 
-msgid "That copy is {size}, and what was made since goes."
-msgstr "该副本大小为 {size}，之后产生的内容将丢失。"
-
 msgid "That goes beyond what Docker gives a container by default."
 msgstr "这超出了 Docker 默认给容器的权限。"
 
@@ -10928,6 +10952,9 @@ msgstr "应用目录不会显示这个提交中的任何应用。"
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "控制平面通过 DNS 证明 {path}。服务器上的密钥会从那里为其域名提供服务，因此第一次需要你用通行密钥确认。"
 
+msgid "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "副本大小为 {size}。服务器会把现有内容保留 7 天，撤销即可恢复。"
+
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
 
@@ -10942,9 +10969,6 @@ msgstr "{name} 备份的一小时时限只是估计"
 
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
-
-msgid "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
-msgstr "服务器会将现在的内容保留 7 天，撤销此操作即可恢复。"
 
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "服务器会将这些数据保留 7 天，撤销可以恢复。此后数据将被删除。"
@@ -11071,6 +11095,9 @@ msgstr "卷恢复后，被停止的内容会重新启动。如果恢复失败，
 msgid "What to do first"
 msgstr "首先要做的事"
 
+msgid "What was made since goes."
+msgstr "此后产生的内容会丢失。"
+
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "卷中现在的内容会存入服务器保留 7 天的副本。"
 
@@ -11132,6 +11159,10 @@ msgid "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at}
 msgstr "{0, plural, other {这是 {at} 所在的提交。}}"
 
 #. placeholder {0}: restore.stops.length
+msgid "{0, plural, one {{list} stops while it loads, and what was made since goes.} other {{list} stop while it loads, and what was made since goes.}}"
+msgstr "{0, plural, other {{list} 在加载期间停止，此后产生的内容会丢失。}}"
+
+#. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, other {{list} 会在此期间停止}}"
 
@@ -11163,8 +11194,8 @@ msgstr "{count, plural, other {应用目录将显示这个提交中的 # 个应�
 msgid "{counts} {lifting}"
 msgstr "{counts}{lifting}"
 
-msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
-msgstr "{database} 会在空卷上重新开始并加载转储（{size}），因此之后产生的内容将丢失。"
+msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "{database} 会在空卷上重新启动并加载转储（{size}）。密码会恢复为当时的值。如果无法加载，现有内容会恢复。服务器会保留其副本 7 天，撤销即可恢复。"
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"
@@ -11420,6 +11451,9 @@ msgstr "构建并部署 {commit}"
 
 msgid "Building and deploying {commit}"
 msgstr "正在构建并部署 {commit}"
+
+msgid "Checked"
+msgstr "已检查"
 
 msgid "Couldn't check"
 msgstr "无法检查"
@@ -12694,17 +12728,38 @@ msgstr "通过计划进行，被替换的内容保留 7 天"
 msgid "Backups of {name}, newest first"
 msgstr "{name} 的备份，最新在前"
 
+msgid "Choose a schedule"
+msgstr "选择计划"
+
+msgid "Copies"
+msgstr "副本"
+
 msgid "Dockwell can't read the backups of {name}"
 msgstr "Dockwell 无法读取 {name} 的备份"
+
+msgid "Edit schedule"
+msgstr "编辑计划"
 
 msgid "How it's backed up"
 msgstr "备份方式"
 
+msgid "Keeps"
+msgstr "保留"
+
 msgid "No backups of {name} yet"
 msgstr "{name} 还没有备份"
 
+msgid "Not backed up on a schedule"
+msgstr "没有按计划备份"
+
 msgid "Restoring"
 msgstr "恢复"
+
+msgid "Sent to {sentTo}, encrypted"
+msgstr "加密后发送到 {sentTo}"
+
+msgid "The newest {kept}"
+msgstr "最新的 {kept} 个"
 
 msgid "{dumpOf}'s own dump, while it runs"
 msgstr "{dumpOf} 自带的转储，运行中进行"
@@ -12981,11 +13036,14 @@ msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 msgid "+{left}"
 msgstr "+{left}"
 
+msgid "Back it up daily"
+msgstr "每天备份它"
+
+msgid "Back them up daily"
+msgstr "每天备份它们"
+
 msgid "Beside it"
 msgstr "同环境服务"
-
-msgid "By hand"
-msgstr "手动"
 
 msgid "Create a database"
 msgstr "创建数据库"
@@ -12996,8 +13054,8 @@ msgstr "存放位置"
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell 无法读取数据库"
 
-msgid "Each server's own disk"
-msgstr "各服务器自己的磁盘"
+msgid "Each server's disk alone, unencrypted"
+msgstr "仅各服务器的磁盘，未加密"
 
 msgid "Engines"
 msgstr "数据库引擎"
@@ -13007,6 +13065,9 @@ msgstr "从应用目录安装，密码保存为密钥"
 
 msgid "In a volume Dockwell didn't make"
 msgstr "在非 Dockwell 创建的卷中"
+
+msgid "Kept only on each server, unencrypted"
+msgstr "仅保存在各服务器上，未加密"
 
 msgid "Last run"
 msgstr "最近运行"
@@ -13026,6 +13087,9 @@ msgstr "没有卷"
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
 
+msgid "Not scheduled"
+msgstr "未安排"
+
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "服务器上没有任何改动。页面会自动重试。"
 
@@ -13044,14 +13108,18 @@ msgstr "部分按计划运行"
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "在它的页面接管：它会继续运行，无需重启。"
 
-msgid "by hand"
-msgstr "手动"
-
 msgid "none yet"
 msgstr "尚无"
 
+msgid "not scheduled"
+msgstr "未安排"
+
 msgid "the last failed, {ago}"
 msgstr "最近一次失败，{ago}"
+
+#. placeholder {0}: unscheduled.length
+msgid "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
+msgstr "{0, plural, other {# 个没有按计划备份}}"
 
 msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
 msgstr "{count, plural, other {# 个数据库运行在非 Dockwell 创建的容器中}}"
@@ -19471,9 +19539,6 @@ msgstr "下一个：{0}，{1}"
 msgid "No scheduled tasks yet"
 msgstr "还没有计划任务"
 
-msgid "Not scheduled"
-msgstr "未安排"
-
 msgid "On its own schedule"
 msgstr "按自定义计划"
 
@@ -20414,6 +20479,9 @@ msgstr "所在服务器"
 
 msgid "Open its files"
 msgstr "打开它的文件"
+
+msgid "Open {firstName}"
+msgstr "打开 {firstName}"
 
 msgid "Reading the volume"
 msgstr "正在读取卷"

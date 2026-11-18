@@ -7221,12 +7221,6 @@ msgstr "Backup of {volume}"
 msgid "Can't check it now: {0}"
 msgstr "Can't check it now: {0}"
 
-msgid "Check it"
-msgstr "Check it"
-
-msgid "Checked"
-msgstr "Checked"
-
 msgid "Delete this backup"
 msgstr "Delete this backup"
 
@@ -7263,6 +7257,12 @@ msgstr "Schedule"
 msgid "Started"
 msgstr "Started"
 
+msgid "Test restore"
+msgstr "Test restore"
+
+msgid "Tested"
+msgstr "Tested"
+
 msgid "The server's disk"
 msgstr "The server's disk"
 
@@ -7285,15 +7285,6 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
 
-msgid "Check it restores"
-msgstr "Check it restores"
-
-msgid "Check weekly"
-msgstr "Check weekly"
-
-msgid "Checking it restores"
-msgstr "Checking it restores"
-
 msgid "Delete from both"
 msgstr "Delete from both"
 
@@ -7306,6 +7297,9 @@ msgstr "Delete this backup of {0}"
 
 msgid "Dockwell can't read its backups"
 msgstr "Dockwell can't read its backups"
+
+msgid "Failed {ago}"
+msgstr "Failed {ago}"
 
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
@@ -7329,20 +7323,26 @@ msgstr "It wasn't deleted"
 msgid "Its server can't restore this now: it's away, or no longer has the volume"
 msgstr "Its server can't restore this now: it's away, or no longer has the volume"
 
+msgid "Monthly"
+msgstr "Monthly"
+
 msgid "No backups yet"
 msgstr "No backups yet"
 
-msgid "Not checked: {why}"
-msgstr "Not checked: {why}"
+msgid "Not tested yet"
+msgstr "Not tested yet"
+
+msgid "Not tested: {why}"
+msgstr "Not tested: {why}"
 
 msgid "Nothing to back up yet"
 msgstr "Nothing to back up yet"
 
-msgid "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
-msgstr "On each server's own disk, unencrypted, and sealed on a destination where you ask for it"
+msgid "On each server's disk alone, unencrypted"
+msgstr "On each server's disk alone, unencrypted"
 
-msgid "On each server's own disk, unencrypted, so they go if the server does"
-msgstr "On each server's own disk, unencrypted, so they go if the server does"
+msgid "On each server's disk, and sealed off it where a schedule says"
+msgstr "On each server's disk, and sealed off it where a schedule says"
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
@@ -7353,17 +7353,23 @@ msgstr "On {0}"
 msgid "Onto"
 msgstr "Onto"
 
+msgid "Passed {ago}"
+msgstr "Passed {ago}"
+
 msgid "Recent runs"
 msgstr "Recent runs"
 
 msgid "Remove from the server only"
 msgstr "Remove from the server only"
 
-msgid "Restore check failed {ago}: {why}"
-msgstr "Restore check failed {ago}: {why}"
+msgid "Restore test failed {ago}: {why}"
+msgstr "Restore test failed {ago}: {why}"
 
-msgid "Restored and checked {ago}"
-msgstr "Restored and checked {ago}"
+msgid "Restore tested {ago}"
+msgstr "Restore tested {ago}"
+
+msgid "Restore tests"
+msgstr "Restore tests"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "Sealed with an earlier passphrase"
@@ -7371,6 +7377,15 @@ msgstr "Sealed with an earlier passphrase"
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
 msgstr "Sending to {0}"
+
+msgid "Test again"
+msgstr "Test again"
+
+msgid "Test weekly"
+msgstr "Test weekly"
+
+msgid "Testing a restore"
+msgstr "Testing a restore"
 
 msgid "This backup didn't come back"
 msgstr "This backup didn't come back"
@@ -7402,12 +7417,12 @@ msgid "{0, plural, one {# file changed while it copied} other {# files changed w
 msgstr "{0, plural, one {# file changed while it copied} other {# files changed while it copied}}"
 
 #. placeholder {0}: unchecked.length
-msgid "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
-msgstr "{0, plural, one {# schedule never checks a restore} other {# schedules never check a restore}}"
+msgid "{0, plural, one {# schedule never tests a restore} other {# schedules never test a restore}}"
+msgstr "{0, plural, one {# schedule never tests a restore} other {# schedules never test a restore}}"
 
 #. placeholder {0}: unchecked.length
-msgid "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
-msgstr "{0, plural, one {Check a restore of # schedule's backups weekly} other {Check a restore of # schedules' backups weekly}}"
+msgid "{0, plural, one {Test a restore of # schedule's backups weekly} other {Test a restore of # schedules' backups weekly}}"
+msgstr "{0, plural, one {Test a restore of # schedule's backups weekly} other {Test a restore of # schedules' backups weekly}}"
 
 msgid "{shown, plural, one {# backup} other {# backups}}"
 msgstr "{shown, plural, one {# backup} other {# backups}}"
@@ -7539,9 +7554,6 @@ msgstr "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
 msgid "{bucket} is in {movedTo}"
 msgstr "{bucket} is in {movedTo}"
 
-msgid "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
-msgstr "Add S3-compatible storage, such as Cloudflare R2, to keep a copy off the server."
-
 msgid "Add storage"
 msgstr "Add storage"
 
@@ -7555,8 +7567,8 @@ msgstr "Encrypted on each server before upload"
 msgid "Last upload {0}"
 msgstr "Last upload {0}"
 
-msgid "Only on each server's disk"
-msgstr "Only on each server's disk"
+msgid "Only on each server's disk, unencrypted"
+msgstr "Only on each server's disk, unencrypted"
 
 msgid "Remove this destination"
 msgstr "Remove this destination"
@@ -7576,14 +7588,11 @@ msgstr "A backup you take by hand stays until you delete it."
 msgid "Add a schedule"
 msgstr "Add a schedule"
 
-msgid "Checks a restore monthly"
-msgstr "Checks a restore monthly"
+msgid "Copies sent to {sentTo}, encrypted"
+msgstr "Copies sent to {sentTo}, encrypted"
 
-msgid "Checks a restore weekly"
-msgstr "Checks a restore weekly"
-
-msgid "Doesn't check a restore"
-msgstr "Doesn't check a restore"
+msgid "Edit this schedule"
+msgstr "Edit this schedule"
 
 msgid "Hasn't run yet"
 msgstr "Hasn't run yet"
@@ -7597,11 +7606,17 @@ msgstr "Its app's database alone"
 msgid "Keeps {0}, holding {1} now ({2})"
 msgstr "Keeps {0}, holding {1} now ({2})"
 
+msgid "Kept only on the server, unencrypted"
+msgstr "Kept only on the server, unencrypted"
+
 msgid "Last copy failed"
 msgstr "Last copy failed"
 
 msgid "Last run failed"
 msgstr "Last run failed"
+
+msgid "Never tests a restore"
+msgstr "Never tests a restore"
 
 msgid "Next run {next}"
 msgstr "Next run {next}"
@@ -7615,11 +7630,20 @@ msgstr "On schedule"
 msgid "Schedules"
 msgstr "Schedules"
 
+msgid "Send copies off the server"
+msgstr "Send copies off the server"
+
 msgid "Stop backing up {volume} on a schedule"
 msgstr "Stop backing up {volume} on a schedule"
 
 msgid "Stop this schedule"
 msgstr "Stop this schedule"
+
+msgid "Tests a restore monthly"
+msgstr "Tests a restore monthly"
+
+msgid "Tests a restore weekly"
+msgstr "Tests a restore weekly"
 
 #. placeholder {0}: words(policy.spec)
 msgid "{0}, {zone}"
@@ -7631,18 +7655,20 @@ msgstr "At"
 msgid "Back up on a schedule"
 msgstr "Back up on a schedule"
 
-#. placeholder {0}: volume.name
-msgid "Back up {0} on a schedule"
-msgstr "Back up {0} on a schedule"
+msgid "Back up {name} daily"
+msgstr "Back up {name} daily"
+
+msgid "Back up {volumeName} on a schedule"
+msgstr "Back up {volumeName} on a schedule"
 
 msgid "Backups to keep"
 msgstr "Backups to keep"
 
-msgid "Check monthly"
-msgstr "Check monthly"
+msgid "Change how {volumeName} is backed up"
+msgstr "Change how {volumeName} is backed up"
 
-msgid "Check that it restores"
-msgstr "Check that it restores"
+msgid "Change the schedule"
+msgstr "Change the schedule"
 
 msgid "Dockwell can't say what this costs"
 msgstr "Dockwell can't say what this costs"
@@ -7667,8 +7693,8 @@ msgstr "Keeping {count} takes about {0} while the next is taken; the disk has {1
 msgid "Minutes past the hour, as 00:MM"
 msgstr "Minutes past the hour, as 00:MM"
 
-msgid "Never check"
-msgstr "Never check"
+msgid "Only this server"
+msgstr "Only this server"
 
 msgid "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
 msgstr "Restores the newest into a throwaway copy an hour after its run, for up to 6 h."
@@ -7680,8 +7706,8 @@ msgstr "Restores the newest into a throwaway copy, about {0}, an hour after its 
 msgid "Stop {running} for each backup"
 msgstr "Stop {running} for each backup"
 
-msgid "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
-msgstr "The oldest goes once a new one is whole. A failed run takes nothing away, and nothing you took by hand goes."
+msgid "The oldest goes once a new one is whole"
+msgstr "The oldest goes once a new one is whole"
 
 msgid "This may not fit"
 msgstr "This may not fit"
@@ -7694,6 +7720,10 @@ msgstr "What runs keeps running, so each copy can hold half a write, and the app
 
 msgid "What stops starts again once the copy ends, however that goes. Each copy is exact."
 msgstr "What stops starts again once the copy ends, however that goes. Each copy is exact."
+
+#. placeholder {0}: volumes.length
+msgid "{0, plural, one {Back up # volume daily} other {Back up # volumes daily}}"
+msgstr "{0, plural, one {Back up # volume daily} other {Back up # volumes daily}}"
 
 #. placeholder {0}: formatBytes(each, i18n.locale)
 #. placeholder {1}: formatBytes(total, i18n.locale)
@@ -10635,12 +10665,6 @@ msgstr "Each keeps running as it is."
 msgid "Everything in {name} on {server} goes back to what was there before the restore"
 msgstr "Everything in {name} on {server} goes back to what was there before the restore"
 
-msgid "Everything in {name} on {server} is replaced with the copy from {taken}"
-msgstr "Everything in {name} on {server} is replaced with the copy from {taken}"
-
-msgid "Everything in {name} on {server} is replaced with the dump from {taken}"
-msgstr "Everything in {name} on {server} is replaced with the dump from {taken}"
-
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 
@@ -10845,9 +10869,6 @@ msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "Nothing installed from this catalog upgrades to them."
 
-msgid "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
-msgstr "Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
-
 msgid "Pulls {image} again, and replaces {name} only if that's a newer image."
 msgstr "Pulls {image} again, and replaces {name} only if that's a newer image."
 
@@ -10862,6 +10883,12 @@ msgstr "Railpack says: {warning}"
 
 msgid "Read it for the rest before you pass one a secret."
 msgstr "Read it for the rest before you pass one a secret."
+
+msgid "Replaces {name} on {server} with the copy from {taken}"
+msgstr "Replaces {name} on {server} with the copy from {taken}"
+
+msgid "Replaces {name} on {server} with the dump from {taken}"
+msgstr "Replaces {name} on {server} with the dump from {taken}"
 
 msgid "Restore {which}, from {when}, from Backups after this."
 msgstr "Restore {which}, from {when}, from Backups after this."
@@ -10898,9 +10925,6 @@ msgstr "Takes away {names}"
 msgid "Takes {ids} from another catalog"
 msgstr "Takes {ids} from another catalog"
 
-msgid "That copy is {size}, and what was made since goes."
-msgstr "That copy is {size}, and what was made since goes."
-
 msgid "That goes beyond what Docker gives a container by default."
 msgstr "That goes beyond what Docker gives a container by default."
 
@@ -10928,6 +10952,9 @@ msgstr "The catalog shows no apps from this commit."
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 
+msgid "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+msgstr "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
+
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
 
@@ -10942,9 +10969,6 @@ msgstr "The hour {name}'s backup gets is a guess"
 
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
-
-msgid "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
-msgstr "The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
 
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
@@ -11071,6 +11095,9 @@ msgstr "What stops starts again once the volume is restored. If the restore fail
 msgid "What to do first"
 msgstr "What to do first"
 
+msgid "What was made since goes."
+msgstr "What was made since goes."
+
 msgid "What's in the volume now goes to a copy the server keeps for 7 days."
 msgstr "What's in the volume now goes to a copy the server keeps for 7 days."
 
@@ -11132,6 +11159,10 @@ msgid "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at}
 msgstr "{0, plural, one {It's the commit {at} is at.} other {It's the commit {at} are at.}}"
 
 #. placeholder {0}: restore.stops.length
+msgid "{0, plural, one {{list} stops while it loads, and what was made since goes.} other {{list} stop while it loads, and what was made since goes.}}"
+msgstr "{0, plural, one {{list} stops while it loads, and what was made since goes.} other {{list} stop while it loads, and what was made since goes.}}"
+
+#. placeholder {0}: restore.stops.length
 msgid "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 msgstr "{0, plural, one {{list} stops while this happens} other {{list} stop while this happens}}"
 
@@ -11163,8 +11194,8 @@ msgstr "{count, plural, one {The catalog shows # app from this commit: {names}.}
 msgid "{counts} {lifting}"
 msgstr "{counts} {lifting}"
 
-msgid "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
-msgstr "{database} starts anew on an empty volume and loads the dump, {size}, so what was made since goes."
+msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+msgstr "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} can move what {path} leads to on {server}"
@@ -11420,6 +11451,9 @@ msgstr "Build and deploy {commit}"
 
 msgid "Building and deploying {commit}"
 msgstr "Building and deploying {commit}"
+
+msgid "Checked"
+msgstr "Checked"
 
 msgid "Couldn't check"
 msgstr "Couldn't check"
@@ -12694,17 +12728,38 @@ msgstr "A plan, which keeps what it replaces for 7 days"
 msgid "Backups of {name}, newest first"
 msgstr "Backups of {name}, newest first"
 
+msgid "Choose a schedule"
+msgstr "Choose a schedule"
+
+msgid "Copies"
+msgstr "Copies"
+
 msgid "Dockwell can't read the backups of {name}"
 msgstr "Dockwell can't read the backups of {name}"
+
+msgid "Edit schedule"
+msgstr "Edit schedule"
 
 msgid "How it's backed up"
 msgstr "How it's backed up"
 
+msgid "Keeps"
+msgstr "Keeps"
+
 msgid "No backups of {name} yet"
 msgstr "No backups of {name} yet"
 
+msgid "Not backed up on a schedule"
+msgstr "Not backed up on a schedule"
+
 msgid "Restoring"
 msgstr "Restoring"
+
+msgid "Sent to {sentTo}, encrypted"
+msgstr "Sent to {sentTo}, encrypted"
+
+msgid "The newest {kept}"
+msgstr "The newest {kept}"
 
 msgid "{dumpOf}'s own dump, while it runs"
 msgstr "{dumpOf}'s own dump, while it runs"
@@ -12981,11 +13036,14 @@ msgstr "{more, plural, one {# more database or user isn't listed here} other {# 
 msgid "+{left}"
 msgstr "+{left}"
 
+msgid "Back it up daily"
+msgstr "Back it up daily"
+
+msgid "Back them up daily"
+msgstr "Back them up daily"
+
 msgid "Beside it"
 msgstr "Beside it"
-
-msgid "By hand"
-msgstr "By hand"
 
 msgid "Create a database"
 msgstr "Create a database"
@@ -12996,8 +13054,8 @@ msgstr "Destination"
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell can't read its databases"
 
-msgid "Each server's own disk"
-msgstr "Each server's own disk"
+msgid "Each server's disk alone, unencrypted"
+msgstr "Each server's disk alone, unencrypted"
 
 msgid "Engines"
 msgstr "Engines"
@@ -13007,6 +13065,9 @@ msgstr "From the catalog, with its password kept as a secret"
 
 msgid "In a volume Dockwell didn't make"
 msgstr "In a volume Dockwell didn't make"
+
+msgid "Kept only on each server, unencrypted"
+msgstr "Kept only on each server, unencrypted"
 
 msgid "Last run"
 msgstr "Last run"
@@ -13026,6 +13087,9 @@ msgstr "No volume"
 msgid "No volume, so its data goes with its container"
 msgstr "No volume, so its data goes with its container"
 
+msgid "Not scheduled"
+msgstr "Not scheduled"
+
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "Nothing changed on the servers. The page tries again by itself."
 
@@ -13044,14 +13108,18 @@ msgstr "Some on schedule"
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "Take one on from its page: it keeps running, with no restart."
 
-msgid "by hand"
-msgstr "by hand"
-
 msgid "none yet"
 msgstr "none yet"
 
+msgid "not scheduled"
+msgstr "not scheduled"
+
 msgid "the last failed, {ago}"
 msgstr "the last failed, {ago}"
+
+#. placeholder {0}: unscheduled.length
+msgid "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
+msgstr "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
 
 msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
 msgstr "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
@@ -19471,9 +19539,6 @@ msgstr "Next: {0} {1}"
 msgid "No scheduled tasks yet"
 msgstr "No scheduled tasks yet"
 
-msgid "Not scheduled"
-msgstr "Not scheduled"
-
 msgid "On its own schedule"
 msgstr "On its own schedule"
 
@@ -20414,6 +20479,9 @@ msgstr "On its servers"
 
 msgid "Open its files"
 msgstr "Open its files"
+
+msgid "Open {firstName}"
+msgstr "Open {firstName}"
 
 msgid "Reading the volume"
 msgstr "Reading the volume"
