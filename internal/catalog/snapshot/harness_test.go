@@ -513,3 +513,51 @@ func TestTheFloorTurnsOnTheCompanionAnEntryOpens(t *testing.T) {
 		t.Errorf("an entry whose web service is a companion: %v\n%s", err, out)
 	}
 }
+
+// A change Dockwell makes of its own after a check, as taking an owner's first
+// password out once the owner is made (ADR 0105), starts a container again: the
+// harness waits for it to end and for the container to finish starting before it
+// reads its health, and waits for one that comes a moment later before it plans the
+// removal (#853). Before, settled read the container once, unhealthy while it was
+// replaced or starting just after, and the removal was refused as busy.
+func TestTheHarnessWaitsForAChangeDockwellMakesOfItsOwn(t *testing.T) {
+	w := newWorld(t, map[string][]string{"owned": {madeUp("owned", "1.0.0")}}, map[string]string{
+		"owned": `check_owned() {
+  echo 2 >"$FAKE_STATE/busy"
+  echo starting=2 >>"$FAKE_STATE/containers/$project-app-1"
+  echo 2 >"$FAKE_STATE/busy-next"
+}
+`,
+	})
+	out, err := w.run("owned")
+	if err != nil {
+		t.Fatalf("the harness failed: %v\n%s", err, out)
+	}
+	for _, want := range []string{"owned: goes through a plan", "catalog-e2e: ok"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the harness never said %q:\n%s", want, out)
+		}
+	}
+	if busy := strings.TrimSpace(w.read("state/busy")); busy != "0" {
+		t.Errorf("the change Dockwell made of its own reads busy %q at the end, want 0: nothing waited for it", busy)
+	}
+}
+
+// A container that reads starting and then unhealthy fails the entry, as one that
+// never passes its health check does (#853).
+func TestAContainerThatStartsIntoUnhealthyFails(t *testing.T) {
+	w := newWorld(t, map[string][]string{"sick": {madeUp("sick", "1.0.0")}}, map[string]string{
+		"sick": `check_sick() {
+  sed -i 's/^health=.*/health=unhealthy/' "$FAKE_STATE/containers/$project-app-1"
+  echo starting=1 >>"$FAKE_STATE/containers/$project-app-1"
+}
+`,
+	})
+	out, err := w.run("sick")
+	if err == nil {
+		t.Fatalf("the harness passed an app that turned unhealthy:\n%s", out)
+	}
+	if want := "sick-production-app-1 reads unhealthy once the change has applied"; !strings.Contains(out, want) {
+		t.Errorf("the harness never said %q:\n%s", want, out)
+	}
+}

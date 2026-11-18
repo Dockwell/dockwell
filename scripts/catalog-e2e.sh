@@ -221,7 +221,8 @@ settles() {
 # when the change failed, and fails at once on anything else.
 # quiet waits, for 2 minutes at most, until no change is applying: one Dockwell makes
 # of its own, as taking an owner's first password out once the owner is made, refuses
-# another on the same app as busy until it ends.
+# another on the same app as busy until it ends. settled and every plan the harness
+# makes after a check call it first (#853).
 quiet() {
   for _ in $(seq 120); do
     dw changes list --json | jq -e '[.changes[]? | select(.state == "CHANGE_STATE_APPLYING")] | length == 0' >/dev/null && return 0
@@ -638,9 +639,14 @@ standins() {
 }
 
 # settled waits for every container of the app to pass its health check, and says
-# each runs an image pinned by digest.
+# each runs an image pinned by digest. A change Dockwell makes of its own after a
+# check starts a container again, so it waits for any change applying to end, then,
+# for 2 minutes at most, while a container reads starting. It fails on unhealthy,
+# on no health check, and on a container still starting at the end (#853).
 settled() {
-  local names health image service started running restarts was
+  local names health image service started running restarts was deadline
+  quiet
+  deadline=$((SECONDS + 120))
   names=$(docker ps --all --filter "label=com.docker.compose.project=$project" --format '{{.Names}}') || fail "docker ps failed"
   [[ -n "$names" ]] || fail "$id runs nothing once its install has applied"
   for c in $names; do
@@ -654,7 +660,11 @@ settled() {
     if [[ " $unready $refused_of " == *" $service "* ]]; then
       continue
     fi
-    health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
+    while health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$c") || fail "docker inspect $c failed"
+      [[ "$health" == starting ]]; do
+      ((SECONDS < deadline)) || fail "$c still reads starting 2 minutes after the change applied, want healthy: its entry needs a health check that passes once it answers"
+      sleep 1
+    done
     [[ "$health" == healthy ]] || fail "$c reads $health once the change has applied, want healthy: its entry needs a health check that proves it answers"
   done
   # A service that reads a stand-in for a secret runs with no health check, so it's
@@ -785,6 +795,7 @@ plan_install() {
 }
 # plan_upgrade plans upgrading the install, and sets planned and change.
 plan_upgrade() {
+  quiet
   planned=$(dw catalog upgrade "$installed" --plan-only --json) || fail "planning to upgrade $installed failed"
   change=$(jq -r '.change.id // empty' <<<"$planned")
   [[ "$change" == chg_* ]] || fail "upgrading $id planned no change: $planned"
@@ -824,8 +835,7 @@ prove() {
     [[ "$upgrade" == "$version" ]] || fail "$version doesn't read as an upgrade of $id: $(dw catalog installs --json)"
     secrets_before=$(held)
     # Dockwell may be applying a change of its own to the install, as taking the
-    # owner's first password out once the owner is made: the upgrade waits for it.
-    quiet
+    # owner's first password out once the owner is made: plan_upgrade waits for it.
     plan_upgrade
     if jq -e '.change.plan.resources | any(.resource.kind == "volume")' <<<"$planned" >/dev/null || [[ "$(jq -r .compose <<<"$entry")" == *volumes:* ]]; then
       jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.servers[0].steps | any(.backupFirst != null))' <<<"$planned" >/dev/null ||
@@ -853,6 +863,8 @@ prove() {
   edits=$(jq -c --arg env "$environment" --arg p "$installed" '[.resources[] | select(.resource.scope == $env) | {resource: .resource, delete: true}] + [{resource: {kind: "project", name: $p}, delete: true}] | .[]' <<<"$all")
   flags=()
   while read -r e; do flags+=(--edits "$e"); done <<<"$edits"
+  # Dockwell may still be applying a change of its own, which refuses the removal as busy.
+  quiet
   planned=$(dw changes propose --summary "Remove $id" "${flags[@]}" --plan-only --json) || fail "planning to remove $id failed"
   apply "$(jq -r .change.id <<<"$planned")"
   left=$(docker ps --all --quiet --filter "label=com.docker.compose.project=$project") || fail "docker ps failed"
