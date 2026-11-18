@@ -5,7 +5,7 @@ import { Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatDay } from "../../lib/format";
-import { useClaimCommand, useSignedIn } from "./useAuthState";
+import { useSignedIn } from "./useAuthState";
 import { initials, useRoleName } from "./user";
 
 /**
@@ -18,8 +18,9 @@ export function AccountPanel() {
   const auth = useSignedIn();
   const user = auth?.user;
   const role = useRoleName(user?.role ?? 0);
-  // dockwell recover runs as dockwell claim does, as root under the system service.
-  const recover = useClaimCommand().replace(/claim$/, "recover");
+  // Their own way back in, as the server says it: with sudo and --data-dir as Dockwell runs
+  // there, and --user unless they're the owner (#801's review, M2).
+  const recover = auth?.recoverCommand || "dockwell recover";
   const since = user?.createTime ? formatDay(timestampDate(user.createTime), i18n.locale) : "";
   const meta = [role, since ? t`member since ${since}` : ""].filter(Boolean).join(" · ");
   return (

@@ -676,6 +676,13 @@ type GetAuthStateResponse struct {
 	// What the install is called, as its settings have it, for the sign-in screen
 	// to say. Empty when nobody has named it.
 	InstallName string `protobuf:"bytes,9,opt,name=install_name,json=installName,proto3" json:"install_name,omitempty"`
+	// The command that prints a one-time sign-in link for you on the control
+	// server, your way back in when every other is lost: as Dockwell runs there,
+	// such as "sudo dockwell recover", with --data-dir where that isn't the
+	// default, and with --user and your email unless you're the owner. Set only
+	// for a signed-in session, as its own person's, once the install has an
+	// owner; claim_command applies before that (#801).
+	RecoverCommand string `protobuf:"bytes,11,opt,name=recover_command,json=recoverCommand,proto3" json:"recover_command,omitempty"`
 	// What the signed-in person holds: a role on the whole install, on projects,
 	// or both. The panel reads from these, and from each method's
 	// (dockwell.v1.min_role) and (dockwell.v1.reach), what to offer
@@ -783,6 +790,13 @@ func (x *GetAuthStateResponse) GetClaimCommand() string {
 func (x *GetAuthStateResponse) GetInstallName() string {
 	if x != nil {
 		return x.InstallName
+	}
+	return ""
+}
+
+func (x *GetAuthStateResponse) GetRecoverCommand() string {
+	if x != nil {
+		return x.RecoverCommand
 	}
 	return ""
 }
@@ -4684,7 +4698,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x04role\x18\x04 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12;\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"createTime\"\x15\n" +
-	"\x13GetAuthStateRequest\"\xe7\x03\n" +
+	"\x13GetAuthStateRequest\"\x90\x04\n" +
 	"\x14GetAuthStateResponse\x12\x18\n" +
 	"\aclaimed\x18\x01 \x01(\bR\aclaimed\x12%\n" +
 	"\x04user\x18\x02 \x01(\v2\x11.dockwell.v1.UserR\x04user\x12\x1d\n" +
@@ -4696,7 +4710,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x06domain\x18\x06 \x01(\tR\x06domain\x12?\n" +
 	"\x0esign_in_method\x18\a \x01(\x0e2\x19.dockwell.v1.SignInMethodR\fsignInMethod\x12#\n" +
 	"\rclaim_command\x18\b \x01(\tR\fclaimCommand\x12!\n" +
-	"\finstall_name\x18\t \x01(\tR\vinstallName\x12.\n" +
+	"\finstall_name\x18\t \x01(\tR\vinstallName\x12'\n" +
+	"\x0frecover_command\x18\v \x01(\tR\x0erecoverCommand\x12.\n" +
 	"\x06grants\x18\n" +
 	" \x03(\v2\x16.dockwell.v1.RoleGrantR\x06grants\x12:\n" +
 	"\tproviders\x18\xfa\x01 \x03(\v2\x1b.dockwell.v1.SignInProviderR\tproviders\x12,\n" +

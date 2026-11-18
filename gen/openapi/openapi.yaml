@@ -17107,6 +17107,15 @@ components:
                     description: |-
                         What the install is called, as its settings have it, for the sign-in screen
                          to say. Empty when nobody has named it.
+                recoverCommand:
+                    type: string
+                    description: |-
+                        The command that prints a one-time sign-in link for you on the control
+                         server, your way back in when every other is lost: as Dockwell runs there,
+                         such as "sudo dockwell recover", with --data-dir where that isn't the
+                         default, and with --user and your email unless you're the owner. Set only
+                         for a signed-in session, as its own person's, once the install has an
+                         owner; claim_command applies before that (#801).
                 grants:
                     type: array
                     items:

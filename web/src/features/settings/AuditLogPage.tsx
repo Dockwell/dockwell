@@ -415,7 +415,9 @@ function TargetCell({ event }: { event: AuditEvent }) {
   const id = target?.id || event.subject;
   if (target?.name) return <span>{target.name}</span>;
   if (!id) return <span className="settings-muted">–</span>;
-  const name = named(id, event.action);
+  // The name the server read for it, which a removed person keeps, as Members no longer lists them (#801's review, L3).
+  const said = event.event?.subject?.id === id ? event.event.subject.name : "";
+  const name = said || named(id, event.action);
   return name ? <span title={id}>{name}</span> : <code className="audit-id">{id}</code>;
 }
 

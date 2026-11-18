@@ -132,7 +132,9 @@ describe("Control plane", () => {
     expect(within(backups).getByText((_, el) => el?.tagName === "CODE" && el.textContent === command)).toBeVisible();
     expect(within(backups).getByRole("button", { name: /Copy/ })).toBeVisible();
     // Dockwell's own terminal ends when Dockwell stops, so nothing after the stop runs.
-    expect(backups).toHaveTextContent("As root over SSH: Dockwell stops while it copies");
+    expect(backups).toHaveTextContent("Over SSH, with sudo: Dockwell stops while it copies");
+    // And a copy left on the server is no backup (#801's review, L6).
+    expect(backups).toHaveTextContent("Then move both files off this server, each to a place of its own");
     expect(within(backups).queryByRole("button", { name: /^Back it up by hand/ })).toBeNull();
     expect(within(backups).getByRole("link", { name: "How to restore it" })).toHaveAttribute(
       "href",

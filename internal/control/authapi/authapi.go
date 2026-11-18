@@ -36,15 +36,20 @@ type Config struct {
 	// ClaimCommand prints a new claim link on the control server, such as
 	// "sudo dockwell claim". Empty leaves the panel to say "dockwell claim".
 	ClaimCommand string
+	// RecoverCommand prints a one-time sign-in link on the control server, such
+	// as "sudo dockwell recover", for the owner. GetAuthState adds --user for
+	// anyone else. Empty leaves it "dockwell recover" (#801).
+	RecoverCommand string
 }
 
 // Handler implements AuthService.
 type Handler struct {
-	auth          *auth.Service
-	logger        *slog.Logger
-	controlServer func() *dockwellv1.Server
-	publicAddress string
-	claimCommand  string
+	auth           *auth.Service
+	logger         *slog.Logger
+	controlServer  func() *dockwellv1.Server
+	publicAddress  string
+	claimCommand   string
+	recoverCommand string
 }
 
 var _ dockwellv1connect.AuthServiceHandler = (*Handler)(nil)
@@ -54,7 +59,7 @@ func New(cfg Config) *Handler {
 	if cfg.ControlServer == nil {
 		cfg.ControlServer = func() *dockwellv1.Server { return nil }
 	}
-	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress, claimCommand: cfg.ClaimCommand}
+	return &Handler{auth: cfg.Auth, logger: cfg.Logger, controlServer: cfg.ControlServer, publicAddress: cfg.PublicAddress, claimCommand: cfg.ClaimCommand, recoverCommand: cfg.RecoverCommand}
 }
 
 func (h *Handler) client(ctx context.Context) (auth.Client, error) {
@@ -120,6 +125,10 @@ func (h *Handler) GetAuthState(ctx context.Context, _ *connect.Request[dockwellv
 		msg.User = userProto(p.User)
 		msg.SessionId = p.Session.ID
 		msg.SignInMethod = methodProto(p.Session.Method)
+		// Their own way back in, never anyone else's, and only from a session (#801).
+		if claimed && p.Token == nil && p.Session.ID != "" {
+			msg.RecoverCommand = h.recoverFor(p.User)
+		}
 		// What they hold, for the panel to offer only what they may do (ADR 0059).
 		grants, err := h.auth.Grants(ctx, p)
 		if err != nil {
@@ -982,4 +991,26 @@ func passkeyProto(pk *auth.Passkey) *dockwellv1.Passkey {
 		out.LastUsedTime = timestamppb.New(*pk.LastUsedAt)
 	}
 	return out
+}
+
+// recoverFor is the command that prints a one-time sign-in link for u: the
+// control server's as it runs, which signs in as the owner, with --user and u's
+// email for anyone else (#801).
+func (h *Handler) recoverFor(u store.User) string {
+	command := h.recoverCommand
+	if command == "" {
+		command = "dockwell recover"
+	}
+	if u.Role == store.RoleOwner {
+		return command
+	}
+	return command + " --user " + shellWord(u.Email)
+}
+
+// shellWord quotes s for a POSIX shell when it needs it, as an email may.
+func shellWord(s string) string {
+	if s != "" && strings.Trim(s, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+:@") == "" {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

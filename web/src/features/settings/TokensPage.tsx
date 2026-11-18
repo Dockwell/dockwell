@@ -303,9 +303,10 @@ function TokensTable({
   const { t } = useLingui();
   const columns: TableColumn<Token>[] = [
     { key: "name", header: t`Token`, render: (token) => <TokenName token={token} isNew={token.id === newId} /> },
-    { key: "scopes", header: t`Scopes`, width: 248, render: (token) => <Scopes token={token} /> },
+    // Scopes wrap, so the name takes what's left over (#801's review, L5).
+    { key: "scopes", header: t`Scopes`, width: 200, render: (token) => <Scopes token={token} /> },
     { key: "created", header: t`Created`, width: 96, render: (token) => <Created token={token} /> },
-    { key: "used", header: t`Last used`, width: 128, render: (token) => <LastUsed token={token} now={now} /> },
+    { key: "used", header: t`Last used`, width: 112, render: (token) => <LastUsed token={token} now={now} /> },
     { key: "expires", header: t`Expires`, width: 148, render: (token) => <Expires token={token} now={now} /> },
     {
       key: "act",

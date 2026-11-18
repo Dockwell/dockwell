@@ -576,4 +576,22 @@ describe("the audit log's targets (#801)", () => {
     // One it can't name keeps its ID.
     expect(row("usr_gone")).toBeDefined();
   });
+
+  it("names a removed person by the name the server read, as Members no longer lists them (#801's review, L3)", async () => {
+    const removed = anEvent({
+      id: "evt_r",
+      action: "account.name",
+      actor: { kind: ActorKind.USER, id: "usr_ada", name: "Ada Lovelace" },
+      subject: "usr_ada",
+      event: { id: "evt_r", subject: { id: "usr_ada", name: "Ada Lovelace" } },
+    });
+    renderAt("/settings/audit-log", {
+      audit: { listAuditEvents: () => ({ events: [removed] }) },
+      members: { listMembers: () => ({ members: [{ user: { id: "usr_1", name: "Mira Chen" } }] }) },
+      alerts: { listAlertChecks: () => ({ checks: [] }) },
+    });
+    const table = await screen.findByRole("table", { name: "The audit log, newest first" });
+    await waitFor(() => expect(within(table).getAllByText("Ada Lovelace").length).toBe(2));
+    expect(within(table).queryByText("usr_ada")).toBeNull();
+  });
 });

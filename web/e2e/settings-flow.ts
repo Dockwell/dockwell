@@ -78,6 +78,7 @@ export async function settingsFlow(page: Page, { origin, step, shoot }: Settings
   // The command, with Copy, and one line: no disclosure, no prose (#801).
   await backups.getByText(/--exclude 'control\/key\*' -czf \/root\/dockwell-control\.tgz control agent &&/).waitFor();
   await backups.getByText("As root, with dockwell run stopped").waitFor();
+  await backups.getByText("Then move both files off this server, each to a place of its own").waitFor();
   await page.getByRole("region", { name: "Updates" }).getByText("Over SSH, to update to the newest release").waitFor();
   await page
     .getByRole("region", { name: "Updates" })

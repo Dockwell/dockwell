@@ -617,6 +617,13 @@ message GetAuthStateResponse {
   // What the install is called, as its settings have it, for the sign-in screen
   // to say. Empty when nobody has named it.
   string install_name = 9;
+  // The command that prints a one-time sign-in link for you on the control
+  // server, your way back in when every other is lost: as Dockwell runs there,
+  // such as "sudo dockwell recover", with --data-dir where that isn't the
+  // default, and with --user and your email unless you're the owner. Set only
+  // for a signed-in session, as its own person's, once the install has an
+  // owner; claim_command applies before that (#801).
+  string recover_command = 11;
   // What the signed-in person holds: a role on the whole install, on projects,
   // or both. The panel reads from these, and from each method's
   // (dockwell.v1.min_role) and (dockwell.v1.reach), what to offer

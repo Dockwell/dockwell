@@ -323,6 +323,8 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 		Changes: engine, Agents: agents, Store: db, Secrets: keeper, AgentHosts: []string{"127.0.0.1"}, StepGrace: 200 * time.Millisecond,
 		EventPoll: 200 * time.Millisecond, Logs: logs,
 		DataDir: dir, KeyFile: filepath.Join(dir, "key"), AgentListen: ls.Agents.Addr().String(),
+		// As the system service has it with a data directory of its own, for Profile's Last resort (#801).
+		RecoverCommand: "sudo dockwell recover --data-dir /srv/dockwell",
 		// Tests reach their local channel fixtures through an injected client.
 		AlertClient: &http.Client{},
 		// A test's catalog source is served on loopback, which only a test's client reaches.

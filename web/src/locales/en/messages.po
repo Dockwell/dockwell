@@ -17978,6 +17978,9 @@ msgstr "Opens every secret the store keeps"
 msgid "Over SSH, to update to the newest release"
 msgstr "Over SSH, to update to the newest release"
 
+msgid "Over SSH, with sudo: Dockwell stops while it copies"
+msgstr "Over SSH, with sudo: Dockwell stops while it copies"
+
 msgid "Panel and API"
 msgstr "Panel and API"
 
@@ -18035,6 +18038,9 @@ msgstr "The store and the key, apart"
 
 msgid "The version that runs here is unknown"
 msgstr "The version that runs here is unknown"
+
+msgid "Then move both files off this server, each to a place of its own"
+msgstr "Then move both files off this server, each to a place of its own"
 
 msgid "This control plane"
 msgstr "This control plane"

@@ -238,9 +238,13 @@ function BackupPanel({ cp }: { cp: ControlPlane | undefined }) {
             <span className="settings-meta">
               {manager === ServiceManager.NONE
                 ? t`As root, with dockwell run stopped`
-                : t`As root over SSH: Dockwell stops while it copies`}
+                : manager === ServiceManager.SYSTEMD
+                  ? t`Over SSH, with sudo: Dockwell stops while it copies`
+                  : t`As root over SSH: Dockwell stops while it copies`}
             </span>
             <CopyCommand command={copy} className="cp-commands" />
+            {/* A copy left on the server it's for is no backup (#801's review, L6). */}
+            <span className="settings-meta">{t`Then move both files off this server, each to a place of its own`}</span>
           </div>
         ) : null}
         {postgres ? (

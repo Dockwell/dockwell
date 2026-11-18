@@ -546,7 +546,7 @@
 
 /* A token's name wraps, so a long one leaves its dates and Revoke in view, and stops at two lines. */
 .tokens-table td:first-child {
-  min-width: 160px;
+  min-width: 200px;
   white-space: normal;
 }
 
@@ -1164,10 +1164,11 @@
   white-space: normal;
 }
 
+/* Each role's name and what it holds on one line, as the full width has room for them (#801's review, L4). */
 .members-can .members-col {
-  width: 84px;
+  width: 140px;
   text-align: center;
-  white-space: normal;
+  white-space: nowrap;
 }
 
 /* Where a developer and a viewer hold their role, once, under the column's name. */
@@ -1623,6 +1624,7 @@
   .members-can .members-col {
     width: 58px;
     padding-inline: 4px;
+    white-space: normal;
   }
   .members-can th[scope="row"] {
     padding-right: 4px;

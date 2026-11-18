@@ -786,6 +786,13 @@ describe("ProfilePage", () => {
     expect(account.getByText(/recover$/)).toBeVisible();
   });
 
+  it("says the way back in as the server says it for you (#801's review, M2)", async () => {
+    const recoverCommand = "sudo dockwell recover --data-dir /srv/dockwell --user ada@example.com";
+    renderAt("/profile", api({ getAuthState: () => authState({ recoverCommand }) }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    expect(await account.findByText(recoverCommand)).toBeVisible();
+  });
+
   it("offers Add passkey once: the note's, where the note offers it, and the panel's otherwise (#801)", async () => {
     stubPasskeys();
     renderAt("/profile?via=link", api());

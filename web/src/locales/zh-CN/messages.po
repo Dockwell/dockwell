@@ -17978,6 +17978,9 @@ msgstr "能打开存储中的所有机密"
 msgid "Over SSH, to update to the newest release"
 msgstr "通过 SSH 运行，更新到最新版本"
 
+msgid "Over SSH, with sudo: Dockwell stops while it copies"
+msgstr "通过 SSH 用 sudo 运行：复制期间 Dockwell 会停止"
+
 msgid "Panel and API"
 msgstr "面板和 API"
 
@@ -18035,6 +18038,9 @@ msgstr "存储和密钥，分开保存"
 
 msgid "The version that runs here is unknown"
 msgstr "无法得知这里运行的版本"
+
+msgid "Then move both files off this server, each to a place of its own"
+msgstr "然后把这两个文件移出这台服务器，分别存放在不同的地方"
 
 msgid "This control plane"
 msgstr "当前控制平面"
