@@ -219,16 +219,40 @@ settles() {
 # as a person does in the panel when it destroys data or reaches the server,
 # confirming with the passkey the claim made when it's as good as root. It returns 1
 # when the change failed, and fails at once on anything else.
+# quiet waits, for 2 minutes at most, until no change is applying: one Dockwell makes
+# of its own, as taking an owner's first password out once the owner is made, refuses
+# another on the same app as busy until it ends.
+quiet() {
+  for _ in $(seq 120); do
+    dw changes list --json | jq -e '[.changes[]? | select(.state == "CHANGE_STATE_APPLYING")] | length == 0' >/dev/null && return 0
+    sleep 1
+  done
+  echo "catalog-e2e: a change is still applying after 2 minutes: $(dw changes list --json | jq -c '[.changes[]? | select(.state == "CHANGE_STATE_APPLYING") | {id, summary}]')" >&2
+}
 try_apply() {
-  local plan fingerprint answer proof
+  local plan fingerprint answer proof said tries=0
   plan=$(dw changes get "$1" --json) || fail "can't read $1"
   if jq -e '.change.plan | (.destructive or .hostAccess) | not' <<<"$plan" >/dev/null; then
-    dw changes apply "$1" --yes >/dev/null && return 0
-    [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]] && return 1
-    fail "applying $1 failed: $(dw changes get "$1" --json)"
+    # Refused as busy, the change stays planned: it's applied again once the other
+    # ends, five times at most. Anything else fails as it did.
+    while ! said=$(dw changes apply "$1" --yes 2>&1 >/dev/null); do
+      [[ "$(change_field "$1" state)" == CHANGE_STATE_FAILED ]] && return 1
+      if [[ "$said" == *"another change is applying"* ]] && ((++tries < 5)); then
+        echo "catalog-e2e: $1 waits for another change on the same app: $said" >&2
+        quiet
+        continue
+      fi
+      fail "applying $1 failed: $said $(dw changes get "$1" --json)"
+    done
+    return 0
   fi
   fingerprint=$(jq -r .change.plan.fingerprint <<<"$plan")
   answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}") || fail "a person can't reach the API to apply $1"
+  while [[ "${answer##*$'\n'}" != 200 ]] && grep -qi '^dockwell-error: busy' <<<"$answer" && ((++tries < 5)); do
+    echo "catalog-e2e: $1 waits for another change on the same app" >&2
+    quiet
+    answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\"}") || fail "a person can't reach the API to apply $1"
+  done
   if [[ "${answer##*$'\n'}" == 403 ]] && grep -qi '^dockwell-error: needs_step_up' <<<"$answer"; then
     proof=$("$stepup" "http://localhost:$dockwell_port" "$cookie" "$passkey" STEP_UP_ACTION_APPLY_ROOT_CHANGE "$1") || fail "can't confirm $1 with the passkey"
     answer=$(person_answer ChangeService/ApplyChange "{\"id\":\"$1\",\"fingerprint\":\"$fingerprint\",\"proof\":\"$proof\"}") || fail "a person can't reach the API to apply $1"
@@ -792,6 +816,9 @@ prove() {
     upgrade=$(dw catalog installs --json | jq -r --arg p "$installed" '.installs[] | select(.project == $p) | .upgrade.version // empty') || fail "catalog installs failed"
     [[ "$upgrade" == "$version" ]] || fail "$version doesn't read as an upgrade of $id: $(dw catalog installs --json)"
     secrets_before=$(held)
+    # Dockwell may be applying a change of its own to the install, as taking the
+    # owner's first password out once the owner is made: the upgrade waits for it.
+    quiet
     plan_upgrade
     if jq -e '.change.plan.resources | any(.resource.kind == "volume")' <<<"$planned" >/dev/null || [[ "$(jq -r .compose <<<"$entry")" == *volumes:* ]]; then
       jq -e '(.change.plan.notes | any(.reason == "backup_first")) and (.change.plan.servers[0].steps | any(.backupFirst != null))' <<<"$planned" >/dev/null ||
