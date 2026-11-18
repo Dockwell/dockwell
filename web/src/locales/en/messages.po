@@ -784,6 +784,18 @@ msgstr "Asked to run {task}"
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
 
+msgid "Changed their email"
+msgstr "Changed their email"
+
+msgid "Changed their email from {previous} to {value}"
+msgstr "Changed their email from {previous} to {value}"
+
+msgid "Changed their name"
+msgstr "Changed their name"
+
+msgid "Changed their name from {previous} to {value}"
+msgstr "Changed their name from {previous} to {value}"
+
 msgid "Changed whether deploy on push waits for a person"
 msgstr "Changed whether deploy on push waits for a person"
 
@@ -6566,11 +6578,17 @@ msgstr "Last resort"
 msgid "Saved"
 msgstr "Saved"
 
+msgid "Someone else here goes by a name that reads the same, so the two of you would be hard to tell apart. Choose another."
+msgstr "Someone else here goes by a name that reads the same, so the two of you would be hard to tell apart. Choose another."
+
 msgid "Someone else here signs in with this email, so it can't be yours too. Choose another."
 msgstr "Someone else here signs in with this email, so it can't be yours too. Choose another."
 
 msgid "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
 msgstr "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
+
+msgid "This email reads the same as one someone else here signs in with or is invited as, so it would pass for theirs. Choose another."
+msgstr "This email reads the same as one someone else here signs in with or is invited as, so it would pass for theirs. Choose another."
 
 msgid "Your name is empty, so it can't be saved. Type the name people here know you by."
 msgstr "Your name is empty, so it can't be saved. Type the name people here know you by."
@@ -19294,12 +19312,6 @@ msgstr "Asked to cancel a build on {name}"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "Changed how often their passkey is asked for"
-
-msgid "Changed their email"
-msgstr "Changed their email"
-
-msgid "Changed their name"
-msgstr "Changed their name"
 
 msgid "Confirmed by signing in"
 msgstr "Confirmed by signing in"

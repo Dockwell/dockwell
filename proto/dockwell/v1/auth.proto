@@ -54,7 +54,7 @@ service AuthService {
   };
   option (dockwell.v1.nouns) = {
     name: "profile"
-    help: "Your profile is the name the panel and the audit log show for you, and the email you sign in with by an authenticator code, and that dockwell recover takes on the control server. A token acting for you can change the name. Changing the email takes a signed-in session and your passkey each time, so you do it in the panel, under Profile and security."
+    help: "Your profile is the name the panel and the audit log show for you, and the email you sign in with by an authenticator code, and that dockwell recover takes on the control server. Changing either takes a signed-in session, which no API token gives, and the email your passkey each time, so you do it in the panel, under Profile and security."
   };
   option (dockwell.v1.nouns) = {
     name: "provider-links"
@@ -353,19 +353,23 @@ service AuthService {
   }
 
   // UpdateProfile changes your own name or email. What's unset stays as it is.
-  // Your email names you for signing in with an authenticator code, and to
-  // dockwell recover on the server, so a change of it takes a proof from
-  // FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL, bound to the new email in
-  // lowercase, each time; a change of name takes none. An email someone else here
-  // signs in with is refused with the reason member_exists, and one an open invite
-  // is for with email_invited. Sessions, passkeys, the authenticator app and
-  // accounts linked at sign-in providers stay as they are. Each change is in the
-  // audit log, with what it was and what it is (#801).
+  // Either takes a signed-in session, which no API token gives, as nothing acts
+  // as who you are. Your email names you for signing in with an authenticator
+  // code, and to dockwell recover on the server, so a change of it also takes a
+  // proof from FinishStepUp for STEP_UP_ACTION_CHANGE_EMAIL on the new email,
+  // each time. A name or an email that reads the same as someone else's here is
+  // refused: an email someone signs in with by the reason member_exists, one an
+  // open invite is for by email_invited, one that only looks like either by
+  // email_lookalike, and a name by name_taken. Sessions, passkeys, the
+  // authenticator app and accounts linked at sign-in providers stay as they
+  // are. Each change is in the audit log, with what it was and what it is, and
+  // on Activity for admins (#801).
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_VIEWER;
     option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
     option (dockwell.v1.reach) = REACH_SELF;
+    option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {
       post: "/v1/profile"
       body: "*"
@@ -1087,7 +1091,8 @@ enum StepUpAction {
   // stands for applying a change that gives something as much as root.
   STEP_UP_ACTION_APPROVE_CHANGE = 114;
   // Changing your own email, which names you for code sign-in and recovery
-  // (#801). The target is the new email, lowercased. It always asks.
+  // (#801). The target is the new email, as typed: the server writes it as it
+  // keeps emails. It always asks.
   STEP_UP_ACTION_CHANGE_EMAIL = 115;
   // Inviting someone, with MemberService.CreateInvite. The target is the
   // email, lowercased, the role's name and the place, apart by spaces, as
@@ -1196,8 +1201,8 @@ message UpdateProfileRequest {
   optional string name = 1;
   // The email you sign in with, which no one else here does or is invited as.
   optional string email = 2;
-  // From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email in
-  // lowercase, where the email changes.
+  // From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
+  // typed it, where the email changes.
   string proof = 3;
 }
 

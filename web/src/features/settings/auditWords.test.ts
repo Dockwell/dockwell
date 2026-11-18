@@ -153,3 +153,18 @@ describe("setting an app's updates aside", () => {
     expect(zh(event("service.update_skip", '{"service":"db","version":"17.2"}')).title).toBe("跳过了 db 的 17.2");
   });
 });
+
+describe("someone's own name and email on Activity (#801's review, M1)", () => {
+  it("say what each was and is, for admins to tell who it was", async () => {
+    const words = renderHookWithApi(useDescribe, {}).result.current;
+    const said = (action: string, previous: string, value: string) =>
+      words(
+        create(EventSchema, { action, kind: EventKind.ACCESS, setting: { setting: action, previous, value } }),
+        new Map(),
+      ).title;
+    expect(said("account.name", "Ada Park", "Mira Chen")).toBe("Changed their name from Ada Park to Mira Chen");
+    expect(said("account.email", "ada@example.com", "mіra@example.com")).toBe(
+      "Changed their email from ada@example.com to mіra@example.com",
+    );
+  });
+});

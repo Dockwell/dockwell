@@ -926,7 +926,9 @@ export const EventProcessSchema: GenMessage<EventProcess> = /*@__PURE__*/
  */
 export type EventSetting = Message<"dockwell.v1.EventSetting"> & {
   /**
-   * Which: "name", "time_zone" or "panel_domain".
+   * Which: "name", "time_zone" or "panel_domain"; or, on an access event,
+   * "account.name" or "account.email" for someone changing their own, which
+   * only admins see (#801).
    *
    * @generated from field: string setting = 1;
    */

@@ -812,10 +812,10 @@ describe("ProfilePage", () => {
     expect(await account.findByText("Mira Okafor")).toBeVisible();
   });
 
-  it("asks for the passkey for a new email, bound to it in lowercase (#801)", async () => {
+  it("asks for the passkey for a new email, sent as typed for the server to write (#801's review, L1)", async () => {
     let user = mira;
     const updateProfile = confirmed((req: UpdateProfileRequest) => {
-      user = { ...user, email: req.email ?? user.email };
+      user = { ...user, email: req.email?.toLowerCase() ?? user.email };
       return { user };
     });
     stubPasskeys();
@@ -829,11 +829,11 @@ describe("ProfilePage", () => {
     await userEvent.click(account.getByRole("button", { name: "Save" }));
     expect(await account.findByText("Saved")).toBeVisible();
     expect(auth.auth.beginStepUp).toHaveBeenCalledWith(
-      expect.objectContaining({ action: StepUpAction.CHANGE_EMAIL, target: "mira.chen@example.com" }),
+      expect.objectContaining({ action: StepUpAction.CHANGE_EMAIL, target: "Mira.Chen@Example.com" }),
       expect.anything(),
     );
     expect(updateProfile).toHaveBeenLastCalledWith(
-      expect.objectContaining({ email: "mira.chen@example.com", proof: proofFor(StepUpAction.CHANGE_EMAIL) }),
+      expect.objectContaining({ email: "Mira.Chen@Example.com", proof: proofFor(StepUpAction.CHANGE_EMAIL) }),
       expect.anything(),
     );
     expect(updateProfile.mock.lastCall?.[0].name).toBeUndefined();
@@ -845,6 +845,10 @@ describe("ProfilePage", () => {
     [
       "email_invited",
       "An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members.",
+    ],
+    [
+      "email_lookalike",
+      "This email reads the same as one someone else here signs in with or is invited as, so it would pass for theirs. Choose another.",
     ],
   ])("says at the field why a new email was refused: %s (#801)", async (reason, words) => {
     const updateProfile = confirmed(() => {
@@ -861,6 +865,23 @@ describe("ProfilePage", () => {
     expect(account.queryByText("Saved")).toBeNull();
     // Typing again clears it, for the next try.
     await userEvent.type(email, "m");
+    expect(account.queryByText(words)).toBeNull();
+  });
+
+  it("says at the name why it was refused: one that reads as someone else's (#801's review, M1)", async () => {
+    const updateProfile = vi.fn(() => {
+      throw authError(Code.AlreadyExists, "name_taken");
+    });
+    renderAt("/profile", api({ updateProfile }));
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const name = await account.findByLabelText("Name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Ada Lovelace");
+    await userEvent.click(account.getByRole("button", { name: "Save" }));
+    const words =
+      "Someone else here goes by a name that reads the same, so the two of you would be hard to tell apart. Choose another.";
+    expect(await account.findByText(words)).toBeVisible();
+    await userEvent.type(name, "x");
     expect(account.queryByText(words)).toBeNull();
   });
 

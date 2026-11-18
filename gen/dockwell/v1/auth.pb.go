@@ -299,7 +299,8 @@ const (
 	// stands for applying a change that gives something as much as root.
 	StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE StepUpAction = 114
 	// Changing your own email, which names you for code sign-in and recovery
-	// (#801). The target is the new email, lowercased. It always asks.
+	// (#801). The target is the new email, as typed: the server writes it as it
+	// keeps emails. It always asks.
 	StepUpAction_STEP_UP_ACTION_CHANGE_EMAIL StepUpAction = 115
 	// Inviting someone, with MemberService.CreateInvite. The target is the
 	// email, lowercased, the role's name and the place, apart by spaces, as
@@ -3340,8 +3341,8 @@ type UpdateProfileRequest struct {
 	Name *string `protobuf:"bytes,1,opt,name=name,proto3,oneof" json:"name,omitempty"`
 	// The email you sign in with, which no one else here does or is invited as.
 	Email *string `protobuf:"bytes,2,opt,name=email,proto3,oneof" json:"email,omitempty"`
-	// From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email in
-	// lowercase, where the email changes.
+	// From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
+	// typed it, where the email changes.
 	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5128,7 +5129,7 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x1aSTEP_UP_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18STEP_UP_POLICY_EACH_TIME\x10\x01\x12\x19\n" +
 	"\x15STEP_UP_POLICY_HOURLY\x10\x02\x12\x1d\n" +
-	"\x19STEP_UP_POLICY_AT_SIGN_IN\x10\x032\xb3?\n" +
+	"\x19STEP_UP_POLICY_AT_SIGN_IN\x10\x032\xae?\n" +
 	"\vAuthService\x12}\n" +
 	"\fGetAuthState\x12 .dockwell.v1.GetAuthStateRequest\x1a!.dockwell.v1.GetAuthStateResponse\"(\xa0\xbb\x18\x01\xc0\xbb\x18\x01Ȼ\x18\x01л\x18\x01\x82\xd3\xe4\x93\x02\x0f\x12\r/v1/authState\x90\x02\x01\x12\x89\x01\n" +
 	"\n" +
@@ -5157,8 +5158,8 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\vBeginStepUp\x12\x1f.dockwell.v1.BeginStepUpRequest\x1a .dockwell.v1.BeginStepUpResponse\"3\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/sessions:beginStepUp\x12\x89\x01\n" +
 	"\fFinishStepUp\x12 .dockwell.v1.FinishStepUpRequest\x1a!.dockwell.v1.FinishStepUpResponse\"4\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1e:\x01*\"\x19/v1/sessions:finishStepUp\x12\x89\x01\n" +
 	"\x0fGetStepUpPolicy\x12#.dockwell.v1.GetStepUpPolicyRequest\x1a$.dockwell.v1.GetStepUpPolicyResponse\"+\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x12\x12\x10/v1/stepUpPolicy\x90\x02\x01\x12\x8d\x01\n" +
-	"\x0fSetStepUpPolicy\x12#.dockwell.v1.SetStepUpPolicyRequest\x1a$.dockwell.v1.SetStepUpPolicyResponse\"/\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/stepUpPolicy:set\x12~\n" +
-	"\rUpdateProfile\x12!.dockwell.v1.UpdateProfileRequest\x1a\".dockwell.v1.UpdateProfileResponse\"&\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/profile\x12|\n" +
+	"\x0fSetStepUpPolicy\x12#.dockwell.v1.SetStepUpPolicyRequest\x1a$.dockwell.v1.SetStepUpPolicyResponse\"/\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/stepUpPolicy:set\x12\x82\x01\n" +
+	"\rUpdateProfile\x12!.dockwell.v1.UpdateProfileRequest\x1a\".dockwell.v1.UpdateProfileResponse\"*\xa0\xbb\x18\x03\xb0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x10:\x01*\"\v/v1/profile\x12|\n" +
 	"\fListPasskeys\x12 .dockwell.v1.ListPasskeysRequest\x1a!.dockwell.v1.ListPasskeysResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/passkeys\x90\x02\x01\x12\x8e\x01\n" +
 	"\x0fBeginAddPasskey\x12#.dockwell.v1.BeginAddPasskeyRequest\x1a$.dockwell.v1.BeginAddPasskeyResponse\"0\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1a:\x01*\"\x15/v1/passkeys:beginAdd\x12\x92\x01\n" +
 	"\x10FinishAddPasskey\x12$.dockwell.v1.FinishAddPasskeyRequest\x1a%.dockwell.v1.FinishAddPasskeyResponse\"1\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/passkeys:finishAdd\x12\x8b\x01\n" +
@@ -5173,14 +5174,14 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x0fCancelTotpSetup\x12#.dockwell.v1.CancelTotpSetupRequest\x1a$.dockwell.v1.CancelTotpSetupResponse\"/\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/totp:cancelSetup\x12}\n" +
 	"\vDisableTotp\x12\x1f.dockwell.v1.DisableTotpRequest\x1a .dockwell.v1.DisableTotpResponse\"+\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/v1/totp:disable\x12\xb1\x01\n" +
 	"\x17RegenerateRecoveryCodes\x12+.dockwell.v1.RegenerateRecoveryCodesRequest\x1a,.dockwell.v1.RegenerateRecoveryCodesResponse\";\xa0\xbb\x18\x04\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02%:\x01*\" /v1/totp:regenerateRecoveryCodes\x12\x8b\x01\n" +
-	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"*\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\x86\x18\xa2\xbb\x18\xb6\x01\n" +
+	"\x10UnlockCodeSignIn\x12$.dockwell.v1.UnlockCodeSignInRequest\x1a%.dockwell.v1.UnlockCodeSignInResponse\"*\xa0\xbb\x18\x03\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x02\x82\xd3\xe4\x93\x02\x14:\x01*\"\x0f/v1/totp:unlock\x1a\xfc\x17\xa2\xbb\x18\xb6\x01\n" +
 	"\n" +
 	"auth-state\x12\xa7\x01The install's auth state says whether it has an owner yet, who is signed in on a request, and which address passkeys are made for there. GetAuthState needs no sign-in.\xa2\xbb\x18\x92\x02\n" +
 	"\n" +
 	"claim-link\x12\x83\x02A claim link, which dockwell run and dockwell claim print, creates the install's owner with a passkey, and works once. CheckClaim describes the server a link claims, and BeginClaim and FinishClaim make the passkey, which takes a browser: open the link in one.\xa2\xbb\x18\xdc\x02\n" +
 	"\x06invite\x12\xd1\x02An invite's link, which an admin or the owner makes in the panel's Members, signs in a new person with the role and the place it names, and works once. CheckInvite says who invited them, as what and where, and BeginAcceptInvite and FinishAcceptInvite make their passkey, which takes a browser at the panel's domain: open the link in one.\xa2\xbb\x18\xc8\x02\n" +
-	"\bpasskeys\x12\xbb\x02Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xea\x02\n" +
-	"\aprofile\x12\xde\x02Your profile is the name the panel and the audit log show for you, and the email you sign in with by an authenticator code, and that dockwell recover takes on the control server. A token acting for you can change the name. Changing the email takes a signed-in session and your passkey each time, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xec\x02\n" +
+	"\bpasskeys\x12\xbb\x02Passkeys are how you sign in to the panel. A browser, a phone or a security key makes each one, for one address, and only it can use it. Adding and removing them needs a signed-in session, which no API token gives, and a passkey you already have to confirm it, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xe0\x02\n" +
+	"\aprofile\x12\xd4\x02Your profile is the name the panel and the audit log show for you, and the email you sign in with by an authenticator code, and that dockwell recover takes on the control server. Changing either takes a signed-in session, which no API token gives, and the email your passkey each time, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xec\x02\n" +
 	"\x0eprovider-links\x12\xd9\x02A provider link is an account at a sign-in provider that signs you in to Dockwell, on the panel's own domain, once an admin turns that on for the provider. Linking one needs a signed-in session, which no API token gives, and your passkey to confirm it, so you do it in the panel, under Profile and security. Unlinking ends the sessions it began.\xa2\xbb\x18\xe6\x02\n" +
 	"\bsessions\x12\xd9\x02A session is a browser you're signed in on. Signing in takes a passkey, a code from an authenticator app, a recovery code, a one-time link from dockwell recover, or an account you linked at a sign-in provider, and sets a session cookie. No API token can sign in, or list or end sessions: how you sign in changes only by signing in, in the panel.\xa2\xbb\x18\xba\x03\n" +
 	"\x0estep-up-policy\x12\xa7\x03How often you're asked for your passkey again: each time, once an hour, or only when you sign in, but never below the least the install's owner allows. Changing how you sign in or your email, this choice, approving someone else's protected change and transferring ownership ask each time. Choosing takes a signed-in session, which no API token gives, and your passkey, so you do it in the panel, under Profile and security.\xa2\xbb\x18\xf7\x02\n" +

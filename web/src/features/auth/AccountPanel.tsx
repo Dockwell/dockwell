@@ -58,6 +58,7 @@ export function AccountPanel() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [emailProblem, setEmailProblem] = useState<string>();
+  const [nameProblem, setNameProblem] = useState<string>();
   const [problem, setProblem] = useState<string>();
   // The fields start from what the control plane says, once it has said it.
   useEffect(() => {
@@ -66,13 +67,16 @@ export function AccountPanel() {
   }, [user?.name, user?.email]);
 
   const newName = tidyName(name);
-  const newEmail = email.trim().toLowerCase();
+  // As typed: the server writes it as it keeps emails, as a browser's lowercase of İ or Σ
+  // isn't Go's (#801's review, L1). Lowercase only tells whether it changed.
+  const newEmail = email.trim();
   const nameChanged = user !== undefined && newName !== user.name;
-  const emailChanged = user !== undefined && newEmail !== user.email;
+  const emailChanged = user !== undefined && newEmail.toLowerCase() !== user.email;
   const nameError =
-    left.name && newName === ""
+    nameProblem ??
+    (left.name && newName === ""
       ? t`Your name is empty, so it can't be saved. Type the name people here know you by.`
-      : undefined;
+      : undefined);
   const emailError =
     emailProblem ??
     (left.email && !looksLikeEmail(newEmail)
@@ -90,6 +94,7 @@ export function AccountPanel() {
     setSaved(false);
     setProblem(undefined);
     setEmailProblem(undefined);
+    setNameProblem(undefined);
     const update = (proof: string) =>
       createClient(AuthService, transport).updateProfile({
         name: nameChanged ? newName : undefined,
@@ -109,6 +114,16 @@ export function AccountPanel() {
       switch (reasonOf(err)) {
         case "member_exists":
           setEmailProblem(t`Someone else here signs in with this email, so it can't be yours too. Choose another.`);
+          break;
+        case "email_lookalike":
+          setEmailProblem(
+            t`This email reads the same as one someone else here signs in with or is invited as, so it would pass for theirs. Choose another.`,
+          );
+          break;
+        case "name_taken":
+          setNameProblem(
+            t`Someone else here goes by a name that reads the same, so the two of you would be hard to tell apart. Choose another.`,
+          );
           break;
         case "email_invited":
           setEmailProblem(
@@ -145,6 +160,7 @@ export function AccountPanel() {
             error={nameError}
             onChange={(e) => {
               setName(e.target.value);
+              setNameProblem(undefined);
               setSaved(false);
             }}
             onBlur={() => setLeft((l) => ({ ...l, name: true }))}

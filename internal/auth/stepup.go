@@ -401,6 +401,12 @@ func (s *Service) BeginStepUp(ctx context.Context, client Client, p Principal, a
 		if target, err = normalizeInviteTarget(target); err != nil {
 			return Ceremony{}, err
 		}
+	case action == StepUpChangeEmail:
+		// The new email as UpdateProfile keeps it, whatever the panel typed (#801's review, L1).
+		var err error
+		if target, err = normalizeEmail(target); err != nil {
+			return Ceremony{}, err
+		}
 	}
 	rp, err := s.relyingParty(client.Site)
 	if err != nil {

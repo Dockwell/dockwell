@@ -45,7 +45,7 @@ AuthService.SignInWithCode                     apply        nothing    nothing  
 AuthService.SignInWithLink                     apply        nothing    nothing    anyone
 AuthService.SignOut                            apply        nothing    nothing    self
 AuthService.UnlockCodeSignIn                   apply        viewer     viewer     self
-AuthService.UpdateProfile                      apply        viewer     viewer     self
+AuthService.UpdateProfile                      apply        viewer     viewer     self     session
 BackupService.CreateBackup                     apply        developer  admin      project
 BackupService.DeleteBackup                     destructive  developer  admin      project  session
 BackupService.DrillBackup                      apply        developer  admin      project

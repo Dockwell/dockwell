@@ -936,6 +936,8 @@ func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
 		{auth.ErrNotFound, connect.CodeNotFound, "not_found"},
 		{auth.ErrMemberExists, connect.CodeAlreadyExists, "member_exists"},
 		{auth.ErrEmailInvited, connect.CodeAlreadyExists, "email_invited"},
+		{auth.ErrEmailLookalike, connect.CodeAlreadyExists, "email_lookalike"},
+		{auth.ErrNameTaken, connect.CodeAlreadyExists, "name_taken"},
 		{auth.ErrOnYourself, connect.CodeFailedPrecondition, "on_yourself"},
 		{auth.ErrTheOwner, connect.CodeFailedPrecondition, "the_owner"},
 		{auth.ErrLastGrant, connect.CodeFailedPrecondition, "last_grant"},

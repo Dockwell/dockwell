@@ -373,7 +373,9 @@ message EventProcess {
 
 // EventSetting is a setting of the install as someone changed it.
 message EventSetting {
-  // Which: "name", "time_zone" or "panel_domain".
+  // Which: "name", "time_zone" or "panel_domain"; or, on an access event,
+  // "account.name" or "account.email" for someone changing their own, which
+  // only admins see (#801).
   string setting = 1;
   // What it is now. Empty when they cleared it.
   string value = 2;

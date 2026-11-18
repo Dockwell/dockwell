@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/dockwell/dockwell/internal/auth/authtest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
@@ -23,8 +24,9 @@ func (f *invited) writeToken(t *testing.T, p Principal) NewToken {
 	return made
 }
 
-// A name changes with no passkey, from a session or a token that makes changes,
-// tidied as sign-up tidies it, and the audit log says what it was and what it is.
+// A name changes with no passkey, from a session alone, tidied as sign-up tidies
+// it, and the audit log says what it was and what it is. No token changes it, as
+// nothing acts as who someone is (#801's review, M1).
 func TestANameChangesWithNoPasskey(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := newInvited(t, backend)
@@ -45,14 +47,13 @@ func TestANameChangesWithNoPasskey(t *testing.T) {
 		if got := f.auditDetails(t, "account.name"); len(got) != 1 {
 			t.Errorf("%d name changes on record after saving the same name", len(got))
 		}
-		// A token acting for the person changes the name too, and is on record as itself.
 		tok := f.writeToken(t, f.owner)
 		withToken := Principal{User: f.user(t, f.owner), Token: &tok.Token}
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, ptr("Mira"), nil, ""); err != nil {
-			t.Fatalf("a read-write token changing the name: %v", err)
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, ptr("Mira"), nil, ""); !errors.Is(err, ErrNeedsSession) {
+			t.Errorf("a read-write token changing the name: %v, want a session needed", err)
 		}
-		if ev := f.auditEvents(t, "account.name"); len(ev) != 2 || ev[1].Actor != withToken.Actor() {
-			t.Errorf("the token's change is on record as %+v", ev)
+		if got := f.user(t, f.owner).Name; got != "Mira Okafor" || len(f.auditEvents(t, "account.name")) != 1 {
+			t.Errorf("after a token's try the name is %q", got)
 		}
 	})
 }
@@ -101,7 +102,7 @@ func TestAnEmailChangeAsksForAPasskeyEachTime(t *testing.T) {
 		if u.Email != "mira.chen@example.com" || u.Name != "Mira Okafor" {
 			t.Fatalf("after the change: %q <%s>", u.Name, u.Email)
 		}
-		if got := f.auditDetails(t, "account.email"); len(got) != 1 || got[0] != "from mira@acme.dev to mira.chen@example.com" {
+		if got := f.auditDetails(t, "account.email"); len(got) != 1 || got[0] != `from "mira@acme.dev" to "mira.chen@example.com"` {
 			t.Errorf("the audit log's email changes = %q", got)
 		}
 		if got := f.auditDetails(t, "account.name"); len(got) != 1 {
@@ -191,6 +192,126 @@ func TestAnEmailChangeIsRefusedWhereItWouldClash(t *testing.T) {
 		}
 		if got := emailOf(); got != "sam@example.com" {
 			t.Errorf("the owner's email is %s", got)
+		}
+	})
+}
+
+// joined accepts an invite to email as name, with a passkey of their own, and
+// returns them as their next request has them, with the passkey.
+func (f *invited) joined(t *testing.T, email, name string) (Principal, *authtest.Authenticator) {
+	t.Helper()
+	_, secret := f.invite(t, email, store.RoleViewer)
+	cer, err := f.svc.BeginAcceptInvite(t.Context(), onDomain, secret, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := &authtest.Authenticator{Counter: true}
+	cred, _, err := keys.Create(string(cer.Options), onDomain.Site.Origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := f.svc.FinishAcceptInvite(t.Context(), onDomain, cer.ID, secret, []byte(cred), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f.current(t, onDomain, in), keys
+}
+
+// A name is kept without what prints as nothing or turns text around, and in
+// NFKC; and a name or an email that reads the same as another person's here is
+// refused, by case and by look, as one would pass for them in Activity, Members
+// and an approval. A name chosen at an invite is held to it too (#801's review, M1).
+func TestACopyOfSomeoneElsesNameOrEmailIsRefused(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := newInvited(t, backend)
+		sam, samKeys := f.joined(t, "sam@example.com", "Sam Rivera")
+		f.invite(t, "ada@example.com", store.RoleViewer)
+
+		// What prints as nothing goes, and full-width letters read as themselves.
+		u, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("\u202eSam\u200b Rivera-Ｌｅｅ\u200d\ufeff"), nil, "")
+		if err != nil || u.Name != "Sam Rivera-Lee" {
+			t.Fatalf("a name with invisible and full-width letters: %q, %v", u.Name, err)
+		}
+		// Someone else's name, by case, by spaces and by look, is refused, and so is
+		// one hidden behind what prints as nothing.
+		for _, copied := range []string{"Mira Chen", "mira chen", "MIRA  CHEN", "Mіra Chen", "Μira Chen", "Mira Chen\u200d", "\u202dMira Chen", "Mira Chén"} {
+			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr(copied), nil, ""); !errors.Is(err, ErrNameTaken) {
+				t.Errorf("the name %q: %v, want it taken", copied, err)
+			}
+		}
+		// Their own name, in another case, is theirs to keep.
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("sam rivera-lee"), nil, ""); err != nil {
+			t.Errorf("their own name in lowercase: %v", err)
+		}
+
+		// An email that only reads as the owner's, with a Cyrillic і, as the review found.
+		for _, copied := range []string{"mіra@acme.dev", "MIRA@ACME.DEV\u200b", "mira@acrne.dev", "ѕam@example.com"} {
+			if copied == "MIRA@ACME.DEV\u200b" {
+				// What prints as nothing isn't an email's to have, nor a passkey's to confirm.
+				if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), ""); !errors.Is(err, ErrInvalid) {
+					t.Errorf("the email %q: %v, want it invalid", copied, err)
+				}
+				if _, err := f.svc.BeginStepUp(t.Context(), onDomain, sam, StepUpChangeEmail, copied); !errors.Is(err, ErrInvalid) {
+					t.Errorf("a passkey for %q: %v, want it invalid", copied, err)
+				}
+				continue
+			}
+			proof := f.stepUpAt(t, onDomain, sam, samKeys, StepUpChangeEmail, copied).Proof
+			_, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), proof)
+			if copied == "ѕam@example.com" {
+				// Their own, by look, is theirs.
+				if err != nil {
+					t.Errorf("an email that reads as their own: %v", err)
+				}
+				continue
+			}
+			if !errors.Is(err, ErrEmailLookalike) {
+				t.Errorf("the email %q: %v, want it refused as reading as the owner's", copied, err)
+			}
+		}
+		// One that reads as an open invite's.
+		proof := f.stepUpAt(t, onDomain, sam, samKeys, StepUpChangeEmail, "аda@example.com").Proof
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr("аda@example.com"), proof); !errors.Is(err, ErrEmailLookalike) {
+			t.Errorf("an email that reads as an invite's: %v, want it refused", err)
+		}
+		if got := f.user(t, f.owner); got.Name != "Mira Chen" || got.Email != "mira@acme.dev" {
+			t.Errorf("the owner is %q <%s>", got.Name, got.Email)
+		}
+
+		// A name chosen at an invite that reads as someone's here.
+		_, secret := f.invite(t, "lee@example.com", store.RoleViewer)
+		for _, copied := range []string{"Mira Chen", "mіra chen"} {
+			if _, err := f.svc.BeginAcceptInvite(t.Context(), onDomain, secret, copied); !errors.Is(err, ErrNameTaken) {
+				t.Errorf("joining as %q: %v, want it taken", copied, err)
+			}
+		}
+		if _, err := f.svc.BeginAcceptInvite(t.Context(), onDomain, secret, "Lee Park"); err != nil {
+			t.Errorf("joining as a name of their own: %v", err)
+		}
+	})
+}
+
+// The new email is written as the server keeps emails, in the step-up's target
+// and in the change, whatever the panel's lowercase made of it: İ and Σ lowercase
+// one way in Go and another in a browser (#801's review, L1).
+func TestAnEmailIsConfirmedAsTheServerWritesIt(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := newInvited(t, backend)
+		for _, tt := range []struct{ typed, kept string }{
+			{"İnci@Example.com", "inci@example.com"},
+			{"ΑΣ@example.com", "ασ@example.com"},
+		} {
+			p := f.current(t, onDomain, SignedIn{Token: f.ownerSecret})
+			// The browser's own lowercase is no other email: its proof is for the same one.
+			proof := f.stepUpAt(t, onDomain, p, f.keys, StepUpChangeEmail, tt.typed).Proof
+			u, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr(tt.typed), proof)
+			if err != nil || u.Email != tt.kept {
+				t.Errorf("%s: kept as %q, %v; want %q", tt.typed, u.Email, err, tt.kept)
+			}
+		}
+		// Recover and code sign-in find it by what the person types.
+		if _, who, err := f.svc.CreateSignInLink(t.Context(), "ΑΣ@example.com", "test"); err != nil || who.ID != f.owner.User.ID {
+			t.Errorf("recover by the typed email: %v", err)
 		}
 	})
 }
