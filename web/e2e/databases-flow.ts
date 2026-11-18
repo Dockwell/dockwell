@@ -140,6 +140,10 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
     if (!openPlan.toLowerCase().includes(part))
       fail(`the plan for external access doesn't say "${part}": ${openPlan.slice(0, 400)}`);
   }
+  // Its deny of 5432 can't cut anyone off the server, so it neither warns so nor asks for a typed code (#850).
+  if (/may cut off access/i.test(openPlan))
+    fail(`the plan for external access says it may cut off access: ${openPlan.slice(0, 400)}`);
+  if (/Type .+ to apply it/.test(openPlan)) fail("the plan for external access asks for a typed code");
   await opening.getByRole("button", { name: "Use an SSH tunnel" }).click();
   await opening.waitFor({ state: "detached" });
   if ((await external.getByRole("button", { name: "Use an SSH tunnel" }).getAttribute("aria-expanded")) !== "true")

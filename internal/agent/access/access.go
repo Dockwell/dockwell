@@ -1176,6 +1176,27 @@ func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
 	})
 }
 
+// WaysIn are the TCP ports someone reaches the server by, for the firewall's
+// plan to warn only of a rule that may close one (#850): every port SSH listens
+// on now, or Dockwell keeps pinned for it, and on the control server the
+// control plane's own. known is false where SSH's ports can't be read, as with
+// an SSH server Dockwell can't see or no sshd -T.
+func (m *Manager) WaysIn() (ports []uint16, known bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+	defer cancel()
+	h := m.readHost(ctx)
+	if m.Pins == nil || h.pinsErr != nil || len(h.pins.SSHPorts) == 0 {
+		return nil, false
+	}
+	m.mu.Lock()
+	kept := slices.Clone(m.confirmed.Pinned.SSHPorts)
+	m.mu.Unlock()
+	for _, p := range slices.Concat(h.pins.SSHPorts, kept, h.pins.Own) {
+		ports = appendNew(ports, p)
+	}
+	return ports, true
+}
+
 // Tunnel is a WireGuard tunnel on the server.
 type Tunnel struct {
 	Name string

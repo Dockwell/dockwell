@@ -186,6 +186,16 @@ fail2ban is read where it's installed: its jails and recent bans, through `fail2
 - **A jail change has no timer, and its plan says whom it can ban.** A jail closes nothing until an address keeps failing to sign in, so a confirmation would prove nothing. But a jail that starts counts the failures of the last `findtime`, so an address that failed often enough just before is banned as the change applies, and fail2ban's stock actions drop its open sessions too. So the plan, in the panel and the CLI, names what the jail never bans and any address signed in over SSH that it could ban. **Undo doesn't lift a ban,** and removing Dockwell's jail where the distribution's own goes on doesn't either: the plan says so, with the way back in, from another address or the provider's console with `fail2ban-client unban`. Unbanning from Dockwell is its own slice.
 - **Installing fail2ban** is the package manager's, which #276 brings.
 
+### What "may cut off access" means (#850)
+
+A plan warns that it may cut off access, which makes it destructive (the typed code beside the passkey, and no API token), only for a rule that can close a way into the server:
+
+- **A deny of one of its ports, or an allow of one that's deleted, narrowed or moved,** over TCP. Those ports are every port SSH listens on now, as the pin reads them (what the SSH server holds, what systemd holds for it, or what `sshd -T` says), those Dockwell keeps pinned, and on the control server the control plane's own: the panel's and its agents' listeners.
+- **A deny of any other port warns nothing:** a database's under external access ([ADR 0038](0038-databases.md)), or an app's. Neither can cut anyone off the server, and a warning on each would stop meaning anything.
+- **Where SSH's ports can't be read,** as under an SSH server the pin can't see, with no `sshd -T`, or on a server that isn't connected, which the control plane plans without its agent, every deny and every deleted or narrowed allow warns, as before. Not knowing is the case the warning is for.
+
+The agent judges it, where the ports are known (`firewall.Reacher`, beside `Checker`). The refusals this record sets out stand as they were, and so do the confirmation timer and the passkey every change takes.
+
 ### Who may change them
 
 Every change to `firewall.rule`, `firewall.policy`, `ssh.config` and `fail2ban.jail` takes a signed-in person and a passkey just now, as anything that decides who gets onto the server does ([ADR 0032](0032-files-on-a-server.md)), and an admin or the owner (ADR 0048, in #255). No API token may make one. The person who applied it confirms it, in that session. Unbanning an address is an admin's, with no passkey, and is on Activity.
