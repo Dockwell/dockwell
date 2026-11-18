@@ -2,6 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import {
+  Connection,
   ContainerUsageSchema,
   type ServerStats,
   ServerStatsSchema,
@@ -45,10 +46,17 @@ function theirs(webCpu: number, webMiB: number, running = true): ServerStats {
   });
 }
 
-function api(history: ServerStats[], resources: { cpus?: string; memory?: string } = {}): Api {
+function api(
+  history: ServerStats[],
+  resources: { cpus?: string; memory?: string } = {},
+  connection = Connection.CONNECTED,
+): Api {
   const web = anApp("web", "nginx:1.27", { resources });
   const watch = feed<WatchServersResponse>();
-  watch.push(changed(aServer({ id: SERVER, name: "hz-1", history, stats: history.at(-1) })), snapshotComplete);
+  watch.push(
+    changed(aServer({ id: SERVER, name: "hz-1", connection, history, stats: history.at(-1) })),
+    snapshotComplete,
+  );
   return {
     resources: places(),
     services: { listServices: () => ({ services: [web] }), listServiceRevisions: () => ({ revisions: [] }) },
@@ -93,6 +101,19 @@ describe("an app's Metrics card (#797)", () => {
     renderAt("/apps/svc_web", api([theirs(10, 100), theirs(25, 200), theirs(0, 0, false)], { cpus: "0.5" }));
     await screen.findByRole("region", { name: "Configuration" });
     expect(screen.queryByRole("region", { name: "Metrics" })).toBeNull();
+  });
+
+  it("goes once its server is unreachable, rather than show its last sample as now (#852)", async () => {
+    renderAt("/apps/svc_web", api([theirs(10, 100), theirs(25, 200)], { cpus: "0.5" }, Connection.UNREACHABLE));
+    await screen.findByRole("region", { name: "Configuration" });
+    expect(screen.queryByRole("region", { name: "Metrics" })).toBeNull();
+  });
+
+  it("leaves an unreachable server's use out of Settings' Resources (#852)", async () => {
+    renderAt("/apps/svc_web/settings", api([full(40, 25, 200)], { cpus: "0.5" }, Connection.UNREACHABLE));
+    const resources = await screen.findByRole("region", { name: "Resources" });
+    const cpu = await within(resources).findByRole("combobox", { name: "CPU limit" });
+    expect(cpu).not.toHaveAccessibleDescription(/Uses/);
   });
 
   it("isn't there until its servers' samples say what it uses", async () => {

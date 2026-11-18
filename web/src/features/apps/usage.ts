@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ServiceInfo } from "@dockwell/api";
+import { Connection, type ServiceInfo } from "@dockwell/api";
 
 import { useFleet } from "../servers/useFleet";
 
@@ -28,13 +28,16 @@ type Point = { cpu: number; memory: number; replicas: number; limit: number };
  * up from the newest (#797). Undefined while none of its servers' newest samples
  * have any of it running, so a card or a hint never shows figures from before it
  * stopped (#848's review, M1), and while no sample has any of it: an agent from
- * before this, a host without cgroup v2, or nothing of it running.
+ * before this, a host without cgroup v2, or nothing of it running. A server that
+ * doesn't read connected counts as running none of it: it sends no more samples,
+ * so its last one would stay its newest (#852).
  */
 export function useAppUsage(service: ServiceInfo): AppUsageSeries | undefined {
   const fleet = useFleet();
-  const usage = fleet.status === "connecting" ? undefined : fleet.usage;
-  if (!usage) return undefined;
-  const servers = [...new Set(service.deployments.map((d) => d.serverId))];
+  if (fleet.status === "connecting" || !fleet.usage) return undefined;
+  const usage = fleet.usage;
+  const connected = new Set(fleet.servers.filter((s) => s.connection === Connection.CONNECTED).map((s) => s.id));
+  const servers = [...new Set(service.deployments.map((d) => d.serverId))].filter((id) => connected.has(id));
   const perServer = servers.map((id) =>
     (usage.get(id) ?? []).map((sample): Point | undefined => {
       const mine = sample.containers.find((c) => c.serviceId === service.id);
