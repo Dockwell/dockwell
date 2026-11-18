@@ -465,8 +465,8 @@ func (s *Service) CheckConnection(ctx context.Context, req *connect.Request[dock
 func (s *Service) check(ctx context.Context, msg *dockwellv1.CheckConnectionRequest) (*dockwellv1.CheckConnectionResponse, *dockwellv1.Server, Saved, error) {
 	// Read before the check, so a change saved while it runs leaves it an older
 	// revision's, which is never shown as the newer's.
-	id, revision := s.savedRef(ctx, msg.GetName())
-	ref := Saved{ID: id, Name: msg.GetName(), Revision: revision}
+	savedID, revision := s.savedRef(ctx, msg.GetName())
+	ref := Saved{ID: savedID, Name: msg.GetName(), Revision: revision}
 	spec, err := s.toCheck(ctx, msg)
 	if err != nil {
 		return nil, nil, Saved{}, err

@@ -437,7 +437,7 @@ func TestAnUnreadableConnectionLeavesTheRestChecked(t *testing.T) {
 		f.listed = []Saved{{ID: "cnx_a", Name: "a", Revision: 1}, {ID: "cnx_b", Name: "b", Revision: 1}}
 		f.unread = []string{"b"}
 	})
-	f.Checker.s.connections = &Connections{Logger: logTo(&said)}
+	f.s.connections = &Connections{Logger: logTo(&said)}
 	if got := f.look(); !slices.Equal(got, []string{"a read srv_1"}) {
 		t.Errorf("with b unreadable: %v", got)
 	}
