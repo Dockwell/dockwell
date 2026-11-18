@@ -43,16 +43,31 @@ func TestWhereReadsAPathAndAPick(t *testing.T) {
 	}
 }
 
+// vaultUsers is what Vaultwarden 1.37.5's /admin/users answered once its owner was
+// invited as Owner@Example.com, as a real one did, less nothing a where reads: each
+// user is an object "profile", its email kept in lower case, and _status 1 until
+// they register.
+const vaultUsers = `[{"_status":1,"accountKeys":null,"avatarColor":null,"createdAt":"2026-11-18 05:04:49 +00:00",` +
+	`"creationDate":"2026-11-18T05:04:49.221918Z","culture":"en-US","email":"owner@example.com","emailVerified":true,` +
+	`"forcePasswordReset":false,"id":"2167c58f-f207-4e31-82e7-e2add6e46ed8","key":"","lastActive":null,` +
+	`"name":"owner@example.com","object":"profile","organizations":[],"organizationsNew":[],"premium":true,` +
+	`"premiumFromOrganization":false,"privateKey":null,"providerOrganizations":[],"providers":[],` +
+	`"securityStamp":"4d164c3a-0e22-4518-b288-900d70e6e714","twoFactorEnabled":false,"userEnabled":true,"usesKeyConnector":false}]`
+
 // An owner's email in any case picks Vaultwarden's user, which it keeps in lower
-// case, so the invite's skip reads the user there on a second run (the review's M3).
+// case, so the invite's skip reads the user there on a second run, by the object
+// Vaultwarden says a user is, "profile" (the review's M3, and #829's real run, which
+// invited the owner twice when the skip asked for "user").
 func TestWherePicksAnEmailInAnyCase(t *testing.T) {
 	t.Parallel()
-	users := []byte(`[{"email":"owner@example.com","_status":1,"object":"user"}]`)
+	users := []byte(vaultUsers)
 	vals := map[string]string{"OWNER_EMAIL": "Owner@Example.com"}
 	for where, want := range map[string]bool{
-		"[email=${OWNER_EMAIL}].object=user": true,
-		"[email=${OWNER_EMAIL}]._status=1":   true,
-		"[email=${OWNER_EMAIL}]._status=0":   false,
+		"[email=${OWNER_EMAIL}].object=profile":     true,
+		"[email=${OWNER_EMAIL}].object=user":        false,
+		"[email=${OWNER_EMAIL}]._status=1":          true,
+		"[email=${OWNER_EMAIL}]._status=0":          false,
+		"[email=nobody@example.com].object=profile": false,
 	} {
 		if got, err := Where(where, users, vals); err != nil || got != want {
 			t.Errorf("Where(%q) = %v, %v, want %v", where, got, err, want)

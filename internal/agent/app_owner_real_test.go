@@ -144,7 +144,7 @@ func vaultOwner() *resourcev1.OwnerRun {
 		}
 	}
 	invite := jsonRequest(80, http.MethodPost, "/admin/invite", `{"email":"${OWNER_EMAIL}"}`, map[string]string{"Cookie": "VW_ADMIN=${VW_SESSION}"})
-	invite.Unless = users("[email=${OWNER_EMAIL}].object=user")
+	invite.Unless = users("[email=${OWNER_EMAIL}].object=profile")
 	login := &resourcev1.OwnerStep{Step: &resourcev1.OwnerStep_Request{Request: vaultSignIn()}}
 	return &resourcev1.OwnerRun{
 		Service: "web", Email: "owner@example.com", MadeWhenDone: true,
