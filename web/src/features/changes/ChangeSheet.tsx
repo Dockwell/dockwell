@@ -99,6 +99,7 @@ import {
   useAsides,
   useDataLeft,
   useRisks,
+  useRunsADatabase,
   useWarnings,
 } from "./notices";
 import { panelName } from "./PanelPlan";
@@ -188,6 +189,12 @@ interface Then {
    * servers go (ADR 0084). Picking plans the other opening in this one's place.
    */
   pick?: PlanPick;
+  /**
+   * A way out a plan's note offers, by the note's reason, that the page opening it
+   * knows: such as Use an SSH tunnel beside an unencrypted connection (#798). It
+   * closes the sheet, then goes.
+   */
+  noteAction?: Partial<Record<string, { label: string; go: () => void }>>;
 }
 
 /** A picker above a plan, between it and others, which `pick` opens. */
@@ -1328,7 +1335,24 @@ function PlanBody({
   );
   const warnings = useWarnings(plan, phase !== "review", serving);
   const dataLeft = useDataLeft(plan, change?.steps ?? []);
-  const asides = useAsides(plan);
+  const asides = useAsides(plan).map((aside) => {
+    // A note's way out, where the page that opened the plan has one, as a button.
+    const action = aside.reason ? opening.noteAction?.[aside.reason] : undefined;
+    if (!action) return aside;
+    const go = () => {
+      onLeave();
+      action.go();
+    };
+    return {
+      ...aside,
+      detail: (
+        <button type="button" className="plan-note-act" onClick={go}>
+          {action.label}
+        </button>
+      ),
+    };
+  });
+  const runsADatabase = useRunsADatabase(plan);
   const fleet = isFleet(plan);
   if (phase === "planning") {
     return (
@@ -1377,6 +1401,8 @@ function PlanBody({
       letsGo: words.letsGo(landed ? "done" : "plan"),
       // A server's host goes by its server's name (ADR 0091).
       serverName: (id) => fleetView.servers?.find((s) => s.id === id)?.name,
+      // A service that runs a database is one (#798).
+      kindLabel: (resource) => (runsADatabase(resource.id) ? t`database` : undefined),
     }),
   );
   const steps = change?.steps ?? [];

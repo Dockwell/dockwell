@@ -3,6 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   type Database,
   type DatabaseAccount,
   DatabaseEngine,
@@ -13,15 +14,19 @@ import {
 import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { formatBytes } from "../../lib/format";
+import { StateLine } from "../apps/DomainStep";
 import { useShownName } from "../apps/names";
 import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ActionMenu } from "../shell/ActionMenu";
 import { RefLink } from "../shell/RefLink";
 import { AddUserSheet } from "./AddUserSheet";
 import { useThisDatabase } from "./DatabaseLayout";
+import { UseInAppSheet } from "./UseInAppSheet";
 import { engineName, firstReading, makesUsers, readOf } from "./useDatabases";
 
 /** The Users tab: who can sign in to the database, and the databases in it. */
@@ -82,7 +87,12 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
   const sheet = useChangeSheet();
   const transport = useTransport();
   const may = useMay();
-  const mayChange = may(DatabaseService.method.changeDatabasePassword, { environment: db.resource?.scope ?? "" });
+  const where = { environment: db.resource?.scope ?? "" };
+  const mayChange = may(DatabaseService.method.changeDatabasePassword, where);
+  const mayConnect = may(DatabaseService.method.connectDatabase, where);
+  const mayRemove = may(ChangeService.method.proposeChange, where);
+  const [using, setUsing] = useState<DatabaseAccount>();
+  const navigate = useNavigate();
   const named = useServicesNamed(db.resource?.scope);
   const users = read.users.filter((u) => !u.system);
   const mysql = db.engine === DatabaseEngine.MYSQL || db.engine === DatabaseEngine.MARIADB;
@@ -165,33 +175,74 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
         ] satisfies TableColumn<DatabaseAccount & { id: string }>[])
       : []),
   ];
-  // A user Dockwell made gets a new generated password in their secret, and in the database, through a plan.
+  // A new generated password, in the database and the secret at once, through a plan:
+  // for a user Dockwell made, by name, and for its first user, whose is the database's own.
   const changePassword = (user: string) =>
     sheet.open({
       kind: "plan",
       make: () => createClient(DatabaseService, transport).changeDatabasePassword({ id: db.id, user }),
     });
-  // Only a user Dockwell made has a password to change here, so with none the column isn't there.
-  if (users.some((u) => u.resourceId && u.secret))
+  const first = (u: DatabaseAccount) => !u.resourceId && u.secret !== "" && u.secret === db.passwordSecret;
+  // A user Dockwell made goes as its resource does, which drops them in the database too.
+  const remove = (u: DatabaseAccount) => {
+    const who = u.name;
+    sheet.open({
+      kind: "propose",
+      summary: t`Remove the database user ${who}`,
+      edits: [{ resource: { kind: "database.user", scope: db.resource?.scope ?? "", name: who }, delete: true }],
+    });
+  };
+  const menu = (u: DatabaseAccount) => {
+    const who = u.name;
+    // MongoDB keeps its first user's password in its data, which a new secret doesn't change.
+    const changes = u.resourceId !== "" || (first(u) && !mongo);
+    return (
+      <ActionMenu
+        label={t`Actions for ${who}`}
+        actions={[
+          {
+            id: "password",
+            icon: "key",
+            label: t`Change password`,
+            off: !changes ? t`Its password isn't one Dockwell keeps` : mayChange.allowed ? undefined : mayChange.reason,
+            onSelect: () => changePassword(u.resourceId ? who : ""),
+          },
+          {
+            id: "use",
+            icon: "link",
+            label: t`Use in an app`,
+            off: u.superuser
+              ? t`One who can do anything isn't an app's. Add a user for it`
+              : !u.canSignIn
+                ? t`They can't sign in`
+                : mayConnect.allowed
+                  ? undefined
+                  : mayConnect.reason,
+            onSelect: () => setUsing(u),
+          },
+          {
+            id: "remove",
+            icon: "trash",
+            label: t`Remove`,
+            danger: true,
+            off: !u.resourceId
+              ? t`Dockwell didn't make ${who}, so it doesn't remove them`
+              : mayRemove.allowed
+                ? undefined
+                : mayRemove.reason,
+            onSelect: () => remove(u),
+          },
+        ]}
+      />
+    );
+  };
+  if (makes)
     columns.push({
-      key: "change",
+      key: "actions",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 168,
+      width: 56,
       align: "right",
-      render: (u) => {
-        const who = u.name;
-        return u.resourceId && u.secret ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => changePassword(who)}
-            aria-label={t`Change ${who}'s password`}
-            {...mayChange.off}
-          >
-            <Trans>Change password</Trans>
-          </Button>
-        ) : null;
-      },
+      render: menu,
     });
   // A MongoDB user's name is theirs in one database, so two can share one.
   const rows = users.map((u) => ({ ...u, id: `${u.name}@${u.host || u.authDatabase}` }));
@@ -232,12 +283,7 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
             ]
               .filter(Boolean)
               .join(" · "),
-            action:
-              u.resourceId && u.secret ? (
-                <Button size="sm" variant="ghost" onClick={() => changePassword(u.name)} {...mayChange.off}>
-                  <Trans>Change password</Trans>
-                </Button>
-              ) : undefined,
+            action: makes ? menu(u) : undefined,
           }))}
         />
       ) : (
@@ -249,11 +295,8 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
           caption={t`Users of ${name}`}
         />
       )}
-      {db.engine === DatabaseEngine.POSTGRESQL ? (
-        <p className="database-line">
-          {t`Inside its own container, PostgreSQL's image lets anything sign in as any user, with no password.`}
-        </p>
-      ) : null}
+      {/* A fact, not a fault: as a state line, with why one step away (#798). */}
+      {db.engine === DatabaseEngine.POSTGRESQL ? <TrustLine /> : null}
       {mongo ? (
         <p className="database-line">
           <Trans>
@@ -262,7 +305,43 @@ export function UsersSection({ db, read }: { db: Database; read: DatabaseReading
         </p>
       ) : null}
       {adding ? <AddUserSheet db={db} onClose={() => setAdding(false)} /> : null}
+      {using ? (
+        <UseInAppSheet
+          db={db}
+          user={using}
+          onClose={() => setUsing(undefined)}
+          onAddVariable={(serviceId) => {
+            setUsing(undefined);
+            void navigate({ to: "/apps/$serviceId/environment", params: { serviceId } });
+          }}
+        />
+      ) : null}
     </Section>
+  );
+}
+
+/** That PostgreSQL's image asks no password of what runs in its own container, and why that's so. */
+function TrustLine() {
+  const { t } = useLingui();
+  const [why, setWhy] = useState(false);
+  return (
+    <div className="database-trust">
+      <StateLine
+        status="stopped"
+        action={
+          <button type="button" className="domain-step-act" aria-expanded={why} onClick={() => setWhy(!why)}>
+            {why ? <Trans>Hide why</Trans> : <Trans>Why</Trans>}
+          </button>
+        }
+      >
+        {t`Apps sign in with a password. Inside its own container, nothing asks for one`}
+      </StateLine>
+      {why ? (
+        <p className="database-trust-why">
+          {t`PostgreSQL's image trusts what runs in its container, as only a shell there reaches it that way.`}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

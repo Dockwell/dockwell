@@ -1900,6 +1900,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 		if items, err = e.withTiesGoing(ctx, tx, items, seen); err != nil {
 			return err
 		}
+		if items, err = e.withExternalAccessFollowing(ctx, tx, items, seen); err != nil {
+			return err
+		}
 		if items, err = e.withRoutesSigningIn(ctx, tx, items, seen); err != nil {
 			return err
 		}
@@ -2282,6 +2285,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		return err
 	}
 	if err := e.checkAcross(ctx, tx, items); err != nil {
+		return err
+	}
+	if err := e.checkExternalAccess(ctx, tx, items); err != nil {
 		return err
 	}
 	if err := e.checkReferences(ctx, tx, items); err != nil {
@@ -4570,6 +4576,13 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		slices.SortStableFunc(builds, func(a, b queued) int { return waves.waveOf(a.server) - waves.waveOf(b.server) })
 	}
 	queue := accessBetween(e, plan, builds, deletes, func(q queued) (string, resource.Kind) { return q.server, q.step.Ref.Kind })
+	// A change that writes a database's external rules loads them before the port they
+	// guard opens, so the port never answers before its list does (ADR 0038).
+	if slices.ContainsFunc(queue, func(q queued) bool { return writesExternalRule(q.step.Ref) }) {
+		queue = rulesAround(e, queue, func(q queued) (string, resource.Kind, bool) {
+			return q.server, q.step.Ref.Kind, q.step.Action != resource.ActionDelete
+		})
+	}
 	digests := map[at]string{}
 	// over is how many servers the change was planned over. A resumed run's plan has
 	// only those with steps left, and a change's error names its server once there's
@@ -7007,7 +7020,7 @@ func (e *Engine) Adopt(ctx context.Context, d Drift, by By) (*Plan, error) {
 	summary := fmt.Sprintf("Keep the changes made to %s outside Dockwell", d.Ref.Name)
 	// What the server runs already, so nothing restarts, with what only the control
 	// plane keeps put back where it still holds.
-	kept := e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed)
+	kept := keepExternalTag(it.current, e.kinds.Readopted(d.Ref.Kind, it.current, d.Observed))
 	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: d.Ref, Spec: kept, Observed: true}}}, "", false)
 }
 

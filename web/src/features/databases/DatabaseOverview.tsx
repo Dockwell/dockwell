@@ -48,11 +48,11 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { useReveals } from "../variables/useReveal";
 import { useThisDatabase } from "./DatabaseLayout";
+import { ExternalAccess } from "./ExternalAccess";
 import "../servers/ServerMetrics.css";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useRestoreWhole } from "../backups/RestoreWhole";
-import { SchemasSection, UsersSection } from "./DatabaseUsers";
 import {
   connectionURL,
   engineName,
@@ -88,15 +88,37 @@ export function DatabaseOverview() {
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
       </div>
+      <ExternalAccess db={db} />
       <CompanionsPanel install={install} />
-      {speaksSQL(db.engine) && read ? (
-        <>
-          <UsersSection db={db} read={read} />
-          <SchemasSection db={db} read={read} />
-        </>
-      ) : null}
+      {speaksSQL(db.engine) && read ? <WhoIsIn db={db} read={read} /> : null}
       <DatabaseDanger db={db} />
     </div>
+  );
+}
+
+/**
+ * Who and what is in it, counted on one line, as the Users tab lists them (#798): the
+ * Overview doesn't repeat that tab.
+ */
+function WhoIsIn({ db, read }: { db: Database; read: DatabaseReading }) {
+  const { t } = useLingui();
+  const users = read.users.filter((u) => !u.system).length;
+  const own = read.databases.filter((d) => !d.system).length;
+  const counts = [
+    plural(users, { one: "# user", other: "# users" }),
+    plural(own, { one: "# database of your own", other: "# databases of your own" }),
+  ].join(" · ");
+  return (
+    <Panel
+      title={t`Users`}
+      actions={
+        <RouterButtonLink to="/databases/$serviceId/users" params={{ serviceId: db.id }} size="sm" variant="ghost">
+          <Trans>Open Users</Trans>
+        </RouterButtonLink>
+      }
+    >
+      <p className="database-line">{counts}</p>
+    </Panel>
   );
 }
 

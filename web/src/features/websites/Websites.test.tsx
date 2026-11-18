@@ -1492,20 +1492,24 @@ describe("A PHP website", () => {
 });
 
 describe("New website on a fleet", () => {
-  it("asks which server, and takes you to it", async () => {
+  it("starts on the healthy server with the most free disk, and takes another", async () => {
     const user = userEvent.setup();
     const watch = feed<WatchServersResponse>();
+    const GiB = 1024 ** 3;
+    const disk = (free: number) => ({
+      disks: [{ mountPoint: "/", sizeBytes: BigInt(100 * GiB), usedBytes: BigInt((100 - free) * GiB) }],
+    });
     watch.push(
-      changed(aServer({ id: SERVER, name: "hz-1" })),
-      changed(aServer({ id: "srv_2", name: "hz-2" })),
+      changed(aServer({ id: SERVER, name: "hz-1", stats: disk(10) })),
+      changed(aServer({ id: "srv_2", name: "hz-2", stats: disk(60) })),
       snapshotComplete,
     );
-    let asked: CreateWebsiteRequest | undefined;
+    const asked: CreateWebsiteRequest[] = [];
     renderAt("/websites/new", {
       ...api([], {
         websites: {
           createWebsite: (req) => {
-            asked = req;
+            asked.push(req);
             return { change: planned };
           },
         },
@@ -1517,13 +1521,17 @@ describe("New website on a fleet", () => {
     await user.type(within(sheet).getByRole("textbox", { name: "Domain" }), "shop.example.com");
     await user.click(within(sheet).getByRole("radio", { name: /^A URL/ }));
     await user.type(within(sheet).getByRole("textbox", { name: "URL" }), "https://backend.example.com");
+    // Nothing to choose first: the one with the most room is chosen, and "Choose a server" isn't offered (#798).
     const server = await within(sheet).findByRole("combobox", { name: "Server" });
+    await waitFor(() => expect(server).toHaveValue("srv_2"));
+    expect(within(server).queryByRole("option", { name: "Choose a server" })).toBeNull();
+    // It holds still as stats come in, though hz-1 now has more room (#849's L7).
+    watch.push(changed(aServer({ id: SERVER, name: "hz-1", stats: disk(90) })));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(server).toHaveValue("srv_2");
+    await user.selectOptions(server, "hz-1");
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
-    expect(await within(sheet).findByText("Choose the server it runs on.")).toBeVisible();
-    await waitFor(() => expect(server).toHaveFocus());
-    await user.selectOptions(server, "hz-2");
-    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
-    await waitFor(() => expect(asked?.servers).toEqual(["srv_2"]));
+    await waitFor(() => expect(asked[0]?.servers).toEqual([SERVER]));
   });
 });
 

@@ -152,6 +152,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DatabaseService.createDatabaseUser": "may",
   "DatabaseService.getDatabase": "read",
   "DatabaseService.listDatabases": "read",
+  "DatabaseService.setDatabaseExternalAccess": "may",
 
   "DomainService.checkDnsProvider": "may",
   "DomainService.listCertificates": "unused",

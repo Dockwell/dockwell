@@ -381,6 +381,17 @@ a.plan-reach-at:focus-visible {
   color: var(--ink-muted);
 }
 
+/* A note's way out, as the page that opened the plan offers it (#798). */
+.plan-note-act {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* A note in one line, which opens to the whole of it where there's more (#821). */
 .plan-note-line {
   min-width: 0;

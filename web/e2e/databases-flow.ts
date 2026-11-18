@@ -113,14 +113,53 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await connect.getByRole("button", { name: "Hide" }).click();
   await page.getByText("99.2").waitFor();
   await page.getByText(/PostgreSQL's own dump, while it runs/).waitFor();
-  const users = page.getByRole("table", { name: "Users of postgres" });
-  await users.getByRole("row").filter({ hasText: "Can do anything" }).waitFor();
+  // The Overview counts its users, and leaves listing them to their tab (#798).
+  await page.getByText(/^\d+ users? · \d+ databases? of your own$/).waitFor();
+  if (await page.getByRole("table", { name: "Users of postgres" }).isVisible())
+    fail("the Overview repeats the Users tab's table");
   await fitsItsWidth(page, "a database's page");
   await shoot(page, "database-detail");
 
-  step("databases: its users have a tab of their own");
-  await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: /Users/ }).click();
+  step(
+    "databases: external access lets in only the addresses listed, says it's unencrypted, and has the tunnel a step away",
+  );
+  const external = page.getByRole("region", { name: "External access" });
+  await external.getByText(/^Off\. Only apps on .+ reach it$/).waitFor();
+  await external.getByRole("switch", { name: "Let addresses in" }).click();
+  const allow = external.getByRole("textbox", { name: "Allow from" });
+  await allow.fill("");
+  await external.getByRole("button", { name: /Review plan/ }).click();
+  await external.getByText(/Name an address or a range to let in/).waitFor();
+  await allow.fill("203.0.113.0/24");
+  await external.getByRole("button", { name: /Review plan/ }).click();
+  const opening = onTop(page.getByRole("dialog", { name: "Review plan" }));
+  await opening.getByText(/isn't encrypted/).waitFor({ timeout: 30_000 });
+  await shoot(page, "database-external-plan");
+  const openPlan = await opening.innerText();
+  for (const part of ["firewall", "5432"]) {
+    if (!openPlan.toLowerCase().includes(part))
+      fail(`the plan for external access doesn't say "${part}": ${openPlan.slice(0, 400)}`);
+  }
+  await opening.getByRole("button", { name: "Use an SSH tunnel" }).click();
+  await opening.waitFor({ state: "detached" });
+  if ((await external.getByRole("button", { name: "Use an SSH tunnel" }).getAttribute("aria-expanded")) !== "true")
+    fail("Use an SSH tunnel in the plan didn't open the tunnel on the page");
+  await external.getByRole("button", { name: "Cancel" }).click();
+
+  step("databases: its users have a tab of their own, where its first user's password is Connect's secret");
+  await page.getByRole("link", { name: "Open Users" }).click();
   await page.getByRole("table", { name: "Databases in postgres" }).getByText("app", { exact: true }).first().waitFor();
+  const first = page
+    .getByRole("table", { name: "Users of postgres" })
+    .getByRole("row")
+    .filter({ hasText: "Can do anything" });
+  await first.getByText("POSTGRES_PASSWORD").waitFor();
+  await first.getByRole("button", { name: /^Actions for / }).click();
+  await page
+    .getByRole("menuitem", { name: /Use in an app/ })
+    .getByText(/isn't an app's/)
+    .waitFor();
+  await page.keyboard.press("Escape");
   await shoot(page, "database-users");
 
   step("databases: a user with a database of their own is a plan, with a password no one typed");

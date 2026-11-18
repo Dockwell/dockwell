@@ -309,6 +309,27 @@ describe("an app's settings", () => {
     expect(appOf(proposals[0])?.ports.map((p) => `${p.hostPort}:${p.containerPort}`)).toEqual(["8080:81"]);
   });
 
+  it("keeps what a port it doesn't show says, held or a database's external access, as it saves (#849)", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const svc = anEditedApp();
+    const app = svc.spec?.runs.case === "app" ? svc.spec.runs.value : undefined;
+    if (!app?.ports[0]) throw new Error("anEditedApp publishes no port");
+    app.ports[0].external = true;
+    app.ports[0].held = true;
+    renderAt("/apps/svc_web/settings", api(svc, proposals));
+    await ready();
+    await user.click(screen.getByRole("button", { name: "Edit Ports" }));
+    const form = screen.getByRole("form", { name: "Edit Ports" });
+    await user.click(within(form).getByRole("button", { name: "Add a port" }));
+    await user.type(within(form).getByRole("textbox", { name: "Port 2 in the app" }), "81");
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const [kept, added] = appOf(proposals[0])?.ports ?? [];
+    expect([kept?.external, kept?.held]).toEqual([true, true]);
+    expect([added?.external, added?.held]).toEqual([false, false]);
+  });
+
   it("leaves a port someone types alone when the free one lands as they type", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];

@@ -47,6 +47,9 @@ const (
 	// DatabaseServiceChangeDatabasePasswordProcedure is the fully-qualified name of the
 	// DatabaseService's ChangeDatabasePassword RPC.
 	DatabaseServiceChangeDatabasePasswordProcedure = "/dockwell.v1.DatabaseService/ChangeDatabasePassword"
+	// DatabaseServiceSetDatabaseExternalAccessProcedure is the fully-qualified name of the
+	// DatabaseService's SetDatabaseExternalAccess RPC.
+	DatabaseServiceSetDatabaseExternalAccessProcedure = "/dockwell.v1.DatabaseService/SetDatabaseExternalAccess"
 	// DatabaseServiceCheckDatabaseSignInProcedure is the fully-qualified name of the DatabaseService's
 	// CheckDatabaseSignIn RPC.
 	DatabaseServiceCheckDatabaseSignInProcedure = "/dockwell.v1.DatabaseService/CheckDatabaseSignIn"
@@ -81,6 +84,17 @@ type DatabaseServiceClient interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
+	// server reach it, from the addresses listed and nowhere else, or taking that
+	// away. It's three edits that go together: the database publishes its engine's
+	// port on every address of its server, and two firewall rules there let the
+	// listed addresses in and keep everyone else out. Turning it off removes all
+	// three. The rules are a server's, so it's an admin's, as any firewall rule is.
+	// The port is public on purpose, which a person approves, and the rules change
+	// who reaches the server, which takes a passkey, so no API token may apply it.
+	// It changes nothing until the plan is applied, and a list that's empty, or
+	// reaches everyone, is refused (ADR 0038, "External access, as built").
+	SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error)
 	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
 	// Dockwell runs signs in to one of its databases with the password an app's secret
 	// holds, from another host, as connecting the app takes that user on (ADR 0084,
@@ -142,6 +156,12 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 			connect.WithClientOptions(opts...),
 		),
+		setDatabaseExternalAccess: connect.NewClient[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse](
+			httpClient,
+			baseURL+DatabaseServiceSetDatabaseExternalAccessProcedure,
+			connect.WithSchema(databaseServiceMethods.ByName("SetDatabaseExternalAccess")),
+			connect.WithClientOptions(opts...),
+		),
 		checkDatabaseSignIn: connect.NewClient[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse](
 			httpClient,
 			baseURL+DatabaseServiceCheckDatabaseSignInProcedure,
@@ -160,12 +180,13 @@ func NewDatabaseServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 
 // databaseServiceClient implements DatabaseServiceClient.
 type databaseServiceClient struct {
-	listDatabases          *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
-	getDatabase            *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
-	createDatabaseUser     *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
-	changeDatabasePassword *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
-	checkDatabaseSignIn    *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
-	connectDatabase        *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
+	listDatabases             *connect.Client[v1.ListDatabasesRequest, v1.ListDatabasesResponse]
+	getDatabase               *connect.Client[v1.GetDatabaseRequest, v1.GetDatabaseResponse]
+	createDatabaseUser        *connect.Client[v1.CreateDatabaseUserRequest, v1.CreateDatabaseUserResponse]
+	changeDatabasePassword    *connect.Client[v1.ChangeDatabasePasswordRequest, v1.ChangeDatabasePasswordResponse]
+	setDatabaseExternalAccess *connect.Client[v1.SetDatabaseExternalAccessRequest, v1.SetDatabaseExternalAccessResponse]
+	checkDatabaseSignIn       *connect.Client[v1.CheckDatabaseSignInRequest, v1.CheckDatabaseSignInResponse]
+	connectDatabase           *connect.Client[v1.ConnectDatabaseRequest, v1.ConnectDatabaseResponse]
 }
 
 // ListDatabases calls dockwell.v1.DatabaseService.ListDatabases.
@@ -186,6 +207,11 @@ func (c *databaseServiceClient) CreateDatabaseUser(ctx context.Context, req *con
 // ChangeDatabasePassword calls dockwell.v1.DatabaseService.ChangeDatabasePassword.
 func (c *databaseServiceClient) ChangeDatabasePassword(ctx context.Context, req *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return c.changeDatabasePassword.CallUnary(ctx, req)
+}
+
+// SetDatabaseExternalAccess calls dockwell.v1.DatabaseService.SetDatabaseExternalAccess.
+func (c *databaseServiceClient) SetDatabaseExternalAccess(ctx context.Context, req *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error) {
+	return c.setDatabaseExternalAccess.CallUnary(ctx, req)
 }
 
 // CheckDatabaseSignIn calls dockwell.v1.DatabaseService.CheckDatabaseSignIn.
@@ -224,6 +250,17 @@ type DatabaseServiceHandler interface {
 	// keeps signing in (ADR 0038). A database whose password isn't in a secret has
 	// none to change here.
 	ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error)
+	// SetDatabaseExternalAccess plans letting apps and people beyond a database's
+	// server reach it, from the addresses listed and nowhere else, or taking that
+	// away. It's three edits that go together: the database publishes its engine's
+	// port on every address of its server, and two firewall rules there let the
+	// listed addresses in and keep everyone else out. Turning it off removes all
+	// three. The rules are a server's, so it's an admin's, as any firewall rule is.
+	// The port is public on purpose, which a person approves, and the rules change
+	// who reaches the server, which takes a passkey, so no API token may apply it.
+	// It changes nothing until the plan is applied, and a list that's empty, or
+	// reaches everyone, is refused (ADR 0038, "External access, as built").
+	SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error)
 	// CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server
 	// Dockwell runs signs in to one of its databases with the password an app's secret
 	// holds, from another host, as connecting the app takes that user on (ADR 0084,
@@ -281,6 +318,12 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 		connect.WithSchema(databaseServiceMethods.ByName("ChangeDatabasePassword")),
 		connect.WithHandlerOptions(opts...),
 	)
+	databaseServiceSetDatabaseExternalAccessHandler := connect.NewUnaryHandler(
+		DatabaseServiceSetDatabaseExternalAccessProcedure,
+		svc.SetDatabaseExternalAccess,
+		connect.WithSchema(databaseServiceMethods.ByName("SetDatabaseExternalAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
 	databaseServiceCheckDatabaseSignInHandler := connect.NewUnaryHandler(
 		DatabaseServiceCheckDatabaseSignInProcedure,
 		svc.CheckDatabaseSignIn,
@@ -304,6 +347,8 @@ func NewDatabaseServiceHandler(svc DatabaseServiceHandler, opts ...connect.Handl
 			databaseServiceCreateDatabaseUserHandler.ServeHTTP(w, r)
 		case DatabaseServiceChangeDatabasePasswordProcedure:
 			databaseServiceChangeDatabasePasswordHandler.ServeHTTP(w, r)
+		case DatabaseServiceSetDatabaseExternalAccessProcedure:
+			databaseServiceSetDatabaseExternalAccessHandler.ServeHTTP(w, r)
 		case DatabaseServiceCheckDatabaseSignInProcedure:
 			databaseServiceCheckDatabaseSignInHandler.ServeHTTP(w, r)
 		case DatabaseServiceConnectDatabaseProcedure:
@@ -331,6 +376,10 @@ func (UnimplementedDatabaseServiceHandler) CreateDatabaseUser(context.Context, *
 
 func (UnimplementedDatabaseServiceHandler) ChangeDatabasePassword(context.Context, *connect.Request[v1.ChangeDatabasePasswordRequest]) (*connect.Response[v1.ChangeDatabasePasswordResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.ChangeDatabasePassword is not implemented"))
+}
+
+func (UnimplementedDatabaseServiceHandler) SetDatabaseExternalAccess(context.Context, *connect.Request[v1.SetDatabaseExternalAccessRequest]) (*connect.Response[v1.SetDatabaseExternalAccessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DatabaseService.SetDatabaseExternalAccess is not implemented"))
 }
 
 func (UnimplementedDatabaseServiceHandler) CheckDatabaseSignIn(context.Context, *connect.Request[v1.CheckDatabaseSignInRequest]) (*connect.Response[v1.CheckDatabaseSignInResponse], error) {

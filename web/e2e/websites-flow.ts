@@ -147,11 +147,13 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
   if ((await path.inputValue()) !== "/var/www/blog.example.net") {
     fail(`the folder doesn't follow the domain: ${await path.inputValue()}`);
   }
-  // With several servers, the sheet asks which, as a website runs on one.
+  // With several servers, one is chosen already, the healthy one with the most free disk,
+  // with nothing to pick first (#798).
   const where = sheet.getByRole("combobox", { name: "Server" });
   if ((await where.count()) > 0) {
-    await sheet.getByText("Choose the server it runs on.").waitFor();
-    await where.selectOption({ index: 1 });
+    if ((await where.inputValue()) === "") fail("New website starts with no server chosen");
+    if (await sheet.getByText("Choose the server it runs on.").isVisible())
+      fail("New website asks for a server it chose");
   }
   // What's at the folder is read on its server, which with several is the one chosen.
   await sheet.getByText(/^New\. Made with the site/).waitFor({ timeout: 15_000 });

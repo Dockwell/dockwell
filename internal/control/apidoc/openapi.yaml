@@ -2840,6 +2840,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/databases/{id}:externalAccess:
+        post:
+            tags:
+                - DatabaseService
+            description: |-
+                SetDatabaseExternalAccess plans letting apps and people beyond a database's
+                 server reach it, from the addresses listed and nowhere else, or taking that
+                 away. It's three edits that go together: the database publishes its engine's
+                 port on every address of its server, and two firewall rules there let the
+                 listed addresses in and keep everyone else out. Turning it off removes all
+                 three. The rules are a server's, so it's an admin's, as any firewall rule is.
+                 The port is public on purpose, which a person approves, and the rules change
+                 who reaches the server, which takes a passkey, so no API token may apply it.
+                 It changes nothing until the plan is applied, and a list that's empty, or
+                 reaches everyone, is refused (ADR 0038, "External access, as built").
+            operationId: DatabaseService_SetDatabaseExternalAccess
+            parameters:
+                - name: id
+                  in: path
+                  description: The service that runs it, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetDatabaseExternalAccessRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetDatabaseExternalAccessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/dnsProviders:
         get:
             tags:
@@ -13985,6 +14027,14 @@ components:
                     description: |-
                         The catalog entry it was installed from, by ID, such as "postgres". Empty
                          for anything else.
+                externalAccess:
+                    allOf:
+                        - $ref: '#/components/schemas/DatabaseExternalAccess'
+                    description: |-
+                        How apps and people beyond its server reach it, where they do: the port it
+                         publishes on every address of its server, and the addresses its firewall
+                         lets in there. Unset while it has no external access
+                         (SetDatabaseExternalAccess).
             description: Database is a service that runs a database.
         DatabaseAccount:
             type: object
@@ -14062,6 +14112,21 @@ components:
                 databaseName:
                     type: string
             description: DatabaseDump is one database a step dumps alone, and its backup's ID.
+        DatabaseExternalAccess:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: The port on the server, such as 5432.
+                    format: uint32
+                allowFrom:
+                    type: array
+                    items:
+                        type: string
+                    description: The addresses let in, each an address or a range, such as "203.0.113.0/24".
+            description: |-
+                DatabaseExternalAccess is a database's port on its server's every address, and
+                 who its firewall lets in there: the listed addresses, and nobody else.
         DatabaseMove:
             type: object
             properties:
@@ -23460,6 +23525,12 @@ components:
                          its app: an app that starts on an empty database, whose first visitor makes
                          its owner, is closed to strangers until its owner sets it up (ADR 0084).
                          Numbered apart, as open work adds to this message.
+                external:
+                    type: boolean
+                    description: |-
+                        It's a database's external access (ADR 0038, "External access, as built"): its
+                         port, published for the addresses its server's two external rules let in. No
+                         change may leave it without both rules on every server the database runs on.
             description: PortMapping publishes a container port on the server.
         PreviewBackupResponse:
             type: object
@@ -27121,6 +27192,46 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: SetCatalogSourceResponse is the change that sets it.
+        SetDatabaseExternalAccessRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The service that runs it, by ID or by name.
+                project:
+                    type: string
+                    description: |-
+                        The project of a database named by name, by name or ID, when more than one has
+                         a service of that name.
+                environment:
+                    type: string
+                    description: |-
+                        The environment of a database named by name, by name or ID, when its project
+                         has more than one.
+                allowFrom:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        The addresses its firewall lets in, each an address or a range, such as
+                         "203.0.113.7" or "203.0.113.0/24": at least one, unless off, and at most 32,
+                         none wider than a /8 for IPv4 or a /32 for IPv6, so no list reaches everyone.
+                off:
+                    type: boolean
+                    description: 'Takes external access away: the port and both rules, in one change.'
+            description: |-
+                SetDatabaseExternalAccessRequest names a database, and who reaches it from
+                 beyond its server, or that nobody does.
+        SetDatabaseExternalAccessResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: |-
+                SetDatabaseExternalAccessResponse is the change that gives or takes external
+                 access, planned.
         SetGitHookRoleRequest:
             type: object
             properties:

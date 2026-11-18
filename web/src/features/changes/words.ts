@@ -116,6 +116,7 @@ export interface ChangeWords {
     span: (ms: number) => string,
     restart?: boolean,
     stopped?: boolean,
+    database?: boolean,
   ): RolloutLine[];
 }
 
@@ -738,7 +739,7 @@ export function useChangeWords(): ChangeWords {
           out.push(t`Nothing listens on port ${number} yet, so this answers 502 until something does`);
         return out;
       },
-      rollout(plan, span, restart = false, stopped = false) {
+      rollout(plan, span, restart = false, stopped = false, database = false) {
         if (!plan) return [];
         const out: RolloutLine[] = [];
         const say = (text: string, how: Partial<RolloutLine> = {}) => out.push({ text, warn: false, ...how });
@@ -821,25 +822,23 @@ export function useChangeWords(): ChangeWords {
             );
           }
           if (volumes !== "") {
-            say(
-              t`Two containers mustn't write to the volume ${volumes} at once, so the old one stops first. If the app can, set its rollout order to start first`,
-            );
+            say(t`Two containers mustn't write to the volume ${volumes} at once, so the old one stops first`);
           }
           if (paths !== "") {
-            say(
-              t`Two containers mustn't write to the server path ${paths} at once, so the old one stops first. If the app can, set its rollout order to start first`,
-            );
+            say(t`Two containers mustn't write to the server path ${paths} at once, so the old one stops first`);
           }
           if (imageData !== "") {
             say(
-              t`Its image keeps data at ${imageData}, which two containers mustn't write to at once, so the old one stops first. If the app can, set its rollout order to start first`,
+              t`Its image keeps data at ${imageData}, which two containers mustn't write to at once, so the old one stops first`,
             );
           }
           if (cantTell !== "") {
             say(
-              t`Dockwell can't read where ${cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first. If the app can, set its rollout order to start first`,
+              t`Dockwell can't read where ${cantTell} really lands, so it can't say two containers wouldn't write to one place, and the old one stops first`,
             );
           }
+          // A database never runs twice on its data, so starting first is no way out for one (#798).
+          if (shared !== "" && !database) say(t`If the app can, set its rollout order to start first`);
           if (edited !== "") {
             say(
               t`The route ${edited} was edited by hand, and Dockwell leaves it as it is, so the new container has to keep the old one's address, and the old one stops first. Revert or adopt the edit to roll`,

@@ -1205,7 +1205,7 @@ function EnginePicker({
   const entry = picked?.entries.find((e) => e.id === value);
   return (
     <>
-      <fieldset className="catalog-engines" aria-labelledby={id} disabled={disabled}>
+      <fieldset className="catalog-engines is-all" aria-labelledby={id} disabled={disabled}>
         <span id={id} className="catalog-chosen-label">
           {t`Engine`}
         </span>

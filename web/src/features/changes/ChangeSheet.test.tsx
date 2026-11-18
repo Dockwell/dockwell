@@ -754,6 +754,47 @@ describe("the plan sheet", () => {
     expect(sheet).not.toHaveTextContent("takes over once it has been healthy");
   });
 
+  it("folds how a step stops first into one line that opens, and tells a database nothing of starting first", async () => {
+    const stopping = (image?: string) => {
+      const change = webPlanned();
+      const step = change.plan?.servers[0]?.steps[0];
+      const resource = change.plan?.resources.find((r) => r.id === step?.resourceId);
+      if (!step || !resource) throw new Error("webPlanned has no step");
+      step.effect = StepEffect.RECREATE;
+      step.rollout = create(RolloutPlanSchema, { volumes: ["data"] });
+      if (image && resource.resource) {
+        resource.resource.kind = "service";
+        resource.changes = [create(FieldChangeSchema, { path: "image", to: image })];
+      }
+      return change;
+    };
+    const app = renderSheet(proposeWeb, {
+      changes: { proposeChange: () => ({ change: stopping() }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+    let sheet = await screen.findByRole("dialog", { name: /plan/i });
+    // One line that opens, as the step's own line says how long it's down (#798).
+    const how = await within(sheet).findByText("How this works", { selector: ".plan-note-line" });
+    expect(how.closest("details")).toHaveTextContent(
+      "Two containers mustn't write to the volume data at once, so the old one stops first. If the app can, set its rollout order to start first.",
+    );
+    app.unmount();
+    renderSheet(proposeWeb, {
+      changes: {
+        proposeChange: () => ({ change: stopping("postgres:17") }),
+        watchChange: feed<WatchChangeResponse>().stream,
+      },
+    });
+    sheet = await screen.findByRole("dialog", { name: /plan/i });
+    // A database never runs twice on its data, so starting first is no way out for one, and it reads as one.
+    await waitFor(() =>
+      expect(sheet).toHaveTextContent(
+        "Two containers mustn't write to the volume data at once, so the old one stops first.",
+      ),
+    );
+    expect(sheet).not.toHaveTextContent("rollout order");
+    expect(within(sheet).getByText("database")).toBeVisible();
+  });
+
   it("says which registry login its pulls sign in with, and nothing that signs in", async () => {
     const pulling = webPlanned();
     const step = pulling.plan?.servers[0]?.steps[0];

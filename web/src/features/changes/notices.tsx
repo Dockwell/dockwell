@@ -21,7 +21,10 @@ import type { ReactNode } from "react";
 import { shownRef } from "../../lib/built";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
+import { appOf as appOfService } from "../apps/app";
 import { useDetectionWords } from "../apps/detection";
+import { useServices } from "../apps/useServices";
+import { engineOfImage } from "../databases/useDatabases";
 import { installationOf, useGitHubApps } from "../settings/github";
 import {
   asGoodAsRoot,
@@ -54,6 +57,8 @@ export interface Notice {
   amber?: boolean;
   /** The server its title names, shortened in the middle where it's long. */
   server?: string;
+  /** The plan note it says, by reason, for a way out the page that opened it offers. */
+  reason?: string;
 }
 
 /** Everything a plan says it reaches, on its resources and its steps. */
@@ -168,12 +173,20 @@ function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string }
   const { t } = useLingui();
   const words = useChangeWords();
   const time = useTimeWords();
+  const database = useRunsADatabase(plan);
   const steps = (plan?.servers ?? []).flatMap((s) => s.steps).filter((step) => step.rollout);
   const several = new Set(steps.map((step) => step.resourceId)).size > 1;
   const out = new Map<string, RolloutLine & { key: string }>();
   for (const step of steps) {
     const name = step.resource?.name ?? step.resourceId;
-    for (const line of words.rollout(step.rollout, time.span, step.restart !== "", startsStopped(step))) {
+    const lines = words.rollout(
+      step.rollout,
+      time.span,
+      step.restart !== "",
+      startsStopped(step),
+      database(step.resourceId),
+    );
+    for (const line of lines) {
       const text = several && !line.lead ? t`${name}: ${line.text}` : line.text;
       const lead = several && line.lead ? t`${name}: ${line.lead}` : line.lead;
       const key = `rollout-${lead ?? ""}-${text}`;
@@ -181,6 +194,22 @@ function useRolloutLines(plan: Plan | undefined): (RolloutLine & { key: string }
     }
   }
   return [...out.values()];
+}
+
+/**
+ * Which of a plan's services run a database, by the image the plan gives them or the
+ * one they run now, as the control plane recognises one (#798).
+ */
+export function useRunsADatabase(plan: Plan | undefined): (resourceId: string) => boolean {
+  const services = useServices().data;
+  return (id) => {
+    const planned = plan?.resources.find((r) => r.id === id);
+    if (planned?.resource && planned.resource.kind !== "service") return false;
+    const given = planned?.changes.find((c) => c.path === "image" || c.path.endsWith(".image"))?.to;
+    const running = services?.find((s) => s.id === id);
+    const image = given || (running ? appOfService(running)?.image : undefined) || "";
+    return engineOfImage(image) !== undefined;
+  };
 }
 
 /** Whether a plan publishes a route through a tunnel at Cloudflare. */
@@ -1400,6 +1429,17 @@ export function useAsides(plan: Plan | undefined): Notice[] {
             : note.message,
       });
     }
+    // External access crosses the network unencrypted, which it says once, with the safer
+    // way beside it where the page that opened the plan offers one (#798).
+    if (note.reason === "unencrypted") {
+      out.push({
+        key: `unencrypted-${i}`,
+        reason: note.reason,
+        notice: true,
+        title: t`The connection to ${name} isn't encrypted`,
+        detail: t`An SSH tunnel is the safer way`,
+      });
+    }
     // Only the server can say a plan will start what isn't running, and it says how it found it.
     if (note.reason === "starts_stopped") out.push({ key: `starts-${i}`, title: `${note.message}.` });
     // Only the control plane keeps labels, so a change of them alone runs nothing anywhere (ADR 0091).
@@ -1511,22 +1551,26 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         : t`Pulls ${image} again, and replaces ${name} whatever that finds, as more than its image differs.`,
     });
   }
-  // After what says it starts or pulls, as these go on from that.
+  // After what says it starts or pulls, as these go on from that. How each step replaces
+  // what runs is one line that opens, as the step's own line says how long it's down
+  // (#798); what stands out stays a line of its own.
+  const how: string[] = [];
   for (const line of rollouts) {
-    if (!line.warn) out.push({ key: line.key, title: `${line.text}.`, notice: line.notice });
+    if (line.warn) continue;
+    if (line.notice) out.push({ key: line.key, title: `${line.text}.`, notice: true });
+    else how.push(`${line.text}.`);
   }
   // A rollback says this as a warning, as that is when it is news.
   if (plan?.intent?.kind !== IntentKind.ROLL_BACK) {
-    for (const [i, note] of (plan?.notes ?? []).entries()) {
+    for (const note of plan?.notes ?? []) {
       if (note.reason !== "volumes_stay") continue;
       const name = note.resource?.name ?? "";
       const names = note.names.join(", ");
-      out.push({
-        key: `stays-${i}`,
-        title: t`If ${name} is rolled back, ${names} stays as it is: what the new version writes there isn't undone.`,
-      });
+      how.push(t`If ${name} is rolled back, ${names} stays as it is: what the new version writes there isn't undone.`);
     }
   }
+  if (how.length === 1) out.push({ key: "rollout", title: how[0] });
+  if (how.length > 1) out.push({ key: "rollout", title: t`How this works`, more: how.join(" ") });
   // Browsers keep a permanent redirect, so an undo takes up to a day to reach someone who
   // followed one: said once, however many redirects the plan makes (ADR 0070).
   const keepsRedirect = (plan?.servers ?? []).some((server) =>

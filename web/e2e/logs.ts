@@ -609,11 +609,11 @@ async function main() {
   await shoot(page, "no-match");
   step("search all that the servers keep");
   await page.getByRole("textbox", { name: "Search logs" }).fill("checkout");
-  await page.getByRole("radio", { name: "All the servers keep" }).click();
+  await page.getByRole("radio", { name: "Everything kept" }).click();
   await page.getByText(/That is all the servers keep\./).waitFor();
   await page.getByText(/\d+ matches? in [\d,]+ lines, back to/).waitFor();
   await shoot(page, "deep-search");
-  await page.getByRole("radio", { name: "Lines loaded" }).click();
+  await page.getByRole("radio", { name: "What's shown" }).click();
   await page.getByRole("textbox", { name: "Search logs" }).press("Escape");
 
   step("copy and download what shows");

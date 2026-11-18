@@ -1276,14 +1276,20 @@ function PortsForm({ service, app, name, root, moving, plan, onCancel }: FormPro
     if (Object.keys(found).length > 0 || unchanged) return;
     plan(t`Change the ports of ${name}`, [
       serviceEdit(service, (a) => {
-        a.ports = rows.map((r) =>
-          create(PortMappingSchema, {
+        // A row that was there keeps what the form doesn't show: held while its owner
+        // isn't made (ADR 0105), and a database's external access (ADR 0038), which the
+        // control plane refuses to see dropped while its rules stay (#849).
+        a.ports = rows.map((r) => {
+          const was = r.key < app.ports.length ? app.ports[r.key] : undefined;
+          return create(PortMappingSchema, {
             hostPort: Number(r.host),
             containerPort: Number(r.inApp),
             protocol: r.udp ? Protocol.UDP : Protocol.TCP,
             hostIp: r.hostIp,
-          }),
-        );
+            held: was?.held ?? false,
+            external: was?.external ?? false,
+          });
+        });
       }),
     ]);
   };

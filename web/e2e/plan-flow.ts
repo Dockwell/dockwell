@@ -961,6 +961,9 @@ volumes:
     await form.getByRole("button", { name: /Review plan/ }).click();
     await plan.waitFor({ timeout: 30_000 });
     await plan.getByText("to update").waitFor();
+    // How a step replaces what runs is one line that opens (#798), and this reads it whole.
+    const how = plan.locator("details.plan-note-more").filter({ hasText: "How this works" });
+    if ((await how.count()) > 0) await how.first().locator("summary").click();
     return sheetText(page);
   };
   const says = (what: string, text: string, words: string[]) => {

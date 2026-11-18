@@ -400,6 +400,10 @@ message PortMapping {
   // its owner, is closed to strangers until its owner sets it up (ADR 0084).
   // Numbered apart, as open work adds to this message.
   bool held = 80;
+  // It's a database's external access (ADR 0038, "External access, as built"): its
+  // port, published for the addresses its server's two external rules let in. No
+  // change may leave it without both rules on every server the database runs on.
+  bool external = 81;
 }
 
 // RestartPolicy says when Docker restarts a stopped container.

@@ -2803,7 +2803,11 @@ type PortMapping struct {
 	// its app: an app that starts on an empty database, whose first visitor makes
 	// its owner, is closed to strangers until its owner sets it up (ADR 0084).
 	// Numbered apart, as open work adds to this message.
-	Held          bool `protobuf:"varint,80,opt,name=held,proto3" json:"held,omitempty"`
+	Held bool `protobuf:"varint,80,opt,name=held,proto3" json:"held,omitempty"`
+	// It's a database's external access (ADR 0038, "External access, as built"): its
+	// port, published for the addresses its server's two external rules let in. No
+	// change may leave it without both rules on every server the database runs on.
+	External      bool `protobuf:"varint,81,opt,name=external,proto3" json:"external,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2869,6 +2873,13 @@ func (x *PortMapping) GetHostIp() string {
 func (x *PortMapping) GetHeld() bool {
 	if x != nil {
 		return x.Held
+	}
+	return false
+}
+
+func (x *PortMapping) GetExternal() bool {
+	if x != nil {
+		return x.External
 	}
 	return false
 }
@@ -10869,13 +10880,14 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x12\n" +
 	"\x04host\x18\x03 \x01(\tR\x04host\"\x1e\n" +
 	"\bTcpCheck\x12\x12\n" +
-	"\x04port\x18\x01 \x01(\rR\x04port\"\xc0\x01\n" +
+	"\x04port\x18\x01 \x01(\rR\x04port\"\xdc\x01\n" +
 	"\vPortMapping\x12\x1b\n" +
 	"\thost_port\x18\x01 \x01(\rR\bhostPort\x12%\n" +
 	"\x0econtainer_port\x18\x02 \x01(\rR\rcontainerPort\x12@\n" +
 	"\bprotocol\x18\x03 \x01(\x0e2$.dockwell.resource.v1alpha1.ProtocolR\bprotocol\x12\x17\n" +
 	"\ahost_ip\x18\x04 \x01(\tR\x06hostIp\x12\x12\n" +
-	"\x04held\x18P \x01(\bR\x04held\"\xdc\x01\n" +
+	"\x04held\x18P \x01(\bR\x04held\x12\x1a\n" +
+	"\bexternal\x18Q \x01(\bR\bexternal\"\xdc\x01\n" +
 	"\fFirewallRule\x12B\n" +
 	"\x06action\x18\x01 \x01(\x0e2*.dockwell.resource.v1alpha1.FirewallActionR\x06action\x12@\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.ProtocolR\bprotocol\x12\x12\n" +

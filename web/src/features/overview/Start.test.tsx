@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { WatchServersResponse } from "@dockwell/api";
+import type { ServiceInfo, WatchServersResponse } from "@dockwell/api";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
+import { anApp } from "../../test/apps";
 import { feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
 
@@ -16,13 +17,13 @@ const entries = ["adminer", "gitea", "postgres", "wordpress", "uptime-kuma"].map
   icon: "",
 }));
 
-function renderStart(path = "/start") {
+function renderStart(path = "/start", services: ServiceInfo[] = []) {
   const watch = feed<WatchServersResponse>();
   watch.push(changed(web1), snapshotComplete);
   return renderAt(path, {
     servers: { watchServers: watch.stream },
     catalog: { listCatalogEntries: () => ({ entries }) },
-    services: { listServices: () => ({ services: [] }) },
+    services: { listServices: () => ({ services }) },
   });
 }
 
@@ -31,7 +32,7 @@ describe("where a newcomer starts", () => {
     const { container } = renderStart();
     expect(await screen.findByRole("heading", { level: 1, name: "What do you want to run?" })).toBeVisible();
     expect(await screen.findByText("web-1 is ready. Pick what your first app comes from.")).toBeVisible();
-    const choices = screen.getByRole("list", { name: "Ways to run your first app" });
+    const choices = screen.getByRole("list", { name: "Ways to run an app" });
     const link = (name: string) => within(choices).getByRole("link", { name });
     expect(link("From the catalog")).toHaveAttribute("href", "/catalog");
     expect(link("A Git repository")).toHaveAttribute("href", "/apps/new?source=git");
@@ -51,6 +52,12 @@ describe("where a newcomer starts", () => {
     await expectAccessible(container);
   });
 
+  it("asks what the next app comes from once there's one, not the first (#798)", async () => {
+    renderStart("/start", [anApp("web", "nginx:1.27")]);
+    expect(await screen.findByText("web-1 is ready. Pick what the next app comes from.")).toBeVisible();
+    expect(screen.queryByText(/your first app/)).toBeNull();
+  });
+
   it("takes a newcomer to the create flow they picked", async () => {
     const user = userEvent.setup();
     const { router } = renderStart();
@@ -61,7 +68,7 @@ describe("where a newcomer starts", () => {
 
   it("offers the same choices where the overview has no apps yet", async () => {
     renderStart("/");
-    const choices = await screen.findByRole("list", { name: "Ways to run your first app" });
+    const choices = await screen.findByRole("list", { name: "Ways to run an app" });
     expect(within(choices).getByRole("link", { name: "From the catalog" })).toHaveAttribute("href", "/catalog");
     expect(within(choices).getAllByRole("link")).toHaveLength(5);
   });

@@ -158,6 +158,12 @@ export function shownName(
   if (!planned) return "";
   if (planned.resource?.kind === "route") return routeWhereOf(planned) ?? planned.resource.name;
   if (planned.resource?.kind === "server.host") return serverName?.(planned.resource.scope) ?? planned.resource.name;
+  // A database's external rule goes by what it's for, such as "External access to db, allow", not
+  // its name made from the database's ID (#849's L5).
+  if (planned.resource?.kind === "firewall.rule" && /^external-[0-9a-z]+-(allow|deny)$/.test(planned.resource.name)) {
+    const comment = planned.changes.find((c) => c.path === "comment");
+    return comment?.to || comment?.from || planned.resource.name;
+  }
   return planned.resource?.name ?? "";
 }
 
@@ -241,6 +247,8 @@ export function diffResources(
     tag?: (intent: Intent) => string;
     letsGo?: string;
     serverName?: (id: string) => string | undefined;
+    /** A word for a resource its kind's doesn't fit, such as "database" for a service that runs one (#798). */
+    kindLabel?: (resource: PlannedResource) => string | undefined;
   } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
@@ -274,6 +282,8 @@ export function diffResources(
       changes,
     };
     if (diffKind(kind) === "resource") out.kindLabel = rows.kindWord?.(kind) ?? kindWord(kind);
+    const label = options.kindLabel?.(resource);
+    if (label) out.kindLabel = label;
     if (maybe.has(resource.id)) out.ifNewer = true;
     if (steps.some((s) => s.restart !== "")) out.restart = true;
     if (intent?.resourceId === resource.id && resource.action !== PlanAction.DELETE) {

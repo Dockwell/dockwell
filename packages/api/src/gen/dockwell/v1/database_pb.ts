@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/database.proto.
  */
 export const file_dockwell_v1_database: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEirwMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCSLeAwoPRGF0YWJhc2VSZWFkaW5nEhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRItCglyZWFkX3RpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBnVucmVhZBgEIAEoCRIPCgd2ZXJzaW9uGAUgASgJEhIKCnNpemVfYnl0ZXMYBiABKAMSEwoLY29ubmVjdGlvbnMYByABKAMSFwoPbWF4X2Nvbm5lY3Rpb25zGAggASgDEgwKBHVzZXIYCSABKAkSFgoOdXB0aW1lX3NlY29uZHMYCiABKAMSFgoJY2FjaGVfaGl0GAsgASgBSACIAQESLQoJZGF0YWJhc2VzGAwgAygLMhouZG9ja3dlbGwudjEuSW5uZXJEYXRhYmFzZRIrCgV1c2VycxgNIAMoCzIcLmRvY2t3ZWxsLnYxLkRhdGFiYXNlQWNjb3VudBIMCgRrZXlzGA4gASgDEhAKCHVubGlzdGVkGA8gASgFEh0KFWZlYXR1cmVfY29tcGF0aWJpbGl0eRgQIAEoCRITCgtyZXBsaWNhX3NldBgRIAEoCRIVCg1jaGVja3Nfbm9fb25lGBIgASgIQgwKCl9jYWNoZV9oaXQiUAoNSW5uZXJEYXRhYmFzZRIMCgRuYW1lGAEgASgJEg0KBW93bmVyGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAMSDgoGc3lzdGVtGAQgASgIItoBCg9EYXRhYmFzZUFjY291bnQSDAoEbmFtZRgBIAEoCRIMCgRob3N0GAIgASgJEhEKCXN1cGVydXNlchgDIAEoCBITCgtjYW5fc2lnbl9pbhgEIAEoCBIRCglkYXRhYmFzZXMYBSADKAkSDgoGc3lzdGVtGAYgASgIEg4KBnNlY3JldBgHIAEoCRIPCgd1c2VkX2J5GAggAygJEhMKC3Jlc291cmNlX2lkGAkgASgJEhUKDWF1dGhfZGF0YWJhc2UYCiABKAkSEwoLbm9fcGFzc3dvcmQYUCABKAgiFgoUTGlzdERhdGFiYXNlc1JlcXVlc3QiQQoVTGlzdERhdGFiYXNlc1Jlc3BvbnNlEigKCWRhdGFiYXNlcxgBIAMoCzIVLmRvY2t3ZWxsLnYxLkRhdGFiYXNlIkYKEkdldERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJIsgBChpDaGVja0RhdGFiYXNlU2lnbkluUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEgwKBHVzZXIYBCABKAkSIwoIZGF0YWJhc2UYBSABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEhMKC2FwcF9wcm9qZWN0GAYgASgJEhcKD2FwcF9lbnZpcm9ubWVudBgHIAEoCRIXCg9wYXNzd29yZF9zZWNyZXQYCCABKAkiZwobQ2hlY2tEYXRhYmFzZVNpZ25JblJlc3BvbnNlEhAKCHNpZ25zX2luGAEgASgIEgwKBHNhaWQYAiABKAkSFQoNYWRtaW5pc3RyYXRvchgDIAEoCBIRCglub19yaWdodHMYBCABKAgi6AMKFkNvbm5lY3REYXRhYmFzZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRILCgNhcHAYBCABKAkSEwoLYXBwX3Byb2plY3QYBSABKAkSFwoPYXBwX2Vudmlyb25tZW50GAYgASgJEgwKBGxpbmsYByABKAkSIwoIZGF0YWJhc2UYCCABKAlCEaK7GA1kYXRhYmFzZS1uYW1lEgwKBHVzZXIYCSABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAogASgJEjsKBHNldHMYCyADKAsyLS5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0LlNldHNFbnRyeRJFCgl0ZW1wbGF0ZXMYDCADKAsyMi5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0LlRlbXBsYXRlc0VudHJ5GlEKCVNldHNFbnRyeRILCgNrZXkYASABKAkSMwoFdmFsdWUYAiABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5MaW5rUGFydDoCOAEaMAoOVGVtcGxhdGVzRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASI+ChdDb25uZWN0RGF0YWJhc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UikAEKGUNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QSCgoCaWQYASABKAkSDAoEdXNlchgCIAEoCRIjCghkYXRhYmFzZRgDIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSDgoGc2VjcmV0GAQgASgJEg8KB3Byb2plY3QYBSABKAkSEwoLZW52aXJvbm1lbnQYBiABKAkiQQoaQ3JlYXRlRGF0YWJhc2VVc2VyUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIl8KHUNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXF1ZXN0EgoKAmlkGAEgASgJEgwKBHVzZXIYAiABKAkSDwoHcHJvamVjdBgDIAEoCRITCgtlbnZpcm9ubWVudBgEIAEoCSJFCh5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIj4KE0dldERhdGFiYXNlUmVzcG9uc2USJwoIZGF0YWJhc2UYASABKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSqpAgoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleRIoChdEQVRBQkFTRV9FTkdJTkVfTU9OR09EQhAGGguiuxgHTW9uZ29EQjLjBwoPRGF0YWJhc2VTZXJ2aWNlEoABCg1MaXN0RGF0YWJhc2VzEiEuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVzcG9uc2UiKJACAaC7GAHAuxgCyLsYAtC7GASC0+STAg8SDS92MS9kYXRhYmFzZXMSfwoLR2V0RGF0YWJhc2USHy5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlc3BvbnNlIi2QAgGguxgBwLsYAsi7GALQuxgEgtPkkwIUEhIvdjEvZGF0YWJhc2VzL3tpZH0SqAEKEkNyZWF0ZURhdGFiYXNlVXNlchImLmRvY2t3ZWxsLnYxLkNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QaJy5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZSJBoLsYAqq7GAoSCGFkZC11c2VywLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvZGF0YWJhc2VzL3tpZH0vdXNlcnMSxAEKFkNoYW5nZURhdGFiYXNlUGFzc3dvcmQSKi5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZSJRoLsYAqq7GBESD2NoYW5nZS1wYXNzd29yZMC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2RhdGFiYXNlcy97aWR9OmNoYW5nZVBhc3N3b3JkErYBChNDaGVja0RhdGFiYXNlU2lnbkluEicuZG9ja3dlbGwudjEuQ2hlY2tEYXRhYmFzZVNpZ25JblJlcXVlc3QaKC5kb2Nrd2VsbC52MS5DaGVja0RhdGFiYXNlU2lnbkluUmVzcG9uc2UiTJACAaC7GAGquxgPEg1jaGVjay1zaWduLWluwLsYA8i7GATQuxgEgtPkkwIgEh4vdjEvZGF0YWJhc2VzL3tpZH06Y2hlY2tTaWduSW4SoAEKD0Nvbm5lY3REYXRhYmFzZRIjLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlcXVlc3QaJC5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXNwb25zZSJCoLsYAqq7GAkSB2Nvbm5lY3TAuxgDyLsYA9C7GASC0+STAh86ASoiGi92MS9kYXRhYmFzZXMve2lkfTpjb25uZWN0QqYBCg9jb20uZG9ja3dlbGwudjFCDURhdGFiYXNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9kYXRhYmFzZS5wcm90bxILZG9ja3dlbGwudjEi7QMKCERhdGFiYXNlEgoKAmlkGAEgASgJEioKCHJlc291cmNlGAIgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKwoGZW5naW5lGAMgASgOMhsuZG9ja3dlbGwudjEuRGF0YWJhc2VFbmdpbmUSDQoFaW1hZ2UYBCABKAkSDwoHdmVyc2lvbhgFIAEoCRIOCgZ2b2x1bWUYBiABKAkSEQoJdm9sdW1lX2lkGAcgASgJEhcKD3ZvbHVtZV9leHRlcm5hbBgIIAEoCBIMCgRwb3J0GAkgASgNEgwKBGhvc3QYCiABKAkSFwoPcGFzc3dvcmRfc2VjcmV0GAsgASgJEi4KCHJlYWRpbmdzGAwgAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VSZWFkaW5nEioKDW5ld2VzdF9iYWNrdXAYDSABKAsyEy5kb2Nrd2VsbC52MS5CYWNrdXASKgoNbGF0ZXN0X2JhY2t1cBgOIAEoCzITLmRvY2t3ZWxsLnYxLkJhY2t1cBIOCgZiZXNpZGUYDyADKAkSFQoNY2F0YWxvZ19lbnRyeRgQIAEoCRI8Cg9leHRlcm5hbF9hY2Nlc3MYESABKAsyIy5kb2Nrd2VsbC52MS5EYXRhYmFzZUV4dGVybmFsQWNjZXNzIjoKFkRhdGFiYXNlRXh0ZXJuYWxBY2Nlc3MSDAoEcG9ydBgBIAEoDRISCgphbGxvd19mcm9tGAIgAygJIt4DCg9EYXRhYmFzZVJlYWRpbmcSEQoJc2VydmVyX2lkGAEgASgJEhMKC3NlcnZlcl9uYW1lGAIgASgJEi0KCXJlYWRfdGltZRgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGdW5yZWFkGAQgASgJEg8KB3ZlcnNpb24YBSABKAkSEgoKc2l6ZV9ieXRlcxgGIAEoAxITCgtjb25uZWN0aW9ucxgHIAEoAxIXCg9tYXhfY29ubmVjdGlvbnMYCCABKAMSDAoEdXNlchgJIAEoCRIWCg51cHRpbWVfc2Vjb25kcxgKIAEoAxIWCgljYWNoZV9oaXQYCyABKAFIAIgBARItCglkYXRhYmFzZXMYDCADKAsyGi5kb2Nrd2VsbC52MS5Jbm5lckRhdGFiYXNlEisKBXVzZXJzGA0gAygLMhwuZG9ja3dlbGwudjEuRGF0YWJhc2VBY2NvdW50EgwKBGtleXMYDiABKAMSEAoIdW5saXN0ZWQYDyABKAUSHQoVZmVhdHVyZV9jb21wYXRpYmlsaXR5GBAgASgJEhMKC3JlcGxpY2Ffc2V0GBEgASgJEhUKDWNoZWNrc19ub19vbmUYEiABKAhCDAoKX2NhY2hlX2hpdCJQCg1Jbm5lckRhdGFiYXNlEgwKBG5hbWUYASABKAkSDQoFb3duZXIYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoAxIOCgZzeXN0ZW0YBCABKAgi2gEKD0RhdGFiYXNlQWNjb3VudBIMCgRuYW1lGAEgASgJEgwKBGhvc3QYAiABKAkSEQoJc3VwZXJ1c2VyGAMgASgIEhMKC2Nhbl9zaWduX2luGAQgASgIEhEKCWRhdGFiYXNlcxgFIAMoCRIOCgZzeXN0ZW0YBiABKAgSDgoGc2VjcmV0GAcgASgJEg8KB3VzZWRfYnkYCCADKAkSEwoLcmVzb3VyY2VfaWQYCSABKAkSFQoNYXV0aF9kYXRhYmFzZRgKIAEoCRITCgtub19wYXNzd29yZBhQIAEoCCIWChRMaXN0RGF0YWJhc2VzUmVxdWVzdCJBChVMaXN0RGF0YWJhc2VzUmVzcG9uc2USKAoJZGF0YWJhc2VzGAEgAygLMhUuZG9ja3dlbGwudjEuRGF0YWJhc2UiRgoSR2V0RGF0YWJhc2VSZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkiyAEKGkNoZWNrRGF0YWJhc2VTaWduSW5SZXF1ZXN0EgoKAmlkGAEgASgJEg8KB3Byb2plY3QYAiABKAkSEwoLZW52aXJvbm1lbnQYAyABKAkSDAoEdXNlchgEIAEoCRIjCghkYXRhYmFzZRgFIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSEwoLYXBwX3Byb2plY3QYBiABKAkSFwoPYXBwX2Vudmlyb25tZW50GAcgASgJEhcKD3Bhc3N3b3JkX3NlY3JldBgIIAEoCSJnChtDaGVja0RhdGFiYXNlU2lnbkluUmVzcG9uc2USEAoIc2lnbnNfaW4YASABKAgSDAoEc2FpZBgCIAEoCRIVCg1hZG1pbmlzdHJhdG9yGAMgASgIEhEKCW5vX3JpZ2h0cxgEIAEoCCLoAwoWQ29ubmVjdERhdGFiYXNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEgsKA2FwcBgEIAEoCRITCgthcHBfcHJvamVjdBgFIAEoCRIXCg9hcHBfZW52aXJvbm1lbnQYBiABKAkSDAoEbGluaxgHIAEoCRIjCghkYXRhYmFzZRgIIAEoCUIRorsYDWRhdGFiYXNlLW5hbWUSDAoEdXNlchgJIAEoCRIXCg9wYXNzd29yZF9zZWNyZXQYCiABKAkSOwoEc2V0cxgLIAMoCzItLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlcXVlc3QuU2V0c0VudHJ5EkUKCXRlbXBsYXRlcxgMIAMoCzIyLmRvY2t3ZWxsLnYxLkNvbm5lY3REYXRhYmFzZVJlcXVlc3QuVGVtcGxhdGVzRW50cnkaUQoJU2V0c0VudHJ5EgsKA2tleRgBIAEoCRIzCgV2YWx1ZRgCIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkxpbmtQYXJ0OgI4ARowCg5UZW1wbGF0ZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIj4KF0Nvbm5lY3REYXRhYmFzZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSKQAQoZQ3JlYXRlRGF0YWJhc2VVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgR1c2VyGAIgASgJEiMKCGRhdGFiYXNlGAMgASgJQhGiuxgNZGF0YWJhc2UtbmFtZRIOCgZzZWNyZXQYBCABKAkSDwoHcHJvamVjdBgFIAEoCRITCgtlbnZpcm9ubWVudBgGIAEoCSJBChpDcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UiXwodQ2hhbmdlRGF0YWJhc2VQYXNzd29yZFJlcXVlc3QSCgoCaWQYASABKAkSDAoEdXNlchgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJIkUKHkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UidQogU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1JlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRISCgphbGxvd19mcm9tGAQgAygJEgsKA29mZhgFIAEoCCJICiFTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIj4KE0dldERhdGFiYXNlUmVzcG9uc2USJwoIZGF0YWJhc2UYASABKAsyFS5kb2Nrd2VsbC52MS5EYXRhYmFzZSqpAgoORGF0YWJhc2VFbmdpbmUSHwobREFUQUJBU0VfRU5HSU5FX1VOU1BFQ0lGSUVEEAASLgoaREFUQUJBU0VfRU5HSU5FX1BPU1RHUkVTUUwQARoOorsYClBvc3RncmVTUUwSJAoVREFUQUJBU0VfRU5HSU5FX01ZU1FMEAIaCaK7GAVNeVNRTBIoChdEQVRBQkFTRV9FTkdJTkVfTUFSSUFEQhADGguiuxgHTWFyaWFEQhIkChVEQVRBQkFTRV9FTkdJTkVfUkVESVMQBBoJorsYBVJlZGlzEiYKFkRBVEFCQVNFX0VOR0lORV9WQUxLRVkQBRoKorsYBlZhbGtleRIoChdEQVRBQkFTRV9FTkdJTkVfTU9OR09EQhAGGguiuxgHTW9uZ29EQjKzCQoPRGF0YWJhc2VTZXJ2aWNlEoABCg1MaXN0RGF0YWJhc2VzEiEuZG9ja3dlbGwudjEuTGlzdERhdGFiYXNlc1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5MaXN0RGF0YWJhc2VzUmVzcG9uc2UiKJACAaC7GAHAuxgCyLsYAtC7GASC0+STAg8SDS92MS9kYXRhYmFzZXMSfwoLR2V0RGF0YWJhc2USHy5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5HZXREYXRhYmFzZVJlc3BvbnNlIi2QAgGguxgBwLsYAsi7GALQuxgEgtPkkwIUEhIvdjEvZGF0YWJhc2VzL3tpZH0SqAEKEkNyZWF0ZURhdGFiYXNlVXNlchImLmRvY2t3ZWxsLnYxLkNyZWF0ZURhdGFiYXNlVXNlclJlcXVlc3QaJy5kb2Nrd2VsbC52MS5DcmVhdGVEYXRhYmFzZVVzZXJSZXNwb25zZSJBoLsYAqq7GAoSCGFkZC11c2VywLsYA8i7GAPQuxgEgtPkkwIdOgEqIhgvdjEvZGF0YWJhc2VzL3tpZH0vdXNlcnMSxAEKFkNoYW5nZURhdGFiYXNlUGFzc3dvcmQSKi5kb2Nrd2VsbC52MS5DaGFuZ2VEYXRhYmFzZVBhc3N3b3JkUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkNoYW5nZURhdGFiYXNlUGFzc3dvcmRSZXNwb25zZSJRoLsYAqq7GBESD2NoYW5nZS1wYXNzd29yZMC7GAPIuxgD0LsYBILT5JMCJjoBKiIhL3YxL2RhdGFiYXNlcy97aWR9OmNoYW5nZVBhc3N3b3JkEs0BChlTZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzEi0uZG9ja3dlbGwudjEuU2V0RGF0YWJhc2VFeHRlcm5hbEFjY2Vzc1JlcXVlc3QaLi5kb2Nrd2VsbC52MS5TZXREYXRhYmFzZUV4dGVybmFsQWNjZXNzUmVzcG9uc2UiUaC7GAKquxgREg9leHRlcm5hbC1hY2Nlc3PAuxgEyLsYBNC7GASC0+STAiY6ASoiIS92MS9kYXRhYmFzZXMve2lkfTpleHRlcm5hbEFjY2VzcxK2AQoTQ2hlY2tEYXRhYmFzZVNpZ25JbhInLmRvY2t3ZWxsLnYxLkNoZWNrRGF0YWJhc2VTaWduSW5SZXF1ZXN0GiguZG9ja3dlbGwudjEuQ2hlY2tEYXRhYmFzZVNpZ25JblJlc3BvbnNlIkyQAgGguxgBqrsYDxINY2hlY2stc2lnbi1pbsC7GAPIuxgE0LsYBILT5JMCIBIeL3YxL2RhdGFiYXNlcy97aWR9OmNoZWNrU2lnbkluEqABCg9Db25uZWN0RGF0YWJhc2USIy5kb2Nrd2VsbC52MS5Db25uZWN0RGF0YWJhc2VSZXF1ZXN0GiQuZG9ja3dlbGwudjEuQ29ubmVjdERhdGFiYXNlUmVzcG9uc2UiQqC7GAKquxgJEgdjb25uZWN0wLsYA8i7GAPQuxgEgtPkkwIfOgEqIhovdjEvZGF0YWJhc2VzL3tpZH06Y29ubmVjdEKmAQoPY29tLmRvY2t3ZWxsLnYxQg1EYXRhYmFzZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_backup, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Database is a service that runs a database.
@@ -152,6 +152,16 @@ export type Database = Message<"dockwell.v1.Database"> & {
    * @generated from field: string catalog_entry = 16;
    */
   catalogEntry: string;
+
+  /**
+   * How apps and people beyond its server reach it, where they do: the port it
+   * publishes on every address of its server, and the addresses its firewall
+   * lets in there. Unset while it has no external access
+   * (SetDatabaseExternalAccess).
+   *
+   * @generated from field: dockwell.v1.DatabaseExternalAccess external_access = 17;
+   */
+  externalAccess?: DatabaseExternalAccess | undefined;
 };
 
 /**
@@ -160,6 +170,35 @@ export type Database = Message<"dockwell.v1.Database"> & {
  */
 export const DatabaseSchema: GenMessage<Database> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_database, 0);
+
+/**
+ * DatabaseExternalAccess is a database's port on its server's every address, and
+ * who its firewall lets in there: the listed addresses, and nobody else.
+ *
+ * @generated from message dockwell.v1.DatabaseExternalAccess
+ */
+export type DatabaseExternalAccess = Message<"dockwell.v1.DatabaseExternalAccess"> & {
+  /**
+   * The port on the server, such as 5432.
+   *
+   * @generated from field: uint32 port = 1;
+   */
+  port: number;
+
+  /**
+   * The addresses let in, each an address or a range, such as "203.0.113.0/24".
+   *
+   * @generated from field: repeated string allow_from = 2;
+   */
+  allowFrom: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.DatabaseExternalAccess.
+ * Use `create(DatabaseExternalAccessSchema)` to create a new message.
+ */
+export const DatabaseExternalAccessSchema: GenMessage<DatabaseExternalAccess> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 1);
 
 /**
  * DatabaseReading is what a database said of itself on one server.
@@ -311,7 +350,7 @@ export type DatabaseReading = Message<"dockwell.v1.DatabaseReading"> & {
  * Use `create(DatabaseReadingSchema)` to create a new message.
  */
 export const DatabaseReadingSchema: GenMessage<DatabaseReading> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 1);
+  messageDesc(file_dockwell_v1_database, 2);
 
 /**
  * InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -354,7 +393,7 @@ export type InnerDatabase = Message<"dockwell.v1.InnerDatabase"> & {
  * Use `create(InnerDatabaseSchema)` to create a new message.
  */
 export const InnerDatabaseSchema: GenMessage<InnerDatabase> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 2);
+  messageDesc(file_dockwell_v1_database, 3);
 
 /**
  * DatabaseAccount is someone who can sign in to a database server: a user, as
@@ -453,7 +492,7 @@ export type DatabaseAccount = Message<"dockwell.v1.DatabaseAccount"> & {
  * Use `create(DatabaseAccountSchema)` to create a new message.
  */
 export const DatabaseAccountSchema: GenMessage<DatabaseAccount> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 3);
+  messageDesc(file_dockwell_v1_database, 4);
 
 /**
  * ListDatabasesRequest asks for the databases.
@@ -468,7 +507,7 @@ export type ListDatabasesRequest = Message<"dockwell.v1.ListDatabasesRequest"> &
  * Use `create(ListDatabasesRequestSchema)` to create a new message.
  */
 export const ListDatabasesRequestSchema: GenMessage<ListDatabasesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 4);
+  messageDesc(file_dockwell_v1_database, 5);
 
 /**
  * ListDatabasesResponse lists them.
@@ -489,7 +528,7 @@ export type ListDatabasesResponse = Message<"dockwell.v1.ListDatabasesResponse">
  * Use `create(ListDatabasesResponseSchema)` to create a new message.
  */
 export const ListDatabasesResponseSchema: GenMessage<ListDatabasesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 5);
+  messageDesc(file_dockwell_v1_database, 6);
 
 /**
  * GetDatabaseRequest names a database.
@@ -526,7 +565,7 @@ export type GetDatabaseRequest = Message<"dockwell.v1.GetDatabaseRequest"> & {
  * Use `create(GetDatabaseRequestSchema)` to create a new message.
  */
 export const GetDatabaseRequestSchema: GenMessage<GetDatabaseRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 6);
+  messageDesc(file_dockwell_v1_database, 7);
 
 /**
  * CheckDatabaseSignInRequest names a database server, a user and database there, and
@@ -598,7 +637,7 @@ export type CheckDatabaseSignInRequest = Message<"dockwell.v1.CheckDatabaseSignI
  * Use `create(CheckDatabaseSignInRequestSchema)` to create a new message.
  */
 export const CheckDatabaseSignInRequestSchema: GenMessage<CheckDatabaseSignInRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 7);
+  messageDesc(file_dockwell_v1_database, 8);
 
 /**
  * CheckDatabaseSignInResponse says how the server answered.
@@ -642,7 +681,7 @@ export type CheckDatabaseSignInResponse = Message<"dockwell.v1.CheckDatabaseSign
  * Use `create(CheckDatabaseSignInResponseSchema)` to create a new message.
  */
 export const CheckDatabaseSignInResponseSchema: GenMessage<CheckDatabaseSignInResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 8);
+  messageDesc(file_dockwell_v1_database, 9);
 
 /**
  * ConnectDatabaseRequest names a database server, the app to connect to it, and
@@ -752,7 +791,7 @@ export type ConnectDatabaseRequest = Message<"dockwell.v1.ConnectDatabaseRequest
  * Use `create(ConnectDatabaseRequestSchema)` to create a new message.
  */
 export const ConnectDatabaseRequestSchema: GenMessage<ConnectDatabaseRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 9);
+  messageDesc(file_dockwell_v1_database, 10);
 
 /**
  * ConnectDatabaseResponse carries the planned change.
@@ -773,7 +812,7 @@ export type ConnectDatabaseResponse = Message<"dockwell.v1.ConnectDatabaseRespon
  * Use `create(ConnectDatabaseResponseSchema)` to create a new message.
  */
 export const ConnectDatabaseResponseSchema: GenMessage<ConnectDatabaseResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 10);
+  messageDesc(file_dockwell_v1_database, 11);
 
 /**
  * CreateDatabaseUserRequest names a database server, and the user and database to
@@ -835,7 +874,7 @@ export type CreateDatabaseUserRequest = Message<"dockwell.v1.CreateDatabaseUserR
  * Use `create(CreateDatabaseUserRequestSchema)` to create a new message.
  */
 export const CreateDatabaseUserRequestSchema: GenMessage<CreateDatabaseUserRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 11);
+  messageDesc(file_dockwell_v1_database, 12);
 
 /**
  * CreateDatabaseUserResponse carries the planned change.
@@ -856,7 +895,7 @@ export type CreateDatabaseUserResponse = Message<"dockwell.v1.CreateDatabaseUser
  * Use `create(CreateDatabaseUserResponseSchema)` to create a new message.
  */
 export const CreateDatabaseUserResponseSchema: GenMessage<CreateDatabaseUserResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 12);
+  messageDesc(file_dockwell_v1_database, 13);
 
 /**
  * ChangeDatabasePasswordRequest names a database, and the user whose password changes.
@@ -901,7 +940,7 @@ export type ChangeDatabasePasswordRequest = Message<"dockwell.v1.ChangeDatabaseP
  * Use `create(ChangeDatabasePasswordRequestSchema)` to create a new message.
  */
 export const ChangeDatabasePasswordRequestSchema: GenMessage<ChangeDatabasePasswordRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 13);
+  messageDesc(file_dockwell_v1_database, 14);
 
 /**
  * ChangeDatabasePasswordResponse is the change that gives the user a new password.
@@ -922,7 +961,83 @@ export type ChangeDatabasePasswordResponse = Message<"dockwell.v1.ChangeDatabase
  * Use `create(ChangeDatabasePasswordResponseSchema)` to create a new message.
  */
 export const ChangeDatabasePasswordResponseSchema: GenMessage<ChangeDatabasePasswordResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 14);
+  messageDesc(file_dockwell_v1_database, 15);
+
+/**
+ * SetDatabaseExternalAccessRequest names a database, and who reaches it from
+ * beyond its server, or that nobody does.
+ *
+ * @generated from message dockwell.v1.SetDatabaseExternalAccessRequest
+ */
+export type SetDatabaseExternalAccessRequest = Message<"dockwell.v1.SetDatabaseExternalAccessRequest"> & {
+  /**
+   * The service that runs it, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The project of a database named by name, by name or ID, when more than one has
+   * a service of that name.
+   *
+   * @generated from field: string project = 2;
+   */
+  project: string;
+
+  /**
+   * The environment of a database named by name, by name or ID, when its project
+   * has more than one.
+   *
+   * @generated from field: string environment = 3;
+   */
+  environment: string;
+
+  /**
+   * The addresses its firewall lets in, each an address or a range, such as
+   * "203.0.113.7" or "203.0.113.0/24": at least one, unless off, and at most 32,
+   * none wider than a /8 for IPv4 or a /32 for IPv6, so no list reaches everyone.
+   *
+   * @generated from field: repeated string allow_from = 4;
+   */
+  allowFrom: string[];
+
+  /**
+   * Takes external access away: the port and both rules, in one change.
+   *
+   * @generated from field: bool off = 5;
+   */
+  off: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SetDatabaseExternalAccessRequest.
+ * Use `create(SetDatabaseExternalAccessRequestSchema)` to create a new message.
+ */
+export const SetDatabaseExternalAccessRequestSchema: GenMessage<SetDatabaseExternalAccessRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 16);
+
+/**
+ * SetDatabaseExternalAccessResponse is the change that gives or takes external
+ * access, planned.
+ *
+ * @generated from message dockwell.v1.SetDatabaseExternalAccessResponse
+ */
+export type SetDatabaseExternalAccessResponse = Message<"dockwell.v1.SetDatabaseExternalAccessResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SetDatabaseExternalAccessResponse.
+ * Use `create(SetDatabaseExternalAccessResponseSchema)` to create a new message.
+ */
+export const SetDatabaseExternalAccessResponseSchema: GenMessage<SetDatabaseExternalAccessResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_database, 17);
 
 /**
  * GetDatabaseResponse is one database.
@@ -943,7 +1058,7 @@ export type GetDatabaseResponse = Message<"dockwell.v1.GetDatabaseResponse"> & {
  * Use `create(GetDatabaseResponseSchema)` to create a new message.
  */
 export const GetDatabaseResponseSchema: GenMessage<GetDatabaseResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_database, 15);
+  messageDesc(file_dockwell_v1_database, 18);
 
 /**
  * DatabaseEngine is which database a service runs.
@@ -1074,6 +1189,25 @@ export const DatabaseService: GenService<{
     methodKind: "unary";
     input: typeof ChangeDatabasePasswordRequestSchema;
     output: typeof ChangeDatabasePasswordResponseSchema;
+  },
+  /**
+   * SetDatabaseExternalAccess plans letting apps and people beyond a database's
+   * server reach it, from the addresses listed and nowhere else, or taking that
+   * away. It's three edits that go together: the database publishes its engine's
+   * port on every address of its server, and two firewall rules there let the
+   * listed addresses in and keep everyone else out. Turning it off removes all
+   * three. The rules are a server's, so it's an admin's, as any firewall rule is.
+   * The port is public on purpose, which a person approves, and the rules change
+   * who reaches the server, which takes a passkey, so no API token may apply it.
+   * It changes nothing until the plan is applied, and a list that's empty, or
+   * reaches everyone, is refused (ADR 0038, "External access, as built").
+   *
+   * @generated from rpc dockwell.v1.DatabaseService.SetDatabaseExternalAccess
+   */
+  setDatabaseExternalAccess: {
+    methodKind: "unary";
+    input: typeof SetDatabaseExternalAccessRequestSchema;
+    output: typeof SetDatabaseExternalAccessResponseSchema;
   },
   /**
    * CheckDatabaseSignIn asks whether a user of a PostgreSQL, MySQL or MariaDB server

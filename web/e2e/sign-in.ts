@@ -318,10 +318,7 @@ async function main() {
   await page.getByRole("button", { name: "Create passkey" }).click();
   // A new owner starts where the first app comes from, with the overview a click away.
   await expectPage(page, "What do you want to run?", 15_000);
-  await page
-    .getByRole("list", { name: "Ways to run your first app" })
-    .getByRole("link", { name: "A Docker image" })
-    .waitFor();
+  await page.getByRole("list", { name: "Ways to run an app" }).getByRole("link", { name: "A Docker image" }).waitFor();
   const claimFlashed = await claimSaid();
   if (claimFlashed.length > 0) fail(`the claim showed ${JSON.stringify(claimFlashed)} on its way to the start`);
   await shoot(page, "start");

@@ -9,6 +9,9 @@ import { listBlocked, looksLikeEntry, makePassword, ownEntries } from "./Private
 describe("who gets in to a route", () => {
   it("offers your IPv4 address alone, your IPv6 network first, and nothing from loopback", () => {
     expect(ownEntries("198.51.100.23")).toEqual(["198.51.100.23"]);
+    // An address the request couldn't be read from is nobody's (#849's L2).
+    expect(ownEntries("0.0.0.0")).toEqual([]);
+    expect(ownEntries("::")).toEqual([]);
     expect(ownEntries("::ffff:198.51.100.23")).toEqual(["198.51.100.23"]);
     expect(ownEntries("2001:db8:0:12:a1b2:c3d4:e5f6:7")).toEqual([
       "2001:db8:0:12::/64",

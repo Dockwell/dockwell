@@ -224,6 +224,19 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       }
       className="database-page"
     >
+      {/* A phone has no header row for these, so they lead the page, not trail its Danger zone (#798). */}
+      {phone ? (
+        <div className="database-actionbar">
+          <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service" size="lg">
+            <Trans>Open as an app</Trans>
+          </RouterButtonLink>
+          {upgrade ? (
+            <Button variant="primary" icon="deploy" size="lg" onClick={upgrade} {...mayUpgrade.off}>
+              {upgradeWords}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       <TabNav label={t`Database sections`}>
         <RouterTabLink to="/databases/$serviceId" params={{ serviceId: db.id }} activeOptions={{ exact: true }}>
           <Trans>Overview</Trans>
@@ -244,18 +257,6 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
         ) : null}
       </TabNav>
       {children}
-      {phone ? (
-        <div className="database-actionbar">
-          <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service" size="lg">
-            <Trans>Open as an app</Trans>
-          </RouterButtonLink>
-          {upgrade ? (
-            <Button variant="primary" icon="deploy" size="lg" onClick={upgrade} {...mayUpgrade.off}>
-              {upgradeWords}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
     </Page>
   );
 }

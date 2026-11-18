@@ -549,6 +549,20 @@ a.databases-engine:hover .databases-engine-plus {
   color: var(--ink);
 }
 
+/* What PostgreSQL's image trusts, as a state under its users, with why a click away (#798). */
+.database-trust {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.database-trust-why {
+  margin: 0 0 0 16px;
+}
+
 /* What a database or Docker said, which may hold a path or a command no space breaks. */
 .database-said {
   overflow-wrap: anywhere;
@@ -608,4 +622,65 @@ a.databases-engine:hover .databases-engine-plus {
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-2);
+}
+
+/* Who reaches it from beyond its server, with the tunnel a step away (#798). */
+.database-external-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+/* A long server name in what the switch says wraps, rather than widen a phone's page. */
+.database-external-body > * {
+  max-width: 100%;
+}
+
+.database-external .dw-switch-text {
+  min-width: 0;
+}
+
+.database-external .dw-switch-desc,
+.database-external .domain-step-state {
+  overflow-wrap: anywhere;
+}
+
+.database-external-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(100%, 480px);
+}
+
+.database-external-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.database-tunnel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.database-external-tunnel {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.database-tunnel-command {
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken, var(--canvas));
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }

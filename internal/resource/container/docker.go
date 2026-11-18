@@ -250,6 +250,9 @@ func OwnLabels(spec *resourcev1.Container) map[string]string {
 	if h := heldPortsLabel(spec); h != "" {
 		out[LabelHeldPorts] = h
 	}
+	if x := externalPortsLabel(spec); x != "" {
+		out[LabelExternalPorts] = x
+	}
 	var set []string
 	add := func(name string, ok bool) {
 		if ok {
@@ -1072,6 +1075,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	slices.Sort(out.Expose)
 	out.Expose = slices.Compact(out.Expose)
 	held := heldPorts(c.Config.Labels[LabelHeldPorts])
+	external := heldPorts(c.Config.Labels[LabelExternalPorts])
 	for key, bindings := range c.HostConfig.PortBindings {
 		port, transport, _ := strings.Cut(key, "/")
 		cp, _ := strconv.ParseUint(port, 10, 16)
@@ -1084,6 +1088,9 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 			p := &resourcev1.PortMapping{HostPort: uint32(hp), ContainerPort: uint32(cp), Protocol: protocol, HostIp: b.HostIP}
 			if ip, ok := held[heldKey(p)]; ok && b.HostIP == heldIP {
 				p.HostIp, p.Held = ip, true
+			}
+			if _, ok := external[heldKey(p)]; ok {
+				p.External = true
 			}
 			out.Ports = append(out.Ports, p)
 		}
@@ -2591,6 +2598,23 @@ func heldPortsLabel(spec *resourcev1.Container) string {
 			k += "@" + ip
 		}
 		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	return strings.Join(slices.Compact(keys), ",")
+}
+
+// LabelExternalPorts lists the ports a container publishes as a database's external
+// access (PortMapping.external), by host port and protocol, such as "5432/tcp", so
+// each reads back as its spec has it (ADR 0038, "External access, as built").
+const LabelExternalPorts = docker.OwnPrefix + "external-ports"
+
+// externalPortsLabel is LabelExternalPorts for a spec, or "" while it has none.
+func externalPortsLabel(spec *resourcev1.Container) string {
+	var keys []string
+	for _, p := range spec.GetPorts() {
+		if p.GetExternal() {
+			keys = append(keys, heldKey(p))
+		}
 	}
 	slices.Sort(keys)
 	return strings.Join(slices.Compact(keys), ",")
