@@ -808,10 +808,26 @@ func (c *scopedConn) endedBy() error {
 	return c.ended
 }
 
-func (c *scopedConn) Send(m any) error {
+// narrowing is what a send narrows by: the stream's context, with the grants last
+// read, and what's known of its caller's apps by those same grants. They're read
+// together, so a recheck between two reads can't leave a new cache of apps filled
+// from the grants before it, which would keep a lost project's apps in samples
+// until the recheck after (#852). The maps are this stream's alone, and a recheck
+// only swaps one for a new one.
+func (c *scopedConn) narrowing() (context.Context, appsSeen) {
 	c.mu.Lock()
-	ctx := c.ctx
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	if c.apps.placed == nil {
+		c.apps.placed = map[string]bool{}
+	}
+	if c.apps.shown == nil {
+		c.apps.shown = map[string]bool{}
+	}
+	return c.ctx, c.apps
+}
+
+func (c *scopedConn) Send(m any) error {
+	ctx, seen := c.narrowing()
 	skip, err := c.i.filter(ctx, c.Spec().Procedure, m)
 	if err != nil {
 		return ReasonError(connect.CodeUnavailable, errors.New("can't check what you may see right now. Try again in a moment"), ReasonUnavailable)
@@ -821,16 +837,6 @@ func (c *scopedConn) Send(m any) error {
 	}
 	c.i.sealPage(ctx, c.Spec().Procedure, m)
 	if c.trim {
-		// The maps are this stream's alone, and a recheck only swaps one for a new one.
-		c.mu.Lock()
-		if c.apps.placed == nil {
-			c.apps.placed = map[string]bool{}
-		}
-		if c.apps.shown == nil {
-			c.apps.shown = map[string]bool{}
-		}
-		seen := c.apps
-		c.mu.Unlock()
 		c.i.trimKeepingApps(ctx, m, &seen)
 	}
 	if briefs(ctx) {

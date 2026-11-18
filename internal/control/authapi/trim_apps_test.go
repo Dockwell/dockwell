@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -66,5 +67,40 @@ func TestAStreamsSamplesAskTheStoreOnlyOfAServiceNotPlacedYet(t *testing.T) {
 	i.trimKeepingApps(ctx, other, seen)
 	if got := other.GetServer(); got.GetStats() != nil || len(got.GetHistory()) != 0 {
 		t.Errorf("a server where none of theirs runs reads %v", got)
+	}
+}
+
+// A send reads the stream's grants, and what's known of its caller's apps by
+// them, together (#852). A recheck after that read starts a new cache for the
+// next send, which what the earlier send learns by the grants before can't fill.
+// So someone who loses a project at a recheck stops getting its apps' figures
+// from the next send, not from the recheck after it.
+func TestARecheckGivesTheNextSendAFreshCacheOfApps(t *testing.T) {
+	i, ada, _ := gated(t, store.RoleViewer)
+	before := place.WithCaller(t.Context(), place.Caller{UserID: ada.User.ID, Grants: []store.Grant{{ProjectID: "prj_shop", Role: store.RoleViewer}}})
+	c := &scopedConn{StreamingHandlerConn: fakeStream{procedure: dockwellv1connect.ServerServiceWatchServersProcedure}, i: i, trim: true, ctx: before}
+	ctx, seen := c.narrowing()
+	if ctx != before || seen.placed == nil || seen.shown == nil {
+		t.Fatalf("the first send narrows by %v with %+v, want the stream's own context and empty maps", ctx, seen)
+	}
+	if err := c.recheck(t.Context(), ada); err != nil {
+		t.Fatalf("a recheck that reads the grants: %v", err)
+	}
+	// The send that read before the recheck places shop's app by the grants it read.
+	seen.placed["svc_shop"] = true
+	seen.shown["srv_1"] = true
+	after, next := c.narrowing()
+	if after == before {
+		t.Error("the next send narrows by the grants from before the recheck")
+	}
+	if caller, ok := place.CallerFrom(after); !ok || len(caller.Grants) != 1 || caller.Grants[0].ProjectID != store.Install {
+		t.Errorf("the next send narrows by %+v, want the grants the recheck read", caller)
+	}
+	if len(next.placed) != 0 {
+		t.Errorf("the next send knows %v of the caller's apps, which the grants before the recheck placed", next.placed)
+	}
+	// Which servers have shown theirs isn't a grant, and stays.
+	if !next.shown["srv_1"] {
+		t.Errorf("the next send forgot the servers that showed theirs: %v", next.shown)
 	}
 }
