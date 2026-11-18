@@ -41,6 +41,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
+	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/resource/volume"
@@ -465,6 +466,11 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for _, name := range slices.Sorted(maps.Keys(also.needs.Links)) {
 		add(link.Kind, name, &resourcev1.Spec{Kind: &resourcev1.Spec_Link{Link: also.needs.Links[name]}})
 	}
+	// What reaches a service, as its owner and a route made with the install do, goes
+	// after every service: a plan puts what an edit reaches before it, so one placed
+	// ahead would start its service before what that service depends on, as Umami
+	// before its database, which it can't start without.
+	var reaching []*dockwellv1.Edit
 	for _, e := range also.needs.Extra {
 		e = proto.CloneOf(e)
 		if e.GetResource().GetScope() == "" {
@@ -474,6 +480,10 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			}
 		}
 		keep[e.GetResource().GetKind()+"/"+e.GetResource().GetName()] = true
+		if k := resource.Kind(e.GetResource().GetKind()); k == appowner.Kind || k == route.Kind {
+			reaching = append(reaching, e)
+			continue
+		}
 		edits = append(edits, e)
 	}
 	for _, n := range stack.Networks {
@@ -485,6 +495,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 	for _, s := range stack.Services {
 		add(service.Kind, s.Name, &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: s.Spec}})
 	}
+	edits = append(edits, reaching...)
 	edits = usersAfterTheirServers(edits, env)
 	if m.GetRemoveOrphans() {
 		// Deletions run last, in reverse: services go before the networks

@@ -237,7 +237,17 @@ try_apply() {
   settles "$1"
 }
 # apply applies a planned change, and fails at once if the change fails.
-apply() { try_apply "$1" || fail "$1 failed: $(dw changes get "$1" --json)"; }
+# change_logs prints what each service a failed change ran printed, from the logs
+# Dockwell keeps of a failed deploy, as its rollback has taken the containers away
+# before fail could list them.
+change_logs() {
+  local svc
+  for svc in $(dw changes get "$1" --json 2>/dev/null | jq -r '[.change.plan.resources[]? | select(.resource.kind == "service") | .resource.name] | unique | .[]' 2>/dev/null); do
+    echo "--- what $svc printed in $1" >&2
+    dw logs read "$svc" --project "$installed" --change-id "$1" --page-size 60 >&2 2>&1 || true
+  done
+}
+apply() { try_apply "$1" || { change_logs "$1"; fail "$1 failed: $(dw changes get "$1" --json)"; }; }
 # registry_trouble says a failed change failed on a registry, and nothing about the
 # image or the entry: a step of it comes down to "registry" (StepProgress.reason), a
 # registry that didn't answer a pull properly; or, as CI's pulls time out too, a step
@@ -254,7 +264,10 @@ registry_trouble() {
 apply_patiently() {
   local said back
   try_apply "$change" && return 0
-  registry_trouble "$change" || fail "$change failed: $(dw changes get "$change" --json)"
+  registry_trouble "$change" || {
+    change_logs "$change"
+    fail "$change failed: $(dw changes get "$change" --json)"
+  }
   said=$(dw changes get "$change" --json | jq -r '[.change.steps[] | select(.reason == "registry" or ((.message // "") | contains("can'"'"'t reach the registry"))) | "\(.reason // "no reason"): \(.message)"][0]')
   echo "catalog-e2e: $change failed on a registry, not on the entry (a step says $said). Planning it again in 30 s, once" >&2
   # The rollback Dockwell makes of it goes on record a moment after the failure.
