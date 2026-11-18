@@ -378,7 +378,7 @@ export async function catalogFlow(page: Page, { origin, step, shoot, docker, cat
   const dockwells = page.locator("section.source-card", {
     has: page.getByRole("heading", { name: "Dockwell's own" }),
   });
-  await dockwells.getByTitle("From the catalog dockwell").waitFor();
+  await dockwells.getByTitle("The source dockwell").waitFor();
   await dockwells.getByText("Following main").waitFor();
   // A count and the way into the catalog, never a chip for each app (#568).
   const count = Number((await dockwells.locator(".source-card-count").textContent())?.match(/\d+/)?.[0] ?? 0);
