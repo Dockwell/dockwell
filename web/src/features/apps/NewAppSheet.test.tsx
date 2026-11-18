@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type ApplyChangeRequest,
@@ -8,6 +9,7 @@ import {
   ChangeSchema,
   ChangeState,
   CheckComposeResponseSchema,
+  Connection,
   type DetectBuildRequest,
   DetectionProblem,
   EntrySchema,
@@ -35,7 +37,7 @@ import { anApp, places, projectPlaces, SERVER } from "../../test/apps";
 import { catalogPages } from "../../test/catalog";
 import { moved, watched } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
-import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { aServer, changed, sample, snapshotComplete } from "../../test/servers";
 
 const hz1 = aServer({ id: SERVER, name: "hz-1" });
 
@@ -788,7 +790,7 @@ describe("New app, from Git", () => {
     );
   });
 
-  it("reads the repository only once you choose which of several servers builds it", async () => {
+  it("reads the repository on the server chosen at once, and again on another you choose", async () => {
     const user = userEvent.setup();
     const read: string[] = [];
     renderAt(
@@ -817,14 +819,13 @@ describe("New app, from Git", () => {
     const sheet = await screen.findByRole("dialog", { name: "New app" });
     await user.type(within(sheet).getByLabelText("Repository"), "github.com/acme/web");
     const status = within(sheet).getByRole("status", { name: "Build" });
-    await waitFor(() => expect(status).toHaveTextContent("read from the repository once you choose a server"));
-    await new Promise((r) => setTimeout(r, 800));
-    expect(read).toEqual([]);
-    await user.click(
-      within(await within(sheet).findByRole("group", { name: "Runs on" })).getByRole("checkbox", { name: "hz-2" }),
-    );
     await waitFor(() => expect(status).toHaveTextContent("Dockerfile · node:22-alpine"), { timeout: 3000 });
-    expect(read).toEqual(["srv_2"]);
+    expect(read).toEqual(["srv_1"]);
+    const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    await user.click(within(runsOn).getByRole("button", { name: "Change where it runs" }));
+    await user.click(within(runsOn).getByRole("checkbox", { name: "hz-1" }));
+    await user.click(within(runsOn).getByRole("checkbox", { name: "hz-2" }));
+    await waitFor(() => expect(read).toContain("srv_2"), { timeout: 3000 });
   });
 
   it("says what to do by what Railpack said: a version it can't find, or nothing that starts the app", async () => {
@@ -1538,7 +1539,7 @@ describe("New app, from an image", () => {
     expect(within(plan).getByRole("button", { name: /Apply plan/ })).toBeEnabled();
   });
 
-  it("asks where it runs from the second server on, and in which environment once there is a choice", async () => {
+  it("runs on the server with the most free memory from the second server on, which Change makes another, and asks in which environment once there is a choice", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];
     const { sheet } = await openImage(
@@ -1559,8 +1560,13 @@ describe("New app, from an image", () => {
       ),
     );
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    // Chosen at once, in one line (#792).
+    expect(await within(runsOn).findByText("most free memory")).toBeVisible();
+    expect(within(runsOn).getByText("hz-1")).toBeVisible();
     await user.selectOptions(await within(sheet).findByLabelText("Environment"), "env_staging");
     await user.type(within(sheet).getByLabelText("Image"), "nginx:1.27");
+    await user.click(within(runsOn).getByRole("button", { name: "Change where it runs" }));
+    await user.click(within(runsOn).getByRole("checkbox", { name: "hz-1" }));
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     expect(within(sheet).getByText("Choose where it runs.")).toBeVisible();
     await user.click(within(runsOn).getByRole("checkbox", { name: "hz-2" }));
@@ -1568,6 +1574,38 @@ describe("New app, from an image", () => {
     await screen.findByRole("dialog", { name: "Review plan" });
     expect(proposals[0]?.edits[0]?.servers).toEqual(["srv_2"]);
     expect(proposals[0]?.edits[0]?.resource?.scope).toBe("env_staging");
+  });
+
+  it("chooses the server with the most free memory, and an offline one can't be ticked, saying why", async () => {
+    const user = userEvent.setup();
+    const { sheet } = await openImage(
+      api(
+        {},
+        aServer({ id: SERVER, name: "hz-1", stats: sample(10, 7) }),
+        aServer({ id: "srv_2", name: "hz-2", stats: sample(10, 1) }),
+        aServer({ id: "srv_3", name: "db-3", connection: Connection.UNREACHABLE, stats: sample(10, 0.1) }),
+      ),
+    );
+    const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    expect(await within(runsOn).findByText("hz-2")).toBeVisible();
+    expect(within(runsOn).getByText("most free memory")).toBeVisible();
+    await user.click(within(runsOn).getByRole("button", { name: "Change where it runs" }));
+    expect(within(runsOn).getByRole("checkbox", { name: /hz-2/ })).toBeChecked();
+    expect(within(runsOn).getByRole("checkbox", { name: /db-3/ })).toBeDisabled();
+    expect(runsOn).toHaveTextContent("Offline, so it can't take a new app now");
+  });
+
+  it("chooses a healthy server before a degraded one with more free memory", async () => {
+    const { sheet } = await openImage(
+      api(
+        {},
+        aServer({ id: SERVER, name: "hz-1", stats: sample(10, 7) }),
+        aServer({ id: "srv_2", name: "hz-2", stats: sample(10, 1), strainedSince: timestampFromDate(new Date()) }),
+      ),
+    );
+    const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    expect(await within(runsOn).findByText("hz-1")).toBeVisible();
+    expect(within(runsOn).queryByText("hz-2")).toBeNull();
   });
 
   it("fills a phone, with room for a thumb", async () => {

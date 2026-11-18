@@ -88,12 +88,11 @@ export function useAddStore(sources: readonly CatalogSourceInfo[]): (store: Cata
 }
 
 /**
- * What a store brings, in a line: that a source reads it, where one does, how many of
- * its apps install, and its licence, which never wraps.
+ * What a store brings, in a line: that a source reads it, where one does, and how
+ * many of its apps install. Its licence is on its name's line (#792).
  */
 export function StoreFacts({ store }: { store: CatalogStore }) {
   const { t } = useLingui();
-  const licence = useLicenceWords();
   const at = store.commit.slice(0, 12);
   return (
     <span className="store-facts">
@@ -114,7 +113,6 @@ export function StoreFacts({ store }: { store: CatalogStore }) {
               other: `About ${store.installs} of # apps install`,
             })}
       </span>
-      <span className="store-licence">{licence(store.license)}</span>
     </span>
   );
 }
@@ -133,11 +131,20 @@ export function StoreTile({
   small?: boolean;
 }) {
   const named = useStoreName();
+  const licence = useLicenceWords();
   return (
     <li className="store-tile">
       <StoreMark id={store.id} name={store.label} size={small ? 32 : 40} />
       <span className="store-tile-words">
-        <span className="store-tile-name">{named(store)}</span>
+        {/* Its licence beside its name, never on a line of its own, so every tile is the same (#792). */}
+        <span className="store-tile-name-line">
+          <span className="store-tile-name" title={named(store)}>
+            {named(store)}
+          </span>
+          <span className="store-licence" title={licence(store.license)}>
+            {licence(store.license)}
+          </span>
+        </span>
         <StoreFacts store={store} />
       </span>
       {action ? <span className="store-tile-action">{action}</span> : null}
@@ -167,7 +174,7 @@ export function StoreGallery({
   return (
     <section className="store-gallery" aria-labelledby="store-gallery-heading">
       <h2 id="store-gallery-heading" className="store-gallery-heading">
-        <Trans>App stores</Trans>
+        <Trans>Sources to add</Trans>
       </h2>
       <ul className="store-tiles">
         {list.map((store) => (

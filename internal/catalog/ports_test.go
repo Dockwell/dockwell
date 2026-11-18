@@ -268,3 +268,27 @@ func TestASecretInsideAValueAndAPortOnTheServerAlone(t *testing.T) {
 		t.Errorf("Adminer publishes %q", got)
 	}
 }
+
+// The port a route sends to is the web service's container port, as variables have
+// it where a converted store's file names it by one (#792's review, L1).
+func TestWebTargetReadsAPortNamedByAVariable(t *testing.T) {
+	t.Parallel()
+	entry := func(ports string) *catalogv1.Entry {
+		return &catalogv1.Entry{Web: &catalogv1.Web{Service: "web"}, Compose: "services:\n  web:\n    image: thing:1\n    ports:\n" + ports}
+	}
+	for name, c := range map[string]struct {
+		ports string
+		vars  map[string]string
+		want  uint32
+	}{
+		"a number":            {`      - "18100:80"` + "\n", nil, 80},
+		"a variable":          {`      - "${APP_PORT}:${APP_PORT}"` + "\n", map[string]string{"APP_PORT": "8080"}, 8080},
+		"its default":         {`      - "${PORT:-3000}:${PORT:-3000}"` + "\n", nil, 3000},
+		"a long form":         {"      - target: ${PORT}\n        published: \"18100\"\n", map[string]string{"PORT": "9000"}, 9000},
+		"a variable not said": {`      - "${APP_PORT}:${APP_PORT}"` + "\n", nil, 0},
+	} {
+		if got := catalog.WebTarget(entry(c.ports), c.vars); got != c.want {
+			t.Errorf("%s: %d, want %d", name, got, c.want)
+		}
+	}
+}

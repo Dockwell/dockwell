@@ -57,6 +57,9 @@ describe("An app that runs on one architecture", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "Install Amd App" });
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
+    // The one server that can take it is chosen at once, in one line (#792).
+    expect(await within(runsOn).findByText("the only server that can take it")).toBeVisible();
+    await userEvent.setup().click(within(runsOn).getByRole("button", { name: "Change where it runs" }));
     expect(within(runsOn).getByRole("checkbox", { name: /hz-1/ })).toBeEnabled();
     expect(within(runsOn).getByRole("checkbox", { name: /pi-1/ })).toBeDisabled();
     expect(within(runsOn).getByRole("checkbox", { name: /edge-2/ })).toBeDisabled();

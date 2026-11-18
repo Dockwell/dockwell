@@ -482,14 +482,10 @@ func (h *Handler) servedBy(ctx context.Context, publish *resourcev1.RoutePublish
 	if err != nil {
 		return nil, authapi.Invalid(fmt.Errorf("%s isn't a connected DNS provider. Connect it under Integrations, or pick another", publish.GetProvider()))
 	}
-	if dnsprovider.Serves(saved.Spec, project) {
+	spec := dnsprovider.Serving(saved.Spec, project)
+	if spec == nil {
 		return nil, nil
 	}
-	// Its tokens are left out, so the provider keeps them, and the plan shows only
-	// the project it gains (the review's B-M5).
-	spec := proto.CloneOf(saved.Spec)
-	spec.ApiToken, spec.TunnelApiToken = "", ""
-	spec.Projects = append(spec.Projects, project)
 	return []*dockwellv1.Edit{{
 		Resource: &dockwellv1.ResourceRef{Kind: string(dnsprovider.Kind), Name: saved.Name},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_DnsProvider{DnsProvider: spec}},

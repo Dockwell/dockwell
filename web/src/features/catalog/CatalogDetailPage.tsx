@@ -52,7 +52,25 @@ export function CatalogDetailPage({
   const entry = got.data?.entry;
   // What the app's catalog says of it, in the reader's language where it writes it there (ADR 0083).
   const words = useEntryWords()(entry);
-  const facts = useEntryFacts(entry);
+  // A need's fact takes you to where it's picked: the install sheet (#792).
+  const facts = useEntryFacts(entry).map((f) =>
+    f.key.startsWith("need-")
+      ? {
+          ...f,
+          action: (
+            <RouterButtonLink
+              to="/catalog/$entryId/install"
+              params={{ entryId: id }}
+              search={search}
+              variant="ghost"
+              size="sm"
+            >
+              <Trans>Pick one</Trans>
+            </RouterButtonLink>
+          ),
+        }
+      : f,
+  );
   const app = entry?.name ?? id;
   const label = categoryLabel(entry?.category ?? "");
   const category = typeof label === "string" ? label : i18n._(label);

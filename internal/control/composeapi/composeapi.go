@@ -38,6 +38,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -153,6 +154,10 @@ type Install struct {
 	// the variable's: what an install writes beyond the file, such as the value that
 	// closes its sign-ups (ADR 0105).
 	Env map[string]map[string]string
+	// Serves are DNS providers, by name, that publish a route the install makes: the
+	// plan has each serve the project the install makes, in the same change, which it
+	// shows, as a website's does (ADR 0104, #792).
+	Serves []string
 }
 
 // Needs are what an install's needs set in its environment, and how each is met
@@ -292,6 +297,15 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 			return nil, err
 		}
 		place.made = append(place.made, edit)
+	}
+	for _, name := range in.Serves {
+		edit, err := h.serveNew(ctx, place.organization, name, place.made[0].ID)
+		if err != nil {
+			return nil, err
+		}
+		if edit.Spec != nil {
+			place.made = append(place.made, edit)
+		}
 	}
 	useSecrets(stack, in.Stands)
 	setAddress(stack, in.Address)
@@ -1701,6 +1715,40 @@ func (h *Handler) internal(ctx context.Context, err error) error {
 	}
 	h.logger.ErrorContext(ctx, "compose call failed", slog.String("error", err.Error()))
 	return connect.NewError(connect.CodeInternal, errors.New("the control plane couldn't complete the request; try again, and check its logs if it keeps failing"))
+}
+
+// serveNew is the edit that has a DNS provider serve the project an install makes, so
+// the route the install makes may publish through it: an admin's, as a provider is
+// (#792). Its tokens are left out, so the provider keeps them (dnsprovider.Serving).
+func (h *Handler) serveNew(ctx context.Context, org, name, project string) (revision.Edit, error) {
+	ref := resource.Ref{Kind: dnsprovider.Kind, Scope: org, Name: name}
+	var out revision.Edit
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		r, err := tx.GetResource(ctx, string(ref.Kind), org, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return authapi.Invalid(fmt.Errorf("%s isn't a connected DNS provider. Connect it under Integrations, or pick another", name))
+		}
+		if err != nil {
+			return err
+		}
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the DNS provider %s: %w", name, err)
+		}
+		p, ok := spec.(*resourcev1.DnsProvider)
+		if !ok {
+			return fmt.Errorf("%s isn't a DNS provider", name)
+		}
+		if serving := dnsprovider.Serving(p, project); serving != nil {
+			out = revision.Edit{Ref: ref, Spec: serving, Base: r.Revision}
+		}
+		return nil
+	})
+	var cerr *connect.Error
+	if err != nil && !errors.As(err, &cerr) {
+		return out, h.internal(ctx, err)
+	}
+	return out, err
 }
 
 // reachNew is the edit that has the connection name reach the project an install

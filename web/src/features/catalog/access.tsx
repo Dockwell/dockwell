@@ -9,6 +9,7 @@ import {
   type Entry,
   type Input,
   InputType,
+  Kind,
   Protocol,
   type ServiceInfo,
   ServiceService,
@@ -91,9 +92,16 @@ export function useEntryFacts(entry: Entry | undefined): Fact[] {
       icon: "users",
       text: t`Anyone who reaches it can make an account, until you close sign-ups`,
     });
-  if (entry.addressVariables.length > 0) {
-    const names = entry.addressVariables.map((a) => a.variable).join(", ");
-    out.push({ key: "address", icon: "globe", text: t`Its links follow the domain you add: ${names}` });
+  // What follows its domain is a fact, never the variables' raw names (#792).
+  if (entry.addressVariables.length > 0)
+    out.push({ key: "address", icon: "globe", text: t`Its links follow its domain` });
+  // A mail server it needs, picked as it's installed (#792).
+  for (const need of entry.needs.filter((n) => n.kind === Kind.SMTP)) {
+    out.push({
+      key: `need-${need.name}`,
+      icon: "mail",
+      text: need.optional ? t`Sends mail through a mail server, if you pick one` : t`Needs a mail server`,
+    });
   }
   for (const [i, note] of entry.notes.entries()) out.push({ key: `note-${i}`, icon: "question", text: note });
   if (entry.firstSteps) out.push({ key: "first", icon: "arrow-right", text: entry.firstSteps });

@@ -91,7 +91,12 @@ export async function runtimesFlow(page: Page, { origin, step, shoot, docker }: 
       .first()
       .waitFor();
     const runsOn = sheet.getByRole("group", { name: "Runs on" });
-    if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
+    // A server is chosen at once, in one line with Change (#792); boxes only once changed.
+    if (
+      (await runsOn.count()) > 0 &&
+      (await runsOn.getByRole("button", { name: "Change where it runs" }).count()) === 0
+    )
+      await runsOn.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
     // The folder is picked: here by its path, typed into the picker, as someone who knows it would.
     await sheet.getByRole("button", { name: /^(Choose a folder|Change the folder)/ }).click();
     await sheet.getByRole("textbox", { name: "Path", exact: true }).fill(folder);

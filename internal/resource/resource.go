@@ -2198,6 +2198,16 @@ type Rotates interface {
 	RotatesSensitive()
 }
 
+// PartUndoer is a Type whose resource several changes may each add to, as installs
+// each add their project to a DNS provider's list, so one of those changes can still
+// be undone after another changed the resource again: the undo takes out what that
+// change added, as a set, and keeps the rest (#792).
+type PartUndoer interface {
+	// UndoPart is latest without what a change made of before to make after, and
+	// true, when adding to a set is all that change did; otherwise false.
+	UndoPart(before, after, latest proto.Message) (proto.Message, bool)
+}
+
 // RunsOnNoServer reports a Type whose resources run on no server, whatever its level.
 func RunsOnNoServer(t Type) bool {
 	if _, ok := t.(Valuer); ok {

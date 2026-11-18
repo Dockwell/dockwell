@@ -3226,3 +3226,56 @@
   color: var(--ink-muted);
   font-size: 12.5px;
 }
+
+/* Where a new app runs, chosen at once and said in one line, with Change (#792). */
+.app-runs-auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.app-runs-auto .app-server-name {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.app-runs-auto-why {
+  color: var(--ink-muted);
+}
+
+.app-runs-auto-change {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--cobalt);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-runs-auto-change:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (pointer: coarse) {
+  .app-runs-auto-change {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+  }
+}
+
+/* A server that can't take the app: off, with why beside it. */
+.app-check.is-server.is-off {
+  cursor: default;
+  color: var(--ink-muted);
+}

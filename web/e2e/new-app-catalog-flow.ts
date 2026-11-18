@@ -22,9 +22,10 @@ async function chooseServer(sheet: Locator) {
     .getByText(/^Runs on/)
     .first()
     .waitFor();
-  const servers = sheet.getByRole("group", { name: "Runs on" });
-  if ((await servers.count()) === 0) return;
-  await servers.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
+  const runsOn = sheet.getByRole("group", { name: "Runs on" });
+  // A server is chosen at once, in one line with Change (#792); boxes only once changed.
+  if ((await runsOn.count()) > 0 && (await runsOn.getByRole("button", { name: "Change where it runs" }).count()) === 0)
+    await runsOn.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
 }
 
 export async function newAppCatalogFlow(page: Page, { origin, step, shoot }: FlowRun) {

@@ -67,7 +67,9 @@ export async function buildPrivateBaseFlow(page: Page, { origin, step, shoot, gi
     .first()
     .waitFor();
   const runsOn = sheet.getByRole("group", { name: "Runs on" });
-  if ((await runsOn.count()) > 0) await runsOn.getByRole("checkbox").first().check();
+  // A server is chosen at once, in one line with Change (#792); boxes only once changed.
+  if ((await runsOn.count()) > 0 && (await runsOn.getByRole("button", { name: "Change where it runs" }).count()) === 0)
+    await runsOn.locator("label", { hasNotText: "Offline" }).first().getByRole("checkbox").check();
   await sheet.getByLabel("Repository").fill(`${git}/web.git`);
   await sheet.getByText(/^Public · \d+ branches$/).waitFor({ timeout: 20_000 });
   await sheet.getByRole("combobox", { name: "Branch" }).selectOption("private-base");

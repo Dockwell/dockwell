@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { CatalogFormat, CatalogService, type CatalogSourceInfo, type CatalogStore, ChangeState } from "@dockwell/api";
+import { CatalogFormat, CatalogService, type CatalogSourceInfo, ChangeState } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -32,15 +32,7 @@ import { CopyButton } from "../system/CopyCommand";
 import { CatalogBack } from "./CatalogBack";
 import { AppIcon } from "./media";
 import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
-import {
-  StoreGallery,
-  StoreMark,
-  StoreTile,
-  storeSourceName,
-  useLicenceWords,
-  useStoreName,
-  useStores,
-} from "./Stores";
+import { StoreGallery, StoreMark, useLicenceWords, useStores } from "./Stores";
 import { monogram, useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
@@ -101,7 +93,7 @@ export function SourcesPage() {
       title={t`Catalog sources`}
       breadcrumb={<CatalogBack />}
       back="/catalog"
-      lead={t`The catalogs Dockwell installs apps from`}
+      lead={t`Where the catalog's apps come from`}
       actions={
         // With none yet, the empty state's own button is the way in.
         !list?.length ? undefined : (
@@ -140,7 +132,7 @@ export function SourcesPage() {
         <>
           <EmptyState
             icon="branch"
-            title={<Trans>No catalogs to install from</Trans>}
+            title={<Trans>No sources to install from</Trans>}
             action={
               <>
                 <Button variant="primary" size="lg" icon="plus" {...set.off} onClick={addOwn}>
@@ -163,7 +155,7 @@ export function SourcesPage() {
           <StoreGallery sources={list} off={set.off} />
           <section className="sources-list" aria-labelledby="sources-list-heading">
             <h2 id="sources-list-heading" className="sources-list-heading">
-              {plural(list.length, { one: "# catalog you read", other: "# catalogs you read" })}
+              {plural(list.length, { one: "# source you read", other: "# sources you read" })}
             </h2>
             {list.map((source) => (
               <SourceCard
@@ -273,7 +265,7 @@ function SourceCard({
           </span>
         )}
         <div className="source-card-title">
-          <h3 id={heading} tabIndex={-1} title={t`From the catalog ${name}`}>
+          <h3 id={heading} tabIndex={-1} title={t`The source ${name}`}>
             {said}
           </h3>
           <p className="source-card-where">
@@ -566,7 +558,6 @@ export function SourceSheet({
   const guess = guesses.find((g) => g.format === format) ?? (guesses.length === 1 ? guesses[0] : undefined);
   // A store's own link is named by the store's ID, before one made from the link.
   const stores = useStores().data?.stores ?? [];
-  const storeName = useStoreName();
   const storeID = editing.suggested ?? stores.find((s) => repositoryKey(s.repository) === repositoryKey(url))?.id;
   const suggested = storeID && !taken.includes(storeID) ? storeID : undefined;
   const name = named ?? suggested ?? nameFor(url, taken);
@@ -659,32 +650,6 @@ export function SourceSheet({
     setPlan(opening);
   };
 
-  // A store, picked in the sheet: its plan, at once, over the sheet, which Cancel comes back to.
-  const addStore = (store: CatalogStore) => {
-    if (current.current) return;
-    const opening: Opening = {
-      kind: "plan",
-      make: () =>
-        client.setCatalogSource({
-          name: storeSourceName(store, taken),
-          repository: store.repository,
-          path: "",
-          follow: store.branch,
-          format: store.format,
-        }),
-      onDone: close,
-      onClose: (after) => {
-        current.current = undefined;
-        if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.DISCARDED) setPlan(undefined);
-        else close();
-      },
-    };
-    current.current = opening;
-    setPlan(opening);
-  };
-  // The stores come first in a new, empty form: one click each, and a link for anything else.
-  const picking = !moving && editing.repository === undefined && url === "" && stores.length > 0;
-
   // Once the branches are in, a press that waited for them goes on: with the branch chosen, or to the commit field.
   // biome-ignore lint/correctness/useExhaustiveDependencies: submit reads the state this runs on, and is new each render
   useEffect(() => {
@@ -710,8 +675,8 @@ export function SourceSheet({
       open
       over={plan ? <PlanView opening={plan} /> : undefined}
       initialFocusRef={first}
-      title={moving ? t`Change ${movingWords}` : t`Add a catalog source`}
-      subtitle={picking ? t`An app store, or any public Git repository` : t`Apps from a public Git repository`}
+      title={moving ? t`Change ${movingWords}` : t`Add a source`}
+      subtitle={t`Apps from a public Git repository`}
       onClose={close}
       className={cx("sources-sheet", phone && "is-phone")}
       footer={
@@ -744,40 +709,6 @@ export function SourceSheet({
       >
         <button type="submit" hidden />
         {failure ? <Callout tone="critical">{failure}</Callout> : null}
-        {picking ? (
-          <fieldset className="sources-pick">
-            <legend>
-              <Trans>App stores</Trans>
-            </legend>
-            <ul className="sources-pick-list">
-              {stores.map((store) => (
-                <StoreTile
-                  key={store.id}
-                  store={store}
-                  small
-                  // An added store says so in its line; the page's card is the way to it.
-                  action={
-                    store.source ? undefined : (
-                      <Button
-                        size="sm"
-                        icon="plus"
-                        aria-label={t`Add ${storeName(store)}`}
-                        onClick={() => addStore(store)}
-                      >
-                        <Trans context="catalog store">Add</Trans>
-                      </Button>
-                    )
-                  }
-                />
-              ))}
-            </ul>
-          </fieldset>
-        ) : null}
-        {picking ? (
-          <p className="sources-or">
-            <Trans>Or any public Git repository</Trans>
-          </p>
-        ) : null}
         <TextField
           ref={first}
           label={t`Repository`}

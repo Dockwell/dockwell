@@ -122,3 +122,28 @@ func TestAProviderServesTheProjectsItNames(t *testing.T) {
 		t.Error("a provider proves names for projects it doesn't name, or not for one it does")
 	}
 }
+
+// Undoing a change that only added projects takes those out of the provider as it is
+// now and keeps the rest; one that changed anything else is undone whole, or not
+// (#792's review, M2).
+func TestUndoPartTakesOutOnlyTheProjectsAdded(t *testing.T) {
+	t.Parallel()
+	before := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", Projects: []string{"prj_a"}}
+	after := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", Projects: []string{"prj_a", "prj_b"}}
+	latest := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", Projects: []string{"prj_a", "prj_b", "prj_c"}}
+	got, ok := Type{}.UndoPart(before, after, latest)
+	if !ok || !slices.Equal(got.(*resourcev1.DnsProvider).GetProjects(), []string{"prj_a", "prj_c"}) || got.(*resourcev1.DnsProvider).GetApiToken() != "t" {
+		t.Fatalf("got %v, %t", got, ok)
+	}
+	if !slices.Equal(latest.GetProjects(), []string{"prj_a", "prj_b", "prj_c"}) {
+		t.Errorf("latest changed: %v", latest.GetProjects())
+	}
+	zones := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com", "example.org"}, ApiToken: "t", Projects: []string{"prj_a", "prj_b"}}
+	if _, ok := (Type{}).UndoPart(before, zones, latest); ok {
+		t.Error("a change that also moved the zones was undone in part")
+	}
+	removed := &resourcev1.DnsProvider{Provider: Cloudflare, Zones: []string{"example.com"}, ApiToken: "t", Projects: []string{"prj_b"}}
+	if _, ok := (Type{}).UndoPart(before, removed, latest); ok {
+		t.Error("a change that also took a project out was undone in part")
+	}
+}

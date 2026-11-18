@@ -5,6 +5,7 @@ import {
   CatalogNeedOptionSchema,
   ChangeSchema,
   ChangeState,
+  CloudflareName,
   Engine,
   EntrySchema,
   Feature,
@@ -13,6 +14,7 @@ import {
   Kind,
   NeedSchema,
   Part,
+  RouteWay,
   type WatchServersResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -581,7 +583,42 @@ function mailApi(more: Api["catalog"] = {}): Api {
 }
 
 describe("An app's mail as it's installed (ADR 0099)", () => {
-  it("installs with no mail by default, sets up a connection with who it sends as, one that can't off with why", async () => {
+  it("says on its page that it sends mail through a server you pick, with the way to pick one (#792)", async () => {
+    renderAt("/catalog/wordpress", mailApi());
+    const fact = await screen.findByText("Sends mail through a mail server, if you pick one");
+    const row = fact.closest("li");
+    if (!row) throw new Error("the fact is no list item");
+    expect(within(row).getByRole("link", { name: "Pick one" })).toHaveAttribute("href", "/catalog/wordpress/install");
+  });
+
+  it("says in a line that an app that can't go without mail has no mail server yet, with Add a mail server beside it", async () => {
+    const needsMail = create(EntrySchema, {
+      ...withMail,
+      needs: withMail.needs.map((n) => (n.name === "mail" ? create(NeedSchema, { ...n, optional: false }) : n)),
+    });
+    const options = [ownMariaDB, plain];
+    const base = api(options);
+    renderAt("/catalog/wordpress/install", {
+      ...base,
+      catalog: {
+        ...base.catalog,
+        getCatalogEntry: () => ({
+          entry: needsMail,
+          project: "wordpress",
+          values: { PORT: "8085" },
+          parts: [{ service: "wordpress", image: "wordpress:7.1.3-apache", opens: true }],
+          needs: options,
+        }),
+      },
+      connections: { listConnections: () => ({ connections: [] }) },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Mail" });
+    expect(row).toHaveTextContent("No mail server yet, and WordPress needs one");
+    expect(within(row).getByRole("button", { name: "Add a mail server" })).toBeVisible();
+  });
+
+  it("installs with the only mail server that can meet it by default, with no mail a step away, and one that can't off with why", async () => {
     const user = userEvent.setup();
     let asked: InstallCatalogEntryRequest | undefined;
     const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
@@ -595,12 +632,13 @@ describe("An app's mail as it's installed (ADR 0099)", () => {
       }),
     );
     const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    // The only one that can meet it is chosen at once (#792).
     const row = await within(sheet).findByRole("group", { name: "Mail" });
-    expect(row).toHaveTextContent("Not set");
-    await user.click(within(row).getByRole("button", { name: "Set up" }));
+    expect(row).toHaveTextContent("Resend");
+    await user.click(within(row).getByRole("button", { name: "Change mail" }));
     const picker = within(sheet).getByRole("group", { name: "Mail" });
     expect(picker).toHaveTextContent("Any mail server");
-    expect(within(picker).getByRole("radio", { name: /Not set/ })).toBeChecked();
+    expect(within(picker).getByRole("radio", { name: /Resend/ })).toBeChecked();
     expect(picker).toHaveTextContent("WordPress sends no mail");
     expect(
       within(picker)
@@ -614,5 +652,129 @@ describe("An app's mail as it's installed (ADR 0099)", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     await waitFor(() => expect(asked).toBeDefined());
     expect(asked?.needs).toEqual({ db: "new:mariadb", mail: "connection:relay" });
+  });
+});
+
+describe("An app's domain as it's installed (#792)", () => {
+  const TUNNEL = "3f2d1c0b-4a5b-4c6d-8e7f-9a0b1c2d3e4f";
+  const zoned = (more: Api["catalog"] = {}): Api => ({
+    ...api(undefined, more),
+    domains: {
+      listDomains: () => ({ domains: [] }),
+      listDnsProviders: () => ({
+        providers: [
+          {
+            id: "dnp_1",
+            name: "cloudflare",
+            provider: "cloudflare",
+            zones: ["example.com"],
+            projects: [],
+            strictZones: [],
+          },
+        ],
+      }),
+      checkDomain: () => ({
+        cloudflare: {
+          zone: "example.com",
+          provider: "cloudflare",
+          state: CloudflareName.FREE,
+          way: RouteWay.SERVER_TUNNEL,
+          ways: [{ way: RouteWay.SERVER_TUNNEL, tunnel: TUNNEL, tunnelName: "web-1" }, { way: RouteWay.PROXY }],
+          sslMode: "full",
+        },
+      }),
+    },
+  });
+
+  it("leads with a name under a connected zone, checked live, and plans its route with the install", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    renderAt(
+      "/catalog/wordpress/install",
+      zoned({
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    expect(await within(sheet).findByRole("combobox", { name: "Zone" })).toHaveValue("example.com");
+    expect(within(sheet).getByRole("textbox", { name: "Subdomain" })).toHaveValue("wordpress");
+    expect(await within(sheet).findByText("Free in Dockwell and at Cloudflare", {}, { timeout: 3000 })).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.route).toMatchObject({
+      domain: "wordpress.example.com",
+      tls: "off",
+      publish: { way: RouteWay.SERVER_TUNNEL, tunnel: TUNNEL, provider: "cloudflare" },
+    });
+  });
+
+  it("stays on the server alone, saying why, where the server has no way in, and says why when asked for a domain anyway", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    const base = zoned({
+      installCatalogEntry: (req) => {
+        asked = req;
+        return { change };
+      },
+    });
+    const off = "web-1 has no public address and no tunnel";
+    renderAt("/catalog/wordpress/install", {
+      ...base,
+      domains: {
+        ...base.domains,
+        checkDomain: () => ({
+          cloudflare: {
+            zone: "example.com",
+            provider: "cloudflare",
+            state: CloudflareName.FREE,
+            way: RouteWay.SERVER_TUNNEL,
+            ways: [{ way: RouteWay.SERVER_TUNNEL, off }],
+            sslMode: "full",
+          },
+        }),
+      },
+    });
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Domain" }, { timeout: 3000 });
+    expect(row).toHaveTextContent("Only on the server, at its port");
+    expect(row).toHaveTextContent(off);
+    await user.click(within(row).getByRole("button", { name: "Add a domain" }));
+    expect(await within(sheet).findByRole("textbox", { name: "Subdomain" })).toHaveValue("wordpress");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    // Review plan never stops without a word: the reason is under the field.
+    await waitFor(() => expect(within(sheet).getAllByText(off).length).toBeGreaterThan(0));
+    expect(asked).toBeUndefined();
+    await user.click(within(sheet).getByRole("button", { name: "Only on the server instead" }));
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.route).toBeUndefined();
+  });
+
+  it("stays on the server alone where no zone is connected, with a domain a step away", async () => {
+    const user = userEvent.setup();
+    let asked: InstallCatalogEntryRequest | undefined;
+    const change = create(ChangeSchema, { id: "chg_wp", summary: "Install WordPress", state: ChangeState.PLANNED });
+    renderAt(
+      "/catalog/wordpress/install",
+      api(undefined, {
+        installCatalogEntry: (req) => {
+          asked = req;
+          return { change };
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Install WordPress" });
+    const row = await within(sheet).findByRole("group", { name: "Domain" });
+    expect(row).toHaveTextContent("Only on the server, at its port");
+    await user.click(within(row).getByRole("button", { name: "Add a domain" }));
+    await user.type(within(sheet).getByRole("textbox", { name: /Domain/ }), "blog.example.org");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toBeDefined());
+    expect(asked?.route).toMatchObject({ domain: "blog.example.org" });
   });
 });

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CatalogInstall, CatalogOrder, type CatalogSourceInfo, type Entry } from "@dockwell/api";
+import {
+  type CatalogInstall,
+  CatalogOrder,
+  type CatalogSourceInfo,
+  type Domain,
+  type Entry,
+  type ServiceInfo,
+} from "@dockwell/api";
 import { Button, Callout, cx, Icon, SegmentedControl, SelectField, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -9,6 +16,9 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { nameOf } from "../apps/app";
+import { useAllDomains } from "../apps/domains";
+import { useServices } from "../apps/useServices";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
@@ -476,6 +486,10 @@ function Card({
   const waiting = installs.map(ownerWords).find((w) => w !== undefined);
   const sameVersion = installs.every((install) => !install.upgrade || install.upgrade.version === install.pin?.version);
   const latest = entry.version;
+  // Where the one install is reached: its domain, or the server it runs on (#792).
+  const services = useServices().data ?? [];
+  const domains = useAllDomains().last?.domains ?? [];
+  const where = count === 1 && first ? installedAt(first, services, domains) : undefined;
   const body = (
     <>
       <span className="catalog-card-head">
@@ -498,6 +512,12 @@ function Card({
       <span className="catalog-card-summary">{words.summary}</span>
       <span className="catalog-card-foot">
         <span className="catalog-card-about">
+          {where ? (
+            <span className="catalog-card-where">
+              <Icon name={where.domain ? "globe" : "server"} size={12} />
+              <span>{where.domain ? where.domain : t`On ${where.server}`}</span>
+            </span>
+          ) : null}
           <code>{entry.version}</code>
           {also?.length ? (
             <span
@@ -522,9 +542,55 @@ function Card({
       </span>
     </>
   );
-  return (
+  const card = (
     <Link to="/catalog/$entryId" params={{ entryId: entry.id }} search={search} className="dw-panel catalog-card">
       {body}
     </Link>
   );
+  if (!where || !first?.webServiceId) return card;
+  // The installed app a step away, beside the card's own way to its details: never a
+  // link inside a link.
+  return (
+    <div className="catalog-card-cell">
+      {card}
+      <Link
+        to="/apps/$serviceId"
+        params={{ serviceId: first.webServiceId }}
+        className="catalog-card-open"
+        aria-label={t`Open the installed ${entry.name}`}
+      >
+        <Trans>Open</Trans>
+      </Link>
+    </div>
+  );
+}
+
+/** Where an install is reached: its domain, from its address, or the server its app runs on. */
+function installedAt(
+  install: CatalogInstall,
+  services: readonly ServiceInfo[],
+  domains: readonly Domain[],
+): { domain?: string; server?: string } | undefined {
+  if (install.address) {
+    try {
+      const host = new URL(install.address).hostname;
+      // The panel's Open address, as <id>.localhost, and a port on this machine are no domain.
+      if (host && host !== "localhost" && !host.endsWith(".localhost") && host !== "127.0.0.1") return { domain: host };
+    } catch {
+      // An address that isn't a URL says nothing of where it's reached.
+    }
+  }
+  const web = services.find((s) => s.id === install.webServiceId);
+  // An entry that names no address variable has none: its web service's route says
+  // its domain (#792's review, L5).
+  const service = web ? nameOf(web) : "";
+  const routed = domains.find(
+    (d) =>
+      service !== "" &&
+      d.environmentId === install.environmentId &&
+      d.routes.some((r) => r.service === service && (r.path === "" || r.path === "/")),
+  );
+  if (routed) return { domain: routed.name };
+  const server = web?.deployments.find((d) => d.serverName)?.serverName;
+  return server ? { server } : undefined;
 }

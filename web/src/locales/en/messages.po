@@ -4902,6 +4902,9 @@ msgstr "Can't read the file yet"
 msgid "Catalog"
 msgstr "Catalog"
 
+msgid "Change where it runs"
+msgstr "Change where it runs"
+
 msgid "Check the image and its variables, then try again."
 msgstr "Check the image and its variables, then try again."
 
@@ -5041,8 +5044,8 @@ msgstr "No login"
 msgid "Nothing outside the server reaches it until you publish a port."
 msgstr "Nothing outside the server reaches it until you publish a port."
 
-msgid "Offline"
-msgstr "Offline"
+msgid "Offline, so it can't take a new app now"
+msgstr "Offline, so it can't take a new app now"
 
 msgid "Open {label}"
 msgstr "Open {label}"
@@ -5258,6 +5261,9 @@ msgstr "environment variable names"
 msgid "labels"
 msgstr "labels"
 
+msgid "most free memory"
+msgstr "most free memory"
+
 msgid "read from the repository once you choose a server"
 msgstr "read from the repository once you choose a server"
 
@@ -5266,6 +5272,9 @@ msgstr "read from the repository once you name it"
 
 msgid "the network {owner}"
 msgstr "the network {owner}"
+
+msgid "the only server that can take it"
+msgstr "the only server that can take it"
 
 msgid "the volume {owner}"
 msgstr "the volume {owner}"
@@ -7337,6 +7346,7 @@ msgstr "On each server's own disk, unencrypted, so they go if the server does"
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
+#. placeholder {0}: where.server
 msgid "On {0}"
 msgstr "On {0}"
 
@@ -7799,6 +7809,9 @@ msgstr "Optional, on unless you turn it off"
 msgid "Persistent storage"
 msgstr "Persistent storage"
 
+msgid "Pick one"
+msgstr "Pick one"
+
 msgid "Reading this app"
 msgstr "Reading this app"
 
@@ -7883,6 +7896,13 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 msgid "Nothing from the catalog is installed yet"
 msgstr "Nothing from the catalog is installed yet"
 
+msgid "Open"
+msgstr "Open"
+
+#. placeholder {0}: entry.name
+msgid "Open the installed {0}"
+msgstr "Open the installed {0}"
+
 msgid "Order"
 msgstr "Order"
 
@@ -7955,6 +7975,18 @@ msgstr "{where} answers that it isn't open, and port {at} listens on its server 
 
 msgid "{where} answers that it isn't open, so its owner sets it up first, through the panel."
 msgstr "{where} answers that it isn't open, so its owner sets it up first, through the panel."
+
+msgid "Choose a way in that the check can take."
+msgstr "Choose a way in that the check can take."
+
+msgid "Only on the server instead"
+msgstr "Only on the server instead"
+
+msgid "Only on the server, at its port"
+msgstr "Only on the server, at its port"
+
+msgid "Type the app's domain, or install it on the server alone."
+msgstr "Type the app's domain, or install it on the server alone."
 
 msgid "<0>{path}</0>, read-only"
 msgstr "<0>{path}</0>, read-only"
@@ -8557,15 +8589,8 @@ msgstr "{left, plural, one {# file left out, and why} other {# files left out, a
 msgid "A source is already named {name}. Use another name."
 msgstr "A source is already named {name}. Use another name."
 
-msgctxt "catalog store"
-msgid "Add"
-msgstr "Add"
-
 msgid "Add Dockwell's catalog"
 msgstr "Add Dockwell's catalog"
-
-msgid "Add a catalog source"
-msgstr "Add a catalog source"
 
 msgid "Add a source"
 msgstr "Add a source"
@@ -8573,19 +8598,8 @@ msgstr "Add a source"
 msgid "Add another source"
 msgstr "Add another source"
 
-#. placeholder {0}: named(store)
-#. placeholder {0}: storeName(store)
-msgid "Add {0}"
-msgstr "Add {0}"
-
-msgid "An app store, or any public Git repository"
-msgstr "An app store, or any public Git repository"
-
 msgid "Another commit"
 msgstr "Another commit"
-
-msgid "App stores"
-msgstr "App stores"
 
 msgid "Apps from a public Git repository"
 msgstr "Apps from a public Git repository"
@@ -8657,11 +8671,8 @@ msgstr "Named {name} · entries at {folderWords}"
 msgid "No branch or tag is at this commit."
 msgstr "No branch or tag is at this commit."
 
-msgid "No catalogs to install from"
-msgstr "No catalogs to install from"
-
-msgid "Or any public Git repository"
-msgstr "Or any public Git repository"
+msgid "No sources to install from"
+msgstr "No sources to install from"
 
 msgctxt "catalog source"
 msgid "Pin here"
@@ -8677,8 +8688,8 @@ msgstr "Read. It has {count} or more branches and tags."
 msgid "Remove {said}"
 msgstr "Remove {said}"
 
-msgid "The catalogs Dockwell installs apps from"
-msgstr "The catalogs Dockwell installs apps from"
+msgid "The source {name}"
+msgstr "The source {name}"
 
 msgid "Use lowercase letters, digits and dashes, starting with a letter, such as community."
 msgstr "Use lowercase letters, digits and dashes, starting with a letter, such as community."
@@ -8692,12 +8703,15 @@ msgstr "Use the repository's https:// URL."
 msgid "Where its entries are. Empty is its top."
 msgstr "Where its entries are. Empty is its top."
 
+msgid "Where the catalog's apps come from"
+msgstr "Where the catalog's apps come from"
+
 msgid "its top"
 msgstr "its top"
 
 #. placeholder {0}: list.length
-msgid "{0, plural, one {# catalog you read} other {# catalogs you read}}"
-msgstr "{0, plural, one {# catalog you read} other {# catalogs you read}}"
+msgid "{0, plural, one {# source you read} other {# sources you read}}"
+msgstr "{0, plural, one {# source you read} other {# sources you read}}"
 
 #. placeholder {0}: at.join(", ")
 msgid "{0} is at this commit."
@@ -8711,6 +8725,9 @@ msgstr "{count, plural, one {Read. It has # branch or tag.} other {Read. It has 
 
 msgid "{short} (tag)"
 msgstr "{short} (tag)"
+
+msgid "Add a mail server"
+msgstr "Add a mail server"
 
 msgid "Any S3-compatible bucket"
 msgstr "Any S3-compatible bucket"
@@ -8730,6 +8747,9 @@ msgstr "Needs {list}"
 
 msgid "No connection meets it yet"
 msgstr "No connection meets it yet"
+
+msgid "No mail server yet, and {app} needs one"
+msgstr "No mail server yet, and {app} needs one"
 
 msgid "Sends as {sender}"
 msgstr "Sends as {sender}"
@@ -8778,6 +8798,14 @@ msgid "{app} sends no mail"
 msgstr "{app} sends no mail"
 
 msgctxt "catalog store"
+msgid "Add"
+msgstr "Add"
+
+#. placeholder {0}: named(store)
+msgid "Add {0}"
+msgstr "Add {0}"
+
+msgctxt "catalog store"
 msgid "Added"
 msgstr "Added"
 
@@ -8801,6 +8829,9 @@ msgstr "None stated"
 msgctxt "licence"
 msgid "Not recognised"
 msgstr "Not recognised"
+
+msgid "Sources to add"
+msgstr "Sources to add"
 
 #. placeholder {0}: store.apps
 #. placeholder {1}: store.installs
@@ -8848,8 +8879,11 @@ msgstr "Its first account: make yours before it has a domain"
 msgid "Its links"
 msgstr "Its links"
 
-msgid "Its links follow the domain you add: {names}"
-msgstr "Its links follow the domain you add: {names}"
+msgid "Its links follow its domain"
+msgstr "Its links follow its domain"
+
+msgid "Needs a mail server"
+msgstr "Needs a mail server"
 
 msgid "Not at {address}: {keptNames}"
 msgstr "Not at {address}: {keptNames}"
@@ -8878,6 +8912,9 @@ msgstr "SSH tunnel"
 
 msgid "SSH tunnel command copied"
 msgstr "SSH tunnel command copied"
+
+msgid "Sends mail through a mail server, if you pick one"
+msgstr "Sends mail through a mail server, if you pick one"
 
 msgid "Set as it first started: change it in {app}, in {where}"
 msgstr "Set as it first started: change it in {app}, in {where}"
@@ -9648,6 +9685,9 @@ msgstr "No steps: it left the fleet"
 
 msgid "Not run"
 msgstr "Not run"
+
+msgid "Offline"
+msgstr "Offline"
 
 msgid "Opens {opening}"
 msgstr "Opens {opening}"
@@ -16676,9 +16716,6 @@ msgstr "No groups"
 
 msgid "No {key}"
 msgstr "No {key}"
-
-msgid "Open"
-msgstr "Open"
 
 msgid "Pick every server shown"
 msgstr "Pick every server shown"

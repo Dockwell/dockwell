@@ -101,10 +101,35 @@ export function StorageNeed({
   const usable = connections.filter((o) => o.why === "");
   const picked = options.find((o) => o.choice === value && o.why === "");
   const add = may.allowed ? (
-    <Button size="sm" variant="ghost" icon="plus" onClick={onAdd} disabled={disabled}>
-      <Trans>Add a connection</Trans>
+    <Button
+      size="sm"
+      variant={usable.length === 0 ? "secondary" : "ghost"}
+      icon="plus"
+      onClick={onAdd}
+      disabled={disabled}
+    >
+      {mail ? <Trans>Add a mail server</Trans> : <Trans>Add a connection</Trans>}
     </Button>
   ) : null;
+
+  // Nothing meets it, and the app can't go without it: that, in a line, with the way
+  // to add one beside it, never an empty card (#792).
+  if (!picking && !picked && usable.length === 0 && !own) {
+    return (
+      <fieldset className="catalog-chosen is-warning" aria-labelledby={id}>
+        <span id={id} className="catalog-chosen-label">
+          {need.label}
+        </span>
+        <span className="catalog-chosen-value">
+          <Icon name="shield" size={14} className="catalog-chosen-icon" />
+          <span>
+            {mail ? <Trans>No mail server yet, and {app} needs one</Trans> : <Trans>No connection meets it yet</Trans>}
+          </span>
+          {add}
+        </span>
+      </fieldset>
+    );
+  }
 
   if (!picking && picked) {
     const label = picked.connectionLabel || picked.connection;

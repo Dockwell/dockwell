@@ -956,6 +956,37 @@
   .catalog-chip {
     flex: none;
   }
+
+  /* Compact rows on a phone (#792): the logo, the name and a line of what it does,
+     so a screen shows several apps, and the version stays on its page. */
+  .catalog-grid {
+    gap: var(--space-2);
+  }
+
+  .catalog-card {
+    gap: var(--space-1);
+    padding: var(--space-3);
+  }
+
+  .catalog-card .catalog-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .catalog-card-summary {
+    min-height: 0;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .catalog-card-about > code {
+    display: none;
+  }
+
+  .catalog-card-open {
+    right: calc(var(--space-3) + 24px);
+    bottom: var(--space-3);
+  }
 }
 
 /* A default as one line: what it is, its value, its state, and Change, which turns
@@ -1010,6 +1041,13 @@
 .catalog-chosen.is-warning .catalog-chosen-value > span {
   flex: 1 1 16rem;
   min-width: 0;
+}
+
+/* Why an install stays on its server, under the line (#792's review, M3). */
+.catalog-domain-why {
+  flex-basis: 100%;
+  color: var(--ink-muted);
+  font-size: 12.5px;
 }
 
 .catalog-chosen-state {
@@ -1475,4 +1513,71 @@
   align-items: center;
   gap: var(--space-2);
   font-size: 13px;
+}
+
+/* Where an installed app is reached, on its card, and the way to it beside the
+   card's own (#792): never a link inside a link. */
+.catalog-card-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.catalog-card-cell > .catalog-card {
+  flex: 1 1 auto;
+}
+
+.catalog-card-where {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--ink);
+}
+
+.catalog-card-where > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-card-open {
+  position: absolute;
+  right: calc(var(--space-4) + 24px);
+  bottom: var(--space-4);
+  color: var(--cobalt);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.catalog-card-open:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+@media (pointer: coarse) {
+  .catalog-card-open {
+    bottom: calc(var(--space-4) - 14px);
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 var(--space-2);
+  }
+}
+
+/* An install's Domain, as #819's sheets ask it (#792), with the server alone a step away. */
+.catalog-domain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.catalog-domain-alone {
+  align-self: flex-start;
+  margin-left: 0;
 }

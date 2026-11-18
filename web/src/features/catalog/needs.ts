@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type CatalogNeedOption, Engine, type Need } from "@dockwell/api";
+import { type CatalogNeedOption, Engine, Kind, type Need } from "@dockwell/api";
 
 // What an app needs, and how an install meets it (ADR 0084). For now each need is
 // met by a new one beside the app: the entry's own service, or the catalog's entry
@@ -76,6 +76,11 @@ export function takesLine(need: Need): string {
     .join(" · ");
 }
 
+/** Whether a need is for a mail server, as StorageNeed's isMail says. */
+function isMailNeed(need: Need): boolean {
+  return need.kind === Kind.SMTP;
+}
+
 /** The options for each of an entry's needs, by the need's name, the default first. */
 export function optionsByNeed(
   options: readonly CatalogNeedOption[],
@@ -90,12 +95,15 @@ export function optionsByNeed(
 }
 
 /**
- * The way a need is met unless someone picks another: the first new one, or for
- * storage the first that can meet it. A server is shared only because someone picked
- * it (ADR 0084), and a connection that can't meet the need, as one serving another
- * app, is never the default (ADR 0099).
+ * The way a need is met unless someone picks another: for mail, the only mail server
+ * that can meet it, where there's one, as a person would pick it (#792); else the
+ * first new one, or for storage the first that can meet it, as its own disk. A
+ * server is shared only because someone picked it (ADR 0084), and a connection that
+ * can't meet the need, as one serving another app, is never the default (ADR 0099).
  */
-export function defaultWay(options: readonly CatalogNeedOption[]): CatalogNeedOption | undefined {
+export function defaultWay(options: readonly CatalogNeedOption[], mail = false): CatalogNeedOption | undefined {
+  const connections = options.filter((o) => o.connection !== "" && o.why === "");
+  if (mail && connections.length === 1) return connections[0];
   return options.find((o) => o.service === "" && (o.connection === "" || o.why === ""));
 }
 
@@ -106,8 +114,9 @@ export function defaultWay(options: readonly CatalogNeedOption[]): CatalogNeedOp
 export function pickedWay(
   options: readonly CatalogNeedOption[],
   picked: string | undefined,
+  mail = false,
 ): CatalogNeedOption | undefined {
-  return options.find((o) => o.choice === picked && o.why === "") ?? defaultWay(options);
+  return options.find((o) => o.choice === picked && o.why === "") ?? defaultWay(options, mail);
 }
 
 /**
@@ -124,11 +133,12 @@ export function needsRequest(
   const out: Record<string, string> = {};
   for (const need of needs) {
     const ways = options.get(need.name) ?? [];
-    const choice = pickedWay(ways, picked[need.name])?.choice;
+    const mail = isMailNeed(need);
+    const choice = pickedWay(ways, picked[need.name], mail)?.choice;
     // A connection is always named: the server's default among several isn't the
     // sheet's, so leaving it out could install on another (slice 2 re-check, N1).
     const named = choice?.startsWith("connection:") === true;
-    if (!choice || (onlyChanged && !named && choice === defaultWay(ways)?.choice)) continue;
+    if (!choice || (onlyChanged && !named && choice === defaultWay(ways, mail)?.choice)) continue;
     out[need.name] = choice;
   }
   return out;
