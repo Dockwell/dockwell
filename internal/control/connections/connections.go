@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/registrylogins"
+	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -387,7 +388,7 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		// it's checked from, and what its provider said, stay an admin's (#799).
 		for _, check := range s.checks.Of(c.ID, c.Revision) {
 			if !admin {
-				check = &dockwellv1.CheckConnectionResponse{Passed: check.GetPassed(), Time: check.GetTime()}
+				check = trimmedCheck(check)
 			}
 			info.Checks = append(info.Checks, check)
 		}
@@ -528,10 +529,13 @@ func (s *Service) checkSaved(ctx context.Context, c Saved, at Target, full bool)
 		req = scheduledProbe(c.Spec, at.Prefix)
 	}
 	got, err := s.probe(ctx, session, srv, at.Environment, at.App, req)
-	if err != nil && req.Kind == probe.KindS3Read && strings.Contains(err.Error(), "stopped before it finished") {
+	if err != nil && req.Kind == probe.KindS3Read && strings.Contains(err.Error(), "stopped before it finished") &&
+		beforeReads(srv.GetAgentBuild().GetVersion()) {
 		// An agent from before the scheduled read refuses its kind, and says only
 		// that its check stopped: kept as that server's state, so the panel says to
-		// update its agent, rather than show an older pass (#799's review, L5).
+		// update its agent, rather than show an older pass (#799's review, L5). Only
+		// where its version says it's older, so a current agent's probe that stops,
+		// as one its memory cap ends, stays an error to try again (re-check, N3).
 		return &dockwellv1.CheckConnectionResponse{
 			Step: probe.StepList, Code: CodeAgentUpdate, Server: srv.GetName(),
 			Words: fmt.Sprintf("the agent on %s couldn't run the scheduled check. Update its agent from the server's page", srv.GetName()),
@@ -541,9 +545,46 @@ func (s *Service) checkSaved(ctx context.Context, c Saved, at Target, full bool)
 	return got, err
 }
 
+// trimmedCheck is a check as someone below an admin reads it: whether it passed and
+// when, and of a check that's neither passed nor failed, which of the two it is, in
+// Dockwell's own words at step "list": unconfirmed, where the keys may neither list
+// nor read, and agent-update. No server's name, and nothing the provider said, so a
+// member sees it as neutral, not as a red failure (#799's re-check, N1).
+func trimmedCheck(c *dockwellv1.CheckConnectionResponse) *dockwellv1.CheckConnectionResponse {
+	out := &dockwellv1.CheckConnectionResponse{Passed: c.GetPassed(), Time: c.GetTime()}
+	switch {
+	case c.GetPassed():
+	case c.GetCode() == CodeAgentUpdate:
+		out.Step, out.Code = probe.StepList, CodeAgentUpdate
+	case c.GetStep() == probe.StepList && c.GetCode() == "AccessDenied":
+		out.Step, out.Code = probe.StepList, CodeUnconfirmed
+	}
+	return out
+}
+
+// CodeUnconfirmed is, below an admin, a scheduled read that can't confirm the keys
+// without writing, as AccessDenied answered both its reads.
+const CodeUnconfirmed = "unconfirmed"
+
 // CodeAgentUpdate is a scheduled check a server's agent couldn't run, as one from
 // before the scheduled read: the agent needs an update.
 const CodeAgentUpdate = "agent-update"
+
+// ReadsSince is the first release whose agent runs the scheduled read, s3-read: the
+// one after v0.3.0, the last release cut before it. Raise it if another is cut
+// before this lands.
+const ReadsSince = "v0.3.1"
+
+// beforeReads says an agent's version is a release from before ReadsSince. A build
+// between releases, whose version is a pre-release or a commit's, says nothing of
+// whether it has the read, so it isn't taken for one that needs an update.
+func beforeReads(version string) bool {
+	v := strings.TrimPrefix(version, "v")
+	if v == "" || strings.ContainsAny(v, "-+") || strings.Count(v, ".") != 2 {
+		return false
+	}
+	return updates.CompareVersions("v"+v, ReadsSince) < 0
+}
 
 // scheduledProbe is a check on a schedule: storage's reads the bucket and writes
 // nothing, as a write a versioned bucket keeps, or Object Lock refuses to delete,

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -120,6 +122,26 @@ func TestAConnectionIsCheckedFromWhereItsAppIs(t *testing.T) {
 		}
 		if objects := srv.Objects(); len(objects) != 1 {
 			t.Errorf("the read changed the bucket to %v", objects)
+		}
+
+		// A key that may neither list nor read: unconfirmed, at "list" with the
+		// provider's code, to an admin; below one, whether it passed, when, and
+		// Dockwell's own word for it, with no server or provider words (#799's
+		// re-check, N1).
+		srv.Refuse = "AccessDenied"
+		clock = clock.Add(6 * time.Hour)
+		if got := look(); got.GetPassed() || got.GetStep() != probe.StepList || got.GetCode() != "AccessDenied" || got.GetServer() != "hz-1" {
+			t.Errorf("an admin reads a key that may do neither as %v", got)
+		}
+		aMember(t, f)(store.Grant{ProjectID: project, Role: store.RoleViewer})
+		res, err := cc.ListConnections(t.Context(), connect.NewRequest(&dockwellv1.ListConnectionsRequest{}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		viewer := res.Msg.GetConnections()[0].GetChecks()
+		want := &dockwellv1.CheckConnectionResponse{Step: probe.StepList, Code: "unconfirmed", Time: timestamppb.New(clock)}
+		if len(viewer) != 1 || !proto.Equal(viewer[0], want) {
+			t.Errorf("a viewer reads %v, want %v", viewer, want)
 		}
 	})
 }

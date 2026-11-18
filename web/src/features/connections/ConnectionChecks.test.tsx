@@ -86,6 +86,42 @@ describe("a connection's last check (#799)", () => {
     await expectAccessible(container);
   });
 
+  it("says below an admin, as neither green nor red, a read that can't confirm and an agent that needs an update (#799's re-check, N1)", async () => {
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      auth: {
+        getAuthState: () =>
+          authState({ user: { ...mira, role: Role.UNSPECIFIED }, grants: [{ projectId: "prj_1", role: Role.VIEWER }] }),
+      },
+      connections: {
+        listConnections: () => ({
+          connections: [
+            create(ConnectionInfoSchema, {
+              id: "cnx_1",
+              name: "locked",
+              kind: LinkKind.S3,
+              checks: [{ passed: false, step: "list", code: "unconfirmed", time: kept(2).time }],
+            }),
+            create(ConnectionInfoSchema, {
+              id: "cnx_2",
+              name: "stale",
+              kind: LinkKind.S3,
+              checks: [{ passed: false, step: "list", code: "agent-update", time: kept(1).time }],
+            }),
+          ],
+        }),
+      },
+    });
+    const locked = await screen.findByRole("row", { name: /locked/ });
+    expect(locked).toHaveTextContent("Can't confirm without writing");
+    expect(locked).toHaveTextContent("2 h ago");
+    expect(locked).not.toHaveTextContent("Failed");
+    const stale = screen.getByRole("row", { name: /stale/ });
+    expect(stale).toHaveTextContent("Agent needs an update");
+    expect(stale).not.toHaveTextContent("Failed");
+  });
+
   it("says below an admin whether it passed and when, alone", async () => {
     renderAt("/connections", {
       ...fleet(),
