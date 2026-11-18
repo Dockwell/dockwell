@@ -961,6 +961,22 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 	if runs == nil {
 		runs = []string{}
 	}
+	// What the release's owner takes out once made, as Vaultwarden's ADMIN_TOKEN,
+	// stays out of an install whose owner Dockwell won't make: one from before its
+	// entry made owners, which a person made on their own, or one made already. Else
+	// an upgrade would turn on what's only there to make the owner (ADR 0105).
+	file := chosen.GetCompose()
+	if o := chosen.GetOwner(); len(o.GetUnsetWhenMade()) > 0 {
+		none, err := h.ownerNoneOrMade(ctx, install.GetEnvironmentId())
+		if err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		if none {
+			if file, err = catalog.WithoutEnv(file, o.GetService(), o.GetUnsetWhenMade()); err != nil {
+				return nil, h.internal(ctx, err)
+			}
+		}
+	}
 	return h.imports.PlanUpgrade(ctx, composeapi.Upgrade{
 		Architectures: &runs,
 		Project:       install.GetProjectId(),
@@ -972,7 +988,7 @@ func (h *Handler) upgrade(ctx context.Context, m *dockwellv1.UpgradeCatalogInsta
 		FromCatalogRelease: pin.GetRelease(),
 		CatalogRelease:     entry.GetRelease(),
 		Name:               found.display,
-		File:               []byte(chosen.GetCompose()),
+		File:               []byte(file),
 		Variables:          filled.Variables,
 		Secrets:            filled.Secrets,
 		Stands:             filled.Stands(),

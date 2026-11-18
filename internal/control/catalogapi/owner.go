@@ -265,6 +265,18 @@ func (h *Handler) ownerUnmade(ctx context.Context, environment string) (bool, er
 	return out, err
 }
 
+// ownerNoneOrMade says whether an environment's owner is nothing Dockwell will make:
+// it has none, as an install from before its entry made owners, or it's made or opened.
+func (h *Handler) ownerNoneOrMade(ctx context.Context, environment string) (bool, error) {
+	var out bool
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		owner, err := h.ownerIn(ctx, tx, environment)
+		out = owner == nil || store.OwnerFinal(owner.state.State)
+		return err
+	})
+	return out, err
+}
+
 // ownerMade says whether an environment's owner is made or opened.
 func (h *Handler) ownerMade(ctx context.Context, environment string) (bool, error) {
 	var out bool
