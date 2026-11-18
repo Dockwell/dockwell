@@ -2735,6 +2735,12 @@ paths:
                   required: true
                   schema:
                     type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SyncDnsProviderRequest'
+                required: true
             responses:
                 "200":
                     description: OK
@@ -27836,6 +27842,13 @@ components:
                  with no password, as an address no list names. A request from there can't be
                  told apart from a stranger's where the server is on the route's list, or where
                  the route answers only proxies the server isn't.
+        SyncDnsProviderRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The provider's ID.
+            description: SyncDnsProviderRequest names the DNS provider to read now.
         SyncDnsProviderResponse:
             type: object
             properties:

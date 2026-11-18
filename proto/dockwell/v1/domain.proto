@@ -100,7 +100,10 @@ service DomainService {
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
     option (dockwell.v1.reach) = REACH_INSTALL;
-    option (google.api.http) = {post: "/v1/dnsProviders/{id}:sync"};
+    option (google.api.http) = {
+      post: "/v1/dnsProviders/{id}:sync"
+      body: "*"
+    };
   }
 
   // CheckDnsProvider checks a DNS provider's token from the control plane, as a
