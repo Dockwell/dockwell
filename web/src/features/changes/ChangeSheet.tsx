@@ -90,6 +90,7 @@ import { ConfirmAccess } from "./ConfirmAccess";
 import { BecauseNotice, FailureNotice, MachineWords } from "./FailureNotice";
 import { useFieldRows } from "./fields";
 import { followChange } from "./follow";
+import { MiddleName, NamedLine } from "./MiddleName";
 import { type Notice, needsConfirming, needsPasskey, useAsides, useDataLeft, useRisks, useWarnings } from "./notices";
 import { panelName } from "./PanelPlan";
 import { PlanSteps } from "./PlanSteps";
@@ -1443,7 +1444,7 @@ function PlanBody({
       ) : null}
       {/* One line that holds its place through the flow: the plan's reach, then where it is reached. */}
       {(phase === "review" && !phone) || phase === "applying" ? (
-        <ReachRoom reach={reach} phone={phone}>
+        <ReachRoom reach={reach} phone={phone} held={phase === "applying"}>
           <div className="plan-lead">
             <Icon name="activity" size={16} />
             <span>
@@ -1743,8 +1744,8 @@ function Impact({ plan }: { plan: Plan | undefined }) {
       servers.map((s, i) => (
         <span key={s.serverId}>
           {i > 0 ? ", " : null}
-          <code className="plan-server" title={s.serverName}>
-            {s.serverName}
+          <code className="plan-server">
+            <MiddleName name={s.serverName} />
           </code>
         </span>
       ))
@@ -2141,14 +2142,26 @@ function useNothingWords(reach: Reach): string {
 }
 
 /**
- * Holds room for what the arrival will lead with, from the review on, so the plan
+ * Holds room for what the arrival will lead with, from Apply on, so the plan
  * stays where it is as that arrives. The words are in attributes, styled in, as this
  * is only there to take up the space they will: nothing reads them, or finds them.
  */
-function ReachRoom({ reach, phone, children }: { reach: Reach; phone: boolean; children: ReactNode }) {
+function ReachRoom({
+  reach,
+  phone,
+  held = true,
+  children,
+}: {
+  reach: Reach;
+  phone: boolean;
+  /** Whether to keep the room yet: from Apply on, so the review has no empty band (#821). */
+  held?: boolean;
+  children: ReactNode;
+}) {
   const nothing = useNothingWords(reach);
   const several = reach.live.length > 1;
   const heldPorts = Math.max(0, REACH_SHOWN - reach.domains.length);
+  if (!held) return <div className="plan-room">{children}</div>;
   return (
     <div className="plan-room">
       {children}
@@ -2600,9 +2613,7 @@ function Effects({
   return (
     <>
       {asides.map((aside) => (
-        <p key={aside.key} className={cx("plan-note", aside.notice && "plan-step-notice")}>
-          {aside.title}
-        </p>
+        <AsideNote key={aside.key} aside={aside} />
       ))}
       {rows.length > 0 ? (
         <section className="plan-effects" aria-label={t`What applying means`}>
@@ -2625,6 +2636,33 @@ function Effects({
         </section>
       ) : null}
     </>
+  );
+}
+
+/**
+ * A note beside the plan, in one line: what happens, then what that means. Where there's
+ * more to it, the line opens to the whole of it (#821).
+ */
+function AsideNote({ aside }: { aside: Notice }) {
+  const { title, detail, more, server } = aside;
+  const words = (
+    <>
+      {typeof title === "string" ? <NamedLine text={title} name={server} /> : title}
+      {detail ? <span className="plan-note-detail"> · {detail}</span> : null}
+    </>
+  );
+  const className = cx("plan-note", aside.notice && "plan-step-notice");
+  if (more === undefined || more === "") return <p className={className}>{words}</p>;
+  return (
+    <details className={cx(className, "plan-note-more")}>
+      <summary>
+        <span className="plan-note-line">{words}</span>
+        <Icon name="chevron-down" size={14} className="plan-note-chevron" />
+      </summary>
+      <p className="plan-note-text">
+        <MachineWords>{more}</MachineWords>
+      </p>
+    </details>
   );
 }
 

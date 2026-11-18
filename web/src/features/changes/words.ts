@@ -51,6 +51,19 @@ export interface StepLook {
 export type Tense = "plan" | "doing" | "done" | "failed";
 
 /** The words the plan sheet and Activity share, in the active locale. */
+/**
+ * A note in one line: what happens, then what that means, with the whole of it one
+ * click away (the text budget in design/system/README.md, #821).
+ */
+export interface NoteWords {
+  /** What happens: "Reloads the proxy on hz-1". */
+  title: string;
+  /** What that means, short: "Brief reset for open connections". */
+  detail: string;
+  /** The whole of it, for whoever opens the note. */
+  more: string;
+}
+
 export interface ChangeWords {
   /** A resource's kind, as a word after its name: "project". */
   kind(kind: string): string;
@@ -77,10 +90,10 @@ export interface ChangeWords {
   actorKind(kind: ActorKind): string;
   /** What a container reaches on its server: "the server path /srv/app (read-only)". */
   access(access: HostAccess): string;
-  /** What a route's step does to its server's ingress, a sentence each. Empty for nothing. */
-  ingress(effect: IngressEffect | undefined, server: string): string[];
+  /** What a route's step does to its server's ingress, a note each. Empty for nothing. */
+  ingress(effect: IngressEffect | undefined, server: string): NoteWords[];
   /** What changing a route costs the sites on a proxy that stays up, as it reloads. */
-  reload(server: string): string;
+  reload(server: string): NoteWords;
   /** What would take the proxy's ports back at the next reboot, and how to keep it from happening. It never stops a plan. */
   returning(names: string[], server: string): string;
   /** Routes edited by hand beside one that signs people in, which may pass its cookies on. It never stops a plan. */
@@ -512,46 +525,66 @@ export function useChangeWords(): ChangeWords {
         return t`something else on the server`;
       },
       reload(server) {
-        return t`This reloads the proxy on ${server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not`;
+        return {
+          title: t`Reloads the proxy on ${server}`,
+          detail: t`Brief reset for open connections`,
+          more: t`This reloads the proxy on ${server}, which can reset a connection on its way in to any site there, and lose a POST on a kept HTTP/1.1 connection. A browser sends such a request again, and an app's own client may not`,
+        };
       },
       ingress(effect, server) {
         if (!effect) return [];
         const { proxy, panelDomain } = effect;
         const ports = effect.ports.join(", ");
-        const out: string[] = [];
+        const out: NoteWords[] = [];
         switch (effect.change) {
           case IngressChange.STARTS:
-            out.push(t`${proxy} isn't running on ${server}, so this route starts it, and it takes ports ${ports}`);
+            out.push({
+              title: t`Starts the proxy on ${server}`,
+              detail: t`Takes ${ports}`,
+              more: t`${proxy} isn't running on ${server}, so this route starts it, and it takes ports ${ports}`,
+            });
             if (panelDomain !== "") {
-              out.push(
-                t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until ${proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working`,
-              );
+              out.push({
+                title: t`Moves ${panelDomain} behind the proxy`,
+                detail: t`HTTPS on it drops for a moment`,
+                more: t`The panel's domain, ${panelDomain}, moves behind ${proxy}. Its address, passkeys and sessions stay as they are, and it keeps its present certificate until ${proxy} has its own. HTTPS on it is down for a moment as the ports change hands; the SSH tunnel keeps working`,
+              });
             }
             break;
           case IngressChange.STOPS:
-            out.push(
-              t`This is the last route on ${server}, so ${proxy} stops, and ports ${ports} are free. Its certificates stay on the server for when a route comes back`,
-            );
+            out.push({
+              title: t`Stops the proxy on ${server}`,
+              detail: t`Frees ${ports}`,
+              more: t`This is the last route on ${server}, so ${proxy} stops, and ports ${ports} are free. Its certificates stay on the server for when a route comes back`,
+            });
             if (panelDomain !== "") {
-              out.push(
-                t`The panel takes those ports back for its domain, ${panelDomain}. Its address, passkeys and sessions stay as they are`,
-              );
+              out.push({
+                title: t`The panel takes the ports back for ${panelDomain}`,
+                detail: t`Its passkeys and sessions stay`,
+                more: t`The panel takes those ports back for its domain, ${panelDomain}. Its address, passkeys and sessions stay as they are`,
+              });
             }
             break;
           case IngressChange.RESTARTS:
-            out.push(
-              t`${proxy} restarts on ${server}, for a newer version, so everything it serves is down for that long`,
-            );
+            out.push({
+              title: t`Restarts the proxy on ${server}`,
+              detail: t`What it serves is down meanwhile`,
+              more: t`${proxy} restarts on ${server}, for a newer version, so everything it serves is down for that long`,
+            });
             break;
           case IngressChange.TAKES_PORTS:
-            out.push(
-              t`This is the first route on ${server} that takes a certificate, so ${proxy} takes ports ${ports} too, and nothing it serves stops`,
-            );
+            out.push({
+              title: t`The proxy on ${server} takes ${ports}`,
+              detail: t`Nothing it serves stops`,
+              more: t`This is the first route on ${server} that takes a certificate, so ${proxy} takes ports ${ports} too, and nothing it serves stops`,
+            });
             break;
           case IngressChange.FREES_PORTS:
-            out.push(
-              t`No route on ${server} takes a certificate after this, so ${proxy} frees ports ${ports}. Its routes that take none go on answering`,
-            );
+            out.push({
+              title: t`The proxy on ${server} frees ${ports}`,
+              detail: t`Routes without a certificate go on answering`,
+              more: t`No route on ${server} takes a certificate after this, so ${proxy} frees ports ${ports}. Its routes that take none go on answering`,
+            });
             break;
         }
         return out;

@@ -369,8 +369,10 @@ function StepRow({
           {step.warnings.includes(PlanWarning.MAY_LOCK_OUT) ? (
             <span className="plan-step-warn">{t`May cut off access to ${server}`}</span>
           ) : null}
-          {words.ingress(step.ingress, server).map((line) => (
-            <span key={line}>{line}</span>
+          {words.ingress(step.ingress, server).map((note) => (
+            <span key={note.title}>
+              {note.title} · {note.detail}
+            </span>
           ))}
           {returning ? <span className="plan-step-warn">{returning}</span> : null}
           {handEdited ? <span className="plan-step-warn">{handEdited}</span> : null}

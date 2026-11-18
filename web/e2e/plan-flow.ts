@@ -629,7 +629,9 @@ export async function planFlow(
   await page.waitForFunction(() => document.activeElement?.textContent?.trim().startsWith("Deploy"));
   if ((await page.getByRole("dialog").count()) !== 0) fail("Done leaves a dialog open");
 
-  step("plan: a deploy reads as a deploy, and nothing moves from the review to the arrival");
+  step(
+    "plan: a deploy reads as a deploy, keeps no empty room at the review, and nothing moves from Apply to the arrival",
+  );
   await page.getByRole("button", { name: "Deploy", exact: true }).click();
   const moved = page.getByRole("dialog", { name: "Deploy fixme" });
   await moved.getByLabel("Image").fill("nginx:1.28-alpine");
@@ -640,7 +642,8 @@ export async function planFlow(
   if (/replace/i.test(reviewText)) fail(`a deploy reads as a replace: ${reviewText}`);
   if (!/ down|rolling, with nothing stopped/.test(reviewText)) fail(`a deploy leaves out its downtime: ${reviewText}`);
   if (!/Rolls back to r\d+ if it fails/.test(reviewText)) fail(`a deploy leaves out its safety net: ${reviewText}`);
-  const atReview = await planRowTop(page);
+  // The room for the arrival comes with Apply, so the review has no empty band (#821).
+  if ((await plan.locator(".plan-room-held").count()) !== 0) fail("the review keeps an empty room for the arrival");
   await plan.getByRole("button", { name: /Apply plan/ }).click();
   await page.getByRole("heading", { name: "Deploying nginx:1.28-alpine" }).waitFor({ timeout: 10_000 });
   const whileApplying = await planRowTop(page);
@@ -648,13 +651,13 @@ export async function planFlow(
     .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
     .waitFor({ timeout: 30_000 });
   const atArrival = await planRowTop(page);
-  if (Math.abs(whileApplying - atReview) > 0.5 || Math.abs(atArrival - atReview) > 0.5) {
-    fail(`the plan moves as it runs: ${atReview}, then ${whileApplying}, then ${atArrival}`);
+  if (Math.abs(atArrival - whileApplying) > 0.5) {
+    fail(`the plan moves as it runs: ${whileApplying}, then ${atArrival}`);
   }
   await page.getByRole("button", { name: /^Done/ }).click();
   await page.waitForFunction(() => document.activeElement?.textContent?.trim().startsWith("Deploy"));
 
-  step("plan: a domain's row has its room from the review on, and nothing moves as it arrives");
+  step("plan: a domain's row has its room from Apply on, and nothing moves as it arrives");
   const stubbed = /DomainService\/ListDomains/;
   await page.route(stubbed, (route) =>
     route.fulfill({
@@ -668,16 +671,19 @@ export async function planFlow(
   await heldForm.getByLabel("Image").fill("nginx:1.27-alpine");
   await heldForm.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
-  await plan.locator(".plan-room-held .is-domain .plan-reach-how").waitFor({ state: "attached" });
-  const heldAtReview = await planRowTop(page);
   await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "Deploying nginx:1.27-alpine" }).waitFor({ timeout: 10_000 });
+  await page
+    .locator(".dw-sheet-layer:not(.is-leaving) .plan-room-held .is-domain .plan-reach-how")
+    .waitFor({ state: "attached" });
+  const heldWhileApplying = await planRowTop(page);
   await page
     .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
     .waitFor({ timeout: 30_000 });
   await page.locator(".plan-reach-row.is-domain", { hasText: "held.example.com" }).waitFor();
   const heldOnArrival = await planRowTop(page);
-  if (Math.abs(heldOnArrival - heldAtReview) > 0.5) {
-    fail(`the plan moves as a domain arrives: ${heldAtReview}, then ${heldOnArrival}`);
+  if (Math.abs(heldOnArrival - heldWhileApplying) > 0.5) {
+    fail(`the plan moves as a domain arrives: ${heldWhileApplying}, then ${heldOnArrival}`);
   }
   await page.getByRole("button", { name: /^Done/ }).click();
 
@@ -698,21 +704,25 @@ export async function planFlow(
   await heldForm.getByLabel("Image").fill("nginx:1.28-alpine");
   await heldForm.getByRole("button", { name: /Review plan/ }).click();
   await plan.waitFor({ timeout: 30_000 });
-  await plan.locator(".plan-room-held .is-domain").first().waitFor({ state: "attached" });
-  const manyAtReview = await planRowTop(page);
-  const windowHeight = page.viewportSize()?.height ?? 900;
-  if (manyAtReview > windowHeight - 200) {
-    fail(`with 14 domains the plan's first row is at ${manyAtReview}, in a window ${windowHeight} tall`);
-  }
   await plan.getByRole("button", { name: /Apply plan/ }).click();
+  await page.getByRole("heading", { name: "Deploying nginx:1.28-alpine" }).waitFor({ timeout: 10_000 });
+  await page
+    .locator(".dw-sheet-layer:not(.is-leaving) .plan-room-held .is-domain")
+    .first()
+    .waitFor({ state: "attached" });
+  const manyWhileApplying = await planRowTop(page);
+  const windowHeight = page.viewportSize()?.height ?? 900;
+  if (manyWhileApplying > windowHeight - 200) {
+    fail(`with 14 domains the plan's first row is at ${manyWhileApplying}, in a window ${windowHeight} tall`);
+  }
   await page
     .getByRole("heading", { name: /^fixme is (deployed|running|healthy|starting)$/ })
     .waitFor({ timeout: 30_000 });
   const more = page.getByRole("button", { name: "and 11 more" });
   await more.waitFor();
   const manyOnArrival = await planRowTop(page);
-  if (Math.abs(manyOnArrival - manyAtReview) > 0.5) {
-    fail(`the plan moves with many domains: ${manyAtReview}, then ${manyOnArrival}`);
+  if (Math.abs(manyOnArrival - manyWhileApplying) > 0.5) {
+    fail(`the plan moves with many domains: ${manyWhileApplying}, then ${manyOnArrival}`);
   }
   await more.click();
   await page.locator(".plan-reach-row.is-domain", { hasText: "site-13.example.com" }).waitFor();
