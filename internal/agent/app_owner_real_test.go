@@ -234,6 +234,54 @@ func run(t *testing.T, client *docker.Client, env, service, image, network strin
 	return id
 }
 
+// waitHealthy is healthyContainer for the web service, and where it gives up,
+// what each of its containers says of why: its state, its health check's last runs, and
+// the end of its log, so a run that fails on CI names the cause.
+func waitHealthy(t *testing.T, client *docker.Client, env string) *ownerContainer {
+	t.Helper()
+	const service = "web"
+	target, err := healthyContainer(t.Context(), client, env, service)
+	if err == nil {
+		return target
+	}
+	ctx := context.WithoutCancel(t.Context())
+	list, lerr := client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + docker.Project(env), docker.LabelService + "=" + service}})
+	if lerr != nil {
+		t.Logf("can't list %s's containers: %v", service, lerr)
+	}
+	for i := range list {
+		c, ierr := client.InspectContainer(ctx, list[i].ID)
+		if ierr != nil {
+			t.Logf("can't inspect %s: %v", list[i].ID, ierr)
+			continue
+		}
+		s := c.State
+		t.Logf("%s's container is %s, exit code %d, error %q, killed for memory %t, started %s, finished %s",
+			service, s.Status, s.ExitCode, s.Error, s.OOMKilled, s.StartedAt.Format(time.RFC3339), s.FinishedAt.Format(time.RFC3339))
+		if h := s.Health; h != nil {
+			t.Logf("its health check is %s, failing %d in a row", h.Status, h.FailingStreak)
+			for _, r := range h.Log {
+				t.Logf("  a run ended %s with %d: %s", r.End.Format(time.RFC3339), r.ExitCode, strings.TrimSpace(r.Output))
+			}
+		}
+		logs, oerr := client.ContainerLogs(ctx, c.ID, c.Config.Tty, docker.LogOptions{Tail: 60})
+		if oerr != nil {
+			t.Logf("can't read its log: %v", oerr)
+			continue
+		}
+		for {
+			e, rerr := logs.Next()
+			if rerr != nil {
+				break
+			}
+			t.Logf("  log: %s", e.Text)
+		}
+		_ = logs.Close()
+	}
+	t.Fatal(err)
+	return nil
+}
+
 // answers waits for url to answer below 500, for 5 minutes at most.
 func answers(t *testing.T, url string) {
 	t.Helper()
@@ -289,10 +337,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		env := dockertest.Scope(t)
 		dockertest.Cleanup(t, client, docker.Project(env))
 		run(t, client, env, "web", giteaImage, "", docker.Config{Env: []string{"GITEA__database__DB_TYPE=sqlite3", "GITEA__security__INSTALL_LOCK=true"}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 3000)
 		answers(t, "http://"+addr+"/api/healthz")
 		password := newPassword()
@@ -358,10 +403,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 			"NODE_ENV=production", "url=https://blog.example.com", "security__staffDeviceVerification=false", "database__client=mysql", "database__connection__host=db",
 			"database__connection__user=ghost", "database__connection__password=the-blogs", "database__connection__database=ghost",
 		}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		// Ghost answers once MySQL is up and its tables are made, from inside.
 		site := ghostStep(http.MethodGet, "/ghost/api/admin/site/", "")
 		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
@@ -405,10 +447,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		run(t, client, env, "web", umamiImage, network, docker.Config{Env: []string{
 			"DATABASE_URL=postgresql://umami:the-sites@db:5432/umami", "APP_SECRET=" + newPassword(),
 		}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		// Umami signs in once its migrations ran: a user it doesn't have is refused.
 		probe := []string{"node", "-e", umamiSignIns, `{"username":"nobody","password":"nobody-at-all"}`}
 		for until := time.Now().Add(6 * time.Minute); ; time.Sleep(3 * time.Second) {
@@ -446,10 +485,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		run(t, client, env, "web", vaultImage, "", docker.Config{Env: []string{
 			"ADMIN_TOKEN=" + phc, "SIGNUPS_ALLOWED=false", "ADMIN_RATELIMIT_SECONDS=60", "ADMIN_RATELIMIT_MAX_BURST=30",
 		}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 80)
 		answers(t, "http://"+addr+"/alive")
 		// An email in mixed case, which Vaultwarden keeps in lower case (the review's M3).
@@ -487,10 +523,7 @@ func TestAnAppsOwnerIsMadeOnRealDocker(t *testing.T) {
 		env := dockertest.Scope(t)
 		dockertest.Cleanup(t, client, docker.Project(env))
 		run(t, client, env, "web", n8nImage, "", docker.Config{Env: []string{"N8N_LISTEN_ADDRESS=0.0.0.0", "N8N_PORT=5678", "N8N_SECURE_COOKIE=false"}})
-		target, err := healthyContainer(t.Context(), client, env, "web")
-		if err != nil {
-			t.Fatal(err)
-		}
+		target := waitHealthy(t, client, env)
 		addr, _ := target.Address(t.Context(), 5678)
 		answers(t, "http://"+addr+"/healthz/readiness")
 		password := newPassword()
