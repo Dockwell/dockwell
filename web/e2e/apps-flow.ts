@@ -189,7 +189,11 @@ export async function appsFlow(
   await panel.getByRole("button", { name: "Add a port" }).click();
   const adding = page.getByRole("dialog", { name: "Add a port to nginx" });
   await adding.getByLabel("On the server").fill(String(port ?? 18081));
-  await adding.getByLabel("In the app").fill("80");
+  // On real Docker nginx exposes 80, so "In the app" is a pick of it (#791); with nothing
+  // exposed, it's a field to type the port in.
+  const inApp = adding.getByLabel("In the app");
+  if ((await inApp.evaluate((el) => el.tagName)) === "SELECT") await inApp.selectOption("80");
+  else await inApp.fill("80");
   await adding.getByRole("button", { name: /Review plan/ }).click();
   await applyPlan(page, "Done");
   await panel.getByRole("link", { name: new RegExp(`Open .*:${port ?? 18081}`) }).waitFor({ timeout: 30_000 });
