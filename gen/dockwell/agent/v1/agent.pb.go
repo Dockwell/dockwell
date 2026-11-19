@@ -4934,8 +4934,12 @@ type AppPortsResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Each port, by number, once, across the service's containers.
 	Ports []*v1.ServicePortCheck `protobuf:"bytes,1,rep,name=ports,proto3" json:"ports,omitempty"`
-	// Why nothing could be read, such as no container of it running, or "".
-	Unread        string `protobuf:"bytes,2,opt,name=unread,proto3" json:"unread,omitempty"`
+	// Why its ports weren't asked, or not all were, such as no container of it
+	// running, or "".
+	Unread string `protobuf:"bytes,2,opt,name=unread,proto3" json:"unread,omitempty"`
+	// More ports, or more containers, than were read: the list isn't whole, so a
+	// port missing from it may still be listened on.
+	Cut           bool `protobuf:"varint,3,opt,name=cut,proto3" json:"cut,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4982,6 +4986,13 @@ func (x *AppPortsResult) GetUnread() string {
 		return x.Unread
 	}
 	return ""
+}
+
+func (x *AppPortsResult) GetCut() bool {
+	if x != nil {
+		return x.Cut
+	}
+	return false
 }
 
 // ProbeConnectionCall asks the agent to check a connection from where an app is: in
@@ -16053,10 +16064,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04said\x18\x02 \x01(\tR\x04said\"J\n" +
 	"\fAppPortsCall\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
-	"\aservice\x18\x02 \x01(\tR\aservice\"]\n" +
+	"\aservice\x18\x02 \x01(\tR\aservice\"o\n" +
 	"\x0eAppPortsResult\x123\n" +
 	"\x05ports\x18\x01 \x03(\v2\x1d.dockwell.v1.ServicePortCheckR\x05ports\x12\x16\n" +
-	"\x06unread\x18\x02 \x01(\tR\x06unread\"k\n" +
+	"\x06unread\x18\x02 \x01(\tR\x06unread\x12\x10\n" +
+	"\x03cut\x18\x03 \x01(\bR\x03cut\"k\n" +
 	"\x13ProbeConnectionCall\x12 \n" +
 	"\venvironment\x18\x01 \x01(\tR\venvironment\x12\x18\n" +
 	"\aservice\x18\x02 \x01(\tR\aservice\x12\x18\n" +

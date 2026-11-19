@@ -272,9 +272,10 @@ export function DomainRecord({
     const { forwardTo, records } = advice;
     // The router's address: as the server's network has it, or as the check found it.
     const router = advice.router ?? pointAtOf(check).find((record) => !record.address.includes(":"))?.address;
-    // A forwarded port is said only while the check fails (#791): DNS doesn't lead to the
-    // router yet, or a certificate showed the internet can't reach the server.
-    const forwards = !(router && check?.found.includes(router)) || server.network?.reachable === Reachable.NO;
+    // A forwarded port is said until something proves the way in (#791): DNS leading to
+    // the router proves the record, not the forward, so only the server shown reachable
+    // from outside ends it (the review's M2).
+    const forwards = server.network?.reachable !== Reachable.YES;
     return (
       <div className="domain-record">
         <p className="domain-record-lead">

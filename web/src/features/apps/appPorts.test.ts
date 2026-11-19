@@ -2,12 +2,13 @@
 
 import { create } from "@bufbuild/protobuf";
 import { PortAnswer, Protocol, ServicePortCheckSchema } from "@dockwell/api";
+import { waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { anApp } from "../../test/apps";
 import { renderHookWithApi } from "../../test/render";
-import { appPortsOf, knownFor, usePortLabel } from "./appPorts";
+import { appPortsOf, knownFor, usePortLabel, useServicePorts } from "./appPorts";
 
 afterEach(async () => {
   await activateLocale("en");
@@ -81,5 +82,42 @@ describe("an app's ports", () => {
       "2222 · SSH",
       "5000 · not HTTP",
     ]);
+  });
+
+  it("drops answers read before the app restarted, and asks again (the review's L4)", async () => {
+    let asked = 0;
+    let shop = anApp("shop", "ghcr.io/acme/shop:1.4", {}, { changeId: "chg_deploy" });
+    const { result, rerender } = renderHookWithApi(() => useServicePorts(shop), {
+      services: {
+        checkServicePorts: () => {
+          asked += 1;
+          return asked === 1
+            ? { ports: [{ port: 80, answer: PortAnswer.HTTP, said: "200 OK" }] }
+            : { ports: [{ port: 80, answer: PortAnswer.NOTHING, said: "nothing listens" }] };
+        },
+      },
+    });
+    await waitFor(() => expect(result.current.checks[0]?.answer).toBe(PortAnswer.HTTP));
+    // A restart is a change of its own: what was read before it is gone at once.
+    shop = anApp("shop", "ghcr.io/acme/shop:1.4", {}, { changeId: "chg_restart" });
+    rerender();
+    expect(result.current.checks).toEqual([]);
+    await waitFor(() => expect(result.current.checks[0]?.answer).toBe(PortAnswer.NOTHING));
+    expect(asked).toBe(2);
+  });
+
+  it("says nothing listens on a port only where the list is whole (the review's M1)", async () => {
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    const { result } = renderHookWithApi(() => useServicePorts(shop), {
+      services: {
+        checkServicePorts: () => ({
+          ports: [{ port: 80, listening: true, answer: PortAnswer.HTTP, said: "200 OK" }],
+          cut: true,
+        }),
+      },
+    });
+    await waitFor(() => expect(result.current.checks).toHaveLength(1));
+    expect(result.current.cut).toBe(true);
+    expect(result.current.readListening).toBe(false);
   });
 });

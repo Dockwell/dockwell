@@ -315,7 +315,10 @@ describe("adding a domain in a connected zone (ADR 0104)", () => {
     await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
     expect(edits).toHaveLength(0);
     answered = true;
-    await user.click(within(sheet).getByRole("button", { name: "Check again" }));
+    const state = within(sheet)
+      .getByText(/Couldn't read Cloudflare/)
+      .closest(".domain-step-state") as HTMLElement;
+    await user.click(within(state).getByRole("button", { name: "Check again" }));
     expect(await within(sheet).findByText("Free in Dockwell and at Cloudflare", {}, { timeout: 3000 })).toBeVisible();
   });
 

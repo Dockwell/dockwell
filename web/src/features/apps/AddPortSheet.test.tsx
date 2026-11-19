@@ -333,4 +333,39 @@ describe("Add a port", () => {
     expect(within(sheet).queryByText(/answers:|Nothing (answers|in the app)/)).toBeNull();
     expect(within(sheet).getByRole("textbox", { name: "In the app" })).toHaveValue("8080");
   });
+
+  it("says why the server didn't check, a port it listed but didn't ask, and never that nothing listens on a list cut short (the review's L5, M1)", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: object = { unread: "no container of it runs" };
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: () => answer,
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    const why = await within(sheet).findByText(/Ports aren't checked: no container of it runs/);
+    // A port past the first 24 is listed and not asked; the list is cut short.
+    answer = {
+      ports: [
+        { port: 8000, listening: true, answer: PortAnswer.HTTP, said: "200 OK" },
+        { port: 9000, exposed: true },
+      ],
+      cut: true,
+    };
+    await user.click(
+      within(why.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Check again" }),
+    );
+    const picked = await within(sheet).findByRole("combobox", { name: "In the app" });
+    await user.selectOptions(picked, "9000");
+    expect(within(sheet).getByText(/Port 9000 isn't checked, as only the first 24 ports are/)).toBeVisible();
+    await user.selectOptions(picked, "other");
+    await user.type(within(sheet).getByRole("textbox", { name: "In the app" }), "7000");
+    expect(sheet).not.toHaveTextContent(/Nothing in the app listens/);
+  });
 });

@@ -13,12 +13,15 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -27,11 +30,12 @@ import (
 )
 
 // What reading a service's ports may take (#791): the containers it reads, the
-// ports it asks, how long each may take, how many at once, and how much of an
-// answer it reads.
+// ports it lists and the ones it asks, how long each may take, how many at once,
+// and how much of an answer it reads.
 const (
 	mostPortContainers = 4
-	mostPorts          = 24
+	mostListed         = 128
+	mostAsked          = 24
 	portWait           = 2 * time.Second
 	portBanner         = 300 * time.Millisecond
 	portsAtOnce        = 4
@@ -39,82 +43,194 @@ const (
 	portSaid           = 40
 )
 
+// Why a service's ports weren't asked, as the result's unread says it.
+const (
+	unreadRootless = "Docker runs rootless here, so the agent lists its ports and asks none"
+	unreadOwnNet   = "it's on the server's own network, where its ports are the server's"
+	unreadNoAddr   = "its container has no address of its own the agent can ask"
+	unreadChanged  = "it restarted while its ports were asked. Check again"
+)
+
+// errNotAContainer refuses an address a probe never dials: not the container's own.
+var errNotAContainer = errors.New("that isn't the container's own address, so Dockwell doesn't ask it")
+
+// netns is a container's network namespace, held open by its file, where a probe's
+// dials are made: from inside, bound to its loopback device, so a dial reaches the
+// container's own addresses and nothing past it, whatever its networks' subnets or
+// the server's routing say.
+type netns struct {
+	// owns refuses an address that isn't one of the namespace's own.
+	owns func(address string) error
+	// dial connects to one of its own addresses, from inside it.
+	dial  func(ctx context.Context, address string) (net.Conn, error)
+	close func()
+}
+
 // portReader reads a service's ports. Its fields stand in for the server's in tests.
 type portReader struct {
 	docker *docker.Client
 	// proc is where the server's /proc is.
 	proc string
-	// own are the server's own addresses, which a probe never dials.
-	own func() ([]netip.Addr, error)
-	// dial connects to an address a probe may ask. Nil dials it, guarded.
-	dial func(ctx context.Context, address string) (net.Conn, error)
+	// enter holds open the network namespace of process pid. Nil enters it for real.
+	enter func(pid int) (*netns, error)
 }
 
 // appPorts reads the TCP ports of a service's running containers, and asks each
-// whether it answers at the container's own address (#791).
+// whether it answers at the container's own address, from inside its network (#791).
 func (c *calls) appPorts(ctx context.Context, call *agentv1.AppPortsCall) (*agentv1.AppPortsResult, error) {
 	if c.cfg.Docker == nil {
 		return nil, errors.New("this agent has no Docker to read an app's ports from")
 	}
-	r := portReader{docker: c.cfg.Docker, proc: "/proc", own: ownAddresses}
+	r := portReader{docker: c.cfg.Docker, proc: "/proc"}
 	return r.read(ctx, call.GetEnvironment(), call.GetService())
 }
 
-// ownAddresses are the addresses on the server's interfaces.
-func ownAddresses() ([]netip.Addr, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, err
-	}
-	var out []netip.Addr
-	for _, a := range addrs {
-		if p, err := netip.ParsePrefix(a.String()); err == nil {
-			out = append(out, p.Addr().Unmap())
+// errOwnNetwork says a process shares the agent's own network, so there's nothing
+// of the container's own to ask.
+var errOwnNetwork = errors.New("it shares the server's own network")
+
+// enterNetwork holds open the network namespace of process pid, refusing the
+// agent's own.
+func enterNetwork(proc string) func(pid int) (*netns, error) {
+	return func(pid int) (*netns, error) {
+		fd, err := unix.Open(filepath.Join(proc, strconv.Itoa(pid), "ns", "net"), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return nil, fmt.Errorf("open process %d's network: %w", pid, err)
 		}
+		var theirs, ours unix.Stat_t
+		if err := unix.Fstat(fd, &theirs); err != nil {
+			_ = unix.Close(fd)
+			return nil, err
+		}
+		if err := unix.Stat("/proc/thread-self/ns/net", &ours); err != nil || theirs.Ino == ours.Ino && theirs.Dev == ours.Dev {
+			_ = unix.Close(fd)
+			if err != nil {
+				return nil, err
+			}
+			return nil, errOwnNetwork
+		}
+		n := &netns{close: func() { _ = unix.Close(fd) }}
+		n.owns = func(address string) error {
+			_, err := inNetwork(fd, func() (struct{}, error) { return struct{}{}, ownAddress(address) })
+			return err
+		}
+		n.dial = func(ctx context.Context, address string) (net.Conn, error) {
+			return inNetwork(fd, func() (net.Conn, error) { return dialLocal(ctx, address) })
+		}
+		return n, nil
 	}
-	return out, nil
 }
 
-// errNotAContainer refuses an address a probe never dials: not a container's own.
-var errNotAContainer = errors.New("that isn't a container's own address, so Dockwell doesn't ask it")
+// inNetwork runs fn on a thread of its own inside the network namespace fd, then
+// takes the thread back to the agent's network. A thread that can't go back is
+// never used again: it ends locked, with its goroutine. A socket fn makes stays in
+// the namespace it was made in, wherever it's used after.
+func inNetwork[T any](fd int, fn func() (T, error)) (T, error) {
+	type done struct {
+		v   T
+		err error
+	}
+	ch := make(chan done, 1)
+	go func() {
+		runtime.LockOSThread()
+		var zero T
+		own, err := unix.Open("/proc/thread-self/ns/net", unix.O_RDONLY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			runtime.UnlockOSThread()
+			ch <- done{zero, err}
+			return
+		}
+		defer func() { _ = unix.Close(own) }()
+		if err := unix.Setns(fd, unix.CLONE_NEWNET); err != nil {
+			runtime.UnlockOSThread()
+			ch <- done{zero, fmt.Errorf("enter the container's network: %w", err)}
+			return
+		}
+		v, ferr := fn()
+		if err := unix.Setns(own, unix.CLONE_NEWNET); err != nil {
+			if c, ok := any(v).(io.Closer); ok && c != nil {
+				_ = c.Close()
+			}
+			ch <- done{zero, fmt.Errorf("leave the container's network: %w", err)}
+			return
+		}
+		runtime.UnlockOSThread()
+		ch <- done{v, ferr}
+	}()
+	d := <-ch
+	return d.v, d.err
+}
 
-// probeable reports an address a probe may dial: a container's own on a Docker
-// network, so never loopback, link-local, unspecified, multicast, or one of the
-// server's own interfaces.
-func probeable(a netip.Addr, own []netip.Addr) error {
+// ownAddress refuses an address that isn't on one of the current network's
+// interfaces, or that a probe never asks: loopback, link-local, unspecified or
+// multicast.
+func ownAddress(address string) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return err
+	}
+	a, err := netip.ParseAddr(host)
+	if err != nil {
+		return err
+	}
 	a = a.Unmap()
 	switch {
-	case !a.IsValid(), a.IsLoopback(), a.IsUnspecified(), a.IsMulticast(), a.IsInterfaceLocalMulticast():
+	case a.IsLoopback(), a.IsUnspecified(), a.IsMulticast(), a.IsInterfaceLocalMulticast():
 		return errNotAContainer
 	case a.IsLinkLocalUnicast(), a.IsLinkLocalMulticast():
 		return errLinkLocal
-	case slices.Contains(own, a):
-		return errNotAContainer
 	}
-	return nil
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return err
+	}
+	for _, x := range addrs {
+		if p, err := netip.ParsePrefix(x.String()); err == nil && p.Addr().Unmap() == a {
+			return nil
+		}
+	}
+	return errNotAContainer
 }
 
-// guardedDial dials address only where probeable says it may, checked again as
-// the socket connects, whatever an address resolves to.
-func guardedDial(own []netip.Addr) func(ctx context.Context, address string) (net.Conn, error) {
-	d := &net.Dialer{Timeout: portWait, Control: func(_, address string, _ syscall.RawConn) error {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return err
-		}
-		a, err := netip.ParseAddr(host)
-		if err != nil {
-			return err
-		}
-		return probeable(a, own)
-	}}
-	return func(ctx context.Context, address string) (net.Conn, error) {
-		return d.DialContext(ctx, "tcp", address)
+// dialLocal dials one of the current network's own addresses with the socket bound
+// to its loopback device, so the kernel delivers it locally or not at all: no route,
+// policy rule or default gateway can take it past the network it's made in.
+func dialLocal(ctx context.Context, address string) (net.Conn, error) {
+	if err := ownAddress(address); err != nil {
+		return nil, err
 	}
+	d := &net.Dialer{Timeout: portWait, Control: func(_, _ string, c syscall.RawConn) error {
+		var serr error
+		if err := c.Control(func(fd uintptr) {
+			serr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, "lo")
+		}); err != nil {
+			return err
+		}
+		return serr
+	}}
+	return d.DialContext(ctx, "tcp", address)
+}
+
+// instance is what says a container is the same one running: its process and when
+// it started, and the address a probe asks.
+type instance struct {
+	pid     int
+	started time.Time
+	address string
+}
+
+func instanceOf(c *docker.Container) instance {
+	address := ""
+	if a, err := netip.ParseAddr(health.Address(c.NetworkSettings.Networks)); err == nil {
+		address = a.Unmap().String()
+	}
+	return instance{pid: c.State.Pid, started: c.State.StartedAt, address: address}
 }
 
 // read reads the ports of a service's running containers, Dockwell's own by the
-// revision it deploys, never one only labeled as the service.
+// revision it deploys, never one only labeled as the service. It lists every port
+// they expose, publish and listen on, up to mostListed, and asks the first
+// mostAsked, from inside the first container's network.
 func (r portReader) read(ctx context.Context, environment, service string) (*agentv1.AppPortsResult, error) {
 	if environment == "" || service == "" {
 		return nil, errors.New("the call names no service")
@@ -133,24 +249,35 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 		return &agentv1.AppPortsResult{Unread: "no container of it runs"}, nil
 	}
 	slices.Sort(running)
-	own, err := r.own()
+	info, err := r.docker.Info(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read the server's own addresses: %w", err)
+		return nil, fmt.Errorf("ask Docker about itself: %w", err)
 	}
-	dial := r.dial
-	if dial == nil {
-		dial = guardedDial(own)
+	enter := r.enter
+	if enter == nil {
+		enter = enterNetwork(r.proc)
 	}
+	// More replicas than are read may listen on more: the list is then cut.
+	cut := len(running) > mostPortContainers
 	ports := map[uint32]*dockwellv1.ServicePortCheck{}
-	var heard []uint32 // ports only something listening named, in the order found
-	address := ""
+	var heard []uint32 // ports only something listening named
+	var probe *netns
+	var probed instance
+	probeID := ""
+	defer func() {
+		if probe != nil {
+			probe.close()
+		}
+	}()
+	unread := ""
+	ownNet := false
 	for _, id := range running[:min(len(running), mostPortContainers)] {
 		c, err := r.docker.InspectContainer(ctx, id)
-		if err != nil {
+		if err != nil || !c.State.Running {
 			continue
 		}
 		if c.HostConfig.NetworkMode == "host" {
-			return &agentv1.AppPortsResult{Unread: "it's on the server's own network, where its ports are the server's"}, nil
+			return &agentv1.AppPortsResult{Unread: unreadOwnNet}, nil
 		}
 		for key := range c.Config.ExposedPorts {
 			if p, ok := tcpPort(key); ok {
@@ -168,21 +295,44 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 				}
 			}
 		}
-		if c.State.Pid > 0 {
-			for _, l := range listeners(os.DirFS(filepath.Join(r.proc, strconv.Itoa(c.State.Pid)))) {
-				if l.GetProtocol() != "tcp" {
-					continue
-				}
-				if _, known := ports[l.GetPort()]; !known {
-					heard = append(heard, l.GetPort())
-				}
-				at(ports, l.GetPort()).Listening = true
-			}
+		was := instanceOf(c)
+		if was.pid <= 0 {
+			continue
 		}
-		if address == "" {
-			if a, err := netip.ParseAddr(health.Address(c.NetworkSettings.Networks)); err == nil && probeable(a, own) == nil {
-				address = a.Unmap().String()
+		// The network to ask from is held before what listens is read, and both count
+		// only if the container is still the same process after: a process ID freed
+		// and taken again in between would be another's (the review's L1). A process
+		// on the server's own network has neither: what listens there is the server's.
+		n, err := enter(was.pid)
+		switch {
+		case errors.Is(err, errOwnNetwork):
+			ownNet = true
+			continue
+		case err != nil:
+			n = nil
+		}
+		heardHere := listeners(os.DirFS(filepath.Join(r.proc, strconv.Itoa(was.pid))))
+		again, err := r.docker.InspectContainer(ctx, id)
+		if err != nil || !again.State.Running || instanceOf(again) != was {
+			if n != nil {
+				n.close()
 			}
+			continue
+		}
+		for _, l := range heardHere {
+			if l.GetProtocol() != "tcp" {
+				continue
+			}
+			if _, known := ports[l.GetPort()]; !known {
+				heard = append(heard, l.GetPort())
+			}
+			at(ports, l.GetPort()).Listening = true
+		}
+		switch {
+		case n != nil && probe == nil:
+			probe, probed, probeID = n, was, id
+		case n != nil:
+			n.close()
 		}
 	}
 	// What it exposes or publishes first, by number, then what only listens.
@@ -190,29 +340,78 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 	order = slices.DeleteFunc(order, func(p uint32) bool { return slices.Contains(heard, p) })
 	slices.Sort(heard)
 	order = append(order, slices.Compact(heard)...)
-	out := make([]*dockwellv1.ServicePortCheck, 0, min(len(order), mostPorts))
-	for _, p := range order[:min(len(order), mostPorts)] {
+	if len(order) > mostListed {
+		order, cut = order[:mostListed], true
+	}
+	out := make([]*dockwellv1.ServicePortCheck, 0, len(order))
+	for _, p := range order {
 		out = append(out, ports[p])
 	}
-	if len(out) == 0 {
-		return &agentv1.AppPortsResult{Unread: "it exposes, publishes and listens on no TCP port"}, nil
+	switch {
+	case len(out) == 0 && ownNet:
+		return &agentv1.AppPortsResult{Unread: unreadOwnNet, Cut: cut}, nil
+	case len(out) == 0:
+		return &agentv1.AppPortsResult{Unread: "it exposes, publishes and listens on no TCP port", Cut: cut}, nil
+	case info.Rootless():
+		return &agentv1.AppPortsResult{Ports: out, Unread: unreadRootless, Cut: cut}, nil
+	case probe == nil && ownNet:
+		unread = unreadOwnNet
+	case probe == nil || probed.address == "":
+		unread = unreadNoAddr
+	default:
+		address := probed.address
+		if err := probe.owns(net.JoinHostPort(address, "0")); err != nil {
+			unread = unreadNoAddr
+			break
+		}
+		unread = r.ask(ctx, probe, probeID, probed, out[:min(len(out), mostAsked)])
 	}
-	if address == "" {
-		return &agentv1.AppPortsResult{Ports: out, Unread: "its container has no address the agent can reach"}, nil
-	}
+	return &agentv1.AppPortsResult{Ports: out, Unread: unread, Cut: cut}, nil
+}
+
+// ask asks each port, four at once, at the container's own address from inside its
+// network. Before each, the container must still be the same one at the same
+// address (the review's L2); once it isn't, the rest go unasked, and it says why.
+func (r portReader) ask(ctx context.Context, n *netns, id string, was instance, ports []*dockwellv1.ServicePortCheck) string {
+	var mu sync.Mutex
+	changed := false
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, portsAtOnce)
-	for _, p := range out {
-		wg.Add(1)
+	for _, p := range ports {
 		slots <- struct{}{}
+		mu.Lock()
+		stop := changed
+		mu.Unlock()
+		if stop {
+			<-slots
+			break
+		}
+		if c, err := r.docker.InspectContainer(ctx, id); err != nil || !c.State.Running || instanceOf(c) != was {
+			mu.Lock()
+			changed = true
+			mu.Unlock()
+			<-slots
+			break
+		}
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer func() { <-slots }()
-			p.Answer, p.Said = askPort(ctx, dial, net.JoinHostPort(address, strconv.FormatUint(uint64(p.GetPort()), 10)))
+			answer, said := askPort(ctx, n.dial, net.JoinHostPort(was.address, strconv.FormatUint(uint64(p.GetPort()), 10)))
+			mu.Lock()
+			defer mu.Unlock()
+			p.Answer, p.Said = answer, said
 		}()
 	}
 	wg.Wait()
-	return &agentv1.AppPortsResult{Ports: out}, nil
+	if changed {
+		// What was asked of it may have been asked of what came after: none of it counts.
+		for _, p := range ports {
+			p.Answer, p.Said = dockwellv1.PortAnswer_PORT_ANSWER_UNSPECIFIED, ""
+		}
+		return unreadChanged
+	}
+	return ""
 }
 
 // at is the port's check, made as it's first named.

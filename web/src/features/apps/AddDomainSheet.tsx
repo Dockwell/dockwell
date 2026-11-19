@@ -953,8 +953,8 @@ export function AddDomainSheet({
           >
             {t`Port ${port} is ${portElsewhere}'s, which serves no web page`}
           </StateLine>
-        ) : !redirecting && !onServer && portError === undefined && validPort(port) ? (
-          <PortState port={Number(port)} ports={appPorts} read={servicePorts} />
+        ) : !redirecting && !onServer && portError === undefined ? (
+          <PortState port={validPort(port) ? Number(port) : 0} ports={appPorts} read={servicePorts} />
         ) : null}
         {servers.length > 1 ? (
           <SelectField

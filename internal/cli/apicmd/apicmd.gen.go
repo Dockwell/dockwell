@@ -3079,7 +3079,7 @@ func Methods() []*apicli.Method {
 			Noun:      "services",
 			Verb:      "ports",
 			Short:     "Ask the server a service runs on which TCP ports its container exposes",
-			Long:      "Ask the server a service runs on which TCP ports its container exposes,\npublishes and listens on, and whether each answers at the container's own\naddress, as the server's proxy reaches it, so Add a domain and Add a port can\noffer them by what they are. It changes nothing. Each port is asked once, for 2\nseconds at most, with no redirect followed and no more read than a status line\nor a banner. A caller can check 60 times a minute. See\ndocs/adr/0104-adding-a-domain-publishes-it.md, \"Port in the app\".",
+			Long:      "Ask the server a service runs on which TCP ports its container exposes,\npublishes and listens on, and whether each answers at the container's own\naddress, asked from inside the container's network so nothing past it is\nreached, so Add a domain and Add a port can offer them by what they are. It\nchanges nothing. It lists up to 128 ports and asks the first 24, each once, for\n2 seconds at most, with no redirect followed and no more read than a status line\nor a banner. Rootless Docker's ports are listed and not asked. A person can\ncheck 60 times a minute, and a server answers two checks at once. See\ndocs/adr/0104-adding-a-domain-publishes-it.md, \"Port in the app\".",
 			Effect:    v1.Effect_EFFECT_READ,
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The service, by ID or by name.", Arg: true},

@@ -1006,8 +1006,12 @@ message AppPortsCall {
 message AppPortsResult {
   // Each port, by number, once, across the service's containers.
   repeated dockwell.v1.ServicePortCheck ports = 1;
-  // Why nothing could be read, such as no container of it running, or "".
+  // Why its ports weren't asked, or not all were, such as no container of it
+  // running, or "".
   string unread = 2;
+  // More ports, or more containers, than were read: the list isn't whole, so a
+  // port missing from it may still be listened on.
+  bool cut = 3;
 }
 
 // ProbeConnectionCall asks the agent to check a connection from where an app is: in

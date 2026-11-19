@@ -310,16 +310,30 @@ Added for #791, after the sheet above landed. Add a domain and Add a port pick t
   - Then what the server's agent finds: what the image exposes, and what listens in the container beyond its loopback, read from the container's own `/proc/<pid>/net/tcp`.
   - Each is labelled: "3000 · web page · answers 200 OK", "22 · SSH", "9000 · nothing listens".
   - A port known for something else, such as SSH's 22 or Redis's 6379, says so under the picker, with the web page's port one click away.
-- **The check:** `ServiceService.CheckServicePorts` asks the agent with `AppPortsCall`. For each port, the agent dials the container's own address on its Docker network, as the server's proxy reaches it.
-  - It never dials a loopback, link-local, unspecified or multicast address, or one of the server's own interfaces, checked again as the socket connects.
-  - It reads a banner the server sends first, such as SSH's, or else the status line of a `GET /`. It follows no redirect, reads 256 bytes at most, and keeps 40 characters of them.
-  - Each port gets 2 seconds, four at once. A call reads 4 containers and asks 24 ports at most.
-  - It changes nothing, and an app on the server's own network isn't read, as its ports are the server's.
-- **Who may ask:** a developer of the service's project, checked by the gate and again by the handler, at 60 checks a minute a caller. The server must be one the service runs on.
-- **Fallback:** an agent from before this, a stopped app, or a caller who may not ask gets the list the spec gives, with no answers and no state.
+- **Where the check dials from:** `ServiceService.CheckServicePorts` asks the agent with `AppPortsCall`. The agent asks from inside the container's own network namespace, never from the server's.
+  - It holds the namespace open by its file from `/proc/<pid>/ns/net`, and refuses one that is the agent's own.
+  - Inside the namespace, on a thread of its own, the container's address must be on one of the namespace's own interfaces. The socket is bound to the namespace's `lo` (`SO_BINDTODEVICE`), so the kernel delivers it locally or not at all.
+  - So no subnet a network is given, no policy rule (Tailscale's, a VPN's) and no default route can take a dial past the container: a container whose endpoint says a LAN or internet address that isn't its own has its ports listed and none asked.
+  - It never dials a loopback, link-local, unspecified or multicast address.
+  - This replaced dialing the endpoint's address from the server with a deny list, which the review of PR #872 showed could leave the server (H1). It was chosen over an allow-list of the server's bridges, as it needs no reading of networks and covers address reuse too.
+- **What it reads:** a banner the app sends first, such as SSH's, or else the status line of a `GET /`. It follows no redirect, reads 256 bytes at most, and keeps 40 characters of them. Each port gets 2 seconds, four at once.
+- **Bounds:**
+  - A call reads 4 containers, lists up to 128 ports, and asks the first 24.
+  - A port past those has no answer, and `cut` says when the list isn't whole: more ports, or more containers, than were read. The panel then never says nothing listens on a port it doesn't list.
+- **The same container throughout:**
+  - What listens counts only if the container is the same process (PID and start time) after `/proc` was read.
+  - Before each port is asked, the container must still be the same process at the same address. Once it isn't, nothing asked counts, and `unread` says it restarted.
+- **Not asked:** an app on the server's own network, as its ports are the server's. On rootless Docker, its ports are listed and none asked, as `checkReach` refuses there too.
+- **Who may ask:** a developer of the service's project, checked by the gate and again by the handler. The server must be one the service runs on.
+- **Limits:** 60 checks a minute per person, where a token counts as its owner, and two checks in flight per server.
+- **In the panel:**
+  - Answers read before the app last changed (a restart, another revision) are dropped and asked again.
+  - Where the server didn't check, a state says why, with what to do: update its agent, or Check again.
+  - An agent from before this, a stopped app, or a caller who may not ask leaves the list the spec gives.
 - **Numbers, granted on 2026-11-19:**
   - agent.proto: `Call.app_ports` 390, `CallResult.app_ports` 391, `Hello.reads_app_ports` 392, in a block of 390 to 399 for a service's ports.
   - service.proto: `CheckServicePortsRequest`, `CheckServicePortsResponse`, `ServicePortCheck` and `PortAnswer`, all new.
+  - `cut`, field 3 of `AppPortsResult` and of `CheckServicePortsResponse`, both messages this change adds, for the review's M1.
   - No migration.
 
 ## Verified

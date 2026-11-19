@@ -19,24 +19,31 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
-// portChecksPerMinute bounds how often one caller may have an agent ask a service's
+// portChecksPerMinute bounds how often one person may have an agent ask a service's
 // ports, as CheckDomain bounds names: a form asks once as it opens, and again on
-// Check again, well within it.
+// Check again, well within it. A token counts as the person it acts for.
 const portChecksPerMinute = 60
+
+// portChecksAtOnce bounds the checks a server's agent answers at once, whoever asks.
+const portChecksAtOnce = 2
 
 // mostPortCallers bounds what's remembered of callers, as a flood of new ones
 // mustn't grow memory without bound.
 const mostPortCallers = 1000
 
-// portCallers counts each caller's port checks in the last minute.
+// portCallers counts each person's port checks in the last minute, and each
+// server's checks under way.
 type portCallers struct {
-	mu  sync.Mutex
-	now func() time.Time
-	m   map[string][]time.Time
+	mu   sync.Mutex
+	now  func() time.Time
+	m    map[string][]time.Time
+	busy map[string]int
 }
 
-// allow reports whether caller may check now, and counts it if so.
-func (c *portCallers) allow(caller string) bool {
+// allow reports whether person may check now, and counts it if so. With
+// mostPortCallers remembered, those whose minute is over are forgotten; a live
+// count is never dropped, so a person new past that waits (the review's L3).
+func (c *portCallers) allow(person string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.m == nil {
@@ -47,26 +54,57 @@ func (c *portCallers) allow(caller string) bool {
 		now = c.now()
 	}
 	old := func(at time.Time) bool { return now.Sub(at) >= time.Minute }
-	if _, known := c.m[caller]; !known && len(c.m) >= mostPortCallers {
+	if _, known := c.m[person]; !known && len(c.m) >= mostPortCallers {
 		for k, v := range c.m {
 			if len(slices.DeleteFunc(v, old)) == 0 {
 				delete(c.m, k)
 			}
 		}
-		for k := range c.m {
-			if len(c.m) < mostPortCallers {
-				break
-			}
-			delete(c.m, k)
+		if len(c.m) >= mostPortCallers {
+			return false
 		}
 	}
-	recent := slices.DeleteFunc(c.m[caller], old)
+	recent := slices.DeleteFunc(c.m[person], old)
 	if len(recent) >= portChecksPerMinute {
-		c.m[caller] = recent
+		c.m[person] = recent
 		return false
 	}
-	c.m[caller] = append(recent, now)
+	c.m[person] = append(recent, now)
 	return true
+}
+
+// hold takes one of the server's portChecksAtOnce, with the way to give it back,
+// or reports that they're all taken.
+func (c *portCallers) hold(server string) (func(), bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.busy == nil {
+		c.busy = map[string]int{}
+	}
+	if c.busy[server] >= portChecksAtOnce {
+		return nil, false
+	}
+	c.busy[server]++
+	return func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.busy[server]--
+		if c.busy[server] <= 0 {
+			delete(c.busy, server)
+		}
+	}, true
+}
+
+// personOf is who a call counts against: the person, whatever token they call with.
+func personOf(ctx context.Context) string {
+	p, ok := authapi.PrincipalFrom(ctx)
+	switch {
+	case !ok:
+		return "someone"
+	case p.User.ID != "":
+		return "user:" + p.User.ID
+	}
+	return p.Actor()
 }
 
 // CheckServicePorts asks the server a service runs on which TCP ports its
@@ -119,14 +157,16 @@ func (h *Handler) CheckServicePorts(ctx context.Context, req *connect.Request[do
 	case !slices.Contains(servers, server):
 		return nil, authapi.Invalid(fmt.Errorf("%s doesn't run on %s. Ask one of the servers it runs on, or leave the server out", r.Name, server))
 	}
-	caller := "someone"
-	if p, ok := authapi.PrincipalFrom(ctx); ok {
-		caller = p.Actor()
-	}
-	if !h.portCallers.allow(caller) {
+	if !h.portCallers.allow(personOf(ctx)) {
 		return nil, authapi.ReasonError(connect.CodeResourceExhausted,
 			fmt.Errorf("you've checked an app's ports %d times in the last minute. Wait a minute, then check again", portChecksPerMinute), "too_many_requests")
 	}
+	release, ok := h.portCallers.hold(server)
+	if !ok {
+		return nil, authapi.ReasonError(connect.CodeResourceExhausted,
+			fmt.Errorf("the server %s runs on is already checking ports for %d others. Check again in a moment", r.Name, portChecksAtOnce), "too_many_requests")
+	}
+	defer release()
 	session, ok := h.Agents.Session(server)
 	if !ok {
 		return nil, authapi.ReasonError(connect.CodeUnavailable,
@@ -144,7 +184,7 @@ func (h *Handler) CheckServicePorts(ctx context.Context, req *connect.Request[do
 		return nil, authapi.ReasonError(connect.CodeUnavailable,
 			fmt.Errorf("the server %s runs on couldn't read its ports now. Check again in a moment", r.Name), "unavailable")
 	}
-	return connect.NewResponse(&dockwellv1.CheckServicePortsResponse{Ports: got.GetPorts(), Unread: got.GetUnread()}), nil
+	return connect.NewResponse(&dockwellv1.CheckServicePortsResponse{Ports: got.GetPorts(), Unread: got.GetUnread(), Cut: got.GetCut()}), nil
 }
 
 // findFailed is what a lookup of a service says: not found, as a service out of

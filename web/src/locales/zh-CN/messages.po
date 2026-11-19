@@ -5550,6 +5550,25 @@ msgstr "端口 {port} 有响应，但不是 HTTP"
 msgid "Port {port} answers: {0}"
 msgstr "端口 {port} 响应：{0}"
 
+msgid "Port {port} isn't checked, as only the first 24 ports are"
+msgstr "端口 {port} 未检查，因为只检查前 24 个端口"
+
+#. placeholder {0}: read.unread
+msgid "Ports aren't checked: {0}"
+msgstr "未检查端口：{0}"
+
+msgid "Ports were checked often just now. Check again in a minute"
+msgstr "刚才检查端口过于频繁。请一分钟后再检查"
+
+msgid "Update its agent"
+msgstr "更新它的 agent"
+
+msgid "{server} isn't answering, so ports aren't checked"
+msgstr "{server} 没有响应，因此未检查端口"
+
+msgid "{server}'s agent is too old to check ports"
+msgstr "{server} 的 agent 版本过旧，无法检查端口"
+
 msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
 msgstr "私有路由要求其域名的所有路由在同一台服务器上，否则路径会落到其上层路由。"
 
@@ -13915,9 +13934,6 @@ msgstr "此浏览器已离线，因此你的域名显示为未知。上次收到
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "在此之前，域名无法跳转到它的应用，你也无法在这里添加域名。"
-
-msgid "Update its agent"
-msgstr "更新它的 agent"
 
 msgid "What your domains serve isn't affected."
 msgstr "你的域名所提供的服务不受影响。"

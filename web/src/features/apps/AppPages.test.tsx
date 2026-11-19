@@ -1757,7 +1757,7 @@ describe("an app's overview", () => {
       expect(port).toHaveValue("3000");
     });
 
-    it("keeps to what the spec says where the server can't answer, as an older agent can't (#791)", async () => {
+    it("keeps to what the spec says where the server can't answer, as an older agent can't, and says why (#791)", async () => {
       const gitea = anApp(
         "gitea",
         "gitea/gitea:28.3.0",
@@ -1777,7 +1777,11 @@ describe("an app's overview", () => {
             listServices: () => ({ services: [gitea] }),
             listServiceRevisions: () => ({ revisions }),
             checkServicePorts: () => {
-              throw new ConnectError("the agent is too old to read its ports", Code.FailedPrecondition);
+              throw authError(
+                Code.FailedPrecondition,
+                "agent_outdated",
+                "the agent hz-1 runs on is too old to read its ports",
+              );
             },
           },
           domains: { listDomains: () => ({ domains: [] }) },
@@ -1792,7 +1796,12 @@ describe("an app's overview", () => {
           .getAllByRole("option")
           .map((o) => o.textContent),
       ).toEqual(["3000 · web page", "22 · SSH", "Another port"]);
-      expect(sheet).not.toHaveTextContent(/answers|Nothing answers|Check again/);
+      expect(sheet).not.toHaveTextContent(/answers|Nothing answers/);
+      // Why there are no answers, with the way to fix it (the review's L5).
+      const why = within(sheet).getByText(/hz-1's agent is too old to check ports/);
+      expect(
+        within(why.closest(".domain-step-state") as HTMLElement).getByRole("link", { name: "Update its agent" }),
+      ).toHaveAttribute("href", expect.stringMatching(/\/servers\/.*\/updates$/));
     });
 
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {
@@ -2872,13 +2881,17 @@ describe("an app's overview", () => {
           expect(row).toHaveTextContent("Aapp.example.com203.0.113.50");
           expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.50" })).toBeVisible();
           expect(await within(sheet).findByText("Not set yet")).toBeVisible();
-          expect(within(sheet).getByRole("button", { name: "Check again" })).toBeVisible();
+          expect(
+            within(sheet.querySelector(".domain-record") as HTMLElement).getByRole("button", { name: "Check again" }),
+          ).toBeVisible();
           // Oracle's firewalls aren't said while nothing shows the internet can't reach the server.
           expect(sheet).not.toHaveTextContent("the VCN's security list");
           state = DomainCheckState.POINTS_HERE;
           await vi.advanceTimersByTimeAsync(5500);
           expect(await within(sheet).findByText("Points here")).toBeVisible();
-          expect(within(sheet).queryByRole("button", { name: "Check again" })).toBeNull();
+          expect(
+            within(sheet.querySelector(".domain-record") as HTMLElement).queryByRole("button", { name: "Check again" }),
+          ).toBeNull();
         } finally {
           vi.useRealTimers();
         }
@@ -2923,27 +2936,30 @@ describe("an app's overview", () => {
         expect(sheet).toHaveTextContent("Or make this record for your router's address");
       });
 
-      it("says to forward ports at home only while the check fails (#791)", async () => {
+      it("keeps the forward line at home until the server is shown reachable, whatever DNS says (#791, the review's M2)", async () => {
         const home = {
           ipv4: { address: "203.0.113.7", source: PublicAddressSource.LOOKED_UP, unproven: true },
           shape: NetworkShape.LOCAL_NAT,
         };
-        const { sheet } = await open(home, () => ({
+        const pointsHere = () => ({
           domain: "app.example.com",
           state: DomainCheckState.POINTS_HERE,
           found: ["203.0.113.7"],
-        }));
+        });
+        // The record made, nothing forwarded yet as far as anything shows.
+        const { sheet } = await open({ ...home, reachable: Reachable.NOT_CHECKED }, pointsHere);
         expect(await within(sheet).findByText("Points here")).toBeVisible();
-        expect(sheet).not.toHaveTextContent("forwarded on your router");
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
         cleanup();
-        // DNS leads to the router, but a certificate showed the internet can't reach the server.
-        const blocked = await open({ ...home, reachable: Reachable.NO }, () => ({
-          domain: "app.example.com",
-          state: DomainCheckState.POINTS_HERE,
-          found: ["203.0.113.7"],
-        }));
+        // A certificate showed the internet can't reach it.
+        const blocked = await open({ ...home, reachable: Reachable.NO }, pointsHere);
         expect(await within(blocked.sheet).findByText("Points here")).toBeVisible();
         expect(blocked.sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
+        cleanup();
+        // The way in proved: the line goes.
+        const reached = await open({ ...home, reachable: Reachable.YES }, pointsHere);
+        await within(reached.sheet).findAllByText(/Points here|Not set yet/);
+        expect(reached.sheet).not.toHaveTextContent("forwarded on your router");
       });
 
       it("at home with no address known, takes the router's from the check", async () => {
@@ -3062,7 +3078,11 @@ describe("an app's overview", () => {
         expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.60" })).toBeVisible();
         expect(within(sheet).getAllByText("Not set yet")).toHaveLength(2);
         expect(sheet).not.toHaveTextContent("isn't known yet");
-        await user.click(within(sheet).getAllByRole("button", { name: "Check again" })[0] as HTMLElement);
+        await user.click(
+          within(sheet.querySelector(".domain-record") as HTMLElement).getAllByRole("button", {
+            name: "Check again",
+          })[0] as HTMLElement,
+        );
       });
 
       it("says DNS couldn't be read, with Check again, rather than nothing (#791)", async () => {
@@ -3070,7 +3090,9 @@ describe("an app's overview", () => {
           throw new ConnectError("agent offline", Code.Unavailable);
         });
         expect(await within(sheet).findByText("Can't read DNS", {}, { timeout: 4000 })).toBeVisible();
-        expect(within(sheet).getByRole("button", { name: "Check again" })).toBeVisible();
+        expect(
+          within(sheet.querySelector(".domain-record") as HTMLElement).getByRole("button", { name: "Check again" }),
+        ).toBeVisible();
       });
 
       it("says where the address is with none known, and offers a tunnel once the form's switch says so", async () => {

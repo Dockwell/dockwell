@@ -135,11 +135,13 @@ type ServiceServiceClient interface {
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 	// CheckServicePorts asks the server a service runs on which TCP ports its
 	// container exposes, publishes and listens on, and whether each answers at the
-	// container's own address, as the server's proxy reaches it, so Add a domain and
-	// Add a port can offer them by what they are. It changes nothing. Each
-	// port is asked once, for 2 seconds at most, with no redirect followed and no
-	// more read than a status line or a banner. A caller can check 60 times a
-	// minute. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+	// container's own address, asked from inside the container's network so
+	// nothing past it is reached, so Add a domain and Add a port can offer them by
+	// what they are. It changes nothing. It lists up to 128 ports and asks the
+	// first 24, each once, for 2 seconds at most, with no redirect followed and no
+	// more read than a status line or a banner. Rootless Docker's ports are listed
+	// and not asked. A person can check 60 times a minute, and a server answers two
+	// checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
 	CheckServicePorts(context.Context, *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error)
 }
 
@@ -352,11 +354,13 @@ type ServiceServiceHandler interface {
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
 	// CheckServicePorts asks the server a service runs on which TCP ports its
 	// container exposes, publishes and listens on, and whether each answers at the
-	// container's own address, as the server's proxy reaches it, so Add a domain and
-	// Add a port can offer them by what they are. It changes nothing. Each
-	// port is asked once, for 2 seconds at most, with no redirect followed and no
-	// more read than a status line or a banner. A caller can check 60 times a
-	// minute. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+	// container's own address, asked from inside the container's network so
+	// nothing past it is reached, so Add a domain and Add a port can offer them by
+	// what they are. It changes nothing. It lists up to 128 ports and asks the
+	// first 24, each once, for 2 seconds at most, with no redirect followed and no
+	// more read than a status line or a banner. Rootless Docker's ports are listed
+	// and not asked. A person can check 60 times a minute, and a server answers two
+	// checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
 	CheckServicePorts(context.Context, *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error)
 }
 

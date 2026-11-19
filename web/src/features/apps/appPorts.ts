@@ -3,6 +3,7 @@
 import { useQuery } from "@connectrpc/connect-query";
 import { PortAnswer, Protocol, type ServiceInfo, type ServicePortCheck, ServiceService } from "@dockwell/api";
 import { useLingui } from "@lingui/react/macro";
+import { useEffect, useRef } from "react";
 
 import { useMay } from "../auth/may";
 import { appOf } from "./app";
@@ -92,9 +93,11 @@ export function appPortsOf(service: ServiceInfo | undefined, checks: readonly Se
 }
 
 /**
- * What the app's server says of its ports (CheckServicePorts, #791), asked once as a
- * form opens and again on Check again. Nothing, as from an older agent, a stopped app
- * or a caller who may not ask, leaves the form with what the spec says.
+ * What the app's server says of its ports (CheckServicePorts, #791), asked as a form
+ * opens and again on Check again. Answers read before the app last changed, a
+ * restart or another revision, are dropped and asked again (the review's L4).
+ * Nothing, as from an older agent, a stopped app or a caller who may not ask, leaves
+ * the form with what the spec says, and why, where the server said.
  */
 export function useServicePorts(service: ServiceInfo | undefined, enabled = true) {
   const allowed = useMay()(ServiceService.method.checkServicePorts).allowed;
@@ -104,14 +107,41 @@ export function useServicePorts(service: ServiceInfo | undefined, enabled = true
     {
       enabled: enabled && allowed && service !== undefined && service.deployments.length > 0,
       retry: false,
-      staleTime: 30_000,
+      staleTime: 0,
+      refetchOnMount: "always",
     },
   );
-  const checks = read.data?.ports ?? [];
+  // What the app was when its answers were read: its revision, its last change, and
+  // where each deployment stood.
+  const stamp = service
+    ? [
+        service.revision,
+        service.changeId,
+        ...service.deployments.map((d) => `${d.serverId}@${d.state}@${d.updateTime?.seconds ?? 0}`),
+      ].join(" ")
+    : "";
+  const seen = useRef({ at: 0, stamp: "" });
+  if (read.dataUpdatedAt !== seen.current.at) seen.current = { at: read.dataUpdatedAt, stamp };
+  const fresh = read.data !== undefined && seen.current.stamp === stamp;
+  const refetch = read.refetch;
+  useEffect(() => {
+    if (read.data !== undefined && !fresh) void refetch();
+  }, [fresh, read.data, refetch]);
+  const data = fresh ? read.data : undefined;
+  const checks = data?.ports ?? [];
+  const cut = data?.cut ?? false;
   return {
     checks,
-    /** Whether the agent read what listens in the container, so a port not among checks has nothing there. */
-    readListening: checks.some((c) => c.listening),
+    /** The list isn't whole, so a port missing from it may still be listened on. */
+    cut,
+    /** Whether the agent read what listens in the container, and listed it all, so a port not among checks has nothing there. */
+    readListening: !cut && checks.some((c) => c.listening),
+    /** Why its ports weren't asked, or not all were, as the server says. */
+    unread: data?.unread ?? "",
+    /** Why the server didn't answer at all. */
+    error: read.isError ? read.error : undefined,
+    /** The first server it runs on, which answered. */
+    server: service?.deployments[0],
     checking: read.isFetching,
     again: () => void read.refetch(),
   };

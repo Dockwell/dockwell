@@ -268,8 +268,8 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
             }}
           />
         )}
-        {appError === undefined && validPortNumber(inApp) ? (
-          <PortState port={Number(inApp)} ports={appPorts} read={servicePorts} />
+        {appError === undefined ? (
+          <PortState port={validPortNumber(inApp) ? Number(inApp) : 0} ports={appPorts} read={servicePorts} />
         ) : null}
         <PortField
           ref={hostField}

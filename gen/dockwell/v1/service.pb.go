@@ -356,8 +356,12 @@ type CheckServicePortsResponse struct {
 	// Each TCP port, by number: the ones it exposes or publishes, then any other
 	// something listens on.
 	Ports []*ServicePortCheck `protobuf:"bytes,1,rep,name=ports,proto3" json:"ports,omitempty"`
-	// Why nothing could be read, such as no container of it running, or "".
-	Unread        string `protobuf:"bytes,2,opt,name=unread,proto3" json:"unread,omitempty"`
+	// Why its ports weren't asked, or not all were, such as no container of it
+	// running, or "".
+	Unread string `protobuf:"bytes,2,opt,name=unread,proto3" json:"unread,omitempty"`
+	// The list isn't whole: it has more ports, or more containers, than were read,
+	// so a port missing from it may still be listened on.
+	Cut           bool `protobuf:"varint,3,opt,name=cut,proto3" json:"cut,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -406,6 +410,13 @@ func (x *CheckServicePortsResponse) GetUnread() string {
 	return ""
 }
 
+func (x *CheckServicePortsResponse) GetCut() bool {
+	if x != nil {
+		return x.Cut
+	}
+	return false
+}
+
 // ServicePortCheck is a TCP port in a service's container, and what answers there.
 type ServicePortCheck struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -418,7 +429,8 @@ type ServicePortCheck struct {
 	Listening bool `protobuf:"varint,3,opt,name=listening,proto3" json:"listening,omitempty"`
 	// The port on the server it's published on, or 0.
 	ServerPort uint32 `protobuf:"varint,4,opt,name=server_port,json=serverPort,proto3" json:"server_port,omitempty"`
-	// What answered at the container's address.
+	// What answered at the container's address. Unspecified for a port that wasn't
+	// asked: past the first 24, or where unread says why.
 	Answer PortAnswer `protobuf:"varint,5,opt,name=answer,proto3,enum=dockwell.v1.PortAnswer" json:"answer,omitempty"`
 	// What it said, in a few words, such as "200 OK", "302 Found" or "SSH", or why
 	// nothing did, such as "connection refused".
@@ -2214,10 +2226,11 @@ const file_dockwell_v1_service_proto_rawDesc = "" +
 	"\x06origin\x18\x03 \x01(\tR\x06origin\"G\n" +
 	"\x18CheckServicePortsRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
-	"\tserver_id\x18\x02 \x01(\tR\bserverId\"h\n" +
+	"\tserver_id\x18\x02 \x01(\tR\bserverId\"z\n" +
 	"\x19CheckServicePortsResponse\x123\n" +
 	"\x05ports\x18\x01 \x03(\v2\x1d.dockwell.v1.ServicePortCheckR\x05ports\x12\x16\n" +
-	"\x06unread\x18\x02 \x01(\tR\x06unread\"\xc4\x01\n" +
+	"\x06unread\x18\x02 \x01(\tR\x06unread\x12\x10\n" +
+	"\x03cut\x18\x03 \x01(\bR\x03cut\"\xc4\x01\n" +
 	"\x10ServicePortCheck\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x18\n" +
 	"\aexposed\x18\x02 \x01(\bR\aexposed\x12\x1c\n" +
