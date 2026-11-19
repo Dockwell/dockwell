@@ -6618,6 +6618,10 @@ msgstr "Add a passkey for this address"
 msgid "Adding one here takes a sign-in from the last 10 minutes."
 msgstr "Adding one here takes a sign-in from the last 10 minutes."
 
+#. placeholder {0}: again.problem
+msgid "Couldn't sign out, so you're still signed in here. {0}"
+msgstr "Couldn't sign out, so you're still signed in here. {0}"
+
 msgid "No passkey for this address yet"
 msgstr "No passkey for this address yet"
 
@@ -6792,14 +6796,27 @@ msgstr "in {minutes} min"
 msgid "{0} disk"
 msgstr "{0} disk"
 
+msgid "Couldn't sign out"
+msgstr "Couldn't sign out"
+
 msgid "No passkey for this address"
 msgstr "No passkey for this address"
+
+msgid "On the control server, it prints a link that signs you in here."
+msgstr "On the control server, it prints a link that signs you in here."
 
 msgid "Passkey"
 msgstr "Passkey"
 
+msgid "Sign in again"
+msgstr "Sign in again"
+
 msgid "This address"
 msgstr "This address"
+
+#. placeholder {0}: again.problem
+msgid "You're still signed in here. {0}"
+msgstr "You're still signed in here. {0}"
 
 msgid "Your passkeys"
 msgstr "Your passkeys"

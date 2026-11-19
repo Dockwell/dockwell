@@ -6618,6 +6618,10 @@ msgstr "为此地址添加通行密钥"
 msgid "Adding one here takes a sign-in from the last 10 minutes."
 msgstr "在此添加需要你在最近 10 分钟内登录过。"
 
+#. placeholder {0}: again.problem
+msgid "Couldn't sign out, so you're still signed in here. {0}"
+msgstr "无法退出登录，所以你仍在此处登录。{0}"
+
 msgid "No passkey for this address yet"
 msgstr "此地址还没有通行密钥"
 
@@ -6792,14 +6796,27 @@ msgstr "{minutes} 分钟后"
 msgid "{0} disk"
 msgstr "{0} 磁盘"
 
+msgid "Couldn't sign out"
+msgstr "无法退出登录"
+
 msgid "No passkey for this address"
 msgstr "此地址没有通行密钥"
+
+msgid "On the control server, it prints a link that signs you in here."
+msgstr "在控制服务器上运行，它会输出一个在此处登录的链接。"
 
 msgid "Passkey"
 msgstr "通行密钥"
 
+msgid "Sign in again"
+msgstr "重新登录"
+
 msgid "This address"
 msgstr "此地址"
+
+#. placeholder {0}: again.problem
+msgid "You're still signed in here. {0}"
+msgstr "你仍在此处登录。{0}"
 
 msgid "Your passkeys"
 msgstr "你的通行密钥"

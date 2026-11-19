@@ -43,3 +43,14 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
 }
+
+/* Someone with no code signs in again with their own recover command (#869's review, M2). */
+.passkey-here-recover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.passkey-here-recover > span {
+  color: var(--ink-muted);
+}
