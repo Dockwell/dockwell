@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -132,14 +133,15 @@ func toLoopback(ports map[uint32]int, asked *[]string, mu *sync.Mutex) func(cont
 // to them carried to loopback listeners by port.
 func inside(own []string, ports map[uint32]int, asked *[]string, mu *sync.Mutex) func(int) (*netns, error) {
 	return func(int) (*netns, error) {
+		dial := toLoopback(ports, asked, mu)
 		return &netns{
-			owns: func(address string) error {
+			owns: func(address string) (string, error) {
 				if host, _, _ := net.SplitHostPort(address); slices.Contains(own, host) {
-					return nil
+					return "eth0", nil
 				}
-				return errNotAContainer
+				return "", errNotAContainer
 			},
-			dial:  toLoopback(ports, asked, mu),
+			dial:  func(ctx context.Context, _, address string) (net.Conn, error) { return dial(ctx, address) },
 			close: func() {},
 		}, nil
 	}
@@ -218,6 +220,16 @@ func localAddresses(t *testing.T) []string {
 func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 	t.Parallel()
 	local := localAddresses(t)
+	// The interface holding the machine's own address, as a probe binds to the one
+	// holding the container's.
+	device := "lo"
+	if len(local) > 0 {
+		d, err := holder(net.JoinHostPort(local[0], "0"))
+		if err != nil {
+			t.Fatalf("no interface holds %s: %v", local[0], err)
+		}
+		device = d
+	}
 	for _, a := range []string{"127.0.0.1", "::1", "169.254.169.254", "fe80::1", "0.0.0.0", "::", "224.0.0.1", "192.168.1.2", "10.0.0.6", "203.0.113.6", "100.101.102.102", "8.8.8.8", "::ffff:10.1.2.3"} {
 		if slices.Contains(local, strings.TrimPrefix(a, "::ffff:")) {
 			continue
@@ -225,16 +237,21 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		if ownAddress(net.JoinHostPort(a, "22")) == nil {
 			t.Errorf("%s may be asked", a)
 		}
-		// What askable lets through goes nowhere through lo: no connection, whatever
-		// the routes say, and it times out rather than reach a host.
+		// What askable lets through can't be the source of a socket here, so it's
+		// refused before any packet; where a machine lets one bind to an address it
+		// doesn't have, lo still keeps it from going anywhere.
 		ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
-		if c, err := dialLocal(ctx, net.JoinHostPort(a, "22")); err == nil {
+		c, err := dialLocal(ctx, device, net.JoinHostPort(a, "22"))
+		cancel()
+		switch {
+		case err == nil:
 			_ = c.Close()
 			t.Errorf("dialed %s", a)
+		case passes(a) && nonlocalBind(t, a) == "0" && !errors.Is(err, syscall.EADDRNOTAVAIL):
+			t.Errorf("%s wasn't refused as no address of this machine's: %v", a, err)
 		}
-		cancel()
 	}
-	if _, err := dialLocal(t.Context(), "169.254.169.254:80"); !errors.Is(err, errLinkLocal) {
+	if _, err := dialLocal(t.Context(), device, "169.254.169.254:80"); !errors.Is(err, errLinkLocal) {
 		t.Errorf("the metadata address said %v", err)
 	}
 	// One of the network's own addresses is dialed through its loopback device.
@@ -244,16 +261,28 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { _ = l.Close() })
+		from := make(chan string, 1)
 		go func() {
 			if c, err := l.Accept(); err == nil {
+				host, _, _ := net.SplitHostPort(c.RemoteAddr().String())
+				from <- host
 				_ = c.Close()
 			}
 		}()
-		c, err := dialLocal(t.Context(), l.Addr().String())
+		c, err := dialLocal(t.Context(), device, l.Addr().String())
 		if err != nil {
 			t.Fatalf("its own address %s wasn't dialed: %v", l.Addr(), err)
 		}
+		// Its source is the address itself, never lo's 127.0.0.1, which the kernel drops
+		// on its way to another interface's address where route_localnet is 0 (CI's
+		// failure on #872).
+		if host, _, _ := net.SplitHostPort(c.LocalAddr().String()); host != local[0] {
+			t.Errorf("dialed %s from %s", l.Addr(), c.LocalAddr())
+		}
 		_ = c.Close()
+		if got := <-from; got != local[0] {
+			t.Errorf("the listener saw the dial from %s", got)
+		}
 	}
 
 	for _, endpoint := range []string{"192.168.1.2", "203.0.113.6"} {
@@ -267,11 +296,11 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		var dialed []string
 		var mu sync.Mutex
 		enter := func(int) (*netns, error) {
-			return &netns{owns: ownAddress, close: func() {}, dial: func(ctx context.Context, address string) (net.Conn, error) {
+			return &netns{owns: holder, close: func() {}, dial: func(ctx context.Context, device, address string) (net.Conn, error) {
 				mu.Lock()
 				dialed = append(dialed, address)
 				mu.Unlock()
-				return dialLocal(ctx, address)
+				return dialLocal(ctx, device, address)
 			}}, nil
 		}
 		got, err := portReader{docker: e.Client(), proc: t.TempDir(), enter: enter}.read(t.Context(), "env_shop", "web")
@@ -306,6 +335,22 @@ func TestAppPortsAskNothingOnRootlessDockerOrTheServersNetwork(t *testing.T) {
 		t.Errorf("rootless: asked %v, got %v", asked, got)
 	}
 	own := webApp(t, func(c *docker.Container) { c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}} })
+	// A network that lets a socket take any source address, as a container with
+	// NET_ADMIN could set, is asked nothing: its source no longer proves the
+	// destination is its own.
+	loose := webApp(t, func(c *docker.Container) { c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}} })
+	dialed := 0
+	got, err = portReader{docker: loose.Client(), proc: t.TempDir(), enter: func(int) (*netns, error) {
+		return &netns{
+			owns:  func(string) (string, error) { return "", errBindsAnything },
+			close: func() {},
+			dial:  func(context.Context, string, string) (net.Conn, error) { dialed++; return nil, errors.New("no") },
+		}, nil
+	}}.read(t.Context(), "env_shop", "web")
+	if err != nil || got.GetUnread() != unreadBinds || dialed != 0 {
+		t.Errorf("a network that binds anything: dialed %d, %v, %v", dialed, got, err)
+	}
+
 	// What listens in a network that's the server's own is the server's, so it isn't read.
 	proc := procWith(t, 4242, listen(9100, false))
 	got, err = portReader{docker: own.Client(), proc: proc, enter: func(int) (*netns, error) { return nil, errOwnNetwork }}.read(t.Context(), "env_shop", "web")
@@ -408,9 +453,9 @@ func TestAppPortsCountOnlyWhatTheSameContainerSaid(t *testing.T) {
 	n := 0
 	enter := func(int) (*netns, error) {
 		return &netns{
-			owns:  func(string) error { return nil },
+			owns:  func(string) (string, error) { return "eth0", nil },
 			close: func() {},
-			dial: func(context.Context, string) (net.Conn, error) {
+			dial: func(context.Context, string, string) (net.Conn, error) {
 				mu.Lock()
 				n++
 				mu.Unlock()
@@ -612,7 +657,8 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 	defer n.close()
 
 	// Its own address is its own inside, and no one's outside.
-	if err := n.owns(insideAddress); err != nil {
+	device, err := n.owns(insideAddress)
+	if err != nil {
 		if strings.Contains(err.Error(), "enter the container's network") {
 			t.Skipf("can't enter a network namespace here: %v", err)
 		}
@@ -621,10 +667,16 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 	if ownAddress(insideAddress) == nil {
 		t.Fatalf("outside, %s is the machine's own, so this proves nothing", insideAddress)
 	}
-	// A socket made inside reaches the listener there, through lo.
-	c, err := n.dial(t.Context(), insideAddress)
+	// A socket made inside reaches the listener there, through lo, from that address.
+	if device != "d0" {
+		t.Errorf("inside, %s is held by %q, not the helper's d0", insideAddress, device)
+	}
+	c, err := n.dial(t.Context(), device, insideAddress)
 	if err != nil {
 		t.Fatalf("dialing %s inside: %v", insideAddress, err)
+	}
+	if host, _, _ := net.SplitHostPort(c.LocalAddr().String()); host+":18081" != insideAddress {
+		t.Errorf("dialed %s inside from %s", insideAddress, c.LocalAddr())
 	}
 	said, _ := bufio.NewReader(c).ReadString('\n')
 	_ = c.Close()
@@ -646,12 +698,12 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 			_ = c.Close()
 		}
 	}()
-	if err := n.owns(outside.Addr().String()); err == nil {
+	if _, err := n.owns(outside.Addr().String()); err == nil {
 		t.Errorf("inside, the machine's %s counts as the network's own", outside.Addr())
 	}
 	dctx, dcancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer dcancel()
-	if c, err := n.dial(dctx, outside.Addr().String()); err == nil {
+	if c, err := n.dial(dctx, device, outside.Addr().String()); err == nil {
 		_ = c.Close()
 		t.Errorf("from inside, the machine's %s was dialed", outside.Addr())
 	}
@@ -660,4 +712,25 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 		t.Error("the listener outside was reached from inside")
 	case <-time.After(100 * time.Millisecond):
 	}
+}
+
+// nonlocalBind is whether this machine lets a socket bind to an address it doesn't
+// have, for address's family, as its sysctl says: "1" lets it, "0" refuses.
+func nonlocalBind(t *testing.T, address string) string {
+	t.Helper()
+	file := "/proc/sys/net/ipv4/ip_nonlocal_bind"
+	if a, err := netip.ParseAddr(address); err == nil && a.Is6() && !a.Is4In6() {
+		file = "/proc/sys/net/ipv6/ip_nonlocal_bind"
+	}
+	b, err := os.ReadFile(file)
+	if err != nil {
+		return "unknown"
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// passes reports an address askable lets through to a dial.
+func passes(address string) bool {
+	_, err := askable(net.JoinHostPort(address, "22"))
+	return err == nil
 }

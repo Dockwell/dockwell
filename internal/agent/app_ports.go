@@ -49,20 +49,22 @@ const (
 	unreadOwnNet   = "it's on the server's own network, where its ports are the server's"
 	unreadNoAddr   = "its container has no address of its own the agent can ask"
 	unreadChanged  = "it restarted while its ports were asked. Check again"
+	unreadBinds    = "its network lets a socket use an address it doesn't have, so its ports aren't asked"
 )
 
 // errNotAContainer refuses an address a probe never dials: not the container's own.
 var errNotAContainer = errors.New("that isn't the container's own address, so Dockwell doesn't ask it")
 
 // netns is a container's network namespace, held open by its file, where a probe's
-// dials are made: from inside, bound to its loopback device, so a dial reaches the
-// container's own addresses and nothing past it, whatever its networks' subnets or
-// the server's routing say.
+// dials are made: from inside, from the container's own address to that same
+// address, so a dial reaches the container and nothing past it, whatever its
+// networks' subnets or the server's routing say (see dialLocal).
 type netns struct {
-	// owns refuses an address that isn't one of the namespace's own.
-	owns func(address string) error
-	// dial connects to one of its own addresses, from inside it.
-	dial  func(ctx context.Context, address string) (net.Conn, error)
+	// owns refuses an address that isn't one of the namespace's own, and says
+	// which of its interfaces holds it.
+	owns func(address string) (device string, err error)
+	// dial connects to one of its own addresses, from inside it, bound to device.
+	dial  func(ctx context.Context, device, address string) (net.Conn, error)
 	close func()
 }
 
@@ -110,12 +112,11 @@ func enterNetwork(proc string) func(pid int) (*netns, error) {
 			return nil, errOwnNetwork
 		}
 		n := &netns{close: func() { _ = unix.Close(fd) }}
-		n.owns = func(address string) error {
-			_, err := inNetwork(fd, func() (struct{}, error) { return struct{}{}, ownAddress(address) })
-			return err
+		n.owns = func(address string) (string, error) {
+			return inNetwork(fd, func() (string, error) { return holder(address) })
 		}
-		n.dial = func(ctx context.Context, address string) (net.Conn, error) {
-			return inNetwork(fd, func() (net.Conn, error) { return dialLocal(ctx, address) })
+		n.dial = func(ctx context.Context, device, address string) (net.Conn, error) {
+			return inNetwork(fd, func() (net.Conn, error) { return dialLocal(ctx, device, address) })
 		}
 		return n, nil
 	}
@@ -182,44 +183,97 @@ func askable(address string) (netip.Addr, error) {
 	return a, nil
 }
 
-// ownAddress refuses an address that askable refuses, or that isn't on one of the
-// current network's interfaces. It reads them all, so it runs once per call, never
-// per dial (the re-check's N3).
-func ownAddress(address string) error {
+// holder says which of the current network's interfaces holds address, refusing an
+// address that askable refuses or that none holds. It reads every interface's
+// addresses, so it runs once per call, never per dial (the re-check's N3).
+func holder(address string) (string, error) {
 	a, err := askable(address)
 	if err != nil {
-		return err
+		return "", err
 	}
-	addrs, err := net.InterfaceAddrs()
+	if bindsAnything(a) {
+		return "", errBindsAnything
+	}
+	ifs, err := net.Interfaces()
 	if err != nil {
-		return err
+		return "", err
 	}
-	for _, x := range addrs {
-		if p, err := netip.ParsePrefix(x.String()); err == nil && p.Addr().Unmap() == a {
-			return nil
+	for _, i := range ifs {
+		addrs, err := i.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, x := range addrs {
+			if p, err := netip.ParsePrefix(x.String()); err == nil && p.Addr().Unmap() == a {
+				return i.Name, nil
+			}
 		}
 	}
-	return errNotAContainer
+	return "", errNotAContainer
 }
 
-// dialLocal dials one of the current network's own addresses with the socket bound
-// to its loopback device, so the kernel delivers it locally or not at all: no route,
-// policy rule or default gateway can take it past the network it's made in. That an
-// address is the network's own is checked once per call, by ownAddress; an address
-// that isn't goes nowhere through lo, and times out.
-func dialLocal(ctx context.Context, address string) (net.Conn, error) {
-	if _, err := askable(address); err != nil {
+// ownAddress refuses an address that holder refuses.
+func ownAddress(address string) error {
+	_, err := holder(address)
+	return err
+}
+
+// errBindsAnything refuses to dial from a network that lets a socket take a source
+// address it doesn't hold, as then the source can't prove the destination is its own.
+var errBindsAnything = errors.New("its network lets a socket use an address it doesn't have, so Dockwell doesn't ask it")
+
+// bindsAnything reports a current network whose ip_nonlocal_bind, for a's family,
+// lets a socket take a source address it doesn't hold. /proc/sys/net is the reading
+// thread's own network's.
+func bindsAnything(a netip.Addr) bool {
+	file := "/proc/sys/net/ipv4/ip_nonlocal_bind"
+	if a.Is6() {
+		file = "/proc/sys/net/ipv6/ip_nonlocal_bind"
+	}
+	b, err := os.ReadFile(file)
+	return err != nil || strings.TrimSpace(string(b)) != "0"
+}
+
+// dialLocal dials one of the current network's own addresses from that same
+// address, with the socket bound to the interface that holds it, so it's delivered
+// within the network and goes nowhere past it:
+//
+//   - The source is the address itself. The kernel refuses a socket a source
+//     address the network doesn't hold (EADDRNOTAVAIL), before any packet, so the
+//     only address a dial can reach is one the network has, and a packet to one of
+//     its own addresses is delivered locally whatever its routes and policy rules.
+//     A network that lets a socket take any source (ip_nonlocal_bind) is refused,
+//     read just before the socket is made.
+//   - The socket is bound to the interface holding it, so nothing can be routed out
+//     another way.
+//
+// Bound to lo, as this first was, it could reach nothing on a real server: the
+// kernel gives such a socket lo's 127.0.0.1 as its source, and a packet from
+// 127.0.0.1 to another interface's address is dropped as martian wherever
+// route_localnet is 0, its default; and with the address as its source, the reply
+// arrives on the other interface, which a socket bound to lo never hears. CI found
+// the first on #872.
+func dialLocal(ctx context.Context, device, address string) (net.Conn, error) {
+	a, err := askable(address)
+	if err != nil {
 		return nil, err
 	}
-	d := &net.Dialer{Timeout: portWait, Control: func(_, _ string, c syscall.RawConn) error {
-		var serr error
-		if err := c.Control(func(fd uintptr) {
-			serr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, "lo")
-		}); err != nil {
-			return err
-		}
-		return serr
-	}}
+	if bindsAnything(a) {
+		return nil, errBindsAnything
+	}
+	d := &net.Dialer{
+		Timeout:   portWait,
+		LocalAddr: &net.TCPAddr{IP: a.AsSlice()},
+		Control: func(_, _ string, c syscall.RawConn) error {
+			var serr error
+			if err := c.Control(func(fd uintptr) {
+				serr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, device)
+			}); err != nil {
+				return err
+			}
+			return serr
+		},
+	}
 	return d.DialContext(ctx, "tcp", address)
 }
 
@@ -383,12 +437,16 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 	case probe == nil || probed.address == "":
 		unread = unreadNoAddr
 	default:
-		address := probed.address
-		if err := probe.owns(net.JoinHostPort(address, "0")); err != nil {
+		device, err := probe.owns(net.JoinHostPort(probed.address, "0"))
+		if errors.Is(err, errBindsAnything) {
+			unread = unreadBinds
+			break
+		}
+		if err != nil {
 			unread = unreadNoAddr
 			break
 		}
-		unread = r.ask(ctx, probe, probeID, probed, out[:min(len(out), mostAsked)])
+		unread = r.ask(ctx, probe, device, probeID, probed, out[:min(len(out), mostAsked)])
 	}
 	return &agentv1.AppPortsResult{Ports: out, Unread: unread, Cut: cut}, nil
 }
@@ -396,7 +454,8 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 // ask asks each port, four at once, at the container's own address from inside its
 // network. Before each, the container must still be the same one at the same
 // address (the review's L2); once it isn't, the rest go unasked, and it says why.
-func (r portReader) ask(ctx context.Context, n *netns, id string, was instance, ports []*dockwellv1.ServicePortCheck) string {
+func (r portReader) ask(ctx context.Context, n *netns, device, id string, was instance, ports []*dockwellv1.ServicePortCheck) string {
+	dial := func(ctx context.Context, address string) (net.Conn, error) { return n.dial(ctx, device, address) }
 	var mu sync.Mutex
 	changed := false
 	var wg sync.WaitGroup
@@ -421,7 +480,7 @@ func (r portReader) ask(ctx context.Context, n *netns, id string, was instance, 
 		go func() {
 			defer wg.Done()
 			defer func() { <-slots }()
-			answer, said := askPort(ctx, n.dial, net.JoinHostPort(was.address, strconv.FormatUint(uint64(p.GetPort()), 10)))
+			answer, said := askPort(ctx, dial, net.JoinHostPort(was.address, strconv.FormatUint(uint64(p.GetPort()), 10)))
 			mu.Lock()
 			defer mu.Unlock()
 			p.Answer, p.Said = answer, said
@@ -535,7 +594,7 @@ func portWords(err error) string {
 	switch {
 	case errors.Is(err, syscall.ECONNREFUSED):
 		return "nothing listens"
-	case errors.Is(err, errLinkLocal), errors.Is(err, errNotAContainer):
+	case errors.Is(err, errLinkLocal), errors.Is(err, errNotAContainer), errors.Is(err, errBindsAnything):
 		return "not asked: not the container's own address"
 	case errors.Is(err, context.DeadlineExceeded), timedOut(err):
 		return "no answer in 2 s"
