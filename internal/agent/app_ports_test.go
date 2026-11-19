@@ -3,6 +3,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -224,13 +225,14 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		if ownAddress(net.JoinHostPort(a, "22")) == nil {
 			t.Errorf("%s may be asked", a)
 		}
-		start := time.Now()
-		if c, err := dialLocal(t.Context(), net.JoinHostPort(a, "22")); err == nil {
+		// What askable lets through goes nowhere through lo: no connection, whatever
+		// the routes say, and it times out rather than reach a host.
+		ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
+		if c, err := dialLocal(ctx, net.JoinHostPort(a, "22")); err == nil {
 			_ = c.Close()
 			t.Errorf("dialed %s", a)
-		} else if took := time.Since(start); took > 100*time.Millisecond {
-			t.Errorf("%s was dialed before it was refused: %s", a, took)
 		}
+		cancel()
 	}
 	if _, err := dialLocal(t.Context(), "169.254.169.254:80"); !errors.Is(err, errLinkLocal) {
 		t.Errorf("the metadata address said %v", err)
@@ -376,8 +378,25 @@ func TestAppPortsCountOnlyWhatTheSameContainerSaid(t *testing.T) {
 			t.Errorf("after a restart between reads: %s", portLine(p))
 		}
 	}
-	if got.GetUnread() != unreadNoAddr || len(asked) != 0 {
-		t.Errorf("after a restart between reads: unread %q, asked %v", got.GetUnread(), asked)
+	if got.GetUnread() != unreadNoAddr || len(asked) != 0 || !got.GetCut() {
+		t.Errorf("after a restart between reads: unread %q, asked %v, cut %t", got.GetUnread(), asked, got.GetCut())
+	}
+
+	// A process ID on the server's own network that turns out to have restarted is a
+	// restart, not the server's network, and the list is cut short either way (the
+	// re-check's N2 and its nit).
+	reused := webApp(t, func(c *docker.Container) { c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}} })
+	got, err = portReader{docker: reused.Client(), proc: proc, enter: func(int) (*netns, error) {
+		reused.Edit("web-1", func(c *docker.Container) { c.State.Pid = 5556 })
+		return nil, errOwnNetwork
+	}}.read(t.Context(), "env_shop", "web")
+	if err != nil || got.GetUnread() != unreadNoAddr || !got.GetCut() {
+		t.Errorf("a reused process ID: %v, %v", got, err)
+	}
+	same := webApp(t, func(c *docker.Container) { c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}} })
+	got, err = portReader{docker: same.Client(), proc: proc, enter: func(int) (*netns, error) { return nil, errOwnNetwork }}.read(t.Context(), "env_shop", "web")
+	if err != nil || got.GetUnread() != unreadOwnNet || !got.GetCut() {
+		t.Errorf("the server's own network: %v, %v", got, err)
 	}
 
 	exposed := map[string]struct{}{}
@@ -484,48 +503,161 @@ func TestEnteringANetworkRefusesTheAgentsOwn(t *testing.T) {
 	}
 }
 
-// Inside another network, the agent's own addresses aren't the container's: the
-// check runs in the network entered, not the agent's. It needs a network namespace
-// to enter, which an unprivileged user can make only where the kernel allows it.
+// insideAddress is the address the namespace test's helper holds inside its own
+// network, from a documentation range, so it's on no machine's interface.
+const insideAddress = "192.0.2.5:18081"
+
+// TestPortsNamespaceHelper is the namespace test's helper, run by it inside a
+// network of its own: it brings up lo and a dummy interface holding insideAddress,
+// listens there, says "ready", and answers each connection "inside". Run any other
+// way, it does nothing.
+func TestPortsNamespaceHelper(t *testing.T) {
+	if os.Getenv("DOCKWELL_PORTS_HELPER") != "1" {
+		return
+	}
+	host, _, _ := net.SplitHostPort(insideAddress)
+	for _, words := range [][]string{
+		{"link", "set", "lo", "up"},
+		{"link", "add", "d0", "type", "dummy"},
+		{"addr", "add", host + "/32", "dev", "d0"},
+		{"link", "set", "d0", "up"},
+	} {
+		if out, err := exec.Command("ip", words...).CombinedOutput(); err != nil {
+			fmt.Printf("ip %s: %v %s\n", strings.Join(words, " "), err, out)
+			return
+		}
+	}
+	l, err := net.Listen("tcp", insideAddress)
+	if err != nil {
+		fmt.Printf("listen: %v\n", err)
+		return
+	}
+	fmt.Println("ready")
+	go func() {
+		_, _ = io.Copy(io.Discard, os.Stdin) // the test ends it by closing stdin
+		_ = l.Close()
+	}()
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		_, _ = io.WriteString(c, "inside\n")
+		_ = c.Close()
+	}
+}
+
+// The re-check's N4: inside a network of its own, a socket is made in that network
+// and a dial to one of its own addresses answers there, through lo, while the
+// machine's own address isn't the network's and a listener on it isn't reached. It
+// needs a network namespace to make and to enter, which takes root, or a kernel
+// that lets an ordinary user make one and enter it; elsewhere it skips, saying why.
 func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 	t.Parallel()
 	local := localAddresses(t)
 	if len(local) == 0 {
 		t.Skip("the test machine has no address beyond loopback to compare")
 	}
+	if _, err := exec.LookPath("ip"); err != nil {
+		t.Skip("there's no ip command here to set up a network namespace")
+	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	child := exec.CommandContext(ctx, "unshare", "--user", "--map-root-user", "--net", "sleep", "30")
+	child := exec.CommandContext(ctx, "unshare", "--user", "--map-root-user", "--net", os.Args[0], "-test.run=^TestPortsNamespaceHelper$")
+	child.Env = append(os.Environ(), "DOCKWELL_PORTS_HELPER=1")
+	stdin, err := child.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// What it prints and what unshare says if it can't go both to one pipe.
+	stdout, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	child.Stdout, child.Stderr = w, w
 	if err := child.Start(); err != nil {
+		_ = w.Close()
+		_ = stdout.Close()
 		t.Skipf("can't make a network namespace here: %v", err)
 	}
-	t.Cleanup(func() { cancel(); _ = child.Wait() })
-	// The child is in its own network once /proc says a namespace other than ours.
-	deadline := time.Now().Add(5 * time.Second)
-	var n *netns
-	for {
-		var err error
-		n, err = enterNetwork("/proc")(child.Process.Pid)
-		if err == nil {
-			break
+	_ = w.Close()
+	defer func() { _ = stdout.Close() }()
+	t.Cleanup(func() { _ = stdin.Close(); cancel(); _ = child.Wait() })
+	ready := make(chan string, 1)
+	go func() {
+		sc := bufio.NewScanner(stdout)
+		var said strings.Builder
+		for sc.Scan() {
+			if sc.Text() == "ready" {
+				ready <- ""
+				_, _ = io.Copy(io.Discard, stdout)
+				return
+			}
+			said.WriteString(sc.Text() + " ")
 		}
-		if !errors.Is(err, errOwnNetwork) || time.Now().After(deadline) {
-			t.Skipf("can't enter a network namespace here: %v", err)
+		ready <- "the helper ended: " + said.String()
+	}()
+	select {
+	case why := <-ready:
+		if why != "" {
+			t.Skipf("can't set up a network namespace here: %s", why)
 		}
-		time.Sleep(20 * time.Millisecond)
+	case <-time.After(10 * time.Second):
+		t.Skip("the helper's network namespace wasn't ready in 10 s")
+	}
+	n, err := enterNetwork("/proc")(child.Process.Pid)
+	if err != nil {
+		t.Skipf("can't open the helper's network: %v", err)
 	}
 	defer n.close()
-	address := net.JoinHostPort(local[0], "1")
-	if err := ownAddress(address); err != nil {
-		t.Fatalf("outside, %s isn't the machine's own: %v", local[0], err)
+
+	// Its own address is its own inside, and no one's outside.
+	if err := n.owns(insideAddress); err != nil {
+		if strings.Contains(err.Error(), "enter the container's network") {
+			t.Skipf("can't enter a network namespace here: %v", err)
+		}
+		t.Fatalf("inside, %s isn't the network's own: %v", insideAddress, err)
 	}
-	if err := n.owns(address); err == nil {
-		t.Errorf("inside a new network, the machine's %s counts as its own", local[0])
-	} else if strings.Contains(err.Error(), "enter the container's network") {
-		t.Skipf("can't enter a network namespace here: %v", err)
+	if ownAddress(insideAddress) == nil {
+		t.Fatalf("outside, %s is the machine's own, so this proves nothing", insideAddress)
 	}
-	if c, err := n.dial(t.Context(), address); err == nil {
+	// A socket made inside reaches the listener there, through lo.
+	c, err := n.dial(t.Context(), insideAddress)
+	if err != nil {
+		t.Fatalf("dialing %s inside: %v", insideAddress, err)
+	}
+	said, _ := bufio.NewReader(c).ReadString('\n')
+	_ = c.Close()
+	if said != "inside\n" {
+		t.Errorf("%s inside said %q", insideAddress, said)
+	}
+
+	// The machine's own address, with a listener on it outside, isn't the network's,
+	// and a dial to it from inside reaches nothing.
+	outside, err := net.Listen("tcp", net.JoinHostPort(local[0], "0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = outside.Close() }()
+	reached := make(chan struct{}, 1)
+	go func() {
+		if c, err := outside.Accept(); err == nil {
+			reached <- struct{}{}
+			_ = c.Close()
+		}
+	}()
+	if err := n.owns(outside.Addr().String()); err == nil {
+		t.Errorf("inside, the machine's %s counts as the network's own", outside.Addr())
+	}
+	dctx, dcancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+	defer dcancel()
+	if c, err := n.dial(dctx, outside.Addr().String()); err == nil {
 		_ = c.Close()
-		t.Errorf("inside a new network, the machine's %s was dialed", local[0])
+		t.Errorf("from inside, the machine's %s was dialed", outside.Addr())
+	}
+	select {
+	case <-reached:
+		t.Error("the listener outside was reached from inside")
+	case <-time.After(100 * time.Millisecond):
 	}
 }

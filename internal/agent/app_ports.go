@@ -161,24 +161,34 @@ func inNetwork[T any](fd int, fn func() (T, error)) (T, error) {
 	return d.v, d.err
 }
 
-// ownAddress refuses an address that isn't on one of the current network's
-// interfaces, or that a probe never asks: loopback, link-local, unspecified or
-// multicast.
-func ownAddress(address string) error {
+// askable reads address, refusing what a probe never asks: loopback, link-local,
+// unspecified or multicast.
+func askable(address string) (netip.Addr, error) {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
-		return err
+		return netip.Addr{}, err
 	}
 	a, err := netip.ParseAddr(host)
 	if err != nil {
-		return err
+		return netip.Addr{}, err
 	}
 	a = a.Unmap()
 	switch {
 	case a.IsLoopback(), a.IsUnspecified(), a.IsMulticast(), a.IsInterfaceLocalMulticast():
-		return errNotAContainer
+		return a, errNotAContainer
 	case a.IsLinkLocalUnicast(), a.IsLinkLocalMulticast():
-		return errLinkLocal
+		return a, errLinkLocal
+	}
+	return a, nil
+}
+
+// ownAddress refuses an address that askable refuses, or that isn't on one of the
+// current network's interfaces. It reads them all, so it runs once per call, never
+// per dial (the re-check's N3).
+func ownAddress(address string) error {
+	a, err := askable(address)
+	if err != nil {
+		return err
 	}
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -194,9 +204,11 @@ func ownAddress(address string) error {
 
 // dialLocal dials one of the current network's own addresses with the socket bound
 // to its loopback device, so the kernel delivers it locally or not at all: no route,
-// policy rule or default gateway can take it past the network it's made in.
+// policy rule or default gateway can take it past the network it's made in. That an
+// address is the network's own is checked once per call, by ownAddress; an address
+// that isn't goes nowhere through lo, and times out.
 func dialLocal(ctx context.Context, address string) (net.Conn, error) {
-	if err := ownAddress(address); err != nil {
+	if _, err := askable(address); err != nil {
 		return nil, err
 	}
 	d := &net.Dialer{Timeout: portWait, Control: func(_, _ string, c syscall.RawConn) error {
@@ -272,8 +284,11 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 	unread := ""
 	ownNet := false
 	for _, id := range running[:min(len(running), mostPortContainers)] {
+		// A running container whose listeners aren't counted leaves the list cut short,
+		// so nothing is said not to listen (the re-check's N2).
 		c, err := r.docker.InspectContainer(ctx, id)
 		if err != nil || !c.State.Running {
+			cut = true
 			continue
 		}
 		if c.HostConfig.NetworkMode == "host" {
@@ -297,6 +312,7 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 		}
 		was := instanceOf(c)
 		if was.pid <= 0 {
+			cut = true
 			continue
 		}
 		// The network to ask from is held before what listens is read, and both count
@@ -304,19 +320,27 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 		// and taken again in between would be another's (the review's L1). A process
 		// on the server's own network has neither: what listens there is the server's.
 		n, err := enter(was.pid)
-		switch {
-		case errors.Is(err, errOwnNetwork):
-			ownNet = true
-			continue
-		case err != nil:
+		own := errors.Is(err, errOwnNetwork)
+		if err != nil {
 			n = nil
 		}
-		heardHere := listeners(os.DirFS(filepath.Join(r.proc, strconv.Itoa(was.pid))))
+		var heardHere []*dockwellv1.HostListener
+		if !own {
+			heardHere = listeners(os.DirFS(filepath.Join(r.proc, strconv.Itoa(was.pid))))
+		}
 		again, err := r.docker.InspectContainer(ctx, id)
 		if err != nil || !again.State.Running || instanceOf(again) != was {
+			// It restarted between the reads: what was read may be another process's.
 			if n != nil {
 				n.close()
 			}
+			cut = true
+			continue
+		}
+		if own {
+			// The same process, on the server's own network: what listens there is the
+			// server's, so none of it is counted.
+			ownNet, cut = true, true
 			continue
 		}
 		for _, l := range heardHere {

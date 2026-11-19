@@ -1767,8 +1767,16 @@ describe("an app's overview", () => {
             { hostPort: 3000, containerPort: 3000 },
           ],
         },
-        { webPort: 3000 },
+        {
+          webPort: 3000,
+          // It moved off old-1, whose row is listed first: the server asked, and named, is hz-1 (the re-check's N1).
+          deployments: [
+            { serverId: "srv_old", serverName: "old-1", state: DeploymentState.SUPERSEDED },
+            { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE },
+          ],
+        },
       );
+      const asked: string[] = [];
       const user = userEvent.setup();
       renderAt(
         "/apps/svc_gitea",
@@ -1776,7 +1784,8 @@ describe("an app's overview", () => {
           services: {
             listServices: () => ({ services: [gitea] }),
             listServiceRevisions: () => ({ revisions }),
-            checkServicePorts: () => {
+            checkServicePorts: (req) => {
+              asked.push(req.serverId);
               throw authError(
                 Code.FailedPrecondition,
                 "agent_outdated",
@@ -1801,7 +1810,9 @@ describe("an app's overview", () => {
       const why = within(sheet).getByText(/hz-1's agent is too old to check ports/);
       expect(
         within(why.closest(".domain-step-state") as HTMLElement).getByRole("link", { name: "Update its agent" }),
-      ).toHaveAttribute("href", expect.stringMatching(/\/servers\/.*\/updates$/));
+      ).toHaveAttribute("href", `/servers/${SERVER}/updates`);
+      expect(asked.length).toBeGreaterThan(0);
+      expect(new Set(asked)).toEqual(new Set([SERVER]));
     });
 
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {

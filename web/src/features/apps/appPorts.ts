@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { PortAnswer, Protocol, type ServiceInfo, type ServicePortCheck, ServiceService } from "@dockwell/api";
+import {
+  DeploymentState,
+  PortAnswer,
+  Protocol,
+  type ServiceInfo,
+  type ServicePortCheck,
+  ServiceService,
+} from "@dockwell/api";
 import { useLingui } from "@lingui/react/macro";
 import { useEffect, useRef } from "react";
 
@@ -101,11 +108,14 @@ export function appPortsOf(service: ServiceInfo | undefined, checks: readonly Se
  */
 export function useServicePorts(service: ServiceInfo | undefined, enabled = true) {
   const allowed = useMay()(ServiceService.method.checkServicePorts).allowed;
+  // The server asked is named, the first it runs on now, so what a state says of it,
+  // such as an outdated agent, names the one that answered (the re-check's N1).
+  const server = service?.deployments.find((d) => d.state !== DeploymentState.SUPERSEDED);
   const read = useQuery(
     ServiceService.method.checkServicePorts,
-    { id: service?.id ?? "" },
+    { id: service?.id ?? "", serverId: server?.serverId ?? "" },
     {
-      enabled: enabled && allowed && service !== undefined && service.deployments.length > 0,
+      enabled: enabled && allowed && service !== undefined && server !== undefined,
       retry: false,
       staleTime: 0,
       refetchOnMount: "always",
@@ -140,8 +150,8 @@ export function useServicePorts(service: ServiceInfo | undefined, enabled = true
     unread: data?.unread ?? "",
     /** Why the server didn't answer at all. */
     error: read.isError ? read.error : undefined,
-    /** The first server it runs on, which answered. */
-    server: service?.deployments[0],
+    /** The server asked: the first it runs on now. */
+    server,
     checking: read.isFetching,
     again: () => void read.refetch(),
   };
