@@ -213,4 +213,57 @@ describe("Add a port", () => {
     await user.type(inApp, "3001");
     expect(host.value).toBe("3005");
   });
+
+  it("picks from what the app listens on and doesn't publish, labelled, with another port typed (#791)", async () => {
+    const user = userEvent.setup();
+    const asked: unknown[] = [];
+    // Gitea publishes SSH, serves its pages on 3000 unpublished, and exposes 9000.
+    const gitea = anApp(
+      "gitea",
+      "gitea/gitea:1.24",
+      { ports: [{ hostPort: 2222, containerPort: 22 }], expose: ["9000/tcp", "53/udp"] },
+      { webPort: 3000 },
+    );
+    renderAt(
+      "/apps/svc_gitea?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [gitea] }),
+          listServiceRevisions: () => ({}),
+          addServicePort: (req) => {
+            asked.push(req);
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to gitea" });
+    const inApp = within(sheet).getByLabelText("In the app");
+    expect(inApp).toHaveValue("3000");
+    expect(
+      within(inApp)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["3000 · web page", "9000", "Another port"]);
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    await waitFor(() => expect(host.value).toBe("3000"));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(asked.at(-1)).toMatchObject({ containerPort: 3000 });
+  });
+
+  it("types another port in its place, with nothing filled in for it", async () => {
+    const user = userEvent.setup();
+    const exposed = anApp("exposed", "ghcr.io/acme/shop:1.4", { expose: ["9000"] });
+    renderAt(
+      "/apps/svc_exposed?add=port",
+      api({ services: { listServices: () => ({ services: [exposed] }), listServiceRevisions: () => ({}) } }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to exposed" });
+    await user.selectOptions(within(sheet).getByLabelText("In the app"), "other");
+    const typed = within(sheet).getByRole("textbox", { name: "In the app" });
+    await waitFor(() => expect(typed).toHaveFocus());
+    expect(typed).toHaveValue("");
+    expect(typed).not.toHaveAttribute("placeholder");
+  });
 });

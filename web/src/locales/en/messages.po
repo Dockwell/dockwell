@@ -2594,6 +2594,9 @@ msgstr "Port in the app"
 msgid "Port on the server"
 msgstr "Port on the server"
 
+msgid "Port {port} is {portElsewhere}'s, which serves no web page"
+msgstr "Port {port} is {portElsewhere}'s, which serves no web page"
+
 msgid "Reaches"
 msgstr "Reaches"
 
@@ -2620,6 +2623,9 @@ msgstr "Set {zone} to Full (strict)"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
+
+msgid "Use {webPort}"
+msgstr "Use {webPort}"
 
 msgid "Visitors are sent on, such as from an old domain."
 msgstr "Visitors are sent on, such as from an old domain."
@@ -4452,29 +4458,23 @@ msgstr "Make these records at your DNS provider."
 msgid "Make this record at your DNS provider."
 msgstr "Make this record at your DNS provider."
 
+msgid "Needs ports 80 and 443 forwarded on your router to this server"
+msgstr "Needs ports 80 and 443 forwarded on your router to this server"
+
+msgid "Needs ports 80 and 443 forwarded on your router to {forwardTo}"
+msgstr "Needs ports 80 and 443 forwarded on your router to {forwardTo}"
+
 msgid "Not set yet"
 msgstr "Not set yet"
 
 msgid "Only a tunnel reaches it."
 msgstr "Only a tunnel reaches it."
 
-msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
-msgstr "Or forward ports 80 and 443 on your router to this server, and make this record."
-
-msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
-msgstr "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
-
 msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
 msgstr "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
 
-msgid "Point an A record at this server's public address, which your provider's console shows."
-msgstr "Point an A record at this server's public address, which your provider's console shows."
-
-msgid "Point an A record at this server's public address, which {provider}'s console shows."
-msgstr "Point an A record at this server's public address, which {provider}'s console shows."
-
-msgid "Point an A record at your router's public address."
-msgstr "Point an A record at your router's public address."
+msgid "Or make this record for your router's address, as far as Dockwell can tell."
+msgstr "Or make this record for your router's address, as far as Dockwell can tell."
 
 msgid "Points elsewhere"
 msgstr "Points elsewhere"
@@ -4503,8 +4503,14 @@ msgstr "This server is behind carrier NAT"
 msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
 msgstr "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
 
-msgid "Your router's address, as far as Dockwell can tell."
-msgstr "Your router's address, as far as Dockwell can tell."
+msgid "This server's public address isn't known yet"
+msgstr "This server's public address isn't known yet"
+
+msgid "This server's public address isn't known yet. {provider}'s console shows it"
+msgstr "This server's public address isn't known yet. {provider}'s console shows it"
+
+msgid "Your router's public address isn't known yet"
+msgstr "Your router's public address isn't known yet"
 
 msgid "your domain"
 msgstr "your domain"
@@ -6091,6 +6097,10 @@ msgstr "{n, plural, one {Update # selected} other {Update # selected}}"
 
 msgid "{name} stays planned, on Activity"
 msgstr "{name} stays planned, on Activity"
+
+#. placeholder {0}: p.port
+msgid "{0} · web page"
+msgstr "{0} · web page"
 
 msgid "Also delete the project {label}"
 msgstr "Also delete the project {label}"

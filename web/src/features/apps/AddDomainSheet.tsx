@@ -37,9 +37,10 @@ import { type FleetState, useFleet } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "../websites/Companion";
 import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
+import { appPortsOf, knownFor, usePortLabel } from "./appPorts";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
-import { DomainName, NameState, WayIn } from "./DomainStep";
+import { DomainName, NameState, StateLine, WayIn } from "./DomainStep";
 import {
   formRefusal,
   freshRouteName,
@@ -254,17 +255,14 @@ export function AddDomainSheet({
   const landOnApp = () => {
     if (service) void navigate({ to: "/apps/$serviceId", params: { serviceId: service.id } });
   };
-  // The ports the app listens on, its own, to pick from; any other is typed.
-  // The port that serves its pages comes first, whether or not it's published.
-  const listens = onServer
-    ? []
-    : [
-        ...new Set(
-          [service?.webPort ?? 0, ...(service ? (appOf(service)?.ports ?? []) : []).map((p) => p.containerPort)].filter(
-            (p) => p > 0,
-          ),
-        ),
-      ];
+  // The ports the app listens on, its own, to pick from, each labelled; any other is
+  // typed. The port that serves its pages comes first, whether or not it's published.
+  const appPorts = onServer ? [] : appPortsOf(service);
+  const listens = appPorts.map((p) => p.port);
+  const portLabel = usePortLabel();
+  // A port known for something else, such as SSH's 22, reaches no web page (#791).
+  const portElsewhere = !onServer && validPort(port) ? knownFor(Number(port)) : "";
+  const webPort = appPorts.find((p) => p.web)?.port;
   const [typingPort, setTypingPort] = useState(false);
   const [portOpen, setPortOpen] = useState(false);
   const picksPort = listens.length > 0 && !typingPort && (port === "" || listens.includes(Number(port)));
@@ -889,7 +887,7 @@ export function AddDomainSheet({
             value={port}
             error={portError}
             options={[
-              ...listens.map((p) => ({ value: String(p), label: String(p) })),
+              ...appPorts.map((p) => ({ value: String(p.port), label: portLabel(p) })),
               { value: "other", label: t({ message: "Another port", context: "a port typed in" }) },
             ]}
             onChange={(event) => {
@@ -920,6 +918,28 @@ export function AddDomainSheet({
             }}
           />
         )}
+        {!redirecting && portElsewhere && portError === undefined ? (
+          <StateLine
+            status="degraded"
+            action={
+              webPort !== undefined && webPort !== Number(port) ? (
+                <button
+                  type="button"
+                  className="domain-step-act"
+                  onClick={() => {
+                    portTyped.current = true;
+                    setTypingPort(false);
+                    setPort(String(webPort));
+                  }}
+                >
+                  {t`Use ${webPort}`}
+                </button>
+              ) : undefined
+            }
+          >
+            {t`Port ${port} is ${portElsewhere}'s, which serves no web page`}
+          </StateLine>
+        ) : null}
         {servers.length > 1 ? (
           <SelectField
             label={t`Server`}

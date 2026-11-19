@@ -48,7 +48,7 @@ import {
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -1666,7 +1666,15 @@ describe("an app's overview", () => {
         within(port)
           .getAllByRole("option")
           .map((o) => o.textContent),
-      ).toEqual(["3000", "22", "Another port"]);
+      ).toEqual(["3000 · web page", "22 · SSH", "Another port"]);
+      // SSH's port is picked by mistake: it says so, with the web page's one a click away.
+      await user.selectOptions(port, "22");
+      const elsewhere = within(sheet).getByText(/Port 22 is SSH's, which serves no web page/);
+      await user.click(
+        within(elsewhere.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Use 3000" }),
+      );
+      expect(port).toHaveValue("3000");
+      expect(sheet).not.toHaveTextContent("serves no web page");
       await user.type(within(sheet).getByLabelText("Domain"), "git.example.com");
       await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
       await screen.findByRole("dialog", { name: "Review plan" });
@@ -1696,7 +1704,7 @@ describe("an app's overview", () => {
         within(port)
           .getAllByRole("option")
           .map((o) => o.textContent),
-      ).toEqual(["9090", "8080", "Another port"]);
+      ).toEqual(["9090 · web page", "8080", "Another port"]);
     });
 
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {
@@ -2822,9 +2830,46 @@ describe("an app's overview", () => {
         const tunnel = within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" });
         expect(tunnel).toHaveAttribute("href", "/catalog/cloudflared");
         expect(sheet).toHaveTextContent("a tunnel reaches it with nothing forwarded");
-        expect(sheet).toHaveTextContent("Or forward ports 80 and 443 on your router");
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
         expect(sheet.querySelector(".dw-dns-row")).toHaveTextContent("203.0.113.7");
-        expect(sheet).toHaveTextContent("Your router's address");
+        expect(sheet).toHaveTextContent("Or make this record for your router's address");
+      });
+
+      it("says to forward ports at home only while the check fails (#791)", async () => {
+        const home = {
+          ipv4: { address: "203.0.113.7", source: PublicAddressSource.LOOKED_UP, unproven: true },
+          shape: NetworkShape.LOCAL_NAT,
+        };
+        const { sheet } = await open(home, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.POINTS_HERE,
+          found: ["203.0.113.7"],
+        }));
+        expect(await within(sheet).findByText("Points here")).toBeVisible();
+        expect(sheet).not.toHaveTextContent("forwarded on your router");
+        cleanup();
+        // DNS leads to the router, but a certificate showed the internet can't reach the server.
+        const blocked = await open({ ...home, reachable: Reachable.NO }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.POINTS_HERE,
+          found: ["203.0.113.7"],
+        }));
+        expect(await within(blocked.sheet).findByText("Points here")).toBeVisible();
+        expect(blocked.sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
+      });
+
+      it("at home with no address known, takes the router's from the check", async () => {
+        const { sheet } = await open({ shape: NetworkShape.LOCAL_NAT }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          publicAddresses: ["203.0.113.9"],
+          unprovenAddresses: ["203.0.113.9"],
+          here: ["192.168.1.20"],
+        }));
+        await waitFor(() =>
+          expect(sheet.querySelector(".dw-dns-row")).toHaveTextContent("Aapp.example.com203.0.113.9"),
+        );
+        expect(sheet).not.toHaveTextContent("isn't known yet");
       });
 
       it("shows a way out on a cloud as a record to check, and each family's record", async () => {
@@ -2897,9 +2942,7 @@ describe("an app's overview", () => {
         );
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
         expect(sheet).toHaveTextContent("Or make this record for its own IPv6 address");
-        expect(sheet).toHaveTextContent(
-          "Or forward ports 80 and 443 on your router to this server, at 192.168.1.20, and make this record.",
-        );
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to 192.168.1.20");
         const rows = sheet.querySelectorAll(".dw-dns-row");
         expect(rows[0]).toHaveTextContent("AAAAapp.example.com2001:db8::5");
         expect(rows[1]).toHaveTextContent("Aapp.example.com203.0.113.7");
@@ -2916,11 +2959,37 @@ describe("an app's overview", () => {
         expect(sheet.querySelector(".dw-dns-row")).toBeNull();
       });
 
+      it("shows the record at the address the check found, where the server's network knows none (#791)", async () => {
+        const { user, sheet } = await open({ shape: NetworkShape.INTERNET }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          publicAddresses: ["203.0.113.60"],
+          here: ["10.0.0.25", "2001:db8::60"],
+        }));
+        await waitFor(() => expect(sheet.querySelectorAll(".dw-dns-row")).toHaveLength(2));
+        const rows = sheet.querySelectorAll(".dw-dns-row");
+        expect(rows[0]).toHaveTextContent("Aapp.example.com203.0.113.60");
+        // A public address on an interface, of a family nothing else names, is the other record.
+        expect(rows[1]).toHaveTextContent("AAAAapp.example.com2001:db8::60");
+        expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.60" })).toBeVisible();
+        expect(within(sheet).getAllByText("Not set yet")).toHaveLength(2);
+        expect(sheet).not.toHaveTextContent("isn't known yet");
+        await user.click(within(sheet).getAllByRole("button", { name: "Check again" })[0] as HTMLElement);
+      });
+
+      it("says DNS couldn't be read, with Check again, rather than nothing (#791)", async () => {
+        const { sheet } = await open(cloud, () => {
+          throw new ConnectError("agent offline", Code.Unavailable);
+        });
+        expect(await within(sheet).findByText("Can't read DNS", {}, { timeout: 4000 })).toBeVisible();
+        expect(within(sheet).getByRole("button", { name: "Check again" })).toBeVisible();
+      });
+
       it("says where the address is with none known, and offers a tunnel once the form's switch says so", async () => {
         const { user, sheet } = await open({ provider: CloudProvider.ORACLE, shape: NetworkShape.CLOUD_NAT }, () => ({
           domain: "app.example.com",
         }));
-        expect(sheet).toHaveTextContent("which Oracle Cloud's console shows");
+        expect(await within(sheet).findByText(/isn't known yet. Oracle Cloud's console shows it/)).toBeVisible();
         expect(within(sheet).getByRole("link", { name: "Set it on the server" })).toHaveAttribute(
           "href",
           expect.stringMatching(/\/servers\/.*#network$/),
