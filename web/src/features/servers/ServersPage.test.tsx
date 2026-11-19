@@ -468,8 +468,13 @@ describe("Servers", () => {
           codes = true,
           signOutFails = false,
           method = SignInMethod.AUTHENTICATOR_CODE,
+          locked = false,
+          recoveryCodesLeft = 0,
+          renewalsFail = 0,
+          startedAgo = undefined as number | undefined,
         } = {},
       ) {
+        let renewalFailures = 0;
         let added = false;
         let signedIn = true;
         let ceremonies = 0;
@@ -486,7 +491,22 @@ describe("Servers", () => {
                     }
                   : { user: undefined, rpId: "panel.example.com" },
               ),
-            getTotp: () => ({ totp: { enabled: codes, recoveryCodesLeft: 0 } }),
+            getTotp: () => ({
+              totp: {
+                enabled: codes,
+                recoveryCodesLeft,
+                ...(locked ? { lockTime: timestampFromDate(new Date(Date.now() - 60_000)) } : {}),
+              },
+            }),
+            // This session, which began startedAgo, as the control plane says it; none said where it's unset.
+            listSessions: () => {
+              if (startedAgo === undefined) throw authError(Code.Unavailable, "unavailable");
+              return {
+                sessions: [
+                  { id: "ses_1", current: true, createTime: timestampFromDate(new Date(Date.now() - startedAgo)) },
+                ],
+              };
+            },
             beginStepUp: () => {
               calls.push("beginStepUp");
               if (!added) {
@@ -502,6 +522,10 @@ describe("Servers", () => {
             beginAddPasskey: (req: { proof: string }) => {
               calls.push(`beginAddPasskey ${req.proof || "with no proof"}`);
               if (!fresh) throw authError(Code.FailedPrecondition, "needs_fresh_sign_in");
+              if (ceremonies > 0 && renewalFailures < renewalsFail) {
+                renewalFailures++;
+                throw authError(Code.Unavailable, "unavailable");
+              }
               ceremonies++;
               return { ceremonyId: `cer_${ceremonies}`, optionsJson: creationOptions };
             },
@@ -656,6 +680,65 @@ describe("Servers", () => {
         expect(calls.filter((c) => c.startsWith("finishAddPasskey"))).toEqual(["finishAddPasskey cer_2"]);
       });
 
+      it("offers to sign in again once the 10 minutes end, as the control plane counts them from this session's start (#869's re-check, N2)", async () => {
+        stubPasskeys();
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { startedAgo: 9 * 60_000 + 30_000 }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        // A moment before the 10 minutes end, it's still the offer to add one.
+        await act(async () => vi.advanceTimersByTime(28_000));
+        expect(within(offer).getByRole("button", { name: "Add a passkey for this address" })).toBeVisible();
+        // As they end, the offer to sign in again, with no ceremony begun past them.
+        await act(async () => vi.advanceTimersByTime(3_000));
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeVisible();
+        expect(within(offer).queryByRole("button", { name: "Add a passkey for this address" })).toBeNull();
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+        expect(calls.filter((c) => c.startsWith("beginAddPasskey"))).toHaveLength(1);
+      });
+
+      it("tries a renewal that failed again shortly, and a re-render starts none of its own (#869's re-check, N3)", async () => {
+        // The browser's prompt is closed each time, so each click only re-renders the offer.
+        stubPasskeys({ create: "NotAllowedError" });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { renewalsFail: 1 }),
+          servers: api.servers,
+        });
+        const asks = () => calls.filter((c) => c.startsWith("beginAddPasskey")).length;
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        // At 4 minutes the renewal fails.
+        await act(async () => vi.advanceTimersByTime(4 * 60_000 + 1_000));
+        await waitFor(() => expect(asks()).toBe(2));
+        // Re-renders before the next try start no renewal.
+        for (let i = 0; i < 3; i++) {
+          await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        }
+        expect(asks()).toBe(2);
+        // A re-render partway through the wait doesn't put the next try off either: 15 s after the failure, it's tried again, and works.
+        await act(async () => vi.advanceTimersByTime(10_000));
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        expect(asks()).toBe(2);
+        await act(async () => vi.advanceTimersByTime(6_000));
+        await waitFor(() => expect(asks()).toBe(3));
+        await act(async () => vi.advanceTimersByTime(60_000));
+        expect(asks()).toBe(3);
+      });
+
       for (const [who, method] of [
         ["a sign-in provider", SignInMethod.PROVIDER],
         ["a link from dockwell recover", SignInMethod.LINK],
@@ -684,6 +767,39 @@ describe("Servers", () => {
           expect(await screen.findByRole("dialog", { name: "Add a server" })).toBeVisible();
         });
       }
+
+      it("gives someone whose authenticator is locked, with no recovery codes left, their recover command (#869's re-check, N1)", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, locked: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(await within(offer).findByText("sudo dockwell recover --user mira@acme.dev")).toBeVisible();
+        expect(within(offer).queryByRole("button", { name: "Sign in again with your code" })).toBeNull();
+      });
+
+      it("offers the code to someone whose authenticator is locked, while recovery codes are left", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, locked: true, recoveryCodesLeft: 3 }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeEnabled();
+      });
 
       it("offers a provider's session the code where code sign-in is on for them", async () => {
         stubPasskeys();

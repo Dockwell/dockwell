@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService } from "@dockwell/api";
@@ -10,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { reasonOf } from "../../lib/errors";
 import { createPasskey, PasskeyError, passkeysAvailable } from "../../lib/webauthn";
+import { useControlPlaneClock } from "../servers/useFleet";
 import { CopyCommand } from "../system/CopyCommand";
 import { useDeviceName } from "./device";
 import { useAuthError } from "./messages";
@@ -20,6 +22,12 @@ import "./PasskeyHerePrompt.css";
 
 /** How long a ceremony the control plane began stays good, less a margin: 5 minutes on its side. */
 const CEREMONY_GOOD_MS = 4 * 60_000;
+
+/** How long after a sign-in by code or link adding a passkey takes no step-up (ADR 0011's RecentSignIn). */
+const RECENT_SIGN_IN_MS = 10 * 60_000;
+
+/** How long a renewal that failed waits before the next try, doubling up to the last (#869's re-check, N3). */
+const RENEW_AGAIN_MS = [15_000, 30_000, 60_000];
 
 /**
  * What every screen offers where a step-up was refused for want of a passkey for
@@ -36,7 +44,9 @@ const CEREMONY_GOOD_MS = 4 * 60_000;
  * The ceremony the button uses is begun before the click, so the browser's prompt
  * opens straight from it, as Safari wants. It's begun again before it ends, and at
  * once after a save the control plane refused, as a ceremony works once (#869's
- * review, M1).
+ * review, M1); one that fails is tried again shortly. The offer to add one lasts
+ * as long as the 10 minutes do, from the start of this session as the control
+ * plane says it, then becomes the offer to sign in again (#869's re-check, N2).
  */
 export function PasskeyHerePrompt() {
   const { t } = useLingui();
@@ -48,8 +58,14 @@ export function PasskeyHerePrompt() {
   const [shown, setShown] = useState<PasskeyHere>();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
+  const [renewFailures, setRenewFailures] = useState(0);
   const settle = useRef<(added: boolean) => void>(undefined);
   const again = useSignInAgain(shown?.state === "sign-in-again");
+  // When the 10 minutes end, from this session's start on the control plane's clock.
+  const clock = useControlPlaneClock();
+  const sessions = useQuery(AuthService.method.listSessions, {}, { enabled: shown?.state === "add", retry: false });
+  const started = sessions.data?.sessions.find((x) => x.current)?.createTime;
+  const windowEnds = started ? timestampMs(started) + RECENT_SIGN_IN_MS : undefined;
   // Where their passkeys do work, read only while it's shown.
   const passkeys = useQuery(AuthService.method.listPasskeys, {}, { enabled: shown !== undefined });
 
@@ -70,23 +86,42 @@ export function PasskeyHerePrompt() {
     };
   }, []);
 
-  /** Begins the ceremony again, for an offer still showing one: the next click opens the browser's prompt with it. */
+  /**
+   * Begins the ceremony again, for an offer still showing one: the next click opens the
+   * browser's prompt with it. One that fails is counted, which arms the next try.
+   */
   const renew = () =>
     void askPasskeyHere(transport)
-      .then((next) => setShown((now) => (now?.state === "add" ? next : now)))
-      .catch(() => {});
+      .then((next) => {
+        setRenewFailures(0);
+        setShown((now) => (now?.state === "add" ? next : now));
+      })
+      .catch(() => setRenewFailures((n) => n + 1));
+  const renewing = useRef(renew);
+  renewing.current = renew;
 
-  // Before the ceremony ends on the control plane's side, a new one.
+  // Before the ceremony ends on the control plane's side, a new one; once the 10 minutes
+  // end, the offer to sign in again. Armed only as the ceremony, the window or a failed
+  // renewal changes, so a re-render never starts a second one (#869's re-check, N3).
   useEffect(() => {
     if (shown?.state !== "add") return;
-    const timer = setTimeout(renew, Math.max(0, CEREMONY_GOOD_MS - (Date.now() - shown.at)));
+    const renewIn =
+      renewFailures > 0
+        ? (RENEW_AGAIN_MS[Math.min(renewFailures, RENEW_AGAIN_MS.length) - 1] ?? 60_000)
+        : Math.max(0, CEREMONY_GOOD_MS - (Date.now() - shown.at));
+    const endsIn = windowEnds === undefined ? Number.POSITIVE_INFINITY : Math.max(0, windowEnds - clock());
+    const timer =
+      endsIn <= renewIn
+        ? setTimeout(() => setShown((now) => (now?.state === "add" ? { state: "sign-in-again" } : now)), endsIn)
+        : setTimeout(() => renewing.current(), renewIn);
     return () => clearTimeout(timer);
-  });
+  }, [shown, windowEnds, renewFailures, clock]);
 
   const done = (added: boolean) => {
     settle.current?.(added);
     settle.current = undefined;
     setShown(undefined);
+    setRenewFailures(0);
   };
 
   const add = async () => {

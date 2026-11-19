@@ -23,10 +23,11 @@ export function useSignInAgain(asking: boolean) {
   const signOut = useSignOut();
   const totp = useQuery(AuthService.method.getTotp, {}, { enabled: asking, retry: false });
   const state = totp.data?.totp;
+  // An authenticator locked after too many wrong codes signs no one in; recovery codes still do (#869's re-check, N1).
   const codes = totp.isError
     ? false
     : totp.data
-      ? state?.enabled === true || (state?.recoveryCodesLeft ?? 0) > 0
+      ? (state?.enabled === true && state.lockTime === undefined) || (state?.recoveryCodesLeft ?? 0) > 0
       : undefined;
   /** Signs out to sign in again with the code. A sign-out that fails leaves nothing behind for the sign-in screen. */
   const run = async (): Promise<boolean> => {
