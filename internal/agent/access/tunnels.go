@@ -21,12 +21,13 @@ var wg = hosttool.Tool{Name: "wg", Paths: []string{"/usr/bin/wg", "/usr/sbin/wg"
 // on where wg can say. net is /sys/class/net, or a stand-in. SSH over such a
 // tunnel passes the confirmation's test while the tunnel's flow is tracked,
 // and stops at its next handshake if deny everything else drops its port, so
-// the plan names each one no rule allows (ADR 0052).
-func WireGuardTunnels(net fs.FS, tools *hosttool.Runner) func(ctx context.Context) []Tunnel {
-	return func(ctx context.Context) []Tunnel {
+// the plan names each one no rule allows (ADR 0052). A net it can't read is an
+// error, as no tunnels found then says nothing (#850's re-check, N2).
+func WireGuardTunnels(net fs.FS, tools *hosttool.Runner) func(ctx context.Context) ([]Tunnel, error) {
+	return func(ctx context.Context) ([]Tunnel, error) {
 		entries, err := fs.ReadDir(net, ".")
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		var out []Tunnel
 		for _, e := range entries {
@@ -44,6 +45,6 @@ func WireGuardTunnels(net fs.FS, tools *hosttool.Runner) func(ctx context.Contex
 			}
 			out = append(out, t)
 		}
-		return out
+		return out, nil
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -1023,6 +1024,14 @@ func ViaIngress(next http.Handler) http.Handler {
 // holds it. Anything else, and anything already marked, goes to next as it came.
 // An empty domain marks nothing.
 func ViaProxy(domain string, next http.Handler) http.Handler {
+	return ViaProxySeen(domain, nil, next)
+}
+
+// ViaProxySeen is ViaProxy that also tells seen the port of each request it
+// marks, as its Host names it, or 443 where it names none: the port the proxy
+// takes the panel's public address on, a way into the server (#850's
+// re-check, N1). Nil tells nothing.
+func ViaProxySeen(domain string, seen func(port uint16), next http.Handler) http.Handler {
 	if domain == "" {
 		return next
 	}
@@ -1030,6 +1039,9 @@ func ViaProxy(domain string, next http.Handler) http.Handler {
 		if r.TLS != nil || !proxied(r, domain) {
 			next.ServeHTTP(w, r)
 			return
+		}
+		if seen != nil {
+			seen(hostPort(r.Host))
 		}
 		if r.Header.Get("Early-Data") != "" {
 			w.WriteHeader(http.StatusTooEarly)
@@ -1040,6 +1052,16 @@ func ViaProxy(domain string, next http.Handler) http.Handler {
 		via.RemoteAddr = net.JoinHostPort(forwardedClient(r), "0")
 		next.ServeHTTP(w, &via)
 	})
+}
+
+// hostPort is the port a Host names, or https's 443 where it names none.
+func hostPort(host string) uint16 {
+	if _, port, err := net.SplitHostPort(host); err == nil {
+		if n, err := strconv.ParseUint(port, 10, 16); err == nil && n > 0 {
+			return uint16(n)
+		}
+	}
+	return 443
 }
 
 // proxied reports a request a proxy on this server sent for domain over HTTPS.

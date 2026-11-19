@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/cli/apicli"
 	"github.com/dockwell/dockwell/internal/control"
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
@@ -566,5 +567,46 @@ func TestOwnPortsAreEveryListener(t *testing.T) {
 	got = ownPorts(control.Listeners{API: api, Agents: agents}, runFlags{domain: "panel.example.com", httpsListen: ":8443", httpListen: "127.0.0.1:8080"})
 	if want := []int{port(api), port(agents), 8443, 8080}; !slices.Equal(got, want) {
 		t.Errorf("handed over, got %v, want %v", got, want)
+	}
+}
+
+// The ports in front of the control plane are ways in for the firewall's plan:
+// behind a proxy, https's 443 and each port the proxy's requests name; and the
+// port of the address agents are given, whatever it is. Plain http's 80 isn't
+// one, as nothing serves it behind a proxy (#850's review, H1, and its
+// re-check, N1).
+func TestThePortsInFrontOfTheControlPlaneAreWaysIn(t *testing.T) {
+	behind := runFlags{domain: "panel.example.com", behindProxy: true}
+	p := newFrontPorts(behind, "https://203.0.113.7:7443")
+	if got := p.list(); !slices.Equal(got, []uint16{443, 7443}) {
+		t.Errorf("behind a proxy, agents given 7443: %v, want 443 and 7443", got)
+	}
+	p.add(8443)
+	p.add(8443)
+	if got := p.list(); !slices.Equal(got, []uint16{443, 7443, 8443}) {
+		t.Errorf("once a request names 8443: %v", got)
+	}
+	if got := newFrontPorts(runFlags{domain: "panel.example.com"}, "https://agents.example.com").list(); !slices.Equal(got, []uint16{443}) {
+		t.Errorf("no proxy, agents given https on its default port: %v, want 443", got)
+	}
+	if got := newFrontPorts(runFlags{}, "https://203.0.113.7:7443").list(); !slices.Equal(got, []uint16{7443}) {
+		t.Errorf("no domain: %v, want the agents' 7443 alone", got)
+	}
+}
+
+// The CLI knows, before it asks, the kinds whose plans take a person's passkey,
+// as the control plane does (#850's review, L2).
+func TestTheCLIKnowsWhatTakesAPerson(t *testing.T) {
+	kinds := controlKinds("", func() string { return "" })
+	var want []string
+	for _, k := range kinds.Kinds() {
+		if typ, err := kinds.Type(k); err == nil && resource.TakesAPerson(typ) {
+			want = append(want, string(k))
+		}
+	}
+	slices.Sort(want)
+	got := slices.Sorted(slices.Values(apicli.AccessKinds))
+	if !slices.Equal(got, want) {
+		t.Errorf("the CLI's kinds that take a person are %v, want %v", got, want)
 	}
 }

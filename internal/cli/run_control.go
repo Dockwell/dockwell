@@ -279,6 +279,9 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		closeAll()
 		return err
 	}
+	// The ports in front of the panel and the agent listener, which the agent's
+	// firewall counts as ways in (#850's re-check, N1).
+	front := newFrontPorts(f, agentURL)
 	logger.Info("other servers join through the agent listener",
 		slog.String("url", agentURL), slog.String("install", authority.InstallID()), slog.String("ca_pin", authority.CA().Pin()))
 	following := f.advertise == "" && listensEverywhere(ls.Agents.Addr())
@@ -470,7 +473,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 			From: domainFrom, Problem: domainProblem, Certified: certified,
 			Resolve: resolverFor(stdio.Getenv), PortsHeld: portsHeld(stdio.Getenv), Restart: restart,
 			Saved:       func(d string) { saved.Store(d) },
-			BehindProxy: behindProxyDomain(f), ReachClient: reachClient(stdio.Getenv), ReachInside: reachInside(stdio.Getenv),
+			BehindProxy: behindProxyDomain(f), ProxiedPort: front.add, ReachClient: reachClient(stdio.Getenv), ReachInside: reachInside(stdio.Getenv),
 		},
 		AgentListen:    ls.Agents.Addr().String(),
 		PublicAddress:  addr.dnsAddress(),
@@ -537,7 +540,7 @@ func runControl(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logg
 		}
 	}
 	wg.Go(func() {
-		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f))
+		agentErr = runAgent(agentCtx, stdio, g, logger, dir, own, build, panel, ownPorts(ls, f), front.list)
 		cancel()
 	})
 	// A test asks no CA beyond the machine: only one it was given.
@@ -578,6 +581,56 @@ func ownPorts(ls control.Listeners, f runFlags) []int {
 		}
 	}
 	return out
+}
+
+// frontPorts are the ports someone reaches the control plane by through what
+// stands in front of it, ways into the server for the firewall's plan, though
+// not the control plane's own, so no rule of them is refused (#850's review,
+// H1, and its re-check, N1):
+//   - behind a proxy, the port the panel's public address names, as each
+//     request the proxy sends says (ViaProxySeen), and https's 443 until one
+//     names another. Plain http isn't served behind one, so 80 isn't a way in;
+//   - the port of the address agents are given, agentURL, whatever stands in
+//     front of the agent listener there.
+//
+// A tunnel holds none of them, and the warning they bring is then only careful.
+type frontPorts struct {
+	mu    sync.Mutex
+	ports []uint16
+}
+
+// newFrontPorts are the ports f and agentURL say from the start.
+func newFrontPorts(f runFlags, agentURL string) *frontPorts {
+	p := &frontPorts{}
+	if f.domain != "" && f.behindProxy {
+		p.add(443)
+	}
+	if u, err := url.Parse(agentURL); err == nil && u.Host != "" {
+		p.add(hostPortOf(u))
+	}
+	return p
+}
+
+// hostPortOf is the port an https URL names, or 443.
+func hostPortOf(u *url.URL) uint16 {
+	if n, err := strconv.ParseUint(u.Port(), 10, 16); err == nil && n > 0 {
+		return uint16(n)
+	}
+	return 443
+}
+
+func (p *frontPorts) add(port uint16) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !slices.Contains(p.ports, port) {
+		p.ports = append(p.ports, port)
+	}
+}
+
+func (p *frontPorts) list() []uint16 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return slices.Clone(p.ports)
 }
 
 // onPublicPorts reports a panel on ports 80 or 443, which only one process can

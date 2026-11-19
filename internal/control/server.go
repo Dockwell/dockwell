@@ -949,7 +949,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	// or a proxy that ends TLS, what it sends for the panel's domain reads as the
 	// HTTPS it came over, and a check of the way in is answered whatever its host
 	// (ADR 0063's amendment).
-	return serve.Recover(cfg.Logger, reach.Serve(authapi.ViaProxy(cfg.PanelDomain.BehindProxy,
+	return serve.Recover(cfg.Logger, reach.Serve(authapi.ViaProxySeen(cfg.PanelDomain.BehindProxy, cfg.PanelDomain.ProxiedPort,
 		opener.Dispatch(appOpener, authapi.Guard(sites, cfg.Logger, mux))))), nil
 }
 
@@ -1350,6 +1350,10 @@ type PanelDomain struct {
 	// serves it, in Public's place: requests for it come to the loopback listener
 	// from the proxy on this server (ADR 0063's amendment).
 	BehindProxy string
+	// ProxiedPort hears the port of each request the proxy sends for BehindProxy,
+	// as its Host names it, or 443: the firewall's plan counts it a way in
+	// (#850's re-check, N1). Nil hears none.
+	ProxiedPort func(port uint16)
 	// ReachClient asks a domain behind a tunnel or proxy for the token its check
 	// makes. Nil takes settings.ReachClient, guarded as what a person names is.
 	ReachClient settings.Doer

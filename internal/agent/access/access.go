@@ -73,9 +73,16 @@ type Manager struct {
 	// Pins says what keeps the server reachable beyond the table's own: SSH from
 	// where people come in now, and the control plane's ports on its server.
 	Pins func(ctx context.Context) (Pins, error)
+	// Proxied says the ports someone reaches the control plane by through what
+	// stands in front of it: the port the panel's public address names behind a
+	// proxy, as requests through it say, and the port of the address agents are
+	// given. Ways in for WaysIn, though not the control plane's own, so no rule of
+	// them is refused (#850's review, H1, and its re-check, N1). Nil says none.
+	Proxied func() []uint16
 	// Tunnels lists the server's WireGuard tunnels, for a plan that turns deny
-	// everything else on to say which the policy would drop. Nil lists none.
-	Tunnels func(ctx context.Context) []Tunnel
+	// everything else on to say which the policy would drop, and as ways in over
+	// UDP. Nil lists none; an error is tunnels that can't be read.
+	Tunnels func(ctx context.Context) ([]Tunnel, error)
 	// DeadMan is the revert that fires without the agent, armed before a change's
 	// table loads and disarmed once it's kept or put back. Nil arms none.
 	DeadMan DeadMan
@@ -1160,8 +1167,8 @@ func isDeny(r *resourcev1.FirewallRule) bool {
 // CheckRule refuses, when it's planned, a change to a rule that leaves the
 // server unsafe to reach, as check judges the state it leaves: actual is the
 // rule now, nil for a new one, and desired what it becomes, nil to delete it.
-func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
-	return m.checkPlan(func(s *state) {
+func (m *Manager) CheckRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) error {
+	return m.checkPlan(ctx, func(s *state) {
 		if actual != nil {
 			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
 				if proto.Equal(s.Rules[name], actual) {
@@ -1176,6 +1183,103 @@ func (m *Manager) CheckRule(actual, desired *resourcev1.FirewallRule) error {
 	})
 }
 
+// WaysIn are the ways into the server, for the firewall's plan to warn only of
+// a rule that may close one (#850):
+//   - over TCP, every port sshd itself listens on now, or systemd holds for it,
+//     or Dockwell keeps pinned for it, and on the control server the control
+//     plane's own and what Proxied says. Unknown where SSH's ports can't be read,
+//     or are only what sshd -T names, as something other than sshd holds them;
+//   - over UDP, every port bound beyond loopback, as an OpenVPN's or a userspace
+//     WireGuard's is, and kernel WireGuard's tunnels'. Unknown where those can't
+//     be read, or a tunnel's port can't.
+func (m *Manager) WaysIn(ctx context.Context) firewall.Ways {
+	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
+	defer cancel()
+	read := m.plannedHost(ctx)
+	pins := read.host.pins
+	var ways firewall.Ways
+	if m.Pins != nil && read.host.pinsErr == nil && len(pins.SSHPorts) > 0 && !pins.SSHByConfig {
+		m.mu.Lock()
+		kept := slices.Clone(m.confirmed.Pinned.SSHPorts)
+		m.mu.Unlock()
+		var proxied []uint16
+		if m.Proxied != nil {
+			proxied = m.Proxied()
+		}
+		for _, p := range slices.Concat(pins.SSHPorts, kept, pins.Own, proxied) {
+			ways.TCP = appendNew(ways.TCP, p)
+		}
+		ways.TCPKnown = true
+	}
+	if m.Pins != nil && read.host.pinsErr == nil && pins.UDPRead && read.tunnelsRead {
+		ways.UDPKnown = true
+		for _, p := range pins.UDPPorts {
+			ways.UDP = appendNew(ways.UDP, p)
+		}
+		for _, t := range read.tunnels {
+			if t.Port == 0 {
+				ways.UDP, ways.UDPKnown = nil, false
+				break
+			}
+			ways.UDP = appendNew(ways.UDP, t.Port)
+		}
+	}
+	return ways
+}
+
+// planKey is the context key of a plan's shared read.
+type planKey struct{}
+
+// planShare is one plan's read of the server, made by the first check that
+// needs it.
+type planShare struct {
+	mu   sync.Mutex
+	read *plannedRead
+}
+
+// Planning gives a plan's context one read of the server, which every check
+// of it shares: a change's rules are planned one after another, each checked
+// three ways, and each read scans every process's sockets (#850's review,
+// L3). Each plan call has its own, so none outlives it or is shared with
+// another (#850's re-check, N4); a check with no plan's context reads anew.
+func (m *Manager) Planning(ctx context.Context) context.Context {
+	return context.WithValue(ctx, planKey{}, &planShare{})
+}
+
+// plannedRead is a read of the server for plans: the pins, Docker's networks,
+// and the tunnels.
+type plannedRead struct {
+	host        hostNow
+	tunnels     []Tunnel
+	tunnelsRead bool
+}
+
+// plannedHost reads the server for a plan, or gives the read its plan's
+// context already holds. A change applied is judged on a read of its own.
+func (m *Manager) plannedHost(ctx context.Context) plannedRead {
+	share, _ := ctx.Value(planKey{}).(*planShare)
+	if share == nil {
+		return m.readPlanned(ctx)
+	}
+	share.mu.Lock()
+	defer share.mu.Unlock()
+	if share.read == nil {
+		read := m.readPlanned(ctx)
+		share.read = &read
+	}
+	return *share.read
+}
+
+// readPlanned reads what a plan's checks need.
+func (m *Manager) readPlanned(ctx context.Context) plannedRead {
+	read := plannedRead{host: m.readHost(ctx)}
+	if m.Tunnels != nil {
+		tunnels, err := m.Tunnels(ctx)
+		read.tunnels, read.tunnelsRead = tunnels, err == nil
+	}
+	return read
+}
+
 // Tunnel is a WireGuard tunnel on the server.
 type Tunnel struct {
 	Name string
@@ -1185,8 +1289,8 @@ type Tunnel struct {
 
 // StaysAfterRule says who still reaches SSH once a planned edit to a rule is
 // kept, or nil when it leaves SSH open to anywhere.
-func (m *Manager) StaysAfterRule(actual, desired *resourcev1.FirewallRule) *resource.AccessStays {
-	return m.stays(func(s *state) {
+func (m *Manager) StaysAfterRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) *resource.AccessStays {
+	return m.stays(ctx, func(s *state) {
 		if actual != nil {
 			for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
 				if proto.Equal(s.Rules[name], actual) {
@@ -1202,8 +1306,8 @@ func (m *Manager) StaysAfterRule(actual, desired *resourcev1.FirewallRule) *reso
 }
 
 // StaysAfterPolicy says who still reaches SSH once a planned policy is kept.
-func (m *Manager) StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource.AccessStays {
-	return m.stays(func(s *state) { s.Policy = desired }, desired.GetDenyEverythingElse())
+func (m *Manager) StaysAfterPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) *resource.AccessStays {
+	return m.stays(ctx, func(s *state) { s.Policy = desired }, desired.GetDenyEverythingElse())
 }
 
 // stays judges what was confirmed, as one planned edit leaves it, as the
@@ -1213,10 +1317,11 @@ func (m *Manager) StaysAfterPolicy(desired *resourcev1.FirewallPolicy) *resource
 // ports on the control server. Nil when there's nothing of it to say. What it
 // can't read, it leaves out: the plan-time check has refused by then what
 // can't be judged.
-func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *resource.AccessStays {
+	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
 	defer cancel()
-	h := m.readHost(ctx)
+	read := m.plannedHost(ctx)
+	h := read.host
 	if h.pinsErr != nil {
 		return nil
 	}
@@ -1252,13 +1357,13 @@ func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 	}
 	// A tunnel the policy drops: as it's turned on, each whose port no rule
 	// allows; under it already, one whose allow this edit takes away.
-	if m.Tunnels != nil && next.Policy.GetDenyEverythingElse() {
+	if read.tunnelsRead && next.Policy.GetDenyEverythingElse() {
 		allowedIn := func(s state, port uint16) bool {
 			return port != 0 && slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
 				return !isDeny(r) && protocolOf(r) == "udp" && portOf(r) == port
 			})
 		}
-		for _, t := range m.Tunnels(ctx) {
+		for _, t := range read.tunnels {
 			switch {
 			case allowedIn(next, t.Port) || (!turnsOn && !allowedIn(before, t.Port)):
 			case t.Port == 0:
@@ -1276,17 +1381,17 @@ func (m *Manager) stays(fn func(*state), turnsOn bool) *resource.AccessStays {
 
 // CheckPolicy refuses, when it's planned, a policy that leaves the server
 // unsafe to reach, as check judges the state it leaves; nil removes it.
-func (m *Manager) CheckPolicy(desired *resourcev1.FirewallPolicy) error {
-	return m.checkPlan(func(s *state) { s.Policy = desired })
+func (m *Manager) CheckPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) error {
+	return m.checkPlan(ctx, func(s *state) { s.Policy = desired })
 }
 
 // checkPlan judges what was confirmed, as one planned edit leaves it, as the
 // server is now. The step checks again as it applies, over all the change's
 // edits so far, as the server is then.
-func (m *Manager) checkPlan(fn func(*state)) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*readWait)
+func (m *Manager) checkPlan(ctx context.Context, fn func(*state)) error {
+	ctx, cancel := context.WithTimeout(ctx, 2*readWait)
 	defer cancel()
-	h := m.readHost(ctx)
+	h := m.plannedHost(ctx).host
 	if h.pinsErr != nil {
 		return fmt.Errorf("can't tell what keeps the server reachable, so Dockwell won't narrow it: %w", h.pinsErr)
 	}

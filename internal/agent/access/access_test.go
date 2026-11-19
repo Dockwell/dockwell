@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -453,7 +454,7 @@ func TestASessionPinOutlivesTheSession(t *testing.T) {
 	s.set(office, "2001:db8::7/128")
 	tbl := &table{}
 	m := start(t, dir, tbl, s, time.Minute)
-	if err := m.CheckPolicy(policy); err != nil {
+	if err := m.CheckPolicy(t.Context(), policy); err != nil {
 		t.Fatalf("the plan's check with a session open: %v", err)
 	}
 	if err := keep(t, m, "chg_1", func(ctx context.Context) error { return m.PutPolicy(ctx, policy) }); err != nil {
@@ -469,7 +470,7 @@ func TestASessionPinOutlivesTheSession(t *testing.T) {
 	if got := tbl.pins(); got != pinned {
 		t.Errorf("after a restart with nobody logged in, the table pins %q", got)
 	}
-	if err := again.CheckRule(nil, https); err != nil {
+	if err := again.CheckRule(t.Context(), nil, https); err != nil {
 		t.Fatal(err)
 	}
 	if err := keep(t, again, "chg_2", func(ctx context.Context) error { return again.Put(ctx, "https", https) }); err != nil {
@@ -745,7 +746,7 @@ func TestDockersNetworksForATable(t *testing.T) {
 	}
 	// Docker lists a new network as a plan reads it, then stops answering.
 	set(DockerNetworks{Interfaces: []string{"br-1a2b3c4d5e6f", "docker0"}}, nil)
-	if err := m.CheckRule(nil, denyDB); err != nil {
+	if err := m.CheckRule(t.Context(), nil, denyDB); err != nil {
 		t.Fatal(err)
 	}
 	set(DockerNetworks{}, errors.New("Cannot connect to the Docker daemon"))
@@ -800,7 +801,7 @@ func TestAContainersSessionIsntAPersons(t *testing.T) {
 	}
 	tbl := &table{}
 	m := start(t, t.TempDir(), tbl, s, time.Minute, func(m *Manager) { m.Docker = docker })
-	if err := m.CheckPolicy(policy); !errors.Is(err, errNoSession) {
+	if err := m.CheckPolicy(t.Context(), policy); !errors.Is(err, errNoSession) {
 		t.Errorf("deny everything else with only a container's session: %v", err)
 	}
 	s.set("172.18.0.5/32", office)
@@ -1079,25 +1080,25 @@ func TestChecksRefuseWhatWouldCutAccess(t *testing.T) {
 	deny := func(port uint32) *resourcev1.FirewallRule {
 		return &resourcev1.FirewallRule{Port: port, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}
 	}
-	if err := m.CheckRule(nil, deny(22)); !errors.Is(err, errNoSession) {
+	if err := m.CheckRule(t.Context(), nil, deny(22)); !errors.Is(err, errNoSession) {
 		t.Errorf("denying SSH with no session: %v", err)
 	}
-	if err := m.CheckRule(nil, deny(7600)); err == nil || !strings.Contains(err.Error(), "control plane") {
+	if err := m.CheckRule(t.Context(), nil, deny(7600)); err == nil || !strings.Contains(err.Error(), "control plane") {
 		t.Errorf("denying the control plane's port: %v", err)
 	}
-	if err := m.CheckRule(nil, deny(5432)); err != nil {
+	if err := m.CheckRule(t.Context(), nil, deny(5432)); err != nil {
 		t.Errorf("denying another port: %v", err)
 	}
 	udp := deny(22)
 	udp.Protocol = resourcev1.Protocol_PROTOCOL_UDP
-	if err := m.CheckRule(nil, udp); err != nil {
+	if err := m.CheckRule(t.Context(), nil, udp); err != nil {
 		t.Errorf("denying UDP on SSH's port: %v", err)
 	}
-	if err := m.CheckPolicy(policy); !errors.Is(err, errNoSession) {
+	if err := m.CheckPolicy(t.Context(), policy); !errors.Is(err, errNoSession) {
 		t.Errorf("deny everything else with no session: %v", err)
 	}
 	s.set(office)
-	if err := m.CheckRule(nil, deny(22)); err != nil {
+	if err := m.CheckRule(t.Context(), nil, deny(22)); err != nil {
 		t.Errorf("denying SSH with a session to pin: %v", err)
 	}
 }
@@ -1113,7 +1114,7 @@ func TestChecksSeeTheStateTheEditLeaves(t *testing.T) {
 	m.mu.Lock()
 	m.confirmed.Rules["ssh"] = ssh
 	m.mu.Unlock()
-	if err := m.CheckPolicy(policy); err != nil {
+	if err := m.CheckPolicy(t.Context(), policy); err != nil {
 		t.Fatalf("deny everything else with SSH allowed from anywhere: %v", err)
 	}
 	m.mu.Lock()
@@ -1142,7 +1143,7 @@ func TestTheChecksRunAgainAsAStepApplies(t *testing.T) {
 	s.set(office)
 	tbl := &table{}
 	m := start(t, t.TempDir(), tbl, s, time.Minute)
-	if err := m.CheckPolicy(policy); err != nil {
+	if err := m.CheckPolicy(t.Context(), policy); err != nil {
 		t.Fatal(err)
 	}
 	s.set()
@@ -1158,13 +1159,13 @@ func TestTheChecksRunAgainAsAStepApplies(t *testing.T) {
 // is refused with that said.
 func TestNoSSHFoundRefusesNarrowing(t *testing.T) {
 	m := &Manager{Dir: t.TempDir(), Table: &table{}, Pins: func(context.Context) (Pins, error) { return Pins{}, nil }}
-	if err := m.CheckPolicy(policy); !errors.Is(err, errNoSSH) {
+	if err := m.CheckPolicy(t.Context(), policy); !errors.Is(err, errNoSSH) {
 		t.Errorf("deny everything else with no SSH found: %v", err)
 	}
-	if err := m.CheckRule(nil, &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}); !errors.Is(err, errNoSSH) {
+	if err := m.CheckRule(t.Context(), nil, &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}); !errors.Is(err, errNoSSH) {
 		t.Errorf("denying 22 with no SSH found: %v", err)
 	}
-	if err := m.CheckRule(nil, http); err != nil {
+	if err := m.CheckRule(t.Context(), nil, http); err != nil {
 		t.Errorf("allowing 80 with no SSH found: %v", err)
 	}
 }
@@ -1342,7 +1343,7 @@ func TestThePanelOverSSHNeedsARuleForSSH(t *testing.T) {
 	s.set(office)
 	m := start(t, t.TempDir(), &table{}, s, time.Minute)
 	m.PanelOverSSH = true
-	err := m.CheckPolicy(policy)
+	err := m.CheckPolicy(t.Context(), policy)
 	if err == nil || !strings.Contains(err.Error(), "has no domain") || !strings.Contains(err.Error(), "Add a rule that allows port 22") {
 		t.Errorf("deny everything else with the panel over SSH: %v", err)
 	}
@@ -1353,12 +1354,12 @@ func TestThePanelOverSSHNeedsARuleForSSH(t *testing.T) {
 		t.Fatal(err)
 	}
 	confirm(m, "chg_2")
-	if err := m.CheckPolicy(policy); err != nil {
+	if err := m.CheckPolicy(t.Context(), policy); err != nil {
 		t.Errorf("with a rule that allows SSH: %v", err)
 	}
 	m.PanelOverSSH = false
 	other := start(t, t.TempDir(), &table{}, s, time.Minute)
-	if err := other.CheckPolicy(policy); err != nil {
+	if err := other.CheckPolicy(t.Context(), policy); err != nil {
 		t.Errorf("on a server with a session and a domain: %v", err)
 	}
 }
@@ -1470,19 +1471,21 @@ func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
 	s := &sessions{own: []uint16{7600}}
 	s.set(office, "2001:db8::7/128")
 	m := start(t, t.TempDir(), &table{}, s, time.Minute, func(m *Manager) {
-		m.Tunnels = func(context.Context) []Tunnel { return []Tunnel{{Name: "wg0", Port: 51820}, {Name: "wg1"}} }
+		m.Tunnels = func(context.Context) ([]Tunnel, error) {
+			return []Tunnel{{Name: "wg0", Port: 51820}, {Name: "wg1"}}, nil
+		}
 	})
-	if got := m.StaysAfterRule(nil, http); got != nil {
+	if got := m.StaysAfterRule(t.Context(), nil, http); got != nil {
 		t.Errorf("allowing 80 says %+v", got)
 	}
-	got := m.StaysAfterPolicy(policy)
+	got := m.StaysAfterPolicy(t.Context(), policy)
 	if got == nil || fmt.Sprint(got.SSHPorts) != "[22]" || fmt.Sprint(got.Pinned) != "[203.0.113.7/32 2001:db8::7/128]" || len(got.Allowed) != 0 {
 		t.Fatalf("deny everything else says %+v", got)
 	}
 	if fmt.Sprint(got.Tunnels) != "[wg0 (51820/udp) wg1]" || fmt.Sprint(got.PanelPorts) != "[7600]" {
 		t.Errorf("tunnels %v, the panel's ports %v", got.Tunnels, got.PanelPorts)
 	}
-	deny := m.StaysAfterRule(nil, &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY})
+	deny := m.StaysAfterRule(t.Context(), nil, &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY})
 	if deny == nil || fmt.Sprint(deny.Pinned) != "[203.0.113.7/32 2001:db8::7/128]" || len(deny.Tunnels)+len(deny.PanelPorts) != 0 {
 		t.Errorf("denying 22 says %+v", deny)
 	}
@@ -1495,7 +1498,7 @@ func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	confirm(m, "chg_1")
-	got = m.StaysAfterPolicy(policy)
+	got = m.StaysAfterPolicy(t.Context(), policy)
 	if got == nil || fmt.Sprint(got.Allowed) != "[198.51.100.0/24]" || fmt.Sprint(got.Tunnels) != "[wg1]" {
 		t.Errorf("with a rule for SSH and one for the tunnel: %+v", got)
 	}
@@ -1507,10 +1510,10 @@ func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
 	}
 	confirm(m, "chg_p")
 	wgRule := &resourcev1.FirewallRule{Port: 51820, Protocol: resourcev1.Protocol_PROTOCOL_UDP}
-	if got := m.StaysAfterRule(wgRule, nil); got == nil || fmt.Sprint(got.Tunnels) != "[wg0 (51820/udp)]" {
+	if got := m.StaysAfterRule(t.Context(), wgRule, nil); got == nil || fmt.Sprint(got.Tunnels) != "[wg0 (51820/udp)]" {
 		t.Errorf("deleting the tunnel's allow under the policy: %+v", got)
 	}
-	if got := m.StaysAfterRule(nil, http); got != nil && len(got.Tunnels) != 0 {
+	if got := m.StaysAfterRule(t.Context(), nil, http); got != nil && len(got.Tunnels) != 0 {
 		t.Errorf("allowing 80 under the policy names tunnels %v", got.Tunnels)
 	}
 	if err := m.DeletePolicy(step("chg_q", false)); err != nil {
@@ -1523,7 +1526,7 @@ func TestThePlanNamesWhoSSHStaysOpenFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	confirm(m, "chg_2")
-	if got := m.StaysAfterPolicy(policy); got == nil || len(got.SSHPorts)+len(got.Pinned) != 0 || fmt.Sprint(got.PanelPorts) != "[7600]" {
+	if got := m.StaysAfterPolicy(t.Context(), policy); got == nil || len(got.SSHPorts)+len(got.Pinned) != 0 || fmt.Sprint(got.PanelPorts) != "[7600]" {
 		t.Errorf("with SSH allowed from anywhere: %+v", got)
 	}
 	dec, err := (&firewall.PolicyDriver{Backend: m}).Plan(nil, policy, nil)
@@ -1547,12 +1550,16 @@ func TestWireGuardTunnelsAreRead(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "usr", "bin", "wg"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got := WireGuardTunnels(net, &hosttool.Runner{Root: root})(t.Context())
-	if fmt.Sprint(got) != "[{wg0 51820} {wg1 0}]" {
-		t.Errorf("tunnels %v", got)
+	got, err := WireGuardTunnels(net, &hosttool.Runner{Root: root})(t.Context())
+	if err != nil || fmt.Sprint(got) != "[{wg0 51820} {wg1 0}]" {
+		t.Errorf("tunnels %v, %v", got, err)
 	}
-	if got := WireGuardTunnels(fstest.MapFS{}, nil)(t.Context()); len(got) != 0 {
-		t.Errorf("with none: %v", got)
+	if got, err := WireGuardTunnels(fstest.MapFS{}, nil)(t.Context()); err != nil || len(got) != 0 {
+		t.Errorf("with none: %v, %v", got, err)
+	}
+	// A /sys/class/net that can't be read is no tunnels known, not none (#850's re-check, N2).
+	if got, err := WireGuardTunnels(unreadable{}, nil)(t.Context()); err == nil {
+		t.Errorf("with /sys/class/net unreadable: %v and no error", got)
 	}
 }
 
@@ -1565,20 +1572,25 @@ func TestThePanelOverSSHRefusesADenyOfSSHToo(t *testing.T) {
 	m := start(t, t.TempDir(), &table{}, s, time.Minute)
 	m.PanelOverSSH = true
 	deny := &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}
-	if err := m.CheckRule(nil, deny); err == nil || !strings.Contains(err.Error(), "has no domain") {
+	if err := m.CheckRule(t.Context(), nil, deny); err == nil || !strings.Contains(err.Error(), "has no domain") {
 		t.Errorf("denying 22 with the panel over SSH: %v", err)
 	}
 	if err := m.Put(step("chg_1", true), "close", deny); err == nil {
 		t.Error("applying it passed")
 	}
-	if err := m.CheckRule(nil, http); err != nil {
+	if err := m.CheckRule(t.Context(), nil, http); err != nil {
 		t.Errorf("allowing 80: %v", err)
 	}
 	if err := m.Put(step("chg_2", false), "ssh", &resourcev1.FirewallRule{Port: 22, Sources: []string{"198.51.100.0/24"}}); err != nil {
 		t.Fatal(err)
 	}
 	confirm(m, "chg_2")
-	if err := m.CheckRule(nil, deny); err != nil {
+	if err := m.CheckRule(t.Context(), nil, deny); err != nil {
 		t.Errorf("with a rule that allows SSH, a deny of the rest: %v", err)
 	}
 }
+
+// unreadable is a folder that can't be read.
+type unreadable struct{}
+
+func (unreadable) Open(string) (fs.File, error) { return nil, fs.ErrPermission }

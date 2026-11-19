@@ -6364,10 +6364,15 @@ func accessBetween[Q any](e *Engine, plan *Plan, builds, deletes []Q, of func(Q)
 // decides who gets in, as a fail2ban jail does, so it takes a person and a
 // passkey to apply (ADR 0052).
 func (e *Engine) TouchesAccess(p *Plan) bool {
-	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		t, err := e.kinds.Type(r.Ref.Kind)
-		return err == nil && resource.TakesAPerson(t)
-	})
+	return p != nil && slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return e.TakesAPerson(string(r.Ref.Kind)) })
+}
+
+// TakesAPerson says whether a step of kind changes who reaches a server, or who
+// gets onto it, as TouchesAccess judges a plan by, for one that reads a plan as
+// the API gives it (#850's review, L2).
+func (e *Engine) TakesAPerson(kind string) bool {
+	t, err := e.kinds.Type(resource.Kind(kind))
+	return err == nil && resource.TakesAPerson(t)
 }
 
 // AccessConfirmer is an agent that can keep a change to its server's firewall

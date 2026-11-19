@@ -28,7 +28,7 @@
 
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -59,8 +59,31 @@ const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
+// An SSH server's stand-in: python3 under the name sshd, listening beyond loopback, as the agent takes a port as
+// SSH's only where sshd itself listens on it, so a deny of another port isn't a lock-out (#850's review, L1, and its
+// re-check, N3). Node renames its main thread, so it can't stand in. The stand's sshd -T names the same port.
+const sshBin = mkdtempSync(join(tmpdir(), "dockwell-e2e-sshd-"));
+const python = execFileSync("python3", ["-c", "import sys; print(sys.executable)"], { encoding: "utf8" }).trim();
+symlinkSync(python, join(sshBin, "sshd"));
+const sshStandIn = spawn(
+  join(sshBin, "sshd"),
+  [
+    "-I",
+    "-c",
+    "import socket, time\ns = socket.socket()\ns.bind(('0.0.0.0', 0))\ns.listen()\nprint(s.getsockname()[1], flush=True)\nwhile True: time.sleep(3600)",
+  ],
+  { stdio: ["ignore", "pipe", "inherit"] },
+);
+const sshPort = await new Promise<number>((listening, failed) => {
+  sshStandIn.stdout?.once("data", (b) => listening(Number(String(b).trim())));
+  sshStandIn.once("exit", (code) => failed(new Error(`the SSH stand-in exited with ${code}`)));
+});
+// Its pipe, read, would keep this script running past its flows, as would the process.
+sshStandIn.stdout?.destroy();
+sshStandIn.unref();
+process.on("exit", () => sshStandIn.kill());
 // The agent's stand-ins for the server's own tools, such as ufw, as a test runs none of the machine's.
-const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")));
+const tools = hostTools(mkdtempSync(join(tmpdir(), "dockwell-e2e-tools-")), sshPort);
 // What the fake engine's containers use, as a flow writes it, laid out as /sys/fs/cgroup (#797).
 const cgroups = mkdtempSync(join(tmpdir(), "dockwell-e2e-cgroup-"));
 

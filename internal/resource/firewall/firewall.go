@@ -21,9 +21,6 @@ import (
 // Kind is the firewall rule kind.
 const Kind resource.Kind = "firewall.rule"
 
-// sshPort is the port a rule must not close by accident.
-const sshPort = 22
-
 // Backend is the part of the firewall the driver needs. Each call replaces
 // the ruleset atomically.
 type Backend interface {
@@ -41,8 +38,27 @@ type Backend interface {
 // 0052). It judges the state the edit leaves: actual is what's there now, nil
 // for nothing, and desired what it becomes, nil to delete it.
 type Checker interface {
-	CheckRule(actual, desired *resourcev1.FirewallRule) error
-	CheckPolicy(desired *resourcev1.FirewallPolicy) error
+	CheckRule(ctx context.Context, actual, desired *resourcev1.FirewallRule) error
+	CheckPolicy(ctx context.Context, desired *resourcev1.FirewallPolicy) error
+}
+
+// Ways are the ports someone reaches a server by, over TCP and over UDP, each
+// known or not. Where one isn't known, every deny and narrowing over it warns,
+// as not knowing is what the warning is for.
+type Ways struct {
+	// TCP are SSH's ports, and on the control server the control plane's own,
+	// with those a proxy holds for the panel and its agents.
+	TCP      []uint16
+	TCPKnown bool
+	// UDP are the tunnels' ports, such as WireGuard's.
+	UDP      []uint16
+	UDPKnown bool
+}
+
+// Reacher is a backend that knows the ways into the server. Plan warns only for
+// a rule that may close one of them (#850, ADR 0052).
+type Reacher interface {
+	WaysIn(ctx context.Context) Ways
 }
 
 // Waiter is a backend whose changes wait for their confirmation: the change's
@@ -131,8 +147,16 @@ func (d *Driver) Observe(ctx context.Context, ref resource.Ref) (proto.Message, 
 
 // Plan never has downtime, but flags a rule that may cut off access: a deny, or
 // an allow deleted or narrowed, which under deny everything else drops what it
-// let in. It lets the backend refuse what leaves the server unsafe to reach.
-func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
+// let in, of a port someone reaches the server by, as a Reacher says. Without
+// one, or where it can't say, every deny and narrowing is flagged. It lets the
+// backend refuse what leaves the server unsafe to reach.
+func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
+	return d.Judge(context.Background(), resource.Ref{}, actual, desired, changes)
+}
+
+// Judge is Plan within a plan's context, whose checks share one read of the
+// server (#850's re-check, N4).
+func (d *Driver) Judge(ctx context.Context, _ resource.Ref, actual, desired proto.Message, _ []resource.Change) (resource.Decision, error) {
 	var dec resource.Decision
 	switch {
 	case actual == nil:
@@ -144,16 +168,16 @@ func (d *Driver) Plan(actual, desired proto.Message, _ []resource.Change) (resou
 	}
 	was, _ := actual.(*resourcev1.FirewallRule)
 	r, _ := desired.(*resourcev1.FirewallRule)
-	if blocksSSH(r) || r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY || narrows(was, r) {
+	if mayCutOff(ctx, d.Backend, was, r) {
 		dec.Warnings = append(dec.Warnings, resource.WarningMayLockOut)
 	}
 	if c, ok := d.Backend.(Checker); ok {
-		if err := c.CheckRule(was, r); err != nil {
+		if err := c.CheckRule(ctx, was, r); err != nil {
 			return dec, err
 		}
 	}
 	if s, ok := d.Backend.(Stayer); ok {
-		dec.Stays = s.StaysAfterRule(was, r)
+		dec.Stays = s.StaysAfterRule(ctx, was, r)
 	}
 	return dec, nil
 }
@@ -195,22 +219,33 @@ func covers(sources, others []string) bool {
 	return true
 }
 
-// blocksSSH reports a rule that denies SSH from anywhere: no sources, or a
-// source covering every address.
-func blocksSSH(r *resourcev1.FirewallRule) bool {
-	if r.GetAction() != resourcev1.FirewallAction_FIREWALL_ACTION_DENY || r.GetPort() != sshPort ||
-		r.GetProtocol() != resourcev1.Protocol_PROTOCOL_TCP {
+// mayCutOff says whether an edit may close a way into the server: a deny of one
+// of the ports it's reached by, over that protocol, or an allow of one that the
+// edit deletes or narrows (#850). A deny of another port, such as a database's
+// under external access, can't cut anyone off. Where the backend can't say which
+// ports those are, any deny or narrowing over that protocol may.
+func mayCutOff(ctx context.Context, backend Backend, was, r *resourcev1.FirewallRule) bool {
+	deny := r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY
+	narrowed := narrows(was, r)
+	if !deny && !narrowed {
 		return false
 	}
-	if len(r.GetSources()) == 0 {
+	reacher, ok := backend.(Reacher)
+	if !ok {
 		return true
 	}
-	for _, s := range r.GetSources() {
-		if p, err := netip.ParsePrefix(s); err == nil && p.Bits() == 0 {
-			return true
-		}
+	ways := reacher.WaysIn(ctx)
+	return deny && reaches(r, ways) || narrowed && reaches(was, ways)
+}
+
+// reaches says whether a rule's port may be a way in, over its protocol: one
+// of the ways' ports, or any where they aren't known.
+func reaches(r *resourcev1.FirewallRule, ways Ways) bool {
+	ports, known := ways.TCP, ways.TCPKnown
+	if r.GetProtocol() == resourcev1.Protocol_PROTOCOL_UDP {
+		ports, known = ways.UDP, ways.UDPKnown
 	}
-	return false
+	return !known || slices.ContainsFunc(ports, func(p uint16) bool { return uint32(p) == r.GetPort() })
 }
 
 // Apply puts or deletes the rule.

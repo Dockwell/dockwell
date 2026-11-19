@@ -186,6 +186,43 @@ fail2ban is read where it's installed: its jails and recent bans, through `fail2
 - **A jail change has no timer, and its plan says whom it can ban.** A jail closes nothing until an address keeps failing to sign in, so a confirmation would prove nothing. But a jail that starts counts the failures of the last `findtime`, so an address that failed often enough just before is banned as the change applies, and fail2ban's stock actions drop its open sessions too. So the plan, in the panel and the CLI, names what the jail never bans and any address signed in over SSH that it could ban. **Undo doesn't lift a ban,** and removing Dockwell's jail where the distribution's own goes on doesn't either: the plan says so, with the way back in, from another address or the provider's console with `fail2ban-client unban`. Unbanning from Dockwell is its own slice.
 - **Installing fail2ban** is the package manager's, which #276 brings.
 
+### What "may cut off access" means (#850)
+
+A plan warns that it may cut off access, which makes it destructive (the typed code beside the passkey), only for a rule that can close a way into the server: a deny of a way in, or an allow of one that's deleted, narrowed or moved, each over its own protocol. The ways in are:
+
+- **Over TCP, SSH's ports:**
+  - every port sshd itself (or Dropbear) listens on now, as the pin reads it from the listener's process;
+  - what systemd holds for `ssh.socket` or `sshd.socket`;
+  - those Dockwell keeps pinned.
+
+  A port that only `sshd -T` names is held by something other than sshd, if anything: inetd, or a container on the port of a stopped sshd. It still pins SSH, but SSH's ports are then unknown, as below.
+- **Over TCP, on the control server:**
+  - the control plane's own listeners, the panel's and its agents';
+  - the ports in front of them:
+    - behind a proxy (`--behind-proxy`, or the setting), the port the panel's public address names, as each request through the proxy says, and https's 443 until one names another;
+    - the port of the address agents are given (`--advertise-url`), whatever stands in front of the agent listener there.
+
+  Agents join through that address, never through the panel's domain, and nothing serves plain http behind a proxy, so 80 isn't counted. These ports aren't the control plane's own, so a rule of them is warned of, not refused.
+- **Over UDP:**
+  - every port bound beyond loopback, as an OpenVPN's, a userspace WireGuard's or Tailscale's is;
+  - kernel WireGuard's tunnels' ports, which no socket shows.
+
+**What warns nothing:** a deny of any other port, such as a database's under external access ([ADR 0038](0038-databases.md)) or an app's. Neither can cut anyone off the server, and a warning on each would stop meaning anything.
+
+**Where the ways in over a protocol can't be read,** every deny and every deleted or narrowed allow over it warns, as before:
+- over TCP, where SSH's ports aren't found, or are only what `sshd -T` names;
+- over UDP, where the sockets, the tunnels or a tunnel's port can't be read;
+- on a server that isn't connected, which the control plane plans without its agent.
+
+Not knowing is the case the warning is for.
+
+**Who judges it:** the agent, where the ports are known (`firewall.Reacher`, beside `Checker`). Each plan call's checks share one read of the server's processes, carried in that call's context; another call, and a check outside a plan, reads afresh.
+
+**What stays as it was:**
+- The refusals this record sets out.
+- The confirmation timer.
+- The passkey, which every change of who reaches a server takes, whether or not it warns. So automatic updates and push-to-deploy leave such a plan for a person, as `TouchesAccess` says. The CLI says so before asking, rather than calling it destructive.
+
 ### Who may change them
 
 Every change to `firewall.rule`, `firewall.policy`, `ssh.config` and `fail2ban.jail` takes a signed-in person and a passkey just now, as anything that decides who gets onto the server does ([ADR 0032](0032-files-on-a-server.md)), and an admin or the owner (ADR 0048, in #255). No API token may make one. The person who applied it confirms it, in that session. Unbanning an address is an admin's, with no passkey, and is on Activity.

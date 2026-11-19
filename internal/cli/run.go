@@ -116,12 +116,15 @@ func newRunCmd(stdio IO, g *globalFlags) *cobra.Command {
 // panel is the panel on this server, when the control plane beside this agent
 // has a domain; nil on a server that joined. ownPorts are the ports the control
 // plane beside it listens on, which no route may send to; a server that joined
-// has none, as its agent opens no ports.
-func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int) error {
+// has none, as its agent opens no ports. proxied says the ports in front of
+// the control plane, for the panel and its agents: ways in, but not the
+// control plane's own (#850's review, H1, and its re-check, N1). Nil on a
+// server that joined.
+func runAgent(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info, panel *ingress.Panel, ownPorts []int, proxied func() []uint16) error {
 	// Opened first, as the ingress keeps its certificates by DNS in it too.
 	kept, journal := keptDesired(logger, dir, id)
 	certs, _ := kept.(ingress.CertKeeper)
-	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, id.ControlURL, certs)
+	cfg := agentDrivers(ctx, stdio, logger, dir, panel, ownPorts, proxied, id.ControlURL, certs)
 	cfg.Logger, cfg.Dir, cfg.Identity, cfg.Build, cfg.Files = logger, dir.Agent(), id, build, serverFiles(stdio, logger, dir)
 	cfg.OnePanel = serverOnePanel(stdio)
 	if cfg.Docker != nil {
@@ -164,7 +167,7 @@ const agentGC = 50
 // and runs with runAgent as it is.
 func runAgentAlone(ctx context.Context, stdio IO, g *globalFlags, logger *slog.Logger, dir datadir.Dir, id *enroll.Identity, build buildinfo.Info) error {
 	defer collectAsAnAgent(stdio)()
-	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil)
+	return runAgent(ctx, stdio, g, logger, dir, id, build, nil, nil, nil)
 }
 
 // collectAsAnAgent sets the collector's target to agentGC, unless the environment
@@ -422,7 +425,7 @@ const ingressEvery = time.Minute
 //
 // certs keeps the certificates by DNS the ingress serves on the server's disk, sealed
 // (ADR 0088); nil keeps them in memory alone.
-func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, controlURL string, certs ingress.CertKeeper) agent.Config {
+func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadir.Dir, panel *ingress.Panel, ownPorts []int, proxied func() []uint16, controlURL string, certs ingress.CertKeeper) agent.Config {
 	collector := collect.New()
 	socket, err := docker.SocketFrom(stdio.Getenv)
 	client := docker.Unusable(err)
@@ -516,7 +519,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	if err != nil {
 		exposed = agent.ExposedPorts(nil)
 	}
-	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, panel == nil && len(ownPorts) > 0)
+	firewalls := firewallAccess(ctx, logger, dir, tools, dockerOrNot(client, socket, err), exposed, ownPorts, proxied, panel == nil && len(ownPorts) > 0)
 	// Who is signed in over SSH from outside now, as the firewall's pins read it:
 	// a jail's plan says which of them it could ban.
 	sessions := sshSessions(&access.PinReader{Proc: os.DirFS("/proc"), Tools: tools})
@@ -596,7 +599,7 @@ func dockerOrNot(client *docker.Client, socket string, unusable error) func(cont
 }
 
 func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, tools *hosttool.Runner, networks func(context.Context) (access.DockerNetworks, error),
-	exposed func(context.Context) ([]access.Exposed, error), ownPorts []int, panelOverSSH bool,
+	exposed func(context.Context) ([]access.Exposed, error), ownPorts []int, proxied func() []uint16, panelOverSSH bool,
 ) *access.Manager {
 	own := make([]uint16, 0, len(ownPorts))
 	for _, p := range ownPorts {
@@ -609,6 +612,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		Dir: filepath.Join(dir.Agent(), "access"), Table: &nftables.Firewall{Run: tools}, Logger: logger,
 		Pins: pins.Read, Docker: networks, Exposed: exposed,
 		PanelOverSSH: panelOverSSH,
+		Proxied:      proxied,
 		DeadMan:      access.NewDeadMan(tools, filepath.Join(dir.Agent(), "access")),
 		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}

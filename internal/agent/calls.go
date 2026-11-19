@@ -574,6 +574,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 				names[ref.Scope] = n
 			}
 		}
+		// The firewall's checks of this plan share one read of the server, its own
+		// (#850's review, L3, and its re-check, N4).
+		if p, ok := c.cfg.Access.(interface {
+			Planning(ctx context.Context) context.Context
+		}); ok {
+			ctx = p.Planning(ctx)
+		}
 		steps, err := c.local.Plan(resource.WithScopeNames(ctx, names), wanted)
 		if err != nil {
 			return fail(err)

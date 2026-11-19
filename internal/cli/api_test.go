@@ -519,7 +519,8 @@ func TestTheCLIAgainstARealControlPlane(t *testing.T) {
 			}
 		}
 		id := changeRE.FindString(r.out)
-		if !strings.Contains(r.err, id+" destroys data, may cut off access, or lets two containers write to one place, so it needs a person") || !strings.Contains(r.err, "http://localhost:") ||
+		// A firewall rule changes who reaches the server, and this one may cut off access too (#850's review, L2).
+		if !strings.Contains(r.err, id+" changes who reaches a server and destroys data, may cut off access, or lets two containers write to one place, so it needs a person") || !strings.Contains(r.err, "http://localhost:") ||
 			!strings.Contains(r.err, "/changes/"+id) {
 			t.Errorf("the refusal = %q", r.err)
 		}

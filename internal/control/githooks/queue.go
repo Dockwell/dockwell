@@ -158,7 +158,7 @@ func (h *Handler) deploy(l *lane, j *job) {
 			h.end(ctx, &d, svc, store.HookFailed, "Dockwell can't read the plan it made: "+message(err))
 			return
 		}
-		if why := needsPerson(r.Plan); why != "" {
+		if why := needsPerson(r.Plan, h.cfg.Engine.TouchesAccess(r.Plan)); why != "" {
 			h.waitForPerson(ctx, &d, svc, c.GetId(), why)
 			return
 		}
@@ -429,9 +429,12 @@ func (h *Handler) wait() time.Duration {
 }
 
 // needsPerson says why a token may not apply a plan, as ApplyChange holds one to,
-// or "" when it may.
-func needsPerson(p *revision.Plan) string {
+// or "" when it may. touchesAccess is the engine's word that it changes who
+// reaches a server (#850's review, L2).
+func needsPerson(p *revision.Plan, touchesAccess bool) string {
 	switch {
+	case touchesAccess:
+		return "changes who reaches its server, which takes a person's passkey"
 	case p.Destructive():
 		return "destroys data, may cut off access to a server, or lets two containers write to one place"
 	case p.HostAccess():
