@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Protocol } from "@dockwell/api";
+import { create } from "@bufbuild/protobuf";
+import { PortAnswer, Protocol, ServicePortCheckSchema } from "@dockwell/api";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
@@ -53,5 +54,32 @@ describe("an app's ports", () => {
     expect(renderHookWithApi(usePortLabel, {}).result.current({ port: 3000, web: true, published: 0 })).toBe(
       "3000 · 网页",
     );
+  });
+
+  it("adds what the server found, what the image exposes and what listens, after the spec's, with each answer (#791)", async () => {
+    await activateLocale("en");
+    const check = (port: number, answer: PortAnswer, said: string, more: object = {}) =>
+      create(ServicePortCheckSchema, { port, answer, said, ...more });
+    const app = anApp(
+      "shop",
+      "ghcr.io/acme/shop:1.4",
+      { ports: [{ hostPort: 8080, containerPort: 8080 }] },
+      { webPort: 8080 },
+    );
+    const found = [
+      check(8080, PortAnswer.HTTP, "200 OK", { listening: true, serverPort: 8080 }),
+      check(9000, PortAnswer.NOTHING, "nothing listens", { exposed: true }),
+      check(2222, PortAnswer.OTHER, "SSH", { listening: true }),
+      check(5000, PortAnswer.OTHER, "took the connection and said nothing", { listening: true }),
+    ];
+    const ports = appPortsOf(app, found);
+    expect(ports.map((p) => p.port)).toEqual([8080, 9000, 2222, 5000]);
+    const label = renderHookWithApi(usePortLabel, {}).result.current;
+    expect(ports.map(label)).toEqual([
+      "8080 · web page · answers 200 OK",
+      "9000 · nothing listens",
+      "2222 · SSH",
+      "5000 · not HTTP",
+    ]);
   });
 });

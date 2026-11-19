@@ -300,6 +300,28 @@ Undoing one install or website, after another has added its project to the same 
 - `Website-New-Domain.dc.html`: the new-website sheet's domain step.
 - `M-Domain-Add.dc.html`: a phone version of the first.
 
+### 11. Port in the app
+
+Added for #791, after the sheet above landed. Add a domain and Add a port pick the port in the app from what's known of it, and say whether it answers, instead of a bare number field.
+
+- **What's listed:**
+  - The port that serves the app's web page comes first (`ServiceInfo.web_port`).
+  - Then what the spec publishes and exposes.
+  - Then what the server's agent finds: what the image exposes, and what listens in the container beyond its loopback, read from the container's own `/proc/<pid>/net/tcp`.
+  - Each is labelled: "3000 · web page · answers 200 OK", "22 · SSH", "9000 · nothing listens".
+  - A port known for something else, such as SSH's 22 or Redis's 6379, says so under the picker, with the web page's port one click away.
+- **The check:** `ServiceService.CheckServicePorts` asks the agent with `AppPortsCall`. For each port, the agent dials the container's own address on its Docker network, as the server's proxy reaches it.
+  - It never dials a loopback, link-local, unspecified or multicast address, or one of the server's own interfaces, checked again as the socket connects.
+  - It reads a banner the server sends first, such as SSH's, or else the status line of a `GET /`. It follows no redirect, reads 256 bytes at most, and keeps 40 characters of them.
+  - Each port gets 2 seconds, four at once. A call reads 4 containers and asks 24 ports at most.
+  - It changes nothing, and an app on the server's own network isn't read, as its ports are the server's.
+- **Who may ask:** a developer of the service's project, checked by the gate and again by the handler, at 60 checks a minute a caller. The server must be one the service runs on.
+- **Fallback:** an agent from before this, a stopped app, or a caller who may not ask gets the list the spec gives, with no answers and no state.
+- **Numbers, granted on 2026-11-19:**
+  - agent.proto: `Call.app_ports` 390, `CallResult.app_ports` 391, `Hello.reads_app_ports` 392, in a block of 390 to 399 for a service's ports.
+  - service.proto: `CheckServicePortsRequest`, `CheckServicePortsResponse`, `ServicePortCheck` and `PortAnswer`, all new.
+  - No migration.
+
 ## Verified
 
 Checked on 2026-11-17 against Cloudflare's API, with a scratch tunnel made for it, remotely managed as the dashboard makes them, in a test zone of the owner's account (written here as example.com). Every call went through a guard that reached only that zone and tunnels named for the test. cloudflared was 2026.5.2. Everything made was removed after: the records, then the tunnel. No token is recorded here.

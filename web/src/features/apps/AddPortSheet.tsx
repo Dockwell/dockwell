@@ -30,7 +30,8 @@ import { useFleetView } from "../servers/useFleet";
 import { CopyAsCommand } from "../system/CopyCommand";
 import { useApp } from "./AppContext";
 import { failedAtField, isMoving, nameOf, portRefusal } from "./app";
-import { appPortsOf, usePortLabel } from "./appPorts";
+import { appPortsOf, usePortLabel, useServicePorts } from "./appPorts";
+import { PortState } from "./PortState";
 
 /** Where a published port answers: on every address of the server, or only on the server itself. */
 type Reach = "anyone" | "server";
@@ -54,10 +55,21 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
   const serverIds = useMemo(() => service.deployments.map((d) => d.serverId), [service.deployments]);
   // What the app is known to listen on and doesn't publish yet, to pick from, labelled,
   // with the one that serves its web page first; any other is typed (#791).
-  const unpublished = useMemo(() => appPortsOf(service).filter((p) => !p.published), [service]);
+  // What the app's server finds on each adds what its image exposes and what listens.
+  const servicePorts = useServicePorts(service);
+  const appPorts = useMemo(() => appPortsOf(service, servicePorts.checks), [service, servicePorts.checks]);
+  const unpublished = useMemo(() => appPorts.filter((p) => !p.published), [appPorts]);
   const portLabel = usePortLabel();
   const [typingInApp, setTypingInApp] = useState(unpublished.length === 0);
   const [inApp, setInApp] = useState(unpublished[0] ? String(unpublished[0].port) : "");
+  // What the server found arrives after the form opens: an empty field becomes the picker.
+  const inAppTyped = useRef(false);
+  const firstFound = unpublished[0]?.port;
+  useEffect(() => {
+    if (inAppTyped.current || firstFound === undefined) return;
+    setTypingInApp(false);
+    setInApp((was) => was || String(firstFound));
+  }, [firstFound]);
   // The server's port follows what's free until someone types one.
   const [typedHost, setTypedHost] = useState<string>();
   // In the field, what it shows holds still: a free port landing between the click and
@@ -228,6 +240,7 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
             error={appError}
             hint={t`What the app listens on, such as 80.`}
             onChange={(event) => {
+              inAppTyped.current = true;
               setInApp(event.target.value);
               setAppError(undefined);
             }}
@@ -244,6 +257,7 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
               { value: "other", label: t({ message: "Another port", context: "a port typed in" }) },
             ]}
             onChange={(event) => {
+              inAppTyped.current = true;
               setAppError(undefined);
               if (event.target.value === "other") {
                 setTypingInApp(true);
@@ -254,6 +268,9 @@ export function AddPortSheet({ service, onClose }: { service: ServiceInfo; onClo
             }}
           />
         )}
+        {appError === undefined && validPortNumber(inApp) ? (
+          <PortState port={Number(inApp)} ports={appPorts} read={servicePorts} />
+        ) : null}
         <PortField
           ref={hostField}
           label={t`On the server`}

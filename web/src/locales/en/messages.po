@@ -5537,6 +5537,19 @@ msgstr "{name} (default)"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, one {# variable} other {# variables}}"
 
+msgid "Nothing answers on port {port} yet"
+msgstr "Nothing answers on port {port} yet"
+
+msgid "Nothing in the app listens on port {port}"
+msgstr "Nothing in the app listens on port {port}"
+
+msgid "Port {port} answers, but not over HTTP"
+msgstr "Port {port} answers, but not over HTTP"
+
+#. placeholder {0}: c.said
+msgid "Port {port} answers: {0}"
+msgstr "Port {port} answers: {0}"
+
 msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
 msgstr "A private route needs its domain's routes on one server, or a path falls to the route above it."
 
@@ -6098,9 +6111,18 @@ msgstr "{n, plural, one {Update # selected} other {Update # selected}}"
 msgid "{name} stays planned, on Activity"
 msgstr "{name} stays planned, on Activity"
 
-#. placeholder {0}: p.port
-msgid "{0} · web page"
-msgstr "{0} · web page"
+#. placeholder {0}: c.said
+msgid "answers {0}"
+msgstr "answers {0}"
+
+msgid "not HTTP"
+msgstr "not HTTP"
+
+msgid "nothing listens"
+msgstr "nothing listens"
+
+msgid "web page"
+msgstr "web page"
 
 msgid "Also delete the project {label}"
 msgstr "Also delete the project {label}"

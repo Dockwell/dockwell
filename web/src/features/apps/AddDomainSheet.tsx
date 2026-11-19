@@ -10,6 +10,7 @@ import {
   type Domain,
   type DomainRoute,
   DomainService,
+  PortAnswer,
   RouteWay,
   type Server,
   type ServiceInfo,
@@ -37,7 +38,7 @@ import { type FleetState, useFleet } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "../websites/Companion";
 import { useWebsiteOfEnvironment } from "../websites/website";
 import { appOf, environmentOf, nameOf } from "./app";
-import { appPortsOf, knownFor, usePortLabel } from "./appPorts";
+import { appPortsOf, knownFor, usePortLabel, useServicePorts } from "./appPorts";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
 import { DomainName, NameState, StateLine, WayIn } from "./DomainStep";
@@ -52,6 +53,7 @@ import {
 } from "./domains";
 import { FrontFields, frontOf, type InFront } from "./FrontFields";
 import { validPort } from "./form";
+import { PortState } from "./PortState";
 import { routeAsItIs } from "./PrivateSheet";
 import {
   pickedOf,
@@ -257,12 +259,24 @@ export function AddDomainSheet({
   };
   // The ports the app listens on, its own, to pick from, each labelled; any other is
   // typed. The port that serves its pages comes first, whether or not it's published.
-  const appPorts = onServer ? [] : appPortsOf(service);
+  // What the app's server finds on each, asked as the form opens (#791).
+  const servicePorts = useServicePorts(onServer || redirecting ? undefined : service);
+  const appPorts = onServer ? [] : appPortsOf(service, servicePorts.checks);
   const listens = appPorts.map((p) => p.port);
   const portLabel = usePortLabel();
   // A port known for something else, such as SSH's 22, reaches no web page (#791).
   const portElsewhere = !onServer && validPort(port) ? knownFor(Number(port)) : "";
-  const webPort = appPorts.find((p) => p.web)?.port;
+  // The port that serves its pages: the control plane's, unless that's one known for
+  // something else, then the first its server found answering HTTP.
+  const webPort =
+    appPorts.find((p) => p.web && !knownFor(p.port))?.port ??
+    appPorts.find((p) => p.check?.answer === PortAnswer.HTTP && !knownFor(p.port))?.port;
+  // With no web port known, the first that answers HTTP is where it starts, until someone picks one.
+  useEffect(() => {
+    if (!portTyped.current && start === undefined && !service?.webPort && webPort !== undefined) {
+      setPort(String(webPort));
+    }
+  }, [webPort, service?.webPort, start]);
   const [typingPort, setTypingPort] = useState(false);
   const [portOpen, setPortOpen] = useState(false);
   const picksPort = listens.length > 0 && !typingPort && (port === "" || listens.includes(Number(port)));
@@ -939,6 +953,8 @@ export function AddDomainSheet({
           >
             {t`Port ${port} is ${portElsewhere}'s, which serves no web page`}
           </StateLine>
+        ) : !redirecting && !onServer && portError === undefined && validPort(port) ? (
+          <PortState port={Number(port)} ports={appPorts} read={servicePorts} />
         ) : null}
         {servers.length > 1 ? (
           <SelectField

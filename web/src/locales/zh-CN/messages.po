@@ -5537,6 +5537,19 @@ msgstr "{name}（默认）"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+msgid "Nothing answers on port {port} yet"
+msgstr "端口 {port} 暂时没有响应"
+
+msgid "Nothing in the app listens on port {port}"
+msgstr "应用中没有程序监听端口 {port}"
+
+msgid "Port {port} answers, but not over HTTP"
+msgstr "端口 {port} 有响应，但不是 HTTP"
+
+#. placeholder {0}: c.said
+msgid "Port {port} answers: {0}"
+msgstr "端口 {port} 响应：{0}"
+
 msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
 msgstr "私有路由要求其域名的所有路由在同一台服务器上，否则路径会落到其上层路由。"
 
@@ -6098,9 +6111,18 @@ msgstr "{n, plural, other {更新所选的 # 个}}"
 msgid "{name} stays planned, on Activity"
 msgstr "{name} 保持已计划状态，可在动态中查看"
 
-#. placeholder {0}: p.port
-msgid "{0} · web page"
-msgstr "{0} · 网页"
+#. placeholder {0}: c.said
+msgid "answers {0}"
+msgstr "响应 {0}"
+
+msgid "not HTTP"
+msgstr "不是 HTTP"
+
+msgid "nothing listens"
+msgstr "无程序监听"
+
+msgid "web page"
+msgstr "网页"
 
 msgid "Also delete the project {label}"
 msgstr "同时删除项目 {label}"

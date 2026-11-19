@@ -29,6 +29,7 @@ import {
   ImageBuildSchema,
   IntentKind,
   NetworkShape,
+  PortAnswer,
   type ProposeChangeRequest,
   Protocol,
   PublicAddressSource,
@@ -1705,6 +1706,93 @@ describe("an app's overview", () => {
           .getAllByRole("option")
           .map((o) => o.textContent),
       ).toEqual(["9090 · web page", "8080", "Another port"]);
+    });
+
+    it("asks the app's server what answers on each port, starts from one that answers HTTP, and checks again (#791)", async () => {
+      // Published SSH alone, so the control plane knows no web port; the server finds 3000 answering.
+      const shop = anApp("shop", "ghcr.io/acme/shop:1.4", { ports: [{ hostPort: 2222, containerPort: 22 }] }, {});
+      let asked = 0;
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_shop",
+        api([shop], {
+          services: {
+            listServices: () => ({ services: [shop] }),
+            listServiceRevisions: () => ({ revisions }),
+            checkServicePorts: (req) => {
+              asked += 1;
+              expect(req.id).toBe("svc_shop");
+              return {
+                ports: [
+                  { port: 22, serverPort: 2222, listening: true, answer: PortAnswer.OTHER, said: "SSH" },
+                  { port: 3000, listening: true, answer: PortAnswer.HTTP, said: "200 OK" },
+                  { port: 9000, exposed: true, answer: PortAnswer.NOTHING, said: "nothing listens" },
+                ],
+              };
+            },
+          },
+          domains: { listDomains: () => ({ domains: [] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to shop" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      await waitFor(() => expect(port).toHaveValue("3000"));
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["22 · SSH", "3000 · answers 200 OK", "9000 · nothing listens", "Another port"]);
+      expect(within(sheet).getByText(/Port 3000 answers: 200 OK/)).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Check again" }));
+      await waitFor(() => expect(asked).toBe(2));
+      await user.selectOptions(port, "9000");
+      expect(within(sheet).getByText(/Nothing answers on port 9000 yet/)).toBeVisible();
+      // SSH's port says what it is, with the one that answers a click away.
+      await user.selectOptions(port, "22");
+      const elsewhere = within(sheet).getByText(/Port 22 is SSH's, which serves no web page/);
+      await user.click(
+        within(elsewhere.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Use 3000" }),
+      );
+      expect(port).toHaveValue("3000");
+    });
+
+    it("keeps to what the spec says where the server can't answer, as an older agent can't (#791)", async () => {
+      const gitea = anApp(
+        "gitea",
+        "gitea/gitea:28.3.0",
+        {
+          ports: [
+            { hostPort: 2222, containerPort: 22 },
+            { hostPort: 3000, containerPort: 3000 },
+          ],
+        },
+        { webPort: 3000 },
+      );
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_gitea",
+        api([gitea], {
+          services: {
+            listServices: () => ({ services: [gitea] }),
+            listServiceRevisions: () => ({ revisions }),
+            checkServicePorts: () => {
+              throw new ConnectError("the agent is too old to read its ports", Code.FailedPrecondition);
+            },
+          },
+          domains: { listDomains: () => ({ domains: [] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to gitea" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      expect(port).toHaveValue("3000");
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["3000 · web page", "22 · SSH", "Another port"]);
+      expect(sheet).not.toHaveTextContent(/answers|Nothing answers|Check again/);
     });
 
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {

@@ -1067,6 +1067,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_MakeAppOwner{MakeAppOwner: made}}
 	}
+	if ask := call.GetAppPorts(); ask != nil {
+		got, err := c.appPorts(ctx, ask)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_AppPorts{AppPorts: got}}
+	}
 	if read := call.GetReadAppOwner(); read != nil {
 		got, err := c.readAppOwner(ctx, read)
 		if err != nil {

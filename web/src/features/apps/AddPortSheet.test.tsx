@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Protocol, type WatchChangeResponse, type WatchServersResponse } from "@dockwell/api";
+import { PortAnswer, Protocol, type WatchChangeResponse, type WatchServersResponse } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -265,5 +265,72 @@ describe("Add a port", () => {
     await waitFor(() => expect(typed).toHaveFocus());
     expect(typed).toHaveValue("");
     expect(typed).not.toHaveAttribute("placeholder");
+  });
+
+  it("adds what the server finds, as the image exposes and something listens, and says whether it answers (#791)", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: (() => void) | undefined;
+    const found = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: async () => {
+            await found;
+            return { ports: [{ port: 9000, exposed: true, listening: true, answer: PortAnswer.HTTP, said: "200 OK" }] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    // Nothing known yet: a field to type in.
+    expect(within(sheet).getByRole("textbox", { name: "In the app" })).toHaveValue("");
+    answer?.();
+    const picked = await within(sheet).findByRole("combobox", { name: "In the app" });
+    expect(picked).toHaveValue("9000");
+    expect(
+      within(picked)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["9000 · answers 200 OK", "Another port"]);
+    expect(within(sheet).getByText(/Port 9000 answers: 200 OK/)).toBeVisible();
+    await user.selectOptions(picked, "other");
+    const typed = within(sheet).getByRole("textbox", { name: "In the app" });
+    await user.type(typed, "7000");
+    // The server read what listens, and nothing does on 7000.
+    expect(within(sheet).getByText(/Nothing in the app listens on port 7000/)).toBeVisible();
+  });
+
+  it("leaves a port typed before the server's answer as it is", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: (() => void) | undefined;
+    const found = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: async () => {
+            await found;
+            return { ports: [{ port: 9000, exposed: true, answer: PortAnswer.NOTHING, said: "nothing listens" }] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    await user.type(within(sheet).getByRole("textbox", { name: "In the app" }), "8080");
+    answer?.();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(within(sheet).queryByText(/answers:|Nothing (answers|in the app)/)).toBeNull();
+    expect(within(sheet).getByRole("textbox", { name: "In the app" })).toHaveValue("8080");
   });
 });

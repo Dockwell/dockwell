@@ -6755,6 +6755,43 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
     /v1/services/{id}/ports:
+        get:
+            tags:
+                - ServiceService
+            description: |-
+                CheckServicePorts asks the server a service runs on which TCP ports its
+                 container exposes, publishes and listens on, and whether each answers at the
+                 container's own address, as the server's proxy reaches it, so Add a domain and
+                 Add a port can offer them by what they are. It changes nothing. Each
+                 port is asked once, for 2 seconds at most, with no redirect followed and no
+                 more read than a status line or a banner. A caller can check 60 times a
+                 minute. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+            operationId: ServiceService_CheckServicePorts
+            parameters:
+                - name: id
+                  in: path
+                  description: The service, by ID or by name.
+                  required: true
+                  schema:
+                    type: string
+                - name: serverId
+                  in: query
+                  description: The server to ask, by ID, of those it runs on. Empty asks the first.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckServicePortsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
         post:
             tags:
                 - ServiceService
@@ -12418,6 +12455,20 @@ components:
                         - $ref: '#/components/schemas/ServerUpdates'
                     description: The server's package updates as they stood, with checking set.
             description: CheckServerUpdatesResponse is what's known as the refresh starts.
+        CheckServicePortsResponse:
+            type: object
+            properties:
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServicePortCheck'
+                    description: |-
+                        Each TCP port, by number: the ones it exposes or publishes, then any other
+                         something listens on.
+                unread:
+                    type: string
+                    description: Why nothing could be read, such as no container of it running, or "".
+            description: CheckServicePortsResponse says what each port of a service's container is.
         CheckServiceUpdatesRequest:
             type: object
             properties:
@@ -26987,6 +27038,40 @@ components:
             description: |-
                 ServiceInfo is what a service runs now and how that went, as its latest
                  revision has it.
+        ServicePortCheck:
+            type: object
+            properties:
+                port:
+                    type: integer
+                    description: The port in the container, such as 3000.
+                    format: uint32
+                exposed:
+                    type: boolean
+                    description: Its image or its spec exposes it.
+                listening:
+                    type: boolean
+                    description: |-
+                        Something in the container listens on it beyond the container's loopback, as
+                         the container's own /proc/net says. False where that couldn't be read.
+                serverPort:
+                    type: integer
+                    description: The port on the server it's published on, or 0.
+                    format: uint32
+                answer:
+                    enum:
+                        - PORT_ANSWER_UNSPECIFIED
+                        - PORT_ANSWER_HTTP
+                        - PORT_ANSWER_OTHER
+                        - PORT_ANSWER_NOTHING
+                    type: string
+                    description: What answered at the container's address.
+                    format: enum
+                said:
+                    type: string
+                    description: |-
+                        What it said, in a few words, such as "200 OK", "302 Found" or "SSH", or why
+                         nothing did, such as "connection refused".
+            description: ServicePortCheck is a TCP port in a service's container, and what answers there.
         ServiceRevision:
             type: object
             properties:
