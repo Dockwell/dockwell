@@ -389,7 +389,7 @@ describe("ProfilePage", () => {
       api({ getAuthState: () => authState({ rpId: "panel.example.com", domain: "panel.example.com" }) }),
     );
     expect(await screen.findByText("No passkey works at panel.example.com yet")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add a passkey for this address" })).toBeEnabled();
   });
 
   it("adds a passkey here from the note, with a fresh sign-in confirming it", async () => {
@@ -404,7 +404,7 @@ describe("ProfilePage", () => {
         finishAddPasskey,
       }),
     );
-    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey here" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey for this address" }));
     await waitFor(() => expect(finishAddPasskey).toHaveBeenCalled());
     expect(passkeys.create).toHaveBeenCalledOnce();
   });
@@ -420,9 +420,9 @@ describe("ProfilePage", () => {
         signOut,
       }),
     );
-    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey here" }));
-    expect(await screen.findByText("Adding one here needs a sign-in just now, with a code or a link.")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "Sign in again" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add a passkey for this address" }));
+    expect(await screen.findByText("Adding one here takes a sign-in from the last 10 minutes.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Sign in again with your code" }));
     await waitFor(() => expect(signOut).toHaveBeenCalled());
   });
 

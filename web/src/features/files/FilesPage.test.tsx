@@ -882,7 +882,7 @@ describe("editing a file", () => {
       expect(
         await screen.findByText("Saving this takes a passkey, and there's none for this address yet"),
       ).toBeVisible();
-      expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Add a passkey for this address" })).toBeEnabled();
       expect(screen.queryByText(/over SSH/)).toBeNull();
       expect(field).toHaveValue("memory_limit = 512M");
     });

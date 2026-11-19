@@ -63,7 +63,7 @@ export function useAuthError({ claimCommand = "dockwell claim" }: { claimCommand
         case "below_floor":
           return t`The owner asks everyone for their passkey at least as often as that, so it isn't open to you. Pick one above it.`;
         case "no_passkey_here":
-          return t`That takes a passkey, and there's none for this address yet. Add one under Profile and security.`;
+          return t`That takes a passkey for this address, and you have none here yet, so nothing happened. Try again, and add one when asked.`;
         case "needs_fresh_sign_in":
           return t`Adding a passkey needs one you have for this address, and you have none here. Sign out, sign in again with a code, a recovery code or a link from dockwell recover, then add it within 10 minutes.`;
         case "passkey_rejected":

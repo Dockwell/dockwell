@@ -242,8 +242,8 @@ const RecentSignIn = 10 * time.Minute
 var (
 	ErrNeedsStepUp = errors.New("this needs you to confirm with your passkey just now, and the confirmation is missing, used or expired. " +
 		"Try again, and confirm when your browser asks")
-	ErrNoPasskeyHere = errors.New("confirming this needs a passkey for this address, and you have none here. " +
-		"Add one under Profile and security, then try again")
+	ErrNoPasskeyHere = errors.New("confirming this needs a passkey for this address, and you have none here, so nothing happened. " +
+		"Try again, and add one where the panel offers it")
 	ErrNeedsFreshSignIn = errors.New("adding a passkey needs you to confirm with a passkey you have for this address, and you have none here. " +
 		"Sign out, sign in again with a code, a recovery code or a link from dockwell recover, and add it within 10 minutes")
 )

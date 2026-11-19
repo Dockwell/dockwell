@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { anApp } from "../../test/apps";
-import { authError, stubPasskeys } from "../../test/auth";
+import { authError, creationOptions, requestOptions, stubPasskeys } from "../../test/auth";
 import { type Api, onPhone, quietWatch, renderAt } from "../../test/render";
 import { REVEALED_FOR } from "./useReveal";
 
@@ -313,8 +313,44 @@ describe("the variables and secrets page", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "That takes a passkey, and there's none for this address yet.",
+      "That takes a passkey for this address, and you have none here yet, so nothing happened.",
     );
+  });
+
+  it("adds a passkey for this address where there's none, then reveals what was asked (#869)", async () => {
+    const user = userEvent.setup();
+    const passkeys = stubPasskeys();
+    let added = false;
+    renderAt(
+      "/variables",
+      api([production], {
+        auth: {
+          beginStepUp: () => {
+            if (!added) throw authError(Code.FailedPrecondition, "no_passkey_here");
+            return { ceremonyId: "cer_2", optionsJson: requestOptions };
+          },
+          finishStepUp: () => ({ proof: "proof-1" }),
+          beginAddPasskey: () => ({ ceremonyId: "cer_1", optionsJson: creationOptions }),
+          finishAddPasskey: () => {
+            added = true;
+            return {};
+          },
+          listPasskeys: () => ({ passkeys: [] }),
+        },
+        variables: {
+          revealSecret: (req) => {
+            if (req.proof === "") throw authError(Code.PermissionDenied, "needs_step_up");
+            return { value: "hunter2-hunter2", revision: 3n };
+          },
+        },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Reveal DB_PASSWORD" }));
+    const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+    await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+    expect(await screen.findByText("hunter2-hunter2")).toBeVisible();
+    expect(passkeys.create).toHaveBeenCalledOnce();
+    expect(passkeys.get).toHaveBeenCalledOnce();
   });
 
   it("asks for no passkey when the secret isn't there to reveal", async () => {

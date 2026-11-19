@@ -22,6 +22,7 @@ import {
   ServerInventorySchema,
   ServerService,
   ServerStrain,
+  SignInMethod,
   StepUpAction,
   Surface,
   type WatchChangeResponse,
@@ -33,7 +34,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
-import { authError, authState, mira, stubPasskeys } from "../../test/auth";
+import { authError, authState, creationOptions, mira, requestOptions, stubPasskeys } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
 
@@ -447,6 +448,164 @@ describe("Servers", () => {
       expect(within(sheet).getByRole("link", { name: "Open web-3" })).toHaveAttribute("href", "/servers/srv_3");
       expect(sheet).not.toHaveTextContent("TICKET");
       await expectAccessible(sheet);
+    });
+
+    describe("with no passkey for this address (#869)", () => {
+      /**
+       * Signed in at a domain with a code, holding no passkey made there: a step-up is
+       * refused until one is added. fresh says whether the sign-in was within the 10
+       * minutes, so the control plane begins adding one with no step-up; lapses says it
+       * runs out before the new passkey is saved. calls keeps what was asked, in order.
+       */
+      function codeSignIn(calls: string[], { fresh = true, lapses = false } = {}) {
+        let added = false;
+        let signedIn = true;
+        return {
+          auth: {
+            getAuthState: () =>
+              authState(
+                signedIn
+                  ? { rpId: "panel.example.com", signInMethod: SignInMethod.AUTHENTICATOR_CODE }
+                  : { user: undefined, rpId: "panel.example.com" },
+              ),
+            beginStepUp: () => {
+              calls.push("beginStepUp");
+              if (!added) {
+                throw authError(
+                  Code.FailedPrecondition,
+                  "no_passkey_here",
+                  "confirming this needs a passkey for this address",
+                );
+              }
+              return { ceremonyId: "cer_2", optionsJson: requestOptions };
+            },
+            finishStepUp: () => ({ proof: "proof-1" }),
+            beginAddPasskey: (req: { proof: string }) => {
+              calls.push(`beginAddPasskey ${req.proof || "with no proof"}`);
+              if (!fresh) throw authError(Code.FailedPrecondition, "needs_fresh_sign_in");
+              return { ceremonyId: "cer_1", optionsJson: creationOptions };
+            },
+            finishAddPasskey: () => {
+              calls.push("finishAddPasskey");
+              if (lapses) throw authError(Code.FailedPrecondition, "needs_fresh_sign_in");
+              added = true;
+              return {};
+            },
+            // Theirs, made through the SSH tunnel.
+            listPasskeys: () => ({ passkeys: [{ id: "pky_1", name: "Old laptop", rpId: "localhost" }] }),
+            signOut: () => {
+              calls.push("signOut");
+              signedIn = false;
+              return {};
+            },
+            signInWithCode: (req: { email: string }) => {
+              calls.push(`signInWithCode ${req.email}`);
+              signedIn = true;
+              return {};
+            },
+          },
+        };
+      }
+
+      it("adds one within the 10 minutes, then shows the command it was asked for", async () => {
+        const { create: made, get } = stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", { ...release, ...codeSignIn(calls), servers: api.servers });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(offer).toHaveTextContent("panel.example.com");
+        expect(offer).toHaveTextContent("Your passkeys work only on the address they were made on.");
+        expect(await within(offer).findByText("localhost")).toBeVisible();
+        expect(offer).toHaveTextContent("Old laptop · localhost");
+        await expectAccessible(offer);
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText(/--join TICKET$/)).toBeVisible();
+        expect(screen.queryByRole("dialog", { name: "No passkey for this address" })).toBeNull();
+        // Added with no step-up, as the sign-in just now confirms it, then the step-up it was for goes on.
+        expect(calls).toEqual(["beginStepUp", "beginAddPasskey with no proof", "finishAddPasskey", "beginStepUp"]);
+        expect(made).toHaveBeenCalledOnce();
+        expect(get).toHaveBeenCalledOnce();
+        expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+      });
+
+      it("signs in again with the code past the 10 minutes, and comes back here", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        const { router } = renderServers([web1, web2()], "/servers?server=srv_2", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+        expect(within(offer).queryByRole("button", { name: "Add a passkey for this address" })).toBeNull();
+        await user.click(within(offer).getByRole("button", { name: "Sign in again with your code" }));
+
+        // The sign-in screen opens on the code form, with their email in it.
+        await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" });
+        expect(screen.getByLabelText("Email")).toHaveValue("mira@acme.dev");
+        expect(screen.getByLabelText("Code")).toHaveFocus();
+        await user.type(screen.getByLabelText("Code"), "123456");
+        await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+        // Back where they were, signed in, with no sign-in screen.
+        await waitFor(() =>
+          expect(screen.queryByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeNull(),
+        );
+        expect(await screen.findByRole("heading", { level: 1, name: "Servers" })).toBeVisible();
+        expect(router.state.location.pathname).toBe("/servers");
+        expect(router.state.location.search).toEqual({ server: "srv_2" });
+        expect(calls).toEqual([
+          "beginStepUp",
+          "beginAddPasskey with no proof",
+          "signOut",
+          "signInWithCode mira@acme.dev",
+        ]);
+      });
+
+      it("offers to sign in again where the 10 minutes run out while the passkey is made", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { lapses: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeVisible();
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+      });
+
+      it("says nothing happened when the offer is turned down", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", { ...release, ...codeSignIn(calls), servers: api.servers });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(within(offer).getByRole("button", { name: "Cancel" }));
+
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText("No command yet")).toBeVisible();
+        expect(calls).toEqual(["beginStepUp", "beginAddPasskey with no proof"]);
+        expect(api.made.map((r) => r.proof)).toEqual([""]);
+      });
     });
 
     it("says only the control server's network can join through a private address, with the fix beside it", async () => {

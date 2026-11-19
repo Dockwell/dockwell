@@ -6,7 +6,7 @@ import { AuthService, type SignInProvider, SystemService } from "@dockwell/api";
 import { Button, Callout, Logo, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { reasonOf } from "../../lib/errors";
 import { useDocumentTitle } from "../../lib/useDocumentTitle";
@@ -15,6 +15,7 @@ import { shortVersion } from "../shell/version";
 import { CopyCommand } from "../system/CopyCommand";
 import { normalizeCode } from "./code";
 import { useAuthError } from "./messages";
+import { signedInAgain, signingInAgain } from "./signInAgain";
 import { Unclaimed } from "./Unclaimed";
 import { safeNext, useAuthState, useRefreshAuth } from "./useAuthState";
 import "./auth.css";
@@ -24,7 +25,9 @@ import "./SignInPage.css";
 export function SignInPage({ next }: { next?: string }) {
   const auth = useAuthState();
   const version = useQuery(SystemService.method.getVersion, {});
-  const [mode, setMode] = useState<"passkey" | "code">("passkey");
+  // Signed out to sign in again with a code, as adding a passkey here can take, it opens on the code form (#869).
+  const again = signingInAgain();
+  const [mode, setMode] = useState<"passkey" | "code">(again ? "code" : "passkey");
   // Set once a sign-in here succeeds: from then on, finishing it decides
   // where to go, and GoTo stays out of its way.
   const [signingIn, setSigningIn] = useState(false);
@@ -57,7 +60,7 @@ export function SignInPage({ next }: { next?: string }) {
               onUseCode={() => setMode("code")}
             />
           ) : (
-            <CodeSignIn name={name} finish={finish} onUsePasskey={() => setMode("passkey")} />
+            <CodeSignIn name={name} email={again?.email} finish={finish} onUsePasskey={() => setMode("passkey")} />
           )}
           <section className="signin-recover" aria-labelledby="signin-recover-title">
             <div className="signin-recover-text">
@@ -133,6 +136,7 @@ function useFinishSignIn(next: string | undefined, onStart: () => void): FinishS
   const refreshAuth = useRefreshAuth();
   return async (usedRecoveryCode = false) => {
     onStart();
+    signedInAgain();
     await refreshAuth();
     if (usedRecoveryCode) await navigate({ to: "/profile", search: { via: "recovery-code" }, replace: true });
     else await navigate({ href: safeNext(next), replace: true });
@@ -259,12 +263,25 @@ function PasskeySignIn({ name, finish, onDomain, providers, onUseCode }: Passkey
   );
 }
 
-function CodeSignIn({ name, finish, onUsePasskey }: { name: string; finish: FinishSignIn; onUsePasskey: () => void }) {
+interface CodeSignInProps {
+  name: string;
+  /** Who's signing in again, where that's known (#869). */
+  email?: string | undefined;
+  finish: FinishSignIn;
+  onUsePasskey: () => void;
+}
+
+function CodeSignIn({ name, email: known, finish, onUsePasskey }: CodeSignInProps) {
   const { t } = useLingui();
   const transport = useTransport();
   const explain = useAuthError();
   const formId = useId();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(known ?? "");
+  // Signing in again, their email is in already, so the code is what's left to type (#869).
+  const codeField = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (known) codeField.current?.focus();
+  }, [known]);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<unknown>();
@@ -312,6 +329,7 @@ function CodeSignIn({ name, finish, onUsePasskey }: { name: string; finish: Fini
           error={invalid.email}
         />
         <TextField
+          ref={codeField}
           label={t`Code`}
           value={code}
           onChange={(e) => setCode(e.target.value)}

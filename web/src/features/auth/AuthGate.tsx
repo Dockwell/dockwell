@@ -11,6 +11,7 @@ import { useElapsed } from "../../lib/useElapsed";
 import { StandalonePage } from "../system/StandalonePage";
 import { Unreachable } from "../system/Unreachable";
 import { useAuthError } from "./messages";
+import { PasskeyHerePrompt } from "./PasskeyHerePrompt";
 import { SignInPage } from "./SignInPage";
 import { Unclaimed } from "./Unclaimed";
 import { useAuthState } from "./useAuthState";
@@ -67,6 +68,8 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   return (
     <>
       {page}
+      {/* Where a step-up finds no passkey for this address, on any screen (#869). */}
+      {state.data.user ? <PasskeyHerePrompt /> : null}
       {stale}
     </>
   );

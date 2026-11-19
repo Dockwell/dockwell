@@ -5,6 +5,7 @@ import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { activateLocale } from "../app/i18n";
+import { signedInAgain } from "../features/auth/signInAgain";
 import { settleRouters } from "./routers";
 
 // The default of 1 s is shorter than a first render takes on a busy machine:
@@ -21,4 +22,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await settleRouters();
   cleanup();
+  // What a test that signed out to sign in again asked of the sign-in screen goes with it.
+  signedInAgain();
 });

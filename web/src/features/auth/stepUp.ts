@@ -5,6 +5,7 @@ import { AuthService, type StepUpAction, StepUpNeededSchema } from "@dockwell/ap
 
 import { reasonOf } from "../../lib/errors";
 import { getPasskey } from "../../lib/webauthn";
+import { offerPasskeyHere } from "./passkeyHere";
 
 /**
  * Confirms action on target with a passkey you have for this address, just
@@ -12,10 +13,21 @@ import { getPasskey } from "../../lib/webauthn";
  * with a proof that works once, within a minute, in this session, for that
  * action alone. Revealing a secret, changing how you sign in and making an
  * API token each take one (docs/adr/0011-claim-and-sign-in.md).
+ *
+ * With no passkey for this address, as at a domain for someone whose passkey
+ * was made through the SSH tunnel, the panel offers to add one in place, then
+ * goes on with it; or, where adding one takes signing in again, to do that
+ * (#869). Turned down, the refusal stands.
  */
 export async function stepUp(transport: Transport, action: StepUpAction, target = ""): Promise<string> {
   const auth = createClient(AuthService, transport);
-  const begin = await auth.beginStepUp({ action, target });
+  let begin: Awaited<ReturnType<typeof auth.beginStepUp>>;
+  try {
+    begin = await auth.beginStepUp({ action, target });
+  } catch (err) {
+    if (reasonOf(err) !== "no_passkey_here" || !(await offerPasskeyHere(transport))) throw err;
+    begin = await auth.beginStepUp({ action, target });
+  }
   const credentialJson = await getPasskey(begin.optionsJson);
   const { proof } = await auth.finishStepUp({ ceremonyId: begin.ceremonyId, credentialJson });
   return proof;
