@@ -20,6 +20,7 @@ import "dockwell/v1/log.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/process.proto";
 import "dockwell/v1/server.proto";
+import "dockwell/v1/service.proto";
 import "dockwell/v1/service_update.proto";
 import "dockwell/v1/system.proto";
 import "dockwell/v1/task.proto";
@@ -604,6 +605,10 @@ message Hello {
   // the control plane sends for that call alone (ADR 0105). Numbered in the block
   // an app's owner holds, 380 to 389.
   bool makes_app_owners = 384;
+  // The agent reads the ports a service's container exposes and listens on, and
+  // whether each answers (#791). Numbered in the block a service's ports hold,
+  // 390 to 399.
+  bool reads_app_ports = 392;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -913,6 +918,9 @@ message Call {
     // owner takes 380 to 389.
     MakeAppOwnerCall make_app_owner = 380;
     ReadAppOwnerCall read_app_owner = 382;
+    // Read the ports a service's container exposes and listens on, and whether
+    // each answers (#791). A service's ports take 390 to 399.
+    AppPortsCall app_ports = 390;
   }
 }
 
@@ -979,6 +987,31 @@ message ReadAppOwnerResult {
   bool yes = 1;
   // Why it couldn't read, scrubbed, such as an app that doesn't answer yet.
   string said = 2;
+}
+
+// AppPortsCall asks for the TCP ports a service's running containers expose,
+// publish and listen on, and whether each answers at the container's own address,
+// as the server's proxy reaches it (#791). It changes nothing. The agent asks each
+// port once, for 2 seconds at most, follows no redirect and reads a status line or
+// a banner and no more, and never dials a link-local address or one of the
+// server's own.
+message AppPortsCall {
+  // The service's environment, by ID, as its Compose project is named.
+  string environment = 1;
+  // The service, by name.
+  string service = 2;
+}
+
+// AppPortsResult answers an AppPortsCall.
+message AppPortsResult {
+  // Each port, by number, once, across the service's containers.
+  repeated dockwell.v1.ServicePortCheck ports = 1;
+  // Why its ports weren't asked, or not all were, such as no container of it
+  // running, or "".
+  string unread = 2;
+  // More ports, or more containers, than were read: the list isn't whole, so a
+  // port missing from it may still be listened on.
+  bool cut = 3;
 }
 
 // ProbeConnectionCall asks the agent to check a connection from where an app is: in
@@ -2620,6 +2653,7 @@ message CallResult {
     ReadTunnelsResult read_tunnels = 340;
     MakeAppOwnerResult make_app_owner = 381;
     ReadAppOwnerResult read_app_owner = 383;
+    AppPortsResult app_ports = 391;
   }
 }
 

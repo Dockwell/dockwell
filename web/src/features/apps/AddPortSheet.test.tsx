@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Protocol, type WatchChangeResponse, type WatchServersResponse } from "@dockwell/api";
+import { PortAnswer, Protocol, type WatchChangeResponse, type WatchServersResponse } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -212,5 +212,160 @@ describe("Add a port", () => {
     await user.clear(inApp);
     await user.type(inApp, "3001");
     expect(host.value).toBe("3005");
+  });
+
+  it("picks from what the app listens on and doesn't publish, labelled, with another port typed (#791)", async () => {
+    const user = userEvent.setup();
+    const asked: unknown[] = [];
+    // Gitea publishes SSH, serves its pages on 3000 unpublished, and exposes 9000.
+    const gitea = anApp(
+      "gitea",
+      "gitea/gitea:1.24",
+      { ports: [{ hostPort: 2222, containerPort: 22 }], expose: ["9000/tcp", "53/udp"] },
+      { webPort: 3000 },
+    );
+    renderAt(
+      "/apps/svc_gitea?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [gitea] }),
+          listServiceRevisions: () => ({}),
+          addServicePort: (req) => {
+            asked.push(req);
+            return { change: webPlanned() };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to gitea" });
+    const inApp = within(sheet).getByLabelText("In the app");
+    expect(inApp).toHaveValue("3000");
+    expect(
+      within(inApp)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["3000 · web page", "9000", "Another port"]);
+    const host = within(sheet).getByLabelText<HTMLInputElement>("On the server");
+    await waitFor(() => expect(host.value).toBe("3000"));
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    expect(await screen.findByRole("dialog", { name: "Review plan" })).toBeVisible();
+    expect(asked.at(-1)).toMatchObject({ containerPort: 3000 });
+  });
+
+  it("types another port in its place, with nothing filled in for it", async () => {
+    const user = userEvent.setup();
+    const exposed = anApp("exposed", "ghcr.io/acme/shop:1.4", { expose: ["9000"] });
+    renderAt(
+      "/apps/svc_exposed?add=port",
+      api({ services: { listServices: () => ({ services: [exposed] }), listServiceRevisions: () => ({}) } }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to exposed" });
+    await user.selectOptions(within(sheet).getByLabelText("In the app"), "other");
+    const typed = within(sheet).getByRole("textbox", { name: "In the app" });
+    await waitFor(() => expect(typed).toHaveFocus());
+    expect(typed).toHaveValue("");
+    expect(typed).not.toHaveAttribute("placeholder");
+  });
+
+  it("adds what the server finds, as the image exposes and something listens, and says whether it answers (#791)", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: (() => void) | undefined;
+    const found = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: async () => {
+            await found;
+            return { ports: [{ port: 9000, exposed: true, listening: true, answer: PortAnswer.HTTP, said: "200 OK" }] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    // Nothing known yet: a field to type in.
+    expect(within(sheet).getByRole("textbox", { name: "In the app" })).toHaveValue("");
+    answer?.();
+    const picked = await within(sheet).findByRole("combobox", { name: "In the app" });
+    expect(picked).toHaveValue("9000");
+    expect(
+      within(picked)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["9000 · answers 200 OK", "Another port"]);
+    expect(within(sheet).getByText(/Port 9000 answers: 200 OK/)).toBeVisible();
+    await user.selectOptions(picked, "other");
+    const typed = within(sheet).getByRole("textbox", { name: "In the app" });
+    await user.type(typed, "7000");
+    // The server read what listens, and nothing does on 7000.
+    expect(within(sheet).getByText(/Nothing in the app listens on port 7000/)).toBeVisible();
+  });
+
+  it("leaves a port typed before the server's answer as it is", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: (() => void) | undefined;
+    const found = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: async () => {
+            await found;
+            return { ports: [{ port: 9000, exposed: true, answer: PortAnswer.NOTHING, said: "nothing listens" }] };
+          },
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    await user.type(within(sheet).getByRole("textbox", { name: "In the app" }), "8080");
+    answer?.();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(within(sheet).queryByText(/answers:|Nothing (answers|in the app)/)).toBeNull();
+    expect(within(sheet).getByRole("textbox", { name: "In the app" })).toHaveValue("8080");
+  });
+
+  it("says why the server didn't check, a port it listed but didn't ask, and never that nothing listens on a list cut short (the review's L5, M1)", async () => {
+    const user = userEvent.setup();
+    const shop = anApp("shop", "ghcr.io/acme/shop:1.4");
+    let answer: object = { unread: "no container of it runs" };
+    renderAt(
+      "/apps/svc_shop?add=port",
+      api({
+        services: {
+          listServices: () => ({ services: [shop] }),
+          listServiceRevisions: () => ({}),
+          checkServicePorts: () => answer,
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Add a port to shop" });
+    const why = await within(sheet).findByText(/Ports aren't checked: no container of it runs/);
+    // A port past the first 24 is listed and not asked; the list is cut short.
+    answer = {
+      ports: [
+        { port: 8000, listening: true, answer: PortAnswer.HTTP, said: "200 OK" },
+        { port: 9000, exposed: true },
+      ],
+      cut: true,
+    };
+    await user.click(
+      within(why.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Check again" }),
+    );
+    const picked = await within(sheet).findByRole("combobox", { name: "In the app" });
+    await user.selectOptions(picked, "9000");
+    expect(within(sheet).getByText(/Port 9000 isn't checked, as only the first 24 ports are/)).toBeVisible();
+    await user.selectOptions(picked, "other");
+    await user.type(within(sheet).getByRole("textbox", { name: "In the app" }), "7000");
+    expect(sheet).not.toHaveTextContent(/Nothing in the app listens/);
   });
 });

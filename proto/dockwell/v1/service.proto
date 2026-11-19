@@ -177,6 +177,25 @@ service ServiceService {
       body: "*"
     };
   }
+
+  // CheckServicePorts asks the server a service runs on which TCP ports its
+  // container exposes, publishes and listens on, and whether each answers at the
+  // container's own address, asked from inside the container's network so
+  // nothing past it is reached, so Add a domain and Add a port can offer them by
+  // what they are. It changes nothing. It lists up to 128 ports and asks the
+  // first 24, each once, for 2 seconds at most, with no redirect followed and no
+  // more read than a status line or a banner. Rootless Docker's ports are listed
+  // and not asked. A person can check 60 times a minute, and a server answers two
+  // checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+  rpc CheckServicePorts(CheckServicePortsRequest) returns (CheckServicePortsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {verb: "ports"};
+    option (google.api.http) = {get: "/v1/services/{id}/ports"};
+  }
 }
 
 // OpenServiceRequest names a service and the port of its web UI.
@@ -207,6 +226,57 @@ message OpenServiceResponse {
   google.protobuf.Timestamp expire_time = 2;
   // The origin the app answers on, such as "http://abcde23456.localhost:7600".
   string origin = 3;
+}
+
+// CheckServicePortsRequest names a service, and the server to ask.
+message CheckServicePortsRequest {
+  // The service, by ID or by name.
+  string id = 1;
+  // The server to ask, by ID, of those it runs on. Empty asks the first.
+  string server_id = 2;
+}
+
+// CheckServicePortsResponse says what each port of a service's container is.
+message CheckServicePortsResponse {
+  // Each TCP port, by number: the ones it exposes or publishes, then any other
+  // something listens on.
+  repeated ServicePortCheck ports = 1;
+  // Why its ports weren't asked, or not all were, such as no container of it
+  // running, or "".
+  string unread = 2;
+  // The list isn't whole: it has more ports, or more containers, than were read,
+  // so a port missing from it may still be listened on.
+  bool cut = 3;
+}
+
+// ServicePortCheck is a TCP port in a service's container, and what answers there.
+message ServicePortCheck {
+  // The port in the container, such as 3000.
+  uint32 port = 1;
+  // Its image or its spec exposes it.
+  bool exposed = 2;
+  // Something in the container listens on it beyond the container's loopback, as
+  // the container's own /proc/net says. False where that couldn't be read.
+  bool listening = 3;
+  // The port on the server it's published on, or 0.
+  uint32 server_port = 4;
+  // What answered at the container's address. Unspecified for a port that wasn't
+  // asked: past the first 24, or where unread says why.
+  PortAnswer answer = 5;
+  // What it said, in a few words, such as "200 OK", "302 Found" or "SSH", or why
+  // nothing did, such as "connection refused".
+  string said = 6;
+}
+
+// PortAnswer is what answered on a port of a container.
+enum PortAnswer {
+  PORT_ANSWER_UNSPECIFIED = 0;
+  // An HTTP answer: a status line.
+  PORT_ANSWER_HTTP = 1;
+  // It took the connection, and said something other than HTTP, or nothing.
+  PORT_ANSWER_OTHER = 2;
+  // Nothing took the connection.
+  PORT_ANSWER_NOTHING = 3;
 }
 
 // ListServicesRequest asks for a page of services.

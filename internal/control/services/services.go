@@ -24,6 +24,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/containers"
@@ -76,6 +77,10 @@ type Handler struct {
 	// Updates says what newer image each service has, for an update that names
 	// none. Nil knows of none, so an update needs an image.
 	Updates Updates
+	// Agents reads a service's ports on its server (#791). Nil reads none.
+	Agents *agentapi.Agents
+
+	portCallers portCallers
 }
 
 // UpdateReader says what's newer than what each service runs.

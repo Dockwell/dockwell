@@ -300,6 +300,45 @@ Undoing one install or website, after another has added its project to the same 
 - `Website-New-Domain.dc.html`: the new-website sheet's domain step.
 - `M-Domain-Add.dc.html`: a phone version of the first.
 
+### 11. Port in the app
+
+Added for #791, after the sheet above landed. Add a domain and Add a port pick the port in the app from what's known of it, and say whether it answers, instead of a bare number field.
+
+- **What's listed:**
+  - The port that serves the app's web page comes first (`ServiceInfo.web_port`).
+  - Then what the spec publishes and exposes.
+  - Then what the server's agent finds: what the image exposes, and what listens in the container beyond its loopback, read from the container's own `/proc/<pid>/net/tcp`.
+  - Each is labelled: "3000 · web page · answers 200 OK", "22 · SSH", "9000 · nothing listens".
+  - A port known for something else, such as SSH's 22 or Redis's 6379, says so under the picker, with the web page's port one click away.
+- **Where the check dials from:** `ServiceService.CheckServicePorts` asks the agent with `AppPortsCall`. The agent asks from inside the container's own network namespace, never from the server's.
+  - It holds the namespace open by its file from `/proc/<pid>/ns/net`, and refuses one that is the agent's own.
+  - Inside the namespace, on a thread of its own, the container's address must be on one of the namespace's own interfaces, and the namespace must not let a socket take an address it doesn't hold (`ip_nonlocal_bind`, read again before each dial).
+  - Each dial is made from that address to that same address, with the socket bound to no device. The kernel refuses a source address the namespace doesn't hold before any packet, so a dial can only reach one of the container's own addresses, by the route a connection to one's own address always takes.
+  - That holds while the container can't change its own network. A container that can (privileged, `NET_ADMIN`, `SYS_ADMIN` or `ALL` added, or `ip_nonlocal_bind` set as it's made) could route even its own address out, so its ports are listed and none asked, saying why.
+  - It first bound the socket to the namespace's `lo`. CI's first run on PR #872 showed that reaches nothing on a real server: such a socket takes `127.0.0.1` as its source, which the kernel drops on its way to another interface's address wherever `route_localnet` is 0, its default. Bound next to the interface holding the address, an address moved to another interface would fall through to the default route, so the binding went (the second re-check's N1).
+  - So no subnet a network is given, and no route or policy rule on the server (Tailscale's, a VPN's), can take a dial past the container, as the dial is made in the container's network: a container whose endpoint says a LAN or internet address that isn't its own has its ports listed and none asked. The container's own routes and rules can't change without the powers above.
+  - It never dials a loopback, link-local, unspecified or multicast address.
+  - This replaced dialing the endpoint's address from the server with a deny list, which the review of PR #872 showed could leave the server (H1). It was chosen over an allow-list of the server's bridges, as it needs no reading of networks and covers address reuse too.
+- **What it reads:** a banner the app sends first, such as SSH's, or else the status line of a `GET /`. It follows no redirect, reads 256 bytes at most, and keeps 40 characters of them. Each port gets 2 seconds, four at once.
+- **Bounds:**
+  - A call reads 4 containers, lists up to 128 ports, and asks the first 24.
+  - A port past those has no answer, and `cut` says when the list isn't whole: more ports, or more containers, than were read. The panel then never says nothing listens on a port it doesn't list.
+- **The same container throughout:**
+  - What listens counts only if the container is the same process (PID and start time) after `/proc` was read.
+  - Before each port is asked, the container must still be the same process at the same address. Once it isn't, nothing asked counts, and `unread` says it restarted.
+- **Not asked:** an app on the server's own network, as its ports are the server's. On rootless Docker, its ports are listed and none asked, as `checkReach` refuses there too.
+- **Who may ask:** a developer of the service's project, checked by the gate and again by the handler. The server must be one the service runs on.
+- **Limits:** 60 checks a minute per person, where a token counts as its owner, and two checks in flight per server.
+- **In the panel:**
+  - Answers read before the app last changed (a restart, another revision) are dropped and asked again.
+  - Where the server didn't check, a state says why, with what to do: update its agent, or Check again.
+  - An agent from before this, a stopped app, or a caller who may not ask leaves the list the spec gives.
+- **Numbers, granted on 2026-11-19:**
+  - agent.proto: `Call.app_ports` 390, `CallResult.app_ports` 391, `Hello.reads_app_ports` 392, in a block of 390 to 399 for a service's ports.
+  - service.proto: `CheckServicePortsRequest`, `CheckServicePortsResponse`, `ServicePortCheck` and `PortAnswer`, all new.
+  - `cut`, field 3 of `AppPortsResult` and of `CheckServicePortsResponse`, both messages this change adds, for the review's M1.
+  - No migration.
+
 ## Verified
 
 Checked on 2026-11-17 against Cloudflare's API, with a scratch tunnel made for it, remotely managed as the dashboard makes them, in a test zone of the owner's account (written here as example.com). Every call went through a guard that reached only that zone and tunnels named for the test. cloudflared was 2026.5.2. Everything made was removed after: the records, then the tunnel. No token is recorded here.

@@ -7,7 +7,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
 
-import { domainAdviceOf, forwardToOf, providerName, useFirewallWords } from "../servers/network";
+import { domainAdviceOf, forwardToOf, isSharedAddress, providerName, useFirewallWords } from "../servers/network";
+import { isPrivateAddress } from "../servers/server";
+import { StateLine } from "./DomainStep";
 
 import "./DomainRecord.css";
 import { useMay } from "../auth/may";
@@ -34,7 +36,7 @@ function useDomainCheck(
   server: string,
   domain: string,
   wanted: readonly string[],
-): { check: DomainCheck | undefined; again: () => void; checking: boolean } {
+): { check: DomainCheck | undefined; again: () => void; checking: boolean; failed: boolean } {
   const asked = useSettled(domain);
   // Checking a name is part of planning a route, which is a developer's (ADR 0059).
   const allowed = useMay()(DomainService.method.checkDomain).allowed;
@@ -58,7 +60,27 @@ function useDomainCheck(
     check: asked === "" ? undefined : read.data?.check,
     again: () => void read.refetch(),
     checking: read.isFetching,
+    // A read that failed says so, with Check again, rather than nothing (#791).
+    failed: asked !== "" && read.isError && read.data === undefined,
   };
+}
+
+/**
+ * The addresses DNS should point at, as the check says, for a server whose own network
+ * knows none: what's known beyond its interfaces, then a public address on an interface
+ * of a family that isn't known, as resource.DomainCheck.pointAt has it. Each says
+ * whether it's proved a way in.
+ */
+export function pointAtOf(check: DomainCheck | undefined): { address: string; unproven: boolean }[] {
+  if (!check) return [];
+  const isPublic = (ip: string) => ip !== "" && !isPrivateAddress(ip) && !isSharedAddress(ip);
+  const six = (ip: string) => ip.includes(":");
+  const told = check.publicAddresses.filter(isPublic);
+  const out = [...told];
+  for (const ip of check.here.filter(isPublic)) {
+    if (!out.includes(ip) && !told.some((known) => six(known) === six(ip))) out.push(ip);
+  }
+  return out.map((address) => ({ address, unproven: check.unprovenAddresses.includes(address) }));
 }
 
 /**
@@ -69,10 +91,11 @@ function useDomainCheck(
 function useRecordWord(): (
   check: DomainCheck | undefined,
   address: string,
+  failed?: boolean,
 ) => { status: Status; word: string; note?: string; settled: boolean } | undefined {
   const { t } = useLingui();
-  return (check, address) => {
-    if (!check) return undefined;
+  return (check, address, failed = false) => {
+    if (!check) return failed ? { status: "unknown", word: t`Can't read DNS`, settled: false } : undefined;
     if (check.found.includes(address)) return { status: "healthy", word: t`Points here`, settled: true };
     const six = address.includes(":");
     const found = check.found.filter((ip) => ip.includes(":") === six).join(", ");
@@ -108,9 +131,9 @@ export function RecordRow({
 }: {
   domain: string;
   address: string;
-  read: Pick<ReturnType<typeof useDomainCheck>, "check" | "again" | "checking">;
+  read: Pick<ReturnType<typeof useDomainCheck>, "check" | "again" | "checking"> & { failed?: boolean };
 }) {
-  const said = useRecordWord()(read.check, address);
+  const said = useRecordWord()(read.check, address, read.failed);
   return (
     <DnsRecord
       type={address.includes(":") ? "AAAA" : "A"}
@@ -133,11 +156,66 @@ function CatalogLink({ onLeave }: { onLeave: () => void }) {
   );
 }
 
+/** Where the server's address is set, as a state's action. It leaves the form. */
+function SetIt({ server, onLeave }: { server: string; onLeave: () => void }) {
+  return (
+    <Link
+      className="domain-step-act"
+      to="/servers/$serverId"
+      params={{ serverId: server }}
+      hash="network"
+      onClick={onLeave}
+    >
+      <Trans>Set it on the server</Trans>
+    </Link>
+  );
+}
+
+/** The records to make, each ready to copy and checked live, and the caveat under a way out. */
+function Records({
+  domain,
+  records,
+  provider,
+  read,
+}: {
+  domain: string;
+  records: readonly { address: string; unproven?: boolean }[];
+  provider: string | undefined;
+  read: ReturnType<typeof useDomainCheck>;
+}) {
+  return (
+    <>
+      <p className="domain-record-lead">
+        {records.length > 1 ? (
+          <Trans>Make these records at your DNS provider.</Trans>
+        ) : (
+          <Trans>Make this record at your DNS provider.</Trans>
+        )}
+      </p>
+      {records.map((record) => (
+        <Fragment key={record.address}>
+          <RecordRow domain={domain} address={record.address} read={read} />
+          {record.unproven ? (
+            <p className="domain-record-hint">
+              {provider ? (
+                <Trans>That's its way out, which may not be its way in: check it in {provider}'s console.</Trans>
+              ) : (
+                <Trans>That's its way out, which may not be its way in: check it in your provider's console.</Trans>
+              )}
+            </p>
+          ) : null}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 /**
- * Says what to do so a domain reaches a server, by what's known of it (ADR 0034): the
- * record to make, or a tunnel first, as a home router needs a forwarded port and a
- * carrier's NAT can't have one. With nothing known, it asks. What it says of a record
- * follows DNS as the record arrives.
+ * The record a domain needs to reach a server, by what's known of it (ADR 0034), ready
+ * to copy, with what DNS says of it live and Check again: the record, or a tunnel first,
+ * as a home router needs a forwarded port and a carrier's NAT can't have one. Where the
+ * server's network knows no address, the check's own does (#791). What it says of a
+ * record follows DNS as the record arrives.
  */
 export function DomainRecord({
   server,
@@ -170,6 +248,8 @@ export function DomainRecord({
   const name = domain === "" ? t`your domain` : domain;
   if (!server) return null;
   const serverName = server.name;
+  // Nothing is said of an address while the first read is on its way.
+  const reading = read.checking && !check && !read.failed;
 
   const proxied = check?.proxied ? (
     <Callout tone="warning" title={t`${name} points at Cloudflare's proxy`}>
@@ -189,7 +269,13 @@ export function DomainRecord({
   }
 
   if (advice.lead === "tunnel") {
-    const { router, forwardTo, records } = advice;
+    const { forwardTo, records } = advice;
+    // The router's address: as the server's network has it, or as the check found it.
+    const router = advice.router ?? pointAtOf(check).find((record) => !record.address.includes(":"))?.address;
+    // A forwarded port is said until something proves the way in (#791): DNS leading to
+    // the router proves the record, not the forward, so only the server shown reachable
+    // from outside ends it (the review's M2).
+    const forwards = server.network?.reachable !== Reachable.YES;
     return (
       <div className="domain-record">
         <p className="domain-record-lead">
@@ -208,27 +294,25 @@ export function DomainRecord({
                 ))}
               </>
             ) : null}
-            <p className="domain-record-lead">
-              {forwardTo ? (
-                <Trans>
-                  Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record.
-                </Trans>
-              ) : (
-                <Trans>Or forward ports 80 and 443 on your router to this server, and make this record.</Trans>
-              )}
-            </p>
             {router ? (
               <>
-                <RecordRow domain={name} address={router} read={read} />
-                <p className="domain-record-hint">
-                  <Trans>Your router's address, as far as Dockwell can tell.</Trans>
+                <p className="domain-record-lead">
+                  <Trans>Or make this record for your router's address, as far as Dockwell can tell.</Trans>
                 </p>
+                <RecordRow domain={name} address={router} read={read} />
               </>
-            ) : (
-              <p className="domain-record-hint">
-                <Trans>Point an A record at your router's public address.</Trans>
-              </p>
+            ) : reading ? null : (
+              <StateLine status="unknown" action={<SetIt server={server.id} onLeave={onLeave} />}>
+                {t`Your router's public address isn't known yet`}
+              </StateLine>
             )}
+            {forwards ? (
+              <StateLine status="degraded">
+                {forwardTo
+                  ? t`Needs ports 80 and 443 forwarded on your router to ${forwardTo}`
+                  : t`Needs ports 80 and 443 forwarded on your router to this server`}
+              </StateLine>
+            ) : null}
             {proxied}
           </>
         )}
@@ -238,28 +322,22 @@ export function DomainRecord({
 
   if (advice.lead === "ask") {
     const provider = providerName(advice.provider);
+    const found = pointAtOf(check);
     return (
       <div className="domain-record">
         {tunnel ? (
           <CatalogLink onLeave={onLeave} />
         ) : (
           <>
-            <p className="domain-record-hint">
-              {provider ? (
-                <Trans>Point an A record at this server's public address, which {provider}'s console shows.</Trans>
-              ) : (
-                <Trans>Point an A record at this server's public address, which your provider's console shows.</Trans>
-              )}{" "}
-              <Link
-                className="domain-record-link"
-                to="/servers/$serverId"
-                params={{ serverId: server.id }}
-                hash="network"
-                onClick={onLeave}
-              >
-                <Trans>Set it on the server</Trans>
-              </Link>
-            </p>
+            {found.length > 0 ? (
+              <Records domain={name} records={found} provider={provider} read={read} />
+            ) : reading ? null : (
+              <StateLine status="unknown" action={<SetIt server={server.id} onLeave={onLeave} />}>
+                {provider
+                  ? t`This server's public address isn't known yet. ${provider}'s console shows it`
+                  : t`This server's public address isn't known yet`}
+              </StateLine>
+            )}
             {proxied}
           </>
         )}
@@ -267,31 +345,10 @@ export function DomainRecord({
     );
   }
 
-  const records = advice.records;
   const provider = providerName(advice.provider);
   return tunnel ? null : (
     <div className="domain-record">
-      <p className="domain-record-lead">
-        {records.length > 1 ? (
-          <Trans>Make these records at your DNS provider.</Trans>
-        ) : (
-          <Trans>Make this record at your DNS provider.</Trans>
-        )}
-      </p>
-      {records.map((record) => (
-        <Fragment key={record.address}>
-          <RecordRow domain={name} address={record.address} read={read} />
-          {record.unproven ? (
-            <p className="domain-record-hint">
-              {provider ? (
-                <Trans>That's its way out, which may not be its way in: check it in {provider}'s console.</Trans>
-              ) : (
-                <Trans>That's its way out, which may not be its way in: check it in your provider's console.</Trans>
-              )}
-            </p>
-          ) : null}
-        </Fragment>
-      ))}
+      <Records domain={name} records={advice.records} provider={provider} read={read} />
       {/* What to open at the provider, only once a certificate showed the internet can't reach it. */}
       {advice.provider !== undefined && server.network?.reachable === Reachable.NO ? (
         <div className="domain-record-blocked">

@@ -489,7 +489,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error) *Session {
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
-		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
+		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
@@ -666,6 +666,8 @@ type Session struct {
 	probesConnections bool
 	// makesAppOwners says the agent makes a catalog app's owner (ADR 0105).
 	makesAppOwners bool
+	// readsAppPorts says the agent reads a service's ports and asks each (#791).
+	readsAppPorts bool
 	// registryLogins says the agent signs in to registries with the logins it's
 	// sent (ADR 0086).
 	registryLogins bool

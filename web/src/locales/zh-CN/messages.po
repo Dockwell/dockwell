@@ -2594,6 +2594,9 @@ msgstr "应用内端口"
 msgid "Port on the server"
 msgstr "服务器上的端口"
 
+msgid "Port {port} is {portElsewhere}'s, which serves no web page"
+msgstr "端口 {port} 属于 {portElsewhere}，不提供网页"
+
 msgid "Reaches"
 msgstr "可访问"
 
@@ -2620,6 +2623,9 @@ msgstr "将 {zone} 设为完全（严格）"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "<0>127.0.0.1</0> 上的隧道，用来识别访问者"
+
+msgid "Use {webPort}"
+msgstr "改用 {webPort}"
 
 msgid "Visitors are sent on, such as from an old domain."
 msgstr "访客会被转到别处，例如来自旧域名的访客。"
@@ -4452,29 +4458,23 @@ msgstr "请在 DNS 服务商处添加这些记录。"
 msgid "Make this record at your DNS provider."
 msgstr "请在 DNS 服务商处添加这条记录。"
 
+msgid "Needs ports 80 and 443 forwarded on your router to this server"
+msgstr "需要在路由器上将 80 和 443 端口转发到此服务器"
+
+msgid "Needs ports 80 and 443 forwarded on your router to {forwardTo}"
+msgstr "需要在路由器上将 80 和 443 端口转发到 {forwardTo}"
+
 msgid "Not set yet"
 msgstr "尚未设置"
 
 msgid "Only a tunnel reaches it."
 msgstr "只有隧道能访问到它。"
 
-msgid "Or forward ports 80 and 443 on your router to this server, and make this record."
-msgstr "或者在路由器上将 80 和 443 端口转发到此服务器，并添加这条记录。"
-
-msgid "Or forward ports 80 and 443 on your router to this server, at {forwardTo}, and make this record."
-msgstr "或者在路由器上将 80 和 443 端口转发到此服务器的 {forwardTo}，并添加这条记录。"
-
 msgid "Or make this record for its own IPv6 address, which reaches visitors with IPv6."
 msgstr "或者为它自己的 IPv6 地址添加此记录，使用 IPv6 的访问者可以访问。"
 
-msgid "Point an A record at this server's public address, which your provider's console shows."
-msgstr "将 A 记录指向此服务器的公网地址，该地址可在服务商的控制台中查看。"
-
-msgid "Point an A record at this server's public address, which {provider}'s console shows."
-msgstr "将 A 记录指向此服务器的公网地址，该地址可在 {provider} 的控制台中查看。"
-
-msgid "Point an A record at your router's public address."
-msgstr "请添加指向路由器公网地址的 A 记录。"
+msgid "Or make this record for your router's address, as far as Dockwell can tell."
+msgstr "或者为路由器的地址添加这条记录（据 Dockwell 所知）。"
 
 msgid "Points elsewhere"
 msgstr "指向别处"
@@ -4503,8 +4503,14 @@ msgstr "此服务器位于运营商 NAT 之后"
 msgid "This server is on a home or office network: a tunnel reaches it with nothing forwarded."
 msgstr "此服务器位于家庭或办公网络中：隧道无需端口转发即可访问它。"
 
-msgid "Your router's address, as far as Dockwell can tell."
-msgstr "这是 Dockwell 判断出的路由器地址。"
+msgid "This server's public address isn't known yet"
+msgstr "尚不知道此服务器的公网地址"
+
+msgid "This server's public address isn't known yet. {provider}'s console shows it"
+msgstr "尚不知道此服务器的公网地址。{provider} 的控制台中可以看到"
+
+msgid "Your router's public address isn't known yet"
+msgstr "尚不知道路由器的公网地址"
 
 msgid "your domain"
 msgstr "你的域名"
@@ -5531,6 +5537,38 @@ msgstr "{name}（默认）"
 msgid "{secrets, plural, one {# variable} other {# variables}}"
 msgstr "{secrets, plural, other {# 个变量}}"
 
+msgid "Nothing answers on port {port} yet"
+msgstr "端口 {port} 暂时没有响应"
+
+msgid "Nothing in the app listens on port {port}"
+msgstr "应用中没有程序监听端口 {port}"
+
+msgid "Port {port} answers, but not over HTTP"
+msgstr "端口 {port} 有响应，但不是 HTTP"
+
+#. placeholder {0}: c.said
+msgid "Port {port} answers: {0}"
+msgstr "端口 {port} 响应：{0}"
+
+msgid "Port {port} isn't checked, as only the first 24 ports are"
+msgstr "端口 {port} 未检查，因为只检查前 24 个端口"
+
+#. placeholder {0}: read.unread
+msgid "Ports aren't checked: {0}"
+msgstr "未检查端口：{0}"
+
+msgid "Ports were checked often just now. Check again in a minute"
+msgstr "刚才检查端口过于频繁。请一分钟后再检查"
+
+msgid "Update its agent"
+msgstr "更新它的 agent"
+
+msgid "{server} isn't answering, so ports aren't checked"
+msgstr "{server} 没有响应，因此未检查端口"
+
+msgid "{server}'s agent is too old to check ports"
+msgstr "{server} 的 agent 版本过旧，无法检查端口"
+
 msgid "A private route needs its domain's routes on one server, or a path falls to the route above it."
 msgstr "私有路由要求其域名的所有路由在同一台服务器上，否则路径会落到其上层路由。"
 
@@ -6091,6 +6129,19 @@ msgstr "{n, plural, other {更新所选的 # 个}}"
 
 msgid "{name} stays planned, on Activity"
 msgstr "{name} 保持已计划状态，可在动态中查看"
+
+#. placeholder {0}: c.said
+msgid "answers {0}"
+msgstr "响应 {0}"
+
+msgid "not HTTP"
+msgstr "不是 HTTP"
+
+msgid "nothing listens"
+msgstr "无程序监听"
+
+msgid "web page"
+msgstr "网页"
 
 msgid "Also delete the project {label}"
 msgstr "同时删除项目 {label}"
@@ -13912,9 +13963,6 @@ msgstr "此浏览器已离线，因此你的域名显示为未知。上次收到
 
 msgid "Until then, a domain doesn't lead to its app, and you can't add one here."
 msgstr "在此之前，域名无法跳转到它的应用，你也无法在这里添加域名。"
-
-msgid "Update its agent"
-msgstr "更新它的 agent"
 
 msgid "What your domains serve isn't affected."
 msgstr "你的域名所提供的服务不受影响。"

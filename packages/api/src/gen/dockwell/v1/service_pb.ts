@@ -24,7 +24,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/service.proto.
  */
 export const file_dockwell_v1_service: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJjChJPcGVuU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDAoEcG9ydBgCIAEoDRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEg0KBXByb29mGAUgASgJImMKE09wZW5TZXJ2aWNlUmVzcG9uc2USCwoDdXJsGAEgASgJEi8KC2V4cGlyZV90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZvcmlnaW4YAyABKAkiYgoTTGlzdFNlcnZpY2VzUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEhEKCXBhZ2Vfc2l6ZRgDIAEoBRISCgpwYWdlX3Rva2VuGAQgASgJIlsKFExpc3RTZXJ2aWNlc1Jlc3BvbnNlEioKCHNlcnZpY2VzGAEgAygLMhguZG9ja3dlbGwudjEuU2VydmljZUluZm8SFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJIqQECgtTZXJ2aWNlSW5mbxIKCgJpZBgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEhAKCHJldmlzaW9uGAMgASgDEi8KC3VwZGF0ZV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIxCgRzcGVjGAUgASgLMiMuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuU2VydmljZRIzCgtkZXBsb3ltZW50cxgGIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhEKCWNoYW5nZV9pZBgHIAEoCRIdChVyb2xsZWRfYmFja19jaGFuZ2VfaWQYCCABKAkSLgoMY2hhbmdlX3N0YXRlGAkgASgOMhguZG9ja3dlbGwudjEuQ2hhbmdlU3RhdGUSFwoPc3BlY191bnJlYWRhYmxlGAogASgJEiwKC2hvc3RfYWNjZXNzGAsgAygLMhcuZG9ja3dlbGwudjEuSG9zdEFjY2VzcxIaChJndWVzc2FibGVfcGFzc3dvcmQYDCABKAgSLwoJZ3Vlc3NhYmxlGA0gASgOMhwuZG9ja3dlbGwudjEuR3Vlc3NhYmxlU2VjcmV0EhAKCHdlYl9wb3J0GA4gASgNEioKBnVwZGF0ZRgUIAEoCzIaLmRvY2t3ZWxsLnYxLlNlcnZpY2VVcGRhdGUiuAEKEVNlcnZpY2VEZXBsb3ltZW50EhEKCXNlcnZlcl9pZBgBIAEoCRITCgtzZXJ2ZXJfbmFtZRgCIAEoCRIrCgVzdGF0ZRgDIAEoDjIcLmRvY2t3ZWxsLnYxLkRlcGxveW1lbnRTdGF0ZRINCgVlcnJvchgEIAEoCRIvCgt1cGRhdGVfdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDgoGZGlnZXN0GAYgASgJInYKG0xpc3RTZXJ2aWNlUmV2aXNpb25zUmVxdWVzdBIKCgJpZBgBIAEoCRIRCglwYWdlX3NpemUYAiABKAUSEgoKcGFnZV90b2tlbhgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJImgKHExpc3RTZXJ2aWNlUmV2aXNpb25zUmVzcG9uc2USLwoJcmV2aXNpb25zGAEgAygLMhwuZG9ja3dlbGwudjEuU2VydmljZVJldmlzaW9uEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSL4AgoPU2VydmljZVJldmlzaW9uEg4KBm51bWJlchgBIAEoAxIvCgtjcmVhdGVfdGltZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDQoFaW1hZ2UYAyABKAkSDwoHZGVsZXRlZBgEIAEoCBIjCgZjaGFuZ2UYBSABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USKQoHY2hhbmdlcxgGIAMoCzIYLmRvY2t3ZWxsLnYxLkZpZWxkQ2hhbmdlEjMKC2RlcGxveW1lbnRzGAcgAygLMh4uZG9ja3dlbGwudjEuU2VydmljZURlcGxveW1lbnQSFgoObWF0Y2hlc19sYXRlc3QYCCABKAgSFgoOcm9sbGVkX2JhY2tfdG8YCSABKAMSFQoNc2VydmVyc19hZGRlZBgKIAMoCRIUCgxzZXJ2ZXJzX2xlZnQYCyADKAkSIgoFYnVpbGQYggEgASgLMhIuZG9ja3dlbGwudjEuQnVpbGQiaAoURGVwbG95U2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDQoFaW1hZ2UYAiABKAkSDwoHc3VtbWFyeRgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJIjwKFURlcGxveVNlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UipgEKEk1vdmVTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdwcm9qZWN0GAIgASgJEhMKC2Vudmlyb25tZW50GAMgASgJEhIKCnRvX3Byb2plY3QYBCABKAkSFgoOdG9fZW52aXJvbm1lbnQYBSABKAkSEwoLbmV3X3Byb2plY3QYBiABKAkSDAoEYWxzbxgHIAMoCRIPCgdzdW1tYXJ5GAggASgJIosCChNNb3ZlU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZRInCgVtb3ZlcxgCIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEigKBmNvcGllcxgDIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEikKB2ZvbGxvd3MYBCADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhImCgZibG9ja3MYBSADKAsyFi5kb2Nrd2VsbC52MS5Nb3ZlQmxvY2sSKQoHY3Jvc3NlcxgGIAMoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmIlYKCU1vdmVCbG9jaxIqCghyZXNvdXJjZRgBIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEgsKA3doeRgCIAEoCRIQCghtb3ZlX3RvbxgDIAEoCSKPAQoVVXBncmFkZVNlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBWltYWdlGAIgASgJEhMKC3NraXBfYmFja3VwGAMgASgIEg8KB3N1bW1hcnkYBCABKAkSDwoHcHJvamVjdBgFIAEoCRITCgtlbnZpcm9ubWVudBgGIAEoCRIPCgdyZWJ1aWxkGFogASgIIj0KFlVwZ3JhZGVTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIm0KFlJvbGxCYWNrU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAMSDwoHc3VtbWFyeRgDIAEoCRIPCgdwcm9qZWN0GAQgASgJEhMKC2Vudmlyb25tZW50GAUgASgJIj4KF1JvbGxCYWNrU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSLOAQoVQWRkU2VydmljZVBvcnRSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCWhvc3RfcG9ydBgCIAEoDRIWCg5jb250YWluZXJfcG9ydBgDIAEoDRI2Cghwcm90b2NvbBgEIAEoDjIkLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlByb3RvY29sEg8KB2hvc3RfaXAYBSABKAkSDwoHc3VtbWFyeRgGIAEoCRIPCgdwcm9qZWN0GAcgASgJEhMKC2Vudmlyb25tZW50GAggASgJIj0KFkFkZFNlcnZpY2VQb3J0UmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlInEKG0NoYW5nZVNlcnZpY2VSdW50aW1lUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSJDChxDaGFuZ2VTZXJ2aWNlUnVudGltZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSqqAQoPRGVwbG95bWVudFN0YXRlEiAKHERFUExPWU1FTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIcChhERVBMT1lNRU5UX1NUQVRFX1BFTkRJTkcQARIZChVERVBMT1lNRU5UX1NUQVRFX0xJVkUQAhIbChdERVBMT1lNRU5UX1NUQVRFX0ZBSUxFRBADEh8KG0RFUExPWU1FTlRfU1RBVEVfU1VQRVJTRURFRBAEMocLCg5TZXJ2aWNlU2VydmljZRJ8CgxMaXN0U2VydmljZXMSIC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VzUmVzcG9uc2UiJ5ACAaC7GAHAuxgCyLsYAtC7GASC0+STAg4SDC92MS9zZXJ2aWNlcxKyAQoUTGlzdFNlcnZpY2VSZXZpc2lvbnMSKC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QaKS5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlIkWQAgGguxgBqrsYCxIJcmV2aXNpb25zwLsYAsi7GALQuxgEgtPkkwIdEhsvdjEvc2VydmljZXMve2lkfS9yZXZpc2lvbnMSiwEKDURlcGxveVNlcnZpY2USIS5kb2Nrd2VsbC52MS5EZXBsb3lTZXJ2aWNlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkRlcGxveVNlcnZpY2VSZXNwb25zZSIzoLsYAsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL3NlcnZpY2VzL3tpZH06ZGVwbG95EpMBCg9Sb2xsQmFja1NlcnZpY2USIy5kb2Nrd2VsbC52MS5Sb2xsQmFja1NlcnZpY2VSZXF1ZXN0GiQuZG9ja3dlbGwudjEuUm9sbEJhY2tTZXJ2aWNlUmVzcG9uc2UiNaC7GALAuxgDyLsYA9C7GASC0+STAh86ASoiGi92MS9zZXJ2aWNlcy97aWR9OnJvbGxiYWNrEpwBCg5VcGdyYWRlU2VydmljZRIiLmRvY2t3ZWxsLnYxLlVwZ3JhZGVTZXJ2aWNlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlVwZ3JhZGVTZXJ2aWNlUmVzcG9uc2UiQaC7GAKquxgJEgd1cGdyYWRlwLsYA8i7GAPQuxgEgtPkkwIeOgEqIhkvdjEvc2VydmljZXMve2lkfTp1cGdyYWRlEpsBCg5BZGRTZXJ2aWNlUG9ydBIiLmRvY2t3ZWxsLnYxLkFkZFNlcnZpY2VQb3J0UmVxdWVzdBojLmRvY2t3ZWxsLnYxLkFkZFNlcnZpY2VQb3J0UmVzcG9uc2UiQKC7GAKquxgKEghhZGQtcG9ydMC7GAPIuxgD0LsYBILT5JMCHDoBKiIXL3YxL3NlcnZpY2VzL3tpZH0vcG9ydHMSvAEKFENoYW5nZVNlcnZpY2VSdW50aW1lEiguZG9ja3dlbGwudjEuQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXF1ZXN0GikuZG9ja3dlbGwudjEuQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXNwb25zZSJPoLsYAqq7GBASDmNoYW5nZS1ydW50aW1lwLsYA8i7GAPQuxgEgtPkkwIlOgEqIiAvdjEvc2VydmljZXMve2lkfTpjaGFuZ2UtcnVudGltZRKNAQoLTW92ZVNlcnZpY2USHy5kb2Nrd2VsbC52MS5Nb3ZlU2VydmljZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5Nb3ZlU2VydmljZVJlc3BvbnNlIjuguxgCqrsYBhIEbW92ZcC7GAPIuxgD0LsYBILT5JMCGzoBKiIWL3YxL3NlcnZpY2VzL3tpZH06bW92ZRKRAQoLT3BlblNlcnZpY2USHy5kb2Nrd2VsbC52MS5PcGVuU2VydmljZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5PcGVuU2VydmljZVJlc3BvbnNlIj+guxgBqrsYBhIEb3BlbrC7GAHAuxgDyLsYBNC7GASC0+STAhs6ASoiFi92MS9zZXJ2aWNlcy97aWR9Om9wZW5CpQEKD2NvbS5kb2Nrd2VsbC52MUIMU2VydmljZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_build, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service_update, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9zZXJ2aWNlLnByb3RvEgtkb2Nrd2VsbC52MSJjChJPcGVuU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDAoEcG9ydBgCIAEoDRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEg0KBXByb29mGAUgASgJImMKE09wZW5TZXJ2aWNlUmVzcG9uc2USCwoDdXJsGAEgASgJEi8KC2V4cGlyZV90aW1lGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZvcmlnaW4YAyABKAkiOQoYQ2hlY2tTZXJ2aWNlUG9ydHNSZXF1ZXN0EgoKAmlkGAEgASgJEhEKCXNlcnZlcl9pZBgCIAEoCSJmChlDaGVja1NlcnZpY2VQb3J0c1Jlc3BvbnNlEiwKBXBvcnRzGAEgAygLMh0uZG9ja3dlbGwudjEuU2VydmljZVBvcnRDaGVjaxIOCgZ1bnJlYWQYAiABKAkSCwoDY3V0GAMgASgIIpABChBTZXJ2aWNlUG9ydENoZWNrEgwKBHBvcnQYASABKA0SDwoHZXhwb3NlZBgCIAEoCBIRCglsaXN0ZW5pbmcYAyABKAgSEwoLc2VydmVyX3BvcnQYBCABKA0SJwoGYW5zd2VyGAUgASgOMhcuZG9ja3dlbGwudjEuUG9ydEFuc3dlchIMCgRzYWlkGAYgASgJImIKE0xpc3RTZXJ2aWNlc1JlcXVlc3QSDwoHcHJvamVjdBgBIAEoCRITCgtlbnZpcm9ubWVudBgCIAEoCRIRCglwYWdlX3NpemUYAyABKAUSEgoKcGFnZV90b2tlbhgEIAEoCSJbChRMaXN0U2VydmljZXNSZXNwb25zZRIqCghzZXJ2aWNlcxgBIAMoCzIYLmRvY2t3ZWxsLnYxLlNlcnZpY2VJbmZvEhcKD25leHRfcGFnZV90b2tlbhgCIAEoCSKkBAoLU2VydmljZUluZm8SCgoCaWQYASABKAkSKgoIcmVzb3VyY2UYAiABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIQCghyZXZpc2lvbhgDIAEoAxIvCgt1cGRhdGVfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMQoEc3BlYxgFIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlNlcnZpY2USMwoLZGVwbG95bWVudHMYBiADKAsyHi5kb2Nrd2VsbC52MS5TZXJ2aWNlRGVwbG95bWVudBIRCgljaGFuZ2VfaWQYByABKAkSHQoVcm9sbGVkX2JhY2tfY2hhbmdlX2lkGAggASgJEi4KDGNoYW5nZV9zdGF0ZRgJIAEoDjIYLmRvY2t3ZWxsLnYxLkNoYW5nZVN0YXRlEhcKD3NwZWNfdW5yZWFkYWJsZRgKIAEoCRIsCgtob3N0X2FjY2VzcxgLIAMoCzIXLmRvY2t3ZWxsLnYxLkhvc3RBY2Nlc3MSGgoSZ3Vlc3NhYmxlX3Bhc3N3b3JkGAwgASgIEi8KCWd1ZXNzYWJsZRgNIAEoDjIcLmRvY2t3ZWxsLnYxLkd1ZXNzYWJsZVNlY3JldBIQCgh3ZWJfcG9ydBgOIAEoDRIqCgZ1cGRhdGUYFCABKAsyGi5kb2Nrd2VsbC52MS5TZXJ2aWNlVXBkYXRlIrgBChFTZXJ2aWNlRGVwbG95bWVudBIRCglzZXJ2ZXJfaWQYASABKAkSEwoLc2VydmVyX25hbWUYAiABKAkSKwoFc3RhdGUYAyABKA4yHC5kb2Nrd2VsbC52MS5EZXBsb3ltZW50U3RhdGUSDQoFZXJyb3IYBCABKAkSLwoLdXBkYXRlX3RpbWUYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg4KBmRpZ2VzdBgGIAEoCSJ2ChtMaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QSCgoCaWQYASABKAkSEQoJcGFnZV9zaXplGAIgASgFEhIKCnBhZ2VfdG9rZW4YAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSJoChxMaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlEi8KCXJldmlzaW9ucxgBIAMoCzIcLmRvY2t3ZWxsLnYxLlNlcnZpY2VSZXZpc2lvbhIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAki+AIKD1NlcnZpY2VSZXZpc2lvbhIOCgZudW1iZXIYASABKAMSLwoLY3JlYXRlX3RpbWUYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWltYWdlGAMgASgJEg8KB2RlbGV0ZWQYBCABKAgSIwoGY2hhbmdlGAUgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEikKB2NoYW5nZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5GaWVsZENoYW5nZRIzCgtkZXBsb3ltZW50cxgHIAMoCzIeLmRvY2t3ZWxsLnYxLlNlcnZpY2VEZXBsb3ltZW50EhYKDm1hdGNoZXNfbGF0ZXN0GAggASgIEhYKDnJvbGxlZF9iYWNrX3RvGAkgASgDEhUKDXNlcnZlcnNfYWRkZWQYCiADKAkSFAoMc2VydmVyc19sZWZ0GAsgAygJEiIKBWJ1aWxkGIIBIAEoCzISLmRvY2t3ZWxsLnYxLkJ1aWxkImgKFERlcGxveVNlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEg0KBWltYWdlGAIgASgJEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI8ChVEZXBsb3lTZXJ2aWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlIqYBChJNb3ZlU2VydmljZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRISCgp0b19wcm9qZWN0GAQgASgJEhYKDnRvX2Vudmlyb25tZW50GAUgASgJEhMKC25ld19wcm9qZWN0GAYgASgJEgwKBGFsc28YByADKAkSDwoHc3VtbWFyeRgIIAEoCSKLAgoTTW92ZVNlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USJwoFbW92ZXMYAiADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIoCgZjb3BpZXMYAyADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhIpCgdmb2xsb3dzGAQgAygLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSJgoGYmxvY2tzGAUgAygLMhYuZG9ja3dlbGwudjEuTW92ZUJsb2NrEikKB2Nyb3NzZXMYBiADKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZiJWCglNb3ZlQmxvY2sSKgoIcmVzb3VyY2UYASABKAsyGC5kb2Nrd2VsbC52MS5SZXNvdXJjZVJlZhILCgN3aHkYAiABKAkSEAoIbW92ZV90b28YAyABKAkijwEKFVVwZ3JhZGVTZXJ2aWNlUmVxdWVzdBIKCgJpZBgBIAEoCRINCgVpbWFnZRgCIAEoCRITCgtza2lwX2JhY2t1cBgDIAEoCBIPCgdzdW1tYXJ5GAQgASgJEg8KB3Byb2plY3QYBSABKAkSEwoLZW52aXJvbm1lbnQYBiABKAkSDwoHcmVidWlsZBhaIAEoCCI9ChZVcGdyYWRlU2VydmljZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJtChZSb2xsQmFja1NlcnZpY2VSZXF1ZXN0EgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEg8KB3N1bW1hcnkYAyABKAkSDwoHcHJvamVjdBgEIAEoCRITCgtlbnZpcm9ubWVudBgFIAEoCSI+ChdSb2xsQmFja1NlcnZpY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UizgEKFUFkZFNlcnZpY2VQb3J0UmVxdWVzdBIKCgJpZBgBIAEoCRIRCglob3N0X3BvcnQYAiABKA0SFgoOY29udGFpbmVyX3BvcnQYAyABKA0SNgoIcHJvdG9jb2wYBCABKA4yJC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Qcm90b2NvbBIPCgdob3N0X2lwGAUgASgJEg8KB3N1bW1hcnkYBiABKAkSDwoHcHJvamVjdBgHIAEoCRITCgtlbnZpcm9ubWVudBgIIAEoCSI9ChZBZGRTZXJ2aWNlUG9ydFJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJxChtDaGFuZ2VTZXJ2aWNlUnVudGltZVJlcXVlc3QSCgoCaWQYASABKAkSDwoHdmVyc2lvbhgCIAEoCRIPCgdzdW1tYXJ5GAMgASgJEg8KB3Byb2plY3QYBCABKAkSEwoLZW52aXJvbm1lbnQYBSABKAkiQwocQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UqbwoKUG9ydEFuc3dlchIbChdQT1JUX0FOU1dFUl9VTlNQRUNJRklFRBAAEhQKEFBPUlRfQU5TV0VSX0hUVFAQARIVChFQT1JUX0FOU1dFUl9PVEhFUhACEhcKE1BPUlRfQU5TV0VSX05PVEhJTkcQAyqqAQoPRGVwbG95bWVudFN0YXRlEiAKHERFUExPWU1FTlRfU1RBVEVfVU5TUEVDSUZJRUQQABIcChhERVBMT1lNRU5UX1NUQVRFX1BFTkRJTkcQARIZChVERVBMT1lNRU5UX1NUQVRFX0xJVkUQAhIbChdERVBMT1lNRU5UX1NUQVRFX0ZBSUxFRBADEh8KG0RFUExPWU1FTlRfU1RBVEVfU1VQRVJTRURFRBAEMqsMCg5TZXJ2aWNlU2VydmljZRJ8CgxMaXN0U2VydmljZXMSIC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFNlcnZpY2VzUmVzcG9uc2UiJ5ACAaC7GAHAuxgCyLsYAtC7GASC0+STAg4SDC92MS9zZXJ2aWNlcxKyAQoUTGlzdFNlcnZpY2VSZXZpc2lvbnMSKC5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1JlcXVlc3QaKS5kb2Nrd2VsbC52MS5MaXN0U2VydmljZVJldmlzaW9uc1Jlc3BvbnNlIkWQAgGguxgBqrsYCxIJcmV2aXNpb25zwLsYAsi7GALQuxgEgtPkkwIdEhsvdjEvc2VydmljZXMve2lkfS9yZXZpc2lvbnMSiwEKDURlcGxveVNlcnZpY2USIS5kb2Nrd2VsbC52MS5EZXBsb3lTZXJ2aWNlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkRlcGxveVNlcnZpY2VSZXNwb25zZSIzoLsYAsC7GAPIuxgD0LsYBILT5JMCHToBKiIYL3YxL3NlcnZpY2VzL3tpZH06ZGVwbG95EpMBCg9Sb2xsQmFja1NlcnZpY2USIy5kb2Nrd2VsbC52MS5Sb2xsQmFja1NlcnZpY2VSZXF1ZXN0GiQuZG9ja3dlbGwudjEuUm9sbEJhY2tTZXJ2aWNlUmVzcG9uc2UiNaC7GALAuxgDyLsYA9C7GASC0+STAh86ASoiGi92MS9zZXJ2aWNlcy97aWR9OnJvbGxiYWNrEpwBCg5VcGdyYWRlU2VydmljZRIiLmRvY2t3ZWxsLnYxLlVwZ3JhZGVTZXJ2aWNlUmVxdWVzdBojLmRvY2t3ZWxsLnYxLlVwZ3JhZGVTZXJ2aWNlUmVzcG9uc2UiQaC7GAKquxgJEgd1cGdyYWRlwLsYA8i7GAPQuxgEgtPkkwIeOgEqIhkvdjEvc2VydmljZXMve2lkfTp1cGdyYWRlEpsBCg5BZGRTZXJ2aWNlUG9ydBIiLmRvY2t3ZWxsLnYxLkFkZFNlcnZpY2VQb3J0UmVxdWVzdBojLmRvY2t3ZWxsLnYxLkFkZFNlcnZpY2VQb3J0UmVzcG9uc2UiQKC7GAKquxgKEghhZGQtcG9ydMC7GAPIuxgD0LsYBILT5JMCHDoBKiIXL3YxL3NlcnZpY2VzL3tpZH0vcG9ydHMSvAEKFENoYW5nZVNlcnZpY2VSdW50aW1lEiguZG9ja3dlbGwudjEuQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXF1ZXN0GikuZG9ja3dlbGwudjEuQ2hhbmdlU2VydmljZVJ1bnRpbWVSZXNwb25zZSJPoLsYAqq7GBASDmNoYW5nZS1ydW50aW1lwLsYA8i7GAPQuxgEgtPkkwIlOgEqIiAvdjEvc2VydmljZXMve2lkfTpjaGFuZ2UtcnVudGltZRKNAQoLTW92ZVNlcnZpY2USHy5kb2Nrd2VsbC52MS5Nb3ZlU2VydmljZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5Nb3ZlU2VydmljZVJlc3BvbnNlIjuguxgCqrsYBhIEbW92ZcC7GAPIuxgD0LsYBILT5JMCGzoBKiIWL3YxL3NlcnZpY2VzL3tpZH06bW92ZRKRAQoLT3BlblNlcnZpY2USHy5kb2Nrd2VsbC52MS5PcGVuU2VydmljZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5PcGVuU2VydmljZVJlc3BvbnNlIj+guxgBqrsYBhIEb3BlbrC7GAHAuxgDyLsYBNC7GASC0+STAhs6ASoiFi92MS9zZXJ2aWNlcy97aWR9Om9wZW4SoQEKEUNoZWNrU2VydmljZVBvcnRzEiUuZG9ja3dlbGwudjEuQ2hlY2tTZXJ2aWNlUG9ydHNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuQ2hlY2tTZXJ2aWNlUG9ydHNSZXNwb25zZSI9kAIBoLsYAaq7GAcSBXBvcnRzwLsYA8i7GAPQuxgEgtPkkwIZEhcvdjEvc2VydmljZXMve2lkfS9wb3J0c0KlAQoPY29tLmRvY2t3ZWxsLnYxQgxTZXJ2aWNlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_build, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service_update, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * OpenServiceRequest names a service and the port of its web UI.
@@ -117,6 +117,131 @@ export const OpenServiceResponseSchema: GenMessage<OpenServiceResponse> = /*@__P
   messageDesc(file_dockwell_v1_service, 1);
 
 /**
+ * CheckServicePortsRequest names a service, and the server to ask.
+ *
+ * @generated from message dockwell.v1.CheckServicePortsRequest
+ */
+export type CheckServicePortsRequest = Message<"dockwell.v1.CheckServicePortsRequest"> & {
+  /**
+   * The service, by ID or by name.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The server to ask, by ID, of those it runs on. Empty asks the first.
+   *
+   * @generated from field: string server_id = 2;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckServicePortsRequest.
+ * Use `create(CheckServicePortsRequestSchema)` to create a new message.
+ */
+export const CheckServicePortsRequestSchema: GenMessage<CheckServicePortsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 2);
+
+/**
+ * CheckServicePortsResponse says what each port of a service's container is.
+ *
+ * @generated from message dockwell.v1.CheckServicePortsResponse
+ */
+export type CheckServicePortsResponse = Message<"dockwell.v1.CheckServicePortsResponse"> & {
+  /**
+   * Each TCP port, by number: the ones it exposes or publishes, then any other
+   * something listens on.
+   *
+   * @generated from field: repeated dockwell.v1.ServicePortCheck ports = 1;
+   */
+  ports: ServicePortCheck[];
+
+  /**
+   * Why its ports weren't asked, or not all were, such as no container of it
+   * running, or "".
+   *
+   * @generated from field: string unread = 2;
+   */
+  unread: string;
+
+  /**
+   * The list isn't whole: it has more ports, or more containers, than were read,
+   * so a port missing from it may still be listened on.
+   *
+   * @generated from field: bool cut = 3;
+   */
+  cut: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.CheckServicePortsResponse.
+ * Use `create(CheckServicePortsResponseSchema)` to create a new message.
+ */
+export const CheckServicePortsResponseSchema: GenMessage<CheckServicePortsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 3);
+
+/**
+ * ServicePortCheck is a TCP port in a service's container, and what answers there.
+ *
+ * @generated from message dockwell.v1.ServicePortCheck
+ */
+export type ServicePortCheck = Message<"dockwell.v1.ServicePortCheck"> & {
+  /**
+   * The port in the container, such as 3000.
+   *
+   * @generated from field: uint32 port = 1;
+   */
+  port: number;
+
+  /**
+   * Its image or its spec exposes it.
+   *
+   * @generated from field: bool exposed = 2;
+   */
+  exposed: boolean;
+
+  /**
+   * Something in the container listens on it beyond the container's loopback, as
+   * the container's own /proc/net says. False where that couldn't be read.
+   *
+   * @generated from field: bool listening = 3;
+   */
+  listening: boolean;
+
+  /**
+   * The port on the server it's published on, or 0.
+   *
+   * @generated from field: uint32 server_port = 4;
+   */
+  serverPort: number;
+
+  /**
+   * What answered at the container's address. Unspecified for a port that wasn't
+   * asked: past the first 24, or where unread says why.
+   *
+   * @generated from field: dockwell.v1.PortAnswer answer = 5;
+   */
+  answer: PortAnswer;
+
+  /**
+   * What it said, in a few words, such as "200 OK", "302 Found" or "SSH", or why
+   * nothing did, such as "connection refused".
+   *
+   * @generated from field: string said = 6;
+   */
+  said: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ServicePortCheck.
+ * Use `create(ServicePortCheckSchema)` to create a new message.
+ */
+export const ServicePortCheckSchema: GenMessage<ServicePortCheck> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_service, 4);
+
+/**
  * ListServicesRequest asks for a page of services.
  *
  * @generated from message dockwell.v1.ListServicesRequest
@@ -159,7 +284,7 @@ export type ListServicesRequest = Message<"dockwell.v1.ListServicesRequest"> & {
  * Use `create(ListServicesRequestSchema)` to create a new message.
  */
 export const ListServicesRequestSchema: GenMessage<ListServicesRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 2);
+  messageDesc(file_dockwell_v1_service, 5);
 
 /**
  * ListServicesResponse is a page of services.
@@ -187,7 +312,7 @@ export type ListServicesResponse = Message<"dockwell.v1.ListServicesResponse"> &
  * Use `create(ListServicesResponseSchema)` to create a new message.
  */
 export const ListServicesResponseSchema: GenMessage<ListServicesResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 3);
+  messageDesc(file_dockwell_v1_service, 6);
 
 /**
  * ServiceInfo is what a service runs now and how that went, as its latest
@@ -337,7 +462,7 @@ export type ServiceInfo = Message<"dockwell.v1.ServiceInfo"> & {
  * Use `create(ServiceInfoSchema)` to create a new message.
  */
 export const ServiceInfoSchema: GenMessage<ServiceInfo> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 4);
+  messageDesc(file_dockwell_v1_service, 7);
 
 /**
  * ServiceDeployment is one revision of a service placed on one server.
@@ -395,7 +520,7 @@ export type ServiceDeployment = Message<"dockwell.v1.ServiceDeployment"> & {
  * Use `create(ServiceDeploymentSchema)` to create a new message.
  */
 export const ServiceDeploymentSchema: GenMessage<ServiceDeployment> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 5);
+  messageDesc(file_dockwell_v1_service, 8);
 
 /**
  * ListServiceRevisionsRequest asks for a page of a service's revisions.
@@ -447,7 +572,7 @@ export type ListServiceRevisionsRequest = Message<"dockwell.v1.ListServiceRevisi
  * Use `create(ListServiceRevisionsRequestSchema)` to create a new message.
  */
 export const ListServiceRevisionsRequestSchema: GenMessage<ListServiceRevisionsRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 6);
+  messageDesc(file_dockwell_v1_service, 9);
 
 /**
  * ListServiceRevisionsResponse is a page of a service's revisions.
@@ -475,7 +600,7 @@ export type ListServiceRevisionsResponse = Message<"dockwell.v1.ListServiceRevis
  * Use `create(ListServiceRevisionsResponseSchema)` to create a new message.
  */
 export const ListServiceRevisionsResponseSchema: GenMessage<ListServiceRevisionsResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 7);
+  messageDesc(file_dockwell_v1_service, 10);
 
 /**
  * ServiceRevision is one immutable revision of a service.
@@ -582,7 +707,7 @@ export type ServiceRevision = Message<"dockwell.v1.ServiceRevision"> & {
  * Use `create(ServiceRevisionSchema)` to create a new message.
  */
 export const ServiceRevisionSchema: GenMessage<ServiceRevision> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 8);
+  messageDesc(file_dockwell_v1_service, 11);
 
 /**
  * DeployServiceRequest names a service and the image to run.
@@ -633,7 +758,7 @@ export type DeployServiceRequest = Message<"dockwell.v1.DeployServiceRequest"> &
  * Use `create(DeployServiceRequestSchema)` to create a new message.
  */
 export const DeployServiceRequestSchema: GenMessage<DeployServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 9);
+  messageDesc(file_dockwell_v1_service, 12);
 
 /**
  * DeployServiceResponse carries the planned deploy.
@@ -654,7 +779,7 @@ export type DeployServiceResponse = Message<"dockwell.v1.DeployServiceResponse">
  * Use `create(DeployServiceResponseSchema)` to create a new message.
  */
 export const DeployServiceResponseSchema: GenMessage<DeployServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 10);
+  messageDesc(file_dockwell_v1_service, 13);
 
 /**
  * MoveServiceRequest names a service, and where it goes.
@@ -727,7 +852,7 @@ export type MoveServiceRequest = Message<"dockwell.v1.MoveServiceRequest"> & {
  * Use `create(MoveServiceRequestSchema)` to create a new message.
  */
 export const MoveServiceRequestSchema: GenMessage<MoveServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 11);
+  messageDesc(file_dockwell_v1_service, 14);
 
 /**
  * MoveServiceResponse is the planned move, or what holds it back.
@@ -785,7 +910,7 @@ export type MoveServiceResponse = Message<"dockwell.v1.MoveServiceResponse"> & {
  * Use `create(MoveServiceResponseSchema)` to create a new message.
  */
 export const MoveServiceResponseSchema: GenMessage<MoveServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 12);
+  messageDesc(file_dockwell_v1_service, 15);
 
 /**
  * MoveBlock is something that holds a move back.
@@ -820,7 +945,7 @@ export type MoveBlock = Message<"dockwell.v1.MoveBlock"> & {
  * Use `create(MoveBlockSchema)` to create a new message.
  */
 export const MoveBlockSchema: GenMessage<MoveBlock> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 13);
+  messageDesc(file_dockwell_v1_service, 16);
 
 /**
  * UpgradeServiceRequest names a service, and what to update it to.
@@ -891,7 +1016,7 @@ export type UpgradeServiceRequest = Message<"dockwell.v1.UpgradeServiceRequest">
  * Use `create(UpgradeServiceRequestSchema)` to create a new message.
  */
 export const UpgradeServiceRequestSchema: GenMessage<UpgradeServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 14);
+  messageDesc(file_dockwell_v1_service, 17);
 
 /**
  * UpgradeServiceResponse carries the planned update.
@@ -913,7 +1038,7 @@ export type UpgradeServiceResponse = Message<"dockwell.v1.UpgradeServiceResponse
  * Use `create(UpgradeServiceResponseSchema)` to create a new message.
  */
 export const UpgradeServiceResponseSchema: GenMessage<UpgradeServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 15);
+  messageDesc(file_dockwell_v1_service, 18);
 
 /**
  * RollBackServiceRequest names a service and the revision to go back to.
@@ -965,7 +1090,7 @@ export type RollBackServiceRequest = Message<"dockwell.v1.RollBackServiceRequest
  * Use `create(RollBackServiceRequestSchema)` to create a new message.
  */
 export const RollBackServiceRequestSchema: GenMessage<RollBackServiceRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 16);
+  messageDesc(file_dockwell_v1_service, 19);
 
 /**
  * RollBackServiceResponse carries the planned rollback.
@@ -986,7 +1111,7 @@ export type RollBackServiceResponse = Message<"dockwell.v1.RollBackServiceRespon
  * Use `create(RollBackServiceResponseSchema)` to create a new message.
  */
 export const RollBackServiceResponseSchema: GenMessage<RollBackServiceResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 17);
+  messageDesc(file_dockwell_v1_service, 20);
 
 /**
  * AddServicePortRequest names a service and the port to publish.
@@ -1059,7 +1184,7 @@ export type AddServicePortRequest = Message<"dockwell.v1.AddServicePortRequest">
  * Use `create(AddServicePortRequestSchema)` to create a new message.
  */
 export const AddServicePortRequestSchema: GenMessage<AddServicePortRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 18);
+  messageDesc(file_dockwell_v1_service, 21);
 
 /**
  * AddServicePortResponse carries the planned change.
@@ -1080,7 +1205,7 @@ export type AddServicePortResponse = Message<"dockwell.v1.AddServicePortResponse
  * Use `create(AddServicePortResponseSchema)` to create a new message.
  */
 export const AddServicePortResponseSchema: GenMessage<AddServicePortResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 19);
+  messageDesc(file_dockwell_v1_service, 22);
 
 /**
  * ChangeServiceRuntimeRequest names an app from a folder and the version to run
@@ -1133,7 +1258,7 @@ export type ChangeServiceRuntimeRequest = Message<"dockwell.v1.ChangeServiceRunt
  * Use `create(ChangeServiceRuntimeRequestSchema)` to create a new message.
  */
 export const ChangeServiceRuntimeRequestSchema: GenMessage<ChangeServiceRuntimeRequest> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 20);
+  messageDesc(file_dockwell_v1_service, 23);
 
 /**
  * ChangeServiceRuntimeResponse carries the planned change.
@@ -1154,7 +1279,46 @@ export type ChangeServiceRuntimeResponse = Message<"dockwell.v1.ChangeServiceRun
  * Use `create(ChangeServiceRuntimeResponseSchema)` to create a new message.
  */
 export const ChangeServiceRuntimeResponseSchema: GenMessage<ChangeServiceRuntimeResponse> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_service, 21);
+  messageDesc(file_dockwell_v1_service, 24);
+
+/**
+ * PortAnswer is what answered on a port of a container.
+ *
+ * @generated from enum dockwell.v1.PortAnswer
+ */
+export enum PortAnswer {
+  /**
+   * @generated from enum value: PORT_ANSWER_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * An HTTP answer: a status line.
+   *
+   * @generated from enum value: PORT_ANSWER_HTTP = 1;
+   */
+  HTTP = 1,
+
+  /**
+   * It took the connection, and said something other than HTTP, or nothing.
+   *
+   * @generated from enum value: PORT_ANSWER_OTHER = 2;
+   */
+  OTHER = 2,
+
+  /**
+   * Nothing took the connection.
+   *
+   * @generated from enum value: PORT_ANSWER_NOTHING = 3;
+   */
+  NOTHING = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.PortAnswer.
+ */
+export const PortAnswerSchema: GenEnum<PortAnswer> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_service, 0);
 
 /**
  * DeploymentState is where one revision is on one server.
@@ -1201,7 +1365,7 @@ export enum DeploymentState {
  * Describes the enum dockwell.v1.DeploymentState.
  */
 export const DeploymentStateSchema: GenEnum<DeploymentState> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_service, 0);
+  enumDesc(file_dockwell_v1_service, 1);
 
 /**
  * ServiceService says what each service runs, where, and how its latest
@@ -1354,6 +1518,24 @@ export const ServiceService: GenService<{
     methodKind: "unary";
     input: typeof OpenServiceRequestSchema;
     output: typeof OpenServiceResponseSchema;
+  },
+  /**
+   * CheckServicePorts asks the server a service runs on which TCP ports its
+   * container exposes, publishes and listens on, and whether each answers at the
+   * container's own address, asked from inside the container's network so
+   * nothing past it is reached, so Add a domain and Add a port can offer them by
+   * what they are. It changes nothing. It lists up to 128 ports and asks the
+   * first 24, each once, for 2 seconds at most, with no redirect followed and no
+   * more read than a status line or a banner. Rootless Docker's ports are listed
+   * and not asked. A person can check 60 times a minute, and a server answers two
+   * checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+   *
+   * @generated from rpc dockwell.v1.ServiceService.CheckServicePorts
+   */
+  checkServicePorts: {
+    methodKind: "unary";
+    input: typeof CheckServicePortsRequestSchema;
+    output: typeof CheckServicePortsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_service, 0);

@@ -29,6 +29,7 @@ import {
   ImageBuildSchema,
   IntentKind,
   NetworkShape,
+  PortAnswer,
   type ProposeChangeRequest,
   Protocol,
   PublicAddressSource,
@@ -48,7 +49,7 @@ import {
   type WatchChangeResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -1666,7 +1667,15 @@ describe("an app's overview", () => {
         within(port)
           .getAllByRole("option")
           .map((o) => o.textContent),
-      ).toEqual(["3000", "22", "Another port"]);
+      ).toEqual(["3000 · web page", "22 · SSH", "Another port"]);
+      // SSH's port is picked by mistake: it says so, with the web page's one a click away.
+      await user.selectOptions(port, "22");
+      const elsewhere = within(sheet).getByText(/Port 22 is SSH's, which serves no web page/);
+      await user.click(
+        within(elsewhere.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Use 3000" }),
+      );
+      expect(port).toHaveValue("3000");
+      expect(sheet).not.toHaveTextContent("serves no web page");
       await user.type(within(sheet).getByLabelText("Domain"), "git.example.com");
       await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
       await screen.findByRole("dialog", { name: "Review plan" });
@@ -1696,7 +1705,114 @@ describe("an app's overview", () => {
         within(port)
           .getAllByRole("option")
           .map((o) => o.textContent),
-      ).toEqual(["9090", "8080", "Another port"]);
+      ).toEqual(["9090 · web page", "8080", "Another port"]);
+    });
+
+    it("asks the app's server what answers on each port, starts from one that answers HTTP, and checks again (#791)", async () => {
+      // Published SSH alone, so the control plane knows no web port; the server finds 3000 answering.
+      const shop = anApp("shop", "ghcr.io/acme/shop:1.4", { ports: [{ hostPort: 2222, containerPort: 22 }] }, {});
+      let asked = 0;
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_shop",
+        api([shop], {
+          services: {
+            listServices: () => ({ services: [shop] }),
+            listServiceRevisions: () => ({ revisions }),
+            checkServicePorts: (req) => {
+              asked += 1;
+              expect(req.id).toBe("svc_shop");
+              return {
+                ports: [
+                  { port: 22, serverPort: 2222, listening: true, answer: PortAnswer.OTHER, said: "SSH" },
+                  { port: 3000, listening: true, answer: PortAnswer.HTTP, said: "200 OK" },
+                  { port: 9000, exposed: true, answer: PortAnswer.NOTHING, said: "nothing listens" },
+                ],
+              };
+            },
+          },
+          domains: { listDomains: () => ({ domains: [] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to shop" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      await waitFor(() => expect(port).toHaveValue("3000"));
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["22 · SSH", "3000 · answers 200 OK", "9000 · nothing listens", "Another port"]);
+      expect(within(sheet).getByText(/Port 3000 answers: 200 OK/)).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Check again" }));
+      await waitFor(() => expect(asked).toBe(2));
+      await user.selectOptions(port, "9000");
+      expect(within(sheet).getByText(/Nothing answers on port 9000 yet/)).toBeVisible();
+      // SSH's port says what it is, with the one that answers a click away.
+      await user.selectOptions(port, "22");
+      const elsewhere = within(sheet).getByText(/Port 22 is SSH's, which serves no web page/);
+      await user.click(
+        within(elsewhere.closest(".domain-step-state") as HTMLElement).getByRole("button", { name: "Use 3000" }),
+      );
+      expect(port).toHaveValue("3000");
+    });
+
+    it("keeps to what the spec says where the server can't answer, as an older agent can't, and says why (#791)", async () => {
+      const gitea = anApp(
+        "gitea",
+        "gitea/gitea:28.3.0",
+        {
+          ports: [
+            { hostPort: 2222, containerPort: 22 },
+            { hostPort: 3000, containerPort: 3000 },
+          ],
+        },
+        {
+          webPort: 3000,
+          // It moved off old-1, whose row is listed first: the server asked, and named, is hz-1 (the re-check's N1).
+          deployments: [
+            { serverId: "srv_old", serverName: "old-1", state: DeploymentState.SUPERSEDED },
+            { serverId: SERVER, serverName: "hz-1", state: DeploymentState.LIVE },
+          ],
+        },
+      );
+      const asked: string[] = [];
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_gitea",
+        api([gitea], {
+          services: {
+            listServices: () => ({ services: [gitea] }),
+            listServiceRevisions: () => ({ revisions }),
+            checkServicePorts: (req) => {
+              asked.push(req.serverId);
+              throw authError(
+                Code.FailedPrecondition,
+                "agent_outdated",
+                "the agent hz-1 runs on is too old to read its ports",
+              );
+            },
+          },
+          domains: { listDomains: () => ({ domains: [] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to gitea" });
+      const port = within(sheet).getByLabelText("Port in the app");
+      expect(port).toHaveValue("3000");
+      expect(
+        within(port)
+          .getAllByRole("option")
+          .map((o) => o.textContent),
+      ).toEqual(["3000 · web page", "22 · SSH", "Another port"]);
+      expect(sheet).not.toHaveTextContent(/answers|Nothing answers/);
+      // Why there are no answers, with the way to fix it (the review's L5).
+      const why = within(sheet).getByText(/hz-1's agent is too old to check ports/);
+      expect(
+        within(why.closest(".domain-step-state") as HTMLElement).getByRole("link", { name: "Update its agent" }),
+      ).toHaveAttribute("href", `/servers/${SERVER}/updates`);
+      expect(asked.length).toBeGreaterThan(0);
+      expect(new Set(asked)).toEqual(new Set([SERVER]));
     });
 
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {
@@ -2776,13 +2892,17 @@ describe("an app's overview", () => {
           expect(row).toHaveTextContent("Aapp.example.com203.0.113.50");
           expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.50" })).toBeVisible();
           expect(await within(sheet).findByText("Not set yet")).toBeVisible();
-          expect(within(sheet).getByRole("button", { name: "Check again" })).toBeVisible();
+          expect(
+            within(sheet.querySelector(".domain-record") as HTMLElement).getByRole("button", { name: "Check again" }),
+          ).toBeVisible();
           // Oracle's firewalls aren't said while nothing shows the internet can't reach the server.
           expect(sheet).not.toHaveTextContent("the VCN's security list");
           state = DomainCheckState.POINTS_HERE;
           await vi.advanceTimersByTimeAsync(5500);
           expect(await within(sheet).findByText("Points here")).toBeVisible();
-          expect(within(sheet).queryByRole("button", { name: "Check again" })).toBeNull();
+          expect(
+            within(sheet.querySelector(".domain-record") as HTMLElement).queryByRole("button", { name: "Check again" }),
+          ).toBeNull();
         } finally {
           vi.useRealTimers();
         }
@@ -2822,9 +2942,49 @@ describe("an app's overview", () => {
         const tunnel = within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" });
         expect(tunnel).toHaveAttribute("href", "/catalog/cloudflared");
         expect(sheet).toHaveTextContent("a tunnel reaches it with nothing forwarded");
-        expect(sheet).toHaveTextContent("Or forward ports 80 and 443 on your router");
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
         expect(sheet.querySelector(".dw-dns-row")).toHaveTextContent("203.0.113.7");
-        expect(sheet).toHaveTextContent("Your router's address");
+        expect(sheet).toHaveTextContent("Or make this record for your router's address");
+      });
+
+      it("keeps the forward line at home until the server is shown reachable, whatever DNS says (#791, the review's M2)", async () => {
+        const home = {
+          ipv4: { address: "203.0.113.7", source: PublicAddressSource.LOOKED_UP, unproven: true },
+          shape: NetworkShape.LOCAL_NAT,
+        };
+        const pointsHere = () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.POINTS_HERE,
+          found: ["203.0.113.7"],
+        });
+        // The record made, nothing forwarded yet as far as anything shows.
+        const { sheet } = await open({ ...home, reachable: Reachable.NOT_CHECKED }, pointsHere);
+        expect(await within(sheet).findByText("Points here")).toBeVisible();
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
+        cleanup();
+        // A certificate showed the internet can't reach it.
+        const blocked = await open({ ...home, reachable: Reachable.NO }, pointsHere);
+        expect(await within(blocked.sheet).findByText("Points here")).toBeVisible();
+        expect(blocked.sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to this server");
+        cleanup();
+        // The way in proved: the line goes.
+        const reached = await open({ ...home, reachable: Reachable.YES }, pointsHere);
+        await within(reached.sheet).findAllByText(/Points here|Not set yet/);
+        expect(reached.sheet).not.toHaveTextContent("forwarded on your router");
+      });
+
+      it("at home with no address known, takes the router's from the check", async () => {
+        const { sheet } = await open({ shape: NetworkShape.LOCAL_NAT }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          publicAddresses: ["203.0.113.9"],
+          unprovenAddresses: ["203.0.113.9"],
+          here: ["192.168.1.20"],
+        }));
+        await waitFor(() =>
+          expect(sheet.querySelector(".dw-dns-row")).toHaveTextContent("Aapp.example.com203.0.113.9"),
+        );
+        expect(sheet).not.toHaveTextContent("isn't known yet");
       });
 
       it("shows a way out on a cloud as a record to check, and each family's record", async () => {
@@ -2897,9 +3057,7 @@ describe("an app's overview", () => {
         );
         expect(within(sheet).getByRole("link", { name: "Install Cloudflare Tunnel from the Catalog" })).toBeVisible();
         expect(sheet).toHaveTextContent("Or make this record for its own IPv6 address");
-        expect(sheet).toHaveTextContent(
-          "Or forward ports 80 and 443 on your router to this server, at 192.168.1.20, and make this record.",
-        );
+        expect(sheet).toHaveTextContent("Needs ports 80 and 443 forwarded on your router to 192.168.1.20");
         const rows = sheet.querySelectorAll(".dw-dns-row");
         expect(rows[0]).toHaveTextContent("AAAAapp.example.com2001:db8::5");
         expect(rows[1]).toHaveTextContent("Aapp.example.com203.0.113.7");
@@ -2916,11 +3074,43 @@ describe("an app's overview", () => {
         expect(sheet.querySelector(".dw-dns-row")).toBeNull();
       });
 
+      it("shows the record at the address the check found, where the server's network knows none (#791)", async () => {
+        const { user, sheet } = await open({ shape: NetworkShape.INTERNET }, () => ({
+          domain: "app.example.com",
+          state: DomainCheckState.NO_RECORD,
+          publicAddresses: ["203.0.113.60"],
+          here: ["10.0.0.25", "2001:db8::60"],
+        }));
+        await waitFor(() => expect(sheet.querySelectorAll(".dw-dns-row")).toHaveLength(2));
+        const rows = sheet.querySelectorAll(".dw-dns-row");
+        expect(rows[0]).toHaveTextContent("Aapp.example.com203.0.113.60");
+        // A public address on an interface, of a family nothing else names, is the other record.
+        expect(rows[1]).toHaveTextContent("AAAAapp.example.com2001:db8::60");
+        expect(within(sheet).getByRole("button", { name: "Copy 203.0.113.60" })).toBeVisible();
+        expect(within(sheet).getAllByText("Not set yet")).toHaveLength(2);
+        expect(sheet).not.toHaveTextContent("isn't known yet");
+        await user.click(
+          within(sheet.querySelector(".domain-record") as HTMLElement).getAllByRole("button", {
+            name: "Check again",
+          })[0] as HTMLElement,
+        );
+      });
+
+      it("says DNS couldn't be read, with Check again, rather than nothing (#791)", async () => {
+        const { sheet } = await open(cloud, () => {
+          throw new ConnectError("agent offline", Code.Unavailable);
+        });
+        expect(await within(sheet).findByText("Can't read DNS", {}, { timeout: 4000 })).toBeVisible();
+        expect(
+          within(sheet.querySelector(".domain-record") as HTMLElement).getByRole("button", { name: "Check again" }),
+        ).toBeVisible();
+      });
+
       it("says where the address is with none known, and offers a tunnel once the form's switch says so", async () => {
         const { user, sheet } = await open({ provider: CloudProvider.ORACLE, shape: NetworkShape.CLOUD_NAT }, () => ({
           domain: "app.example.com",
         }));
-        expect(sheet).toHaveTextContent("which Oracle Cloud's console shows");
+        expect(await within(sheet).findByText(/isn't known yet. Oracle Cloud's console shows it/)).toBeVisible();
         expect(within(sheet).getByRole("link", { name: "Set it on the server" })).toHaveAttribute(
           "href",
           expect.stringMatching(/\/servers\/.*#network$/),

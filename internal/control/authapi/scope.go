@@ -57,6 +57,7 @@ var idNames = map[string]string{
 	dockwellv1connect.ServiceServiceOpenServiceProcedure:                       "service",
 	dockwellv1connect.ServiceServiceChangeServiceRuntimeProcedure:              "service",
 	dockwellv1connect.ServiceServiceMoveServiceProcedure:                       "service",
+	dockwellv1connect.ServiceServiceCheckServicePortsProcedure:                 "service",
 	dockwellv1connect.ChangeServiceRestartServiceProcedure:                     "service",
 	dockwellv1connect.LogServiceListLogSourcesProcedure:                        "service",
 	dockwellv1connect.LogServiceReadLogsProcedure:                              "service",
@@ -133,6 +134,8 @@ var requestBound = map[string]bool{
 	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
 	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
+	// A service's ports are its container's, which the request named (#791).
+	dockwellv1connect.ServiceServiceCheckServicePortsProcedure: true,
 	// An install's database's backups are the install's, taken for its link, though
 	// they're kept on a server another project may run (ADR 0084).
 	dockwellv1connect.CatalogServiceBackUpCatalogNeedProcedure:      true,

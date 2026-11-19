@@ -62,6 +62,9 @@ const (
 	// ServiceServiceOpenServiceProcedure is the fully-qualified name of the ServiceService's
 	// OpenService RPC.
 	ServiceServiceOpenServiceProcedure = "/dockwell.v1.ServiceService/OpenService"
+	// ServiceServiceCheckServicePortsProcedure is the fully-qualified name of the ServiceService's
+	// CheckServicePorts RPC.
+	ServiceServiceCheckServicePortsProcedure = "/dockwell.v1.ServiceService/CheckServicePorts"
 )
 
 // ServiceServiceClient is a client for the dockwell.v1.ServiceService service.
@@ -130,6 +133,16 @@ type ServiceServiceClient interface {
 	// reached on localhost opens apps for now: on its domain, this is refused,
 	// and says so.
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
+	// CheckServicePorts asks the server a service runs on which TCP ports its
+	// container exposes, publishes and listens on, and whether each answers at the
+	// container's own address, asked from inside the container's network so
+	// nothing past it is reached, so Add a domain and Add a port can offer them by
+	// what they are. It changes nothing. It lists up to 128 ports and asks the
+	// first 24, each once, for 2 seconds at most, with no redirect followed and no
+	// more read than a status line or a banner. Rootless Docker's ports are listed
+	// and not asked. A person can check 60 times a minute, and a server answers two
+	// checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+	CheckServicePorts(context.Context, *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error)
 }
 
 // NewServiceServiceClient constructs a client for the dockwell.v1.ServiceService service. By
@@ -199,6 +212,13 @@ func NewServiceServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(serviceServiceMethods.ByName("OpenService")),
 			connect.WithClientOptions(opts...),
 		),
+		checkServicePorts: connect.NewClient[v1.CheckServicePortsRequest, v1.CheckServicePortsResponse](
+			httpClient,
+			baseURL+ServiceServiceCheckServicePortsProcedure,
+			connect.WithSchema(serviceServiceMethods.ByName("CheckServicePorts")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -213,6 +233,7 @@ type serviceServiceClient struct {
 	changeServiceRuntime *connect.Client[v1.ChangeServiceRuntimeRequest, v1.ChangeServiceRuntimeResponse]
 	moveService          *connect.Client[v1.MoveServiceRequest, v1.MoveServiceResponse]
 	openService          *connect.Client[v1.OpenServiceRequest, v1.OpenServiceResponse]
+	checkServicePorts    *connect.Client[v1.CheckServicePortsRequest, v1.CheckServicePortsResponse]
 }
 
 // ListServices calls dockwell.v1.ServiceService.ListServices.
@@ -258,6 +279,11 @@ func (c *serviceServiceClient) MoveService(ctx context.Context, req *connect.Req
 // OpenService calls dockwell.v1.ServiceService.OpenService.
 func (c *serviceServiceClient) OpenService(ctx context.Context, req *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error) {
 	return c.openService.CallUnary(ctx, req)
+}
+
+// CheckServicePorts calls dockwell.v1.ServiceService.CheckServicePorts.
+func (c *serviceServiceClient) CheckServicePorts(ctx context.Context, req *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error) {
+	return c.checkServicePorts.CallUnary(ctx, req)
 }
 
 // ServiceServiceHandler is an implementation of the dockwell.v1.ServiceService service.
@@ -326,6 +352,16 @@ type ServiceServiceHandler interface {
 	// reached on localhost opens apps for now: on its domain, this is refused,
 	// and says so.
 	OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error)
+	// CheckServicePorts asks the server a service runs on which TCP ports its
+	// container exposes, publishes and listens on, and whether each answers at the
+	// container's own address, asked from inside the container's network so
+	// nothing past it is reached, so Add a domain and Add a port can offer them by
+	// what they are. It changes nothing. It lists up to 128 ports and asks the
+	// first 24, each once, for 2 seconds at most, with no redirect followed and no
+	// more read than a status line or a banner. Rootless Docker's ports are listed
+	// and not asked. A person can check 60 times a minute, and a server answers two
+	// checks at once. See docs/adr/0104-adding-a-domain-publishes-it.md, "Port in the app".
+	CheckServicePorts(context.Context, *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error)
 }
 
 // NewServiceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -391,6 +427,13 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 		connect.WithSchema(serviceServiceMethods.ByName("OpenService")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serviceServiceCheckServicePortsHandler := connect.NewUnaryHandler(
+		ServiceServiceCheckServicePortsProcedure,
+		svc.CheckServicePorts,
+		connect.WithSchema(serviceServiceMethods.ByName("CheckServicePorts")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServiceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServiceServiceListServicesProcedure:
@@ -411,6 +454,8 @@ func NewServiceServiceHandler(svc ServiceServiceHandler, opts ...connect.Handler
 			serviceServiceMoveServiceHandler.ServeHTTP(w, r)
 		case ServiceServiceOpenServiceProcedure:
 			serviceServiceOpenServiceHandler.ServeHTTP(w, r)
+		case ServiceServiceCheckServicePortsProcedure:
+			serviceServiceCheckServicePortsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -454,4 +499,8 @@ func (UnimplementedServiceServiceHandler) MoveService(context.Context, *connect.
 
 func (UnimplementedServiceServiceHandler) OpenService(context.Context, *connect.Request[v1.OpenServiceRequest]) (*connect.Response[v1.OpenServiceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.OpenService is not implemented"))
+}
+
+func (UnimplementedServiceServiceHandler) CheckServicePorts(context.Context, *connect.Request[v1.CheckServicePortsRequest]) (*connect.Response[v1.CheckServicePortsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServiceService.CheckServicePorts is not implemented"))
 }

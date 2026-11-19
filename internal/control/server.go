@@ -722,6 +722,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		serviceHandler := serviceapi.New(ch, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		serviceHandler.Installs = catalogHandler
 		serviceHandler.Sources = sources
+		serviceHandler.Agents = cfg.Agents
 		*autoupdates = &autoupdate.Runner{
 			DB: cfg.Store, Keeper: cfg.Secrets, Planner: serviceHandler, Engine: cfg.Changes, Logger: cfg.Logger,
 		}
