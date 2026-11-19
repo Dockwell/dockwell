@@ -1333,6 +1333,34 @@
   min-width: max-content;
 }
 
+/*
+ * On a phone, five engines don't share a row: rows of three that keep even, with a short last
+ * row stretched to fill it, so MongoDB doesn't sit alone on a second row (#798). Four are two
+ * rows of two.
+ */
+@media (max-width: 639.98px) {
+  .catalog-engines.is-all .catalog-engines-list {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .catalog-engines.is-all .catalog-engine {
+    grid-column: span 2;
+    min-width: 0;
+  }
+
+  .catalog-engines.is-all .catalog-engine:nth-child(3n + 1):nth-last-child(2),
+  .catalog-engines.is-all .catalog-engine:nth-child(3n + 2):last-child,
+  .catalog-engines.is-all .catalog-engine:first-child:nth-last-child(4),
+  .catalog-engines.is-all .catalog-engine:first-child:nth-last-child(4) ~ .catalog-engine {
+    grid-column: span 3;
+  }
+
+  .catalog-engines.is-all .catalog-engine:nth-child(3n + 1):last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .catalog-engines-list {
   display: flex;
   flex-wrap: wrap;
