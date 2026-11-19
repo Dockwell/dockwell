@@ -50,6 +50,7 @@ const (
 	unreadNoAddr   = "its container has no address of its own the agent can ask"
 	unreadChanged  = "it restarted while its ports were asked. Check again"
 	unreadBinds    = "its network lets a socket use an address it doesn't have, so its ports aren't asked"
+	unreadPowers   = "it can change its own network (privileged, NET_ADMIN or SYS_ADMIN), so its ports aren't asked"
 )
 
 // errNotAContainer refuses an address a probe never dials: not the container's own.
@@ -57,14 +58,12 @@ var errNotAContainer = errors.New("that isn't the container's own address, so Do
 
 // netns is a container's network namespace, held open by its file, where a probe's
 // dials are made: from inside, from the container's own address to that same
-// address, so a dial reaches the container and nothing past it, whatever its
-// networks' subnets or the server's routing say (see dialLocal).
+// address, so a dial reaches the container and nothing past it (see dialLocal).
 type netns struct {
-	// owns refuses an address that isn't one of the namespace's own, and says
-	// which of its interfaces holds it.
-	owns func(address string) (device string, err error)
-	// dial connects to one of its own addresses, from inside it, bound to device.
-	dial  func(ctx context.Context, device, address string) (net.Conn, error)
+	// owns refuses an address that isn't one of the namespace's own.
+	owns func(address string) error
+	// dial connects to one of its own addresses, from inside it.
+	dial  func(ctx context.Context, address string) (net.Conn, error)
 	close func()
 }
 
@@ -112,11 +111,12 @@ func enterNetwork(proc string) func(pid int) (*netns, error) {
 			return nil, errOwnNetwork
 		}
 		n := &netns{close: func() { _ = unix.Close(fd) }}
-		n.owns = func(address string) (string, error) {
-			return inNetwork(fd, func() (string, error) { return holder(address) })
+		n.owns = func(address string) error {
+			_, err := inNetwork(fd, func() (struct{}, error) { return struct{}{}, ownAddress(address) })
+			return err
 		}
-		n.dial = func(ctx context.Context, device, address string) (net.Conn, error) {
-			return inNetwork(fd, func() (net.Conn, error) { return dialLocal(ctx, device, address) })
+		n.dial = func(ctx context.Context, address string) (net.Conn, error) {
+			return inNetwork(fd, func() (net.Conn, error) { return dialLocal(ctx, address) })
 		}
 		return n, nil
 	}
@@ -183,39 +183,28 @@ func askable(address string) (netip.Addr, error) {
 	return a, nil
 }
 
-// holder says which of the current network's interfaces holds address, refusing an
-// address that askable refuses or that none holds. It reads every interface's
-// addresses, so it runs once per call, never per dial (the re-check's N3).
-func holder(address string) (string, error) {
+// ownAddress refuses an address that askable refuses, that isn't on one of the
+// current network's interfaces, or in a network that lets a socket take an address
+// it doesn't hold. It reads every interface's addresses, so it runs once per call,
+// never per dial (the re-check's N3).
+func ownAddress(address string) error {
 	a, err := askable(address)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if bindsAnything(a) {
-		return "", errBindsAnything
+		return errBindsAnything
 	}
-	ifs, err := net.Interfaces()
+	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		return "", err
+		return err
 	}
-	for _, i := range ifs {
-		addrs, err := i.Addrs()
-		if err != nil {
-			continue
-		}
-		for _, x := range addrs {
-			if p, err := netip.ParsePrefix(x.String()); err == nil && p.Addr().Unmap() == a {
-				return i.Name, nil
-			}
+	for _, x := range addrs {
+		if p, err := netip.ParsePrefix(x.String()); err == nil && p.Addr().Unmap() == a {
+			return nil
 		}
 	}
-	return "", errNotAContainer
-}
-
-// ownAddress refuses an address that holder refuses.
-func ownAddress(address string) error {
-	_, err := holder(address)
-	return err
+	return errNotAContainer
 }
 
 // errBindsAnything refuses to dial from a network that lets a socket take a source
@@ -235,25 +224,26 @@ func bindsAnything(a netip.Addr) bool {
 }
 
 // dialLocal dials one of the current network's own addresses from that same
-// address, with the socket bound to the interface that holds it, so it's delivered
-// within the network and goes nowhere past it:
+// address, so it's delivered within the network, by the route a connection to one's
+// own address always takes:
 //
 //   - The source is the address itself. The kernel refuses a socket a source
 //     address the network doesn't hold (EADDRNOTAVAIL), before any packet, so the
-//     only address a dial can reach is one the network has, and a packet to one of
-//     its own addresses is delivered locally whatever its routes and policy rules.
-//     A network that lets a socket take any source (ip_nonlocal_bind) is refused,
-//     read just before the socket is made.
-//   - The socket is bound to the interface holding it, so nothing can be routed out
-//     another way.
-//
-// Bound to lo, as this first was, it could reach nothing on a real server: the
-// kernel gives such a socket lo's 127.0.0.1 as its source, and a packet from
-// 127.0.0.1 to another interface's address is dropped as martian wherever
-// route_localnet is 0, its default; and with the address as its source, the reply
-// arrives on the other interface, which a socket bound to lo never hears. CI found
-// the first on #872.
-func dialLocal(ctx context.Context, device, address string) (net.Conn, error) {
+//     only address a dial can reach is one the network has. A network that lets a
+//     socket take any source (ip_nonlocal_bind) is refused, read just before the
+//     socket is made.
+//   - That holds while the container can't change its own network: its addresses,
+//     routes, policy rules or sysctls. One that can (privileged, NET_ADMIN or
+//     SYS_ADMIN) is never asked (mayChangeItsNetwork), as it could route even its
+//     own address out; whatever left would carry its own address both ways, as it
+//     can send itself.
+//   - The socket isn't bound to a device. Bound to lo, as this first was, it reached
+//     nothing on a real server: lo gives it 127.0.0.1 as its source, which the
+//     kernel drops on its way to another interface's address wherever
+//     route_localnet is 0, its default (CI found it on #872). Bound to the
+//     interface holding the address, as it was next, an address moved to another
+//     interface would fall through to the default route (the second re-check's N1).
+func dialLocal(ctx context.Context, address string) (net.Conn, error) {
 	a, err := askable(address)
 	if err != nil {
 		return nil, err
@@ -261,20 +251,32 @@ func dialLocal(ctx context.Context, device, address string) (net.Conn, error) {
 	if bindsAnything(a) {
 		return nil, errBindsAnything
 	}
-	d := &net.Dialer{
-		Timeout:   portWait,
-		LocalAddr: &net.TCPAddr{IP: a.AsSlice()},
-		Control: func(_, _ string, c syscall.RawConn) error {
-			var serr error
-			if err := c.Control(func(fd uintptr) {
-				serr = unix.SetsockoptString(int(fd), unix.SOL_SOCKET, unix.SO_BINDTODEVICE, device)
-			}); err != nil {
-				return err
-			}
-			return serr
-		},
-	}
+	d := &net.Dialer{Timeout: portWait, LocalAddr: &net.TCPAddr{IP: a.AsSlice()}}
 	return d.DialContext(ctx, "tcp", address)
+}
+
+// mayChangeItsNetwork reports a container that can change its own network, so its
+// source address no longer proves where a dial goes: one that's privileged, adds
+// NET_ADMIN, SYS_ADMIN or ALL, or sets ip_nonlocal_bind as it's made.
+func mayChangeItsNetwork(c *docker.Container) bool {
+	if c.HostConfig.Privileged {
+		return true
+	}
+	for _, added := range c.HostConfig.CapAdd {
+		switch strings.TrimPrefix(strings.ToUpper(added), "CAP_") {
+		case "NET_ADMIN", "SYS_ADMIN", "ALL":
+			return true
+		}
+	}
+	for key, value := range c.HostConfig.Sysctls {
+		switch strings.ReplaceAll(key, "/", ".") {
+		case "net.ipv4.ip_nonlocal_bind", "net.ipv6.ip_nonlocal_bind":
+			if strings.TrimSpace(value) != "0" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // instance is what says a container is the same one running: its process and when
@@ -337,6 +339,7 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 	}()
 	unread := ""
 	ownNet := false
+	powers := false
 	for _, id := range running[:min(len(running), mostPortContainers)] {
 		// A running container whose listeners aren't counted leaves the list cut short,
 		// so nothing is said not to listen (the re-check's N2).
@@ -347,6 +350,11 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 		}
 		if c.HostConfig.NetworkMode == "host" {
 			return &agentv1.AppPortsResult{Unread: unreadOwnNet}, nil
+		}
+		// One that can change its own network is listed and never asked (the second
+		// re-check's N1).
+		if mayChangeItsNetwork(c) {
+			powers = true
 		}
 		for key := range c.Config.ExposedPorts {
 			if p, ok := tcpPort(key); ok {
@@ -432,12 +440,14 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 		return &agentv1.AppPortsResult{Unread: "it exposes, publishes and listens on no TCP port", Cut: cut}, nil
 	case info.Rootless():
 		return &agentv1.AppPortsResult{Ports: out, Unread: unreadRootless, Cut: cut}, nil
+	case powers:
+		return &agentv1.AppPortsResult{Ports: out, Unread: unreadPowers, Cut: cut}, nil
 	case probe == nil && ownNet:
 		unread = unreadOwnNet
 	case probe == nil || probed.address == "":
 		unread = unreadNoAddr
 	default:
-		device, err := probe.owns(net.JoinHostPort(probed.address, "0"))
+		err := probe.owns(net.JoinHostPort(probed.address, "0"))
 		if errors.Is(err, errBindsAnything) {
 			unread = unreadBinds
 			break
@@ -446,7 +456,7 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 			unread = unreadNoAddr
 			break
 		}
-		unread = r.ask(ctx, probe, device, probeID, probed, out[:min(len(out), mostAsked)])
+		unread = r.ask(ctx, probe, probeID, probed, out[:min(len(out), mostAsked)])
 	}
 	return &agentv1.AppPortsResult{Ports: out, Unread: unread, Cut: cut}, nil
 }
@@ -454,8 +464,8 @@ func (r portReader) read(ctx context.Context, environment, service string) (*age
 // ask asks each port, four at once, at the container's own address from inside its
 // network. Before each, the container must still be the same one at the same
 // address (the review's L2); once it isn't, the rest go unasked, and it says why.
-func (r portReader) ask(ctx context.Context, n *netns, device, id string, was instance, ports []*dockwellv1.ServicePortCheck) string {
-	dial := func(ctx context.Context, address string) (net.Conn, error) { return n.dial(ctx, device, address) }
+func (r portReader) ask(ctx context.Context, n *netns, id string, was instance, ports []*dockwellv1.ServicePortCheck) string {
+	dial := n.dial
 	var mu sync.Mutex
 	changed := false
 	var wg sync.WaitGroup

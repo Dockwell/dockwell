@@ -133,15 +133,14 @@ func toLoopback(ports map[uint32]int, asked *[]string, mu *sync.Mutex) func(cont
 // to them carried to loopback listeners by port.
 func inside(own []string, ports map[uint32]int, asked *[]string, mu *sync.Mutex) func(int) (*netns, error) {
 	return func(int) (*netns, error) {
-		dial := toLoopback(ports, asked, mu)
 		return &netns{
-			owns: func(address string) (string, error) {
+			owns: func(address string) error {
 				if host, _, _ := net.SplitHostPort(address); slices.Contains(own, host) {
-					return "eth0", nil
+					return nil
 				}
-				return "", errNotAContainer
+				return errNotAContainer
 			},
-			dial:  func(ctx context.Context, _, address string) (net.Conn, error) { return dial(ctx, address) },
+			dial:  toLoopback(ports, asked, mu),
 			close: func() {},
 		}, nil
 	}
@@ -220,16 +219,6 @@ func localAddresses(t *testing.T) []string {
 func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 	t.Parallel()
 	local := localAddresses(t)
-	// The interface holding the machine's own address, as a probe binds to the one
-	// holding the container's.
-	device := "lo"
-	if len(local) > 0 {
-		d, err := holder(net.JoinHostPort(local[0], "0"))
-		if err != nil {
-			t.Fatalf("no interface holds %s: %v", local[0], err)
-		}
-		device = d
-	}
 	for _, a := range []string{"127.0.0.1", "::1", "169.254.169.254", "fe80::1", "0.0.0.0", "::", "224.0.0.1", "192.168.1.2", "10.0.0.6", "203.0.113.6", "100.101.102.102", "8.8.8.8", "::ffff:10.1.2.3"} {
 		if slices.Contains(local, strings.TrimPrefix(a, "::ffff:")) {
 			continue
@@ -241,7 +230,7 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		// refused before any packet; where a machine lets one bind to an address it
 		// doesn't have, lo still keeps it from going anywhere.
 		ctx, cancel := context.WithTimeout(t.Context(), 300*time.Millisecond)
-		c, err := dialLocal(ctx, device, net.JoinHostPort(a, "22"))
+		c, err := dialLocal(ctx, net.JoinHostPort(a, "22"))
 		cancel()
 		switch {
 		case err == nil:
@@ -251,7 +240,7 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 			t.Errorf("%s wasn't refused as no address of this machine's: %v", a, err)
 		}
 	}
-	if _, err := dialLocal(t.Context(), device, "169.254.169.254:80"); !errors.Is(err, errLinkLocal) {
+	if _, err := dialLocal(t.Context(), "169.254.169.254:80"); !errors.Is(err, errLinkLocal) {
 		t.Errorf("the metadata address said %v", err)
 	}
 	// One of the network's own addresses is dialed through its loopback device.
@@ -269,7 +258,7 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 				_ = c.Close()
 			}
 		}()
-		c, err := dialLocal(t.Context(), device, l.Addr().String())
+		c, err := dialLocal(t.Context(), l.Addr().String())
 		if err != nil {
 			t.Fatalf("its own address %s wasn't dialed: %v", l.Addr(), err)
 		}
@@ -282,6 +271,14 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		_ = c.Close()
 		if got := <-from; got != local[0] {
 			t.Errorf("the listener saw the dial from %s", got)
+		}
+		// A closed port on its own address is refused at once, so it reads as nothing
+		// listening, not as no answer in 2 s.
+		start := time.Now()
+		if _, err := dialLocal(t.Context(), net.JoinHostPort(local[0], strconv.Itoa(closedPort(t)))); !errors.Is(err, syscall.ECONNREFUSED) {
+			t.Errorf("a closed port on its own address said %v", err)
+		} else if took := time.Since(start); took > time.Second {
+			t.Errorf("a closed port on its own address took %s", took)
 		}
 	}
 
@@ -296,11 +293,11 @@ func TestAPortProbeNeverLeavesTheContainer(t *testing.T) {
 		var dialed []string
 		var mu sync.Mutex
 		enter := func(int) (*netns, error) {
-			return &netns{owns: holder, close: func() {}, dial: func(ctx context.Context, device, address string) (net.Conn, error) {
+			return &netns{owns: ownAddress, close: func() {}, dial: func(ctx context.Context, address string) (net.Conn, error) {
 				mu.Lock()
 				dialed = append(dialed, address)
 				mu.Unlock()
-				return dialLocal(ctx, device, address)
+				return dialLocal(ctx, address)
 			}}, nil
 		}
 		got, err := portReader{docker: e.Client(), proc: t.TempDir(), enter: enter}.read(t.Context(), "env_shop", "web")
@@ -342,9 +339,9 @@ func TestAppPortsAskNothingOnRootlessDockerOrTheServersNetwork(t *testing.T) {
 	dialed := 0
 	got, err = portReader{docker: loose.Client(), proc: t.TempDir(), enter: func(int) (*netns, error) {
 		return &netns{
-			owns:  func(string) (string, error) { return "", errBindsAnything },
+			owns:  func(string) error { return errBindsAnything },
 			close: func() {},
-			dial:  func(context.Context, string, string) (net.Conn, error) { dialed++; return nil, errors.New("no") },
+			dial:  func(context.Context, string) (net.Conn, error) { dialed++; return nil, errors.New("no") },
 		}, nil
 	}}.read(t.Context(), "env_shop", "web")
 	if err != nil || got.GetUnread() != unreadBinds || dialed != 0 {
@@ -453,9 +450,9 @@ func TestAppPortsCountOnlyWhatTheSameContainerSaid(t *testing.T) {
 	n := 0
 	enter := func(int) (*netns, error) {
 		return &netns{
-			owns:  func(string) (string, error) { return "eth0", nil },
+			owns:  func(string) error { return nil },
 			close: func() {},
-			dial: func(context.Context, string, string) (net.Conn, error) {
+			dial: func(context.Context, string) (net.Conn, error) {
 				mu.Lock()
 				n++
 				mu.Unlock()
@@ -657,8 +654,7 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 	defer n.close()
 
 	// Its own address is its own inside, and no one's outside.
-	device, err := n.owns(insideAddress)
-	if err != nil {
+	if err := n.owns(insideAddress); err != nil {
 		if strings.Contains(err.Error(), "enter the container's network") {
 			t.Skipf("can't enter a network namespace here: %v", err)
 		}
@@ -668,10 +664,7 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 		t.Fatalf("outside, %s is the machine's own, so this proves nothing", insideAddress)
 	}
 	// A socket made inside reaches the listener there, through lo, from that address.
-	if device != "d0" {
-		t.Errorf("inside, %s is held by %q, not the helper's d0", insideAddress, device)
-	}
-	c, err := n.dial(t.Context(), device, insideAddress)
+	c, err := n.dial(t.Context(), insideAddress)
 	if err != nil {
 		t.Fatalf("dialing %s inside: %v", insideAddress, err)
 	}
@@ -698,12 +691,12 @@ func TestAddressesAreCheckedInsideTheNetworkEntered(t *testing.T) {
 			_ = c.Close()
 		}
 	}()
-	if _, err := n.owns(outside.Addr().String()); err == nil {
+	if err := n.owns(outside.Addr().String()); err == nil {
 		t.Errorf("inside, the machine's %s counts as the network's own", outside.Addr())
 	}
 	dctx, dcancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 	defer dcancel()
-	if c, err := n.dial(dctx, device, outside.Addr().String()); err == nil {
+	if c, err := n.dial(dctx, outside.Addr().String()); err == nil {
 		_ = c.Close()
 		t.Errorf("from inside, the machine's %s was dialed", outside.Addr())
 	}
@@ -733,4 +726,47 @@ func nonlocalBind(t *testing.T, address string) string {
 func passes(address string) bool {
 	_, err := askable(net.JoinHostPort(address, "22"))
 	return err == nil
+}
+
+// The second re-check's N1: a container that can change its own network can route
+// even its own address out, so it's listed and never asked; one with no such power
+// is asked as ever.
+func TestAppPortsAskNothingOfAContainerThatCanChangeItsNetwork(t *testing.T) {
+	t.Parallel()
+	for name, edit := range map[string]func(*docker.Container){
+		"privileged":         func(c *docker.Container) { c.HostConfig.Privileged = true },
+		"NET_ADMIN":          func(c *docker.Container) { c.HostConfig.CapAdd = []string{"NET_ADMIN"} },
+		"CAP_SYS_ADMIN":      func(c *docker.Container) { c.HostConfig.CapAdd = []string{"CHOWN", "CAP_SYS_ADMIN"} },
+		"ALL":                func(c *docker.Container) { c.HostConfig.CapAdd = []string{"all"} },
+		"ip_nonlocal_bind":   func(c *docker.Container) { c.HostConfig.Sysctls = map[string]string{"net.ipv4.ip_nonlocal_bind": "1"} },
+		"ipv6 nonlocal bind": func(c *docker.Container) { c.HostConfig.Sysctls = map[string]string{"net/ipv6/ip_nonlocal_bind": "1"} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			e := webApp(t, func(c *docker.Container) {
+				c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}}
+				edit(c)
+			})
+			var asked []string
+			var mu sync.Mutex
+			got, err := portReader{docker: e.Client(), proc: t.TempDir(), enter: inside([]string{containerIP}, nil, &asked, &mu)}.read(t.Context(), "env_shop", "web")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.GetUnread() != unreadPowers || len(asked) != 0 || len(got.GetPorts()) != 1 || got.GetPorts()[0].GetAnswer() != dockwellv1.PortAnswer_PORT_ANSWER_UNSPECIFIED {
+				t.Errorf("asked %v, got %v", asked, got)
+			}
+		})
+	}
+	// NET_RAW, and a sysctl set back to 0, give no such power.
+	e := webApp(t, func(c *docker.Container) {
+		c.Config.ExposedPorts = map[string]struct{}{"80/tcp": {}}
+		c.HostConfig.CapAdd = []string{"NET_RAW"}
+		c.HostConfig.Sysctls = map[string]string{"net.ipv4.ip_nonlocal_bind": "0", "net.core.somaxconn": "1024"}
+	})
+	var asked []string
+	var mu sync.Mutex
+	got, err := portReader{docker: e.Client(), proc: t.TempDir(), enter: inside([]string{containerIP}, map[uint32]int{80: closedPort(t)}, &asked, &mu)}.read(t.Context(), "env_shop", "web")
+	if err != nil || got.GetUnread() != "" || len(asked) != 1 {
+		t.Errorf("a container with no network power: asked %v, got %v, %v", asked, got, err)
+	}
 }
