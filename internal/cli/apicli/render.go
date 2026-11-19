@@ -990,6 +990,15 @@ func restoreWords(r *dockwellv1.RestorePlan) []string {
 	taken := r.GetTakenAt().AsTime().Local().Format("2 Jan 2006 15:04")
 	size := human.Size(r.GetSizeBytes())
 	var out []string
+	if r.GetIntoNew() {
+		// A new database, filled before it first starts (ADR 0106).
+		if r.GetMethod() == dockwellv1.BackupMethod_BACKUP_METHOD_DUMP {
+			out = append(out, fmt.Sprintf("Loads the %s dump from %s (%s) into the new database before it first starts.", r.GetDatabase(), taken, size))
+		} else {
+			out = append(out, fmt.Sprintf("Fills the new database with the copy from %s (%s) before it first starts.", taken, size))
+		}
+		return append(out, "The database it was taken of keeps running as it is. If it fails, Dockwell removes what this made.")
+	}
 	switch {
 	case r.GetUndoes() != "":
 		out = append(out, fmt.Sprintf("Replaces what's in the volume with what %s replaced on %s (%s).", r.GetUndoes(), taken, size))

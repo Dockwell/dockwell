@@ -813,6 +813,28 @@ type RestoreSource struct {
 	Change string `json:",omitempty"`
 	// Server is the server that holds it, by ID, the one place it can happen.
 	Server string `json:",omitempty"`
+	// From is the volume whose backups hold Backup, set when it restores into a new
+	// database's volume rather than into From itself: the step that makes that
+	// database's service does it, before its container first starts (ADR 0106).
+	From Ref `json:",omitzero"`
+}
+
+// IntoNew says it restores into a new database's volume (From).
+func (r RestoreSource) IntoNew() bool { return r.From != (Ref{}) }
+
+type restoreKey struct{}
+
+// WithRestore gives the step that applies a change's restore, through ctx, what
+// the change restores from: the volume it reads a backup of, which the step's plan
+// doesn't carry (ADR 0106).
+func WithRestore(ctx context.Context, source RestoreSource) context.Context {
+	return context.WithValue(ctx, restoreKey{}, source)
+}
+
+// RestoreOf is the source WithRestore gave ctx, and whether it gave one.
+func RestoreOf(ctx context.Context) (RestoreSource, bool) {
+	r, ok := ctx.Value(restoreKey{}).(RestoreSource)
+	return r, ok
 }
 
 // RestorePlan is what a step that restores a volume does, for people to read.
@@ -841,6 +863,13 @@ type RestorePlan struct {
 	// Reached is what the backup's volume reached when it was taken that's as good
 	// as root. Its agent says, and that can only make a plan louder.
 	Reached []string `json:",omitempty"`
+	// IntoNew says it fills a new database's volume, made in the same change, as the
+	// step that makes the database's service does: nothing is replaced, and nothing
+	// that runs stops (ADR 0106).
+	IntoNew bool `json:",omitempty"`
+	// From is the volume whose backups hold Backup, for IntoNew. Only the agent that
+	// applies the step reads it, from what the change asked (RestoreOf).
+	From Ref `json:"-"`
 }
 
 // Install is what installing a server's updates does: every package, from the
@@ -1936,6 +1965,15 @@ type BackerUp interface {
 	JudgeBackup(ctx context.Context, ref Ref, asked BackupAsked) (Decision, bool, error)
 	// ApplyBackup carries out the step, and reports what it took (Report).
 	ApplyBackup(ctx context.Context, step Step) error
+}
+
+// Seeder is a driver whose resource a backup restores into as the step that makes
+// it does: a new database's service, which a restore of another database's backup
+// makes in the same change (ADR 0106).
+type Seeder interface {
+	// JudgeSeed adds to the step that makes the resource what restoring the backup
+	// into it does, or says why it can't: only a step that makes it can.
+	JudgeSeed(ctx context.Context, ref Ref, step Step, desired proto.Message, source RestoreSource) (Decision, error)
 }
 
 // Mover is a driver that can move the database a resource runs to a newer release,

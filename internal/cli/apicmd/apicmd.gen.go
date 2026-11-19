@@ -453,6 +453,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "id", Help: "The backup's ID.", Arg: true},
 				{Path: "summary", Help: "What it's for, for the timeline. Empty says what it restores."},
+				{Path: "into", Help: "The project of a new database to restore it into, such as \"orders-restored\", leaving the one that runs as it is (ADR 0106). The new database is the original's catalog entry as it runs, made on the server that holds the backup, with copies of the original's root password secrets, as the data it brings back signs in with those. Empty replaces what's in the backup's volume."},
 				{Path: "confirm", Help: "The name of the database server's service, typed, where other projects' apps share it, as restoring it whole takes back what each wrote since."},
 			},
 			Call: apicli.Unary[v1.RestoreBackupRequest, v1.RestoreBackupResponse](dockwellv1connect.BackupServiceRestoreBackupProcedure),

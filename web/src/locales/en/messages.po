@@ -856,6 +856,12 @@ msgstr "Closed a terminal on {server}, open {open}"
 msgid "Confirmed which environments are protected"
 msgstr "Confirmed which environments are protected"
 
+msgid "Copied a secret into a new database"
+msgstr "Copied a secret into a new database"
+
+msgid "Copied the secret {name} into a new database"
+msgstr "Copied the secret {name} into a new database"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "Couldn't delete {path} on {server}"
 
@@ -8060,11 +8066,44 @@ msgstr "{0, plural, one {Back up # volume daily} other {Back up # volumes daily}
 msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 msgstr "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 
+msgid "A project named {typed} is here already. {free} is free."
+msgstr "A project named {typed} is here already. {free} is free."
+
+msgid "A project named {typed} was here before, and its data may come back. {free} is free."
+msgstr "A project named {typed} was here before, and its data may come back. {free} is free."
+
+msgid "Name the new database."
+msgstr "Name the new database."
+
+msgid "Recommended"
+msgstr "Recommended"
+
+msgid "Replace {project}"
+msgstr "Replace {project}"
+
+msgid "Restore to"
+msgstr "Restore to"
+
+msgid "Restore {project}"
+msgstr "Restore {project}"
+
 msgid "Restore {server} whole"
 msgstr "Restore {server} whole"
 
+msgid "The backup from {when}, {size}"
+msgstr "The backup from {when}, {size}"
+
+msgid "To a new database"
+msgstr "To a new database"
+
 msgid "Type {server} to confirm"
 msgstr "Type {server} to confirm"
+
+msgid "What uses it stops while it loads, and what was made since goes."
+msgstr "What uses it stops while it loads, and what was made since goes."
+
+msgid "{project} keeps running. Check the data, then switch apps over."
+msgstr "{project} keeps running. Check the data, then switch apps over."
 
 msgid "Copy of a running app"
 msgstr "Copy of a running app"
@@ -10639,6 +10678,9 @@ msgstr "driver"
 msgid "external access"
 msgstr "external access"
 
+msgid "from the backup"
+msgstr "from the backup"
+
 msgid "health check interval"
 msgstr "health check interval"
 
@@ -11087,6 +11129,9 @@ msgstr "Everything in {name} on {server} goes back to what was there before the 
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 
+msgid "Fills {name} on {server} with the copy from {taken}"
+msgstr "Fills {name} on {server} with the copy from {taken}"
+
 msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 msgstr "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 
@@ -11244,6 +11289,9 @@ msgstr "Leave it alone in {tool} from now on."
 msgid "Leaves out {file}"
 msgstr "Leaves out {file}"
 
+msgid "Loads the dump from {taken} into {name} on {server}"
+msgstr "Loads the dump from {taken} into {name} on {server}"
+
 msgid "Lower its feature compatibility version to {to} first if it's higher."
 msgstr "Lower its feature compatibility version to {to} first if it's higher."
 
@@ -11371,11 +11419,17 @@ msgstr "The connection to {name} isn't encrypted"
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 
+msgid "The copy is {size}, unpacked into the new volume before it first starts. If that fails, Dockwell removes what this made."
+msgstr "The copy is {size}, unpacked into the new volume before it first starts. If that fails, Dockwell removes what this made."
+
 msgid "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
 msgstr "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
 
 msgid "The data stays as it is now"
 msgstr "The data stays as it is now"
+
+msgid "The database it was taken of keeps running as it is."
+msgstr "The database it was taken of keeps running as it is."
 
 msgid "The database may not start on files from another release."
 msgstr "The database may not start on files from another release."
@@ -11615,6 +11669,9 @@ msgstr "{counts} {lifting}"
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
+
+msgid "{database} starts on its new volume and loads the dump, {size}, before it first serves. If it won't load, Dockwell removes what this made."
+msgstr "{database} starts on its new volume and loads the dump, {size}, before it first serves. If it won't load, Dockwell removes what this made."
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} can move what {path} leads to on {server}"

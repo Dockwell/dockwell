@@ -388,7 +388,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, err
 		}
-		if want.Restore != nil {
+		if want.Restore != nil && !want.Restore.IntoNew() {
 			r, ok := d.(Restorer)
 			if !ok {
 				return nil, fmt.Errorf("can't plan %s: this agent can't restore a %s from a backup", want.Ref, want.Ref.Kind)
@@ -593,6 +593,17 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 			}
 		}
+		// A backup restores into a new database as the step that makes its service
+		// does, before its container first starts (ADR 0106).
+		if want.Restore != nil && want.Restore.IntoNew() {
+			s, ok := d.(Seeder)
+			if !ok {
+				return nil, fmt.Errorf("can't plan %s: this agent can't restore a backup into a new %s", want.Ref, want.Ref.Kind)
+			}
+			if step.Decision, err = s.JudgeSeed(ctx, want.Ref, step, spec, *want.Restore); err != nil {
+				return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
+			}
+		}
 		// Nothing is mounted for a step with nothing to do, and a dead path on what's
 		// left as it is shouldn't refuse a plan for something else.
 		if step.Action != ActionNone {
@@ -740,6 +751,13 @@ func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Mess
 // again first, as Plan does.
 func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) error {
 	ctx = WithStep(ctx)
+	// A restore into a new database reads its backup from the volume the change
+	// names, as a call from the control plane carries it (ADR 0106).
+	if r, ok := RestoreOf(ctx); ok && step.Restore != nil && step.Restore.IntoNew && step.Restore.From == (Ref{}) {
+		restore := *step.Restore
+		restore.From = r.From
+		step.Restore = &restore
+	}
 	d, err := l.Drivers.Driver(step.Ref.Kind)
 	if err != nil {
 		return err
@@ -818,7 +836,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 		}
 		return nil
 	}
-	if step.Restore != nil {
+	if step.Restore != nil && !step.Restore.IntoNew {
 		r, ok := d.(Restorer)
 		if !ok {
 			return cantApply(ctx, step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))

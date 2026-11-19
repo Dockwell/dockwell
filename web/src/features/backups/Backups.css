@@ -376,3 +376,22 @@
   display: flex;
   gap: var(--space-1);
 }
+
+/* The backup a restore brings back, above where it goes (ADR 0106). */
+.restore-point {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.restore-point .dw-icon {
+  flex: none;
+  color: var(--ink-muted);
+}

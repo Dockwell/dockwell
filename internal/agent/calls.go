@@ -557,6 +557,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			if r := d.GetRestore(); r != nil {
 				want.Restore = &resource.RestoreSource{Backup: r.GetBackupId(), Undoes: r.GetUndoes(), Change: r.GetChangeId()}
+				if r.GetFrom() != nil {
+					want.Restore.From = resourcepb.FromRef(r.GetFrom())
+				}
 			}
 			want.MoveVolumeFrom = d.GetMoveVolumeFrom()
 			if m := d.GetMoveDatabase(); m != nil {
@@ -626,6 +629,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			defer c.cfg.fail2ban.forget()
 		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
+		// A restore into a new database reads its backup from the volume the call
+		// names (ADR 0106).
+		if r := call.GetApply().GetDesired().GetRestore(); r != nil && r.GetFrom() != nil && step.Restore != nil && step.Restore.IntoNew {
+			step.Restore.From = resourcepb.FromRef(r.GetFrom())
+		}
 		// An upgrade of the agent runs the script its call carries, which only an
 		// apply does (ADR 0094).
 		if u := call.GetApply().GetDesired().GetUpgradeAgent(); u != nil {

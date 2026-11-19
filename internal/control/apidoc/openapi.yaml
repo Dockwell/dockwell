@@ -24593,6 +24593,14 @@ components:
                 summary:
                     type: string
                     description: What it's for, for the timeline. Empty says what it restores.
+                into:
+                    type: string
+                    description: |-
+                        The project of a new database to restore it into, such as "orders-restored",
+                         leaving the one that runs as it is (ADR 0106). The new database is the
+                         original's catalog entry as it runs, made on the server that holds the backup,
+                         with copies of the original's root password secrets, as the data it brings back
+                         signs in with those. Empty replaces what's in the backup's volume.
                 confirm:
                     type: string
                     description: |-
@@ -24719,6 +24727,12 @@ components:
                          nothing stops, its user can't sign in while it loads, and the rest of the
                          server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
                          as open work adds to this message.
+                intoNew:
+                    type: boolean
+                    description: |-
+                        It fills a new database's volume, made in the same change, so it replaces
+                         nothing and nothing that runs stops, but that new database's own service while
+                         the backup loads (ADR 0106).
             description: |-
                 RestorePlan is what a step that restores a volume does: it says what comes
                  back, and what stops while it does. What's in the volume is replaced, and the

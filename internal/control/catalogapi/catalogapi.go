@@ -1540,6 +1540,17 @@ func (l lentPorts) of(port uint32) lentRange {
 	return l[i]
 }
 
+// Lent says whether a port is in a range the servers lend to outgoing connections,
+// as they last reported, which a port an install takes keeps out of (#688), as a
+// restore into a new database's ports do (ADR 0106).
+func Lent(ctx context.Context, tx *store.Tx) (func(port uint32) bool, error) {
+	l, err := lentOn(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	return l.has, nil
+}
+
 // lentOn reads the ranges the servers said they lend, as they last reported.
 func lentOn(ctx context.Context, tx *store.Tx) (lentPorts, error) {
 	reports, err := tx.ServerReports(ctx)

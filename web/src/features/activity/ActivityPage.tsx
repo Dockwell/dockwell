@@ -825,7 +825,7 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
   const valueEnv = change
     ? full.data?.change?.plan?.resources.find((r) => r.resource?.kind === "variable" || r.resource?.kind === "secret")
         ?.resource?.scope
-    : event.action === "secret.reveal"
+    : event.action === "secret.reveal" || event.action === "secret.copy"
       ? event.subject?.scope || undefined
       : undefined;
   const toVariables =

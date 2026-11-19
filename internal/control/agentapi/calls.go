@@ -1354,7 +1354,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		dr.Rollback = d.Rollback
 		dr.Adopt = d.Adopt
 		if r := d.Restore; r != nil {
-			dr.Restore = &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
+			dr.Restore = restoreProto(*r)
 		}
 		dr.ScopeName = s.scopeName(ctx, d.Ref)
 		if b := d.Backup; b != nil {
@@ -1525,6 +1525,11 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		return err
 	}
 	dr.ScopeName = s.scopeName(ctx, step.Ref)
+	// A restore into a new database reads its backup from the volume the change
+	// names, which the step's plan doesn't carry (ADR 0106).
+	if r, ok := resource.RestoreOf(ctx); ok && step.Restore != nil && step.Restore.IntoNew {
+		dr.Restore = restoreProto(r)
+	}
 	values, uses, err := s.values(ctx, step.Ref, desired)
 	if err != nil {
 		return err
@@ -2093,6 +2098,15 @@ func (s *Session) Observe(ctx context.Context, refs []resource.Ref) ([]proto.Mes
 		}
 	}
 	return out, nil
+}
+
+// restoreProto is what a restore brings back, as the agent is told it.
+func restoreProto(r resource.RestoreSource) *agentv1.RestoreSource {
+	out := &agentv1.RestoreSource{BackupId: r.Backup, Undoes: r.Undoes, ChangeId: r.Change}
+	if r.IntoNew() {
+		out.From = resourcepb.Ref(r.From)
+	}
+	return out
 }
 
 func desiredProto(ref resource.Ref, spec proto.Message) (*agentv1.DesiredResource, error) {

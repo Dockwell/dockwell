@@ -68,6 +68,15 @@ type Movers interface {
 	// report, which FinishMove does.
 	MoveFinishes(mv backup.Move) (bool, error)
 	FinishMove(ctx context.Context, mv backup.Move) error
+	// JudgeSeed and SeedNew restore a backup into a new database's own volume, as the
+	// step that makes its service does (ADR 0106).
+	JudgeSeed(ctx context.Context, s backup.Seed) (resource.RestorePlan, error)
+	SeedNew(ctx context.Context, s backup.Seed) error
+	// SeedStage is how far a change's restore into a new database got, which a
+	// resume of the change reads once the database is made, and ForgetSeed removes
+	// its note once the step that made it is done.
+	SeedStage(ctx context.Context, s backup.Seed) (string, error)
+	ForgetSeed(s backup.Seed) error
 }
 
 // Passwords changes a database's first user's password in what runs of a service, to
@@ -734,6 +743,8 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 		err = d.finishMove(ctx, step, app, t)
 	case step.Move != nil:
 		err = d.move(ctx, step, app, t)
+	case step.Restore != nil && step.Restore.IntoNew:
+		err = d.seed(ctx, step, app, t)
 	default:
 		err = d.Containers.ApplyAt(ctx, t, step, app)
 	}
@@ -784,6 +795,76 @@ func (d *Driver) JudgeMove(ctx context.Context, ref resource.Ref, step resource.
 	dec.Move, dec.Effect = &plan, resource.EffectRestart
 	dec.Downtime += downtime
 	return dec, nil
+}
+
+// JudgeSeed adds to the step that makes a new database's service what restoring a
+// backup into its own volume does, before its container first starts, or says why
+// it can't: only a step that makes the service restores into it (ADR 0106).
+func (d *Driver) JudgeSeed(ctx context.Context, ref resource.Ref, step resource.Step, desired proto.Message, source resource.RestoreSource) (resource.Decision, error) {
+	if d.Movers == nil {
+		return step.Decision, errors.New("this agent can't restore a backup into a new database")
+	}
+	app, _ := planned(desired).(*resourcev1.Container)
+	seed := backup.Seed{Service: ref, Backup: source.Backup, From: source.From, Change: source.Change, App: app}
+	if step.Action != resource.ActionCreate {
+		// The service is here: only this change's own resume finds it so, once its
+		// step made the new database. Where its restore finished, the step goes on;
+		// where it didn't, the step is applied to fail, so the change rolls back.
+		stage, err := d.Movers.SeedStage(ctx, seed)
+		if err != nil {
+			return step.Decision, err
+		}
+		if stage != backup.SeedDone && stage != backup.SeedFilling {
+			return step.Decision, fmt.Errorf("%s is here already, so a backup isn't restored into it as a new database. Restore it into the database it was taken of instead", ref.Name)
+		}
+		dec := step.Decision
+		dec.Restore = &resource.RestorePlan{Backup: source.Backup, IntoNew: true, From: source.From}
+		if stage == backup.SeedFilling && dec.Action == resource.ActionNone {
+			dec.Action = resource.ActionUpdate
+		}
+		return dec, nil
+	}
+	plan, err := d.Movers.JudgeSeed(ctx, seed)
+	if err != nil {
+		return step.Decision, err
+	}
+	dec := step.Decision
+	dec.Restore = &plan
+	return dec, nil
+}
+
+// seed restores the backup into the new database's volume, then makes its
+// container, which starts on what the backup holds.
+func (d *Driver) seed(ctx context.Context, step resource.Step, app *resourcev1.Container, t container.Target) error {
+	if d.Movers == nil {
+		return errors.New("this agent can't restore a backup into a new database")
+	}
+	if step.Restore.From == (resource.Ref{}) {
+		return errors.New("the step doesn't say which volume's backup to restore. Plan the restore again")
+	}
+	s := backup.Seed{Service: step.Ref, Backup: step.Restore.Backup, From: step.Restore.From, Change: resource.DeployOf(ctx).Change, App: app}
+	if step.Action != resource.ActionCreate {
+		// A resume: the database is made, on what this change's restore loaded, or
+		// on part of it, which the rollback takes away.
+		stage, err := d.Movers.SeedStage(ctx, s)
+		if err != nil {
+			return err
+		}
+		if stage != backup.SeedDone {
+			return resource.Plainly(fmt.Sprintf("The backup didn't finish loading into %s before Dockwell stopped, so this change rolls back. Restore it again", step.Ref.Name),
+				fmt.Errorf("the restore into %s is at %q", step.Ref, stage))
+		}
+	} else if err := d.Movers.SeedNew(ctx, s); err != nil {
+		return err
+	}
+	if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
+		return err
+	}
+	// Made on what the backup holds: its note has done its work, and goes.
+	if err := d.Movers.ForgetSeed(s); err != nil {
+		return fmt.Errorf("can't remove the note of the restore into %s: %w", step.Ref, err)
+	}
+	return nil
 }
 
 // finishMove finishes what a move left: what the step replaces first, as a

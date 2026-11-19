@@ -226,6 +226,12 @@ type Also struct {
 	// SetsUp are the held routes whose setup link SetUpCatalogInstall writes, which no
 	// other write may (ADR 0105).
 	SetsUp []resource.Ref
+	// Restores are backups the change restores into what it makes, by the resource
+	// that restores each: a new database's service (ADR 0106).
+	Restores map[resource.Ref]resource.RestoreSource
+	// Records go on the activity log with the planned change, in its transaction
+	// (revision.Proposal.Records).
+	Records func(change string) []store.Event
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -280,6 +286,9 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		if chosen := also.IDs[edits[i].Ref]; chosen != "" {
 			edits[i].ID = chosen
 		}
+		if source, ok := also.Restores[edits[i].Ref]; ok {
+			edits[i].Restore = &source
+		}
 	}
 	// A route that moves a catalog app's address moves what follows it, in the same
 	// change, and a service's value asked for as its entry writes it is rendered
@@ -297,7 +306,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	plan, err := h.engine.Propose(ctx, revision.Proposal{
 		Summary: summary, Actor: who.Actor, Via: who.Via, Edits: slices.Concat(also.Edits, edits), Notes: also.Notes, IfNothing: also.IfNothing, Intent: also.Intent,
-		SkipBackup: also.SkipBackup, BackUp: also.BackUp, BackUpOne: also.BackUpOne, Empties: also.Empties,
+		SkipBackup: also.SkipBackup, BackUp: also.BackUp, BackUpOne: also.BackUpOne, Empties: also.Empties, Records: also.Records,
 	})
 	if err != nil {
 		return nil, fail(err)

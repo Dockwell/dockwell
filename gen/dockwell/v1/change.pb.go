@@ -8917,7 +8917,11 @@ type RestorePlan struct {
 	// nothing stops, its user can't sign in while it loads, and the rest of the
 	// server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
 	// as open work adds to this message.
-	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	DatabaseName string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	// It fills a new database's volume, made in the same change, so it replaces
+	// nothing and nothing that runs stops, but that new database's own service while
+	// the backup loads (ADR 0106).
+	IntoNew       bool `protobuf:"varint,11,opt,name=into_new,json=intoNew,proto3" json:"into_new,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9027,6 +9031,13 @@ func (x *RestorePlan) GetDatabaseName() string {
 		return x.DatabaseName
 	}
 	return ""
+}
+
+func (x *RestorePlan) GetIntoNew() bool {
+	if x != nil {
+		return x.IntoNew
+	}
+	return false
 }
 
 // RouteRedirects is a route that answers every request with a redirect.
@@ -11046,7 +11057,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\amanager\x18\x01 \x01(\tR\amanager\x12\x1c\n" +
 	"\tcontainer\x18\x02 \x01(\tR\tcontainer\x12\x18\n" +
 	"\aproject\x18\x03 \x01(\tR\aproject\x12\x16\n" +
-	"\x06folder\x18\x04 \x01(\tR\x06folder\"\xf4\x02\n" +
+	"\x06folder\x18\x04 \x01(\tR\x06folder\"\x8f\x03\n" +
 	"\vRestorePlan\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x121\n" +
@@ -11061,7 +11072,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\aruns_on\x18\t \x01(\tR\x06runsOn\x12\x18\n" +
 	"\areached\x18\n" +
 	" \x03(\tR\areached\x12#\n" +
-	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"\xff\x01\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\x12\x19\n" +
+	"\binto_new\x18\v \x01(\bR\aintoNew\"\xff\x01\n" +
 	"\x0eRouteRedirects\x12\x14\n" +
 	"\x05where\x18\x01 \x01(\tR\x05where\x12\x0e\n" +
 	"\x02to\x18\x02 \x01(\tR\x02to\x12\x1c\n" +

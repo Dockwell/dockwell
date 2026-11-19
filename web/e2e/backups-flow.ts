@@ -64,6 +64,13 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
 
   step("backups: a restore is a plan, which says what it replaces and what stops, and takes a confirmation");
   await row.getByRole("button", { name: "Restore", exact: true }).click();
+  // A catalog database's backup asks where to first: a new database, or in its place (ADR 0106).
+  const where = page.getByRole("dialog", { name: /^Restore / });
+  if (!(await where.getByRole("radio", { name: /To a new database/ }).isChecked()))
+    fail("a catalog database's restore doesn't start on a new database");
+  await shoot(page, "backups-restore-where");
+  await where.getByRole("radio", { name: /^Replace / }).check();
+  await where.getByRole("button", { name: "Review plan" }).click();
   const plan = page.locator(".plan-sheet");
   const risk = plan.locator(".plan-risk");
   await risk.getByText(/with the dump from/).waitFor({ timeout: 30_000 });

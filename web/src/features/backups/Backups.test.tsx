@@ -23,6 +23,7 @@ import {
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
   type RestorePlanSchema,
+  Role,
   type TestBackupDestinationRequest,
   type WatchChangeResponse,
 } from "@dockwell/api";
@@ -33,6 +34,7 @@ import { describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { openHowItWorks } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 
@@ -391,6 +393,281 @@ describe("the backups page", () => {
     await user.click(review);
     await waitFor(() => expect(asked).toEqual(["", "db"]));
     expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
+  });
+
+  /** A catalog PostgreSQL installed as warehouse, with its backup's calls, and the projects there are. */
+  function aCatalogDatabase(
+    restoreBackup: NonNullable<Api["backups"]>["restoreBackup"],
+    projects = ["warehouse"],
+    usedBefore: string[] = [],
+    category = "databases",
+  ): Api {
+    const backup = aBackup({ volume: "data", method: BackupMethod.DUMP, database: "PostgreSQL" });
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.DUMP,
+      database: "PostgreSQL",
+      sizeBytes: 1n << 20n,
+    });
+    return api([backup], {
+      backups: { listBackups: () => ({ backups: [backup] }), restoreBackup },
+      resources: {
+        listResources: (req: { kind: string }) =>
+          req.kind === "project"
+            ? {
+                resources: projects.map((name, i) => ({
+                  id: `prj_${i + 1}`,
+                  resource: { kind: "project", scope: "org_1", name },
+                })),
+              }
+            : req.kind === "environment"
+              ? { resources: [{ id: "env_1", resource: { kind: "environment", scope: "prj_1", name: "production" } }] }
+              : { resources: [] },
+      },
+      catalog: {
+        listCatalogInstalls: () => ({
+          installs: [{ projectId: "prj_1", project: "warehouse", environmentId: "env_1", pin: { entry: "postgres" } }],
+        }),
+        // What the install's entry is, as the catalog files it.
+        listCatalogEntries: () => ({ entries: [{ id: "postgres", category }] }),
+        // The control plane's free name, which knows the names used before.
+        getCatalogEntry: (req: { project: string }) => ({
+          project: usedBefore.includes(req.project) ? `${req.project}-2` : req.project,
+        }),
+      },
+      changes: { getChange: () => ({ change }), watchChange: feed<WatchChangeResponse>().stream },
+    });
+  }
+
+  it("restores a catalog database's backup into a new database first, with its name filled and checked", async () => {
+    const user = userEvent.setup();
+    const asked: { into: string; confirm: string }[] = [];
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.DUMP,
+      database: "PostgreSQL",
+      sizeBytes: 1n << 20n,
+    });
+    renderAt(
+      "/backups",
+      aCatalogDatabase(
+        (req) => {
+          asked.push({ into: req.into, confirm: req.confirm });
+          return { change };
+        },
+        ["warehouse", "warehouse-restored"],
+      ),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore warehouse" });
+    const fresh = within(dialog).getByRole("radio", { name: /To a new database/ });
+    expect(fresh).toBeChecked();
+    expect(within(dialog).getByText("warehouse keeps running. Check the data, then switch apps over.")).toBeVisible();
+    // warehouse-restored is taken, so the next free name is filled in.
+    const name = within(dialog).getByLabelText("Name");
+    expect(name).toHaveValue("warehouse-restored-2");
+    const review = within(dialog).getByRole("button", { name: "Review plan" });
+    await user.clear(name);
+    await user.type(name, "warehouse-restored");
+    expect(
+      within(dialog).getByText("A project named warehouse-restored is here already. warehouse-restored-2 is free."),
+    ).toBeVisible();
+    expect(review).toBeDisabled();
+    await user.clear(name);
+    await user.type(name, "Not A Name");
+    expect(within(dialog).getByText(/Use lowercase letters, digits and dashes/)).toBeVisible();
+    expect(review).toBeDisabled();
+    await user.clear(name);
+    await user.type(name, "orders-check");
+    // Review plan waits while the control plane says whether the name is free.
+    expect(review).toBeDisabled();
+    await waitFor(() => expect(review).toBeEnabled());
+    await user.click(review);
+    await waitFor(() => expect(asked).toEqual([{ into: "orders-check", confirm: "" }]));
+    await expectAccessible(document.body);
+  });
+
+  it("says a name used before isn't free, as the control plane knows it", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      aCatalogDatabase(
+        () => ({ change: restoring({ backupId: "bkp_1", method: BackupMethod.DUMP }) }),
+        ["warehouse"],
+        ["warehouse-old"],
+      ),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore warehouse" });
+    const review = within(dialog).getByRole("button", { name: "Review plan" });
+    await waitFor(() => expect(review).toBeEnabled());
+    const name = within(dialog).getByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "warehouse-old");
+    expect(
+      await within(dialog).findByText(
+        "A project named warehouse-old was here before, and its data may come back. warehouse-old-2 is free.",
+      ),
+    ).toBeVisible();
+    expect(review).toBeDisabled();
+  });
+
+  it("replaces an app's own database straight away, as no new copy of an app is made", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const change = restoring({ backupId: "bkp_1", method: BackupMethod.DUMP, database: "PostgreSQL" });
+    renderAt(
+      "/backups",
+      aCatalogDatabase(
+        (req) => {
+          asked.push(req.into);
+          return { change };
+        },
+        ["warehouse"],
+        [],
+        "productivity",
+      ),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
+    expect(asked).toEqual([""]);
+    expect(screen.queryByRole("dialog", { name: "Restore warehouse" })).toBeNull();
+  });
+
+  it("replaces a catalog database's data straight away for a developer, who can't make a project", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const change = restoring({ backupId: "bkp_1", method: BackupMethod.DUMP, database: "PostgreSQL" });
+    renderAt("/backups", {
+      ...aCatalogDatabase((req) => {
+        asked.push(req.into);
+        return { change };
+      }),
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+    });
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
+    expect(asked).toEqual([""]);
+    expect(screen.queryByRole("dialog", { name: "Restore warehouse" })).toBeNull();
+  });
+
+  it("replaces a catalog database's data where you choose that, as before", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const change = restoring({
+      backupId: "bkp_1",
+      method: BackupMethod.DUMP,
+      database: "PostgreSQL",
+      sizeBytes: 1n << 20n,
+    });
+    renderAt(
+      "/backups",
+      aCatalogDatabase((req) => {
+        asked.push(req.into);
+        return { change };
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    const dialog = await screen.findByRole("dialog", { name: "Restore warehouse" });
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("warehouse-restored");
+    await user.click(within(dialog).getByRole("radio", { name: /Replace warehouse/ }));
+    expect(within(dialog).queryByLabelText("Name")).toBeNull();
+    expect(within(dialog).getByText("What uses it stops while it loads, and what was made since goes.")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(asked).toEqual([""]));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
+  });
+
+  it("says a restore into a new database replaces nothing", async () => {
+    const user = userEvent.setup();
+    const change = create(ChangeSchema, {
+      id: "chg_restore_new",
+      summary: "Restore warehouse as warehouse-restored",
+      state: ChangeState.PLANNED,
+      plan: {
+        fingerprint: "abc",
+        resources: [
+          {
+            id: "svc_new",
+            resource: { kind: "service", scope: "env_2", name: "db" },
+            action: PlanAction.CREATE,
+            servers: [SERVER],
+          },
+        ],
+        servers: [
+          {
+            serverId: SERVER,
+            serverName: "hz-1",
+            steps: [
+              {
+                resourceId: "svc_new",
+                resource: { kind: "service", scope: "env_2", name: "db" },
+                action: PlanAction.CREATE,
+                restore: {
+                  backupId: "bkp_1",
+                  intoNew: true,
+                  method: BackupMethod.DUMP,
+                  database: "PostgreSQL",
+                  sizeBytes: 1n << 20n,
+                  takenAt: timestampFromDate(new Date("2026-11-06T03:00:00Z")),
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    renderAt(
+      "/backups",
+      aCatalogDatabase(() => ({ change })),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    await user.click(
+      within(await screen.findByRole("dialog", { name: "Restore warehouse" })).getByRole("button", {
+        name: "Review plan",
+      }),
+    );
+    const title = await screen.findByText(/^Loads the dump from .* into db on hz-1$/);
+    const risk = title.closest(".plan-risk") as HTMLElement;
+    expect(within(risk).getByText("The database it was taken of keeps running as it is.")).toBeVisible();
+    expect(screen.queryByText(/^Replaces /)).toBeNull();
+    expect(screen.queryByText(/replaced, and undoing this puts it back/)).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /fingerprint|Type/ })).toBeNull();
+  });
+
+  it("restores a backup straight away where no new database can be made of it", async () => {
+    const user = userEvent.setup();
+    const asked: string[] = [];
+    const change = restoring({ backupId: "bkp_1", method: BackupMethod.COPY, sizeBytes: 1n << 20n });
+    // A volume of an app's own, not a catalog database's.
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          restoreBackup: (req) => {
+            asked.push(req.into);
+            return { change };
+          },
+        },
+        catalog: {
+          listCatalogInstalls: () => ({
+            installs: [{ projectId: "prj_1", environmentId: "env_1", pin: { entry: "gitea" } }],
+          }),
+        },
+        changes: { getChange: () => ({ change }), watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Replaces orders on hz-1 with/);
+    expect(asked).toEqual([""]);
+    expect(screen.queryByRole("dialog", { name: /^Restore / })).toBeNull();
   });
 
   it("says what a schedule costs, and plans it", async () => {

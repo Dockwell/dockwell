@@ -106,6 +106,7 @@
   "recovery_code.use",
   "recovery_codes.regenerate",
   "role.refuse",
+  "secret.copy",
   "secret.reveal",
   "secrets.rotate_key",
   "server.desired_sent",

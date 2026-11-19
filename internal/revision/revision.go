@@ -463,6 +463,10 @@ type Proposal struct {
 	// applied, so it counts as destroying data: applying takes the typed
 	// fingerprint (ADR 0028).
 	Empties string
+	// Records are what else goes on the activity log with the planned change, in the
+	// same transaction, by its ID, as a restore into a new database records each
+	// secret it copies into the plan (ADR 0106).
+	Records func(change string) []store.Event
 }
 
 // OneBackup is an app's database dumped alone before its update: the server's
@@ -924,9 +928,10 @@ type item struct {
 }
 
 // noRevision reports an item that acts on a resource as it is, so it has nothing
-// to roll back, and what goes wrong leaves its revision as it was.
+// to roll back, and what goes wrong leaves its revision as it was. A restore into a
+// new database isn't one: it makes its service (ADR 0106).
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -1129,7 +1134,10 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if err := e.capsHeld(ctx, tx, items); err != nil {
 			return err
 		}
-		return e.portsOutOfReach(ctx, tx, items)
+		if err := e.portsOutOfReach(ctx, tx, items); err != nil {
+			return err
+		}
+		return intoNew(ctx, tx, items)
 	}); err != nil {
 		return nil, err
 	}
@@ -1203,7 +1211,7 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	if err := e.detectBuilds(ctx, plan, items); err != nil {
 		return nil, err
 	}
-	if err := e.checkRestores(ctx, plan, items); err != nil {
+	if err := e.checkRestores(ctx, plan, items, false); err != nil {
 		return nil, err
 	}
 	// What planning noted itself, such as a route proven by DNS that gets no key.
@@ -1257,7 +1265,21 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		Fingerprint: plan.Fingerprint, Plan: record, CreatedAt: e.now(), ProposedVia: p.Via, Servers: serversOf(plan),
 		ActsFor: actsFor(ctx, p.Actor),
 	}
-	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error { return e.recordPlanned(ctx, tx, c, items) })
+	err = e.db.Revise(ctx, func(tx *store.RevisionTx) error {
+		if err := e.recordPlanned(ctx, tx, c, items); err != nil {
+			return err
+		}
+		if p.Records == nil {
+			return nil
+		}
+		records := p.Records(c.ID)
+		for i := range records {
+			if err := tx.RecordEvent(ctx, records[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -4873,6 +4895,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		last, guarded := lastAccess[q.server]
 		callCtx = resource.WithDeploy(callCtx, resource.Deploy{Revision: it.rev, Change: c.ID, Rollback: IsRollback(c), LastAccess: guarded && last == qi})
+		// A restore into a new database reads its backup from the volume the change
+		// names, which the step's plan doesn't carry (ADR 0106).
+		if src := it.restoreOn(q.server); src != nil && src.IntoNew() {
+			callCtx = resource.WithRestore(callCtx, *src)
+		}
 		// The call to its agent is what a wave's servers wait on side by side. What
 		// it's given is read first, as another server's step may change the item
 		// once the lock is let go.
@@ -5621,7 +5648,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	// What the agent plans now of a restore, or of a backup of one database alone, is
 	// held to what the change was made for, as when it was proposed: one downgraded
 	// since would take the whole volume (ADR 0084).
-	if err := e.checkRestores(ctx, plan, items); err != nil {
+	if err := e.checkRestores(ctx, plan, items, true); err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
 	}
@@ -5940,11 +5967,53 @@ func (e *Engine) reachedThen(ctx context.Context, backupID string) ([]string, er
 	return out, err
 }
 
-// restoring finds what a change restored, if it restored anything.
+// intoNew refuses a restore into a new database unless the service it restores
+// into is a database the change makes, and so is the volume it fills, so it never
+// writes over what's there: the new database's own data volume, in its own
+// environment, whatever the volume the backup was taken of is called, as a move to a
+// new release names it anew (ADR 0080, ADR 0106).
+func intoNew(ctx context.Context, tx *store.Tx, items []item) error {
+	for i := range items {
+		it := &items[i]
+		if it.restore == nil || !it.restore.IntoNew() {
+			continue
+		}
+		if it.ref.Kind != "service" || it.current != nil || it.spec == nil {
+			return fault.New(ErrInvalid, "%s is here already, so a backup isn't restored into it as a new database. Restore it into the database it was taken of instead", it.ref.Name)
+		}
+		svc, _ := it.spec.(*resourcev1.Service)
+		found, isDatabase := database.FromSpec(svc)
+		if !isDatabase || found.Volume == "" || found.External {
+			return fault.New(ErrInvalid, "%s isn't a database Dockwell knows keeping its data in a volume of its own, so a backup isn't restored into it as a new database", it.ref.Name)
+		}
+		vol := resource.Ref{Kind: volumeKind, Scope: it.ref.Scope, Name: found.Volume}
+		if it.ref.Scope == it.restore.From.Scope || vol == it.restore.From {
+			return fault.New(ErrInvalid, "%s is in the environment the backup was taken in, so it isn't restored into as a new database", it.ref.Name)
+		}
+		j := slices.IndexFunc(items, func(o item) bool { return o.ref == vol })
+		if j >= 0 {
+			if items[j].current != nil || items[j].spec == nil {
+				return fault.New(ErrInvalid, "%s is here already, so a backup isn't restored into it as a new database", vol.Name)
+			}
+			continue
+		}
+		switch _, err := tx.GetResource(ctx, string(volumeKind), vol.Scope, vol.Name); {
+		case err == nil:
+			return fault.New(ErrInvalid, "%s is here already, so a backup isn't restored into it as a new database", vol.Name)
+		case !errors.Is(err, store.ErrNotFound):
+			return err
+		}
+		return fault.New(ErrInvalid, "the change doesn't make %s, the new volume the backup restores into", vol.Name)
+	}
+	return nil
+}
+
+// restoring finds what a change restored, if it restored anything. A restore into a
+// new database isn't one: undoing it removes what the change made (ADR 0106).
 func restoring(c store.Change, took *planRead) (resource.Ref, *resource.RestoreSource, bool) {
 	for i := range c.Items {
 		ref := resource.Ref{Kind: resource.Kind(c.Items[i].Kind), Scope: c.Items[i].Scope, Name: c.Items[i].Name}
-		if source, _, _, _ := restoreIn(took, ref); source != nil {
+		if source, _, _, _ := restoreIn(took, ref); source != nil && !source.IntoNew() {
 			return ref, source, true
 		}
 	}
@@ -6229,7 +6298,9 @@ func (e *Engine) withBackups(ctx context.Context, edits []Edit, refs []resource.
 
 // checkRestores refuses a plan without the step it was made for: an agent from
 // before backups ignores a restore or a backup, and would read as having nothing to do.
-func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) error {
+// Resuming, a restore into a new database whose step has nothing left to do made the
+// database already, on what the restore loaded, as the agent's note says (ADR 0106).
+func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item, resuming bool) error {
 	for i := range items {
 		it := &items[i]
 		for server := range it.backups {
@@ -6244,7 +6315,11 @@ func (e *Engine) checkRestores(ctx context.Context, plan *Plan, items []item) er
 		if it.restore == nil {
 			continue
 		}
-		if step := plan.step(it.restore.Server, it.ref); step == nil || step.Restore == nil {
+		step := plan.step(it.restore.Server, it.ref)
+		if step == nil && resuming && it.restore.IntoNew() {
+			continue
+		}
+		if step == nil || step.Restore == nil {
 			names, err := e.serverNames(ctx, []string{it.restore.Server})
 			if err != nil {
 				return err

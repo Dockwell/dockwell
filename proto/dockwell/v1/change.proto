@@ -2370,6 +2370,10 @@ message RestorePlan {
   // server stays as it is (ADR 0084). Empty for the whole volume. Numbered apart,
   // as open work adds to this message.
   string database_name = 80;
+  // It fills a new database's volume, made in the same change, so it replaces
+  // nothing and nothing that runs stops, but that new database's own service while
+  // the backup loads (ADR 0106).
+  bool into_new = 11;
 }
 
 // RouteRedirects is a route that answers every request with a redirect.

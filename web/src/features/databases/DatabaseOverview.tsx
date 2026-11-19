@@ -4,6 +4,7 @@ import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  type Backup,
   BackupService,
   ChangeService,
   type Database,
@@ -409,7 +410,7 @@ function BackupsPanel({ db }: { db: Database }) {
   const [taking, setTaking] = useState(false);
   const may = useMay();
   const whole = useRestoreWhole();
-  const restore = (id: string) => whole.restore(id);
+  const restore = (backup: Backup) => whole.restore(backup);
   const engine = engineName(db.engine);
   const how = useBackupHow(db);
   const dumpOf = how.database || engine;
@@ -494,7 +495,7 @@ function BackupsPanel({ db }: { db: Database }) {
             size="sm"
             variant="ghost"
             icon="undo"
-            onClick={() => restore(newest.id)}
+            onClick={() => restore(newest)}
             {...may(BackupService.method.restoreBackup, { environment: newest.environmentId }).off}
           >
             <Trans>Restore the newest</Trans>
