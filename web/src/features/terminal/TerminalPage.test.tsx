@@ -190,7 +190,7 @@ describe("TerminalPage", () => {
     );
     await userEvent.click(await screen.findByRole("button", { name: "Open a terminal" }));
     expect(await screen.findByText("A terminal takes a passkey, and there's none for this address")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Add a passkey here" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add a passkey for this address" })).toBeVisible();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 

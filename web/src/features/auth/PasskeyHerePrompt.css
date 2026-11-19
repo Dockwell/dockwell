@@ -1,0 +1,56 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The offer to add a passkey for this address, where a step-up needed one (#869). */
+.passkey-here {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.passkey-here p {
+  margin: 0;
+}
+
+/* This address, and where each of their passkeys works instead. */
+.passkey-here-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  font-size: 13px;
+}
+
+.passkey-here-facts dt {
+  color: var(--ink-muted);
+}
+
+.passkey-here-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.passkey-here-facts ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.passkey-here-facts code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+/* Someone with no code signs in again with their own recover command (#869's review, M2). */
+.passkey-here-recover {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.passkey-here-recover > span {
+  color: var(--ink-muted);
+}

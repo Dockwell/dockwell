@@ -957,13 +957,13 @@ describe("what a plan asks of whoever applies it", () => {
             throw authError(
               Code.FailedPrecondition,
               "no_passkey_here",
-              "confirming this needs a passkey for this address, and you have none here. Add one under Profile and security, then try again",
+              "confirming this needs a passkey for this address, and you have none here, so nothing happened. Try again, and add one where the panel offers it",
             );
           },
         },
       );
       const sheet = await typeAndApply(change);
-      expect(await within(sheet).findByText("Add one under Profile and security", { exact: false })).toBeVisible();
+      expect(await within(sheet).findByText("add one where the panel offers it", { exact: false })).toBeVisible();
     });
 
     it("asks nothing of a plan that isn't", async () => {

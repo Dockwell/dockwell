@@ -6612,17 +6612,21 @@ msgstr "Your passkey confirms a new one."
 msgid "member since {since}"
 msgstr "member since {since}"
 
-msgid "Add a passkey here"
-msgstr "Add a passkey here"
+msgid "Add a passkey for this address"
+msgstr "Add a passkey for this address"
 
-msgid "Adding one here needs a sign-in just now, with a code or a link."
-msgstr "Adding one here needs a sign-in just now, with a code or a link."
+msgid "Adding one here takes a sign-in from the last 10 minutes."
+msgstr "Adding one here takes a sign-in from the last 10 minutes."
+
+#. placeholder {0}: again.problem
+msgid "Couldn't sign out, so you're still signed in here. {0}"
+msgstr "Couldn't sign out, so you're still signed in here. {0}"
 
 msgid "No passkey for this address yet"
 msgstr "No passkey for this address yet"
 
-msgid "Sign in again"
-msgstr "Sign in again"
+msgid "Sign in again with your code"
+msgstr "Sign in again with your code"
 
 msgid "Can't check your session"
 msgstr "Can't check your session"
@@ -6792,6 +6796,34 @@ msgstr "in {minutes} min"
 msgid "{0} disk"
 msgstr "{0} disk"
 
+msgid "Couldn't sign out"
+msgstr "Couldn't sign out"
+
+msgid "No passkey for this address"
+msgstr "No passkey for this address"
+
+msgid "On the control server, it prints a link that signs you in here."
+msgstr "On the control server, it prints a link that signs you in here."
+
+msgid "Passkey"
+msgstr "Passkey"
+
+msgid "Sign in again"
+msgstr "Sign in again"
+
+msgid "This address"
+msgstr "This address"
+
+#. placeholder {0}: again.problem
+msgid "You're still signed in here. {0}"
+msgstr "You're still signed in here. {0}"
+
+msgid "Your passkeys"
+msgstr "Your passkeys"
+
+msgid "Your passkeys work only on the address they were made on."
+msgstr "Your passkeys work only on the address they were made on."
+
 msgid "Add passkey"
 msgstr "Add passkey"
 
@@ -6809,9 +6841,6 @@ msgstr "Loading passkeys"
 
 msgid "May have been copied; it no longer signs in"
 msgstr "May have been copied; it no longer signs in"
-
-msgid "Passkey"
-msgstr "Passkey"
 
 msgid "Passkeys"
 msgstr "Passkeys"
@@ -7282,8 +7311,8 @@ msgstr "That passkey reported a lower use count than before, which happens when 
 msgid "That person signs in here already. Change what they hold in Members instead."
 msgstr "That person signs in here already. Change what they hold in Members instead."
 
-msgid "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
-msgstr "That takes a passkey, and there's none for this address yet. Add one under Profile and security."
+msgid "That takes a passkey for this address, and you have none here yet, so nothing happened. Try again, and add one when asked."
+msgstr "That takes a passkey for this address, and you have none here yet, so nothing happened. Try again, and add one when asked."
 
 msgid "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."
 msgstr "That was the last try. 5 wrong codes ended this setup, and its key no longer works. Close this and set it up again, which asks for your passkey."

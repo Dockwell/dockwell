@@ -12,7 +12,7 @@ import { useRefreshAuth } from "./useAuthState";
 /**
  * Signs this browser out, then lets the gate show sign-in. A failure stays
  * signed in and says why in problem; a session that had already ended
- * counts as signed out.
+ * counts as signed out. run settles true once signed out.
  */
 export function useSignOut() {
   const transport = useTransport();
@@ -20,15 +20,20 @@ export function useSignOut() {
   const explain = useAuthError();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
-  const run = async () => {
+  const run = async (): Promise<boolean> => {
     setBusy(true);
     setProblem(undefined);
     try {
       await createClient(AuthService, transport).signOut({});
       await refreshAuth();
+      return true;
     } catch (err) {
-      if (isSessionEnded(err)) await refreshAuth();
-      else setProblem(explain(err));
+      if (isSessionEnded(err)) {
+        await refreshAuth();
+        return true;
+      }
+      setProblem(explain(err));
+      return false;
     } finally {
       setBusy(false);
     }

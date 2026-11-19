@@ -22,6 +22,7 @@ import {
   ServerInventorySchema,
   ServerService,
   ServerStrain,
+  SignInMethod,
   StepUpAction,
   Surface,
   type WatchChangeResponse,
@@ -30,12 +31,12 @@ import {
 import { act, configure, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, running } from "../../test/apps";
-import { authError, authState, mira, stubPasskeys } from "../../test/auth";
+import { authError, authState, creationOptions, mira, requestOptions, stubPasskeys } from "../../test/auth";
 import { type Api, feed, onPhone, renderAt, untilAborted } from "../../test/render";
 import { aServer, changed, history, sample, snapshotComplete } from "../../test/servers";
+import { signingInAgain } from "../auth/signInAgain";
 
 const GiB = 1024 ** 3;
 
@@ -447,6 +448,430 @@ describe("Servers", () => {
       expect(within(sheet).getByRole("link", { name: "Open web-3" })).toHaveAttribute("href", "/servers/srv_3");
       expect(sheet).not.toHaveTextContent("TICKET");
       await expectAccessible(sheet);
+    });
+
+    describe("with no passkey for this address (#869)", () => {
+      /**
+       * Signed in at a domain, by method, holding no passkey made there: a step-up is
+       * refused until one is added. fresh says whether the sign-in was within the 10
+       * minutes, so the control plane begins adding one with no step-up; lapses says it
+       * runs out before the new passkey is saved; failsOnce, that the first save is
+       * refused. codes says whether code sign-in is on for them, and signOutFails that
+       * signing out can't reach the control plane. calls keeps what was asked, in order.
+       */
+      function codeSignIn(
+        calls: string[],
+        {
+          fresh = true,
+          lapses = false,
+          failsOnce = false,
+          codes = true,
+          signOutFails = false,
+          method = SignInMethod.AUTHENTICATOR_CODE,
+          locked = false,
+          recoveryCodesLeft = 0,
+          renewalsFail = 0,
+          startedAgo = undefined as number | undefined,
+        } = {},
+      ) {
+        let renewalFailures = 0;
+        let added = false;
+        let signedIn = true;
+        let ceremonies = 0;
+        let failed = false;
+        return {
+          auth: {
+            getAuthState: () =>
+              authState(
+                signedIn
+                  ? {
+                      rpId: "panel.example.com",
+                      signInMethod: method,
+                      recoverCommand: "sudo dockwell recover --user mira@acme.dev",
+                    }
+                  : { user: undefined, rpId: "panel.example.com" },
+              ),
+            getTotp: () => ({
+              totp: {
+                enabled: codes,
+                recoveryCodesLeft,
+                ...(locked ? { lockTime: timestampFromDate(new Date(Date.now() - 60_000)) } : {}),
+              },
+            }),
+            // This session, which began startedAgo, as the control plane says it; none said where it's unset.
+            listSessions: () => {
+              if (startedAgo === undefined) throw authError(Code.Unavailable, "unavailable");
+              return {
+                sessions: [
+                  { id: "ses_1", current: true, createTime: timestampFromDate(new Date(Date.now() - startedAgo)) },
+                ],
+              };
+            },
+            beginStepUp: () => {
+              calls.push("beginStepUp");
+              if (!added) {
+                throw authError(
+                  Code.FailedPrecondition,
+                  "no_passkey_here",
+                  "confirming this needs a passkey for this address",
+                );
+              }
+              return { ceremonyId: "cer_2", optionsJson: requestOptions };
+            },
+            finishStepUp: () => ({ proof: "proof-1" }),
+            beginAddPasskey: (req: { proof: string }) => {
+              calls.push(`beginAddPasskey ${req.proof || "with no proof"}`);
+              if (!fresh) throw authError(Code.FailedPrecondition, "needs_fresh_sign_in");
+              if (ceremonies > 0 && renewalFailures < renewalsFail) {
+                renewalFailures++;
+                throw authError(Code.Unavailable, "unavailable");
+              }
+              ceremonies++;
+              return { ceremonyId: `cer_${ceremonies}`, optionsJson: creationOptions };
+            },
+            finishAddPasskey: (req: { ceremonyId: string }) => {
+              calls.push(`finishAddPasskey ${req.ceremonyId}`);
+              if (lapses) throw authError(Code.FailedPrecondition, "needs_fresh_sign_in");
+              if (failsOnce && !failed) {
+                failed = true;
+                throw authError(Code.Unauthenticated, "passkey_rejected");
+              }
+              added = true;
+              return {};
+            },
+            // Theirs, made through the SSH tunnel, and one here flagged as copied, which works nowhere.
+            listPasskeys: () => ({
+              passkeys: [
+                { id: "pky_1", name: "Old laptop", rpId: "localhost" },
+                { id: "pky_2", name: "Copied key", rpId: "panel.example.com" },
+              ],
+            }),
+            signOut: () => {
+              calls.push("signOut");
+              if (signOutFails) throw authError(Code.Unavailable, "unavailable");
+              signedIn = false;
+              return {};
+            },
+            signInWithCode: (req: { email: string }) => {
+              calls.push(`signInWithCode ${req.email}`);
+              signedIn = true;
+              return {};
+            },
+          },
+        };
+      }
+
+      it("adds one within the 10 minutes, then shows the command it was asked for", async () => {
+        const { create: made, get } = stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", { ...release, ...codeSignIn(calls), servers: api.servers });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(offer).toHaveTextContent("panel.example.com");
+        expect(offer).toHaveTextContent("Your passkeys work only on the address they were made on.");
+        expect(await within(offer).findByText("localhost")).toBeVisible();
+        expect(offer).toHaveTextContent("Old laptop · localhost");
+        // The address once (#869's review, L2), and no passkey here listed as if it worked (L3).
+        expect(within(offer).getAllByText("panel.example.com")).toHaveLength(1);
+        expect(offer).not.toHaveTextContent("Copied key");
+        await expectAccessible(offer);
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText(/--join TICKET$/)).toBeVisible();
+        expect(screen.queryByRole("dialog", { name: "No passkey for this address" })).toBeNull();
+        // Added with no step-up, as the sign-in just now confirms it, then the step-up it was for goes on.
+        expect(calls).toEqual([
+          "beginStepUp",
+          "beginAddPasskey with no proof",
+          "finishAddPasskey cer_1",
+          "beginStepUp",
+        ]);
+        expect(made).toHaveBeenCalledOnce();
+        expect(get).toHaveBeenCalledOnce();
+        expect(api.made.map((r) => r.proof)).toEqual(["", "proof-1"]);
+      });
+
+      it("signs in again with the code past the 10 minutes, and comes back here", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        const { router } = renderServers([web1, web2()], "/servers?server=srv_2", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+        expect(within(offer).queryByRole("button", { name: "Add a passkey for this address" })).toBeNull();
+        await user.click(within(offer).getByRole("button", { name: "Sign in again with your code" }));
+
+        // The sign-in screen opens on the code form, with their email in it.
+        await screen.findByRole("heading", { level: 1, name: "Sign in to Dockwell" });
+        expect(screen.getByLabelText("Email")).toHaveValue("mira@acme.dev");
+        expect(screen.getByLabelText("Code")).toHaveFocus();
+        await user.type(screen.getByLabelText("Code"), "123456");
+        await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+        // Back where they were, signed in, with no sign-in screen.
+        await waitFor(() =>
+          expect(screen.queryByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeNull(),
+        );
+        expect(await screen.findByRole("heading", { level: 1, name: "Servers" })).toBeVisible();
+        expect(router.state.location.pathname).toBe("/servers");
+        expect(router.state.location.search).toEqual({ server: "srv_2" });
+        expect(calls).toEqual([
+          "beginStepUp",
+          "beginAddPasskey with no proof",
+          "signOut",
+          "signInWithCode mira@acme.dev",
+        ]);
+      });
+
+      it("begins a new ceremony after a save the control plane refused, so trying again adds it (#869's review, M1)", async () => {
+        const { create: made } = stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { failsOnce: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        expect(await within(offer).findByText(/That passkey isn't registered for this address/)).toBeVisible();
+        // A ceremony works once: a new one is begun at once, for the next click.
+        await waitFor(() => expect(calls.filter((c) => c.startsWith("beginAddPasskey"))).toHaveLength(2));
+
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText(/--join TICKET$/)).toBeVisible();
+        expect(calls.filter((c) => c.startsWith("finishAddPasskey"))).toEqual([
+          "finishAddPasskey cer_1",
+          "finishAddPasskey cer_2",
+        ]);
+        expect(made).toHaveBeenCalledTimes(2);
+      });
+
+      it("begins the ceremony again before it ends on the control plane's side, so a late click still adds one (#869's review, M1)", async () => {
+        stubPasskeys();
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", { ...release, ...codeSignIn(calls), servers: api.servers });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        act(() => vi.advanceTimersByTime(4 * 60_000 + 1_000));
+        await waitFor(() => expect(calls.filter((c) => c.startsWith("beginAddPasskey"))).toHaveLength(2));
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText(/--join TICKET$/)).toBeVisible();
+        expect(calls.filter((c) => c.startsWith("finishAddPasskey"))).toEqual(["finishAddPasskey cer_2"]);
+      });
+
+      it("offers to sign in again once the 10 minutes end, as the control plane counts them from this session's start (#869's re-check, N2)", async () => {
+        stubPasskeys();
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { startedAgo: 9 * 60_000 + 30_000 }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        // A moment before the 10 minutes end, it's still the offer to add one.
+        await act(async () => vi.advanceTimersByTime(28_000));
+        expect(within(offer).getByRole("button", { name: "Add a passkey for this address" })).toBeVisible();
+        // As they end, the offer to sign in again, with no ceremony begun past them.
+        await act(async () => vi.advanceTimersByTime(3_000));
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeVisible();
+        expect(within(offer).queryByRole("button", { name: "Add a passkey for this address" })).toBeNull();
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+        expect(calls.filter((c) => c.startsWith("beginAddPasskey"))).toHaveLength(1);
+      });
+
+      it("tries a renewal that failed again shortly, and a re-render starts none of its own (#869's re-check, N3)", async () => {
+        // The browser's prompt is closed each time, so each click only re-renders the offer.
+        stubPasskeys({ create: "NotAllowedError" });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { renewalsFail: 1 }),
+          servers: api.servers,
+        });
+        const asks = () => calls.filter((c) => c.startsWith("beginAddPasskey")).length;
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        // At 4 minutes the renewal fails.
+        await act(async () => vi.advanceTimersByTime(4 * 60_000 + 1_000));
+        await waitFor(() => expect(asks()).toBe(2));
+        // Re-renders before the next try start no renewal.
+        for (let i = 0; i < 3; i++) {
+          await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        }
+        expect(asks()).toBe(2);
+        // A re-render partway through the wait doesn't put the next try off either: 15 s after the failure, it's tried again, and works.
+        await act(async () => vi.advanceTimersByTime(10_000));
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        expect(asks()).toBe(2);
+        await act(async () => vi.advanceTimersByTime(6_000));
+        await waitFor(() => expect(asks()).toBe(3));
+        await act(async () => vi.advanceTimersByTime(60_000));
+        expect(asks()).toBe(3);
+      });
+
+      for (const [who, method] of [
+        ["a sign-in provider", SignInMethod.PROVIDER],
+        ["a link from dockwell recover", SignInMethod.LINK],
+      ] as const) {
+        it(`gives someone with no code, signed in by ${who}, their recover command past the 10 minutes (#869's review, M2)`, async () => {
+          stubPasskeys();
+          const user = userEvent.setup();
+          const calls: string[] = [];
+          const api = tickets(JoinReach.ANYWHERE, [{}]);
+          renderServers([web1, web2()], "/servers", {
+            ...release,
+            ...codeSignIn(calls, { fresh: false, codes: false, method }),
+            servers: api.servers,
+          });
+
+          await user.click(await screen.findByRole("button", { name: "Add server" }));
+          const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+          expect(await within(offer).findByText("sudo dockwell recover --user mira@acme.dev")).toBeVisible();
+          expect(within(offer).getByRole("button", { name: "Copy command" })).toBeVisible();
+          expect(within(offer).queryByRole("button", { name: "Sign in again with your code" })).toBeNull();
+          expect(within(offer).queryByRole("button", { name: /Sign in again with/ })).toBeNull();
+          await expectAccessible(offer);
+          await user.click(within(offer).getByRole("button", { name: "Done" }));
+          // Still signed in, as nothing could sign them back in by a code.
+          expect(calls).not.toContain("signOut");
+          expect(await screen.findByRole("dialog", { name: "Add a server" })).toBeVisible();
+        });
+      }
+
+      it("gives someone whose authenticator is locked, with no recovery codes left, their recover command (#869's re-check, N1)", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, locked: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(await within(offer).findByText("sudo dockwell recover --user mira@acme.dev")).toBeVisible();
+        expect(within(offer).queryByRole("button", { name: "Sign in again with your code" })).toBeNull();
+      });
+
+      it("offers the code to someone whose authenticator is locked, while recovery codes are left", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, locked: true, recoveryCodesLeft: 3 }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeEnabled();
+      });
+
+      it("offers a provider's session the code where code sign-in is on for them", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, method: SignInMethod.PROVIDER }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeEnabled();
+        expect(offer).not.toHaveTextContent("dockwell recover");
+      });
+
+      it("keeps the offer open where signing out fails, says so, and forgets the email it kept (#869's review, L1)", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { fresh: false, signOutFails: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(await within(offer).findByRole("button", { name: "Sign in again with your code" }));
+        expect(await within(offer).findByText("Couldn't sign out")).toBeVisible();
+        expect(offer).toHaveTextContent("You're still signed in here.");
+        expect(screen.queryByRole("heading", { level: 1, name: "Sign in to Dockwell" })).toBeNull();
+        expect(signingInAgain()).toBeUndefined();
+      });
+
+      it("offers to sign in again where the 10 minutes run out while the passkey is made", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", {
+          ...release,
+          ...codeSignIn(calls, { lapses: true }),
+          servers: api.servers,
+        });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(within(offer).getByRole("button", { name: "Add a passkey for this address" }));
+        expect(await within(offer).findByRole("button", { name: "Sign in again with your code" })).toBeVisible();
+        expect(offer).toHaveTextContent("Adding one here takes a sign-in from the last 10 minutes.");
+      });
+
+      it("says nothing happened when the offer is turned down", async () => {
+        stubPasskeys();
+        const user = userEvent.setup();
+        const calls: string[] = [];
+        const api = tickets(JoinReach.ANYWHERE, [{}]);
+        renderServers([web1, web2()], "/servers", { ...release, ...codeSignIn(calls), servers: api.servers });
+
+        await user.click(await screen.findByRole("button", { name: "Add server" }));
+        const offer = await screen.findByRole("dialog", { name: "No passkey for this address" });
+        await user.click(within(offer).getByRole("button", { name: "Cancel" }));
+
+        const sheet = await screen.findByRole("dialog", { name: "Add a server" });
+        expect(await within(sheet).findByText("No command yet")).toBeVisible();
+        expect(calls).toEqual(["beginStepUp", "beginAddPasskey with no proof"]);
+        expect(api.made.map((r) => r.proof)).toEqual([""]);
+      });
     });
 
     it("says only the control server's network can join through a private address, with the fix beside it", async () => {
