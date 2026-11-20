@@ -4503,6 +4503,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "email.password", Help: "The password Dockwell signs in with. Changing the server, its port, its security or the user needs it again.", Sensitive: true},
 				{Path: "email.from", Help: "Who the emails come from, such as \"Dockwell <alerts@example.com>\"."},
 				{Path: "email.to", Help: "Who they go to, such as \"ops@example.com\": one to ten addresses."},
+				{Path: "email.connection", Help: "The install's mail connection, by name, whose host, port, security, user and sealed password this channel sends through (ADR 0099). Mutually exclusive with host, port, security, username and password."},
 				{Path: "ntfy.server", Help: "The server, such as \"https://ntfy.sh\", which it is unless set."},
 				{Path: "ntfy.topic", Help: "The topic, such as \"dockwell-alerts-x7f2\". On a public server anyone who knows it can read what's sent, so it's sealed like a password, and lists show only the server.", Sensitive: true},
 				{Path: "ntfy.token", Help: "An access token, for a server or topic that asks for one. Changing the server needs it again.", Sensitive: true},

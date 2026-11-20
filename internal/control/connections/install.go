@@ -31,7 +31,7 @@ import (
 // check runs on its networks, as Connect storage's does, so a bucket it reaches on
 // them, as one beside it, checks as the app reaches it (slice 2 review, M4).
 func (s *Service) CheckBeforeLinking(ctx context.Context, name, server, env, app, prefix string, presign bool) (checked bool, err error) {
-	saved, backupUsed, ok, err := s.connections.ForLinking(ctx, name, "")
+	saved, backupUsed, alertUsed, ok, err := s.connections.ForLinking(ctx, name, "")
 	if err != nil {
 		return false, err
 	}
@@ -40,6 +40,9 @@ func (s *Service) CheckBeforeLinking(ctx context.Context, name, server, env, app
 	}
 	if backupUsed {
 		return false, authapi.Invalid(fmt.Errorf("the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app", name))
+	}
+	if alertUsed {
+		return false, authapi.Invalid(fmt.Errorf("the connection %s is used for alert email, so no app can link to it: an app could otherwise send mail as the alert sender. Add a separate mail connection for the app", name))
 	}
 	spec := saved.Spec
 	srv, err := s.server(server)

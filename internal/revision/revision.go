@@ -2255,6 +2255,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 		if err := e.checkConnectionDestinations(ctx, tx, items, it); err != nil {
 			return err
 		}
+		if err := e.checkConnectionAlertChannels(ctx, tx, items, it); err != nil {
+			return err
+		}
 		if err := e.checkUnsharing(ctx, tx, items, it); err != nil {
 			return err
 		}

@@ -9,9 +9,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/quotedprintable"
@@ -480,7 +482,7 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 	}
 	c, err := smtp.NewClient(conn, host)
 	if err != nil {
-		return Result{Said: smtpWords(err)}
+		return Result{Said: smtpWordsFor(err, e)}
 	}
 	defer c.Close()
 	if security == resourcev1.AlertEmail_SECURITY_STARTTLS {
@@ -488,7 +490,7 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 			return Result{Said: "the server doesn't offer STARTTLS, so Dockwell sent nothing. Use TLS, or a server that offers it"}
 		}
 		if err := c.StartTLS(config); err != nil {
-			return Result{Said: smtpWords(err)}
+			return Result{Said: smtpWordsFor(err, e)}
 		}
 	}
 	if e.GetUsername() != "" {
@@ -500,7 +502,7 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 			return Result{Said: refusal}
 		}
 		if err := c.Auth(auth); err != nil {
-			return Result{Said: smtpWords(err)}
+			return Result{Said: authFailureWords(err, e)}
 		}
 	}
 	from, err := mail.ParseAddress(e.GetFrom())
@@ -508,7 +510,7 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 		return Result{Said: "who it comes from isn't an email address"}
 	}
 	if err := c.Mail(from.Address); err != nil {
-		return Result{Said: smtpWords(err)}
+		return Result{Said: smtpWordsFor(err, e)}
 	}
 	// Each recipient on its own: one the server refuses, such as someone who left,
 	// keeps the message from no one else.
@@ -517,9 +519,9 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 		if err := c.Rcpt(to); err != nil {
 			var tp *textproto.Error
 			if !errors.As(err, &tp) {
-				return Result{Said: smtpWords(err)}
+				return Result{Said: smtpWordsFor(err, e)}
 			}
-			refused = append(refused, to+" ("+smtpWords(err)+")")
+			refused = append(refused, to+" ("+smtpWordsFor(err, e)+")")
 		}
 	}
 	if len(refused) == len(e.GetTo()) {
@@ -527,13 +529,13 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 	}
 	w, err := c.Data()
 	if err != nil {
-		return Result{Said: smtpWords(err)}
+		return Result{Said: smtpWordsFor(err, e)}
 	}
 	if _, err := w.Write(emailMessage(from, e.GetTo(), m)); err != nil {
-		return Result{Said: smtpWords(err)}
+		return Result{Said: smtpWordsFor(err, e)}
 	}
 	if err := w.Close(); err != nil {
-		return Result{Said: smtpWords(err)}
+		return Result{Said: smtpWordsFor(err, e)}
 	}
 	_ = c.Quit()
 	said := "accepted by " + host
@@ -546,12 +548,18 @@ func (s *Sender) email(ctx context.Context, e *resourcev1.AlertEmail, m Message)
 // authFor is how Dockwell signs in to an SMTP server that offers it: PLAIN, or
 // LOGIN, as Exchange offers alone; or why it can't.
 func authFor(c *smtp.Client, e *resourcev1.AlertEmail, host string) (smtp.Auth, string) {
-	auth, offered, mechs := smtpauth.Pick(c, e.GetUsername(), e.GetPassword(), host, false)
+	auth, offered, _ := smtpauth.Pick(c, e.GetUsername(), e.GetPassword(), host, false)
 	switch {
 	case !offered:
+		if conn := e.GetConnection(); conn != "" {
+			return nil, clip(fmt.Sprintf("the server doesn't offer to sign in, so Dockwell sent nothing. Pick a mail connection other than %s that supports sign-in, or configure the relay to take mail without signing in", conn))
+		}
 		return nil, "the server doesn't offer to sign in, so Dockwell sent nothing. Clear the channel's user, or use a server that takes one"
 	case auth == nil:
-		return nil, clip("the server signs in with " + strings.Join(mechs, ", ") + ", and Dockwell with PLAIN or LOGIN, so it sent nothing")
+		if conn := e.GetConnection(); conn != "" {
+			return nil, clip(fmt.Sprintf("the mail server for connection %s doesn't offer PLAIN or LOGIN sign-in, which Dockwell supports, so it sent nothing", conn))
+		}
+		return nil, "the server doesn't offer PLAIN or LOGIN sign-in, which Dockwell supports, so it sent nothing"
 	}
 	return auth, ""
 }
@@ -588,13 +596,77 @@ func emailMessage(from *mail.Address, to []string, m Message) []byte {
 	return b.Bytes()
 }
 
-// smtpWords says what an SMTP server answered, as its code and its words.
-func smtpWords(err error) string {
+// authFailureWords reports an SMTP authentication failure in Dockwell's own
+// words with the SMTP status code alone, never echoing the provider's reply body.
+func authFailureWords(err error, e *resourcev1.AlertEmail) string {
 	var tp *textproto.Error
 	if errors.As(err, &tp) {
-		return clip(strconv.Itoa(tp.Code) + " " + tp.Msg)
+		if conn := e.GetConnection(); conn != "" {
+			return clip(fmt.Sprintf("the mail server refused sign-in for connection %s (%d). Check its user and password", conn, tp.Code))
+		}
+		return clip(fmt.Sprintf("the mail server refused sign-in (%d). Check the channel's user and password", tp.Code))
 	}
-	return sendWords(err)
+	return clip(scrubSMTPText(netguard.Words(err), e.GetUsername(), e.GetPassword()))
+}
+
+// smtpWordsFor says what an SMTP server answered, as its code and its words,
+// scrubbing raw and base64-encoded credentials on the full reply in one pass
+// before formatting or clipping.
+func smtpWordsFor(err error, e *resourcev1.AlertEmail) string {
+	user, pass := e.GetUsername(), e.GetPassword()
+	var tp *textproto.Error
+	if errors.As(err, &tp) {
+		return clip(strconv.Itoa(tp.Code) + " " + scrubSMTPText(tp.Msg, user, pass))
+	}
+	return clip(scrubSMTPText(netguard.Words(err), user, pass))
+}
+
+// scrubSMTPText replaces user, pass, and their base64 forms (AUTH LOGIN of any
+// length, including 4-char tokens for 1..3 byte values, and AUTH PLAIN) in raw
+// in one longest-first pass before any clipping can truncate a token.
+func scrubSMTPText(raw, user, pass string) string {
+	if raw == "" || (user == "" && pass == "") {
+		return raw
+	}
+	var tokens []string
+	add := func(s string) {
+		if s != "" {
+			tokens = append(tokens, s)
+		}
+	}
+	add(pass)
+	add(user)
+	if pass != "" {
+		add(base64.StdEncoding.EncodeToString([]byte(pass)))
+		if raw64 := base64.RawStdEncoding.EncodeToString([]byte(pass)); len(raw64) >= 4 {
+			add(raw64)
+		}
+	}
+	if user != "" {
+		add(base64.StdEncoding.EncodeToString([]byte(user)))
+		if raw64 := base64.RawStdEncoding.EncodeToString([]byte(user)); len(raw64) >= 4 {
+			add(raw64)
+		}
+	}
+	add(base64.StdEncoding.EncodeToString([]byte("\x00" + user + "\x00" + pass)))
+	if raw64 := base64.RawStdEncoding.EncodeToString([]byte("\x00" + user + "\x00" + pass)); len(raw64) >= 4 {
+		add(raw64)
+	}
+	if user != "" {
+		add(base64.StdEncoding.EncodeToString([]byte(user + "\x00" + user + "\x00" + pass)))
+	}
+	slices.SortFunc(tokens, func(a, b string) int {
+		if len(a) != len(b) {
+			return len(b) - len(a)
+		}
+		return strings.Compare(a, b)
+	})
+	tokens = slices.Compact(tokens)
+	pairs := make([]string, 0, len(tokens)*2)
+	for _, tok := range tokens {
+		pairs = append(pairs, tok, "…")
+	}
+	return strings.NewReplacer(pairs...).Replace(raw)
 }
 
 // sendWords says why a message didn't arrive, in a few words, with nothing that
@@ -604,11 +676,15 @@ func sendWords(err error) string {
 }
 
 func clip(s string) string {
-	s = strings.TrimSpace(strings.ReplaceAll(s, "\n", " "))
-	if len(s) > saidMax {
-		return s[:saidMax] + "…"
+	s = strings.ToValidUTF8(strings.TrimSpace(strings.ReplaceAll(s, "\n", " ")), "…")
+	if len(s) <= saidMax {
+		return s
 	}
-	return s
+	cut := saidMax
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 // fit joins lines into what a far end takes, by its count, leaving out whole lines

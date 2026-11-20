@@ -12,6 +12,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -201,10 +202,19 @@ func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scope
 	// What is stored and not in the change matters only for what it names,
 	// and only if the change touches a kind it can name. Otherwise its spec
 	// stays sealed: a rotation opens the services it pins again, and no
-	// others (ADR 0022).
+	// others (ADR 0022). Alert channels can reference only SMTP connections,
+	// so an S3-only connection change never opens stored alert channels (M1, #833).
 	named := open
-	for ref := range inChange {
+	touchesSMTP := false
+	for ref, it := range inChange {
 		named = named || e.kinds.Named(ref.Kind)
+		if ref.Kind == variable.ConnectionKind {
+			before, _ := it.current.(*resourcev1.ConnectionSpec)
+			after, _ := it.spec.(*resourcev1.ConnectionSpec)
+			if before.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP || after.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+				touchesSMTP = true
+			}
+		}
 	}
 	var out []live
 	for _, r := range stored {
@@ -213,7 +223,7 @@ func (e *Engine) standing(ctx context.Context, tx *store.Tx, items []item, scope
 			continue
 		}
 		l := live{ref: ref}
-		if named && e.isReferrer(ref.Kind) {
+		if named && e.isReferrer(ref.Kind) && (open || ref.Kind != alertChannelKind || touchesSMTP) {
 			if l.spec, err = e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec); err != nil {
 				return nil, err
 			}

@@ -2326,6 +2326,10 @@ message AlertEmail {
   string from = 6;
   // Who they go to, such as "ops@example.com": one to ten addresses.
   repeated string to = 7;
+  // The install's mail connection, by name, whose host, port, security, user
+  // and sealed password this channel sends through (ADR 0099). Mutually
+  // exclusive with host, port, security, username and password.
+  string connection = 8;
 }
 
 // AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh

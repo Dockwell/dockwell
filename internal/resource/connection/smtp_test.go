@@ -144,3 +144,68 @@ func TestAMailServersParts(t *testing.T) {
 		t.Errorf("TLS's URL is %s", u)
 	}
 }
+
+func TestSMTPHeldByAppPredicate(t *testing.T) {
+	base := &resourcev1.ConnectionSmtp{
+		Host: "smtp.example.com", Port: 587, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_STARTTLS,
+		User: "mailer", Password: "shared-password",
+	}
+	// Same account under different case, trailing dot, port, and TLS mode matches.
+	alias := &resourcev1.ConnectionSmtp{
+		Host: "SMTP.Example.com.", Port: 465, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_TLS,
+		User: "mailer", Password: "shared-password",
+	}
+	differentPass := &resourcev1.ConnectionSmtp{
+		Host: "smtp.example.com", Port: 587, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_STARTTLS,
+		User: "mailer", Password: "dedicated-password",
+	}
+	if !SameSMTPCredential(base, alias) {
+		t.Error("SameSMTPCredential(base, alias) = false, want true")
+	}
+	if SameSMTPCredential(base, differentPass) {
+		t.Error("SameSMTPCredential(base, differentPass) = true, want false")
+	}
+	if !SMTPHeldByApp(base, []*resourcev1.ConnectionSmtp{alias}, nil) {
+		t.Error("SMTPHeldByApp(linked alias) = false, want true")
+	}
+	// Literal password secret matches.
+	if !SMTPHeldByApp(base, nil, []string{"shared-password"}) {
+		t.Error("SMTPHeldByApp(literal secret) = false, want true")
+	}
+	// Recognized smtp:// and smtps:// URL secrets match even when port or TLS scheme changed.
+	for _, u := range []string{
+		"smtps://mailer:shared-password@smtp.example.com:465",
+		"smtp://other-user:shared-password@smtp-eu.example.com:2525",
+	} {
+		if !SecretHoldsSMTPPassword(u, base) || !SMTPHeldByApp(base, nil, []string{u}) {
+			t.Errorf("SMTPHeldByApp(%q) = false, want true", u)
+		}
+	}
+	// Non-SMTP URLs or different passwords do not match.
+	for _, u := range []string{
+		"https://mailer:shared-password@smtp.example.com",
+		"smtp://mailer:other-password@smtp.example.com:587",
+		"not-the-password",
+	} {
+		if SecretHoldsSMTPPassword(u, base) {
+			t.Errorf("SecretHoldsSMTPPassword(%q) = true, want false", u)
+		}
+	}
+	// Unauthenticated connection holds no password.
+	noAuth := &resourcev1.ConnectionSmtp{Host: "10.0.0.5", Port: 25, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_NONE}
+	if SMTPHeldByApp(noAuth, []*resourcev1.ConnectionSmtp{noAuth}, []string{""}) {
+		t.Error("SMTPHeldByApp(noAuth) = true, want false")
+	}
+	// H3 residual: compressed and expanded IPv6 (and IPv4-mapped IPv6) spellings
+	// canonicalize to the same account identity.
+	v6Short := &resourcev1.ConnectionSmtp{Host: "2001:db8::1", Port: 587, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_STARTTLS, User: "mailer", Password: "v6-password"}
+	v6Full := &resourcev1.ConnectionSmtp{Host: "2001:0db8:0000:0000:0000:0000:0000:0001", Port: 465, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_TLS, User: "mailer", Password: "v6-password"}
+	if !SameSMTPCredential(v6Short, v6Full) || !SMTPHeldByApp(v6Full, []*resourcev1.ConnectionSmtp{v6Short}, nil) {
+		t.Error("compressed and expanded IPv6 spellings did not compare equal")
+	}
+	v4 := &resourcev1.ConnectionSmtp{Host: "10.0.0.5", Port: 587, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_STARTTLS, User: "mailer", Password: "v4-password"}
+	v4Mapped := &resourcev1.ConnectionSmtp{Host: "::ffff:10.0.0.5", Port: 587, Security: resourcev1.SmtpSecurity_SMTP_SECURITY_STARTTLS, User: "mailer", Password: "v4-password"}
+	if !SameSMTPCredential(v4, v4Mapped) {
+		t.Error("IPv4 and IPv4-mapped IPv6 spellings did not compare equal")
+	}
+}

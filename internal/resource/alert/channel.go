@@ -53,6 +53,7 @@ var (
 	_ resource.Rotates    = Channel{}
 	_ resource.Keeper     = Channel{}
 	_ resource.NewChecker = Channel{}
+	_ resource.Referrer   = Channel{}
 )
 
 // Kind returns "alert.channel".
@@ -79,6 +80,20 @@ func (Channel) CheckName(name string) error {
 	return resource.CheckLabel("alert channel", name, "ops-webhook")
 }
 
+// ReferenceKinds is connections, for an email channel that sends through a mail
+// connection (ADR 0099).
+func (Channel) ReferenceKinds() []resource.Kind { return []resource.Kind{"connection"} }
+
+// References names the mail connection an email channel sends through, so it's
+// made first and can't go while the channel uses it.
+func (Channel) References(spec proto.Message) []resource.Reference {
+	c, ok := spec.(*resourcev1.AlertChannel)
+	if !ok || c.GetEmail().GetConnection() == "" {
+		return nil
+	}
+	return []resource.Reference{{Kind: "connection", Name: c.GetEmail().GetConnection(), Verb: "use"}}
+}
+
 // Keep holds on to what signs in to a channel when an update leaves it out, so a
 // form can change the rest without asking for a token again. It keeps only from a
 // channel of the same type, and only while what it signs in to stays: a password
@@ -86,21 +101,34 @@ func (Channel) CheckName(name string) error {
 func (Channel) Keep(current, desired proto.Message) (resource.Kept, error) {
 	was, ok := current.(*resourcev1.AlertChannel)
 	is, same := desired.(*resourcev1.AlertChannel)
-	if !ok || !same || Type(was) == "" || Type(was) != Type(is) {
+	if !ok || !same {
 		return resource.Kept{}, nil
 	}
-	from, to := body(was), body(is)
-	missing := sealedEmpty(from, to)
-	if len(missing) == 0 {
+	// An email channel backed by a mail connection holds no sealed credentials of
+	// its own: never carry an inline password onto it.
+	if is.GetEmail().GetConnection() != "" {
 		return resource.Kept{}, nil
 	}
-	if moved := movedFrom(was, is); moved != "" {
-		return resource.Kept{}, fmt.Errorf("%s, so it needs %s again: Dockwell won't send what it kept to where it hasn't sent before", moved, list(missing))
+	var kept resource.Kept
+	if Type(was) != "" && Type(was) == Type(is) {
+		from, to := body(was), body(is)
+		if missing := sealedEmpty(from, to); len(missing) > 0 {
+			if moved := movedFrom(was, is); moved != "" {
+				return resource.Kept{}, fmt.Errorf("%s, so it needs %s again: Dockwell won't send what it kept to where it hasn't sent before", moved, list(missing))
+			}
+			for _, fd := range missing {
+				to.Set(fd, from.Get(fd))
+			}
+			kept = resource.Kept{Reason: "kept_credentials", Words: "keeps what signs in to it, as the update left that out"}
+		}
 	}
-	for _, fd := range missing {
-		to.Set(fd, from.Get(fd))
+	// After preserving eligible credentials, any inline email channel that signs
+	// in must still have a password (for example when converting from a mail
+	// connection or another channel type) (M2, #833).
+	if em := is.GetEmail(); em != nil && em.GetConnection() == "" && em.GetUsername() != "" && em.GetPassword() == "" {
+		return resource.Kept{}, fmt.Errorf("an email channel that signs in as %s needs its password", em.GetUsername())
 	}
-	return resource.Kept{Reason: "kept_credentials", Words: "keeps what signs in to it, as the update left that out"}, nil
+	return kept, nil
 }
 
 // movedFrom says how a channel's update changes where what it kept signs in, in
@@ -205,7 +233,7 @@ func (Channel) CheckNew(spec proto.Message) error {
 		return errors.New("a Telegram channel needs its bot's token, which @BotFather gives")
 	case c.GetNtfy() != nil && c.GetNtfy().GetTopic() == "":
 		return errors.New("an ntfy channel needs its topic, such as dockwell-alerts-x7f2")
-	case c.GetEmail() != nil && c.GetEmail().GetUsername() != "" && c.GetEmail().GetPassword() == "":
+	case c.GetEmail() != nil && c.GetEmail().GetConnection() == "" && c.GetEmail().GetUsername() != "" && c.GetEmail().GetPassword() == "":
 		return fmt.Errorf("an email channel that signs in as %s needs its password", c.GetEmail().GetUsername())
 	}
 	return nil
@@ -336,40 +364,63 @@ func checkTelegram(tg *resourcev1.AlertTelegram) error {
 	return nil
 }
 
-func checkEmail(e *resourcev1.AlertEmail) error {
-	e.Host = strings.TrimSuffix(strings.TrimSpace(e.GetHost()), ".")
+// CheckEmailTransport enforces today's alert-email host and TLS rules: no
+// link-local or metadata address, no plain SMTP away from this server or its
+// private network, and a password only over TLS (ADR 0044, ADR 0099).
+func CheckEmailTransport(host string, security resourcev1.AlertEmail_Security, hasAuth bool) error {
+	host = strings.TrimSuffix(strings.TrimSpace(host), ".")
 	switch {
-	case e.GetHost() == "":
+	case host == "":
 		return errors.New("an email channel needs its SMTP server, such as smtp.example.com")
-	case !hostName.MatchString(e.GetHost()) && net.ParseIP(e.GetHost()) == nil:
+	case !hostName.MatchString(host) && net.ParseIP(host) == nil:
 		return errors.New("an SMTP server is its name or address alone, such as smtp.example.com, with its port apart")
 	}
-	if why := netguard.Forbidden(e.GetHost(), Guard); why != "" {
-		return fmt.Errorf("the SMTP server can't be %s, as that's %s", e.GetHost(), why)
+	if why := netguard.Forbidden(host, Guard); why != "" {
+		return fmt.Errorf("the SMTP server can't be %s, as that's %s", host, why)
 	}
-	switch e.GetSecurity() {
-	case resourcev1.AlertEmail_SECURITY_UNSPECIFIED:
-		e.Security = resourcev1.AlertEmail_SECURITY_STARTTLS
-	case resourcev1.AlertEmail_SECURITY_STARTTLS, resourcev1.AlertEmail_SECURITY_TLS:
+	switch security {
+	case resourcev1.AlertEmail_SECURITY_UNSPECIFIED, resourcev1.AlertEmail_SECURITY_STARTTLS, resourcev1.AlertEmail_SECURITY_TLS:
 	case resourcev1.AlertEmail_SECURITY_NONE:
-		if !Nearby(e.GetHost()) {
-			return fmt.Errorf("email to %s has to use TLS, as an alert, and the password, would cross the internet where anyone between could read them. Only a server on this server or its private network may go without", e.GetHost())
+		if !Nearby(host) {
+			return fmt.Errorf("email to %s has to use TLS, as an alert, and the password, would cross the internet where anyone between could read them. Only a server on this server or its private network may go without", host)
+		}
+		if hasAuth {
+			return errors.New("an email channel signs in only over TLS, as Dockwell sends a password no other way. Use STARTTLS or TLS, or a server that takes mail from this one without signing in")
 		}
 	default:
 		return errors.New("an email channel's security is SECURITY_STARTTLS, SECURITY_TLS or SECURITY_NONE")
 	}
-	if e.GetPort() > 65535 {
-		return errors.New("an SMTP port is from 1 to 65535, such as 587")
-	}
-	if e.GetPort() == 0 {
-		e.Port = uint32(EmailPort(e)) //nolint:gosec // one of three ports, each under 65536
-	}
-	e.Username = strings.TrimSpace(e.GetUsername())
-	if strings.ContainsAny(e.GetUsername(), "\r\n") {
-		return errors.New("an SMTP user is one line")
-	}
-	if e.GetUsername() != "" && e.GetSecurity() == resourcev1.AlertEmail_SECURITY_NONE {
-		return errors.New("an email channel signs in only over TLS, as Dockwell sends a password no other way. Use STARTTLS or TLS, or a server that takes mail from this one without signing in")
+	return nil
+}
+
+func checkEmail(e *resourcev1.AlertEmail) error {
+	e.Connection = strings.TrimSpace(e.GetConnection())
+	if e.GetConnection() != "" {
+		if err := resource.CheckLabel("connection", e.GetConnection(), "postmark"); err != nil {
+			return err
+		}
+		if strings.TrimSpace(e.GetHost()) != "" || e.GetPort() != 0 || e.GetSecurity() != resourcev1.AlertEmail_SECURITY_UNSPECIFIED ||
+			strings.TrimSpace(e.GetUsername()) != "" || e.GetPassword() != "" {
+			return errors.New("an email channel that names a mail connection takes its host, port, security, user and password from that connection. Leave those out, and give only connection, from and to")
+		}
+	} else {
+		e.Host = strings.TrimSuffix(strings.TrimSpace(e.GetHost()), ".")
+		if e.GetSecurity() == resourcev1.AlertEmail_SECURITY_UNSPECIFIED {
+			e.Security = resourcev1.AlertEmail_SECURITY_STARTTLS
+		}
+		e.Username = strings.TrimSpace(e.GetUsername())
+		if err := CheckEmailTransport(e.GetHost(), e.GetSecurity(), e.GetUsername() != ""); err != nil {
+			return err
+		}
+		if e.GetPort() > 65535 {
+			return errors.New("an SMTP port is from 1 to 65535, such as 587")
+		}
+		if e.GetPort() == 0 {
+			e.Port = uint32(EmailPort(e)) //nolint:gosec // one of three ports, each under 65536
+		}
+		if strings.ContainsAny(e.GetUsername(), "\r\n") {
+			return errors.New("an SMTP user is one line")
+		}
 	}
 	e.From = strings.TrimSpace(e.GetFrom())
 	if _, err := mail.ParseAddress(e.GetFrom()); err != nil {

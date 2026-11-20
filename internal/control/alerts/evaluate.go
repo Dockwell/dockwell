@@ -974,7 +974,43 @@ func (e *Evaluator) release(g *outgoing) {
 // wait if longer, which isn't a failure: it reports that.
 func (e *Evaluator) send(ctx context.Context, g *outgoing) (limited bool) {
 	defer e.release(g)
-	r := e.Sender.Once(ctx, g.c.spec, g.m)
+	var r Result
+	sendSpec, resolveErr := resolveLiveSend(ctx, e.DB, e.Keeper, g.c.id, g.c.spec)
+	if resolveErr != nil {
+		if ctx.Err() != nil {
+			return false // stopping: it goes at the next start
+		}
+		switch {
+		case errors.Is(resolveErr, errChannelChanged):
+			// The channel was edited or repointed since this message was grouped:
+			// never send with the stale queued spec; the next tick reads it fresh.
+			return false
+		case errors.Is(resolveErr, errChannelGone):
+			at := e.now()
+			_ = e.DB.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
+				for i := range g.sends {
+					if err := tx.FinishSend(ctx, g.sends[i].ID, at, false, "the channel was removed"); err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+			return false
+		case errors.Is(resolveErr, errConnNotFound) || errors.Is(resolveErr, errConnInvalid):
+			r = Result{Said: clip(resolveErr.Error())}
+		default:
+			e.Logger.WarnContext(ctx, "can't read mail connection for alert channel", slog.String("channel", g.c.name), slog.String("connection", g.c.spec.GetEmail().GetConnection()), slog.String("error", resolveErr.Error()))
+			r = Result{Said: clip("Dockwell couldn't read mail connection " + g.c.spec.GetEmail().GetConnection())}
+		}
+	} else {
+		if sendSpec != g.c.spec {
+			defer clearEmailAuth(sendSpec)
+		}
+		r = e.Sender.Once(ctx, sendSpec, g.m)
+		if sendSpec != g.c.spec {
+			clearEmailAuth(sendSpec)
+		}
+	}
 	if !r.OK && ctx.Err() != nil {
 		return false // stopping: it goes at the next start
 	}

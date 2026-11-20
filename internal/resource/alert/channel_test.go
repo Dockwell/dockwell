@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 func email(e *resourcev1.AlertEmail) *resourcev1.AlertChannel {
@@ -182,5 +183,107 @@ func TestWhatAListShowsOfAChannel(t *testing.T) {
 	}
 	if !proto.Equal(Redacted(&resourcev1.AlertChannel{}), &resourcev1.AlertChannel{}) {
 		t.Errorf("an empty channel redacted isn't empty")
+	}
+}
+
+// An email channel backed by a mail connection holds only connection, from and to,
+// names its connection as a reference, carries no inline credentials across Keep,
+// and enforces alert-email TLS rules through CheckEmailTransport.
+func TestEmailChannelWithConnection(t *testing.T) {
+	ch := email(&resourcev1.AlertEmail{
+		Connection: " postmark ",
+		From:       "Dockwell <alerts@example.com>",
+		To:         []string{"Ops <ops@example.com>"},
+	})
+	if err := (Channel{}).Validate(ch); err != nil {
+		t.Fatalf("Validate(connection-backed) = %v", err)
+	}
+	e := ch.GetEmail()
+	if e.GetConnection() != "postmark" || e.GetHost() != "" || e.GetPort() != 0 ||
+		e.GetSecurity() != resourcev1.AlertEmail_SECURITY_UNSPECIFIED ||
+		e.GetUsername() != "" || e.GetPassword() != "" || e.GetTo()[0] != "ops@example.com" {
+		t.Errorf("Validate left unexpected fields: %v", e)
+	}
+	if err := (Channel{}).CheckNew(ch); err != nil {
+		t.Errorf("CheckNew(connection-backed) = %v", err)
+	}
+	if got := (Channel{}).ReferenceKinds(); !slices.Equal(got, []resource.Kind{"connection"}) {
+		t.Errorf("ReferenceKinds = %v", got)
+	}
+	refs := (Channel{}).References(ch)
+	if len(refs) != 1 || refs[0] != (resource.Reference{Kind: "connection", Name: "postmark", Verb: "use"}) {
+		t.Errorf("References = %v", refs)
+	}
+	if got := (Channel{}).References(email(&resourcev1.AlertEmail{Host: "smtp.example.com"})); len(got) != 0 {
+		t.Errorf("inline References = %v, want empty", got)
+	}
+	if got := Sealed(ch); len(got) != 0 {
+		t.Errorf("Sealed(connection-backed) = %v, want empty", got)
+	}
+	if got := Redacted(ch); got.GetEmail().GetConnection() != "postmark" {
+		t.Errorf("Redacted dropped connection: %v", got)
+	}
+	if got := Target(ch); got != "ops@example.com" {
+		t.Errorf("Target(connection-backed) = %q", got)
+	}
+
+	// Mixing connection with any inline SMTP field is refused.
+	for name, bad := range map[string]*resourcev1.AlertEmail{
+		"host":     {Connection: "postmark", Host: "smtp.example.com", From: "a@example.com", To: []string{"b@example.com"}},
+		"port":     {Connection: "postmark", Port: 587, From: "a@example.com", To: []string{"b@example.com"}},
+		"security": {Connection: "postmark", Security: resourcev1.AlertEmail_SECURITY_STARTTLS, From: "a@example.com", To: []string{"b@example.com"}},
+		"username": {Connection: "postmark", Username: "alerts", From: "a@example.com", To: []string{"b@example.com"}},
+		"password": {Connection: "postmark", Password: "s3cret", From: "a@example.com", To: []string{"b@example.com"}},
+	} {
+		err := (Channel{}).Validate(email(bad))
+		if err == nil || !strings.Contains(err.Error(), "takes its host, port, security, user and password from that connection") {
+			t.Errorf("Validate(connection+%s) = %v", name, err)
+		}
+	}
+	if err := (Channel{}).Validate(email(&resourcev1.AlertEmail{
+		Connection: "BAD NAME!", From: "a@example.com", To: []string{"b@example.com"},
+	})); err == nil {
+		t.Error("Validate(invalid connection label) = nil, want error")
+	}
+
+	// Keep never carries an inline password onto a connection-backed channel.
+	// Converting connection -> inline with a username requires a password (M2);
+	// supplying one succeeds, as does converting to unauthenticated inline SMTP.
+	inline := email(&resourcev1.AlertEmail{
+		Host: "smtp.example.com", Port: 587, Security: resourcev1.AlertEmail_SECURITY_STARTTLS,
+		Username: "alerts", Password: "inline-password", From: "a@example.com", To: []string{"b@example.com"},
+	})
+	toConn := email(&resourcev1.AlertEmail{Connection: "postmark", From: "a@example.com", To: []string{"b@example.com"}})
+	if kept, err := (Channel{}).Keep(inline, toConn); err != nil || kept.Reason != "" || toConn.GetEmail().GetPassword() != "" {
+		t.Errorf("Keep(inline->conn) = %v, %v, password=%q", kept, err, toConn.GetEmail().GetPassword())
+	}
+	toInlineNoPass := email(&resourcev1.AlertEmail{Host: "smtp.example.com", Username: "alerts", From: "a@example.com", To: []string{"b@example.com"}})
+	if _, err := (Channel{}).Keep(toConn, toInlineNoPass); err == nil || !strings.Contains(err.Error(), "signs in as alerts needs its password") {
+		t.Errorf("Keep(conn->inline without password) = %v, want password required", err)
+	}
+	toInlineWithPass := email(&resourcev1.AlertEmail{Host: "smtp.example.com", Username: "alerts", Password: "fresh-password", From: "a@example.com", To: []string{"b@example.com"}})
+	if kept, err := (Channel{}).Keep(toConn, toInlineWithPass); err != nil || kept.Reason != "" || toInlineWithPass.GetEmail().GetPassword() != "fresh-password" {
+		t.Errorf("Keep(conn->inline with password) = %v, %v, password=%q", kept, err, toInlineWithPass.GetEmail().GetPassword())
+	}
+	toInlineNoUser := email(&resourcev1.AlertEmail{Host: "10.0.0.5", Security: resourcev1.AlertEmail_SECURITY_NONE, From: "a@example.com", To: []string{"b@example.com"}})
+	if kept, err := (Channel{}).Keep(toConn, toInlineNoUser); err != nil || kept.Reason != "" {
+		t.Errorf("Keep(conn->inline unauthenticated) = %v, %v", kept, err)
+	}
+
+	// CheckEmailTransport matches alert-email host and TLS rules.
+	if err := CheckEmailTransport("smtp.example.com", resourcev1.AlertEmail_SECURITY_STARTTLS, true); err != nil {
+		t.Errorf("CheckEmailTransport(STARTTLS+auth) = %v", err)
+	}
+	if err := CheckEmailTransport("10.0.0.5", resourcev1.AlertEmail_SECURITY_NONE, false); err != nil {
+		t.Errorf("CheckEmailTransport(private+none+noauth) = %v", err)
+	}
+	if err := CheckEmailTransport("10.0.0.5", resourcev1.AlertEmail_SECURITY_NONE, true); err == nil || !strings.Contains(err.Error(), "signs in only over TLS") {
+		t.Errorf("CheckEmailTransport(private+none+auth) = %v", err)
+	}
+	if err := CheckEmailTransport("smtp.example.com", resourcev1.AlertEmail_SECURITY_NONE, false); err == nil || !strings.Contains(err.Error(), "has to use TLS") {
+		t.Errorf("CheckEmailTransport(public+none) = %v", err)
+	}
+	if err := CheckEmailTransport("169.254.169.254", resourcev1.AlertEmail_SECURITY_TLS, false); err == nil || !strings.Contains(err.Error(), "metadata service") {
+		t.Errorf("CheckEmailTransport(metadata) = %v", err)
 	}
 }

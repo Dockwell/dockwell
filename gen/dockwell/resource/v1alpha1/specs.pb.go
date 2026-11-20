@@ -10065,7 +10065,11 @@ type AlertEmail struct {
 	// Who the emails come from, such as "Dockwell <alerts@example.com>".
 	From string `protobuf:"bytes,6,opt,name=from,proto3" json:"from,omitempty"`
 	// Who they go to, such as "ops@example.com": one to ten addresses.
-	To            []string `protobuf:"bytes,7,rep,name=to,proto3" json:"to,omitempty"`
+	To []string `protobuf:"bytes,7,rep,name=to,proto3" json:"to,omitempty"`
+	// The install's mail connection, by name, whose host, port, security, user
+	// and sealed password this channel sends through (ADR 0099). Mutually
+	// exclusive with host, port, security, username and password.
+	Connection    string `protobuf:"bytes,8,opt,name=connection,proto3" json:"connection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10147,6 +10151,13 @@ func (x *AlertEmail) GetTo() []string {
 		return x.To
 	}
 	return nil
+}
+
+func (x *AlertEmail) GetConnection() string {
+	if x != nil {
+		return x.Connection
+	}
+	return ""
 }
 
 // AlertNtfy publishes each alert to a topic on an ntfy server, such as ntfy.sh
@@ -11577,7 +11588,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x02to\"D\n" +
 	"\fAlertWebhook\x12\x16\n" +
 	"\x03url\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\x03url\x12\x1c\n" +
-	"\x06secret\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06secret\"\xc5\x02\n" +
+	"\x06secret\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06secret\"\xe5\x02\n" +
 	"\n" +
 	"AlertEmail\x12\x12\n" +
 	"\x04host\x18\x01 \x01(\tR\x04host\x12\x12\n" +
@@ -11586,7 +11597,10 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\busername\x18\x04 \x01(\tR\busername\x12 \n" +
 	"\bpassword\x18\x05 \x01(\tB\x04\xc8\xf3\x18\x01R\bpassword\x12\x12\n" +
 	"\x04from\x18\x06 \x01(\tR\x04from\x12\x0e\n" +
-	"\x02to\x18\a \x03(\tR\x02to\"`\n" +
+	"\x02to\x18\a \x03(\tR\x02to\x12\x1e\n" +
+	"\n" +
+	"connection\x18\b \x01(\tR\n" +
+	"connection\"`\n" +
 	"\bSecurity\x12\x18\n" +
 	"\x14SECURITY_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11SECURITY_STARTTLS\x10\x01\x12\x10\n" +
