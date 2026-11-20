@@ -721,6 +721,10 @@ message DomainRoute {
   // How its domain proves itself for its certificate, as the route's spec has it
   // (ADR 0088): a form that sends the route as it is sends this back.
   string proof = 120;
+  // Says not to watch the route with an uptime check, as Add a domain's Don't
+  // watch or deleting its check did (#835): a form that sends the route as it is
+  // sends this back, and the offer to watch routed domains leaves it out.
+  bool unwatched = 82;
 }
 
 // DomainServer is where a domain stands on one server.

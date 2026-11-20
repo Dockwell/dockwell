@@ -55,6 +55,20 @@ func Methods() []*apicli.Method {
 			Call:      apicli.Unary[v1.ListAlertChecksRequest, v1.ListAlertChecksResponse](dockwellv1connect.AlertServiceListAlertChecksProcedure),
 		},
 		{
+			Name:      "dockwell.v1.AlertService.RunAlertCheck",
+			Procedure: dockwellv1connect.AlertServiceRunAlertCheckProcedure,
+			HTTP:      "POST /v1/alert-checks:run",
+			Noun:      "alert-checks",
+			Verb:      "run",
+			Short:     "Run one check now",
+			Long:      "Run one check now, as its own run would, and says how it stands after: the run\nis kept with its others and counts toward up and down. It plans nothing, as it\nchanges no resource, and goes on Activity. A person checks 6 times a minute at\nmost, a token counting as the person it acts for, and a run takes one of the\ncontrol plane's places for runs, refused when none is free (#832).",
+			Effect:    v1.Effect_EFFECT_APPLY,
+			Fields: []apicli.Field{
+				{Path: "name", Help: "The check, by name, such as \"shop-example-com\"."},
+			},
+			Call: apicli.Unary[v1.RunAlertCheckRequest, v1.RunAlertCheckResponse](dockwellv1connect.AlertServiceRunAlertCheckProcedure),
+		},
+		{
 			Name:      "dockwell.v1.AlertService.ListAlertDeliveries",
 			Procedure: dockwellv1connect.AlertServiceListAlertDeliveriesProcedure,
 			HTTP:      "GET /v1/alert-deliveries",
@@ -3982,7 +3996,7 @@ func Methods() []*apicli.Method {
 func Nouns() []apicli.Noun {
 	return []apicli.Noun{
 		{Name: "alert-channels", Short: "List, test, create, update or delete alert channels", Long: "A channel is somewhere alerts are sent, such as a webhook. What signs in to it\nis sealed, never shown again, and a plan says only that it changed. Channels are\nresources: creating, changing and deleting one is a change, with a plan, that\nundo takes back. dockwell alert-channels test sends a test message and says what\nthe far end answered.\n\ndockwell alert-channels create, update and delete each propose a change, show\nits plan, and ask before applying it."},
-		{Name: "alert-checks", Short: "List, create, update or delete alert checks", Long: "A check is an address Dockwell asks every so often whether it answers as it\nshould, from the control server: an uptime check. It reads down once as many\nruns in a row as it says have failed, which the check-down rule alerts on.\nChecks are resources: creating, changing and deleting one is a change, with a\nplan, that undo takes back. dockwell alert-checks list shows how each stands and\nits last runs.\n\ndockwell alert-checks create, update and delete each propose a change, show its\nplan, and ask before applying it."},
+		{Name: "alert-checks", Short: "List, run, create, update or delete alert checks", Long: "A check is an address Dockwell asks every so often whether it answers as it\nshould, from the control server: an uptime check. It reads down once as many\nruns in a row as it says have failed, which the check-down rule alerts on.\nChecks are resources: creating, changing and deleting one is a change, with a\nplan, that undo takes back. dockwell alert-checks list shows how each stands and\nits last runs.\n\ndockwell alert-checks create, update and delete each propose a change, show its\nplan, and ask before applying it."},
 		{Name: "alert-deliveries", Short: "Return the newest messages to every channel", Long: "A delivery is a message Dockwell sent a channel, a test among them: what it was\nabout, when, and what the far end answered, with nothing that signs in. Each\nchannel's last one says whether it works."},
 		{Name: "alert-mutes", Short: "List the mutes in force", Long: "A mute holds what a rule or a server sends for a while, during an outage, with\nno change to apply. dockwell alerts mute starts one and dockwell alerts unmute\nends it; both go on Activity."},
 		{Name: "alert-rules", Short: "List, create, update or delete alert rules", Long: "A rule is something Dockwell watches for, such as a disk above 90% for 5\nminutes, and who it tells. An install starts with a rule for each condition,\nwhich sends to every channel once there is one. Rules are resources: creating,\nchanging and deleting one is a change, with a plan, that undo takes back.\n\ndockwell alert-rules create, update and delete each propose a change, show its\nplan, and ask before applying it."},
@@ -4403,6 +4417,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "publish.tunnel", Help: "The tunnel, by its ID at Cloudflare, for ROUTE_WAY_SERVER_TUNNEL: one the route's server runs, proved by its connector's ID."},
 				{Path: "publish.provider", Help: "The DNS provider whose token writes it, by name. Its projects must hold the route's."},
 				{Path: "publish.takes_over", Help: "What a person agreed to replace or take on, made by someone else at Cloudflare: an admin's, with a passkey (HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER). Anything there that isn't named here stops the plan."},
+				{Path: "unwatched", Help: "Says not to watch the domain: no uptime check is made for it as the route applies, and the one Dockwell made goes (#835). Unset, a route that serves a whole domain, and isn't a redirect, gets a check on the defaults. Only the control plane reads it: no server's proxy sees it."},
 			},
 		},
 		{
@@ -4512,6 +4527,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "keyword", Help: "Text the answer's first 64 KiB has to hold, when set, such as \"Welcome\"."},
 				{Path: "keyword_absent", Help: "Says the keyword has to be absent instead, such as \"Error\"."},
 				{Path: "inside_network", Help: "Lets the check reach the private networks the control server is on, such as an address only the office's network serves. Unset, it reaches the internet alone, keyword included, and a name that resolves to a private address reads failing with how to allow it. Never this server's loopback, nor a metadata or link-local address. Plans, the Checks tab and Activity show it (ADR 0066)."},
+				{Path: "for_route", Help: "The route this check was made for, by its ID, when Dockwell made it as that route's change applied, or a person had it made for that route (#835). Such a check goes when its route does, or stops being watched. A person's change to the check clears it, so the check is theirs and stays. Empty for a check a person made."},
 			},
 		},
 		{

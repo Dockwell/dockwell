@@ -1815,6 +1815,41 @@ describe("an app's overview", () => {
       expect(new Set(asked)).toEqual(new Set([SERVER]));
     });
 
+    it("watches a new domain with an uptime check unless the person says not to (#835)", async () => {
+      const edits: { domain?: string; unwatched?: boolean }[] = [];
+      const shop = anApp(
+        "shop",
+        "ghcr.io/acme/shop:1.4",
+        { ports: [{ hostPort: 8080, containerPort: 8080 }] },
+        { webPort: 8080 },
+      );
+      const user = userEvent.setup();
+      renderAt(
+        "/apps/svc_shop",
+        api([shop], {
+          services: { listServices: () => ({ services: [shop] }), listServiceRevisions: () => ({ revisions }) },
+          domains: { listDomains: () => ({ domains: [] }) },
+          changes: {
+            watchChange: feed<WatchChangeResponse>().stream,
+            discardChange: () => ({}),
+            proposeChange: (req) => {
+              edits.push(req.edits[0]?.spec?.kind.value as never);
+              return { change: webPlanned() };
+            },
+          },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "Add a domain" }));
+      const sheet = await screen.findByRole("dialog", { name: "Add a domain to shop" });
+      await user.type(within(sheet).getByLabelText("Domain"), "shop.example.com");
+      expect(within(sheet).getByText("Every minute, from the control server")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: "Don't watch" }));
+      expect(within(sheet).getByText("Not watched")).toBeVisible();
+      await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+      await screen.findByRole("dialog", { name: "Review plan" });
+      expect(edits[0]).toMatchObject({ domain: "shop.example.com", unwatched: true });
+    });
+
     it("says what an address is, in the server's words, rather than that a route needs a name", () => {
       for (const typed of ["192.168.1.10", "123", "1.2"]) expect(routeName(typed)).toMatch(/^route-[0-9-]+$/);
       expect(routeName("1a.example.com")).toBe("a-example-com");

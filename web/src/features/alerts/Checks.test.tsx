@@ -2,6 +2,7 @@
 
 import { create } from "@bufbuild/protobuf";
 import { durationFromMs, type Timestamp, timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { Code, ConnectError } from "@connectrpc/connect";
 import {
   AlertChannelInfoSchema,
   type AlertCheckInfo,
@@ -368,5 +369,163 @@ describe("a check's name", () => {
     expect(nameFor("https://shop.example.com/", ["shop-example-com", "shop-example-com-2"])).toBe("shop-example-com-3");
     expect(nameFor("http://192.0.2.10:8080/", [])).toBe("check-192-0-2-10-8080");
     expect(nameFor(`https://${"a".repeat(80)}.example.com/`, [])).toHaveLength(56);
+  });
+
+  describe("routed domains no check watches (#835)", () => {
+    const domain = (name: string, routes: object[]) => ({ name, url: `https://${name}`, routes });
+    const whole = { id: "rte_1", name: "r", path: "", service: "web", port: 80 };
+    const domains = [
+      domain("shop.example.com", [whole]),
+      domain("blog.example.com", [whole]),
+      // Already watched, a redirect such as a companion www, a path alone, a wildcard,
+      // and one someone said not to watch.
+      domain("git.example.com", [whole]),
+      domain("www.shop.example.com", [{ ...whole, redirect: { to: "https://shop.example.com" } }]),
+      domain("docs.example.com", [{ ...whole, path: "/api" }]),
+      domain("*.example.com", [whole]),
+      domain("quiet.example.com", [{ ...whole, unwatched: true }]),
+    ];
+
+    it("offers to watch every one in one plan, on the defaults", async () => {
+      const user = userEvent.setup();
+      const proposed: ProposeChangeRequest[] = [];
+      const plannedChange = create(ChangeSchema, {
+        id: "chg_watch",
+        summary: "Watch 2 routed domains",
+        state: ChangeState.PLANNED,
+      });
+      renderAt(
+        "/alerts/checks",
+        api(() => [aCheck("git-example-com", "https://git.example.com")], {
+          domains: { listDomains: () => ({ domains }) },
+          changes: {
+            proposeChange: (req) => {
+              proposed.push(req);
+              return { change: plannedChange };
+            },
+            watchChange: feed<WatchChangeResponse>().stream,
+          },
+        }),
+      );
+      const offer = (await screen.findByText("2 routed domains aren't watched")).closest(".dw-callout") as HTMLElement;
+      expect(offer).toHaveTextContent("Every minute, down after 2 failures, from the control server.");
+      await user.click(within(offer).getByRole("button", { name: "Watch them" }));
+      await waitFor(() => expect(proposed).toHaveLength(1));
+      expect(proposed[0]?.summary).toBe("Watch 2 routed domains");
+      expect(proposed[0]?.edits.map((e) => e.resource?.name)).toEqual(["shop-example-com", "blog-example-com"]);
+      expect(proposed[0]?.edits[0]?.spec?.kind).toMatchObject({
+        case: "alertCheck",
+        // Exactly the address Dockwell makes a route's check with, which the control plane holds it to.
+        value: { address: "https://shop.example.com/", every: "1m", downAfter: 2, forRoute: "rte_1" },
+      });
+    });
+
+    it("asks over plain HTTP where TLS ends before the server, and takes a path of / as the whole domain", async () => {
+      const user = userEvent.setup();
+      const proposed: ProposeChangeRequest[] = [];
+      renderAt(
+        "/alerts/checks",
+        api(() => [], {
+          domains: {
+            listDomains: () => ({ domains: [domain("plain.example.com", [{ ...whole, path: "/", tls: "off" }])] }),
+          },
+          changes: {
+            proposeChange: (req) => {
+              proposed.push(req);
+              return { change: create(ChangeSchema, { id: "chg_w", summary: "Watch 1", state: ChangeState.PLANNED }) };
+            },
+            watchChange: feed<WatchChangeResponse>().stream,
+          },
+        }),
+      );
+      const offer = (await screen.findByText("1 routed domain isn't watched")).closest(".dw-callout") as HTMLElement;
+      await user.click(within(offer).getByRole("button", { name: "Watch it" }));
+      await waitFor(() => expect(proposed).toHaveLength(1));
+      expect(proposed[0]?.edits[0]?.spec?.kind).toMatchObject({ value: { address: "http://plain.example.com/" } });
+    });
+
+    it("offers what fits under the install's 200 checks, and says so", async () => {
+      const full = Array.from({ length: 199 }, (_, i) => aCheck(`c${i}`, `https://c${i}.example.net`));
+      renderAt(
+        "/alerts/checks",
+        api(() => full, { domains: { listDomains: () => ({ domains }) } }),
+      );
+      const offer = (await screen.findByText("3 routed domains aren't watched")).closest(".dw-callout") as HTMLElement;
+      expect(within(offer).getByRole("button", { name: "Watch the first 1" })).toBeVisible();
+      expect(offer).toHaveTextContent("The install keeps 200 checks, so 1 more fit.");
+    });
+
+    it("says nothing where every routed domain is watched", async () => {
+      const watchedAll = [
+        aCheck("shop", "https://shop.example.com"),
+        aCheck("blog", "https://blog.example.com/"),
+        aCheck("git", "https://git.example.com"),
+      ];
+      renderAt(
+        "/alerts/checks",
+        api(() => watchedAll, { domains: { listDomains: () => ({ domains }) } }),
+      );
+      expect(await screen.findByText("shop.example.com")).toBeVisible();
+      expect(screen.queryByText(/routed domains? (isn't|aren't) watched/)).toBeNull();
+    });
+  });
+
+  describe("Check now (#832)", () => {
+    it("asks a check at once from its row, says what it answered, and reads the checks again", async () => {
+      // In a row, the row's state says how the run went, so its words are for screen
+      // readers; only why a run couldn't start shows, under the button.
+      const user = userEvent.setup();
+      const asked: string[] = [];
+      let answer: () => object = () => ({
+        check: aCheck("shop", "https://shop.example.com/", { runs: [run(true, 200)] }),
+      });
+      renderAt(
+        "/alerts/checks",
+        api(() => [aCheck("shop", "https://shop.example.com/", { state: AlertCheckState.DOWN })], {
+          alerts: {
+            runAlertCheck: (req: { name: string }) => {
+              asked.push(req.name);
+              return answer();
+            },
+          },
+        }),
+      );
+      const row = (await screen.findByText("shop.example.com")).closest("tr") as HTMLElement;
+      await user.click(within(row).getByRole("button", { name: "Check now" }));
+      expect(await within(row).findByText("Answered 200 in 142 ms")).toHaveClass("dw-sr");
+      expect(asked).toEqual(["shop"]);
+      // It didn't open the check's sheet.
+      expect(screen.queryByRole("dialog")).toBeNull();
+      answer = () => ({
+        check: aCheck("shop", "https://shop.example.com/", { runs: [run(false, 502, "502, outside 200 to 399")] }),
+      });
+      await user.click(within(row).getByRole("button", { name: "Check now" }));
+      expect(await within(row).findByText("Didn't answer as it should: 502, outside 200 to 399")).toHaveClass("dw-sr");
+      answer = () => {
+        throw new ConnectError("you've run 6 checks in the last minute", Code.ResourceExhausted);
+      };
+      await user.click(within(row).getByRole("button", { name: "Check now" }));
+      const refused = await within(row).findByText("You've run 6 checks in the last minute.");
+      expect(refused).toBeVisible();
+      expect(refused).not.toHaveClass("dw-sr");
+    });
+
+    it("marks a check Dockwell made for a route (#835)", async () => {
+      const auto = create(AlertCheckInfoSchema, {
+        id: "chk_auto",
+        name: "shop-example-com",
+        spec: { address: "https://shop.example.com/", every: "1m", downAfter: 2, forRoute: "rte_1" },
+        state: AlertCheckState.UP,
+        from: "the control server",
+      });
+      renderAt(
+        "/alerts/checks",
+        api(() => [auto, aCheck("blog", "https://blog.example.com/")]),
+      );
+      const row = (await screen.findByText("shop.example.com")).closest("tr") as HTMLElement;
+      expect(within(row).getByText("For its route")).toBeVisible();
+      const other = screen.getByText("blog.example.com").closest("tr") as HTMLElement;
+      expect(within(other).queryByText("For its route")).toBeNull();
+    });
   });
 });

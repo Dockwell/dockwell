@@ -155,6 +155,11 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 			}
 			continue
 		}
+		if e.madeForRoute(it, byID) {
+			// An uptime check Dockwell makes or removes for a route this change writes:
+			// the route's edit takes the role, so the check needs none of its own (#835).
+			continue
+		}
 		held := place.Holds(caller.Grants, at.Place)
 		if it.follows {
 			// What the change took in through a value it changes is Dockwell's own item:
@@ -323,6 +328,14 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 	}
 	items := make([]item, 0, len(edits))
 	for i := range edits {
+		// Dockwell's own check of a route the change writes takes that route's role,
+		// and the route may not be an item yet, as one an environment's deletion
+		// takes is added once the change is planned: checkRoles answers for it then,
+		// against that route's item, with its environment and protection (#835, the
+		// re-check's N1).
+		if edits[i].MadeForRoute {
+			continue
+		}
 		it, err := e.load(ctx, tx, edits[i].Ref)
 		if err != nil {
 			return err
@@ -337,6 +350,83 @@ func (e *Engine) reachFirst(ctx context.Context, tx *store.Tx, actor string, edi
 		return fault.New(ErrOutOfReach, "%s", ErrOutOfReach.Error())
 	}
 	return err
+}
+
+// madeForRoute reports the check Dockwell makes, changes or removes for a route the
+// same change writes (Edit.MadeForRoute, resource.MadeForRoute, #835): the edit
+// hook's own edit, of the one check of that route's address on the defaults, and
+// nothing a person chose, so another setting still takes its own role.
+//   - A removal is of a check that was the route's, of the address the route asks
+//     now, as a rename removes the old domain's check.
+//   - A make is of the address the route will ask.
+//   - A change is of a check that was the route's before the change, to the
+//     address the route will ask, as turning its TLS off does.
+func (e *Engine) madeForRoute(it *item, byID map[string]*item) bool {
+	if !it.madeForRoute {
+		return false
+	}
+	t, err := e.kinds.Type(it.ref.Kind)
+	if err != nil {
+		return false
+	}
+	m, ok := t.(resource.MadeForRoute)
+	if !ok {
+		return false
+	}
+	// asks reports the route the check is for asking address, as it is now or as
+	// the change leaves it.
+	asks := func(routeID, address string, now bool) bool {
+		r := byID[routeID]
+		if r == nil {
+			return false
+		}
+		rt, err := e.kinds.Type(r.ref.Kind)
+		if err != nil {
+			return false
+		}
+		w, ok := rt.(resource.WatchedRoute)
+		if !ok {
+			return false
+		}
+		spec := r.spec
+		if now {
+			spec = r.current
+		}
+		if spec == nil {
+			return false
+		}
+		want, ok := w.WatchAddress(spec)
+		return ok && want == address
+	}
+	switch {
+	case it.current == nil && it.spec == nil:
+		return false
+	case it.spec == nil:
+		routeID, address, ok := m.MadeFor(it.current)
+		return ok && asks(routeID, address, true)
+	case it.current == nil:
+		routeID, address, ok := m.MadeFor(it.spec)
+		return ok && asks(routeID, address, false)
+	default:
+		was, _, okWas := m.MadeFor(it.current)
+		routeID, address, ok := m.MadeFor(it.spec)
+		return okWas && ok && was == routeID && asks(routeID, address, false)
+	}
+}
+
+// markMadeForRoute marks what Dockwell makes or removes for a route the same change
+// writes as taken in (item.follows), so whoever may change the route may apply it,
+// and whoever reads any of the change reads it (#835).
+func (e *Engine) markMadeForRoute(items []item) {
+	byID := make(map[string]*item, len(items))
+	for i := range items {
+		byID[items[i].id] = &items[i]
+	}
+	for i := range items {
+		if e.madeForRoute(&items[i], byID) {
+			items[i].follows = true
+		}
+	}
 }
 
 // capsHeld refuses a change that would take the install past the most it keeps

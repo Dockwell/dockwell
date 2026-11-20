@@ -6,6 +6,7 @@ package checks
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -362,6 +363,65 @@ func (r *Runner) Loaded() bool {
 	return r.loaded
 }
 
+// Why RunNowInSlot didn't run a check.
+var (
+	// ErrBusy says every place for a run is taken, so the check wasn't asked.
+	ErrBusy = errors.New("as many checks are running as Dockwell runs at once, so this one wasn't asked. Check again in a moment")
+	// ErrRunning says the check is running now, so it wasn't asked twice.
+	ErrRunning = errors.New("this check is running now, so it wasn't asked twice. Its answer shows in a moment")
+	// ErrUnknown says the runner hasn't read the check, as one made a moment ago.
+	ErrUnknown = errors.New("this check hasn't been read yet, as it was made a moment ago. Check again in a moment")
+	// ErrNotKept says the check was asked, but its answer wasn't kept, as the check
+	// changed or the control plane stopped while it ran.
+	ErrNotKept = errors.New("the check changed, or Dockwell stopped, while it ran, so its answer wasn't kept. Check again")
+)
+
+// runSlack is how much longer than its timeout a run a person asked for may take
+// before it's given up, for what Probe does around the request.
+const runSlack = 10 * time.Second
+
+// RunNowInSlot runs a check at once, in one of the runner's places for runs, and
+// waits for its answer, as a person's Check now does (#832). The run is kept with
+// the check's others and counts toward up and down. It never waits for a place:
+// with all taken, it says so (ErrBusy).
+func (r *Runner) RunNowInSlot(ctx context.Context, id string) (Status, error) {
+	r.init()
+	r.mu.Lock()
+	t := r.checks[id]
+	switch {
+	case t == nil:
+		r.mu.Unlock()
+		return Status{}, ErrUnknown
+	case t.Spec == nil || t.Problem != "":
+		problem := cmp.Or(t.Problem, Unreadable)
+		r.mu.Unlock()
+		return Status{}, errors.New(problem)
+	case t.running:
+		r.mu.Unlock()
+		return Status{}, ErrRunning
+	}
+	select {
+	case r.slots <- struct{}{}:
+	default:
+		r.mu.Unlock()
+		return Status{}, ErrBusy
+	}
+	t.running = true
+	// The run outlives the request that asked for it, within a bound of its own: a
+	// person who hangs up once the address is asked still has the run kept, and on
+	// Activity (the review's M7).
+	runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), alert.Timeout(t.Spec)+runSlack)
+	r.mu.Unlock()
+	defer cancel()
+	defer func() { <-r.slots }()
+	kept := r.run(runCtx, t)
+	st, _ := r.Status(id)
+	if !kept {
+		return st, ErrNotKept
+	}
+	return st, nil
+}
+
 // RunNow runs a check at once and waits for its answer, as a test does.
 func (r *Runner) RunNow(ctx context.Context, id string) (Status, bool) {
 	r.init()
@@ -378,7 +438,7 @@ func (r *Runner) RunNow(ctx context.Context, id string) (Status, bool) {
 	return st, ok
 }
 
-func (r *Runner) run(ctx context.Context, t *tracked) {
+func (r *Runner) run(ctx context.Context, t *tracked) (kept bool) {
 	r.mu.Lock()
 	spec := proto.CloneOf(t.Spec)
 	r.mu.Unlock()
@@ -391,10 +451,10 @@ func (r *Runner) run(ctx context.Context, t *tracked) {
 	defer r.mu.Unlock()
 	t.running = false
 	if ctx.Err() != nil {
-		return // cut short as the control plane stops: it says nothing of the address
+		return false // cut short as the control plane stops: it says nothing of the address
 	}
 	if !proto.Equal(spec, t.Spec) {
-		return // it changed while it ran: the next run is of what it is now
+		return false // it changed while it ran: the next run is of what it is now
 	}
 	t.next = run.GetTime().AsTime().Add(alert.Every(spec))
 	t.Runs = slices.Insert(t.Runs, 0, run)
@@ -431,6 +491,7 @@ func (r *Runner) run(ctx context.Context, t *tracked) {
 			t.Since = t.failing
 		}
 	}
+	return true
 }
 
 // Probe makes one run of a check: a GET, with no redirect followed, that reads the

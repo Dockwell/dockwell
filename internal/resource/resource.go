@@ -2229,6 +2229,26 @@ type Capped interface {
 	CapWords(have int) string
 }
 
+// MadeForRoute is a Type whose resource Dockwell may make for a route, as an uptime
+// check of the route's domain on the defaults (#835). Such a resource, made or
+// removed by Dockwell in the same change as its route, takes the role the route's
+// edit needs, not its own: a developer's route gets its check without an admin's
+// role.
+type MadeForRoute interface {
+	// MadeFor is the ID of the route spec was made for, and the address it asks,
+	// where spec is what Dockwell makes for a route and nothing a person chose; ok is
+	// false otherwise.
+	MadeFor(spec proto.Message) (routeID, address string, ok bool)
+}
+
+// WatchedRoute is a route's Type, which says what address the check Dockwell
+// makes for a route asks, if it makes one (#835).
+type WatchedRoute interface {
+	// WatchAddress is the address of the check Dockwell makes for spec, and false
+	// where it makes none.
+	WatchAddress(spec proto.Message) (string, bool)
+}
+
 // Rotates is a Type whose sensitive fields plan as a change whenever an edit sets
 // them, as a secret's value does, and are never compared with what's there, so a
 // plan can't confirm a guess at one (ADR 0022).

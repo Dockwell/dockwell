@@ -151,8 +151,59 @@ func (Check) Validate(spec proto.Message) error {
 	if c.GetKeyword() == "" && c.GetKeywordAbsent() {
 		return errors.New("a check that wants a keyword absent needs the keyword")
 	}
+	if r := c.GetForRoute(); r != "" && !strings.HasPrefix(r, id.Route+"_") {
+		return fmt.Errorf("a check's route is a route's ID, such as rte_01J8…, not %q", r)
+	}
 	return nil
 }
+
+// MadeFor is the route a check was made for, and the address it asks, exactly as
+// it's saved, where the check is what Dockwell makes for a route: an address on the
+// defaults, outside the network, with nothing else a person would choose
+// (resource.MadeForRoute, #835). Whether that address is the route's is the route's
+// to say (resource.WatchedRoute).
+func (Check) MadeFor(spec proto.Message) (routeID, address string, ok bool) {
+	c, is := spec.(*resourcev1.AlertCheck)
+	if !is || c.GetForRoute() == "" {
+		return "", "", false
+	}
+	defaults := func(got, want string) bool { return got == "" || got == want }
+	if !defaults(c.GetEvery(), FormatDuration(DefaultEvery)) || !defaults(c.GetTimeout(), FormatDuration(DefaultCheckTimeout)) ||
+		c.GetDownAfter() != 0 && c.GetDownAfter() != DefaultDownAfter ||
+		c.GetExpectFrom() != 0 && c.GetExpectFrom() != 200 || c.GetExpectTo() != 0 && c.GetExpectTo() != 399 ||
+		c.GetKeyword() != "" || c.GetKeywordAbsent() || c.GetInsideNetwork() {
+		return "", "", false
+	}
+	return c.GetForRoute(), c.GetAddress(), true
+}
+
+// NameFor is a name for a check of address, from its host, that none of taken is:
+// what fits in a URL and on a command line, such as shop-example-com, then
+// shop-example-com-2, as the panel names one.
+func NameFor(address string, taken func(string) bool) string {
+	host := address
+	if u, err := url.Parse(address); err == nil && u.Host != "" {
+		host = u.Host
+	}
+	base := strings.Trim(nonName.ReplaceAllString(strings.ToLower(host), "-"), "-")
+	if base == "" || base[0] < 'a' || base[0] > 'z' {
+		base = strings.TrimRight("check-"+base, "-")
+	}
+	if len(base) > 56 {
+		base = strings.TrimRight(base[:56], "-")
+	}
+	if !taken(base) {
+		return base
+	}
+	for n := 2; ; n++ {
+		if name := base + "-" + strconv.Itoa(n); !taken(name) {
+			return name
+		}
+	}
+}
+
+// nonName is what a check's name can't hold.
+var nonName = regexp.MustCompile(`[^a-z0-9]+`)
 
 // Cap is the most checks an install keeps (resource.Capped).
 func (Check) Cap() int { return MaxChecks }

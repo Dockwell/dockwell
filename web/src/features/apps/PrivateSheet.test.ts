@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { DomainRouteSchema } from "@dockwell/api";
 import { describe, expect, it } from "vitest";
 
-import { listBlocked, looksLikeEntry, makePassword, ownEntries } from "./PrivateSheet";
+import { listBlocked, looksLikeEntry, makePassword, ownEntries, routeAsItIs } from "./PrivateSheet";
 
 describe("who gets in to a route", () => {
   it("offers your IPv4 address alone, your IPv6 network first, and nothing from loopback", () => {
@@ -52,5 +52,15 @@ describe("who gets in to a route", () => {
     expect(listBlocked(create(DomainRouteSchema, { tls: "off", plainForAnyone: true }))).toBeUndefined();
     expect(listBlocked(create(DomainRouteSchema, { tls: "off", trustedProxies: ["127.0.0.1/32"] }))).toBeUndefined();
     expect(listBlocked(create(DomainRouteSchema, {}))).toBeUndefined();
+  });
+});
+
+describe("a route as it is", () => {
+  it("keeps not being watched, so an edit of something else makes no uptime check (#835)", () => {
+    const quiet = create(DomainRouteSchema, { service: "web", port: 80, unwatched: true });
+    expect(routeAsItIs("quiet.example.com", quiet)).toMatchObject({ domain: "quiet.example.com", unwatched: true });
+    expect(routeAsItIs("shop.example.com", create(DomainRouteSchema, { service: "web", port: 80 }))).not.toHaveProperty(
+      "unwatched",
+    );
   });
 });

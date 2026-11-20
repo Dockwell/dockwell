@@ -11,6 +11,7 @@ import { useAllDomains } from "../apps/domains";
 import { durationWords } from "../apps/specEdit";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { CheckNow } from "./CheckNow";
 import {
   alertsTo,
   CHECK_DEFAULTS,
@@ -219,6 +220,7 @@ export function WatchSheet({
       }
     >
       <div className="alerts-sheet">
+        {check?.spec && !check.problem ? <CheckNow name={check.name} /> : null}
         {offered.length > 0 ? (
           <SelectField
             label={t`Address`}

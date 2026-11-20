@@ -8,6 +8,7 @@
   "alert.test",
   "alert.unacknowledge",
   "alert.unmute",
+  "alert_check.run",
   "app_owner.failed",
   "app_owner.made",
   "app_owner.opened",

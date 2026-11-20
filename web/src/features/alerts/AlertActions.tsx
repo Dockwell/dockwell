@@ -11,6 +11,7 @@ import { useAllDomains } from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { serviceCommands } from "../servers/commands";
 import { useFleet } from "../servers/useFleet";
+import { CheckNow } from "./CheckNow";
 import { useChecks } from "./checks";
 
 /** The host of an address, or "" for one that isn't a URL. */
@@ -105,10 +106,15 @@ export function AlertActions({ alert, size = "sm" }: { alert: Alert; size?: "sm"
       break;
     }
     case Condition.CHECK_DOWN: {
-      const address =
-        checks.find((c) => c.id === alert.subjectId)?.spec?.address ?? (alert.where ? `https://${alert.where}/` : "");
+      const check = checks.find((c) => c.id === alert.subjectId);
+      const address = check?.spec?.address ?? (alert.where ? `https://${alert.where}/` : "");
       const app = serviceAt(address, domains, services);
-      actions = [open(address), logs(app), to("check", "/alerts/checks", t`Its uptime check`)];
+      actions = [
+        check ? <CheckNow key="now" name={check.name} size={size} /> : null,
+        open(address),
+        logs(app),
+        to("check", "/alerts/checks", t`Its uptime check`),
+      ];
       break;
     }
     case Condition.SERVER_UNREACHABLE: {

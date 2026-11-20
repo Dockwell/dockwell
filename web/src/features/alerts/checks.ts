@@ -99,6 +99,47 @@ export function nameFor(url: string, taken: readonly string[]): string {
   }
 }
 
+/** The most checks an install keeps (ADR 0066): a plan past it is refused. */
+export const MOST_CHECKS = 200;
+
+/** A domain as the routed-domains offer reads it: its name, address and routes. */
+interface RoutedDomain {
+  name: string;
+  url: string;
+  routes: readonly { id: string; path: string; tls: string; unwatched: boolean; redirect?: unknown }[];
+}
+
+/** A routed domain no check watches yet: its address, and the route that serves it whole. */
+export interface Unwatched {
+  url: string;
+  routeId: string;
+}
+
+/**
+ * The routed domains no check watches yet (#835): each whose route serves the whole
+ * domain, leaving out a redirect, such as a companion www, a wildcard, which has no
+ * one address to ask, and a route someone said not to watch. Each names that route,
+ * so its check is marked as the route's and goes with it, and asks exactly the
+ * address Dockwell makes a route's check with, which the control plane holds it to.
+ */
+export function unwatchedDomains(domains: readonly RoutedDomain[], checks: readonly AlertCheckInfo[]): Unwatched[] {
+  const out: Unwatched[] = [];
+  for (const d of domains) {
+    if (d.name === "" || d.name.includes("*")) continue;
+    const whole = d.routes.find((r) => (r.path === "" || r.path === "/") && r.redirect === undefined);
+    if (!whole || whole.unwatched) continue;
+    const url = routeCheckAddress(d.name, whole.tls);
+    if (checkOf(checks, url) || out.some((u) => sameAddress(u.url, url))) continue;
+    out.push({ url, routeId: whole.id });
+  }
+  return out;
+}
+
+/** The address of the check Dockwell makes for a route of domain: HTTPS, or HTTP where TLS ends before the server. */
+export function routeCheckAddress(domain: string, tls: string): string {
+  return `${tls === "off" ? "http" : "https"}://${domain}/`;
+}
+
 /** A check's spec with the control plane's defaults filled in where it has none. */
 export function withDefaults(spec: Partial<AlertCheck> | undefined): {
   every: string;

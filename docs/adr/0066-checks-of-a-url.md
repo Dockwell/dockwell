@@ -77,6 +77,39 @@ As [ADR 0065](https://github.com/Dockwell/dockwell/pull/463) keeps a server's sa
 
 The agent protocol takes this area's block: `Call.check` and `CallResult.check` 234, in slice 2. #459 takes 230 in `Hello` and 230 and 231 in its listing messages, and ADR 0064 takes `Hello.boot_id` 231 and `DesiredResource` 232 and 233. The public schema numbers its own fields: `AlertCheck.inside_network` 9, `AlertCheckInfo.problem` 8, `AlertCheckRun.skipped` 6.
 
+### Check now (#832)
+
+- **`AlertService.RunAlertCheck`** runs one check now, as its own run would. The run is kept with the check's others and counts toward up and down, so a fixed site reads up after its passes as ever.
+- **Where it's offered:** a check-down alert's card and page, each row of Uptime checks, and the check's sheet. The answer shows beside the button; in a table row, the row's own state shows it, and only a refusal shows under the button.
+- **It plans nothing,** as it changes no resource. It's an admin's, as checks are, and goes on Activity as `alert_check.run`, with the host and whether it answered, failed, or had its answer not kept. What the address said stays with the check's runs and isn't copied into the event.
+- **Limits:**
+  - 6 runs a minute per person, a token counting as the person it acts for. The place is taken before the run, at once, so requests at the same moment can't each find one free. A run refused before it asked anything (no place free, the check running now, or not read yet) gives its place back.
+  - A run takes one of the runner's 16 places and never waits: with all taken, it says so.
+  - A check that's running now isn't asked twice.
+- **It outlives the request:** a run runs within its timeout and 10 s more, whether or not the person is still there, and is recorded on Activity either way.
+- **Follow-up:** a check changed a moment before Check now can be asked as the runner last read it, and the answer paired with the new spec. Passing the revision asked for to the runner, and returning that run's own result, is the follow-up (the review's M6).
+
+### Checks Dockwell makes for routes (#835)
+
+- **What's made:** a change that adds a route serving a whole domain gains, in the same plan, an uptime check of that domain on the defaults, named after the host. The plan says "Watches shop.example.com every minute, for its route".
+  - The check carries `for_route`, the route's ID. A new route's ID is chosen up front for it.
+  - It asks `https://<domain>/`, or `http://<domain>/` where TLS ends before the server. A route whose address changes that way, as turning TLS off does, has its check moved to it.
+  - A route that changes to another domain, or back from not being watched or from being a redirect, gets one the same way, and its old domain's check goes.
+  - A route that served its domain before this release keeps none as it changes. Uptime checks offers those domains instead, all in one plan a person sees: nothing is made on upgrade by Dockwell itself.
+- **What isn't watched:** a redirect (as a companion `www` is), a route with a path other than `/` (which is the whole domain, as an empty path is), a wildcard, a route that says `unwatched`, and a domain some check already asks.
+- **When it goes:** removing the route, or setting its `unwatched` (Add a domain's **Don't watch**), removes the check in the same change, as does deleting the project or the environment the route is in, with what's in it. Undo takes the route and its check back together, and an undo or a rollback that puts a watched route back makes its check again.
+- **Made from what was read:** a check the plan makes must not exist when the plan is made, and a check it changes or removes, and a route it says not to watch, must still be at the revision Dockwell read. A check or a route changed meanwhile makes the plan refused or stale, never taken over.
+- **A failed change's rollback** puts the route checks back too. The rollback runs the same rules on what it puts back as an undo's plan does, rather than replaying the failed change's check revisions, so it's one set of rules, with the same guards, for undo and rollback alike.
+- **A person's hand is kept:**
+  - Changing such a check clears its `for_route`, so it's theirs and stays when the route goes.
+  - Deleting one sets the route's `unwatched` in the same change, so the route's next change doesn't make it again.
+  - A check a person makes keeps `for_route` only as the route's one check, of exactly the address Dockwell would make it with, on the defaults. Making it for a route that says `unwatched` turns watching back on in the same plan.
+- **Who sees it:** Domains says a route is `unwatched`, forms that send a route as it is send it back, and the offer leaves such a route out.
+- **Roles:** the check Dockwell makes, moves or removes for a route the same change writes is taken in by that change (as a value's users are), and the route's edit takes the role. So a developer's route gets its check, a developer can rename a watched domain and undo it, and a developer can delete an environment with a watched route in it; a protected one waits for the environment's role, as its route does. This holds only for Dockwell's own edit of that route's one check, on the defaults: a change of a check takes it being the route's before. Any other check, or setting, inside the network included, still takes an admin.
+- **The cap:** at 200 checks the route still applies, with a plan note that its domain isn't watched. A route is never refused for want of a check. A check that can't be read keeps its name and counts toward the 200, is left as it is, and a plan that writes a route says so without naming it, as whoever plans a route may not read checks; the server log names it. It refuses nothing.
+- **Load:** one check per domain, within the 200; runs go through the runner's 16 places and never wait; checks a plan makes start 2 s apart, and loaded ones are spread over their interval.
+- **Numbers:** `AlertCheck.for_route` 10, `Route.unwatched` 82, which only the control plane reads (no server's proxy sees it), and `DomainRoute.unwatched` 82. No migration.
+
 ### Open
 
 - Nothing watches the control server itself: if it goes down, no check runs and no alert goes out. A heartbeat Dockwell sends each minute to a dead man's switch service outside it is a later slice.

@@ -46,3 +46,18 @@ func (t *testers) allow(actor string, now time.Time) time.Duration {
 	t.seen[actor] = append(recent, now)
 	return 0
 }
+
+// release gives back a place allow counted for actor at at, for a run refused
+// before it asked anything. What's left stays in the order it was counted, so the
+// wait allow says is still from the oldest.
+func (t *testers) release(actor string, at time.Time) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	times := t.seen[actor]
+	for i := len(times) - 1; i >= 0; i-- {
+		if times[i].Equal(at) {
+			t.seen[actor] = append(times[:i], times[i+1:]...)
+			return
+		}
+	}
+}

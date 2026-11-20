@@ -2965,7 +2965,11 @@ type DomainRoute struct {
 	Publish *v1alpha1.RoutePublish `protobuf:"bytes,113,opt,name=publish,proto3" json:"publish,omitempty"`
 	// How its domain proves itself for its certificate, as the route's spec has it
 	// (ADR 0088): a form that sends the route as it is sends this back.
-	Proof         string `protobuf:"bytes,120,opt,name=proof,proto3" json:"proof,omitempty"`
+	Proof string `protobuf:"bytes,120,opt,name=proof,proto3" json:"proof,omitempty"`
+	// Says not to watch the route with an uptime check, as Add a domain's Don't
+	// watch or deleting its check did (#835): a form that sends the route as it is
+	// sends this back, and the offer to watch routed domains leaves it out.
+	Unwatched     bool `protobuf:"varint,82,opt,name=unwatched,proto3" json:"unwatched,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3124,6 +3128,13 @@ func (x *DomainRoute) GetProof() string {
 		return x.Proof
 	}
 	return ""
+}
+
+func (x *DomainRoute) GetUnwatched() bool {
+	if x != nil {
+		return x.Unwatched
+	}
+	return false
 }
 
 // DomainServer is where a domain stands on one server.
@@ -3749,7 +3760,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x06tunnel\x18\x03 \x01(\tR\x06tunnel\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x121\n" +
 	"\x05state\x18\x05 \x01(\x0e2\x1b.dockwell.v1.PublishedStateR\x05state\x125\n" +
-	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xcb\x04\n" +
+	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xe9\x04\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -3770,7 +3781,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\bredirect\x18\n" +
 	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\x12B\n" +
 	"\apublish\x18q \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12\x14\n" +
-	"\x05proof\x18x \x01(\tR\x05proof\"\xf8\x01\n" +
+	"\x05proof\x18x \x01(\tR\x05proof\x12\x1c\n" +
+	"\tunwatched\x18R \x01(\bR\tunwatched\"\xf8\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +

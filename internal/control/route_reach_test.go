@@ -4,6 +4,7 @@ package control
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,9 @@ type routesInMemory struct {
 	routes map[resource.Ref]*resourcev1.Route
 	// check is what DNS says of every domain as a plan is made. Nil says nothing.
 	check *resource.DomainCheck
+	// refuseNext has the next route applied fail, as a proxy that refuses it, so the
+	// change is rolled back.
+	refuseNext bool
 }
 
 func (m *routesInMemory) Observe(_ context.Context, ref resource.Ref) (*resourcev1.Route, error) {
@@ -60,6 +64,10 @@ func (*routesInMemory) Returning(context.Context, resource.Ref, *resourcev1.Rout
 func (m *routesInMemory) Apply(_ context.Context, ref resource.Ref, spec *resourcev1.Route, _ *resource.IngressEffect) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.refuseNext {
+		m.refuseNext = false
+		return errors.New("the proxy refused the route")
+	}
 	if spec == nil {
 		delete(m.routes, ref)
 		return nil

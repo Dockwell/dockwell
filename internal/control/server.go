@@ -94,6 +94,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/control/variables"
 	"github.com/dockwell/dockwell/internal/control/volumes"
+	"github.com/dockwell/dockwell/internal/control/watchroutes"
 	"github.com/dockwell/dockwell/internal/control/websites"
 	"github.com/dockwell/dockwell/internal/gitref"
 	"github.com/dockwell/dockwell/internal/https"
@@ -444,7 +445,10 @@ func New(cfg Config) (*Server, error) {
 	// owner where its entry says how (ADR 0105).
 	if cfg.Changes != nil && cfg.Store != nil && cfg.Secrets != nil {
 		cfg.appHolds = &holds.Holds{Keeper: cfg.Secrets}
-		cfg.Changes.SetEditHook(cfg.appHolds.Hook)
+		// Each routed domain gets an uptime check unless someone says not to (#835),
+		// worked out from the edits as the holds left them.
+		watch := &watchroutes.Watcher{Keeper: cfg.Secrets, Logger: cfg.Logger}
+		cfg.Changes.SetEditHook(revision.ChainEditHooks(cfg.appHolds.Hook, watch.Hook))
 		if cfg.Agents != nil {
 			agents := cfg.Agents
 			cfg.appOwners = &owners.Runner{
