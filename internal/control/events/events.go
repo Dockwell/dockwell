@@ -161,13 +161,13 @@ var (
 		// An account at a sign-in provider linked or unlinked, as a passkey added or
 		// removed is, and the sessions a stopped provider's link began, ended (ADR 0095).
 		"provider_link.create", "provider_link.delete", "auth.sessions_ended",
-		// Someone changing their own name or email, which admins see where they look,
-		// as a copy of someone else's would read as them (#801's review, M1).
-		auth.ActionAccountName, auth.ActionAccountEmail,
+		// Someone changing their own name, email or time zone, which admins see where
+		// they look, as a copy of someone else's would read as them (#801's review, M1; #834).
+		auth.ActionAccountName, auth.ActionAccountEmail, auth.ActionAccountTimeZone,
 	}
 	// adminActions are on the timeline for admins and the owner alone: what each
-	// person was called, and the emails they signed in with.
-	adminActions = []string{auth.ActionAccountName, auth.ActionAccountEmail}
+	// person was called, the emails they signed in with, and their chosen time zone.
+	adminActions = []string{auth.ActionAccountName, auth.ActionAccountEmail, auth.ActionAccountTimeZone}
 )
 
 // forReader leaves out of f what only admins see on the timeline, for a caller
@@ -866,8 +866,8 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 			}
 		}
 	}
-	if a.Action == auth.ActionAccountName || a.Action == auth.ActionAccountEmail {
-		// What they were called and are now, which the actor's name alone can't say (#801's review, M1).
+	if a.Action == auth.ActionAccountName || a.Action == auth.ActionAccountEmail || a.Action == auth.ActionAccountTimeZone {
+		// What it was and is now, which the actor's name alone can't say (#801's review, M1; #834).
 		if was, is, ok := auth.ReadAccountDetail(a.Detail); ok {
 			e.Subject = &dockwellv1.EventSubject{Id: a.Subject, Name: look.Name(a.Subject)}
 			e.Setting = &dockwellv1.EventSetting{Setting: a.Action, Value: is, Previous: was}

@@ -7,6 +7,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode, Ref } from "react";
 
+import { formatClock } from "../../lib/format";
 import { nextName, oneLabel, type TakeOverInit, wayOf, type Zone } from "./publish";
 
 import "./DomainStep.css";
@@ -133,7 +134,7 @@ function RecordState({
   onTakesOver: (next: TakeOverInit[]) => void;
   onSub: (value: string) => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   if (!check) {
     return checking && domain !== "" ? (
       <StateLine status="deploying">
@@ -228,7 +229,7 @@ function RecordState({
       );
     }
     case CloudflareName.WAITING: {
-      const at = check.checksAgain ? timestampDate(check.checksAgain).toLocaleTimeString() : "";
+      const at = check.checksAgain ? formatClock(timestampDate(check.checksAgain), i18n.locale) : "";
       return (
         <StateLine status="unknown">
           {at ? t`Cloudflare asked Dockwell to wait. It checks again at ${at}` : t`Cloudflare asked Dockwell to wait`}

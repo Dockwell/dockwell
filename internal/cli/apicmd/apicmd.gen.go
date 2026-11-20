@@ -2689,6 +2689,7 @@ func Methods() []*apicli.Method {
 				{Path: "name", Help: "Your name, as the panel and the audit log show it: 1 to 100 characters."},
 				{Path: "email", Help: "The email you sign in with, which no one else here does or is invited as."},
 				{Path: "proof", Help: "From dockwell sessions finish-step-up, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you typed it, where the email changes."},
+				{Path: "time_zone", Help: "IANA time zone the panel shows times in for you, such as \"America/Los_Angeles\" or \"UTC\". Empty clears it back to this browser's."},
 			},
 			Call: apicli.Unary[v1.UpdateProfileRequest, v1.UpdateProfileResponse](dockwellv1connect.AuthServiceUpdateProfileProcedure),
 		},

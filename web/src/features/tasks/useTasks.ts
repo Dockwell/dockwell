@@ -16,7 +16,7 @@ import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
-import { dateLocale } from "../../lib/format";
+import { activeTimeZone, dateLocale, dayDiff, formatClock, formatDay } from "../../lib/format";
 import { READ_EVERY_MS } from "../../lib/standing";
 
 /** Every task, read again while a screen shows them. */
@@ -110,9 +110,9 @@ export function runStatus(state: TaskRunState): Status {
   return "unknown";
 }
 
-/** The zone the viewer's clock reads in. */
+/** The zone the viewer's clock reads in: their profile zone, else this browser's. */
 export function viewerZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return activeTimeZone();
 }
 
 /** A line of a run's transcript: what it printed, or what happened to it, said here. */
@@ -342,17 +342,12 @@ export function useTaskWords() {
       },
       /** A day and time: "Today 15:00", "Tomorrow 02:30", or the date. */
       when(then: Date, now: number): string {
-        const time = new Intl.DateTimeFormat(dateLocale(i18n.locale), {
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        }).format(then);
-        const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-        const days = Math.round((day(then) - day(new Date(now))) / 86_400_000);
+        const time = formatClock(then, i18n.locale);
+        const days = dayDiff(then, new Date(now));
         if (days === 0) return t`Today ${time}`;
         if (days === 1) return t`Tomorrow ${time}`;
         if (days === -1) return t`Yesterday ${time}`;
-        const date = new Intl.DateTimeFormat(dateLocale(i18n.locale), { day: "numeric", month: "short" }).format(then);
+        const date = formatDay(then, i18n.locale, now);
         return `${date} ${time}`;
       },
       /** How long a run took: "180 ms" under a second, then as spans read. */

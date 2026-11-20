@@ -1,17 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  activeTimeZone,
+  dayDiff,
+  dayKey,
+  fileDay,
   formatBitRate,
   formatBytes,
   formatBytesOf,
   formatClock,
+  formatClockSeconds,
+  formatDateTime,
   formatDay,
   formatFixed,
   formatLiveBytesOf,
+  formatMoment,
   formatPercent,
+  formatTimeZoneOffset,
   formatWeekday,
+  getDisplayTimeZone,
+  sameDay,
+  setDisplayTimeZone,
+  timeZoneOffsetMinutes,
 } from "./format";
 
 const MiB = 1024 ** 2;
@@ -117,5 +129,58 @@ describe("formatWeekday and formatClock", () => {
         .format(date)
         .replace(",", ""),
     );
+  });
+});
+
+describe("display time zone (#834)", () => {
+  afterEach(() => {
+    setDisplayTimeZone("");
+  });
+
+  it("formats dates, clocks, day keys, and year boundaries in the chosen time zone", () => {
+    // 2026-12-31T20:30:05Z is 31 Dec 2026 in UTC / Honolulu, and 1 Jan 2027 05:30:05 in Asia/Tokyo.
+    const instant = new Date("2026-12-31T20:30:05Z");
+    const sameInstantUtcNow = new Date("2026-12-31T21:00:00Z").getTime();
+
+    setDisplayTimeZone("Pacific/Honolulu");
+    expect(getDisplayTimeZone()).toBe("Pacific/Honolulu");
+    expect(activeTimeZone()).toBe("Pacific/Honolulu");
+    expect(formatClock(instant, "en")).toBe("10:30");
+    expect(formatClockSeconds(instant, "en")).toBe("10:30:05");
+    expect(formatDateTime(instant, "en")).toBe("31 Dec 2026, 10:30");
+    expect(formatWeekday(instant, "en")).toBe("Thursday 31 Dec");
+    expect(fileDay(instant)).toBe("2026-12-31");
+    expect(dayKey(instant)).toBe("2026-12-31");
+    // In Honolulu, 2026-12-31T20:30Z and 2026-12-31T21:00Z are both in 2026.
+    expect(formatDay(instant, "en", sameInstantUtcNow)).toBe("31 Dec");
+    expect(formatMoment(instant, "en")).toContain("10:30:05");
+
+    setDisplayTimeZone("Asia/Tokyo");
+    expect(formatClock(instant, "en")).toBe("05:30");
+    expect(formatClockSeconds(instant, "en")).toBe("05:30:05");
+    expect(formatDateTime(instant, "en")).toBe("1 Jan 2027, 05:30");
+    expect(formatWeekday(instant, "en")).toBe("Friday 1 Jan");
+    expect(fileDay(instant)).toBe("2027-01-01");
+    expect(dayKey(instant)).toBe("2027-01-01");
+    // In Tokyo, 2026-12-31T10:00Z is still 31 Dec 2026, while instant is 1 Jan 2027 -> year included!
+    expect(formatDay(instant, "en", new Date("2026-12-31T10:00:00Z").getTime())).toBe("1 Jan 2027");
+    expect(sameDay(instant, new Date("2026-12-31T10:00:00Z"))).toBe(false);
+    expect(dayDiff(instant, new Date("2026-12-31T10:00:00Z"))).toBe(1);
+
+    // An explicit per-call override (such as a schedule's own zone) takes precedence.
+    expect(formatDateTime(instant, "en", "UTC")).toBe("31 Dec 2026, 20:30");
+    expect(dayKey(instant, "UTC")).toBe("2026-12-31");
+  });
+
+  it("computes UTC offsets accurately including half-hour zones", () => {
+    const winter = new Date("2026-01-15T12:00:00Z");
+    expect(timeZoneOffsetMinutes("UTC", winter)).toBe(0);
+    expect(formatTimeZoneOffset("UTC", winter)).toBe("UTC");
+    expect(timeZoneOffsetMinutes("Asia/Tokyo", winter)).toBe(540);
+    expect(formatTimeZoneOffset("Asia/Tokyo", winter)).toBe("UTC+09:00");
+    expect(timeZoneOffsetMinutes("America/Los_Angeles", winter)).toBe(-480);
+    expect(formatTimeZoneOffset("America/Los_Angeles", winter)).toBe("UTC-08:00");
+    expect(timeZoneOffsetMinutes("Asia/Kolkata", winter)).toBe(330);
+    expect(formatTimeZoneOffset("Asia/Kolkata", winter)).toBe("UTC+05:30");
   });
 });

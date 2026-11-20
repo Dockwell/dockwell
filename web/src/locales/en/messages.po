@@ -805,6 +805,9 @@ msgstr "Changed their name"
 msgid "Changed their name from {previous} to {value}"
 msgstr "Changed their name from {previous} to {value}"
 
+msgid "Changed their time zone from {previous} to {value}"
+msgstr "Changed their time zone from {previous} to {value}"
+
 msgid "Changed whether deploy on push waits for a person"
 msgstr "Changed whether deploy on push waits for a person"
 
@@ -846,6 +849,9 @@ msgstr "Cleared the public address of {server}, which was {previous}"
 
 msgid "Cleared the time zone for new schedules, which was {previous}, so they start in UTC"
 msgstr "Cleared the time zone for new schedules, which was {previous}, so they start in UTC"
+
+msgid "Cleared their time zone, which was {previous}"
+msgstr "Cleared their time zone, which was {previous}"
 
 msgid "Cleared this install's name, which was {previous}"
 msgstr "Cleared this install's name, which was {previous}"
@@ -1278,6 +1284,12 @@ msgstr "Set the time zone for new schedules to {value}"
 
 msgid "Set the time zone for new schedules to {value}, which was {previous}"
 msgstr "Set the time zone for new schedules to {value}, which was {previous}"
+
+msgid "Set their time zone to their browser's"
+msgstr "Set their time zone to their browser's"
+
+msgid "Set their time zone to {value}"
+msgstr "Set their time zone to {value}"
 
 msgid "Set {name}'s SSL mode at Cloudflare"
 msgstr "Set {name}'s SSL mode at Cloudflare"
@@ -3841,9 +3853,8 @@ msgstr "HTTP"
 msgid "How it's checked"
 msgstr "How it's checked"
 
-#. placeholder {0}: a.timeZone
-msgid "In {0}"
-msgstr "In {0}"
+msgid "In {scheduleZone}"
+msgstr "In {scheduleZone}"
 
 msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
 msgstr "It mounts nothing. Add a volume to keep what it writes across deploys."
@@ -6762,6 +6773,9 @@ msgstr "Someone else here goes by a name that reads the same, so the two of you 
 msgid "Someone else here signs in with this email, so it can't be yours too. Choose another."
 msgstr "Someone else here signs in with this email, so it can't be yours too. Choose another."
 
+msgid "That isn't a recognised time zone. Choose one from the list."
+msgstr "That isn't a recognised time zone. Choose one from the list."
+
 msgid "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
 msgstr "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
 
@@ -7308,6 +7322,28 @@ msgstr "Your choice reads as once an hour, the least the owner allows."
 
 msgid "Your next passkey covers this session for an hour."
 msgstr "Your next passkey covers this session for an hour."
+
+msgid "Currently {liveClock} ({selectedOffset}). Used for times across Dockwell and new schedules."
+msgstr "Currently {liveClock} ({selectedOffset}). Used for times across Dockwell and new schedules."
+
+#. placeholder {0}: query.trim()
+msgid "No time zones match “{0}”."
+msgstr "No time zones match “{0}”."
+
+msgid "Search by city or offset, e.g. Tokyo or +09:00"
+msgstr "Search by city or offset, e.g. Tokyo or +09:00"
+
+msgid "Search time zones by city or offset"
+msgstr "Search time zones by city or offset"
+
+msgid "This browser's"
+msgstr "This browser's"
+
+msgid "Time zone"
+msgstr "Time zone"
+
+msgid "Time zones"
+msgstr "Time zones"
 
 msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
 msgstr "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
@@ -18603,9 +18639,6 @@ msgstr "Served by"
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "Shown on the sign-in screen and in browser tabs."
 
-msgid "Time zone"
-msgstr "Time zone"
-
 msgid "Use {browserZoneName}, this browser's zone"
 msgstr "Use {browserZoneName}, this browser's zone"
 
@@ -19710,6 +19743,9 @@ msgstr "Asked to cancel a build on {name}"
 
 msgid "Changed how often their passkey is asked for"
 msgstr "Changed how often their passkey is asked for"
+
+msgid "Changed their time zone"
+msgstr "Changed their time zone"
 
 msgid "Confirmed by signing in"
 msgstr "Confirmed by signing in"

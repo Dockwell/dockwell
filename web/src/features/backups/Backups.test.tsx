@@ -784,6 +784,35 @@ describe("the backups page", () => {
     expect(await screen.findByText("In UTC. Set the install's time zone in Settings to use another.")).toBeVisible();
   });
 
+  it("starts a new backup schedule in the person's own time zone where they set one (#834)", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, { id: "chg_1", state: ChangeState.APPLIED }),
+    }));
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        auth: { getAuthState: () => authState({ user: { ...mira, timeZone: "Asia/Tokyo" } }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          previewBackup: () => ({}),
+        },
+        settings: { getSettings: () => ({ settings: { timeZone: "Asia/Kolkata" } }) },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
+    );
+    expect(await screen.findByText("In Asia/Tokyo")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({ timeZone: "Asia/Tokyo" });
+  });
+
   it("says when it can't tell what a schedule costs, rather than nothing", async () => {
     const user = userEvent.setup();
     renderAt(

@@ -29463,6 +29463,11 @@ components:
                     description: |-
                         From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
                          typed it, where the email changes.
+                timeZone:
+                    type: string
+                    description: |-
+                        IANA time zone the panel shows times in for you, such as
+                         "America/Los_Angeles" or "UTC". Empty clears it back to this browser's.
             description: UpdateProfileRequest is what to change of your own account.
         UpdateProfileResponse:
             type: object
@@ -29675,6 +29680,11 @@ components:
                     type: string
                     description: When the account was made.
                     format: date-time
+                timeZone:
+                    type: string
+                    description: |-
+                        IANA time zone the panel shows times in for this person, such as
+                         "America/Los_Angeles" or "UTC". Empty means the browser's own time zone.
             description: User is a person who signs in to the panel.
         ValueFrom:
             type: object

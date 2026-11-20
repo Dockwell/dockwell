@@ -1,5 +1,169 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { useSyncExternalStore } from "react";
+
+/**
+ * The signed-in person's chosen IANA time zone for how the panel shows times, or
+ * empty to follow this browser's own zone (#834). This module is the one place
+ * that reads it; every screen formats dates and clocks through here.
+ */
+let displayTimeZone = "";
+const timeZoneListeners = new Set<() => void>();
+
+/** The signed-in person's chosen time zone, or "" for this browser's. */
+export function getDisplayTimeZone(): string {
+  return displayTimeZone;
+}
+
+/** Updates the active display time zone and notifies subscribers to re-render. */
+export function setDisplayTimeZone(zone: string): void {
+  if (displayTimeZone === zone) return;
+  displayTimeZone = zone;
+  for (const listener of timeZoneListeners) listener();
+}
+
+/**
+ * Updates the active display time zone without notifying subscribers, for syncing
+ * during render before child screens format their first frame.
+ */
+export function syncDisplayTimeZone(zone: string): void {
+  displayTimeZone = zone;
+}
+
+function subscribeDisplayTimeZone(listener: () => void): () => void {
+  timeZoneListeners.add(listener);
+  return () => {
+    timeZoneListeners.delete(listener);
+  };
+}
+
+/** Subscribes to changes in the active display time zone. */
+export function useDisplayTimeZone(): string {
+  return useSyncExternalStore(subscribeDisplayTimeZone, getDisplayTimeZone, getDisplayTimeZone);
+}
+
+function effectiveZone(timeZone?: string): string | undefined {
+  return timeZone || displayTimeZone || undefined;
+}
+
+/** The browser's own IANA time zone name (e.g. "America/Los_Angeles"), or "UTC". */
+export function browserTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+/** The IANA time zone times currently show in: the person's own, else this browser's. */
+export function activeTimeZone(): string {
+  return displayTimeZone || browserTimeZone();
+}
+
+interface CalendarParts {
+  year: number;
+  month: number;
+  day: number;
+}
+
+const calendarFormats = new Map<string, Intl.DateTimeFormat>();
+
+function calendarParts(date: Date, timeZone?: string): CalendarParts {
+  const tz = effectiveZone(timeZone);
+  if (!tz) {
+    return { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() };
+  }
+  let fmt = calendarFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    calendarFormats.set(tz, fmt);
+  }
+  let year = 0;
+  let month = 0;
+  let day = 0;
+  for (const part of fmt.formatToParts(date)) {
+    if (part.type === "year") year = Number(part.value);
+    else if (part.type === "month") month = Number(part.value);
+    else if (part.type === "day") day = Number(part.value);
+  }
+  return { year, month, day };
+}
+
+/** Calendar day key "YYYY-MM-DD" in the active display time zone (or explicit override). */
+export function dayKey(date: Date, timeZone?: string): string {
+  const { year, month, day } = calendarParts(date, timeZone);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+/** Whether two instants fall on the same calendar day in the active display time zone. */
+export function sameDay(a: Date, b: Date, timeZone?: string): boolean {
+  const pa = calendarParts(a, timeZone);
+  const pb = calendarParts(b, timeZone);
+  return pa.year === pb.year && pa.month === pb.month && pa.day === pb.day;
+}
+
+/** Whole calendar days from b to a (a - b) in the active display time zone. */
+export function dayDiff(a: Date, b: Date, timeZone?: string): number {
+  const pa = calendarParts(a, timeZone);
+  const pb = calendarParts(b, timeZone);
+  return Math.round((Date.UTC(pa.year, pa.month - 1, pa.day) - Date.UTC(pb.year, pb.month - 1, pb.day)) / 86_400_000);
+}
+
+const offsetFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * UTC offset in minutes for zone at date (positive east of UTC, such as +540 for
+ * Asia/Tokyo and -480 for America/Los_Angeles in standard time).
+ */
+export function timeZoneOffsetMinutes(zone?: string, date: Date = new Date()): number {
+  const tz = effectiveZone(zone);
+  if (!tz) return -date.getTimezoneOffset();
+  let fmt = offsetFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    offsetFormats.set(tz, fmt);
+  }
+  let year = 0;
+  let month = 0;
+  let day = 0;
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+  for (const part of fmt.formatToParts(date)) {
+    if (part.type === "year") year = Number(part.value);
+    else if (part.type === "month") month = Number(part.value);
+    else if (part.type === "day") day = Number(part.value);
+    else if (part.type === "hour") hour = Number(part.value);
+    else if (part.type === "minute") minute = Number(part.value);
+    else if (part.type === "second") second = Number(part.value);
+  }
+  const asUtc = Date.UTC(year, month - 1, day, hour === 24 ? 0 : hour, minute, second);
+  const wholeSeconds = Math.floor(date.getTime() / 1000) * 1000;
+  return Math.round((asUtc - wholeSeconds) / 60_000);
+}
+
+/** UTC offset formatted as "UTC+09:00", "UTC-08:00", or "UTC". */
+export function formatTimeZoneOffset(zone?: string, date: Date = new Date()): string {
+  const minutes = timeZoneOffsetMinutes(zone, date);
+  if (minutes === 0) return "UTC";
+  const sign = minutes < 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  const h = String(Math.floor(abs / 60)).padStart(2, "0");
+  const m = String(abs % 60).padStart(2, "0");
+  return `UTC${sign}${h}:${m}`;
+}
+
 /**
  * The locale to format dates in: English follows the design system's
  * "12 Oct" style, day before month, rather than US order; every other
@@ -14,18 +178,20 @@ export function dateLocale(locale: string): string {
  * month names ("3 Nov 2026, 21:40"), and the locale's own order elsewhere.
  */
 export function formatDateTime(date: Date, locale: string, timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
   return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    ...(timeZone ? { timeZone } : {}),
+    ...(tz ? { timeZone: tz } : {}),
   }).format(date);
 }
 
 /** A moment to the second, with its time zone named: "7 Nov 2026, 14:03:07 CET". */
-export function formatMoment(date: Date, locale: string): string {
+export function formatMoment(date: Date, locale: string, timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
   return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
@@ -34,13 +200,13 @@ export function formatMoment(date: Date, locale: string): string {
     minute: "2-digit",
     second: "2-digit",
     timeZoneName: "short",
+    ...(tz ? { timeZone: tz } : {}),
   }).format(date);
 }
 
-/** The day as a file name has it, in the browser's own time zone, as the screen shows times: "2026-11-07". */
-export function fileDay(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+/** The day as a file name has it, in the active time zone, as the screen shows times: "2026-11-07". */
+export function fileDay(date: Date, timeZone?: string): string {
+  return dayKey(date, timeZone);
 }
 
 const BYTE_UNITS = ["B", "KB", "MB", "GB", "TB", "PB"] as const;
@@ -113,12 +279,14 @@ export function formatBitRate(bytesPerSecond: number | bigint, locale: string): 
 }
 
 /** A day and month the way the product writes dates: "12 Oct", with the year when it isn't this one. */
-export function formatDay(date: Date, locale: string, now: number = Date.now()): string {
-  const sameYear = date.getFullYear() === new Date(now).getFullYear();
+export function formatDay(date: Date, locale: string, now: number = Date.now(), timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
+  const sameYear = calendarParts(date, timeZone).year === calendarParts(new Date(now), timeZone).year;
   return new Intl.DateTimeFormat(dateLocale(locale), {
     day: "numeric",
     month: "short",
     ...(sameYear ? {} : { year: "numeric" }),
+    ...(tz ? { timeZone: tz } : {}),
   }).format(date);
 }
 
@@ -138,13 +306,36 @@ export function formatLiveBytesOf(part: number | bigint, whole: number | bigint,
 }
 
 /** A weekday and its date, the way a day's heading reads: "Tuesday 3 Nov". */
-export function formatWeekday(date: Date, locale: string): string {
-  return new Intl.DateTimeFormat(dateLocale(locale), { weekday: "long", day: "numeric", month: "short" })
+export function formatWeekday(date: Date, locale: string, timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
+  return new Intl.DateTimeFormat(dateLocale(locale), {
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    ...(tz ? { timeZone: tz } : {}),
+  })
     .format(date)
     .replace(",", "");
 }
 
 /** A time of day on the 24-hour clock where the locale uses it: "09:41". */
-export function formatClock(date: Date, locale: string): string {
-  return new Intl.DateTimeFormat(dateLocale(locale), { hour: "2-digit", minute: "2-digit" }).format(date);
+export function formatClock(date: Date, locale: string, timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
+  return new Intl.DateTimeFormat(dateLocale(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(tz ? { timeZone: tz } : {}),
+  }).format(date);
+}
+
+/** A time of day to the second on the 24-hour clock: "09:41:05". */
+export function formatClockSeconds(date: Date, locale: string, timeZone?: string): string {
+  const tz = effectiveZone(timeZone);
+  return new Intl.DateTimeFormat(dateLocale(locale), {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    ...(tz ? { timeZone: tz } : {}),
+  }).format(date);
 }

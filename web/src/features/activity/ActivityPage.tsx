@@ -42,7 +42,7 @@ import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatBytes, formatClock, formatDateTime, formatWeekday } from "../../lib/format";
+import { dayKey, formatBytes, formatClock, formatDateTime, formatWeekday, sameDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { initials } from "../auth/user";
@@ -439,11 +439,7 @@ export function collapseRepeats(events: readonly Event[]): { shown: Event[]; rep
   return { shown, repeats };
 }
 
-function dayKey(date: Date): string {
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-/** Events by the local day they happened on, newest day first, as they come. */
+/** Events by the day they happened on, newest day first, as they come. */
 function byDay(events: readonly Event[]): Day[] {
   const out: Day[] = [];
   for (const event of events) {
@@ -459,10 +455,8 @@ function byDay(events: readonly Event[]): Day[] {
 function dayLabel(date: Date, now: number, i18n: I18n): string {
   const today = new Date(now);
   const yesterday = new Date(now - 86_400_000);
-  const same = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  if (same(date, today)) return i18n._(msg`Today`);
-  if (same(date, yesterday)) return i18n._(msg`Yesterday`);
+  if (sameDay(date, today)) return i18n._(msg`Today`);
+  if (sameDay(date, yesterday)) return i18n._(msg`Yesterday`);
   return formatWeekday(date, i18n.locale);
 }
 

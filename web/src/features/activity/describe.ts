@@ -427,6 +427,24 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             icon: "user",
           };
         }
+        case "account.time_zone": {
+          const value = event.setting?.value ?? "";
+          const previous = event.setting?.previous ?? "";
+          if (!value) {
+            return {
+              title: previous
+                ? t`Cleared their time zone, which was ${previous}`
+                : t`Set their time zone to their browser's`,
+              icon: "user",
+            };
+          }
+          return {
+            title: previous
+              ? t`Changed their time zone from ${previous} to ${value}`
+              : t`Set their time zone to ${value}`,
+            icon: "user",
+          };
+        }
         // Each says what it replaced, as that's the way back to it.
         case "settings.name": {
           const value = event.setting?.value ?? "";

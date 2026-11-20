@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { dateLocale, formatDateTime, formatDay } from "../../lib/format";
+import { dayDiff, formatClockSeconds, formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
@@ -65,7 +65,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
   const end = (r: TaskRun | undefined) => {
     if (!r?.startTime) return "";
     const at = timestampDate(r.startTime);
-    const days = Math.round((startOfDay(new Date(now)) - startOfDay(at)) / 86_400_000);
+    const days = dayDiff(new Date(now), at);
     return days === 0 ? t`Today` : days === 1 ? t`Yesterday` : formatDay(at, i18n.locale, now);
   };
   /** How a run's last attempt ended: "exit 0", "HTTP 200". */
@@ -210,14 +210,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
                   // biome-ignore lint/suspicious/noArrayIndexKey: lines have no identity but their place
                   <span key={i} className={line.own ? "tasks-output-line is-own" : "tasks-output-line"}>
                     <span className="tasks-output-time">
-                      {line.time
-                        ? new Intl.DateTimeFormat(dateLocale(i18n.locale), {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            second: "2-digit",
-                            hourCycle: "h23",
-                          }).format(line.time)
-                        : ""}
+                      {line.time ? formatClockSeconds(line.time, i18n.locale) : ""}
                     </span>
                     <span>{line.text}</span>
                   </span>
@@ -263,9 +256,4 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
       {editing ? <TaskSheet task={task} onClose={() => setEditing(false)} /> : null}
     </section>
   );
-}
-
-/** Midnight of a date's day, in the browser's time zone, to count whole days between two. */
-function startOfDay(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }

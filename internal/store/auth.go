@@ -37,6 +37,9 @@ type User struct {
 	// StepUpPolicy is how often they're asked for their passkey again, as
 	// they chose it: StepUpEachTime until they do (ADR 0075).
 	StepUpPolicy string
+	// TimeZone is the IANA time zone the panel shows times in for them, or empty
+	// for the browser's own (#834).
+	TimeZone string
 	// RemovedAt is when they were removed: they sign in no more, and the row
 	// stays so what they did keeps their name (ADR 0049).
 	RemovedAt *time.Time
@@ -57,7 +60,7 @@ const userColumns = `id, email, name,
 	COALESCE((SELECT g.role FROM grants g WHERE g.user_id = users.id AND g.project_id = ''), ''),
 	webauthn_handle, created_at, totp_secret, totp_pending, totp_last_step,
 	codes_refused, codes_refused_reported_at, totp_pending_session, totp_pending_expires_at, totp_pending_failures,
-	step_up_policy, removed_at`
+	step_up_policy, time_zone, removed_at`
 
 func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var u User
@@ -65,7 +68,7 @@ func scanUser(row interface{ Scan(...any) error }) (User, error) {
 	var reported, pendingExpires, removed sql.NullInt64
 	var pendingSession sql.NullString
 	if err := row.Scan(&u.ID, &u.Email, &u.Name, &u.Role, &u.WebAuthnHandle, &created, &u.TOTPSecret, &u.TOTPPending,
-		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures, &u.StepUpPolicy, &removed); err != nil {
+		&u.TOTPLastStep, &u.CodesRefused, &reported, &pendingSession, &pendingExpires, &u.TOTPPendingFailures, &u.StepUpPolicy, &u.TimeZone, &removed); err != nil {
 		return User{}, err
 	}
 	u.CreatedAt, u.CodesRefusedReportedAt, u.TOTPPendingSession = fromMillis(created), timePtr(reported), pendingSession.String
@@ -175,6 +178,12 @@ func (t *Tx) updateUser(ctx context.Context, id, query string, args ...any) erro
 // SetUserName changes the name a user goes by (#801).
 func (t *Tx) SetUserName(ctx context.Context, userID, name string) error {
 	return t.updateUser(ctx, userID, `UPDATE users SET name = ? WHERE id = ?`, name, userID)
+}
+
+// SetUserTimeZone sets the IANA time zone a user chose for the panel, or empty
+// to follow their browser (#834).
+func (t *Tx) SetUserTimeZone(ctx context.Context, userID, zone string) error {
+	return t.updateUser(ctx, userID, `UPDATE users SET time_zone = ? WHERE id = ?`, zone, userID)
 }
 
 // SetUserEmail changes the lowercase email a user signs in with (#801). One that

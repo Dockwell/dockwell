@@ -6,7 +6,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { formatDay } from "../../lib/format";
+import { formatDay, sameDay } from "../../lib/format";
 import type { LogStore } from "./store";
 import type { DeepSearch } from "./useDeepSearch";
 import { clockMinutes, clockSeconds, roughly } from "./words";
@@ -58,9 +58,7 @@ function sentenceGap(locale: string): string {
 
 function moment(ms: number, locale: string): string {
   const clock = clockMinutes(ms);
-  return new Date(ms).toDateString() === new Date().toDateString()
-    ? clock
-    : `${formatDay(new Date(ms), locale)}, ${clock}`;
+  return sameDay(new Date(ms), new Date()) ? clock : `${formatDay(new Date(ms), locale)}, ${clock}`;
 }
 
 /** How far a search of all the servers keep reached, and whether that was all. */

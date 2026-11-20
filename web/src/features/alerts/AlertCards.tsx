@@ -20,7 +20,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime, formatDay } from "../../lib/format";
+import { formatClock, formatDateTime, formatDay, sameDay } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useActorWords } from "../activity/actor";
 import { alertTitle } from "../activity/describe";
@@ -361,7 +361,7 @@ function ResolvedAt({ time, now }: { time: Timestamp | undefined; now: number })
   const { i18n } = useLingui();
   if (!time) return <span className="alerts-resolved-at" />;
   const at = timestampDate(time);
-  const today = at.toDateString() === new Date(now).toDateString();
+  const today = sameDay(at, new Date(now));
   return (
     <span className="alerts-resolved-at" title={formatDateTime(at, i18n.locale)}>
       {today ? formatClock(at, i18n.locale) : formatDay(at, i18n.locale)}

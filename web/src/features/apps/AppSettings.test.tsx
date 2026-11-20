@@ -25,6 +25,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, aRevision, places } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { changeEvent, moved, since, snapshot, watched, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -282,6 +283,27 @@ describe("an app's settings", () => {
       "Patch updates",
     );
     expect(within(form).queryByText(/patch and minor take its new images/)).toBeNull();
+  });
+
+  it("starts new automatic updates in the person's own time zone where they set one (#834)", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/apps/svc_web/settings", {
+      ...api(anEditedApp(), proposals),
+      auth: { getAuthState: () => authState({ user: { ...mira, timeZone: "Asia/Tokyo" } }) },
+    });
+    await ready();
+    const form = within(section("Automatic updates")).getByRole("form", { name: "Edit Automatic updates" });
+    await user.selectOptions(
+      within(form).getByRole("combobox", { name: "Updates it takes on its own" }),
+      "Patch updates",
+    );
+    expect(within(form).getByText("In Asia/Tokyo")).toBeVisible();
+    await user.click(within(form).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(proposals).toHaveLength(1));
+    const edit = proposals[0]?.edits.find((e) => e.resource?.kind === "service");
+    const spec = edit?.spec?.kind.case === "service" ? edit.spec.kind.value : undefined;
+    expect(spec?.autoUpdate?.timeZone).toBe("Asia/Tokyo");
   });
 
   it("adds a port and takes one away", async () => {

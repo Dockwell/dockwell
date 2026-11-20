@@ -25,6 +25,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
+import { browserTimeZone, getDisplayTimeZone } from "../../lib/format";
 import { expectAccessible } from "../../test/a11y";
 import { authError, authState, creationOptions, mira, requestOptions, stubPasskeys } from "../../test/auth";
 import { onPhone, renderAt } from "../../test/render";
@@ -939,10 +940,72 @@ describe("ProfilePage", () => {
     await expectAccessible(container);
   });
 
+  it("lets you search your time zone by city or offset, keeps This browser's first, and saves without a passkey (#834)", async () => {
+    const userEventSession = userEvent.setup();
+    let user = mira;
+    const updateProfile = vi.fn((req: UpdateProfileRequest) => {
+      user = { ...user, timeZone: req.timeZone ?? user.timeZone };
+      return { user };
+    });
+    const beginStepUp = vi.fn();
+    const { container } = renderAt(
+      "/profile",
+      api({ getAuthState: () => authState({ user }), updateProfile, beginStepUp }),
+    );
+
+    const account = within(await screen.findByRole("region", { name: "Account" }));
+    const trigger = await account.findByRole("button", { name: /Time zone/i });
+    const browserLabel = browserTimeZone().replaceAll("_", " ");
+    expect(trigger).toHaveTextContent("This browser's");
+    expect(trigger).toHaveTextContent(browserLabel);
+
+    // Open the picker: "This browser's" is always first with its resolved zone beside it.
+    await userEventSession.click(trigger);
+    const listbox = account.getByRole("listbox", { name: "Time zones" });
+    const options = within(listbox).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("This browser's");
+    expect(options[0]).toHaveTextContent(browserLabel);
+    await expectAccessible(container);
+
+    // Search by offset (+09:00) finds Asia/Tokyo.
+    const search = account.getByRole("combobox", { name: "Search time zones by city or offset" });
+    await userEventSession.type(search, "+09:00");
+    expect(
+      within(account.getByRole("listbox", { name: "Time zones" })).getByRole("option", { name: /Asia\/Tokyo/ }),
+    ).toBeVisible();
+
+    // Search by city (tokyo) narrows to Asia/Tokyo and selects it with Enter.
+    await userEventSession.clear(search);
+    await userEventSession.type(search, "tokyo");
+    await userEventSession.keyboard("{Enter}");
+    expect(trigger).toHaveTextContent("Asia/Tokyo");
+    expect(trigger).toHaveTextContent("UTC+09:00");
+
+    // Save changes timeZone without step-up and updates lib/format.ts immediately.
+    await userEventSession.click(account.getByRole("button", { name: "Save" }));
+    expect(await account.findByText("Saved")).toBeVisible();
+    expect(updateProfile).toHaveBeenCalledTimes(1);
+    expect(updateProfile.mock.calls[0]?.[0]).toMatchObject({ timeZone: "Asia/Tokyo", proof: "" });
+    expect(beginStepUp).not.toHaveBeenCalled();
+    expect(getDisplayTimeZone()).toBe("Asia/Tokyo");
+
+    // Clearing back to "This browser's" sends empty string.
+    await userEventSession.click(trigger);
+    const [browserOpt] = within(account.getByRole("listbox", { name: "Time zones" })).getAllByRole("option");
+    expect(browserOpt).toBeDefined();
+    if (browserOpt) await userEventSession.click(browserOpt);
+    await userEventSession.click(account.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateProfile).toHaveBeenCalledTimes(2));
+    expect(updateProfile.mock.calls[1]?.[0]).toMatchObject({ timeZone: "", proof: "" });
+    expect(getDisplayTimeZone()).toBe("");
+  });
+
   it("speaks Simplified Chinese", async () => {
     await activateLocale("zh-CN");
     renderAt("/profile", api());
     expect(await screen.findByRole("heading", { level: 1, name: "个人资料和安全" })).toBeVisible();
     expect(await screen.findByRole("region", { name: "通行密钥" })).toBeVisible();
+    const account = within(screen.getByRole("region", { name: "账户" }));
+    expect(account.getByRole("button", { name: /时区/ })).toHaveTextContent("此浏览器的时区");
   });
 });

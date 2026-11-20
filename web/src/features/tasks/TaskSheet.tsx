@@ -19,6 +19,7 @@ import { useState } from "react";
 
 import { nextRuns, parseCron } from "../../lib/cron";
 import { usePlaces, useServices } from "../apps/useServices";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import { ScheduleField } from "./ScheduleField";
@@ -81,9 +82,13 @@ function useScheduleZone(): { zone: string | undefined; set: boolean } {
   return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
 }
 
-/** Every zone the browser knows, by name. */
-function zones(): string[] {
-  return typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC"];
+/** Every zone the browser knows, by name, with UTC included when absent. */
+function zones(selected?: string): string[] {
+  const list = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC"];
+  const extra: string[] = [];
+  if (!list.includes("UTC")) extra.push("UTC");
+  if (selected && !list.includes(selected) && !extra.includes(selected)) extra.push(selected);
+  return extra.length > 0 ? [...extra, ...list] : list;
 }
 
 /**
@@ -129,10 +134,12 @@ export function TaskSheet({
   const [retries, setRetries] = useState(String(spec?.retries ?? 0));
   const [paused, setPaused] = useState(spec?.paused ?? false);
   const [skipMissed, setSkipMissed] = useState(spec?.skipMissed ?? false);
+  const userZone = useSignedInUser()?.timeZone ?? "";
   // An edit keeps where a task runs, on every server, unless a person picks one:
   // "" leaves it as it is.
   const [server, setServer] = useState(task ? "" : (servers?.[0]?.id ?? ""));
-  const [zone, setZone] = useState(spec?.timeZone ?? "");
+  // A new task starts in the person's own time zone where they set one (#834).
+  const [zone, setZone] = useState(spec?.timeZone ?? (task ? "" : userZone));
   const scheduleZone = useScheduleZone();
   const [environment, setEnvironment] = useState(task?.resource?.scope ?? places.defaultEnvironment?.id ?? "");
   const [tried, setTried] = useState(false);
@@ -432,7 +439,7 @@ export function TaskSheet({
                             : t`UTC, as the install has none set`,
                     },
                   ]),
-              ...zones().map((z) => ({ value: z, label: z })),
+              ...zones(zone).map((z) => ({ value: z, label: z })),
             ]}
             onChange={(event) => setZone(event.target.value)}
           />
