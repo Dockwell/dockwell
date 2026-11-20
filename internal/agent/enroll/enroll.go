@@ -427,14 +427,15 @@ func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release f
 // at most transferWindow of each stream, and transferConnWindow in all, before the
 // agent reads it. Go's own is 4 MiB a stream, and three uploads at once, each
 // waiting on a disk, took an agent past its 40 MB. A frame is 128 KiB, so this
-// still has two on their way to each.
+// still has two on their way to each. Its parts come without gzip, and an
+// upload's in one buffer its stream keeps (transfers).
 func (i *Identity) TransferClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
 	cfg, err := i.ClientTLS()
 	if err != nil {
 		return nil, nil, err
 	}
 	hc := transferHTTPClient(cfg)
-	return agentv1connect.NewAgentServiceClient(hc, i.ControlURL, connect.WithGRPC()), hc.CloseIdleConnections, nil
+	return newTransfers(hc, i.ControlURL), hc.CloseIdleConnections, nil
 }
 
 // transferHTTPClient is httpClient with a transfer's windows. They're set on

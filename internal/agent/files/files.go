@@ -68,10 +68,12 @@ const (
 	// memory transfers used, as an upload's next part may follow at once.
 	settleAfter = 2 * time.Second
 	// transferGC is the collector's target while transfers run, as GOGC says it:
-	// each frame is garbage once it's written, and the heap that's live is small,
-	// so collecting twice as often costs little and keeps the agent within its
-	// budget on a busy server, where a collector that falls behind lets it grow.
-	transferGC = 50
+	// the heap grows to a quarter past what's live, not twice. Transfers make
+	// little garbage, as each keeps its buffers from part to part (#883), and
+	// what's live is small, so collecting this often costs little and keeps the
+	// agent within its budget on a busy server. At 50, four uploads and four
+	// downloads at once peaked about 2 MB higher, and at 10 no lower than at 25.
+	transferGC = 25
 )
 
 // Server reads a server's files.
