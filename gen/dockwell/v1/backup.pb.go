@@ -1882,6 +1882,12 @@ type RestoreBackupRequest struct {
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// What it's for, for the timeline. Empty says what it restores.
 	Summary string `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	// The project of a new database to restore it into, such as "orders-restored",
+	// leaving the one that runs as it is (ADR 0106). The new database is the
+	// original's catalog entry as it runs, made on the server that holds the backup,
+	// with copies of the original's root password secrets, as the data it brings back
+	// signs in with those. Empty replaces what's in the backup's volume.
+	Into string `protobuf:"bytes,3,opt,name=into,proto3" json:"into,omitempty"`
 	// The name of the database server's service, typed, where other projects' apps
 	// share it, as restoring it whole takes back what each wrote since.
 	Confirm       string `protobuf:"bytes,80,opt,name=confirm,proto3" json:"confirm,omitempty"`
@@ -1929,6 +1935,13 @@ func (x *RestoreBackupRequest) GetId() string {
 func (x *RestoreBackupRequest) GetSummary() string {
 	if x != nil {
 		return x.Summary
+	}
+	return ""
+}
+
+func (x *RestoreBackupRequest) GetInto() string {
+	if x != nil {
+		return x.Into
 	}
 	return ""
 }
@@ -2274,10 +2287,11 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vserver_only\x18\x02 \x01(\bR\n" +
 	"serverOnly\"\x16\n" +
-	"\x14DeleteBackupResponse\"Z\n" +
+	"\x14DeleteBackupResponse\"n\n" +
 	"\x14RestoreBackupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\asummary\x18\x02 \x01(\tR\asummary\x12\x18\n" +
+	"\asummary\x18\x02 \x01(\tR\asummary\x12\x12\n" +
+	"\x04into\x18\x03 \x01(\tR\x04into\x12\x18\n" +
 	"\aconfirm\x18P \x01(\tR\aconfirm\"D\n" +
 	"\x15RestoreBackupResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"o\n" +

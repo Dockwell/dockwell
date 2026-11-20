@@ -214,7 +214,7 @@ export function useBackupActions() {
     }
   };
   const whole = useRestoreWhole();
-  const restore = (backup: Backup) => whole.restore(backup.id);
+  const restore = (backup: Backup) => whole.restore(backup);
   const bringBack = async (backup: Backup, server: string) => {
     setChoosing(undefined);
     setBringBackFailure(undefined);

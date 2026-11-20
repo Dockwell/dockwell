@@ -707,7 +707,20 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
     const database = restore.database;
     const list = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(restore.stops);
     const out: Notice[] = [];
-    if (restore.undoes !== "") {
+    if (restore.intoNew) {
+      // A new database, filled before it first starts: nothing that runs is touched (ADR 0106).
+      const dump = restore.method === BackupMethod.DUMP;
+      out.push({
+        key: `restore-${key}`,
+        title: dump
+          ? t`Loads the dump from ${taken} into ${name} on ${server}`
+          : t`Fills ${name} on ${server} with the copy from ${taken}`,
+        detail: t`The database it was taken of keeps running as it is.`,
+        more: dump
+          ? t`${database} starts on its new volume and loads the dump, ${size}, before it first serves. If it won't load, Dockwell removes what this made.`
+          : t`The copy is ${size}, unpacked into the new volume before it first starts. If that fails, Dockwell removes what this made.`,
+      });
+    } else if (restore.undoes !== "") {
       out.push({
         key: `restore-${key}`,
         title: t`Everything in ${name} on ${server} goes back to what was there before the restore`,

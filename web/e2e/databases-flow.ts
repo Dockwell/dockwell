@@ -215,11 +215,34 @@ export async function databasesFlow(page: Page, { origin, step, shoot, catalogDi
   await backups.getByRole("row").nth(1).getByText("Done").waitFor({ timeout: 30_000 });
   await shoot(page, "database-backups");
   await backups.getByRole("row").nth(1).getByRole("button", { name: "Restore", exact: true }).click();
+
+  step("databases: a restore goes to a new database first, which its plan says leaves this one running");
+  const where = page.getByRole("dialog", { name: "Restore postgres" });
+  if ((await where.getByLabel("Name").inputValue()) !== "postgres-restored")
+    fail("the new database's name isn't filled in as postgres-restored");
+  await shoot(page, "database-restore-where");
+  // On a phone the sheet keeps to its width: its cards, its name and its buttons.
+  await atWidth(page, { width: 390, height: 844 });
+  await fitsItsWidth(page, "the restore sheet on a phone");
+  const past = await where.evaluate((sheet) => {
+    const right = sheet.getBoundingClientRect().right;
+    return [...sheet.querySelectorAll("*")]
+      .filter((el) => el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().right > right + 0.5)
+      .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join(".")}`)
+      .slice(0, 5);
+  });
+  if (past.length > 0) fail(`the restore sheet on a phone reaches past its edge: ${past.join(", ")}`);
+  await shoot(page, "database-restore-where-phone");
+  await atWidth(page, { width: 1440, height: 900 });
+  await where.getByRole("button", { name: "Review plan" }).click();
   const plan = page.locator(".plan-sheet");
-  await plan
-    .locator(".plan-risk")
-    .getByText(/with the dump from/)
-    .waitFor({ timeout: 30_000 });
+  const loads = plan.locator(".plan-risk").filter({ hasText: /^Loads the dump from .* into db on / });
+  await loads.waitFor({ timeout: 30_000 });
+  await loads.getByText("The database it was taken of keeps running as it is.").waitFor();
+  if ((await plan.getByText("replaced, and undoing this puts it back").count()) > 0)
+    fail("a restore into a new database says it replaces data");
+  if ((await plan.locator(".plan-gate").count()) > 0) fail("a restore into a new database asks for a fingerprint");
+  await shoot(page, "database-restore-new-plan");
   await plan.getByRole("button", { name: "Cancel" }).click();
   await plan.waitFor({ state: "hidden" });
 

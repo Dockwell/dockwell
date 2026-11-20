@@ -166,6 +166,21 @@ type Install struct {
 	// BackupDestination is the storage those schedules also send each backup to, by
 	// name; empty keeps them on the server alone.
 	BackupDestination string
+	// Restore is a backup of another database to restore into the one the install
+	// makes, by its service's name in the file, before that service first starts
+	// (ADR 0106).
+	Restore *InstallRestore
+	// Records go on the activity log with the planned change, in its transaction
+	// (changes.Also.Records), as the secrets a restore copies do (ADR 0106).
+	Records func(change string) []store.Event
+}
+
+// InstallRestore is a backup an install restores into a database it makes.
+type InstallRestore struct {
+	// Service is the database's service, by its name in the file.
+	Service string
+	// Source is the backup, the server that holds it, and the volume it was taken of.
+	Source resource.RestoreSource
 }
 
 // Daily backups of a new database, until a person changes them (#793).
@@ -375,7 +390,14 @@ func (h *Handler) PlanInstall(ctx context.Context, in Install) (*dockwellv1.Chan
 		}
 		notes = append(notes, n)
 	}
-	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true, ids: in.IDs})
+	var restores map[resource.Ref]resource.RestoreSource
+	if r := in.Restore; r != nil {
+		if !slices.ContainsFunc(stack.Services, func(s compose.Item[*resourcev1.Service]) bool { return s.Name == r.Service }) {
+			return nil, h.internal(ctx, fmt.Errorf("the file makes no service %s to restore a backup into", r.Service))
+		}
+		restores = map[resource.Ref]resource.RestoreSource{{Kind: service.Kind, Scope: place.environment, Name: r.Service}: r.Source}
+	}
+	return h.plan(ctx, req, stack, place, planning{secrets: in.Secrets, notes: notes, needs: in.Needs, public: in.Public, setsArchitectures: true, ids: in.IDs, restores: restores, records: in.Records})
 }
 
 // setEnv sets values in each named service's own environment.
@@ -423,6 +445,10 @@ type planning struct {
 	setsArchitectures bool
 	// ids are what new services are called, by name (Install.IDs).
 	ids map[string]string
+	// restores are backups restored into services the plan makes (Install.Restore).
+	restores map[resource.Ref]resource.RestoreSource
+	// records go on the activity log with the change (Install.Records).
+	records func(change string) []store.Event
 }
 
 // useSecrets has each service use by reference what a file's variables gave its
@@ -618,7 +644,7 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Edits: place.made, IDs: ids, Public: public, Owners: owners, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{Restores: also.restores, Records: also.records, Edits: place.made, IDs: ids, Public: public, Owners: owners, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

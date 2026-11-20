@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/composeapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/human"
@@ -113,6 +114,9 @@ type Handler struct {
 	turns    map[string]chan struct{} // whose turn it is on each server, for scheduled runs
 	// drilling is the backup each server's one restore drill checks, by server ID.
 	drilling map[string]string
+	// install plans a catalog install, which a restore into a new database makes the
+	// new database with (InstallWith).
+	install func(context.Context, composeapi.Install) (*dockwellv1.Change, error)
 }
 
 var _ dockwellv1connect.BackupServiceHandler = (*Handler)(nil)
@@ -773,6 +777,14 @@ func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwe
 	}
 	if b.OneDatabase != "" {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s holds %s alone, an app's database, which restores from that app's page. Restore it there", b.ID, b.OneDatabase), "restore_from_app")
+	}
+	// Into a new database: the one it was taken of is left as it is (ADR 0106).
+	if into := strings.TrimSpace(req.Msg.GetInto()); into != "" {
+		c, err := h.restoreInto(ctx, &b, into, strings.TrimSpace(req.Msg.GetSummary()))
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(&dockwellv1.RestoreBackupResponse{Change: c}), nil
 	}
 	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
 	notes, err := h.wholeServer(ctx, ref, &b, req.Msg.GetConfirm())

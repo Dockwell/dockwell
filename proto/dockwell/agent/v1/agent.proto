@@ -1735,6 +1735,11 @@ message RestoreSource {
   string undoes = 2;
   // The change that restores, which it does once.
   string change_id = 3;
+  // The volume whose backups hold backup_id, set when it restores into another
+  // volume, a new database's, made earlier in the same change (ADR 0106). The agent
+  // reads the backup only from that volume's own backups, and refuses a name that
+  // would lead out of them.
+  dockwell.v1.ResourceRef from = 4;
 }
 
 // DatabaseCall asks what databases say of themselves, each read in its own

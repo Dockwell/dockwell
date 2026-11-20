@@ -139,6 +139,9 @@ var (
 		"git_hook.refused",
 		"sign_in_link.create", "claim_link.create", "join_token.create", "join_token.revoke",
 		"secret.reveal", "secrets.rotate_key",
+		// A secret's value copied into a plan, as a restore into a new database copies
+		// the original's root password (ADR 0106).
+		backups.ActionCopySecret,
 		// A test of a destination's keys, before any plan: who tried which storage.
 		backups.ActionTestDestination,
 		// A saved DNS provider's token, used again to write in its zones (ADR 0088).

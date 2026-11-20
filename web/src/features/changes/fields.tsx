@@ -35,6 +35,8 @@ export interface FieldSource {
   keepsData?: boolean;
   /** The change replaces data with a backup, and undoing it puts back what was there. */
   restores?: boolean;
+  /** The change fills a new database with a backup, before it first starts (ADR 0106). */
+  fills?: boolean;
   /** Where a link to a connection keeps the app's files once applied, and where it did before (ADR 0099). */
   storage?: LinkStorage | undefined;
   storageBefore?: LinkStorage | undefined;
@@ -574,6 +576,7 @@ export function useFieldRows(): FieldRows {
       destroysData = false,
       keepsData = false,
       restores = false,
+      fills = false,
       storage,
       storageBefore,
       reads,
@@ -668,6 +671,8 @@ export function useFieldRows(): FieldRows {
           to: <Trans>replaced, and undoing this puts it back</Trans>,
           tone: "critical",
         });
+      } else if (fills) {
+        rows.push({ path: "data", label: t`data`, to: <Trans>from the backup</Trans>, tone: "change" });
       } else if (destroysData) {
         rows.push({ path: "data", label: t`data`, to: <Trans>doesn't come back</Trans>, tone: "critical" });
       } else if (keepsData) {

@@ -856,6 +856,12 @@ msgstr "关闭了 {server} 上的终端，共打开 {open}"
 msgid "Confirmed which environments are protected"
 msgstr "确认了哪些环境受保护"
 
+msgid "Copied a secret into a new database"
+msgstr "已将一个密钥复制到新数据库"
+
+msgid "Copied the secret {name} into a new database"
+msgstr "已将密钥 {name} 复制到新数据库"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "无法删除 {server} 上的 {path}"
 
@@ -8060,11 +8066,44 @@ msgstr "{0, plural, other {每天备份 # 个卷}}"
 msgid "{count, plural, one {Each backup takes about {0}; keeping one, about {1}. The disk has {toGive} to give.} other {Each backup takes about {2}; keeping #, about {3}. The disk has {toGive} to give.}}"
 msgstr "{count, plural, other {每次备份约占 {0}；保留 # 份约占 {1}。磁盘还有 {toGive} 可用。}}"
 
+msgid "A project named {typed} is here already. {free} is free."
+msgstr "已有名为 {typed} 的项目。{free} 可用。"
+
+msgid "A project named {typed} was here before, and its data may come back. {free} is free."
+msgstr "以前有过名为 {typed} 的项目，它的数据可能会回来。{free} 可用。"
+
+msgid "Name the new database."
+msgstr "请为新数据库命名。"
+
+msgid "Recommended"
+msgstr "推荐"
+
+msgid "Replace {project}"
+msgstr "替换 {project}"
+
+msgid "Restore to"
+msgstr "恢复到"
+
+msgid "Restore {project}"
+msgstr "恢复 {project}"
+
 msgid "Restore {server} whole"
 msgstr "整体恢复 {server}"
 
+msgid "The backup from {when}, {size}"
+msgstr "{when} 的备份，{size}"
+
+msgid "To a new database"
+msgstr "恢复为新数据库"
+
 msgid "Type {server} to confirm"
 msgstr "输入 {server} 以确认"
+
+msgid "What uses it stops while it loads, and what was made since goes."
+msgstr "加载期间，使用它的应用会停止，此后产生的内容会丢失。"
+
+msgid "{project} keeps running. Check the data, then switch apps over."
+msgstr "{project} 会继续运行。检查数据后，再把应用切换过去。"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -10639,6 +10678,9 @@ msgstr "驱动"
 msgid "external access"
 msgstr "外部访问"
 
+msgid "from the backup"
+msgstr "来自备份"
+
 msgid "health check interval"
 msgstr "健康检查间隔"
 
@@ -11087,6 +11129,9 @@ msgstr "{server} 上 {name} 的全部内容会回到恢复之前的状态"
 msgid "Files changed as they were read, so it can hold half a write, and the app may not start from it."
 msgstr "文件在读取时发生了变化，因此可能包含写到一半的内容，应用可能无法从中启动。"
 
+msgid "Fills {name} on {server} with the copy from {taken}"
+msgstr "用 {taken} 的副本填充 {server} 上的 {name}"
+
 msgid "Follows {branch}: Dockwell moves the catalog along it, by changes you can undo."
 msgstr "跟随 {branch}：Dockwell 会随它移动目录，每次都是可以撤销的变更。"
 
@@ -11244,6 +11289,9 @@ msgstr "从现在起不要在 {tool} 中操作它。"
 msgid "Leaves out {file}"
 msgstr "不收录 {file}"
 
+msgid "Loads the dump from {taken} into {name} on {server}"
+msgstr "把 {taken} 的转储加载到 {server} 上的 {name}"
+
 msgid "Lower its feature compatibility version to {to} first if it's higher."
 msgstr "如果它的功能兼容版本更高，请先降到 {to}。"
 
@@ -11371,11 +11419,17 @@ msgstr "到 {name} 的连接未加密"
 msgid "The control plane proves {path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey."
 msgstr "控制平面通过 DNS 证明 {path}。服务器上的密钥会从那里为其域名提供服务，因此第一次需要你用通行密钥确认。"
 
+msgid "The copy is {size}, unpacked into the new volume before it first starts. If that fails, Dockwell removes what this made."
+msgstr "副本大小为 {size}，会在首次启动前解压到新卷中。如果失败，Dockwell 会删除这次创建的内容。"
+
 msgid "The copy is {size}. The server keeps a copy of what's there now for 7 days, and undoing this puts it back."
 msgstr "副本大小为 {size}。服务器会把现有内容保留 7 天，撤销即可恢复。"
 
 msgid "The data stays as it is now"
 msgstr "数据保持现状"
+
+msgid "The database it was taken of keeps running as it is."
+msgstr "备份来源的数据库会照常运行，保持不变。"
 
 msgid "The database may not start on files from another release."
 msgstr "数据库可能无法用其他版本的文件启动。"
@@ -11615,6 +11669,9 @@ msgstr "{counts}{lifting}"
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} 会在空卷上重新启动并加载转储（{size}）。密码会恢复为当时的值。如果无法加载，现有内容会恢复。服务器会保留其副本 7 天，撤销即可恢复。"
+
+msgid "{database} starts on its new volume and loads the dump, {size}, before it first serves. If it won't load, Dockwell removes what this made."
+msgstr "{database} 在新卷上启动，并在首次提供服务前加载转储（{size}）。如果无法加载，Dockwell 会删除这次创建的内容。"
 
 msgid "{heldBy} can move what {path} leads to on {server}"
 msgstr "{heldBy} 可以改变 {server} 上 {path} 指向的位置"

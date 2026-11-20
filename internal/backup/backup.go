@@ -120,6 +120,10 @@ type Runner struct {
 	// Work is what a key takes for what this seals, for a test: a key takes over a
 	// second under the race detector. Zero, as an agent has it, means seal.Iterations.
 	Work int
+	// PlanCheckUpTo is the largest backup a restore into a new database reads through
+	// and hashes as it's planned; a larger one's header is read then, and the whole
+	// of it as it loads. Zero means planCheckUpTo.
+	PlanCheckUpTo int64
 
 	mu      sync.Mutex
 	working map[string]bool // volumes in Docker with a backup or restore under way
@@ -439,13 +443,18 @@ func (r *Runner) writeChecked(ref resource.Ref, m *Manifest, take func(io.Writer
 
 // check reads a file through, against what its manifest says.
 func check(path string, m *Manifest, verify verifier) error {
+	return checkWithin(context.Background(), path, m, verify)
+}
+
+// checkWithin is check, which stops reading once ctx ends, with its error.
+func checkWithin(ctx context.Context, path string, m *Manifest, verify verifier) error {
 	f, err := os.Open(path) //nolint:gosec // under the agent's own directory
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	sum := sha256.New()
-	through := io.TeeReader(f, sum)
+	through := io.TeeReader(ctxReader{ctx, f}, sum)
 	if err := verify(through); err != nil {
 		return err
 	}
@@ -456,6 +465,19 @@ func check(path string, m *Manifest, verify verifier) error {
 		return fmt.Errorf("it hashes to %s, and %s was written", got, m.SHA256)
 	}
 	return nil
+}
+
+// ctxReader reads until its context ends, then says why.
+type ctxReader struct {
+	ctx context.Context //nolint:containedctx // a read that stops with its call
+	r   io.Reader
+}
+
+func (c ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
 }
 
 // counter counts what's written, and looks at the disk every so often.
