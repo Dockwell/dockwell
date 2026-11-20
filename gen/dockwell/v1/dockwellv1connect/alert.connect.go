@@ -49,6 +49,9 @@ const (
 	// AlertServiceListAlertDeliveriesProcedure is the fully-qualified name of the AlertService's
 	// ListAlertDeliveries RPC.
 	AlertServiceListAlertDeliveriesProcedure = "/dockwell.v1.AlertService/ListAlertDeliveries"
+	// AlertServiceRunAlertCheckProcedure is the fully-qualified name of the AlertService's
+	// RunAlertCheck RPC.
+	AlertServiceRunAlertCheckProcedure = "/dockwell.v1.AlertService/RunAlertCheck"
 	// AlertServiceTestAlertChannelProcedure is the fully-qualified name of the AlertService's
 	// TestAlertChannel RPC.
 	AlertServiceTestAlertChannelProcedure = "/dockwell.v1.AlertService/TestAlertChannel"
@@ -85,6 +88,12 @@ type AlertServiceClient interface {
 	// ListAlertDeliveries returns the newest messages to every channel, tests
 	// among them, newest first: what each was, and what the far end answered.
 	ListAlertDeliveries(context.Context, *connect.Request[v1.ListAlertDeliveriesRequest]) (*connect.Response[v1.ListAlertDeliveriesResponse], error)
+	// RunAlertCheck runs one check now, as its own run would, and says how it stands
+	// after: the run is kept with its others and counts toward up and down. It plans
+	// nothing, as it changes no resource, and goes on Activity. A person checks 6 times
+	// a minute at most, a token counting as the person it acts for, and a run takes
+	// one of the control plane's places for runs, refused when none is free (#832).
+	RunAlertCheck(context.Context, *connect.Request[v1.RunAlertCheckRequest]) (*connect.Response[v1.RunAlertCheckResponse], error)
 	// TestAlertChannel sends a test message through a channel, one that exists or
 	// one a form holds, and says what the far end answered. It changes nothing.
 	TestAlertChannel(context.Context, *connect.Request[v1.TestAlertChannelRequest]) (*connect.Response[v1.TestAlertChannelResponse], error)
@@ -154,6 +163,12 @@ func NewAlertServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		runAlertCheck: connect.NewClient[v1.RunAlertCheckRequest, v1.RunAlertCheckResponse](
+			httpClient,
+			baseURL+AlertServiceRunAlertCheckProcedure,
+			connect.WithSchema(alertServiceMethods.ByName("RunAlertCheck")),
+			connect.WithClientOptions(opts...),
+		),
 		testAlertChannel: connect.NewClient[v1.TestAlertChannelRequest, v1.TestAlertChannelResponse](
 			httpClient,
 			baseURL+AlertServiceTestAlertChannelProcedure,
@@ -201,6 +216,7 @@ type alertServiceClient struct {
 	listAlertChecks     *connect.Client[v1.ListAlertChecksRequest, v1.ListAlertChecksResponse]
 	listAlertChannels   *connect.Client[v1.ListAlertChannelsRequest, v1.ListAlertChannelsResponse]
 	listAlertDeliveries *connect.Client[v1.ListAlertDeliveriesRequest, v1.ListAlertDeliveriesResponse]
+	runAlertCheck       *connect.Client[v1.RunAlertCheckRequest, v1.RunAlertCheckResponse]
 	testAlertChannel    *connect.Client[v1.TestAlertChannelRequest, v1.TestAlertChannelResponse]
 	listAlertMutes      *connect.Client[v1.ListAlertMutesRequest, v1.ListAlertMutesResponse]
 	muteAlerts          *connect.Client[v1.MuteAlertsRequest, v1.MuteAlertsResponse]
@@ -232,6 +248,11 @@ func (c *alertServiceClient) ListAlertChannels(ctx context.Context, req *connect
 // ListAlertDeliveries calls dockwell.v1.AlertService.ListAlertDeliveries.
 func (c *alertServiceClient) ListAlertDeliveries(ctx context.Context, req *connect.Request[v1.ListAlertDeliveriesRequest]) (*connect.Response[v1.ListAlertDeliveriesResponse], error) {
 	return c.listAlertDeliveries.CallUnary(ctx, req)
+}
+
+// RunAlertCheck calls dockwell.v1.AlertService.RunAlertCheck.
+func (c *alertServiceClient) RunAlertCheck(ctx context.Context, req *connect.Request[v1.RunAlertCheckRequest]) (*connect.Response[v1.RunAlertCheckResponse], error) {
+	return c.runAlertCheck.CallUnary(ctx, req)
 }
 
 // TestAlertChannel calls dockwell.v1.AlertService.TestAlertChannel.
@@ -281,6 +302,12 @@ type AlertServiceHandler interface {
 	// ListAlertDeliveries returns the newest messages to every channel, tests
 	// among them, newest first: what each was, and what the far end answered.
 	ListAlertDeliveries(context.Context, *connect.Request[v1.ListAlertDeliveriesRequest]) (*connect.Response[v1.ListAlertDeliveriesResponse], error)
+	// RunAlertCheck runs one check now, as its own run would, and says how it stands
+	// after: the run is kept with its others and counts toward up and down. It plans
+	// nothing, as it changes no resource, and goes on Activity. A person checks 6 times
+	// a minute at most, a token counting as the person it acts for, and a run takes
+	// one of the control plane's places for runs, refused when none is free (#832).
+	RunAlertCheck(context.Context, *connect.Request[v1.RunAlertCheckRequest]) (*connect.Response[v1.RunAlertCheckResponse], error)
 	// TestAlertChannel sends a test message through a channel, one that exists or
 	// one a form holds, and says what the far end answered. It changes nothing.
 	TestAlertChannel(context.Context, *connect.Request[v1.TestAlertChannelRequest]) (*connect.Response[v1.TestAlertChannelResponse], error)
@@ -346,6 +373,12 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	alertServiceRunAlertCheckHandler := connect.NewUnaryHandler(
+		AlertServiceRunAlertCheckProcedure,
+		svc.RunAlertCheck,
+		connect.WithSchema(alertServiceMethods.ByName("RunAlertCheck")),
+		connect.WithHandlerOptions(opts...),
+	)
 	alertServiceTestAlertChannelHandler := connect.NewUnaryHandler(
 		AlertServiceTestAlertChannelProcedure,
 		svc.TestAlertChannel,
@@ -395,6 +428,8 @@ func NewAlertServiceHandler(svc AlertServiceHandler, opts ...connect.HandlerOpti
 			alertServiceListAlertChannelsHandler.ServeHTTP(w, r)
 		case AlertServiceListAlertDeliveriesProcedure:
 			alertServiceListAlertDeliveriesHandler.ServeHTTP(w, r)
+		case AlertServiceRunAlertCheckProcedure:
+			alertServiceRunAlertCheckHandler.ServeHTTP(w, r)
 		case AlertServiceTestAlertChannelProcedure:
 			alertServiceTestAlertChannelHandler.ServeHTTP(w, r)
 		case AlertServiceListAlertMutesProcedure:
@@ -434,6 +469,10 @@ func (UnimplementedAlertServiceHandler) ListAlertChannels(context.Context, *conn
 
 func (UnimplementedAlertServiceHandler) ListAlertDeliveries(context.Context, *connect.Request[v1.ListAlertDeliveriesRequest]) (*connect.Response[v1.ListAlertDeliveriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.ListAlertDeliveries is not implemented"))
+}
+
+func (UnimplementedAlertServiceHandler) RunAlertCheck(context.Context, *connect.Request[v1.RunAlertCheckRequest]) (*connect.Response[v1.RunAlertCheckResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.AlertService.RunAlertCheck is not implemented"))
 }
 
 func (UnimplementedAlertServiceHandler) TestAlertChannel(context.Context, *connect.Request[v1.TestAlertChannelRequest]) (*connect.Response[v1.TestAlertChannelResponse], error) {

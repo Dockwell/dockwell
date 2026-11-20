@@ -27,7 +27,7 @@ describe("every recorded action", () => {
         const kind =
           action === "service.health"
             ? EventKind.HEALTH
-            : action.startsWith("alert.")
+            : action.startsWith("alert.") || action.startsWith("alert_check.")
               ? EventKind.ALERT
               : action === "git_hook.push"
                 ? EventKind.PUSH

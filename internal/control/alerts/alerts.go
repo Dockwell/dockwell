@@ -52,6 +52,9 @@ type Handler struct {
 	logger *slog.Logger
 	// tests counts each person's and token's tests in the last minute.
 	tests *testers
+	// runs counts each person's checks run now in the last minute, a token counting
+	// as the person it acts for (#832).
+	runs *testers
 }
 
 var _ dockwellv1connect.AlertServiceHandler = (*Handler)(nil)
@@ -61,7 +64,7 @@ var _ dockwellv1connect.AlertServiceHandler = (*Handler)(nil)
 // ChangeService.
 func New(eval *Evaluator, logger *slog.Logger) *Handler {
 	eval.init()
-	return &Handler{db: eval.DB, eval: eval, logger: logger, tests: &testers{seen: map[string][]time.Time{}}}
+	return &Handler{db: eval.DB, eval: eval, logger: logger, tests: &testers{seen: map[string][]time.Time{}}, runs: &testers{seen: map[string][]time.Time{}}}
 }
 
 func (h *Handler) internal(ctx context.Context, err error) error {

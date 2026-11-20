@@ -75,6 +75,36 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/alert-checks:run:
+        post:
+            tags:
+                - AlertService
+            description: |-
+                RunAlertCheck runs one check now, as its own run would, and says how it stands
+                 after: the run is kept with its others and counts toward up and down. It plans
+                 nothing, as it changes no resource, and goes on Activity. A person checks 6 times
+                 a minute at most, a token counting as the person it acts for, and a run takes
+                 one of the control plane's places for runs, refused when none is free (#832).
+            operationId: AlertService_RunAlertCheck
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RunAlertCheckRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RunAlertCheckResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/alert-deliveries:
         get:
             tags:
@@ -9251,6 +9281,14 @@ components:
                          alone, keyword included, and a name that resolves to a private address reads
                          failing with how to allow it. Never this server's loopback, nor a metadata or
                          link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
+                forRoute:
+                    type: string
+                    description: |-
+                        The route this check was made for, by its ID, when Dockwell made it as that
+                         route's change applied, or a person had it made for that route (#835). Such a
+                         check goes when its route does, or stops being watched. A person's change to
+                         the check clears it, so the check is theirs and stays. Empty for a check a
+                         person made.
             description: |-
                 AlertCheck is an address Dockwell asks, every so often, whether it answers as
                  it should: an uptime check. It lives in the organization, and the control
@@ -15363,6 +15401,12 @@ components:
                     description: |-
                         How its domain proves itself for its certificate, as the route's spec has it
                          (ADR 0088): a form that sends the route as it is sends this back.
+                unwatched:
+                    type: boolean
+                    description: |-
+                        Says not to watch the route with an uptime check, as Add a domain's Don't
+                         watch or deleting its check did (#835): a form that sends the route as it is
+                         sends this back, and the offer to watch routed domains leaves it out.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -25369,6 +25413,13 @@ components:
                          writes nothing at Cloudflare, as before. Only the control plane reads it: no
                          server's proxy sees it. See docs/adr/0104-adding-a-domain-publishes-it.md.
                          Numbered in the block ADR 0104 holds, 340 to 349.
+                unwatched:
+                    type: boolean
+                    description: |-
+                        Says not to watch the domain: no uptime check is made for it as the route
+                         applies, and the one Dockwell made goes (#835). Unset, a route that serves a
+                         whole domain, and isn't a redirect, gets a check on the defaults. Only the
+                         control plane reads it: no server's proxy sees it.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -25658,6 +25709,21 @@ components:
                         The bcrypt hash of their password, which is what's kept. A client may give one
                          itself, as from an htpasswd file, in place of password.
             description: RouteUser is someone who may sign in to a private route.
+        RunAlertCheckRequest:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: The check, by name, such as "shop-example-com".
+            description: RunAlertCheckRequest names the check to run now.
+        RunAlertCheckResponse:
+            type: object
+            properties:
+                check:
+                    allOf:
+                        - $ref: '#/components/schemas/AlertCheckInfo'
+                    description: The check, with the run just made first among its runs.
+            description: RunAlertCheckResponse says how the check stands after its run.
         RunTaskRequest:
             type: object
             properties:

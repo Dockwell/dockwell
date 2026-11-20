@@ -7,6 +7,7 @@ AlertService.ListAlertMutes                    read         admin      admin    
 AlertService.ListAlertRules                    read         admin      admin      install
 AlertService.ListAlerts                        read         admin      admin      install
 AlertService.MuteAlerts                        apply        admin      admin      install
+AlertService.RunAlertCheck                     apply        admin      admin      install
 AlertService.TestAlertChannel                  apply        admin      admin      install
 AlertService.UnacknowledgeAlert                apply        admin      admin      install
 AlertService.UnmuteAlerts                      apply        admin      admin      install

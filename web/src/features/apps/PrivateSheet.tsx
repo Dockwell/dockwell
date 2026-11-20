@@ -755,6 +755,8 @@ export function routeAsItIs(domain: string, r: DomainRoute) {
     ...(r.redirect ? { redirect: r.redirect } : {}),
     // How it proves its name stays, as a proxy's proves by DNS (the review's B-L7).
     ...(r.proof ? { proof: r.proof } : {}),
+    // Not watching it stays, so the plan makes no uptime check of it (#835).
+    ...(r.unwatched ? { unwatched: true } : {}),
     ...(isPrivate(r)
       ? {
           access: {

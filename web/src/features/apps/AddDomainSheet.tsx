@@ -238,6 +238,8 @@ export function AddDomainSheet({
   const portTyped = useRef(false);
   const [appError, setAppError] = useState<string>();
   const [noCertificate, setNoCertificate] = useState(start !== undefined);
+  // Whether the new domain is watched by an uptime check, as Dockwell does unless told not to (#835).
+  const [watchIt, setWatchIt] = useState(true);
   const [inFront, setInFront] = useState<InFront>("tunnel");
   const [proxies, setProxies] = useState("");
   const [proxiesError, setProxiesError] = useState<string>();
@@ -553,6 +555,8 @@ export function AddDomainSheet({
                             service: name,
                             ...(onServer ? { hostPort: Number(port) } : { port: Number(port) }),
                             ...reached(takesOver),
+                            // Watched by an uptime check unless the person said not to (#835).
+                            ...(watchIt ? {} : { unwatched: true }),
                           },
                     },
                   },
@@ -955,6 +959,20 @@ export function AddDomainSheet({
           </StateLine>
         ) : !redirecting && !onServer && portError === undefined ? (
           <PortState port={validPort(port) ? Number(port) : 0} ports={appPorts} read={servicePorts} />
+        ) : null}
+        {/* Dockwell watches a new domain with an uptime check, said in a line with one way out (#835). */}
+        {!redirecting && !start ? (
+          <dl className="domain-step-facts">
+            <dt>
+              <Trans>Uptime check</Trans>
+            </dt>
+            <dd>{watchIt ? t`Every minute, from the control server` : t`Not watched`}</dd>
+            <dd>
+              <button type="button" className="domain-step-change" onClick={() => setWatchIt((w) => !w)}>
+                {watchIt ? t`Don't watch` : t`Watch it`}
+              </button>
+            </dd>
+          </dl>
         ) : null}
         {servers.length > 1 ? (
           <SelectField

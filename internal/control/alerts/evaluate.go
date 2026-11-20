@@ -72,10 +72,12 @@ const (
 	ActionUnacknowledge = "alert.unacknowledge"
 	// ActionTest is a test sent to a channel, kept or as a form held it.
 	ActionTest = "alert.test"
+	// ActionCheckRun is a check run now, by a person (#832).
+	ActionCheckRun = "alert_check.run"
 )
 
 // Actions are every action an alert event has.
-var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionAcknowledge, ActionUnacknowledge, ActionTest}
+var Actions = []string{ActionFiring, ActionResolved, ActionMute, ActionUnmute, ActionAcknowledge, ActionUnacknowledge, ActionTest, ActionCheckRun}
 
 // settingChangesTold is where the last failed change told is kept, as Unix
 // milliseconds.

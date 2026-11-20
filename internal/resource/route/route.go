@@ -698,27 +698,64 @@ func checkPublish(r *resourcev1.Route) error {
 // tunnelID is a Cloudflare tunnel's ID.
 var tunnelID = lazyre.Regexp(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
-// OnServer is a route as its server sees it: how it's published at Cloudflare is
-// the control plane's alone (ADR 0104).
+// OnServer is a route as its server sees it: how it's published at Cloudflare
+// (ADR 0104), and whether its domain is watched (#835), are the control plane's
+// alone.
 func (*Driver) OnServer(spec proto.Message) proto.Message {
 	r := spec.(*resourcev1.Route) //nolint:forcetypeassert // the kind's own message
-	if r.GetPublish() == nil {
+	if r.GetPublish() == nil && !r.GetUnwatched() {
 		return spec
 	}
 	out := proto.CloneOf(r)
-	out.Publish = nil
+	out.Publish, out.Unwatched = nil, false
 	return out
 }
 
-// Readopted keeps how a route is published, which its server never had, on what
-// the server has read back.
+// Readopted keeps how a route is published and whether it's watched, which its
+// server never had, on what the server has read back.
 func (*Driver) Readopted(current, observed proto.Message) proto.Message {
 	cur, _ := current.(*resourcev1.Route)
 	obs, ok := observed.(*resourcev1.Route)
-	if !ok || cur.GetPublish() == nil {
+	if !ok || cur.GetPublish() == nil && !cur.GetUnwatched() {
 		return observed
 	}
 	out := proto.CloneOf(obs)
 	out.Publish = proto.CloneOf(cur.GetPublish())
+	out.Unwatched = cur.GetUnwatched()
 	return out
+}
+
+// WatchAddress is the address of the uptime check Dockwell makes for a route, and
+// false where it makes none (#835): one for a route that serves a whole domain, as /
+// is the whole domain as an empty path is (Validate), isn't a redirect, names a
+// domain rather than a wildcard, and doesn't say not to. It asks over HTTPS, or over
+// plain HTTP where TLS ends before the server, as the Domains list says.
+func WatchAddress(r *resourcev1.Route) (string, bool) {
+	if r == nil || r.GetUnwatched() {
+		return "", false
+	}
+	return watchable(r)
+}
+
+// watchable is WatchAddress, whatever the route says of being watched.
+func watchable(r *resourcev1.Route) (string, bool) {
+	if r == nil || r.GetPath() != "" && r.GetPath() != "/" || r.GetRedirect() != nil || r.GetDomain() == "" || strings.Contains(r.GetDomain(), "*") {
+		return "", false
+	}
+	scheme := "https://"
+	if r.GetTls() == ingress.TLSOff {
+		scheme = "http://"
+	}
+	return scheme + r.GetDomain() + "/", true
+}
+
+// Watchable is the address of the check Dockwell would make for a route if it
+// didn't say not to watch it, as a person turning watching back on asks for
+// (#835).
+func Watchable(r *resourcev1.Route) (string, bool) { return watchable(r) }
+
+// WatchAddress is the route's (resource.WatchedRoute).
+func (*Driver) WatchAddress(spec proto.Message) (string, bool) {
+	r, _ := spec.(*resourcev1.Route)
+	return WatchAddress(r)
 }

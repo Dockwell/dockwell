@@ -1522,6 +1522,11 @@ message Route {
   // server's proxy sees it. See docs/adr/0104-adding-a-domain-publishes-it.md.
   // Numbered in the block ADR 0104 holds, 340 to 349.
   RoutePublish publish = 340;
+  // Says not to watch the domain: no uptime check is made for it as the route
+  // applies, and the one Dockwell made goes (#835). Unset, a route that serves a
+  // whole domain, and isn't a redirect, gets a check on the defaults. Only the
+  // control plane reads it: no server's proxy sees it.
+  bool unwatched = 82;
 }
 
 // How a route's domain is published at Cloudflare (ADR 0104).
@@ -2252,6 +2257,12 @@ message AlertCheck {
   // failing with how to allow it. Never this server's loopback, nor a metadata or
   // link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
   bool inside_network = 9;
+  // The route this check was made for, by its ID, when Dockwell made it as that
+  // route's change applied, or a person had it made for that route (#835). Such a
+  // check goes when its route does, or stops being watched. A person's change to
+  // the check clears it, so the check is theirs and stays. Empty for a check a
+  // person made.
+  string for_route = 10;
 }
 
 // AlertChannel is somewhere alerts are sent. It lives in the organization. What

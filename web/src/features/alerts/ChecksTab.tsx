@@ -11,7 +11,9 @@ import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
+import { CheckNow } from "./CheckNow";
 import { checkStatus, hostOf, tookMs, useChecks } from "./checks";
+import { WatchRouted } from "./WatchRouted";
 import { WatchSheet } from "./WatchSheet";
 
 /** A run in a word: its status and how long it took, or why it failed. */
@@ -55,6 +57,27 @@ function LastAnswers({ check }: { check: AlertCheckInfo }) {
   );
 }
 
+/** What sets a check apart, as tags: inside the network, and made for its route (#835). */
+function CheckTags({ check }: { check: AlertCheckInfo }) {
+  const { t } = useLingui();
+  return (
+    <>
+      {check.spec?.insideNetwork ? (
+        <>
+          {" "}
+          <Tag words>{t`Inside the network`}</Tag>
+        </>
+      ) : null}
+      {check.spec?.forRoute ? (
+        <>
+          {" "}
+          <Tag words>{t`For its route`}</Tag>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 /** The Checks tab: every address Dockwell asks, how it stands, and its last answers. */
 export function ChecksTab() {
   const { t, i18n } = useLingui();
@@ -81,7 +104,8 @@ export function ChecksTab() {
     const often = every(c);
     // Where a check runs from comes in the control plane's words; its own place is said here.
     const from = c.from === "the control server" ? t`the control server` : c.from;
-    return from ? t`${often} from ${from}` : often;
+    // It wraps, so the row's Check now stays inside the table at 1440 (#832).
+    return <span className="alerts-check-how">{from ? t`${often} from ${from}` : often}</span>;
   };
   const state = (c: AlertCheckInfo) => {
     const s = checkStatus(c.state);
@@ -101,12 +125,7 @@ export function ChecksTab() {
         <div className="dw-cell">
           <span className="dw-cell-title">
             {hostOf(c.spec?.address ?? c.name)}
-            {c.spec?.insideNetwork ? (
-              <>
-                {" "}
-                <Tag words>{t`Inside the network`}</Tag>
-              </>
-            ) : null}
+            <CheckTags check={c} />
           </span>
           <code className="alerts-channel-sub">{c.spec?.address}</code>
         </div>
@@ -117,9 +136,15 @@ export function ChecksTab() {
     {
       key: "how",
       header: t({ context: "how a check runs", message: "Runs" }),
-      width: 240,
+      width: 200,
       muted: true,
       render: runs,
+    },
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 140,
+      render: (c) => (c.spec && !c.problem ? <CheckNow name={c.name} compact /> : null),
     },
   ];
   const add = (
@@ -143,6 +168,7 @@ export function ChecksTab() {
         ) : undefined
       }
     >
+      {checks.data ? <WatchRouted checks={list} /> : null}
       {checks.error ? (
         <ReadFailed error={checks.error} title={t`Can't load the checks`} />
       ) : !checks.data ? null : list.length === 0 ? (
@@ -156,12 +182,7 @@ export function ChecksTab() {
               <button type="button" className="alerts-phone-item alerts-phone-button" onClick={() => setEditing(c)}>
                 <span className="alerts-phone-title">
                   {hostOf(c.spec?.address ?? c.name)}
-                  {c.spec?.insideNetwork ? (
-                    <>
-                      {" "}
-                      <Tag words>{t`Inside the network`}</Tag>
-                    </>
-                  ) : null}
+                  <CheckTags check={c} />
                 </span>
                 <code className="alerts-channel-sub">{c.spec?.address}</code>
                 <span className="alerts-phone-meta">

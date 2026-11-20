@@ -820,6 +820,15 @@ msgstr "Checked that a backup of {volume} restores"
 msgid "Checked the DNS provider {name}, writing in its zones"
 msgstr "Checked the DNS provider {name}, writing in its zones"
 
+msgid "Checked {name} ({host}) now, and its answer wasn't kept"
+msgstr "Checked {name} ({host}) now, and its answer wasn't kept"
+
+msgid "Checked {name} ({host}) now, which answered"
+msgstr "Checked {name} ({host}) now, which answered"
+
+msgid "Checked {name} ({host}) now, which didn't answer as it should"
+msgstr "Checked {name} ({host}) now, which didn't answer as it should"
+
 msgid "Chose to take on an app with a password or key anyone can guess"
 msgstr "Chose to take on an app with a password or key anyone can guess"
 
@@ -2078,6 +2087,21 @@ msgstr "{failing, plural, one {# failing} other {# failing}}"
 msgid "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 msgstr "{waiting, plural, one {# rule sends to it once there's one.} other {# rules send to it once there's one.}}"
 
+#. placeholder {0}: last.status
+msgid "Answered {0}"
+msgstr "Answered {0}"
+
+#. placeholder {0}: last.status
+msgid "Answered {0} in {ms} ms"
+msgstr "Answered {0} in {ms} ms"
+
+msgid "Check now"
+msgstr "Check now"
+
+#. placeholder {0}: last?.said ?? ""
+msgid "Didn't answer as it should: {0}"
+msgstr "Didn't answer as it should: {0}"
+
 msgid "Address"
 msgstr "Address"
 
@@ -2095,6 +2119,9 @@ msgstr "Every 5 min"
 
 msgid "Every minute"
 msgstr "Every minute"
+
+msgid "For its route"
+msgstr "For its route"
 
 msgid "Inside the network"
 msgstr "Inside the network"
@@ -2316,6 +2343,29 @@ msgstr "Watched · {word}"
 msgid "{where} is watched: {word}"
 msgstr "{where} is watched: {word}"
 
+msgid "Every minute, down after 2 failures, from the control server."
+msgstr "Every minute, down after 2 failures, from the control server."
+
+msgid "The install has {MOST_CHECKS} checks, the most it keeps. Remove one to watch another."
+msgstr "The install has {MOST_CHECKS} checks, the most it keeps. Remove one to watch another."
+
+msgid "The install keeps {MOST_CHECKS} checks, so {room} more fit."
+msgstr "The install keeps {MOST_CHECKS} checks, so {room} more fit."
+
+#. placeholder {0}: edits.length
+msgid "{0, plural, one {Watch # routed domain} other {Watch # routed domains}}"
+msgstr "{0, plural, one {Watch # routed domain} other {Watch # routed domains}}"
+
+#. placeholder {0}: watched.length
+msgid "{0, plural, one {Watch the first #} other {Watch the first #}}"
+msgstr "{0, plural, one {Watch the first #} other {Watch the first #}}"
+
+msgid "{count, plural, one {# routed domain isn't watched} other {# routed domains aren't watched}}"
+msgstr "{count, plural, one {# routed domain isn't watched} other {# routed domains aren't watched}}"
+
+msgid "{count, plural, one {Watch it} other {Watch them}}"
+msgstr "{count, plural, one {Watch it} other {Watch them}}"
+
 msgid "Another address"
 msgstr "Another address"
 
@@ -2504,11 +2554,17 @@ msgstr "Cloudflare's proxy"
 msgid "Domain"
 msgstr "Domain"
 
+msgid "Don't watch"
+msgstr "Don't watch"
+
 msgid "Edit and try again"
 msgstr "Edit and try again"
 
 msgid "Environment"
 msgstr "Environment"
+
+msgid "Every minute, from the control server"
+msgstr "Every minute, from the control server"
 
 msgid "For a while (302), so browsers ask again each time"
 msgstr "For a while (302), so browsers ask again each time"
@@ -2545,6 +2601,9 @@ msgstr "Name what connects to this server, as an address or a range."
 
 msgid "No proxy: each visitor reaches it as themselves"
 msgstr "No proxy: each visitor reaches it as themselves"
+
+msgid "Not watched"
+msgstr "Not watched"
 
 msgid "Nothing changes until you apply the plan"
 msgstr "Nothing changes until you apply the plan"
@@ -2630,6 +2689,9 @@ msgstr "Set {zone} to Full (strict)"
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 
+msgid "Uptime check"
+msgstr "Uptime check"
+
 msgid "Use {webPort}"
 msgstr "Use {webPort}"
 
@@ -2641,6 +2703,9 @@ msgstr "Visitors reach an app here."
 
 msgid "Visitors to this name are sent on to the address you give"
 msgstr "Visitors to this name are sent on to the address you give"
+
+msgid "Watch it"
+msgstr "Watch it"
 
 msgid "What it listens on on the server, such as 8080; 80 is the proxy's."
 msgstr "What it listens on on the server, such as 8080; 80 is the proxy's."
@@ -6377,9 +6442,6 @@ msgstr "Can't check: the image is private, or not on its registry"
 
 msgid "Can't reach its registry from its server; checked again later"
 msgstr "Can't reach its registry from its server; checked again later"
-
-msgid "Check now"
-msgstr "Check now"
 
 #. placeholder {0}: time.ago(checked, now)
 #. placeholder {0}: words.ago(timestampDate(u.listsTime), now)

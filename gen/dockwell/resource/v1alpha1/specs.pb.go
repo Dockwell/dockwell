@@ -6760,7 +6760,12 @@ type Route struct {
 	// writes nothing at Cloudflare, as before. Only the control plane reads it: no
 	// server's proxy sees it. See docs/adr/0104-adding-a-domain-publishes-it.md.
 	// Numbered in the block ADR 0104 holds, 340 to 349.
-	Publish       *RoutePublish `protobuf:"bytes,340,opt,name=publish,proto3" json:"publish,omitempty"`
+	Publish *RoutePublish `protobuf:"bytes,340,opt,name=publish,proto3" json:"publish,omitempty"`
+	// Says not to watch the domain: no uptime check is made for it as the route
+	// applies, and the one Dockwell made goes (#835). Unset, a route that serves a
+	// whole domain, and isn't a redirect, gets a check on the defaults. Only the
+	// control plane reads it: no server's proxy sees it.
+	Unwatched     bool `protobuf:"varint,82,opt,name=unwatched,proto3" json:"unwatched,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6891,6 +6896,13 @@ func (x *Route) GetPublish() *RoutePublish {
 		return x.Publish
 	}
 	return nil
+}
+
+func (x *Route) GetUnwatched() bool {
+	if x != nil {
+		return x.Unwatched
+	}
+	return false
 }
 
 // How a route's domain is published at Cloudflare (ADR 0104).
@@ -9710,6 +9722,12 @@ type AlertCheck struct {
 	// failing with how to allow it. Never this server's loopback, nor a metadata or
 	// link-local address. Plans, the Checks tab and Activity show it (ADR 0066).
 	InsideNetwork bool `protobuf:"varint,9,opt,name=inside_network,json=insideNetwork,proto3" json:"inside_network,omitempty"`
+	// The route this check was made for, by its ID, when Dockwell made it as that
+	// route's change applied, or a person had it made for that route (#835). Such a
+	// check goes when its route does, or stops being watched. A person's change to
+	// the check clears it, so the check is theirs and stays. Empty for a check a
+	// person made.
+	ForRoute      string `protobuf:"bytes,10,opt,name=for_route,json=forRoute,proto3" json:"for_route,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9805,6 +9823,13 @@ func (x *AlertCheck) GetInsideNetwork() bool {
 		return x.InsideNetwork
 	}
 	return false
+}
+
+func (x *AlertCheck) GetForRoute() string {
+	if x != nil {
+		return x.ForRoute
+	}
+	return ""
 }
 
 // AlertChannel is somewhere alerts are sent. It lives in the organization. What
@@ -11275,7 +11300,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\n" +
 	"RouteSetup\x12\x19\n" +
 	"\bkey_hash\x18\x01 \x01(\tR\akeyHash\x12\x14\n" +
-	"\x05until\x18\x02 \x01(\x03R\x05until\"\x98\x04\n" +
+	"\x05until\x18\x02 \x01(\x03R\x05until\"\xb6\x04\n" +
 	"\x05Route\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
@@ -11291,7 +11316,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x06access\x18n \x01(\v2'.dockwell.resource.v1alpha1.RouteAccessR\x06access\x12E\n" +
 	"\bredirect\x18\n" +
 	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\x12C\n" +
-	"\apublish\x18\xd4\x02 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"\xbf\x01\n" +
+	"\apublish\x18\xd4\x02 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12\x1c\n" +
+	"\tunwatched\x18R \x01(\bR\tunwatched\"\xbf\x01\n" +
 	"\fRoutePublish\x126\n" +
 	"\x03way\x18\x01 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
 	"\x06tunnel\x18\x02 \x01(\tR\x06tunnel\x12\x1a\n" +
@@ -11525,7 +11551,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bSeverity\x12\x18\n" +
 	"\x14SEVERITY_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10SEVERITY_WARNING\x10\x01\x12\x15\n" +
-	"\x11SEVERITY_CRITICAL\x10\x02\"\x9b\x02\n" +
+	"\x11SEVERITY_CRITICAL\x10\x02\"\xb8\x02\n" +
 	"\n" +
 	"AlertCheck\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x14\n" +
@@ -11538,7 +11564,9 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\texpect_to\x18\x06 \x01(\rR\bexpectTo\x12\x18\n" +
 	"\akeyword\x18\a \x01(\tR\akeyword\x12%\n" +
 	"\x0ekeyword_absent\x18\b \x01(\bR\rkeywordAbsent\x12%\n" +
-	"\x0einside_network\x18\t \x01(\bR\rinsideNetwork\"\xa6\x03\n" +
+	"\x0einside_network\x18\t \x01(\bR\rinsideNetwork\x12\x1b\n" +
+	"\tfor_route\x18\n" +
+	" \x01(\tR\bforRoute\"\xa6\x03\n" +
 	"\fAlertChannel\x12D\n" +
 	"\awebhook\x18\x01 \x01(\v2(.dockwell.resource.v1alpha1.AlertWebhookH\x00R\awebhook\x12>\n" +
 	"\x05email\x18\x02 \x01(\v2&.dockwell.resource.v1alpha1.AlertEmailH\x00R\x05email\x12;\n" +

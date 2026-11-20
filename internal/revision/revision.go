@@ -259,6 +259,23 @@ type EditHook func(ctx context.Context, tx *store.Tx, edits []Edit) ([]Edit, []N
 // planned anew among them. Set it before the engine plans anything.
 func (e *Engine) SetEditHook(fn EditHook) { e.editHook = fn }
 
+// ChainEditHooks is one hook that runs each of hooks in turn, each on the edits the
+// one before it left, with every hook's notes.
+func ChainEditHooks(hooks ...EditHook) EditHook {
+	return func(ctx context.Context, tx *store.Tx, edits []Edit) ([]Edit, []Note, error) {
+		var notes []Note
+		for _, h := range hooks {
+			var more []Note
+			var err error
+			if edits, more, err = h(ctx, tx, edits); err != nil {
+				return nil, nil, err
+			}
+			notes = append(notes, more...)
+		}
+		return edits, notes, nil
+	}
+}
+
 // Kinds is the registry the engine reads and checks specs with.
 func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 
@@ -348,6 +365,11 @@ type Edit struct {
 	// loaded during proposal; if a live resource already holds the name, proposing
 	// fails with ErrAlreadyExists.
 	MustCreate bool
+	// MadeForRoute says the edit is Dockwell's own make, change or removal of the
+	// check of a route the change writes, as the control plane's edit hook adds it
+	// (#835). Only such an edit takes the route's role in place of its own, and only
+	// for that route's one check (resource.MadeForRoute). No API request sets it.
+	MadeForRoute bool
 	// KeepEnv names a service's own environment variables to keep as they are,
 	// for a client that can't read their values back (resource.EnvKeeper).
 	KeepEnv []string
@@ -932,6 +954,9 @@ type item struct {
 	// own item, not the person's edit, which may be in another project, through a
 	// link (ADR 0084).
 	follows bool
+	// madeForRoute says the edit hook made this edit for a route the change writes
+	// (Edit.MadeForRoute, #835).
+	madeForRoute bool
 }
 
 // noRevision reports an item that acts on a resource as it is, so it has nothing
@@ -1134,6 +1159,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			items[i].restore = &restore
 		}
 	}
+	// What Dockwell makes or removes for a route this change writes is taken in, as
+	// a value's users are: the route's edit takes the role (#835).
+	e.markMadeForRoute(items)
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		if err := e.checkRoles(ctx, tx, p.Actor, nil, nil, items, planning); err != nil {
 			return err
@@ -1823,6 +1851,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			}
 			it.pull, it.run, it.adopt, it.adoptName, it.reverses, it.observed = ed.Pull, ed.Run, ed.Adopt, ed.AdoptName, ed.Reverses, ed.Observed
 			it.public = ed.Public
+			it.madeForRoute = ed.MadeForRoute
 			if ed.WithContents && (ed.Spec != nil || (ed.Ref.Kind != scope.ProjectKind && ed.Ref.Kind != scope.EnvironmentKind)) {
 				return fault.New(ErrInvalid, "%s asks to take what lives in it, which only deleting a project or an environment can. Leave with_contents out", ed.Ref)
 			}
@@ -4247,10 +4276,23 @@ func (e *Engine) commit(ctx context.Context, changeID string, by By) (*committed
 // records as its plan is the plan that runs. So a rollback is never left
 // planned: it is on record applying, or not at all.
 func (e *Engine) rollBack(ctx context.Context, failed store.Change, edits []Edit, because string) (*committed, error) {
+	// What the control plane makes for what's rolled back, as an undo's plan gets it:
+	// a route put back gets its check again, and one the rollback takes out loses its
+	// own (#835). reverse leaves out what the failed change took in, as the route's
+	// check, since what's put back takes it in again here.
+	if e.editHook != nil {
+		if err := e.db.View(ctx, func(tx *store.Tx) (err error) {
+			edits, _, err = e.editHook(ctx, tx, edits)
+			return err
+		}); err != nil {
+			return nil, err
+		}
+	}
 	items, err := e.items(waitsForNone(ctx, failed.ID), edits, true)
 	if err != nil {
 		return nil, err
 	}
+	e.markMadeForRoute(items)
 	// What a move of the failed change stopped, and its dump, the rollback's step of
 	// the database finishes, as nothing else starts what a move stopped.
 	took := readPlan(failed)

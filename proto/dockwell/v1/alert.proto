@@ -104,6 +104,26 @@ service AlertService {
     option (google.api.http) = {get: "/v1/alert-deliveries"};
   }
 
+  // RunAlertCheck runs one check now, as its own run would, and says how it stands
+  // after: the run is kept with its others and counts toward up and down. It plans
+  // nothing, as it changes no resource, and goes on Activity. A person checks 6 times
+  // a minute at most, a token counting as the person it acts for, and a run takes
+  // one of the control plane's places for runs, refused when none is free (#832).
+  rpc RunAlertCheck(RunAlertCheckRequest) returns (RunAlertCheckResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "alert-checks"
+      verb: "run"
+    };
+    option (google.api.http) = {
+      post: "/v1/alert-checks:run"
+      body: "*"
+    };
+  }
+
   // TestAlertChannel sends a test message through a channel, one that exists or
   // one a form holds, and says what the far end answered. It changes nothing.
   rpc TestAlertChannel(TestAlertChannelRequest) returns (TestAlertChannelResponse) {
@@ -463,6 +483,18 @@ message TestAlertChannelRequest {
   string name = 1;
   // A channel as a form holds it, before it's planned.
   dockwell.resource.v1alpha1.AlertChannel channel = 2;
+}
+
+// RunAlertCheckRequest names the check to run now.
+message RunAlertCheckRequest {
+  // The check, by name, such as "shop-example-com".
+  string name = 1;
+}
+
+// RunAlertCheckResponse says how the check stands after its run.
+message RunAlertCheckResponse {
+  // The check, with the run just made first among its runs.
+  AlertCheckInfo check = 1;
 }
 
 // TestAlertChannelResponse says how the test went.

@@ -1057,6 +1057,19 @@ function describeAlert(event: Event, i18n: I18n): Described {
       return rule
         ? { title: i18n._(msg`Ended the mute of the alert rule ${rule}`), icon: "alert" }
         : { title: i18n._(msg`Ended the mute of ${server}'s alerts`), icon: "alert" };
+    case "alert_check.run": {
+      // Who ran which uptime check now, of which host, and whether it passed (#832).
+      const name = a?.subjectName ?? "";
+      const host = a?.where ?? "";
+      const passed = a?.value === 1;
+      if (a?.variant === "not_kept") {
+        return { title: i18n._(msg`Checked ${name} (${host}) now, and its answer wasn't kept`), icon: "alert" };
+      }
+      const title = passed
+        ? i18n._(msg`Checked ${name} (${host}) now, which answered`)
+        : i18n._(msg`Checked ${name} (${host}) now, which didn't answer as it should`);
+      return passed ? { title, icon: "alert" } : { title, icon: "alert", tone: "warning" };
+    }
     case "alert.test": {
       // Who tested which channel, of which type, at which host, and whether it arrived.
       const name = a?.subjectName ?? "";
