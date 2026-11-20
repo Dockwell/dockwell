@@ -4,6 +4,8 @@ import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  type AlertChannelInfo,
+  AlertService,
   type BackupDestinationInfo,
   ChangeService,
   ChangeState,
@@ -36,6 +38,8 @@ import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
+import { channelsOn } from "../alerts/mail";
+import { useChannels } from "../alerts/useAlerts";
 import { usePlaces } from "../apps/useServices";
 import { type Offer, useMay } from "../auth/may";
 import { useDestinations } from "../backups/DestinationsPanel";
@@ -79,6 +83,8 @@ export function ConnectionPage({ name }: { name: string }) {
   const may = useMay();
   const mayChange = may(ChangeService.method.proposeChange, { install: true });
   const mayCheck = may(ConnectionService.method.checkConnection);
+  const mayListChannels = may(AlertService.method.listAlertChannels).allowed;
+  const channels = useChannels(mayListChannels).data?.channels ?? [];
   const [editing, setEditing] = useState(false);
   const [using, setUsing] = useState(false);
   // A Check that passes or fails is kept as that server's last, so the list reads it again.
@@ -113,6 +119,8 @@ export function ConnectionPage({ name }: { name: string }) {
   const lead = where(connection) || connection.displayName;
   const backupDests = destinationsOn(connection.name, destinations);
   const usedByBackups = backupDests.length > 0;
+  const alertChannels = channelsOn(connection.name, channels);
+  const usedByAlerts = alertChannels.length > 0;
   // One app per connection unless it's shared, as the server holds: two from before
   // keep working, and sharing it is one step away (the review's M2). A connection
   // backups use serves no app (ADR 0099).
@@ -212,6 +220,7 @@ export function ConnectionPage({ name }: { name: string }) {
       <UsedBy
         connection={connection}
         backupDests={backupDests}
+        alertChannels={alertChannels}
         admin={admin}
         onDisconnected={() => void query.refetch()}
       />
@@ -219,6 +228,7 @@ export function ConnectionPage({ name }: { name: string }) {
         <Details
           connection={connection}
           usedByBackups={usedByBackups}
+          usedByAlerts={usedByAlerts}
           onReplace={() => setEditing(true)}
           mayChange={mayChange}
           onSaved={() => void query.refetch()}
@@ -371,11 +381,13 @@ function CheckLine({
 function UsedBy({
   connection,
   backupDests,
+  alertChannels,
   admin,
   onDisconnected,
 }: {
   connection: ConnectionInfo;
   backupDests: readonly BackupDestinationInfo[];
+  alertChannels: readonly AlertChannelInfo[];
   /** An install admin keeps a connection's keys on Disconnect, as secrets; below one, they go. */
   admin: boolean;
   onDisconnected: () => void;
@@ -525,6 +537,72 @@ function UsedBy({
       </Panel>
     );
   }
+  if (connection.uses.length === 0 && alertChannels.length > 0) {
+    if (phone) {
+      return (
+        <Panel title={t`Used by`} flush>
+          <ul className="connection-uses">
+            {alertChannels.map((ch) => (
+              <li key={ch.id} className="connection-use">
+                <div className="dw-cell">
+                  <Link to="/alerts/channels" search={{ edit: ch.name }} className="connections-mono connections-name">
+                    {ch.name}
+                  </Link>
+                  <span className="connections-meta">{[t`Alert channel`, ch.target].filter(Boolean).join(" · ")}</span>
+                </div>
+                <div className="connection-use-actions">
+                  <Link to="/alerts/channels" search={{ edit: ch.name }} className="dw-btn dw-btn-secondary dw-btn-sm">
+                    <Trans>Manage in Alerts</Trans>
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      );
+    }
+    const alertColumns: TableColumn<AlertChannelInfo>[] = [
+      {
+        key: "channel",
+        header: t`Alerts`,
+        render: (ch) => (
+          <div className="dw-cell">
+            <Link to="/alerts/channels" search={{ edit: ch.name }} className="connections-mono connections-name">
+              {ch.name}
+            </Link>
+            <span className="connections-meta">
+              <Trans>Alert channel</Trans>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: "recipients",
+        header: t`Sends to`,
+        mono: true,
+        render: (ch) => {
+          const to = ch.channel?.to.case === "email" ? ch.channel.to.value.to : [];
+          return to.length > 0 ? to.join(", ") : ch.target;
+        },
+      },
+      {
+        key: "more",
+        header: <span className="dw-sr">{t`Actions`}</span>,
+        width: 170,
+        align: "right",
+        render: (ch) => (
+          <Link to="/alerts/channels" search={{ edit: ch.name }} className="dw-btn dw-btn-secondary dw-btn-sm">
+            <Trans>Manage in Alerts</Trans>
+          </Link>
+        ),
+      },
+    ];
+    return (
+      <Panel title={t`Used by`} flush>
+        <Table columns={alertColumns} rows={alertChannels} rowKey="id" caption={t`Used by`} />
+      </Panel>
+    );
+  }
   if (connection.uses.length === 0) {
     return (
       <Panel title={t`Used by`} flush={mail}>
@@ -633,12 +711,14 @@ function UsedBy({
 function Details({
   connection,
   usedByBackups,
+  usedByAlerts,
   onReplace,
   mayChange,
   onSaved,
 }: {
   connection: ConnectionInfo;
   usedByBackups: boolean;
+  usedByAlerts: boolean;
   onReplace: () => void;
   mayChange: Offer;
   onSaved: () => void;
@@ -701,21 +781,23 @@ function Details({
             <Switch
               checked={connection.shared}
               onChange={share}
-              disabled={!mayChange.allowed || stuck || usedByBackups}
+              disabled={!mayChange.allowed || stuck || usedByBackups || usedByAlerts}
               label={t`More than one app may use it`}
               description={
                 !mayChange.allowed
                   ? mayChange.reason
                   : usedByBackups
                     ? t`Backups use it, so it can't be shared with apps`
-                    : stuck
-                      ? plural(apps, {
-                          one: "Stays shared while # app uses it: disconnect all but one first",
-                          other: "Stays shared while # apps use it: disconnect all but one first",
-                        })
-                      : mail
-                        ? t`Each sends as any sender the server takes`
-                        : t`Each keeps its files under a prefix of its own`
+                    : usedByAlerts
+                      ? t`Alerts use it, so it can't be shared with apps`
+                      : stuck
+                        ? plural(apps, {
+                            one: "Stays shared while # app uses it: disconnect all but one first",
+                            other: "Stays shared while # apps use it: disconnect all but one first",
+                          })
+                        : mail
+                          ? t`Each sends as any sender the server takes`
+                          : t`Each keeps its files under a prefix of its own`
               }
             />
           </dd>

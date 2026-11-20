@@ -254,5 +254,21 @@ export function privateAddress(host: string): boolean {
   return loopback || ((b[0] as number) & 0xfe) === 0xfc;
 }
 
+/**
+ * Whether a host is on this server or its private network, matching alert.Nearby
+ * on the control plane: IP literals are judged by their range alone, names by
+ * single-label or private suffixes.
+ */
+export function nearbyHost(host: string): boolean {
+  const bare = host
+    .trim()
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "");
+  if (bare === "") return false;
+  if (addressBytes(bare)) return privateAddress(bare);
+  if (bare === "localhost" || !bare.includes(".")) return true;
+  return bare.endsWith(".internal") || bare.endsWith(".lan") || bare.endsWith(".local") || bare.endsWith(".home.arpa");
+}
+
 /** Steps a mail server's check stops at, as the agent names them. */
 export const MAIL_STEPS: readonly string[] = ["connect", "hello", "tls", "sign-in"];

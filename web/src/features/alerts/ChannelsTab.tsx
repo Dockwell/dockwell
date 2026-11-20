@@ -15,7 +15,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -24,6 +24,7 @@ import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { ChannelSheet } from "./ChannelSheet";
+import { channelConnection } from "./mail";
 import {
   CHANNEL_KIND,
   channelStatus,
@@ -46,9 +47,10 @@ function useWhen() {
 }
 
 /** A channel's mark and name, with where it sends under them. */
-function ChannelName({ channel }: { channel: AlertChannelInfo }) {
+function ChannelName({ channel, linkConnection = true }: { channel: AlertChannelInfo; linkConnection?: boolean }) {
   const { i18n } = useLingui();
   const kind = isChannelType(channel.type) ? CHANNEL_KIND[channel.type] : CHANNEL_KIND.webhook;
+  const conn = channelConnection(channel);
   return (
     <div className="alerts-channel">
       <span className="alerts-channel-mark" aria-hidden="true">
@@ -58,6 +60,19 @@ function ChannelName({ channel }: { channel: AlertChannelInfo }) {
         <span className="dw-cell-title">{channel.name}</span>
         <span className="alerts-channel-sub">
           {i18n._(kind.label)}
+          {conn && linkConnection ? (
+            <>
+              {" · "}
+              <Link
+                to="/connections/$name"
+                params={{ name: conn }}
+                className="alerts-channel-link"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <code>{conn}</code>
+              </Link>
+            </>
+          ) : null}
           {channel.target ? (
             <>
               {" · "}
@@ -199,12 +214,26 @@ export function ChannelsTab() {
             <ul className="alerts-phone-list">
               {list.map((c) => {
                 const s = channelStatus(c);
+                const conn = channelConnection(c);
                 return (
                   <li key={c.id} className="alerts-phone-row">
-                    <button type="button" className="alerts-phone-open" onClick={() => setEditing(c)}>
-                      <ChannelName channel={c} />
-                      <StatusBadge status={s.status} label={i18n._(s.word)} labelIsState />
-                    </button>
+                    <div className="alerts-phone-main">
+                      <button type="button" className="alerts-phone-open" onClick={() => setEditing(c)}>
+                        <ChannelName channel={c} linkConnection={false} />
+                        <StatusBadge status={s.status} label={i18n._(s.word)} labelIsState />
+                      </button>
+                      {conn ? (
+                        <Link
+                          to="/connections/$name"
+                          params={{ name: conn }}
+                          className="alerts-channel-link alerts-phone-conn"
+                        >
+                          <Trans>
+                            Via <code>{conn}</code>
+                          </Trans>
+                        </Link>
+                      ) : null}
+                    </div>
                     {sendButton(c)}
                   </li>
                 );

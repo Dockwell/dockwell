@@ -11,10 +11,15 @@ import {
   ChangeSchema,
   ChangeState,
   AlertRule_Condition as Condition,
+  ConnectionInfoSchema,
+  ConnectionReach,
+  LinkKind,
+  LinkPart,
   type ProposeChangeRequest,
   Role,
   AlertEmail_Security as Security,
   AlertRule_Severity as Severity,
+  SmtpSecurity,
   type TestAlertChannelRequest,
   TokenScope,
   type WatchChangeResponse,
@@ -993,5 +998,255 @@ describe("Alerts and rules", () => {
     const down = within(rules).getByText("App down").closest("li") as HTMLElement;
     expect(down).toHaveTextContent("Critical");
     expect(down).toHaveTextContent("Every channel");
+  });
+});
+
+describe("Email alert channels through a mail connection (#833)", () => {
+  const aMailConn = (init: MessageInitShape<typeof ConnectionInfoSchema> = {}) =>
+    create(ConnectionInfoSchema, {
+      id: "cnx_mail",
+      name: "postmark-alerts",
+      displayName: "Postmark",
+      kind: LinkKind.SMTP,
+      host: "smtp.postmarkapp.com",
+      port: 587,
+      security: SmtpSecurity.STARTTLS,
+      sender: "alerts@example.com",
+      senderName: "Dockwell",
+      reach: ConnectionReach.EVERY,
+      ...init,
+    } as MessageInitShape<typeof ConnectionInfoSchema>);
+
+  const appMailConn = aMailConn({
+    id: "cnx_app_mail",
+    name: "resend-app",
+    displayName: "Resend",
+    host: "smtp.resend.com",
+    sender: "notes@example.com",
+    senderName: "Notes",
+    uses: [
+      {
+        linkId: "lnk_mail",
+        link: "mail",
+        environment: "env_1",
+        project: "prj_1",
+        sets: { SMTP_HOST: LinkPart.HOST, SMTP_PASSWORD: LinkPart.PASSWORD },
+        appIds: ["svc_notes"],
+        apps: ["notes"],
+      },
+    ],
+  });
+
+  const sharedMailConn = aMailConn({
+    id: "cnx_shared_mail",
+    name: "shared-mail",
+    displayName: "Shared mail",
+    host: "smtp.mailgun.org",
+    shared: true,
+  });
+
+  const heldMailConn = aMailConn({
+    id: "cnx_held_mail",
+    name: "old-app-mail",
+    displayName: "Old app mail",
+    host: "smtp-relay.brevo.com",
+    held: true,
+  });
+
+  const connBacked = aChannel({
+    id: "ach_conn",
+    name: "ops-mail",
+    type: "email",
+    target: "ops@example.com",
+    rules: 3,
+    channel: {
+      to: {
+        case: "email",
+        value: {
+          connection: "postmark-alerts",
+          from: "Dockwell <alerts@example.com>",
+          to: ["ops@example.com"],
+        },
+      },
+    },
+  });
+
+  it("offers Use the mail connection first, hides inline SMTP fields, tests and plans with connection", async () => {
+    const user = userEvent.setup();
+    const asked: TestAlertChannelRequest[] = [];
+    const proposed = planned();
+    const { container } = renderAt(
+      "/alerts/channels",
+      api([ops], {
+        connections: { listConnections: () => ({ connections: [aMailConn()] }) },
+        alerts: {
+          testAlertChannel: (req) => {
+            asked.push(req);
+            return { delivery: { ok: true, said: "accepted by smtp.postmarkapp.com" } };
+          },
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    const useMail = await within(sheet).findByRole("radio", { name: /Use the mail connection/ });
+    expect(useMail).toBeChecked();
+    expect(within(sheet).getByText("Postmark · smtp.postmarkapp.com:587 · STARTTLS")).toBeVisible();
+    // Inline SMTP fields stay hidden while a mail connection is picked.
+    expect(within(sheet).queryByLabelText("Mail service")).toBeNull();
+    expect(within(sheet).queryByLabelText(/^Password/)).toBeNull();
+    // From is prefilled from the connection's sender.
+    expect(within(sheet).getByLabelText("From")).toHaveValue("Dockwell <alerts@example.com>");
+
+    await user.type(within(sheet).getByLabelText("To"), "ops@example.com");
+    await user.click(within(sheet).getByRole("button", { name: "Send a test" }));
+    expect(await within(sheet).findByText("The test arrived")).toBeVisible();
+    expect(asked[0]?.channel?.to).toMatchObject({
+      case: "email",
+      value: {
+        connection: "postmark-alerts",
+        from: "Dockwell <alerts@example.com>",
+        to: ["ops@example.com"],
+        host: "",
+        port: 0,
+      },
+    });
+    await expectAccessible(container);
+
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind).toMatchObject({
+      case: "alertChannel",
+      value: {
+        to: {
+          case: "email",
+          value: {
+            connection: "postmark-alerts",
+            from: "Dockwell <alerts@example.com>",
+            to: ["ops@example.com"],
+          },
+        },
+      },
+    });
+  });
+
+  it("switches to Another server one step away to enter inline SMTP settings", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/alerts/channels",
+      api([ops], {
+        connections: { listConnections: () => ({ connections: [aMailConn()] }) },
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    await within(sheet).findByRole("radio", { name: /Use the mail connection/ });
+    await user.click(within(sheet).getByRole("radio", { name: /Another server/ }));
+    expect(within(sheet).getByLabelText("Mail service")).toBeVisible();
+    expect(within(sheet).getByLabelText(/^Password/)).toBeVisible();
+  });
+
+  it("disables app-serving, shared, and held mail connections with why and their way out", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt(
+      "/alerts/channels",
+      api([ops], {
+        connections: {
+          listConnections: () => ({ connections: [appMailConn, sharedMailConn, heldMailConn] }),
+        },
+      }),
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add channel" }));
+    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
+    const appRadio = await within(sheet).findByRole("radio", { name: /Use Resend \(smtp\.resend\.com\)/ });
+    expect(appRadio).toBeDisabled();
+    expect(within(sheet).getByText("Serves notes, which could send mail as the alert sender")).toBeVisible();
+
+    const sharedRadio = within(sheet).getByRole("radio", { name: /Use Shared mail \(smtp\.mailgun\.org\)/ });
+    expect(sharedRadio).toBeDisabled();
+    expect(within(sheet).getByText("Shared for apps, which could send mail as the alert sender")).toBeVisible();
+
+    const heldRadio = within(sheet).getByRole("radio", { name: /Use Old app mail \(smtp-relay\.brevo\.com\)/ });
+    expect(heldRadio).toBeDisabled();
+    expect(within(sheet).getByText("An app received this connection's password")).toBeVisible();
+
+    // With no usable mail connection, Another server is picked by default.
+    expect(within(sheet).getByRole("radio", { name: /Another server/ })).toBeChecked();
+    await expectAccessible(container);
+
+    // New connection from it opens MailConnectionSheet prefilled with host/port/security and empty credentials.
+    const newButtons = within(sheet).getAllByRole("button", { name: "New connection from it" });
+    await user.click(newButtons[0] as HTMLElement);
+    const newConn = await screen.findByRole("dialog", { name: "Add a connection" });
+    expect(within(newConn).getByLabelText("API key")).toHaveValue("");
+    await user.click(within(newConn).getByRole("button", { name: "Cancel" }));
+
+    // Paste a password made for alerts opens MailConnectionSheet in rotation mode for the held connection.
+    await user.click(within(sheet).getByRole("button", { name: "Paste a password made for alerts" }));
+    const rotateConn = await screen.findByRole("dialog", { name: "Connection old-app-mail" });
+    expect(
+      within(rotateConn).getByText(
+        "Paste a password made for alerts alone, and revoke the one the app had at your provider",
+      ),
+    ).toBeVisible();
+    expect(within(rotateConn).getByLabelText("Password")).not.toHaveAttribute("placeholder");
+  });
+
+  it("shows the connection by name with a link on the channel row, phone row, and edit sheet", async () => {
+    const user = userEvent.setup();
+    const first = renderAt(
+      "/alerts/channels",
+      api([connBacked], {
+        connections: { listConnections: () => ({ connections: [aMailConn()] }) },
+      }),
+    );
+
+    const row = await channelRow(/ops-mail/);
+    const rowLink = within(row).getByRole("link", { name: "postmark-alerts" });
+    expect(rowLink).toHaveAttribute("href", "/connections/postmark-alerts");
+    await expectAccessible(first.container);
+
+    await user.click(row);
+    const sheet = await screen.findByRole("dialog", { name: "Change ops-mail" });
+    const sheetLink = within(sheet).getByRole("link", { name: "postmark-alerts" });
+    expect(sheetLink).toHaveAttribute("href", "/connections/postmark-alerts");
+    expect(within(sheet).getByRole("radio", { name: /Use the mail connection/ })).toBeChecked();
+    first.unmount();
+
+    onPhone();
+    const mobile = renderAt(
+      "/alerts/channels",
+      api([connBacked], {
+        connections: { listConnections: () => ({ connections: [aMailConn()] }) },
+      }),
+    );
+    const phoneLink = await screen.findByRole("link", { name: /postmark-alerts/ });
+    expect(phoneLink).toHaveAttribute("href", "/connections/postmark-alerts");
+    await expectAccessible(mobile.container);
+  });
+
+  it("renders the mail connection picker in Chinese", async () => {
+    const user = userEvent.setup();
+    await activateLocale("zh-CN");
+    try {
+      renderAt(
+        "/alerts/channels",
+        api([ops], {
+          connections: { listConnections: () => ({ connections: [aMailConn(), appMailConn, heldMailConn] }) },
+        }),
+      );
+      await user.click(await screen.findByRole("button", { name: "添加渠道" }));
+      const sheet = await screen.findByRole("dialog", { name: "添加渠道" });
+      expect(await within(sheet).findByRole("radio", { name: /使用邮件连接/ })).toBeChecked();
+      expect(within(sheet).getByRole("radio", { name: /其他邮件服务器/ })).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: "基于此新建连接" })).toBeVisible();
+      expect(within(sheet).getByRole("button", { name: "粘贴专用于告警的密码" })).toBeVisible();
+    } finally {
+      await activateLocale("en");
+    }
   });
 });

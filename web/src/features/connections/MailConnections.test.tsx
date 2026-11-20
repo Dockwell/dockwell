@@ -2,6 +2,7 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import {
+  AlertChannelInfoSchema,
   ChangeSchema,
   ChangeState,
   type CheckConnectionRequest,
@@ -18,11 +19,12 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { ENV, places, SERVER } from "../../test/apps";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
-import { mailPlaceOf, mailProvider, privateAddress, tlsPortFor } from "./mail";
+import { mailPlaceOf, mailProvider, nearbyHost, privateAddress, tlsPortFor } from "./mail";
 
 function aRelay(init: MessageInitShape<typeof ConnectionInfoSchema> = {}) {
   return create(ConnectionInfoSchema, {
@@ -289,5 +291,125 @@ describe("a mail server's connection", () => {
     // A mail server is set up from an app's own card.
     expect(screen.queryByRole("button", { name: "Use in an app" })).toBeNull();
     await expectAccessible(container);
+  });
+
+  it("judges nearby hosts for alert email TLS the same way the server does", () => {
+    for (const host of ["localhost", "mail", "relay.internal", "relay.lan", "relay.local", "10.0.0.5", "127.0.0.1"]) {
+      expect(nearbyHost(host), host).toBe(true);
+    }
+    for (const host of ["smtp.example.com", "203.0.113.7", "2001:db8::25", ""]) {
+      expect(nearbyHost(host), host).toBe(false);
+    }
+  });
+
+  describe("when used by alert channels (#833)", () => {
+    const alertRelay = aRelay({
+      id: "cnx_alerts",
+      name: "ops-alerts",
+      displayName: "Postmark · alerts@example.com",
+      host: "smtp.postmarkapp.com",
+      sender: "alerts@example.com",
+      senderName: "Dockwell",
+      uses: [],
+    });
+
+    const alertChannel = create(AlertChannelInfoSchema, {
+      id: "ach_alerts",
+      name: "ops-alerts",
+      type: "email",
+      target: "ops@example.com",
+      channel: {
+        to: {
+          case: "email",
+          value: {
+            connection: "ops-alerts",
+            from: "Dockwell <alerts@example.com>",
+            to: ["ops@example.com"],
+          },
+        },
+      },
+    });
+
+    const secondChannel = create(AlertChannelInfoSchema, {
+      id: "ach_paging",
+      name: "paging-mail",
+      type: "email",
+      target: "oncall@example.com",
+      channel: {
+        to: {
+          case: "email",
+          value: {
+            connection: "ops-alerts",
+            from: "Dockwell <alerts@example.com>",
+            to: ["oncall@example.com"],
+          },
+        },
+      },
+    });
+
+    it("lists alert channels under Used by on Connections without repeating a matching name and keeps one count shape", async () => {
+      renderAt("/connections", {
+        ...fleet(),
+        resources: places(),
+        connections: { listConnections: () => ({ connections: [aRelay(), alertRelay] }) },
+        alerts: { listAlertChannels: () => ({ channels: [alertChannel] }) },
+      });
+      expect(await screen.findByText("2 connections · used by 1 app and 1 alert channel")).toBeVisible();
+      const row = screen.getByRole("row", { name: /ops-alerts/ });
+      const cells = within(row).getAllByRole("cell");
+      expect(cells[1]).toHaveTextContent("Alerts");
+      expect(cells[1]).not.toHaveTextContent("ops-alerts");
+    });
+
+    it("shows alert channels under Used by, suppresses WantsMail, and disables Share and Remove with why", async () => {
+      const user = userEvent.setup();
+      const { container } = renderAt("/connections/ops-alerts", {
+        ...fleet(),
+        resources: places(),
+        connections: { listConnections: () => ({ connections: [alertRelay] }) },
+        alerts: { listAlertChannels: () => ({ channels: [alertChannel, secondChannel] }) },
+      });
+
+      const usedBy = await screen.findByRole("region", { name: "Used by" });
+      expect(within(usedBy).getByRole("link", { name: "ops-alerts" })).toHaveAttribute(
+        "href",
+        "/alerts/channels?edit=ops-alerts",
+      );
+      expect(within(usedBy).getByRole("link", { name: "paging-mail" })).toHaveAttribute(
+        "href",
+        "/alerts/channels?edit=paging-mail",
+      );
+      expect(usedBy).toHaveTextContent("ops@example.com");
+      expect(within(usedBy).getAllByRole("link", { name: "Manage in Alerts" })).toHaveLength(2);
+      expect(screen.queryByText(/No app sends through it yet/)).toBeNull();
+
+      const share = screen.getByRole("switch", { name: /More than one app may use it/ });
+      expect(share).toBeDisabled();
+      expect(screen.getByText("Alerts use it, so it can't be shared with apps")).toBeVisible();
+      await expectAccessible(container);
+
+      await user.click(screen.getByRole("button", { name: "Replace password" }));
+      const sheet = await screen.findByRole("dialog", { name: "Connection ops-alerts" });
+      const remove = within(sheet).getByRole("button", { name: /Remove/ });
+      expect(remove).toHaveAttribute("aria-disabled", "true");
+      expect(sheet).toHaveTextContent("2 alert channels use it. Remove them on Alerts first.");
+    });
+
+    it("renders alert channel usage on Connections in Chinese", async () => {
+      await activateLocale("zh-CN");
+      try {
+        renderAt("/connections/ops-alerts", {
+          ...fleet(),
+          resources: places(),
+          connections: { listConnections: () => ({ connections: [alertRelay] }) },
+          alerts: { listAlertChannels: () => ({ channels: [alertChannel] }) },
+        });
+        const usedBy = await screen.findByRole("region", { name: "使用者" });
+        expect(within(usedBy).getByRole("link", { name: "在告警中管理" })).toBeVisible();
+        expect(screen.getByText("告警正在使用它，无法与应用共享")).toBeVisible();
+      } finally {
+        await activateLocale("en");
+      }
+    });
   });
 });

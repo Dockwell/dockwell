@@ -3,7 +3,9 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  AlertService,
   ChangeService,
+  ChangeState,
   type CheckConnectionResponse,
   type ConnectionInfo,
   ConnectionReach,
@@ -17,6 +19,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { channelsOn } from "../alerts/mail";
+import { useChannels } from "../alerts/useAlerts";
 import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
@@ -61,6 +65,8 @@ export function MailConnectionSheet({
   project,
   start,
   forInstall,
+  mailPrefill,
+  rotateForAlerts,
   only,
   onPickStore,
 }: {
@@ -71,6 +77,10 @@ export function MailConnectionSheet({
   project?: string | undefined;
   start: MailProviderId;
   forInstall?: string | undefined;
+  /** Host, port, and security copied from an existing mail connection, with user and password empty (#833). */
+  mailPrefill?: { host: string; port: number; security: SmtpSecurity } | undefined;
+  /** True when opened to replace a password an app received before alerts may use this connection (#833). */
+  rotateForAlerts?: boolean | undefined;
   /** Mail alone, as for an app's mail: storage's tiles don't show. */
   only?: "mail" | undefined;
   /** Picking a storage tile goes back to storage's form. */
@@ -83,8 +93,10 @@ export function MailConnectionSheet({
   const may = useMay();
   const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   const mayCheck = may(ConnectionService.method.checkConnection).allowed;
+  const mayListChannels = may(AlertService.method.listAlertChannels).allowed;
   const words = useCheckWords();
   const listed = useConnections();
+  const channels = useChannels(mayListChannels).data?.channels ?? [];
   const fleet = useFleetView();
   const services = useServices();
   const resources = useAllResources();
@@ -92,13 +104,17 @@ export function MailConnectionSheet({
     .filter((r) => r.resource?.kind === "project")
     .map((r) => ({ id: r.id, label: r.displayName || r.resource?.name || r.id }));
 
-  const was = editing ? mailPlaceOf(editing.host) : undefined;
+  const was = editing ? mailPlaceOf(editing.host) : mailPrefill ? mailPlaceOf(mailPrefill.host) : undefined;
   const [service, setService] = useState<MailProviderId>(was?.provider ?? start);
   const p = mailProvider(service);
   const [region, setRegion] = useState(was?.region || p.regions[0] || "");
-  const [typedHost, setTypedHost] = useState(was?.provider === "mail" ? (editing?.host ?? "") : "");
-  const [security, setSecurity] = useState<SmtpSecurity>(editing?.security || SmtpSecurity.STARTTLS);
-  const [typedPort, setTypedPort] = useState<number | undefined>(editing?.port || undefined);
+  const [typedHost, setTypedHost] = useState(
+    was?.provider === "mail" ? (editing?.host ?? mailPrefill?.host ?? "") : "",
+  );
+  const [security, setSecurity] = useState<SmtpSecurity>(
+    editing?.security || mailPrefill?.security || SmtpSecurity.STARTTLS,
+  );
+  const [typedPort, setTypedPort] = useState<number | undefined>(editing?.port || mailPrefill?.port || undefined);
   const [user, setUser] = useState("");
   const [password, setPassword] = useState("");
   const [sender, setSender] = useState(editing?.sender ?? "");
@@ -154,7 +170,8 @@ export function MailConnectionSheet({
   // A move sends the password somewhere it wasn't saved to go, so it's asked for again.
   const moved =
     editing !== undefined && (host !== editing.host || port !== editing.port || security !== editing.security);
-  const signInNeeded = !editing || moved || user !== "" || password !== "";
+  const signInNeeded = !editing || moved || rotateForAlerts || user !== "" || password !== "";
+  const passwordKept = editing !== undefined && !moved && !rotateForAlerts && user === "" && password === "";
   const typedSignIn = password !== "" && (p.user !== "" || p.userIsKey || user !== "");
   // Without TLS, a password goes only to a private address, as the server holds.
   const clearRefused =
@@ -259,7 +276,14 @@ export function MailConnectionSheet({
       summary: editing ? t`Change the connection ${name}` : t`Send mail through ${host}`,
       edits: [{ resource: { kind: "connection", name }, spec: { kind: { case: "connection", value: spec() } } }],
       onClose: (change) => {
-        if (!change) return;
+        if (
+          !change ||
+          change.state === ChangeState.PLANNED ||
+          change.state === ChangeState.FAILED ||
+          change.state === ChangeState.DISCARDED
+        ) {
+          return;
+        }
         void listed.refetch().then(() => {
           onClose();
           onSaved?.(name);
@@ -267,13 +291,20 @@ export function MailConnectionSheet({
       },
     });
   const links = editing?.uses.length ?? 0;
+  const alertChannels = editing ? channelsOn(editing.name, channels) : [];
+  const firstChannel = alertChannels[0]?.name ?? "";
   const inUse =
     links > 0
       ? plural(links, {
           one: "# link names it. Disconnect it under Used by first.",
           other: "# links name it. Disconnect them under Used by first.",
         })
-      : undefined;
+      : alertChannels.length > 0
+        ? plural(alertChannels.length, {
+            one: `Alert channel ${firstChannel} uses it. Remove it on Alerts first.`,
+            other: "# alert channels use it. Remove them on Alerts first.",
+          })
+        : undefined;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -333,7 +364,13 @@ export function MailConnectionSheet({
       open
       onClose={onClose}
       title={editing ? t`Connection ${editing.name}` : t`Add a connection`}
-      subtitle={editing ? undefined : t`A mail server, for apps to send mail through`}
+      subtitle={
+        rotateForAlerts
+          ? t`Paste a password made for alerts alone, and revoke the one the app had at your provider`
+          : editing
+            ? undefined
+            : t`A mail server, for apps to send mail through`
+      }
       footer={
         <>
           {editing ? (
@@ -381,7 +418,7 @@ export function MailConnectionSheet({
               autoComplete="off"
               spellCheck={false}
               value={user}
-              placeholder={editing && !moved ? t`Kept unless you type one` : undefined}
+              placeholder={passwordKept ? t`Kept unless you type one` : undefined}
               onChange={(event) => setUser(event.target.value.trim())}
               onBlur={() => password !== "" && checkOnLeave()}
             />
@@ -392,7 +429,7 @@ export function MailConnectionSheet({
             type="password"
             autoComplete="off"
             value={password}
-            placeholder={editing && !moved ? t`Kept unless you type one` : undefined}
+            placeholder={passwordKept ? t`Kept unless you type one` : undefined}
             onChange={(event) => setPassword(event.target.value.trim())}
             onBlur={checkOnLeave}
           />

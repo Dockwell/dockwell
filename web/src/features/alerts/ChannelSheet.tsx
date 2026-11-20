@@ -9,16 +9,23 @@ import {
   type AlertDelivery,
   AlertService,
   ChangeService,
+  type ConnectionInfo,
+  LinkKind,
   AlertEmail_Security as Security,
 } from "@dockwell/api";
 import { Advanced, Button, Callout, SelectField, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { useConnections } from "../connections/useConnections";
+import { MailPicker } from "./MailPicker";
+import { channelConnection, firstAvailableMailConnection, mailConnectionSender } from "./mail";
 import { CHANNEL_KIND, CHANNEL_TYPES, type ChannelType, isChannelType, useChannels } from "./useAlerts";
 
 type Spec = MessageInitShape<typeof AlertChannelSchema>;
@@ -29,6 +36,7 @@ interface Form {
   name: string;
   url: string;
   secret: string;
+  connection: string;
   host: string;
   port: string;
   security: Security;
@@ -55,6 +63,7 @@ function blank(): Form {
     name: "",
     url: "",
     secret: "",
+    connection: "",
     host: MAIL.gmail.host,
     port: String(MAIL.gmail.port),
     security: MAIL.gmail.security,
@@ -78,6 +87,7 @@ function fromInfo(info: AlertChannelInfo): Form {
     case "email":
       return {
         ...form,
+        connection: to.value.connection,
         host: to.value.host,
         port: to.value.port ? String(to.value.port) : "",
         security: to.value.security || Security.STARTTLS,
@@ -107,7 +117,23 @@ function specOf(f: Form): Spec {
       return { to: { case: "ntfy", value: { server: f.server.trim(), topic: f.topic.trim(), token: f.token.trim() } } };
     case "telegram":
       return { to: { case: "telegram", value: { botToken: f.botToken.trim(), chatId: f.chatId.trim() } } };
-    case "email":
+    case "email": {
+      const recipients = f.to
+        .split(/[,;\s]+/)
+        .map((a) => a.trim())
+        .filter((a) => a !== "");
+      if (f.connection !== "") {
+        return {
+          to: {
+            case: "email",
+            value: {
+              connection: f.connection,
+              from: f.from.trim(),
+              to: recipients,
+            },
+          },
+        };
+      }
       return {
         to: {
           case: "email",
@@ -118,13 +144,11 @@ function specOf(f: Form): Spec {
             username: f.username.trim(),
             password: f.password,
             from: f.from.trim(),
-            to: f.to
-              .split(/[,;\s]+/)
-              .map((a) => a.trim())
-              .filter((a) => a !== ""),
+            to: recipients,
           },
         },
       };
+    }
   }
 }
 
@@ -149,7 +173,7 @@ function portOf(f: Form): number {
  * been sent to, which the control plane then asks for again (alert.Channel's Keep).
  */
 function mailMoved(f: Form, was: Form | undefined): boolean {
-  if (!was || f.type !== "email") return false;
+  if (!was || f.type !== "email" || f.connection !== "" || was.connection !== "") return false;
   return (
     f.host.trim().toLowerCase() !== was.host.trim().toLowerCase() ||
     portOf(f) !== portOf(was) ||
@@ -174,6 +198,7 @@ function ready(f: Form, kept: ReadonlySet<string>): boolean {
     case "telegram":
       return has(f.botToken, "telegram.bot_token") && f.chatId.trim() !== "";
     case "email":
+      if (f.connection !== "") return f.from.trim() !== "" && f.to.trim() !== "";
       return (
         f.host.trim() !== "" &&
         f.from.trim() !== "" &&
@@ -250,7 +275,45 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const mayPlan = may(ChangeService.method.proposeChange, { install: true });
   // Sending a test is an admin's too: it reaches the far end with what signs in.
   const mayTest = may(AlertService.method.testAlertChannel, { install: true });
-  const [form, setForm] = useState<Form>(() => (channel ? fromInfo(channel) : blank()));
+  const connectionsQuery = useConnections();
+  const allConnections = connectionsQuery.data?.connections ?? [];
+  const mailConnections = useMemo(() => allConnections.filter((c) => c.kind === LinkKind.SMTP), [allConnections]);
+  const [form, setForm] = useState<Form>(() => {
+    if (channel) return fromInfo(channel);
+    const initial = blank();
+    const first = firstAvailableMailConnection(mailConnections);
+    if (first !== "") {
+      const conn = mailConnections.find((c) => c.name === first);
+      return {
+        ...initial,
+        connection: first,
+        from: conn ? mailConnectionSender(conn) : "",
+      };
+    }
+    return initial;
+  });
+  const [pickedSource, setPickedSource] = useState(
+    () =>
+      channel !== undefined ||
+      (connectionsQuery.data !== undefined && firstAvailableMailConnection(mailConnections) !== ""),
+  );
+  const [fromTouched, setFromTouched] = useState(channel !== undefined);
+  const [connSheet, setConnSheet] = useState<
+    { mode: "new-from"; from: ConnectionInfo } | { mode: "rotate"; connection: ConnectionInfo }
+  >();
+  // When mail connections arrive after opening Add a channel, pre-select the first usable one.
+  useEffect(() => {
+    if (pickedSource || channel || !connectionsQuery.data) return;
+    const first = firstAvailableMailConnection(mailConnections);
+    setPickedSource(true);
+    if (first === "") return;
+    const conn = mailConnections.find((c) => c.name === first);
+    setForm((f) => ({
+      ...f,
+      connection: first,
+      from: !fromTouched && f.from === "" && conn ? mailConnectionSender(conn) : f.from,
+    }));
+  }, [pickedSource, channel, connectionsQuery.data, mailConnections, fromTouched]);
   const [testing, setTesting] = useState(false);
   const [tested, setTested] = useState<{ delivery?: AlertDelivery; error?: unknown }>();
   const was = useMemo(() => (channel ? fromInfo(channel) : undefined), [channel]);
@@ -280,6 +343,27 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
   const [mail, setMail] = useState<Mail>(() => mailOf(channel ? fromInfo(channel).host : MAIL.gmail.host));
   // Advanced won't close on a name that can't be taken, so what holds the buttons back stays in view.
   const [advanced, setAdvanced] = useState(false);
+  const selectConnection = (next: string) => {
+    setPickedSource(true);
+    setTested(undefined);
+    const conn = next ? mailConnections.find((c) => c.name === next) : undefined;
+    if (next === "" && form.host.trim() === "") {
+      setMail("gmail");
+      setForm((f) => ({
+        ...f,
+        connection: "",
+        host: MAIL.gmail.host,
+        port: String(MAIL.gmail.port),
+        security: MAIL.gmail.security,
+      }));
+      return;
+    }
+    setForm((f) => ({
+      ...f,
+      connection: next,
+      from: !fromTouched && conn ? mailConnectionSender(conn) || f.from : f.from,
+    }));
+  };
   const pickMail = (next: Mail, region = "us-east-1") => {
     setMail(next);
     setTested(undefined);
@@ -381,257 +465,337 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
       </div>
     </>
   );
+  const usingConnection = form.type === "email" && form.connection !== "";
+  const savedConnection = channel ? channelConnection(channel) : "";
   const securityWord =
     form.security === Security.TLS ? "TLS" : form.security === Security.NONE ? t`no TLS` : "STARTTLS";
   // What Advanced holds, in a line: the name a new channel takes, and a mail service's server.
   const summary = [
     channel ? "" : t`Named ${name}`,
-    form.type === "email" && mail !== "other" ? `${form.host}:${form.port || "587"} · ${securityWord}` : "",
+    form.type === "email" && !usingConnection && mail !== "other"
+      ? `${form.host}:${form.port || "587"} · ${securityWord}`
+      : "",
   ]
     .filter(Boolean)
     .join(" · ");
-  const advancedHolds = !channel || (form.type === "email" && mail !== "other");
+  const advancedHolds = !channel || (form.type === "email" && !usingConnection && mail !== "other");
 
   return (
-    <Sheet
-      open
-      onClose={onClose}
-      title={channel ? t`Change ${channel.name}` : t`Add a channel`}
-      footer={
-        <>
-          {channel ? (
-            <Button variant="ghost" icon="trash" onClick={remove} className="alerts-sheet-remove" {...mayPlan.off}>
-              <Trans>Remove</Trans>
-            </Button>
-          ) : null}
-          <Button variant="ghost" disabled={!canSend || testing} onClick={() => void test()} {...mayTest.off}>
-            {testing ? <Trans>Sending a test…</Trans> : <Trans>Send a test</Trans>}
-          </Button>
-          <Button variant="secondary" onClick={onClose}>
-            <Trans>Cancel</Trans>
-          </Button>
-          <Button variant="primary" disabled={!canSend} onClick={review} {...mayPlan.off}>
-            <Trans>Review plan</Trans>
-          </Button>
-        </>
-      }
-    >
-      <div className="alerts-sheet">
-        {channel ? (
-          <p className="alerts-sheet-kind">{kindName}</p>
-        ) : (
-          <SelectField
-            label={t`Sends to`}
-            value={form.type}
-            options={CHANNEL_TYPES.map((type) => ({ value: type, label: i18n._(CHANNEL_KIND[type].label) }))}
-            onChange={(event) => set("type")(event.target.value as ChannelType)}
-          />
-        )}
-
-        {form.type === "webhook" ? (
+    <>
+      <Sheet
+        open
+        onClose={onClose}
+        title={channel ? t`Change ${channel.name}` : t`Add a channel`}
+        footer={
           <>
-            <TextField
-              label={t`URL`}
-              mono
-              autoComplete="off"
-              value={form.url}
-              placeholder={keptPlaceholder("webhook.url") ?? "https://hooks.example.com/dockwell"}
-              hint={keptHint("webhook.url", t`Each alert is posted to it as JSON. Kept sealed; lists show its host.`)}
-              onChange={text("url")}
-            />
-            <TextField
-              label={t`Signing secret`}
-              mono
-              type="password"
-              autoComplete="off"
-              optional
-              value={form.secret}
-              placeholder={keptPlaceholder("webhook.secret")}
-              hint={keptHint("webhook.secret", t`Signs each request, in a Dockwell-Signature header.`)}
-              onChange={text("secret")}
-            />
-          </>
-        ) : null}
-
-        {form.type === "slack" || form.type === "discord" ? (
-          <TextField
-            label={t`Webhook URL`}
-            mono
-            autoComplete="off"
-            value={form.url}
-            placeholder={
-              keptPlaceholder(`${form.type}.url`) ??
-              (form.type === "slack"
-                ? "https://hooks.slack.com/services/T000/B000/XXXX"
-                : "https://discord.com/api/webhooks/0000/XXXX")
-            }
-            hint={keptHint(
-              `${form.type}.url`,
-              form.type === "slack"
-                ? t`From your Slack app's Incoming Webhooks. Kept sealed.`
-                : t`From the channel's Integrations, then Webhooks. Kept sealed.`,
-            )}
-            onChange={text("url")}
-          />
-        ) : null}
-
-        {form.type === "telegram" ? (
-          <>
-            <TextField
-              label={t`Bot token`}
-              mono
-              type="password"
-              autoComplete="off"
-              value={form.botToken}
-              placeholder={keptPlaceholder("telegram.bot_token")}
-              hint={keptHint("telegram.bot_token", t`From @BotFather, when you make the bot. It's kept sealed.`)}
-              onChange={text("botToken")}
-            />
-            <TextField
-              label={t`Chat`}
-              mono
-              value={form.chatId}
-              placeholder="-1001234567890"
-              hint={t`A group's ID or a channel's @name, with the bot added to it.`}
-              onChange={text("chatId")}
-            />
-          </>
-        ) : null}
-
-        {form.type === "ntfy" ? (
-          <>
-            <TextField
-              label={t`Server`}
-              mono
-              optional
-              value={form.server}
-              placeholder="https://ntfy.sh"
-              hint={t`ntfy.sh unless you give a server of your own.`}
-              onChange={text("server")}
-            />
-            <TextField
-              label={t`Topic`}
-              mono
-              autoComplete="off"
-              value={form.topic}
-              placeholder={keptPlaceholder("ntfy.topic")}
-              hint={keptHint("ntfy.topic", t`Made hard to guess, and kept sealed. Subscribe to it in the ntfy app.`)}
-              onChange={text("topic")}
-            />
-            <TextField
-              label={t`Access token`}
-              mono
-              type="password"
-              autoComplete="off"
-              optional
-              value={form.token}
-              placeholder={keptPlaceholder("ntfy.token")}
-              hint={keptHint("ntfy.token", t`For a server or topic that asks for one.`)}
-              onChange={text("token")}
-            />
-          </>
-        ) : null}
-
-        {form.type === "email" ? (
-          <>
-            <SelectField
-              label={t`Mail service`}
-              value={mail}
-              options={[
-                ...(Object.keys(MAIL) as Exclude<Mail, "other">[]).map((m) => ({ value: m, label: MAIL[m].label })),
-                { value: "other", label: t`Another SMTP server` },
-              ]}
-              onChange={(event) => pickMail(event.target.value as Mail)}
-            />
-            {mail === "ses" ? (
-              <SelectField
-                label={t`Region`}
-                value={/^email-smtp\.([a-z0-9-]+)\.amazonaws\.com$/.exec(form.host)?.[1] ?? "us-east-1"}
-                options={SES_REGIONS.map((r) => ({ value: r, label: r }))}
-                onChange={(event) => pickMail("ses", event.target.value)}
-              />
+            {channel ? (
+              <Button variant="ghost" icon="trash" onClick={remove} className="alerts-sheet-remove" {...mayPlan.off}>
+                <Trans>Remove</Trans>
+              </Button>
             ) : null}
-            <TextField
-              label={t`To`}
-              mono
-              value={form.to}
-              placeholder="ops@example.com, oncall@example.com"
-              hint={t`Up to 10, separated by commas.`}
-              onChange={text("to")}
+            <Button variant="ghost" disabled={!canSend || testing} onClick={() => void test()} {...mayTest.off}>
+              {testing ? <Trans>Sending a test…</Trans> : <Trans>Send a test</Trans>}
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              <Trans>Cancel</Trans>
+            </Button>
+            <Button variant="primary" disabled={!canSend} onClick={review} {...mayPlan.off}>
+              <Trans>Review plan</Trans>
+            </Button>
+          </>
+        }
+      >
+        <div className="alerts-sheet">
+          {channel ? (
+            <p className="alerts-sheet-kind">
+              {kindName}
+              {savedConnection ? (
+                <>
+                  {" · "}
+                  <Trans>
+                    via{" "}
+                    <Link
+                      to="/connections/$name"
+                      params={{ name: savedConnection }}
+                      className="alerts-channel-link"
+                      onClick={onClose}
+                    >
+                      <code>{savedConnection}</code>
+                    </Link>
+                  </Trans>
+                </>
+              ) : null}
+            </p>
+          ) : (
+            <SelectField
+              label={t`Sends to`}
+              value={form.type}
+              options={CHANNEL_TYPES.map((type) => ({ value: type, label: i18n._(CHANNEL_KIND[type].label) }))}
+              onChange={(event) => set("type")(event.target.value as ChannelType)}
             />
-            <TextField
-              label={t`From`}
-              mono
-              value={form.from}
-              placeholder="Dockwell <alerts@example.com>"
-              hint={t`An address the mail service sends as.`}
-              onChange={text("from")}
-            />
-            {mail === "other" ? smtpServer : null}
-            <div className="alerts-sheet-row">
+          )}
+
+          {form.type === "webhook" ? (
+            <>
               <TextField
-                label={t`User`}
+                label={t`URL`}
                 mono
                 autoComplete="off"
-                optional
-                value={form.username}
-                onChange={text("username")}
+                value={form.url}
+                placeholder={keptPlaceholder("webhook.url") ?? "https://hooks.example.com/dockwell"}
+                hint={keptHint("webhook.url", t`Each alert is posted to it as JSON. Kept sealed; lists show its host.`)}
+                onChange={text("url")}
               />
               <TextField
-                label={t`Password`}
+                label={t`Signing secret`}
                 mono
                 type="password"
                 autoComplete="off"
-                optional={form.username.trim() === ""}
-                value={form.password}
-                placeholder={keptPlaceholder("email.password")}
-                hint={
-                  moved && channel?.sealed.includes("email.password") && form.username.trim() !== ""
-                    ? t`Its server changed, so give the password again.`
-                    : keptHint("email.password", t`Sent only over TLS, and kept sealed.`)
-                }
-                onChange={text("password")}
+                optional
+                value={form.secret}
+                placeholder={keptPlaceholder("webhook.secret")}
+                hint={keptHint("webhook.secret", t`Signs each request, in a Dockwell-Signature header.`)}
+                onChange={text("secret")}
               />
-            </div>
-          </>
-        ) : null}
+            </>
+          ) : null}
 
-        {advancedHolds ? (
-          <Advanced
-            open={advanced}
-            onOpenChange={(open) => setAdvanced(open || nameError !== undefined)}
-            summary={summary}
-          >
-            {channel ? null : (
+          {form.type === "slack" || form.type === "discord" ? (
+            <TextField
+              label={t`Webhook URL`}
+              mono
+              autoComplete="off"
+              value={form.url}
+              placeholder={
+                keptPlaceholder(`${form.type}.url`) ??
+                (form.type === "slack"
+                  ? "https://hooks.slack.com/services/T000/B000/XXXX"
+                  : "https://discord.com/api/webhooks/0000/XXXX")
+              }
+              hint={keptHint(
+                `${form.type}.url`,
+                form.type === "slack"
+                  ? t`From your Slack app's Incoming Webhooks. Kept sealed.`
+                  : t`From the channel's Integrations, then Webhooks. Kept sealed.`,
+              )}
+              onChange={text("url")}
+            />
+          ) : null}
+
+          {form.type === "telegram" ? (
+            <>
               <TextField
-                label={t`Name`}
+                label={t`Bot token`}
                 mono
-                value={name}
-                hint={t`Rules name a channel by it.`}
-                error={nameError}
-                onChange={(event) => setTypedName(nameOf(event.target.value))}
+                type="password"
+                autoComplete="off"
+                value={form.botToken}
+                placeholder={keptPlaceholder("telegram.bot_token")}
+                hint={keptHint("telegram.bot_token", t`From @BotFather, when you make the bot. It's kept sealed.`)}
+                onChange={text("botToken")}
               />
-            )}
-            {form.type === "email" && mail !== "other" ? smtpServer : null}
-          </Advanced>
-        ) : null}
+              <TextField
+                label={t`Chat`}
+                mono
+                value={form.chatId}
+                placeholder="-1001234567890"
+                hint={t`A group's ID or a channel's @name, with the bot added to it.`}
+                onChange={text("chatId")}
+              />
+            </>
+          ) : null}
 
-        {tested?.delivery ? (
-          tested.delivery.ok ? (
-            <Callout tone="healthy" title={t`The test arrived`}>
-              {t`${kindName} answered ${said}.`}
+          {form.type === "ntfy" ? (
+            <>
+              <TextField
+                label={t`Server`}
+                mono
+                optional
+                value={form.server}
+                placeholder="https://ntfy.sh"
+                hint={t`ntfy.sh unless you give a server of your own.`}
+                onChange={text("server")}
+              />
+              <TextField
+                label={t`Topic`}
+                mono
+                autoComplete="off"
+                value={form.topic}
+                placeholder={keptPlaceholder("ntfy.topic")}
+                hint={keptHint("ntfy.topic", t`Made hard to guess, and kept sealed. Subscribe to it in the ntfy app.`)}
+                onChange={text("topic")}
+              />
+              <TextField
+                label={t`Access token`}
+                mono
+                type="password"
+                autoComplete="off"
+                optional
+                value={form.token}
+                placeholder={keptPlaceholder("ntfy.token")}
+                hint={keptHint("ntfy.token", t`For a server or topic that asks for one.`)}
+                onChange={text("token")}
+              />
+            </>
+          ) : null}
+
+          {form.type === "email" ? (
+            <>
+              {mailConnections.length > 0 ? (
+                <MailPicker
+                  connections={mailConnections}
+                  value={form.connection}
+                  currentConnection={savedConnection || undefined}
+                  onChange={selectConnection}
+                  mayPlanInstall={mayPlan}
+                  onNewFrom={(from) => setConnSheet({ mode: "new-from", from })}
+                  onRotatePassword={(connection) => setConnSheet({ mode: "rotate", connection })}
+                />
+              ) : null}
+              {!usingConnection ? (
+                <>
+                  <SelectField
+                    label={t`Mail service`}
+                    value={mail}
+                    options={[
+                      ...(Object.keys(MAIL) as Exclude<Mail, "other">[]).map((m) => ({
+                        value: m,
+                        label: MAIL[m].label,
+                      })),
+                      { value: "other", label: t`Another SMTP server` },
+                    ]}
+                    onChange={(event) => pickMail(event.target.value as Mail)}
+                  />
+                  {mail === "ses" ? (
+                    <SelectField
+                      label={t`Region`}
+                      value={/^email-smtp\.([a-z0-9-]+)\.amazonaws\.com$/.exec(form.host)?.[1] ?? "us-east-1"}
+                      options={SES_REGIONS.map((r) => ({ value: r, label: r }))}
+                      onChange={(event) => pickMail("ses", event.target.value)}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+              <TextField
+                label={t`To`}
+                mono
+                value={form.to}
+                placeholder="ops@example.com, oncall@example.com"
+                hint={t`Up to 10, separated by commas.`}
+                onChange={text("to")}
+              />
+              <TextField
+                label={t`From`}
+                mono
+                value={form.from}
+                placeholder="Dockwell <alerts@example.com>"
+                hint={t`An address the mail service sends as.`}
+                onChange={(event) => {
+                  setFromTouched(true);
+                  set("from")(event.target.value);
+                }}
+              />
+              {!usingConnection ? (
+                <>
+                  {mail === "other" ? smtpServer : null}
+                  <div className="alerts-sheet-row">
+                    <TextField
+                      label={t`User`}
+                      mono
+                      autoComplete="off"
+                      optional
+                      value={form.username}
+                      onChange={text("username")}
+                    />
+                    <TextField
+                      label={t`Password`}
+                      mono
+                      type="password"
+                      autoComplete="off"
+                      optional={form.username.trim() === ""}
+                      value={form.password}
+                      placeholder={keptPlaceholder("email.password")}
+                      hint={
+                        moved && channel?.sealed.includes("email.password") && form.username.trim() !== ""
+                          ? t`Its server changed, so give the password again.`
+                          : keptHint("email.password", t`Sent only over TLS, and kept sealed.`)
+                      }
+                      onChange={text("password")}
+                    />
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {advancedHolds ? (
+            <Advanced
+              open={advanced}
+              onOpenChange={(open) => setAdvanced(open || nameError !== undefined)}
+              summary={summary}
+            >
+              {channel ? null : (
+                <TextField
+                  label={t`Name`}
+                  mono
+                  value={name}
+                  hint={t`Rules name a channel by it.`}
+                  error={nameError}
+                  onChange={(event) => setTypedName(nameOf(event.target.value))}
+                />
+              )}
+              {form.type === "email" && !usingConnection && mail !== "other" ? smtpServer : null}
+            </Advanced>
+          ) : null}
+
+          {tested?.delivery ? (
+            tested.delivery.ok ? (
+              <Callout tone="healthy" title={t`The test arrived`}>
+                {t`${kindName} answered ${said}.`}
+              </Callout>
+            ) : (
+              <Callout tone="critical" title={t`The test didn't arrive`}>
+                {t`It said: ${said}.`}
+              </Callout>
+            )
+          ) : tested?.error ? (
+            <Callout tone="critical" title={t`Dockwell didn't send it`}>
+              {sentence(tested.error)}
             </Callout>
-          ) : (
-            <Callout tone="critical" title={t`The test didn't arrive`}>
-              {t`It said: ${said}.`}
-            </Callout>
-          )
-        ) : tested?.error ? (
-          <Callout tone="critical" title={t`Dockwell didn't send it`}>
-            {sentence(tested.error)}
-          </Callout>
-        ) : null}
-      </div>
-    </Sheet>
+          ) : null}
+        </div>
+      </Sheet>
+      {connSheet ? (
+        <ConnectionSheet
+          kind="mail"
+          existing={allConnections}
+          editing={connSheet.mode === "rotate" ? connSheet.connection : undefined}
+          rotateForAlerts={connSheet.mode === "rotate"}
+          mailPrefill={
+            connSheet.mode === "new-from"
+              ? {
+                  host: connSheet.from.host,
+                  port: connSheet.from.port,
+                  security: connSheet.from.security,
+                }
+              : undefined
+          }
+          onClose={() => setConnSheet(undefined)}
+          onSaved={(savedName) => {
+            setConnSheet(undefined);
+            void connectionsQuery.refetch().then((res) => {
+              const saved = res.data?.connections.find((c) => c.name === savedName);
+              setPickedSource(true);
+              setTested(undefined);
+              setForm((f) => ({
+                ...f,
+                connection: savedName,
+                from: !fromTouched && saved ? mailConnectionSender(saved) || f.from : f.from,
+              }));
+            });
+          }}
+        />
+      ) : null}
+    </>
   );
 }

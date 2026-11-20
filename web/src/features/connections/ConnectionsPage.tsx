@@ -3,6 +3,8 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  type AlertChannelInfo,
+  AlertService,
   type BackupDestinationInfo,
   BackupService,
   ChangeService,
@@ -17,6 +19,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { channelConnection, channelsOn } from "../alerts/mail";
+import { useChannels } from "../alerts/useAlerts";
 import { usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useDestinations } from "../backups/DestinationsPanel";
@@ -46,17 +50,19 @@ type ListRow =
  * the list holds only what the caller's projects may use, and only their own apps.
  */
 export function ConnectionsPage() {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const navigate = useNavigate();
   const may = useMay();
   const mayAdd = may(ChangeService.method.proposeChange, { install: true });
   const mayUseAsConnection = may(BackupService.method.useDestinationAsConnection);
+  const mayListChannels = may(AlertService.method.listAlertChannels).allowed;
   const sheet = useChangeSheet();
   const transport = useTransport();
   const backupClient = useMemo(() => createClient(BackupService, transport), [transport]);
   const query = useConnections();
   const destinations = useDestinations().data?.destinations ?? [];
+  const channels = useChannels(mayListChannels).data?.channels ?? [];
   const connections = query.data?.connections ?? [];
   const standaloneDests = destinations.filter((d) => d.connection === "");
   const totalRows = connections.length + standaloneDests.length;
@@ -65,6 +71,10 @@ export function ConnectionsPage() {
   const linkedBackupDests = destinations.filter(
     (d) => d.connection !== "" && connections.some((c) => c.name === d.connection),
   ).length;
+  const linkedAlertChannels = channels.filter((ch) => {
+    const conn = channelConnection(ch);
+    return conn !== "" && connections.some((c) => c.name === conn);
+  }).length;
   // One shape whatever is there: the connections, the backup destinations that hold
   // keys of their own, then what uses the connections.
   const countParts = [
@@ -76,11 +86,20 @@ export function ConnectionsPage() {
         })
       : "",
   ].filter(Boolean);
-  const appsText = plural(apps, { one: "# app", other: "# apps" });
-  const destsText = plural(linkedBackupDests, { one: "# backup destination", other: "# backup destinations" });
+  const userParts = [
+    apps > 0 ? plural(apps, { one: "# app", other: "# apps" }) : "",
+    linkedBackupDests > 0
+      ? plural(linkedBackupDests, { one: "# backup destination", other: "# backup destinations" })
+      : "",
+    linkedAlertChannels > 0 ? plural(linkedAlertChannels, { one: "# alert channel", other: "# alert channels" }) : "",
+  ].filter(Boolean);
+  const usageList =
+    userParts.length > 1
+      ? new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(userParts)
+      : "";
   const usage =
-    apps > 0 && linkedBackupDests > 0
-      ? t`used by ${appsText} and ${destsText}`
+    userParts.length > 1
+      ? t`used by ${usageList}`
       : apps > 0
         ? plural(apps, { one: "used by # app", other: "used by # apps" })
         : linkedBackupDests > 0
@@ -88,9 +107,14 @@ export function ConnectionsPage() {
               one: "used by # backup destination",
               other: "used by # backup destinations",
             })
-          : connections.length > 0
-            ? t`no app uses them yet`
-            : "";
+          : linkedAlertChannels > 0
+            ? plural(linkedAlertChannels, {
+                one: "used by # alert channel",
+                other: "used by # alert channels",
+              })
+            : connections.length > 0
+              ? t`no app uses them yet`
+              : "";
   const lead = query.isPending || totalRows === 0 ? undefined : [...countParts, usage].filter(Boolean).join(" · ");
   const rows: ListRow[] = [
     ...connections.map((connection): ListRow => ({ kind: "connection", id: connection.id, connection })),
@@ -172,7 +196,7 @@ export function ConnectionsPage() {
                   <span className="connections-phone-text">
                     <span className="connections-mono connections-name">{row.connection.name}</span>
                     <span className="connections-meta">
-                      <UsedBy connection={row.connection} destinations={destinations} />
+                      <UsedBy connection={row.connection} destinations={destinations} channels={channels} />
                     </span>
                     <PhoneCheck connection={row.connection} />
                   </span>
@@ -205,6 +229,7 @@ export function ConnectionsPage() {
         <ConnectionsTable
           rows={rows}
           destinations={destinations}
+          channels={channels}
           onOpen={openRow}
           onUseAsConnection={convertToConnection}
           useAsConnectionOff={mayUseAsConnection.off}
@@ -225,12 +250,14 @@ export function ConnectionsPage() {
 function ConnectionsTable({
   rows,
   destinations,
+  channels,
   onOpen,
   onUseAsConnection,
   useAsConnectionOff,
 }: {
   rows: readonly ListRow[];
   destinations: readonly BackupDestinationInfo[];
+  channels: readonly AlertChannelInfo[];
   onOpen: (row: ListRow) => void;
   onUseAsConnection: (d: BackupDestinationInfo) => void;
   useAsConnectionOff: { off?: string; disabled?: true };
@@ -276,7 +303,7 @@ function ConnectionsTable({
       width: hasStandalone ? 200 : 260,
       render: (row) =>
         row.kind === "connection" ? (
-          <UsedBy connection={row.connection} destinations={destinations} />
+          <UsedBy connection={row.connection} destinations={destinations} channels={channels} />
         ) : (
           <span>
             <Trans>Backups</Trans>
@@ -410,18 +437,21 @@ function PhoneCheck({ connection }: { connection: ConnectionInfo }) {
   return <StatusBadge status={last.status} label={last.label} meta={last.meta} labelIsState />;
 }
 
-/** How many apps or backup destinations use it, with their names. */
+/** How many apps, backup destinations, or alert channels use it, with their names. */
 function UsedBy({
   connection,
   destinations,
+  channels,
 }: {
   connection: ConnectionInfo;
   destinations: readonly BackupDestinationInfo[];
+  channels: readonly AlertChannelInfo[];
 }) {
   const { t } = useLingui();
   const places = usePlaces();
   const reading = appsOf(connection);
   const backups = destinationsOn(connection.name, destinations);
+  const alertChannels = channelsOn(connection.name, channels);
   // A name two environments share says which each is.
   const apps = reading.map((a) =>
     reading.some((o) => o.id !== a.id && o.name === a.name) ? `${a.name} (${places.label(a.environment)})` : a.name,
@@ -446,6 +476,30 @@ function UsedBy({
           {plural(backups.length, {
             one: "Backups",
             other: "# backup destinations",
+          })}
+        </span>
+        <span className="connections-mono connections-meta connections-apps" title={names}>
+          {names}
+        </span>
+      </div>
+    );
+  }
+  if (alertChannels.length > 0 && apps.length === 0) {
+    // When the single alert channel shares the connection's name, say Alerts once instead of repeating the name.
+    if (alertChannels.length === 1 && alertChannels[0]?.name === connection.name) {
+      return (
+        <span>
+          <Trans>Alerts</Trans>
+        </span>
+      );
+    }
+    const names = alertChannels.map((ch) => ch.name).join(", ");
+    return (
+      <div className="dw-cell">
+        <span>
+          {plural(alertChannels.length, {
+            one: "Alerts",
+            other: "# alert channels",
           })}
         </span>
         <span className="connections-mono connections-meta connections-apps" title={names}>
