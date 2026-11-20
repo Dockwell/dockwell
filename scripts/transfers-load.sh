@@ -8,6 +8,11 @@
 # or two of each, never the file, so it fails past the agent's budget of 40 MB,
 # which budgets.sh holds an idle agent to. Every byte is checked both ways.
 #
+# On a machine of 16 CPUs, an agent settled at 29 MB peaks at about 34 MB here,
+# where it peaked at 40 MB while each part came packed with gzip and landed in
+# buffers of its own (#883). Most of the 34 MB is the agent at rest, and 20 MB of
+# that is pages of the binary.
+#
 #   scripts/transfers-load.sh bin/dockwell bin/dockwell-agent [MiB]
 set -euo pipefail
 # Anything this starts asks nothing beyond this machine (DOCKWELL_TEST, ADR 0034).
@@ -40,9 +45,11 @@ fail() {
   exit 1
 }
 
-rss() { awk '/^VmRSS:/ { printf "%.1f", $2 / 1024 }' "/proc/$1/status"; }
+# MB here is 10^6 bytes, as budgets.sh and the PRD's budgets count it; procfs
+# gives KiB.
+rss() { awk '/^VmRSS:/ { printf "%.1f", $2 * 1024 / 1e6 }' "/proc/$1/status"; }
 # The most it has ever held, which the kernel keeps: sampling between parts misses it.
-peak() { awk '/^VmHWM:/ { printf "%.1f", $2 / 1024 }' "/proc/$1/status"; }
+peak() { awk '/^VmHWM:/ { printf "%.1f", $2 * 1024 / 1e6 }' "/proc/$1/status"; }
 
 # The limit the installed service sets, as budgets.sh reads it.
 GOMEMLIMIT=$(sed -n 's/^MEMORY_LIMIT=//p' "$root/scripts/install.sh")

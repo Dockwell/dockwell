@@ -7,12 +7,16 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -413,5 +417,187 @@ func TestAStalledTransferLetsGo(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("small.txt is on record as downloaded %d times", n)
+	}
+}
+
+// chunks hands out its data in reads of varying length, so the agent gets frames
+// of varying length, taking turns with the other uploads that share its turns
+// while they're under way. Past cut, if it's set, it fails, as a dropped
+// connection does.
+type chunks struct {
+	data  []byte
+	at    int
+	cut   int
+	sizes []int
+	n     int
+	turns *turns
+}
+
+func (c *chunks) Read(p []byte) (int, error) {
+	if c.at == len(c.data) {
+		c.turns.leave(c)
+		return 0, io.EOF
+	}
+	if c.cut > 0 && c.at >= c.cut {
+		c.turns.leave(c)
+		return 0, errors.New("the connection dropped")
+	}
+	c.turns.wait(c)
+	size := c.sizes[c.n%len(c.sizes)]
+	c.n++
+	end := min(c.at+size, len(c.data), c.at+len(p))
+	if c.cut > 0 {
+		end = min(end, c.cut)
+	}
+	n := copy(p, c.data[c.at:end])
+	c.at += n
+	return n, nil
+}
+
+// turns has the readers it holds read one after another, a read each, while more
+// than one is under way.
+type turns struct {
+	mu      sync.Mutex
+	changed *sync.Cond
+	order   []*chunks
+	next    int
+}
+
+// takeTurns has cs take turns.
+func takeTurns(cs ...*chunks) {
+	t := &turns{order: cs}
+	t.changed = sync.NewCond(&t.mu)
+	for _, c := range cs {
+		c.turns = t
+	}
+}
+
+func (t *turns) wait(c *chunks) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for len(t.order) > 1 && t.order[t.next%len(t.order)] != c {
+		t.changed.Wait()
+	}
+	if len(t.order) > 0 {
+		t.next = (t.next + 1) % len(t.order)
+	}
+	t.changed.Broadcast()
+}
+
+func (t *turns) leave(c *chunks) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if i := slices.Index(t.order, c); i >= 0 {
+		t.order = slices.Delete(t.order, i, i+1)
+	}
+	if len(t.order) > 0 {
+		t.next %= len(t.order)
+	}
+	t.changed.Broadcast()
+}
+
+// Two uploads at once, their frames taking turns and of every length, land whole,
+// though one is cut short and picked up again: each stream reads its parts into a
+// buffer of its own, which a frame of the other never reaches, and a stream that
+// ends leaves what it wrote (#883).
+func TestTwoUploadsAtOnceLandWholeThoughOneIsCutShort(t *testing.T) {
+	t.Parallel()
+	f := startFull(t, store.SQLite, nil)
+	b := signedIn(t, f)
+	id := f.addServer(t, false).id.ServerID
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := fileClient(b, b.origin)
+	// Bytes that never repeat, and differ between the two, so a frame of one in
+	// the other, or a frame twice, shows.
+	random := func(seed uint64, size int) []byte {
+		out := make([]byte, size)
+		r := rand.New(rand.NewPCG(seed, seed+1))
+		for i := range out {
+			out[i] = byte(r.Uint32())
+		}
+		return out
+	}
+	sizes := []int{1, 70_001, 128 << 10, 128<<10 + 3, 5_000, 300_007, 65_537}
+	type upload struct {
+		to, id string
+		data   []byte
+	}
+	var ups []*upload
+	for i, size := range []int{3<<20 + 12_345, 4<<20 + 6_789} {
+		u := &upload{to: filepath.Join(dir, "up-"+strconv.Itoa(i)+".bin"), data: random(uint64(i*7+1), size)}
+		began, err := c.BeginUpload(t.Context(), connect.NewRequest(&dockwellv1.BeginUploadRequest{ServerId: id, Path: u.to, SizeBytes: uint64(size)}))
+		if err != nil || began.Msg.GetUpload().GetMaxBytes() < uint64(size) {
+			t.Fatalf("BeginUpload = %v, %v", began, err)
+		}
+		u.id = began.Msg.GetUpload().GetUploadId()
+		ups = append(ups, u)
+	}
+	put := func(u *upload, body *chunks, offset int) (int, error) {
+		ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, b.origin+"/v1/servers/"+id+"/uploads/"+u.id+"?offset="+strconv.Itoa(offset), body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.ContentLength = int64(len(body.data))
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Origin", b.origin)
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		res, err := b.client.Do(req)
+		if err != nil {
+			return 0, err
+		}
+		defer res.Body.Close()
+		_, _ = io.Copy(io.Discard, res.Body)
+		return res.StatusCode, nil
+	}
+	whole := &chunks{data: ups[0].data, sizes: sizes}
+	// Cut a few frames in, at no frame's end.
+	cut := 1<<20 + 99_999
+	short := &chunks{data: ups[1].data, cut: cut, sizes: sizes}
+	takeTurns(whole, short)
+	var wg sync.WaitGroup
+	var wholeCode int
+	var wholeErr error
+	wg.Go(func() { wholeCode, wholeErr = put(ups[0], whole, 0) })
+	if code, err := put(ups[1], short, 0); err == nil {
+		t.Errorf("a PUT cut short at %d answered %d", cut, code)
+	}
+	wg.Wait()
+	if wholeErr != nil || wholeCode != http.StatusOK {
+		t.Fatalf("the whole PUT = %d, %v", wholeCode, wholeErr)
+	}
+	// It's picked up from wherever the agent got to, once it's let go of the part.
+	deadline := time.Now().Add(20 * time.Second)
+	for {
+		state, err := c.BeginUpload(t.Context(), connect.NewRequest(&dockwellv1.BeginUploadRequest{ServerId: id, UploadId: ups[1].id}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := int(state.Msg.GetUpload().GetReceivedBytes())
+		if at > cut {
+			t.Fatalf("the agent has %d bytes of a PUT cut at %d", at, cut)
+		}
+		rest := &chunks{data: ups[1].data[at:], sizes: sizes}
+		takeTurns(rest)
+		code, err := put(ups[1], rest, at)
+		if err == nil && code == http.StatusOK {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("picking it up from %d = %d, %v", at, code, err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	for _, u := range ups {
+		if _, err := c.FinishUpload(t.Context(), connect.NewRequest(&dockwellv1.FinishUploadRequest{ServerId: id, UploadId: u.id})); err != nil {
+			t.Fatalf("FinishUpload %s: %v", u.to, err)
+		}
+		if got, _ := os.ReadFile(u.to); !bytes.Equal(got, u.data) {
+			t.Errorf("%s isn't what was sent: %d bytes of %d", u.to, len(got), len(u.data))
+		}
 	}
 }

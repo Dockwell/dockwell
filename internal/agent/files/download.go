@@ -154,18 +154,21 @@ func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1
 	if _, err := out.Write(head); err != nil {
 		return nil, err
 	}
-	// The rest a part at a time, each looked at before it goes.
-	head = head[:min(cap(head), FrameBytes)]
+	// The rest a part at a time, each looked at before it goes, read straight into
+	// the part on its way. The first MiB's buffer isn't read into again, so it
+	// goes: kept for the whole file, three downloads at once held 3 MiB more than
+	// they need (#883).
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		n, err := o.f.Read(head)
+		part := out.spare()
+		n, err := o.f.Read(part)
 		if n > 0 {
-			if refusal := scan.check(o.where, head[:n]); refusal != nil {
+			if refusal := scan.check(o.where, part[:n]); refusal != nil {
 				return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
 			}
-			if _, err := out.Write(head[:n]); err != nil {
+			if err := out.took(n); err != nil {
 				return nil, err
 			}
 		}
@@ -404,6 +407,21 @@ func (f *frames) Write(p []byte) (int, error) {
 		}
 	}
 	return n, nil
+}
+
+// spare is the room left in the part on its way, for a read to fill before took
+// says how much it did.
+func (f *frames) spare() []byte {
+	return f.buf[len(f.buf):cap(f.buf)]
+}
+
+// took adds the n bytes a read put in spare to the part, and sends it once full.
+func (f *frames) took(n int) error {
+	f.buf = f.buf[:len(f.buf)+n]
+	if len(f.buf) == cap(f.buf) {
+		return f.flush()
+	}
+	return nil
 }
 
 func (f *frames) flush() error {
