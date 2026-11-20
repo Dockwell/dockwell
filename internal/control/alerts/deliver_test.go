@@ -452,7 +452,7 @@ func TestAnEmailSignsInWithLogin(t *testing.T) {
 	srv.mu.Unlock()
 
 	srv.set(func(s *smtpServer) { s.mechs = "GSSAPI NTLM" })
-	if r := (&Sender{TLS: roots}).Once(t.Context(), c, m); r.OK || r.Said != "the server signs in with GSSAPI, NTLM, and Dockwell with PLAIN or LOGIN, so it sent nothing" {
+	if r := (&Sender{TLS: roots}).Once(t.Context(), c, m); r.OK || r.Said != "the server doesn't offer PLAIN or LOGIN sign-in, which Dockwell supports, so it sent nothing" {
 		t.Errorf("a server with neither says %+v", r)
 	}
 }

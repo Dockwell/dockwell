@@ -68,7 +68,7 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
-	conn, backupUsed, ok, err := s.connections.ForLinking(ctx, m.GetConnection(), a.project)
+	conn, backupUsed, alertUsed, ok, err := s.connections.ForLinking(ctx, m.GetConnection(), a.project)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +81,9 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 	}
 	if backupUsed {
 		return nil, authapi.Invalid(fmt.Errorf("the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app", conn.Name))
+	}
+	if alertUsed {
+		return nil, authapi.Invalid(fmt.Errorf("the connection %s is used for alert email, so no app can link to it: an app could otherwise send mail as the alert sender. Add a separate mail connection for the app", conn.Name))
 	}
 	linkName := cmp.Or(m.GetLink(), "storage")
 	if err := resource.CheckLabel("link", linkName, "storage"); err != nil {

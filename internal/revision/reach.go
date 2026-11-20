@@ -17,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/link"
@@ -200,12 +201,24 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 			if err := e.checkLinkNotBackup(ctx, tx, items, s.GetConnection()); err != nil {
 				return err
 			}
+			if err := e.checkLinkNotAlertChannel(ctx, tx, items, s); err != nil {
+				return err
+			}
 			return e.checkLinkPrefix(ctx, tx, items, it, s)
 		}
 		if err := e.checkLinkUser(ctx, tx, items, it, s); err != nil {
 			return err
 		}
 		return e.checkLinkServer(ctx, tx, items, it, s)
+	case *resourcev1.AlertChannel:
+		if em := s.GetEmail(); em != nil {
+			if em.GetConnection() != "" {
+				return e.checkAlertChannelConnection(ctx, tx, items, it, em)
+			}
+			if em.GetUsername() != "" && em.GetPassword() == "" {
+				return fault.New(ErrInvalid, "alert channel %s signs in as %s and needs its password", it.ref.Name, em.GetUsername())
+			}
+		}
 	case *resourcev1.BackupDestination:
 		if err := e.checkDestinationTarget(ctx, tx, items, it, s); err != nil {
 			return err
@@ -888,6 +901,350 @@ func keysChanged(from, to *resourcev1.ConnectionS3) bool {
 		return to != nil
 	}
 	return from.GetAccessKeyId() != to.GetAccessKeyId() || from.GetSecretKey() != to.GetSecretKey()
+}
+
+// alertChannelKind is the alert channel kind.
+const alertChannelKind resource.Kind = alert.ChannelKind
+
+// anAlertChannel is an alert channel as it is once the change applies, with its ref.
+type anAlertChannel struct {
+	*resourcev1.AlertChannel
+	ref resource.Ref
+}
+
+// callerIsInstallAdmin reports whether ctx carries no caller (system/test) or an
+// install-level admin. Below install admin, fail-closed errors name no other
+// channel or connection.
+func callerIsInstallAdmin(ctx context.Context) bool {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return true
+	}
+	return store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
+}
+
+// allAlertChannels is every alert channel as it is once the change applies.
+// It fails closed on any decode error, redacting channel names below install admin.
+func (e *Engine) allAlertChannels(ctx context.Context, tx *store.Tx, items []item) ([]anAlertChannel, error) {
+	if t, _ := e.kinds.Type(alertChannelKind); t == nil {
+		return nil, nil
+	}
+	stored, err := tx.ListKind(ctx, string(alertChannelKind))
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]resource.Ref, 0, len(stored)+len(items))
+	for _, r := range stored {
+		refs = append(refs, resource.Ref{Kind: alertChannelKind, Scope: r.Scope, Name: r.Name})
+	}
+	for i := range items {
+		if items[i].ref.Kind == alertChannelKind && !slices.Contains(refs, items[i].ref) {
+			refs = append(refs, items[i].ref)
+		}
+	}
+	out := make([]anAlertChannel, 0, len(refs))
+	for _, ref := range refs {
+		spec, err := e.specAfter(ctx, tx, items, ref)
+		if err != nil {
+			if !callerIsInstallAdmin(ctx) {
+				return nil, fault.New(ErrUnavailable, "can't check whether an alert channel uses this connection. Ask an install admin to check the alert channels")
+			}
+			return nil, err
+		}
+		if ch, ok := spec.(*resourcev1.AlertChannel); ok {
+			out = append(out, anAlertChannel{AlertChannel: ch, ref: ref})
+		}
+	}
+	return out, nil
+}
+
+// checkLinkNotAlertChannel refuses a link to a mail connection that any alert
+// channel uses, or whose (host, user, password) credential equals an alert
+// connection's: an app holding those credentials could otherwise send mail as
+// the alert sender (ADR 0099, #833). S3 links skip the alert-channel scan (M1).
+func (e *Engine) checkLinkNotAlertChannel(ctx context.Context, tx *store.Tx, items []item, l *resourcev1.Link) error {
+	connName := l.GetConnection()
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: connName})
+	if err != nil {
+		return err
+	}
+	connSpec, _ := spec.(*resourcev1.ConnectionSpec)
+	if l.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP && connSpec.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP {
+		return nil
+	}
+	channels, err := e.allAlertChannels(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	var alertConns []string
+	for i := range channels {
+		acName := channels[i].GetEmail().GetConnection()
+		if acName == "" {
+			continue
+		}
+		if acName == connName {
+			return fault.New(ErrInvalid, "the connection %s is used for alert email, so no app can link to it: an app could otherwise send mail as the alert sender. Add a separate mail connection for the app",
+				connName)
+		}
+		if !slices.Contains(alertConns, acName) {
+			alertConns = append(alertConns, acName)
+		}
+	}
+	if connSpec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && connSpec.GetSmtp().GetPassword() != "" {
+		for _, acName := range alertConns {
+			acSpec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: acName})
+			if err != nil {
+				if !callerIsInstallAdmin(ctx) {
+					return fault.New(ErrUnavailable, "can't check whether an alert channel uses this connection. Ask an install admin to check the alert channels")
+				}
+				return err
+			}
+			if ac, ok := acSpec.(*resourcev1.ConnectionSpec); ok && ac.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP &&
+				connection.SameSMTPCredential(connSpec.GetSmtp(), ac.GetSmtp()) {
+				return fault.New(ErrInvalid, "the connection %s uses the same mail account credentials as an alert email connection, so no app can link to it: an app could otherwise send mail as the alert sender. Use separate mail credentials for the app",
+					connName)
+			}
+		}
+	}
+	return nil
+}
+
+// checkAlertChannelConnection refuses an alert channel naming a connection that
+// isn't an unshared SMTP connection passing alert-email TLS rules whose current
+// password no app holds (ADR 0099, #833).
+func (e *Engine) checkAlertChannelConnection(ctx context.Context, tx *store.Tx, items []item, it *item, em *resourcev1.AlertEmail) error {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	name := em.GetConnection()
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: name})
+	if err != nil {
+		return err
+	}
+	c, ok := spec.(*resourcev1.ConnectionSpec)
+	if !ok {
+		return fault.New(ErrInvalid, "alert channel %s uses connection %s, which isn't on this install. Add %s first, in this change or an earlier one",
+			it.ref.Name, name, name)
+	}
+	if c.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP || c.GetSmtp() == nil {
+		return fault.New(ErrInvalid, "alert channel %s names the connection %s, which isn't a mail server. Pick a mail connection, or add one on Connections",
+			it.ref.Name, name)
+	}
+	smtp := c.GetSmtp()
+	if err := alert.CheckEmailTransport(smtp.GetHost(), resourcev1.AlertEmail_Security(connection.Security(smtp)), smtp.GetUser() != ""); err != nil {
+		return fault.New(ErrInvalid, "alert channel %s can't use the connection %s: %s. Update %s, or pick another mail connection",
+			it.ref.Name, name, err.Error(), name)
+	}
+	if c.GetShared() {
+		return fault.New(ErrInvalid, "alert channel %s can't use the shared connection %s, because a connection alerts use serves no app. Add a dedicated mail connection for alerts, or unshare %s first",
+			it.ref.Name, name, name)
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	for i := range links {
+		if links[i].GetConnection() == name {
+			where := whichScope(ctx, tx, links[i].ref.Scope)
+			return fault.New(ErrInvalid, "alert channel %s can't use the connection %s, because link %s in %s uses it and an app could otherwise send mail as the alert sender. Add a separate mail connection for alerts",
+				it.ref.Name, name, links[i].ref.Name, where)
+		}
+	}
+	return e.checkMailConnectionNotUsedByApp(ctx, tx, items, org.ID, name, c)
+}
+
+// checkMailConnectionNotUsedByApp refuses adopting or rotating an alert mail
+// connection onto a credential an app holds, without any fixed-horizon history
+// scan (ADR 0099, #833): it checks links removed in the same change (unless the
+// connection's password rotates in that change) and consults the shared
+// connection.SMTPHeldByApp predicate across all app-linked SMTP connections and
+// live plain secrets (including recognized smtp:// and smtps:// URLs).
+func (e *Engine) checkMailConnectionNotUsedByApp(ctx context.Context, tx *store.Tx, items []item, orgID, connName string, afterC *resourcev1.ConnectionSpec) error {
+	m := afterC.GetSmtp()
+	if m == nil || m.GetPassword() == "" {
+		return nil
+	}
+	refuse := func() error {
+		return fault.New(ErrInvalid, "an app holds the password of connection %s. Paste a password made for alerts alone on %s, and revoke the one the app had at your mail provider",
+			connName, connName)
+	}
+	// 1. If this change deletes or repoints a link that named connName, and doesn't
+	// rotate connName's password to a different value in the same change, the app
+	// that link served already received this password.
+	var connItem *item
+	for i := range items {
+		if items[i].ref.Kind == variable.ConnectionKind && items[i].ref.Name == connName {
+			connItem = &items[i]
+			break
+		}
+	}
+	passwordRotated := false
+	if connItem != nil {
+		if beforeC, ok := connItem.current.(*resourcev1.ConnectionSpec); ok && beforeC.GetSmtp() != nil {
+			passwordRotated = beforeC.GetSmtp().GetPassword() != m.GetPassword()
+		}
+	}
+	if !passwordRotated {
+		for i := range items {
+			if items[i].ref.Kind != linkKind {
+				continue
+			}
+			if beforeL, ok := items[i].current.(*resourcev1.Link); ok && beforeL.GetConnection() == connName {
+				return refuse()
+			}
+		}
+	}
+	// 2. Check the shared predicate across every app-linked SMTP connection
+	// (same account under another name) and every live plain secret (literal
+	// password or recognized smtp:// / smtps:// URL).
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	var linkedNames []string
+	for i := range links {
+		if n := links[i].GetConnection(); n != "" && n != connName && !slices.Contains(linkedNames, n) {
+			linkedNames = append(linkedNames, n)
+		}
+	}
+	linkedAppConns := make([]*resourcev1.ConnectionSmtp, 0, len(linkedNames))
+	for _, n := range linkedNames {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: orgID, Name: n})
+		if err != nil {
+			return err
+		}
+		if cs, ok := spec.(*resourcev1.ConnectionSpec); ok && cs.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && cs.GetSmtp() != nil {
+			linkedAppConns = append(linkedAppConns, cs.GetSmtp())
+		}
+	}
+	storedSecrets, err := tx.ListKind(ctx, string(variable.SecretKind))
+	if err != nil {
+		return err
+	}
+	secretRefs := make([]resource.Ref, 0, len(storedSecrets))
+	for i := range storedSecrets {
+		secretRefs = append(secretRefs, resource.Ref{Kind: variable.SecretKind, Scope: storedSecrets[i].Scope, Name: storedSecrets[i].Name})
+	}
+	for i := range items {
+		if items[i].ref.Kind == variable.SecretKind && !slices.Contains(secretRefs, items[i].ref) {
+			secretRefs = append(secretRefs, items[i].ref)
+		}
+	}
+	plainSecrets := make([]string, 0, len(secretRefs))
+	for _, ref := range secretRefs {
+		spec, err := e.specAfter(ctx, tx, items, ref)
+		if err != nil {
+			return err
+		}
+		if sec, ok := spec.(*resourcev1.Secret); ok && sec.GetFrom() == nil && sec.GetValue() != "" {
+			plainSecrets = append(plainSecrets, sec.GetValue())
+		}
+	}
+	if connection.SMTPHeldByApp(m, linkedAppConns, plainSecrets) {
+		return refuse()
+	}
+	return nil
+}
+
+// checkConnectionAlertChannels refuses deleting, retyping, marking shared,
+// breaking alert-email TLS rules, or rotating back to an app-held credential on
+// an SMTP connection while an alert channel names it, and refuses rotating an
+// app-linked SMTP connection onto an alert connection's credential (ADR 0099,
+// #833). S3-only connection edits skip the alert-channel scan (M1).
+func (e *Engine) checkConnectionAlertChannels(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.ref.Kind != variable.ConnectionKind {
+		return nil
+	}
+	after, _ := it.spec.(*resourcev1.ConnectionSpec)
+	before, _ := it.current.(*resourcev1.ConnectionSpec)
+	if before.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP && after.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP {
+		return nil
+	}
+	channels, err := e.allAlertChannels(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	checkedPassword := false
+	usedByAlert := false
+	var otherAlertConns []string
+	for i := range channels {
+		ch := &channels[i]
+		acName := ch.GetEmail().GetConnection()
+		if acName == "" {
+			continue
+		}
+		if acName != it.ref.Name {
+			if !slices.Contains(otherAlertConns, acName) {
+				otherAlertConns = append(otherAlertConns, acName)
+			}
+			continue
+		}
+		usedByAlert = true
+		if it.spec == nil {
+			also := ", or in the same change"
+			if it.reverses {
+				also = ""
+			}
+			return fault.New(ErrInvalid, "alert channel %s still uses the connection %s, which this change deletes. Remove or update %s first%s",
+				ch.ref.Name, it.ref.Name, ch.ref.Name, also)
+		}
+		if after.GetKind() != resourcev1.LinkKind_LINK_KIND_SMTP || after.GetSmtp() == nil {
+			return fault.New(ErrInvalid, "alert channel %s still uses the connection %s, which this change makes another kind of connection. Update or remove %s first, or add a connection of the new kind",
+				ch.ref.Name, it.ref.Name, ch.ref.Name)
+		}
+		if after.GetShared() {
+			return fault.New(ErrInvalid, "the connection %s can't be marked shared while alert channel %s uses it, because a connection alerts use serves no app. Point %s at another connection first, or keep %s unshared",
+				it.ref.Name, ch.ref.Name, ch.ref.Name, it.ref.Name)
+		}
+		afterSMTP := after.GetSmtp()
+		if err := alert.CheckEmailTransport(afterSMTP.GetHost(), resourcev1.AlertEmail_Security(connection.Security(afterSMTP)), afterSMTP.GetUser() != ""); err != nil {
+			return fault.New(ErrInvalid, "the connection %s can't use those mail settings while alert channel %s uses it: %s. Keep %s on TLS, or point %s at another connection first",
+				it.ref.Name, ch.ref.Name, err.Error(), it.ref.Name, ch.ref.Name)
+		}
+		if !checkedPassword && smtpCredentialIdentityChanged(before.GetSmtp(), afterSMTP) {
+			checkedPassword = true
+			if err := e.checkMailConnectionNotUsedByApp(ctx, tx, items, it.ref.Scope, it.ref.Name, after); err != nil {
+				return err
+			}
+		}
+	}
+	// If this edit leaves an app-linked SMTP connection with the same (host, user,
+	// password) credential as an alert connection, refuse it (H3, #833).
+	if !usedByAlert && len(otherAlertConns) > 0 && after != nil && after.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && after.GetSmtp().GetPassword() != "" {
+		links, err := e.allLinks(ctx, tx, items)
+		if err != nil {
+			return err
+		}
+		hasAppLink := slices.ContainsFunc(links, func(l aLink) bool { return l.GetConnection() == it.ref.Name })
+		if hasAppLink {
+			for _, acName := range otherAlertConns {
+				acSpec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: it.ref.Scope, Name: acName})
+				if err != nil {
+					return err
+				}
+				if ac, ok := acSpec.(*resourcev1.ConnectionSpec); ok && ac.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP &&
+					connection.SameSMTPCredential(after.GetSmtp(), ac.GetSmtp()) {
+					return fault.New(ErrInvalid, "the connection %s serves an app link and can't use the same mail account credentials as an alert email connection, because an app could otherwise send mail as the alert sender. Use separate mail credentials for %s",
+						it.ref.Name, it.ref.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func smtpCredentialIdentityChanged(from, to *resourcev1.ConnectionSmtp) bool {
+	ca, okA := connection.CredentialOf(from)
+	cb, okB := connection.CredentialOf(to)
+	if !okB {
+		return false
+	}
+	return !okA || ca != cb
 }
 
 // movedBackupTarget says whether an edit changes where a connection's S3 requests go

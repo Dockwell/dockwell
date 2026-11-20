@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/link"
@@ -231,12 +232,58 @@ func (c *Connections) BackupUses(ctx context.Context) (map[string][]string, erro
 	return out, err
 }
 
+// ErrAlertChannelsUnreadable indicates that at least one stored alert channel
+// could not be decoded while checking which mail connections alerts use.
+var ErrAlertChannelsUnreadable = errors.New("alert channels unreadable")
+
+type alertUnreadError struct {
+	msg string
+	err error
+}
+
+func (e *alertUnreadError) Error() string        { return e.msg }
+func (e *alertUnreadError) Unwrap() error        { return e.err }
+func (e *alertUnreadError) Is(target error) bool { return target == ErrAlertChannelsUnreadable }
+
+// AlertUses reports the alert channels naming each mail connection, by connection
+// name (ADR 0099). It fails closed with ErrAlertChannelsUnreadable if any alert
+// channel cannot be decoded, without naming channels below install admin.
+func (c *Connections) AlertUses(ctx context.Context) (map[string][]string, error) {
+	admin, _ := callerProjects(ctx)
+	out := map[string][]string{}
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(alert.ChannelKind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			r := &stored[i]
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				if !admin {
+					return &alertUnreadError{msg: "can't check which connections alert channels use. Ask an install admin to check the alert channels"}
+				}
+				return &alertUnreadError{msg: fmt.Sprintf("can't read alert channel %s while checking connection uses: %v", r.Name, err), err: err}
+			}
+			if ch, ok := spec.(*resourcev1.AlertChannel); ok && ch.GetEmail().GetConnection() != "" {
+				connName := ch.GetEmail().GetConnection()
+				out[connName] = append(out[connName], r.Name)
+			}
+		}
+		return nil
+	})
+	for name := range out {
+		slices.Sort(out[name])
+	}
+	return out, err
+}
+
 // ForLinking reads the connection named, verifies reach for project (when set)
 // or the caller's projects before scanning, and checks in the same read
-// transaction whether any backup destination uses it, failing closed without
-// leaking destination names below install admin if any backup destination
-// cannot be decoded (#831).
-func (c *Connections) ForLinking(ctx context.Context, name, project string) (saved Saved, backupUsed, ok bool, err error) {
+// transaction whether any backup destination or alert channel uses it, failing
+// closed without leaking destination, channel, or connection names below install
+// admin if any cannot be decoded (#831, #833).
+func (c *Connections) ForLinking(ctx context.Context, name, project string) (saved Saved, backupUsed, alertUsed, ok bool, err error) {
 	admin, projects := callerProjects(ctx)
 	err = c.db.View(ctx, func(tx *store.Tx) error {
 		org, err := tx.Organization(ctx)
@@ -266,27 +313,49 @@ func (c *Connections) ForLinking(ctx context.Context, name, project string) (sav
 			return nil
 		}
 		saved, ok = Saved{ID: r.ID, Name: r.Name, Revision: r.Revision, Spec: cs}, true
-		dests, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
-		if err != nil {
-			return err
-		}
-		for i := range dests {
-			dr := &dests[i]
-			dspec, err := c.keeper.Decode(ctx, tx, store.InRevision(dr.ID, dr.Kind, dr.Revision), dr.Spec)
+		if cs.GetKind() == resourcev1.LinkKind_LINK_KIND_S3 {
+			dests, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
 			if err != nil {
-				if !admin {
-					return fmt.Errorf("can't check whether a backup destination uses %s. Ask an install admin to check the backup destinations", name)
-				}
-				return fmt.Errorf("can't check whether backup destination %s uses %s: %w", dr.Name, name, err)
+				return err
 			}
-			if d, isDest := dspec.(*resourcev1.BackupDestination); isDest && d.GetConnection() == name {
-				backupUsed = true
-				return nil
+			for i := range dests {
+				dr := &dests[i]
+				dspec, err := c.keeper.Decode(ctx, tx, store.InRevision(dr.ID, dr.Kind, dr.Revision), dr.Spec)
+				if err != nil {
+					if !admin {
+						return errors.New("can't check whether a backup destination uses this connection. Ask an install admin to check the backup destinations")
+					}
+					return fmt.Errorf("can't check whether backup destination %s uses %s: %w", dr.Name, name, err)
+				}
+				if d, isDest := dspec.(*resourcev1.BackupDestination); isDest && d.GetConnection() == name {
+					backupUsed = true
+					return nil
+				}
+			}
+		}
+		if cs.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+			channels, err := tx.ListKind(ctx, string(alert.ChannelKind))
+			if err != nil {
+				return err
+			}
+			for i := range channels {
+				cr := &channels[i]
+				cspec, err := c.keeper.Decode(ctx, tx, store.InRevision(cr.ID, cr.Kind, cr.Revision), cr.Spec)
+				if err != nil {
+					if !admin {
+						return errors.New("can't check whether an alert channel uses this connection. Ask an install admin to check the alert channels")
+					}
+					return fmt.Errorf("can't check whether alert channel %s uses %s: %w", cr.Name, name, err)
+				}
+				if ch, isCh := cspec.(*resourcev1.AlertChannel); isCh && ch.GetEmail().GetConnection() == name {
+					alertUsed = true
+					return nil
+				}
 			}
 		}
 		return nil
 	})
-	return saved, backupUsed, ok, err
+	return saved, backupUsed, alertUsed, ok, err
 }
 
 // ServersOf are the servers, by ID, that run an app linked to the connection named:
@@ -442,6 +511,16 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		return nil, err
 	}
 	admin, mine := callerProjects(ctx)
+	// SMTP held is an install admin's alone: never compare caller-writable secrets
+	// against sealed SMTP passwords for anyone below install admin (H6, #833).
+	var ownSecrets []string
+	if admin && slices.ContainsFunc(all, func(c Saved) bool {
+		return c.Spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && c.Spec.GetSmtp().GetPassword() != ""
+	}) {
+		if ownSecrets, err = s.connections.OwnSecrets(ctx); err != nil {
+			return nil, err
+		}
+	}
 	for _, c := range all {
 		switch {
 		case narrowed && !connection.Reaches(c.Spec, project):
@@ -449,7 +528,20 @@ func (s *Service) ListConnections(ctx context.Context, req *connect.Request[dock
 		case !admin && !reachesAny(c.Spec, mine):
 			continue
 		}
-		info := &dockwellv1.ConnectionInfo{Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(), Held: Holds(values, c.Spec), Shared: c.Spec.GetShared()}
+		held := Holds(values, c.Spec)
+		if admin && c.Spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP {
+			var otherLinked []*resourcev1.ConnectionSmtp
+			for _, other := range all {
+				if other.Name != c.Name && other.Spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && len(uses[other.Name]) > 0 {
+					otherLinked = append(otherLinked, other.Spec.GetSmtp())
+				}
+			}
+			held = held || connection.SMTPHeldByApp(c.Spec.GetSmtp(), otherLinked, ownSecrets)
+		}
+		info := &dockwellv1.ConnectionInfo{
+			Id: c.ID, Name: c.Name, DisplayName: c.Spec.GetDisplayName(), Kind: c.Spec.GetKind(),
+			Held: held, Shared: c.Spec.GetShared(),
+		}
 		switch {
 		case admin:
 			s3 := c.Spec.GetS3()
@@ -963,6 +1055,35 @@ func (c *Connections) OwnValues(ctx context.Context, project string) (map[string
 					out[r.Scope] = map[string]bool{}
 				}
 				out[r.Scope][v.GetValue()] = true
+			}
+		}
+		return nil
+	})
+	return out, err
+}
+
+// OwnSecrets returns plain secret values (not from a link/connection) held by
+// any environment, so ListConnections (for install admins alone) can check
+// whether an app holds an SMTP connection's current password via the shared
+// connection.SMTPHeldByApp predicate (ADR 0099, #833).
+func (c *Connections) OwnSecrets(ctx context.Context) ([]string, error) {
+	var out []string
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(variable.SecretKind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			r := &stored[i]
+			if r.Spec == nil {
+				continue
+			}
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				continue
+			}
+			if sec, ok := spec.(*resourcev1.Secret); ok && sec.GetFrom() == nil && sec.GetValue() != "" {
+				out = append(out, sec.GetValue())
 			}
 		}
 		return nil

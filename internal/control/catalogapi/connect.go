@@ -130,9 +130,9 @@ func (h *Handler) appOf(ctx context.Context, project string, n *catalogv1.Need) 
 // the connection the project it makes (Widens, ADR 0099). An install is an admin's,
 // and nothing else asks. One that names other projects is never widened.
 func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, project string, asked map[string]string) ([]catalog.ConnectionWay, []string, error) {
-	if h.db == nil || h.keeper == nil || !slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool {
-		return n.GetKind() == catalogv1.Kind_KIND_S3 || n.GetKind() == catalogv1.Kind_KIND_SMTP
-	}) {
+	needsS3 := slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool { return n.GetKind() == catalogv1.Kind_KIND_S3 })
+	needsSMTP := slices.ContainsFunc(e.GetNeeds(), func(n *catalogv1.Need) bool { return n.GetKind() == catalogv1.Kind_KIND_SMTP })
+	if h.db == nil || h.keeper == nil || (!needsS3 && !needsSMTP) {
 		return nil, nil, nil
 	}
 	projectID, projectName := "", project
@@ -171,6 +171,27 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 	if err != nil {
 		return nil, nil, err
 	}
+	var alertUses map[string][]string
+	skipSMTP := false
+	if needsSMTP {
+		alertUses, err = conns.AlertUses(ctx)
+		if errors.Is(err, connections.ErrAlertChannelsUnreadable) {
+			// Leave out SMTP choices whose alert eligibility cannot be checked,
+			// without breaking S3 choices or the catalog entry itself (M1, #833).
+			h.logger.WarnContext(ctx, "can't read alert channels while checking mail connections, so no mail connections are offered")
+			skipSMTP = true
+		} else if err != nil {
+			return nil, nil, err
+		}
+	}
+	var alertSMTPConns []*resourcev1.ConnectionSmtp
+	if needsSMTP && !skipSMTP {
+		for i := range all {
+			if len(alertUses[all[i].Name]) > 0 && all[i].Spec.GetKind() == resourcev1.LinkKind_LINK_KIND_SMTP && all[i].Spec.GetSmtp() != nil {
+				alertSMTPConns = append(alertSMTPConns, all[i].Spec.GetSmtp())
+			}
+		}
+	}
 	values, err := conns.OwnValues(ctx, projectID)
 	if err != nil {
 		return nil, nil, err
@@ -182,7 +203,15 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		if kind != catalogv1.Kind_KIND_S3 && kind != catalogv1.Kind_KIND_SMTP {
 			continue
 		}
-		if len(backupUses[c.Name]) > 0 {
+		if kind == catalogv1.Kind_KIND_SMTP && skipSMTP {
+			continue
+		}
+		if len(backupUses[c.Name]) > 0 || len(alertUses[c.Name]) > 0 {
+			continue
+		}
+		if kind == catalogv1.Kind_KIND_SMTP && slices.ContainsFunc(alertSMTPConns, func(a *resourcev1.ConnectionSmtp) bool {
+			return connection.SameSMTPCredential(c.Spec.GetSmtp(), a)
+		}) {
 			continue
 		}
 		reaches := c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY || projectID != "" && connection.Reaches(c.Spec, projectID)

@@ -403,41 +403,19 @@ func (h *Handler) TestAlertChannel(ctx context.Context, req *connect.Request[doc
 	}
 	client, _ := authapi.ClientFrom(ctx)
 	m := req.Msg
-	spec := proto.CloneOf(m.GetChannel())
-	var stored *channel
-	if m.GetName() != "" {
-		err := h.db.View(ctx, func(tx *store.Tx) error {
-			all, err := readChannels(ctx, tx, h.eval.Keeper)
-			for i := range all {
-				if all[i].name == m.GetName() {
-					stored = &all[i]
-				}
-			}
-			return err
-		})
-		if err != nil {
+	stored, spec, sendSpec, asStored, err := resolveTestChannel(ctx, h.db, h.eval.Keeper, m.GetName(), m.GetChannel())
+	if err != nil {
+		switch {
+		case errors.Is(err, errChannelNotFound), errors.Is(err, errConnNotFound):
+			return nil, authapi.ReasonError(connect.CodeNotFound, err, "not_found")
+		case errors.Is(err, errConnInvalid):
+			return nil, authapi.Invalid(err)
+		default:
 			return nil, h.internal(ctx, err)
 		}
-		if stored == nil {
-			return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no alert channel %s. List them to find its name", m.GetName()), "not_found")
-		}
 	}
-	switch {
-	case spec == nil && stored == nil:
-		return nil, authapi.Invalid(errors.New("give the channel to test, by name or as a form holds it"))
-	case spec == nil:
-		spec = proto.CloneOf(stored.spec)
-	}
-	if err := (alert.Channel{}).Validate(spec); err != nil {
-		return nil, authapi.Invalid(err)
-	}
-	if stored != nil {
-		if _, err := (alert.Channel{}).Keep(stored.spec, spec); err != nil {
-			return nil, authapi.Invalid(err)
-		}
-	}
-	if err := (alert.Channel{}).CheckNew(spec); err != nil {
-		return nil, authapi.Invalid(err)
+	if sendSpec != spec {
+		defer clearEmailAuth(sendSpec)
 	}
 	now := h.eval.now()
 	if wait := h.tests.allow(p.Actor(), now); wait > 0 {
@@ -446,20 +424,22 @@ func (h *Handler) TestAlertChannel(ctx context.Context, req *connect.Request[doc
 		return nil, err
 	}
 	msg := Message{Status: "test", Panel: h.eval.Panel, At: now}
-	r := h.eval.Sender.Test(ctx, spec, msg)
+	r := h.eval.Sender.Test(ctx, sendSpec, msg)
+	if sendSpec != spec {
+		clearEmailAuth(sendSpec)
+	}
 	d := &dockwellv1.AlertDelivery{Time: timestamppb.New(now), Ok: r.OK, Said: r.Said, About: msg.About(), Channel: m.GetName()}
 	// What a channel's deliveries say is how it is, so a form's test that isn't the
 	// channel as it's kept, such as one with a URL that's yet to be planned, says
 	// nothing of it there.
-	asStored := stored != nil && proto.Equal(spec, stored.spec)
-	err := h.db.Update(ctx, func(tx *store.Tx) error {
+	err = h.db.Update(ctx, func(tx *store.Tx) error {
 		if asStored {
 			rec := store.AlertDelivery{ID: id.New(id.Alert), ChannelID: stored.id, ChannelName: stored.name, At: now, OK: r.OK, Said: r.Said, About: msg.About()}
 			if err := tx.AddAlertDelivery(ctx, rec); err != nil {
 				return err
 			}
 		}
-		return recordTest(ctx, tx, m.GetName(), spec, r, p.Actor(), client.Surface(p), now)
+		return recordTest(ctx, tx, m.GetName(), sendSpec, r, p.Actor(), client.Surface(p), now)
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)

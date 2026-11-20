@@ -9443,6 +9443,12 @@ components:
                     items:
                         type: string
                     description: 'Who they go to, such as "ops@example.com": one to ten addresses.'
+                connection:
+                    type: string
+                    description: |-
+                        The install's mail connection, by name, whose host, port, security, user
+                         and sealed password this channel sends through (ADR 0099). Mutually
+                         exclusive with host, port, security, username and password.
             description: |-
                 AlertEmail sends each alert as an email, through an SMTP server such as your
                  mail provider's. Dockwell talks TLS to it, unless it's on this server or its

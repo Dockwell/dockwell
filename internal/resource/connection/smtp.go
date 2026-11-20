@@ -213,6 +213,89 @@ func URL(m *resourcev1.ConnectionSmtp) string {
 	return u.String()
 }
 
+// SMTPCredential identifies an SMTP login account independent of connection name,
+// port or TLS mode: normalized host, user and password (ADR 0099, #833).
+type SMTPCredential struct {
+	Host     string
+	User     string
+	Password string
+}
+
+// CredentialOf returns the normalized SMTP credential identity of m and true
+// when m holds a password.
+func CredentialOf(m *resourcev1.ConnectionSmtp) (SMTPCredential, bool) {
+	if m == nil || m.GetPassword() == "" {
+		return SMTPCredential{}, false
+	}
+	return SMTPCredential{
+		Host:     normalizeSMTPHost(m.GetHost()),
+		User:     m.GetUser(),
+		Password: m.GetPassword(),
+	}, true
+}
+
+func normalizeSMTPHost(host string) string {
+	h := strings.TrimSuffix(strings.TrimSpace(host), ".")
+	h = strings.Trim(h, "[]")
+	if addr, err := netip.ParseAddr(h); err == nil {
+		return addr.Unmap().String()
+	}
+	return strings.ToLower(h)
+}
+
+// SameSMTPCredential reports whether two SMTP connections hold the same
+// (host, user, password) account, independent of connection name, port or TLS mode.
+func SameSMTPCredential(a, b *resourcev1.ConnectionSmtp) bool {
+	ca, okA := CredentialOf(a)
+	cb, okB := CredentialOf(b)
+	return okA && okB && ca == cb
+}
+
+// SecretHoldsSMTPPassword reports whether a plain secret's value holds m's
+// current password, either directly or as the password in an smtp:// or smtps://
+// URL regardless of port or TLS mode (ADR 0099, #833).
+func SecretHoldsSMTPPassword(secretValue string, m *resourcev1.ConnectionSmtp) bool {
+	cur, ok := CredentialOf(m)
+	if !ok || secretValue == "" {
+		return false
+	}
+	if secretValue == cur.Password {
+		return true
+	}
+	u, err := url.Parse(strings.TrimSpace(secretValue))
+	if err != nil || u.User == nil {
+		return false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "smtp" && scheme != "smtps" {
+		return false
+	}
+	pw, hasPW := u.User.Password()
+	return hasPW && pw == cur.Password
+}
+
+// SMTPHeldByApp is the shared predicate for the revision engine, draft alert
+// channel tests, and the admin eligibility view: it reports whether m's
+// credential is held by any app, either through an app-linked SMTP connection
+// sharing the same (host, user, password) or through any live plain secret
+// holding m's password directly or inside an smtp:// or smtps:// URL.
+func SMTPHeldByApp(m *resourcev1.ConnectionSmtp, linkedAppConns []*resourcev1.ConnectionSmtp, plainSecrets []string) bool {
+	if _, ok := CredentialOf(m); !ok {
+		return false
+	}
+	for _, other := range linkedAppConns {
+		if SameSMTPCredential(m, other) {
+			return true
+		}
+	}
+	for _, val := range plainSecrets {
+		if SecretHoldsSMTPPassword(val, m) {
+			return true
+		}
+	}
+	return false
+}
+
 func hostPort(host string, port int) string {
 	if strings.Contains(host, ":") {
 		return "[" + host + "]:" + strconv.Itoa(port)
