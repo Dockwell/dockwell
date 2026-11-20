@@ -19744,6 +19744,9 @@ msgstr "Asked to cancel a build on {name}"
 msgid "Changed how often their passkey is asked for"
 msgstr "Changed how often their passkey is asked for"
 
+msgid "Changed their time zone"
+msgstr "Changed their time zone"
+
 msgid "Confirmed by signing in"
 msgstr "Confirmed by signing in"
 

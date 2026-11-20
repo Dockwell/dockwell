@@ -19744,6 +19744,9 @@ msgstr "请求取消 {name} 上的构建"
 msgid "Changed how often their passkey is asked for"
 msgstr "更改了通行密钥的验证频率"
 
+msgid "Changed their time zone"
+msgstr "更改了自己的时区"
+
 msgid "Confirmed by signing in"
 msgstr "已通过登录确认"
 

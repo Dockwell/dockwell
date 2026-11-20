@@ -1,6 +1,7 @@
 [
   "account.email",
   "account.name",
+  "account.time_zone",
   "alert.acknowledge",
   "alert.firing",
   "alert.mute",

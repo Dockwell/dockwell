@@ -59,6 +59,8 @@ export function useAuditWords(): (event: AuditEvent) => Said {
           return { title: t`Changed their name` };
         case "account.email":
           return { title: t`Changed their email` };
+        case "account.time_zone":
+          return { title: t`Changed their time zone` };
         case "token.refuse":
           return { title: t`Refused a call this token can't make`, tone: "warning" };
         case "role.refuse":
