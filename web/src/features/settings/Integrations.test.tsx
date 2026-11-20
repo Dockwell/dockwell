@@ -2,14 +2,25 @@
 
 import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
-import { BackupDestinationInfoSchema } from "@dockwell/api";
-import { screen, within } from "@testing-library/react";
+import {
+  BackupDestinationInfoSchema,
+  ChangeSchema,
+  ChangeState,
+  ConnectionInfoSchema,
+  ConnectionReach,
+  LinkKind,
+  Role,
+  type UseDestinationAsConnectionRequest,
+  type WatchChangeResponse,
+} from "@dockwell/api";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { onPhone, renderAt } from "../../test/render";
+import { authState, mira } from "../../test/auth";
+import { feed, onPhone, renderAt } from "../../test/render";
 
 const MiB = 1024 * 1024;
 
@@ -141,7 +152,7 @@ describe("Integrations", () => {
     ).toBeVisible();
   });
 
-  it("connects S3-compatible storage through the same plan Backups makes", async () => {
+  it("connects S3-compatible storage through the connection sheet", async () => {
     const user = userEvent.setup();
     renderAt("/settings/integrations", { backups: { listBackupDestinations: () => ({ destinations: [] }) } });
     expect(
@@ -152,9 +163,86 @@ describe("Integrations", () => {
     await user.click(
       within(screen.getByRole("article", { name: "S3-compatible storage" })).getByRole("button", { name: "Connect" }),
     );
-    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
+    const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
     expect(within(sheet).getByRole("textbox", { name: "Bucket" })).toBeVisible();
     expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+  });
+
+  it("counts an S3 connection paired with a backup destination once, alongside unpaired connections", async () => {
+    const conn = create(ConnectionInfoSchema, {
+      id: "cnx_1",
+      name: "r2-backups",
+      displayName: "Cloudflare R2 · acme-backups",
+      kind: LinkKind.S3,
+      endpoint: "https://example.r2.cloudflarestorage.com",
+      region: "auto",
+      bucket: "acme-backups",
+      reach: ConnectionReach.UNSPECIFIED,
+    });
+    const appConn = create(ConnectionInfoSchema, {
+      id: "cnx_2",
+      name: "uploads",
+      displayName: "Uploads",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.us-east-1.amazonaws.com",
+      region: "us-east-1",
+      bucket: "site-uploads",
+      reach: ConnectionReach.EVERY,
+    });
+    const pairedDest = create(BackupDestinationInfoSchema, {
+      ...r2,
+      name: "r2-backups",
+      connection: "r2-backups",
+    });
+    renderAt("/settings/integrations", {
+      connections: { listConnections: () => ({ connections: [conn, appConn] }) },
+      backups: { listBackupDestinations: () => ({ destinations: [pairedDest] }) },
+    });
+    const storage = await screen.findByRole("region", { name: "Object storage" });
+    expect(await within(storage).findByText("2 buckets")).toBeVisible();
+    expect(
+      screen.getByText("2 connected · the services Dockwell builds from, deploys with, routes through and backs up to"),
+    ).toBeVisible();
+    const backed = within(storage).getByRole("article", { name: "r2-backups" });
+    expect(within(backed).getByText("12 backups, 186 MB")).toBeVisible();
+    expect(within(backed).getByRole("link", { name: "Manage" })).toHaveAttribute("href", "/connections/r2-backups");
+    expect(within(backed).queryByRole("button", { name: "Use as a connection" })).toBeNull();
+  });
+
+  it("offers Use as a connection on a standalone legacy destination, gated on install admin", async () => {
+    const user = userEvent.setup();
+    const asked: UseDestinationAsConnectionRequest[] = [];
+    renderAt("/settings/integrations", {
+      backups: {
+        listBackupDestinations: () => ({ destinations: [r2] }),
+        useDestinationAsConnection: (req) => {
+          asked.push(req);
+          return {
+            connection: "r2",
+            change: create(ChangeSchema, { id: "chg_use", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
+          };
+        },
+      },
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    const card = await screen.findByRole("article", { name: "r2" });
+    await user.click(within(card).getByRole("button", { name: "Use as a connection" }));
+    await waitFor(() => expect(asked).toEqual([expect.objectContaining({ destination: "r2" })]));
+  });
+
+  it("keeps Use as a connection disabled below an install admin", async () => {
+    renderAt("/settings/integrations", {
+      auth: {
+        getAuthState: () =>
+          authState({
+            user: { ...mira, role: Role.UNSPECIFIED },
+            grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+          }),
+      },
+      backups: { listBackupDestinations: () => ({ destinations: [r2] }) },
+    });
+    const card = await screen.findByRole("article", { name: "r2" });
+    expect(within(card).getByRole("button", { name: "Use as a connection" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("is a section of Settings on a phone", async () => {

@@ -7586,8 +7586,14 @@ msgstr "此卷上没有运行任何内容，因此副本是精确的。"
 msgid "Nowhere else"
 msgstr "不发送"
 
-msgid "Send a copy to"
-msgstr "发送副本到"
+msgid "Review plan and back up"
+msgstr "审查计划并备份"
+
+msgid "Send backups to {destName}"
+msgstr "将备份发送到 {destName}"
+
+msgid "Stays on the server's own disk, unencrypted"
+msgstr "仅留在服务器磁盘上，未加密"
 
 msgid "Stop {list} while it copies"
 msgstr "复制时停止 {list}"
@@ -7667,6 +7673,48 @@ msgstr "服务器磁盘和 {destination}"
 
 msgid "What it is"
 msgstr "基本信息"
+
+msgid "At least 16 characters."
+msgstr "至少 16 个字符。"
+
+msgid "Copy the passphrase"
+msgstr "复制密码短语"
+
+msgid "Folder in the bucket"
+msgstr "存储桶中的文件夹"
+
+msgid "For storage an earlier install sealed with it."
+msgstr "用于以前的安装用它加密过的存储。"
+
+msgid "I've kept a copy of the passphrase"
+msgstr "我已保存密码短语的副本"
+
+msgid "Keep this passphrase somewhere else"
+msgstr "请将此密码短语保存到其他地方"
+
+msgid "Nothing else opens these backups, and Dockwell shows it only now."
+msgstr "只有它能打开这些备份，Dockwell 只在此时显示它。"
+
+msgid "Passphrase"
+msgstr "密码短语"
+
+msgid "Passphrase copied"
+msgstr "密码短语已复制"
+
+msgid "Use a passphrase I already have"
+msgstr "使用我已有的密码短语"
+
+msgid "a passphrase made for you"
+msgstr "为你生成的密码短语"
+
+msgid "at the bucket's top"
+msgstr "在存储桶根目录"
+
+msgid "in {folder}/"
+msgstr "在 {folder}/ 中"
+
+msgid "your passphrase"
+msgstr "你的密码短语"
 
 msgid "A backup is of a volume, and no app keeps one yet."
 msgstr "备份针对的是卷，目前还没有应用使用卷。"
@@ -7826,132 +7874,11 @@ msgstr "{shown, plural, other {# 个备份}}"
 msgid "{shown} newest"
 msgstr "最新的 {shown} 个"
 
-msgid "Access key"
-msgstr "访问密钥"
-
-msgid "Account ID"
-msgstr "账户 ID"
-
-msgid "Add a destination"
-msgstr "添加目的地"
-
-msgid "At least 16 characters."
-msgstr "至少 16 个字符。"
-
-msgid "Bucket"
-msgstr "存储桶"
-
-msgid "Copy the passphrase"
-msgstr "复制密码短语"
-
-msgid "Endpoint"
-msgstr "端点"
-
-msgid "Find buckets"
-msgstr "查找存储桶"
-
-msgid "Folder in the bucket"
-msgstr "存储桶中的文件夹"
-
-msgid "For storage an earlier install sealed with it."
-msgstr "用于以前的安装用它加密过的存储。"
-
-msgid "I've kept a copy of the passphrase"
-msgstr "我已保存密码短语的副本"
-
-msgid "Keep this passphrase somewhere else"
-msgstr "请将此密码短语保存到其他地方"
-
-msgid "MinIO or other S3 storage"
-msgstr "MinIO 或其他 S3 存储"
-
-msgid "No test"
-msgstr "未能测试"
-
-msgid "Nothing answered at {endpoint}"
-msgstr "{endpoint} 没有响应"
-
-msgid "Nothing else opens these backups, and Dockwell shows it only now."
-msgstr "只有它能打开这些备份，Dockwell 只在此时显示它。"
-
-msgid "On the R2 page of your Cloudflare dashboard."
-msgstr "在 Cloudflare 控制台的 R2 页面上。"
-
-msgid "Passphrase"
-msgstr "密码短语"
-
-msgid "Passphrase copied"
-msgstr "密码短语已复制"
-
-msgid "Secret key"
-msgstr "私密密钥"
-
-msgid "Send backups to {name}"
-msgstr "将备份发送到 {name}"
-
-msgid "Signed in · these keys can't list buckets, so type the bucket's name"
-msgstr "已登录 · 这些密钥无法列出存储桶，请输入存储桶名称"
-
-msgid "Signed in · these keys list no bucket"
-msgstr "已登录 · 这些密钥列不出存储桶"
-
-msgid "Storage"
-msgstr "存储"
-
-msgid "Test"
-msgstr "测试"
-
-msgid "The storage answered with an error"
-msgstr "存储返回了错误"
-
-msgid "The storage refused these keys"
-msgstr "存储拒绝了这些密钥"
-
-msgid "There's no bucket {bucket} there"
-msgstr "那里没有存储桶 {bucket}"
-
-msgid "These keys can't write to {bucket}"
-msgstr "这些密钥无法写入 {bucket}"
-
-msgid "Type a name"
-msgstr "输入名称"
-
-msgid "Use a passphrase I already have"
-msgstr "使用我已有的密码短语"
-
-msgid "Use {movedTo}"
-msgstr "使用 {movedTo}"
-
-msgid "What schedules and the CLI call it."
-msgstr "计划和 CLI 用它来指代。"
-
-msgid "Wrote and deleted a test file in {bucket}"
-msgstr "已在 {bucket} 中写入并删除了一个测试文件"
-
-msgid "Wrote it, but couldn't delete the test file: {leftFile}"
-msgstr "已写入，但无法删除测试文件：{leftFile}"
-
-msgid "a passphrase made for you"
-msgstr "为你生成的密码短语"
-
-msgid "at the bucket's top"
-msgstr "在存储桶根目录"
-
-msgid "in {folder}/"
-msgstr "在 {folder}/ 中"
-
-msgid "your passphrase"
-msgstr "你的密码短语"
-
-#. placeholder {0}: answer.said.buckets.length
-msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
-msgstr "{0, plural, other {已登录 · # 个存储桶}}"
-
-msgid "{bucket} is in {movedTo}"
-msgstr "{bucket} 在 {movedTo}"
-
 msgid "Add storage"
 msgstr "添加存储"
+
+msgid "Connection · pick in a schedule or Back up now"
+msgstr "连接 · 可在计划或立即备份中选择"
 
 msgid "Destinations"
 msgstr "目的地"
@@ -7962,6 +7889,9 @@ msgstr "上传前在各服务器上加密"
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
+
+msgid "Manage"
+msgstr "管理"
 
 msgid "Only on each server's disk, unencrypted"
 msgstr "仅在各服务器的磁盘上，未加密"
@@ -8166,6 +8096,54 @@ msgstr "加载期间，使用它的应用会停止，此后产生的内容会丢
 
 msgid "{project} keeps running. Check the data, then switch apps over."
 msgstr "{project} 会继续运行。检查数据后，再把应用切换过去。"
+
+msgid "An admin sets up backup storage"
+msgstr "由管理员设置备份存储"
+
+msgid "An app received this connection's keys"
+msgstr "已有应用拿到此连接的密钥"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0}"
+msgstr "存储桶 {0}"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0} · encrypted under {prefix}/"
+msgstr "存储桶 {0} · 加密存放于 {prefix}/"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0} · sealed with a passphrase"
+msgstr "存储桶 {0} · 使用密码短语加密"
+
+msgid "Encrypted before upload"
+msgstr "上传前加密"
+
+msgid "Encrypted under {prefix}/"
+msgstr "加密存放在 {prefix}/ 下"
+
+msgid "New connection from it"
+msgstr "基于此新建连接"
+
+msgid "Paste a key made for backups"
+msgstr "粘贴专用于备份的密钥"
+
+msgid "Sealed with a passphrase"
+msgstr "使用密码短语加密"
+
+msgid "Send a copy to"
+msgstr "发送副本到"
+
+msgid "Serves {who}, whose key could delete the backups"
+msgstr "供 {who} 使用，其密钥可能删除备份"
+
+msgid "Shared for apps, whose keys could delete the backups"
+msgstr "供应用共享，它们的密钥可能删除备份"
+
+msgid "Use {label}"
+msgstr "使用 {label}"
+
+msgid "Use {label} ({host})"
+msgstr "使用 {label} ({host})"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -9496,6 +9474,9 @@ msgstr "笔记"
 msgctxt "catalog category"
 msgid "Other"
 msgstr "其他"
+
+msgid "Storage"
+msgstr "存储"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> 已在 <1>{names}</1> 上停止"
@@ -12650,6 +12631,9 @@ msgstr "再添加一个"
 msgid "An admin adds one."
 msgstr "由管理员添加。"
 
+msgid "Bucket"
+msgstr "存储桶"
+
 msgid "Bucket in the path: true or false"
 msgstr "存储桶放在路径中：true 或 false"
 
@@ -12661,6 +12645,9 @@ msgstr "将 {app} 连接到存储"
 
 msgid "Connection"
 msgstr "连接方式"
+
+msgid "Endpoint"
+msgstr "端点"
 
 msgid "Folders, each ending with a slash, such as {app}/"
 msgstr "文件夹，每个以斜杠结尾，例如 {app}/"
@@ -12719,6 +12706,15 @@ msgstr "地址形式"
 msgid "An admin or the owner disconnects an install's storage"
 msgstr "由管理员或所有者断开安装的存储"
 
+msgid "Backup destination"
+msgstr "备份目的地"
+
+msgid "Backups use it, so it can't be shared with apps"
+msgstr "备份正在使用它，无法与应用共享"
+
+msgid "Backups use it. An app's key could delete the backups."
+msgstr "备份正在使用它。应用的密钥可能会删除备份。"
+
 msgid "Bucket in the hostname"
 msgstr "存储桶在主机名中"
 
@@ -12754,6 +12750,9 @@ msgstr "其密钥会随之移除"
 
 msgid "Keys"
 msgstr "密钥"
+
+msgid "Manage in Backups"
+msgstr "在备份中管理"
 
 msgid "More than one app may use it"
 msgstr "允许多个应用使用"
@@ -12818,6 +12817,9 @@ msgstr "登录"
 msgid "Stop sharing the connection {label}"
 msgstr "停止共享连接 {label}"
 
+msgid "Stored"
+msgstr "已存放"
+
 msgid "TLS from the start"
 msgstr "一开始就用 TLS"
 
@@ -12826,6 +12828,12 @@ msgstr "在应用中使用"
 
 msgid "What each app says"
 msgstr "由各应用自行设置"
+
+msgid "objects under /"
+msgstr "对象位于 / 下"
+
+msgid "objects under {folder}/"
+msgstr "对象位于 {folder}/ 下"
 
 msgid "the server"
 msgstr "服务器"
@@ -12853,8 +12861,11 @@ msgstr "32 位字母和数字"
 msgid "32 letters and digits, as Cloudflare shows it"
 msgstr "32 位字母和数字，与 Cloudflare 显示的一致"
 
-msgid "A bucket of S3-compatible storage, for apps to keep files in"
-msgstr "S3 兼容存储的存储桶，供应用存放文件"
+msgid "A bucket of S3-compatible storage, for apps or backups"
+msgstr "S3 兼容存储的存储桶，供应用或备份使用"
+
+msgid "Account ID"
+msgstr "账户 ID"
 
 msgid "Change the connection {name}"
 msgstr "更改连接 {name}"
@@ -12889,6 +12900,9 @@ msgstr "位置已变：请重新输入密钥"
 
 msgid "Only some projects"
 msgstr "仅限部分项目"
+
+msgid "Paste a key made for backups alone, and revoke the one the app had at your provider"
+msgstr "粘贴仅用于备份的密钥，并在服务商处吊销应用曾持有的密钥"
 
 msgid "Pick a project"
 msgstr "选择一个项目"
@@ -12945,6 +12959,10 @@ msgstr "供 {who} 使用"
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, other {# 个项目}}"
 
+#. placeholder {0}: backupDests.length
+msgid "{0, plural, one {Backup destination {firstDest} uses it. Remove it on Backups first.} other {# backup destinations use it. Remove them on Backups first.}}"
+msgstr "{0, plural, =1 {备份目的地 {firstDest} 正在使用它。请先在备份页中将其移除。} other {有 # 个备份目的地正在使用它。请先在备份页中将它们移除。}}"
+
 msgid "{app}'s project"
 msgstr "{app} 的项目"
 
@@ -12963,6 +12981,9 @@ msgstr "添加连接"
 msgid "An admin adds the buckets and mail servers your apps may use."
 msgstr "管理员会添加你的应用可用的存储桶和邮件服务器。"
 
+msgid "Backups only"
+msgstr "仅用于备份"
+
 msgid "Last check"
 msgstr "上次检查"
 
@@ -12975,18 +12996,35 @@ msgstr "尚无连接"
 msgid "The page tries again by itself."
 msgstr "页面会自动重试。"
 
+msgid "Use as a connection"
+msgstr "作为连接使用"
+
 msgid "no app uses them yet"
 msgstr "尚无应用使用"
 
 msgid "none"
 msgstr "无"
 
+#. placeholder {0}: standaloneDests.length
+msgid "{0, plural, one {# backup destination} other {# backup destinations}}"
+msgstr "{0, plural, other {# 个备份目标}}"
+
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, other {# 个连接}}"
 
+#. placeholder {0}: backups.length
+msgid "{0, plural, one {Backups} other {# backup destinations}}"
+msgstr "{0, plural, =1 {备份} other {# 个备份目的地}}"
+
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, other {被 # 个应用使用}}"
+
+msgid "{linkedBackupDests, plural, one {# backup destination} other {# backup destinations}}"
+msgstr "{linkedBackupDests, plural, other {# 个备份目标}}"
+
+msgid "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
+msgstr "{linkedBackupDests, plural, other {被 # 个备份目标使用}}"
 
 msgid "Fails from {server}"
 msgstr "从 {server} 检查失败"
@@ -15990,6 +16028,9 @@ msgstr "可读取的个人访问令牌。"
 msgid "A token with read:packages."
 msgstr "带 read:packages 权限的令牌。"
 
+msgid "Access key"
+msgstr "访问密钥"
+
 msgid "Add a registry login"
 msgstr "添加镜像仓库登录"
 
@@ -16023,6 +16064,9 @@ msgstr "镜像仓库登录 {0}"
 
 msgid "Remove the registry login {name}"
 msgstr "移除镜像仓库登录 {name}"
+
+msgid "Secret key"
+msgstr "私密密钥"
 
 msgctxt "a registry login, checked"
 msgid "Signed in"
@@ -18563,9 +18607,6 @@ msgstr "它的仓库需要由它拥有的应用。"
 msgid "Loading GitHub Apps"
 msgstr "正在加载 GitHub 应用"
 
-msgid "Manage"
-msgstr "管理"
-
 msgid "New webhook secret"
 msgstr "新 Webhook 密钥"
 
@@ -18760,6 +18801,7 @@ msgstr "添加提供方"
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
 
+#. placeholder {0}: c.bucket
 #. placeholder {0}: d.bucket
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
@@ -18808,9 +18850,6 @@ msgstr "正在加载镜像仓库登录"
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"
 
-msgid "Manage in Backups"
-msgstr "在备份中管理"
-
 msgid "No backup yet"
 msgstr "尚无备份"
 
@@ -18831,6 +18870,9 @@ msgstr "恢复 {name} 的记录"
 
 msgid "Put the record for {name} back at Cloudflare"
 msgstr "在 Cloudflare 恢复 {name} 的记录"
+
+msgid "Ready for apps or backups"
+msgstr "可供应用或备份使用"
 
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
@@ -18859,6 +18901,10 @@ msgstr "登录提供方"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "应用使用的值保存在<0>变量</0>中"
+
+#. placeholder {0}: apps.length
+msgid "{0, plural, one {Used by # app} other {Used by # apps}}"
+msgstr "{0, plural, other {被 # 个应用使用}}"
 
 msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "已连接 {all} 个 · Dockwell 用来构建、部署、路由和备份的服务"

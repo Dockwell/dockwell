@@ -7586,8 +7586,14 @@ msgstr "Nothing runs on this volume, so the copy is exact."
 msgid "Nowhere else"
 msgstr "Nowhere else"
 
-msgid "Send a copy to"
-msgstr "Send a copy to"
+msgid "Review plan and back up"
+msgstr "Review plan and back up"
+
+msgid "Send backups to {destName}"
+msgstr "Send backups to {destName}"
+
+msgid "Stays on the server's own disk, unencrypted"
+msgstr "Stays on the server's own disk, unencrypted"
 
 msgid "Stop {list} while it copies"
 msgstr "Stop {list} while it copies"
@@ -7667,6 +7673,48 @@ msgstr "The server's disk, and {destination}"
 
 msgid "What it is"
 msgstr "What it is"
+
+msgid "At least 16 characters."
+msgstr "At least 16 characters."
+
+msgid "Copy the passphrase"
+msgstr "Copy the passphrase"
+
+msgid "Folder in the bucket"
+msgstr "Folder in the bucket"
+
+msgid "For storage an earlier install sealed with it."
+msgstr "For storage an earlier install sealed with it."
+
+msgid "I've kept a copy of the passphrase"
+msgstr "I've kept a copy of the passphrase"
+
+msgid "Keep this passphrase somewhere else"
+msgstr "Keep this passphrase somewhere else"
+
+msgid "Nothing else opens these backups, and Dockwell shows it only now."
+msgstr "Nothing else opens these backups, and Dockwell shows it only now."
+
+msgid "Passphrase"
+msgstr "Passphrase"
+
+msgid "Passphrase copied"
+msgstr "Passphrase copied"
+
+msgid "Use a passphrase I already have"
+msgstr "Use a passphrase I already have"
+
+msgid "a passphrase made for you"
+msgstr "a passphrase made for you"
+
+msgid "at the bucket's top"
+msgstr "at the bucket's top"
+
+msgid "in {folder}/"
+msgstr "in {folder}/"
+
+msgid "your passphrase"
+msgstr "your passphrase"
 
 msgid "A backup is of a volume, and no app keeps one yet."
 msgstr "A backup is of a volume, and no app keeps one yet."
@@ -7826,132 +7874,11 @@ msgstr "{shown, plural, one {# backup} other {# backups}}"
 msgid "{shown} newest"
 msgstr "{shown} newest"
 
-msgid "Access key"
-msgstr "Access key"
-
-msgid "Account ID"
-msgstr "Account ID"
-
-msgid "Add a destination"
-msgstr "Add a destination"
-
-msgid "At least 16 characters."
-msgstr "At least 16 characters."
-
-msgid "Bucket"
-msgstr "Bucket"
-
-msgid "Copy the passphrase"
-msgstr "Copy the passphrase"
-
-msgid "Endpoint"
-msgstr "Endpoint"
-
-msgid "Find buckets"
-msgstr "Find buckets"
-
-msgid "Folder in the bucket"
-msgstr "Folder in the bucket"
-
-msgid "For storage an earlier install sealed with it."
-msgstr "For storage an earlier install sealed with it."
-
-msgid "I've kept a copy of the passphrase"
-msgstr "I've kept a copy of the passphrase"
-
-msgid "Keep this passphrase somewhere else"
-msgstr "Keep this passphrase somewhere else"
-
-msgid "MinIO or other S3 storage"
-msgstr "MinIO or other S3 storage"
-
-msgid "No test"
-msgstr "No test"
-
-msgid "Nothing answered at {endpoint}"
-msgstr "Nothing answered at {endpoint}"
-
-msgid "Nothing else opens these backups, and Dockwell shows it only now."
-msgstr "Nothing else opens these backups, and Dockwell shows it only now."
-
-msgid "On the R2 page of your Cloudflare dashboard."
-msgstr "On the R2 page of your Cloudflare dashboard."
-
-msgid "Passphrase"
-msgstr "Passphrase"
-
-msgid "Passphrase copied"
-msgstr "Passphrase copied"
-
-msgid "Secret key"
-msgstr "Secret key"
-
-msgid "Send backups to {name}"
-msgstr "Send backups to {name}"
-
-msgid "Signed in · these keys can't list buckets, so type the bucket's name"
-msgstr "Signed in · these keys can't list buckets, so type the bucket's name"
-
-msgid "Signed in · these keys list no bucket"
-msgstr "Signed in · these keys list no bucket"
-
-msgid "Storage"
-msgstr "Storage"
-
-msgid "Test"
-msgstr "Test"
-
-msgid "The storage answered with an error"
-msgstr "The storage answered with an error"
-
-msgid "The storage refused these keys"
-msgstr "The storage refused these keys"
-
-msgid "There's no bucket {bucket} there"
-msgstr "There's no bucket {bucket} there"
-
-msgid "These keys can't write to {bucket}"
-msgstr "These keys can't write to {bucket}"
-
-msgid "Type a name"
-msgstr "Type a name"
-
-msgid "Use a passphrase I already have"
-msgstr "Use a passphrase I already have"
-
-msgid "Use {movedTo}"
-msgstr "Use {movedTo}"
-
-msgid "What schedules and the CLI call it."
-msgstr "What schedules and the CLI call it."
-
-msgid "Wrote and deleted a test file in {bucket}"
-msgstr "Wrote and deleted a test file in {bucket}"
-
-msgid "Wrote it, but couldn't delete the test file: {leftFile}"
-msgstr "Wrote it, but couldn't delete the test file: {leftFile}"
-
-msgid "a passphrase made for you"
-msgstr "a passphrase made for you"
-
-msgid "at the bucket's top"
-msgstr "at the bucket's top"
-
-msgid "in {folder}/"
-msgstr "in {folder}/"
-
-msgid "your passphrase"
-msgstr "your passphrase"
-
-#. placeholder {0}: answer.said.buckets.length
-msgid "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
-msgstr "{0, plural, one {Signed in · # bucket} other {Signed in · # buckets}}"
-
-msgid "{bucket} is in {movedTo}"
-msgstr "{bucket} is in {movedTo}"
-
 msgid "Add storage"
 msgstr "Add storage"
+
+msgid "Connection · pick in a schedule or Back up now"
+msgstr "Connection · pick in a schedule or Back up now"
 
 msgid "Destinations"
 msgstr "Destinations"
@@ -7962,6 +7889,9 @@ msgstr "Encrypted on each server before upload"
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "Last upload {0}"
+
+msgid "Manage"
+msgstr "Manage"
 
 msgid "Only on each server's disk, unencrypted"
 msgstr "Only on each server's disk, unencrypted"
@@ -8166,6 +8096,54 @@ msgstr "What uses it stops while it loads, and what was made since goes."
 
 msgid "{project} keeps running. Check the data, then switch apps over."
 msgstr "{project} keeps running. Check the data, then switch apps over."
+
+msgid "An admin sets up backup storage"
+msgstr "An admin sets up backup storage"
+
+msgid "An app received this connection's keys"
+msgstr "An app received this connection's keys"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0}"
+msgstr "Bucket {0}"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0} · encrypted under {prefix}/"
+msgstr "Bucket {0} · encrypted under {prefix}/"
+
+#. placeholder {0}: item.bucket
+msgid "Bucket {0} · sealed with a passphrase"
+msgstr "Bucket {0} · sealed with a passphrase"
+
+msgid "Encrypted before upload"
+msgstr "Encrypted before upload"
+
+msgid "Encrypted under {prefix}/"
+msgstr "Encrypted under {prefix}/"
+
+msgid "New connection from it"
+msgstr "New connection from it"
+
+msgid "Paste a key made for backups"
+msgstr "Paste a key made for backups"
+
+msgid "Sealed with a passphrase"
+msgstr "Sealed with a passphrase"
+
+msgid "Send a copy to"
+msgstr "Send a copy to"
+
+msgid "Serves {who}, whose key could delete the backups"
+msgstr "Serves {who}, whose key could delete the backups"
+
+msgid "Shared for apps, whose keys could delete the backups"
+msgstr "Shared for apps, whose keys could delete the backups"
+
+msgid "Use {label}"
+msgstr "Use {label}"
+
+msgid "Use {label} ({host})"
+msgstr "Use {label} ({host})"
 
 msgid "Copy of a running app"
 msgstr "Copy of a running app"
@@ -9496,6 +9474,9 @@ msgstr "Notes"
 msgctxt "catalog category"
 msgid "Other"
 msgstr "Other"
+
+msgid "Storage"
+msgstr "Storage"
 
 msgid "<0>{name}</0> has stopped on <1>{names}</1>"
 msgstr "<0>{name}</0> has stopped on <1>{names}</1>"
@@ -12650,6 +12631,9 @@ msgstr "Add another"
 msgid "An admin adds one."
 msgstr "An admin adds one."
 
+msgid "Bucket"
+msgstr "Bucket"
+
 msgid "Bucket in the path: true or false"
 msgstr "Bucket in the path: true or false"
 
@@ -12661,6 +12645,9 @@ msgstr "Connect {app} to storage"
 
 msgid "Connection"
 msgstr "Connection"
+
+msgid "Endpoint"
+msgstr "Endpoint"
 
 msgid "Folders, each ending with a slash, such as {app}/"
 msgstr "Folders, each ending with a slash, such as {app}/"
@@ -12719,6 +12706,15 @@ msgstr "Address style"
 msgid "An admin or the owner disconnects an install's storage"
 msgstr "An admin or the owner disconnects an install's storage"
 
+msgid "Backup destination"
+msgstr "Backup destination"
+
+msgid "Backups use it, so it can't be shared with apps"
+msgstr "Backups use it, so it can't be shared with apps"
+
+msgid "Backups use it. An app's key could delete the backups."
+msgstr "Backups use it. An app's key could delete the backups."
+
 msgid "Bucket in the hostname"
 msgstr "Bucket in the hostname"
 
@@ -12754,6 +12750,9 @@ msgstr "Its keys go with it"
 
 msgid "Keys"
 msgstr "Keys"
+
+msgid "Manage in Backups"
+msgstr "Manage in Backups"
 
 msgid "More than one app may use it"
 msgstr "More than one app may use it"
@@ -12818,6 +12817,9 @@ msgstr "Sign-in"
 msgid "Stop sharing the connection {label}"
 msgstr "Stop sharing the connection {label}"
 
+msgid "Stored"
+msgstr "Stored"
+
 msgid "TLS from the start"
 msgstr "TLS from the start"
 
@@ -12826,6 +12828,12 @@ msgstr "Use in an app"
 
 msgid "What each app says"
 msgstr "What each app says"
+
+msgid "objects under /"
+msgstr "objects under /"
+
+msgid "objects under {folder}/"
+msgstr "objects under {folder}/"
 
 msgid "the server"
 msgstr "the server"
@@ -12853,8 +12861,11 @@ msgstr "32 letters and digits"
 msgid "32 letters and digits, as Cloudflare shows it"
 msgstr "32 letters and digits, as Cloudflare shows it"
 
-msgid "A bucket of S3-compatible storage, for apps to keep files in"
-msgstr "A bucket of S3-compatible storage, for apps to keep files in"
+msgid "A bucket of S3-compatible storage, for apps or backups"
+msgstr "A bucket of S3-compatible storage, for apps or backups"
+
+msgid "Account ID"
+msgstr "Account ID"
 
 msgid "Change the connection {name}"
 msgstr "Change the connection {name}"
@@ -12889,6 +12900,9 @@ msgstr "Moved: type its keys again"
 
 msgid "Only some projects"
 msgstr "Only some projects"
+
+msgid "Paste a key made for backups alone, and revoke the one the app had at your provider"
+msgstr "Paste a key made for backups alone, and revoke the one the app had at your provider"
 
 msgid "Pick a project"
 msgstr "Pick a project"
@@ -12945,6 +12959,10 @@ msgstr "for {who}"
 msgid "{0, plural, one {# project} other {# projects}}"
 msgstr "{0, plural, one {# project} other {# projects}}"
 
+#. placeholder {0}: backupDests.length
+msgid "{0, plural, one {Backup destination {firstDest} uses it. Remove it on Backups first.} other {# backup destinations use it. Remove them on Backups first.}}"
+msgstr "{0, plural, one {Backup destination {firstDest} uses it. Remove it on Backups first.} other {# backup destinations use it. Remove them on Backups first.}}"
+
 msgid "{app}'s project"
 msgstr "{app}'s project"
 
@@ -12963,6 +12981,9 @@ msgstr "Add connection"
 msgid "An admin adds the buckets and mail servers your apps may use."
 msgstr "An admin adds the buckets and mail servers your apps may use."
 
+msgid "Backups only"
+msgstr "Backups only"
+
 msgid "Last check"
 msgstr "Last check"
 
@@ -12975,18 +12996,35 @@ msgstr "No connections yet"
 msgid "The page tries again by itself."
 msgstr "The page tries again by itself."
 
+msgid "Use as a connection"
+msgstr "Use as a connection"
+
 msgid "no app uses them yet"
 msgstr "no app uses them yet"
 
 msgid "none"
 msgstr "none"
 
+#. placeholder {0}: standaloneDests.length
+msgid "{0, plural, one {# backup destination} other {# backup destinations}}"
+msgstr "{0, plural, one {# backup destination} other {# backup destinations}}"
+
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, one {# connection} other {# connections}}"
 
+#. placeholder {0}: backups.length
+msgid "{0, plural, one {Backups} other {# backup destinations}}"
+msgstr "{0, plural, one {Backups} other {# backup destinations}}"
+
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, one {used by # app} other {used by # apps}}"
+
+msgid "{linkedBackupDests, plural, one {# backup destination} other {# backup destinations}}"
+msgstr "{linkedBackupDests, plural, one {# backup destination} other {# backup destinations}}"
+
+msgid "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
+msgstr "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
 
 msgid "Fails from {server}"
 msgstr "Fails from {server}"
@@ -15990,6 +16028,9 @@ msgstr "A personal access token that can read."
 msgid "A token with read:packages."
 msgstr "A token with read:packages."
 
+msgid "Access key"
+msgstr "Access key"
+
 msgid "Add a registry login"
 msgstr "Add a registry login"
 
@@ -16023,6 +16064,9 @@ msgstr "Registry login {0}"
 
 msgid "Remove the registry login {name}"
 msgstr "Remove the registry login {name}"
+
+msgid "Secret key"
+msgstr "Secret key"
 
 msgctxt "a registry login, checked"
 msgid "Signed in"
@@ -18563,9 +18607,6 @@ msgstr "Its repositories need an App it owns."
 msgid "Loading GitHub Apps"
 msgstr "Loading GitHub Apps"
 
-msgid "Manage"
-msgstr "Manage"
-
 msgid "New webhook secret"
 msgstr "New webhook secret"
 
@@ -18760,6 +18801,7 @@ msgstr "Add a provider"
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
 
+#. placeholder {0}: c.bucket
 #. placeholder {0}: d.bucket
 msgid "Bucket <0>{0}</0> at <1>{host}</1>"
 msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
@@ -18808,9 +18850,6 @@ msgstr "Loading registry logins"
 msgid "Loading where backups go"
 msgstr "Loading where backups go"
 
-msgid "Manage in Backups"
-msgstr "Manage in Backups"
-
 msgid "No backup yet"
 msgstr "No backup yet"
 
@@ -18831,6 +18870,9 @@ msgstr "Put the record for {name} back"
 
 msgid "Put the record for {name} back at Cloudflare"
 msgstr "Put the record for {name} back at Cloudflare"
+
+msgid "Ready for apps or backups"
+msgstr "Ready for apps or backups"
 
 #. placeholder {0}: words.ago(uploaded, now)
 msgid "Received a backup {0}"
@@ -18859,6 +18901,10 @@ msgstr "Sign-in provider"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "Values your apps use live in <0>Variables</0>"
+
+#. placeholder {0}: apps.length
+msgid "{0, plural, one {Used by # app} other {Used by # apps}}"
+msgstr "{0, plural, one {Used by # app} other {Used by # apps}}"
 
 msgid "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"
 msgstr "{all} connected · the services Dockwell builds from, deploys with, routes through and backs up to"

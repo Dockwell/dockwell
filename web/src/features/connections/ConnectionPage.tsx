@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
+  type BackupDestinationInfo,
   ChangeService,
   ChangeState,
   type CheckConnectionResponse,
@@ -34,8 +35,11 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { formatBytes } from "../../lib/format";
 import { usePlaces } from "../apps/useServices";
 import { type Offer, useMay } from "../auth/may";
+import { useDestinations } from "../backups/DestinationsPanel";
+import { destinationsOn } from "../backups/storage";
 import { useInstalls } from "../catalog/useCatalog";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
@@ -69,6 +73,7 @@ import "./Connections.css";
 export function ConnectionPage({ name }: { name: string }) {
   const { t } = useLingui();
   const query = useConnections();
+  const destinations = useDestinations().data?.destinations ?? [];
   const connections = query.data?.connections ?? [];
   const connection = connections.find((c) => c.name === name);
   const may = useMay();
@@ -106,19 +111,24 @@ export function ConnectionPage({ name }: { name: string }) {
   }
   const admin = seesWhere(connection);
   const lead = where(connection) || connection.displayName;
+  const backupDests = destinationsOn(connection.name, destinations);
+  const usedByBackups = backupDests.length > 0;
   // One app per connection unless it's shared, as the server holds: two from before
-  // keep working, and sharing it is one step away (the review's M2).
+  // keep working, and sharing it is one step away (the review's M2). A connection
+  // backups use serves no app (ADR 0099).
   const apps = appsOn(connection);
   const servesOne = !connection.shared && apps > 0;
   // Where the callout says it, with Share it, Use in an app says nothing more, so a
   // phone, which says an off control's reason at the top, says it once (the
   // re-check's N4).
   const unsharedMany = admin && !connection.shared && apps > 1;
-  const useOff = unsharedMany
-    ? { disabled: true }
-    : servesOne
-      ? { off: t`It serves an app already, and isn't shared` }
-      : {};
+  const useOff = usedByBackups
+    ? { off: t`Backups use it. An app's key could delete the backups.` }
+    : unsharedMany
+      ? { disabled: true }
+      : servesOne
+        ? { off: t`It serves an app already, and isn't shared` }
+        : {};
   return (
     <Page
       title={connection.name}
@@ -199,10 +209,16 @@ export function ConnectionPage({ name }: { name: string }) {
           <Trans>Share it to link another app beside them.</Trans>
         </Callout>
       ) : null}
-      <UsedBy connection={connection} admin={admin} onDisconnected={() => void query.refetch()} />
+      <UsedBy
+        connection={connection}
+        backupDests={backupDests}
+        admin={admin}
+        onDisconnected={() => void query.refetch()}
+      />
       {admin ? (
         <Details
           connection={connection}
+          usedByBackups={usedByBackups}
           onReplace={() => setEditing(true)}
           mayChange={mayChange}
           onSaved={() => void query.refetch()}
@@ -354,15 +370,17 @@ function CheckLine({
  */
 function UsedBy({
   connection,
+  backupDests,
   admin,
   onDisconnected,
 }: {
   connection: ConnectionInfo;
+  backupDests: readonly BackupDestinationInfo[];
   /** An install admin keeps a connection's keys on Disconnect, as secrets; below one, they go. */
   admin: boolean;
   onDisconnected: () => void;
 }) {
-  const { t } = useLingui();
+  const { t, i18n } = useLingui();
   const places = usePlaces();
   const partWord = usePartWords();
   // A mail server keeps no files, so no link says where they go.
@@ -425,6 +443,88 @@ function UsedBy({
       button
     );
   };
+  if (connection.uses.length === 0 && backupDests.length > 0) {
+    if (phone) {
+      return (
+        <Panel title={t`Used by`} flush>
+          <ul className="connection-uses">
+            {backupDests.map((d) => {
+              const folder = d.prefix.trim().replace(/^\/+|\/+$/g, "");
+              return (
+                <li key={d.id} className="connection-use">
+                  <div className="dw-cell">
+                    <Link to="/backups" className="connections-mono connections-name">
+                      {d.name}
+                    </Link>
+                    <span className="connections-meta">
+                      {[
+                        t`Backups`,
+                        folder ? t`objects under ${folder}/` : t`objects under /`,
+                        t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`,
+                      ].join(" · ")}
+                    </span>
+                  </div>
+                  <div className="connection-use-actions">
+                    <Link to="/backups" className="dw-btn dw-btn-secondary dw-btn-sm">
+                      <Trans>Manage in Backups</Trans>
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      );
+    }
+    const backupColumns: TableColumn<BackupDestinationInfo>[] = [
+      {
+        key: "dest",
+        header: t`Backups`,
+        render: (d) => (
+          <div className="dw-cell">
+            <Link to="/backups" className="connections-mono connections-name">
+              {d.name}
+            </Link>
+            <span className="connections-meta">
+              <Trans>Backup destination</Trans>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: "prefix",
+        header: t`Objects under`,
+        width: 180,
+        mono: true,
+        render: (d) => {
+          const folder = d.prefix.trim().replace(/^\/+|\/+$/g, "");
+          return folder ? `${folder}/` : "/";
+        },
+      },
+      {
+        key: "stored",
+        header: t`Stored`,
+        width: 220,
+        render: (d) => t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`,
+      },
+      {
+        key: "more",
+        header: <span className="dw-sr">{t`Actions`}</span>,
+        width: 170,
+        align: "right",
+        render: () => (
+          <Link to="/backups" className="dw-btn dw-btn-secondary dw-btn-sm">
+            <Trans>Manage in Backups</Trans>
+          </Link>
+        ),
+      },
+    ];
+    return (
+      <Panel title={t`Used by`} flush>
+        <Table columns={backupColumns} rows={backupDests} rowKey="id" caption={t`Used by`} />
+      </Panel>
+    );
+  }
   if (connection.uses.length === 0) {
     return (
       <Panel title={t`Used by`} flush={mail}>
@@ -532,11 +632,13 @@ function UsedBy({
 /** Where the bucket is and who may use it: an admin's to see. */
 function Details({
   connection,
+  usedByBackups,
   onReplace,
   mayChange,
   onSaved,
 }: {
   connection: ConnectionInfo;
+  usedByBackups: boolean;
   onReplace: () => void;
   mayChange: Offer;
   onSaved: () => void;
@@ -599,19 +701,21 @@ function Details({
             <Switch
               checked={connection.shared}
               onChange={share}
-              disabled={!mayChange.allowed || stuck}
+              disabled={!mayChange.allowed || stuck || usedByBackups}
               label={t`More than one app may use it`}
               description={
                 !mayChange.allowed
                   ? mayChange.reason
-                  : stuck
-                    ? plural(apps, {
-                        one: "Stays shared while # app uses it: disconnect all but one first",
-                        other: "Stays shared while # apps use it: disconnect all but one first",
-                      })
-                    : mail
-                      ? t`Each sends as any sender the server takes`
-                      : t`Each keeps its files under a prefix of its own`
+                  : usedByBackups
+                    ? t`Backups use it, so it can't be shared with apps`
+                    : stuck
+                      ? plural(apps, {
+                          one: "Stays shared while # app uses it: disconnect all but one first",
+                          other: "Stays shared while # apps use it: disconnect all but one first",
+                        })
+                      : mail
+                        ? t`Each sends as any sender the server takes`
+                        : t`Each keeps its files under a prefix of its own`
               }
             />
           </dd>

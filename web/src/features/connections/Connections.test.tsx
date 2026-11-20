@@ -3,6 +3,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
 import {
+  BackupDestinationInfoSchema,
   ChangeSchema,
   ChangeState,
   type CheckConnectionRequest,
@@ -948,5 +949,124 @@ describe("connecting an app to storage", () => {
     await user.click(within(sheet).getByRole("button", { name: /Check and review plan/ }));
     expect(await within(sheet).findByText(/with AccessDenied, so nothing was planned/)).toBeVisible();
     expect(within(sheet).getByText("Nothing was planned")).toBeVisible();
+  });
+});
+
+describe("a connection used by backups (#831)", () => {
+  const backupConn = aConnection({
+    id: "cnx_bkp",
+    name: "offsite",
+    displayName: "Offsite",
+    bucket: "acme-backups",
+    reach: ConnectionReach.EVERY,
+  });
+  const backupDest = create(BackupDestinationInfoSchema, {
+    id: "bds_offsite",
+    name: "offsite",
+    endpoint: backupConn.endpoint,
+    bucket: "acme-backups",
+    prefix: "backups",
+    backups: 4,
+    usedBytes: 64n << 20n,
+    connection: "offsite",
+  });
+
+  it("lists backup destinations under Used by on Connections without repeating a matching name", async () => {
+    renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [used, backupConn] }) },
+      backups: { listBackupDestinations: () => ({ destinations: [backupDest] }) },
+    });
+    expect(await screen.findByText("2 connections · used by 1 app · 1 backup destination")).toBeVisible();
+    const row = screen.getByRole("row", { name: /offsite/ });
+    const cells = within(row).getAllByRole("cell");
+    expect(cells[1]).toHaveTextContent("Backups");
+    expect(cells[1]).not.toHaveTextContent("offsite");
+  });
+
+  it("counts standalone legacy backup destinations separately and offers Use as a connection", async () => {
+    const user = userEvent.setup();
+    const converted = vi.fn((_: { destination: string }) => ({ change: webPlanned() }));
+    const legacyDest = create(BackupDestinationInfoSchema, {
+      id: "bds_legacy",
+      name: "legacy-r2",
+      endpoint: `https://${R2}.r2.cloudflarestorage.com`,
+      bucket: "legacy-backups",
+      prefix: "old",
+    });
+    const { container } = renderAt("/connections", {
+      ...fleet(),
+      resources: places(),
+      connections: { listConnections: () => ({ connections: [used, backupConn] }) },
+      backups: {
+        listBackupDestinations: () => ({ destinations: [backupDest, legacyDest] }),
+        useDestinationAsConnection: converted,
+      },
+      changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
+    });
+    expect(await screen.findByText("2 connections · 1 backup destination · used by 1 app")).toBeVisible();
+    const legacyRow = screen.getByRole("row", { name: /legacy-r2/ });
+    expect(legacyRow).toHaveTextContent("Cloudflare R2 · legacy-backups");
+    expect(legacyRow).toHaveTextContent("Backups");
+    await expectAccessible(container);
+    await user.click(within(legacyRow).getByRole("button", { name: "Use as a connection" }));
+    await waitFor(() => expect(converted).toHaveBeenCalledTimes(1));
+    expect(converted.mock.calls[0]?.[0]).toMatchObject({ destination: "legacy-r2" });
+  });
+
+  it("shows Backups once on a phone when the backup destination shares the connection name", async () => {
+    const origMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      renderAt("/connections", {
+        ...fleet(),
+        resources: places(),
+        connections: { listConnections: () => ({ connections: [backupConn] }) },
+        backups: { listBackupDestinations: () => ({ destinations: [backupDest] }) },
+      });
+      const link = await screen.findByRole("link", { name: /offsite/ });
+      expect(link.querySelector(".connections-phone-text")).toHaveTextContent(/^offsiteBackups$/);
+    } finally {
+      window.matchMedia = origMatchMedia;
+    }
+  });
+
+  it("shows backups under Used by and disables Use in an app, Share, and Remove with why", async () => {
+    const user = userEvent.setup();
+    renderAt("/connections/offsite", {
+      ...fleet(),
+      resources: places(),
+      services: { listServices: () => ({ services: [anApp("outline", "ghcr.io/acme/outline:1")] }) },
+      connections: { listConnections: () => ({ connections: [backupConn] }) },
+      backups: { listBackupDestinations: () => ({ destinations: [backupDest] }) },
+    });
+    const usedBy = await screen.findByRole("region", { name: "Used by" });
+    expect(within(usedBy).getByRole("link", { name: "offsite" })).toHaveAttribute("href", "/backups");
+    expect(usedBy).toHaveTextContent("backups/");
+    expect(usedBy).toHaveTextContent("4 backups, 64 MB");
+
+    const useInApp = screen.getByRole("button", { name: "Use in an app" });
+    expect(useInApp).toHaveAttribute("aria-disabled", "true");
+    expect(useInApp).toHaveAccessibleDescription("Backups use it. An app's key could delete the backups.");
+
+    const share = screen.getByRole("switch", { name: /More than one app may use it/ });
+    expect(share).toBeDisabled();
+    expect(screen.getByText("Backups use it, so it can't be shared with apps")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Replace keys" }));
+    const sheet = await screen.findByRole("dialog", { name: "Connection offsite" });
+    const remove = within(sheet).getByRole("button", { name: /Remove/ });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(sheet).toHaveTextContent("Backup destination offsite uses it. Remove it on Backups first.");
   });
 });

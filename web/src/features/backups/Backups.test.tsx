@@ -6,7 +6,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import {
   type Backup,
   BackupCopy,
-  BackupDestinationProblem,
+  BackupDestinationInfoSchema,
   BackupMethod,
   BackupPolicy_Drill,
   BackupPolicy_Every,
@@ -14,17 +14,20 @@ import {
   BackupState,
   ChangeSchema,
   ChangeState,
+  ConnectionInfoSchema,
+  ConnectionReach,
   type CreateBackupRequest,
   type DeleteBackupRequest,
   type DrillBackupRequest,
   DrillResult,
   type FetchBackupRequest,
+  LinkKind,
+  LinkPart,
   PlanAction,
   PreviewBackupResponseSchema,
   type ProposeChangeRequest,
   type RestorePlanSchema,
   Role,
-  type TestBackupDestinationRequest,
   type WatchChangeResponse,
 } from "@dockwell/api";
 import { screen, waitFor, within } from "@testing-library/react";
@@ -977,21 +980,8 @@ describe("the backups page", () => {
     expect(within(panel).getByText("The disk is full.")).toBeVisible();
   });
 
-  it("makes R2's endpoint from its account, finds and tests the bucket, and adds it once the passphrase is kept", async () => {
+  it("opens Add a connection when Add storage is clicked on Destinations", async () => {
     const user = userEvent.setup();
-    const proposed = vi.fn((_: ProposeChangeRequest) => ({
-      change: create(ChangeSchema, {
-        id: "chg_d",
-        summary: "Send backups to r2",
-        state: ChangeState.PLANNED,
-        plan: { fingerprint: "abc" },
-      }),
-    }));
-    const tested = vi.fn((req: TestBackupDestinationRequest) =>
-      req.destination?.bucket
-        ? { signedIn: true, listed: true, buckets: ["acme-backups", "media"], wrote: true }
-        : { signedIn: true, listed: true, buckets: ["acme-backups", "media"] },
-    );
     renderAt(
       "/backups",
       api([aBackup()], {
@@ -999,161 +989,290 @@ describe("the backups page", () => {
           listBackups: () => ({ backups: [aBackup()] }),
           listBackupPolicies: () => ({}),
           listBackupDestinations: () => ({}),
-          testBackupDestination: tested,
         },
-        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
       }),
     );
     const panel = await screen.findByRole("region", { name: "Destinations" });
     await user.click(within(panel).getByRole("button", { name: /^Add( storage)?$/ }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
-    expect(within(sheet).getByLabelText("Storage")).toHaveValue("r2");
-    // Only what can't be picked is typed: R2's account, and the keys.
-    expect(within(sheet).queryByLabelText("Endpoint")).toBeNull();
-    await user.type(within(sheet).getByLabelText("Account ID"), "abc123");
-    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
-    await user.type(within(sheet).getByLabelText("Secret key"), "the-secret");
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    expect(await within(sheet).findByText("Signed in · 2 buckets")).toBeVisible();
-    expect(within(sheet).getByLabelText("Bucket")).toHaveValue("acme-backups");
-    await user.click(within(sheet).getByRole("button", { name: "Test" }));
-    expect(await within(sheet).findByText("Wrote and deleted a test file in acme-backups")).toBeVisible();
-    expect(tested.mock.calls.map((c) => c[0].destination?.bucket)).toEqual(["", "acme-backups"]);
-    expect(tested.mock.calls[0]?.[0].destination).toMatchObject({
-      endpoint: "https://abc123.r2.cloudflarestorage.com",
-      region: "auto",
+    const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
+    expect(within(sheet).getByRole("textbox", { name: "Bucket" })).toBeVisible();
+    // Storage alone: mail server tiles are not shown.
+    expect(within(sheet).queryByRole("button", { name: "Resend" })).toBeNull();
+  });
+
+  it("offers S3 connections first in the schedule sheet, seals an unused one inline, and plans both edits", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, {
+        id: "chg_d",
+        summary: "Back up orders on a schedule",
+        state: ChangeState.PLANNED,
+        plan: { fingerprint: "abc" },
+      }),
+    }));
+    const spare = create(ConnectionInfoSchema, {
+      id: "cnx_spare",
+      name: "offsite",
+      displayName: "Offsite",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.us-east-1.amazonaws.com",
+      region: "us-east-1",
+      bucket: "acme-backups",
+      reach: ConnectionReach.EVERY,
     });
+    const appConn = create(ConnectionInfoSchema, {
+      id: "cnx_app",
+      name: "uploads",
+      displayName: "Uploads",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.eu-central-1.amazonaws.com",
+      region: "eu-central-1",
+      bucket: "site-uploads",
+      reach: ConnectionReach.EVERY,
+      uses: [
+        {
+          linkId: "lnk_1",
+          link: "storage",
+          environment: "env_1",
+          project: "prj_1",
+          prefix: "site/",
+          sets: { S3_BUCKET: LinkPart.BUCKET },
+          appIds: ["svc_site"],
+          apps: ["site"],
+        },
+      ],
+    });
+    const heldConn = create(ConnectionInfoSchema, {
+      id: "cnx_held",
+      name: "old-app",
+      displayName: "Old app bucket",
+      kind: LinkKind.S3,
+      endpoint: "https://minio.example.com",
+      region: "auto",
+      bucket: "old-bucket",
+      held: true,
+      reach: ConnectionReach.EVERY,
+    });
+    const { container } = renderAt(
+      "/backups",
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [appConn, spare, heldConn] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: schedulePreview,
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Back up on a schedule" });
+    const spareRadio = within(sheet).getByRole("radio", { name: /Use Offsite \(s3\.us-east-1\.amazonaws\.com\)/ });
+    expect(spareRadio).toBeChecked();
+    expect(
+      within(sheet).getByRole("radio", { name: /Use Uploads \(s3\.eu-central-1\.amazonaws\.com\)/ }),
+    ).toBeDisabled();
+    expect(within(sheet).getByText("Serves site, whose key could delete the backups")).toBeVisible();
+    expect(within(sheet).getByRole("radio", { name: /Use Old app bucket \(minio\.example\.com\)/ })).toBeDisabled();
+    expect(within(sheet).getByText("An app received this connection's keys")).toBeVisible();
 
     const review = within(sheet).getByRole("button", { name: "Review plan" });
     expect(review).toBeDisabled();
+    await expectAccessible(container);
+
+    // New connection from an app-serving connection prefills endpoint/region with empty bucket & keys.
+    await user.click(within(sheet).getByRole("button", { name: "New connection from it" }));
+    const connSheet = await screen.findByRole("dialog", { name: "Add a connection" });
+    expect(within(connSheet).getByRole("combobox", { name: "Region" })).toHaveValue("eu-central-1");
+    expect(within(connSheet).getByRole("textbox", { name: "Bucket" })).toHaveValue("");
+    expect(within(connSheet).getByRole("textbox", { name: "Access key ID" })).toHaveValue("");
+    await user.click(within(connSheet).getByRole("button", { name: "Cancel" }));
+
+    // Held connection offers Paste a key made for backups to rotate keys on that connection.
+    await user.click(within(sheet).getByRole("button", { name: "Paste a key made for backups" }));
+    const rotateSheet = await screen.findByRole("dialog", { name: "Connection old-app" });
+    expect(within(rotateSheet).getByText(/Paste a key made for backups alone/)).toBeVisible();
+    await user.click(within(rotateSheet).getByRole("button", { name: "Cancel" }));
+
+    // Confirm passphrase and submit: proposes backup.destination + backup.policy in one plan.
     await user.click(within(sheet).getByLabelText("I've kept a copy of the passphrase"));
     await user.click(review);
     await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edits = proposed.mock.calls[0]?.[0].edits ?? [];
+    expect(edits).toHaveLength(2);
+    expect(edits[0]?.resource).toMatchObject({ kind: "backup.destination", name: "offsite" });
+    expect(edits[0]?.spec?.kind.value).toMatchObject({ connection: "offsite", prefix: "backups" });
+    expect(edits[1]?.resource).toMatchObject({ kind: "backup.policy" });
+    expect(edits[1]?.spec?.kind.value).toMatchObject({ destination: "offsite" });
+  });
+
+  it("falls back to Use <name> below admin and disables setting up a new backup destination with why", async () => {
+    const user = userEvent.setup();
+    const spare = create(ConnectionInfoSchema, {
+      id: "cnx_spare",
+      name: "offsite",
+      kind: LinkKind.S3,
+      reach: ConnectionReach.PROJECTS,
+      projects: ["prj_1"],
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        auth: {
+          getAuthState: () =>
+            authState({
+              user: { ...mira, role: Role.UNSPECIFIED },
+              grants: [{ projectId: "prj_1", role: Role.DEVELOPER }],
+            }),
+        },
+        connections: { listConnections: () => ({ connections: [spare] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Back up on a schedule" });
+    const radio = within(sheet).getByRole("radio", { name: /Use offsite/ });
+    expect(radio).toBeDisabled();
+    expect(within(sheet).getByRole("radio", { name: /Only this server/ })).toBeChecked();
+  });
+
+  it("deduplicates paired destinations and leaves out connections that can't take backups in Destinations", async () => {
+    const conn = create(ConnectionInfoSchema, {
+      id: "cnx_1",
+      name: "offsite",
+      displayName: "Offsite",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.us-east-1.amazonaws.com",
+      region: "us-east-1",
+      bucket: "acme-backups",
+      reach: ConnectionReach.EVERY,
+    });
+    const appConn = create(ConnectionInfoSchema, {
+      id: "cnx_app",
+      name: "uploads",
+      displayName: "Uploads",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.eu-central-1.amazonaws.com",
+      region: "eu-central-1",
+      bucket: "site-uploads",
+      reach: ConnectionReach.EVERY,
+      uses: [
+        {
+          linkId: "lnk_1",
+          link: "storage",
+          environment: "env_1",
+          project: "prj_1",
+          prefix: "site/",
+          sets: { S3_BUCKET: LinkPart.BUCKET },
+          appIds: ["svc_site"],
+          apps: ["site"],
+        },
+      ],
+    });
+    const dest = create(BackupDestinationInfoSchema, {
+      id: "bds_1",
+      name: "offsite",
+      endpoint: conn.endpoint,
+      bucket: "acme-backups",
+      backups: 5,
+      usedBytes: 50n << 20n,
+      connection: "offsite",
+    });
+    const legacy = create(BackupDestinationInfoSchema, {
+      id: "bds_legacy",
+      name: "legacy-r2",
+      endpoint: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+      bucket: "legacy-backups",
+      prefix: "old",
+    });
+    const user = userEvent.setup();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [conn, appConn] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({ destinations: [dest, legacy] }),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    const panel = await screen.findByRole("region", { name: "Destinations" });
+    expect(await within(panel).findByRole("link", { name: "offsite" })).toHaveAttribute("href", "/connections/offsite");
+    expect(within(panel).getByText("legacy-r2")).toBeVisible();
+    // App-serving connections are left out of Destinations; the schedule picker still shows them disabled.
+    expect(within(panel).queryByText("uploads")).toBeNull();
+    expect(within(panel).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(panel).getByText("5 backups, 50 MB")).toBeVisible();
+
+    // Legacy destination in the schedule picker reads like connections do, with its bucket on the second line.
+    await user.click(
+      within(screen.getByRole("region", { name: "Schedules" })).getByRole("button", { name: /^Add( a schedule)?$/ }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Back up on a schedule" });
+    expect(
+      within(sheet).getByRole("radio", {
+        name: /Use legacy-r2 \(0123456789abcdef0123456789abcdef\.r2\.cloudflarestorage\.com\)/,
+      }),
+    ).toBeVisible();
+    expect(within(sheet).getByText("Bucket legacy-backups · encrypted under old/")).toBeVisible();
+  });
+
+  it("seals an unused S3 connection from Back up now, proposing the destination before backing up", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_: ProposeChangeRequest) => ({
+      change: create(ChangeSchema, { id: "chg_dest", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
+    }));
+    const conn = create(ConnectionInfoSchema, {
+      id: "cnx_1",
+      name: "offsite",
+      displayName: "Offsite",
+      kind: LinkKind.S3,
+      endpoint: "https://s3.us-east-1.amazonaws.com",
+      region: "us-east-1",
+      bucket: "acme-backups",
+      reach: ConnectionReach.EVERY,
+    });
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [conn] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: () => ({ method: BackupMethod.COPY, estimateBytes: 10n << 20n, freeBytes: 10n << 30n }),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Back up now" }));
+    const sheet = await screen.findByRole("dialog", { name: "Back up orders" });
+    expect(within(sheet).getByRole("radio", { name: /Nowhere else/ })).toBeChecked();
+    await user.click(within(sheet).getByRole("radio", { name: /Use Offsite \(s3\.us-east-1\.amazonaws\.com\)/ }));
+    const submit = within(sheet).getByRole("button", { name: "Review plan and back up" });
+    expect(submit).toBeDisabled();
+    await user.click(within(sheet).getByLabelText("I've kept a copy of the passphrase"));
+    await user.click(submit);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
     const edit = proposed.mock.calls[0]?.[0].edits[0];
-    expect(edit?.resource).toMatchObject({ kind: "backup.destination", name: "r2" });
-    const value = edit?.spec?.kind.value as { endpoint: string; bucket: string; secretKey: string; passphrase: string };
-    expect(value).toMatchObject({ endpoint: "https://abc123.r2.cloudflarestorage.com", bucket: "acme-backups" });
-    expect(value.secretKey).toBe("the-secret");
-    expect(value.passphrase.length).toBeGreaterThan(32);
-  });
-
-  it("says what the storage refused, in a word, with what it said", async () => {
-    const user = userEvent.setup();
-    renderAt(
-      "/backups",
-      api([aBackup()], {
-        backups: {
-          listBackups: () => ({ backups: [aBackup()] }),
-          listBackupPolicies: () => ({}),
-          listBackupDestinations: () => ({}),
-          testBackupDestination: () => ({
-            problem: BackupDestinationProblem.KEYS_REFUSED,
-            said: "InvalidAccessKeyId: no",
-          }),
-        },
-      }),
-    );
-    await user.click(
-      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", {
-        name: /^Add( storage)?$/,
-      }),
-    );
-    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
-    await user.selectOptions(within(sheet).getByLabelText("Storage"), "b2");
-    expect(within(sheet).getByLabelText("Region")).toHaveValue("us-west-001");
-    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
-    await user.type(within(sheet).getByLabelText("Secret key"), "wrong");
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    expect(await within(sheet).findByText("The storage refused these keys")).toBeVisible();
-    expect(within(sheet).getByText("InvalidAccessKeyId: no")).toBeVisible();
-  });
-
-  /** Opens Add a destination on Amazon S3 with keys typed, answering tests with answer. */
-  async function s3Sheet(answer: (req: TestBackupDestinationRequest) => unknown) {
-    const user = userEvent.setup();
-    renderAt(
-      "/backups",
-      api([aBackup()], {
-        backups: {
-          listBackups: () => ({ backups: [aBackup()] }),
-          listBackupPolicies: () => ({}),
-          listBackupDestinations: () => ({}),
-          testBackupDestination: answer as never,
-        },
-      }),
-    );
-    await user.click(
-      within(await screen.findByRole("region", { name: "Destinations" })).getByRole("button", {
-        name: /^Add( storage)?$/,
-      }),
-    );
-    const sheet = await screen.findByRole("dialog", { name: "Add a destination" });
-    await user.selectOptions(within(sheet).getByLabelText("Storage"), "s3");
-    await user.type(within(sheet).getByLabelText("Access key"), "AKIA");
-    await user.type(within(sheet).getByLabelText("Secret key"), "secret");
-    return { user, sheet };
-  }
-
-  it("says a bucket is in another region, and picks that region in one click", async () => {
-    const { user, sheet } = await s3Sheet((req) =>
-      req.destination?.bucket
-        ? {
-            signedIn: true,
-            problem: BackupDestinationProblem.WRONG_REGION,
-            region: "eu-west-2",
-            said: "PermanentRedirect",
-          }
-        : { signedIn: true, listed: true, buckets: ["acme"] },
-    );
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    await user.click(await within(sheet).findByRole("button", { name: "Test" }));
-    expect(await within(sheet).findByText("acme is in eu-west-2")).toBeVisible();
-    expect(within(sheet).queryByText(/Wrote and deleted/)).toBeNull();
-    await user.click(within(sheet).getByRole("button", { name: "Use eu-west-2" }));
-    expect(within(sheet).getByLabelText("Region")).toHaveValue("eu-west-2");
-  });
-
-  it("says a test file it couldn't delete is still there, and never that it was deleted", async () => {
-    const { user, sheet } = await s3Sheet((req) =>
-      req.destination?.bucket
-        ? {
-            signedIn: true,
-            wrote: true,
-            problem: BackupDestinationProblem.CANT_DELETE,
-            testFile: "dw/.dockwell-test-0a1b2c",
-            said: "AccessDenied",
-          }
-        : { signedIn: true, listed: true, buckets: ["acme"] },
-    );
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    await user.click(await within(sheet).findByRole("button", { name: "Test" }));
-    expect(
-      await within(sheet).findByText("Wrote it, but couldn't delete the test file: dw/.dockwell-test-0a1b2c"),
-    ).toBeVisible();
-    expect(within(sheet).queryByText(/Wrote and deleted/)).toBeNull();
-  });
-
-  it("asks for the bucket's name when the keys sign in and may not list", async () => {
-    const { user, sheet } = await s3Sheet(() => ({ signedIn: true, listed: false }));
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    expect(
-      await within(sheet).findByText("Signed in · these keys can't list buckets, so type the bucket's name"),
-    ).toBeVisible();
-  });
-
-  it("drops an answer to keys that were changed while it was asked", async () => {
-    let answer: (value: unknown) => void = () => {};
-    const { user, sheet } = await s3Sheet(
-      () =>
-        new Promise((resolve) => {
-          answer = resolve;
-        }),
-    );
-    await user.click(within(sheet).getByRole("button", { name: "Find buckets" }));
-    await user.type(within(sheet).getByLabelText("Secret key"), "-changed");
-    answer({ signedIn: true, listed: true, buckets: ["acme"] });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(within(sheet).queryByText(/Signed in/)).toBeNull();
+    expect(edit?.resource).toMatchObject({ kind: "backup.destination", name: "offsite" });
+    expect(edit?.spec?.kind.value).toMatchObject({ connection: "offsite", prefix: "backups" });
   });
 
   it("fetches a backup its server lost, and offers no restore until then", async () => {
@@ -1411,58 +1530,103 @@ describe("the backups page", () => {
     expect(within(panel).getByText(/the storage refused it/)).toBeVisible();
   });
 
-  // With no destinations yet, Add is the empty state's Add storage.
-  async function addDestination(user: ReturnType<typeof userEvent.setup>, add: string | RegExp) {
-    const panel = await screen.findByRole("region", { name: /Destinations|目的地/ });
-    await user.click(within(panel).getByRole("button", { name: add }));
-  }
+  const spareConn = () =>
+    create(ConnectionInfoSchema, {
+      id: "cnx_spare",
+      name: "offsite",
+      displayName: "Offsite",
+      kind: LinkKind.S3,
+      endpoint: "https://storage.example.com",
+      region: "auto",
+      bucket: "acme-backups",
+      reach: ConnectionReach.EVERY,
+    });
 
-  it("takes a passphrase you already have, and holds it to the length the API does", async () => {
+  it("takes a passphrase you already have when sealing an unused connection, and holds it to the API length", async () => {
     const user = userEvent.setup();
     const proposed = vi.fn((_: ProposeChangeRequest) => ({
       change: create(ChangeSchema, { id: "chg_d", state: ChangeState.PLANNED, plan: { fingerprint: "abc" } }),
     }));
     renderAt(
       "/backups",
-      copies([aBackup()], {}, { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream }),
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [spareConn()] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: schedulePreview,
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
     );
-    await addDestination(user, "Add storage");
-    await user.selectOptions(await screen.findByLabelText("Storage"), "other");
-    await user.type(screen.getByLabelText("Endpoint"), "https://storage.example.com");
-    await user.type(screen.getByLabelText("Bucket"), "acme-backups");
-    await user.type(screen.getByLabelText("Access key"), "AKIA");
-    await user.type(screen.getByLabelText("Secret key"), "the-secret");
-    // A passphrase of one's own is a step away, under Advanced.
-    await user.click(screen.getByRole("button", { name: "Advanced" }));
-    await user.click(screen.getByRole("switch", { name: /Use a passphrase I already have/ }));
-    expect(screen.queryByText("Keep this passphrase somewhere else")).toBeNull();
-    const review = screen.getByRole("button", { name: "Review plan" });
-    await user.type(screen.getByLabelText("Passphrase"), "too short");
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Back up on a schedule" });
+    await user.click(within(sheet).getByRole("button", { name: "Advanced" }));
+    await user.click(within(sheet).getByRole("switch", { name: /Use a passphrase I already have/ }));
+    expect(within(sheet).queryByText("Keep this passphrase somewhere else")).toBeNull();
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    await user.type(within(sheet).getByLabelText("Passphrase"), "too short");
     expect(review).toBeDisabled();
-    await user.type(screen.getByLabelText("Passphrase"), " but now it's long enough");
+    await user.type(within(sheet).getByLabelText("Passphrase"), " but now it's long enough");
     await user.click(review);
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string };
+    const value = proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value as { passphrase: string; connection: string };
+    expect(value.connection).toBe("offsite");
     expect(value.passphrase).toBe("too short but now it's long enough");
   });
 
-  it("keeps the destination sheet on a phone's screen, with a passphrase you can copy", async () => {
+  it("keeps the schedule sheet with a connection on a phone's screen, with a passphrase you can copy", async () => {
     onPhone();
     const user = userEvent.setup();
-    const { container } = renderAt("/backups", copies([aBackup()]));
-    await addDestination(user, "Add storage");
-    expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
+    const { container } = renderAt(
+      "/backups",
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [spareConn()] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "Schedules" })).getByRole("button", {
+        name: /^Add( a schedule)?$/,
+      }),
+    );
+    expect(await screen.findByRole("dialog", { name: "Back up on a schedule" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Copy the passphrase" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Review plan" })).toBeVisible();
     await expectAccessible(container);
   });
 
-  it("reads the destination sheet in Chinese", async () => {
+  it("reads the connection seal fields in Chinese", async () => {
     await activateLocale("zh-CN");
     const user = userEvent.setup();
-    renderAt("/backups", copies([aBackup()]));
-    await addDestination(user, "添加存储");
-    expect(await screen.findByRole("dialog", { name: "添加目的地" })).toBeVisible();
+    renderAt(
+      "/backups",
+      api([aBackup()], {
+        connections: { listConnections: () => ({ connections: [spareConn()] }) },
+        backups: {
+          listBackups: () => ({ backups: [aBackup()] }),
+          listBackupPolicies: () => ({}),
+          listBackupDestinations: () => ({}),
+          previewBackup: schedulePreview,
+        },
+      }),
+    );
+    await user.click(
+      within(await screen.findByRole("region", { name: "备份计划" })).getByRole("button", {
+        name: /^添加(备份计划)?$/,
+      }),
+    );
+    expect(await screen.findByRole("dialog", { name: "按计划备份" })).toBeVisible();
     expect(screen.getByRole("button", { name: "复制密码短语" })).toBeVisible();
     await activateLocale("en");
   });

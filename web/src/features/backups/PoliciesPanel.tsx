@@ -18,9 +18,9 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { StateLine } from "../apps/DomainStep";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
-import { DestinationSheet } from "./DestinationSheet";
-import { useDestinations } from "./DestinationsPanel";
+import { useStorage } from "./storage";
 import { useScheduleWords, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
@@ -100,7 +100,7 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const words = useScheduleWords();
   const when = useWhen();
   const now = useControlPlaneNow(30_000);
-  const destinations = useDestinations().data?.destinations ?? [];
+  const storage = useStorage();
   const [addingStorage, setAddingStorage] = useState(false);
   // An app's database alone goes by its need's link (ADR 0084).
   const volume = policy.spec?.volume || policy.spec?.link || "";
@@ -113,8 +113,11 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const nextWhole = nextAt ? formatDateTime(nextAt, i18n.locale, zone) : "";
   const sentTo = policy.spec?.destination ?? "";
   const keeps = t`Keeps ${policy.spec?.keep ?? 0}, holding ${policy.kept} now (${formatBytes(policy.keptBytes, i18n.locale)})`;
-  const mayRemove = useMay()(ChangeService.method.proposeChange, { environment: policy.environmentId });
+  const may = useMay();
+  const mayRemove = may(ChangeService.method.proposeChange, { environment: policy.environmentId });
+  const mayAddStorage = may(ChangeService.method.proposeChange, { install: true });
   const actOff = mayRemove.allowed ? {} : { disabled: true, title: mayRemove.reason || undefined };
+  const addOff = mayAddStorage.allowed ? {} : { disabled: true, title: mayAddStorage.reason || undefined };
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -145,12 +148,12 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
           <StateLine
             status="degraded"
             action={
-              destinations.length > 0 ? (
+              storage.items.length > 0 ? (
                 <button type="button" className="domain-step-act" onClick={onEdit} {...actOff}>
                   <Trans>Send copies off the server</Trans>
                 </button>
               ) : (
-                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)} {...addOff}>
                   <Trans>Add storage</Trans>
                 </button>
               )
@@ -210,7 +213,9 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
           {...mayRemove.off}
         />
       </div>
-      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
+      {addingStorage ? (
+        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
+      ) : null}
     </li>
   );
 }

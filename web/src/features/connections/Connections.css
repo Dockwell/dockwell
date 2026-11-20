@@ -221,10 +221,42 @@ a.connections-name:hover {
   text-decoration: none;
 }
 
+.connections-phone-dest {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.connections-phone-main {
+  display: flex;
+  flex: 1 1 160px;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
 .connections-phone-text {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+
+.connections-phone-text .connections-name {
+  overflow-wrap: anywhere;
+}
+
+.connections-phone-text .dw-status {
+  flex-wrap: wrap;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.connections-phone-text .dw-status-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .connection-page {

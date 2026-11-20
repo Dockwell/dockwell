@@ -83,9 +83,19 @@ export const flow: Flow = {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(`${origin}/connections`);
     await page.getByRole("heading", { level: 1, name: "Connections" }).waitFor({ timeout: 20_000 });
-    await page.getByRole("heading", { name: "No connections yet" }).waitFor({ timeout: 20_000 });
+    // Earlier flows (backups) may already have added an S3 connection; open the sheet either way.
+    const addBtn = page.getByRole("button", { name: "Add connection" });
+    const emptyHeading = page.getByRole("heading", { name: "No connections yet" });
+    await Promise.race([addBtn.waitFor({ timeout: 20_000 }), emptyHeading.waitFor({ timeout: 20_000 })]);
     await shoot(page, "connections-empty");
-    await page.getByRole("button", { name: "Another S3-compatible store" }).click();
+    if (await addBtn.isVisible()) {
+      await addBtn.click();
+      const s = page.getByRole("dialog", { name: "Add a connection" });
+      await s.waitFor();
+      await s.getByRole("button", { name: "Another S3-compatible store" }).click();
+    } else {
+      await page.getByRole("button", { name: "Another S3-compatible store" }).click();
+    }
     const sheet = page.getByRole("dialog", { name: "Add a connection" });
     await sheet.waitFor();
     await sheet.getByRole("textbox", { name: "Endpoint" }).fill(OWN);
@@ -221,6 +231,9 @@ export const flow: Flow = {
     await removal.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
     await removal.getByRole("button", { name: "Done" }).click();
     await page.goto(`${origin}/connections`);
-    await page.getByRole("heading", { name: "No connections yet" }).waitFor({ timeout: 20_000 });
+    await page.getByRole("heading", { level: 1, name: "Connections" }).waitFor({ timeout: 20_000 });
+    if ((await page.getByRole("link", { name: "e2e-files", exact: true }).count()) !== 0) {
+      fail("e2e-files is still listed after removal");
+    }
   },
 };

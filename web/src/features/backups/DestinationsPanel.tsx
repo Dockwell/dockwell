@@ -5,46 +5,50 @@ import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService, ChangeService } from "@dockwell/api";
 import { Button, Panel } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { StateLine } from "../apps/DomainStep";
-import { useChangeSheet } from "../changes/ChangeSheet";
-import { DestinationSheet } from "./DestinationSheet";
-import "./Backups.css";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { pickerStatus, useStorage } from "./storage";
+import "./Backups.css";
 
 /** The storage backups can go to. */
 export function useDestinations() {
   return useQuery(BackupService.method.listBackupDestinations, {});
 }
 
-/** The names a form offers: none is a choice too, so it starts there. */
-export function destinationOptions(list: readonly BackupDestinationInfo[], none: string) {
-  return [{ value: "", label: none }, ...list.map((d) => ({ value: d.name, label: d.name }))];
-}
-
-/** Each destination: where it is, what's there, and when something last got there. */
+/** Storage where backups go: backup destinations and unused S3 connections that can take backups. */
 export function DestinationsPanel({ destinations }: { destinations: readonly BackupDestinationInfo[] }) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
+  const storage = useStorage(destinations);
   const [adding, setAdding] = useState(false);
-  // A destination belongs to no project, so it's an admin's to add or remove: off, with why, otherwise (ADR 0059).
+  // Storage belongs to no project, so adding or removing it is an admin's: off, with why, otherwise (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
+  // Leave out connections that can't take backups (app-serving, shared, or key-held); the picker shows them disabled with the way out.
+  const usable = storage.items.filter((item) => {
+    const state = pickerStatus(item).state;
+    return state === "ready" || state === "available";
+  });
+
   return (
     <Panel
       title={t`Destinations`}
       flush
       actions={
         // While there's none, the empty state's Add storage is the one way in.
-        destinations.length > 0 ? (
+        usable.length > 0 ? (
           <Button size="sm" variant="ghost" icon="plus" onClick={() => setAdding(true)} {...mayPlan.off}>
             <Trans>Add</Trans>
           </Button>
         ) : undefined
       }
     >
-      {destinations.length === 0 ? (
+      {usable.length === 0 ? (
         // A state with its one action, not an empty page, so this column stays as short as its neighbour (#793).
         <div className="backup-destinations-none">
           <StateLine
@@ -66,40 +70,69 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
         </div>
       ) : (
         <ul className="backup-policies">
-          {destinations.map((d) => (
-            <li key={d.id} className="backup-policy">
-              <div className="backup-state">
-                <span>{d.name}</span>
-                <code className="backup-why">{d.bucket}</code>
-              </div>
-              <div className="backup-state">
-                <span className="backup-why">{t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`}</span>
-                {d.lastUpload ? (
-                  <span className="backup-why">
-                    {t`Last upload ${formatDateTime(timestampDate(d.lastUpload), i18n.locale)}`}
-                  </span>
+          {usable.map((item) => {
+            const d = item.destination;
+            const c = item.connection;
+            return (
+              <li key={item.key} className="backup-policy">
+                <div className="backup-state">
+                  {c ? (
+                    <Link to="/connections/$name" params={{ name: c.name }} className="backup-dest-link">
+                      {c.name}
+                    </Link>
+                  ) : (
+                    <span>{item.name}</span>
+                  )}
+                  {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
+                </div>
+                <div className="backup-state">
+                  {d ? (
+                    <>
+                      <span className="backup-why">{t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`}</span>
+                      {d.lastUpload ? (
+                        <span className="backup-why">
+                          {t`Last upload ${formatDateTime(timestampDate(d.lastUpload), i18n.locale)}`}
+                        </span>
+                      ) : null}
+                      <span className="backup-why">{t`Encrypted on each server before upload`}</span>
+                    </>
+                  ) : (
+                    <span className="backup-why">{t`Connection · pick in a schedule or Back up now`}</span>
+                  )}
+                </div>
+                {d ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon="trash"
+                    aria-label={t`Remove this destination`}
+                    {...mayPlan.off}
+                    onClick={() =>
+                      sheet.open({
+                        kind: "propose",
+                        summary: t`Stop sending backups to ${d.name}`,
+                        edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
+                      })
+                    }
+                  />
+                ) : c ? (
+                  <Link to="/connections/$name" params={{ name: c.name }} className="dw-btn dw-btn-ghost dw-btn-sm">
+                    <Trans>Manage</Trans>
+                  </Link>
                 ) : null}
-                <span className="backup-why">{t`Encrypted on each server before upload`}</span>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon="trash"
-                aria-label={t`Remove this destination`}
-                {...mayPlan.off}
-                onClick={() =>
-                  sheet.open({
-                    kind: "propose",
-                    summary: t`Stop sending backups to ${d.name}`,
-                    edits: [{ resource: { kind: "backup.destination", name: d.name }, delete: true }],
-                  })
-                }
-              />
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
-      {adding ? <DestinationSheet existing={destinations} onClose={() => setAdding(false)} /> : null}
+      {adding ? (
+        <ConnectionSheet
+          kind="storage"
+          existing={storage.allConnections}
+          onClose={() => setAdding(false)}
+          onSaved={() => void storage.refetch()}
+        />
+      ) : null}
     </Panel>
   );
 }

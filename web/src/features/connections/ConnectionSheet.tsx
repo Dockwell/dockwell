@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  ChangeState,
   type CheckConnectionResponse,
   type ConnectionInfo,
   ConnectionReach,
@@ -18,6 +19,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useDestinations } from "../backups/DestinationsPanel";
+import { destinationsOn } from "../backups/storage";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAllResources } from "../projects/useProjects";
 import { useFleetView } from "../servers/useFleet";
@@ -52,6 +55,10 @@ interface SheetProps {
    * any others picked.
    */
   forInstall?: string | undefined;
+  /** Endpoint and region copied from an existing connection, with bucket and keys empty (#831). */
+  prefill?: { endpoint: string; region: string; pathStyle?: boolean } | undefined;
+  /** True when opened to replace keys an app received before backups may use this connection (#831). */
+  rotateForBackups?: boolean | undefined;
 }
 
 /**
@@ -114,6 +121,8 @@ function StorageSheet({
   project,
   start,
   forInstall,
+  prefill,
+  rotateForBackups,
   only,
   onPickMail,
 }: SheetProps & {
@@ -135,6 +144,7 @@ function StorageSheet({
   // What the pages list, read again once a change applies, so the page a save lands
   // on, or one a removal leaves, says what's there now.
   const listed = useConnections();
+  const destinations = useDestinations().data?.destinations ?? [];
   const fleet = useFleetView();
   const services = useServices();
   const resources = useAllResources();
@@ -142,20 +152,26 @@ function StorageSheet({
     .filter((r) => r.resource?.kind === "project")
     .map((r) => ({ id: r.id, label: r.displayName || r.resource?.name || r.id }));
 
-  const was = editing ? placeOf(editing.endpoint, editing.region) : undefined;
+  const was = editing
+    ? placeOf(editing.endpoint, editing.region)
+    : prefill
+      ? placeOf(prefill.endpoint, prefill.region)
+      : undefined;
   const [store, setStore] = useState<ProviderId>(was?.provider ?? start ?? "r2");
   const p = provider(store);
   const [account, setAccount] = useState(was?.account ?? "");
   const [region, setRegion] = useState(was?.region || p.regions[0] || "");
-  const [typedEndpoint, setTypedEndpoint] = useState(was?.provider === "other" ? (editing?.endpoint ?? "") : "");
+  const [typedEndpoint, setTypedEndpoint] = useState(
+    was?.provider === "other" ? (editing?.endpoint ?? prefill?.endpoint ?? "") : "",
+  );
   const [bucket, setBucket] = useState(editing?.bucket ?? "");
   const [keyId, setKeyId] = useState("");
   const [secret, setSecret] = useState("");
   const [typedName, setTypedName] = useState<string>();
   const [label, setLabel] = useState(editing?.displayName ?? "");
   const [publicUrl, setPublicUrl] = useState(editing?.publicUrl ?? "");
-  const [pathStyle, setPathStyle] = useState<boolean>(editing?.pathStyle ?? p.pathStyle);
-  const [pathTouched, setPathTouched] = useState(editing !== undefined);
+  const [pathStyle, setPathStyle] = useState<boolean>(editing?.pathStyle ?? prefill?.pathStyle ?? p.pathStyle);
+  const [pathTouched, setPathTouched] = useState(editing !== undefined || prefill?.pathStyle !== undefined);
   const installing = !editing && forInstall !== undefined;
   const startReach = editing?.reach ?? (project || installing ? ConnectionReach.PROJECTS : ConnectionReach.EVERY);
   const [reach, setReach] = useState(
@@ -208,8 +224,8 @@ function StorageSheet({
       (editing.pathStyle && !pathStyle));
   // A key is its ID and its secret together: typing either asks for both, or a new
   // secret would be saved beside no ID, and every app reading it would start with none.
-  const keysNeeded = !editing || moved || keyId !== "" || secret !== "";
-  const keysKept = editing !== undefined && !moved && keyId === "" && secret === "";
+  const keysNeeded = !editing || moved || rotateForBackups || keyId !== "" || secret !== "";
+  const keysKept = editing !== undefined && !moved && !rotateForBackups && keyId === "" && secret === "";
   const complete = endpoint !== "" && bucketOk && (keysNeeded ? typedKeys : true);
   const reaching = reach === ConnectionReach.EVERY || picked.length > 0 || installing;
   const passed = answer?.passed === true;
@@ -289,22 +305,36 @@ function StorageSheet({
       summary: editing ? t`Change the connection ${name}` : t`Connect to the bucket ${bucket}`,
       edits: [{ resource: { kind: "connection", name }, spec: { kind: { case: "connection", value: spec() } } }],
       onClose: (change) => {
-        if (!change) return;
+        if (
+          !change ||
+          change.state === ChangeState.PLANNED ||
+          change.state === ChangeState.FAILED ||
+          change.state === ChangeState.DISCARDED
+        ) {
+          return;
+        }
         void listed.refetch().then(() => {
           onClose();
           onSaved?.(name);
         });
       },
     });
-  // A connection a link names can't go: Used by disconnects each first, as a plan.
+  // A connection a link or backup destination names can't go until those let go first.
   const links = editing?.uses.length ?? 0;
+  const backupDests = editing ? destinationsOn(editing.name, destinations) : [];
+  const firstDest = backupDests[0]?.name ?? "";
   const inUse =
     links > 0
       ? plural(links, {
           one: "# link names it. Disconnect it under Used by first.",
           other: "# links name it. Disconnect them under Used by first.",
         })
-      : undefined;
+      : backupDests.length > 0
+        ? plural(backupDests.length, {
+            one: `Backup destination ${firstDest} uses it. Remove it on Backups first.`,
+            other: "# backup destinations use it. Remove them on Backups first.",
+          })
+        : undefined;
   const remove = () =>
     sheet.open({
       kind: "propose",
@@ -350,7 +380,13 @@ function StorageSheet({
       open
       onClose={onClose}
       title={editing ? t`Connection ${editing.name}` : t`Add a connection`}
-      subtitle={editing ? undefined : t`A bucket of S3-compatible storage, for apps to keep files in`}
+      subtitle={
+        rotateForBackups
+          ? t`Paste a key made for backups alone, and revoke the one the app had at your provider`
+          : editing
+            ? undefined
+            : t`A bucket of S3-compatible storage, for apps or backups`
+      }
       footer={
         <>
           {editing ? (

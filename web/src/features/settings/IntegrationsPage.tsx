@@ -1,24 +1,31 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
 import {
   type BackupDestinationInfo,
+  BackupService,
   ChangeService,
+  type ConnectionInfo,
   type DnsProviderInfo,
   GitProviderService,
   type RegistryLoginInfo,
   type SigninProviderInfo,
 } from "@dockwell/api";
 import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { formatBytes } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { StateLine } from "../apps/DomainStep";
-import { DestinationSheet } from "../backups/DestinationSheet";
-import { useDestinations } from "../backups/DestinationsPanel";
+import { type StorageItem, useStorage } from "../backups/storage";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { useLastCheck } from "../connections/LastCheck";
+import { appsOf } from "../connections/storage";
 import { DnsProviderSheet } from "../dns/DnsProviderSheet";
 import { useDnsProviders } from "../dns/dns";
 import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
@@ -47,7 +54,7 @@ const CLOUDFLARE =
 export function IntegrationsPage() {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const destinations = useDestinations();
+  const storage = useStorage();
   const [adding, setAdding] = useState(false);
   const logins = useRegistryLogins();
   // A registry login to add, from a card's registry, or to change.
@@ -63,11 +70,12 @@ export function IntegrationsPage() {
   const dnsList = dns.data?.providers ?? [];
   // A DNS provider to connect, or to change (ADR 0088).
   const [provider, setProvider] = useState<{ editing?: DnsProviderInfo }>();
-  // A destination belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
+  // Storage belongs to no project, so connecting one is an admin's: off, with why, otherwise (ADR 0059).
   const may = useMay();
   const mayPlan = may(ChangeService.method.proposeChange, { install: true });
-  const read = destinations.data !== undefined;
-  const list = destinations.data?.destinations ?? [];
+  const mayUseAsConnection = may(BackupService.method.useDestinationAsConnection);
+  const read = storage.ready;
+  const list = storage.items;
   const connected = list.length;
   // Every integration connected, as the page lists them: GitHub, storage, registry
   // logins, DNS providers and sign-in providers. A list the caller may not read
@@ -76,7 +84,7 @@ export function IntegrationsPage() {
   const apps = useGitHubApps();
   const appCount = apps.data ? apps.data.apps.filter((a) => !a.gone).length : mayListApps ? undefined : 0;
   const counts = [
-    destinations.data ? connected : undefined,
+    read ? connected : undefined,
     logins.data ? loginList.length : undefined,
     dns.data ? dnsList.length : undefined,
     signins.data ? signinList.length : undefined,
@@ -147,17 +155,12 @@ export function IntegrationsPage() {
                 </Button>
               ) : null}
             </div>
-            {destinations.error && !destinations.data ? (
+            {storage.error && !read ? (
               <ReadFailed
-                error={destinations.error}
+                error={storage.error}
                 title={t`Dockwell can't list where backups go`}
                 actions={
-                  <Button
-                    size="sm"
-                    icon="refresh"
-                    loading={destinations.isFetching}
-                    onClick={() => void destinations.refetch()}
-                  >
+                  <Button size="sm" icon="refresh" loading={storage.isFetching} onClick={() => void storage.refetch()}>
                     <Trans>Try again</Trans>
                   </Button>
                 }
@@ -169,8 +172,8 @@ export function IntegrationsPage() {
               </div>
             ) : (
               <div className="integrations-grid">
-                {list.map((d) => (
-                  <DestinationCard key={d.id} destination={d} />
+                {list.map((item) => (
+                  <StorageCard key={item.key} item={item} useAsConnectionOff={mayUseAsConnection.off} />
                 ))}
                 {connected === 0 ? (
                   <Card
@@ -379,7 +382,14 @@ export function IntegrationsPage() {
 
       {/* A phone's header has no room for the aside, so it closes the page. */}
       {phone ? variables : null}
-      {adding ? <DestinationSheet existing={list} onClose={() => setAdding(false)} /> : null}
+      {adding ? (
+        <ConnectionSheet
+          kind="storage"
+          existing={storage.allConnections}
+          onClose={() => setAdding(false)}
+          onSaved={() => void storage.refetch()}
+        />
+      ) : null}
       {provider ? (
         <DnsProviderSheet existing={dnsList} editing={provider.editing} onClose={() => setProvider(undefined)} />
       ) : null}
@@ -425,11 +435,119 @@ function Card({ icon, name, state, text, action }: CardProps) {
   );
 }
 
-/** Storage backups go to, and how it's doing by the last backup that got there. */
-function DestinationCard({ destination: d }: { destination: BackupDestinationInfo }) {
+/** One storage bucket on Integrations: an S3 connection (paired with backups or alone) or a legacy destination. */
+function StorageCard({
+  item,
+  useAsConnectionOff,
+}: {
+  item: StorageItem;
+  useAsConnectionOff: { off?: string; disabled?: true };
+}) {
+  if (item.connection) return <ConnectionStorageCard connection={item.connection} destination={item.destination} />;
+  if (item.destination)
+    return <DestinationCard destination={item.destination} useAsConnectionOff={useAsConnectionOff} />;
+  return null;
+}
+
+/** An S3 connection on Integrations, with backup standing where a backup destination uses it. */
+function ConnectionStorageCard({
+  connection: c,
+  destination: d,
+}: {
+  connection: ConnectionInfo;
+  destination?: BackupDestinationInfo;
+}) {
   const { t, i18n } = useLingui();
   const words = useTimeWords();
   const now = useControlPlaneNow(60_000);
+  const lastCheck = useLastCheck(c);
+  const apps = appsOf(c);
+  let host = c.endpoint;
+  try {
+    host = c.endpoint ? new URL(c.endpoint).host : "";
+  } catch {
+    // Shown as it was given.
+  }
+  const uploaded = d?.lastUpload ? timestampDate(d.lastUpload) : undefined;
+  const failed = d?.lastFailure ? timestampDate(d.lastFailure) : undefined;
+  const failing = failed !== undefined && (uploaded === undefined || failed > uploaded);
+  const when = failed ? words.ago(failed, now) : "";
+  const state = failing ? (
+    <StatusBadge status="down" label={t`A backup didn't get here ${when}`} />
+  ) : uploaded ? (
+    <StatusBadge status="healthy" label={t`Received a backup ${words.ago(uploaded, now)}`} />
+  ) : lastCheck ? (
+    <StatusBadge status={lastCheck.status} label={lastCheck.label} labelIsState />
+  ) : d ? (
+    <StatusBadge status="unknown" label={t`No backup yet`} />
+  ) : (
+    <StatusBadge status="healthy" label={t`Connected`} />
+  );
+  return (
+    <Card
+      icon="archive"
+      name={c.name}
+      state={state}
+      text={
+        <>
+          {c.bucket && host ? (
+            <Trans>
+              Bucket <code>{c.bucket}</code> at <code>{host}</code>
+            </Trans>
+          ) : (
+            c.displayName || c.name
+          )}
+          <span className="integrations-sub">
+            {d
+              ? d.backups === 1
+                ? t`1 backup, ${formatBytes(d.usedBytes, i18n.locale)}`
+                : t`${d.backups} backups, ${formatBytes(d.usedBytes, i18n.locale)}`
+              : apps.length > 0
+                ? plural(apps.length, { one: "Used by # app", other: "Used by # apps" })
+                : t`Ready for apps or backups`}
+          </span>
+          {failing && d ? (
+            <span className="integrations-error" role="alert">
+              {d.lastFailureError}
+            </span>
+          ) : null}
+        </>
+      }
+      action={
+        <div className="integrations-actions">
+          <Link to="/connections/$name" params={{ name: c.name }} className="dw-btn dw-btn-secondary dw-btn-sm">
+            <Icon name="settings" size={14} />
+            <span>
+              <Trans>Manage</Trans>
+            </span>
+          </Link>
+          {d ? (
+            <Link to="/backups" className="dw-btn dw-btn-ghost dw-btn-sm">
+              <span>
+                <Trans>Backups</Trans>
+              </span>
+            </Link>
+          ) : null}
+        </div>
+      }
+    />
+  );
+}
+
+/** Legacy standalone storage backups go to, with Use as a connection to move its keys into a connection (#831). */
+function DestinationCard({
+  destination: d,
+  useAsConnectionOff,
+}: {
+  destination: BackupDestinationInfo;
+  useAsConnectionOff: { off?: string; disabled?: true };
+}) {
+  const { t, i18n } = useLingui();
+  const words = useTimeWords();
+  const now = useControlPlaneNow(60_000);
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const backupClient = useMemo(() => createClient(BackupService, transport), [transport]);
   let host = d.endpoint;
   try {
     host = new URL(d.endpoint).host;
@@ -449,6 +567,12 @@ function DestinationCard({ destination: d }: { destination: BackupDestinationInf
   ) : (
     <StatusBadge status="unknown" label={t`No backup yet`} />
   );
+  const useAsConnection = () =>
+    sheet.open({
+      kind: "plan",
+      // biome-ignore lint/correctness/useHookAtTopLevel: Connect RPC method name begins with "use", not a React hook
+      make: () => backupClient.useDestinationAsConnection({ destination: d.name }),
+    });
   return (
     <Card
       icon="archive"
@@ -472,12 +596,19 @@ function DestinationCard({ destination: d }: { destination: BackupDestinationInf
         </>
       }
       action={
-        <Link to="/backups" className="dw-btn dw-btn-secondary dw-btn-sm">
-          <Icon name="settings" size={14} />
-          <span>
-            <Trans>Manage in Backups</Trans>
-          </span>
-        </Link>
+        <div className="integrations-actions">
+          <Link to="/backups" className="dw-btn dw-btn-secondary dw-btn-sm">
+            <Icon name="settings" size={14} />
+            <span>
+              <Trans>Manage in Backups</Trans>
+            </span>
+          </Link>
+          {d.connection === "" ? (
+            <Button size="sm" variant="ghost" onClick={useAsConnection} {...useAsConnectionOff}>
+              <Trans>Use as a connection</Trans>
+            </Button>
+          ) : null}
+        </div>
       }
     />
   );
