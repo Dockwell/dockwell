@@ -434,6 +434,43 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/backup-destinations/{destination}:useAsConnection:
+        post:
+            tags:
+                - BackupService
+            description: |-
+                UseDestinationAsConnection plans moving an inline backup destination's endpoint,
+                 bucket and keys onto a new install-only S3 connection and pointing the
+                 destination at it, in one atomic change (ADR 0099). The destination keeps its
+                 ID, prefix and passphrase, so every backup already in the bucket stays openable,
+                 and its keys never leave the control plane.
+            operationId: BackupService_UseDestinationAsConnection
+            parameters:
+                - name: destination
+                  in: path
+                  description: The existing backup destination, by name.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UseDestinationAsConnectionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UseDestinationAsConnectionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/backup-destinations:test:
         post:
             tags:
@@ -10001,6 +10038,13 @@ components:
                          and dockwell open-backup needs it: keep a copy somewhere that isn't this install.
                          Set it when you add a destination, and leave it out of an update, which keeps it:
                          an update that sets one is refused, as every copy there is sealed with it.
+                connection:
+                    type: string
+                    description: |-
+                        An S3 connection of the install, by name, in place of endpoint, region, bucket
+                         and keys (ADR 0099). A connection a destination uses serves no app and isn't
+                         shared, and its keys stay on the connection so rotating them moves the
+                         destination with them. The destination keeps its own prefix and passphrase.
             description: |-
                 BackupDestination is S3-compatible storage that backups go to as well as the
                  server's disk, so they outlive it: Amazon S3, Cloudflare R2, Backblaze B2, MinIO
@@ -10047,6 +10091,12 @@ components:
                     format: date-time
                 lastFailureError:
                     type: string
+                connection:
+                    type: string
+                    description: |-
+                        The S3 connection this destination reads its endpoint, bucket and keys from,
+                         by name (ADR 0099). Empty for a destination that holds its own keys inline.
+                         Below an admin, set only when the connection reaches one of the caller's projects.
             description: BackupDestinationInfo is S3-compatible storage, with nothing that signs in to it.
         BackupDrill:
             type: object
@@ -29496,6 +29546,37 @@ components:
                         - $ref: '#/components/schemas/Upload'
                     description: The upload.
             description: UploadFileResponse is how far an upload got once its bytes stopped coming.
+        UseDestinationAsConnectionRequest:
+            type: object
+            properties:
+                destination:
+                    type: string
+                    description: The existing backup destination, by name.
+                connection:
+                    type: string
+                    description: The new connection's name. Empty picks a free name from destination.
+                displayName:
+                    type: string
+                    description: What the panel calls the new connection, such as "Backups R2". Optional.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it moves.
+            description: |-
+                UseDestinationAsConnectionRequest asks to move an inline destination onto an
+                 install-only S3 connection.
+        UseDestinationAsConnectionResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+                connection:
+                    type: string
+                    description: The new connection's name.
+            description: |-
+                UseDestinationAsConnectionResponse is the planned change and the connection name
+                 it chose.
         User:
             type: object
             properties:

@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -197,6 +198,95 @@ func (c *Connections) Uses(ctx context.Context) (map[string][]*dockwellv1.Connec
 		return nil
 	})
 	return out, err
+}
+
+// BackupUses reports the backup destinations naming each connection, by connection
+// name (ADR 0099). A connection a backup destination uses serves no app.
+func (c *Connections) BackupUses(ctx context.Context) (map[string][]string, error) {
+	out := map[string][]string{}
+	err := c.db.View(ctx, func(tx *store.Tx) error {
+		stored, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
+		if err != nil {
+			return err
+		}
+		for i := range stored {
+			r := &stored[i]
+			spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				if c.Logger != nil {
+					c.Logger.Warn("can't read a backup destination while listing connection uses. Check that the control plane runs with the secrets key it was saved with",
+						"destination", r.Name, "error", err.Error())
+				}
+				continue
+			}
+			if d, ok := spec.(*resourcev1.BackupDestination); ok && d.GetConnection() != "" {
+				out[d.GetConnection()] = append(out[d.GetConnection()], r.Name)
+			}
+		}
+		return nil
+	})
+	for name := range out {
+		slices.Sort(out[name])
+	}
+	return out, err
+}
+
+// ForLinking reads the connection named, verifies reach for project (when set)
+// or the caller's projects before scanning, and checks in the same read
+// transaction whether any backup destination uses it, failing closed without
+// leaking destination names below install admin if any backup destination
+// cannot be decoded (#831).
+func (c *Connections) ForLinking(ctx context.Context, name, project string) (saved Saved, backupUsed, ok bool, err error) {
+	admin, projects := callerProjects(ctx)
+	err = c.db.View(ctx, func(tx *store.Tx) error {
+		org, err := tx.Organization(ctx)
+		if err != nil {
+			return err
+		}
+		r, err := tx.GetResource(ctx, string(connection.Kind), org.ID, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		spec, err := c.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the connection %s: %w", name, err)
+		}
+		cs, isConn := spec.(*resourcev1.ConnectionSpec)
+		if !isConn {
+			return nil
+		}
+		if project != "" {
+			if !connection.Reaches(cs, project) {
+				return nil
+			}
+		} else if !admin && !reachesAny(cs, projects) {
+			return nil
+		}
+		saved, ok = Saved{ID: r.ID, Name: r.Name, Revision: r.Revision, Spec: cs}, true
+		dests, err := tx.ListKind(ctx, string(backuppolicy.DestinationKind))
+		if err != nil {
+			return err
+		}
+		for i := range dests {
+			dr := &dests[i]
+			dspec, err := c.keeper.Decode(ctx, tx, store.InRevision(dr.ID, dr.Kind, dr.Revision), dr.Spec)
+			if err != nil {
+				if !admin {
+					return fmt.Errorf("can't check whether a backup destination uses %s. Ask an install admin to check the backup destinations", name)
+				}
+				return fmt.Errorf("can't check whether backup destination %s uses %s: %w", dr.Name, name, err)
+			}
+			if d, isDest := dspec.(*resourcev1.BackupDestination); isDest && d.GetConnection() == name {
+				backupUsed = true
+				return nil
+			}
+		}
+		return nil
+	})
+	return saved, backupUsed, ok, err
 }
 
 // ServersOf are the servers, by ID, that run an app linked to the connection named:

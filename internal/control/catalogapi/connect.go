@@ -167,6 +167,10 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 	if err != nil {
 		return nil, nil, err
 	}
+	backupUses, err := conns.BackupUses(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	values, err := conns.OwnValues(ctx, projectID)
 	if err != nil {
 		return nil, nil, err
@@ -176,6 +180,9 @@ func (h *Handler) connectionWays(ctx context.Context, e *catalogv1.Entry, projec
 		c := &all[i]
 		kind := catalogv1.Kind(c.Spec.GetKind()) // the two enums share their numbers
 		if kind != catalogv1.Kind_KIND_S3 && kind != catalogv1.Kind_KIND_SMTP {
+			continue
+		}
+		if len(backupUses[c.Name]) > 0 {
 			continue
 		}
 		reaches := c.Spec.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY || projectID != "" && connection.Reaches(c.Spec, projectID)

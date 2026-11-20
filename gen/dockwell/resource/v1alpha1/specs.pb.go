@@ -6353,7 +6353,12 @@ type BackupDestination struct {
 	// and dockwell open-backup needs it: keep a copy somewhere that isn't this install.
 	// Set it when you add a destination, and leave it out of an update, which keeps it:
 	// an update that sets one is refused, as every copy there is sealed with it.
-	Passphrase    string `protobuf:"bytes,7,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	Passphrase string `protobuf:"bytes,7,opt,name=passphrase,proto3" json:"passphrase,omitempty"`
+	// An S3 connection of the install, by name, in place of endpoint, region, bucket
+	// and keys (ADR 0099). A connection a destination uses serves no app and isn't
+	// shared, and its keys stay on the connection so rotating them moves the
+	// destination with them. The destination keeps its own prefix and passphrase.
+	Connection    string `protobuf:"bytes,8,opt,name=connection,proto3" json:"connection,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6433,6 +6438,13 @@ func (x *BackupDestination) GetSecretKey() string {
 func (x *BackupDestination) GetPassphrase() string {
 	if x != nil {
 		return x.Passphrase
+	}
+	return ""
+}
+
+func (x *BackupDestination) GetConnection() string {
+	if x != nil {
+		return x.Connection
 	}
 	return ""
 }
@@ -11227,7 +11239,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x11DRILL_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vDRILL_NEVER\x10\x01\x12\x10\n" +
 	"\fDRILL_WEEKLY\x10\x02\x12\x11\n" +
-	"\rDRILL_MONTHLY\x10\x03\"\xe7\x01\n" +
+	"\rDRILL_MONTHLY\x10\x03\"\x87\x02\n" +
 	"\x11BackupDestination\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x16\n" +
 	"\x06region\x18\x02 \x01(\tR\x06region\x12\x16\n" +
@@ -11239,7 +11251,10 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"secret_key\x18\x06 \x01(\tB\x04\xc8\xf3\x18\x01R\tsecretKey\x12$\n" +
 	"\n" +
 	"passphrase\x18\a \x01(\tB\x04\xc8\xf3\x18\x01R\n" +
-	"passphrase\"\xa6\x03\n" +
+	"passphrase\x12\x1e\n" +
+	"\n" +
+	"connection\x18\b \x01(\tR\n" +
+	"connection\"\xa6\x03\n" +
 	"\aNetwork\x12\x16\n" +
 	"\x06driver\x18\x01 \x01(\tR\x06driver\x12J\n" +
 	"\aoptions\x18\x02 \x03(\v20.dockwell.resource.v1alpha1.Network.OptionsEntryR\aoptions\x12\x1a\n" +

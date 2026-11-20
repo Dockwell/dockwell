@@ -3,11 +3,15 @@
 package backups
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -16,14 +20,46 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/backup/s3"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/place"
+	"github.com/dockwell/dockwell/internal/control/updates"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/volume"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
+
+// VirtualHostBackupsSince is the first release whose agent reads virtual_host
+// from a backup destination's values map (#831).
+const VirtualHostBackupsSince = "v0.3.1"
+
+// beforeVirtualHostBackups reports a released agent version older than
+// VirtualHostBackupsSince. Dev or unreleased builds without a release semver are
+// treated as current, matching connections.beforeReads.
+func beforeVirtualHostBackups(version string) bool {
+	v := strings.TrimPrefix(version, "v")
+	if v == "" || strings.ContainsAny(v, "-+") || strings.Count(v, ".") != 2 {
+		return false
+	}
+	return updates.CompareVersions("v"+v, VirtualHostBackupsSince) < 0
+}
+
+func virtualHostTooOld(server string) error {
+	msg := fmt.Sprintf("Update the agent on %s, which sends path style only", server)
+	return errors.New(msg)
+}
+
+func checkVirtualHostAgent(s *agentapi.Session, serverName string, destination map[string]string) error {
+	if destination["virtual_host"] == "true" && beforeVirtualHostBackups(s.Version()) {
+		return authapi.ReasonError(connect.CodeFailedPrecondition, virtualHostTooOld(cmp.Or(serverName, s.Name())), "agent_too_old")
+	}
+	return nil
+}
 
 // destinations reads the destinations, by name, with what signs in to each. What it
 // returns goes no further than a call to an agent, sealed.
@@ -45,28 +81,82 @@ func (h *Handler) destinations(ctx context.Context, tx *store.Tx) (map[string]*r
 	return out, ids, nil
 }
 
-// destination reads one destination, as a call carries it. An empty name is none.
+// resolveConnection reads and decodes the S3 connection a backup destination names.
+func (h *Handler) resolveConnection(ctx context.Context, tx *store.Tx, name string) (store.Resource, *resourcev1.ConnectionSpec, error) {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return store.Resource{}, nil, err
+	}
+	r, err := tx.GetResource(ctx, string(connection.Kind), org.ID, name)
+	if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+		return store.Resource{}, nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("the backup destination uses connection %s, which isn't there", name), "not_found")
+	}
+	if err != nil {
+		return store.Resource{}, nil, err
+	}
+	spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+	if err != nil {
+		return store.Resource{}, nil, fmt.Errorf("can't read the connection %s: %w", name, err)
+	}
+	c, ok := spec.(*resourcev1.ConnectionSpec)
+	if !ok || c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 || c.GetS3() == nil {
+		return store.Resource{}, nil, authapi.Invalid(fmt.Errorf("the connection %s isn't S3 storage", name))
+	}
+	return r, c, nil
+}
+
+// destination reads one destination, as a call carries it, resolving a referenced
+// S3 connection's sealed keys fresh. An empty name is none.
 func (h *Handler) destination(ctx context.Context, name string) (map[string]string, error) {
 	if name == "" {
 		return nil, nil
 	}
-	var found map[string]*resourcev1.BackupDestination
+	var values map[string]string
 	err := h.db.View(ctx, func(tx *store.Tx) error {
-		var err error
-		found, _, err = h.destinations(ctx, tx)
-		return err
+		org, err := tx.Organization(ctx)
+		if err != nil {
+			return err
+		}
+		r, err := tx.GetResource(ctx, string(backuppolicy.DestinationKind), org.ID, name)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup destination %s. List them to find its name", name), "not_found")
+		}
+		if err != nil {
+			return err
+		}
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the backup destination %s: %w", name, err)
+		}
+		d := spec.(*resourcev1.BackupDestination)
+		if d.GetConnection() != "" {
+			_, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
+			if err != nil {
+				return err
+			}
+			s3c := c.GetS3()
+			if err := backuppolicy.CheckTransport(s3c.GetEndpoint(), s3c.GetBucket(), s3c.GetPathStyle()); err != nil {
+				return authapi.Invalid(fmt.Errorf("the connection %s can't be used for backups: its endpoint %s. Change %s to HTTPS", d.GetConnection(), err.Error(), d.GetConnection()))
+			}
+			values = map[string]string{
+				"endpoint": s3c.GetEndpoint(), "region": s3c.GetRegion(), "bucket": s3c.GetBucket(), "prefix": d.GetPrefix(),
+				"access_key": s3c.GetAccessKeyId(), "secret_key": s3c.GetSecretKey(), "passphrase": d.GetPassphrase(),
+			}
+			if !s3c.GetPathStyle() {
+				values["virtual_host"] = "true"
+			}
+			return nil
+		}
+		values = map[string]string{
+			"endpoint": d.GetEndpoint(), "region": d.GetRegion(), "bucket": d.GetBucket(), "prefix": d.GetPrefix(),
+			"access_key": d.GetAccessKey(), "secret_key": d.GetSecretKey(), "passphrase": d.GetPassphrase(),
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	d, ok := found[name]
-	if !ok {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup destination %s. List them to find its name", name), "not_found")
-	}
-	return map[string]string{
-		"endpoint": d.GetEndpoint(), "region": d.GetRegion(), "bucket": d.GetBucket(), "prefix": d.GetPrefix(),
-		"access_key": d.GetAccessKey(), "secret_key": d.GetSecretKey(), "passphrase": d.GetPassphrase(),
-	}, nil
+	return values, nil
 }
 
 // sealedWith says which passphrase a destination seals with, as a keyed hash that says
@@ -80,6 +170,7 @@ func (h *Handler) sealedWith(passphrase string) string {
 // ListBackupDestinations returns the destinations, and never what signs in to one.
 func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request[dockwellv1.ListBackupDestinationsRequest]) (*connect.Response[dockwellv1.ListBackupDestinationsResponse], error) {
 	out := &dockwellv1.ListBackupDestinationsResponse{}
+	admin, mine := callerProjects(ctx)
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		found, ids, err := h.destinations(ctx, tx)
 		if err != nil {
@@ -101,13 +192,29 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 		for _, name := range names {
 			d := found[name]
 			info := &dockwellv1.BackupDestinationInfo{Id: ids[name], Name: name, Endpoint: d.GetEndpoint(), Bucket: d.GetBucket(), Prefix: d.GetPrefix()}
+			changedAt := since[name]
+			if d.GetConnection() != "" {
+				cr, c, err := h.resolveConnection(ctx, tx, d.GetConnection())
+				if err != nil {
+					return err
+				}
+				info.Endpoint, info.Bucket = c.GetS3().GetEndpoint(), c.GetS3().GetBucket()
+				if admin || reachesAny(c, mine) {
+					info.Connection = d.GetConnection()
+				}
+				connRev, err := tx.GetRevision(ctx, cr.ID, cr.Revision)
+				if err != nil {
+					return err
+				}
+				changedAt = max2(changedAt, connRev.CreatedAt)
+			}
 			for i := range all {
 				if b := &all[i]; b.Destination == name && b.CopyKey != "" {
 					info.Backups++
 					info.UsedBytes += b.CopyBytes
 				}
 			}
-			s := standing(all, name, since[name])
+			s := standing(all, name, changedAt)
 			if s.upload != nil {
 				info.LastUpload = timestamppb.New(*s.upload)
 			}
@@ -122,6 +229,220 @@ func (h *Handler) ListBackupDestinations(ctx context.Context, _ *connect.Request
 		return nil, h.fail(ctx, err)
 	}
 	return connect.NewResponse(out), nil
+}
+
+var (
+	connectionBucketRe = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
+	connectionRegionRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
+)
+
+// convertDestinationS3 canonicalizes an inline backup destination's endpoint
+// (stripping unused query/fragment/trailing slash) and validates that its bucket
+// and region can be represented on a connection, returning a conversion-specific
+// error naming the field and fix when not (#831, M4).
+func convertDestinationS3(destName string, d *resourcev1.BackupDestination) (*resourcev1.ConnectionS3, error) {
+	ep, err := backuppolicy.CanonicalEndpoint(d.GetEndpoint())
+	if err != nil {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its endpoint %w. Edit the destination's endpoint, or create a new S3 connection by hand", destName, err))
+	}
+	inlinePath, err := (&s3.Bucket{Endpoint: d.GetEndpoint(), Name: d.GetBucket()}).SignedPath("probe")
+	if err != nil {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its endpoint %w. Keep this destination inline, or create a new S3 connection by hand", destName, err))
+	}
+	connPath, err := (&s3.Bucket{Endpoint: ep, Name: d.GetBucket()}).SignedPath("probe")
+	if err != nil {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its endpoint %w. Keep this destination inline, or create a new S3 connection by hand", destName, err))
+	}
+	if inlinePath != connPath {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its endpoint %q signs requests at %s, while the connection endpoint %q would sign %s. Keep this destination inline, or add a new S3 connection for future backups", destName, d.GetEndpoint(), inlinePath, ep, connPath))
+	}
+	if !connectionBucketRe.MatchString(d.GetBucket()) || strings.Contains(d.GetBucket(), "..") {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its bucket %q isn't a valid connection bucket name (3 to 63 lowercase letters, digits, dots and dashes). Create a new S3 connection with a standard bucket name, or keep this destination as it is", destName, d.GetBucket()))
+	}
+	region := cmp.Or(d.GetRegion(), "auto")
+	if !connectionRegionRe.MatchString(region) {
+		return nil, authapi.Invalid(fmt.Errorf("backup destination %s can't be converted because its region %q isn't a valid connection region (lowercase letters, digits and dashes, such as auto or eu-central-1). Update the destination's region, or create a new S3 connection by hand", destName, d.GetRegion()))
+	}
+	return &resourcev1.ConnectionS3{
+		Endpoint:    ep,
+		Region:      region,
+		Bucket:      d.GetBucket(),
+		AccessKeyId: d.GetAccessKey(),
+		SecretKey:   d.GetSecretKey(),
+		PathStyle:   true,
+	}, nil
+}
+
+// UseDestinationAsConnection plans moving an inline backup destination's endpoint,
+// bucket and keys into a new install-only S3 connection and pointing the destination
+// at it, in one atomic change (ADR 0099).
+func (h *Handler) UseDestinationAsConnection(ctx context.Context, req *connect.Request[dockwellv1.UseDestinationAsConnectionRequest]) (*connect.Response[dockwellv1.UseDestinationAsConnectionResponse], error) {
+	if h.changes == nil || h.engine == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, errors.New("this control plane plans no changes"))
+	}
+	destName := strings.TrimSpace(req.Msg.GetDestination())
+	if destName == "" {
+		return nil, authapi.Invalid(errors.New("say which backup destination to move, by name"))
+	}
+	explicitName := strings.TrimSpace(req.Msg.GetConnection())
+	if explicitName != "" {
+		if err := (connection.Type{}).CheckName(explicitName); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+	}
+	var (
+		orgID   string
+		d       *resourcev1.BackupDestination
+		destRev int
+		taken   map[string]bool
+	)
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		org, err := tx.Organization(ctx)
+		if err != nil {
+			return err
+		}
+		orgID = org.ID
+		r, err := tx.GetResource(ctx, string(backuppolicy.DestinationKind), org.ID, destName)
+		if errors.Is(err, store.ErrNotFound) || err == nil && r.Spec == nil {
+			return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no backup destination %s. List them to find its name", destName), "not_found")
+		}
+		if err != nil {
+			return err
+		}
+		spec, err := h.keeper.Decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+		if err != nil {
+			return fmt.Errorf("can't read the backup destination %s: %w", destName, err)
+		}
+		d = spec.(*resourcev1.BackupDestination)
+		if d.GetConnection() != "" {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("backup destination %s already uses the connection %s. Open %s on Connections to manage its storage keys", destName, d.GetConnection(), d.GetConnection()),
+				"already_connected")
+		}
+		destRev = r.Revision
+		existing, err := tx.ListKind(ctx, string(connection.Kind))
+		if err != nil {
+			return err
+		}
+		taken = make(map[string]bool, len(existing))
+		for i := range existing {
+			taken[existing[i].Name] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.fail(ctx, err)
+	}
+	s3Spec, err := convertDestinationS3(destName, d)
+	if err != nil {
+		return nil, err
+	}
+	summary := cmp.Or(strings.TrimSpace(req.Msg.GetSummary()), fmt.Sprintf("Use %s as a connection", destName))
+	displayName := strings.TrimSpace(req.Msg.GetDisplayName())
+
+	const maxAttempts = 16
+	var connName string
+	change, err := h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
+		for attempt := range maxAttempts {
+			if explicitName != "" {
+				connName = explicitName
+			} else {
+				connName = freeConnectionName(destName, taken)
+			}
+			connSpec := &resourcev1.ConnectionSpec{
+				DisplayName: displayName,
+				Kind:        resourcev1.LinkKind_LINK_KIND_S3,
+				S3:          s3Spec,
+				Reach:       resourcev1.ConnectionReach_CONNECTION_REACH_UNSPECIFIED,
+			}
+			destSpec := &resourcev1.BackupDestination{
+				Connection: connName,
+				Prefix:     d.GetPrefix(),
+			}
+			p, err := h.engine.Propose(ctx, revision.Proposal{
+				Summary: summary,
+				Actor:   who.Actor,
+				Via:     who.Via,
+				Edits: []revision.Edit{
+					{
+						Ref:        resource.Ref{Kind: connection.Kind, Scope: orgID, Name: connName},
+						Spec:       connSpec,
+						MustCreate: true,
+					},
+					{
+						Ref:  resource.Ref{Kind: backuppolicy.DestinationKind, Scope: orgID, Name: destName},
+						Spec: destSpec,
+						Base: destRev,
+					},
+				},
+			})
+			if errors.Is(err, revision.ErrAlreadyExists) && explicitName == "" && attempt+1 < maxAttempts {
+				taken[connName] = true
+				continue
+			}
+			return p, err
+		}
+		return nil, revision.ErrAlreadyExists
+	})
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(&dockwellv1.UseDestinationAsConnectionResponse{Change: change, Connection: connName}), nil
+}
+
+// freeConnectionName picks base if unused, or base-2, base-3, ... within the 63-byte label limit.
+func freeConnectionName(base string, taken map[string]bool) string {
+	if !taken[base] {
+		return base
+	}
+	for n := 2; ; n++ {
+		suffix := "-" + strconv.Itoa(n)
+		stem := base
+		if len(stem)+len(suffix) > 63 {
+			stem = strings.TrimRight(stem[:63-len(suffix)], "-")
+		}
+		candidate := stem + suffix
+		if !taken[candidate] {
+			return candidate
+		}
+	}
+}
+
+// callerProjects says whether the caller is an install admin, and otherwise the
+// projects they hold a grant on; nil for every project, from a grant on the install.
+func callerProjects(ctx context.Context) (admin bool, projects map[string]bool) {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return true, nil
+	}
+	if store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin) {
+		return true, nil
+	}
+	projects = map[string]bool{}
+	for _, g := range c.Grants {
+		if g.ProjectID == store.Install {
+			return false, nil
+		}
+		projects[g.ProjectID] = true
+	}
+	return false, projects
+}
+
+// reachesAny says whether a connection reaches one of projects; nil projects is any
+// project, for a grant on the whole install.
+func reachesAny(c *resourcev1.ConnectionSpec, projects map[string]bool) bool {
+	if c.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_EVERY {
+		return true
+	}
+	if projects == nil {
+		return c.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS
+	}
+	for _, p := range c.GetProjects() {
+		if projects[p] && c.GetReach() == resourcev1.ConnectionReach_CONNECTION_REACH_PROJECTS {
+			return true
+		}
+	}
+	return false
 }
 
 // revisedAt says when each destination was last made or changed, by name.
@@ -205,6 +526,10 @@ func (h *Handler) FetchBackup(ctx context.Context, req *connect.Request[dockwell
 	destination, err := h.destination(ctx, b.Destination)
 	if err != nil {
 		return nil, h.fail(ctx, err)
+	}
+	if err := checkVirtualHostAgent(s, server.Name, destination); err != nil {
+		clear(destination)
+		return nil, err
 	}
 	surface := client.Surface(p)
 	actor := p.Actor()

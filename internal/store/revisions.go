@@ -841,6 +841,26 @@ func (t *Tx) RevisionsIn(ctx context.Context, scope, kind string) ([]Revision, e
 	return out, rows.Err()
 }
 
+// RevisionsOfKind returns every revision of every resource of a kind across all
+// scopes, deleted ones' too, by resource and then by number.
+func (t *Tx) RevisionsOfKind(ctx context.Context, kind string) ([]Revision, error) {
+	rows, err := t.query(ctx, `SELECT `+revisionColumns+`
+		FROM revisions v JOIN resources r ON r.id = v.resource_id WHERE r.kind = ? ORDER BY r.id, v.number`, kind)
+	if err != nil {
+		return nil, fmt.Errorf("can't read the revisions of %s: %w", kind, err)
+	}
+	defer rows.Close()
+	var out []Revision
+	for rows.Next() {
+		rev, err := scanRevision(rows)
+		if err != nil {
+			return nil, fmt.Errorf("can't read the revisions of %s: %w", kind, err)
+		}
+		out = append(out, rev)
+	}
+	return out, rows.Err()
+}
+
 // RevisionsOf returns the revisions a change made, in the order it asked
 // for them.
 func (t *Tx) RevisionsOf(ctx context.Context, changeID string) ([]Revision, error) {

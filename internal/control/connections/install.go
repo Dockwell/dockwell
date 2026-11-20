@@ -5,7 +5,6 @@ package connections
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"connectrpc.com/connect"
 
@@ -32,15 +31,17 @@ import (
 // check runs on its networks, as Connect storage's does, so a bucket it reaches on
 // them, as one beside it, checks as the app reaches it (slice 2 review, M4).
 func (s *Service) CheckBeforeLinking(ctx context.Context, name, server, env, app, prefix string, presign bool) (checked bool, err error) {
-	all, _, err := s.connections.Readable(ctx)
+	saved, backupUsed, ok, err := s.connections.ForLinking(ctx, name, "")
 	if err != nil {
 		return false, err
 	}
-	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == name })
-	if i < 0 {
+	if !ok {
 		return false, nil
 	}
-	spec := all[i].Spec
+	if backupUsed {
+		return false, authapi.Invalid(fmt.Errorf("the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app", name))
+	}
+	spec := saved.Spec
 	srv, err := s.server(server)
 	if err != nil {
 		return false, nil //nolint:nilerr // a server that isn't there to check from plans unchecked

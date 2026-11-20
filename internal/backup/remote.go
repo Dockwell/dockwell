@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -28,6 +30,7 @@ import (
 // log, an error or the disk.
 type Destination struct {
 	Endpoint, Region, Bucket, Prefix, AccessKey, SecretKey, Passphrase string
+	VirtualHost                                                        bool
 }
 
 // DestinationFrom reads a destination from the values a call carries. Nil values are
@@ -39,11 +42,61 @@ func DestinationFrom(values map[string]string) *Destination {
 	return &Destination{
 		Endpoint: values["endpoint"], Region: values["region"], Bucket: values["bucket"], Prefix: values["prefix"],
 		AccessKey: values["access_key"], SecretKey: values["secret_key"], Passphrase: values["passphrase"],
+		VirtualHost: values["virtual_host"] == "true",
+	}
+}
+
+var sameOriginClient = &http.Client{
+	CheckRedirect: checkBackupRedirect,
+}
+
+func checkBackupRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	if len(via) == 0 {
+		return nil
+	}
+	orig := via[0].URL
+	if !sameOrigin(orig, req.URL) {
+		return fmt.Errorf("storage redirected from %s://%s to %s://%s, which isn't allowed", orig.Scheme, orig.Host, req.URL.Scheme, req.URL.Host)
+	}
+	return nil
+}
+
+func sameOrigin(a, b *url.URL) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	if !strings.EqualFold(a.Scheme, b.Scheme) {
+		return false
+	}
+	if !strings.EqualFold(a.Hostname(), b.Hostname()) {
+		return false
+	}
+	return effectivePort(a) == effectivePort(b)
+}
+
+func effectivePort(u *url.URL) string {
+	if p := u.Port(); p != "" {
+		return p
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "https":
+		return "443"
+	case "http":
+		return "80"
+	default:
+		return ""
 	}
 }
 
 func (d *Destination) bucket(r *Runner) *s3.Bucket {
-	return &s3.Bucket{Endpoint: d.Endpoint, Region: d.Region, Name: d.Bucket, AccessKey: d.AccessKey, SecretKey: d.SecretKey, Client: r.HTTP}
+	client := r.HTTP
+	if client == nil {
+		client = sameOriginClient
+	}
+	return &s3.Bucket{Endpoint: d.Endpoint, Region: d.Region, Name: d.Bucket, AccessKey: d.AccessKey, SecretKey: d.SecretKey, VirtualHost: d.VirtualHost, Client: client}
 }
 
 // key is what a backup is called there.
@@ -105,11 +158,11 @@ func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Desti
 		resource.Progress(ctx, "Sending "+m.Volume+": "+human.Size(sent)+" of "+human.Size(total))
 	}
 	if err := bucket.Store(ctx, up); err != nil {
-		return nil, refused(err)
+		return nil, refused(err, d)
 	}
 	stored, err := bucket.Size(ctx, up.Key)
 	if err != nil {
-		return nil, fmt.Errorf("can't read back what was sent: %w", refused(err))
+		return nil, fmt.Errorf("can't read back what was sent: %w", refused(err, d))
 	}
 	if stored != total {
 		return nil, fmt.Errorf("the storage holds %s of the %s sent. Take another backup, and check the storage if it happens again", human.Size(stored), human.Size(total))
@@ -123,7 +176,7 @@ func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Desti
 		return nil, err
 	}
 	if err := bucket.Put(ctx, up.Key+".json", sealed); err != nil {
-		return nil, refused(err)
+		return nil, refused(err, d)
 	}
 	return &Copied{Key: up.Key, Bytes: stored}, nil
 }
@@ -131,11 +184,47 @@ func (r *Runner) Send(ctx context.Context, ref resource.Ref, id string, d *Desti
 // manifestBinding tells what's beside a sealed backup from the backup.
 const manifestBinding = "/manifest"
 
-// refused says what to do about what storage said.
-func refused(err error) error {
+// redactS3 replaces the destination's access key ID (and secret key, if echoed)
+// in an s3.Error's message and code while keeping its HTTP status, code, region,
+// and any outer agent operation context intact (#831).
+func redactS3(err error, d *Destination) error {
+	if err == nil || d == nil {
+		return err
+	}
+	var said *s3.Error
+	if !errors.As(err, &said) {
+		return err
+	}
+	scrub := func(s string) string {
+		if d.AccessKey != "" {
+			s = strings.ReplaceAll(s, d.AccessKey, "[redacted]")
+		}
+		if d.SecretKey != "" {
+			s = strings.ReplaceAll(s, d.SecretKey, "[redacted]")
+		}
+		return s
+	}
+	clean := &s3.Error{
+		Status:  said.Status,
+		Code:    scrub(said.Code),
+		Message: scrub(said.Message),
+		Region:  said.Region,
+	}
+	if err.Error() == said.Error() {
+		return clean
+	}
+	if before, after, ok := strings.Cut(err.Error(), said.Error()); ok {
+		return fmt.Errorf("%s%w%s", scrub(before), clean, scrub(after))
+	}
+	return clean
+}
+
+// refused says what to do about what storage said, after redacting credentials
+// from provider error text.
+func refused(err error, d *Destination) error {
 	var said *s3.Error
 	if errors.As(err, &said) {
-		return fmt.Errorf("the storage refused it: %w. Check the destination's keys and bucket", err)
+		return fmt.Errorf("the storage refused it: %w. Check the destination's keys and bucket", redactS3(err, d))
 	}
 	return err
 }
@@ -231,7 +320,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 	bound := binding(sealedAs(ref, key), id)
 	said, err := bucket.Get(ctx, key+".json")
 	if err != nil {
-		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", refused(err))
+		return nil, fmt.Errorf("can't read what was kept beside the backup: %w", refused(err, d))
 	}
 	var plain bytes.Buffer
 	_, err = seal.Open(&plain, io.LimitReader(said, 1<<20), d.Passphrase, bound+manifestBinding)
@@ -252,7 +341,7 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 	}
 	body, err := bucket.Get(ctx, key)
 	if err != nil {
-		return nil, fmt.Errorf("can't read the backup: %w", refused(err))
+		return nil, fmt.Errorf("can't read the backup: %w", refused(err, d))
 	}
 	defer body.Close()
 	verify := verifyArchive
@@ -278,5 +367,5 @@ func (r *Runner) Fetch(ctx context.Context, ref resource.Ref, id, key, want stri
 // deleteRemote removes a backup from where it was sent.
 func (r *Runner) deleteRemote(ctx context.Context, key string, d *Destination) error {
 	bucket := d.bucket(r)
-	return errors.Join(bucket.Delete(ctx, key), bucket.Delete(ctx, key+".json"))
+	return errors.Join(redactS3(bucket.Delete(ctx, key), d), redactS3(bucket.Delete(ctx, key+".json"), d))
 }

@@ -196,3 +196,60 @@ func TestAPolicyOfAnAppsDatabase(t *testing.T) {
 		t.Errorf("it names %v", refs)
 	}
 }
+
+// A destination may name an S3 connection in place of its own endpoint, region,
+// bucket and keys, keeping its own prefix and passphrase (ADR 0099).
+func TestAConnectionBackedDestination(t *testing.T) {
+	d := &resourcev1.BackupDestination{Connection: "backups-r2", Prefix: "/backups/", Passphrase: "a-long-enough-passphrase"}
+	if err := (Destination{}).Validate(d); err != nil {
+		t.Fatal(err)
+	}
+	if d.GetPrefix() != "backups" || d.GetRegion() != "" {
+		t.Errorf("after Validate: prefix=%q region=%q, want backups and empty", d.GetPrefix(), d.GetRegion())
+	}
+	if err := (Destination{}).CheckNew(d); err != nil {
+		t.Fatal(err)
+	}
+	if err := (Destination{}).CheckNew(&resourcev1.BackupDestination{Connection: "backups-r2", Passphrase: "short"}); err == nil {
+		t.Error("a short passphrase passed CheckNew")
+	}
+	refs := (Destination{}).References(d)
+	if len(refs) != 1 || refs[0].Kind != "connection" || refs[0].Name != "backups-r2" || refs[0].Verb != "use" {
+		t.Errorf("References = %v", refs)
+	}
+	if kinds := (Destination{}).ReferenceKinds(); len(kinds) != 1 || kinds[0] != "connection" {
+		t.Errorf("ReferenceKinds = %v", kinds)
+	}
+	if inlineRefs := (Destination{}).References(&resourcev1.BackupDestination{Endpoint: "https://s3.example.com", Bucket: "b"}); len(inlineRefs) != 0 {
+		t.Errorf("an inline destination names %v", inlineRefs)
+	}
+	// Mixing connection with any inline storage field is refused.
+	for name, bad := range map[string]*resourcev1.BackupDestination{
+		"bad label":  {Connection: "Not A Label"},
+		"endpoint":   {Connection: "backups-r2", Endpoint: "https://s3.example.com"},
+		"region":     {Connection: "backups-r2", Region: "auto"},
+		"bucket":     {Connection: "backups-r2", Bucket: "backups"},
+		"access key": {Connection: "backups-r2", AccessKey: "AKIAEXAMPLE"},
+		"secret key": {Connection: "backups-r2", SecretKey: "the-secret"},
+	} {
+		if err := (Destination{}).Validate(bad); err == nil {
+			t.Errorf("%s: passed Validate", name)
+		}
+	}
+	// Moving an inline destination onto a connection keeps its passphrase and refuses setting one.
+	inline := &resourcev1.BackupDestination{
+		Endpoint: "https://s3.example.com", Bucket: "b", AccessKey: "AKIAEXAMPLE", SecretKey: "the-secret",
+		Passphrase: "original-passphrase-value",
+	}
+	moved := &resourcev1.BackupDestination{Connection: "backups-r2", Prefix: "backups"}
+	kept, err := (Destination{}).Keep(inline, moved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kept.Reason != "kept_passphrase" || moved.GetPassphrase() != "original-passphrase-value" {
+		t.Errorf("Keep = %v, passphrase=%q", kept, moved.GetPassphrase())
+	}
+	if _, err := (Destination{}).Keep(inline, &resourcev1.BackupDestination{Connection: "backups-r2", Passphrase: "another-passphrase-value"}); err == nil {
+		t.Error("setting a passphrase on update passed Keep")
+	}
+}

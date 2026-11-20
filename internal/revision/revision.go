@@ -70,6 +70,9 @@ var (
 	ErrUnavailable = errors.New("what the plan needs isn't known yet")
 	// ErrInvalid means an edit doesn't make sense.
 	ErrInvalid = errors.New("the change isn't valid")
+	// ErrAlreadyExists means an edit asked to create a resource whose name is
+	// already taken (Edit.MustCreate).
+	ErrAlreadyExists = errors.New("the resource already exists")
 	// ErrNotFound means there's no such change.
 	ErrNotFound = errors.New("there's no such change")
 	// ErrBusy means another change is running steps on a resource the
@@ -341,6 +344,10 @@ type Edit struct {
 	// latest the edit is stale, as it would quietly undo what came between.
 	// Zero is an edit that says the whole spec itself.
 	Base int
+	// MustCreate requires the resource to not exist yet (it.current == nil) when
+	// loaded during proposal; if a live resource already holds the name, proposing
+	// fails with ErrAlreadyExists.
+	MustCreate bool
 	// KeepEnv names a service's own environment variables to keep as they are,
 	// for a client that can't read their values back (resource.EnvKeeper).
 	KeepEnv []string
@@ -1826,6 +1833,9 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 			if ed.Base != 0 && it.base != ed.Base {
 				return fault.New(ErrStale, "%s changed while this was being planned, and planning from what was read would undo that. Try again, to plan it from the latest", ed.Ref)
 			}
+			if ed.MustCreate && it.current != nil {
+				return fault.New(ErrAlreadyExists, "there's already a %s named %s. Pick another name", ed.Ref.Kind, ed.Ref.Name)
+			}
 			stored := it.id != ""
 			if it.id == "" {
 				it.id = cmp.Or(ed.ID, e.newID(ed.Ref.Kind))
@@ -2211,6 +2221,9 @@ func (e *Engine) check(ctx context.Context, tx *store.Tx, items []item) error {
 	for i := range items {
 		it := &items[i]
 		if err := e.checkConnectionLinks(ctx, tx, items, it); err != nil {
+			return err
+		}
+		if err := e.checkConnectionDestinations(ctx, tx, items, it); err != nil {
 			return err
 		}
 		if err := e.checkUnsharing(ctx, tx, items, it); err != nil {

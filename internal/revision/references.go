@@ -85,6 +85,10 @@ func (e *Engine) checkReferences(ctx context.Context, tx *store.Tx, items []item
 					return fault.New(ErrInvalid, "%s %s can't go while %s %s %ss it. Change %s so it doesn't, or delete it, first, in this change or an earlier one",
 						use.Kind, use.Name, r.ref.Kind, r.ref.Name, use.Verb, r.ref.Name)
 				case !ok:
+					if kt, _ := e.kinds.Type(r.ref.Kind); kt != nil && kt.Level() == resource.LevelOrganization {
+						return fault.New(ErrInvalid, "%s %s %ss %s %s, which isn't on this install. Add %s first, in this change or an earlier one",
+							r.ref.Kind, r.ref.Name, use.Verb, use.Kind, use.Name, use.Name)
+					}
 					return fault.New(ErrInvalid, "%s %s %ss %s %s, which isn't in its environment. Add %s to it, in this change or an earlier one",
 						r.ref.Kind, r.ref.Name, use.Verb, use.Kind, use.Name, use.Name)
 				}

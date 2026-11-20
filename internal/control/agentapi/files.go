@@ -86,6 +86,12 @@ func (s *Session) VolumeMoves() bool { return s.volumeMoves }
 // it reports (ADR 0084).
 func (s *Session) OneDatabaseBackups() bool { return s.oneDatabaseBackups }
 
+// Name is the server's name as this session opened.
+func (s *Session) Name() string { return s.name }
+
+// Version is the agent version reported in Hello, or empty if unset.
+func (s *Session) Version() string { return s.version }
+
 // MakeFile asks the agent to make an empty file or a folder. confirmed is the path a
 // passkey confirmed, if any.
 func (s *Session) MakeFile(ctx context.Context, path string, kind dockwellv1.FileType, confirmed string) (*agentv1.MakeFileResult, error) {

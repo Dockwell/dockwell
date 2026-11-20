@@ -82,6 +82,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
   "BackupService.testBackupDestination": "may",
+  // Install admin only; offered in the panel in slice 2 of #831.
+  "BackupService.useDestinationAsConnection": "unused",
 
   "BuildService.cancelBuild": "may",
   "BuildService.detectBuild": "may",

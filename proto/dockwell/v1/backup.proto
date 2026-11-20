@@ -134,6 +134,26 @@ service BackupService {
     };
   }
 
+  // UseDestinationAsConnection plans moving an inline backup destination's endpoint,
+  // bucket and keys onto a new install-only S3 connection and pointing the
+  // destination at it, in one atomic change (ADR 0099). The destination keeps its
+  // ID, prefix and passphrase, so every backup already in the bucket stays openable,
+  // and its keys never leave the control plane.
+  rpc UseDestinationAsConnection(UseDestinationAsConnectionRequest) returns (UseDestinationAsConnectionResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "backups"
+      verb: "use-as-connection"
+    };
+    option (google.api.http) = {
+      post: "/v1/backup-destinations/{destination}:useAsConnection"
+      body: "*"
+    };
+  }
+
   // FetchBackup brings a backup back from its destination onto a server that has the
   // volume, to restore there: the one it came from, or another once that's gone. It
   // returns the backup, whose server is the one it's fetching to. It reads the backup
@@ -349,6 +369,32 @@ message BackupDestinationInfo {
   // this is newer than last_upload.
   google.protobuf.Timestamp last_failure = 9;
   string last_failure_error = 10;
+  // The S3 connection this destination reads its endpoint, bucket and keys from,
+  // by name (ADR 0099). Empty for a destination that holds its own keys inline.
+  // Below an admin, set only when the connection reaches one of the caller's projects.
+  string connection = 11;
+}
+
+// UseDestinationAsConnectionRequest asks to move an inline destination onto an
+// install-only S3 connection.
+message UseDestinationAsConnectionRequest {
+  // The existing backup destination, by name.
+  string destination = 1;
+  // The new connection's name. Empty picks a free name from destination.
+  string connection = 2;
+  // What the panel calls the new connection, such as "Backups R2". Optional.
+  string display_name = 3;
+  // What the change is for, for the timeline. Empty says what it moves.
+  string summary = 4;
+}
+
+// UseDestinationAsConnectionResponse is the planned change and the connection name
+// it chose.
+message UseDestinationAsConnectionResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+  // The new connection's name.
+  string connection = 2;
 }
 
 // ListBackupDestinationsRequest asks for the destinations.

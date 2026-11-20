@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
+	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -39,7 +41,11 @@ var TestWait = 20 * time.Second
 // keep storage on, as MinIO often is, but never this server's own loopback, which
 // a test that says what answered would read; and it follows no redirect, which
 // could lead it there. A test sets its own.
-var StorageClient s3.Doer = netguard.Client(netguard.Options{Private: true, MaxBody: 1 << 20, Timeout: TestWait})
+var (
+	defaultStorageClient s3.Doer = netguard.Client(netguard.Options{Private: true, MaxBody: 1 << 20, Timeout: TestWait})
+	publicStorageClient  s3.Doer = netguard.Client(netguard.Options{Private: false, MaxBody: 1 << 20, Timeout: TestWait})
+	StorageClient        s3.Doer = defaultStorageClient
+)
 
 // testedDestination is what the activity log keeps of a test: where, never what signs in.
 type testedDestination struct {
@@ -61,16 +67,48 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	if d == nil {
 		d = &resourcev1.BackupDestination{}
 	}
-	// The form's checks, as a plan's would be, with a bucket left out to list them.
-	listing := strings.TrimSpace(d.GetBucket()) == ""
-	if listing {
-		d.Bucket = "-"
-	}
-	if err := (backuppolicy.Destination{}).Validate(d); err != nil {
-		return nil, authapi.Invalid(err)
-	}
-	if listing {
-		d.Bucket = ""
+	var (
+		endpoint, region, bucketName, accessKey, secretKey string
+		virtualHost                                        bool
+		listing                                            bool
+		httpClient                                         = StorageClient
+	)
+	if d.GetConnection() != "" {
+		if err := (backuppolicy.Destination{}).Validate(d); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		var conn *resourcev1.ConnectionSpec
+		if err := h.db.View(ctx, func(tx *store.Tx) error {
+			var err error
+			_, conn, err = h.resolveConnection(ctx, tx, d.GetConnection())
+			return err
+		}); err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		s3c := conn.GetS3()
+		if err := backuppolicy.CheckTransport(s3c.GetEndpoint(), s3c.GetBucket(), s3c.GetPathStyle()); err != nil {
+			return nil, authapi.Invalid(fmt.Errorf("the connection %s can't be used for backups: its endpoint %s. Change %s to HTTPS", d.GetConnection(), err.Error(), d.GetConnection()))
+		}
+		endpoint, region, bucketName = s3c.GetEndpoint(), s3c.GetRegion(), s3c.GetBucket()
+		accessKey, secretKey = s3c.GetAccessKeyId(), s3c.GetSecretKey()
+		virtualHost = !s3c.GetPathStyle()
+		if httpClient == defaultStorageClient && !connection.Private(conn) {
+			httpClient = publicStorageClient
+		}
+	} else {
+		// The form's checks, as a plan's would be, with a bucket left out to list them.
+		listing = strings.TrimSpace(d.GetBucket()) == ""
+		if listing {
+			d.Bucket = "-"
+		}
+		if err := (backuppolicy.Destination{}).Validate(d); err != nil {
+			return nil, authapi.Invalid(err)
+		}
+		if listing {
+			d.Bucket = ""
+		}
+		endpoint, region, bucketName = d.GetEndpoint(), d.GetRegion(), d.GetBucket()
+		accessKey, secretKey = d.GetAccessKey(), d.GetSecretKey()
 	}
 	// The record of the test is written whatever the storage did, past its time too.
 	record := context.WithoutCancel(ctx)
@@ -78,8 +116,8 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 	defer cancel()
 	words := func(err error) string { return wordsOf(ctx, err) }
 	bucket := &s3.Bucket{
-		Endpoint: d.GetEndpoint(), Region: d.GetRegion(), Name: d.GetBucket(),
-		AccessKey: d.GetAccessKey(), SecretKey: d.GetSecretKey(), Client: StorageClient,
+		Endpoint: endpoint, Region: region, Name: bucketName,
+		AccessKey: accessKey, SecretKey: secretKey, VirtualHost: virtualHost, Client: httpClient,
 	}
 	out := &dockwellv1.TestBackupDestinationResponse{}
 	names, err := bucket.ListBuckets(ctx)
@@ -118,11 +156,11 @@ func (h *Handler) TestBackupDestination(ctx context.Context, req *connect.Reques
 			}
 		}
 	}
-	detail, _ := json.Marshal(testedDestination{Endpoint: hostOf(d.GetEndpoint()), Bucket: d.GetBucket(), Wrote: out.GetWrote(), Problem: problemWord(out.GetProblem())})
+	detail, _ := json.Marshal(testedDestination{Endpoint: hostOf(endpoint), Bucket: bucketName, Wrote: out.GetWrote(), Problem: problemWord(out.GetProblem())})
 	if err := h.db.Update(record, func(tx *store.Tx) error {
 		return tx.RecordEvent(record, store.Event{
 			ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Action: ActionTestDestination,
-			Subject: hostOf(d.GetEndpoint()), Detail: string(detail), Surface: client.Surface(p),
+			Subject: hostOf(endpoint), Detail: string(detail), Surface: client.Surface(p),
 		})
 	}); err != nil {
 		return nil, err
