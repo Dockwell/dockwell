@@ -34,7 +34,7 @@ import { Link } from "@tanstack/react-router";
 import { Fragment, useEffect, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { fileDay, formatClock, formatMoment, formatWeekday } from "../../lib/format";
+import { dayKey, fileDay, formatClock, formatMoment, formatWeekday, sameDay } from "../../lib/format";
 import { useActorWords } from "../activity/actor";
 import { RecordedPlan } from "../activity/RecordedPlan";
 import { usePlaces } from "../apps/useServices";
@@ -283,7 +283,7 @@ function byDay(events: readonly AuditEvent[]): Day[] {
   const out: Day[] = [];
   for (const event of events) {
     const date = event.time ? timestampDate(event.time) : new Date(0);
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    const key = dayKey(date);
     const last = out[out.length - 1];
     if (last?.key === key) last.events.push(event);
     else out.push({ key, date, events: [event] });
@@ -296,11 +296,9 @@ function useDayHeading(): (date: Date) => string {
   const { t, i18n } = useLingui();
   const now = useControlPlaneNow(60_000);
   return (date) => {
-    const same = (a: Date, b: Date) =>
-      a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
     const day = formatWeekday(date, i18n.locale);
-    if (same(date, new Date(now))) return t`Today · ${day}`;
-    if (same(date, new Date(now - DAY))) return t`Yesterday · ${day}`;
+    if (sameDay(date, new Date(now))) return t`Today · ${day}`;
+    if (sameDay(date, new Date(now - DAY))) return t`Yesterday · ${day}`;
     return day;
   };
 }

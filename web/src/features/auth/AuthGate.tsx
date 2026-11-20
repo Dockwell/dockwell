@@ -4,9 +4,10 @@ import { ConnectError } from "@connectrpc/connect";
 import { Button, StatusBadge, Toast } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useMatches } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { reasonOf } from "../../lib/errors";
+import { setDisplayTimeZone, syncDisplayTimeZone } from "../../lib/format";
 import { useElapsed } from "../../lib/useElapsed";
 import { StandalonePage } from "../system/StandalonePage";
 import { Unreachable } from "../system/Unreachable";
@@ -33,6 +34,14 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   const state = useAuthState();
   const location = useLocation();
   const slow = useElapsed(state.isPending);
+  const userTimeZone = state.data?.user?.timeZone ?? "";
+
+  // Sync the person's time zone before child screens format dates on their first
+  // render, and notify subscribers after commit when it changes or on sign-out (#834).
+  if (state.data !== undefined) syncDisplayTimeZone(userTimeZone);
+  useEffect(() => {
+    if (state.data !== undefined) setDisplayTimeZone(userTimeZone);
+  }, [state.data, userTimeZone]);
 
   if (state.isPending) {
     return (

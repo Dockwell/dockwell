@@ -7,7 +7,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDay } from "../../lib/format";
+import { formatClock, formatDay, sameDay } from "../../lib/format";
 import type { StreamState } from "./useLogStream";
 import { clockMinutes, type Deploy, deployRevision, instanceName } from "./words";
 
@@ -53,7 +53,7 @@ function LogCallout({
 /** A time as a person acts on it: the time alone today, and the day before that. */
 function when(ms: number, locale: string, now = Date.now()): string {
   const clock = clockMinutes(ms);
-  if (new Date(ms).toDateString() === new Date(now).toDateString()) return clock;
+  if (sameDay(new Date(ms), new Date(now))) return clock;
   return `${formatDay(new Date(ms), locale, now)}, ${clock}`;
 }
 

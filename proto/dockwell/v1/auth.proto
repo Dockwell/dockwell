@@ -613,6 +613,9 @@ message User {
   Role role = 4;
   // When the account was made.
   google.protobuf.Timestamp create_time = 5;
+  // IANA time zone the panel shows times in for this person, such as
+  // "America/Los_Angeles" or "UTC". Empty means the browser's own time zone.
+  string time_zone = 6;
 }
 
 // GetAuthStateRequest takes no parameters.
@@ -1204,6 +1207,9 @@ message UpdateProfileRequest {
   // From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
   // typed it, where the email changes.
   string proof = 3;
+  // IANA time zone the panel shows times in for you, such as
+  // "America/Los_Angeles" or "UTC". Empty clears it back to this browser's.
+  optional string time_zone = 4;
 }
 
 // UpdateProfileResponse is your account as it now is.

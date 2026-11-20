@@ -30,7 +30,7 @@ func (f *invited) writeToken(t *testing.T, p Principal) NewToken {
 func TestANameChangesWithNoPasskey(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		f := newInvited(t, backend)
-		u, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("  Mira   Okafor "), nil, "")
+		u, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("  Mira   Okafor "), nil, nil, "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -41,7 +41,7 @@ func TestANameChangesWithNoPasskey(t *testing.T) {
 			t.Errorf("the audit log's name changes = %q", got)
 		}
 		// The same name again changes nothing, and isn't on record twice.
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("Mira Okafor"), nil, ""); err != nil {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("Mira Okafor"), nil, nil, ""); err != nil {
 			t.Fatal(err)
 		}
 		if got := f.auditDetails(t, "account.name"); len(got) != 1 {
@@ -49,11 +49,77 @@ func TestANameChangesWithNoPasskey(t *testing.T) {
 		}
 		tok := f.writeToken(t, f.owner)
 		withToken := Principal{User: f.user(t, f.owner), Token: &tok.Token}
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, ptr("Mira"), nil, ""); !errors.Is(err, ErrNeedsSession) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, ptr("Mira"), nil, nil, ""); !errors.Is(err, ErrNeedsSession) {
 			t.Errorf("a read-write token changing the name: %v, want a session needed", err)
 		}
 		if got := f.user(t, f.owner).Name; got != "Mira Okafor" || len(f.auditEvents(t, "account.name")) != 1 {
 			t.Errorf("after a token's try the name is %q", got)
+		}
+	})
+}
+
+// A person's own time zone changes with no passkey, from a session alone, clears
+// back to empty, rejects anything that isn't an IANA zone, and is audited (#834).
+func TestATimeZoneChangesWithNoPasskey(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := newInvited(t, backend)
+		if got := f.user(t, f.owner).TimeZone; got != "" {
+			t.Fatalf("initial time zone = %q, want empty", got)
+		}
+		u, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, nil, ptr("  Asia/Tokyo  "), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.TimeZone != "Asia/Tokyo" || f.user(t, f.owner).TimeZone != "Asia/Tokyo" {
+			t.Fatalf("after setting time zone: %q, stored %q", u.TimeZone, f.user(t, f.owner).TimeZone)
+		}
+		if got := f.auditDetails(t, ActionAccountTimeZone); len(got) != 1 || got[0] != `from "" to "Asia/Tokyo"` {
+			t.Errorf("audit details = %q", got)
+		}
+		// Saving the same zone again writes no second audit entry.
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, nil, ptr("Asia/Tokyo"), ""); err != nil {
+			t.Fatal(err)
+		}
+		if got := f.auditDetails(t, ActionAccountTimeZone); len(got) != 1 {
+			t.Errorf("%d audit entries after saving the same time zone", len(got))
+		}
+		// Omitting time zone leaves it alone when changing name.
+		u, err = f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("Mira Okafor"), nil, nil, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.TimeZone != "Asia/Tokyo" {
+			t.Errorf("omitting time zone changed it to %q", u.TimeZone)
+		}
+		// Invalid IANA names, Local, and filesystem paths are refused.
+		for _, bad := range []string{"Local", "local", "/UTC", "/etc/localtime", "Mars/Olympus"} {
+			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, nil, ptr(bad), ""); !errors.Is(err, ErrInvalid) {
+				t.Errorf("time zone %q: %v, want ErrInvalid", bad, err)
+			}
+		}
+		// Paired with an unproved email change, neither takes effect.
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("mira.chen@example.com"), ptr("UTC"), ""); !errors.Is(err, ErrNeedsStepUp) {
+			t.Errorf("email + time zone with no proof: %v, want ErrNeedsStepUp", err)
+		}
+		if got := f.user(t, f.owner).TimeZone; got != "Asia/Tokyo" {
+			t.Errorf("after refused email + time zone, stored %q, want Asia/Tokyo", got)
+		}
+		// Empty clears back to this browser's.
+		u, err = f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, nil, ptr("   "), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u.TimeZone != "" || f.user(t, f.owner).TimeZone != "" {
+			t.Fatalf("after clearing time zone: %q, stored %q", u.TimeZone, f.user(t, f.owner).TimeZone)
+		}
+		if got := f.auditDetails(t, ActionAccountTimeZone); len(got) != 2 || got[1] != `from "Asia/Tokyo" to ""` {
+			t.Errorf("audit details after clear = %q", got)
+		}
+		// No API token can change it.
+		tok := f.writeToken(t, f.owner)
+		withToken := Principal{User: f.user(t, f.owner), Token: &tok.Token}
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, nil, nil, ptr("UTC"), ""); !errors.Is(err, ErrNeedsSession) {
+			t.Errorf("token changing time zone: %v, want ErrNeedsSession", err)
 		}
 	})
 }
@@ -75,19 +141,19 @@ func TestAnEmailChangeAsksForAPasskeyEachTime(t *testing.T) {
 			t.Fatalf("revealing within the hour: %v", err)
 		}
 		// ...and a new email still does.
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), ""); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 			t.Fatalf("a new email within the hour, with no proof: %v, want a passkey asked for", err)
 		}
 		wrong := f.stepUpAt(t, onDomain, p, f.keys, StepUpChangeEmail, "lee@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), wrong); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), nil, wrong); !errors.Is(err, ErrNeedsStepUp) {
 			t.Errorf("a proof for another email: %v, want it refused", err)
 		}
 		other := f.stepUpAt(t, onDomain, p, f.keys, StepUpRevealSecret, "mira.chen@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), other); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira.chen@example.com"), nil, other); !errors.Is(err, ErrNeedsStepUp) {
 			t.Errorf("a proof for another action: %v, want it refused", err)
 		}
 		// Names and emails mixed in one save: neither changes when the email is refused.
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, ptr("Mira Okafor"), ptr("mira.chen@example.com"), ""); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, ptr("Mira Okafor"), ptr("mira.chen@example.com"), nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 			t.Fatalf("a new name and email with no proof: %v", err)
 		}
 		if u := f.user(t, p); u.Name != "Mira Chen" || u.Email != "mira@acme.dev" {
@@ -95,7 +161,7 @@ func TestAnEmailChangeAsksForAPasskeyEachTime(t *testing.T) {
 		}
 		// The proof is for the email as stored, in lowercase, whatever case was typed.
 		good := f.stepUpAt(t, onDomain, p, f.keys, StepUpChangeEmail, "mira.chen@example.com").Proof
-		u, err := f.svc.UpdateProfile(t.Context(), onDomain, p, ptr("Mira Okafor"), ptr(" Mira.Chen@Example.COM "), good)
+		u, err := f.svc.UpdateProfile(t.Context(), onDomain, p, ptr("Mira Okafor"), ptr(" Mira.Chen@Example.COM "), nil, good)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -110,7 +176,7 @@ func TestAnEmailChangeAsksForAPasskeyEachTime(t *testing.T) {
 		}
 		// A proof works once.
 		p = f.current(t, onDomain, claimed)
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira@example.org"), good); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr("mira@example.org"), nil, good); !errors.Is(err, ErrNeedsStepUp) {
 			t.Errorf("the proof used again: %v", err)
 		}
 		// dockwell recover finds them by the new email, and nobody by the old.
@@ -127,7 +193,7 @@ func TestAnEmailChangeAsksForAPasskeyEachTime(t *testing.T) {
 		// No API token changes an email, nor learns anything of it.
 		tok := f.writeToken(t, p)
 		withToken := Principal{User: p.User, Token: &tok.Token}
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, nil, ptr("mira@example.org"), ""); !errors.Is(err, ErrNeedsSession) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, withToken, nil, ptr("mira@example.org"), nil, ""); !errors.Is(err, ErrNeedsSession) {
 			t.Errorf("a token changing the email: %v, want a session needed", err)
 		}
 	})
@@ -150,23 +216,23 @@ func TestAnEmailChangeIsRefusedWhereItWouldClash(t *testing.T) {
 		emailOf := func() string { return f.user(t, f.owner).Email }
 
 		for _, bad := range []string{"", "   ", "mira", "@example.com", "mira@", "mira chen@example.com"} {
-			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr(bad), ""); !errors.Is(err, ErrInvalid) {
+			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr(bad), nil, ""); !errors.Is(err, ErrInvalid) {
 				t.Errorf("email %q: %v, want it invalid", bad, err)
 			}
 		}
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("  "), nil, ""); !errors.Is(err, ErrInvalid) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("  "), nil, nil, ""); !errors.Is(err, ErrInvalid) {
 			t.Errorf("an empty name: %v, want it invalid", err)
 		}
 		// Taken, in another case: no word of it without a passkey.
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("Sam@Example.com"), ""); !errors.Is(err, ErrNeedsStepUp) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("Sam@Example.com"), nil, ""); !errors.Is(err, ErrNeedsStepUp) {
 			t.Errorf("a member's email with no proof: %v, want a passkey asked for first", err)
 		}
 		proof := f.stepUpAt(t, onDomain, f.owner, f.keys, StepUpChangeEmail, "sam@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("Sam@Example.com"), proof); !errors.Is(err, ErrMemberExists) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("Sam@Example.com"), nil, proof); !errors.Is(err, ErrMemberExists) {
 			t.Errorf("a member's email: %v, want it taken", err)
 		}
 		proof = f.stepUpAt(t, onDomain, f.owner, f.keys, StepUpChangeEmail, "ada@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("Mira Okafor"), ptr("ada@example.com"), proof); !errors.Is(err, ErrEmailInvited) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, ptr("Mira Okafor"), ptr("ada@example.com"), nil, proof); !errors.Is(err, ErrEmailInvited) {
 			t.Errorf("an invited email: %v, want it refused for the invite", err)
 		}
 		if u := f.user(t, f.owner); u.Email != "mira@acme.dev" || u.Name != "Mira Chen" {
@@ -187,7 +253,7 @@ func TestAnEmailChangeIsRefusedWhereItWouldClash(t *testing.T) {
 			t.Fatal(err)
 		}
 		proof = f.stepUpAt(t, onDomain, f.owner, f.keys, StepUpChangeEmail, "sam@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("sam@example.com"), proof); err != nil {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, f.owner, nil, ptr("sam@example.com"), nil, proof); err != nil {
 			t.Errorf("a removed member's email: %v", err)
 		}
 		if got := emailOf(); got != "sam@example.com" {
@@ -228,19 +294,19 @@ func TestACopyOfSomeoneElsesNameOrEmailIsRefused(t *testing.T) {
 		f.invite(t, "ada@example.com", store.RoleViewer)
 
 		// What prints as nothing goes, and full-width letters read as themselves.
-		u, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("\u202eSam\u200b Rivera-Ｌｅｅ\u200d\ufeff"), nil, "")
+		u, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("\u202eSam\u200b Rivera-Ｌｅｅ\u200d\ufeff"), nil, nil, "")
 		if err != nil || u.Name != "Sam Rivera-Lee" {
 			t.Fatalf("a name with invisible and full-width letters: %q, %v", u.Name, err)
 		}
 		// Someone else's name, by case, by spaces and by look, is refused, and so is
 		// one hidden behind what prints as nothing.
 		for _, copied := range []string{"Mira Chen", "mira chen", "MIRA  CHEN", "Mіra Chen", "Μira Chen", "Mira Chen\u200d", "\u202dMira Chen", "Mira Chén"} {
-			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr(copied), nil, ""); !errors.Is(err, ErrNameTaken) {
+			if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr(copied), nil, nil, ""); !errors.Is(err, ErrNameTaken) {
 				t.Errorf("the name %q: %v, want it taken", copied, err)
 			}
 		}
 		// Their own name, in another case, is theirs to keep.
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("sam rivera-lee"), nil, ""); err != nil {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, ptr("sam rivera-lee"), nil, nil, ""); err != nil {
 			t.Errorf("their own name in lowercase: %v", err)
 		}
 
@@ -248,7 +314,7 @@ func TestACopyOfSomeoneElsesNameOrEmailIsRefused(t *testing.T) {
 		for _, copied := range []string{"mіra@acme.dev", "MIRA@ACME.DEV\u200b", "mira@acrne.dev", "ѕam@example.com"} {
 			if copied == "MIRA@ACME.DEV\u200b" {
 				// What prints as nothing isn't an email's to have, nor a passkey's to confirm.
-				if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), ""); !errors.Is(err, ErrInvalid) {
+				if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), nil, ""); !errors.Is(err, ErrInvalid) {
 					t.Errorf("the email %q: %v, want it invalid", copied, err)
 				}
 				if _, err := f.svc.BeginStepUp(t.Context(), onDomain, sam, StepUpChangeEmail, copied); !errors.Is(err, ErrInvalid) {
@@ -257,7 +323,7 @@ func TestACopyOfSomeoneElsesNameOrEmailIsRefused(t *testing.T) {
 				continue
 			}
 			proof := f.stepUpAt(t, onDomain, sam, samKeys, StepUpChangeEmail, copied).Proof
-			_, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), proof)
+			_, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr(copied), nil, proof)
 			if copied == "ѕam@example.com" {
 				// Their own, by look, is theirs.
 				if err != nil {
@@ -271,7 +337,7 @@ func TestACopyOfSomeoneElsesNameOrEmailIsRefused(t *testing.T) {
 		}
 		// One that reads as an open invite's.
 		proof := f.stepUpAt(t, onDomain, sam, samKeys, StepUpChangeEmail, "аda@example.com").Proof
-		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr("аda@example.com"), proof); !errors.Is(err, ErrEmailLookalike) {
+		if _, err := f.svc.UpdateProfile(t.Context(), onDomain, sam, nil, ptr("аda@example.com"), nil, proof); !errors.Is(err, ErrEmailLookalike) {
 			t.Errorf("an email that reads as an invite's: %v, want it refused", err)
 		}
 		if got := f.user(t, f.owner); got.Name != "Mira Chen" || got.Email != "mira@acme.dev" {
@@ -304,7 +370,7 @@ func TestAnEmailIsConfirmedAsTheServerWritesIt(t *testing.T) {
 			p := f.current(t, onDomain, SignedIn{Token: f.ownerSecret})
 			// The browser's own lowercase is no other email: its proof is for the same one.
 			proof := f.stepUpAt(t, onDomain, p, f.keys, StepUpChangeEmail, tt.typed).Proof
-			u, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr(tt.typed), proof)
+			u, err := f.svc.UpdateProfile(t.Context(), onDomain, p, nil, ptr(tt.typed), nil, proof)
 			if err != nil || u.Email != tt.kept {
 				t.Errorf("%s: kept as %q, %v; want %q", tt.typed, u.Email, err, tt.kept)
 			}

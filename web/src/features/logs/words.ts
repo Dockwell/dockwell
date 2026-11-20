@@ -6,7 +6,14 @@ import { plainText } from "@dockwell/ui";
 import type { I18n } from "@lingui/core";
 import { msg, plural } from "@lingui/core/macro";
 
-import { dateLocale } from "../../lib/format";
+import {
+  activeTimeZone,
+  dateLocale,
+  dayKey,
+  formatTimeZoneOffset,
+  getDisplayTimeZone,
+  timeZoneOffsetMinutes,
+} from "../../lib/format";
 import type { Entry } from "./store";
 
 /** A source, with what the log calls it where those around it decide that. */
@@ -54,71 +61,115 @@ function pad(n: number, width = 2): string {
   return String(n).padStart(width, "0");
 }
 
-/** Wall-clock time with milliseconds, in the viewer's zone, without Intl, as this runs for each line drawn. */
+const hmsFormats = new Map<string, Intl.DateTimeFormat>();
+const hmFormats = new Map<string, Intl.DateTimeFormat>();
+
+function hmsIn(tz: string): Intl.DateTimeFormat {
+  let fmt = hmsFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    hmsFormats.set(tz, fmt);
+  }
+  return fmt;
+}
+
+function hmIn(tz: string): Intl.DateTimeFormat {
+  let fmt = hmFormats.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    hmFormats.set(tz, fmt);
+  }
+  return fmt;
+}
+
+/** Wall-clock time with milliseconds, in the viewer's zone, without Intl when using browser time, as this runs for each line drawn. */
 export function clock(ms: number): string {
   const d = new Date(ms);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+  const tz = getDisplayTimeZone();
+  if (!tz) return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+  return `${hmsIn(tz).format(d)}.${pad(d.getMilliseconds(), 3)}`;
 }
 
 /** Wall-clock time to the second, for a marker, whose times aren't exact to less. */
 export function clockSeconds(ms: number): string {
   const d = new Date(ms);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const tz = getDisplayTimeZone();
+  if (!tz) return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return hmsIn(tz).format(d);
 }
 
 /** Wall-clock time to the minute, for what a person reads as words. */
 export function clockMinutes(ms: number): string {
   const d = new Date(ms);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const tz = getDisplayTimeZone();
+  if (!tz) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return hmIn(tz).format(d);
 }
 
 /** A time as the screen has it, with its offset, so that it says when wherever it is read. */
 export function localIso(ms: number): string {
   const d = new Date(ms);
-  const offset = -d.getTimezoneOffset();
+  const tz = getDisplayTimeZone();
+  const offset = tz ? timeZoneOffsetMinutes(tz, d) : -d.getTimezoneOffset();
   const sign = offset < 0 ? "-" : "+";
   const hours = pad(Math.floor(Math.abs(offset) / 60));
   const minutes = pad(Math.abs(offset) % 60);
-  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const day = tz ? dayKey(d, tz) : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   return `${day}T${clock(ms)}${sign}${hours}:${minutes}`;
 }
 
 /** Which zone the times on screen are in, short, as "UTC+01:00". */
 export function zoneOffset(ms = Date.now()): string {
-  const offset = -new Date(ms).getTimezoneOffset();
-  if (offset === 0) return "UTC";
-  const sign = offset < 0 ? "-" : "+";
-  return `UTC${sign}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`;
+  return formatTimeZoneOffset(undefined, new Date(ms));
 }
 
 /** Which zone by name, for a tooltip. */
 export function zoneName(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return activeTimeZone();
 }
 
 const dayFormats = new Map<string, Intl.DateTimeFormat>();
-const dayLabels = new Map<string, Map<number, string>>();
+const dayLabels = new Map<string, Map<string, string>>();
+
+function logDayKey(ms: number, tz: string): string {
+  const d = new Date(ms);
+  if (!tz) return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return dayKey(d, tz);
+}
 
 /** A line's day, in words. Making a format is slow, and this runs for each line drawn, so a day is worked out once. */
 export function dayOf(ms: number, locale: string): string {
-  const d = new Date(ms);
-  const key = d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
-  let labels = dayLabels.get(locale);
+  const tz = getDisplayTimeZone();
+  const scope = `${locale}|${tz}`;
+  const key = logDayKey(ms, tz);
+  let labels = dayLabels.get(scope);
   if (!labels) {
     labels = new Map();
-    dayLabels.set(locale, labels);
+    dayLabels.set(scope, labels);
   }
   let label = labels.get(key);
   if (label === undefined) {
-    let format = dayFormats.get(locale);
+    let format = dayFormats.get(scope);
     if (!format) {
       format = new Intl.DateTimeFormat(dateLocale(locale), {
         weekday: "short",
         day: "numeric",
         month: "short",
         year: "numeric",
+        ...(tz ? { timeZone: tz } : {}),
       });
-      dayFormats.set(locale, format);
+      dayFormats.set(scope, format);
     }
     label = format.format(ms);
     labels.set(key, label);
@@ -126,21 +177,22 @@ export function dayOf(ms: number, locale: string): string {
   return label;
 }
 
-const dayNotes = new Map<string, Map<number, string>>();
+const dayNotes = new Map<string, Map<string, string>>();
 
 /** A line's day with the zone its times are in, one string for each day, as many lines hold it. */
 export function dayNoteOf(ms: number, locale: string): string {
-  const d = new Date(ms);
-  const key = d.getFullYear() * 10_000 + d.getMonth() * 100 + d.getDate();
-  let notes = dayNotes.get(locale);
+  const tz = getDisplayTimeZone();
+  const scope = `${locale}|${tz}`;
+  const key = logDayKey(ms, tz);
+  let notes = dayNotes.get(scope);
   if (!notes) {
     notes = new Map();
-    dayNotes.set(locale, notes);
+    dayNotes.set(scope, notes);
   }
   let note = notes.get(key);
   if (note === undefined) {
     note = `${dayOf(ms, locale)} · ${zoneOffset(ms)}`;
-    notes.set(key, note);
+    notes.set(scope, note);
   }
   return note;
 }

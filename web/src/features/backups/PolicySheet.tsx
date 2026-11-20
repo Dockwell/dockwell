@@ -23,6 +23,7 @@ import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { StateLine } from "../apps/DomainStep";
 import { useMay } from "../auth/may";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { BackupSealFields, useBackupSeal } from "./BackupSealFields";
@@ -72,6 +73,7 @@ export function useBackUpDaily(): (
 ) => void {
   const { t } = useLingui();
   const sheet = useChangeSheet();
+  const userZone = useSignedInUser()?.timeZone ?? "";
   return (volumes, destinations) => {
     const name = volumes[0]?.name ?? "";
     sheet.open({
@@ -89,7 +91,7 @@ export function useBackUpDaily(): (
               volume: volume.name,
               every: Every.DAY,
               at: "03:00",
-              timeZone: "",
+              timeZone: userZone,
               keep: 7,
               drill: Drill.WEEKLY,
               destination: firstDestination(destinations),
@@ -102,12 +104,16 @@ export function useBackUpDaily(): (
 }
 
 /**
- * The time zone at reads in, for the form to say: the install's from Settings, or
- * UTC where it has none, as the control plane gives a schedule that comes without
- * one (ADR 0042). Undefined until Settings answer, so it never says another.
+ * The time zone at reads in, for the form to say: an existing schedule's own zone,
+ * else the person's own profile zone where set (#834), else the install's from
+ * Settings, or UTC where it has none (ADR 0042). Undefined until Settings answer
+ * when falling back to the install's, so it never says another.
  */
-function useScheduleZone(): { zone: string | undefined; set: boolean } {
+function useScheduleZone(existingZone?: string): { zone: string | undefined; set: boolean } {
+  const userZone = useSignedInUser()?.timeZone ?? "";
   const settings = useQuery(SettingsService.method.getSettings, {}).data?.settings;
+  if (existingZone) return { zone: existingZone, set: true };
+  if (userZone) return { zone: userZone, set: true };
   if (!settings) return { zone: undefined, set: false };
   return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
 }
@@ -136,7 +142,8 @@ export function PolicySheet({
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
-  const { zone, set: zoneSet } = useScheduleZone();
+  const userZone = useSignedInUser()?.timeZone ?? "";
+  const { zone, set: zoneSet } = useScheduleZone(editing?.spec?.timeZone);
   const mayPlanInstall = useMay()(ChangeService.method.proposeChange, { install: true });
   const storage = useStorage(destinations);
   const seal = useBackupSeal();
@@ -207,7 +214,7 @@ export function PolicySheet({
     // A schedule changed keeps what this form doesn't say, as an app's link (ADR 0084).
     const value = was
       ? clone(BackupPolicySchema, was)
-      : create(BackupPolicySchema, { volume: volume.name, timeZone: "" });
+      : create(BackupPolicySchema, { volume: volume.name, timeZone: userZone });
     value.every = EVERY[how];
     value.at = at;
     value.weekday = Number(weekday);

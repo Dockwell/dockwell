@@ -547,7 +547,10 @@ type User struct {
 	// What they may do.
 	Role Role `protobuf:"varint,4,opt,name=role,proto3,enum=dockwell.v1.Role" json:"role,omitempty"`
 	// When the account was made.
-	CreateTime    *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	CreateTime *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=create_time,json=createTime,proto3" json:"create_time,omitempty"`
+	// IANA time zone the panel shows times in for this person, such as
+	// "America/Los_Angeles" or "UTC". Empty means the browser's own time zone.
+	TimeZone      string `protobuf:"bytes,6,opt,name=time_zone,json=timeZone,proto3" json:"time_zone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -615,6 +618,13 @@ func (x *User) GetCreateTime() *timestamppb.Timestamp {
 		return x.CreateTime
 	}
 	return nil
+}
+
+func (x *User) GetTimeZone() string {
+	if x != nil {
+		return x.TimeZone
+	}
+	return ""
 }
 
 // GetAuthStateRequest takes no parameters.
@@ -3343,7 +3353,10 @@ type UpdateProfileRequest struct {
 	Email *string `protobuf:"bytes,2,opt,name=email,proto3,oneof" json:"email,omitempty"`
 	// From FinishStepUp, for STEP_UP_ACTION_CHANGE_EMAIL on the new email as you
 	// typed it, where the email changes.
-	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	Proof string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	// IANA time zone the panel shows times in for you, such as
+	// "America/Los_Angeles" or "UTC". Empty clears it back to this browser's.
+	TimeZone      *string `protobuf:"bytes,4,opt,name=time_zone,json=timeZone,proto3,oneof" json:"time_zone,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3395,6 +3408,13 @@ func (x *UpdateProfileRequest) GetEmail() string {
 func (x *UpdateProfileRequest) GetProof() string {
 	if x != nil {
 		return x.Proof
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetTimeZone() string {
+	if x != nil && x.TimeZone != nil {
+		return *x.TimeZone
 	}
 	return ""
 }
@@ -4806,14 +4826,15 @@ var File_dockwell_v1_auth_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x16dockwell/v1/auth.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/server.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa4\x01\n" +
+	"\x16dockwell/v1/auth.proto\x12\vdockwell.v1\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/server.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05email\x18\x03 \x01(\tR\x05email\x12%\n" +
 	"\x04role\x18\x04 \x01(\x0e2\x11.dockwell.v1.RoleR\x04role\x12;\n" +
 	"\vcreate_time\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\x15\n" +
+	"createTime\x12\x1b\n" +
+	"\ttime_zone\x18\x06 \x01(\tR\btimeZone\"\x15\n" +
 	"\x13GetAuthStateRequest\"\x90\x04\n" +
 	"\x14GetAuthStateResponse\x12\x18\n" +
 	"\aclaimed\x18\x01 \x01(\bR\aclaimed\x12%\n" +
@@ -4984,13 +5005,16 @@ const file_dockwell_v1_auth_proto_rawDesc = "" +
 	"\x10cover_at_sign_in\x18\x06 \x01(\bR\rcoverAtSignIn\"\x18\n" +
 	"\x16GetStepUpPolicyRequest\"L\n" +
 	"\x17GetStepUpPolicyResponse\x121\n" +
-	"\x06choice\x18\x01 \x01(\v2\x19.dockwell.v1.StepUpChoiceR\x06choice\"s\n" +
+	"\x06choice\x18\x01 \x01(\v2\x19.dockwell.v1.StepUpChoiceR\x06choice\"\xa3\x01\n" +
 	"\x14UpdateProfileRequest\x12\x17\n" +
 	"\x04name\x18\x01 \x01(\tH\x00R\x04name\x88\x01\x01\x12\x19\n" +
 	"\x05email\x18\x02 \x01(\tH\x01R\x05email\x88\x01\x01\x12\x14\n" +
-	"\x05proof\x18\x03 \x01(\tR\x05proofB\a\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\x12 \n" +
+	"\ttime_zone\x18\x04 \x01(\tH\x02R\btimeZone\x88\x01\x01B\a\n" +
 	"\x05_nameB\b\n" +
-	"\x06_email\">\n" +
+	"\x06_emailB\f\n" +
+	"\n" +
+	"_time_zone\">\n" +
 	"\x15UpdateProfileResponse\x12%\n" +
 	"\x04user\x18\x01 \x01(\v2\x11.dockwell.v1.UserR\x04user\"a\n" +
 	"\x16SetStepUpPolicyRequest\x121\n" +

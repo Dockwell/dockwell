@@ -478,7 +478,7 @@ func (h *Handler) SetStepUpPolicy(ctx context.Context, req *connect.Request[dock
 	return connect.NewResponse(&dockwellv1.SetStepUpPolicyResponse{Choice: stepUpChoiceProto(c)}), nil
 }
 
-// UpdateProfile changes the caller's own name or email (#801).
+// UpdateProfile changes the caller's own name, email or time zone (#801, #834).
 func (h *Handler) UpdateProfile(ctx context.Context, req *connect.Request[dockwellv1.UpdateProfileRequest]) (*connect.Response[dockwellv1.UpdateProfileResponse], error) {
 	client, err := h.client(ctx)
 	if err != nil {
@@ -488,7 +488,7 @@ func (h *Handler) UpdateProfile(ctx context.Context, req *connect.Request[dockwe
 	if err != nil {
 		return nil, err
 	}
-	u, err := h.auth.UpdateProfile(ctx, client, p, req.Msg.Name, req.Msg.Email, req.Msg.GetProof())
+	u, err := h.auth.UpdateProfile(ctx, client, p, req.Msg.Name, req.Msg.Email, req.Msg.TimeZone, req.Msg.GetProof())
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -960,7 +960,14 @@ func AuthError(ctx context.Context, logger *slog.Logger, err error) error {
 func UserProto(u store.User) *dockwellv1.User { return userProto(u) }
 
 func userProto(u store.User) *dockwellv1.User {
-	return &dockwellv1.User{Id: u.ID, Name: u.Name, Email: u.Email, Role: RoleProto(u.Role), CreateTime: timestamppb.New(u.CreatedAt)}
+	return &dockwellv1.User{
+		Id:         u.ID,
+		Name:       u.Name,
+		Email:      u.Email,
+		Role:       RoleProto(u.Role),
+		CreateTime: timestamppb.New(u.CreatedAt),
+		TimeZone:   u.TimeZone,
+	}
 }
 
 // RoleProto is a role as the API names it.

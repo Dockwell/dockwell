@@ -805,6 +805,9 @@ msgstr "更改了自己的名字"
 msgid "Changed their name from {previous} to {value}"
 msgstr "把自己的名字从 {previous} 改为 {value}"
 
+msgid "Changed their time zone from {previous} to {value}"
+msgstr "把自己的时区从 {previous} 改为 {value}"
+
 msgid "Changed whether deploy on push waits for a person"
 msgstr "更改了推送时部署是否等人确认"
 
@@ -846,6 +849,9 @@ msgstr "清除了 {server} 的公网地址，原地址为 {previous}"
 
 msgid "Cleared the time zone for new schedules, which was {previous}, so they start in UTC"
 msgstr "清除了新计划的时区（原为 {previous}），新计划改用 UTC"
+
+msgid "Cleared their time zone, which was {previous}"
+msgstr "清除了自己的时区（原为 {previous}）"
 
 msgid "Cleared this install's name, which was {previous}"
 msgstr "清除了这个安装的名称（原为 {previous}）"
@@ -1278,6 +1284,12 @@ msgstr "将新计划的时区设为 {value}"
 
 msgid "Set the time zone for new schedules to {value}, which was {previous}"
 msgstr "将新计划的时区设为 {value}（原为 {previous}）"
+
+msgid "Set their time zone to their browser's"
+msgstr "把自己的时区设为此浏览器的时区"
+
+msgid "Set their time zone to {value}"
+msgstr "把自己的时区设为 {value}"
 
 msgid "Set {name}'s SSL mode at Cloudflare"
 msgstr "已在 Cloudflare 设置 {name} 的 SSL 模式"
@@ -3841,9 +3853,8 @@ msgstr "HTTP"
 msgid "How it's checked"
 msgstr "检查方式"
 
-#. placeholder {0}: a.timeZone
-msgid "In {0}"
-msgstr "时区 {0}"
+msgid "In {scheduleZone}"
+msgstr "时区 {scheduleZone}"
 
 msgid "It mounts nothing. Add a volume to keep what it writes across deploys."
 msgstr "它没有挂载任何内容。添加一个卷，部署之间就能保留它写入的数据。"
@@ -6762,6 +6773,9 @@ msgstr "这里已有人使用看起来相同的名字，你们两人会难以区
 msgid "Someone else here signs in with this email, so it can't be yours too. Choose another."
 msgstr "这里已有其他人用这个邮箱登录，所以它不能再用作你的邮箱。换一个邮箱。"
 
+msgid "That isn't a recognised time zone. Choose one from the list."
+msgstr "这不是有效的时区。请从列表中选择一个。"
+
 msgid "That isn't an email address, so it can't be saved. Type one such as mira@example.com."
 msgstr "这不是邮箱地址，所以无法保存。输入一个邮箱，例如 mira@example.com。"
 
@@ -7308,6 +7322,28 @@ msgstr "你的选择按每小时一次处理，这是所有者允许的最低要
 
 msgid "Your next passkey covers this session for an hour."
 msgstr "下一次通行密钥验证将在一小时内对本会话有效。"
+
+msgid "Currently {liveClock} ({selectedOffset}). Used for times across Dockwell and new schedules."
+msgstr "当前为 {liveClock}（{selectedOffset}）。用于 Dockwell 中的所有时间和新建计划。"
+
+#. placeholder {0}: query.trim()
+msgid "No time zones match “{0}”."
+msgstr "没有匹配“{0}”的时区。"
+
+msgid "Search by city or offset, e.g. Tokyo or +09:00"
+msgstr "按城市或偏移搜索，例如 Tokyo 或 +09:00"
+
+msgid "Search time zones by city or offset"
+msgstr "按城市或偏移搜索时区"
+
+msgid "This browser's"
+msgstr "此浏览器的时区"
+
+msgid "Time zone"
+msgstr "时区"
+
+msgid "Time zones"
+msgstr "时区列表"
 
 msgid "A 6-digit code signs you in when your passkey isn't at hand, at any of the panel's addresses."
 msgstr "通行密钥不在手边时，可用 6 位验证码登录，面板的任何地址都可以。"
@@ -18602,9 +18638,6 @@ msgstr "提供方"
 
 msgid "Shown on the sign-in screen and in browser tabs."
 msgstr "显示在登录页和浏览器标签页上。"
-
-msgid "Time zone"
-msgstr "时区"
 
 msgid "Use {browserZoneName}, this browser's zone"
 msgstr "使用此浏览器的时区 {browserZoneName}"

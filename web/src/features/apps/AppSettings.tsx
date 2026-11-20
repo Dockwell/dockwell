@@ -44,6 +44,7 @@ import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useRef, useS
 import { formatBytes } from "../../lib/format";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
+import { useSignedInUser } from "../auth/useAuthState";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { type PortHolder, useServerPorts } from "../servers/ports";
 import { useFleet } from "../servers/useFleet";
@@ -1837,8 +1838,11 @@ function UpdatesForm({ service, app, name, root, moving, plan, onCancel, inPlace
   const level = useLevelWords();
   const movingWords = useMovingTagWords();
   const weekdays = useWeekdayNames();
+  const userZone = useSignedInUser()?.timeZone ?? "";
   const a = service.spec?.autoUpdate;
   const was = daysOf(a?.weekdays ?? []);
+  // A new automatic update schedule starts in the person's own time zone where set (#834).
+  const scheduleZone = a && a.level !== AutoUpdate_Level.UNSPECIFIED ? a.timeZone : a?.timeZone || userZone;
   const [takes, setTakes] = useState<AutoUpdate_Level>(a?.level ?? AutoUpdate_Level.UNSPECIFIED);
   const [days, setDays] = useState<UpdateDays>(was.days);
   const [day, setDay] = useState(String(was.day));
@@ -1855,7 +1859,7 @@ function UpdatesForm({ service, app, name, root, moving, plan, onCancel, inPlace
         weekdays: weekdaysOf(),
         at,
         minutes: Number(minutes),
-        timeZone: a?.timeZone ?? "",
+        timeZone: scheduleZone,
         skipBackup: !backup,
       });
   const unchanged =
@@ -1928,7 +1932,7 @@ function UpdatesForm({ service, app, name, root, moving, plan, onCancel, inPlace
               label={t`From`}
               mono
               value={at}
-              hint={a?.timeZone ? t`In ${a.timeZone}` : undefined}
+              hint={scheduleZone ? t`In ${scheduleZone}` : undefined}
               error={error}
               onChange={(event) => setAt(event.target.value)}
             />

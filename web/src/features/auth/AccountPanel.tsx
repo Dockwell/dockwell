@@ -11,9 +11,10 @@ import { type FormEvent, useEffect, useState } from "react";
 
 import { authStateKey } from "../../app/api";
 import { reasonOf } from "../../lib/errors";
-import { formatDay } from "../../lib/format";
+import { formatDay, setDisplayTimeZone } from "../../lib/format";
 import { useAuthError } from "./messages";
 import { StepUpDeclined, withStepUpIfAsked } from "./stepUp";
+import { TimeZonePicker } from "./TimeZonePicker";
 import { useSignedIn } from "./useAuthState";
 import { initials, useRoleName } from "./user";
 
@@ -54,24 +55,29 @@ export function AccountPanel() {
 
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
+  const [timeZone, setTimeZone] = useState(user?.timeZone ?? "");
   const [left, setLeft] = useState({ name: false, email: false });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [emailProblem, setEmailProblem] = useState<string>();
   const [nameProblem, setNameProblem] = useState<string>();
+  const [timeZoneProblem, setTimeZoneProblem] = useState<string>();
   const [problem, setProblem] = useState<string>();
   // The fields start from what the control plane says, once it has said it.
   useEffect(() => {
     setName(user?.name ?? "");
     setEmail(user?.email ?? "");
-  }, [user?.name, user?.email]);
+    setTimeZone(user?.timeZone ?? "");
+  }, [user?.name, user?.email, user?.timeZone]);
 
   const newName = tidyName(name);
   // As typed: the server writes it as it keeps emails, as a browser's lowercase of İ or Σ
   // isn't Go's (#801's review, L1). Lowercase only tells whether it changed.
   const newEmail = email.trim();
+  const newTimeZone = timeZone.trim();
   const nameChanged = user !== undefined && newName !== user.name;
   const emailChanged = user !== undefined && newEmail.toLowerCase() !== user.email;
+  const timeZoneChanged = user !== undefined && newTimeZone !== (user.timeZone ?? "");
   const nameError =
     nameProblem ??
     (left.name && newName === ""
@@ -82,7 +88,7 @@ export function AccountPanel() {
     (left.email && !looksLikeEmail(newEmail)
       ? t`That isn't an email address, so it can't be saved. Type one such as mira@example.com.`
       : undefined);
-  const ready = (nameChanged || emailChanged) && newName !== "" && looksLikeEmail(newEmail);
+  const ready = (nameChanged || emailChanged || timeZoneChanged) && newName !== "" && looksLikeEmail(newEmail);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -95,18 +101,19 @@ export function AccountPanel() {
     setProblem(undefined);
     setEmailProblem(undefined);
     setNameProblem(undefined);
+    setTimeZoneProblem(undefined);
     const update = (proof: string) =>
       createClient(AuthService, transport).updateProfile({
         name: nameChanged ? newName : undefined,
         email: emailChanged ? newEmail : undefined,
+        timeZone: timeZoneChanged ? newTimeZone : undefined,
         proof,
       });
     try {
-      if (emailChanged) {
-        await withStepUpIfAsked(transport, StepUpAction.CHANGE_EMAIL, newEmail, update);
-      } else {
-        await update("");
-      }
+      const res = emailChanged
+        ? await withStepUpIfAsked(transport, StepUpAction.CHANGE_EMAIL, newEmail, update)
+        : await update("");
+      if (timeZoneChanged) setDisplayTimeZone(res.user?.timeZone ?? newTimeZone);
       await client.invalidateQueries({ queryKey: authStateKey });
       setSaved(true);
     } catch (err) {
@@ -129,6 +136,13 @@ export function AccountPanel() {
           setEmailProblem(
             t`An open invite is for this email, so it can't be yours yet. Choose another, or ask an admin to revoke the invite in Members.`,
           );
+          break;
+        case "invalid":
+          if (timeZoneChanged && !nameChanged && !emailChanged) {
+            setTimeZoneProblem(t`That isn't a recognised time zone. Choose one from the list.`);
+          } else {
+            setProblem(explain(err));
+          }
           break;
         default:
           setProblem(explain(err));
@@ -182,6 +196,16 @@ export function AccountPanel() {
               setSaved(false);
             }}
             onBlur={() => setLeft((l) => ({ ...l, email: true }))}
+          />
+          <TimeZonePicker
+            value={timeZone}
+            disabled={user === undefined}
+            error={timeZoneProblem}
+            onChange={(next) => {
+              setTimeZone(next);
+              setTimeZoneProblem(undefined);
+              setSaved(false);
+            }}
           />
           {problem ? (
             <p className="profile-error" role="alert">

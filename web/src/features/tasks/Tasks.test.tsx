@@ -3,6 +3,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import {
+  ChangeState,
   Connection,
   type ProposeChangeRequest,
   type TaskInfo,
@@ -18,6 +19,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
 import { ENV, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { applied, moved, webPlanned } from "../../test/changes";
 import { type Api, onPhone, renderAt, renderWithApi } from "../../test/render";
 import { useTaskWords } from "./useTasks";
@@ -213,6 +215,25 @@ describe("scheduled tasks", () => {
     await waitFor(() => expect(proposed).toHaveBeenCalled());
     // No servers keeps the ones it's on.
     expect(proposed.mock.calls[0]?.[0].edits[0]?.servers).toEqual([]);
+  });
+
+  it("starts a new scheduled task in the person's own time zone where they set one (#834)", async () => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({ change: { id: "chg_1", state: ChangeState.APPLIED } }));
+    renderAt(
+      "/scheduled-tasks",
+      api([aTask()], {
+        auth: { getAuthState: () => authState({ user: { ...mira, timeZone: "Asia/Tokyo" } }) },
+        changes: { proposeChange: proposed },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "New task" }));
+    const sheet = await screen.findByRole("dialog", { name: "New task" });
+    await user.type(within(sheet).getByLabelText("Command"), "echo hi");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.spec?.kind.case === "task" ? edit.spec.kind.value.timeZone : undefined).toBe("Asia/Tokyo");
   });
 
   it("says how a run went in its own words, and what a request answered", async () => {

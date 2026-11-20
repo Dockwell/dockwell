@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/store"
@@ -24,8 +26,8 @@ var (
 	ErrNameTaken = errors.New("someone else here goes by that name")
 )
 
-// UpdateProfile changes the person's own name, email, or both, where name or
-// email is set (#801). Either takes a signed-in session, as no API token acts as
+// UpdateProfile changes the person's own name, email, or time zone, where set
+// (#801, #834). Every change takes a signed-in session, as no API token acts as
 // who someone is. An email names someone for signing in with an authenticator
 // code and to dockwell recover, so it also takes a proof for StepUpChangeEmail on
 // the new email each time, which no hour of cover stands in for. The proof comes
@@ -37,11 +39,11 @@ var (
 // authenticator app, recovery codes and provider links stay as they are: none of
 // them finds the person by email. Each change is audited with what it was and
 // what it is, and is on Activity for admins.
-func (s *Service) UpdateProfile(ctx context.Context, client Client, p Principal, name, email *string, proof string) (store.User, error) {
+func (s *Service) UpdateProfile(ctx context.Context, client Client, p Principal, name, email, timeZone *string, proof string) (store.User, error) {
 	if p.Token != nil || p.Session.ID == "" {
 		return store.User{}, ErrNeedsSession
 	}
-	var newName, newEmail string
+	var newName, newEmail, newZone string
 	if name != nil {
 		n, err := normalizeName(*name)
 		if err != nil {
@@ -55,6 +57,13 @@ func (s *Service) UpdateProfile(ctx context.Context, client Client, p Principal,
 			return store.User{}, err
 		}
 		newEmail = e
+	}
+	if timeZone != nil {
+		z, err := normalizeTimeZone(*timeZone)
+		if err != nil {
+			return store.User{}, err
+		}
+		newZone = z
 	}
 	var user store.User
 	err := s.db.Update(ctx, func(tx *store.Tx) error {
@@ -75,12 +84,47 @@ func (s *Service) UpdateProfile(ctx context.Context, client Client, p Principal,
 				return err
 			}
 		}
+		if timeZone != nil && newZone != user.TimeZone {
+			if err := s.changeTimeZone(ctx, tx, client, p, &user, newZone); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
 		return store.User{}, err
 	}
 	return user, nil
+}
+
+// normalizeTimeZone checks an IANA time zone name as SettingsService.SetTimeZone
+// does: empty clears it back to the browser's own, and "Local" or paths are refused.
+func normalizeTimeZone(zone string) (string, error) {
+	zone = strings.TrimSpace(zone)
+	if zone == "" {
+		return "", nil
+	}
+	// Go's time.LoadLocation accepts "Local" and paths into the host's filesystem;
+	// neither is an IANA zone name.
+	if strings.EqualFold(zone, "local") || strings.HasPrefix(zone, "/") {
+		return "", fault.New(ErrInvalid, "%q is not a time zone: use an IANA name such as America/Los_Angeles or UTC", zone)
+	}
+	if _, err := time.LoadLocation(zone); err != nil {
+		return "", fault.New(ErrInvalid, "%q is not a time zone: use an IANA name such as America/Los_Angeles or UTC", zone)
+	}
+	return zone, nil
+}
+
+// changeTimeZone is UpdateProfile's change of time zone, in its transaction (#834).
+func (s *Service) changeTimeZone(ctx context.Context, tx *store.Tx, client Client, p Principal, user *store.User, zone string) error {
+	if err := tx.SetUserTimeZone(ctx, user.ID, zone); err != nil {
+		return err
+	}
+	if err := s.auditFrom(ctx, tx, p.Actor(), client.Surface(p), ActionAccountTimeZone, user.ID, AccountDetail(user.TimeZone, zone)); err != nil {
+		return err
+	}
+	user.TimeZone = zone
+	return nil
 }
 
 // changeName is UpdateProfile's change of name, in its transaction.
@@ -164,10 +208,11 @@ func (s *Service) changeEmail(ctx context.Context, tx *store.Tx, client Client, 
 }
 
 // The audit log's words for a change of profile, which Activity shows admins too
-// (#801's review, M1).
+// (#801's review, M1; #834).
 const (
-	ActionAccountName  = "account.name"
-	ActionAccountEmail = "account.email"
+	ActionAccountName     = "account.name"
+	ActionAccountEmail    = "account.email"
+	ActionAccountTimeZone = "account.time_zone"
 )
 
 // AccountDetail is how a change of profile is recorded: what it was and what it is.

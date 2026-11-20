@@ -19,7 +19,7 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { formatClock, formatDateTime } from "../../lib/format";
+import { formatClock, formatDateTime, sameDay } from "../../lib/format";
 import { EmptyState } from "../shell/EmptyState";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
@@ -41,8 +41,7 @@ function useWhen() {
   const { i18n } = useLingui();
   return (at: Date | undefined) => {
     if (!at) return "";
-    const today = new Date();
-    return at.toDateString() === today.toDateString() ? formatClock(at, i18n.locale) : formatDateTime(at, i18n.locale);
+    return sameDay(at, new Date()) ? formatClock(at, i18n.locale) : formatDateTime(at, i18n.locale);
   };
 }
 
