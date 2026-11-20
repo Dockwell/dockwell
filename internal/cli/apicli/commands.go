@@ -251,6 +251,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.ServiceService.UpgradeService":             true,
 	"dockwell.v1.ServiceService.MoveService":                true,
 	"dockwell.v1.BackupService.RestoreBackup":               true,
+	"dockwell.v1.BackupService.UseDestinationAsConnection":  true,
 	"dockwell.v1.WebsiteService.CreateWebsite":              true,
 	"dockwell.v1.WebsiteService.UpdateWebsite":              true,
 	"dockwell.v1.WebsiteService.DeleteWebsite":              true,

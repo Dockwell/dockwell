@@ -331,6 +331,19 @@ func (b *Bucket) objectURL(key string) (*url.URL, error) {
 	return u, nil
 }
 
+// SignedPath is the escaped request path SigV4 signs for key under this bucket's
+// endpoint and addressing style.
+func (b *Bucket) SignedPath(key string) (string, error) {
+	u, err := b.objectURL(key)
+	if err != nil {
+		return "", err
+	}
+	if p := u.EscapedPath(); p != "" {
+		return p, nil
+	}
+	return "/", nil
+}
+
 // Presign is a URL that does method on an object for whoever has it, until expires
 // from now, as an app gives a browser one to upload or download with: AWS Signature
 // Version 4 in the query, signing the host alone, with the payload unsigned.

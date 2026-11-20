@@ -360,9 +360,15 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 			return nil, authapi.ReasonError(connect.CodeInvalidArgument, fmt.Errorf("%s is a database its server keeps for itself. Back up the whole volume to keep it", t.one), "invalid")
 		}
 	}
-	destination, err := h.destination(ctx, t.destination)
-	if err != nil {
-		return nil, h.fail(ctx, err)
+	if t.destination != "" {
+		destination, err := h.destination(ctx, t.destination)
+		if err == nil {
+			err = checkVirtualHostAgent(s, server.Name, destination)
+		}
+		clear(destination)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
 	}
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: t.volumeID, ServerID: server.ID,
@@ -371,7 +377,7 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	h.wg.Go(func() { h.run(s, b, ref, t.stop, client.Surface(p), 0, destination) })
+	h.wg.Go(func() { h.run(s, b, ref, t.stop, client.Surface(p), 0, t.destination != "") })
 	out, err := h.proto(ctx, b)
 	if err != nil {
 		return nil, h.fail(ctx, err)
@@ -387,8 +393,7 @@ func (h *Handler) BackUpOne(ctx context.Context, volumeID, one, forLink, destina
 }
 
 // run takes a backup on its server, and records how that went.
-func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string, keep int, destination map[string]string) {
-	defer clear(destination)
+func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, stop bool, surface string, keep int, sendCopy bool) {
 	ctx := resource.WithProgress(h.base, func(message string) {
 		h.mu.Lock()
 		h.progress[b.ID] = message
@@ -409,8 +414,8 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	// It's on record and the volume is free before this starts, however long it takes.
 	// One recorded as failed, such as the whole volume where one database was asked,
 	// goes nowhere.
-	if done && destination != nil {
-		h.send(ctx, s, b, ref, destination, surface)
+	if done && sendCopy {
+		h.send(ctx, s, b, ref, surface)
 	}
 	// Only once it's whole: a run that fails takes nothing away.
 	if done && b.PolicyID != "" {
@@ -418,12 +423,20 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	}
 }
 
-// send sends a whole backup to its destination, and records what came of that. The
-// backup is done whatever happens here: what's on its server is what counts.
-func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup, ref resource.Ref, destination map[string]string, surface string) {
-	got, err := s.SendBackup(ctx, &agentv1.SendBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}, destination)
+// send sends a whole backup to its destination, resolving fresh sealed keys right
+// before the call, and records what came of that. The backup is done whatever
+// happens here: what's on its server is what counts.
+func (h *Handler) send(ctx context.Context, s *agentapi.Session, b store.Backup, ref resource.Ref, surface string) {
 	record := context.WithoutCancel(ctx)
 	told := Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
+	destination, err := h.destination(ctx, b.Destination)
+	var got *agentv1.SendBackupResult
+	if err == nil {
+		defer clear(destination)
+		if err = checkVirtualHostAgent(s, s.Name(), destination); err == nil {
+			got, err = s.SendBackup(ctx, &agentv1.SendBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}, destination)
+		}
+	}
 	var action string // what to put on the timeline, if anything
 	if err != nil {
 		action = ActionCopyFailed
@@ -756,8 +769,11 @@ func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Ba
 		case err != nil:
 			return "", err
 		default:
-			call.Key = b.CopyKey
 			defer clear(destination)
+			if err := checkVirtualHostAgent(s, s.Name(), destination); err != nil {
+				return "", err
+			}
+			call.Key = b.CopyKey
 		}
 	}
 	got, err := s.DeleteBackup(ctx, call, destination)

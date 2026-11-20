@@ -6,7 +6,9 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"net/url"
 	"slices"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/link"
 	"github.com/dockwell/dockwell/internal/resource/variable"
@@ -194,12 +197,22 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 			if err := e.checkConnectionReached(ctx, tx, items, it, s.GetConnection()); err != nil {
 				return err
 			}
+			if err := e.checkLinkNotBackup(ctx, tx, items, s.GetConnection()); err != nil {
+				return err
+			}
 			return e.checkLinkPrefix(ctx, tx, items, it, s)
 		}
 		if err := e.checkLinkUser(ctx, tx, items, it, s); err != nil {
 			return err
 		}
 		return e.checkLinkServer(ctx, tx, items, it, s)
+	case *resourcev1.BackupDestination:
+		if err := e.checkDestinationTarget(ctx, tx, items, it, s); err != nil {
+			return err
+		}
+		if s.GetConnection() != "" {
+			return e.checkDestinationConnection(ctx, tx, items, it, s)
+		}
 	case *resourcev1.Variable, *resourcev1.Secret:
 		if c := variable.FromOf(s).GetConnection(); c != nil {
 			return e.checkConnectionValue(ctx, tx, items, it, c)
@@ -306,6 +319,597 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 		}
 	}
 	return nil
+}
+
+// destinationKind is the backup destination kind.
+const destinationKind resource.Kind = "backup.destination"
+
+// aDestination is a backup destination as it is once the change applies, with its ref.
+type aDestination struct {
+	*resourcev1.BackupDestination
+	ref resource.Ref
+}
+
+// allDestinations is every backup destination as it is once the change applies.
+func (e *Engine) allDestinations(ctx context.Context, tx *store.Tx, items []item) ([]aDestination, error) {
+	if t, _ := e.kinds.Type(destinationKind); t == nil {
+		return nil, nil
+	}
+	stored, err := tx.ListKind(ctx, string(destinationKind))
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]resource.Ref, 0, len(stored)+len(items))
+	for _, r := range stored {
+		refs = append(refs, resource.Ref{Kind: destinationKind, Scope: r.Scope, Name: r.Name})
+	}
+	for i := range items {
+		if items[i].ref.Kind == destinationKind && !slices.Contains(refs, items[i].ref) {
+			refs = append(refs, items[i].ref)
+		}
+	}
+	out := make([]aDestination, 0, len(refs))
+	for _, ref := range refs {
+		spec, err := e.specAfter(ctx, tx, items, ref)
+		if err != nil {
+			return nil, err
+		}
+		if d, ok := spec.(*resourcev1.BackupDestination); ok {
+			out = append(out, aDestination{BackupDestination: d, ref: ref})
+		}
+	}
+	return out, nil
+}
+
+// checkLinkNotBackup refuses a link to a connection that any backup destination
+// uses: an app's key, on every server it runs on, could otherwise delete the
+// backups (ADR 0099).
+func (e *Engine) checkLinkNotBackup(ctx context.Context, tx *store.Tx, items []item, connName string) error {
+	dests, err := e.allDestinations(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	for i := range dests {
+		if dests[i].GetConnection() == connName {
+			return fault.New(ErrInvalid, "the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app",
+				connName)
+		}
+	}
+	return nil
+}
+
+// checkDestinationConnection refuses a backup destination naming a connection that
+// isn't an unshared S3 connection using HTTPS (except loopback) whose current keys
+// no app has received (ADR 0099).
+func (e *Engine) checkDestinationConnection(ctx context.Context, tx *store.Tx, items []item, it *item, d *resourcev1.BackupDestination) error {
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	name := d.GetConnection()
+	spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: name})
+	if err != nil {
+		return err
+	}
+	c, ok := spec.(*resourcev1.ConnectionSpec)
+	if !ok {
+		return fault.New(ErrInvalid, "backup destination %s uses connection %s, which isn't on this install. Add %s first, in this change or an earlier one",
+			it.ref.Name, name, name)
+	}
+	if c.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
+		return fault.New(ErrInvalid, "backup destination %s names the connection %s, which isn't S3 storage. Pick an S3 connection, or add one on Connections",
+			it.ref.Name, name)
+	}
+	if err := backuppolicy.CheckTransport(c.GetS3().GetEndpoint(), c.GetS3().GetBucket(), c.GetS3().GetPathStyle()); err != nil {
+		return fault.New(ErrInvalid, "backup destination %s can't use the connection %s: its endpoint %s. Change %s to HTTPS, or pick another S3 connection",
+			it.ref.Name, name, err.Error(), name)
+	}
+	if c.GetShared() {
+		return fault.New(ErrInvalid, "backup destination %s can't use the shared connection %s, because a connection backups use serves no app. Add a dedicated S3 connection for backups, or unshare %s first",
+			it.ref.Name, name, name)
+	}
+	links, err := e.allLinks(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	for i := range links {
+		if links[i].GetConnection() == name {
+			where := whichScope(ctx, tx, links[i].ref.Scope)
+			return fault.New(ErrInvalid, "backup destination %s can't use the connection %s, because link %s in %s uses it and an app's key could delete the backups. Add a separate S3 connection for backups",
+				it.ref.Name, name, links[i].ref.Name, where)
+		}
+	}
+	return e.checkConnectionNotUsedByApp(ctx, tx, items, org.ID, name, c)
+}
+
+// appKeyRefusal is the refusal when a backup destination tries to adopt a
+// connection whose current keys an app has already received (ADR 0099, #831).
+const appKeyRefusal = "An app received this connection's keys. Paste a key made for backups alone, and revoke the one the app had at your provider."
+
+// revInterval is a span of revisions during which a connection held one key pair.
+type revInterval struct {
+	start store.Revision
+	end   *store.Revision
+}
+
+// revBefore reports whether revision a was committed strictly before revision b:
+// by timestamp first, and within the same millisecond by change ID (ULID order).
+func revBefore(a, b store.Revision) bool {
+	if !a.CreatedAt.Equal(b.CreatedAt) {
+		return a.CreatedAt.Before(b.CreatedAt)
+	}
+	return a.ChangeID < b.ChangeID
+}
+
+// checkConnectionNotUsedByApp refuses adopting a connection for backups if any app
+// has received its current keys: a link named it while it held those keys (including
+// one being deleted in this same change), an app secret holds the current secret key,
+// or an environment's own values held its bucket since its keys were last set.
+func (e *Engine) checkConnectionNotUsedByApp(ctx context.Context, tx *store.Tx, items []item, orgID, connName string, afterC *resourcev1.ConnectionSpec) error {
+	s3c := afterC.GetS3()
+	if s3c == nil {
+		return nil
+	}
+	curAK, curSK := s3c.GetAccessKeyId(), s3c.GetSecretKey()
+	var (
+		intervals  []revInterval
+		keysSetRev *store.Revision
+	)
+	connRes, err := tx.GetResource(ctx, string(variable.ConnectionKind), orgID, connName)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	if err == nil {
+		revs, err := tx.PageRevisions(ctx, connRes.ID, 0, 1000)
+		if err != nil {
+			return err
+		}
+		slices.Reverse(revs)
+		var open *revInterval
+		for i := range revs {
+			r := revs[i]
+			matched := false
+			if r.Spec != nil {
+				spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+				if err != nil {
+					return err
+				}
+				if cs, ok := spec.(*resourcev1.ConnectionSpec); ok && cs.GetKind() == resourcev1.LinkKind_LINK_KIND_S3 && cs.GetS3() != nil {
+					matched = cs.GetS3().GetAccessKeyId() == curAK && cs.GetS3().GetSecretKey() == curSK
+				}
+			}
+			switch {
+			case matched && open == nil:
+				iv := revInterval{start: r}
+				open = &iv
+			case !matched && open != nil:
+				end := r
+				open.end = &end
+				intervals = append(intervals, *open)
+				open = nil
+			}
+		}
+		if open != nil {
+			intervals = append(intervals, *open)
+			start := open.start
+			keysSetRev = &start
+		}
+	}
+
+	// 1. Check historical and currently live links against every interval where
+	// this connection held its current keys.
+	if len(intervals) > 0 {
+		linkRevs, err := tx.RevisionsOfKind(ctx, string(linkKind))
+		if err != nil {
+			return err
+		}
+		for i := range linkRevs {
+			lr := linkRevs[i]
+			if lr.Spec == nil {
+				continue
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(lr.ID, lr.Kind, lr.Revision), lr.Spec)
+			if err != nil {
+				return err
+			}
+			l, ok := spec.(*resourcev1.Link)
+			if !ok || l.GetConnection() != connName {
+				continue
+			}
+			var linkEnd *store.Revision
+			if i+1 < len(linkRevs) && linkRevs[i+1].ID == lr.ID {
+				next := linkRevs[i+1]
+				linkEnd = &next
+			}
+			for j := range intervals {
+				iv := &intervals[j]
+				if (linkEnd == nil || !revBefore(*linkEnd, iv.start)) && (iv.end == nil || !revBefore(*iv.end, lr)) {
+					return fault.New(ErrInvalid, "%s", appKeyRefusal)
+				}
+			}
+		}
+	}
+
+	// 2. Check every live secret after this change: if any environment holds the
+	// connection's current secret key directly (e.g. copied by DisconnectStorage),
+	// an app still holds these keys.
+	if curSK != "" {
+		storedSecrets, err := tx.ListKind(ctx, string(variable.SecretKind))
+		if err != nil {
+			return err
+		}
+		secretRefs := make([]resource.Ref, 0, len(storedSecrets))
+		for i := range storedSecrets {
+			secretRefs = append(secretRefs, resource.Ref{Kind: variable.SecretKind, Scope: storedSecrets[i].Scope, Name: storedSecrets[i].Name})
+		}
+		for i := range items {
+			if items[i].ref.Kind == variable.SecretKind && !slices.Contains(secretRefs, items[i].ref) {
+				secretRefs = append(secretRefs, items[i].ref)
+			}
+		}
+		for _, ref := range secretRefs {
+			spec, err := e.specAfter(ctx, tx, items, ref)
+			if err != nil {
+				return err
+			}
+			if sec, ok := spec.(*resourcev1.Secret); ok && sec.GetFrom() == nil && sec.GetValue() == curSK {
+				return fault.New(ErrInvalid, "%s", appKeyRefusal)
+			}
+		}
+	}
+
+	// 3. Check whether the connection is held (some environment's own plain
+	// variables name its endpoint and bucket) since its current keys were last set.
+	if ep, bkt := s3c.GetEndpoint(), s3c.GetBucket(); ep != "" && bkt != "" {
+		type heldMark struct {
+			hasEP, hasBkt bool
+			epNew, bktNew bool
+			epRev, bktRev *store.Revision
+		}
+		byEnv := map[string]*heldMark{}
+		mark := func(env string) *heldMark {
+			if byEnv[env] == nil {
+				byEnv[env] = &heldMark{}
+			}
+			return byEnv[env]
+		}
+		inChange := map[resource.Ref]*item{}
+		for i := range items {
+			if items[i].ref.Kind == variable.VariableKind {
+				inChange[items[i].ref] = &items[i]
+			}
+		}
+		storedVars, err := tx.ListKind(ctx, string(variable.VariableKind))
+		if err != nil {
+			return err
+		}
+		for i := range storedVars {
+			r := &storedVars[i]
+			ref := resource.Ref{Kind: variable.VariableKind, Scope: r.Scope, Name: r.Name}
+			if _, edited := inChange[ref]; edited {
+				continue
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
+			if err != nil {
+				return err
+			}
+			v, ok := spec.(*resourcev1.Variable)
+			if !ok || v.GetFrom() != nil {
+				continue
+			}
+			if v.GetValue() != ep && v.GetValue() != bkt {
+				continue
+			}
+			rev, err := tx.GetRevision(ctx, r.ID, r.Revision)
+			if err != nil {
+				return err
+			}
+			m := mark(r.Scope)
+			if v.GetValue() == ep && (!m.hasEP || m.epRev != nil && revBefore(*m.epRev, rev)) {
+				cp := rev
+				m.hasEP, m.epRev = true, &cp
+			}
+			if v.GetValue() == bkt && (!m.hasBkt || m.bktRev != nil && revBefore(*m.bktRev, rev)) {
+				cp := rev
+				m.hasBkt, m.bktRev = true, &cp
+			}
+		}
+		for _, it := range inChange {
+			v, ok := it.spec.(*resourcev1.Variable)
+			if !ok || v.GetFrom() != nil {
+				continue
+			}
+			m := mark(it.ref.Scope)
+			if v.GetValue() == ep {
+				m.hasEP, m.epNew = true, true
+			}
+			if v.GetValue() == bkt {
+				m.hasBkt, m.bktNew = true, true
+			}
+		}
+		for _, m := range byEnv {
+			if !m.hasEP || !m.hasBkt {
+				continue
+			}
+			if m.epNew || m.bktNew {
+				return fault.New(ErrInvalid, "%s", appKeyRefusal)
+			}
+			if keysSetRev != nil {
+				if (m.epRev != nil && !revBefore(*m.epRev, *keysSetRev)) || (m.bktRev != nil && !revBefore(*m.bktRev, *keysSetRev)) {
+					return fault.New(ErrInvalid, "%s", appKeyRefusal)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// backupTarget is the effective storage location of a backup destination, whether
+// inline or connection-backed.
+type backupTarget struct {
+	endpoint  string
+	region    string
+	bucket    string
+	pathStyle bool
+}
+
+func normalizeTarget(endpoint, region, bucket string, pathStyle bool) backupTarget {
+	trimmed := strings.TrimRight(endpoint, "/")
+	ep := trimmed
+	if u, err := url.Parse(trimmed); err == nil && u.Host != "" {
+		u.RawQuery = ""
+		u.ForceQuery = false
+		u.Fragment = ""
+		ep = u.String()
+	}
+	return backupTarget{
+		endpoint:  ep,
+		region:    cmp.Or(region, "auto"),
+		bucket:    bucket,
+		pathStyle: pathStyle,
+	}
+}
+
+func targetOfDestination(d *resourcev1.BackupDestination, lookupConn func(string) (*resourcev1.ConnectionSpec, error)) (backupTarget, bool, error) {
+	if d == nil {
+		return backupTarget{}, false, nil
+	}
+	if d.GetConnection() == "" {
+		return normalizeTarget(d.GetEndpoint(), d.GetRegion(), d.GetBucket(), true), true, nil
+	}
+	c, err := lookupConn(d.GetConnection())
+	if err != nil {
+		return backupTarget{}, false, err
+	}
+	if c == nil || c.GetS3() == nil {
+		return backupTarget{}, false, nil
+	}
+	s3c := c.GetS3()
+	return normalizeTarget(s3c.GetEndpoint(), s3c.GetRegion(), s3c.GetBucket(), s3c.GetPathStyle()), true, nil
+}
+
+// checkDestinationTarget refuses any destination edit (including one bundled with
+// a connection edit, or recreating a deleted destination name) that changes the
+// effective endpoint, region, bucket or path style while backups exist on that
+// destination (ADR 0099 line 175, #831).
+func (e *Engine) checkDestinationTarget(ctx context.Context, tx *store.Tx, items []item, it *item, afterD *resourcev1.BackupDestination) error {
+	allBackups, err := tx.ListBackups(ctx, store.BackupFilter{})
+	if err != nil {
+		return err
+	}
+	if !destinationHasBackups(allBackups, it.ref.Name) {
+		return nil
+	}
+	org, err := tx.Organization(ctx)
+	if err != nil {
+		return err
+	}
+	afterTarget, haveAfter, err := targetOfDestination(afterD, func(name string) (*resourcev1.ConnectionSpec, error) {
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: name})
+		if err != nil {
+			return nil, err
+		}
+		c, _ := spec.(*resourcev1.ConnectionSpec)
+		return c, nil
+	})
+	if err != nil || !haveAfter {
+		return err
+	}
+
+	var (
+		beforeTarget backupTarget
+		haveBefore   bool
+	)
+	if beforeD, ok := it.current.(*resourcev1.BackupDestination); ok && beforeD != nil {
+		beforeTarget, haveBefore, err = targetOfDestination(beforeD, func(name string) (*resourcev1.ConnectionSpec, error) {
+			loaded, err := e.load(ctx, tx, resource.Ref{Kind: variable.ConnectionKind, Scope: org.ID, Name: name})
+			if err != nil {
+				return nil, err
+			}
+			c, _ := loaded.current.(*resourcev1.ConnectionSpec)
+			return c, nil
+		})
+		if err != nil {
+			return err
+		}
+	} else if it.base > 0 && it.id != "" {
+		// Recreating a destination name that was deleted while remote copies still exist:
+		// compare against the destination's last non-deleted revision so deleting and
+		// recreating under the same name cannot repoint existing remote copies.
+		revs, err := tx.PageRevisions(ctx, it.id, 0, 50)
+		if err != nil {
+			return err
+		}
+		var (
+			prevDest  *resourcev1.BackupDestination
+			deletedAt *store.Revision
+		)
+		for i := range revs {
+			if revs[i].Spec == nil {
+				cp := revs[i]
+				deletedAt = &cp
+				continue
+			}
+			spec, err := e.decode(ctx, tx, store.InRevision(revs[i].ID, revs[i].Kind, revs[i].Revision), revs[i].Spec)
+			if err != nil {
+				return err
+			}
+			if d, ok := spec.(*resourcev1.BackupDestination); ok {
+				prevDest = d
+				break
+			}
+		}
+		if prevDest != nil {
+			beforeTarget, haveBefore, err = targetOfDestination(prevDest, func(name string) (*resourcev1.ConnectionSpec, error) {
+				cr, err := tx.GetResource(ctx, string(variable.ConnectionKind), org.ID, name)
+				if errors.Is(err, store.ErrNotFound) {
+					return nil, nil
+				}
+				if err != nil {
+					return nil, err
+				}
+				crevs, err := tx.PageRevisions(ctx, cr.ID, 0, 50)
+				if err != nil {
+					return nil, err
+				}
+				for j := range crevs {
+					if crevs[j].Spec == nil {
+						continue
+					}
+					if deletedAt != nil && (crevs[j].ChangeID == deletedAt.ChangeID || !revBefore(crevs[j], *deletedAt)) {
+						continue
+					}
+					spec, err := e.decode(ctx, tx, store.InRevision(crevs[j].ID, crevs[j].Kind, crevs[j].Revision), crevs[j].Spec)
+					if err != nil {
+						return nil, err
+					}
+					if c, ok := spec.(*resourcev1.ConnectionSpec); ok {
+						return c, nil
+					}
+				}
+				return nil, nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if !haveBefore {
+		return fault.New(ErrInvalid, "backup destination %s still has backups, and Dockwell can't verify its earlier storage location to match them. Add a new destination under another name, or delete the backups on %s first",
+			it.ref.Name, it.ref.Name)
+	}
+	if beforeTarget != afterTarget {
+		return fault.New(ErrInvalid, "backup destination %s can't change its endpoint, region, bucket or path style while it has backups there, because restores fetch from where each backup went. Add a new destination for the new bucket, or delete the backups on %s first",
+			it.ref.Name, it.ref.Name)
+	}
+	return nil
+}
+
+// checkConnectionDestinations refuses deleting, retyping, marking shared, using
+// plain HTTP away from loopback, rotating back to app-held keys, or moving the
+// bucket/endpoint/region/path_style of a connection while a backup destination
+// names it (ADR 0099). Moving the storage target is refused only when the
+// destination has backups stored or in flight; rotating to a fresh key is allowed.
+func (e *Engine) checkConnectionDestinations(ctx context.Context, tx *store.Tx, items []item, it *item) error {
+	if it.ref.Kind != variable.ConnectionKind {
+		return nil
+	}
+	dests, err := e.allDestinations(ctx, tx, items)
+	if err != nil {
+		return err
+	}
+	after, _ := it.spec.(*resourcev1.ConnectionSpec)
+	before, _ := it.current.(*resourcev1.ConnectionSpec)
+	var (
+		allBackups    []store.Backup
+		loadedBackups bool
+		checkedKeys   bool
+	)
+	editedInChange := func(ref resource.Ref) bool {
+		for k := range items {
+			if items[k].ref == ref {
+				return true
+			}
+		}
+		return false
+	}
+	for i := range dests {
+		d := &dests[i]
+		if d.GetConnection() != it.ref.Name {
+			continue
+		}
+		if it.spec == nil {
+			also := ", or in the same change"
+			if it.reverses {
+				also = ""
+			}
+			return fault.New(ErrInvalid, "backup destination %s still uses the connection %s, which this change deletes. Remove or update %s first%s",
+				d.ref.Name, it.ref.Name, d.ref.Name, also)
+		}
+		if after.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
+			return fault.New(ErrInvalid, "backup destination %s still uses the connection %s, which this change makes another kind of connection. Update or remove %s first, or add a connection of the new kind",
+				d.ref.Name, it.ref.Name, d.ref.Name)
+		}
+		if after.GetShared() {
+			return fault.New(ErrInvalid, "the connection %s can't be marked shared while backup destination %s uses it, because a connection backups use serves no app. Point %s at another connection first, or keep %s unshared",
+				it.ref.Name, d.ref.Name, d.ref.Name, it.ref.Name)
+		}
+		// When d is itself edited or recreated in this change, checkDestinationTarget
+		// validates d's effective target before vs after (including restoring a retired
+		// destination and its connection's original bucket together).
+		if !editedInChange(d.ref) && before != nil && before.GetS3() != nil && after.GetS3() != nil && movedBackupTarget(before.GetS3(), after.GetS3()) {
+			if !loadedBackups {
+				if allBackups, err = tx.ListBackups(ctx, store.BackupFilter{}); err != nil {
+					return err
+				}
+				loadedBackups = true
+			}
+			if destinationHasBackups(allBackups, d.ref.Name) {
+				return fault.New(ErrInvalid, "the connection %s can't change its endpoint, region, bucket or path style while backup destination %s has backups there, because restores fetch from where each backup went. Add a new connection for the new bucket, or delete the backups on %s first",
+					it.ref.Name, d.ref.Name, d.ref.Name)
+			}
+		}
+		if err := backuppolicy.CheckTransport(after.GetS3().GetEndpoint(), after.GetS3().GetBucket(), after.GetS3().GetPathStyle()); err != nil {
+			return fault.New(ErrInvalid, "the connection %s can't use that endpoint while backup destination %s uses it: its endpoint %s. Keep %s on HTTPS, or point %s at another connection first",
+				it.ref.Name, d.ref.Name, err.Error(), it.ref.Name, d.ref.Name)
+		}
+		if !checkedKeys && keysChanged(before.GetS3(), after.GetS3()) {
+			checkedKeys = true
+			if err := e.checkConnectionNotUsedByApp(ctx, tx, items, it.ref.Scope, it.ref.Name, after); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func keysChanged(from, to *resourcev1.ConnectionS3) bool {
+	if from == nil || to == nil {
+		return to != nil
+	}
+	return from.GetAccessKeyId() != to.GetAccessKeyId() || from.GetSecretKey() != to.GetSecretKey()
+}
+
+// movedBackupTarget says whether an edit changes where a connection's S3 requests go
+// (endpoint, region, bucket or path style), as distinct from rotating its keys.
+func movedBackupTarget(from, to *resourcev1.ConnectionS3) bool {
+	return normalizeTarget(from.GetEndpoint(), from.GetRegion(), from.GetBucket(), from.GetPathStyle()) !=
+		normalizeTarget(to.GetEndpoint(), to.GetRegion(), to.GetBucket(), to.GetPathStyle())
+}
+
+// destinationHasBackups reports whether a destination has any backup stored there or
+// currently running or sending to it.
+func destinationHasBackups(all []store.Backup, name string) bool {
+	for i := range all {
+		b := &all[i]
+		if b.Destination != name {
+			continue
+		}
+		if b.CopyKey != "" || b.State == store.BackupRunning || (b.State == store.BackupDone && b.CopyError == "") {
+			return true
+		}
+	}
+	return false
 }
 
 // writesSecurity says a link to a mail server tells its app the connection's security,

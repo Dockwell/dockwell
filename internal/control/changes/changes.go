@@ -1622,6 +1622,7 @@ var codes = []struct {
 	{revision.ErrNeedsRole, connect.CodePermissionDenied, "needs_role"},
 	{scope.ErrNotFound, connect.CodeNotFound, "not_found"},
 	{revision.ErrInvalid, connect.CodeInvalidArgument, "invalid"},
+	{revision.ErrAlreadyExists, connect.CodeInvalidArgument, "already_exists"},
 	{revision.ErrStale, connect.CodeFailedPrecondition, "plan_stale"},
 	{revision.ErrPlanChanged, connect.CodeFailedPrecondition, "plan_changed"},
 	{revision.ErrNotPlanned, connect.CodeFailedPrecondition, "not_planned"},

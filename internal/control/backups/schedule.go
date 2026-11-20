@@ -188,16 +188,28 @@ func (h *Handler) start(ctx context.Context, run due) {
 		h.finish(ctx, b, nil, tooOld(run.server.Name, run.one), store.SurfaceAutomatic)
 		return
 	}
-	destination, err := h.destination(ctx, b.Destination)
-	var gone *connect.Error
-	if errors.As(err, &gone) && gone.Code() == connect.CodeNotFound {
-		// The backup is what counts: it stays on its server, and the row says why.
-		b.CopyError = fmt.Sprintf("the destination %s is gone, so this stayed on its server. Point %s at another destination", b.Destination, run.policy.name)
-		destination, err = nil, nil
-	}
-	if err != nil {
-		h.finish(ctx, b, nil, fmt.Errorf("%s names the destination %s, and it can't be read: %w. Choose another", run.policy.name, b.Destination, err), store.SurfaceAutomatic)
-		return
+	sendCopy := false
+	if b.Destination != "" {
+		destination, err := h.destination(ctx, b.Destination)
+		if err == nil {
+			err = checkVirtualHostAgent(s, run.server.Name, destination)
+		}
+		clear(destination)
+		var gone *connect.Error
+		if errors.As(err, &gone) && gone.Code() == connect.CodeNotFound {
+			// The backup is what counts: it stays on its server, and the row says why.
+			b.CopyError = fmt.Sprintf("the destination %s is gone, so this stayed on its server. Point %s at another destination", b.Destination, run.policy.name)
+			err = nil
+		} else if errors.As(err, &gone) && gone.Code() == connect.CodeFailedPrecondition {
+			// An older agent can't send virtual-host copies; keep the local backup on the server.
+			b.CopyError = gone.Message()
+			err = nil
+		}
+		if err != nil {
+			h.finish(ctx, b, nil, fmt.Errorf("%s names the destination %s, and it can't be read: %w. Choose another", run.policy.name, b.Destination, err), store.SurfaceAutomatic)
+			return
+		}
+		sendCopy = b.CopyError == ""
 	}
 	ref := resource.Ref{Kind: volume.Kind, Scope: run.volume.Scope, Name: run.volume.Name}
 	keep := int(run.policy.spec.GetKeep())
@@ -207,7 +219,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 		select {
 		case turn <- struct{}{}:
 			defer func() { <-turn }()
-			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep, destination)
+			h.run(s, b, ref, stop, store.SurfaceAutomatic, keep, sendCopy)
 		case <-h.base.Done():
 			h.finish(context.WithoutCancel(h.base), b, nil, h.base.Err(), store.SurfaceAutomatic)
 		}

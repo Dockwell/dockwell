@@ -218,9 +218,11 @@ const DestinationKind resource.Kind = "backup.destination"
 type Destination struct{}
 
 var (
-	_ resource.Type    = Destination{}
-	_ resource.Rotates = Destination{}
-	_ resource.Keeper  = Destination{}
+	_ resource.Type       = Destination{}
+	_ resource.Rotates    = Destination{}
+	_ resource.Keeper     = Destination{}
+	_ resource.NewChecker = Destination{}
+	_ resource.Referrer   = Destination{}
 )
 
 // Kind returns "backup.destination".
@@ -271,9 +273,32 @@ func (Destination) CheckName(name string) error {
 	return resource.CheckLabel("backup destination", name, "r2")
 }
 
+// References names the S3 connection a destination reads from, so it's made first
+// and can't go while the destination uses it.
+func (Destination) References(spec proto.Message) []resource.Reference {
+	d := spec.(*resourcev1.BackupDestination)
+	if d.GetConnection() == "" {
+		return nil
+	}
+	return []resource.Reference{{Kind: "connection", Name: d.GetConnection(), Verb: "use"}}
+}
+
+// ReferenceKinds is connections.
+func (Destination) ReferenceKinds() []resource.Kind { return []resource.Kind{"connection"} }
+
 // Validate refuses what can't work, in words that hold nothing of what signs in.
 func (Destination) Validate(spec proto.Message) error {
 	d := spec.(*resourcev1.BackupDestination)
+	if d.GetConnection() != "" {
+		if err := resource.CheckLabel("connection", d.GetConnection(), "outline-uploads"); err != nil {
+			return err
+		}
+		if d.GetEndpoint() != "" || d.GetRegion() != "" || d.GetBucket() != "" || d.GetAccessKey() != "" || d.GetSecretKey() != "" {
+			return errors.New("a destination that names a connection takes its endpoint, region, bucket and keys from that connection. Leave those out, and give only connection, prefix and passphrase")
+		}
+		d.Prefix = strings.Trim(d.GetPrefix(), "/")
+		return nil
+	}
 	u, err := url.Parse(d.GetEndpoint())
 	switch {
 	case err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http"):
@@ -304,4 +329,37 @@ func loopback(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+// CheckTransport refuses plain HTTP for backup storage away from loopback,
+// checking the effective virtual host when pathStyle is false.
+func CheckTransport(endpoint, bucket string, pathStyle bool) error {
+	u, err := url.Parse(endpoint)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return errors.New("must use an HTTPS URL such as https://<account>.r2.cloudflarestorage.com")
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		if !pathStyle && bucket != "" {
+			host = bucket + "." + host
+		}
+		if !loopback(host) {
+			return errors.New("must use HTTPS, as what signs in goes with each request. Only an address on this server may use plain HTTP")
+		}
+	}
+	return nil
+}
+
+// CanonicalEndpoint strips unused query parameters, fragments, and trailing
+// slashes from an S3 endpoint URL so inline and connection endpoints compare
+// and convert cleanly.
+func CanonicalEndpoint(raw string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil {
+		return "", errors.New("isn't a valid S3 URL without credentials")
+	}
+	u.RawQuery = ""
+	u.ForceQuery = false
+	u.Fragment = ""
+	return strings.TrimRight(u.String(), "/"), nil
 }

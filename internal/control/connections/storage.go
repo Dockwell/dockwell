@@ -68,18 +68,19 @@ func (s *Service) ConnectStorage(ctx context.Context, req *connect.Request[dockw
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.connections.All(ctx)
+	conn, backupUsed, ok, err := s.connections.ForLinking(ctx, m.GetConnection(), a.project)
 	if err != nil {
 		return nil, err
 	}
-	i := slices.IndexFunc(all, func(c Saved) bool { return c.Name == m.GetConnection() })
-	if i < 0 || !connection.Reaches(all[i].Spec, a.project) {
+	if !ok {
 		// One the project may not use reads as not there, as it can't be named.
 		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no connection %s this project may use. Ask an admin to add one, or let this project use it", m.GetConnection()), "not_found")
 	}
-	conn := all[i]
 	if conn.Spec.GetKind() != resourcev1.LinkKind_LINK_KIND_S3 {
 		return nil, authapi.Invalid(fmt.Errorf("the connection %s is a mail server, and Connect storage links S3 storage. Set up the app's mail on its page instead", conn.Name))
+	}
+	if backupUsed {
+		return nil, authapi.Invalid(fmt.Errorf("the connection %s is used for backups, so no app can link to it: an app's key could delete the backups. Add a separate S3 connection for the app", conn.Name))
 	}
 	linkName := cmp.Or(m.GetLink(), "storage")
 	if err := resource.CheckLabel("link", linkName, "storage"); err != nil {

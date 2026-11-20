@@ -57,6 +57,7 @@ BackupService.ListBackups                      read         viewer     viewer   
 BackupService.PreviewBackup                    read         viewer     viewer     project
 BackupService.RestoreBackup                    plan         developer  developer  project
 BackupService.TestBackupDestination            apply        admin      admin      install
+BackupService.UseDestinationAsConnection       plan         admin      admin      install
 BuildService.CancelBuild                       apply        developer  admin      project
 BuildService.DetectBuild                       plan         developer  developer  project
 BuildService.GetBuild                          read         viewer     viewer     project

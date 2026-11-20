@@ -26,7 +26,7 @@ var byNameAndState = map[protoreflect.FullName]map[protoreflect.Name]bool{
 	"dockwell.v1.Server":                {"id": true, "name": true, "connection": true, "last_seen_time": true, "control_server": true, "network": true},
 	"dockwell.v1.ServerNetwork":         {"ipv4": true, "ipv6": true},
 	"dockwell.v1.PublicAddress":         {"address": true},
-	"dockwell.v1.BackupDestinationInfo": {"id": true, "name": true, "last_upload": true, "last_failure": true},
+	"dockwell.v1.BackupDestinationInfo": {"id": true, "name": true, "connection": true, "last_upload": true, "last_failure": true},
 	"dockwell.v1.RegistryLoginInfo":     {"id": true, "name": true, "registry": true},
 	"dockwell.v1.DnsProviderInfo":       {"id": true, "name": true, "zones": true},
 	"dockwell.v1.CertificateInfo":       {"id": true, "name": true, "domains": true, "state": true, "expire_time": true},
