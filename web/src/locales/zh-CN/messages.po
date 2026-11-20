@@ -1972,6 +1972,9 @@ msgstr "不使用 TLS"
 msgid "ntfy.sh unless you give a server of your own."
 msgstr "除非你填写自己的服务器，否则使用 ntfy.sh。"
 
+msgid "via <0><1>{savedConnection}</1></0>"
+msgstr "通过 <0><1>{savedConnection}</1></0>"
+
 msgid "{kindName} answered {said}."
 msgstr "{kindName} 回复：{said}。"
 
@@ -2063,6 +2066,9 @@ msgstr "时间"
 
 msgid "Used by"
 msgstr "使用者"
+
+msgid "Via <0>{conn}</0>"
+msgstr "通过 <0>{conn}</0>"
 
 msgid "What Dockwell sends shows here, tests too, with what each channel answered."
 msgstr "Dockwell 发送的消息都会显示在这里，包括测试，以及每个渠道的回复。"
@@ -2194,6 +2200,46 @@ msgstr "{watching, plural, other {# 条规则在监视 · 还没有发送渠道}
 
 msgid "{watching, plural, one {# rule watching} other {# rules watching}}"
 msgstr "{watching, plural, other {# 条规则在监视}}"
+
+msgid "An app received this connection's password"
+msgstr "已有应用拿到此连接的密码"
+
+msgctxt "another mail server for alert email"
+msgid "Another server"
+msgstr "其他邮件服务器"
+
+msgid "Enter an SMTP server and password for alerts alone"
+msgstr "填写专用于告警的 SMTP 服务器和密码"
+
+msgid "New connection from it"
+msgstr "基于此新建连接"
+
+msgid "No TLS"
+msgstr "不使用 TLS"
+
+msgid "Paste a password made for alerts"
+msgstr "粘贴专用于告警的密码"
+
+msgid "Send through"
+msgstr "发送方式"
+
+msgid "Serves {who}, which could send mail as the alert sender"
+msgstr "供 {who} 使用，它可能以告警发件人身份发信"
+
+msgid "Shared for apps, which could send mail as the alert sender"
+msgstr "供应用共享，它们可能以告警发件人身份发信"
+
+msgid "Use the mail connection"
+msgstr "使用邮件连接"
+
+msgid "Use {label}"
+msgstr "使用 {label}"
+
+msgid "Use {label} ({host})"
+msgstr "使用 {label} ({host})"
+
+msgid "Uses no TLS away from this network; alerts require TLS"
+msgstr "在本网络外未使用 TLS，告警要求使用 TLS"
 
 msgid "A backup fails"
 msgstr "备份失败"
@@ -8121,9 +8167,6 @@ msgstr "上传前加密"
 msgid "Encrypted under {prefix}/"
 msgstr "加密存放在 {prefix}/ 下"
 
-msgid "New connection from it"
-msgstr "基于此新建连接"
-
 msgid "Paste a key made for backups"
 msgstr "粘贴专用于备份的密钥"
 
@@ -8138,12 +8181,6 @@ msgstr "供 {who} 使用，其密钥可能删除备份"
 
 msgid "Shared for apps, whose keys could delete the backups"
 msgstr "供应用共享，它们的密钥可能删除备份"
-
-msgid "Use {label}"
-msgstr "使用 {label}"
-
-msgid "Use {label} ({host})"
-msgstr "使用 {label} ({host})"
 
 msgid "Copy of a running app"
 msgstr "运行中应用的副本"
@@ -12703,6 +12740,12 @@ msgstr "{app} 尚未读取其环境中的任何变量或机密。"
 msgid "Address style"
 msgstr "地址形式"
 
+msgid "Alert channel"
+msgstr "告警渠道"
+
+msgid "Alerts use it, so it can't be shared with apps"
+msgstr "告警正在使用它，无法与应用共享"
+
 msgid "An admin or the owner disconnects an install's storage"
 msgstr "由管理员或所有者断开安装的存储"
 
@@ -12751,6 +12794,9 @@ msgstr "其密钥会随之移除"
 msgid "Keys"
 msgstr "密钥"
 
+msgid "Manage in Alerts"
+msgstr "在告警中管理"
+
 msgid "Manage in Backups"
 msgstr "在备份中管理"
 
@@ -12759,9 +12805,6 @@ msgstr "允许多个应用使用"
 
 msgid "Names it sets"
 msgstr "设置的名称"
-
-msgid "No TLS"
-msgstr "不使用 TLS"
 
 msgid "No app reads it"
 msgstr "没有应用读取它"
@@ -13005,8 +13048,8 @@ msgstr "尚无应用使用"
 msgid "none"
 msgstr "无"
 
-msgid "used by {appsText} and {destsText}"
-msgstr "被{appsText}和{destsText}使用"
+msgid "used by {usageList}"
+msgstr "被{usageList}使用"
 
 #. placeholder {0}: standaloneDests.length
 msgid "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
@@ -13015,6 +13058,10 @@ msgstr "{0, plural, other {# 个自带密钥的备份目的地}}"
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
 msgstr "{0, plural, other {# 个连接}}"
+
+#. placeholder {0}: alertChannels.length
+msgid "{0, plural, one {Alerts} other {# alert channels}}"
+msgstr "{0, plural, =1 {告警} other {# 个告警渠道}}"
 
 #. placeholder {0}: backups.length
 msgid "{0, plural, one {Backups} other {# backup destinations}}"
@@ -13025,6 +13072,12 @@ msgstr "{apps, plural, other {# 个应用}}"
 
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, other {被 # 个应用使用}}"
+
+msgid "{linkedAlertChannels, plural, one {# alert channel} other {# alert channels}}"
+msgstr "{linkedAlertChannels, plural, other {# 个告警渠道}}"
+
+msgid "{linkedAlertChannels, plural, one {used by # alert channel} other {used by # alert channels}}"
+msgstr "{linkedAlertChannels, plural, other {被 # 个告警渠道使用}}"
 
 msgid "{linkedBackupDests, plural, one {# backup destination} other {# backup destinations}}"
 msgstr "{linkedBackupDests, plural, other {# 个备份目的地}}"
@@ -13066,6 +13119,9 @@ msgstr "已移动：请重新输入密码"
 msgid "Password kept back"
 msgstr "未发送密码"
 
+msgid "Paste a password made for alerts alone, and revoke the one the app had at your provider"
+msgstr "粘贴仅用于告警的密码，并在服务商处吊销应用曾持有的密码"
+
 msgid "Send mail through {host}"
 msgstr "通过 {host} 发送邮件"
 
@@ -13104,6 +13160,10 @@ msgstr "例如 {EXAMPLE_NAME}"
 
 msgid "e.g. {EXAMPLE_SENDER}"
 msgstr "例如 {EXAMPLE_SENDER}"
+
+#. placeholder {0}: alertChannels.length
+msgid "{0, plural, one {Alert channel {firstChannel} uses it. Remove it on Alerts first.} other {# alert channels use it. Remove them on Alerts first.}}"
+msgstr "{0, plural, =1 {告警渠道 {firstChannel} 正在使用它。请先在告警页中将其移除。} other {有 # 个告警渠道正在使用它。请先在告警页中将它们移除。}}"
 
 msgid "Another S3-compatible store"
 msgstr "其他 S3 兼容存储"

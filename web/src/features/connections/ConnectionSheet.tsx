@@ -10,6 +10,7 @@ import {
   ConnectionReach,
   ConnectionService,
   LinkKind,
+  type SmtpSecurity,
 } from "@dockwell/api";
 import { Advanced, Button, Callout, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -59,6 +60,10 @@ interface SheetProps {
   prefill?: { endpoint: string; region: string; pathStyle?: boolean } | undefined;
   /** True when opened to replace keys an app received before backups may use this connection (#831). */
   rotateForBackups?: boolean | undefined;
+  /** Host, port, and security copied from an existing mail connection, with user and password empty (#833). */
+  mailPrefill?: { host: string; port: number; security: SmtpSecurity } | undefined;
+  /** True when opened to replace a password an app received before alerts may use this connection (#833). */
+  rotateForAlerts?: boolean | undefined;
 }
 
 /**
@@ -82,9 +87,11 @@ export function ConnectionSheet({
       : undefined
     : start !== undefined && isMailProvider(start)
       ? start
-      : kind === "mail"
-        ? "resend"
-        : undefined;
+      : props.mailPrefill
+        ? mailPlaceOf(props.mailPrefill.host).provider
+        : kind === "mail"
+          ? "resend"
+          : undefined;
   const [mail, setMail] = useState<MailProviderId | undefined>(first);
   const [store, setStore] = useState<ProviderId | undefined>(
     start !== undefined && !isMailProvider(start) ? start : undefined,

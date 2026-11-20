@@ -333,6 +333,133 @@
   font-size: 12px;
 }
 
+.alerts-channel-link {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.alerts-channel-link:hover {
+  text-decoration: underline;
+}
+
+.alerts-channel-link:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Mail connection picker inside Add/Change channel sheet (#833). */
+.alerts-mail-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.alerts-mail-picker > legend {
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.alerts-mail-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.alerts-mail-option {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: 9px var(--space-3);
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color var(--motion-fast, 120ms) var(--ease-out, ease-out);
+}
+
+.alerts-mail-option.is-picked {
+  border-color: var(--cobalt);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
+
+.alerts-mail-option:has(input:focus-visible) {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.alerts-mail-option.is-off {
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.alerts-mail-choice {
+  display: flex;
+  flex: 1 1 200px;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  cursor: pointer;
+}
+
+.alerts-mail-option.is-off .alerts-mail-choice {
+  cursor: not-allowed;
+}
+
+.alerts-mail-choice input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--cobalt);
+}
+
+.alerts-mail-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alerts-mail-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-mail-why {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
+}
+
+.alerts-mail-action {
+  flex: none;
+  padding-inline-start: 22px;
+}
+
+.alerts-phone-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.alerts-phone-conn {
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
 .alerts-routes {
   display: flex;
   flex-direction: column;

@@ -16,8 +16,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 /** The channels, by name. */
-export function useChannels() {
-  return useQuery(AlertService.method.listAlertChannels, {});
+export function useChannels(enabled = true) {
+  return useQuery(AlertService.method.listAlertChannels, {}, { enabled });
 }
 
 /** The rules, in the order Dockwell lists them. */
