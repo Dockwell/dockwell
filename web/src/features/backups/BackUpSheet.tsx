@@ -2,7 +2,14 @@
 
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type BackupDestinationInfo, BackupMethod, BackupService } from "@dockwell/api";
+import {
+  type BackupDestinationInfo,
+  BackupMethod,
+  BackupService,
+  ChangeService,
+  ChangeState,
+  type ConnectionInfo,
+} from "@dockwell/api";
 import { Button, Callout, Icon, PHONE_QUERY, SelectField, Sheet, Switch, useMediaQuery } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -11,10 +18,19 @@ import { useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
-import { destinationOptions } from "./DestinationsPanel";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { BackupSealFields, useBackupSeal } from "./BackupSealFields";
+import { StoragePicker } from "./StoragePicker";
+import { freeDestinationName, pickerStatus, useStorage } from "./storage";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import "./Backups.css";
-import { useMay } from "../auth/may";
+
+type ConnectionModal =
+  | { mode: "add" }
+  | { mode: "from"; connection: ConnectionInfo }
+  | { mode: "rotate"; connection: ConnectionInfo };
 
 /**
  * Backs up one volume now. It asks the server what that would take first, and says
@@ -24,7 +40,7 @@ import { useMay } from "../auth/may";
  */
 export function BackUpSheet({
   volumes,
-  destinations = [],
+  destinations,
   chosen,
   onClose,
 }: {
@@ -36,11 +52,17 @@ export function BackUpSheet({
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queries = useQueryClient();
+  const sheet = useChangeSheet();
   const phone = useMediaQuery(PHONE_QUERY);
   const client = useMemo(() => createClient(BackupService, transport), [transport]);
+  const may = useMay();
+  const mayPlanInstall = may(ChangeService.method.proposeChange, { install: true });
+  const storage = useStorage(destinations);
+  const seal = useBackupSeal();
   const [volumeId, setVolumeId] = useState(chosen ?? volumes[0]?.id ?? "");
   const [stop, setStop] = useState(true);
-  const [destination, setDestination] = useState("");
+  const [pickedStorage, setPickedStorage] = useState("");
+  const [connModal, setConnModal] = useState<ConnectionModal>();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const preview = useQuery(
@@ -53,17 +75,30 @@ export function BackUpSheet({
   const list = new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(running);
   const name = volumes.find((v) => v.id === volumeId)?.name ?? "";
   // Backing up is a developer's, and an admin's in a protected environment (ADR 0049): off, with why, otherwise.
-  const mayBackUp = useMay()(BackupService.method.createBackup, {
+  const mayBackUp = may(BackupService.method.createBackup, {
     environment: volumes.find((v) => v.id === volumeId)?.environment ?? "",
   });
   const options = useVolumeOptions(volumes);
   const risky = said?.method === BackupMethod.COPY_RUNNING;
 
-  const submit = async () => {
+  const selectedItem = pickedStorage ? storage.items.find((i) => i.key === pickedStorage) : undefined;
+  const selectedStatus = selectedItem ? pickerStatus(selectedItem) : undefined;
+  const needsDestination =
+    selectedItem?.connection !== undefined &&
+    selectedItem.destination === undefined &&
+    selectedStatus?.state === "available";
+  const storageBlocked =
+    selectedItem !== undefined &&
+    selectedStatus !== undefined &&
+    selectedStatus.state !== "ready" &&
+    selectedStatus.state !== "available";
+  const storageReady = !storageBlocked && (!needsDestination || (seal.ready && mayPlanInstall.allowed));
+
+  const startBackup = async (destinationName: string) => {
     setBusy(true);
     setFailure(undefined);
     try {
-      await client.createBackup({ volumeId, stop: risky && stop, destination });
+      await client.createBackup({ volumeId, stop: risky && stop, destination: destinationName });
       await queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
       });
@@ -72,6 +107,39 @@ export function BackUpSheet({
       setFailure(sentence(error));
       setBusy(false);
     }
+  };
+
+  const submit = () => {
+    if (!storageReady) return;
+    if (needsDestination && selectedItem?.connection) {
+      const destName = freeDestinationName(selectedItem.connection.name, storage.destinations);
+      sheet.open({
+        kind: "propose",
+        summary: t`Send backups to ${destName}`,
+        edits: [
+          {
+            resource: { kind: "backup.destination", name: destName },
+            spec: {
+              kind: {
+                case: "backupDestination",
+                value: {
+                  connection: selectedItem.connection.name,
+                  prefix: seal.prefix.trim(),
+                  passphrase: seal.passphrase,
+                },
+              },
+            },
+          },
+        ],
+        onClose: (change) => {
+          if (change?.state === ChangeState.APPLIED) void startBackup(destName);
+        },
+      });
+      return;
+    }
+    const destinationName =
+      selectedItem?.destination?.name ?? (pickedStorage.startsWith("dest:") ? pickedStorage.slice(5) : "");
+    void startBackup(destinationName);
   };
 
   return (
@@ -89,11 +157,11 @@ export function BackUpSheet({
             variant="primary"
             icon="archive"
             loading={busy}
-            disabled={!said || volumeId === ""}
-            onClick={() => void submit()}
+            disabled={!said || volumeId === "" || !storageReady}
+            onClick={submit}
             {...mayBackUp.off}
           >
-            <Trans>Back up</Trans>
+            {needsDestination ? <Trans>Review plan and back up</Trans> : <Trans>Back up</Trans>}
           </Button>
         </>
       }
@@ -158,14 +226,20 @@ export function BackUpSheet({
             <Trans>Nothing runs on this volume, so the copy is exact.</Trans>
           </p>
         )}
-        {destinations.length > 0 ? (
-          <SelectField
-            label={t`Send a copy to`}
-            value={destination}
-            options={destinationOptions(destinations, t`Nowhere else`)}
-            onChange={(event) => setDestination(event.target.value)}
+        {storage.items.length > 0 ? (
+          <StoragePicker
+            items={storage.items}
+            value={pickedStorage}
+            onChange={setPickedStorage}
+            noneLabel={t`Nowhere else`}
+            noneHint={t`Stays on the server's own disk, unencrypted`}
+            mayPlanInstall={mayPlanInstall}
+            onAdd={() => setConnModal({ mode: "add" })}
+            onNewFrom={(connection) => setConnModal({ mode: "from", connection })}
+            onRotateKeys={(connection) => setConnModal({ mode: "rotate", connection })}
           />
         ) : null}
+        {needsDestination ? <BackupSealFields seal={seal} /> : null}
         <p className="backup-sheet-note">
           <Trans>
             It stays on the server's own disk, with owners and permissions as they are, so it goes if the server does.
@@ -180,6 +254,29 @@ export function BackUpSheet({
           </Callout>
         ) : null}
       </div>
+      {connModal ? (
+        <ConnectionSheet
+          kind="storage"
+          existing={storage.allConnections}
+          editing={connModal.mode === "rotate" ? connModal.connection : undefined}
+          rotateForBackups={connModal.mode === "rotate"}
+          prefill={
+            connModal.mode === "from"
+              ? {
+                  endpoint: connModal.connection.endpoint,
+                  region: connModal.connection.region,
+                  pathStyle: connModal.connection.pathStyle,
+                }
+              : undefined
+          }
+          onClose={() => setConnModal(undefined)}
+          onSaved={(savedName) => {
+            setConnModal(undefined);
+            setPickedStorage(`conn:${savedName}`);
+            void storage.refetch();
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }

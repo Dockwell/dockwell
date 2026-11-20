@@ -1926,9 +1926,9 @@ describe("how a database is backed up (#793)", () => {
     const panel = await screen.findByRole("region", { name: "How it's backed up" });
     await waitFor(() => expect(panel).toHaveTextContent("Kept only on the server, unencrypted"));
     await user.click(within(panel).getByRole("button", { name: "Add storage" }));
-    expect(await screen.findByRole("dialog", { name: "Add a destination" })).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Add a connection" })).toBeVisible();
     await user.click(
-      within(screen.getByRole("dialog", { name: "Add a destination" })).getByRole("button", { name: "Cancel" }),
+      within(screen.getByRole("dialog", { name: "Add a connection" })).getByRole("button", { name: "Cancel" }),
     );
 
     await user.click(within(panel).getByRole("button", { name: "Edit schedule" }));

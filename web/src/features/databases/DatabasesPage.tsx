@@ -47,15 +47,16 @@ import { useShownName } from "../apps/names";
 import { usePlaces, useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
-import { DestinationSheet } from "../backups/DestinationSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { useBackUpDaily } from "../backups/PolicySheet";
+import { useStorage } from "../backups/storage";
 import type { VolumeChoice } from "../backups/useBackups";
 import { useMethodWord, useScheduleWords } from "../backups/words";
 import { type EngineGroup, useEngineGroups } from "../catalog/engines";
 import { InstallSheet } from "../catalog/InstallSheet";
 import { AppIcon } from "../catalog/media";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -644,7 +645,9 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const [taking, setTaking] = useState(false);
   const [addingStorage, setAddingStorage] = useState(false);
   const backUpDaily = useBackUpDaily();
-  const allDestinations = useDestinations().data?.destinations ?? [];
+  const mayAddStorage = useMay()(ChangeService.method.proposeChange, { install: true });
+  const storage = useStorage();
+  const allDestinations = storage.destinations;
   // Where each is, as its row says it, where they're in more than one place, as several can share a name such as db.
   const places = usePlaces();
   // A catalog install's database goes by the name the person gave the install (#796).
@@ -759,11 +762,17 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
           })}
         </StateLine>
       ) : null}
-      {scheduled.length > 0 && destinations.length === 0 && allDestinations.length === 0 ? (
+      {scheduled.length > 0 && destinations.length === 0 && storage.items.length === 0 ? (
         <StateLine
           status="degraded"
           action={
-            <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+            <button
+              type="button"
+              className="domain-step-act"
+              onClick={() => setAddingStorage(true)}
+              disabled={!mayAddStorage.allowed}
+              title={mayAddStorage.reason || undefined}
+            >
               <Trans>Add storage</Trans>
             </button>
           }
@@ -782,7 +791,9 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
         </RouterButtonLink>
       </div>
       {taking ? <BackUpSheet volumes={volumes} onClose={() => setTaking(false)} /> : null}
-      {addingStorage ? <DestinationSheet existing={allDestinations} onClose={() => setAddingStorage(false)} /> : null}
+      {addingStorage ? (
+        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
+      ) : null}
     </Panel>
   );
 }

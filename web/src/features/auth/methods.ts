@@ -82,9 +82,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "BackupService.listBackups": "read",
   "BackupService.previewBackup": "read",
   "BackupService.restoreBackup": "may",
-  "BackupService.testBackupDestination": "may",
-  // Install admin only; offered in the panel in slice 2 of #831.
-  "BackupService.useDestinationAsConnection": "unused",
+  // Legacy inline destination test; new storage is added as a connection and checked with ConnectionService.checkConnection.
+  "BackupService.testBackupDestination": "unused",
+  "BackupService.useDestinationAsConnection": "may",
 
   "BuildService.cancelBuild": "may",
   "BuildService.detectBuild": "may",

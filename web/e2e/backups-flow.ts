@@ -125,65 +125,70 @@ export async function backupsFlow(page: Page, { origin, step, shoot }: BackupsFl
     .first()
     .waitFor({ timeout: 15_000 });
 
-  step("backups: a destination asks for what signs in, keeps a passphrase out of the way, and the plan shows neither");
+  step("backups: Add storage opens a connection sheet, and its plan hides its secret key");
   const destinations = page.getByRole("region", { name: "Destinations" });
   await destinations.getByRole("button", { name: /^Add( storage)?$/ }).click();
-  const adding = page.getByRole("dialog", { name: "Add a destination" });
+  const adding = page.getByRole("dialog", { name: "Add a connection" });
   const signsIn = "e2e-secret-that-signs-in";
-  await adding.getByLabel("Storage").selectOption("other");
-  await adding.getByLabel("Endpoint").fill("http://127.0.0.1:1"); // nothing answers there
-  await adding.getByLabel("Bucket").fill("backups");
-  await adding.getByLabel("Access key").fill("e2e-access-key");
-  await adding.getByLabel("Secret key").fill(signsIn);
-  // Test asks the storage before anything is planned, and says nothing answered.
-  await adding.getByRole("button", { name: "Test", exact: true }).click();
-  await adding.getByText("Nothing answered at http://127.0.0.1:1").waitFor({ timeout: 30_000 });
-  // The name is a step away, under Advanced.
-  await adding.getByRole("button", { name: "Advanced" }).click();
-  await adding.getByLabel("Name", { exact: true }).fill("e2e-bucket");
+  await adding.getByRole("button", { name: "Another S3-compatible store" }).click();
+  await adding.getByRole("textbox", { name: "Endpoint" }).fill("https://[2001:db8::10]:9000");
+  await adding.getByRole("textbox", { name: "Bucket" }).fill("e2e-bucket");
+  await adding.getByRole("textbox", { name: "Access key ID" }).fill("AKIDE2EBACKUP");
+  await adding.getByLabel("Secret access key").fill(signsIn);
+  await adding.getByText(/Can't reach it|No answer/).waitFor({ timeout: 90_000 });
+  await adding.getByText(/It saves unchecked/).waitFor();
   const review = adding.getByRole("button", { name: "Review plan" });
-  if (!(await review.isDisabled())) fail("a destination goes ahead with no word that its passphrase is kept");
-  const passphrase = (await adding.locator(".backup-passphrase span").allInnerTexts()).join("");
-  if (passphrase.length < 32) fail(`a destination's passphrase reads as ${passphrase.length} characters`);
-  // Copied by hand, it has to be what the button copies, with no line break in it.
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  const selected = await adding.locator(".backup-passphrase").evaluate(async (code) => {
-    const selection = window.getSelection();
-    selection?.selectAllChildren(code);
-    document.execCommand("copy");
-    selection?.removeAllRanges();
-    return navigator.clipboard.readText();
-  });
-  await adding.getByRole("button", { name: "Copy the passphrase" }).click();
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
-  if (selected !== copied || copied !== passphrase) {
-    fail(`a passphrase selected by hand reads ${JSON.stringify(selected)}, and Copy gives ${JSON.stringify(copied)}`);
-  }
-  await adding.getByLabel("I've kept a copy of the passphrase").check();
   await shoot(page, "backups-destination");
   await review.click();
   const sending = page.locator(".plan-sheet");
   const applying = sending.getByRole("button", { name: /Apply plan/ });
   await applying.waitFor({ timeout: 15_000 });
   const shown = await sending.innerText();
-  if (shown.includes(signsIn) || shown.includes(passphrase)) fail("a destination's plan shows what signs in");
+  if (shown.includes(signsIn)) fail("a connection's plan shows its secret key");
   await applying.click();
   await sending.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
   await sending.getByRole("button", { name: "Done" }).click();
-  await destinations.getByText("e2e-bucket").waitFor({ timeout: 15_000 });
+  await adding.waitFor({ state: "detached", timeout: 15_000 });
+  await destinations.getByRole("link", { name: "e2e-bucket" }).waitFor({ timeout: 15_000 });
   await shoot(page, "backups-destinations");
 
-  step("backups: a copy that can't get there says why on its row, and the row keeps its buttons");
+  step("backups: picking an unused connection seals it inline, and a copy that can't get there says why");
   await atWidth(page, { width: 1024, height: 800 });
   await page.goto(`${origin}/backups`);
   await page.getByRole("button", { name: "Back up now" }).click();
   const toStorage = page.getByRole("dialog", { name: /^Back up / });
   await pickTheDatabase(toStorage);
   await toStorage.getByText(/uses PostgreSQL's own dump/).waitFor({ timeout: 20_000 });
-  await toStorage.getByLabel("Send a copy to").selectOption("e2e-bucket");
-  await toStorage.getByRole("button", { name: "Back up", exact: true }).click();
+  await toStorage.getByRole("radio", { name: /Use .*e2e-bucket/ }).check();
+  const backUpBtn = toStorage.getByRole("button", { name: "Review plan and back up" });
+  if (!(await backUpBtn.isDisabled())) fail("sealing a connection goes ahead before its passphrase is kept");
+  const passphrase = (await toStorage.locator(".backup-passphrase span").allInnerTexts()).join("");
+  if (passphrase.length < 32) fail(`a destination's passphrase reads as ${passphrase.length} characters`);
+  // Copied by hand, it has to be what the button copies, with no line break in it.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const selected = await toStorage.locator(".backup-passphrase").evaluate(async (code) => {
+    const selection = window.getSelection();
+    selection?.selectAllChildren(code);
+    document.execCommand("copy");
+    selection?.removeAllRanges();
+    return navigator.clipboard.readText();
+  });
+  await toStorage.getByRole("button", { name: "Copy the passphrase" }).click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  if (selected !== copied || copied !== passphrase) {
+    fail(`a passphrase selected by hand reads ${JSON.stringify(selected)}, and Copy gives ${JSON.stringify(copied)}`);
+  }
+  await toStorage.getByLabel("I've kept a copy of the passphrase").check();
+  await backUpBtn.click();
+  const destPlan = page.locator(".plan-sheet");
+  const applyDest = destPlan.getByRole("button", { name: /Apply plan/ });
+  await applyDest.waitFor({ timeout: 15_000 });
+  if ((await destPlan.innerText()).includes(passphrase)) fail("a destination's plan shows its passphrase");
+  await applyDest.click();
+  await destPlan.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
+  await destPlan.getByRole("button", { name: "Done" }).click();
   const noCopy = page.getByRole("row").filter({ hasText: "It didn't reach e2e-bucket" }).first();
-  await noCopy.waitFor({ timeout: 30_000 });
+  await noCopy.waitFor({ timeout: 60_000 });
   await noCopy.getByText(/Check the destination's endpoint/).waitFor();
   const edge = await noCopy.getByRole("button", { name: "Delete this backup" }).boundingBox();
   if (!edge || edge.x + edge.width > 1024) fail("a long copy error pushes a backup's buttons off the page");

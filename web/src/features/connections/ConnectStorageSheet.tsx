@@ -32,6 +32,8 @@ import { environmentOf, nameOf } from "../apps/app";
 import { appNames } from "../apps/connectDatabase";
 import { useApps, usePlaces } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useDestinations } from "../backups/DestinationsPanel";
+import { destinationsOn } from "../backups/storage";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
 import { useAllVariables } from "../variables/VariablesPage";
 import { ConnectionSheet } from "./ConnectionSheet";
@@ -117,10 +119,17 @@ export function ConnectStorageSheet({
   const project = places.environments.find((e) => e.id === environment)?.scope ?? "";
   const app = service ? nameOf(service) : "";
 
-  // The connections its project may use, the one it was opened for first.
+  // The connections its project may use, excluding any reserved for backups (ADR 0099).
+  // Wait for backup destinations to load before exposing choices so a backup connection
+  // never flashes or gets pre-selected while ListBackupDestinations is still in flight.
   const listed = useConnections(environment);
   const all = useConnections();
-  const usable = listed.data?.connections ?? [];
+  const dests = useDestinations();
+  const backupDestinations = dests.data?.destinations ?? [];
+  const usable =
+    dests.isPending && !dests.error
+      ? []
+      : (listed.data?.connections ?? []).filter((c) => destinationsOn(c.name, backupDestinations).length === 0);
   const [pickedConnection, setPickedConnection] = useState<string>();
   const connection = fixedConnection ?? usable.find((c) => c.name === pickedConnection) ?? usable[0];
   // A connection serves one app unless it's shared, as the server holds (ADR 0099).
@@ -223,7 +232,7 @@ export function ConnectStorageSheet({
     );
   }
 
-  const loading = listed.isPending || store.isPending || (!fixedService && apps.isPending);
+  const loading = listed.isPending || dests.isPending || store.isPending || (!fixedService && apps.isPending);
   const title = fixedService ? t`Connect ${app} to storage` : t`Use ${fixedConnection?.name ?? ""} in an app`;
   return (
     <Sheet

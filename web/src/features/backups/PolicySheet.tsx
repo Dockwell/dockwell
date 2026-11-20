@@ -8,6 +8,8 @@ import {
   type BackupPolicyInfo,
   BackupPolicySchema,
   BackupService,
+  ChangeService,
+  type ConnectionInfo,
   BackupPolicy_Drill as Drill,
   BackupPolicy_Every as Every,
   SettingsService,
@@ -20,9 +22,18 @@ import { useEffect, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { StateLine } from "../apps/DomainStep";
+import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { DestinationSheet } from "./DestinationSheet";
-import { destinationOptions } from "./DestinationsPanel";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { BackupSealFields, useBackupSeal } from "./BackupSealFields";
+import { StoragePicker } from "./StoragePicker";
+import {
+  firstAvailableStorage,
+  freeDestinationName,
+  pickerStatus,
+  storageKeyForDestination,
+  useStorage,
+} from "./storage";
 import { useVolumeOptions, type VolumeChoice } from "./useBackups";
 import { policyName, useWeekdays } from "./words";
 import "./Backups.css";
@@ -101,6 +112,11 @@ function useScheduleZone(): { zone: string | undefined; set: boolean } {
   return { zone: settings.timeZone || "UTC", set: settings.timeZone !== "" };
 }
 
+type ConnectionModal =
+  | { mode: "add" }
+  | { mode: "from"; connection: ConnectionInfo }
+  | { mode: "rotate"; connection: ConnectionInfo };
+
 /**
  * A schedule of backups of one volume, and how many to keep, then its plan. It says
  * what that will cost on the disk before anyone commits to it (ADR 0033).
@@ -121,6 +137,9 @@ export function PolicySheet({
   const sheet = useChangeSheet();
   const weekdays = useWeekdays();
   const { zone, set: zoneSet } = useScheduleZone();
+  const mayPlanInstall = useMay()(ChangeService.method.proposeChange, { install: true });
+  const storage = useStorage(destinations);
+  const seal = useBackupSeal();
   const was = editing?.spec;
   const editedVolume = volumes.find((v) => v.name === was?.volume && v.environment === editing?.environmentId);
   const [volumeId, setVolumeId] = useState(editedVolume?.id ?? volumes[0]?.id ?? "");
@@ -129,15 +148,26 @@ export function PolicySheet({
   const [weekday, setWeekday] = useState(String(was?.weekday ?? 0));
   const [keep, setKeep] = useState(String(was?.keep || 7));
   const [stop, setStop] = useState(was ? was.stop : true);
-  // Off the server by default, to the first storage there is (#793).
-  const [destination, setDestination] = useState(was ? was.destination : firstDestination(destinations));
-  const [addingStorage, setAddingStorage] = useState(false);
-  // Storage added from here is where this schedule's copies go.
-  const had = useRef(destinations.length);
+  // Off the server by default, to the first usable storage there is (#793, #831).
+  const [pickedStorage, setPickedStorage] = useState(() =>
+    was
+      ? storageKeyForDestination(storage.items, was.destination)
+      : firstAvailableStorage(storage.items, mayPlanInstall.allowed),
+  );
+  const [touchedStorage, setTouchedStorage] = useState(false);
+  const [connModal, setConnModal] = useState<ConnectionModal>();
+  // When storage finishes loading before the user touches the picker, settle onto the matching or default choice.
+  const settled = useRef(storage.ready);
   useEffect(() => {
-    if (destinations.length > had.current && destination === "") setDestination(destinations.at(-1)?.name ?? "");
-    had.current = destinations.length;
-  }, [destinations, destination]);
+    if (!settled.current && storage.ready && !touchedStorage) {
+      settled.current = true;
+      setPickedStorage(
+        was
+          ? storageKeyForDestination(storage.items, was.destination)
+          : firstAvailableStorage(storage.items, mayPlanInstall.allowed),
+      );
+    }
+  }, [storage.ready, storage.items, touchedStorage, was, mayPlanInstall.allowed]);
   // A schedule tests that its backups restore weekly unless someone chooses otherwise (ADR 0068).
   const [check, setCheck] = useState<Check>((was && CHECK_OF[was.drill]) || "week");
   const volume = volumes.find((v) => v.id === volumeId);
@@ -159,8 +189,21 @@ export function PolicySheet({
   const room = (said?.freeBytes ?? 0n) - (said?.reserveBytes ?? 0n);
   const toGive = formatBytes(room > 0n ? room : 0n, i18n.locale);
 
+  const selectedItem = pickedStorage ? storage.items.find((i) => i.key === pickedStorage) : undefined;
+  const selectedStatus = selectedItem ? pickerStatus(selectedItem) : undefined;
+  const needsDestination =
+    selectedItem?.connection !== undefined &&
+    selectedItem.destination === undefined &&
+    selectedStatus?.state === "available";
+  const storageBlocked =
+    selectedItem !== undefined &&
+    selectedStatus !== undefined &&
+    selectedStatus.state !== "ready" &&
+    selectedStatus.state !== "available";
+  const storageReady = !storageBlocked && (!needsDestination || (seal.ready && mayPlanInstall.allowed));
+
   const review = () => {
-    if (!volume) return;
+    if (!volume || !storageReady) return;
     // A schedule changed keeps what this form doesn't say, as an app's link (ADR 0084).
     const value = was
       ? clone(BackupPolicySchema, was)
@@ -170,22 +213,52 @@ export function PolicySheet({
     value.weekday = Number(weekday);
     value.keep = count;
     value.stop = risky && stop;
-    value.destination = destination;
     value.drill = DRILL[check];
+
+    const edits: Parameters<typeof sheet.open>[0] extends infer O
+      ? O extends { kind: "propose"; edits: infer E }
+        ? E
+        : never
+      : never = [];
+
+    if (needsDestination && selectedItem?.connection) {
+      const destName = freeDestinationName(selectedItem.connection.name, storage.destinations);
+      value.destination = destName;
+      edits.push({
+        resource: { kind: "backup.destination", name: destName },
+        spec: {
+          kind: {
+            case: "backupDestination",
+            value: {
+              connection: selectedItem.connection.name,
+              prefix: seal.prefix.trim(),
+              passphrase: seal.passphrase,
+            },
+          },
+        },
+      });
+    } else if (selectedItem?.destination) {
+      value.destination = selectedItem.destination.name;
+    } else if (pickedStorage.startsWith("dest:")) {
+      value.destination = pickedStorage.slice(5);
+    } else {
+      value.destination = "";
+    }
+
+    edits.push({
+      resource: {
+        kind: "backup.policy",
+        scope: editing?.environmentId ?? volume.environment,
+        name: editing?.name ?? policyName(volume.name, how),
+      },
+      spec: { kind: { case: "backupPolicy", value } },
+    });
+
     const volumeName = volume.name;
     sheet.open({
       kind: "propose",
       summary: editing ? t`Change how ${volumeName} is backed up` : t`Back up ${volumeName} on a schedule`,
-      edits: [
-        {
-          resource: {
-            kind: "backup.policy",
-            scope: editing?.environmentId ?? volume.environment,
-            name: editing?.name ?? policyName(volume.name, how),
-          },
-          spec: { kind: { case: "backupPolicy", value } },
-        },
-      ],
+      edits,
       onClose: (change) => {
         if (change) onClose();
       },
@@ -202,7 +275,7 @@ export function PolicySheet({
           <Button variant="secondary" onClick={onClose}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button variant="primary" disabled={!volume || !validKeep || !validAt} onClick={review}>
+          <Button variant="primary" disabled={!volume || !validKeep || !validAt || !storageReady} onClick={review}>
             <Trans>Review plan</Trans>
           </Button>
         </>
@@ -277,19 +350,33 @@ export function PolicySheet({
             </p>
           ) : null}
         </div>
-        {destinations.length > 0 ? (
-          <SelectField
-            label={t`Send a copy to`}
-            value={destination}
-            options={destinationOptions(destinations, t`Only this server`)}
-            onChange={(event) => setDestination(event.target.value)}
+        {storage.items.length > 0 ? (
+          <StoragePicker
+            items={storage.items}
+            value={pickedStorage}
+            onChange={(next) => {
+              setPickedStorage(next);
+              setTouchedStorage(true);
+            }}
+            noneLabel={t`Only this server`}
+            noneHint={t`Kept only on the server, unencrypted`}
+            mayPlanInstall={mayPlanInstall}
+            onAdd={() => setConnModal({ mode: "add" })}
+            onNewFrom={(connection) => setConnModal({ mode: "from", connection })}
+            onRotateKeys={(connection) => setConnModal({ mode: "rotate", connection })}
           />
         ) : (
           // With no storage, the copies stay on the server's disk, and the way off it is here (#793).
           <StateLine
             status="degraded"
             action={
-              <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+              <button
+                type="button"
+                className="domain-step-act"
+                onClick={() => setConnModal({ mode: "add" })}
+                disabled={!mayPlanInstall.allowed}
+                title={mayPlanInstall.reason || undefined}
+              >
                 <Trans>Add storage</Trans>
               </button>
             }
@@ -297,9 +384,7 @@ export function PolicySheet({
             {t`Kept only on the server, unencrypted`}
           </StateLine>
         )}
-        {destination === "" && destinations.length > 0 ? (
-          <StateLine status="degraded">{t`Kept only on the server, unencrypted`}</StateLine>
-        ) : null}
+        {needsDestination ? <BackupSealFields seal={seal} /> : null}
         {preview.error ? (
           <Callout tone="warning" title={t`Dockwell can't say what this costs`}>
             {sentence(preview.error)}
@@ -338,7 +423,30 @@ export function PolicySheet({
           />
         ) : null}
       </div>
-      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
+      {connModal ? (
+        <ConnectionSheet
+          kind="storage"
+          existing={storage.allConnections}
+          editing={connModal.mode === "rotate" ? connModal.connection : undefined}
+          rotateForBackups={connModal.mode === "rotate"}
+          prefill={
+            connModal.mode === "from"
+              ? {
+                  endpoint: connModal.connection.endpoint,
+                  region: connModal.connection.region,
+                  pathStyle: connModal.connection.pathStyle,
+                }
+              : undefined
+          }
+          onClose={() => setConnModal(undefined)}
+          onSaved={(name) => {
+            setConnModal(undefined);
+            setPickedStorage(`conn:${name}`);
+            setTouchedStorage(true);
+            void storage.refetch();
+          }}
+        />
+      ) : null}
     </Sheet>
   );
 }

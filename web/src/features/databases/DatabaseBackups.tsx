@@ -12,12 +12,12 @@ import { useShownName } from "../apps/names";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { BackupRows } from "../backups/BackupsPage";
-import { DestinationSheet } from "../backups/DestinationSheet";
-import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
 import { PolicySheet, useBackUpDaily } from "../backups/PolicySheet";
+import { useStorage } from "../backups/storage";
 import { useBackups, type VolumeChoice } from "../backups/useBackups";
 import { useScheduleWords } from "../backups/words";
+import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { useThisDatabase } from "./DatabaseLayout";
 import { backsUp, NoBackups } from "./DatabaseOverview";
@@ -46,15 +46,19 @@ function VolumeBackups({ db }: { db: Database }) {
   const query = useBackups(db.volumeId);
   const how = useBackupHow(db);
   const policies = policiesOf(db, usePolicies().data?.policies ?? []);
-  const destinations = useDestinations().data?.destinations ?? [];
+  const storage = useStorage();
+  const destinations = storage.destinations;
   const schedule = useScheduleWords();
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
   const [addingStorage, setAddingStorage] = useState(false);
   const backUpDaily = useBackUpDaily();
-  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
+  const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
+  const mayAddStorage = may(ChangeService.method.proposeChange, { install: true });
   // A state's action is a plain button: off, with why on hover, where a plan isn't theirs (ADR 0059).
   const actOff = mayPlan.allowed ? {} : { disabled: true, title: mayPlan.reason || undefined };
+  const addOff = mayAddStorage.allowed ? {} : { disabled: true, title: mayAddStorage.reason || undefined };
   // As its page is titled: an install's database by the install's name (#796).
   const name = useShownName()(db, "database").title;
   const engine = engineName(db.engine);
@@ -147,7 +151,7 @@ function VolumeBackups({ db }: { db: Database }) {
           <StateLine
             status="degraded"
             action={
-              destinations.length > 0 ? (
+              storage.items.length > 0 ? (
                 <button
                   type="button"
                   className="domain-step-act"
@@ -157,7 +161,7 @@ function VolumeBackups({ db }: { db: Database }) {
                   <Trans>Send copies off the server</Trans>
                 </button>
               ) : (
-                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)}>
+                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)} {...addOff}>
                   <Trans>Add storage</Trans>
                 </button>
               )
@@ -204,7 +208,9 @@ function VolumeBackups({ db }: { db: Database }) {
           onClose={() => setScheduling(undefined)}
         />
       ) : null}
-      {addingStorage ? <DestinationSheet existing={destinations} onClose={() => setAddingStorage(false)} /> : null}
+      {addingStorage ? (
+        <ConnectionSheet kind="storage" existing={storage.allConnections} onClose={() => setAddingStorage(false)} />
+      ) : null}
     </div>
   );
 }

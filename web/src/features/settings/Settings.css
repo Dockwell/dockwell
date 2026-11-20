@@ -1441,12 +1441,18 @@
   gap: var(--space-3);
 }
 
-/* A card's state beside its mark: a long one, such as a backup that didn't get there hours ago, wraps under
-   itself rather than past the card. */
+/* A card's state beside its mark: a long one, such as a backup that didn't get there hours ago or a long
+   server name, wraps inside the card rather than pushing past it. */
 .integrations-card-head > .dw-status {
   min-width: 0;
   white-space: normal;
+  overflow-wrap: anywhere;
   text-align: right;
+}
+
+.integrations-card-head > .dw-status > .dw-status-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .integrations-card {
