@@ -13005,9 +13005,12 @@ msgstr "尚无应用使用"
 msgid "none"
 msgstr "无"
 
+msgid "used by {appsText} and {destsText}"
+msgstr "被{appsText}和{destsText}使用"
+
 #. placeholder {0}: standaloneDests.length
-msgid "{0, plural, one {# backup destination} other {# backup destinations}}"
-msgstr "{0, plural, other {# 个备份目标}}"
+msgid "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
+msgstr "{0, plural, other {# 个自带密钥的备份目的地}}"
 
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
@@ -13017,11 +13020,14 @@ msgstr "{0, plural, other {# 个连接}}"
 msgid "{0, plural, one {Backups} other {# backup destinations}}"
 msgstr "{0, plural, =1 {备份} other {# 个备份目的地}}"
 
+msgid "{apps, plural, one {# app} other {# apps}}"
+msgstr "{apps, plural, other {# 个应用}}"
+
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, other {被 # 个应用使用}}"
 
 msgid "{linkedBackupDests, plural, one {# backup destination} other {# backup destinations}}"
-msgstr "{linkedBackupDests, plural, other {# 个备份目标}}"
+msgstr "{linkedBackupDests, plural, other {# 个备份目的地}}"
 
 msgid "{linkedBackupDests, plural, one {used by # backup destination} other {used by # backup destinations}}"
 msgstr "{linkedBackupDests, plural, other {被 # 个备份目标使用}}"

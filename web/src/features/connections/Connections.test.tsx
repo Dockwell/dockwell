@@ -978,7 +978,7 @@ describe("a connection used by backups (#831)", () => {
       connections: { listConnections: () => ({ connections: [used, backupConn] }) },
       backups: { listBackupDestinations: () => ({ destinations: [backupDest] }) },
     });
-    expect(await screen.findByText("2 connections · used by 1 app · 1 backup destination")).toBeVisible();
+    expect(await screen.findByText("2 connections · used by 1 app and 1 backup destination")).toBeVisible();
     const row = screen.getByRole("row", { name: /offsite/ });
     const cells = within(row).getAllByRole("cell");
     expect(cells[1]).toHaveTextContent("Backups");
@@ -1005,7 +1005,11 @@ describe("a connection used by backups (#831)", () => {
       },
       changes: { watchChange: feed<WatchChangeResponse>().stream, discardChange: () => ({}) },
     });
-    expect(await screen.findByText("2 connections · 1 backup destination · used by 1 app")).toBeVisible();
+    expect(
+      await screen.findByText(
+        "2 connections · 1 backup destination with its own keys · used by 1 app and 1 backup destination",
+      ),
+    ).toBeVisible();
     const legacyRow = screen.getByRole("row", { name: /legacy-r2/ });
     expect(legacyRow).toHaveTextContent("Cloudflare R2 · legacy-backups");
     expect(legacyRow).toHaveTextContent("Backups");

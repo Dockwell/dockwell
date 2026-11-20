@@ -49,6 +49,47 @@ export const flow: Flow = {
       cli(args);
     };
 
+    // Flows before this one leave storage of their own, so what each screen should
+    // count is read from the API at that moment, and what this flow adds is checked
+    // against what was there before it.
+    const storage = () => {
+      const conns = (JSON.parse(cli(["connections", "list", "--json"])).connections ?? []) as { kind?: string }[];
+      const dests = (JSON.parse(cli(["backups", "destinations", "--json"])).destinations ?? []) as {
+        connection?: string;
+      }[];
+      const ownKeys = dests.filter((d) => !d.connection).length;
+      const s3 = conns.filter((c) => c.kind === "LINK_KIND_S3").length;
+      return { connections: conns.length, ownKeys, buckets: s3 + ownKeys };
+    };
+    const base = storage();
+    const added = (what: string, now: ReturnType<typeof storage>, want: ReturnType<typeof storage>) => {
+      if (now.connections !== want.connections || now.ownKeys !== want.ownKeys || now.buckets !== want.buckets) {
+        fail(`${what}: the API counts ${JSON.stringify(now)}, not ${JSON.stringify(want)}`);
+      }
+    };
+    // Integrations' storage section says what the API counts.
+    const bucketsShown = async (n: number) => {
+      await page.goto(`${origin}/settings/integrations`);
+      await page
+        .getByRole("region", { name: "Object storage" })
+        .getByText(n === 1 ? "1 bucket" : `${n} buckets`, { exact: true })
+        .waitFor({ timeout: 20_000 });
+    };
+    // Connections' lead says what the API counts, whatever uses them.
+    const connectionsShown = async (c: number, o: number) => {
+      await page.goto(`${origin}/connections`);
+      const conns = c === 1 ? "1 connection" : `${c} connections`;
+      const own =
+        o === 0
+          ? ""
+          : o === 1
+            ? " · 1 backup destination with its own keys"
+            : ` · ${o} backup destinations with their own keys`;
+      // Only letters, digits, spaces and "·": nothing a pattern reads as special.
+      const lead = new RegExp(`^${conns}${own}( · (?!\\d+ backup destinations? with)|$)`);
+      await page.getByText(lead).first().waitFor({ timeout: 20_000 });
+    };
+
     step("backup-connections: seed an app-serving connection, an unused S3 connection, and a legacy destination");
     const org =
       cli(["resources", "list", "--kind", "project", "--json"]).match(/org_[0-9A-Za-z]+/)?.[0] ??
@@ -154,9 +195,14 @@ export const flow: Flow = {
       fail("Backups Destinations listed app-serving connection uploads");
     }
 
-    await page.goto(`${origin}/settings/integrations`);
+    const seeded = storage();
+    added("seeding", seeded, {
+      connections: base.connections + 2,
+      ownKeys: base.ownKeys + 1,
+      buckets: base.buckets + 3,
+    });
+    await bucketsShown(seeded.buckets);
     const storageSection = page.getByRole("region", { name: "Object storage" });
-    await storageSection.getByText("3 buckets").waitFor({ timeout: 20_000 });
     await storageSection.getByRole("article", { name: "legacy-r2" }).waitFor();
     await shoot(page, "backup-connections-integrations");
 
@@ -216,8 +262,13 @@ export const flow: Flow = {
     }
     await shoot(page, "backup-connections-backups");
 
-    await page.goto(`${origin}/connections`);
-    await page.getByText("2 connections · 1 backup destination · used by 1 app").waitFor({ timeout: 20_000 });
+    const scheduled = storage();
+    added("scheduling onto offsite", scheduled, {
+      connections: base.connections + 2,
+      ownKeys: base.ownKeys + 1,
+      buckets: base.buckets + 3,
+    });
+    await connectionsShown(scheduled.connections, scheduled.ownKeys);
     await page
       .getByRole("row", { name: /offsite/ })
       .getByText("Backups")
@@ -267,7 +318,14 @@ export const flow: Flow = {
     await convertPlan.getByRole("button", { name: /Apply plan/ }).click();
     await convertPlan.getByRole("button", { name: "Done" }).waitFor({ timeout: 30_000 });
     await convertPlan.getByRole("button", { name: "Done" }).click();
-    await page.getByRole("region", { name: "Object storage" }).getByText("3 buckets").waitFor();
+    const converted = storage();
+    added("converting legacy-r2", converted, {
+      connections: base.connections + 3,
+      ownKeys: base.ownKeys,
+      buckets: base.buckets + 3,
+    });
+    await bucketsShown(converted.buckets);
+    await page.getByRole("article", { name: "legacy-r2" }).waitFor();
     if (
       (await page
         .getByRole("article", { name: "legacy-r2" })
@@ -277,8 +335,7 @@ export const flow: Flow = {
       fail("legacy-r2 still offers Use as a connection after conversion");
     }
 
-    await page.goto(`${origin}/connections`);
-    await page.getByText("3 connections · used by 1 app · 2 backup destinations").waitFor({ timeout: 20_000 });
+    await connectionsShown(converted.connections, converted.ownKeys);
     await page.getByRole("row", { name: /legacy-r2/ }).waitFor();
   },
 };

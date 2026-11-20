@@ -13005,9 +13005,12 @@ msgstr "no app uses them yet"
 msgid "none"
 msgstr "none"
 
+msgid "used by {appsText} and {destsText}"
+msgstr "used by {appsText} and {destsText}"
+
 #. placeholder {0}: standaloneDests.length
-msgid "{0, plural, one {# backup destination} other {# backup destinations}}"
-msgstr "{0, plural, one {# backup destination} other {# backup destinations}}"
+msgid "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
+msgstr "{0, plural, one {# backup destination with its own keys} other {# backup destinations with their own keys}}"
 
 #. placeholder {0}: connections.length
 msgid "{0, plural, one {# connection} other {# connections}}"
@@ -13016,6 +13019,9 @@ msgstr "{0, plural, one {# connection} other {# connections}}"
 #. placeholder {0}: backups.length
 msgid "{0, plural, one {Backups} other {# backup destinations}}"
 msgstr "{0, plural, one {Backups} other {# backup destinations}}"
+
+msgid "{apps, plural, one {# app} other {# apps}}"
+msgstr "{apps, plural, one {# app} other {# apps}}"
 
 msgid "{apps, plural, one {used by # app} other {used by # apps}}"
 msgstr "{apps, plural, one {used by # app} other {used by # apps}}"

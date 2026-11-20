@@ -65,30 +65,32 @@ export function ConnectionsPage() {
   const linkedBackupDests = destinations.filter(
     (d) => d.connection !== "" && connections.some((c) => c.name === d.connection),
   ).length;
+  // One shape whatever is there: the connections, the backup destinations that hold
+  // keys of their own, then what uses the connections.
   const countParts = [
     connections.length > 0 ? plural(connections.length, { one: "# connection", other: "# connections" }) : "",
     standaloneDests.length > 0
-      ? plural(standaloneDests.length, { one: "# backup destination", other: "# backup destinations" })
+      ? plural(standaloneDests.length, {
+          one: "# backup destination with its own keys",
+          other: "# backup destinations with their own keys",
+        })
       : "",
   ].filter(Boolean);
+  const appsText = plural(apps, { one: "# app", other: "# apps" });
+  const destsText = plural(linkedBackupDests, { one: "# backup destination", other: "# backup destinations" });
   const usage =
-    standaloneDests.length > 0
-      ? apps > 0
+    apps > 0 && linkedBackupDests > 0
+      ? t`used by ${appsText} and ${destsText}`
+      : apps > 0
         ? plural(apps, { one: "used by # app", other: "used by # apps" })
-        : ""
-      : apps > 0 && linkedBackupDests > 0
-        ? [
-            plural(apps, { one: "used by # app", other: "used by # apps" }),
-            plural(linkedBackupDests, { one: "# backup destination", other: "# backup destinations" }),
-          ].join(" · ")
-        : apps > 0
-          ? plural(apps, { one: "used by # app", other: "used by # apps" })
-          : linkedBackupDests > 0
-            ? plural(linkedBackupDests, {
-                one: "used by # backup destination",
-                other: "used by # backup destinations",
-              })
-            : t`no app uses them yet`;
+        : linkedBackupDests > 0
+          ? plural(linkedBackupDests, {
+              one: "used by # backup destination",
+              other: "used by # backup destinations",
+            })
+          : connections.length > 0
+            ? t`no app uses them yet`
+            : "";
   const lead = query.isPending || totalRows === 0 ? undefined : [...countParts, usage].filter(Boolean).join(" · ");
   const rows: ListRow[] = [
     ...connections.map((connection): ListRow => ({ kind: "connection", id: connection.id, connection })),
