@@ -8,6 +8,8 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
+import { createFileRoute } from '@tanstack/react-router'
+
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShellRouteImport } from './routes/_shell'
 import { Route as ClaimRouteImport } from './routes/claim'
@@ -87,11 +89,16 @@ import { Route as ShellServersServerIdContainersNameRouteImport } from './routes
 import { Route as ShellServersServerIdDockerIndexRouteImport } from './routes/_shell/servers.$serverId.docker.index'
 import { Route as ShellServersServerIdDockerCleanupRouteImport } from './routes/_shell/servers.$serverId.docker.cleanup'
 import { Route as ShellSettingsSettingsIntegrationsGithubCreatedRouteImport } from './routes/_shell/_settings/settings.integrations.github.created'
+import { Route as ShellServersServerIdDockerComposesComposeIdRouteImport } from './routes/_shell/servers.$serverId.docker.composes.$composeId'
 import { Route as ShellServersServerIdDockerContainersIndexRouteImport } from './routes/_shell/servers.$serverId.docker.containers.index'
 import { Route as ShellServersServerIdDockerContainersContainerIdRouteImport } from './routes/_shell/servers.$serverId.docker.containers.$containerId'
 import { Route as ShellServersServerIdDockerImagesIndexRouteImport } from './routes/_shell/servers.$serverId.docker.images.index'
 import { Route as ShellServersServerIdDockerImagesImageIdRouteImport } from './routes/_shell/servers.$serverId.docker.images.$imageId'
 import { Route as ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport } from './routes/_shell/_settings/settings.integrations.github.$appId.installed'
+
+const ShellServersServerIdDockerComposesIndexLazyRouteImport = createFileRoute(
+  '/_shell/servers/$serverId/docker/composes/',
+)()
 
 const ShellRoute = ShellRouteImport.update({
   id: '/_shell',
@@ -285,7 +292,9 @@ const ShellServersDockerRoute = ShellServersDockerRouteImport.update({
   id: '/servers/docker',
   path: '/servers/docker',
   getParentRoute: () => ShellRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/_shell/servers.docker.lazy').then((d) => d.Route),
+)
 const ShellVolumesVolumeIdRoute = ShellVolumesVolumeIdRouteImport.update({
   id: '/volumes/$volumeId',
   path: '/volumes/$volumeId',
@@ -513,6 +522,26 @@ const ShellSettingsSettingsIntegrationsGithubCreatedRoute =
     path: '/settings/integrations/github/created',
     getParentRoute: () => ShellSettingsRoute,
   } as any)
+const ShellServersServerIdDockerComposesIndexLazyRoute =
+  ShellServersServerIdDockerComposesIndexLazyRouteImport.update({
+    id: '/servers/$serverId/docker/composes/',
+    path: '/servers/$serverId/docker/composes/',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.composes.index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const ShellServersServerIdDockerComposesComposeIdRoute =
+  ShellServersServerIdDockerComposesComposeIdRouteImport.update({
+    id: '/servers/$serverId/docker/composes/$composeId',
+    path: '/servers/$serverId/docker/composes/$composeId',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.composes.$composeId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const ShellServersServerIdDockerContainersIndexRoute =
   ShellServersServerIdDockerContainersIndexRouteImport.update({
     id: '/servers/$serverId/docker/containers/',
@@ -621,10 +650,12 @@ export interface FileRoutesByFullPath {
   '/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/servers/$serverId/docker/composes/': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesByTo {
@@ -701,10 +732,12 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/servers/$serverId/docker/containers': typeof ShellServersServerIdDockerContainersIndexRoute
   '/servers/$serverId/docker/images': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/servers/$serverId/docker/composes': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesById {
@@ -787,10 +820,12 @@ export interface FileRoutesById {
   '/_shell/_settings/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/_shell/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/_shell/_settings/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/_shell/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/_shell/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/_shell/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/_shell/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/_shell/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/_shell/servers/$serverId/docker/composes/': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/_shell/_settings/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRouteTypes {
@@ -872,10 +907,12 @@ export interface FileRouteTypes {
     | '/settings/integrations/'
     | '/servers/$serverId/docker/'
     | '/settings/integrations/github/created'
+    | '/servers/$serverId/docker/composes/$composeId'
     | '/servers/$serverId/docker/containers/$containerId'
     | '/servers/$serverId/docker/images/$imageId'
     | '/servers/$serverId/docker/containers/'
     | '/servers/$serverId/docker/images/'
+    | '/servers/$serverId/docker/composes/'
     | '/settings/integrations/github/$appId/installed'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -952,10 +989,12 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/servers/$serverId/docker'
     | '/settings/integrations/github/created'
+    | '/servers/$serverId/docker/composes/$composeId'
     | '/servers/$serverId/docker/containers/$containerId'
     | '/servers/$serverId/docker/images/$imageId'
     | '/servers/$serverId/docker/containers'
     | '/servers/$serverId/docker/images'
+    | '/servers/$serverId/docker/composes'
     | '/settings/integrations/github/$appId/installed'
   id:
     | '__root__'
@@ -1037,10 +1076,12 @@ export interface FileRouteTypes {
     | '/_shell/_settings/settings/integrations/'
     | '/_shell/servers/$serverId/docker/'
     | '/_shell/_settings/settings/integrations/github/created'
+    | '/_shell/servers/$serverId/docker/composes/$composeId'
     | '/_shell/servers/$serverId/docker/containers/$containerId'
     | '/_shell/servers/$serverId/docker/images/$imageId'
     | '/_shell/servers/$serverId/docker/containers/'
     | '/_shell/servers/$serverId/docker/images/'
+    | '/_shell/servers/$serverId/docker/composes/'
     | '/_shell/_settings/settings/integrations/github/$appId/installed'
   fileRoutesById: FileRoutesById
 }
@@ -1601,6 +1642,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellSettingsSettingsIntegrationsGithubCreatedRouteImport
       parentRoute: typeof ShellSettingsRoute
     }
+    '/_shell/servers/$serverId/docker/composes/': {
+      id: '/_shell/servers/$serverId/docker/composes/'
+      path: '/servers/$serverId/docker/composes'
+      fullPath: '/servers/$serverId/docker/composes/'
+      preLoaderRoute: typeof ShellServersServerIdDockerComposesIndexLazyRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/composes/$composeId': {
+      id: '/_shell/servers/$serverId/docker/composes/$composeId'
+      path: '/servers/$serverId/docker/composes/$composeId'
+      fullPath: '/servers/$serverId/docker/composes/$composeId'
+      preLoaderRoute: typeof ShellServersServerIdDockerComposesComposeIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/servers/$serverId/docker/containers/': {
       id: '/_shell/servers/$serverId/docker/containers/'
       path: '/servers/$serverId/docker/containers'
@@ -1796,10 +1851,12 @@ interface ShellRouteChildren {
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
   ShellServersServerIdDockerCleanupRoute: typeof ShellServersServerIdDockerCleanupRoute
   ShellServersServerIdDockerIndexRoute: typeof ShellServersServerIdDockerIndexRoute
+  ShellServersServerIdDockerComposesComposeIdRoute: typeof ShellServersServerIdDockerComposesComposeIdRoute
   ShellServersServerIdDockerContainersContainerIdRoute: typeof ShellServersServerIdDockerContainersContainerIdRoute
   ShellServersServerIdDockerImagesImageIdRoute: typeof ShellServersServerIdDockerImagesImageIdRoute
   ShellServersServerIdDockerContainersIndexRoute: typeof ShellServersServerIdDockerContainersIndexRoute
   ShellServersServerIdDockerImagesIndexRoute: typeof ShellServersServerIdDockerImagesIndexRoute
+  ShellServersServerIdDockerComposesIndexLazyRoute: typeof ShellServersServerIdDockerComposesIndexLazyRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
@@ -1853,6 +1910,8 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersServerIdDockerCleanupRoute:
     ShellServersServerIdDockerCleanupRoute,
   ShellServersServerIdDockerIndexRoute: ShellServersServerIdDockerIndexRoute,
+  ShellServersServerIdDockerComposesComposeIdRoute:
+    ShellServersServerIdDockerComposesComposeIdRoute,
   ShellServersServerIdDockerContainersContainerIdRoute:
     ShellServersServerIdDockerContainersContainerIdRoute,
   ShellServersServerIdDockerImagesImageIdRoute:
@@ -1861,6 +1920,8 @@ const ShellRouteChildren: ShellRouteChildren = {
     ShellServersServerIdDockerContainersIndexRoute,
   ShellServersServerIdDockerImagesIndexRoute:
     ShellServersServerIdDockerImagesIndexRoute,
+  ShellServersServerIdDockerComposesIndexLazyRoute:
+    ShellServersServerIdDockerComposesIndexLazyRoute,
 }
 
 const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)

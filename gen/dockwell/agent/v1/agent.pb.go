@@ -15980,6 +15980,7 @@ type DockerCapabilities struct {
 	ImageInventory   bool `protobuf:"varint,5,opt,name=image_inventory,json=imageInventory,proto3" json:"image_inventory,omitempty"`
 	Cleanup          bool `protobuf:"varint,4,opt,name=cleanup,proto3" json:"cleanup,omitempty"`
 	ArtifactCleanup  bool `protobuf:"varint,6,opt,name=artifact_cleanup,json=artifactCleanup,proto3" json:"artifact_cleanup,omitempty"`
+	ComposeMembers   bool `protobuf:"varint,8,opt,name=compose_members,json=composeMembers,proto3" json:"compose_members,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -16056,17 +16057,26 @@ func (x *DockerCapabilities) GetArtifactCleanup() bool {
 	return false
 }
 
+func (x *DockerCapabilities) GetComposeMembers() bool {
+	if x != nil {
+		return x.ComposeMembers
+	}
+	return false
+}
+
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
 type DockerInventoryListCall struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Filter        *v1.DockerObjectFilter `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
-	PageSize      uint32                 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	AfterId       string                 `protobuf:"bytes,3,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
-	Snapshot      string                 `protobuf:"bytes,4,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
-	Overview      bool                   `protobuf:"varint,5,opt,name=overview,proto3" json:"overview,omitempty"`
-	Kind          v1.DockerObjectKind    `protobuf:"varint,6,opt,name=kind,proto3,enum=dockwell.v1.DockerObjectKind" json:"kind,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Filter   *v1.DockerObjectFilter `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
+	PageSize uint32                 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	AfterId  string                 `protobuf:"bytes,3,opt,name=after_id,json=afterId,proto3" json:"after_id,omitempty"`
+	Snapshot string                 `protobuf:"bytes,4,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Overview bool                   `protobuf:"varint,5,opt,name=overview,proto3" json:"overview,omitempty"`
+	Kind     v1.DockerObjectKind    `protobuf:"varint,6,opt,name=kind,proto3,enum=dockwell.v1.DockerObjectKind" json:"kind,omitempty"`
+	// Return lightweight Compose membership without inspecting each container.
+	ComposeMembers bool `protobuf:"varint,7,opt,name=compose_members,json=composeMembers,proto3" json:"compose_members,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DockerInventoryListCall) Reset() {
@@ -16139,6 +16149,13 @@ func (x *DockerInventoryListCall) GetKind() v1.DockerObjectKind {
 		return x.Kind
 	}
 	return v1.DockerObjectKind(0)
+}
+
+func (x *DockerInventoryListCall) GetComposeMembers() bool {
+	if x != nil {
+		return x.ComposeMembers
+	}
+	return false
 }
 
 // DockerInventoryListResult carries a page, a server summary or a request to resync.
@@ -17756,21 +17773,23 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +
 	"\x04spec\x18\x01 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
-	"\x05_spec\"\xf4\x01\n" +
+	"\x05_spec\"\x9d\x02\n" +
 	"\x12DockerCapabilities\x12\x1c\n" +
 	"\tinventory\x18\x01 \x01(\bR\tinventory\x12%\n" +
 	"\x0eexact_terminal\x18\x02 \x01(\bR\rexactTerminal\x12+\n" +
 	"\x11workload_controls\x18\x03 \x01(\bR\x10workloadControls\x12'\n" +
 	"\x0fimage_inventory\x18\x05 \x01(\bR\x0eimageInventory\x12\x18\n" +
 	"\acleanup\x18\x04 \x01(\bR\acleanup\x12)\n" +
-	"\x10artifact_cleanup\x18\x06 \x01(\bR\x0fartifactCleanup\"\xf5\x01\n" +
+	"\x10artifact_cleanup\x18\x06 \x01(\bR\x0fartifactCleanup\x12'\n" +
+	"\x0fcompose_members\x18\b \x01(\bR\x0ecomposeMembers\"\x9e\x02\n" +
 	"\x17DockerInventoryListCall\x127\n" +
 	"\x06filter\x18\x01 \x01(\v2\x1f.dockwell.v1.DockerObjectFilterR\x06filter\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\rR\bpageSize\x12\x19\n" +
 	"\bafter_id\x18\x03 \x01(\tR\aafterId\x12\x1a\n" +
 	"\bsnapshot\x18\x04 \x01(\tR\bsnapshot\x12\x1a\n" +
 	"\boverview\x18\x05 \x01(\bR\boverview\x121\n" +
-	"\x04kind\x18\x06 \x01(\x0e2\x1d.dockwell.v1.DockerObjectKindR\x04kind\"\xdb\x01\n" +
+	"\x04kind\x18\x06 \x01(\x0e2\x1d.dockwell.v1.DockerObjectKindR\x04kind\x12'\n" +
+	"\x0fcompose_members\x18\a \x01(\bR\x0ecomposeMembers\"\xdb\x01\n" +
 	"\x19DockerInventoryListResult\x123\n" +
 	"\aobjects\x18\x01 \x03(\v2\x19.dockwell.v1.DockerObjectR\aobjects\x12\x17\n" +
 	"\anext_id\x18\x02 \x01(\tR\x06nextId\x12\x1a\n" +

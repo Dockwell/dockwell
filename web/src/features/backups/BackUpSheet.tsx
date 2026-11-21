@@ -42,11 +42,13 @@ export function BackUpSheet({
   volumes,
   destinations,
   chosen,
+  serverId = "",
   onClose,
 }: {
   volumes: readonly VolumeChoice[];
   destinations?: readonly BackupDestinationInfo[];
   chosen?: string;
+  serverId?: string;
   onClose: () => void;
 }) {
   const { t, i18n } = useLingui();
@@ -67,7 +69,7 @@ export function BackUpSheet({
   const [failure, setFailure] = useState<string>();
   const preview = useQuery(
     BackupService.method.previewBackup,
-    { volumeId },
+    { volumeId, ...(serverId ? { server: serverId } : {}) },
     { enabled: volumeId !== "", retry: false },
   );
   const said = preview.data;
@@ -98,7 +100,12 @@ export function BackUpSheet({
     setBusy(true);
     setFailure(undefined);
     try {
-      await client.createBackup({ volumeId, stop: risky && stop, destination: destinationName });
+      await client.createBackup({
+        volumeId,
+        ...(serverId ? { server: serverId } : {}),
+        stop: risky && stop,
+        destination: destinationName,
+      });
       await queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
       });

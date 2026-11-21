@@ -177,14 +177,18 @@ export function ContainerActions({
   row,
   stack,
   takeOnMode = "menu",
+  shortcuts = true,
+  workloadServers = 1,
   onApplied,
   onTakeOn,
 }: {
   row: DockerObject;
   stack?: (project: string) => void;
   takeOnMode?: "menu" | "primary" | "choose";
+  shortcuts?: boolean;
+  workloadServers?: number | undefined;
   onApplied?: () => void;
-  onTakeOn: (row: DockerObject) => void;
+  onTakeOn?: (row: DockerObject) => void;
 }) {
   const { t } = useLingui();
   const may = useMay();
@@ -192,9 +196,10 @@ export function ContainerActions({
   const key = row.key;
   const managed = row.managedResource;
   const { changeRun, restartInstance } = useWorkloadControls();
-  const canTake = row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
+  const canTake =
+    onTakeOn && row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
   const showTakeOn = canTake && takeOnMode !== "menu";
-  const showShortcuts = takeOnMode !== "choose" || !canTake;
+  const showShortcuts = shortcuts && (takeOnMode !== "choose" || !canTake);
   if (!key) return null;
   const params = { serverId: key.serverId, containerId: key.engineId };
   const log =
@@ -224,7 +229,7 @@ export function ContainerActions({
       id: "take-on",
       label: t`Take on`,
       icon: "plus",
-      onSelect: () => onTakeOn(row),
+      onSelect: () => onTakeOn?.(row),
     });
   }
   if (managed && row.managedRevision > 0n && row.managedResourceId) {
@@ -234,7 +239,14 @@ export function ContainerActions({
     if (mayPlan.allowed) {
       actions.unshift({
         id: active ? "stop" : "start",
-        label: active ? t`Stop workload` : t`Start workload`,
+        label:
+          workloadServers > 1
+            ? active
+              ? t`Stop workload on ${workloadServers} servers`
+              : t`Start workload on ${workloadServers} servers`
+            : active
+              ? t`Stop workload`
+              : t`Start workload`,
         icon: active ? "stop" : "play",
         onSelect: () => changeRun(managed, row.managedRevision, !active, onApplied),
       });
@@ -263,7 +275,7 @@ export function ContainerActions({
   return (
     <div className="docker-row-actions">
       {showTakeOn ? (
-        <Button icon="plus" variant="secondary" size="sm" onClick={() => onTakeOn(row)}>
+        <Button icon="plus" variant="secondary" size="sm" onClick={() => onTakeOn?.(row)}>
           <Trans>Take on</Trans>
         </Button>
       ) : null}

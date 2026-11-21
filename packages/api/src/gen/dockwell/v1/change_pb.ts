@@ -749,13 +749,15 @@ export const DiscardChangeResponseSchema: GenMessage<DiscardChangeResponse> = /*
   messageDesc(file_dockwell_v1_change, 20);
 
 /**
- * RestartServiceRequest names a service to restart.
+ * RestartServiceRequest names a service or a managed stack to restart.
  *
  * @generated from message dockwell.v1.RestartServiceRequest
  */
 export type RestartServiceRequest = Message<"dockwell.v1.RestartServiceRequest"> & {
   /**
    * The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+   * An environment ID restarts its placed services in a single plan, keeping
+   * ones saved as stopped in that state.
    *
    * @generated from field: string id = 1;
    */
@@ -787,6 +789,7 @@ export type RestartServiceRequest = Message<"dockwell.v1.RestartServiceRequest">
   /**
    * Together these scope the restart to one existing managed instance.
    * With both set, id may also be the managed resource ID of a server container.
+   * With an environment ID, server_id limits the stack restart to that server.
    *
    * @generated from field: string server_id = 400;
    */

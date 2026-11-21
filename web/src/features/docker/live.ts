@@ -13,6 +13,8 @@ import {
 } from "@dockwell/api";
 import { useEffect, useRef, useState } from "react";
 
+import { useAwayFor } from "../../lib/away";
+
 const refreshInterval = 10_000;
 const firstRetry = 5_000;
 
@@ -33,7 +35,12 @@ export function rowWithHealth(row: DockerObject, updates: ReadonlyMap<string, Do
   return { ...row, detail: { case: "container", value: { ...row.detail.value, health: update.health } } };
 }
 
-export function useDockerWatch(servers: readonly string[], keys: readonly DockerObjectKey[], refresh: () => void) {
+export function useDockerWatch(
+  servers: readonly string[],
+  keys: readonly DockerObjectKey[],
+  refresh: () => void,
+  refreshOnHealth = false,
+) {
   const transport = useTransport();
   const [samples, setSamples] = useState<ReadonlyMap<string, DockerSample>>(new Map());
   const [health, setHealth] = useState<ReadonlyMap<string, DockerHealthUpdate>>(new Map());
@@ -43,7 +50,10 @@ export function useDockerWatch(servers: readonly string[], keys: readonly Docker
   const refreshed = useRef(0);
   refreshRef.current = refresh;
 
-  const serverKey = servers.join(",");
+  // Over plain HTTP these streams share the browser's connection limit with
+  // the shell and other tabs. Compose can catch up when its watch reopens.
+  const away = useAwayFor(0);
+  const serverKey = refreshOnHealth && away ? "" : servers.join(",");
   const visibleKey = keys
     .slice(0, 16)
     .map((key) => dockerKey(key.serverId, key.engineId))
@@ -82,7 +92,10 @@ export function useDockerWatch(servers: readonly string[], keys: readonly Docker
       let refused = false;
       try {
         for await (const update of client.watchDockerObjects(
-          { selection: { serverIds, kind: DockerObjectKind.CONTAINER }, visibleKeys },
+          {
+            selection: { serverIds, kind: refreshOnHealth ? DockerObjectKind.COMPOSE : DockerObjectKind.CONTAINER },
+            visibleKeys,
+          },
           { signal: abort.signal, timeoutMs: 0 },
         )) {
           if (abort.signal.aborted) return;
@@ -93,7 +106,9 @@ export function useDockerWatch(servers: readonly string[], keys: readonly Docker
             else
               setSamples((current) => new Map([...current].filter(([, sample]) => sample.key?.serverId !== serverId)));
           }
-          if (update.resync || update.changedKeys.length) refreshInventory();
+          if (update.resync || update.changedKeys.length || (refreshOnHealth && update.healthUpdates.length)) {
+            refreshInventory();
+          }
           if (update.samples.length) {
             setSamples((current) => {
               const next = new Map([...current].filter(([key]) => alive.has(key)));
@@ -103,7 +118,7 @@ export function useDockerWatch(servers: readonly string[], keys: readonly Docker
               return next;
             });
           }
-          if (update.healthUpdates.length) {
+          if (update.healthUpdates.length && alive.size) {
             setHealth((current) => {
               const next = new Map([...current].filter(([key]) => alive.has(key)));
               for (const item of update.healthUpdates) {
@@ -131,7 +146,7 @@ export function useDockerWatch(servers: readonly string[], keys: readonly Docker
       clearTimeout(pending);
       abort.abort();
     };
-  }, [attempt, serverKey, transport, visibleKey]);
+  }, [attempt, refreshOnHealth, serverKey, transport, visibleKey]);
 
   return {
     connected: servers.some((id) => live.get(id) === true),

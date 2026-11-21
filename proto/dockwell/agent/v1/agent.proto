@@ -2926,6 +2926,7 @@ message DockerCapabilities {
   bool image_inventory = 5;
   bool cleanup = 4;
   bool artifact_cleanup = 6;
+  bool compose_members = 8;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
@@ -2936,6 +2937,8 @@ message DockerInventoryListCall {
   string snapshot = 4;
   bool overview = 5;
   dockwell.v1.DockerObjectKind kind = 6;
+  // Return lightweight Compose membership without inspecting each container.
+  bool compose_members = 7;
 }
 
 // DockerInventoryListResult carries a page, a server summary or a request to resync.

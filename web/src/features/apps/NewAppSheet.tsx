@@ -176,6 +176,8 @@ export function NewAppSheet({
   runtime,
   initialServer,
   initialAdvanced = false,
+  initialCompose,
+  fixedSource = false,
   onSource,
   onClose,
   query = "",
@@ -187,6 +189,8 @@ export function NewAppSheet({
   runtime?: { language: string; version?: string | undefined } | undefined;
   initialServer?: string | undefined;
   initialAdvanced?: boolean | undefined;
+  initialCompose?: { file: string; directory: string } | undefined;
+  fixedSource?: boolean;
   onSource: (source: NewAppSource) => void;
   onClose: () => void;
   /** From the catalog: the words searched for, and what picking an app does (#617). */
@@ -235,12 +239,12 @@ export function NewAppSheet({
   const runtimes = useRuntimes().data;
   const folderChecks = useFolderChecks();
   const [errors, setErrors] = useState<FormErrors>({});
-  const [file, setFile] = useState("");
+  const [file, setFile] = useState(initialCompose?.file ?? "");
   const [typedProject, setTypedProject] = useState<string>();
   const [variables, setVariables] = useState<Readonly<Record<string, string>>>({});
   // An .env holds secrets: it lives here and in what is sent, and in nothing kept.
   const [envFile, setEnvFile] = useState("");
-  const [directory, setDirectory] = useState("");
+  const [directory, setDirectory] = useState(initialCompose?.directory ?? "");
   const [removeOrphans, setRemoveOrphans] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
@@ -789,14 +793,16 @@ export function NewAppSheet({
             {failure}
           </Callout>
         ) : null}
-        <div className="app-field">
-          <span className="dw-field-label" id="new-app-source">
-            <Trans>Source</Trans>
-          </span>
-          <div>
-            <SegmentedControl<NewAppSource> label={t`Source`} value={source} onChange={onSource} options={sources} />
+        {fixedSource ? null : (
+          <div className="app-field">
+            <span className="dw-field-label" id="new-app-source">
+              <Trans>Source</Trans>
+            </span>
+            <div>
+              <SegmentedControl<NewAppSource> label={t`Source`} value={source} onChange={onSource} options={sources} />
+            </div>
           </div>
-        </div>
+        )}
         {source === "git" ? (
           <>
             {choosesEnvironment ? (

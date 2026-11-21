@@ -7,21 +7,25 @@ import { useLingui } from "@lingui/react/macro";
 
 import { useChangeSheet } from "../changes/ChangeSheet";
 
+export function runStateEdit(resource: ResourceRef, baseRevision: bigint, start: boolean) {
+  const app = { desiredRunState: start ? DesiredRunState.RUNNING : DesiredRunState.STOPPED };
+  const kind =
+    resource.kind === "container"
+      ? { case: "container" as const, value: app }
+      : { case: "service" as const, value: { runs: { case: "app" as const, value: app } } };
+  return { resource, baseRevision, spec: { kind } };
+}
+
 export function useWorkloadControls() {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
   const changeRun = (resource: ResourceRef, baseRevision: bigint, start: boolean, onApplied?: () => void) => {
     const { name } = resource;
-    const app = { desiredRunState: start ? DesiredRunState.RUNNING : DesiredRunState.STOPPED };
-    const kind =
-      resource.kind === "container"
-        ? { case: "container" as const, value: app }
-        : { case: "service" as const, value: { runs: { case: "app" as const, value: app } } };
     sheet.open({
       kind: "propose",
       summary: start ? t`Start ${name}` : t`Stop ${name}`,
-      edits: [{ resource, baseRevision, spec: { kind } }],
+      edits: [runStateEdit(resource, baseRevision, start)],
       onClose: (change) => {
         if (change?.state === ChangeState.APPLIED) onApplied?.();
       },

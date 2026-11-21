@@ -3317,10 +3317,12 @@ func (x *DiscardChangeResponse) GetChange() *Change {
 	return nil
 }
 
-// RestartServiceRequest names a service to restart.
+// RestartServiceRequest names a service or a managed stack to restart.
 type RestartServiceRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+	// An environment ID restarts its placed services in a single plan, keeping
+	// ones saved as stopped in that state.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// The project of the environment, by name or ID, when id is a name and there
 	// are several projects.
@@ -3332,6 +3334,7 @@ type RestartServiceRequest struct {
 	Summary string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
 	// Together these scope the restart to one existing managed instance.
 	// With both set, id may also be the managed resource ID of a server container.
+	// With an environment ID, server_id limits the stack restart to that server.
 	ServerId      string `protobuf:"bytes,400,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	ContainerId   string `protobuf:"bytes,401,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	unknownFields protoimpl.UnknownFields

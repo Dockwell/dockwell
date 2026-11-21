@@ -10,11 +10,13 @@ import (
 	"maps"
 	"net/netip"
 	"net/url"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -38,6 +40,9 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 	if limit == 0 {
 		limit = dockerInventoryPage
 	}
+	if ask.GetComposeMembers() {
+		limit = 256
+	}
 	filter := ask.GetFilter()
 	search := strings.ToLower(strings.TrimSpace(filter.GetSearch()))
 	var snapshot [sha256.Size]byte
@@ -58,13 +63,16 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 			if s.State == "running" {
 				summary.Running++
 			}
-			if project := composeIdentity(s.Labels[docker.LabelProject]); project != "" {
+			if project := composeIdentity(s.Labels[docker.LabelProject]); project != "" && composeIdentity(s.Labels[docker.LabelService]) != "" && !strings.EqualFold(s.Labels[docker.LabelOneoff], "true") {
 				projects[project] = struct{}{}
 			}
 			return nil
 		}
 		state := containerState(s.State)
 		project := composeIdentity(s.Labels[docker.LabelProject])
+		if ask.GetComposeMembers() && (s.Labels[docker.LabelIngress] != "" || strings.EqualFold(s.Labels[docker.LabelOneoff], "true")) {
+			return nil
+		}
 		name := plainName(s.Names)
 		if filter.GetState() != 0 && filter.GetState() != state || filter.GetStopped() && state == v1.ContainerState_CONTAINER_STATE_RUNNING {
 			return nil
@@ -79,7 +87,11 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 			return nil
 		}
 		// XOR the per-object hashes so the cursor is independent of Engine ordering.
-		hash := sha256.Sum256([]byte(s.ID + "\x00" + name + "\x00" + s.Image + "\x00" + s.State + "\x00" + project))
+		identity := s.ID + "\x00" + name + "\x00" + s.Image + "\x00" + s.State + "\x00" + project
+		if ask.GetComposeMembers() {
+			identity = s.ID + "\x00" + project + "\x00" + s.Labels[docker.LabelService] + "\x00" + s.Labels[docker.LabelWorkingDir]
+		}
+		hash := sha256.Sum256([]byte(identity))
 		for i := range snapshot {
 			snapshot[i] ^= hash[i]
 		}
@@ -90,7 +102,23 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 			return strings.Compare(row.GetKey().GetEngineId(), id)
 		})
 		if index <= limit {
-			out.Objects = slices.Insert(out.Objects, index, inventorySummary(s))
+			var row *v1.DockerObject
+			if ask.GetComposeMembers() {
+				body := &v1.DockerContainer{
+					ComposeProject: project, ComposeService: composeIdentity(s.Labels[docker.LabelService]),
+					ComposeDirectory: composeDirectory(s.Labels[docker.LabelWorkingDir]), Health: health,
+				}
+				if s.Created > 0 {
+					body.CreatedAt = timestamppb.New(time.Unix(s.Created, 0))
+				}
+				if s.State == "exited" && exit != 0 {
+					body.ExitCode = &exit
+				}
+				row = &v1.DockerObject{Key: inventoryKey(s.ID), State: state, Detail: &v1.DockerObject_Container{Container: body}}
+			} else {
+				row = inventorySummary(s)
+			}
+			out.Objects = slices.Insert(out.Objects, index, row)
 			if len(out.Objects) > limit+1 {
 				out.Objects = out.Objects[:limit+1]
 			}
@@ -128,6 +156,9 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 		out.Objects = out.Objects[:limit]
 		out.NextId = out.Objects[limit-1].GetKey().GetEngineId()
 	}
+	if ask.GetComposeMembers() {
+		return out, nil
+	}
 	// Read the true start time for the page, with a fixed upper bound on concurrent reads.
 	for begin := 0; begin < len(out.Objects); begin += 4 {
 		var group sync.WaitGroup
@@ -136,6 +167,7 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 				if held, err := d.InspectContainer(ctx, row.GetKey().GetEngineId()); err == nil && held.ID == row.GetKey().GetEngineId() {
 					row.GetContainer().StartedAt = inventoryTime(held.State.StartedAt)
 					row.GetContainer().Health = inventoryHealth(held.State.Health)
+					row.GetContainer().RestartCount = countOf(held.RestartCount)
 				}
 			})
 		}
@@ -162,6 +194,13 @@ func composeIdentity(value string) string {
 	return value
 }
 
+func composeDirectory(value string) string {
+	if len(value) <= 512 && path.IsAbs(value) && !strings.ContainsFunc(value, unicode.IsControl) {
+		return path.Clean(value)
+	}
+	return ""
+}
+
 func inventoryTime(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() || value.Year() < 1970 {
 		return nil
@@ -179,7 +218,8 @@ func inventorySummary(s *docker.ContainerSummary) *v1.DockerObject {
 	body := &v1.DockerContainer{
 		Image: bounded(s.Image, 512), ImageId: bounded(s.ImageID, 128), CreatedAt: old.GetCreateTime(),
 		ComposeProject: composeIdentity(old.GetComposeProject()), ComposeService: composeIdentity(old.GetComposeService()), OneOff: old.GetOneOff(),
-		Ports: old.GetPorts(), Endpoints: inventoryEndpoints(s.NetworkSettings.Networks),
+		ComposeDirectory: composeDirectory(s.Labels[docker.LabelWorkingDir]),
+		Ports:            old.GetPorts(), Endpoints: inventoryEndpoints(s.NetworkSettings.Networks),
 		DetailsTruncated: old.GetMorePorts() > 0 || len(s.NetworkSettings.Networks) > listEach,
 	}
 	for _, port := range body.Ports {

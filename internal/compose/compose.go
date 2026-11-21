@@ -591,6 +591,12 @@ func Parse(ctx context.Context, file []byte, variables map[string]string) (*Stac
 	return Read(ctx, Input{File: file, Variables: variables})
 }
 
+// ParseWorkspace reads a draft without accepting Engine bookkeeping or
+// treating bare environment names as kept values.
+func ParseWorkspace(ctx context.Context, file []byte, markers map[string]string) (*Stack, error) {
+	return Read(ctx, Input{File: file, Variables: markers, Workspace: true})
+}
+
 // Input is a Compose file, and what it reads beside it.
 type Input struct {
 	File []byte
@@ -602,6 +608,8 @@ type Input struct {
 	// Directory is where it is on the servers, which a path relative to it
 	// starts from.
 	Directory string
+	// Workspace is the managed editor's portable projection.
+	Workspace bool
 }
 
 // Read reads a file as Parse does, with what it reads beside it.
@@ -706,6 +714,15 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	if err := decode(dict, &m); err != nil {
 		return nil, invalid("the Compose file isn't valid: %v", err)
 	}
+	if in.Workspace {
+		if err := m.checkWorkspaceLabels(); err != nil {
+			return nil, err
+		}
+		if err := m.resolveWorkspaceReferences(read.references); err != nil {
+			return nil, err
+		}
+		variables = nil
+	}
 	if ctx.Err() != nil {
 		return nil, stopped(ctx)
 	}
@@ -737,6 +754,54 @@ func parse(ctx context.Context, in Input) (*Stack, error) {
 	}
 	out.Rotations = rotationsAsked(dict)
 	return out, nil
+}
+
+func (m *model) checkWorkspaceLabels() error {
+	check := func(owner string, labels types.Labels) error {
+		for _, key := range slices.Sorted(maps.Keys(labels)) {
+			if workspaceLabel(key) {
+				return invalidAt(place{owner, "labels"}, "%s uses the reserved label %s. Dockwell keeps it outside the file", owner, key)
+			}
+		}
+		return nil
+	}
+	for name := range m.Services {
+		if err := check("the service "+name, m.Services[name].Labels); err != nil {
+			return err
+		}
+	}
+	for name := range m.Networks {
+		if err := check("the network "+name, m.Networks[name].Labels); err != nil {
+			return err
+		}
+	}
+	for name, volume := range m.Volumes {
+		if err := check("the volume "+name, volume.Labels); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func workspaceLabel(key string) bool {
+	return docker.IsOwnLabel(key) || key == binding.LabelKey || key == binding.BuildLabelKey
+}
+
+// A reference in a command or check uses the same service's environment.
+// During editing that line can still hold a marker, or have a new literal.
+func (m *model) resolveWorkspaceReferences(references map[string]*keptReferences) error {
+	for _, service := range slices.Sorted(maps.Keys(references)) {
+		env := m.Services[service].Environment
+		for _, name := range slices.Sorted(maps.Keys(references[service].values)) {
+			value := env[name]
+			if value == nil {
+				where := "the service " + service
+				return invalidAt(place{where, "environment"}, "%s still refers to %s. Keep an environment value or remove the reference", where, name)
+			}
+			references[service].values[name] = *value
+		}
+	}
+	return nil
 }
 
 // A name a plan's notes say: what a service, a network, a container, an image, a

@@ -1654,6 +1654,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
       notice: true,
     });
   }
+  const hiddenLogs = new Set<string>();
   const tunnelled = tunnelledRoutes(plan);
   for (const server of plan?.servers ?? []) {
     for (const step of server.steps) {
@@ -1674,15 +1675,7 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         out.push({ key: `reload-${server.serverId}`, ...words.reload(server.serverName), server: server.serverName });
       }
       if (step.restores) out.push({ key: `restores-${key}`, title: t`${name} gets back the data the server kept.` });
-      if (step.hidesLogs) {
-        out.push({
-          key: `hides-logs-${key}`,
-          // A removal has no undo to bring them back (ADR 0090).
-          title: plan?.removes
-            ? t`${name}'s kept logs can't be read from then on, and go in 7 days.`
-            : t`${name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`,
-        });
-      }
+      if (step.hidesLogs) hiddenLogs.add(name);
       if (step.build) {
         // What a step builds comes before anything about it stops (ADR 0046).
         const repository = step.build.url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
@@ -1753,6 +1746,23 @@ export function useAsides(plan: Plan | undefined): Notice[] {
         });
       }
     }
+  }
+  if (hiddenLogs.size > 0) {
+    const names = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(
+      [...hiddenLogs].sort((a, b) => a.localeCompare(b, i18n.locale)),
+    );
+    out.push({
+      key: "hides-logs",
+      // A removal has no undo to bring them back (ADR 0090).
+      title:
+        hiddenLogs.size === 1
+          ? plan?.removes
+            ? t`${names}'s kept logs can't be read from then on, and go in 7 days.`
+            : t`${names}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back.`
+          : plan?.removes
+            ? t`Kept logs for ${names} become unreadable and expire in 7 days.`
+            : t`Kept logs for ${names} become unreadable and expire in 7 days. Undoing the change brings them back.`,
+    });
   }
   return out;
 }

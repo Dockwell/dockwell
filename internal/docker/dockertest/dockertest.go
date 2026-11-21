@@ -1357,6 +1357,13 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	slices.SortFunc(out, func(a, b docker.ContainerSummary) int { return int(b.Created - a.Created) })
+	// Keep the fake's creation order, but report the wall-clock timestamp
+	// where the container has one, as the Engine's list does.
+	for i := range out {
+		if created := e.containers[out[i].ID].Created; !created.IsZero() {
+			out[i].Created = created.Unix()
+		}
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 
