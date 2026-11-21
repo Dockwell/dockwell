@@ -7,6 +7,7 @@ import { Fragment } from "react";
 import { useRuntimes } from "../websites/website";
 import { builtCommit, imageOf } from "./app";
 import { runtimeOf, runtimeWords } from "./runtime";
+import "./ImageName.css";
 
 /**
  * An image's name that keeps its end when it doesn't fit, as the last part and

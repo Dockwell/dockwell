@@ -32,8 +32,8 @@ import { CopyButton } from "../system/CopyCommand";
 import { CatalogBack } from "./CatalogBack";
 import { AppIcon } from "./media";
 import { converted, FormatLine, LeftOut, repositoryKey, useFormatWords } from "./SourceFormats";
-import { StoreGallery, StoreMark, useLicenceWords, useStores } from "./Stores";
-import { monogram, useCatalog, useSourceNames, useSources } from "./useCatalog";
+import { RepositoryMark, StoreGallery, StoreMark, useLicenceWords, useStores } from "./Stores";
+import { useCatalog, useSourceNames, useSources } from "./useCatalog";
 import "./Sources.css";
 
 /**
@@ -260,9 +260,7 @@ function SourceCard({
         ) : source.store ? (
           <StoreMark id={source.store} name={said} />
         ) : (
-          <span className="store-mark" aria-hidden="true">
-            {monogram(said)}
-          </span>
+          <RepositoryMark repository={repository} />
         )}
         <div className="source-card-title">
           <h3 id={heading} tabIndex={-1} title={t`The source ${name}`}>

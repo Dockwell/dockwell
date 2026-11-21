@@ -2,8 +2,10 @@
 
 import { cx } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
+import type { ReactNode } from "react";
 
 import { MAIL_PROVIDERS, type MailProviderId } from "./mail";
+import { MailMark, StorageMark } from "./ProviderMark";
 import { PROVIDERS, type ProviderId } from "./providers";
 
 /** What a connection reaches: storage or a mail server, or either. */
@@ -32,7 +34,7 @@ export function ServiceTiles({
   const groups: {
     kind: ConnectionKindPick;
     label: string;
-    tiles: { id: ProviderId | MailProviderId; mark: string; name: string; full: string }[];
+    tiles: { id: ProviderId | MailProviderId; mark: ReactNode; name: string; full: string }[];
   }[] = [
     {
       kind: "storage",
@@ -41,7 +43,7 @@ export function ServiceTiles({
       // name is what a screen reader says, and a hover shows.
       tiles: PROVIDERS.map((p) => ({
         id: p.id,
-        mark: p.mark,
+        mark: <StorageMark id={p.id} />,
         name: p.short || p.name || t({ message: "Other", context: "another S3-compatible store, as a tile" }),
         full: p.name || t`Another S3-compatible store`,
       })),
@@ -51,7 +53,7 @@ export function ServiceTiles({
       label: t`Mail`,
       tiles: MAIL_PROVIDERS.map((p) => ({
         id: p.id,
-        mark: p.mark,
+        mark: <MailMark id={p.id} />,
         name: p.name || t({ message: "Other", context: "another mail server, as a tile" }),
         full: p.name || t`Another mail server`,
       })),
@@ -74,9 +76,7 @@ export function ServiceTiles({
                 title={x.full === x.name ? undefined : x.full}
                 onClick={() => onPick(x.id)}
               >
-                <span className="connection-mark" aria-hidden>
-                  {x.mark}
-                </span>
+                {x.mark}
                 <span className="connection-store-name">{x.name}</span>
               </button>
             ))}

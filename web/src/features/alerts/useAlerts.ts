@@ -9,7 +9,7 @@ import {
   AlertService,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import type { IconName, Status } from "@dockwell/ui";
+import type { BrandId, IconName, Status } from "@dockwell/ui";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -41,13 +41,16 @@ export type ChannelType = "webhook" | "email" | "ntfy" | "slack" | "discord" | "
 export const CHANNEL_TYPES: readonly ChannelType[] = ["email", "slack", "discord", "telegram", "ntfy", "webhook"];
 
 /** Each kind of channel's name and mark. */
-export const CHANNEL_KIND: Readonly<Record<ChannelType, { label: MessageDescriptor; icon: IconName }>> = {
+/** Each kind of channel: its name, its icon, and the service's own mark where it has one, for its tile. */
+export const CHANNEL_KIND: Readonly<
+  Record<ChannelType, { label: MessageDescriptor; icon: IconName; brand?: BrandId }>
+> = {
   webhook: { label: msg`Webhook`, icon: "link" },
   email: { label: msg`Email`, icon: "mail" },
-  ntfy: { label: msg`ntfy`, icon: "bell" },
+  ntfy: { label: msg`ntfy`, icon: "bell", brand: "ntfy" },
   slack: { label: msg`Slack`, icon: "chat" },
-  discord: { label: msg`Discord`, icon: "chat" },
-  telegram: { label: msg`Telegram`, icon: "chat" },
+  discord: { label: msg`Discord`, icon: "chat", brand: "discord" },
+  telegram: { label: msg`Telegram`, icon: "chat", brand: "telegram" },
 };
 
 export function isChannelType(type: string): type is ChannelType {

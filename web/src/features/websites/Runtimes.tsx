@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { ChangeService, type ServiceInfo, ServiceService, type WebsiteRuntime, WebsiteService } from "@dockwell/api";
-import { Button, Icon, StatusBadge, useOff } from "@dockwell/ui";
+import { type BrandId, BrandMark, Button, Icon, StatusBadge, useOff } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, type LinkProps } from "@tanstack/react-router";
@@ -97,7 +97,7 @@ export function Runtimes({ rows, health }: { rows: readonly Row[]; health: Healt
               <li>
                 <RuntimeTile
                   link={{ to: "/websites/new", search: { php: phpNewest.version } }}
-                  mark="Ph"
+                  mark="php"
                   name={phpNewest.language}
                   versions={phpFree.map((r) => r.version).join(", ")}
                   label={t`New website on ${phpNewest.language} ${phpNewest.version}`}
@@ -117,7 +117,7 @@ export function Runtimes({ rows, health }: { rows: readonly Row[]; health: Healt
                       to: "/apps/new",
                       search: { source: "folder", language: newest.id, version: newest.version },
                     }}
-                    mark={LANGUAGE_MARKS[newest.id] ?? newest.id.slice(0, 2)}
+                    mark={LANGUAGE_MARKS[newest.id]}
                     name={language}
                     versions={versions.map((v) => v.version).join(", ")}
                     label={t`New app on ${language} ${newest.version}`}
@@ -152,7 +152,7 @@ function RuntimeTile({
   off,
 }: {
   link: Pick<LinkProps, "to" | "search">;
-  mark: string;
+  mark: BrandId | undefined;
   name: string;
   versions: string;
   label: string;
@@ -163,9 +163,7 @@ function RuntimeTile({
   const described = [id, offed.props["aria-describedby"]].filter(Boolean).join(" ");
   return (
     <Link {...link} className="websites-runtime-tile" aria-label={label} {...offed.props} aria-describedby={described}>
-      <span className="websites-runtime-mark" aria-hidden="true">
-        {mark}
-      </span>
+      <BrandMark brand={mark} icon="terminal" />
       <span className="websites-runtime-tile-text">
         <span className="websites-runtime-tile-name">{name}</span>
         <span id={id} className="code-sm websites-muted">
@@ -210,9 +208,7 @@ function LanguageCard({
   return (
     <article className="dw-panel websites-runtime">
       <div className="websites-runtime-head">
-        <span className="websites-runtime-mark" aria-hidden="true">
-          {LANGUAGE_MARKS[newest.id] ?? newest.id.slice(0, 2)}
-        </span>
+        <BrandMark brand={LANGUAGE_MARKS[newest.id]} icon="terminal" size={40} />
         <div className="websites-runtime-name">
           <h3>{language}</h3>
           <span className="code-sm websites-muted">{versions.map((v) => v.release).join(" · ")}</span>
@@ -317,9 +313,7 @@ function RuntimeCard({ runtime, sites, health }: { runtime: WebsiteRuntime; site
   return (
     <article className="dw-panel websites-runtime">
       <div className="websites-runtime-head">
-        <span className="websites-runtime-mark" aria-hidden="true">
-          Ph
-        </span>
+        <BrandMark brand="php" icon="terminal" size={40} />
         <div className="websites-runtime-name">
           <h3>{`${runtime.language} ${runtime.version}`}</h3>
           <span className="code-sm websites-muted">{runtime.release} · php-fpm</span>

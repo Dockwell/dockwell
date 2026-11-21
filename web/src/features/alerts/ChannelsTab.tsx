@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type AlertChannelInfo, type AlertDelivery, AlertRule_Severity as Severity } from "@dockwell/api";
 import {
+  BrandMark,
   Button,
   Callout,
   Icon,
@@ -52,9 +53,7 @@ function ChannelName({ channel, linkConnection = true }: { channel: AlertChannel
   const conn = channelConnection(channel);
   return (
     <div className="alerts-channel">
-      <span className="alerts-channel-mark" aria-hidden="true">
-        <Icon name={kind.icon} size={16} />
-      </span>
+      <BrandMark brand={kind.brand} icon={kind.icon} />
       <div className="dw-cell">
         <span className="dw-cell-title">{channel.name}</span>
         <span className="alerts-channel-sub">

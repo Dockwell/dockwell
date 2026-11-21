@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ConnectionInfo } from "@dockwell/api";
-import { Button, cx } from "@dockwell/ui";
+import { BrandMark, Button, cx } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useId } from "react";
 
 import type { Offer } from "../auth/may";
+import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
 import { pickerStatus, type StorageItem } from "./storage";
 import "./Backups.css";
 
@@ -126,6 +127,13 @@ export function StoragePicker({
                   disabled={disabled}
                   onChange={() => onChange(item.key)}
                 />
+                {conn ? (
+                  <ConnectionMark connection={conn} />
+                ) : item.destination ? (
+                  <DestinationMark destination={item.destination} />
+                ) : (
+                  <BrandMark icon="archive" />
+                )}
                 <span className="backup-storage-text">
                   <span className="backup-storage-name">{title}</span>
                   {detail ? <span className="backup-storage-why">{detail}</span> : null}
@@ -139,6 +147,7 @@ export function StoragePicker({
         <div className={cx("backup-storage-option", value === "" && "is-picked")}>
           <label className="backup-storage-choice">
             <input type="radio" name={groupId} value="" checked={value === ""} onChange={() => onChange("")} />
+            <BrandMark icon="server" />
             <span className="backup-storage-text">
               <span className="backup-storage-name">{noneLabel}</span>
               <span className="backup-storage-why">{noneHint}</span>

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type CatalogNeedOption, ChangeService, Feature, Kind, type Need } from "@dockwell/api";
-import { Button, cx, Icon } from "@dockwell/ui";
+import { BrandMark, Button, cx, Icon } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useId, useState } from "react";
 
 import { useMay } from "../auth/may";
+import { ConnectionMark, MailMark, StorageMark } from "../connections/ProviderMark";
+import { useConnections } from "../connections/useConnections";
 
 /** The choice that leaves an optional need unmet, as the control plane names it. */
 export const UNSET = "unset";
@@ -98,6 +100,14 @@ export function StorageNeed({
   const unsetWords = mail ? t`Not set` : t`On its own disk`;
   const own = options.find((o) => o.choice === UNSET);
   const connections = options.filter((o) => o.connection !== "");
+  // Each connection's provider, for its mark: the list names connections only.
+  const saved = useConnections().data?.connections ?? [];
+  const markOf = (name: string, size?: number) => {
+    const c = saved.find((x) => x.name === name);
+    if (c) return <ConnectionMark connection={c} size={size} />;
+    return mail ? <MailMark size={size} /> : <StorageMark size={size} />;
+  };
+  const ownMark = (size?: number) => <BrandMark icon={mail ? "minus" : "server"} size={size} />;
   const usable = connections.filter((o) => o.why === "");
   const picked = options.find((o) => o.choice === value && o.why === "");
   const add = may.allowed ? (
@@ -141,6 +151,7 @@ export function StorageNeed({
           {need.label}
         </span>
         <span className="catalog-chosen-value">
+          {picked.choice === UNSET ? ownMark(24) : markOf(picked.connection, 24)}
           <span>{picked.choice === UNSET ? unsetWords : label}</span>
           {canChange ? (
             picked.choice === UNSET ? (
@@ -167,6 +178,7 @@ export function StorageNeed({
         {own ? (
           <label className={cx("catalog-need-server", value === UNSET && "is-picked")}>
             <input type="radio" name={id} value={UNSET} checked={value === UNSET} onChange={() => onPick(UNSET)} />
+            {ownMark()}
             <span className="catalog-need-server-name">{unsetWords}</span>
             <span className="catalog-need-server-state">
               {mail ? <Trans>{app} sends no mail</Trans> : <Trans>{app} keeps its files beside it</Trans>}
@@ -186,6 +198,7 @@ export function StorageNeed({
               disabled={o.why !== ""}
               onChange={() => onPick(o.choice)}
             />
+            {markOf(o.connection)}
             <span className="catalog-need-server-name">{o.connectionLabel || o.connection}</span>{" "}
             {o.connectionLabel && o.connectionLabel !== o.connection ? (
               <code className="catalog-engine-version">{o.connection}</code>

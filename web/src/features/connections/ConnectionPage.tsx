@@ -67,6 +67,7 @@ import {
 import { WantsMail } from "./WantsMail";
 import "../apps/Apps.css";
 import "./Connections.css";
+import { ConnectionMark } from "./ProviderMark";
 
 /**
  * One connection: where its bucket is, which apps read it and as what, and the
@@ -141,6 +142,7 @@ export function ConnectionPage({ name }: { name: string }) {
     <Page
       title={connection.name}
       machineTitle
+      mark={<ConnectionMark connection={connection} />}
       breadcrumb={<Crumbs />}
       backLink={<BackToConnections />}
       badge={

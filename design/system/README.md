@@ -114,6 +114,7 @@ The mocks are drawn at 1440px, where every page fills the room right of the rail
 
 - Use the `Icon` component: line icons on a 24-unit grid, 1.5 stroke, round caps and joins, drawn in `currentColor`. 16px in controls and lists, 14px in small buttons and tags, 20px in empty states.
 - The bundled set covers the product's core nouns and verbs (server, service, globe, database, terminal, deploy, undo, lock and more). For anything missing, draw on the same grid and stroke; Lucide matches this construction closely and is the suggested source. The bundled icons are new drawings, not copies of any library.
+- A third-party service a person picks or connects (a storage or mail provider, a registry, a Git host, an alert channel's service, a runtime's language) shows its own mark on a `BrandMark` tile, never letters standing in for it. Its art and where it comes from live in `packages/ui/src/components/BrandMark`; a service with no mark there gets an icon from this set on the same tile.
 - Status is never an icon. The status glyphs belong to `StatusBadge`, `FleetGrid`, `LogStream`, `Callout` and `Toast` and keep their meaning everywhere.
 - No emoji in the interface.
 

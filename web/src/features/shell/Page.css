@@ -142,6 +142,11 @@
   width: var(--space-3);
 }
 
+/* A page's mark, such as a connection's provider's, a little apart from its title. */
+.mobile-header > .dw-brand-mark {
+  margin: 0 var(--space-1);
+}
+
 .mobile-header-titles {
   display: flex;
   flex-direction: column;

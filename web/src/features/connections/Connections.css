@@ -5,22 +5,6 @@
   font-family: var(--font-mono);
 }
 
-/* A store's two letters on a small tile, as the mocks have them. */
-.connection-mark {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  box-sizing: border-box;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .connections-name {
   color: var(--ink);
   font-size: 13px;

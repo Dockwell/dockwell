@@ -257,14 +257,23 @@
   font: var(--text-body);
 }
 
-.catalog-card-foot {
+/* Where an install is reached, then the row under it, together at the card's foot. */
+.catalog-card-end {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: var(--space-2);
+  min-width: 0;
   margin-top: auto;
   color: var(--ink-muted);
   font-size: 12px;
+}
+
+.catalog-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 20px;
 }
 
 /* The way in, darkening as the card is pointed at or reached. */
@@ -283,13 +292,19 @@
 /* The version, then the catalog a third-party entry comes from. */
 .catalog-card-about {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
 }
 
+.catalog-card-about > code {
+  flex: none;
+}
+
 .catalog-card-from {
   display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 4px;
   min-width: 0;
@@ -983,9 +998,8 @@
     display: none;
   }
 
-  .catalog-card-open {
-    right: calc(var(--space-3) + 24px);
-    bottom: var(--space-3);
+  .catalog-card-end {
+    gap: var(--space-1);
   }
 }
 
@@ -1025,6 +1039,11 @@
   color: var(--ink);
   font-size: 13px;
   line-height: 20px;
+}
+
+/* What meets a need, by its provider's mark, centred on the line. */
+.catalog-chosen-value > .dw-brand-mark {
+  align-self: center;
 }
 
 .catalog-chosen-value code {
@@ -1458,7 +1477,8 @@
 
 .catalog-need-server {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: 2px var(--space-2);
   padding: 7px var(--space-3);
   border: 1px solid var(--line-strong, var(--line));
@@ -1497,8 +1517,14 @@
   white-space: nowrap;
 }
 
+/* The provider's mark, beside both lines of its card. */
+.catalog-need-server > .dw-brand-mark {
+  grid-row: span 2;
+  margin-right: var(--space-1);
+}
+
 .catalog-need-server-state {
-  grid-column: 1 / -1;
+  grid-column: 2 / -1;
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 16px;
@@ -1572,26 +1598,47 @@
 }
 
 .catalog-card-where {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
   color: var(--ink);
+  line-height: 16px;
+}
+
+.catalog-card-where > svg {
+  flex: none;
 }
 
 .catalog-card-where > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/*
+ * Open's room in the card's last row: the word itself, unseen, so the row keeps its
+ * width in any language. Open is drawn over it from outside the card's link, on the
+ * same 20 px line, left of the arrow (14 px and a gap).
+ */
+.catalog-card-open-room,
+.catalog-card-open {
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.catalog-card-open-room {
+  flex: none;
+  visibility: hidden;
+}
+
 .catalog-card-open {
   position: absolute;
-  right: calc(var(--space-4) + 24px);
+  right: calc(var(--space-4) + 14px + var(--space-2));
   bottom: var(--space-4);
   color: var(--cobalt);
-  font-size: 12px;
-  line-height: 16px;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -1602,13 +1649,29 @@
   border-radius: var(--radius-xs);
 }
 
+/* A finger's target, 44 px tall, centred on the same line; its room grows by the same padding. */
 @media (pointer: coarse) {
   .catalog-card-open {
-    bottom: calc(var(--space-4) - 14px);
-    min-height: 44px;
     display: inline-flex;
     align-items: center;
+    min-height: 44px;
+    margin-right: calc(-1 * var(--space-2));
     padding: 0 var(--space-2);
+    bottom: calc(var(--space-4) - 12px);
+  }
+}
+
+/* A phone's card has a smaller padding: Open follows its arrow there. */
+@media (max-width: 639.98px) {
+  .catalog-card-open {
+    right: calc(var(--space-3) + 14px + var(--space-2));
+    bottom: var(--space-3);
+  }
+}
+
+@media (max-width: 639.98px) and (pointer: coarse) {
+  .catalog-card-open {
+    bottom: calc(var(--space-3) - 12px);
   }
 }
 

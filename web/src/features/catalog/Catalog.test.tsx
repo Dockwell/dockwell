@@ -203,6 +203,10 @@ describe("The catalog", () => {
     );
     const card = await screen.findByRole("link", { name: /^PostgreSQL/ });
     expect(within(card).getByText("db.example.com")).toBeVisible();
+    // On a line of its own, whole on hover where it's cut short, and Open keeps its room
+    // in the row under it, so nothing there runs under the link.
+    expect(within(card).getByTitle("db.example.com")).toHaveClass("catalog-card-where");
+    expect(card.querySelector(".catalog-card-foot .catalog-card-open-room")).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("link", { name: "Open the installed PostgreSQL" })).toHaveAttribute(
       "href",
       "/apps/svc_adminer",

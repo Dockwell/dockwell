@@ -6,6 +6,8 @@
  * store has one, and whether its bucket goes in the path. A person picks the store
  * and types only what the store can't say (ADR 0099).
  */
+import type { BrandId } from "@dockwell/ui";
+
 export type ProviderId = "r2" | "s3" | "b2" | "gcs" | "other";
 
 export interface Provider {
@@ -14,8 +16,8 @@ export interface Provider {
   name: string;
   /** A shorter name for its tile, where its own doesn't fit one line. */
   short?: string;
-  /** Two letters for its tile, as the mocks have them. */
-  mark: string;
+  /** Its own mark, for its tile; another store has none, and its tile draws the product's own archive icon. */
+  brand?: BrandId;
   /** Its regions, where a person picks one, first the default. Empty where the store has none. */
   regions: readonly string[];
   /** Its account ID makes its endpoint, as Cloudflare R2's does. */
@@ -55,7 +57,7 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "r2",
     name: "Cloudflare R2",
-    mark: "R2",
+    brand: "cloudflare",
     regions: [],
     account: true,
     pathStyle: true,
@@ -66,7 +68,7 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "s3",
     name: "Amazon S3",
-    mark: "S3",
+    brand: "amazon-s3",
     regions: AWS_REGIONS,
     account: false,
     pathStyle: false,
@@ -76,7 +78,7 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "b2",
     name: "Backblaze B2",
-    mark: "B2",
+    brand: "backblaze",
     regions: B2_REGIONS,
     account: false,
     pathStyle: false,
@@ -87,7 +89,7 @@ export const PROVIDERS: readonly Provider[] = [
     id: "gcs",
     name: "Google Cloud Storage",
     short: "Google Cloud",
-    mark: "GC",
+    brand: "google-cloud",
     regions: [],
     account: false,
     pathStyle: true,
@@ -97,7 +99,6 @@ export const PROVIDERS: readonly Provider[] = [
   {
     id: "other",
     name: "",
-    mark: "+",
     regions: [],
     account: false,
     pathStyle: true,

@@ -254,6 +254,18 @@
   padding: var(--space-3) var(--space-4);
 }
 
+/* A destination's storage provider's mark beside its name and bucket. */
+.backup-dest-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.backup-dest-head > .backup-state {
+  min-width: 0;
+}
+
 .backup-policy + .backup-policy {
   border-top: 1px solid var(--line);
 }
@@ -460,9 +472,10 @@
   cursor: not-allowed;
 }
 
+/* The radio centred on the storage's tile beside it. */
 .backup-storage-choice input {
   flex: none;
-  margin: 3px 0 0;
+  margin: 9px 0 0;
   accent-color: var(--cobalt);
 }
 
@@ -489,7 +502,7 @@
 
 .backup-storage-action {
   flex: none;
-  padding-inline-start: 22px;
+  padding-inline-start: calc(13px + 32px + 2 * var(--space-2));
 }
 
 .backup-storage-foot {

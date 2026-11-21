@@ -36,6 +36,8 @@ export interface PageProps {
   breadcrumb?: ReactNode;
   /** Sets the title in mono, for machine names such as a server's. */
   machineTitle?: boolean;
+  /** Before the title, on wide screens and phones: what the page is of, such as a connection's provider's mark. */
+  mark?: ReactNode;
   /** Next to the title on wide screens, such as a role tag. */
   badge?: ReactNode;
   /** One line of context under the title on wide screens. */
@@ -76,6 +78,7 @@ export function Page({
   title,
   breadcrumb,
   machineTitle = false,
+  mark,
   badge,
   lead,
   actions,
@@ -103,6 +106,7 @@ export function Page({
         <MobileHeader
           title={phoneTitle ?? title}
           machineTitle={phoneTitle === undefined ? machineTitle : phoneMachineTitle}
+          mark={mark}
           sub={phoneSub}
           back={back}
           backLink={backLink}
@@ -125,6 +129,7 @@ export function Page({
             <div className="page-heading">
               {breadcrumb}
               <div className="page-title-row">
+                {mark}
                 <h1 className={cx("dw-text-title", "page-title", machineTitle && "is-machine")}>{title}</h1>
                 {badge}
                 {status ? <div className="page-status">{status}</div> : null}
@@ -143,6 +148,7 @@ export function Page({
 interface MobileHeaderProps {
   title: string;
   machineTitle: boolean;
+  mark?: ReactNode;
   sub?: ReactNode;
   back?: Back | undefined;
   backLink?: ReactNode;
@@ -150,7 +156,7 @@ interface MobileHeaderProps {
 }
 
 /** The phone's header: back where there's somewhere to go back to, the title, and search. */
-function MobileHeader({ title, machineTitle, sub, back, backLink, action }: MobileHeaderProps) {
+function MobileHeader({ title, machineTitle, mark, sub, back, backLink, action }: MobileHeaderProps) {
   const { t } = useLingui();
   const openCommandBar = useOpenCommandBar();
   return (
@@ -165,6 +171,7 @@ function MobileHeader({ title, machineTitle, sub, back, backLink, action }: Mobi
       ) : (
         <span className="mobile-header-gap" />
       )}
+      {mark}
       <div className="mobile-header-titles">
         <h1 className={cx("mobile-header-title", machineTitle && "is-machine")}>{title}</h1>
         {sub ? <p className="mobile-header-sub">{sub}</p> : null}

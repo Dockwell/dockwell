@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A host breaks only where HostName allows it, after a dot or a hyphen, never inside a word, whatever a card says of code. */
+code.host-name[title] {
+  overflow-wrap: normal;
+  word-break: normal;
+}

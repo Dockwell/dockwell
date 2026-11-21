@@ -13,11 +13,11 @@ import {
   LinkKind,
   AlertEmail_Security as Security,
 } from "@dockwell/api";
-import { Advanced, Button, Callout, SelectField, Sheet, TextField } from "@dockwell/ui";
+import { Advanced, type BrandId, BrandMark, Button, Callout, cx, SelectField, Sheet, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
@@ -213,21 +213,67 @@ type Mail = "gmail" | "microsoft" | "fastmail" | "ses" | "sendgrid" | "mailgun" 
 
 const MAIL: Record<
   Exclude<Mail, "other">,
-  { label: string; host: string; port: number; security: Security; user?: string }
+  { label: string; host: string; port: number; security: Security; user?: string; brand?: BrandId }
 > = {
-  gmail: { label: "Gmail", host: "smtp.gmail.com", port: 587, security: Security.STARTTLS },
+  gmail: { label: "Gmail", host: "smtp.gmail.com", port: 587, security: Security.STARTTLS, brand: "gmail" },
   microsoft: {
     label: "Microsoft 365 or Outlook.com",
     host: "smtp.office365.com",
     port: 587,
     security: Security.STARTTLS,
   },
-  fastmail: { label: "Fastmail", host: "smtp.fastmail.com", port: 465, security: Security.TLS },
-  ses: { label: "Amazon SES", host: "email-smtp.us-east-1.amazonaws.com", port: 587, security: Security.STARTTLS },
+  fastmail: { label: "Fastmail", host: "smtp.fastmail.com", port: 465, security: Security.TLS, brand: "fastmail" },
+  ses: {
+    label: "Amazon SES",
+    host: "email-smtp.us-east-1.amazonaws.com",
+    port: 587,
+    security: Security.STARTTLS,
+    brand: "amazon-ses",
+  },
   sendgrid: { label: "SendGrid", host: "smtp.sendgrid.net", port: 587, security: Security.STARTTLS, user: "apikey" },
-  mailgun: { label: "Mailgun", host: "smtp.mailgun.org", port: 587, security: Security.STARTTLS },
-  postmark: { label: "Postmark", host: "smtp.postmarkapp.com", port: 587, security: Security.STARTTLS },
+  mailgun: { label: "Mailgun", host: "smtp.mailgun.org", port: 587, security: Security.STARTTLS, brand: "mailgun" },
+  postmark: {
+    label: "Postmark",
+    host: "smtp.postmarkapp.com",
+    port: 587,
+    security: Security.STARTTLS,
+    brand: "postmark",
+  },
 };
+
+/**
+ * The mail services, each a card with its own mark where Dockwell has one, then another
+ * server: one tap picks it and fills in its server, as a select would, with each
+ * service recognisable at a glance.
+ */
+function MailServices({ value, onPick }: { value: Mail; onPick: (next: Mail) => void }) {
+  const { t } = useLingui();
+  const name = useId();
+  const options: { id: Mail; label: string; brand?: BrandId | undefined }[] = [
+    ...(Object.keys(MAIL) as Exclude<Mail, "other">[]).map((m) => ({
+      id: m,
+      label: MAIL[m].label,
+      brand: MAIL[m].brand,
+    })),
+    { id: "other", label: t`Another SMTP server` },
+  ];
+  return (
+    <fieldset className="alerts-mail-services" aria-label={t`Mail service`}>
+      <legend className="dw-field-label" aria-hidden="true">
+        {t`Mail service`}
+      </legend>
+      <div className="alerts-mail-service-grid">
+        {options.map((o) => (
+          <label key={o.id} className={cx("alerts-mail-service", value === o.id && "is-picked")}>
+            <input type="radio" name={name} value={o.id} checked={value === o.id} onChange={() => onPick(o.id)} />
+            <BrandMark brand={o.brand} icon={o.id === "other" ? "server" : "mail"} size={24} />
+            <span className="alerts-mail-service-name">{o.label}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 /** Amazon SES's regions, whose SMTP endpoints differ by region. */
 const SES_REGIONS = [
@@ -654,18 +700,7 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
               ) : null}
               {!usingConnection ? (
                 <>
-                  <SelectField
-                    label={t`Mail service`}
-                    value={mail}
-                    options={[
-                      ...(Object.keys(MAIL) as Exclude<Mail, "other">[]).map((m) => ({
-                        value: m,
-                        label: MAIL[m].label,
-                      })),
-                      { value: "other", label: t`Another SMTP server` },
-                    ]}
-                    onChange={(event) => pickMail(event.target.value as Mail)}
-                  />
+                  <MailServices value={mail} onPick={(next) => pickMail(next)} />
                   {mail === "ses" ? (
                     <SelectField
                       label={t`Region`}

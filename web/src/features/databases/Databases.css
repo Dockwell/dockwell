@@ -295,9 +295,10 @@ a.databases-engine:hover .databases-engine-plus {
   align-items: stretch;
 }
 
+/* Each fact's label, at most two fifths of the row, so a long name never squeezes its value. */
 .databases-facts {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
   margin: 0;
   font-size: 13px;
@@ -325,6 +326,22 @@ a.databases-engine:hover .databases-engine-plus {
 .databases-fact dd {
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* On a phone, each label over its value, both the panel's width. */
+@media (max-width: 639.98px) {
+  .databases-facts {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .databases-fact dt {
+    font-size: 12px;
+  }
+
+  .databases-fact + .databases-fact dt {
+    margin-top: var(--space-3);
+  }
 }
 
 .databases-panel-actions {

@@ -1473,18 +1473,6 @@
   min-height: 32px;
 }
 
-.integrations-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  color: var(--ink);
-}
-
 .integrations-card-text {
   display: flex;
   flex: 1 1 auto;

@@ -53,31 +53,6 @@
   font: 400 13px / 18px var(--font-mono);
 }
 
-/* An image's name keeps its end when it doesn't fit: the path clips first. */
-.image-name {
-  display: flex;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  font: 400 12px / 18px var(--font-mono);
-  white-space: nowrap;
-}
-
-.image-name-path {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* It gives up its width only once the path has none left. */
-.image-name-end {
-  flex: none;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .apps-image,
 .dw-cell-sub.image-name {
   color: var(--ink-muted);

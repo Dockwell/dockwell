@@ -7872,7 +7872,7 @@ msgstr "On each server's disk, and sealed off it where a schedule says"
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
-#. placeholder {0}: where.server
+#. placeholder {0}: where.server ?? ""
 msgid "On {0}"
 msgstr "On {0}"
 
@@ -18902,8 +18902,8 @@ msgstr "Any DNS provider"
 
 #. placeholder {0}: c.bucket
 #. placeholder {0}: d.bucket
-msgid "Bucket <0>{0}</0> at <1>{host}</1>"
-msgstr "Bucket <0>{0}</0> at <1>{host}</1>"
+msgid "Bucket <0>{0}</0> at <1/>"
+msgstr "Bucket <0>{0}</0> at <1/>"
 
 msgid "Certificates by DNS, its proxy and tunnels"
 msgstr "Certificates by DNS, its proxy and tunnels"

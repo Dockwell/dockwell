@@ -7,6 +7,7 @@ import { useId } from "react";
 
 import type { Offer } from "../auth/may";
 import { defaultPort } from "../connections/mail";
+import { ConnectionMark, MailMark } from "../connections/ProviderMark";
 import { mailPickerStatus } from "./mail";
 import "./Alerts.css";
 
@@ -117,6 +118,7 @@ export function MailPicker({
                   disabled={disabled}
                   onChange={() => onChange(conn.name)}
                 />
+                <ConnectionMark connection={conn} />
                 <span className="alerts-mail-text">
                   <span className="alerts-mail-name">{title}</span>
                   {detail ? <span className="alerts-mail-why">{detail}</span> : null}
@@ -130,6 +132,7 @@ export function MailPicker({
         <div className={cx("alerts-mail-option", value === "" && "is-picked")}>
           <label className="alerts-mail-choice">
             <input type="radio" name={groupId} value="" checked={value === ""} onChange={() => onChange("")} />
+            <MailMark />
             <span className="alerts-mail-text">
               <span className="alerts-mail-name">
                 {t({ message: "Another server", context: "another mail server for alert email" })}

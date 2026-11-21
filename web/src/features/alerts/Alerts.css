@@ -309,19 +309,6 @@
   min-width: 0;
 }
 
-.alerts-channel-mark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  box-sizing: border-box;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-sunken);
-  color: var(--ink-muted);
-}
-
 .alerts-channel-sub {
   color: var(--ink-muted);
   font-size: 12.5px;
@@ -413,9 +400,10 @@
   cursor: not-allowed;
 }
 
+/* The radio centred on the provider's tile beside it. */
 .alerts-mail-choice input {
   flex: none;
-  margin: 3px 0 0;
+  margin: 9px 0 0;
   accent-color: var(--cobalt);
 }
 
@@ -442,7 +430,7 @@
 
 .alerts-mail-action {
   flex: none;
-  padding-inline-start: 22px;
+  padding-inline-start: calc(13px + 32px + 2 * var(--space-2));
 }
 
 .alerts-phone-main {
@@ -834,4 +822,70 @@ a.alerts-resolved-title:hover {
 
 .alerts-check-now-said.is-failed {
   color: var(--critical);
+}
+
+/* The mail services, each a card with its mark and name, two or more to a row. */
+.alerts-mail-services {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.alerts-mail-services > legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.alerts-mail-service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(176px, 100%), 1fr));
+  gap: var(--space-2);
+}
+
+.alerts-mail-service {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 18px;
+  cursor: pointer;
+  transition: border-color var(--motion-fast, 120ms) var(--ease-out, ease-out);
+}
+
+.alerts-mail-service:hover {
+  border-color: var(--ink-muted);
+}
+
+/* The radio is the card: it stays for keyboards and screen readers, unseen. */
+.alerts-mail-service input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.alerts-mail-service.is-picked {
+  border-color: var(--cobalt);
+  box-shadow: inset 0 0 0 1px var(--cobalt);
+}
+
+.alerts-mail-service:has(input:focus-visible) {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.alerts-mail-service-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

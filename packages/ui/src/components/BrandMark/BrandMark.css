@@ -1,0 +1,54 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/*
+ * A service's mark on its tile (BrandMark). The tile's size comes from the component;
+ * the mark keeps a margin inside it on a ground, as the catalog's app icons do.
+ */
+.dw-brand-mark {
+  display: grid;
+  flex: none;
+  box-sizing: border-box;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.dw-brand-mark > svg {
+  display: block;
+  width: 62%;
+  height: 62%;
+}
+
+/* Mostly dark or coloured, as most marks are drawn: a light tile, in both themes. */
+.dw-brand-mark[data-ground="light"] {
+  background: var(--art-ground);
+}
+
+/* Mostly light: a dark tile, in both themes. */
+.dw-brand-mark[data-ground="dark"] {
+  background: var(--art-ground-dark);
+}
+
+/* It brings its own square: edge to edge, with a hairline over it to keep its edge on any card. */
+.dw-brand-mark[data-ground="bleed"] {
+  position: relative;
+  border: 0;
+  background: transparent;
+}
+
+.dw-brand-mark[data-ground="bleed"] > svg {
+  width: 100%;
+  height: 100%;
+}
+
+.dw-brand-mark[data-ground="bleed"]::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--line);
+  content: "";
+  pointer-events: none;
+}

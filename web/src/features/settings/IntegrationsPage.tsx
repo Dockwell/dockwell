@@ -13,7 +13,16 @@ import {
   type RegistryLoginInfo,
   type SigninProviderInfo,
 } from "@dockwell/api";
-import { Button, Icon, type IconName, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import {
+  type BrandId,
+  BrandMark,
+  Button,
+  Icon,
+  type IconName,
+  PHONE_QUERY,
+  StatusBadge,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -24,12 +33,14 @@ import { useTimeWords } from "../../lib/time";
 import { StateLine } from "../apps/DomainStep";
 import { type StorageItem, useStorage } from "../backups/storage";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { HostName } from "../connections/HostName";
 import { useLastCheck } from "../connections/LastCheck";
+import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
 import { appsOf } from "../connections/storage";
 import { DnsProviderSheet } from "../dns/DnsProviderSheet";
 import { useDnsProviders } from "../dns/dns";
 import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
-import { REGISTRY_NAMES, registryKind, useRegistryLogins } from "../registries/registries";
+import { REGISTRY_NAMES, type RegistryKind, registryKind, useRegistryLogins } from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
@@ -232,6 +243,7 @@ export function IntegrationsPage() {
                 {loginList.some((l) => l.registry === "docker.io") ? null : (
                   <Card
                     icon="layers"
+                    brand="docker"
                     name="Docker Hub"
                     state={<span className="settings-meta">{t`Not connected`}</span>}
                     text={t`Private images, past its pull limits`}
@@ -245,6 +257,7 @@ export function IntegrationsPage() {
                 {loginList.some((l) => l.registry === "ghcr.io") ? null : (
                   <Card
                     icon="layers"
+                    brand="github"
                     name="GitHub Container Registry"
                     state={<span className="settings-meta">{t`Not connected`}</span>}
                     text={t`Private images, such as Actions push`}
@@ -281,6 +294,7 @@ export function IntegrationsPage() {
               {dnsList.length > 0 || (!dns.data && !dns.error) ? null : (
                 <Card
                   icon="globe"
+                  brand="cloudflare"
                   name="Cloudflare"
                   state={<span className="settings-meta">{t`Not connected`}</span>}
                   text={t`Certificates by DNS, its proxy and tunnels`}
@@ -410,6 +424,10 @@ export function IntegrationsPage() {
 
 interface CardProps {
   icon: IconName;
+  /** The service's own mark, where it has one, in place of the icon. */
+  brand?: BrandId | undefined;
+  /** A mark drawn by its caller, such as a connection's provider's. */
+  mark?: ReactNode;
   name: string;
   state: ReactNode;
   text: ReactNode;
@@ -417,13 +435,11 @@ interface CardProps {
 }
 
 /** One integration, as the mock draws each: its mark and state, its name, what it is, and what to do. */
-function Card({ icon, name, state, text, action }: CardProps) {
+function Card({ icon, brand, mark, name, state, text, action }: CardProps) {
   return (
     <article className="dw-panel integrations-card" aria-label={name}>
       <div className="integrations-card-head">
-        <span className="integrations-mark" aria-hidden="true">
-          <Icon name={icon} size={16} />
-        </span>
+        {mark ?? <BrandMark brand={brand} icon={icon} />}
         {state}
       </div>
       <div className="integrations-card-text">
@@ -486,13 +502,14 @@ function ConnectionStorageCard({
   return (
     <Card
       icon="archive"
+      mark={<ConnectionMark connection={c} />}
       name={c.name}
       state={state}
       text={
         <>
           {c.bucket && host ? (
             <Trans>
-              Bucket <code>{c.bucket}</code> at <code>{host}</code>
+              Bucket <code>{c.bucket}</code> at <HostName host={host} />
             </Trans>
           ) : (
             c.displayName || c.name
@@ -576,12 +593,13 @@ function DestinationCard({
   return (
     <Card
       icon="archive"
+      mark={<DestinationMark destination={d} />}
       name={d.name}
       state={state}
       text={
         <>
           <Trans>
-            Bucket <code>{d.bucket}</code> at <code>{host}</code>
+            Bucket <code>{d.bucket}</code> at <HostName host={host} />
           </Trans>
           <span className="integrations-sub">
             {d.backups === 1
@@ -635,6 +653,7 @@ function LoginCard({
   return (
     <Card
       icon="layers"
+      brand={REGISTRY_BRANDS[kind]}
       name={REGISTRY_NAMES[kind] ?? l.registry}
       state={<StatusBadge status="healthy" label={t`Connected`} />}
       text={
@@ -655,6 +674,14 @@ function LoginCard({
     />
   );
 }
+
+/** Each registry's own mark, by its kind; another registry has the product's layers icon. */
+const REGISTRY_BRANDS: Partial<Record<RegistryKind, BrandId>> = {
+  hub: "docker",
+  ghcr: "github",
+  gitlab: "gitlab",
+  ecr: "amazon-ecr",
+};
 
 /** How many kept records a provider's card shows before Show more. */
 const KEPT_SHOWN = 3;
@@ -702,6 +729,7 @@ function ProviderCard({
   return (
     <Card
       icon="globe"
+      brand="cloudflare"
       name="Cloudflare"
       state={<StatusBadge status="healthy" label={t`Connected`} />}
       text={
