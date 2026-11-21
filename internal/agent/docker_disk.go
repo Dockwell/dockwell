@@ -4,7 +4,10 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 
@@ -82,11 +85,25 @@ func (d *diskUse) dockerBreakdown(out *v1.ServerDiskUse, df *docker.DiskUsage) {
 }
 
 // dockerDiskUse computes the default image estimate against current desired
-// state. snapshot returns a clone, so one request cannot alter another's count.
+// state. Each request annotates its own copy of the cached measurement.
 func (c *calls) dockerDiskUse(ctx context.Context, protection *agentv1.DockerCleanupProtection) (*v1.ServerDiskUse, error) {
-	use, df, err := c.cfg.disks.snapshot(ctx, false)
+	use, df, err := c.cfg.disks.cached(ctx)
+	switch {
+	case errors.Is(err, errDiskMeasuring):
+		use = &v1.ServerDiskUse{}
+	case err != nil:
+		return nil, err
+	default:
+		use = proto.CloneOf(use)
+	}
+	live, err := c.cfg.Docker.VolumeInventory(ctx)
 	if err != nil {
 		return nil, err
+	}
+	use.VolumeUse = liveVolumeUse(live, df)
+	use.Volumes = uint32(len(use.VolumeUse)) //nolint:gosec // bounded Docker inventory fits in uint32.
+	if use.GetTime() == nil {
+		return use, nil
 	}
 	if c.cleanupDisabled() {
 		for _, row := range use.DockerBreakdown {
@@ -123,4 +140,27 @@ func (c *calls) dockerDiskUse(ctx context.Context, protection *agentv1.DockerCle
 		row.ReclaimableBytes = &reclaim
 	}
 	return use, nil
+}
+
+// liveVolumeUse takes presence and mountpoints from the Engine inventory.
+// A count can add measurements to those rows, including a real zero, but
+// cannot make a disappeared volume reappear.
+func liveVolumeUse(live []docker.VolumeIdentity, df *docker.DiskUsage) []*v1.VolumeDiskUse {
+	measured := make(map[string]docker.DiskUsageVolume)
+	if df != nil {
+		for _, v := range df.Volumes {
+			measured[v.Name] = v
+		}
+	}
+	out := make([]*v1.VolumeDiskUse, 0, len(live))
+	for _, v := range live {
+		row := &v1.VolumeDiskUse{Name: v.Name, Mountpoint: v.Mountpoint, SizeBytes: -1}
+		if count := measured[v.Name]; count.UsageData != nil && count.Mountpoint == v.Mountpoint &&
+			(count.CreatedAt == "" || v.CreatedAt == "" || count.CreatedAt == v.CreatedAt) {
+			row.SizeBytes = count.UsageData.Size
+			row.Containers = uint32(max(count.UsageData.RefCount, 0)) //nolint:gosec // container counts fit in uint32.
+		}
+		out = append(out, row)
+	}
+	return out
 }

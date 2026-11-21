@@ -140,13 +140,21 @@ func (c *calls) dockerCleanupPreview(ctx context.Context, ask *agentv1.DockerMai
 	if c.cfg.Docker == nil || c.cfg.disks == nil {
 		return nil, errDockerInventory
 	}
-	c.cfg.disks.cleanupMu.Lock()
-	defer c.cfg.disks.cleanupMu.Unlock()
+	if ask.GetFresh() {
+		c.cfg.disks.cleanupMu.Lock()
+		defer c.cfg.disks.cleanupMu.Unlock()
+	}
 	pause, err := c.readCleanupPause()
 	if err != nil || pause != nil {
 		return &agentv1.DockerMaintenancePreviewResult{Pause: pause}, err
 	}
-	use, df, err := c.cfg.disks.snapshotMode(ctx, ask.GetFresh(), true)
+	var use *v1.ServerDiskUse
+	var df *docker.DiskUsage
+	if ask.GetFresh() {
+		use, df, err = c.cfg.disks.snapshotMode(ctx, true, true)
+	} else {
+		use, df, err = c.cfg.disks.cached(ctx)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("the Engine did not provide a fresh disk count for cleanup: %w", err)
 	}

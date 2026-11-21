@@ -65,7 +65,7 @@ type DockerServiceClient interface {
 	GetDockerObject(context.Context, *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error)
 	// PreviewDockerCleanup lists the artifacts each selected Engine can account for.
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
-	// PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error)
@@ -176,7 +176,7 @@ type DockerServiceHandler interface {
 	GetDockerObject(context.Context, *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error)
 	// PreviewDockerCleanup lists the artifacts each selected Engine can account for.
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
-	// PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error

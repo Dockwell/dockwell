@@ -1614,8 +1614,8 @@ func Methods() []*apicli.Method {
 			HTTP:      "POST /v1/docker/maintenance",
 			Noun:      "docker",
 			Verb:      "plan-maintenance",
-			Short:     "Freez reviewed targets or the current pause for dockwell changes apply",
-			Long:      "Freez reviewed targets or the current pause for dockwell changes apply.",
+			Short:     "Prepare reviewed targets or the current pause for dockwell changes apply",
+			Long:      "Prepare reviewed targets or the current pause for dockwell changes apply.",
 			Effect:    v1.Effect_EFFECT_PLAN,
 			Fields: []apicli.Field{
 				{Path: "summary"},

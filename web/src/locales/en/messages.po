@@ -15064,6 +15064,9 @@ msgstr "Docker isn't answering"
 msgid "Live updates paused"
 msgstr "Live updates paused"
 
+msgid "Measuring"
+msgstr "Measuring"
+
 msgid "Some servers didn't answer"
 msgstr "Some servers didn't answer"
 

@@ -166,17 +166,23 @@ func (h *Handler) onServers(ctx context.Context, servers []string, names map[str
 				on.Unread = fmt.Sprintf("%s can't say what this holds now: %v", on.GetServerName(), err)
 				return
 			}
-			i := slices.IndexFunc(use.GetVolumeUse(), func(v *dockwellv1.VolumeDiskUse) bool { return v.GetName() == name })
-			switch {
-			case i < 0:
-				on.Unread = fmt.Sprintf("%s has no volume %s now, so it holds nothing there", on.GetServerName(), name)
-			case use.GetVolumeUse()[i].GetSizeBytes() < 0:
-				on.Unread = "its driver keeps it somewhere Docker doesn't add up"
-				on.Path, on.Containers = use.GetVolumeUse()[i].GetMountpoint(), use.GetVolumeUse()[i].GetContainers()
-			default:
-				v := use.GetVolumeUse()[i]
-				on.SizeBytes, on.Path, on.Containers = v.GetSizeBytes(), v.GetMountpoint(), v.GetContainers()
+			for _, v := range use.GetVolumeUse() {
+				if v.GetName() != name {
+					continue
+				}
+				on.Path, on.Containers, on.SizeBytes = v.GetMountpoint(), v.GetContainers(), v.GetSizeBytes()
+				if on.SizeBytes < 0 && use.GetTime() != nil {
+					on.Unread = "Docker couldn't measure this volume"
+				}
+				return
 			}
+			// A pending answer from an agent that supplied no inventory may
+			// contain no rows. Wait for its measurement before saying more.
+			if use.GetTime() == nil && len(use.GetVolumeUse()) == 0 {
+				on.SizeBytes = -1
+				return
+			}
+			on.Unread = fmt.Sprintf("%s has no volume %s now, so it holds nothing there", on.GetServerName(), name)
 		})
 	}
 	wg.Wait()

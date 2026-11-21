@@ -223,3 +223,12 @@
   align-items: center;
   gap: var(--space-1);
 }
+
+.docker-image-loading {
+  align-items: center;
+  min-height: 66px;
+}
+
+.docker-image-loading > .docker-pending-size:first-child {
+  width: min(15ch, 100%);
+}

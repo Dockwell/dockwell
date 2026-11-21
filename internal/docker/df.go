@@ -45,6 +45,7 @@ type DiskUsageVolume struct {
 	Name string
 	// Mountpoint is where its files are on the server.
 	Mountpoint string
+	CreatedAt  string
 	UsageData  *VolumeUsage
 }
 

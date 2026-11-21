@@ -8,6 +8,7 @@ import {
   type DockerCleanupPause,
   DockerCleanupReason,
   type DockerCleanupTarget,
+  DockerReadState,
   DockerService,
   type Server,
   ServerService,
@@ -91,10 +92,14 @@ function CleanupSelection({
     initialPageParam: "",
     getNextPageParam: (last) => last.nextPageToken || undefined,
     refetchOnWindowFocus: false,
+    refetchInterval: ({ state }) =>
+      state.data?.pages[0]?.unavailable.some((row) => row.state === DockerReadState.UNSPECIFIED) ? 2_000 : false,
     retry: false,
   });
   const pages = query.data?.pages ?? [];
   const pauses = pages[0]?.pauses ?? [];
+  const unavailable = pages[0]?.unavailable ?? [];
+  const measuring = unavailable.some((row) => row.state === DockerReadState.UNSPECIFIED);
   const candidates = pages.flatMap((page) => page.candidates);
   const protectedRows = pages.flatMap((page) => page.exclusions);
   const selected = candidates.filter((target, index) => overrides.get(keyOf(target)) ?? index < 12);
@@ -146,7 +151,11 @@ function CleanupSelection({
   const showProtected = group === "volumes" || group === "logs" || group === "networks";
   return (
     <>
-      <Unread values={pages[0]?.unavailable ?? []} servers={servers} retry={reviewAgain} />
+      <Unread
+        values={unavailable.filter((row) => row.state !== DockerReadState.UNSPECIFIED)}
+        servers={servers}
+        retry={reviewAgain}
+      />
       {pauses.map((pause) => {
         const server = servers.find((s) => s.id === pause.serverId)?.name ?? pause.serverId;
         return (
@@ -169,10 +178,12 @@ function CleanupSelection({
           </Callout>
         );
       })}
-      {query.isPending ? (
-        <p role="status">
-          <Trans>Checking Docker artifacts</Trans>
-        </p>
+      {query.isPending || measuring ? (
+        <Panel title={t`Checking Docker artifacts`} actions={<Icon name="archive" />}>
+          <div role="status" aria-label={t`Checking Docker artifacts`}>
+            <span className="docker-pending-size" aria-hidden="true" />
+          </div>
+        </Panel>
       ) : null}
       {query.error ? (
         <Callout
@@ -289,7 +300,9 @@ function CleanupSelection({
           <Button
             icon="trash"
             variant="primary"
-            disabled={!may || !selected.length || selected.length > 12 || query.isFetching || !!query.error}
+            disabled={
+              !may || measuring || !selected.length || selected.length > 12 || query.isFetching || !!query.error
+            }
             onClick={review}
           >
             <Trans>Review plan</Trans>

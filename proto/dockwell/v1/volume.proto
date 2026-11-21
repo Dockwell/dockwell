@@ -73,11 +73,12 @@ message VolumeOnServer {
   // The server's ID and name.
   string server_id = 1;
   string server_name = 2;
-  // What it holds there, in bytes, as Docker adds it up. Unset with unread.
+  // What it holds there, in bytes, or -1 while Docker is measuring.
+  // If unread is set, this value is unavailable.
   int64 size_bytes = 3;
   // Where its files are on the server, such as
   // "/var/lib/docker/volumes/default-production_data/_data", for the server's
-  // files page. Empty with unread.
+  // files page. Present when the Engine supplies it, even before measurement.
   string path = 4;
   // How many containers use it there.
   uint32 containers = 5;

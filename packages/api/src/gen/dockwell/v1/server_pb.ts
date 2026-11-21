@@ -524,6 +524,7 @@ export const GetServerDiskUseRequestSchema: GenMessage<GetServerDiskUseRequest> 
 
 /**
  * GetServerDiskUseResponse says what takes the room on a server's disk.
+ * With Prefer: respond-async, an unset disk_use.time means the Engine count is underway.
  *
  * @generated from message dockwell.v1.GetServerDiskUseResponse
  */
@@ -664,7 +665,7 @@ export type ServerDiskUse = Message<"dockwell.v1.ServerDiskUse"> & {
   volumes: number;
 
   /**
-   * Each volume Docker keeps, with what it holds, for a volume's own page.
+   * Each volume in the Engine inventory, with what it holds when measured.
    * Numbered apart, as open work adds to this message.
    *
    * @generated from field: repeated dockwell.v1.VolumeDiskUse volume_use = 60;

@@ -96,6 +96,22 @@ describe("a volume's page", () => {
     await expectAccessible(container);
   });
 
+  it("keeps the files link while measuring and then shows a measured zero", async () => {
+    const initial = aVolume();
+    const pending = aVolume({ servers: initial.servers.map((server) => ({ ...server, sizeBytes: -1n })) });
+    const measured = aVolume({ servers: initial.servers.map((server) => ({ ...server, sizeBytes: 0n })) });
+    const getVolume = vi.fn().mockReturnValue({ volume: measured }).mockReturnValueOnce({ volume: pending });
+    const routes = api(pending);
+    renderAt("/volumes/vol_1", { ...routes, volumes: { getVolume } });
+
+    expect(await screen.findByRole("img", { name: "Measuring" })).toBeVisible();
+    const servers = screen.getByRole("region", { name: "On its servers" });
+    expect(within(servers).getByRole("link", { name: "Open its files" })).toBeVisible();
+    expect(within(servers).queryByText("0 B")).toBeNull();
+    expect(await within(servers).findByText("0 B", undefined, { timeout: 5000 })).toBeVisible();
+    expect(within(servers).queryByRole("img", { name: "Measuring" })).toBeNull();
+  });
+
   it("deletes through a plan once no app mounts it, and says why not while one does", async () => {
     const user = userEvent.setup();
     const { unmount } = renderAt("/volumes/vol_1", api(aVolume()));

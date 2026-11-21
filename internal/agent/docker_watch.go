@@ -162,6 +162,7 @@ func (c *calls) followInventory(ctx context.Context, run uint64, done chan struc
 	tick := time.NewTicker(3 * time.Second)
 	defer tick.Stop()
 	var lastResync time.Time
+	lastMeasurement := c.cfg.disks.measurement()
 	notified, previousReady := false, false
 	for {
 		sampling := false
@@ -174,9 +175,10 @@ func (c *calls) followInventory(ctx context.Context, run uint64, done chan struc
 		}
 		changes.mu.Lock()
 		now := time.Now()
-		resync := changes.ready && changes.dirty && now.Sub(lastResync) >= dockerResyncInterval
+		measured := c.cfg.disks.measurement()
+		resync := (changes.ready && changes.dirty || measured != lastMeasurement) && now.Sub(lastResync) >= dockerResyncInterval
 		if resync {
-			lastResync = now
+			lastResync, lastMeasurement = now, measured
 			changes.dirty = false
 		}
 		ready, health := changes.ready, changes.health

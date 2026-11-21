@@ -40,6 +40,8 @@ const (
 	// ReasonDisk is a server without room for the image a step would pull (ADR
 	// 0080).
 	ReasonDisk = "disk"
+	// ReasonDiskMeasuring is a read whose background measurement is underway.
+	ReasonDiskMeasuring = "docker_disk_measuring"
 	// ReasonDatabaseRelease is a database whose new image runs a release its data
 	// can't move to in place, as PostgreSQL 16's to 17 (ADR 0080).
 	ReasonDatabaseRelease = "database_release"
