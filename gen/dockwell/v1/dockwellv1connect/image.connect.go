@@ -35,6 +35,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// ImageServiceListRegistryRepositoriesProcedure is the fully-qualified name of the ImageService's
+	// ListRegistryRepositories RPC.
+	ImageServiceListRegistryRepositoriesProcedure = "/dockwell.v1.ImageService/ListRegistryRepositories"
 	// ImageServiceSearchImagesProcedure is the fully-qualified name of the ImageService's SearchImages
 	// RPC.
 	ImageServiceSearchImagesProcedure = "/dockwell.v1.ImageService/SearchImages"
@@ -53,6 +56,8 @@ const (
 
 // ImageServiceClient is a client for the dockwell.v1.ImageService service.
 type ImageServiceClient interface {
+	// ListRegistryRepositories reads a page of repository names where the registry permits enumeration.
+	ListRegistryRepositories(context.Context, *connect.Request[v1.ListRegistryRepositoriesRequest]) (*connect.Response[v1.ListRegistryRepositoriesResponse], error)
 	// SearchImages returns Docker Hub's images whose names hold a term, its
 	// official ones first.
 	SearchImages(context.Context, *connect.Request[v1.SearchImagesRequest]) (*connect.Response[v1.SearchImagesResponse], error)
@@ -91,6 +96,13 @@ func NewImageServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 	baseURL = strings.TrimRight(baseURL, "/")
 	imageServiceMethods := v1.File_dockwell_v1_image_proto.Services().ByName("ImageService").Methods()
 	return &imageServiceClient{
+		listRegistryRepositories: connect.NewClient[v1.ListRegistryRepositoriesRequest, v1.ListRegistryRepositoriesResponse](
+			httpClient,
+			baseURL+ImageServiceListRegistryRepositoriesProcedure,
+			connect.WithSchema(imageServiceMethods.ByName("ListRegistryRepositories")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		searchImages: connect.NewClient[v1.SearchImagesRequest, v1.SearchImagesResponse](
 			httpClient,
 			baseURL+ImageServiceSearchImagesProcedure,
@@ -130,11 +142,17 @@ func NewImageServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 
 // imageServiceClient implements ImageServiceClient.
 type imageServiceClient struct {
-	searchImages       *connect.Client[v1.SearchImagesRequest, v1.SearchImagesResponse]
-	listImageTags      *connect.Client[v1.ListImageTagsRequest, v1.ListImageTagsResponse]
-	getImage           *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
-	listRegistryLogins *connect.Client[v1.ListRegistryLoginsRequest, v1.ListRegistryLoginsResponse]
-	checkRegistryLogin *connect.Client[v1.CheckRegistryLoginRequest, v1.CheckRegistryLoginResponse]
+	listRegistryRepositories *connect.Client[v1.ListRegistryRepositoriesRequest, v1.ListRegistryRepositoriesResponse]
+	searchImages             *connect.Client[v1.SearchImagesRequest, v1.SearchImagesResponse]
+	listImageTags            *connect.Client[v1.ListImageTagsRequest, v1.ListImageTagsResponse]
+	getImage                 *connect.Client[v1.GetImageRequest, v1.GetImageResponse]
+	listRegistryLogins       *connect.Client[v1.ListRegistryLoginsRequest, v1.ListRegistryLoginsResponse]
+	checkRegistryLogin       *connect.Client[v1.CheckRegistryLoginRequest, v1.CheckRegistryLoginResponse]
+}
+
+// ListRegistryRepositories calls dockwell.v1.ImageService.ListRegistryRepositories.
+func (c *imageServiceClient) ListRegistryRepositories(ctx context.Context, req *connect.Request[v1.ListRegistryRepositoriesRequest]) (*connect.Response[v1.ListRegistryRepositoriesResponse], error) {
+	return c.listRegistryRepositories.CallUnary(ctx, req)
 }
 
 // SearchImages calls dockwell.v1.ImageService.SearchImages.
@@ -164,6 +182,8 @@ func (c *imageServiceClient) CheckRegistryLogin(ctx context.Context, req *connec
 
 // ImageServiceHandler is an implementation of the dockwell.v1.ImageService service.
 type ImageServiceHandler interface {
+	// ListRegistryRepositories reads a page of repository names where the registry permits enumeration.
+	ListRegistryRepositories(context.Context, *connect.Request[v1.ListRegistryRepositoriesRequest]) (*connect.Response[v1.ListRegistryRepositoriesResponse], error)
 	// SearchImages returns Docker Hub's images whose names hold a term, its
 	// official ones first.
 	SearchImages(context.Context, *connect.Request[v1.SearchImagesRequest]) (*connect.Response[v1.SearchImagesResponse], error)
@@ -198,6 +218,13 @@ type ImageServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	imageServiceMethods := v1.File_dockwell_v1_image_proto.Services().ByName("ImageService").Methods()
+	imageServiceListRegistryRepositoriesHandler := connect.NewUnaryHandler(
+		ImageServiceListRegistryRepositoriesProcedure,
+		svc.ListRegistryRepositories,
+		connect.WithSchema(imageServiceMethods.ByName("ListRegistryRepositories")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	imageServiceSearchImagesHandler := connect.NewUnaryHandler(
 		ImageServiceSearchImagesProcedure,
 		svc.SearchImages,
@@ -234,6 +261,8 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 	)
 	return "/dockwell.v1.ImageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case ImageServiceListRegistryRepositoriesProcedure:
+			imageServiceListRegistryRepositoriesHandler.ServeHTTP(w, r)
 		case ImageServiceSearchImagesProcedure:
 			imageServiceSearchImagesHandler.ServeHTTP(w, r)
 		case ImageServiceListImageTagsProcedure:
@@ -252,6 +281,10 @@ func NewImageServiceHandler(svc ImageServiceHandler, opts ...connect.HandlerOpti
 
 // UnimplementedImageServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedImageServiceHandler struct{}
+
+func (UnimplementedImageServiceHandler) ListRegistryRepositories(context.Context, *connect.Request[v1.ListRegistryRepositoriesRequest]) (*connect.Response[v1.ListRegistryRepositoriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImageService.ListRegistryRepositories is not implemented"))
+}
 
 func (UnimplementedImageServiceHandler) SearchImages(context.Context, *connect.Request[v1.SearchImagesRequest]) (*connect.Response[v1.SearchImagesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ImageService.SearchImages is not implemented"))

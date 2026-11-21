@@ -290,7 +290,10 @@ func (c *Client) ExecWith(ctx context.Context, id string, cmd []string, o ExecOp
 // ImportImage makes an image named ref from a tar of a filesystem, as docker
 // import does. It pulls nothing.
 func (c *Client) ImportImage(ctx context.Context, ref string, fs io.Reader) error {
-	repo, tag, _ := strings.Cut(ref, ":")
+	repo, tag := ref, ""
+	if at := strings.LastIndexByte(ref, ':'); at > strings.LastIndexByte(ref, '/') {
+		repo, tag = ref[:at], ref[at+1:]
+	}
 	path, err := c.versioned(ctx, "/images/create")
 	if err != nil {
 		return err

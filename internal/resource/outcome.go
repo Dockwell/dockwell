@@ -21,7 +21,8 @@ var ErrAlreadySo = errors.New("already as asked")
 
 // Outcome is what a step found out on its server, for the record.
 type Outcome struct {
-	DockerReceipts []*v1.DockerReceipt
+	DockerReceipts      []*v1.DockerReceipt
+	DockerImageReceipts []*v1.DockerImageReceipt
 	// Digest is the image the step leaves running, as its registry knows it.
 	// Empty for one no registry knows.
 	Digest string

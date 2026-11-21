@@ -18,6 +18,17 @@ import "google/protobuf/timestamp.proto";
 // server, such as which images it has, which is the install's (ADR 0048). See
 // docs/adr/0062-reading-an-image-from-its-registry.md.
 service ImageService {
+  // ListRegistryRepositories reads a page of repository names where the registry permits enumeration.
+  rpc ListRegistryRepositories(ListRegistryRepositoriesRequest) returns (ListRegistryRepositoriesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/images/repositories"};
+  }
+
   option (dockwell.v1.nouns) = {
     name: "images"
     help: "Images read from their registries through the server an app will run on, for a form: Docker Hub's search, a repository's tags, and whether an image is there and what it declares. Nothing is pulled, and nothing changes. An image a registry keeps private is read with the registry login its app's pull would use. See docs/adr/0062-reading-an-image-from-its-registry.md and docs/adr/0086-registry-logins-for-private-images.md."
@@ -341,4 +352,27 @@ message ImagePort {
 message ImageVariable {
   string name = 1;
   string value = 2;
+}
+
+// ListRegistryRepositoriesRequest names one registry and server for a catalog read.
+message ListRegistryRepositoriesRequest {
+  string registry = 1;
+  string project = 2;
+  string server = 3;
+  string name_prefix = 4;
+  uint32 page_size = 5;
+  string page_token = 6;
+  string login_id = 7;
+}
+
+// ListRegistryRepositoriesResponse gives the names returned by the catalog and any next page.
+message ListRegistryRepositoriesResponse {
+  repeated DockerRegistryRepository repositories = 1;
+  string next_page_token = 2;
+  bool enumeration_supported = 3;
+}
+
+// DockerRegistryRepository is one repository name within the requested registry.
+message DockerRegistryRepository {
+  string name = 1;
 }

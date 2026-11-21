@@ -303,6 +303,7 @@ message StepOutcome {
   repeated dockwell.v1.DockerReceipt docker_receipt = 400;
   // The local Engine ID of the image the step leaves running.
   string local_image_id = 401;
+  repeated dockwell.v1.DockerImageReceipt docker_image_receipt = 402;
   // The image it leaves running, as its registry knows it.
   string digest = 1;
   // The digest of the image it replaces, where a pull found a newer one.
@@ -1561,6 +1562,7 @@ message ImageCall {
     dockwell.v1.SearchImagesRequest search = 1;
     dockwell.v1.ListImageTagsRequest tags = 2;
     dockwell.v1.GetImageRequest image = 3;
+    dockwell.v1.ListRegistryRepositoriesRequest repositories = 4;
     // The digests of images, as a plan pins them. Numbered in the block the catalog
     // formats work holds (ADR 0078).
     ImageDigestsCall digests = 270;
@@ -1599,6 +1601,7 @@ message ImageResult {
     dockwell.v1.SearchImagesResponse search = 1;
     dockwell.v1.ListImageTagsResponse tags = 2;
     dockwell.v1.GetImageResponse image = 3;
+    dockwell.v1.ListRegistryRepositoriesResponse repositories = 4;
     ImageDigests digests = 270;
   }
 }
@@ -2360,6 +2363,8 @@ message UpgradeAgent {
 // DesiredResource is one resource as a change wants it.
 message DesiredResource {
   dockwell.v1.DockerMaintenance docker_maintenance = 400;
+  // Sealed registry credentials for an exact image operation on this stream.
+  bytes docker_registry_auth = 401;
   // The resource.
   dockwell.v1.ResourceRef resource = 1;
   // Its spec, encoded as its kind's message. Unset deletes it; an empty
@@ -2927,6 +2932,7 @@ message DockerCapabilities {
   bool cleanup = 4;
   bool artifact_cleanup = 6;
   bool compose_members = 8;
+  bool image_operations = 9;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.

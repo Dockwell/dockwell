@@ -3920,6 +3920,55 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/images/repositories:
+        get:
+            tags:
+                - ImageService
+            description: ListRegistryRepositories reads a page of repository names where the registry permits enumeration.
+            operationId: ImageService_ListRegistryRepositories
+            parameters:
+                - name: registry
+                  in: query
+                  schema:
+                    type: string
+                - name: project
+                  in: query
+                  schema:
+                    type: string
+                - name: server
+                  in: query
+                  schema:
+                    type: string
+                - name: namePrefix
+                  in: query
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: loginId
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListRegistryRepositoriesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/images:inspect:
         get:
             tags:
@@ -15752,6 +15801,44 @@ components:
             description: |-
                 DockerImage is the safe local projection of an image. History omits instructions,
                  comments, tags and arbitrary metadata from the Engine's history endpoint.
+        DockerImageAction:
+            type: object
+            properties:
+                bindings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageBinding'
+                descriptor:
+                    $ref: '#/components/schemas/DockerRegistryDescriptor'
+                approvedLogins:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageLoginRef'
+                credentialProject:
+                    type: string
+                tag:
+                    allOf:
+                        - $ref: '#/components/schemas/DockerImageTag'
+                    description: |-
+                        A stored plan sets exactly one of these fields. The plan reader also supports
+                         older JSON records, so the persisted action uses ordinary message fields.
+                pull:
+                    $ref: '#/components/schemas/DockerImagePull'
+            description: DockerImageAction carries frozen evidence for one reviewed image operation.
+        DockerImageBinding:
+            type: object
+            properties:
+                reference:
+                    type: string
+                imageId:
+                    type: string
+                local:
+                    allOf:
+                        - $ref: '#/components/schemas/DockerRegistryDescriptor'
+                    description: The local evidence keeps config, index and platform manifest identities separate.
+                expectAbsent:
+                    type: boolean
+            description: DockerImageBinding is the local tag evidence the change reviewed.
         DockerImageContainer:
             type: object
             properties:
@@ -15770,6 +15857,16 @@ components:
                 revision:
                     type: string
             description: DockerImageDeployment names a revision that holds the image.
+        DockerImageDigestCheck:
+            type: object
+            properties:
+                current:
+                    $ref: '#/components/schemas/DockerRegistryDescriptor'
+                candidate:
+                    $ref: '#/components/schemas/DockerRegistryDescriptor'
+                sameContent:
+                    type: boolean
+            description: DockerImageDigestCheck compares a local binding with the native registry manifest.
         DockerImageHistory:
             type: object
             properties:
@@ -15787,6 +15884,92 @@ components:
                 sizeBytes:
                     type: string
             description: DockerImageLayer names a root filesystem layer in base-to-top order.
+        DockerImageLoginRef:
+            type: object
+            properties:
+                id:
+                    type: string
+                name:
+                    type: string
+                host:
+                    type: string
+                revision:
+                    type: string
+            description: DockerImageLoginRef identifies a reviewed connection revision without carrying credentials.
+        DockerImagePull:
+            type: object
+            properties:
+                reference:
+                    type: string
+                loginId:
+                    type: string
+                expectedLocalImageId:
+                    type: string
+                credentialProject:
+                    type: string
+            description: DockerImagePull names the registry reference and the optional expected local binding.
+        DockerImageReceipt:
+            type: object
+            properties:
+                outcome:
+                    enum:
+                        - DOCKER_IMAGE_OUTCOME_UNSPECIFIED
+                        - DOCKER_IMAGE_OUTCOME_APPLIED
+                        - DOCKER_IMAGE_OUTCOME_UNCHANGED
+                        - DOCKER_IMAGE_OUTCOME_REFUSED
+                        - DOCKER_IMAGE_OUTCOME_FAILED
+                        - DOCKER_IMAGE_OUTCOME_UNKNOWN
+                    type: string
+                    format: enum
+                reason:
+                    enum:
+                        - DOCKER_IMAGE_REASON_UNSPECIFIED
+                        - DOCKER_IMAGE_REASON_STALE
+                        - DOCKER_IMAGE_REASON_PROTECTED
+                        - DOCKER_IMAGE_REASON_CREDENTIAL_REFUSED
+                        - DOCKER_IMAGE_REASON_REALM_CHANGED
+                        - DOCKER_IMAGE_REASON_UNSUPPORTED_PLATFORM
+                        - DOCKER_IMAGE_REASON_VERIFICATION_FAILED
+                        - DOCKER_IMAGE_REASON_UNSUPPORTED
+                    type: string
+                    format: enum
+                imageKey:
+                    $ref: '#/components/schemas/DockerImageSourceKey'
+                reference:
+                    type: string
+                digest:
+                    type: string
+                previousImageId:
+                    type: string
+            description: DockerImageReceipt records what the selected Engine verified after the action.
+        DockerImageSourceKey:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                imageId:
+                    type: string
+            description: DockerImageSourceKey identifies one image on one Engine.
+        DockerImageSupport:
+            type: object
+            properties:
+                defaultRegistry:
+                    type: string
+                canPull:
+                    type: boolean
+                canTag:
+                    type: boolean
+            description: DockerImageSupport describes image controls available from the connected Engine and agent.
+        DockerImageTag:
+            type: object
+            properties:
+                sourceKey:
+                    $ref: '#/components/schemas/DockerImageSourceKey'
+                destination:
+                    type: string
+                moveExisting:
+                    type: boolean
+            description: DockerImageTag assigns one alias to an immutable local image.
         DockerMaintenance:
             type: object
             properties:
@@ -15799,6 +15982,8 @@ components:
                 resumeCleanupToken:
                     type: string
                     description: The reviewed pause to clear. Empty when this plan removes artifacts.
+                imageAction:
+                    $ref: '#/components/schemas/DockerImageAction'
             description: DockerMaintenance is the exact scope of an irreversible local cleanup.
         DockerObject:
             type: object
@@ -15894,6 +16079,29 @@ components:
                     type: string
                     format: enum
             description: DockerReceipt reports one approved target's outcome.
+        DockerRegistryDescriptor:
+            type: object
+            properties:
+                repository:
+                    type: string
+                indexDigest:
+                    type: string
+                    description: Digest of the multi-platform index or manifest list, when known.
+                manifestDigest:
+                    type: string
+                    description: Digest of the manifest for the selected platform, when known.
+                platform:
+                    type: string
+                configDigest:
+                    type: string
+                    description: Digest of the platform's image config, when known. Engine image IDs are separate.
+            description: DockerRegistryDescriptor identifies the resolved native manifest and its image config.
+        DockerRegistryRepository:
+            type: object
+            properties:
+                name:
+                    type: string
+            description: DockerRegistryRepository is one repository name within the requested registry.
         DockerServerSummary:
             type: object
             properties:
@@ -15941,6 +16149,8 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DockerObject'
+                imageOperations:
+                    $ref: '#/components/schemas/DockerImageSupport'
             description: DockerServerSummary counts the Engine inventory at one point in time.
         DockerUnavailable:
             type: object
@@ -21305,6 +21515,18 @@ components:
                     items:
                         $ref: '#/components/schemas/RegistryLoginInfo'
             description: ListRegistryLoginsResponse lists registry logins.
+        ListRegistryRepositoriesResponse:
+            type: object
+            properties:
+                repositories:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerRegistryRepository'
+                nextPageToken:
+                    type: string
+                enumerationSupported:
+                    type: boolean
+            description: ListRegistryRepositoriesResponse gives the names returned by the catalog and any next page.
         ListRepositoryBranchesRequest:
             type: object
             properties:
@@ -23822,12 +24044,18 @@ components:
                     $ref: '#/components/schemas/DockerCleanupSelection'
                 resumeCleanupToken:
                     type: string
+                tag:
+                    $ref: '#/components/schemas/DockerImageTag'
+                pull:
+                    $ref: '#/components/schemas/DockerImagePull'
             description: PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.
         PlanDockerMaintenanceResponse:
             type: object
             properties:
                 change:
                     $ref: '#/components/schemas/Change'
+                digestCheck:
+                    $ref: '#/components/schemas/DockerImageDigestCheck'
             description: PlanDockerMaintenanceResponse carries a standard reviewable change.
         PlanInstallUpdatesRequest:
             type: object
@@ -29504,6 +29732,10 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DockerReceipt'
+                dockerImageReceipts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageReceipt'
                 serverId:
                     type: string
                     description: The server it runs on.

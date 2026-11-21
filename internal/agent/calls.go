@@ -528,7 +528,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	fail := callFailed
 	switch {
 	case call.GetPlan() != nil:
-		if result, checked := c.planDockerMaintenance(call.GetPlan()); checked {
+		if result, checked := c.planDockerMaintenance(ctx, call.GetPlan()); checked {
 			return result
 		}
 		wanted := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
@@ -626,6 +626,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if step.DockerMaintenance == nil || !proto.Equal(want.GetDockerMaintenance(), step.DockerMaintenance) ||
 				resourcepb.FromRef(want.GetResource()) != step.Ref {
 				return fail(errors.New("the Docker cleanup scope differs from its plan"))
+			}
+			if step.DockerMaintenance.GetImageAction() != nil {
+				image := call.GetApply().GetDesired()
+				if !proto.Equal(step.DockerMaintenance, image.GetDockerMaintenance()) {
+					return fail(errors.New("the image action differs from its reviewed step"))
+				}
+				return c.runImageAction(ctx, call.GetId(), step.Ref, image, call.GetApply().GetDockerCleanupProtection())
 			}
 			return c.runDockerMaintenance(ctx, call.GetId(), step.Ref, step.DockerMaintenance, call.GetApply().GetDockerCleanupProtection())
 		}

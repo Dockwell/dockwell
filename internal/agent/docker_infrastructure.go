@@ -9,6 +9,7 @@ import (
 	"github.com/dockwell/dockwell/internal/build"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/ingress/caddy"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -41,11 +42,18 @@ func (c *calls) ownedImage(image docker.DiskUsageImage) bool {
 		(c.cfg.DockerIngressImage != "" && containsProtectedImage(image, []string{c.cfg.DockerIngressImage})) {
 		return true
 	}
-	infrastructure := func(ref string) bool {
-		repo := docker.Repository(ref)
-		return repo == "dockwell" || strings.HasPrefix(repo, "dockwell/") ||
-			strings.HasPrefix(repo, "dockwell-") || strings.HasPrefix(repo, "ghcr.io/dockwell/") ||
-			slices.Contains(infrastructureRepositories, repo)
-	}
-	return slices.ContainsFunc(image.RepoTags, infrastructure) || slices.ContainsFunc(image.RepoDigests, infrastructure)
+	return slices.ContainsFunc(image.RepoTags, infrastructureRepository) || slices.ContainsFunc(image.RepoDigests, infrastructureRepository)
+}
+
+func infrastructureRepository(ref string) bool {
+	repo := docker.Repository(ref)
+	return repo == "dockwell" || strings.HasPrefix(repo, "dockwell/") ||
+		strings.HasPrefix(repo, "dockwell-") || strings.HasPrefix(repo, "ghcr.io/dockwell/") ||
+		slices.Contains(infrastructureRepositories, repo)
+}
+
+func (c *calls) infrastructureImageAlias(ref string) bool {
+	return !strings.Contains(ref, "@") && (infrastructureRepository(ref) ||
+		resource.DockerAliasProtected(ref, infrastructurePins) ||
+		resource.DockerAliasProtected(ref, []string{c.cfg.DockerIngressImage}))
 }

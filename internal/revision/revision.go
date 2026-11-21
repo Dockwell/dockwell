@@ -777,7 +777,15 @@ func (p *Plan) Counts() Counts {
 
 // HasDockerMaintenance reports whether applying the plan needs an exact cleanup approval.
 func (p *Plan) HasDockerMaintenance() bool {
-	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.DockerMaintenance != nil })
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		return r.DockerMaintenance != nil && r.DockerMaintenance.GetImageAction() == nil ||
+			resource.DockerImageNeedsPasskey(r.DockerMaintenance.GetImageAction())
+	})
+}
+
+// HasDockerImageAction identifies the install's reviewed image operations.
+func (p *Plan) HasDockerImageAction() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.DockerMaintenance.GetImageAction() != nil })
 }
 
 // HostAccess reports a plan that lets a resource reach more of its server
@@ -3463,6 +3471,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
 			rp.NoUndo = "Docker cleanup removes the selected artifacts permanently."
+			if rp.DockerMaintenance.GetImageAction() != nil {
+				rp.NoUndo = "This image action does not make a revision."
+			}
 			if rp.DockerMaintenance.GetResumeCleanupToken() != "" {
 				rp.NoUndo = "Re-enabling Docker cleanup clears a safety pause."
 			}
@@ -5010,6 +5021,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			told.Did = cmp.Or(o.Did, told.Did)
 			if len(o.DockerReceipts) > 0 {
 				e.dockerReceipts(c.ID, index, o.DockerReceipts)
+			}
+			if len(o.DockerImageReceipts) > 0 {
+				e.dockerImageReceipts(c.ID, index, o.DockerImageReceipts)
 			}
 			told.Backup = cmp.Or(o.Backup, told.Backup)
 			if b := o.Backup; b != nil && !slices.ContainsFunc(taken, func(t resource.BackupTaken) bool { return t.ID == b.ID }) {

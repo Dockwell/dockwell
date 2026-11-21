@@ -430,6 +430,9 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	fp := req.Msg.GetFingerprint()
+	if r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && (p.Token != nil || p.Session.ID == "") {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in with an install admin account to apply this image action"), authapi.ReasonNeedsSession)
+	}
 	// What the caller's role refuses is said first, before anything is asked of
 	// them; applying checks it again (ADR 0048, check 2).
 	var approve revision.Approval
@@ -457,6 +460,9 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),
 			"plan_changed")
+	case r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && fp == "":
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			errors.New("review the image action, then apply it with its plan fingerprint"), "needs_confirmation")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s destroys data, may cut off access to a server, or lets two containers write to one place, so no API token may apply it. %s", r.ID, signIn),
@@ -1667,7 +1673,7 @@ func intentProto(i *revision.Intent) *dockwellv1.Intent {
 func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	p := &dockwellv1.StepProgress{
 		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
-		DockerReceipts: s.DockerReceipts, State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
+		DockerReceipts: s.DockerReceipts, DockerImageReceipts: s.DockerImageReceipts, State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
 		Wave:  int32(s.Wave), //nolint:gosec // a wave's number, at most the fleet's size
 		Phase: dockwellv1.StepPhase(s.Phase), DoneBytes: s.Done, TotalBytes: s.Total,
 	}

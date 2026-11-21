@@ -232,7 +232,20 @@ func imageTags(raw []string) []string {
 }
 
 func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupancy, protected []string) *v1.DockerCleanupTarget {
-	tags, digests := imageTags(raw.RepoTags), imageTags(raw.RepoDigests)
+	// The containerd store can include a canonical digest in RepoTags as well.
+	// Count it as a digest exactly once, while verifying it at apply like any other reference.
+	references := slices.Compact(imageTags(raw.RepoTags))
+	var tags, digests []string
+	digests = append(digests, raw.RepoDigests...)
+	for _, ref := range references {
+		if strings.Contains(ref, "@") {
+			digests = append(digests, ref)
+		} else {
+			tags = append(tags, ref)
+		}
+	}
+	digests = slices.Compact(imageTags(digests))
+	raw.RepoTags, raw.RepoDigests = tags, digests
 	name := raw.ID
 	if len(tags) > 0 {
 		name = tags[0]
@@ -250,6 +263,10 @@ func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupan
 		t.Reason = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
 	case len(tags) > 1:
 		t.Reason = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
+	case len(references) > 1:
+		// The snapshotter's canonical references are independent records. Its
+		// non-forced delete by ID refuses when several records name the target.
+		t.Reason = reasonUnavailable
 	case !reviewableImageRefs(tags, digests):
 		t.Reason = reasonUnavailable
 	default:

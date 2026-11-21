@@ -112,6 +112,24 @@ func TestCleanupRemovesOneBuildCacheRecordOnRealDocker(t *testing.T) {
 	}
 }
 
+func TestCleanupBuildCacheStaysDisabledOnContainerd29OnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	info, err := client.Info(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, engine := client.Version()
+	if !info.ContainerdImageStore() || !strings.HasPrefix(engine, "29.") {
+		t.Skip("this check needs Docker Engine 29 with the containerd image store")
+	}
+	if client.ExactCacheRemoval() {
+		t.Fatal("Engine 29 offered exact cache removal without an approved filter")
+	}
+	if _, err := client.RemoveBuildCache(t.Context(), strings.Repeat("a", 25), nil); err == nil || err.Error() != "this Engine cannot target the exact cache record" {
+		t.Fatalf("exact cache removal on Engine 29: %v", err)
+	}
+}
+
 func TestCleanupRemovesADanglingImageByIDOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	c := cleanupCalls(t, client)

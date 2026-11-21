@@ -252,6 +252,7 @@ message DockerServerSummary {
   repeated string registry_mirrors = 14;
   uint32 needs_attention = 15;
   repeated DockerObject attention = 16;
+  DockerImageSupport image_operations = 17;
 }
 
 // GetDockerOverviewRequest identifies the servers whose counts are wanted.
@@ -431,6 +432,8 @@ message PlanDockerMaintenanceRequest {
   oneof operation {
     DockerCleanupSelection cleanup = 10;
     string resume_cleanup_token = 11;
+    DockerImageTag tag = 12;
+    DockerImagePull pull = 18;
   }
 }
 
@@ -443,4 +446,19 @@ message DockerCleanupSelection {
 // PlanDockerMaintenanceResponse carries a standard reviewable change.
 message PlanDockerMaintenanceResponse {
   Change change = 1;
+  DockerImageDigestCheck digest_check = 2;
+}
+
+// DockerImageSupport describes image controls available from the connected Engine and agent.
+message DockerImageSupport {
+  string default_registry = 1;
+  bool can_pull = 2;
+  bool can_tag = 3;
+}
+
+// DockerImageDigestCheck compares a local binding with the native registry manifest.
+message DockerImageDigestCheck {
+  DockerRegistryDescriptor current = 1;
+  DockerRegistryDescriptor candidate = 2;
+  bool same_content = 3;
 }

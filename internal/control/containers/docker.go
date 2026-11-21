@@ -106,6 +106,11 @@ func (h *Handler) GetDockerOverview(ctx context.Context, req *connect.Request[v1
 				res, err := session.DockerList(ctx, &agentv1.DockerInventoryListCall{Overview: true})
 				if summary := res.GetOverview(); err == nil && summary != nil {
 					summary.ServerId, summary.ExactTerminal = s.ID, session.ExactTerminal()
+					if session.DockerImageOperations() {
+						// Engine treats unqualified names as Docker Hub names. Mirrors
+						// are pull-through transport, never the registry in a reference.
+						summary.ImageOperations = &v1.DockerImageSupport{DefaultRegistry: "docker.io", CanPull: true, CanTag: true}
+					}
 					for _, row := range summary.GetAttention() {
 						row.Key = &v1.DockerObjectKey{ServerId: s.ID, Kind: v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER, EngineId: row.GetKey().GetEngineId()}
 						row.ManagedResource, row.ManagedResourceId, row.ManagedRevision = nil, "", 0

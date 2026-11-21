@@ -144,11 +144,24 @@ func DockerCleanupProtection(ctx context.Context, db *store.DB, server string, n
 
 func (e *Engine) applyStep(ctx context.Context, agent resource.Agent, server string, step resource.Step, desired proto.Message) error {
 	if step.DockerMaintenance != nil && step.DockerMaintenance.GetResumeCleanupToken() == "" {
-		held, err := DockerCleanupProtection(ctx, e.db, server, e.now(), true)
+		held, err := DockerCleanupProtection(ctx, e.db, server, e.now(), step.DockerMaintenance.GetImageAction() == nil)
 		if err != nil {
 			return err
 		}
 		ctx = resource.WithDockerProtection(ctx, held)
 	}
 	return agent.Apply(ctx, step, desired)
+}
+
+func (e *Engine) dockerImageReceipts(change string, index int, receipts []*v1.DockerImageReceipt) {
+	e.pmu.Lock()
+	defer e.pmu.Unlock()
+	progress := e.live[change]
+	if progress == nil || index < 0 || index >= len(progress.Steps) {
+		return
+	}
+	step := &progress.Steps[index]
+	step.DockerImageReceipts = slices.Clone(receipts)
+	update := *step
+	e.publishLocked(change, Update{Index: index, Step: &update})
 }

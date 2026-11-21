@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/id"
@@ -384,4 +385,36 @@ func samePlanned(saved []Saved, planned, versions []string) error {
 		}
 	}
 	return nil
+}
+
+// DockerImageLogin resolves a connection for an install-scoped image operation.
+func (l *Logins) DockerImageLogin(ctx context.Context, project, reference, loginID string) (*v1.DockerImageLoginRef, registry.Auth, error) {
+	ref, err := registry.Parse(reference)
+	if err != nil {
+		return nil, registry.Auth{}, err
+	}
+	if project != "" {
+		project, err = l.ProjectFor(ctx, "", project)
+		if err != nil {
+			return nil, registry.Auth{}, err
+		}
+	}
+	all, err := l.All(ctx)
+	if err != nil {
+		return nil, registry.Auth{}, err
+	}
+	if loginID == "" {
+		saved, ok, err := pick(all, project, ref.Registry, "")
+		if err != nil || !ok {
+			return nil, registry.Auth{}, err
+		}
+		loginID = saved.ID
+	}
+	for _, saved := range all {
+		if saved.ID == loginID && saved.Spec.GetRegistry() == ref.Registry && Allows(saved.Spec, project) {
+			auth, err := l.Open(ctx, saved)
+			return &v1.DockerImageLoginRef{Id: saved.ID, Name: saved.Name, Host: ref.Registry, Revision: int64(saved.Revision)}, auth, err
+		}
+	}
+	return nil, registry.Auth{}, ErrNoLogin
 }

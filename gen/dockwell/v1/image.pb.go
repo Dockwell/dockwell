@@ -1385,6 +1385,205 @@ func (x *ImageVariable) GetValue() string {
 	return ""
 }
 
+// ListRegistryRepositoriesRequest names one registry and server for a catalog read.
+type ListRegistryRepositoriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Registry      string                 `protobuf:"bytes,1,opt,name=registry,proto3" json:"registry,omitempty"`
+	Project       string                 `protobuf:"bytes,2,opt,name=project,proto3" json:"project,omitempty"`
+	Server        string                 `protobuf:"bytes,3,opt,name=server,proto3" json:"server,omitempty"`
+	NamePrefix    string                 `protobuf:"bytes,4,opt,name=name_prefix,json=namePrefix,proto3" json:"name_prefix,omitempty"`
+	PageSize      uint32                 `protobuf:"varint,5,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,6,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	LoginId       string                 `protobuf:"bytes,7,opt,name=login_id,json=loginId,proto3" json:"login_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRegistryRepositoriesRequest) Reset() {
+	*x = ListRegistryRepositoriesRequest{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistryRepositoriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistryRepositoriesRequest) ProtoMessage() {}
+
+func (x *ListRegistryRepositoriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistryRepositoriesRequest.ProtoReflect.Descriptor instead.
+func (*ListRegistryRepositoriesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ListRegistryRepositoriesRequest) GetRegistry() string {
+	if x != nil {
+		return x.Registry
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesRequest) GetProject() string {
+	if x != nil {
+		return x.Project
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesRequest) GetServer() string {
+	if x != nil {
+		return x.Server
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesRequest) GetNamePrefix() string {
+	if x != nil {
+		return x.NamePrefix
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesRequest) GetPageSize() uint32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRegistryRepositoriesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesRequest) GetLoginId() string {
+	if x != nil {
+		return x.LoginId
+	}
+	return ""
+}
+
+// ListRegistryRepositoriesResponse gives the names returned by the catalog and any next page.
+type ListRegistryRepositoriesResponse struct {
+	state                protoimpl.MessageState      `protogen:"open.v1"`
+	Repositories         []*DockerRegistryRepository `protobuf:"bytes,1,rep,name=repositories,proto3" json:"repositories,omitempty"`
+	NextPageToken        string                      `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	EnumerationSupported bool                        `protobuf:"varint,3,opt,name=enumeration_supported,json=enumerationSupported,proto3" json:"enumeration_supported,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ListRegistryRepositoriesResponse) Reset() {
+	*x = ListRegistryRepositoriesResponse{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistryRepositoriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistryRepositoriesResponse) ProtoMessage() {}
+
+func (x *ListRegistryRepositoriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistryRepositoriesResponse.ProtoReflect.Descriptor instead.
+func (*ListRegistryRepositoriesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ListRegistryRepositoriesResponse) GetRepositories() []*DockerRegistryRepository {
+	if x != nil {
+		return x.Repositories
+	}
+	return nil
+}
+
+func (x *ListRegistryRepositoriesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+func (x *ListRegistryRepositoriesResponse) GetEnumerationSupported() bool {
+	if x != nil {
+		return x.EnumerationSupported
+	}
+	return false
+}
+
+// DockerRegistryRepository is one repository name within the requested registry.
+type DockerRegistryRepository struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DockerRegistryRepository) Reset() {
+	*x = DockerRegistryRepository{}
+	mi := &file_dockwell_v1_image_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DockerRegistryRepository) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DockerRegistryRepository) ProtoMessage() {}
+
+func (x *DockerRegistryRepository) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_image_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DockerRegistryRepository.ProtoReflect.Descriptor instead.
+func (*DockerRegistryRepository) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_image_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *DockerRegistryRepository) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
 var File_dockwell_v1_image_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_image_proto_rawDesc = "" +
@@ -1482,7 +1681,23 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\x03udp\x18\x02 \x01(\bR\x03udp\"9\n" +
 	"\rImageVariable\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value*\xe3\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"\xe7\x01\n" +
+	"\x1fListRegistryRepositoriesRequest\x12\x1a\n" +
+	"\bregistry\x18\x01 \x01(\tR\bregistry\x12\x18\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
+	"\x06server\x18\x03 \x01(\tR\x06server\x12\x1f\n" +
+	"\vname_prefix\x18\x04 \x01(\tR\n" +
+	"namePrefix\x12\x1b\n" +
+	"\tpage_size\x18\x05 \x01(\rR\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x06 \x01(\tR\tpageToken\x12\x19\n" +
+	"\blogin_id\x18\a \x01(\tR\aloginId\"\xca\x01\n" +
+	" ListRegistryRepositoriesResponse\x12I\n" +
+	"\frepositories\x18\x01 \x03(\v2%.dockwell.v1.DockerRegistryRepositoryR\frepositories\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x123\n" +
+	"\x15enumeration_supported\x18\x03 \x01(\bR\x14enumerationSupported\".\n" +
+	"\x18DockerRegistryRepository\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name*\xe3\x02\n" +
 	"\x12RegistryLoginState\x12$\n" +
 	" REGISTRY_LOGIN_STATE_UNSPECIFIED\x10\x00\x121\n" +
 	"\x1eREGISTRY_LOGIN_STATE_SIGNED_IN\x10\x01\x1a\r\xa2\xbb\x18\tSigned in\x12@\n" +
@@ -1496,8 +1711,9 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\x16IMAGE_ANSWER_NOT_FOUND\x10\x02\x12\x1c\n" +
 	"\x18IMAGE_ANSWER_UNREACHABLE\x10\x03\x12\x1a\n" +
 	"\x16IMAGE_ANSWER_NOT_ASKED\x10\x04\x12\x1f\n" +
-	"\x1bIMAGE_ANSWER_SIGN_IN_FAILED\x10d2\xde\f\n" +
-	"\fImageService\x12\x81\x01\n" +
+	"\x1bIMAGE_ANSWER_SIGN_IN_FAILED\x10d2\x90\x0e\n" +
+	"\fImageService\x12\xaf\x01\n" +
+	"\x18ListRegistryRepositories\x12,.dockwell.v1.ListRegistryRepositoriesRequest\x1a-.dockwell.v1.ListRegistryRepositoriesResponse\"6\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x19\x12\x17/v1/images/repositories\x90\x02\x01\x12\x81\x01\n" +
 	"\fSearchImages\x12 .dockwell.v1.SearchImagesRequest\x1a!.dockwell.v1.SearchImagesResponse\",\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x13\x12\x11/v1/images:search\x90\x02\x01\x12\x82\x01\n" +
 	"\rListImageTags\x12!.dockwell.v1.ListImageTagsRequest\x1a\".dockwell.v1.ListImageTagsResponse\"*\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x11\x12\x0f/v1/images:tags\x90\x02\x01\x12v\n" +
 	"\bGetImage\x12\x1c.dockwell.v1.GetImageRequest\x1a\x1d.dockwell.v1.GetImageResponse\"-\xa0\xbb\x18\x01\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x14\x12\x12/v1/images:inspect\x90\x02\x01\x12\x94\x01\n" +
@@ -1521,58 +1737,64 @@ func file_dockwell_v1_image_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_image_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_dockwell_v1_image_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_dockwell_v1_image_proto_goTypes = []any{
-	(RegistryLoginState)(0),            // 0: dockwell.v1.RegistryLoginState
-	(ImageAnswer)(0),                   // 1: dockwell.v1.ImageAnswer
-	(*ListRegistryLoginsRequest)(nil),  // 2: dockwell.v1.ListRegistryLoginsRequest
-	(*ListRegistryLoginsResponse)(nil), // 3: dockwell.v1.ListRegistryLoginsResponse
-	(*RegistryLoginInfo)(nil),          // 4: dockwell.v1.RegistryLoginInfo
-	(*CheckRegistryLoginRequest)(nil),  // 5: dockwell.v1.CheckRegistryLoginRequest
-	(*CheckRegistryLoginResponse)(nil), // 6: dockwell.v1.CheckRegistryLoginResponse
-	(*SearchImagesRequest)(nil),        // 7: dockwell.v1.SearchImagesRequest
-	(*SearchImagesResponse)(nil),       // 8: dockwell.v1.SearchImagesResponse
-	(*ImageMatch)(nil),                 // 9: dockwell.v1.ImageMatch
-	(*ListImageTagsRequest)(nil),       // 10: dockwell.v1.ListImageTagsRequest
-	(*ListImageTagsResponse)(nil),      // 11: dockwell.v1.ListImageTagsResponse
-	(*ImageTag)(nil),                   // 12: dockwell.v1.ImageTag
-	(*GetImageRequest)(nil),            // 13: dockwell.v1.GetImageRequest
-	(*GetImageResponse)(nil),           // 14: dockwell.v1.GetImageResponse
-	(*ImageConfig)(nil),                // 15: dockwell.v1.ImageConfig
-	(*ImagePort)(nil),                  // 16: dockwell.v1.ImagePort
-	(*ImageVariable)(nil),              // 17: dockwell.v1.ImageVariable
-	(*v1alpha1.RegistryLoginEcr)(nil),  // 18: dockwell.resource.v1alpha1.RegistryLoginEcr
-	(*timestamppb.Timestamp)(nil),      // 19: google.protobuf.Timestamp
+	(RegistryLoginState)(0),                  // 0: dockwell.v1.RegistryLoginState
+	(ImageAnswer)(0),                         // 1: dockwell.v1.ImageAnswer
+	(*ListRegistryLoginsRequest)(nil),        // 2: dockwell.v1.ListRegistryLoginsRequest
+	(*ListRegistryLoginsResponse)(nil),       // 3: dockwell.v1.ListRegistryLoginsResponse
+	(*RegistryLoginInfo)(nil),                // 4: dockwell.v1.RegistryLoginInfo
+	(*CheckRegistryLoginRequest)(nil),        // 5: dockwell.v1.CheckRegistryLoginRequest
+	(*CheckRegistryLoginResponse)(nil),       // 6: dockwell.v1.CheckRegistryLoginResponse
+	(*SearchImagesRequest)(nil),              // 7: dockwell.v1.SearchImagesRequest
+	(*SearchImagesResponse)(nil),             // 8: dockwell.v1.SearchImagesResponse
+	(*ImageMatch)(nil),                       // 9: dockwell.v1.ImageMatch
+	(*ListImageTagsRequest)(nil),             // 10: dockwell.v1.ListImageTagsRequest
+	(*ListImageTagsResponse)(nil),            // 11: dockwell.v1.ListImageTagsResponse
+	(*ImageTag)(nil),                         // 12: dockwell.v1.ImageTag
+	(*GetImageRequest)(nil),                  // 13: dockwell.v1.GetImageRequest
+	(*GetImageResponse)(nil),                 // 14: dockwell.v1.GetImageResponse
+	(*ImageConfig)(nil),                      // 15: dockwell.v1.ImageConfig
+	(*ImagePort)(nil),                        // 16: dockwell.v1.ImagePort
+	(*ImageVariable)(nil),                    // 17: dockwell.v1.ImageVariable
+	(*ListRegistryRepositoriesRequest)(nil),  // 18: dockwell.v1.ListRegistryRepositoriesRequest
+	(*ListRegistryRepositoriesResponse)(nil), // 19: dockwell.v1.ListRegistryRepositoriesResponse
+	(*DockerRegistryRepository)(nil),         // 20: dockwell.v1.DockerRegistryRepository
+	(*v1alpha1.RegistryLoginEcr)(nil),        // 21: dockwell.resource.v1alpha1.RegistryLoginEcr
+	(*timestamppb.Timestamp)(nil),            // 22: google.protobuf.Timestamp
 }
 var file_dockwell_v1_image_proto_depIdxs = []int32{
 	4,  // 0: dockwell.v1.ListRegistryLoginsResponse.logins:type_name -> dockwell.v1.RegistryLoginInfo
-	18, // 1: dockwell.v1.CheckRegistryLoginRequest.ecr:type_name -> dockwell.resource.v1alpha1.RegistryLoginEcr
+	21, // 1: dockwell.v1.CheckRegistryLoginRequest.ecr:type_name -> dockwell.resource.v1alpha1.RegistryLoginEcr
 	0,  // 2: dockwell.v1.CheckRegistryLoginResponse.state:type_name -> dockwell.v1.RegistryLoginState
 	9,  // 3: dockwell.v1.SearchImagesResponse.matches:type_name -> dockwell.v1.ImageMatch
 	1,  // 4: dockwell.v1.SearchImagesResponse.answer:type_name -> dockwell.v1.ImageAnswer
 	12, // 5: dockwell.v1.ListImageTagsResponse.tags:type_name -> dockwell.v1.ImageTag
 	1,  // 6: dockwell.v1.ListImageTagsResponse.answer:type_name -> dockwell.v1.ImageAnswer
-	19, // 7: dockwell.v1.ImageTag.push_time:type_name -> google.protobuf.Timestamp
+	22, // 7: dockwell.v1.ImageTag.push_time:type_name -> google.protobuf.Timestamp
 	1,  // 8: dockwell.v1.GetImageResponse.answer:type_name -> dockwell.v1.ImageAnswer
 	15, // 9: dockwell.v1.GetImageResponse.config:type_name -> dockwell.v1.ImageConfig
 	1,  // 10: dockwell.v1.GetImageResponse.unread:type_name -> dockwell.v1.ImageAnswer
 	16, // 11: dockwell.v1.ImageConfig.ports:type_name -> dockwell.v1.ImagePort
 	17, // 12: dockwell.v1.ImageConfig.env:type_name -> dockwell.v1.ImageVariable
-	7,  // 13: dockwell.v1.ImageService.SearchImages:input_type -> dockwell.v1.SearchImagesRequest
-	10, // 14: dockwell.v1.ImageService.ListImageTags:input_type -> dockwell.v1.ListImageTagsRequest
-	13, // 15: dockwell.v1.ImageService.GetImage:input_type -> dockwell.v1.GetImageRequest
-	2,  // 16: dockwell.v1.ImageService.ListRegistryLogins:input_type -> dockwell.v1.ListRegistryLoginsRequest
-	5,  // 17: dockwell.v1.ImageService.CheckRegistryLogin:input_type -> dockwell.v1.CheckRegistryLoginRequest
-	8,  // 18: dockwell.v1.ImageService.SearchImages:output_type -> dockwell.v1.SearchImagesResponse
-	11, // 19: dockwell.v1.ImageService.ListImageTags:output_type -> dockwell.v1.ListImageTagsResponse
-	14, // 20: dockwell.v1.ImageService.GetImage:output_type -> dockwell.v1.GetImageResponse
-	3,  // 21: dockwell.v1.ImageService.ListRegistryLogins:output_type -> dockwell.v1.ListRegistryLoginsResponse
-	6,  // 22: dockwell.v1.ImageService.CheckRegistryLogin:output_type -> dockwell.v1.CheckRegistryLoginResponse
-	18, // [18:23] is the sub-list for method output_type
-	13, // [13:18] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	20, // 13: dockwell.v1.ListRegistryRepositoriesResponse.repositories:type_name -> dockwell.v1.DockerRegistryRepository
+	18, // 14: dockwell.v1.ImageService.ListRegistryRepositories:input_type -> dockwell.v1.ListRegistryRepositoriesRequest
+	7,  // 15: dockwell.v1.ImageService.SearchImages:input_type -> dockwell.v1.SearchImagesRequest
+	10, // 16: dockwell.v1.ImageService.ListImageTags:input_type -> dockwell.v1.ListImageTagsRequest
+	13, // 17: dockwell.v1.ImageService.GetImage:input_type -> dockwell.v1.GetImageRequest
+	2,  // 18: dockwell.v1.ImageService.ListRegistryLogins:input_type -> dockwell.v1.ListRegistryLoginsRequest
+	5,  // 19: dockwell.v1.ImageService.CheckRegistryLogin:input_type -> dockwell.v1.CheckRegistryLoginRequest
+	19, // 20: dockwell.v1.ImageService.ListRegistryRepositories:output_type -> dockwell.v1.ListRegistryRepositoriesResponse
+	8,  // 21: dockwell.v1.ImageService.SearchImages:output_type -> dockwell.v1.SearchImagesResponse
+	11, // 22: dockwell.v1.ImageService.ListImageTags:output_type -> dockwell.v1.ListImageTagsResponse
+	14, // 23: dockwell.v1.ImageService.GetImage:output_type -> dockwell.v1.GetImageResponse
+	3,  // 24: dockwell.v1.ImageService.ListRegistryLogins:output_type -> dockwell.v1.ListRegistryLoginsResponse
+	6,  // 25: dockwell.v1.ImageService.CheckRegistryLogin:output_type -> dockwell.v1.CheckRegistryLoginResponse
+	20, // [20:26] is the sub-list for method output_type
+	14, // [14:20] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_image_proto_init() }
@@ -1587,7 +1809,7 @@ func file_dockwell_v1_image_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_image_proto_rawDesc), len(file_dockwell_v1_image_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   16,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

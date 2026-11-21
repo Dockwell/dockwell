@@ -41,10 +41,11 @@ var errDiskMeasuring = resource.PlainlyBecause(resource.ReasonDiskMeasuring, "Me
 // when asked (ADR 0040). It asks Docker once at a time, as Docker refuses a
 // second count while one runs, and keeps the answer for diskUseFor.
 type diskUse struct {
-	lifetime  context.Context
-	docker    *docker.Client
-	collector *collect.Collector
-	cleanupMu sync.Mutex
+	lifetime   context.Context
+	docker     *docker.Client
+	collector  *collect.Collector
+	cleanupMu  sync.Mutex
+	imagePulls map[string]int // exact image IDs in staging, guarded by cleanupMu
 	// logs reads Docker's data directory, for its containers' logs. Nil reads the
 	// real one.
 	logs func(root string) fs.FS
@@ -52,6 +53,7 @@ type diskUse struct {
 
 	mu                         sync.Mutex
 	measured                   uint64
+	generation                 uint64 // invalidates an in-flight count after an image action
 	last                       *dockwellv1.ServerDiskUse
 	lastDF                     *docker.DiskUsage
 	at                         time.Time
@@ -72,6 +74,13 @@ func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
 // count. A fresh read waits for a count already in flight before starting its own.
 func (d *diskUse) snapshot(ctx context.Context, fresh bool) (*dockwellv1.ServerDiskUse, *docker.DiskUsage, error) {
 	return d.snapshotMode(ctx, fresh, false)
+}
+
+func (d *diskUse) invalidateImages() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.generation++
+	d.last, d.lastDF, d.err = nil, nil, nil
 }
 
 // cached starts a shared count when needed and immediately returns its latest
@@ -138,6 +147,9 @@ func (d *diskUse) snapshotMode(ctx context.Context, fresh, preview bool) (*dockw
 		d.mu.Unlock()
 		select {
 		case <-run.done:
+			if run.invalidated {
+				continue
+			}
 			return proto.CloneOf(run.use), run.df, run.err
 		case <-ctx.Done():
 			return nil, nil, ctx.Err()
@@ -146,10 +158,11 @@ func (d *diskUse) snapshotMode(ctx context.Context, fresh, preview bool) (*dockw
 }
 
 type diskMeasurement struct {
-	done chan struct{}
-	use  *dockwellv1.ServerDiskUse
-	df   *docker.DiskUsage
-	err  error
+	done        chan struct{}
+	use         *dockwellv1.ServerDiskUse
+	df          *docker.DiskUsage
+	err         error
+	invalidated bool
 }
 
 // measure starts one count with the mutex held. A view leaving doesn't cancel
@@ -157,6 +170,7 @@ type diskMeasurement struct {
 func (d *diskUse) measure(ctx context.Context, preview bool) *diskMeasurement {
 	run := &diskMeasurement{done: make(chan struct{})}
 	d.running = run
+	started := d.generation
 	lifetime := d.lifetime
 	if lifetime == nil {
 		lifetime = context.WithoutCancel(ctx)
@@ -167,7 +181,13 @@ func (d *diskUse) measure(ctx context.Context, preview bool) *diskMeasurement {
 		run.use, run.df, run.err = d.count(count, preview)
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		d.running, d.err, d.errAt, d.previewError = nil, run.err, d.now(), preview
+		d.running = nil
+		defer close(run.done)
+		if started != d.generation {
+			run.invalidated = true
+			return
+		}
+		d.err, d.errAt, d.previewError = run.err, d.now(), preview
 		d.measured++
 		if run.err == nil {
 			d.last, d.lastDF, d.at, d.previewCount = run.use, run.df, d.now(), preview
@@ -182,7 +202,6 @@ func (d *diskUse) measure(ctx context.Context, preview bool) *diskMeasurement {
 				}
 			})
 		}
-		close(run.done)
 	}()
 	return run
 }

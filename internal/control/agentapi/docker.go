@@ -9,9 +9,12 @@ import (
 	"slices"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
@@ -207,5 +210,71 @@ func (s *Session) applyDockerCleanup(ctx context.Context, step resource.Step) er
 			}
 			return nil
 		})
+	return err
+}
+
+type dockerImageLogins interface {
+	DockerImageLogin(context.Context, string, string, string) (*dockwellv1.DockerImageLoginRef, registry.Auth, error)
+}
+
+// DockerImageOperations reports whether this connection understands reviewed image actions.
+func (s *Session) DockerImageOperations() bool { return s.dockerCapabilities.GetImageOperations() }
+
+// DockerImageLogin picks or reopens a saved registry connection.
+func (s *Session) DockerImageLogin(ctx context.Context, project, reference, id string) (*dockwellv1.DockerImageLoginRef, registry.Auth, error) {
+	if l, ok := s.agents.logins.(dockerImageLogins); ok {
+		return l.DockerImageLogin(ctx, project, reference, id)
+	}
+	if id != "" {
+		return nil, registry.Auth{}, ErrNoLogins
+	}
+	return nil, registry.Auth{}, nil
+}
+
+// PreviewDockerImage uses the existing read-only planning call to freeze Docker
+// and registry evidence. It doesn't hold a change or assign a change ID.
+func (s *Session) PreviewDockerImage(ctx context.Context, ref resource.Ref, image *dockwellv1.DockerImageAction, login registry.Auth) (*dockwellv1.DockerImageAction, error) {
+	plan := &dockwellv1.DockerMaintenance{ImageAction: image}
+	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(ref), DockerMaintenance: plan}
+	reply, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: &agentv1.PlanCall{Desired: []*agentv1.DesiredResource{wanted}}}}, dockerCallWait,
+		func(session *Session) error { return session.imageOperationAuth(wanted, ref, login) })
+	if err != nil {
+		return nil, err
+	}
+	steps := reply.GetPlan().GetSteps()
+	if len(steps) != 1 || steps[0].GetDockerMaintenance().GetImageAction() == nil {
+		return nil, ErrOlderAgent
+	}
+	return steps[0].GetDockerMaintenance().GetImageAction(), nil
+}
+
+func (s *Session) imageOperationAuth(wanted *agentv1.DesiredResource, ref resource.Ref, login registry.Auth) error {
+	if !s.DockerImageOperations() {
+		return fault.New(ErrOlderAgent, "update the agent to use Docker image actions")
+	}
+	if login.Registry == "" {
+		return nil
+	}
+	sealed, err := s.sealLogin(resource.DockerImageAuthRef(ref, wanted.GetDockerMaintenance()), login)
+	wanted.DockerRegistryAuth = sealed
+	return err
+}
+
+func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) error {
+	plan := step.DockerMaintenance
+	image := plan.GetImageAction()
+	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(step.Ref), DockerMaintenance: plan}
+	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), DockerCleanupProtection: dockerProtection(ctx), Desired: wanted}
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout, func(session *Session) error {
+		var login registry.Auth
+		if refs := image.GetApprovedLogins(); len(refs) > 0 {
+			saved, auth, err := session.DockerImageLogin(ctx, image.GetCredentialProject(), image.GetPull().GetReference(), refs[0].GetId())
+			if err != nil || !proto.Equal(saved, refs[0]) {
+				return errors.New("the registry login changed. Review the image action again")
+			}
+			login = auth
+		}
+		return session.imageOperationAuth(wanted, step.Ref, login)
+	})
 	return err
 }

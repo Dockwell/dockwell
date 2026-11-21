@@ -223,6 +223,9 @@ func (c *calls) recheckCleanup(ctx context.Context, df *docker.DiskUsage, target
 
 func (c *calls) recheckCleanupImage(ctx context.Context, target *v1.DockerCleanupTarget, protected []string) (string, v1.DockerReceiptState) {
 	id := target.GetEngineId()
+	if c.cfg.disks.imagePulls[id] > 0 {
+		return id, receiptChanged
+	}
 	held, err := c.dockerOccupancy(ctx)
 	if err != nil {
 		return "", receiptFailed
@@ -501,7 +504,7 @@ func pruneDockerReceipts(dir string, now time.Time) {
 	}
 }
 
-func (c *calls) planDockerMaintenance(ask *agentv1.PlanCall) (*agentv1.CallResult, bool) {
+func (c *calls) planDockerMaintenance(ctx context.Context, ask *agentv1.PlanCall) (*agentv1.CallResult, bool) {
 	for _, desired := range ask.GetDesired() {
 		plan := desired.GetDockerMaintenance()
 		if plan == nil {
@@ -509,6 +512,9 @@ func (c *calls) planDockerMaintenance(ask *agentv1.PlanCall) (*agentv1.CallResul
 		}
 		if len(ask.GetDesired()) != 1 {
 			return callFailed(errors.New("plan Docker cleanup as a separate operation")), true
+		}
+		if plan.GetImageAction() != nil {
+			return c.planImageAction(ctx, desired)
 		}
 		ref := resourcepb.FromRef(desired.GetResource())
 		if err := c.checkDockerMaintenance(ref, plan); err != nil {
