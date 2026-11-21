@@ -20,7 +20,7 @@ type TakeOnContainer = Pick<ServerContainer, "name" | "composeService" | "compos
   id?: string;
 };
 
-export function useTakeOn(serverId: string) {
+export function useTakeOn(serverId: string, onApplied?: () => void) {
   const transport = useTransport();
   const sheet = useChangeSheet();
   const navigate = useNavigate();
@@ -48,7 +48,8 @@ export function useTakeOn(serverId: string) {
       onClose: (change) => {
         const made = change?.plan?.resources[0]?.id;
         if (change?.state === ChangeState.APPLIED && made) {
-          void navigate({ to: "/apps/$serviceId", params: { serviceId: made } });
+          if (onApplied) onApplied();
+          else void navigate({ to: "/apps/$serviceId", params: { serviceId: made } });
         }
       },
     });

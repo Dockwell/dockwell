@@ -4,6 +4,7 @@ syntax = "proto3";
 
 package dockwell.v1;
 
+import "dockwell/resource/v1alpha1/specs.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/options.proto";
@@ -89,6 +90,31 @@ service DockerService {
     };
   }
 
+  // CheckDockerNetwork validates a candidate against selected Engines.
+  // REST carries the address pools in the request body.
+  rpc CheckDockerNetwork(CheckDockerNetworkRequest) returns (CheckDockerNetworkResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/docker/networks:check"
+      body: "*"
+    };
+  }
+
+  // PlanDockerNetworkAttachment records a normal workload revision for one attachment.
+  rpc PlanDockerNetworkAttachment(PlanDockerNetworkAttachmentRequest) returns (PlanDockerNetworkAttachmentResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/docker/networks:planAttachment"
+      body: "*"
+    };
+  }
+
   // WatchDockerObjects streams invalidations and samples while a view is open.
   rpc WatchDockerObjects(WatchDockerObjectsRequest) returns (stream WatchDockerObjectsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -109,6 +135,8 @@ enum DockerObjectKind {
   DOCKER_OBJECT_KIND_CONTAINER = 1;
   DOCKER_OBJECT_KIND_COMPOSE = 2;
   DOCKER_OBJECT_KIND_IMAGE = 3;
+  DOCKER_OBJECT_KIND_NETWORK = 4;
+  DOCKER_OBJECT_KIND_VOLUME = 5;
 }
 
 // DockerOwnership says who is responsible for a container.
@@ -140,7 +168,7 @@ enum DockerReadState {
 message DockerObjectKey {
   string server_id = 1;
   DockerObjectKind kind = 2;
-  // Full Engine ID. A container name or ID prefix cannot stand in for it.
+  // Full Engine ID, or an opaque generation key for a volume.
   string engine_id = 3;
 }
 
@@ -161,6 +189,8 @@ message DockerObject {
     DockerContainer container = 10;
     DockerCompose compose = 11;
     DockerImage image = 12;
+    DockerNetwork network = 13;
+    DockerVolume volume = 14;
   }
 }
 
@@ -193,6 +223,7 @@ message DockerContainer {
   bool details_truncated = 24;
   // An untrusted absolute path hint from Compose. Read it only through FileService.
   string compose_directory = 25;
+  repeated DockerVolumeMountRef volume_mounts = 26;
 }
 
 // DockerEndpoint is a container’s current address on one Docker network.
@@ -200,6 +231,7 @@ message DockerEndpoint {
   string network = 1;
   string ipv4 = 2;
   string ipv6 = 3;
+  string network_id = 4;
 }
 
 // DockerCompose groups distinct Compose services on one server.
@@ -279,6 +311,7 @@ message DockerObjectFilter {
   // Includes every state except running. Use state for a single exact state.
   bool stopped = 5;
   bool needs_attention = 6;
+  string driver = 7;
 }
 
 // ListDockerObjectsRequest selects a page of objects.
@@ -461,4 +494,120 @@ message DockerImageDigestCheck {
   DockerRegistryDescriptor current = 1;
   DockerRegistryDescriptor candidate = 2;
   bool same_content = 3;
+}
+
+// DockerNetwork projects network facts without driver option values.
+message DockerNetwork {
+  string driver = 1;
+  string scope = 2;
+  optional bool ipv6_enabled = 3;
+  bool internal = 4;
+  repeated dockwell.resource.v1alpha1.NetworkIPAMPool pools = 5;
+  google.protobuf.Timestamp created_at = 6;
+  repeated DockerNetworkEndpoint attachments = 7;
+  optional uint32 attachment_count = 8;
+  repeated string label_keys = 9;
+  repeated string option_keys = 10;
+  bool attachments_partial = 11;
+  DockerStorageProtection protection = 12;
+}
+
+// DockerNetworkEndpoint identifies one attached container.
+message DockerNetworkEndpoint {
+  string container_id = 1;
+  string name = 2;
+  string ipv4 = 3;
+  string ipv6 = 4;
+  ContainerState state = 5;
+}
+
+// DockerVolume projects volume facts without arbitrary label or option values.
+message DockerVolume {
+  string driver = 1;
+  string mountpoint = 2;
+  optional uint64 size_bytes = 3;
+  google.protobuf.Timestamp size_observed_at = 4;
+  google.protobuf.Timestamp created_at = 5;
+  repeated DockerVolumeAttachment attachments = 6;
+  optional uint32 attachment_count = 7;
+  repeated string label_keys = 8;
+  repeated string option_keys = 9;
+  bool anonymous = 10;
+  bool attachments_partial = 11;
+  DockerStorageProtection protection = 12;
+}
+
+// DockerVolumeAttachment identifies a container mount.
+message DockerVolumeAttachment {
+  string container_id = 1;
+  string name = 2;
+  string mount_target = 3;
+  bool read_only = 4;
+  ContainerState state = 5;
+}
+
+// DockerVolumeMountRef points to the volume at one container mount target.
+message DockerVolumeMountRef {
+  string mount_target = 1;
+  DockerObjectKey volume_key = 2;
+}
+
+// DockerStorageProtection explains why a network or volume is protected.
+enum DockerStorageProtection {
+  DOCKER_STORAGE_PROTECTION_UNSPECIFIED = 0;
+  DOCKER_STORAGE_PROTECTION_BUILT_IN = 1;
+  DOCKER_STORAGE_PROTECTION_INFRASTRUCTURE = 2;
+  DOCKER_STORAGE_PROTECTION_SHARED_LINK = 3;
+  DOCKER_STORAGE_PROTECTION_RETAINED_VOLUME = 4;
+}
+
+// DockerNetworkCandidate describes a new network in an environment.
+message DockerNetworkCandidate {
+  string environment_id = 1;
+  string name = 2;
+  dockwell.resource.v1alpha1.Network spec = 3;
+}
+
+// CheckDockerNetworkRequest names the candidate and the Engines that would host it.
+message CheckDockerNetworkRequest {
+  repeated string server_ids = 1;
+  DockerNetworkCandidate candidate = 2;
+}
+
+// CheckDockerNetworkResponse returns live conflicts and lists Engines that could not answer.
+message CheckDockerNetworkResponse {
+  repeated DockerNetworkFinding findings = 1;
+  repeated DockerUnavailable unavailable = 2;
+}
+
+// DockerNetworkFinding identifies a rejected field and an optional conflict.
+message DockerNetworkFinding {
+  string server_id = 1;
+  DockerNetworkCheckCode code = 2;
+  string field_path = 3;
+  string conflicting_network = 4;
+  string conflicting_subnet = 5;
+}
+
+// DockerNetworkCheckCode identifies a field or Engine conflict that needs attention.
+enum DockerNetworkCheckCode {
+  DOCKER_NETWORK_CHECK_CODE_UNSPECIFIED = 0;
+  DOCKER_NETWORK_CHECK_CODE_NAME_IN_USE = 1;
+  DOCKER_NETWORK_CHECK_CODE_DRIVER_UNSUPPORTED = 2;
+  DOCKER_NETWORK_CHECK_CODE_INVALID_POOL = 3;
+  DOCKER_NETWORK_CHECK_CODE_INVALID_GATEWAY = 4;
+  DOCKER_NETWORK_CHECK_CODE_SUBNET_OVERLAP = 5;
+}
+
+// PlanDockerNetworkAttachmentRequest identifies the workload revision and exact Engine objects.
+message PlanDockerNetworkAttachmentRequest {
+  DockerObjectKey network = 1;
+  DockerObjectKey container = 2;
+  int64 base_revision = 3;
+  DockerNetworkAttachmentAction action = 4;
+}
+
+// PlanDockerNetworkAttachmentResponse returns the reviewed change for application.
+message PlanDockerNetworkAttachmentResponse {
+  Change change = 1;
 }

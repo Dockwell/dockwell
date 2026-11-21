@@ -1107,16 +1107,21 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		for name, ep := range c.NetworkSettings.Networks {
-			if e.networks[name] == nil && name != "host" {
-				failStart(w, c, http.StatusNotFound, "network %s not found", name)
+		for key, ep := range c.NetworkSettings.Networks {
+			n, err := e.findNetwork(key)
+			if err != nil || n == nil {
+				failStart(w, c, http.StatusNotFound, "network %s not found", key)
 				return
 			}
-			// A stopped container keeps the ID of its network, by which the
-			// engine looks it up, and that is gone if the network was made again.
-			if ep != nil && ep.NetworkID != "" && ep.NetworkID != e.networks[name].ID {
+			// A stopped container keeps the ID of its network, which is
+			// gone if the network was made again.
+			if ep != nil && ep.NetworkID != "" && ep.NetworkID != n.ID {
 				failStart(w, c, http.StatusNotFound, "network %s not found", ep.NetworkID)
 				return
+			}
+			if key != n.Name {
+				delete(c.NetworkSettings.Networks, key)
+				c.NetworkSettings.Networks[n.Name] = ep
 			}
 		}
 		if err := e.portsFree(c); err != nil {
@@ -1556,13 +1561,9 @@ func (e *Engine) attach(c *container) {
 		}
 		if n := e.networks[name]; n != nil {
 			if n.Containers == nil {
-				n.Containers = map[string]struct {
-					Name string `json:"Name"`
-				}{}
+				n.Containers = map[string]docker.NetworkEndpoint{}
 			}
-			n.Containers[c.ID] = struct {
-				Name string `json:"Name"`
-			}{strings.TrimPrefix(c.Name, "/")}
+			n.Containers[c.ID] = docker.NetworkEndpoint{Name: strings.TrimPrefix(c.Name, "/")}
 		}
 	}
 }
@@ -1691,6 +1692,7 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.NetworkSettings.Networks = map[string]*docker.EndpointSettings{n.Name: {}}
+	primary := n.ID
 	for ref, s := range req.NetworkingConfig.EndpointsConfig {
 		n := e.network(w, ref)
 		if n == nil {
@@ -1700,7 +1702,11 @@ func (e *Engine) create(w http.ResponseWriter, r *http.Request) {
 			fail(w, http.StatusBadRequest, "network-scoped alias is supported only for containers in user defined networks")
 			return
 		}
-		c.NetworkSettings.Networks[n.Name] = s
+		key := n.Name
+		if n.ID != primary && ref == n.ID {
+			key = ref
+		}
+		c.NetworkSettings.Networks[key] = s
 	}
 	e.finishCreate(w, c, &req)
 }
@@ -1831,7 +1837,7 @@ func (e *Engine) ensureVolume(name string, labels map[string]string) *docker.Vol
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	v := &docker.Volume{Name: name, Driver: "local", Options: map[string]string{}, Labels: labels, CreatedAt: "2026-11-04T10:00:00Z"}
+	v := &docker.Volume{Name: name, Driver: "local", Scope: "local", Options: map[string]string{}, Labels: labels, CreatedAt: e.wall().UTC().Format(time.RFC3339Nano)}
 	e.volumes[name] = v
 	return v
 }
@@ -1977,7 +1983,7 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			fail(w, http.StatusConflict, "network with name %s already exists", req.Name)
 			return
 		}
-		n := &docker.Network{ID: newID(), Name: req.Name, Scope: "local", Driver: req.Driver, Internal: req.Internal, Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
+		n := &docker.Network{ID: newID(), Name: req.Name, Scope: "local", Driver: req.Driver, Internal: req.Internal, EnableIPv6: req.EnableIPv6 != nil && *req.EnableIPv6, Created: e.wall(), Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
 		if req.IPAM != nil {
 			// As the default IPAM driver refuses it.
 			for _, c := range req.IPAM.Config {

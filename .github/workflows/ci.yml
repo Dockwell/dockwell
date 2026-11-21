@@ -178,6 +178,29 @@ jobs:
         run: |
           set -o pipefail
           go test -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
+      - name: Docker network and volume coverage
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          log="$RUNNER_TEMP/docker.out"
+          for test in \
+            TestDockerNetworkBridgeIPAMOnRealDocker \
+            TestDockerNetworkAttachmentRejectsReplacementOnRealDocker \
+            TestDockerNetworkCleanupProtectsDependantsOnRealDocker \
+            TestDockerNetworkAttachmentRolloutOnRealDocker \
+            TestDockerNetworkAttachmentRevisionOnRealDocker \
+            TestDockerVolumeGuardedCreateAndInventoryOnRealDocker \
+            TestDockerVolumeInventoryMountsAndBackupOnRealDocker; do
+            if grep -q "^--- PASS: $test " "$log"; then
+              continue
+            fi
+            if [ "$test" = TestDockerNetworkBridgeIPAMOnRealDocker ] &&
+              grep -q "^--- SKIP: $test " "$log" &&
+              grep -q 'IPv6 is disabled on the Docker runner' "$log"; then
+              continue
+            fi
+            echo "$test must pass against Docker. Read Tests against Docker above."
+            exit 1
+          done
       # The runner's Docker version changes. Exercise exact cache removal on
       # both releases Dockwell enables it for, using a fresh private daemon.
       - name: Docker cleanup on the supported Engines

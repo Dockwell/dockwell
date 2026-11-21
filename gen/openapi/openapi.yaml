@@ -3173,6 +3173,58 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/docker/networks:check:
+        post:
+            tags:
+                - DockerService
+            description: |-
+                CheckDockerNetwork validates a candidate against selected Engines.
+                 REST carries the address pools in the request body.
+            operationId: DockerService_CheckDockerNetwork
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckDockerNetworkRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckDockerNetworkResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/networks:planAttachment:
+        post:
+            tags:
+                - DockerService
+            description: PlanDockerNetworkAttachment records a normal workload revision for one attachment.
+            operationId: DockerService_PlanDockerNetworkAttachment
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanDockerNetworkAttachmentRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanDockerNetworkAttachmentResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/docker/object:
         get:
             tags:
@@ -3192,11 +3244,13 @@ paths:
                         - DOCKER_OBJECT_KIND_CONTAINER
                         - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
+                        - DOCKER_OBJECT_KIND_NETWORK
+                        - DOCKER_OBJECT_KIND_VOLUME
                     type: string
                     format: enum
                 - name: key.engineId
                   in: query
-                  description: Full Engine ID. A container name or ID prefix cannot stand in for it.
+                  description: Full Engine ID, or an opaque generation key for a volume.
                   schema:
                     type: string
                 - name: lastKnownName
@@ -3238,6 +3292,8 @@ paths:
                         - DOCKER_OBJECT_KIND_CONTAINER
                         - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
+                        - DOCKER_OBJECT_KIND_NETWORK
+                        - DOCKER_OBJECT_KIND_VOLUME
                     type: string
                     format: enum
                 - name: filter.search
@@ -3285,6 +3341,10 @@ paths:
                   in: query
                   schema:
                     type: boolean
+                - name: filter.driver
+                  in: query
+                  schema:
+                    type: string
                 - name: pageSize
                   in: query
                   schema:
@@ -12639,6 +12699,28 @@ components:
                         The token holds a right that makes credentials, such as API Tokens Write, which
                          a token Dockwell holds shouldn't (ADR 0099).
             description: CheckDnsProviderResponse says what the token may do.
+        CheckDockerNetworkRequest:
+            type: object
+            properties:
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                candidate:
+                    $ref: '#/components/schemas/DockerNetworkCandidate'
+            description: CheckDockerNetworkRequest names the candidate and the Engines that would host it.
+        CheckDockerNetworkResponse:
+            type: object
+            properties:
+                findings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerNetworkFinding'
+                unavailable:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerUnavailable'
+            description: CheckDockerNetworkResponse returns live conflicts and lists Engines that could not answer.
         CheckDomainRequest:
             type: object
             properties:
@@ -15690,6 +15772,10 @@ components:
                 composeDirectory:
                     type: string
                     description: An untrusted absolute path hint from Compose. Read it only through FileService.
+                volumeMounts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerVolumeMountRef'
             description: |-
                 DockerContainer is a projection of Engine facts. It omits environment,
                  commands, raw labels, health check output and arbitrary driver options.
@@ -15748,6 +15834,8 @@ components:
                 ipv4:
                     type: string
                 ipv6:
+                    type: string
+                networkId:
                     type: string
             description: DockerEndpoint is a container’s current address on one Docker network.
         DockerImage:
@@ -15985,6 +16073,126 @@ components:
                 imageAction:
                     $ref: '#/components/schemas/DockerImageAction'
             description: DockerMaintenance is the exact scope of an irreversible local cleanup.
+        DockerNetwork:
+            type: object
+            properties:
+                driver:
+                    type: string
+                scope:
+                    type: string
+                ipv6Enabled:
+                    type: boolean
+                internal:
+                    type: boolean
+                pools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NetworkIPAMPool'
+                createdAt:
+                    type: string
+                    format: date-time
+                attachments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerNetworkEndpoint'
+                attachmentCount:
+                    type: integer
+                    format: uint32
+                labelKeys:
+                    type: array
+                    items:
+                        type: string
+                optionKeys:
+                    type: array
+                    items:
+                        type: string
+                attachmentsPartial:
+                    type: boolean
+                protection:
+                    enum:
+                        - DOCKER_STORAGE_PROTECTION_UNSPECIFIED
+                        - DOCKER_STORAGE_PROTECTION_BUILT_IN
+                        - DOCKER_STORAGE_PROTECTION_INFRASTRUCTURE
+                        - DOCKER_STORAGE_PROTECTION_SHARED_LINK
+                        - DOCKER_STORAGE_PROTECTION_RETAINED_VOLUME
+                    type: string
+                    format: enum
+            description: DockerNetwork projects network facts without driver option values.
+        DockerNetworkAttachmentGuard:
+            type: object
+            properties:
+                networkId:
+                    type: string
+                networkName:
+                    type: string
+                containerId:
+                    type: string
+                expectedEndpointId:
+                    type: string
+                action:
+                    enum:
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_UNSPECIFIED
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT
+                    type: string
+                    format: enum
+            description: DockerNetworkAttachmentGuard identifies the reviewed network, workload and endpoint state.
+        DockerNetworkCandidate:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                name:
+                    type: string
+                spec:
+                    $ref: '#/components/schemas/Network'
+            description: DockerNetworkCandidate describes a new network in an environment.
+        DockerNetworkEndpoint:
+            type: object
+            properties:
+                containerId:
+                    type: string
+                name:
+                    type: string
+                ipv4:
+                    type: string
+                ipv6:
+                    type: string
+                state:
+                    enum:
+                        - CONTAINER_STATE_UNSPECIFIED
+                        - CONTAINER_STATE_CREATED
+                        - CONTAINER_STATE_RUNNING
+                        - CONTAINER_STATE_PAUSED
+                        - CONTAINER_STATE_RESTARTING
+                        - CONTAINER_STATE_REMOVING
+                        - CONTAINER_STATE_EXITED
+                        - CONTAINER_STATE_DEAD
+                    type: string
+                    format: enum
+            description: DockerNetworkEndpoint identifies one attached container.
+        DockerNetworkFinding:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                code:
+                    enum:
+                        - DOCKER_NETWORK_CHECK_CODE_UNSPECIFIED
+                        - DOCKER_NETWORK_CHECK_CODE_NAME_IN_USE
+                        - DOCKER_NETWORK_CHECK_CODE_DRIVER_UNSUPPORTED
+                        - DOCKER_NETWORK_CHECK_CODE_INVALID_POOL
+                        - DOCKER_NETWORK_CHECK_CODE_INVALID_GATEWAY
+                        - DOCKER_NETWORK_CHECK_CODE_SUBNET_OVERLAP
+                    type: string
+                    format: enum
+                fieldPath:
+                    type: string
+                conflictingNetwork:
+                    type: string
+                conflictingSubnet:
+                    type: string
+            description: DockerNetworkFinding identifies a rejected field and an optional conflict.
         DockerObject:
             type: object
             properties:
@@ -16031,6 +16239,10 @@ components:
                     $ref: '#/components/schemas/DockerCompose'
                 image:
                     $ref: '#/components/schemas/DockerImage'
+                network:
+                    $ref: '#/components/schemas/DockerNetwork'
+                volume:
+                    $ref: '#/components/schemas/DockerVolume'
             description: DockerObject combines observed facts with ownership resolved by the control plane.
         DockerObjectKey:
             type: object
@@ -16043,11 +16255,13 @@ components:
                         - DOCKER_OBJECT_KIND_CONTAINER
                         - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
+                        - DOCKER_OBJECT_KIND_NETWORK
+                        - DOCKER_OBJECT_KIND_VOLUME
                     type: string
                     format: enum
                 engineId:
                     type: string
-                    description: Full Engine ID. A container name or ID prefix cannot stand in for it.
+                    description: Full Engine ID, or an opaque generation key for a volume.
             description: DockerObjectKey identifies an Engine object on one server.
         DockerReceipt:
             type: object
@@ -16152,6 +16366,22 @@ components:
                 imageOperations:
                     $ref: '#/components/schemas/DockerImageSupport'
             description: DockerServerSummary counts the Engine inventory at one point in time.
+        DockerStorageCreateGuard:
+            type: object
+            properties:
+                engineName:
+                    type: string
+                creationToken:
+                    type: string
+            description: DockerStorageCreateGuard binds a create to its reviewed Engine name and retry marker.
+        DockerStorageGuard:
+            type: object
+            properties:
+                attachment:
+                    $ref: '#/components/schemas/DockerNetworkAttachmentGuard'
+                create:
+                    $ref: '#/components/schemas/DockerStorageCreateGuard'
+            description: DockerStorageGuard binds an approved revision step to reviewed Engine evidence.
         DockerUnavailable:
             type: object
             properties:
@@ -16166,6 +16396,82 @@ components:
                     type: string
                     format: enum
             description: DockerUnavailable names a server that did not answer a read.
+        DockerVolume:
+            type: object
+            properties:
+                driver:
+                    type: string
+                mountpoint:
+                    type: string
+                sizeBytes:
+                    type: string
+                sizeObservedAt:
+                    type: string
+                    format: date-time
+                createdAt:
+                    type: string
+                    format: date-time
+                attachments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerVolumeAttachment'
+                attachmentCount:
+                    type: integer
+                    format: uint32
+                labelKeys:
+                    type: array
+                    items:
+                        type: string
+                optionKeys:
+                    type: array
+                    items:
+                        type: string
+                anonymous:
+                    type: boolean
+                attachmentsPartial:
+                    type: boolean
+                protection:
+                    enum:
+                        - DOCKER_STORAGE_PROTECTION_UNSPECIFIED
+                        - DOCKER_STORAGE_PROTECTION_BUILT_IN
+                        - DOCKER_STORAGE_PROTECTION_INFRASTRUCTURE
+                        - DOCKER_STORAGE_PROTECTION_SHARED_LINK
+                        - DOCKER_STORAGE_PROTECTION_RETAINED_VOLUME
+                    type: string
+                    format: enum
+            description: DockerVolume projects volume facts without arbitrary label or option values.
+        DockerVolumeAttachment:
+            type: object
+            properties:
+                containerId:
+                    type: string
+                name:
+                    type: string
+                mountTarget:
+                    type: string
+                readOnly:
+                    type: boolean
+                state:
+                    enum:
+                        - CONTAINER_STATE_UNSPECIFIED
+                        - CONTAINER_STATE_CREATED
+                        - CONTAINER_STATE_RUNNING
+                        - CONTAINER_STATE_PAUSED
+                        - CONTAINER_STATE_RESTARTING
+                        - CONTAINER_STATE_REMOVING
+                        - CONTAINER_STATE_EXITED
+                        - CONTAINER_STATE_DEAD
+                    type: string
+                    format: enum
+            description: DockerVolumeAttachment identifies a container mount.
+        DockerVolumeMountRef:
+            type: object
+            properties:
+                mountTarget:
+                    type: string
+                volumeKey:
+                    $ref: '#/components/schemas/DockerObjectKey'
+            description: DockerVolumeMountRef points to the volume at one container mount target.
         DockwellFirewallRule:
             type: object
             properties:
@@ -16701,6 +17007,9 @@ components:
                          link to as well, which the plan names, dumping each linked database alone
                          first. Those apps stop working. Numbered in the block connectable apps hold in
                          other messages, 80 to 89.
+                mustCreate:
+                    type: boolean
+                    description: Require a new network or volume and an unoccupied Engine name.
             description: Edit sets one resource's desired spec, or deletes it.
         EndProcessRequest:
             type: object
@@ -22594,11 +22903,33 @@ components:
                         The network's addresses, such as "10.233.0.8/29", which Dockwell takes from
                          a range it keeps for link networks, as Docker's own pools hold about 30
                          bridge networks on a server. Empty lets Docker choose.
+                ipam:
+                    allOf:
+                        - $ref: '#/components/schemas/NetworkIPAM'
+                    description: Explicit address pools and IPv6. Leave subnet unset when setting ipam.
             description: |-
                 Network is a Docker network in an environment, which its services join
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        NetworkIPAM:
+            type: object
+            properties:
+                enableIpv6:
+                    type: boolean
+                pools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NetworkIPAMPool'
+            description: NetworkIPAM describes the requested IPAM configuration.
+        NetworkIPAMPool:
+            type: object
+            properties:
+                subnet:
+                    type: string
+                gateway:
+                    type: string
+            description: NetworkIPAMPool names one subnet and its optional gateway.
         NetworkMember:
             type: object
             properties:
@@ -24057,6 +24388,29 @@ components:
                 digestCheck:
                     $ref: '#/components/schemas/DockerImageDigestCheck'
             description: PlanDockerMaintenanceResponse carries a standard reviewable change.
+        PlanDockerNetworkAttachmentRequest:
+            type: object
+            properties:
+                network:
+                    $ref: '#/components/schemas/DockerObjectKey'
+                container:
+                    $ref: '#/components/schemas/DockerObjectKey'
+                baseRevision:
+                    type: string
+                action:
+                    enum:
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_UNSPECIFIED
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT
+                        - DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT
+                    type: string
+                    format: enum
+            description: PlanDockerNetworkAttachmentRequest identifies the workload revision and exact Engine objects.
+        PlanDockerNetworkAttachmentResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: PlanDockerNetworkAttachmentResponse returns the reviewed change for application.
         PlanInstallUpdatesRequest:
             type: object
             properties:
@@ -24430,6 +24784,8 @@ components:
         PlanStep:
             type: object
             properties:
+                dockerStorageGuard:
+                    $ref: '#/components/schemas/DockerStorageGuard'
                 dockerMaintenance:
                     $ref: '#/components/schemas/DockerMaintenance'
                 resourceId:

@@ -1421,6 +1421,20 @@ message Network {
   // a range it keeps for link networks, as Docker's own pools hold about 30
   // bridge networks on a server. Empty lets Docker choose.
   string subnet = 81;
+  // Explicit address pools and IPv6. Leave subnet unset when setting ipam.
+  NetworkIPAM ipam = 400;
+}
+
+// NetworkIPAM describes the requested IPAM configuration.
+message NetworkIPAM {
+  optional bool enable_ipv6 = 1;
+  repeated NetworkIPAMPool pools = 2;
+}
+
+// NetworkIPAMPool names one subnet and its optional gateway.
+message NetworkIPAMPool {
+  string subnet = 1;
+  string gateway = 2;
 }
 
 // NetworkMember is a service of another environment that joins a network.

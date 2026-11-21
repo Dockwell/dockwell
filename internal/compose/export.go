@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compose-spec/compose-go/v2/types"
+
 	"go.yaml.in/yaml/v4"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
@@ -161,6 +163,8 @@ type (
 		Internal   bool              `yaml:"internal,omitempty"`
 		Labels     map[string]string `yaml:"labels,omitempty"`
 		External   bool              `yaml:"external,omitempty"`
+		EnableIPv6 *bool             `yaml:"enable_ipv6,omitempty"`
+		IPAM       *types.IPAMConfig `yaml:"ipam,omitempty"`
 	}
 	volumeEntry struct {
 		Driver     string            `yaml:"driver,omitempty"`
@@ -463,9 +467,19 @@ func export(project string, stack *Stack, comments bool) (*Exported, error) {
 		if !comments {
 			maps.DeleteFunc(labels, func(key, _ string) bool { return workspaceLabel(key) })
 		}
-		f.Networks[n.Name] = networkEntry{
+		entry := networkEntry{
 			Driver: escape(n.Spec.GetDriver()), DriverOpts: escapeValues(n.Spec.GetOptions()), Internal: n.Spec.GetInternal(), Labels: escapeValues(labels),
 		}
+		if ipam := n.Spec.GetIpam(); ipam != nil {
+			entry.EnableIPv6 = ipam.EnableIpv6
+			if len(ipam.GetPools()) > 0 {
+				entry.IPAM = &types.IPAMConfig{}
+				for _, pool := range ipam.GetPools() {
+					entry.IPAM.Config = append(entry.IPAM.Config, &types.IPAMPool{Subnet: pool.GetSubnet(), Gateway: pool.GetGateway()})
+				}
+			}
+		}
+		f.Networks[n.Name] = entry
 	}
 	for _, v := range stack.Volumes {
 		if f.Volumes == nil {
@@ -535,6 +549,10 @@ func exportNetworks(c *resourcev1.Container) any {
 	}
 	out := make(map[string]joinEntry, len(names))
 	for _, n := range names {
+		if n == "bridge" && slices.Contains(c.GetExternalNetworks(), n) {
+			out[n] = joinEntry{}
+			continue
+		}
 		aliases := slices.Clone(c.GetAliases())
 		for _, na := range c.GetNetworkAliases() {
 			if on, a, _ := strings.Cut(na, "="); on == n {

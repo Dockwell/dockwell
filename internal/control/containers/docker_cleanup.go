@@ -182,6 +182,11 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Reques
 	if len(m.GetServerIds()) == 0 || len(m.GetExpectedSnapshot()) != 64 || len(selected) == 0 || len(selected) > 12 || len(m.GetSummary()) > 200 {
 		return nil, authapi.Invalid(errors.New("select up to 12 cleanup candidates on explicitly selected servers"))
 	}
+	if slices.ContainsFunc(selected, func(item *v1.DockerCleanupTarget) bool {
+		return item.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME
+	}) {
+		return nil, authapi.Invalid(errors.New("cleanup cannot remove Docker volumes. Review a volume removal through its revision"))
+	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
 	if err != nil {
 		return nil, err

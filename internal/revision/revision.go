@@ -39,6 +39,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -289,9 +290,11 @@ type RestartTarget struct {
 
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
-	DockerMaintenance *dockwellv1.DockerMaintenance
-	Ref               resource.Ref
-	Spec              proto.Message
+	DockerStorageGuard  *dockwellv1.DockerStorageGuard
+	DockerStorageCreate bool
+	DockerMaintenance   *dockwellv1.DockerMaintenance
+	Ref                 resource.Ref
+	Spec                proto.Message
 	// Unholds says the edit may lift a catalog install's hold, as an applied
 	// OpenCatalogInstall does, which no other write of its pin may (ADR 0105).
 	Unholds bool
@@ -617,9 +620,10 @@ const (
 
 // ResourcePlan is what a plan does to one resource as a whole.
 type ResourcePlan struct {
-	DockerMaintenance *dockwellv1.DockerMaintenance `json:",omitempty"`
-	ID                string
-	Ref               resource.Ref
+	DockerStorageGuard *resource.DockerStorageGuard  `json:",omitempty"`
+	DockerMaintenance  *dockwellv1.DockerMaintenance `json:",omitempty"`
+	ID                 string
+	Ref                resource.Ref
 	// Restart says the change restarts it, which makes no revision.
 	Restart       bool           `json:",omitempty"`
 	RestartTarget *RestartTarget `json:",omitempty"`
@@ -867,7 +871,8 @@ func (p *Plan) Destructive() bool {
 
 // item is one edit with what it starts from.
 type item struct {
-	dockerMaintenance *dockwellv1.DockerMaintenance
+	dockerStorageGuard *resource.DockerStorageGuard
+	dockerMaintenance  *dockwellv1.DockerMaintenance
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
@@ -1257,6 +1262,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		items[i].forget = slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Forget && ed.Ref == items[i].ref })
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].unit = &resource.UnitAsked{Change: changeID, Name: p.Edits[j].Unit.Name, Action: p.Edits[j].Unit.Action}
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool {
+			return ed.Ref == items[i].ref && (ed.DockerStorageGuard != nil || ed.DockerStorageCreate)
+		}); j >= 0 {
+			items[i].dockerStorageGuard = storageGuardOf(&p.Edits[j], changeID)
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.DockerMaintenance != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].dockerMaintenance = proto.CloneOf(p.Edits[j].DockerMaintenance)
@@ -3254,6 +3264,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			// What an action on a unit does is what the agent read of it: a unit that
 			// moved since makes the plan stale.
+			if g := s.DockerStorageGuard; g != nil {
+				data, err := (proto.MarshalOptions{Deterministic: true}).Marshal(g.Proto())
+				if err != nil {
+					return nil, err
+				}
+				fmt.Fprintf(fp, "docker-storage %s|%x\n", server, data)
+			}
 			if m := s.DockerMaintenance; m != nil {
 				data, err := (proto.MarshalOptions{Deterministic: true}).Marshal(m)
 				if err != nil {
@@ -3469,6 +3486,7 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		if rp.Action != resource.ActionNone {
 			rp.NoUndo = e.kinds.ActsElsewhere(items[i].ref.Kind, items[i].current, items[i].spec)
 		}
+		rp.DockerStorageGuard = items[i].dockerStorageGuard
 		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
 			rp.NoUndo = "Docker cleanup removes the selected artifacts permanently."
 			if rp.DockerMaintenance.GetImageAction() != nil {
@@ -3743,9 +3761,17 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
 	exact := make(map[resource.Ref]string)
+	guards := make(map[resource.Ref]*resource.DockerStorageGuard)
+	retrying := make(map[resource.Ref]bool)
 	for i, it := range its {
+		if guard := it.dockerStorageGuard; guard != nil {
+			guards[it.ref] = guard
+			retrying[it.ref] = it.unfinished[server] != nil
+		}
 		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
+		desired[i].DockerStorageGuard = guards[it.ref]
+		desired[i].RetryDockerAttachment = retrying[it.ref] && guards[it.ref].GetAttachment() != nil
 		if target := it.restartTarget; target != nil && target.Container != "" {
 			desired[i].ExactRestart = target.Container
 			exact[it.ref] = target.Container
@@ -3767,6 +3793,15 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 		return nil, fmt.Errorf("can't plan on %s: its agent judged %d steps for %d resources", name, len(steps), len(desired))
 	}
 	for i := range steps {
+		step := &steps[i]
+		step.DockerStorageGuard = guards[step.Ref]
+		if step.DockerStorageGuard.GetCreate() != nil && step.Action != resource.ActionCreate {
+			if !retrying[step.Ref] ||
+				step.Action != resource.ActionNone && (step.Ref.Kind != network.Kind || step.Action != resource.ActionUpdate) {
+				return nil, fault.New(ErrStale, "%s already exists on %s. Review the create again", step.Ref.Name, name)
+			}
+			step.Action = resource.ActionCreate
+		}
 		steps[i].ExactRestart = exact[steps[i].Ref]
 		if steps[i].ExactRestart != "" {
 			steps[i].Restart = resourceRestart(its, steps[i].Ref)
@@ -5774,6 +5809,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	for i := range items {
 		it := &items[i]
 		it.rollback = IsRollback(c)
+		it.dockerStorageGuard = dockerStorageGuardIn(planned, it.ref)
 		for _, server := range it.targets() {
 			was := recorded.step(server, it.ref)
 			if was == nil {
@@ -5932,6 +5968,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 		it.removal, it.forget = removalIn(asked), forgetIn(asked, ref)
 		it.panel = panelIn(asked, ref)
 		it.dockerMaintenance = dockerMaintenanceIn(asked, ref)
+		it.dockerStorageGuard = dockerStorageGuardIn(asked, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {

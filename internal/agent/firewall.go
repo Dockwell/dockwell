@@ -246,7 +246,8 @@ func dockerPublished(ctx context.Context, client *docker.Client) ([]*dockwellv1.
 		return nil, err
 	}
 	ipv6 := map[string]bool{}
-	for _, n := range nets {
+	for i := range nets {
+		n := &nets[i]
 		ipv6[n.ID] = n.EnableIPv6
 	}
 	var out []*dockwellv1.PublishedPort

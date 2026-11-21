@@ -41,14 +41,14 @@ export function readComposeDetailSearch(search: Record<string, unknown>): Compos
 }
 
 export interface FleetDockerSearch {
-  view?: "containers" | "composes" | "images" | "cleanup";
+  view?: "containers" | "composes" | "images" | "networks" | "volumes" | "cleanup";
   attention?: boolean;
 }
 
 export function readFleetDockerSearch(search: Record<string, unknown>): FleetDockerSearch {
-  if (search["view"] === "composes" || search["view"] === "images" || search["view"] === "cleanup")
-    return { view: search["view"] };
-  if (search["view"] === "containers")
-    return { view: "containers", ...(search["attention"] === true ? { attention: true } : {}) };
+  const view = search["view"];
+  if (view === "containers") return search["attention"] === true ? { view, attention: true } : { view };
+  if (view === "composes" || view === "images" || view === "networks" || view === "volumes" || view === "cleanup")
+    return { view };
   return {};
 }

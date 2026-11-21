@@ -176,7 +176,7 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
         queryKey: createConnectQueryKey({ schema: DockerService.method.listDockerObjects, cardinality: undefined }),
       });
     },
-    true,
+    DockerObjectKind.COMPOSE,
   );
   const applied = (change: { state: ChangeState } | undefined) => {
     if (change?.state === ChangeState.APPLIED) refresh();

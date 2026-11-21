@@ -125,6 +125,9 @@ func fieldRows() []fieldRow {
 		serviceRow("working_dir", "    working_dir: /srv/${V}\n", marker, marker),
 		networkRow("driver", "    driver: ${V}\n", "overlay", "overlay"),
 		networkRow("internal", "    internal: ${V}\n", "true", "true"),
+		networkRow("enable_ipv6", "    enable_ipv6: ${V}\n", "true", "true"),
+		networkRow("ipam.subnet", "    ipam: {config: [{subnet: \"${V}\"}]}\n", "10.124.18.0/24", "10.124.18.0/24"),
+		networkRow("ipam.gateway", "    ipam: {config: [{subnet: 10.124.18.0/24, gateway: \"${V}\"}]}\n", "10.124.18.1", "10.124.18.1"),
 		networkRow("external", "    external: ${V}\n", "true", "back"),
 		networkRow("name", "    external: true\n    name: ${V}\n", marker, marker),
 		volumeRow("driver", "    driver: ${V}\n", "custom", "custom"),
@@ -176,6 +179,9 @@ func TestEveryFieldAVariableReaches(t *testing.T) {
 		key, in, inside := strings.Cut(r.field, ".")
 		covered[r.kind][key] = true
 		if inside {
+			if covered[key] == nil {
+				covered[key] = map[string]bool{}
+			}
 			covered[key][in] = true
 		}
 	}

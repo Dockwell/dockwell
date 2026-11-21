@@ -465,6 +465,8 @@ message Edit {
   // first. Those apps stop working. Numbered in the block connectable apps hold in
   // other messages, 80 to 89.
   bool delete_shared = 81;
+  // Require a new network or volume and an unoccupied Engine name.
+  bool must_create = 400;
 }
 
 // ResourceRef names a resource.
@@ -1840,6 +1842,7 @@ message ServerPlan {
 
 // PlanStep is what applying does to one resource on one server.
 message PlanStep {
+  DockerStorageGuard docker_storage_guard = 402;
   DockerMaintenance docker_maintenance = 400;
   // The resource's ID.
   string resource_id = 1;
@@ -3013,4 +3016,34 @@ enum DockerImageReason {
   DOCKER_IMAGE_REASON_UNSUPPORTED_PLATFORM = 5;
   DOCKER_IMAGE_REASON_VERIFICATION_FAILED = 9;
   DOCKER_IMAGE_REASON_UNSUPPORTED = 10;
+}
+
+// DockerStorageGuard binds an approved revision step to reviewed Engine evidence.
+message DockerStorageGuard {
+  oneof operation {
+    DockerNetworkAttachmentGuard attachment = 1;
+    DockerStorageCreateGuard create = 2;
+  }
+}
+
+// DockerStorageCreateGuard binds a create to its reviewed Engine name and retry marker.
+message DockerStorageCreateGuard {
+  string engine_name = 1;
+  string creation_token = 2;
+}
+
+// DockerNetworkAttachmentGuard identifies the reviewed network, workload and endpoint state.
+message DockerNetworkAttachmentGuard {
+  string network_id = 1;
+  string network_name = 2;
+  string container_id = 3;
+  string expected_endpoint_id = 4;
+  DockerNetworkAttachmentAction action = 5;
+}
+
+// DockerNetworkAttachmentAction says how a workload revision changes network membership.
+enum DockerNetworkAttachmentAction {
+  DOCKER_NETWORK_ATTACHMENT_ACTION_UNSPECIFIED = 0;
+  DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT = 1;
+  DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT = 2;
 }

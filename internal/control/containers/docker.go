@@ -170,7 +170,7 @@ func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (do
 // ListDockerObjects reads a page of Docker inventory across the selection.
 func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1.ListDockerObjectsRequest]) (*connect.Response[v1.ListDockerObjectsResponse], error) {
 	m := req.Msg
-	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind && m.GetKind() != composeKind {
+	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetDriver()) > 80 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind && m.GetKind() != composeKind && !storageKind(m.GetKind()) {
 		return nil, authapi.Invalid(errors.New("select a supported Docker inventory and use a search of at most 255 bytes"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
@@ -223,7 +223,7 @@ func (h *Handler) listDockerContainers(ctx context.Context, servers []Server, m 
 	for visits := 0; len(out.Objects) < page && cursor.Server < len(servers) && visits < 6; visits++ {
 		s := servers[cursor.Server]
 		session, state := h.dockerAgent(s)
-		if session != nil && m.GetKind() == dockerImageKind && !session.DockerImages() {
+		if session != nil && (m.GetKind() == dockerImageKind && !session.DockerImages() || storageKind(m.GetKind()) && !session.DockerStorage()) {
 			session, state = nil, v1.DockerReadState_DOCKER_READ_STATE_AGENT_OUTDATED
 		}
 		if session == nil {
@@ -271,6 +271,10 @@ func dockerKeyID(kind v1.DockerObjectKind, engineID string) bool {
 	if kind == composeKind {
 		return len(engineID) <= 263 && composeInventoryID.MatchString(engineID)
 	}
+	if kind == dockerVolumeKind {
+		_, ok := docker.VolumeInventoryName(engineID)
+		return ok
+	}
 	if kind == dockerImageKind {
 		return docker.IsImageID(engineID)
 	}
@@ -278,7 +282,17 @@ func dockerKeyID(kind v1.DockerObjectKind, engineID string) bool {
 }
 
 func (h *Handler) classifyDockerObjects(ctx context.Context, server string, kind v1.DockerObjectKind, rows []*v1.DockerObject) error {
+	if storageKind(kind) {
+		return h.classifyDockerStorage(ctx, server, rows)
+	}
 	if kind != dockerImageKind {
+		for _, row := range rows {
+			for _, link := range row.GetContainer().GetVolumeMounts() {
+				if key := link.GetVolumeKey(); key != nil {
+					key.ServerId = server
+				}
+			}
+		}
 		return h.classifyDocker(ctx, server, rows)
 	}
 	for _, row := range rows {
@@ -298,7 +312,7 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 	if key.GetKind() == v1.DockerObjectKind_DOCKER_OBJECT_KIND_COMPOSE {
 		return h.getDockerCompose(ctx, key)
 	}
-	if (!containerKind(key.GetKind()) && key.GetKind() != dockerImageKind) || !dockerKeyID(key.GetKind(), key.GetEngineId()) || len(req.Msg.GetLastKnownName()) > 255 {
+	if (!containerKind(key.GetKind()) && key.GetKind() != dockerImageKind && !storageKind(key.GetKind())) || !dockerKeyID(key.GetKind(), key.GetEngineId()) || len(req.Msg.GetLastKnownName()) > 255 {
 		return nil, authapi.Invalid(errors.New("a Docker object detail needs its full Engine ID"))
 	}
 	s, err := h.server(ctx, key.GetServerId())
@@ -313,6 +327,15 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 		return nil, notConnected(s)
 	}
 	ask := &agentv1.DockerInventoryDetailCall{ContainerId: key.GetEngineId(), LastKnownName: req.Msg.GetLastKnownName()}
+	if storageKind(key.GetKind()) {
+		if !session.DockerStorage() {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this agent needs an update to show Docker storage"), "agent_outdated")
+		}
+		ask = &agentv1.DockerInventoryDetailCall{NetworkId: key.GetEngineId()}
+		if key.GetKind() == dockerVolumeKind {
+			ask = &agentv1.DockerInventoryDetailCall{VolumeKey: key.GetEngineId()}
+		}
+	}
 	if key.GetKind() == dockerImageKind {
 		if !session.DockerImages() {
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this agent needs an update to inspect local images"), "agent_outdated")
@@ -343,10 +366,9 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest], stream *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {
 	m := req.Msg
 	kind := m.GetSelection().GetKind()
-	compose := kind == composeKind
 	if len(m.GetVisibleKeys()) > 16 || len(m.GetAfterSnapshot()) > 128 ||
-		!compose && kind != v1.DockerObjectKind_DOCKER_OBJECT_KIND_IMAGE && !containerKind(kind) || !containerKind(kind) && len(m.GetVisibleKeys()) > 0 {
-		return authapi.Invalid(errors.New("watch Docker images, Compose summaries or containers, with at most 16 visible container IDs"))
+		(!containerKind(kind) && kind != composeKind && kind != dockerImageKind && !storageKind(kind)) || (!containerKind(kind) && len(m.GetVisibleKeys()) > 0) {
+		return authapi.Invalid(errors.New("watch images, Compose summaries, networks, volumes or containers, with at most 16 visible container IDs"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetSelection().GetServerIds())
 	if err != nil {
@@ -379,7 +401,7 @@ func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v
 	}
 	for _, s := range servers {
 		keys := visible[s.ID]
-		workers.Go(func() { h.watchDockerServer(ctx, s, keys, compose, emit) })
+		workers.Go(func() { h.watchDockerServer(ctx, s, kind, keys, emit) })
 	}
 	heartbeat := time.NewTicker(10 * time.Second)
 	defer heartbeat.Stop()
@@ -399,7 +421,8 @@ func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v
 	}
 }
 
-func (h *Handler) watchDockerServer(ctx context.Context, s Server, visible []string, compose bool, emit func(*v1.WatchDockerObjectsResponse) error) {
+func (h *Handler) watchDockerServer(ctx context.Context, s Server, kind v1.DockerObjectKind, visible []string, emit func(*v1.WatchDockerObjectsResponse) error) {
+	compose := kind == composeKind
 	backoff := 5 * time.Second
 	var live *bool
 	report := func(next bool) error {
@@ -411,8 +434,8 @@ func (h *Handler) watchDockerServer(ctx context.Context, s Server, visible []str
 	}
 	for ctx.Err() == nil {
 		session, _ := h.dockerAgent(s)
-		if session != nil {
-			_ = session.WatchDocker(ctx, visible, func(msg *agentv1.DockerInventoryChanged) error {
+		if session != nil && (!storageKind(kind) || session.DockerStorage()) {
+			_ = session.WatchDocker(ctx, kind, visible, func(msg *agentv1.DockerInventoryChanged) error {
 				if msg.EventStreamReady != nil {
 					ready := msg.GetEventStreamReady()
 					if ready {

@@ -58,6 +58,7 @@ const shots = values.shots ? resolve(values.shots) : undefined;
 const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
+const storageFixture = mkdtempSync(join(tmpdir(), "dockwell-volume-fixture-"));
 const catalogDir = mkdtempSync(join(tmpdir(), "dockwell-e2e-catalog-"));
 // An SSH server's stand-in: python3 under the name sshd, listening beyond loopback, as the agent takes a port as
 // SSH's only where sshd itself listens on it, so a deny of another port isn't a lock-out (#850's review, L1, and its
@@ -154,6 +155,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
     env: {
       ...process.env,
       FAKEDOCKER_CLEANUP_FIXTURE: "1",
+      FAKEDOCKER_STORAGE_FIXTURE: storageFixture,
       FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
       FAKEDOCKER_REGISTRY: registry,
       FAKEDOCKER_CLOUDFLARE: cloudflare,
@@ -274,10 +276,10 @@ async function shoot(page: Page, name: string) {
   try {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      const cleanup = name.startsWith("docker-slice4-");
+      const storage = /^docker-slice[45]-/.test(name);
       const imageAction = name.startsWith("docker-slice6a-") || name === "registry-logins-docker-pull";
-      const artifact = cleanup || imageAction;
-      for (const width of cleanup ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {
+      const artifact = storage || imageAction;
+      for (const width of storage ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {
         await atWidth(page, { width, height: width === 1440 ? 900 : 844 });
         // A full-page shot of a long page starts at its top, as someone arriving would see it.
         await page.evaluate(() => window.scrollTo(0, 0));
@@ -313,7 +315,7 @@ async function shoot(page: Page, name: string) {
         try {
           await page.screenshot({
             path: join(shots, `${name}-${width}-${scheme}.png`),
-            fullPage: !imageAction && (!cleanup || (name !== "docker-slice4-plan" && name !== "docker-slice4-receipt")),
+            fullPage: !imageAction && name !== "docker-slice4-plan" && name !== "docker-slice4-receipt",
           });
         } finally {
           if (fixtureRoot.length)
@@ -1051,6 +1053,7 @@ try {
   server?.kill("SIGTERM");
   docker?.kill("SIGTERM");
   rmSync(data, { recursive: true, force: true });
+  rmSync(storageFixture, { recursive: true, force: true });
   rmSync(tools, { recursive: true, force: true });
   rmSync(cgroups, { recursive: true, force: true });
 }

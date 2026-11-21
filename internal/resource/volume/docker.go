@@ -18,6 +18,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -270,6 +271,8 @@ func (d *Docker) Inspect(ctx context.Context, t Target) (*resourcev1.Volume, err
 	return Project(v), nil
 }
 
+type storageCreateKey struct{}
+
 // Create makes the volume. One deleted and kept comes back with its data,
 // as undoing its deletion asks, if it was made the same way. It holds the
 // list while it does, so Prune can't remove the volume as it comes back.
@@ -279,19 +282,55 @@ func (d *Docker) Create(ctx context.Context, t Target, spec *resourcev1.Volume, 
 	if err := d.CheckHost(ctx, spec); err != nil {
 		return err
 	}
-	back, err := d.bringBack(ctx, t, spec)
-	if err != nil || back {
-		return err
+	guard, _ := ctx.Value(storageCreateKey{}).(*v1.DockerStorageCreateGuard)
+	marks := labels(t, spec)
+	if guard != nil {
+		if err := d.checkStorageCreate(ctx, t, guard); err != nil {
+			resource.Report(ctx, resource.Outcome{Untouched: true})
+			return err
+		}
+		held, err := d.Client.InspectVolume(ctx, t.Name)
+		if err == nil && held.Name == t.Name && held.Labels[docker.LabelStorageCreation] == guard.GetCreationToken() {
+			return nil
+		}
+		if !docker.IsNotFound(err) {
+			resource.Report(ctx, resource.Outcome{Untouched: true})
+			return errors.New("the Engine volume name is now in use. Review the create again")
+		}
+		marks[docker.LabelStorageCreation] = guard.GetCreationToken()
+	} else {
+		back, err := d.bringBack(ctx, t, spec)
+		if err != nil || back {
+			return err
+		}
 	}
 	if restore {
 		return fmt.Errorf("the volume %s was deleted, and the server kept it with its data for 7 days, but it's gone now, so this change can't bring the data back. "+
 			"Plan the change again: it makes the volume anew, empty", t.Name)
 	}
-	_, err = d.Client.CreateVolume(ctx, &docker.VolumeCreate{
-		Name: t.Name, Driver: spec.GetDriver(), DriverOpts: spec.GetOptions(), Labels: labels(t, spec),
+	created, err := d.Client.CreateVolume(ctx, &docker.VolumeCreate{
+		Name: t.Name, Driver: spec.GetDriver(), DriverOpts: spec.GetOptions(), Labels: marks,
 	})
 	if err != nil {
 		return fmt.Errorf("docker can't create the volume %s: %w", t.Name, err)
+	}
+	if guard != nil && (created.Name != t.Name || created.Labels[docker.LabelStorageCreation] != guard.GetCreationToken()) {
+		resource.Report(ctx, resource.Outcome{Untouched: true})
+		return errors.New("the Engine did not confirm it created the reviewed volume")
+	}
+	return nil
+}
+
+func (d *Docker) checkStorageCreate(_ context.Context, t Target, guard *v1.DockerStorageCreateGuard) error {
+	if guard.GetEngineName() != t.Name || !docker.IsFullID(guard.GetCreationToken()) {
+		return errors.New("the volume name differs from the approved create")
+	}
+	kept, err := d.Kept.Has(t.Name)
+	if err != nil {
+		return err
+	}
+	if kept {
+		return errors.New("this volume name is retained for recovery")
 	}
 	return nil
 }

@@ -530,7 +530,8 @@ func DockerReader(client *docker.Client, socket string) func(ctx context.Context
 			return DockerNetworks{}, err
 		}
 		var out DockerNetworks
-		for _, n := range nets {
+		for i := range nets {
+			n := &nets[i]
 			if n.Driver != "bridge" {
 				continue
 			}

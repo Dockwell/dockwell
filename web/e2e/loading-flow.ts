@@ -390,3 +390,5 @@ export async function loadingFlow(page: Page, { origin, step }: FlowRun) {
 }
 
 export const flow: Flow = { order: 97, run: (page, run) => loadingFlow(page, run) };
+
+export { check as checkLoadingScreen, hold as holdRead, shoot as shootLoadingScreen };

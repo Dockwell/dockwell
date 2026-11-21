@@ -6,6 +6,7 @@ import { DockerWorkspace } from "../../features/docker/DockerWorkspace";
 
 export const Route = createLazyFileRoute("/_shell/servers/docker")({
   component: function FleetDocker() {
-    return <DockerWorkspace tab={Route.useSearch().view ?? "overview"} attention={Route.useSearch().attention} />;
+    const search = Route.useSearch();
+    return <DockerWorkspace tab={search.view ?? "overview"} attention={search.attention} />;
   },
 });

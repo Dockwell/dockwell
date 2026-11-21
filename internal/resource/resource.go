@@ -2036,9 +2036,52 @@ type InstanceRestarter interface {
 	ApplyRestart(context.Context, Ref, proto.Message, string, string) error
 }
 
+// DockerStorageGuard holds the exact Engine evidence in a stored plan.
+type DockerStorageGuard struct {
+	Attachment *v1.DockerNetworkAttachmentGuard `json:",omitempty"`
+	Create     *v1.DockerStorageCreateGuard     `json:",omitempty"`
+}
+
+// GetAttachment returns the guard for a network membership change.
+func (g *DockerStorageGuard) GetAttachment() *v1.DockerNetworkAttachmentGuard {
+	if g == nil {
+		return nil
+	}
+	return g.Attachment
+}
+
+// GetCreate returns the guard for a create-only step.
+func (g *DockerStorageGuard) GetCreate() *v1.DockerStorageCreateGuard {
+	if g == nil {
+		return nil
+	}
+	return g.Create
+}
+
+// Proto encodes the guard for the agent and public plan wire format.
+func (g *DockerStorageGuard) Proto() *v1.DockerStorageGuard {
+	switch {
+	case g.GetAttachment() != nil:
+		return &v1.DockerStorageGuard{Operation: &v1.DockerStorageGuard_Attachment{Attachment: g.Attachment}}
+	case g.GetCreate() != nil:
+		return &v1.DockerStorageGuard{Operation: &v1.DockerStorageGuard_Create{Create: g.Create}}
+	default:
+		return nil
+	}
+}
+
+// DockerStorageGuardFrom reads the guard from its wire format.
+func DockerStorageGuardFrom(g *v1.DockerStorageGuard) *DockerStorageGuard {
+	if g == nil {
+		return nil
+	}
+	return &DockerStorageGuard{Attachment: g.GetAttachment(), Create: g.GetCreate()}
+}
+
 // Step is what applying a change does to one resource.
 type Step struct {
-	ExactRestart string `json:",omitempty"`
+	DockerStorageGuard *DockerStorageGuard `json:",omitempty"`
+	ExactRestart       string              `json:",omitempty"`
 	// NeedsRunControl gates apply and stream replacement on the control plane.
 	NeedsRunControl bool `json:",omitempty"`
 	Ref             Ref

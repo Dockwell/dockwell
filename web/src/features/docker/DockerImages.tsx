@@ -124,7 +124,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     else void query.refetch();
   };
   const actions = useImageActions(servers, refresh);
-  const watch = useDockerWatch(serverIds, [], () => void query.refetch(), false, DockerObjectKind.IMAGE);
+  const watch = useDockerWatch(serverIds, [], () => void query.refetch(), DockerObjectKind.IMAGE);
   const rows: ImageRow[] = (query.data?.objects ?? []).flatMap((row) =>
     row.key && row.detail.case === "image"
       ? [
@@ -441,7 +441,7 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
     { key: { serverId, engineId: imageId, kind: DockerObjectKind.IMAGE } },
     { enabled: allowed, retry: false },
   );
-  const watch = useDockerWatch(allowed ? [serverId] : [], [], () => void read.refetch(), false, DockerObjectKind.IMAGE);
+  const watch = useDockerWatch(allowed ? [serverId] : [], [], () => void read.refetch(), DockerObjectKind.IMAGE);
   const row = read.data?.object;
   const image = row?.detail.case === "image" ? row.detail.value : undefined;
   const actions = useImageActions([{ id: serverId, name: "" }], () => void read.refetch());

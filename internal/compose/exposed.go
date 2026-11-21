@@ -71,8 +71,8 @@ var (
 	// A driver is a name. Volume.options is sensitive, as a CIFS password has to go
 	// there.
 	quietVolumeFields = keys("driver", "driver_opts")
-	// A network's driver_opts are free text, and not sensitive.
-	quietNetworkFields = keys("driver", "internal", "external", "name")
+	// A network's IPAM fields take validated addresses. Its driver options take free text.
+	quietNetworkFields = keys("driver", "internal", "external", "name", "enable_ipv6", "ipam")
 )
 
 // quietField says a plan doesn't warn of a value at path, in what quiet is about.

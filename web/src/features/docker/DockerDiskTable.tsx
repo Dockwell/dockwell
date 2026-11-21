@@ -92,7 +92,18 @@ function DiskCategoryLink({ kind, serverId }: { kind: DockerCleanupKind; serverI
       </Link>
     );
   }
-  const group = kind === DockerCleanupKind.VOLUME ? "volumes" : kind === DockerCleanupKind.LOG ? "logs" : "cache";
+  if (kind === DockerCleanupKind.VOLUME) {
+    return (
+      <Link
+        className="dw-link docker-row-link docker-disk-category"
+        to="/servers/$serverId/docker/volumes"
+        params={{ serverId }}
+      >
+        {content}
+      </Link>
+    );
+  }
+  const group = kind === DockerCleanupKind.LOG ? "logs" : "cache";
   return (
     <Link
       className="dw-link docker-row-link docker-disk-category"

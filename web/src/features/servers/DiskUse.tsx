@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
+import { useTransport } from "@connectrpc/connect-query";
 import {
   Connection,
   type DiskUsage,
@@ -22,9 +21,7 @@ import "./DiskUse.css";
 import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
 import { DockerDiskTable } from "../docker/DockerDiskTable";
-
-/** How long what takes the disk stands before the page asks again, while it's open. Docker adds up every volume to answer. */
-const ASK_EVERY_MS = 5 * 60_000;
+import { diskMeasurementOptions } from "./diskMeasurement";
 
 /** One part of a disk's bar and its legend. */
 interface Part {
@@ -49,23 +46,7 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
   const allowed = useMay()(ServerService.method.getServerDiskUse).allowed;
   const asking = allowed && connected && server.dockerUnreadableSince === undefined;
   const transport = useTransport();
-  const input = { id: server.id };
-  const queryKey = createConnectQueryKey({
-    schema: ServerService.method.getServerDiskUse,
-    input,
-    cardinality: "finite",
-  });
-  const use = useQuery({
-    queryKey: [...queryKey, "progressive"],
-    queryFn: ({ signal }) =>
-      createClient(ServerService, transport).getServerDiskUse(input, { signal, headers: { Prefer: "respond-async" } }),
-    enabled: asking,
-    staleTime: 30_000,
-    // The separate server overview also uses this panel, without a Docker watch.
-    refetchInterval: ({ state }) => (state.data?.diskUse && !state.data.diskUse.time ? 2_000 : ASK_EVERY_MS),
-    refetchOnWindowFocus: false,
-    retry: false,
-  });
+  const use = useQuery({ ...diskMeasurementOptions(server.id, transport), enabled: asking });
   const disks = server.stats?.disks.filter((disk) => disk.sizeBytes > 0n) ?? [];
   const docker = use.data?.diskUse;
   const dockerDisk = docker && docker.sizeBytes > 0n ? docker : undefined;

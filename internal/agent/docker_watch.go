@@ -43,6 +43,9 @@ func (c *calls) watchInventory(ask *agentv1.DockerInventoryWatchCall) error {
 		return errDockerInventory
 	}
 	id, ids := ask.GetSubscriptionId(), ask.GetVisibleIds()
+	if (ask.GetKind() == dockerNetworkKind || ask.GetKind() == dockerVolumeKind) && len(ids) != 0 {
+		return errors.New("a Docker storage watch takes no container IDs")
+	}
 	if id == "" || len(id) > 100 || len(ids) > 16 || slices.ContainsFunc(ids, func(id string) bool { return !docker.IsFullID(id) }) {
 		return errors.New("a Docker watch needs a subscription ID and at most 16 full container IDs")
 	}

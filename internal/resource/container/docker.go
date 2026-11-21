@@ -757,7 +757,10 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	}
 	var later []string
 	for i, name := range dockerNetworks(t, spec) {
-		aliases := aliasesOn(t, spec, specNetwork(t, name))
+		var aliases []string
+		if name != bridge {
+			aliases = aliasesOn(t, spec, specNetwork(t, name))
+		}
 		if i == 0 {
 			req.HostConfig.NetworkMode = name
 		} else if !d.Client.AtLeast("1.44") {
@@ -1498,6 +1501,9 @@ func (d *Docker) projectedAsIs(ctx context.Context, t Target, c *docker.Containe
 	case err == nil:
 		defaults = img.Config
 	case !docker.IsNotFound(err):
+		return nil, err
+	}
+	if err := d.nameNetworkEndpoints(ctx, c); err != nil {
 		return nil, err
 	}
 	out := Project(c, defaults, t)

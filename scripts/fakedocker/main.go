@@ -263,6 +263,39 @@ func postgresReading(x dockertest.Exec, file string) int {
 	return 0
 }
 
+func storageFixtures(e *dockertest.Engine, dir string) {
+	const networkName = "fixture-network-with-many-attached-containers"
+	const volumeName = "fixture-volume-with-a-long-mountpoint"
+	mountpoint := filepath.Join(dir, "docker-volume-fixtures",
+		"extraordinarily-long-folder-name-for-a-docker-volume-mountpoint", "nested-volume-data")
+	if err := os.MkdirAll(mountpoint, 0o700); err != nil { //nolint:gosec // inside this fake Engine's directory
+		log.Fatal(err)
+	}
+	e.AddVolume(docker.Volume{
+		Name: volumeName, Driver: "local", Scope: "local",
+		Mountpoint: mountpoint, CreatedAt: "2026-10-12T12:00:00Z",
+	})
+	n := docker.Network{Name: networkName, Driver: "bridge", Scope: "local", EnableIPv6: true}
+	for i := 20; i < 28; i++ {
+		n.IPAM.Config = append(n.IPAM.Config, docker.IPAMConfig{
+			Subnet: fmt.Sprintf("10.104.%d.0/24", i), Gateway: fmt.Sprintf("10.104.%d.1", i),
+		})
+	}
+	e.AddNetwork(n)
+	id := e.Network(networkName).ID
+	for i := 2; i <= 12; i++ {
+		ctr := docker.Container{Name: fmt.Sprintf("/fixture-storage-workload-%02d", i)}
+		ctr.State.Status = "exited"
+		ctr.NetworkSettings.Networks = map[string]*docker.EndpointSettings{
+			networkName: {NetworkID: id, IPAddress: fmt.Sprintf("10.104.20.%d", i)},
+		}
+		if i <= 4 {
+			ctr.Mounts = []docker.MountPoint{{Type: "volume", Name: volumeName, Destination: "/var/lib/fixture", RW: i != 2}}
+		}
+		e.AddContainer(ctr)
+	}
+}
+
 func main() {
 	if len(os.Args) != 2 {
 		log.Fatal("fakedocker takes the directory to put its socket in, such as /tmp/fake")
@@ -287,6 +320,9 @@ func main() {
 		})
 		e.AddLocalImage("", dockertest.Image{Size: 10 << 20, Created: used})
 		e.AddNetwork(docker.Network{Name: "fixture-idle-network", Scope: "local", Driver: "bridge"})
+	}
+	if fixtures := os.Getenv("FAKEDOCKER_STORAGE_FIXTURE"); fixtures != "" {
+		storageFixtures(e, fixtures)
 	}
 	// Where /info says Docker keeps its data, for a run that wants the agent to add up
 	// a disk this machine has: /var/lib/docker unless set.

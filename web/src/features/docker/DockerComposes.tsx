@@ -124,7 +124,7 @@ export function DockerComposes({
     servers.map((server) => server.id),
     [],
     () => void query.refetch(),
-    true,
+    DockerObjectKind.COMPOSE,
   );
   const rows = query.data?.objects.filter((row) => row.key !== undefined) ?? [];
   const held = useHeldRows("docker.composes", query.isSuccess && !query.isPlaceholderData ? rows.length : undefined);

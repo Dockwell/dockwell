@@ -39,8 +39,7 @@ export function useDockerWatch(
   servers: readonly string[],
   keys: readonly DockerObjectKey[],
   refresh: () => void,
-  refreshOnHealth = false,
-  kind = refreshOnHealth ? DockerObjectKind.COMPOSE : DockerObjectKind.CONTAINER,
+  kind = DockerObjectKind.CONTAINER,
 ) {
   const transport = useTransport();
   const [samples, setSamples] = useState<ReadonlyMap<string, DockerSample>>(new Map());
@@ -54,7 +53,7 @@ export function useDockerWatch(
   // Over plain HTTP these streams share the browser's connection limit with
   // the shell and other tabs. Compose can catch up when its watch reopens.
   const away = useAwayFor(0);
-  const serverKey = refreshOnHealth && away ? "" : servers.join(",");
+  const serverKey = kind === DockerObjectKind.COMPOSE && away ? "" : servers.join(",");
   const visibleKey = keys
     .slice(0, 16)
     .map((key) => dockerKey(key.serverId, key.engineId))
@@ -93,10 +92,7 @@ export function useDockerWatch(
       let refused = false;
       try {
         for await (const update of client.watchDockerObjects(
-          {
-            selection: { serverIds, kind },
-            visibleKeys,
-          },
+          { selection: { serverIds, kind }, visibleKeys },
           { signal: abort.signal, timeoutMs: 0 },
         )) {
           if (abort.signal.aborted) return;
@@ -107,7 +103,11 @@ export function useDockerWatch(
             else
               setSamples((current) => new Map([...current].filter(([, sample]) => sample.key?.serverId !== serverId)));
           }
-          if (update.resync || update.changedKeys.length || (refreshOnHealth && update.healthUpdates.length)) {
+          if (
+            update.resync ||
+            update.changedKeys.length ||
+            (kind === DockerObjectKind.COMPOSE && update.healthUpdates.length)
+          ) {
             refreshInventory();
           }
           if (update.samples.length) {
@@ -147,7 +147,7 @@ export function useDockerWatch(
       clearTimeout(pending);
       abort.abort();
     };
-  }, [attempt, kind, refreshOnHealth, serverKey, transport, visibleKey]);
+  }, [attempt, kind, serverKey, transport, visibleKey]);
 
   return {
     connected: servers.some((id) => live.get(id) === true),

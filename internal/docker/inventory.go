@@ -65,7 +65,7 @@ func (c *Client) InventoryEvents(ctx context.Context, opened func(), changed fun
 	}
 	// Docker combines type and action filters independently. Check their pairing
 	// as well, and take actual health transitions through the separate path.
-	q := url.Values{"filters": {`{"type":["container","image","network","volume"],"event":["start","stop","die","destroy","create","rename","pause","unpause","delete","pull","tag","untag","health_status: starting","health_status: healthy","health_status: unhealthy"]}`}}
+	q := url.Values{"filters": {`{"type":["container","image","network","volume"],"event":["start","stop","die","destroy","create","rename","pause","unpause","delete","pull","tag","untag","connect","disconnect","mount","unmount","health_status: starting","health_status: healthy","health_status: unhealthy"]}`}}
 	res, err := c.send(ctx, http.MethodGet, p, q, nil)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func inventoryAction(kind, action string) bool {
 	case "image":
 		return action == "create" || action == "delete" || action == "pull" || action == "tag" || action == "untag"
 	case "network", "volume":
-		return action == "create" || action == "destroy"
+		return action == "create" || action == "destroy" || action == "connect" || action == "disconnect" || action == "mount" || action == "unmount"
 	}
 	return false
 }

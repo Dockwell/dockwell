@@ -92,6 +92,18 @@ func (*Driver) Validate(spec proto.Message) error {
 			return errors.New("a network's driver options need names, such as com.docker.network.bridge.name")
 		}
 	}
+	if err := CheckIPAM(n); err != nil {
+		return err
+	}
+	for _, p := range n.GetIpam().GetPools() {
+		p.Subnet = netip.MustParsePrefix(p.GetSubnet()).String()
+		if p.GetGateway() != "" {
+			p.Gateway = netip.MustParseAddr(p.GetGateway()).String()
+		}
+	}
+	slices.SortFunc(n.GetIpam().GetPools(), func(a, b *resourcev1.NetworkIPAMPool) int {
+		return strings.Compare(a.GetSubnet(), b.GetSubnet())
+	})
 	return checkMembers(n)
 }
 
@@ -227,6 +239,18 @@ func OwnLabels(spec *resourcev1.Network) map[string]string {
 	for _, k := range slices.Sorted(maps.Keys(spec.GetOptions())) {
 		set = append(set, "option:"+k)
 	}
+	if spec.GetIpam() != nil {
+		set = append(set, "ipam")
+		if spec.GetIpam().EnableIpv6 != nil {
+			set = append(set, "ipv6")
+		}
+		for _, p := range spec.GetIpam().GetPools() {
+			set = append(set, "pool:"+p.GetSubnet())
+			if p.GetGateway() != "" {
+				set = append(set, "gateway:"+p.GetSubnet())
+			}
+		}
+	}
 	// A subnet it was given reads back; one Docker chose doesn't.
 	if spec.GetSubnet() != "" {
 		set = append(set, "subnet")
@@ -248,6 +272,24 @@ func Project(n *docker.Network) *resourcev1.Network {
 		set[s] = true
 	}
 	out := &resourcev1.Network{Driver: n.Driver, Internal: n.Internal}
+	if set["ipam"] {
+		out.Ipam = &resourcev1.NetworkIPAM{}
+		if set["ipv6"] {
+			out.Ipam.EnableIpv6 = &n.EnableIPv6
+		}
+		for _, entry := range n.IPAM.Config {
+			if set["pool:"+entry.Subnet] {
+				pool := &resourcev1.NetworkIPAMPool{Subnet: entry.Subnet}
+				if set["gateway:"+entry.Subnet] {
+					pool.Gateway = entry.Gateway
+				}
+				out.Ipam.Pools = append(out.Ipam.Pools, pool)
+			}
+		}
+	}
+	slices.SortFunc(out.GetIpam().GetPools(), func(a, b *resourcev1.NetworkIPAMPool) int {
+		return strings.Compare(a.GetSubnet(), b.GetSubnet())
+	})
 	if set["subnet"] && len(n.IPAM.Config) > 0 {
 		out.Subnet = n.IPAM.Config[0].Subnet
 	}
@@ -373,14 +415,70 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	switch step.Action {
 	case resource.ActionCreate:
 		spec := desired.(*resourcev1.Network)
+		guard := step.DockerStorageGuard.GetCreate()
+		if guard != nil {
+			if guard.GetEngineName() != t.Name || !docker.IsFullID(guard.GetCreationToken()) {
+				return errors.New("the network name differs from the approved create")
+			}
+			held, err := d.Client.NetworkNamed(ctx, t.Name)
+			switch {
+			case err == nil:
+				if held.Labels[docker.LabelStorageCreation] == guard.GetCreationToken() {
+					return d.resumeMembers(ctx, held, spec.GetMembers())
+				}
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return errors.New("the Engine name is now in use. Review the network again")
+			case !docker.IsNotFound(err):
+				return err
+			}
+		}
 		create := &docker.NetworkCreate{
 			Name: t.Name, Driver: spec.GetDriver(), Internal: spec.GetInternal(), Options: spec.GetOptions(), Labels: Labels(t, spec),
+		}
+		if ipam := spec.GetIpam(); ipam != nil {
+			if err := CheckIPAM(spec); err != nil {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return err
+			}
+			list, err := d.Client.ListCleanupNetworks(ctx, 1200)
+			if err != nil {
+				return err
+			}
+			if conflict := PoolConflict(spec, list); conflict != nil {
+				return fmt.Errorf("the subnet overlaps %s on %s", conflict.GetConflictingSubnet(), conflict.GetConflictingNetwork())
+			}
+			conflict, err := HostPoolConflict(ctx, spec)
+			if err != nil || conflict != nil {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				if err != nil {
+					return err
+				}
+				return fmt.Errorf("the subnet overlaps %s on %s. Choose another subnet", conflict.GetConflictingSubnet(), conflict.GetConflictingNetwork())
+			}
+			create.EnableIPv6 = ipam.EnableIpv6
+			for _, pool := range ipam.GetPools() {
+				if create.IPAM == nil {
+					create.IPAM = &docker.IPAM{}
+				}
+				create.IPAM.Config = append(create.IPAM.Config, docker.IPAMConfig{Subnet: pool.GetSubnet(), Gateway: pool.GetGateway()})
+			}
 		}
 		if sn := spec.GetSubnet(); sn != "" {
 			create.IPAM = &docker.IPAM{Config: []docker.IPAMConfig{{Subnet: sn}}}
 		}
-		if _, err := d.Client.CreateNetwork(ctx, create); err != nil {
+		if guard != nil {
+			create.Labels[docker.LabelStorageCreation] = guard.GetCreationToken()
+		}
+		created, err := d.Client.CreateNetwork(ctx, create)
+		if err != nil {
 			return fmt.Errorf("docker can't create the network %s: %w", t.Name, err)
+		}
+		if guard != nil {
+			held, err := d.Client.InspectNetwork(ctx, created)
+			if err != nil || held.ID != created || held.Name != t.Name || held.Labels[docker.LabelStorageCreation] != guard.GetCreationToken() {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return errors.New("the Engine did not confirm it created the reviewed network")
+			}
 		}
 		return d.join(ctx, t, nil, spec.GetMembers())
 	case resource.ActionDelete:
@@ -419,6 +517,31 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	case resource.ActionReplace:
 		return fmt.Errorf("docker can't change the network %s once it is made", t.Name)
 	case resource.ActionNone:
+	}
+	return nil
+}
+
+// resumeMembers completes a create whose network exists with this change's token.
+func (d *Driver) resumeMembers(ctx context.Context, held *docker.Network, want []*resourcev1.NetworkMember) error {
+	for _, m := range want {
+		if err := d.each(ctx, m, func(id string) error {
+			ctr, err := d.Client.InspectContainer(ctx, id)
+			if docker.IsNotFound(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if ep := ctr.NetworkEndpoint(held.Name, held.ID); ep != nil {
+				if (ep.NetworkID == held.ID || ep.NetworkID == "") && slices.Contains(ep.Aliases, m.GetAlias()) {
+					return nil
+				}
+				return fmt.Errorf("the member of %s has a different attachment. Review its network again", held.Name)
+			}
+			return d.Client.ConnectNetwork(ctx, held.ID, id, []string{m.GetAlias()})
+		}); err != nil {
+			return fmt.Errorf("can't put %s on the network %s: %w", m.GetService(), held.Name, err)
+		}
 	}
 	return nil
 }

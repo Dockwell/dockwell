@@ -1323,11 +1323,12 @@
         "v2raya",
         "vaultwarden",
         "vocechat",
-        "wallabag"
+        "wallabag",
+        "ztnet"
       ],
       "leftOut": {
         "another-app": 3,
-        "cant-run": 34,
+        "cant-run": 33,
         "cant-say": 11,
         "inside": 9,
         "own": 1,

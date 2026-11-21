@@ -638,6 +638,9 @@ func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Me
 	t := TargetOf(step.Ref)
 	switch step.Action {
 	case resource.ActionCreate:
+		if guard := step.DockerStorageGuard.GetCreate(); guard != nil {
+			ctx = context.WithValue(ctx, storageCreateKey{}, guard)
+		}
 		return d.Runtime.Create(ctx, t, desired.(*resourcev1.Volume), step.Restores)
 	case resource.ActionDelete:
 		return d.Runtime.Delete(ctx, t)

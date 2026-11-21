@@ -168,6 +168,10 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("a change needs a summary that says what it is for, such as \"Add a staging environment\""), "invalid")
 	}
 	for _, e := range req.Msg.GetEdits() {
+		if e.GetMustCreate() && (e.GetDelete() || e.GetBaseRevision() != 0 || len(e.GetServers()) != 1 ||
+			(e.GetSpec().GetNetwork() == nil && e.GetSpec().GetVolume() == nil)) {
+			return nil, authapi.Invalid(errors.New("create-only needs a new network or volume and one server"))
+		}
 		if how, ok := ownMethods[e.GetResource().GetKind()]; ok {
 			return nil, authapi.Invalid(errors.New(how))
 		}
@@ -1151,6 +1155,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
 				EnvToSecrets: e.GetEnvToSecrets(), WithContents: e.GetWithContents(),
 				KeepSharedIn: e.GetKeepSharedIn(), DeleteShared: e.GetDeleteShared(),
+				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate(),
 			})
 		}
 		return nil

@@ -119,6 +119,7 @@ export async function dockerRun(
     env?: string[];
     port?: number;
     mount?: string;
+    network?: string;
     labels?: Readonly<Record<string, string>>;
   },
 ): Promise<string> {
@@ -132,6 +133,7 @@ export async function dockerRun(
       Labels: run.labels,
       ExposedPorts: run.port ? { "80/tcp": {} } : undefined,
       HostConfig: {
+        NetworkMode: run.network,
         PortBindings: run.port ? { "80/tcp": [{ HostPort: String(run.port) }] } : undefined,
         Binds: run.mount ? [run.mount] : undefined,
       },
