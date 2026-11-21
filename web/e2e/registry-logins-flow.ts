@@ -7,6 +7,7 @@
 // login it pulls with, and the app runs.
 
 import type { Flow } from "./flows.ts";
+import { ownServerPath } from "./own-server.ts";
 import { atWidth, onTop } from "./sheets.ts";
 
 function fail(message: string): never {
@@ -57,6 +58,26 @@ export const flow: Flow = {
     await card.getByText("Connected").waitFor({ timeout: 15_000 });
     await card.getByText("ghcr").first().waitFor();
     await shoot(page, "registry-logins-connected");
+
+    step("registry logins: a standalone image pull offers the only eligible login and names it in review");
+    const server = await ownServerPath(page, origin);
+    await page.goto(`${origin}${server}/docker/images`);
+    await page.getByRole("button", { name: "Pull image", exact: true }).click();
+    const pull = onTop(page.getByRole("dialog", { name: "Pull image" }));
+    const registry = pull.getByRole("combobox", { name: "Registry", exact: true });
+    await registry.selectOption({ label: "ghcr.io · ghcr" });
+    await pull.getByText("ghcr", { exact: true }).last().waitFor();
+    await pull.getByRole("textbox", { name: "Image", exact: true }).fill(IMAGE);
+    await pull
+      .getByRole("region", { name: "Repository tags" })
+      .getByRole("button", { name: /^1\.0(?: |$)/ })
+      .waitFor();
+    await shoot(page, "registry-logins-docker-pull");
+    await pull.getByRole("button", { name: "Review pull" }).click();
+    const pullPlan = onTop(page.getByRole("dialog", { name: "Review plan" }));
+    await pullPlan.locator(".plan-image-evidence").getByText("ghcr", { exact: true }).waitFor();
+    if ((await pullPlan.innerText()).includes(TOKEN)) fail("the pull's plan shows the login's token");
+    await pullPlan.getByRole("button", { name: "Cancel" }).click();
 
     step("registry logins: New app finds the private image with the login, and its plan pulls with it");
     await page.goto(`${origin}/apps/new?source=image`);

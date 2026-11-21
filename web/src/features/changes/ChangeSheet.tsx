@@ -115,6 +115,7 @@ import {
   changing,
   cleansDocker,
   diffResources,
+  dockerImageAction,
   failedStep,
   foldPlumbing,
   foundNothingNewer,
@@ -773,7 +774,8 @@ function ChangeSheet({
       unitWithoutUndo(plan) ||
       plan?.removes ||
       panelStartsAgain(plan) ||
-      cleansDocker(plan) ? (
+      cleansDocker(plan) ||
+      dockerImageAction(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -1122,6 +1124,13 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   // Only what runs can be a website's; a plan that runs nothing, such as a reboot, reads no websites.
   const websiteOf = useWebsiteOfEnvironment(goesLive(plan).length > 0);
   // A change of labels alone says it of the servers, which take no step (ADR 0091).
+  const imageAction = dockerImageAction(plan);
+  if (imageAction) {
+    const pull = imageAction.pull;
+    if (phase === "applying") return pull ? t`Pulling image` : t`Setting image tag`;
+    if (phase === "failed") return t`Image action failed`;
+    if (phase === "history" || phase === "arrived") return pull ? t`Image pulled` : t`Image tag set`;
+  }
   if (resumesDockerCleanup(plan)) {
     if (phase === "applying") return t`Re-enabling Docker cleanup`;
     if (phase === "failed") return t`Could not re-enable Docker cleanup`;
@@ -1466,6 +1475,7 @@ function PlanBody({
   const phased = upgrade !== undefined && !fleet;
   const showSteps =
     cleansDocker(plan) ||
+    !!dockerImageAction(plan) ||
     (phase === "applying" && !phased) ||
     ((fleet || installs) && (ran || phase === "review")) ||
     (phase === "failed" && (steps.length > 1 || fleet) && !phased);
@@ -1574,7 +1584,7 @@ function PlanBody({
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
       {showSteps ? null : <CloudflareSteps plan={plan} />}
       {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
-      {unitOnly || cleansDocker(plan) ? null : (
+      {unitOnly || cleansDocker(plan) || dockerImageAction(plan) ? null : (
         <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
           {cameToNothing ? (
             <h3 className="dw-text-label plan-heading">{setOut}</h3>

@@ -316,6 +316,17 @@ func main() {
 		}
 		// What the stand-in registry has, the engine pulls as the registry names it.
 		img.Digest = registryDigest(ref)
+		if repo, digest, pinned := strings.Cut(ref, "@"); pinned && repo == "example/dockwell-pull" {
+			fixture := fakeRepos[repo]
+			for _, tag := range fixture.tags {
+				config, manifest := configOf(repo, fixture, tag)
+				if digestOfBytes(manifest) == digest {
+					img.Digest, img.ConfigDigest = digest, digestOfBytes(config)
+					break
+				}
+			}
+		}
+
 		// What it keeps private, a pull gets only with its login.
 		if strings.Contains(name, "example/private") {
 			img.Login = privateUser + ":" + privateToken

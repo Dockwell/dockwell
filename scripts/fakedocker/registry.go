@@ -55,6 +55,7 @@ type fakeRepo struct {
 }
 
 var fakeRepos = map[string]fakeRepo{
+	"example/dockwell-pull": {tags: []string{"1.0", "1.1"}},
 	"library/nginx": {
 		// Not 1.27-alpine or 1.28-alpine, which the flows run as images the registry
 		// says nothing of, so New app fills nothing in for them.
@@ -167,6 +168,9 @@ func serveRegistry(addr string) {
 			return
 		}
 		_, _ = w.Write([]byte("{}"))
+	})
+	mux.HandleFunc("GET /v2/_catalog", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"repositories": []string{"example/dockwell-pull"}})
 	})
 	repoOf := func(r *http.Request) (string, fakeRepo, bool) {
 		path := strings.TrimPrefix(r.URL.Path, "/v2/")

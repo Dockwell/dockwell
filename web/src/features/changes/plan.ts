@@ -88,7 +88,26 @@ export function reboots(plan: Plan | undefined): boolean {
 
 /** A cleanup plan's steps are the whole plan and have no undo. */
 export function cleansDocker(plan: Plan | undefined): boolean {
-  return !!plan?.resources.length && plan.resources.every((item) => item.dockerMaintenance !== undefined);
+  return (
+    !!plan?.resources.length &&
+    plan.resources.every((item) => item.dockerMaintenance !== undefined && !item.dockerMaintenance.imageAction)
+  );
+}
+
+export function dockerImageAction(plan: Plan | undefined) {
+  return plan?.resources.find((resource) => resource.dockerMaintenance?.imageAction)?.dockerMaintenance?.imageAction;
+}
+
+export function dockerImagePasskey(plan: Plan | undefined): boolean {
+  const action = dockerImageAction(plan);
+  const binding = action?.bindings[0];
+  if (!action || !binding?.imageId || action.pull?.reference.includes("@")) return false;
+  if (action.tag) return action.tag.sourceKey?.imageId !== binding.imageId;
+  // A proved match of the index or manifest returns without a plan. The
+  // classic store can still have a digest to fetch under the same config ID.
+  return (
+    binding.local?.configDigest !== binding.imageId || binding.local.configDigest !== action.descriptor?.configDigest
+  );
 }
 
 export function resumesDockerCleanup(plan: Plan | undefined): boolean {

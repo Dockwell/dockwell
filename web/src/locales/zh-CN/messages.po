@@ -5108,6 +5108,9 @@ msgstr "已找到，使用 {0}"
 msgid "Images found"
 msgstr "找到的镜像"
 
+msgid "Loading image tags"
+msgstr "正在加载镜像标签"
+
 msgid "Not found, or private"
 msgstr "未找到，或为私有镜像"
 
@@ -5120,6 +5123,9 @@ msgstr "选择一个登录"
 
 msgid "Pull with"
 msgstr "拉取时使用"
+
+msgid "Searching for images"
+msgstr "正在搜索镜像"
 
 msgid "The registry refused its login"
 msgstr "镜像仓库拒绝了它的登录"
@@ -9736,6 +9742,15 @@ msgstr "我已修改它的密码"
 msgid "If you close this without keeping it, the change goes back on its own."
 msgstr "如果你不保留就关闭，这项更改会自动撤回。"
 
+msgid "Image action failed"
+msgstr "镜像操作失败"
+
+msgid "Image pulled"
+msgstr "镜像已拉取"
+
+msgid "Image tag set"
+msgstr "镜像标签已设置"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
 
@@ -9823,6 +9838,9 @@ msgstr "在“域名”中打开 {domain}"
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
 
+msgid "Pulling image"
+msgstr "正在拉取镜像"
+
 msgid "Re-enabling Docker cleanup"
 msgstr "正在重新启用 Docker 清理"
 
@@ -9858,6 +9876,9 @@ msgstr "如果失败，将回滚到 <0>{back}</0>"
 
 msgid "See the guide"
 msgstr "查看指南"
+
+msgid "Setting image tag"
+msgstr "正在设置镜像标签"
 
 msgid "Started {name} on {server}"
 msgstr "已在 {server} 上启动 {name}"
@@ -10316,6 +10337,18 @@ msgstr "恢复服务器保留的数据"
 msgid "Clean up Docker on <0>{server}</0>"
 msgstr "清理 <0>{server}</0> 上的 Docker"
 
+msgid "Current image ID"
+msgstr "当前镜像 ID"
+
+msgid "Current image config digest"
+msgstr "当前镜像配置摘要"
+
+msgid "Current platform manifest digest"
+msgstr "当前平台的清单摘要"
+
+msgid "Current registry index digest"
+msgstr "当前镜像索引摘要"
+
 msgid "Destroys data"
 msgstr "会销毁数据"
 
@@ -10331,6 +10364,12 @@ msgstr "从 <1>{name}</1> 单独转储 <0>{0}</0>，不停止任何服务"
 
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "从 <0>{name}</0> 分别单独转储 {databases}，各自作为一份备份，不停止任何服务"
+
+msgid "Image ID"
+msgstr "镜像 ID"
+
+msgid "Image config digest"
+msgstr "镜像配置摘要"
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "其 Dockerfile 能读取 {buildLogins} 可读取的任何镜像"
@@ -10356,6 +10395,18 @@ msgstr "{name} 及其数据库 {leftDatabase} 会留在服务器上，它们不�
 msgid "May cut off access to {server}"
 msgstr "可能切断对 {server} 的访问"
 
+msgid "New image ID"
+msgstr "新镜像 ID"
+
+msgid "New image config digest"
+msgstr "新镜像配置摘要"
+
+msgid "New platform manifest digest"
+msgstr "新平台清单摘要"
+
+msgid "New registry index digest"
+msgstr "新镜像索引摘要"
+
 msgid "No downtime"
 msgstr "不会停机"
 
@@ -10374,6 +10425,15 @@ msgstr "将开放{opening}"
 msgid "Packages it installs on {server}"
 msgstr "它在 {server} 上安装的软件包"
 
+msgid "Platform"
+msgstr "平台"
+
+msgid "Platform manifest digest"
+msgstr "平台清单摘要"
+
+msgid "Pull <0>{reference}</0> on <1>{server}</1>"
+msgstr "在 <1>{server}</1> 上拉取 <0>{reference}</0>"
+
 msgid "Pulled in"
 msgstr "随附安装"
 
@@ -10390,6 +10450,15 @@ msgstr "可访问 {server} 上的 {reach}"
 msgid "Reboot <0>{server}</0>"
 msgstr "重启 <0>{server}</0>"
 
+msgid "Registry index digest"
+msgstr "镜像索引摘要"
+
+msgid "Registry login"
+msgstr "仓库登录凭据"
+
+msgid "Result unknown"
+msgstr "结果未知"
+
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "运行控制平面自带的安装脚本（SHA-256 {sha}），它会先校验发布版本的签名再安装"
 
@@ -10399,6 +10468,9 @@ msgstr "安全修复"
 
 msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 msgstr "这些软件包运行的服务可能会在安装时重启。此操作无法撤销：已安装的内容会保留"
+
+msgid "Set tag <0>{reference}</0> on <1>{server}</1>"
+msgstr "在 <1>{server}</1> 上设置标签 <0>{reference}</0>"
 
 msgid "Steps"
 msgstr "步骤"
@@ -10423,6 +10495,9 @@ msgstr "最多 {stepBound} 后恢复健康"
 
 msgid "Upgrade the agent on <0>{server}</0> from {from} to {to}"
 msgstr "将 <0>{server}</0> 上的代理从 {from} 升级到 {to}"
+
+msgid "Verified image ID"
+msgstr "已验证的镜像 ID"
 
 msgid "Waiting"
 msgstr "等待中"
@@ -11226,6 +11301,9 @@ msgstr "请先备份不能丢失的内容。"
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "迁移前，Dockwell 会询问它的数据用到了哪些功能；如果 {to} 无法运行，就停止，不做任何更改。"
 
+msgid "Both images and their other tags stay."
+msgstr "两个镜像及其其他标签均会保留。"
+
 msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
 msgstr "浏览器会将永久重定向保留至多一天，撤销后也是如此。"
 
@@ -11728,6 +11806,9 @@ msgstr "{0} 上的这个 jail 永不封禁 {never}"
 #. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
 msgstr "这可能切断对 {0} 的访问"
+
+msgid "This moves the tag"
+msgstr "标签将指向另一个镜像"
 
 msgid "This one and {also} do: point what uses it at a name only one of them has."
 msgstr "这个容器和 {also} 都是如此：请让使用方指向只有其中一个容器拥有的名称。"
@@ -14634,9 +14715,6 @@ msgstr "退出原因"
 msgid "I/O"
 msgstr "输入和输出"
 
-msgid "Image ID"
-msgstr "镜像 ID"
-
 msgid "Inspect"
 msgstr "查看"
 
@@ -14868,6 +14946,48 @@ msgstr "已用"
 msgid "{0} on other disks"
 msgstr "另有 {0} 位于其他磁盘上"
 
+msgid "Actions for {label}"
+msgstr "{label} 的操作"
+
+msgid "Add tag"
+msgstr "添加标签"
+
+msgid "Check for updates"
+msgstr "检查更新"
+
+msgid "Checking the tag"
+msgstr "正在检查标签"
+
+msgid "Comparing image digests"
+msgstr "正在比较镜像摘要"
+
+msgid "Image action needs attention"
+msgstr "需要检查镜像操作"
+
+msgid "Image couldn't be checked"
+msgstr "无法检查镜像"
+
+msgid "Loading image actions"
+msgstr "正在加载镜像操作"
+
+msgid "Move tag"
+msgstr "移动标签"
+
+msgid "New tag"
+msgstr "新标签"
+
+msgid "Pull image"
+msgstr "拉取镜像"
+
+msgid "Review pull"
+msgstr "查看拉取计划"
+
+msgid "Tag to move"
+msgstr "要移动的标签"
+
+msgid "This tag already points to the image"
+msgstr "此标签已指向该镜像"
+
 msgid "All images"
 msgstr "全部镜像"
 
@@ -14949,9 +15069,6 @@ msgstr "没有使用中的镜像"
 msgid "Only the first entries are shown"
 msgstr "仅显示前几项"
 
-msgid "Platform"
-msgstr "平台"
-
 msgid "Refresh images"
 msgstr "刷新镜像"
 
@@ -14998,6 +15115,72 @@ msgstr "未使用"
 #. placeholder {0}: row.image.tags.length - 1
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, other {还有 # 个标签}}"
+
+msgid "Browse registry"
+msgstr "浏览镜像仓库"
+
+msgid "Checking local images"
+msgstr "正在检查本地镜像"
+
+msgid "Digest unavailable"
+msgstr "摘要不可用"
+
+msgid "Enter image name"
+msgstr "输入镜像名称"
+
+msgid "Loading registry logins"
+msgstr "正在加载镜像仓库登录"
+
+msgid "Loading repositories"
+msgstr "正在加载镜像仓库"
+
+msgid "Local status unavailable"
+msgstr "本地状态不可用"
+
+msgid "Manage logins"
+msgstr "管理登录凭据"
+
+msgid "No repositories on this page"
+msgstr "此页没有镜像仓库"
+
+msgid "No tags"
+msgstr "没有标签"
+
+msgid "Not on this server"
+msgstr "此服务器上没有"
+
+msgid "On this server"
+msgstr "已在此服务器上"
+
+msgid "Other registry…"
+msgstr "其他镜像仓库…"
+
+msgid "Registry"
+msgstr "镜像仓库"
+
+msgid "Registry address"
+msgstr "镜像仓库地址"
+
+msgid "Repository list unavailable"
+msgstr "无法列出仓库"
+
+msgid "Repository tags"
+msgstr "镜像仓库标签"
+
+msgid "Retry registry logins"
+msgstr "重试加载仓库登录凭据"
+
+msgid "Show more tags"
+msgstr "显示更多标签"
+
+msgid "Tags"
+msgstr "标签"
+
+msgid "Tags unavailable"
+msgstr "无法读取标签"
+
+msgid "{fallbackName} if needed"
+msgstr "需要时使用 {fallbackName}"
 
 msgid "App name"
 msgstr "应用名称"
@@ -17214,9 +17397,6 @@ msgstr "不是镜像仓库，或无法连接"
 
 msgid "Pull private images from {host}"
 msgstr "从 {host} 拉取私有镜像"
-
-msgid "Registry"
-msgstr "镜像仓库"
 
 #. placeholder {0}: editing.name
 msgid "Registry login {0}"
@@ -20008,9 +20188,6 @@ msgstr "已保留：{name}，{0}"
 #. placeholder {0}: k.record
 msgid "Kept: {name}, {0}. Put back once its name is free"
 msgstr "已保留：{name}，{0}。名称空出后可以恢复"
-
-msgid "Loading registry logins"
-msgstr "正在加载镜像仓库登录"
 
 msgid "Loading where backups go"
 msgstr "正在加载备份去向"

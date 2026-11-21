@@ -223,7 +223,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ImageService.checkRegistryLogin": "may",
   "ImageService.getImage": "may",
   "ImageService.listImageTags": "may",
-  "ImageService.listRegistryRepositories": "unused",
+  "ImageService.listRegistryRepositories": "may",
   "ImageService.listRegistryLogins": "read",
   "ImageService.searchImages": "may",
 

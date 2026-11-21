@@ -5108,6 +5108,9 @@ msgstr "Found, with {0}"
 msgid "Images found"
 msgstr "Images found"
 
+msgid "Loading image tags"
+msgstr "Loading image tags"
+
 msgid "Not found, or private"
 msgstr "Not found, or private"
 
@@ -5120,6 +5123,9 @@ msgstr "Pick a login"
 
 msgid "Pull with"
 msgstr "Pull with"
+
+msgid "Searching for images"
+msgstr "Searching for images"
 
 msgid "The registry refused its login"
 msgstr "The registry refused its login"
@@ -9736,6 +9742,15 @@ msgstr "I changed its password"
 msgid "If you close this without keeping it, the change goes back on its own."
 msgstr "If you close this without keeping it, the change goes back on its own."
 
+msgid "Image action failed"
+msgstr "Image action failed"
+
+msgid "Image pulled"
+msgstr "Image pulled"
+
+msgid "Image tag set"
+msgstr "Image tag set"
+
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
 
@@ -9823,6 +9838,9 @@ msgstr "Open {domain} in Domains"
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
 
+msgid "Pulling image"
+msgstr "Pulling image"
+
 msgid "Re-enabling Docker cleanup"
 msgstr "Re-enabling Docker cleanup"
 
@@ -9858,6 +9876,9 @@ msgstr "Rolls back to <0>{back}</0> if it fails"
 
 msgid "See the guide"
 msgstr "See the guide"
+
+msgid "Setting image tag"
+msgstr "Setting image tag"
 
 msgid "Started {name} on {server}"
 msgstr "Started {name} on {server}"
@@ -10316,6 +10337,18 @@ msgstr "Brings back the data the server kept"
 msgid "Clean up Docker on <0>{server}</0>"
 msgstr "Clean up Docker on <0>{server}</0>"
 
+msgid "Current image ID"
+msgstr "Current image ID"
+
+msgid "Current image config digest"
+msgstr "Current image config digest"
+
+msgid "Current platform manifest digest"
+msgstr "Current platform manifest digest"
+
+msgid "Current registry index digest"
+msgstr "Current registry index digest"
+
 msgid "Destroys data"
 msgstr "Destroys data"
 
@@ -10331,6 +10364,12 @@ msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
 
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+
+msgid "Image ID"
+msgstr "Image ID"
+
+msgid "Image config digest"
+msgstr "Image config digest"
 
 msgid "Its Dockerfile can read any image {buildLogins} can read"
 msgstr "Its Dockerfile can read any image {buildLogins} can read"
@@ -10356,6 +10395,18 @@ msgstr "Leaves {name} and its database {leftDatabase} on the server, which Dockw
 msgid "May cut off access to {server}"
 msgstr "May cut off access to {server}"
 
+msgid "New image ID"
+msgstr "New image ID"
+
+msgid "New image config digest"
+msgstr "New image config digest"
+
+msgid "New platform manifest digest"
+msgstr "New platform manifest digest"
+
+msgid "New registry index digest"
+msgstr "New registry index digest"
+
 msgid "No downtime"
 msgstr "No downtime"
 
@@ -10374,6 +10425,15 @@ msgstr "Opens {opening}"
 msgid "Packages it installs on {server}"
 msgstr "Packages it installs on {server}"
 
+msgid "Platform"
+msgstr "Platform"
+
+msgid "Platform manifest digest"
+msgstr "Platform manifest digest"
+
+msgid "Pull <0>{reference}</0> on <1>{server}</1>"
+msgstr "Pull <0>{reference}</0> on <1>{server}</1>"
+
 msgid "Pulled in"
 msgstr "Pulled in"
 
@@ -10390,6 +10450,15 @@ msgstr "Reaches {reach} on {server}"
 msgid "Reboot <0>{server}</0>"
 msgstr "Reboot <0>{server}</0>"
 
+msgid "Registry index digest"
+msgstr "Registry index digest"
+
+msgid "Registry login"
+msgstr "Registry login"
+
+msgid "Result unknown"
+msgstr "Result unknown"
+
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 
@@ -10399,6 +10468,9 @@ msgstr "Security fix"
 
 msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 msgstr "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
+
+msgid "Set tag <0>{reference}</0> on <1>{server}</1>"
+msgstr "Set tag <0>{reference}</0> on <1>{server}</1>"
 
 msgid "Steps"
 msgstr "Steps"
@@ -10423,6 +10495,9 @@ msgstr "Up to {stepBound} until healthy"
 
 msgid "Upgrade the agent on <0>{server}</0> from {from} to {to}"
 msgstr "Upgrade the agent on <0>{server}</0> from {from} to {to}"
+
+msgid "Verified image ID"
+msgstr "Verified image ID"
 
 msgid "Waiting"
 msgstr "Waiting"
@@ -11226,6 +11301,9 @@ msgstr "Back up what you can't lose first."
 msgid "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 msgstr "Before it moves, Dockwell asks what features its data uses, and stops with nothing changed if {to} can't run them."
 
+msgid "Both images and their other tags stay."
+msgstr "Both images and their other tags stay."
+
 msgid "Browsers keep a permanent redirect for up to a day, through an undo too."
 msgstr "Browsers keep a permanent redirect for up to a day, through an undo too."
 
@@ -11728,6 +11806,9 @@ msgstr "This jail never bans {never} on {0}"
 #. placeholder {0}: server.serverName
 msgid "This may cut off access to {0}"
 msgstr "This may cut off access to {0}"
+
+msgid "This moves the tag"
+msgstr "This moves the tag"
 
 msgid "This one and {also} do: point what uses it at a name only one of them has."
 msgstr "This one and {also} do: point what uses it at a name only one of them has."
@@ -14634,9 +14715,6 @@ msgstr "Exit reason"
 msgid "I/O"
 msgstr "I/O"
 
-msgid "Image ID"
-msgstr "Image ID"
-
 msgid "Inspect"
 msgstr "Inspect"
 
@@ -14868,6 +14946,48 @@ msgstr "Used"
 msgid "{0} on other disks"
 msgstr "{0} on other disks"
 
+msgid "Actions for {label}"
+msgstr "Actions for {label}"
+
+msgid "Add tag"
+msgstr "Add tag"
+
+msgid "Check for updates"
+msgstr "Check for updates"
+
+msgid "Checking the tag"
+msgstr "Checking the tag"
+
+msgid "Comparing image digests"
+msgstr "Comparing image digests"
+
+msgid "Image action needs attention"
+msgstr "Image action needs attention"
+
+msgid "Image couldn't be checked"
+msgstr "Image couldn't be checked"
+
+msgid "Loading image actions"
+msgstr "Loading image actions"
+
+msgid "Move tag"
+msgstr "Move tag"
+
+msgid "New tag"
+msgstr "New tag"
+
+msgid "Pull image"
+msgstr "Pull image"
+
+msgid "Review pull"
+msgstr "Review pull"
+
+msgid "Tag to move"
+msgstr "Tag to move"
+
+msgid "This tag already points to the image"
+msgstr "This tag already points to the image"
+
 msgid "All images"
 msgstr "All images"
 
@@ -14949,9 +15069,6 @@ msgstr "No used images"
 msgid "Only the first entries are shown"
 msgstr "Only the first entries are shown"
 
-msgid "Platform"
-msgstr "Platform"
-
 msgid "Refresh images"
 msgstr "Refresh images"
 
@@ -14998,6 +15115,72 @@ msgstr "Unused"
 #. placeholder {0}: row.image.tags.length - 1
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, one {and # more tag} other {and # more tags}}"
+
+msgid "Browse registry"
+msgstr "Browse registry"
+
+msgid "Checking local images"
+msgstr "Checking local images"
+
+msgid "Digest unavailable"
+msgstr "Digest unavailable"
+
+msgid "Enter image name"
+msgstr "Enter image name"
+
+msgid "Loading registry logins"
+msgstr "Loading registry logins"
+
+msgid "Loading repositories"
+msgstr "Loading repositories"
+
+msgid "Local status unavailable"
+msgstr "Local status unavailable"
+
+msgid "Manage logins"
+msgstr "Manage logins"
+
+msgid "No repositories on this page"
+msgstr "No repositories on this page"
+
+msgid "No tags"
+msgstr "No tags"
+
+msgid "Not on this server"
+msgstr "Not on this server"
+
+msgid "On this server"
+msgstr "On this server"
+
+msgid "Other registry…"
+msgstr "Other registry…"
+
+msgid "Registry"
+msgstr "Registry"
+
+msgid "Registry address"
+msgstr "Registry address"
+
+msgid "Repository list unavailable"
+msgstr "Repository list unavailable"
+
+msgid "Repository tags"
+msgstr "Repository tags"
+
+msgid "Retry registry logins"
+msgstr "Retry registry logins"
+
+msgid "Show more tags"
+msgstr "Show more tags"
+
+msgid "Tags"
+msgstr "Tags"
+
+msgid "Tags unavailable"
+msgstr "Tags unavailable"
+
+msgid "{fallbackName} if needed"
+msgstr "{fallbackName} if needed"
 
 msgid "App name"
 msgstr "App name"
@@ -17214,9 +17397,6 @@ msgstr "Not a registry, or can't reach it"
 
 msgid "Pull private images from {host}"
 msgstr "Pull private images from {host}"
-
-msgid "Registry"
-msgstr "Registry"
 
 #. placeholder {0}: editing.name
 msgid "Registry login {0}"
@@ -20008,9 +20188,6 @@ msgstr "Kept: {name}, {0}"
 #. placeholder {0}: k.record
 msgid "Kept: {name}, {0}. Put back once its name is free"
 msgstr "Kept: {name}, {0}. Put back once its name is free"
-
-msgid "Loading registry logins"
-msgstr "Loading registry logins"
 
 msgid "Loading where backups go"
 msgstr "Loading where backups go"

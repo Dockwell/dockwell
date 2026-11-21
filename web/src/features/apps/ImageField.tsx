@@ -3,7 +3,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { useQuery } from "@connectrpc/connect-query";
 import { ChangeService, ImageAnswer, type ImageConfig, ImageService } from "@dockwell/api";
-import { Button, cx, Glyph, SelectField, STATUS, TextField, TONE } from "@dockwell/ui";
+import { Button, cx, Glyph, Loading, SelectField, SkeletonRows, STATUS, TextField, TONE } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { type KeyboardEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -134,16 +134,18 @@ export function ImageField({
 
   // Names while there's no tag, of Docker Hub's alone; a repository's tags after its colon.
   const term = useSettled(tag === undefined && !elsewhere(repository) ? repository : "", LOOK_AFTER_MS);
+  const searching = canSearch && open && term.length >= 2;
   const search = useQuery(
     ImageService.method.searchImages,
     { term, ...where },
-    { enabled: canSearch && open && term.length >= 2, staleTime: READ_FOR_MS, ...ONCE_MORE },
+    { enabled: searching, staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
   const tagsOf = tag === undefined ? "" : repository;
+  const listing = canList && open && tagsOf !== "" && REFERENCE.test(tagsOf);
   const tags = useQuery(
     ImageService.method.listImageTags,
-    { repository: tagsOf, ...where },
-    { enabled: canList && open && tagsOf !== "" && REFERENCE.test(tagsOf), staleTime: READ_FOR_MS, ...ONCE_MORE },
+    { repository: tagsOf, registryLogin, ...where },
+    { enabled: listing, staleTime: READ_FOR_MS, ...ONCE_MORE },
   );
 
   // Whether it's there, once typing pauses on what could be a reference.
@@ -259,6 +261,7 @@ export function ImageField({
   })();
 
   const shows = open && options.length > 0;
+  const suggestionsPending = !shows && ((searching && search.isLoading) || (listing && tags.isLoading));
   // An image its registry keeps private: the login that read it, one to pick, or one to add.
   const isPrivate = read !== undefined && (read.answer !== ImageAnswer.FOUND || read.registryLogin !== "");
   const login = (
@@ -343,6 +346,13 @@ export function ImageField({
           </div>
         ))}
       </div>
+      {suggestionsPending ? (
+        <div className="image-field-list">
+          <Loading label={tag === undefined ? t`Searching for images` : t`Loading image tags`}>
+            <SkeletonRows rows={3} lines={1} dense />
+          </Loading>
+        </div>
+      ) : null}
       {login}
     </div>
   );
