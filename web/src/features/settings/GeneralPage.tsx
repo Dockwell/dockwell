@@ -4,7 +4,17 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, AutoUpdate_Level, PanelServedBy, type Settings, SettingsService } from "@dockwell/api";
-import { Button, Callout, Panel, SelectField, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Loading,
+  Panel,
+  SelectField,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonField,
+  TextField,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useState } from "react";
@@ -42,16 +52,36 @@ export function GeneralPage() {
       className="general"
     >
       {settings.error ? <Callout tone="critical">{sentence(settings.error)}</Callout> : null}
-      <div className="general-panels">
-        <div className="general-column">
-          <InstallPanel settings={s} />
-          <NewAppsPanel settings={s} />
+      {settings.isPending ? (
+        // Its fields at their place, their values on their way, rather than empty fields that fill later.
+        <Loading label={t`Loading the settings`} className="general-panels">
+          <div className="general-column">
+            <SkeletonCard title={t`This install`}>
+              <SkeletonField label={48} />
+              <SkeletonField label={72} />
+            </SkeletonCard>
+            <SkeletonCard title={t`New apps`}>
+              <SkeletonField height={72} label={96} />
+            </SkeletonCard>
+          </div>
+          <div className="general-column">
+            <SkeletonCard title={t`Panel address`}>
+              <SkeletonFacts count={2} layout="rows" />
+            </SkeletonCard>
+          </div>
+        </Loading>
+      ) : (
+        <div className="general-panels">
+          <div className="general-column">
+            <InstallPanel settings={s} />
+            <NewAppsPanel settings={s} />
+          </div>
+          <div className="general-column">
+            {/* The language is this browser's, so it's chosen on Profile, as the mocks have it. */}
+            <PanelServed settings={s} />
+          </div>
         </div>
-        <div className="general-column">
-          {/* The language is this browser's, so it's chosen on Profile, as the mocks have it. */}
-          <PanelServed settings={s} />
-        </div>
-      </div>
+      )}
     </Page>
   );
 }

@@ -10,6 +10,7 @@ import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { LinesLoading } from "../logs/LinesLoading";
 import { clock, dayNoteOf, dayOf } from "../logs/words";
 
 /** How often a unit's journal is read again while it's open. */
@@ -129,7 +130,7 @@ export function SystemLog({ serverId, server, unit }: { serverId: string; server
     error ? (
       <p className="procs-note">{sentence(error)}</p>
     ) : (
-      <p className="procs-note">{t`Reading…`}</p>
+      <LinesLoading source label={t`Reading the system log`} slow={t`${server} is slow to read its system log`} />
     )
   ) : read.source === SystemLogSource.NONE ? (
     <p className="procs-note">{t`${server} keeps no system log Dockwell reads.`}</p>

@@ -426,3 +426,10 @@
 .firewall-suggest-chip[aria-pressed="true"] {
   border-color: var(--ink);
 }
+
+/* What filters the traffic, on its way: its panels, as they will stand. */
+.firewall-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}

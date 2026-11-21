@@ -1,13 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ConnectError } from "@connectrpc/connect";
-import { Callout, cx, Glyph, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import {
+  Callout,
+  Glyph,
+  Loading,
+  PHONE_QUERY,
+  Skeleton,
+  SkeletonCard,
+  SkeletonRows,
+  SkeletonTabs,
+  StatusBadge,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ReactNode } from "react";
 
 import { type Unread, useOnline } from "../../lib/online";
 import { useTimeWords } from "../../lib/time";
-import { useElapsed } from "../../lib/useElapsed";
 import { type FleetState, useAgoNow } from "./useFleet";
 
 /** Why nobody here can say how a server is, as the list says it of apps: the cause, and when the panel last heard. */
@@ -77,8 +87,18 @@ export function usePageReconnecting(status: FleetState["status"]): ReactNode {
  * While the first list of servers is on its way: nothing at first, so fast
  * answers don't flash, then a quiet note; or why it failed.
  */
-export function Connecting({ error }: { error?: ConnectError | undefined }) {
-  const slow = useElapsed(true);
+/**
+ * The fleet on its way, in the shape of the page that waits for it: one server's
+ * overview, a server's own page, the servers' list, or a panel's rows.
+ */
+export function Connecting({
+  error,
+  shape = "list",
+}: {
+  error?: ConnectError | undefined;
+  shape?: "overview" | "server" | "list" | "panel";
+}) {
+  const { t } = useLingui();
   if (error) {
     return (
       <div className="fleet-note">
@@ -89,9 +109,42 @@ export function Connecting({ error }: { error?: ConnectError | undefined }) {
       </div>
     );
   }
+  const label = t`Loading servers`;
+  const slow = t`The control server is slow to answer`;
+  if (shape === "panel") {
+    return (
+      <Loading label={label} slow={slow}>
+        <SkeletonRows rows={2} lead="icon" end="pill" />
+      </Loading>
+    );
+  }
+  if (shape === "list") {
+    return (
+      <Loading label={label} slow={slow}>
+        <SkeletonCard flush noHead>
+          <SkeletonRows rows={3} lead="icon" end="pill" />
+        </SkeletonCard>
+      </Loading>
+    );
+  }
   return (
-    <p className={cx("fleet-note", !slow && "is-quiet")} aria-busy="true">
-      <Trans>Loading servers</Trans>
-    </p>
+    <Loading label={label} slow={slow} className="fleet-loading">
+      {shape === "server" ? <SkeletonTabs count={6} /> : null}
+      <div className="fleet-loading-metrics">
+        {["cpu", "memory", "disk", "network"].map((key) => (
+          <SkeletonCard key={key} noHead>
+            <Skeleton text="caption" width={64} />
+            <Skeleton text="metric" width={88} />
+            <Skeleton shape="block" height={32} />
+          </SkeletonCard>
+        ))}
+      </div>
+      <div className="fleet-loading-columns">
+        <SkeletonCard flush>
+          <SkeletonRows rows={3} lead="icon" end="pill" />
+        </SkeletonCard>
+        <SkeletonCard lines={4} />
+      </div>
+    </Loading>
   );
 }

@@ -234,13 +234,17 @@ describe("Overview with no servers", () => {
 });
 
 describe("Overview while it connects", () => {
-  it("says it is loading only when the servers are slow", async () => {
+  it("draws the overview's shape while the servers load, and says so only to assistive technology", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     renderOverview();
     await screen.findByRole("heading", { level: 1, name: "Overview" });
-    expect(screen.getByText("Loading servers")).toHaveClass("is-quiet");
-    await act(() => vi.advanceTimersByTimeAsync(350));
-    expect(screen.getByText("Loading servers")).not.toHaveClass("is-quiet");
+    const loading = document.querySelector(".fleet-loading");
+    expect(loading).toHaveAttribute("aria-busy", "true");
+    expect(loading?.querySelectorAll(".dw-skeleton").length).toBeGreaterThan(0);
+    // Nothing is said at a fast answer, and never as a line on the page.
+    expect(screen.queryByText("Loading servers")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(screen.getByText("Loading servers")).toHaveClass("dw-sr");
   });
 
   it("explains servers that didn't load", async () => {
@@ -901,7 +905,7 @@ describe("the overview's backups", () => {
   it("says nothing of them until every read has come", async () => {
     renderAt("/", backupsApi({ listBackups: () => new Promise(() => {}) }));
     const backups = await panel();
-    expect(within(backups).getByText("Loading backups")).toBeInTheDocument();
+    expect(await within(backups).findByText("Loading backups")).toBeInTheDocument();
     expect(backups).not.toHaveTextContent("Nothing to back up yet");
     expect(backups).not.toHaveTextContent("None yet");
   });

@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupDestinationInfo, BackupService, ChangeService } from "@dockwell/api";
-import { Button, Panel } from "@dockwell/ui";
+import { Button, Loading, Panel, SkeletonRows } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -23,7 +23,14 @@ export function useDestinations() {
 }
 
 /** Storage where backups go: backup destinations and unused S3 connections that can take backups. */
-export function DestinationsPanel({ destinations }: { destinations: readonly BackupDestinationInfo[] }) {
+export function DestinationsPanel({
+  destinations,
+  pending = false,
+}: {
+  destinations: readonly BackupDestinationInfo[];
+  /** The destinations are on their way, so none isn't known to be none yet. */
+  pending?: boolean;
+}) {
   const { t, i18n } = useLingui();
   const sheet = useChangeSheet();
   const storage = useStorage(destinations);
@@ -49,7 +56,11 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
         ) : undefined
       }
     >
-      {usable.length === 0 ? (
+      {pending || storage.isPending ? (
+        <Loading label={t`Loading destinations`}>
+          <SkeletonRows rows={2} lead="mark" />
+        </Loading>
+      ) : usable.length === 0 ? (
         // A state with its one action, not an empty page, so this column stays as short as its neighbour (#793).
         <div className="backup-destinations-none">
           <StateLine

@@ -197,3 +197,10 @@
   cursor: pointer;
   overflow-wrap: anywhere;
 }
+
+/* What 1Panel keeps, on its way: its groups, as the plan's groups will stand. */
+.onepanel-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

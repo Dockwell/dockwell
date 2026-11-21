@@ -1,0 +1,183 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The shapes a screen draws while its data is on its way, in the final layout.
+   Each waits 150 ms (SKELETON_DELAY_MS) before it shows, so a fast answer never
+   flashes it, and then pulses slowly: the fourth thing in the system that loops,
+   and like the others it holds still under reduced motion. */
+.dw-skeleton {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  background: var(--skeleton);
+  border-radius: var(--radius-xs);
+  animation:
+    dw-skeleton-in 0s linear 150ms both,
+    dw-skeleton-pulse 1.6s ease-in-out 150ms infinite alternate;
+}
+.dw-skeleton.is-inline {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* A line sits in the line box of its text style, as a bar of about the height of
+   its letters, so a column of lines keeps the rhythm of the text it stands for. */
+.dw-skeleton.is-line {
+  --dw-skeleton-box: 20px;
+  --dw-skeleton-bar: 10px;
+  width: 100%;
+  height: var(--dw-skeleton-bar);
+  margin-block: calc((var(--dw-skeleton-box) - var(--dw-skeleton-bar)) / 2);
+}
+.dw-skeleton.is-text-title {
+  --dw-skeleton-box: 28px;
+  --dw-skeleton-bar: 16px;
+}
+.dw-skeleton.is-text-heading {
+  --dw-skeleton-box: 24px;
+  --dw-skeleton-bar: 12px;
+}
+.dw-skeleton.is-text-label,
+.dw-skeleton.is-text-code-sm {
+  --dw-skeleton-box: 18px;
+  --dw-skeleton-bar: 10px;
+}
+.dw-skeleton.is-text-caption {
+  --dw-skeleton-box: 16px;
+  --dw-skeleton-bar: 8px;
+}
+.dw-skeleton.is-text-metric {
+  --dw-skeleton-box: 32px;
+  --dw-skeleton-bar: 22px;
+}
+.dw-skeleton.is-block {
+  width: 100%;
+  height: 64px;
+  border-radius: var(--radius-sm);
+}
+.dw-skeleton.is-pill {
+  width: 72px;
+  height: 20px;
+  border-radius: var(--radius-full);
+}
+.dw-skeleton.is-circle {
+  border-radius: 50%;
+}
+
+@keyframes dw-skeleton-in {
+  from {
+    visibility: hidden;
+  }
+  to {
+    visibility: visible;
+  }
+}
+@keyframes dw-skeleton-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+/* Under reduced motion only the delay stays: the foundations stop every loop, and this leaves the pulse out. */
+@media (prefers-reduced-motion: reduce) {
+  .dw-skeleton {
+    animation-name: dw-skeleton-in;
+  }
+}
+
+/* The region a wait fills: it keeps the layout its content will have. */
+.dw-loading {
+  min-width: 0;
+}
+/* The one line a long wait gets, in place, above the shapes, so it is in sight however many there are. */
+.dw-loading-slow {
+  margin: 0 0 var(--space-2);
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+  animation: dw-loading-slow-in var(--motion-base, 180ms) var(--ease-out, ease-out) both;
+}
+@keyframes dw-loading-slow-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A list's rows on their way, as phone lists draw them: 56px, divided by hairlines. */
+.dw-skeleton-rows {
+  min-width: 0;
+}
+.dw-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 56px;
+  padding: 0 var(--space-4);
+}
+.dw-skeleton-row + .dw-skeleton-row {
+  border-top: 1px solid var(--line);
+}
+.dw-skeleton-rows.is-dense .dw-skeleton-row {
+  height: 48px;
+}
+.dw-skeleton-row-words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.dw-skeleton.is-tile {
+  border-radius: var(--radius-sm);
+}
+
+/* Facts on their way. The layouts hold no more weight than one class, so a
+   page that gives the facts its own facts' class lays them out as its own. */
+.dw-skeleton-facts:where(.is-grid) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-4) var(--space-6);
+}
+:where(.dw-skeleton-facts.is-grid) > .dw-skeleton-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+:where(.dw-skeleton-facts.is-rows) > .dw-skeleton-fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 36px;
+}
+:where(.dw-skeleton-facts.is-rows) > .dw-skeleton-fact + .dw-skeleton-fact {
+  border-top: 1px solid var(--line);
+}
+:where(.dw-skeleton-facts.is-rows) .dw-skeleton.is-line {
+  width: auto;
+}
+
+/* A card on its way: its body's lines sit a line apart. */
+.dw-skeleton-card .dw-panel-body:not(.is-flush) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A field on its way: its label over its control, a field's gap apart. */
+.dw-skeleton-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Tabs on their way, at the tabs' own height. */
+.dw-skeleton-tabs {
+  pointer-events: none;
+}
+.dw-skeleton-tab {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+}

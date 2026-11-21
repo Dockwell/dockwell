@@ -889,3 +889,14 @@ a.alerts-resolved-title:hover {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Alerts on their way, as their cards and rows will stand. */
+.alerts-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.alerts-skeleton-rows .dw-skeleton-row {
+  padding: 0;
+}

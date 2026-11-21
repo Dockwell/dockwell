@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ConnectError } from "@connectrpc/connect";
-import { Button, StatusBadge, Toast } from "@dockwell/ui";
+import { Button, Loading, Skeleton, StatusBadge, Toast } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useLocation, useMatches } from "@tanstack/react-router";
 import { type ReactNode, useEffect } from "react";
 
 import { reasonOf } from "../../lib/errors";
 import { setDisplayTimeZone, syncDisplayTimeZone } from "../../lib/format";
-import { useElapsed } from "../../lib/useElapsed";
 import { StandalonePage } from "../system/StandalonePage";
 import { Unreachable } from "../system/Unreachable";
 import { useAuthError } from "./messages";
@@ -33,7 +32,6 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   const { t } = useLingui();
   const state = useAuthState();
   const location = useLocation();
-  const slow = useElapsed(state.isPending);
   const userTimeZone = state.data?.user?.timeZone ?? "";
 
   // Sync the person's time zone before child screens format dates on their first
@@ -46,7 +44,17 @@ function SignedInOnly({ children }: { children: ReactNode }) {
   if (state.isPending) {
     return (
       <StandalonePage title={t`Checking your session`}>
-        {slow ? <Checking /> : <div className="auth-reserve" aria-busy="true" />}
+        <Loading
+          label={t`Checking your session`}
+          slow={t`The control server is slow to answer`}
+          className="auth-reserve"
+        >
+          <div className="standalone-head">
+            <Skeleton text="title" width={240} />
+            <Skeleton width={320} />
+          </div>
+          <Skeleton shape="block" width={280} height={40} />
+        </Loading>
       </StandalonePage>
     );
   }
@@ -133,17 +141,5 @@ function Stale({ error, retrying, onRetry }: FailedProps) {
         action={{ label: t`Retry`, icon: "refresh", onClick: onRetry }}
       />
     </div>
-  );
-}
-
-function Checking() {
-  const { t } = useLingui();
-  return (
-    <header className="standalone-head">
-      <StatusBadge status="deploying" label={t`Checking`} />
-      <h1 className="dw-text-title">
-        <Trans>Checking your session</Trans>
-      </h1>
-    </header>
   );
 }

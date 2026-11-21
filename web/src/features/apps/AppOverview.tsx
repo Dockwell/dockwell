@@ -28,8 +28,11 @@ import {
   Callout,
   cx,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  Skeleton,
+  SkeletonRows,
   StatusBadge,
   Tag,
   Timeline,
@@ -40,7 +43,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { type CSSProperties, Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
@@ -845,7 +848,9 @@ function ReachedAt({
         <Icon name="globe" size={16} />
         <div className="app-reach-none-text">
           <p>
-            {isPending ? null : (app?.networks.length ?? 0) > 0 ? (
+            {isPending ? (
+              <Skeleton width={280} />
+            ) : (app?.networks.length ?? 0) > 0 ? (
               <Trans>Nothing outside the server reaches it yet. Other apps on its network do.</Trans>
             ) : (
               <Trans>Nothing outside the server reaches it yet.</Trans>
@@ -1088,14 +1093,10 @@ function RecentDeployments() {
           }
         />
       ) : isPending ? (
-        // Holds the room what's coming will take, so nothing under it moves.
-        <p
-          className="app-note app-timeline-loading"
-          aria-busy="true"
-          style={{ "--app-timeline-rows": Math.min(Number(service.revision), RECENT) } as CSSProperties}
-        >
-          <Trans>Loading deployments</Trans>
-        </p>
+        // As many rows as are coming, so nothing under them moves.
+        <Loading label={t`Loading deployments`}>
+          <SkeletonRows rows={Math.max(1, Math.min(Number(service.revision), RECENT))} lead="icon" dense />
+        </Loading>
       ) : (
         <Timeline
           className="app-timeline"

@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import { type Member, MemberService, ResourceService, Role, StepUpAction, TokenRole } from "@dockwell/api";
-import { Button, Callout, SelectField, Sheet } from "@dockwell/ui";
+import { Button, Callout, Loading, SelectField, Sheet, SkeletonFacts } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -398,9 +398,9 @@ function RemoveSheet({ member, onClose }: { member: Member; onClose: () => void 
           {plan.error ? (
             <ReadFailed error={plan.error} title={t`Dockwell can't say what removing ${name} would end`} />
           ) : !p ? (
-            <p className="members-muted" aria-busy="true">
-              <Trans>Reading what this would end</Trans>
-            </p>
+            <Loading label={t`Reading what this would end`}>
+              <SkeletonFacts count={4} layout="rows" />
+            </Loading>
           ) : (
             <dl className="settings-facts members-removal" aria-label={t`What removing ${name} ends`}>
               <dt>{t`Sign-in`}</dt>

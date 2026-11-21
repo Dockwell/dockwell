@@ -3,7 +3,18 @@
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import { downloadFileURL, type FileEntry, FileService, type ReadFileResponse, StepUpAction } from "@dockwell/api";
-import { Button, ButtonLink, Callout, CodeField, Icon, Panel, PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  ButtonLink,
+  Callout,
+  CodeField,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  Skeleton,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -80,9 +91,11 @@ export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
     }
     if (!read) {
       return (
-        <p className="files-reading" aria-busy="true">
-          <Trans>Reading {name}</Trans>
-        </p>
+        <Loading label={t`Reading ${name}`} className="files-reading">
+          {["92%", "64%", "78%", "40%", "86%", "56%", "70%", "32%"].map((width) => (
+            <Skeleton key={width} text="code" width={width} />
+          ))}
+        </Loading>
       );
     }
     if (read.binary) {

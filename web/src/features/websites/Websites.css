@@ -673,11 +673,6 @@
   border-radius: 0;
 }
 
-.website-files-loading {
-  min-height: 160px;
-  background: var(--surface-sunken);
-}
-
 .website-files-note {
   padding: var(--space-4);
 }

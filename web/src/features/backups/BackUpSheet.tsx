@@ -10,7 +10,19 @@ import {
   ChangeState,
   type ConnectionInfo,
 } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, SelectField, Sheet, Switch, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  PHONE_QUERY,
+  SelectField,
+  Sheet,
+  Skeleton,
+  SkeletonField,
+  Switch,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -191,9 +203,10 @@ export function BackUpSheet({
             {sentence(preview.error)}
           </Callout>
         ) : !said ? (
-          <p className="backup-sheet-line" aria-busy="true">
-            <Trans>Asking the server what this takes</Trans>
-          </p>
+          <Loading label={t`Asking the server what this takes`} slow={t`Asking the server what this takes`}>
+            <Skeleton width="88%" />
+            <Skeleton width="64%" />
+          </Loading>
         ) : said.method === BackupMethod.DUMP ? (
           <p className="backup-sheet-line">
             <Icon name="database" size={14} />
@@ -233,7 +246,9 @@ export function BackUpSheet({
             <Trans>Nothing runs on this volume, so the copy is exact.</Trans>
           </p>
         )}
-        {storage.items.length > 0 ? (
+        {storage.isPending ? (
+          <SkeletonField height={96} />
+        ) : storage.items.length > 0 ? (
           <StoragePicker
             items={storage.items}
             value={pickedStorage}

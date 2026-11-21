@@ -127,6 +127,9 @@ msgstr "悬停或聚焦一台服务器以查看详情。"
 msgid "In <0>{scope}</0>"
 msgstr "范围：<0>{scope}</0>"
 
+msgid "Loading"
+msgstr "正在加载"
+
 msgid "Looking in"
 msgstr "正在查看"
 
@@ -1709,6 +1712,12 @@ msgstr "持续时间"
 msgid "Likely trigger"
 msgstr "可能的起因"
 
+msgid "Loading the alert"
+msgstr "正在加载告警"
+
+msgid "Loading what changed before it fired"
+msgstr "正在加载告警触发前的变更"
+
 msgid "Messages about it"
 msgstr "与它有关的消息"
 
@@ -1888,6 +1897,9 @@ msgstr "它的服务器变了，请重新输入密码。"
 msgid "Kept, sealed"
 msgstr "已保留，已加密"
 
+msgid "Loading mail servers"
+msgstr "正在加载邮件服务器"
+
 msgid "Lowercase letters, digits and dashes, starting and ending with a letter or digit."
 msgstr "使用小写字母、数字和连字符，并以字母或数字开头和结尾。"
 
@@ -2024,6 +2036,9 @@ msgstr "它回复：{said}。打开该渠道检查其中的内容。"
 msgid "Last sent"
 msgstr "最近发送"
 
+msgid "Loading the channels"
+msgstr "正在加载告警渠道"
+
 msgid "Messages sent lately"
 msgstr "最近发送的消息"
 
@@ -2151,6 +2166,9 @@ msgstr "最近的响应"
 msgid "Last {0} runs"
 msgstr "最近 {0} 次检查"
 
+msgid "Loading the checks"
+msgstr "正在加载可用性监测"
+
 msgid "New uptime check"
 msgstr "新建可用性监测"
 
@@ -2185,6 +2203,12 @@ msgstr "无法加载规则"
 
 msgid "Every channel"
 msgstr "所有渠道"
+
+msgid "Loading the alerts"
+msgstr "正在加载告警"
+
+msgid "Loading the rules"
+msgstr "正在加载告警规则"
 
 msgid "New rule"
 msgstr "新建规则"
@@ -2427,8 +2451,8 @@ msgstr "{count, plural, one {监测它} other {全部监测}}"
 msgid "Another address"
 msgstr "其他地址"
 
-msgid "Asking {host} from the control server…"
-msgstr "正在从控制服务器访问 {host}…"
+msgid "Asking {host} from the control server"
+msgstr "正在从控制服务器访问 {host}"
 
 msgid "Change the check of {host}"
 msgstr "更改对 {host} 的监测"
@@ -5004,8 +5028,8 @@ msgstr "现在无法确定 {name} 的运行情况。"
 msgid "Open a shell in {0} on {1}"
 msgstr "在 {1} 上的 {0} 中打开 shell"
 
-msgid "Reading how it runs."
-msgstr "正在读取运行情况。"
+msgid "Reading how it runs"
+msgstr "正在读取它的运行情况"
 
 msgid "Shell"
 msgstr "Shell"
@@ -6855,6 +6879,9 @@ msgstr "重试"
 msgid "Retrying"
 msgstr "正在重试"
 
+msgid "The control server is slow to answer"
+msgstr "控制服务器响应较慢"
+
 msgid "What you see may be out of date. Check that dockwell run is still running on the server, then retry."
 msgstr "你看到的内容可能已过时。请确认服务器上的 dockwell run 仍在运行，然后重试。"
 
@@ -7873,6 +7900,9 @@ msgstr "未能删除"
 msgid "Its server can't restore this now: it's away, or no longer has the volume"
 msgstr "它所在的服务器现在无法恢复：服务器未连接，或已不再有该卷"
 
+msgid "Loading backups"
+msgstr "正在加载备份"
+
 msgid "Monthly"
 msgstr "每月"
 
@@ -7995,6 +8025,9 @@ msgstr "上传前在各服务器上加密"
 #. placeholder {0}: formatDateTime(timestampDate(d.lastUpload), i18n.locale)
 msgid "Last upload {0}"
 msgstr "上次上传 {0}"
+
+msgid "Loading destinations"
+msgstr "正在加载备份去向"
 
 msgid "Manage"
 msgstr "管理"
@@ -8825,9 +8858,6 @@ msgstr "它的数据库的备份"
 
 msgid "Only by hand"
 msgstr "仅手动"
-
-msgid "Reading its backups"
-msgstr "正在读取它的备份"
 
 msgid "Stop backing up {need}'s database on a schedule"
 msgstr "停止按计划备份 {need} 的数据库"
@@ -9682,6 +9712,9 @@ msgstr "Dockwell 已在 {server} 上接管 {name} 的域名"
 msgid "Each app rolls back to what it runs now if this fails"
 msgstr "如果失败，每个应用都会回滚到当前运行的版本"
 
+msgid "Each server is still working out what this would take"
+msgstr "各服务器仍在计算此操作的要求"
+
 msgid "Enabling {name} at boot on {server}"
 msgstr "正在设置 {name} 在 {server} 上开机启动"
 
@@ -10163,8 +10196,8 @@ msgstr "可能保持停止"
 msgid "Nothing Dockwell runs is on {server}."
 msgstr "{server} 上没有 Dockwell 运行的内容。"
 
-msgid "Reading what runs on {server}…"
-msgstr "正在读取 {server} 上运行的内容…"
+msgid "Reading what runs on {server}"
+msgstr "正在读取 {server} 上运行的内容"
 
 msgid "See them"
 msgstr "查看"
@@ -12824,6 +12857,9 @@ msgstr "链接"
 msgid "Link {link}"
 msgstr "链接 {link}"
 
+msgid "Loading the connections"
+msgstr "正在加载连接"
+
 msgid "No connection reaches this project"
 msgstr "没有连接可用于此项目"
 
@@ -12916,6 +12952,9 @@ msgstr "其密钥会随之移除"
 
 msgid "Keys"
 msgstr "密钥"
+
+msgid "Loading the connection"
+msgstr "正在加载连接"
 
 msgid "Manage in Alerts"
 msgstr "在告警中管理"
@@ -13152,6 +13191,9 @@ msgstr "仅用于备份"
 
 msgid "Last check"
 msgstr "上次检查"
+
+msgid "Loading connections"
+msgstr "正在加载连接"
 
 msgid "No app yet"
 msgstr "尚无应用"
@@ -13632,6 +13674,9 @@ msgstr "备份方式"
 msgid "Keeps"
 msgstr "保留"
 
+msgid "Loading backups of {name}"
+msgstr "正在加载 {name} 的备份"
+
 msgid "No backups of {name} yet"
 msgstr "{name} 还没有备份"
 
@@ -13703,9 +13748,6 @@ msgstr "复制其文件，会短暂停止它"
 
 msgid "All its backups"
 msgstr "它的全部备份"
-
-msgid "Asking its server"
-msgstr "正在询问它的服务器"
 
 msgid "Change password"
 msgstr "修改密码"
@@ -14285,9 +14327,6 @@ msgstr "无法读取这些服务"
 msgid "Can't read this stack"
 msgstr "无法读取此应用栈"
 
-msgid "Checking backup source"
-msgstr "正在检查备份来源"
-
 msgid "Compose project"
 msgstr "Compose 项目"
 
@@ -14303,6 +14342,9 @@ msgstr "{server} 上的容器将保留状态、网络和数据。"
 msgid "Docker"
 msgstr "Docker"
 
+msgid "Docker is slow to answer on this server"
+msgstr "这台服务器上的 Docker 响应较慢"
+
 #. placeholder {0}: item.name
 msgid "Include volume {0}"
 msgstr "同时移除存储卷 {0}"
@@ -14315,6 +14357,15 @@ msgstr "保留容易猜到的数据库密码"
 
 msgid "Latest backup"
 msgstr "最新备份"
+
+msgid "Loading logs"
+msgstr "正在加载日志"
+
+msgid "Loading services"
+msgstr "正在加载服务"
+
+msgid "Loading the stack"
+msgstr "正在加载堆栈"
 
 msgid "No completed backup"
 msgstr "没有已完成的备份"
@@ -14351,12 +14402,6 @@ msgstr "上一页"
 
 msgid "Published ports"
 msgstr "已发布端口"
-
-msgid "Reading services"
-msgstr "正在读取服务"
-
-msgid "Reading stack"
-msgstr "正在读取应用栈"
 
 msgid "Remove the stack's workloads and networks"
 msgstr "移除此应用栈的工作负载和网络"
@@ -14420,6 +14465,9 @@ msgstr "清理选项"
 
 msgid "Cleanup paused on {server}"
 msgstr "{server} 上的清理已暂停"
+
+msgid "Docker is measuring disk use on this server"
+msgstr "Docker 正在统计这台服务器的磁盘占用"
 
 msgid "Include unused images with tags or digests"
 msgstr "包括带标签或摘要的未使用镜像"
@@ -14486,6 +14534,9 @@ msgstr "导入"
 msgid "Last change"
 msgstr "最近更改"
 
+msgid "Loading Compose projects"
+msgstr "正在加载 Compose 项目"
+
 msgid "Managed by Dockwell"
 msgstr "由 Dockwell 管理"
 
@@ -14512,9 +14563,6 @@ msgstr "管理归属"
 
 msgid "Partly running"
 msgstr "部分运行"
-
-msgid "Reading Compose projects"
-msgstr "正在读取 Compose 项目"
 
 msgid "Refresh"
 msgstr "刷新"
@@ -14601,6 +14649,9 @@ msgstr "上次退出"
 msgid "Lifecycle"
 msgstr "运行状态"
 
+msgid "Loading the container"
+msgstr "正在加载容器"
+
 msgid "Logging"
 msgstr "日志设置"
 
@@ -14645,9 +14696,6 @@ msgstr "磁盘读取"
 
 msgid "Read only"
 msgstr "只读"
-
-msgid "Reading container"
-msgstr "正在读取容器"
 
 msgid "Received"
 msgstr "接收"
@@ -14719,8 +14767,14 @@ msgstr "容器状态"
 msgid "Containers couldn't be read"
 msgstr "无法读取容器"
 
+msgid "Docker is slow to answer on these servers"
+msgstr "这些服务器上的 Docker 响应较慢"
+
 msgid "Filter by this Compose project"
 msgstr "按此 Compose 项目筛选"
+
+msgid "Loading containers"
+msgstr "正在加载容器"
 
 #. placeholder {0}: row.name
 msgid "Logs for {0}"
@@ -14753,9 +14807,6 @@ msgstr "第 {0} 页"
 
 msgid "Previous"
 msgstr "上一页"
-
-msgid "Reading containers"
-msgstr "正在读取容器"
 
 msgid "Refresh containers"
 msgstr "刷新容器"
@@ -14817,6 +14868,9 @@ msgstr "已用"
 msgid "{0} on other disks"
 msgstr "另有 {0} 位于其他磁盘上"
 
+msgid "All images"
+msgstr "全部镜像"
+
 msgid "Build instructions are redacted"
 msgstr "构建指令已隐藏"
 
@@ -14825,6 +14879,12 @@ msgstr "复制完整镜像 ID"
 
 msgid "Dangling"
 msgstr "悬空"
+
+msgid "Docker is slow to list images on these servers"
+msgstr "这些服务器上的 Docker 列出镜像较慢"
+
+msgid "Docker is slow to list images on this server"
+msgstr "这台服务器上的 Docker 列出镜像较慢"
 
 msgid "History unavailable"
 msgstr "无法读取历史记录"
@@ -14838,6 +14898,12 @@ msgstr "镜像详情"
 msgid "Image is gone"
 msgstr "镜像已不存在"
 
+msgid "Image state"
+msgstr "镜像状态"
+
+msgid "Images"
+msgstr "镜像"
+
 msgid "Images couldn't be read"
 msgstr "无法读取镜像列表"
 
@@ -14847,14 +14913,23 @@ msgstr "指令已隐藏"
 msgid "Layers"
 msgstr "镜像层"
 
+msgid "Loading local images"
+msgstr "正在加载本地镜像"
+
+msgid "Loading the image"
+msgstr "正在加载镜像"
+
 msgid "Local images"
 msgstr "本地镜像"
 
-msgid "More tags"
-msgstr "更多标签"
+msgid "Measuring"
+msgstr "正在测量"
 
 msgid "No containers or retained deployments"
 msgstr "没有使用此镜像的容器或保留的部署"
+
+msgid "No dangling images"
+msgstr "没有悬空镜像"
 
 msgid "No layers reported"
 msgstr "未报告镜像层"
@@ -14865,17 +14940,20 @@ msgstr "没有本地镜像"
 msgid "No matching images"
 msgstr "没有匹配的镜像"
 
+msgid "No unused images"
+msgstr "没有未使用的镜像"
+
+msgid "No used images"
+msgstr "没有使用中的镜像"
+
 msgid "Only the first entries are shown"
 msgstr "仅显示前几项"
 
 msgid "Platform"
 msgstr "平台"
 
-msgid "Reading image"
-msgstr "正在读取镜像"
-
-msgid "Reading local images"
-msgstr "正在读取本地镜像"
+msgid "Refresh images"
+msgstr "刷新镜像"
 
 #. placeholder {0}: String(deployment.revision)
 msgid "Retained revision {0}"
@@ -14883,6 +14961,9 @@ msgstr "保留的修订版本 {0}"
 
 msgid "Search images"
 msgstr "搜索镜像"
+
+msgid "Show all images"
+msgstr "显示全部镜像"
 
 msgid "Tag, digest or ID"
 msgstr "标签、摘要或 ID"
@@ -14914,6 +14995,10 @@ msgstr "大小未知"
 msgid "Unused"
 msgstr "未使用"
 
+#. placeholder {0}: row.image.tags.length - 1
+msgid "{0, plural, one {and # more tag} other {and # more tags}}"
+msgstr "{0, plural, other {还有 # 个标签}}"
+
 msgid "App name"
 msgstr "应用名称"
 
@@ -14942,11 +15027,11 @@ msgstr "引擎清单"
 msgid "Engine version"
 msgstr "引擎版本"
 
-msgid "Images"
-msgstr "镜像"
-
 msgid "Live restore"
 msgstr "实时恢复"
+
+msgid "Loading the Docker overview"
+msgstr "正在加载 Docker 概览"
 
 msgid "Logging driver"
 msgstr "日志驱动"
@@ -14956,9 +15041,6 @@ msgstr "没有可检查的服务器"
 
 msgid "Open Servers"
 msgstr "打开服务器列表"
-
-msgid "Reading Docker inventory"
-msgstr "正在读取 Docker 清单"
 
 msgid "Refresh Docker overview"
 msgstr "刷新 Docker 概览"
@@ -15063,9 +15145,6 @@ msgstr "Docker 无响应"
 
 msgid "Live updates paused"
 msgstr "实时更新已暂停"
-
-msgid "Measuring"
-msgstr "正在测量"
 
 msgid "Some servers didn't answer"
 msgstr "部分服务器无响应"
@@ -16147,6 +16226,10 @@ msgstr "{more, plural, other {{shown} 等另外 # 个}}"
 msgid "A version of {name} this wasn't written from"
 msgstr "不是本导入所依据的 {name} 版本"
 
+#. placeholder {0}: server.name
+msgid "Checking which panel runs on {0}"
+msgstr "正在检查 {0} 上运行的面板"
+
 msgid "Couldn't read what {name} runs"
 msgstr "无法读取 {name} 运行的内容"
 
@@ -16181,6 +16264,10 @@ msgstr "按原样接管：它的密码是它自己的名称之一，任何人都
 msgid "Take it on with {0}"
 msgstr "连同 {0} 一起接管"
 
+#. placeholder {0}: server.name
+msgid "{0} is slow to say which panel runs on it"
+msgstr "{0} 返回所运行的面板较慢"
+
 msgid "{name} isn't on this server"
 msgstr "此服务器上没有 {name}"
 
@@ -16196,6 +16283,18 @@ msgstr "查看这次部署的日志"
 msgid "Read {name}'s logs from this deployment"
 msgstr "查看 {name} 在这次部署中的日志"
 
+msgid "It reads each container's log, at most for 30 s."
+msgstr "它会读取每个容器的日志，最长 30 秒。"
+
+msgid "Reading logs"
+msgstr "正在读取日志"
+
+msgid "Searching all the servers keep"
+msgstr "正在搜索服务器保留的全部内容"
+
+msgid "The server is slow to send these lines"
+msgstr "服务器发送这些日志较慢"
+
 msgid "Can't read the lines around it"
 msgstr "无法读取它前后的日志"
 
@@ -16207,6 +16306,9 @@ msgstr "这一行前后没有其他日志。"
 
 msgid "Reading the lines around it"
 msgstr "正在读取它前后的日志"
+
+msgid "Catching up on what came while this tab was away"
+msgstr "正在补上此标签页离开期间的日志"
 
 msgid "Go to the last"
 msgstr "转到最后一处"
@@ -16290,9 +16392,6 @@ msgstr "<0>{revision}</0> 于 {finished} 失败，已回滚。"
 msgid "<0>{revision}</0> was replaced at {finished}."
 msgstr "<0>{revision}</0> 于 {finished} 被替换。"
 
-msgid "Catching up"
-msgstr "正在补读"
-
 msgid "Docker keeps this log without a size limit."
 msgstr "Docker 保存此日志时不限制文件大小。"
 
@@ -16325,9 +16424,6 @@ msgstr "为了不必先通过网络读完那段时间的所有日志再显示，
 
 msgid "Read what came then"
 msgstr "读取那段时间的日志"
-
-msgid "Reading what came while this tab was away. It follows live again once it has."
-msgstr "正在读取这个标签页不在前台时产生的日志。读完后会重新实时跟随。"
 
 msgid "Reconnecting to the control server"
 msgstr "正在重新连接控制服务器"
@@ -16439,9 +16535,6 @@ msgstr "它可能已被删除。Dockwell 在此地址下没有日志。"
 msgid "It may have been removed. Docker keeps a container's log only as long as the container."
 msgstr "它可能已被移除。容器的日志只随容器一同保留。"
 
-msgid "It reads each container's log, at most for 30 s."
-msgstr "它会读取每个容器的日志，最长 30 秒。"
-
 msgid "Its agent isn't connected, so its lines weren't read."
 msgstr "它的代理未连接，因此没有读取到它的日志行。"
 
@@ -16505,9 +16598,6 @@ msgstr "阅读失败部署的日志"
 msgid "Read this range again"
 msgstr "重新读取此时间范围"
 
-msgid "Reading logs"
-msgstr "正在读取日志"
-
 msgid "Running now"
 msgstr "正在运行"
 
@@ -16522,9 +16612,6 @@ msgstr "搜索范围"
 
 msgid "Search lines"
 msgstr "搜索日志行"
-
-msgid "Searching all the servers keep"
-msgstr "正在搜索服务器保留的全部内容"
 
 msgid "Show earlier lines"
 msgstr "显示更早的日志"
@@ -16797,9 +16884,6 @@ msgstr "保存位置"
 
 msgid "Last backup"
 msgstr "上次备份"
-
-msgid "Loading backups"
-msgstr "正在加载备份"
 
 msgid "Next run"
 msgstr "下次运行"
@@ -17329,6 +17413,10 @@ msgid "Containers Dockwell didn't make"
 msgstr "非 Dockwell 创建的容器"
 
 #. placeholder {0}: server.name
+msgid "Docker is slow to answer on {0}"
+msgstr "{0} 上的 Docker 响应较慢"
+
+#. placeholder {0}: server.name
 msgid "Docker isn't answering on {0}, so what runs there can't be read now."
 msgstr "{0} 上的 Docker 没有响应，因此现在无法读取那里运行的内容。"
 
@@ -17376,9 +17464,6 @@ msgstr "已复制 {text}"
 
 msgid "Adding up what takes the disk"
 msgstr "正在统计磁盘占用"
-
-msgid "Adding up what takes the disk Docker keeps its data on."
-msgstr "正在统计 Docker 数据所在磁盘的占用。"
 
 msgid "Disk usage"
 msgstr "磁盘占用"
@@ -17948,6 +18033,10 @@ msgid "{0, plural, one {ufw and firewalld don't cover # port here, as Docker for
 msgstr "{0, plural, other {ufw 和 firewalld 管不到这里的 # 个端口，因为 Docker 会先转发它们。}}"
 
 #. placeholder {0}: server.name
+msgid "{0} is slow to say what filters its traffic"
+msgstr "{0} 返回流量过滤规则较慢"
+
+#. placeholder {0}: server.name
 msgid "{0} isn't reporting, so what filters its traffic can't be read now."
 msgstr "{0} 未在上报，因此现在无法读取过滤其流量的规则。"
 
@@ -18290,6 +18379,10 @@ msgstr "每 2 秒"
 msgid "uptime"
 msgstr "运行时长"
 
+#. placeholder {0}: server.name
+msgid "{0} is slow to list what runs on it"
+msgstr "{0} 列出运行内容较慢"
+
 msgid "{UNITS} of {total} systemd units"
 msgstr "{total} 个 systemd 单元中的 {UNITS} 个"
 
@@ -18507,6 +18600,9 @@ msgstr "最后一次收到于{seen}。"
 
 msgid "Last {span}"
 msgstr "最近 {span}"
+
+msgid "Loading what runs here"
+msgstr "正在加载这里运行的内容"
 
 msgid "No apps run here."
 msgstr "这里没有运行任何应用。"
@@ -18769,12 +18865,18 @@ msgstr "更早的日志"
 msgid "Open in the system log"
 msgstr "在系统日志中打开"
 
+msgid "Reading the system log"
+msgstr "正在读取系统日志"
+
 msgid "System log of {unit}"
 msgstr "{unit} 的系统日志"
 
 msgctxt "system log level"
 msgid "Warnings and up"
 msgstr "警告及以上"
+
+msgid "{server} is slow to read its system log"
+msgstr "{server} 读取系统日志较慢"
 
 msgid "{server} keeps no system log Dockwell reads."
 msgstr "{server} 没有 Dockwell 可读取的系统日志。"
@@ -18827,6 +18929,10 @@ msgstr "{0} 上的 agent 未连接，暂时无法读取系统日志。重新连�
 #. placeholder {0}: e.count
 msgid "{0, plural, one {{n} line dropped here, past this follow's share of the server's rate} other {{n} lines dropped here, past this follow's share of the server's rate}}"
 msgstr "{0, plural, other {此处丢弃了 {n} 行，超出了此跟随在服务器速率中的份额}}"
+
+#. placeholder {0}: server.name
+msgid "{0} is slow to read its system log"
+msgstr "{0} 读取系统日志较慢"
 
 #. placeholder {0}: server.name
 msgid "{0} keeps no system log Dockwell reads."
@@ -18935,6 +19041,9 @@ msgstr "{0} 上没有失败的服务。"
 msgid "Open {name} at line {line}"
 msgstr "打开 {name} 的第 {line} 行"
 
+msgid "Reading the system services"
+msgstr "正在读取系统服务"
+
 msgctxt "system service"
 msgid "Reload"
 msgstr "重载"
@@ -19002,6 +19111,10 @@ msgstr "按需启动"
 
 msgid "every 10 s"
 msgstr "每 10 秒"
+
+#. placeholder {0}: server.name
+msgid "{0} is slow to list its services"
+msgstr "{0} 列出服务较慢"
 
 #. placeholder {0}: server.name
 msgid "{0} lists no system services here."
@@ -19384,6 +19497,9 @@ msgctxt "encryption"
 msgid "Key"
 msgstr "密钥"
 
+msgid "Loading the control plane"
+msgstr "正在加载控制平面"
+
 msgid "Location"
 msgstr "位置"
 
@@ -19552,6 +19668,9 @@ msgstr "Dockwell 自身，使用 {ca} 签发并由它续期的证书"
 
 msgid "Each app can change it in its own Settings."
 msgstr "每个应用都可以在自己的设置中更改。"
+
+msgid "Loading the settings"
+msgstr "正在加载设置"
 
 msgid "Loopback"
 msgstr "本机回环"
@@ -20416,6 +20535,9 @@ msgstr "通行密钥属于创建它的地址：请打开该地址，并在那里
 msgid "Reached through your tunnel"
 msgstr "已通过你的隧道连通"
 
+msgid "Reading where {domain} leads"
+msgstr "正在读取 {domain} 的指向"
+
 msgid "Restart and serve it"
 msgstr "重启并提供它"
 
@@ -20561,9 +20683,6 @@ msgstr "上次使用"
 
 msgid "Loading tokens"
 msgstr "正在加载令牌"
-
-msgid "Loading your projects"
-msgstr "正在加载你的项目"
 
 msgid "Make a token"
 msgstr "创建令牌"
@@ -20957,6 +21076,12 @@ msgstr "主导航"
 msgid "{waiting, plural, one {# change needs your approval} other {# changes need your approval}}"
 msgstr "{waiting, plural, other {# 个变更等你批准}}"
 
+msgid "Loading the page"
+msgstr "正在加载页面"
+
+msgid "This network is slow to bring the page"
+msgstr "网络较慢，页面仍在加载"
+
 msgid "Skip to content"
 msgstr "跳到主要内容"
 
@@ -21083,9 +21208,6 @@ msgstr "在终端中检查"
 
 msgid "Committed"
 msgstr "提交时间"
-
-msgid "Connecting"
-msgstr "正在连接"
 
 msgid "Connecting to the control plane"
 msgstr "正在连接控制平面"
@@ -21394,6 +21516,9 @@ msgstr "Dockwell 无法读取计划任务"
 
 msgid "Each runs on its server's own clock, even while the control plane is away."
 msgstr "每个任务都按其服务器自己的时钟运行，控制平面不在时也照常运行。"
+
+msgid "Loading the tasks"
+msgstr "正在加载计划任务"
 
 msgid "Next 24 hours"
 msgstr "接下来 24 小时"
@@ -21861,8 +21986,8 @@ msgid "An install is running on {name}. These can start once it ends."
 msgstr "{name} 上正在安装更新。安装结束后才能开始这些更新。"
 
 #. placeholder {0}: server.name
-msgid "Asking {0} which updates wait…"
-msgstr "正在询问 {0} 有哪些待装更新…"
+msgid "Asking {0} which updates wait"
+msgstr "正在询问 {0} 有哪些待装更新"
 
 msgid "By itself"
 msgstr "自动安装"
@@ -21998,8 +22123,8 @@ msgid "Refreshing lists"
 msgstr "正在刷新列表"
 
 #. placeholder {0}: server.name
-msgid "Refreshing {0}'s package lists, then reading which updates wait…"
-msgstr "正在刷新 {0} 的软件包列表，然后读取待装更新…"
+msgid "Refreshing {0}'s package lists, then reading which updates wait"
+msgstr "正在刷新 {0} 的软件包列表，然后读取待装更新"
 
 msgid "Restarts Docker"
 msgstr "重启 Docker"

@@ -5,9 +5,11 @@ import {
   Callout,
   Icon,
   type IconName,
+  Loading,
   Panel,
   PHONE_QUERY,
   SegmentedControl,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -80,10 +82,24 @@ export function ProjectsPage({ search, onSearch }: { search: ProjectsSearch; onS
       </Callout>
     );
   } else if (!projects) {
-    body = (
-      <p className="projects-loading" aria-busy="true">
-        <Trans>Loading projects</Trans>
-      </p>
+    body = phone ? (
+      <Loading label={t`Loading projects`}>
+        <Panel flush>
+          <SkeletonRows rows={3} lead="mark" />
+        </Panel>
+      </Loading>
+    ) : (
+      <Table
+        className="projects-table"
+        columns={[
+          { key: "project", header: t`Project`, render: () => null, skeleton: "titled" },
+          { key: "contents", header: t`What's in it`, render: () => null },
+          { key: "actions", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, render: () => null },
+        ]}
+        rows={[]}
+        loading
+        loadingLabel={t`Loading projects`}
+      />
     );
   } else if (phone) {
     body = <PhoneList rows={shown} count={count} />;

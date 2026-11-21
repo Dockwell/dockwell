@@ -2,7 +2,20 @@
 
 import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
 import { type DockerServerSummary, DockerService, type Server, ServerService } from "@dockwell/api";
-import { Button, Callout, Icon, Metric, Panel, SelectField, TabNav } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  Metric,
+  Panel,
+  SelectField,
+  Skeleton,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonRows,
+  TabNav,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -208,7 +221,15 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
       {tab === "overview" ? (
         <Overview servers={servers} server={server} ids={ids} />
       ) : tab === "composes" ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <Loading label={t`Loading Compose projects`}>
+              <SkeletonCard title={t`Compose projects`} flush>
+                <SkeletonRows rows={3} end="pill" />
+              </SkeletonCard>
+            </Loading>
+          }
+        >
           <Composes servers={servers} serverId={server?.id} />
         </Suspense>
       ) : tab === "images" ? (
@@ -280,6 +301,7 @@ function Overview({
           variant="ghost"
           size="sm"
           onClick={() => void read.refetch()}
+          loading={read.isFetching && !read.isPending}
           aria-label={t`Refresh Docker overview`}
         >
           <Trans>Refresh</Trans>
@@ -293,9 +315,24 @@ function Overview({
       <LiveUpdates paused={paused} retry={retry} />
       <Unread values={data?.unavailable ?? []} servers={servers} retry={() => void read.refetch()} />
       {read.isPending ? (
-        <p role="status">
-          <Trans>Reading Docker inventory</Trans>
-        </p>
+        <Loading label={t`Loading the Docker overview`} slow={t`Docker is slow to answer on this server`}>
+          <div className="docker-metrics docker-overview-metrics" aria-hidden="true">
+            {[
+              { label: t`Containers`, icon: "service" as const },
+              { label: t`Compose projects`, icon: "layers" as const },
+              { label: t`Images`, icon: "archive" as const },
+              { label: t`Needs attention`, icon: "alert" as const },
+            ].map(({ label, icon }) => (
+              <Metric key={label} label={label} icon={icon} value={<Skeleton text="metric" width={48} />} />
+            ))}
+          </div>
+          <div className="docker-overview-grid">
+            <SkeletonCard title={t`Docker disk usage`} height={120} />
+            <SkeletonCard title={t`Engine inventory`}>
+              <SkeletonFacts count={4} layout="rows" />
+            </SkeletonCard>
+          </div>
+        </Loading>
       ) : null}
       {rows.length > 0 ? (
         <>

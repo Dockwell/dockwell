@@ -2,7 +2,7 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { BackupCopy, type BackupPolicyInfo, BackupState } from "@dockwell/api";
-import { Button, Panel, type Status, StatusBadge } from "@dockwell/ui";
+import { Button, Loading, Panel, SkeletonRows, type Status, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
 
@@ -102,14 +102,9 @@ export function OverviewBackups() {
   if (volumesRead.isPending || backupsRead.isPending || policiesRead.isPending) {
     return (
       <Panel title={t`Backups`}>
-        <div aria-busy="true" className="overview-loading">
-          <span className="dw-sr">{t`Loading backups`}</span>
-          {["64%", "48%", "56%"].map((width) => (
-            <div key={width} className="apps-skeleton-line" aria-hidden="true">
-              <span className="apps-skeleton-bar" style={{ width }} />
-            </div>
-          ))}
-        </div>
+        <Loading label={t`Loading backups`} className="overview-loading">
+          <SkeletonRows rows={3} lines={1} end="value" />
+        </Loading>
       </Panel>
     );
   }

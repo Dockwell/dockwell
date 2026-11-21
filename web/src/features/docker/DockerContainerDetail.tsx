@@ -14,7 +14,19 @@ import {
   DockerService,
   LogService,
 } from "@dockwell/api";
-import { Button, Callout, Icon, Metric, Panel, TabNav } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  Metric,
+  Panel,
+  Skeleton,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonTabs,
+  TabNav,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -98,6 +110,7 @@ export function DockerContainerDetail({
       {takeOn ? <DockerTakeOn row={takeOn} onClose={() => setTakeOn(undefined)} /> : null}
       <Page
         title={label}
+        pending={query.isPending && !search.name && allowed && valid}
         machineTitle={!!(object || search.name)}
         badge={status}
         lead={container?.image ? <code>{container.image}</code> : undefined}
@@ -180,9 +193,30 @@ export function DockerContainerDetail({
             {sentence(query.error)}
           </Callout>
         ) : query.isPending ? (
-          <p role="status">
-            <Trans>Reading container</Trans>
-          </p>
+          <Loading
+            label={t`Loading the container`}
+            slow={t`Docker is slow to answer on this server`}
+            className="docker-detail-loading"
+          >
+            <div className="docker-detail-nav">
+              <SkeletonTabs count={3} />
+            </div>
+            <div className="docker-detail-body">
+              <div className="docker-metrics" aria-hidden="true">
+                <Metric label={t`CPU`} value={<Skeleton text="metric" width={56} />} icon="cpu" />
+                <Metric label={t`Memory`} value={<Skeleton text="metric" width={72} />} icon="gauge" />
+                <Metric label={t`Restarts`} value={<Skeleton text="metric" width={24} />} icon="refresh" />
+              </div>
+              <div className="docker-overview-grid">
+                <SkeletonCard title={t`Lifecycle`}>
+                  <SkeletonFacts count={4} layout="rows" className="docker-facts" />
+                </SkeletonCard>
+                <SkeletonCard title={t`I/O`}>
+                  <SkeletonFacts count={4} layout="rows" className="docker-facts" />
+                </SkeletonCard>
+              </div>
+            </div>
+          </Loading>
         ) : object && container ? (
           <>
             <div className="docker-detail-nav">

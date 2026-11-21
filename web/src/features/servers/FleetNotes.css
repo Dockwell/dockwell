@@ -22,9 +22,28 @@
   color: var(--ink-muted);
 }
 
-/* Holds the space without flashing a message at fast answers. */
-.fleet-note.is-quiet {
-  visibility: hidden;
+/* The fleet on its way: a page's numbers, then its two columns, at their sizes. */
+.fleet-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.fleet-loading-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+}
+
+.fleet-loading-metrics .dw-panel-body {
+  gap: var(--space-1);
+}
+
+.fleet-loading-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-6);
+  align-items: start;
 }
 
 .fleet-error {

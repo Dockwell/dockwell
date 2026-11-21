@@ -4,12 +4,11 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import type { BuildInfo } from "@dockwell/api";
 import { SystemService } from "@dockwell/api";
-import { Panel, StatusBadge } from "@dockwell/ui";
+import { Loading, Panel, Skeleton, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
-import { useElapsed } from "../../lib/useElapsed";
 import { ServersPanel } from "../servers/ServersPanel";
 import { CopyCommand } from "./CopyCommand";
 import { StandalonePage } from "./StandalonePage";
@@ -26,12 +25,21 @@ export function StatusPage() {
   const title = t`Control plane status`;
   const version = useQuery(SystemService.method.getVersion, {});
   const host = window.location.host;
-  const slow = useElapsed(version.isPending);
-
   if (version.isPending) {
     return (
       <StandalonePage title={title}>
-        {slow ? <Connecting /> : <div className="status-reserve" aria-busy="true" />}
+        <Loading
+          label={t`Connecting to the control plane`}
+          slow={t`The control server is slow to answer`}
+          className="status-reserve"
+        >
+          <div className="standalone-head">
+            <Skeleton shape="pill" width={96} />
+            <Skeleton text="title" width={240} />
+          </div>
+          <Skeleton width="72%" />
+          <Skeleton width="56%" />
+        </Loading>
       </StandalonePage>
     );
   }
@@ -132,17 +140,5 @@ function BuildFacts({ build }: { build: BuildInfo }) {
         <code>{build.platform}</code>
       </dd>
     </dl>
-  );
-}
-
-function Connecting() {
-  const { t } = useLingui();
-  return (
-    <header className="standalone-head">
-      <StatusBadge status="deploying" label={t`Connecting`} />
-      <h1 className="dw-text-title">
-        <Trans>Connecting to the control plane</Trans>
-      </h1>
-    </header>
   );
 }

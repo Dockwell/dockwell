@@ -133,10 +133,10 @@ describe("the apps list", () => {
       services: { listServices: () => new Promise(() => {}) },
     });
     expect(await screen.findByText("Loading apps")).toBeInTheDocument();
-    expect(container.querySelectorAll(".apps-skeleton-row")).toHaveLength(3);
+    expect(container.querySelectorAll(".dw-table-skeleton-row")).toHaveLength(3);
+    // The heads are drawn for the eye; assistive technology hears the label until the rows land.
     expect(
-      screen
-        .getAllByRole("columnheader")
+      Array.from(container.querySelectorAll("th"))
         .map((h) => h.textContent)
         .slice(0, 2),
     ).toEqual(["App", "Status"]);

@@ -119,7 +119,7 @@ export function FleetActionPage({
   if (fleet.status === "connecting") {
     return (
       <Page width="wide" title={t`New fleet action`}>
-        <Connecting error={fleet.error} />
+        <Connecting error={fleet.error} shape="list" />
       </Page>
     );
   }

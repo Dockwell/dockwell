@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { cx, Icon, PHONE_QUERY, useMediaQuery, useOffReasons } from "@dockwell/ui";
+import { cx, Icon, PHONE_QUERY, Skeleton, useMediaQuery, useOffReasons } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -65,6 +65,12 @@ export interface PageProps {
    * keep the column of the page's kind, so they stay put when a tab with such a body opens.
    */
   fullBody?: boolean;
+  /**
+   * What the page is of is on its way, as an app's page is before its app loads:
+   * the title and its line of context draw as shapes at their size, and the
+   * title, a generic one such as "App", is said only to assistive technology.
+   */
+  pending?: boolean;
   children?: ReactNode;
   className?: string;
 }
@@ -91,6 +97,7 @@ export function Page({
   status,
   width = "standard",
   fullBody = false,
+  pending = false,
   children,
   className,
 }: PageProps) {
@@ -106,6 +113,7 @@ export function Page({
         <MobileHeader
           title={phoneTitle ?? title}
           machineTitle={phoneTitle === undefined ? machineTitle : phoneMachineTitle}
+          pending={pending}
           mark={mark}
           sub={phoneSub}
           back={back}
@@ -130,11 +138,26 @@ export function Page({
               {breadcrumb}
               <div className="page-title-row">
                 {mark}
-                <h1 className={cx("dw-text-title", "page-title", machineTitle && "is-machine")}>{title}</h1>
+                <h1 className={cx("dw-text-title", "page-title", machineTitle && "is-machine")}>
+                  {pending ? (
+                    <>
+                      <span className="dw-sr">{title}</span>
+                      <Skeleton text="title" width={200} />
+                    </>
+                  ) : (
+                    title
+                  )}
+                </h1>
                 {badge}
                 {status ? <div className="page-status">{status}</div> : null}
               </div>
-              {lead ? <p className="page-lead">{lead}</p> : null}
+              {lead ? (
+                <p className="page-lead">{lead}</p>
+              ) : pending ? (
+                <div className="page-lead">
+                  <Skeleton width={280} />
+                </div>
+              ) : null}
             </div>
             {actions ? <div className="page-actions">{actions}</div> : null}
           </div>
@@ -148,6 +171,7 @@ export function Page({
 interface MobileHeaderProps {
   title: string;
   machineTitle: boolean;
+  pending: boolean;
   mark?: ReactNode;
   sub?: ReactNode;
   back?: Back | undefined;
@@ -156,7 +180,7 @@ interface MobileHeaderProps {
 }
 
 /** The phone's header: back where there's somewhere to go back to, the title, and search. */
-function MobileHeader({ title, machineTitle, mark, sub, back, backLink, action }: MobileHeaderProps) {
+function MobileHeader({ title, machineTitle, pending, mark, sub, back, backLink, action }: MobileHeaderProps) {
   const { t } = useLingui();
   const openCommandBar = useOpenCommandBar();
   return (
@@ -173,7 +197,16 @@ function MobileHeader({ title, machineTitle, mark, sub, back, backLink, action }
       )}
       {mark}
       <div className="mobile-header-titles">
-        <h1 className={cx("mobile-header-title", machineTitle && "is-machine")}>{title}</h1>
+        <h1 className={cx("mobile-header-title", machineTitle && "is-machine")}>
+          {pending ? (
+            <>
+              <span className="dw-sr">{title}</span>
+              <Skeleton text="heading" width={140} />
+            </>
+          ) : (
+            title
+          )}
+        </h1>
         {sub ? <p className="mobile-header-sub">{sub}</p> : null}
       </div>
       {action ?? (

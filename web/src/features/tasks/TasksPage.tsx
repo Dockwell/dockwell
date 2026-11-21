@@ -7,8 +7,10 @@ import {
   cx,
   Icon,
   type IconName,
+  Loading,
   Panel,
   PHONE_QUERY,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -205,7 +207,28 @@ export function TasksPage() {
           {t`${away.join(", ")} runs its tasks all the same, on its own clock. Its runs show here once it's back.`}
         </Callout>
       ) : null}
-      {query.isPending ? null : count === 0 ? (
+      {query.isPending ? (
+        <section className="tasks-section">
+          <div className="tasks-section-head">
+            <h2 className="dw-text-heading">
+              <Trans>All tasks</Trans>
+            </h2>
+          </div>
+          {phone ? (
+            <Loading label={t`Loading the tasks`}>
+              <SkeletonRows rows={3} end="value" className="dw-panel" />
+            </Loading>
+          ) : (
+            <Table<TaskInfo>
+              columns={columns}
+              rows={[]}
+              caption={t`Scheduled tasks`}
+              loading
+              loadingLabel={t`Loading the tasks`}
+            />
+          )}
+        </section>
+      ) : count === 0 ? (
         // It draws its own card, so it stands alone, as on every other page.
         <EmptyState
           icon="calendar"

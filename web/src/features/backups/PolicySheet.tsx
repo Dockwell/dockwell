@@ -14,7 +14,7 @@ import {
   BackupPolicy_Every as Every,
   SettingsService,
 } from "@dockwell/api";
-import { Button, Callout, SegmentedControl, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
+import { Button, Callout, SegmentedControl, SelectField, Sheet, SkeletonField, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -357,7 +357,9 @@ export function PolicySheet({
             </p>
           ) : null}
         </div>
-        {storage.items.length > 0 ? (
+        {storage.isPending ? (
+          <SkeletonField height={96} />
+        ) : storage.items.length > 0 ? (
           <StoragePicker
             items={storage.items}
             value={pickedStorage}

@@ -512,3 +512,10 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+.logs-foot-catching {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--cobalt);
+}

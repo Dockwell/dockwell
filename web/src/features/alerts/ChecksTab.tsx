@@ -2,7 +2,20 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { type AlertCheckInfo, type AlertCheckRun, AlertCheckState, ChangeService } from "@dockwell/api";
-import { Button, cx, Icon, PHONE_QUERY, StatusBadge, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  cx,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonRows,
+  StatusBadge,
+  Table,
+  type TableColumn,
+  Tag,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -171,7 +184,17 @@ export function ChecksTab() {
       {checks.data ? <WatchRouted checks={list} /> : null}
       {checks.error ? (
         <ReadFailed error={checks.error} title={t`Can't load the checks`} />
-      ) : !checks.data ? null : list.length === 0 ? (
+      ) : !checks.data ? (
+        phone ? (
+          <Loading label={t`Loading the checks`}>
+            <Panel flush>
+              <SkeletonRows rows={3} end="pill" />
+            </Panel>
+          </Loading>
+        ) : (
+          <Table columns={columns} rows={[]} caption={t`Uptime checks`} loading loadingLabel={t`Loading the checks`} />
+        )
+      ) : list.length === 0 ? (
         <EmptyState icon="eye" title={t`No address is watched yet`} action={add}>
           {t`Watch one from its app's or website's domain, and Dockwell alerts when it stops answering.`}
         </EmptyState>

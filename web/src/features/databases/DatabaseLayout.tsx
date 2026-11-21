@@ -4,7 +4,18 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { CatalogService, type Database } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, TabNav, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonTabs,
+  TabNav,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { createContext, type ReactNode, use } from "react";
@@ -51,16 +62,19 @@ export function DatabaseLayout({ serviceId, children }: { serviceId: string; chi
   if (!db) {
     const gone = query.error instanceof ConnectError && query.error.code === Code.NotFound;
     return (
-      <Page title={t`Database`} breadcrumb={<Crumbs />} backLink={<BackToDatabases />}>
+      <Page title={t`Database`} pending={query.isPending} breadcrumb={<Crumbs />} backLink={<BackToDatabases />}>
         {query.isPending ? (
-          <div className="database-loading" aria-busy="true">
-            <span className="dw-sr">
-              <Trans>Loading the database</Trans>
-            </span>
-            <div className="databases-skeleton-block is-tabs" />
-            <div className="databases-skeleton-block is-metrics" />
-            <div className="databases-skeleton-block is-panel" />
-          </div>
+          <Loading label={t`Loading the database`} className="database-loading">
+            <SkeletonTabs count={3} />
+            <div className="database-skeleton-metrics">
+              <SkeletonCard noHead height={64} />
+              <SkeletonCard noHead height={64} />
+              <SkeletonCard noHead height={64} />
+            </div>
+            <SkeletonCard>
+              <SkeletonFacts count={6} />
+            </SkeletonCard>
+          </Loading>
         ) : gone || !query.error ? (
           <EmptyState
             icon="database"

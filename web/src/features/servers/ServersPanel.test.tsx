@@ -96,13 +96,13 @@ describe("ServersPanel", () => {
     expect(within(empty).getByText("dockwell token create").tagName).toBe("CODE");
   });
 
-  it("says it is loading only when the list is slow", async () => {
+  it("draws its rows while the list loads, and says so only to assistive technology", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    renderPanel(feed<WatchServersResponse>());
-    // jsdom doesn't load stylesheets; is-quiet hides the message but holds its space.
-    expect(screen.getByText("Loading servers")).toHaveClass("is-quiet");
-    await act(() => vi.advanceTimersByTimeAsync(350));
-    expect(screen.getByText("Loading servers")).not.toHaveClass("is-quiet");
+    const { container } = renderPanel(feed<WatchServersResponse>());
+    expect(container.querySelectorAll(".dw-skeleton-row")).toHaveLength(2);
+    expect(screen.queryByText("Loading servers")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(200));
+    expect(screen.getByText("Loading servers")).toHaveClass("dw-sr");
   });
 
   it("keeps the list and says so while it reconnects", async () => {

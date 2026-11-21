@@ -2,7 +2,16 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { ActorKind, Connection, DeploymentState, EventKind, type Server, ServerStrain } from "@dockwell/api";
-import { Icon, Metric, type Status, StatusBadge, Timeline, type TimelineEvent } from "@dockwell/ui";
+import {
+  Icon,
+  Loading,
+  Metric,
+  SkeletonRows,
+  type Status,
+  StatusBadge,
+  Timeline,
+  type TimelineEvent,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -251,11 +260,11 @@ function PhoneRunsHere({ server }: { server: Server }) {
         ) : null}
       </div>
       {services.isPending ? (
-        <div className="dw-panel phone-list" aria-busy="true">
-          <div className="phone-row">
-            <span className="phone-skeleton" />
+        <Loading label={t`Loading apps`}>
+          <div className="dw-panel phone-list">
+            <SkeletonRows rows={2} lead="icon" end="pill" />
           </div>
-        </div>
+        </Loading>
       ) : here.length === 0 ? (
         <div className="dw-panel phone-list">
           <Link to="/apps/new" className="phone-row phone-empty">
@@ -327,9 +336,9 @@ function PhoneRecent({ server }: { server: Server }) {
         </Link>
       </div>
       {events === undefined ? (
-        <p className="phone-note" aria-busy="true">
-          <Trans>Reading what happened here</Trans>
-        </p>
+        <Loading label={t`Reading what happened here`}>
+          <SkeletonRows rows={2} lead="icon" dense className="phone-skeleton-rows" />
+        </Loading>
       ) : items.length === 0 ? (
         <p className="phone-note">{t`Nothing has happened here yet.`}</p>
       ) : (

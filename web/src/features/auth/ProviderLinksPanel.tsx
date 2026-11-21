@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, type ProviderLink, ProviderLinkState, type SignInProvider, StepUpAction } from "@dockwell/api";
-import { Button, Icon, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Icon, Loading, Panel, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -91,9 +91,9 @@ export function ProviderLinksPanel({ providers }: { providers: readonly SignInPr
           </p>
         )
       ) : (
-        <p className="profile-empty" aria-busy="true">
-          <Trans>Loading sign-in providers</Trans>
-        </p>
+        <Loading label={t`Loading sign-in providers`}>
+          <SkeletonRows rows={1} lead="mark" end="value" className="profile-skeleton" />
+        </Loading>
       )}
     </Panel>
   );

@@ -24,6 +24,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
+import { LinesLoading } from "../logs/LinesLoading";
 import { clock, dayNoteOf, dayOf } from "../logs/words";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
@@ -141,7 +142,13 @@ function SystemLog({
       >{t`It's older than the control plane, so it can't read its system log.`}</AgentOutdated>
     );
   } else if (!log.read) {
-    empty = <p className="procs-note">{t`Reading…`}</p>;
+    empty = (
+      <LinesLoading
+        source={!unitName}
+        label={t`Reading the system log`}
+        slow={t`${server.name} is slow to read its system log`}
+      />
+    );
   } else if (log.error && log.entries.length === 0) {
     empty = <p className="procs-note">{sentence(log.error)}</p>;
   } else if (log.source === SystemLogSource.NONE) {

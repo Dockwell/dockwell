@@ -284,6 +284,8 @@ describe("an app's frame", () => {
   it("gives every tab a place", async () => {
     const user = userEvent.setup();
     const { router } = renderAt("/apps/svc_web", api());
+    // The tabs draw while the app loads too; these are the loaded app's.
+    await screen.findByRole("heading", { level: 1, name: "web" });
     const tabs = await screen.findByRole("navigation", { name: "App sections" });
     await user.click(within(tabs).getByRole("link", { name: "Logs" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/apps/svc_web/logs"));

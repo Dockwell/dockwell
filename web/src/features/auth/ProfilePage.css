@@ -524,3 +524,9 @@
     font-size: 16px;
   }
 }
+
+/* A list on its way, in the list's own rows. */
+.profile-skeleton .dw-skeleton-row {
+  height: 60px;
+  padding: 0 var(--space-4);
+}

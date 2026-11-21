@@ -12,7 +12,7 @@ import {
   SettingsService,
   StepUpAction,
 } from "@dockwell/api";
-import { Button, Callout, DnsRecord, SegmentedControl, TextField } from "@dockwell/ui";
+import { Button, Callout, DnsRecord, Loading, SegmentedControl, Skeleton, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -508,6 +508,10 @@ function Served({
       <>
         {dns.data ? (
           <DomainLeads domain={domain} found={dns.data} checking={dns.isFetching} onCheck={() => void dns.refetch()} />
+        ) : dns.isPending ? (
+          <Loading label={t`Reading where ${domain} leads`}>
+            <Skeleton shape="block" height={56} />
+          </Loading>
         ) : null}
         <Callout
           stacked

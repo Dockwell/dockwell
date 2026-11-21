@@ -7,9 +7,11 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
   SelectField,
+  SkeletonRows,
   STATUS,
   StatusBadge,
   Table,
@@ -34,10 +36,11 @@ import {
 
 import { isRoleRefusal, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
+import { useHeldRows } from "../../lib/loading";
 import type { Unread } from "../../lib/online";
 import { useTimeWords } from "../../lib/time";
 import { AddDomainSheet, type AppChoice, moveBehindOf } from "../apps/AddDomainSheet";
-import { ListSkeleton, useLaterTrouble } from "../apps/AppsPage";
+import { useLaterTrouble } from "../apps/AppsPage";
 import { environmentOf, keepOrder, nameOf } from "../apps/app";
 import { DomainNote, useDomainState, useRouteTarget, useSilence } from "../apps/DomainNote";
 import {
@@ -213,6 +216,7 @@ export function DomainsPage({
   const dnsReads = useDnsReads(read === "read", (env) => places.place(env)?.scope ?? "");
   // The names of what's there hold, as an app's do, past how long how it is can be believed.
   const all = domains.last?.domains;
+  useHeldRows("domains", all?.length);
   // The connected providers: their zones say which zone's rule publishes a name, and
   // each has its panel beside the list (#820).
   const providers = useDnsProviders((all?.length ?? 0) > 0).data?.providers ?? [];
@@ -369,7 +373,7 @@ export function DomainsPage({
 
   let body: ReactNode;
   if (pending) {
-    body = <ListSkeleton label={t`Loading domains`} />;
+    body = <DomainsSkeleton phone={phone} />;
   } else if (all === undefined && isRoleRefusal(domains.error)) {
     body = <ReadFailed error={domains.error} title={t`Can't load the domains`} />;
   } else if (all === undefined) {
@@ -917,6 +921,41 @@ function Certificates({ standings }: { standings: readonly Standing[] }) {
         ))}
       </dl>
     </Panel>
+  );
+}
+
+/** The list on its way: the table's own columns under its head, or a phone's rows. */
+function DomainsSkeleton({ phone }: { phone: boolean }) {
+  const { t } = useLingui();
+  const rows = useHeldRows("domains", undefined);
+  const columns = useMemo<TableColumn<{ id: string }>[]>(
+    () => [
+      { key: "domain", header: t`Domain`, render: () => null, skeleton: "mono" },
+      { key: "reaches", header: t`Routes to`, width: "22%", render: () => null },
+      { key: "dns", header: t`DNS`, width: 184, render: () => null, skeleton: "pill" },
+      { key: "status", header: t`Status`, width: 168, render: () => null },
+    ],
+    [t],
+  );
+  if (phone) {
+    return (
+      <Loading label={t`Loading domains`}>
+        <Panel flush>
+          <SkeletonRows rows={rows} end="pill" />
+        </Panel>
+      </Loading>
+    );
+  }
+  return (
+    <Table
+      className="apps-table domains-table"
+      columns={columns}
+      rows={[]}
+      caption={t`Domains`}
+      loading
+      loadingRows={rows}
+      loadingLabel={t`Loading domains`}
+    />
   );
 }
 

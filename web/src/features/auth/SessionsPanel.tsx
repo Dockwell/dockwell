@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, type Session } from "@dockwell/api";
-import { Button, Icon, Panel } from "@dockwell/ui";
+import { Button, Icon, Loading, Panel, SkeletonRows } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -62,9 +62,9 @@ export function SessionsPanel() {
           ))}
         </ul>
       ) : (
-        <p className="profile-empty" aria-busy="true">
-          <Trans>Loading sessions</Trans>
-        </p>
+        <Loading label={t`Loading sessions`}>
+          <SkeletonRows rows={2} lead="mark" end="value" className="profile-skeleton" />
+        </Loading>
       )}
       <p className="profile-note">
         <Trans>

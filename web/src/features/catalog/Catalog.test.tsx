@@ -312,7 +312,7 @@ describe("The catalog a page at a time (ADR 0092)", () => {
     renderAt("/catalog", api({ listCatalogEntries: () => new Promise(() => {}) }));
     await screen.findByRole("heading", { level: 1, name: "Catalog" });
     expect(document.querySelectorAll(".catalog-card.is-placeholder").length).toBeGreaterThan(0);
-    expect(screen.getByText("Reading the catalog")).toBeInTheDocument();
+    expect(await screen.findByText("Reading the catalog")).toBeInTheDocument();
   });
 
   it("searches on the control plane in the reader's language, naming the categories its words name there", async () => {

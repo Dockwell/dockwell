@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { ChangeState, ImportService, type PanelDomainCheck, type PanelKind, type Server } from "@dockwell/api";
-import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, useMediaQuery } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, Loading, PHONE_QUERY, Sheet, SkeletonRows, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useState } from "react";
 
@@ -154,10 +154,12 @@ export function HandOverSheet({
           {sentence(failure)}
         </Callout>
       ) : checks === undefined ? (
-        <p className="handover-checking" aria-busy="true">
-          <Icon name="search" size={14} />
-          <Trans>Checking each domain through {name}'s proxy</Trans>
-        </p>
+        <Loading
+          label={t`Checking each domain through ${name}'s proxy`}
+          slow={t`Checking each domain through ${name}'s proxy`}
+        >
+          <SkeletonRows rows={3} lead="icon" end="pill" />
+        </Loading>
       ) : checks.length === 0 ? (
         <Callout tone="info" title={t`Nothing left to hand over`}>
           <Trans>Dockwell routes each of {name}'s domains already.</Trans>

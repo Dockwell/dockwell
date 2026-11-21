@@ -71,7 +71,7 @@ export function ServerFrame({ id, phoneHead, noTabs = false, children }: ServerF
   if (state.status === "connecting") {
     return (
       <ServerFramePage title={t`Server`}>
-        <Connecting error={state.error} />
+        <Connecting error={state.error} shape="server" />
       </ServerFramePage>
     );
   }

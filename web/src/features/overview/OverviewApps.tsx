@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { ServiceInfo } from "@dockwell/api";
-import { Button, cx, Glyph, Icon, Panel, PHONE_QUERY, STATUS, Table, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  cx,
+  Glyph,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonRows,
+  STATUS,
+  Table,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -9,7 +21,7 @@ import { type ReactNode, useMemo } from "react";
 
 import { formatDateTime } from "../../lib/format";
 import { useNow, useTimeWords } from "../../lib/time";
-import { ListSkeleton, useAppsLead } from "../apps/AppsPage";
+import { useAppsLead } from "../apps/AppsPage";
 import { type AppGroup, groupApps, groupDeployedAt, imageOf, nameOf, shortImage, sortGroups } from "../apps/app";
 import { useDomainNames } from "../apps/domains";
 import { HealthBadge, phoneWordClass, useHealthWords } from "../apps/Health";
@@ -69,7 +81,11 @@ export function OverviewApps({ fleet = false }: { fleet?: boolean }) {
 
   let body: ReactNode;
   if (services.isPending || places.isPending) {
-    body = <ListSkeleton label={t`Loading apps`} />;
+    body = (
+      <Loading label={t`Loading apps`}>
+        <SkeletonRows rows={3} lead="icon" end="pill" />
+      </Loading>
+    );
   } else if (services.error) {
     body = (
       <ReadFailed

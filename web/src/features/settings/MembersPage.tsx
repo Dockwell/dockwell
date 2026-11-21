@@ -19,9 +19,12 @@ import {
   Button,
   Callout,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
   SelectField,
+  Skeleton,
+  SkeletonRows,
   Switch,
   Table,
   type TableColumn,
@@ -83,10 +86,26 @@ export function MembersPage() {
       />
     );
   } else if (!list.data) {
-    people = (
-      <div className="tokens-skeleton" aria-busy="true">
-        <span className="dw-sr">{t`Loading who signs in`}</span>
-      </div>
+    people = phone ? (
+      <Loading label={t`Loading who signs in`}>
+        <div className="dw-panel">
+          <SkeletonRows rows={2} lead="mark" end="pill" />
+        </div>
+      </Loading>
+    ) : (
+      <Table
+        columns={[
+          { key: "who", header: t`Member`, render: () => null, skeleton: "titled" },
+          { key: "role", header: t`Role`, render: () => null, skeleton: "pill" },
+          { key: "signin", header: t`Sign-in`, render: () => null, skeleton: "short" },
+          { key: "active", header: t`Last active`, render: () => null, skeleton: "short" },
+          { key: "act", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, render: () => null },
+        ]}
+        rows={[]}
+        loading
+        loadingRows={2}
+        loadingLabel={t`Loading who signs in`}
+      />
     );
   } else if (phone) {
     people = (
@@ -167,6 +186,8 @@ export function MembersPage() {
                 ? t`all sign in with a passkey`
                 : t`${withPasskeys} of ${count} sign in with a passkey`}
             </span>
+          ) : list.isPending ? (
+            <Skeleton text="caption" width={160} />
           ) : null}
         </div>
         {people}
@@ -459,9 +480,9 @@ function ProtectionCheck({
     );
   } else if (!environments.data) {
     list = (
-      <p className="members-muted" aria-busy="true">
-        {t`Loading the environments`}
-      </p>
+      <Loading label={t`Loading the environments`}>
+        <SkeletonRows rows={2} lines={1} end="pill" dense className="members-skeleton-rows" />
+      </Loading>
     );
   } else {
     list = (

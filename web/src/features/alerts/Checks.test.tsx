@@ -186,7 +186,7 @@ describe("Checks of a URL", () => {
     await user.click(await screen.findByRole("button", { name: /Done/ }, { timeout: 5000 }));
     // Waiting, then its first answer, as the control plane gets it.
     const first = await screen.findByRole("dialog", { name: "Watching shop.example.com" });
-    expect(within(first).getByText("Asking shop.example.com from the control server…")).toBeVisible();
+    expect(await within(first).findByText("Asking shop.example.com from the control server")).toBeInTheDocument();
     checks = [aCheck("shop-example-com", "https://shop.example.com/", { id: "chk_new", runs: [run(true, 200)] })];
     expect(await within(first).findByText("It answered 200 in 142 ms.", undefined, { timeout: 5000 })).toBeVisible();
     // Down after 2 failures, up after 2 passes, and the rule's hold on top.

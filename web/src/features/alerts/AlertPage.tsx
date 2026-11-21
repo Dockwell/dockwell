@@ -14,7 +14,18 @@ import {
   EventService,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
-import { Callout, Icon, Panel, PHONE_QUERY, StatusBadge, Tag, useMediaQuery } from "@dockwell/ui";
+import {
+  Callout,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonRows,
+  StatusBadge,
+  Tag,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useAnyQuery } from "@tanstack/react-query";
@@ -139,7 +150,14 @@ export function AlertPage({ alertId }: { alertId: string }) {
     >
       {alerts.error ? (
         <ReadFailed error={alerts.error} title={t`Can't load the alerts`} />
-      ) : !alerts.data ? null : !alert ? (
+      ) : !alerts.data ? (
+        <Loading label={t`Loading the alert`} className="alerts-loading">
+          <SkeletonCard lines={3} />
+          <SkeletonCard flush>
+            <SkeletonRows rows={2} lead="icon" />
+          </SkeletonCard>
+        </Loading>
+      ) : !alert ? (
         // There's no read of one alert by its ID, so one that resolved long ago isn't in what the list holds.
         <EmptyState icon="alert" title={t`This alert isn't among the newest`}>
           <Trans>
@@ -290,7 +308,11 @@ function Body({ alert }: { alert: Alert }) {
               title={t`What changed before it fired`}
               actions={<span className="alerts-muted">{t`The hour before ${firedAt}`}</span>}
             >
-              {!around.data ? null : before.length > 0 ? (
+              {!around.data ? (
+                <Loading label={t`Loading what changed before it fired`}>
+                  <SkeletonRows rows={2} lead="icon" dense className="alerts-skeleton-rows" />
+                </Loading>
+              ) : before.length > 0 ? (
                 <>
                   {trigger ? (
                     <p className="alert-trigger">

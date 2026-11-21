@@ -23,9 +23,14 @@ import {
   cx,
   Icon,
   type IconName,
+  Loading,
+  Panel,
   PHONE_QUERY,
   SelectField,
+  SkeletonFacts,
+  SkeletonRows,
   StatusBadge,
+  Table,
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -205,9 +210,32 @@ export function AuditLogPage() {
             }
           />
         ) : !log.data ? (
-          <div className="audit-skeleton" aria-busy="true">
-            <span className="dw-sr">{t`Loading the audit log`}</span>
-          </div>
+          phone ? (
+            <Loading label={t`Loading the audit log`}>
+              <Panel flush>
+                <SkeletonRows rows={6} />
+              </Panel>
+            </Loading>
+          ) : (
+            <Table
+              className="audit-table"
+              density="compact"
+              caption={t`The audit log, newest first`}
+              columns={[
+                { key: "time", header: t`Time`, width: 80, render: () => null, skeleton: "short" },
+                { key: "who", header: t`Actor`, width: 156, render: () => null, skeleton: "text" },
+                { key: "action", header: t`Action`, width: 172, render: () => null, skeleton: "mono" },
+                { key: "what", header: t`Target`, width: 164, render: () => null, skeleton: "mono" },
+                { key: "from", header: t`Source`, width: 124, render: () => null, skeleton: "short" },
+                { key: "detail", header: t`Detail`, render: () => null, skeleton: "text" },
+                { key: "toggle", header: <span className="dw-sr">{t`Details`}</span>, width: 44, render: () => null },
+              ]}
+              rows={[]}
+              loading
+              loadingRows={10}
+              loadingLabel={t`Loading the audit log`}
+            />
+          )
         ) : events.length === 0 ? (
           <EmptyState
             icon={narrowed ? "search" : "file"}
@@ -544,9 +572,9 @@ function ChangeFacts({ changeId }: { changeId: string }) {
   }
   if (!change) {
     return (
-      <p className="audit-note" aria-busy="true">
-        <Trans>Loading the change</Trans>
-      </p>
+      <Loading label={t`Loading the change`}>
+        <SkeletonFacts count={4} layout="rows" />
+      </Loading>
     );
   }
   const look = words.state(change.state);

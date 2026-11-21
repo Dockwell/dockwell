@@ -252,8 +252,12 @@ a.databases-engine:hover .databases-engine-plus {
 }
 
 .databases-engine.is-placeholder {
-  border-color: transparent;
-  background: var(--surface-sunken);
+  pointer-events: none;
+}
+
+/* What happened, on its way, inside the panel's own padding. */
+.databases-quiet-rows .dw-skeleton-row {
+  padding: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -441,55 +445,17 @@ a.databases-engine:hover .databases-engine-plus {
   color: var(--ink-muted);
 }
 
-/* What's on its way, in the shape of what comes. Nothing shimmers: only three things in the system loop. */
-.databases-skeleton-bar {
-  display: block;
-  height: 12px;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-}
-
-.databases-skeleton-bar.is-short {
-  width: 24%;
-  height: 10px;
-}
-
-.databases-skeleton-line {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-2);
-  height: 56px;
-  padding: 0 var(--space-4);
-}
-
-.databases-skeleton-line + .databases-skeleton-line {
-  border-top: 1px solid var(--line);
-}
-
-.databases-skeleton-block {
-  background: var(--surface-sunken);
-  border-radius: var(--radius-md);
-}
-
-.databases-skeleton-block.is-tabs {
-  height: 40px;
-  border-radius: var(--radius-sm);
-}
-
-.databases-skeleton-block.is-metrics {
-  height: 128px;
-}
-
-.databases-skeleton-block.is-panel {
-  height: 280px;
-}
-
-/* One database. */
+/* One database. On its way: its tabs, its numbers and what it is, at their sizes. */
 .database-loading {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+
+.database-skeleton-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
 }
 
 .database-crumb-slash {

@@ -45,6 +45,7 @@ import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
 import { SigninProviderSheet } from "../signin/SigninProviderSheet";
+import { CardsLoading } from "./CardsLoading";
 import { GitHubSection } from "./GitHub";
 import { useGitHubApps } from "./github";
 import "../backups/Backups.css";
@@ -177,10 +178,7 @@ export function IntegrationsPage() {
                 }
               />
             ) : !read ? (
-              <div className="integrations-grid" aria-busy="true">
-                <div className="dw-panel integrations-card integrations-skeleton" />
-                <span className="dw-sr">{t`Loading where backups go`}</span>
-              </div>
+              <CardsLoading label={t`Loading where backups go`} />
             ) : (
               <div className="integrations-grid">
                 {list.map((item) => (
@@ -230,10 +228,7 @@ export function IntegrationsPage() {
                 }
               />
             ) : !logins.data ? (
-              <div className="integrations-grid" aria-busy="true">
-                <div className="dw-panel integrations-card integrations-skeleton" />
-                <span className="dw-sr">{t`Loading registry logins`}</span>
-              </div>
+              <CardsLoading label={t`Loading registry logins`} />
             ) : (
               <div className="integrations-grid">
                 {loginList.map((l) => (
@@ -364,10 +359,7 @@ export function IntegrationsPage() {
                 }
               />
             ) : !signins.data ? (
-              <div className="integrations-grid" aria-busy="true">
-                <div className="dw-panel integrations-card integrations-skeleton" />
-                <span className="dw-sr">{t`Loading sign-in providers`}</span>
-              </div>
+              <CardsLoading label={t`Loading sign-in providers`} />
             ) : (
               <div className="integrations-grid">
                 {signinList.map((p) => (

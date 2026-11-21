@@ -3,7 +3,17 @@
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type Backup, BackupCopy, BackupService, BackupState } from "@dockwell/api";
-import { Button, Callout, Panel, PHONE_QUERY, StatusBadge, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonFacts,
+  StatusBadge,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -42,10 +52,12 @@ export function BackupPage({ backupId }: { backupId: string }) {
   }
   if (!backup) {
     return (
-      <Page title={t`Backup`} back="/more">
-        <p className="backup-why" aria-busy="true">
-          <Trans>Reading the backup</Trans>
-        </p>
+      <Page title={t`Backup`} back="/more" pending>
+        <Loading label={t`Reading the backup`}>
+          <SkeletonCard title={t`What it is`}>
+            <SkeletonFacts count={6} layout="rows" className="backup-facts" />
+          </SkeletonCard>
+        </Loading>
       </Page>
     );
   }

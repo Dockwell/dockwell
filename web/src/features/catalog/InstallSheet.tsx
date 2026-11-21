@@ -27,6 +27,7 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   PHONE_QUERY,
   type PlanChange,
   PlanDiff,
@@ -35,6 +36,8 @@ import {
   PortField,
   SelectField,
   Sheet,
+  Skeleton,
+  SkeletonField,
   STATUS,
   Switch,
   Tag,
@@ -768,17 +771,13 @@ export function InstallSheet({
               <Trans>Try again</Trans>
             </Button>
           </Callout>
-        ) : !origins.data ? (
-          <p className="catalog-note" aria-busy="true">
-            <Trans>Reading the sources</Trans>
-          </p>
         ) : null}
         {failure ? (
           <Callout tone="critical" title={t`Can't make a plan`}>
             {failure}
           </Callout>
         ) : null}
-        {entry ? (
+        {entry && (origins.data || origins.error) ? (
           <>
             {domain.section}
             <div className="catalog-chosen-list">
@@ -1024,9 +1023,12 @@ export function InstallSheet({
             </Advanced>
           </>
         ) : !got.error ? (
-          <p className="catalog-note" aria-busy="true">
-            <Trans>Reading this app</Trans>
-          </p>
+          <Loading label={entry ? t`Reading the sources` : t`Reading this app`} className="catalog-chosen-list">
+            <Skeleton shape="block" height={72} />
+            {[64, 48, 56].map((width) => (
+              <SkeletonField key={width} label={width} />
+            ))}
+          </Loading>
         ) : null}
       </form>
       {addingServer ? (

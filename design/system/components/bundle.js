@@ -1,4 +1,4 @@
-/* @ds-bundle: {"format":4,"namespace":"Dockwell","components":[{"name":"Button"},{"name":"Kbd"},{"name":"StatusBadge"},{"name":"Tag"},{"name":"TextField"},{"name":"Switch"},{"name":"SegmentedControl"},{"name":"Tabs"},{"name":"ScopeBar"},{"name":"CommandBar"},{"name":"Metric"},{"name":"Sparkline"},{"name":"Table"},{"name":"FleetGrid"},{"name":"LogStream"},{"name":"PlanDiff"},{"name":"Timeline"},{"name":"Callout"},{"name":"Toast"},{"name":"Sheet"},{"name":"Icon"},{"name":"Logo"}]} */
+/* @ds-bundle: {"format":4,"namespace":"Dockwell","components":[{"name":"Button"},{"name":"Kbd"},{"name":"Skeleton"},{"name":"Loading"},{"name":"StatusBadge"},{"name":"Tag"},{"name":"TextField"},{"name":"Switch"},{"name":"SegmentedControl"},{"name":"Tabs"},{"name":"ScopeBar"},{"name":"CommandBar"},{"name":"Metric"},{"name":"Sparkline"},{"name":"Table"},{"name":"FleetGrid"},{"name":"LogStream"},{"name":"PlanDiff"},{"name":"Timeline"},{"name":"Callout"},{"name":"Toast"},{"name":"Sheet"},{"name":"Icon"},{"name":"Logo"}]} */
 (function () {
   'use strict';
   var React = window.React;
@@ -152,6 +152,27 @@
   /* ---------- Kbd ---------- */
   function Kbd(p) {
     return h('kbd', { className: cx('dw-kbd', p.className) }, p.children);
+  }
+
+  /* ---------- Skeleton ---------- */
+  function Skeleton(p) {
+    var shape = p.shape || 'line';
+    var style = {};
+    if (shape === 'circle') { style.width = p.size || 16; style.height = p.size || 16; }
+    else {
+      if (p.width != null) style.width = p.width;
+      if (p.height != null && shape !== 'line') style.height = p.height;
+    }
+    return h('span', {
+      className: cx('dw-skeleton', 'is-' + shape, shape === 'line' && 'is-text-' + (p.text || 'body'), p.inline && 'is-inline', p.className),
+      style: style, 'aria-hidden': 'true'
+    });
+  }
+  function Loading(p) {
+    return h(Fragment, null,
+      h('span', { className: 'dw-sr', role: 'status' }, p.label),
+      p.slow ? h('p', { className: 'dw-loading-slow' }, p.slow) : null,
+      h('div', { className: cx('dw-loading', p.className), 'aria-busy': 'true' }, p.children));
   }
 
   /* ---------- Button ---------- */
@@ -709,7 +730,7 @@
     SegmentedControl: SegmentedControl, Tabs: Tabs, ScopeBar: ScopeBar, CommandBar: CommandBar,
     Metric: Metric, Sparkline: Sparkline, Table: Table, FleetGrid: FleetGrid, LogStream: LogStream,
     PlanDiff: PlanDiff, Timeline: Timeline, Callout: Callout, Toast: Toast, Sheet: Sheet, Icon: Icon,
-    Glyph: Glyph, Logo: Logo, STATUS: STATUS
+    Glyph: Glyph, Logo: Logo, Skeleton: Skeleton, Loading: Loading, STATUS: STATUS
   };
   window.Dockwell = Object.assign(window.Dockwell || {}, api);
 })();

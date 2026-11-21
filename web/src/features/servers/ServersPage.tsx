@@ -142,7 +142,7 @@ export function ServersPage({
     return (
       // At the width it takes once the fleet arrives, so the page doesn't change size then.
       <Page width="wide" title={t`Servers`}>
-        <Connecting error={fleet.error} />
+        <Connecting error={fleet.error} shape="list" />
       </Page>
     );
   }

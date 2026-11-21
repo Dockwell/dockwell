@@ -405,3 +405,9 @@
     width: 100%;
   }
 }
+
+/* A detail page's panels on their way, spaced as the panels are. */
+.docker-detail-loading {
+  display: grid;
+  gap: var(--space-4);
+}

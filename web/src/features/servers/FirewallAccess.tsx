@@ -18,7 +18,18 @@ import {
   SshRootLogin,
   type SshSource,
 } from "@dockwell/api";
-import { Button, Callout, Metric, Panel, SelectField, Sheet, StatusBadge, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Loading,
+  Metric,
+  Panel,
+  SelectField,
+  Sheet,
+  SkeletonFacts,
+  StatusBadge,
+  TextField,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
@@ -129,9 +140,9 @@ export function SshPanel({
       );
   } else if (!ssh) {
     body = (
-      <p className="firewall-note" aria-busy="true">
-        <Trans>Reading how SSH lets people in on {name}</Trans>
-      </p>
+      <Loading label={t`Reading how SSH lets people in on ${name}`}>
+        <SkeletonFacts count={4} layout="rows" />
+      </Loading>
     );
   } else if (ssh.unreadable) {
     body = <p className="firewall-note">{ssh.unreadable}</p>;
@@ -431,9 +442,9 @@ export function Fail2banPanel({ server, connected }: { server: Server; connected
       );
   } else if (!f2b) {
     body = (
-      <p className="firewall-note" aria-busy="true">
-        <Trans>Reading fail2ban on {name}</Trans>
-      </p>
+      <Loading label={t`Reading fail2ban on ${name}`}>
+        <SkeletonFacts count={3} layout="rows" />
+      </Loading>
     );
   } else if (f2b.state === Fail2banState.NOT_INSTALLED) {
     body = (

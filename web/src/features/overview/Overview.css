@@ -140,8 +140,8 @@
   gap: var(--space-2);
 }
 
-/* Loading lines inside a panel's own padding. */
-.overview-loading .apps-skeleton-line {
+/* Loading rows inside a panel's own padding. */
+.overview-loading .dw-skeleton-row {
   padding: 0;
 }
 

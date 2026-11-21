@@ -15,8 +15,12 @@ import {
   Button,
   Callout,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  Skeleton,
+  SkeletonCard,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -89,12 +93,24 @@ function Updates({ server }: { server: Server }) {
   if (!allowed) return <RoleRefused />;
   if (query.isPending) {
     return (
-      <div className="updates-layout">
-        <div className="updates-main">
-          <p className="updates-waiting">
-            <Trans>Asking {server.name} which updates wait…</Trans>
-          </p>
-        </div>
+      // In the page's own container, whose width lays the cards beside the list or under it.
+      <div className="updates">
+        <Loading
+          label={t`Asking ${server.name} which updates wait`}
+          slow={t`Asking ${server.name} which updates wait`}
+          className="updates-layout"
+        >
+          <div className="updates-main">
+            <Skeleton width={280} />
+            <SkeletonCard flush>
+              <SkeletonRows rows={5} lines={1} lead="icon" end="value" dense />
+            </SkeletonCard>
+          </div>
+          <div className="updates-side">
+            <SkeletonCard lines={3} />
+            <SkeletonCard lines={2} />
+          </div>
+        </Loading>
       </div>
     );
   }
@@ -130,16 +146,23 @@ function Updates({ server }: { server: Server }) {
   if (!updates.readTime) {
     if (checking && !why) {
       return (
-        <section className="updates-section" aria-labelledby="updates-asking">
+        <section className="updates-section">
           <div className="updates-section-head">
-            <p className="updates-waiting" id="updates-asking">
-              {updates.refreshing
-                ? t`Refreshing ${server.name}'s package lists, then reading which updates wait…`
-                : t`Asking ${server.name} which updates wait…`}
-            </p>
             <span className="updates-grow" />
             {checkButton}
           </div>
+          <Loading
+            label={t`Asking ${server.name} which updates wait`}
+            slow={
+              updates.refreshing
+                ? t`Refreshing ${server.name}'s package lists, then reading which updates wait`
+                : t`Asking ${server.name} which updates wait`
+            }
+          >
+            <SkeletonCard flush noHead>
+              <SkeletonRows rows={5} lines={1} lead="icon" end="value" dense />
+            </SkeletonCard>
+          </Loading>
         </section>
       );
     }

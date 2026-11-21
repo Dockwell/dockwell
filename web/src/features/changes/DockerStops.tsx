@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { ContainerService, ContainerState, DeploymentState, RestartPolicy, type ServiceInfo } from "@dockwell/api";
-import { Tag } from "@dockwell/ui";
+import { Loading, Skeleton, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -130,7 +130,13 @@ export function DockerStops({
   const mayList = useMay()(ContainerService.method.listContainers).allowed;
   const containers = useQuery(ContainerService.method.listContainers, { server: serverId }, { enabled: mayList });
   if (!services.data || !websites.data) {
-    return <span className="plan-stops-reading">{t`Reading what runs on ${server}…`}</span>;
+    return (
+      <Loading label={t`Reading what runs on ${server}`} className="plan-stops">
+        <Skeleton text="label" width={240} />
+        <Skeleton width="56%" />
+        <Skeleton width="44%" />
+      </Loading>
+    );
   }
   const stopping = stoppingOn(
     serverId,

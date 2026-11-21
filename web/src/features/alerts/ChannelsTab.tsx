@@ -185,7 +185,9 @@ export function ChannelsTab() {
   if (channels.error) {
     body = <ReadFailed error={channels.error} title={t`Can't load the channels`} />;
   } else if (!channels.data) {
-    body = null;
+    body = (
+      <Table columns={columns} rows={[]} caption={t`Alert channels`} loading loadingLabel={t`Loading the channels`} />
+    );
   } else if (list.length === 0) {
     body = (
       <EmptyState icon="bell" title={t`Nowhere to send alerts yet`} action={add}>

@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { TokenService } from "@dockwell/api";
-import { Panel } from "@dockwell/ui";
+import { Panel, Skeleton } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -40,7 +40,7 @@ export function TokensPointer() {
       }
     >
       <p className="tokens-pointer" aria-busy={tokens.data === undefined}>
-        {said}
+        {tokens.data ? said : <Skeleton width={200} inline />}
       </p>
     </Panel>
   );

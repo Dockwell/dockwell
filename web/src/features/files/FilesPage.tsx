@@ -652,12 +652,13 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                   selectedKey={file ? nameOf(file) : null}
                   caption={t`Files in ${shown}`}
                   onRowClick={open}
+                  loading={query.isPending || (searching && search.isPending)}
+                  loadingRows={6}
+                  loadingLabel={
+                    searching && search.isPending ? t`Searching every name in this folder` : t`Reading this folder`
+                  }
                   empty={
-                    query.isPending ? (
-                      <Trans>Reading this folder</Trans>
-                    ) : searching && search.isPending ? (
-                      <Trans>Searching every name in this folder</Trans>
-                    ) : searching && search.error ? (
+                    searching && search.error ? (
                       sentence(search.error)
                     ) : filter ? (
                       <Trans>Nothing here matches your search.</Trans>

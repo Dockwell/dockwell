@@ -2,7 +2,20 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { ChangeService, MemberService, type Resource, Role } from "@dockwell/api";
-import { Button, Callout, Icon, type IconName, Panel, StatusBadge, Tag, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  type IconName,
+  Loading,
+  Panel,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonRows,
+  StatusBadge,
+  Tag,
+  TextField,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -46,10 +59,19 @@ export function ProjectPage({ projectId }: { projectId: string }) {
   }
   if (!projects) {
     return (
-      <Page title={t`Project`} breadcrumb={crumbs}>
-        <p className="projects-loading" aria-busy="true">
-          <Trans>Loading the project</Trans>
-        </p>
+      <Page title={t`Project`} breadcrumb={crumbs} pending className="project-page">
+        <Loading label={t`Loading the project`} className="project-columns">
+          <div className="project-column is-main">
+            <SkeletonCard flush>
+              <SkeletonRows rows={3} lead="icon" end="pill" />
+            </SkeletonCard>
+          </div>
+          <div className="project-column is-side">
+            <SkeletonCard>
+              <SkeletonFacts count={3} layout="rows" />
+            </SkeletonCard>
+          </div>
+        </Loading>
       </Page>
     );
   }

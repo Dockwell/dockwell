@@ -268,10 +268,12 @@ describe("ServerOverview", () => {
     await renderServerWith({ servers: { getServerDiskUse } }, "/servers/srv_1", hz1);
     const disks = await screen.findByRole("region", { name: "Disk usage" });
     expect(await within(disks).findByRole("img", { name: "/: 61 GB used, 99 GB free, of 160 GB" })).toBeVisible();
-    expect(disks).toHaveTextContent("Adding up what takes the disk Docker keeps its data on.");
+    // Only what is missing is marked: Docker's share, as shapes where its legend goes, said once.
+    expect(disks.querySelectorAll(".disk-use-legend .dw-skeleton").length).toBeGreaterThan(0);
+    expect(await within(disks).findByText("Adding up what takes the disk")).toHaveClass("dw-sr");
     act(() => answer({ diskUse }));
     await within(disks).findByText("Images");
-    expect(disks).not.toHaveTextContent("Adding up");
+    expect(disks.querySelector(".dw-skeleton")).toBeNull();
   });
 
   it("asks nothing of a disk while its agent can't read Docker", async () => {

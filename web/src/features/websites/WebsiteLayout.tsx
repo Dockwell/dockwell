@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ButtonLink, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, useMediaQuery } from "@dockwell/ui";
+import {
+  ButtonLink,
+  Callout,
+  Icon,
+  Loading,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonTabs,
+  StatusBadge,
+  TabNav,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
 import { createContext, type ReactNode, useContext } from "react";
@@ -53,16 +65,22 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
 
   if (!row) {
     return (
-      <Page title={t`Website`} backLink={backLink} breadcrumb={<Crumbs />}>
+      <Page
+        title={t`Website`}
+        pending={websites.isPending || websites.isFetching}
+        machineTitle
+        backLink={backLink}
+        breadcrumb={<Crumbs />}
+      >
         {/* One just made may not be in a list read before it was. */}
         {websites.isPending || websites.isFetching ? (
-          <div className="website-loading" aria-busy="true">
-            <span className="dw-sr">
-              <Trans>Loading the website</Trans>
-            </span>
-            <div className="app-skeleton is-tabs" />
-            <div className="app-skeleton is-panel" />
-          </div>
+          <Loading label={t`Loading the website`} className="website-loading">
+            <SkeletonTabs count={4} />
+            <SkeletonCard>
+              <SkeletonFacts count={4} />
+            </SkeletonCard>
+            <SkeletonCard lines={3} />
+          </Loading>
         ) : websites.error ? (
           <Callout tone="critical" title={t`Can't load this website`}>
             {sentence(websites.error)} <Trans>Nothing changed on the server. Reload the page to try again.</Trans>

@@ -37,12 +37,6 @@
   border-radius: 4px;
 }
 
-.disk-use-bar.is-skeleton {
-  border-radius: 4px;
-  background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-
 /* Shades of ink, as colour means state and these are parts, not states. */
 .disk-use-part.is-ink,
 .disk-use-swatch.is-ink {
@@ -124,23 +118,9 @@
   line-height: 16px;
 }
 
+/* A legend's words on their way stand where its words will, beside where the swatch goes. */
 .disk-use-ghost {
-  display: block;
   grid-column: 2;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-}
-
-.disk-use-ghost.is-label {
-  width: 56px;
-  height: 10px;
-  margin: 4px 0;
-}
-
-.disk-use-ghost.is-bytes {
-  width: 72px;
-  height: 14px;
-  margin: 4px 0;
 }
 
 .disk-use-note {

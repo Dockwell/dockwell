@@ -2,7 +2,18 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { type BackupPolicyInfo, BackupService, ChangeService, type VolumeInfo, VolumeService } from "@dockwell/api";
-import { Button, Callout, Icon, Panel, PHONE_QUERY, Tag, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonRows,
+  Tag,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
@@ -56,10 +67,13 @@ export function VolumePage({ volumeId }: { volumeId: string }) {
   }
   if (!volume) {
     return (
-      <Page title={t`Volume`} back="/more">
-        <p className="volume-note" aria-busy="true">
-          <Trans>Reading the volume</Trans>
-        </p>
+      <Page title={t`Volume`} back="/more" pending machineTitle>
+        <Loading label={t`Reading the volume`} className="volume-page">
+          <SkeletonCard title={t`On its servers`} flush>
+            <SkeletonRows rows={1} lead="icon" end="value" />
+          </SkeletonCard>
+          <SkeletonCard lines={2} />
+        </Loading>
       </Page>
     );
   }

@@ -685,7 +685,7 @@ describe("Settings", () => {
     await activateLocale("zh-CN");
     renderSettings("/settings/general");
     expect(await screen.findByRole("heading", { level: 1, name: "常规" })).toBeVisible();
-    expect(screen.getByRole("region", { name: "此安装" })).toBeVisible();
+    expect(await screen.findByRole("region", { name: "此安装" })).toBeVisible();
     expect(screen.getByRole("region", { name: "面板地址" })).toHaveTextContent("仅本机回环");
   });
 });

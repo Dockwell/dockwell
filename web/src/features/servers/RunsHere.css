@@ -75,24 +75,6 @@
   color: var(--ink);
 }
 
-/* While it reads: the card holds its place, with no words that could be wrong. */
-.runs-skeleton {
-  display: block;
-  height: 12px;
-  margin: 4px 0;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-}
-
-.runs-skeleton.is-title {
-  width: 64px;
-}
-
-.runs-skeleton.is-sub {
-  width: 140px;
-  height: 10px;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .runs-card,
   .runs-chevron {

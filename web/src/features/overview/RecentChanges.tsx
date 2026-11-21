@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { ActorKind, ChangeState, type Event, EventKind } from "@dockwell/api";
-import { cx, Panel } from "@dockwell/ui";
+import { cx, Loading, Panel, SkeletonRows } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
@@ -82,15 +82,9 @@ export function RecentChanges({
   );
   const body =
     events === undefined ? (
-      <div aria-busy="true" className="overview-loading">
-        <span className="dw-sr">{t`Loading changes`}</span>
-        {["72%", "56%"].map((width) => (
-          <div key={width} className="apps-skeleton-line" aria-hidden="true">
-            <span className="apps-skeleton-bar" style={{ width }} />
-            <span className="apps-skeleton-bar is-short" />
-          </div>
-        ))}
-      </div>
+      <Loading label={t`Loading changes`} className="overview-loading">
+        <SkeletonRows rows={2} />
+      </Loading>
     ) : shown.length === 0 ? (
       <>
         <EmptyState icon="activity" title={<Trans>Nothing has changed yet</Trans>}>

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type AlertCheckInfo, AlertCheckState, ChangeService, ChangeState } from "@dockwell/api";
-import { Advanced, Button, SelectField, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
+import { Advanced, Button, Loading, SelectField, Sheet, Skeleton, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -312,7 +312,11 @@ function FirstAnswer({ id, host, hold, onClose }: { id: string; host: string; ho
     >
       <div className="alerts-sheet" aria-live="polite">
         {waiting ? (
-          <p className="alerts-muted">{t`Asking ${host} from the control server…`}</p>
+          <Loading label={t`Asking ${host} from the control server`} slow={t`Asking ${host} from the control server`}>
+            <Skeleton shape="pill" width={88} />
+            <Skeleton width="72%" />
+            <Skeleton width="56%" />
+          </Loading>
         ) : (
           <>
             <StatusBadge status={state.status} label={i18n._(state.word)} labelIsState />

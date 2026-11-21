@@ -15,7 +15,18 @@ import {
   type Server,
   type ServerFirewall,
 } from "@dockwell/api";
-import { Button, Callout, Panel, PHONE_QUERY, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonRows,
+  Table,
+  type TableColumn,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
@@ -125,9 +136,18 @@ function FirewallRead({
   if (!fw) {
     return (
       <>
-        <p className="firewall-note" aria-busy="true">
-          <Trans>Reading what filters {server.name}'s traffic</Trans>
-        </p>
+        <Loading
+          label={t`Reading what filters ${server.name}'s traffic`}
+          slow={t`${server.name} is slow to say what filters its traffic`}
+          className="firewall-loading"
+        >
+          <SkeletonCard title={t`Inbound traffic`} flush>
+            <SkeletonRows rows={4} lines={1} end="pill" dense />
+          </SkeletonCard>
+          <SkeletonCard flush>
+            <SkeletonRows rows={3} lines={1} end="value" dense />
+          </SkeletonCard>
+        </Loading>
         {ssh}
       </>
     );

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { CatalogOrder } from "@dockwell/api";
-import { Button, Icon, TextField } from "@dockwell/ui";
+import { Button, Icon, Loading, Skeleton, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { RefObject } from "react";
@@ -62,12 +62,19 @@ export function CatalogSource({
           {sentence(catalog.error)}
         </EmptyState>
       ) : !entries ? (
-        <ul className="new-app-entries" aria-busy="true">
-          <li className="dw-sr">{t`Reading the catalog`}</li>
-          {Array.from({ length: 6 }, (_, i) => `placeholder-${i}`).map((key) => (
-            <li key={key} className="new-app-entry is-placeholder" />
-          ))}
-        </ul>
+        <Loading label={t`Reading the catalog`}>
+          <ul className="new-app-entries" aria-hidden="true">
+            {Array.from({ length: 6 }, (_, i) => `placeholder-${i}`).map((key, index) => (
+              <li key={key} className="new-app-entry is-placeholder">
+                <Skeleton shape="block" width={32} height={32} />
+                <span className="new-app-entry-text">
+                  <Skeleton text="label" width={[96, 120, 80, 104, 88, 112][index]} />
+                  <Skeleton text="caption" width={[200, 168, 216, 184, 152, 192][index]} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Loading>
       ) : entries.length === 0 && !busy ? (
         <EmptyState
           icon="search"

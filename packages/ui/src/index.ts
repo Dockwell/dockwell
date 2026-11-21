@@ -5,6 +5,7 @@
 // brings its own stylesheet, except Panel, whose rules come with the
 // foundations there, as pages put dw-panel on their own elements too.
 // Guidelines for every component live in design/system/components/<Name>/README.md.
+// Skeleton's rules come with the foundations too, as every screen draws them while it waits.
 
 export { Advanced, type AdvancedProps } from "./components/Advanced/Advanced";
 export { BrandMark, type BrandMarkProps } from "./components/BrandMark/BrandMark";
@@ -67,10 +68,38 @@ export {
   type SheetViewProps,
   useSheetViewAway,
 } from "./components/Sheet/Sheet";
+export {
+  Loading,
+  type LoadingProps,
+  LoadingStatus,
+  SKELETON_DELAY_MS,
+  Skeleton,
+  SkeletonCard,
+  type SkeletonCardProps,
+  SkeletonFacts,
+  type SkeletonFactsProps,
+  SkeletonField,
+  type SkeletonFieldProps,
+  type SkeletonProps,
+  SkeletonRows,
+  type SkeletonRowsProps,
+  SkeletonTabs,
+  type SkeletonText,
+  SLOW_AFTER_MS,
+  SlowLine,
+  useAfter,
+} from "./components/Skeleton/Skeleton";
 export { Sparkline, type SparklineProps, type SparklineTone } from "./components/Sparkline/Sparkline";
 export { StatusBadge, type StatusBadgeProps } from "./components/StatusBadge/StatusBadge";
 export { Switch, type SwitchProps } from "./components/Switch/Switch";
-export { type CellKey, type RowKey, Table, type TableColumn, type TableProps } from "./components/Table/Table";
+export {
+  type CellKey,
+  type RowKey,
+  Table,
+  type TableColumn,
+  type TableProps,
+  type TableSkeleton,
+} from "./components/Table/Table";
 export {
   type TabItem,
   TabLink,

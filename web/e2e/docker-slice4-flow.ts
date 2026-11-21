@@ -97,15 +97,19 @@ export const flow: Flow = {
     await disk.getByRole("link", { name: "Images" }).click();
     await page.getByRole("link", { name: image }).waitFor();
     await page.getByText("linux/amd64", { exact: true }).first().waitFor();
-    const dangling = page.getByRole("listitem").filter({ has: page.getByText("Dangling", { exact: true }) });
+    // A row of the table on a wide screen, an item of the list on a narrow one.
+    const dangling = page
+      .getByRole("row")
+      .or(page.getByRole("listitem"))
+      .filter({ has: page.getByText("Dangling", { exact: true }) });
     const shortId = (await dangling.getByRole("link").innerText()).trim();
     if (!/^[a-f0-9]{12}$/.test(shortId)) throw new Error(`Dangling image name was ${shortId}`);
-    await fits(page, ".docker-artifact-list");
+    await fits(page, ".docker-image-table, .docker-artifact-list");
     await shoot(page, "docker-slice4-images");
     await dangling.getByRole("link").click();
     await page.getByRole("heading", { name: shortId, exact: true }).waitFor();
     await page.getByRole("button", { name: "Copy full image ID" }).waitFor();
-    await page.getByRole("link", { name: "Local images", exact: true }).click();
+    await page.getByRole("link", { name: "All images", exact: true }).click();
     await page.getByRole("link", { name: image }).click();
     await page.getByRole("heading", { name: image, exact: true }).waitFor();
     await page.getByText("Build instructions are redacted").waitFor();

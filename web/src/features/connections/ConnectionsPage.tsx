@@ -12,7 +12,18 @@ import {
   ConnectionReach,
   LinkKind,
 } from "@dockwell/api";
-import { Button, Callout, Icon, PHONE_QUERY, StatusBadge, Table, type TableColumn, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  PHONE_QUERY,
+  SkeletonRows,
+  StatusBadge,
+  Table,
+  type TableColumn,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -168,7 +179,23 @@ export function ConnectionsPage() {
           {sentence(query.error)} <Trans>The page tries again by itself.</Trans>
         </Callout>
       ) : null}
-      {query.isPending ? null : totalRows === 0 && !query.error ? (
+      {query.isPending ? (
+        phone ? (
+          <Loading label={t`Loading connections`}>
+            <SkeletonRows rows={3} lead="mark" className="dw-panel" />
+          </Loading>
+        ) : (
+          <ConnectionsTable
+            rows={[]}
+            destinations={destinations}
+            channels={channels}
+            onOpen={openRow}
+            onUseAsConnection={convertToConnection}
+            useAsConnectionOff={mayUseAsConnection.off}
+            loading
+          />
+        )
+      ) : totalRows === 0 && !query.error ? (
         <EmptyState
           icon="network"
           title={t`No connections yet`}
@@ -255,7 +282,10 @@ function ConnectionsTable({
   onOpen,
   onUseAsConnection,
   useAsConnectionOff,
+  loading = false,
 }: {
+  /** The connections are on their way: the table draws their rows' shapes under its header. */
+  loading?: boolean;
   rows: readonly ListRow[];
   destinations: readonly BackupDestinationInfo[];
   channels: readonly AlertChannelInfo[];
@@ -373,7 +403,16 @@ function ConnectionsTable({
         ) : null,
     });
   }
-  return <Table columns={columns} rows={rows} onRowClick={onOpen} caption={t`Connections`} />;
+  return (
+    <Table
+      columns={columns}
+      rows={rows}
+      onRowClick={onOpen}
+      caption={t`Connections`}
+      loading={loading}
+      loadingLabel={t`Loading connections`}
+    />
+  );
 }
 
 /** Whether the caller sees where a connection is, as an admin does. */

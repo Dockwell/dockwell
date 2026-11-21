@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { FileService, FileType } from "@dockwell/api";
-import { Button, Callout, Icon, SelectField, Sheet, TextField } from "@dockwell/ui";
+import { Button, Callout, Loading, SelectField, Sheet, SkeletonRows, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -149,9 +149,9 @@ export function ComposeSourceSheet({
             ))}
           </ul>
         ) : listing.isPending ? (
-          <p aria-live="polite">
-            <Icon name="refresh" size={14} className="dw-spin" /> <Trans>Reading folder</Trans>
-          </p>
+          <Loading label={t`Reading folder`}>
+            <SkeletonRows rows={5} lead="icon" lines={1} dense />
+          </Loading>
         ) : null}
         {listing.data && children.length === 0 ? (
           <p className="compose-muted">

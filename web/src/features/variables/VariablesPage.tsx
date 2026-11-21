@@ -421,9 +421,20 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               {sentence(failed)}
             </p>
           ) : !list.data ? (
-            <p className="variables-note" aria-busy="true">
-              <Trans>Loading variables and secrets</Trans>
-            </p>
+            <Table
+              className="variables-table"
+              columns={[
+                { key: "name", header: t`Key`, width: 240, render: () => null, skeleton: "mono" },
+                { key: "value", header: t`Value`, render: () => null, skeleton: "mono" },
+                { key: "source", header: t`Source`, width: 120, render: () => null, skeleton: "short" },
+                { key: "usedBy", header: t`Used by`, width: 200, render: () => null },
+                { key: "updated", header: t`Updated`, width: 160, render: () => null, skeleton: "short" },
+              ]}
+              rows={[]}
+              loading
+              loadingRows={4}
+              loadingLabel={t`Loading variables and secrets`}
+            />
           ) : source && named.length > 0 && shown.length === 0 && chosen ? (
             // Only the source emptied the list: say so, and show the rest (#620's review, M1).
             <EmptyState

@@ -19,6 +19,13 @@ These decide how a screen works before any word is written. A screen that meets 
 4. **Check as they go.** A field is checked against the real server while the person fills it in (port free, folder there or to be made, name taken, DNS pointing here, image found), and the answer is a state and a word beside the field, not an error after Submit.
 5. **State and action, not instructions.** Guidance appears only when it applies, where it applies, as a short state with an action: "DNS doesn't point here yet · Check again", not a standing paragraph on what to do if it doesn't. Advice for one provider or one distribution appears only when Dockwell detects it and a check fails.
 6. **One way in for each task, and the result is usable at once.** After a create, the person lands where they can use what they made: the site's address to open, the database's connection details to copy, the app's logs as it starts. Access a person needs (an admin UI, a password) is a button, not a procedure.
+7. **A wait shows what is coming, in place.** A screen that waits draws the shape of what will land where it will land: table rows under the table's real header and columns, cards, facts and headers at their real sizes, with `Skeleton`, `Loading` and `Table`'s `loading`. It never shows a lone sentence.
+   - Nothing shows for the first 150 ms, so a fast answer doesn't flash.
+   - A refetch keeps the last data on screen; only the refresh control shows that it is working.
+   - Each section loads on its own: one slow read never blanks the page, and the head, tabs, toolbar and filters draw at once and stay usable.
+   - Past a few seconds, one short line in place, above the shapes, says what the wait is, in the product's voice: "Docker is measuring disk use on this server". No spinner wall.
+   - A failed read replaces its shapes with the fact, the consequence and the fix, and Retry. A partial answer shows what arrived and marks only what is missing.
+   - The region is `aria-busy` and says its label once, politely; the shapes hold still under `prefers-reduced-motion` and read in both themes.
 
 
 ## Content fundamentals
@@ -45,6 +52,7 @@ Write like a senior operator: plain, specific and brief. Words label, state and 
 - Set text in `ink`; secondary text, labels and placeholders in `ink-muted` (both hold 4.5:1 on every surface token in both themes). Use `ink-faint` only for disabled text.
 - Divide with `line` hairlines. Give inputs and other controls whose edge matters a `line-strong` border (3:1 on every surface).
 - Fill the one primary button with `action` and its label with `on-action`. In dark mode `action` turns light and `on-action` dark; never hard-code white text on a fill.
+- Draw a wait's shapes in `skeleton`, which reads on `canvas` and `surface` in both themes. It is never a well (`surface-sunken`) and never a state.
 - Use `cobalt` for work in flight (deploying, building, applying, live streams), links, focus and selection. `cobalt-soft` is its ground.
 - Use `healthy`, `warning` and `critical` only for state, as text on any surface or on their `-soft` grounds. `critical` also fills the danger button, with `on-critical` text.
 - Use `running` for what runs with nothing checking it, `unknown` for what nobody can say anything of, and `idle` for what is stopped or paused. All three are `ink-muted`, never green and never ink, so they tell apart by their glyphs: a ring with a dot in it, a dashed ring with a dash across it, and a hollow ring, each unlike the others at 10 px.
@@ -76,7 +84,7 @@ Write like a senior operator: plain, specific and brief. Words label, state and 
 
 - Motion answers an action or shows work in progress; nothing moves on its own for decoration.
 - Use 120 ms for hover and press, 180 ms for toggles and the command bar, 260 ms for sheets and toasts, all on `cubic-bezier(.2, .8, .2, 1)`.
-- Only three things loop: the deploying arc, the live-stream dot and the toast timer. All three stop under `prefers-reduced-motion`, and every other transition becomes instant.
+- Only four things loop: the deploying arc, the live-stream dot, the toast timer and a skeleton's slow pulse while its data is on its way. All four stop under `prefers-reduced-motion`, and every other transition becomes instant.
 
 ### Focus and states
 

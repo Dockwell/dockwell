@@ -8,7 +8,7 @@ import {
   type Entry,
   type ServiceInfo,
 } from "@dockwell/api";
-import { Button, Callout, cx, Icon, SegmentedControl, SelectField, TextField } from "@dockwell/ui";
+import { Button, Callout, cx, Icon, Loading, SegmentedControl, SelectField, Skeleton, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -266,12 +266,26 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         ) : null}
         {catalog.error ? null : !entries ? (
           // Where the cards go, while the first page is read: no spinner over the grid.
-          <div className="catalog-grid" aria-busy="true">
-            <span className="dw-sr">{t`Reading the catalog`}</span>
-            {Array.from({ length: 12 }, (_, i) => `placeholder-${i}`).map((key) => (
-              <span key={key} className="dw-panel catalog-card is-placeholder" />
+          <Loading label={t`Reading the catalog`} className="catalog-grid">
+            {Array.from({ length: 12 }, (_, i) => `placeholder-${i}`).map((key, index) => (
+              <span key={key} className="dw-panel catalog-card is-placeholder" aria-hidden="true">
+                <span className="catalog-card-head">
+                  <Skeleton shape="block" width={40} height={40} className="catalog-icon" />
+                  <span className="catalog-card-title">
+                    <Skeleton text="label" width={[96, 120, 80, 104][index % 4]} />
+                    <Skeleton text="caption" width={56} />
+                  </span>
+                </span>
+                <span className="catalog-card-summary">
+                  <Skeleton width="92%" />
+                  <Skeleton width={["64%", "48%", "72%", "56%"][index % 4]} />
+                </span>
+                <span className="catalog-card-foot">
+                  <Skeleton text="code-sm" width={48} />
+                </span>
+              </span>
             ))}
-          </div>
+          </Loading>
         ) : shown.length === 0 && !catalog.isPlaceholderData && !catalog.settling ? (
           typed !== "" ? (
             <EmptyState

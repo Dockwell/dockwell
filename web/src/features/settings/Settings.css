@@ -509,12 +509,6 @@
 }
 
 /* The list on its way, about three rows high. Nothing shimmers: only three things in the system loop. */
-.tokens-skeleton {
-  height: 192px;
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-}
-
 .tokens-tags {
   display: flex;
   flex-wrap: wrap;
@@ -880,12 +874,6 @@
 }
 
 /* The log on its way, about eight rows high. Nothing shimmers: only three things in the system loop. */
-.audit-skeleton {
-  height: 320px;
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
-}
-
 .audit-table {
   table-layout: fixed;
 }
@@ -1430,11 +1418,6 @@
   margin-left: auto;
 }
 
-.integrations-skeleton {
-  min-height: 196px;
-  background: var(--canvas);
-}
-
 .integrations-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
@@ -1640,4 +1623,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-4);
+}
+
+/* The environments on their way, in the list's own padding. */
+.members-skeleton-rows .dw-skeleton-row {
+  padding: 0;
+}
+
+/* The control plane on its way: its replica, then its panels, as they will stand. */
+.cp-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }

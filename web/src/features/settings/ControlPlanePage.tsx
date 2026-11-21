@@ -12,7 +12,7 @@ import {
   SettingsService,
   StateStoreEngine,
 } from "@dockwell/api";
-import { Button, Glyph, Icon, Panel, STATUS, StatusBadge } from "@dockwell/ui";
+import { Button, Glyph, Icon, Loading, Panel, SkeletonCard, SkeletonFacts, STATUS, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -75,15 +75,33 @@ export function ControlPlanePage() {
           }
         />
       ) : null}
-      <Replicas cp={cp} own={own} />
-      <div className="cp-panels">
-        {/* Paired as Settings-ControlPlane pairs them: the store beside its backups, then updates beside agents. */}
-        <StorePanel cp={cp} />
-        <BackupPanel cp={cp} />
-        <UpdatesPanel cp={cp} />
-        <AgentsPanel cp={cp} servers={servers} />
-        <AddressesPanel cp={cp} />
-      </div>
+      {got.isPending ? (
+        // Each panel at its place and with its title, its facts on their way, rather than dashes that look read.
+        <Loading label={t`Loading the control plane`} className="cp-loading">
+          <SkeletonCard noHead>
+            <SkeletonFacts count={4} />
+          </SkeletonCard>
+          <div className="cp-panels">
+            {[t`State store`, t`Backups`, t`Updates`, t`Agents`].map((title) => (
+              <SkeletonCard key={title} title={title}>
+                <SkeletonFacts count={3} layout="rows" />
+              </SkeletonCard>
+            ))}
+          </div>
+        </Loading>
+      ) : (
+        <>
+          <Replicas cp={cp} own={own} />
+          <div className="cp-panels">
+            {/* Paired as Settings-ControlPlane pairs them: the store beside its backups, then updates beside agents. */}
+            <StorePanel cp={cp} />
+            <BackupPanel cp={cp} />
+            <UpdatesPanel cp={cp} />
+            <AgentsPanel cp={cp} servers={servers} />
+            <AddressesPanel cp={cp} />
+          </div>
+        </>
+      )}
     </Page>
   );
 }

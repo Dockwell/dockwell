@@ -13,7 +13,7 @@ import {
   type Server,
   ServerService,
 } from "@dockwell/api";
-import { Button, Callout, Icon, Panel } from "@dockwell/ui";
+import { Button, Callout, Icon, Loading, Panel, Skeleton, SkeletonCard, SkeletonRows } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -179,11 +179,11 @@ function CleanupSelection({
         );
       })}
       {query.isPending || measuring ? (
-        <Panel title={t`Checking Docker artifacts`} actions={<Icon name="archive" />}>
-          <div role="status" aria-label={t`Checking Docker artifacts`}>
-            <span className="docker-pending-size" aria-hidden="true" />
-          </div>
-        </Panel>
+        <Loading label={t`Checking Docker artifacts`} slow={t`Docker is measuring disk use on this server`}>
+          <SkeletonCard title={<Skeleton text="heading" width={112} />} flush>
+            <SkeletonRows rows={4} lines={1} end="value" dense />
+          </SkeletonCard>
+        </Loading>
       ) : null}
       {query.error ? (
         <Callout
