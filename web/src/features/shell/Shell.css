@@ -151,6 +151,10 @@
   white-space: nowrap;
 }
 
+.rail-item > .rail-label {
+  flex-shrink: 0;
+}
+
 .rail-count {
   margin-left: auto;
   padding-left: var(--space-2);

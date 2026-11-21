@@ -793,7 +793,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
+			told(resource.Outcome{DockerReceipts: o.GetDockerReceipt(), LocalImageID: o.GetLocalImageId(), Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
 		}
 		return
 	}
@@ -930,7 +930,7 @@ const DiskUseTimeout = 70 * time.Second
 
 // DiskUse asks the agent what takes the room on the disk that holds Docker's data.
 func (s *Session) DiskUse(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DiskUse{DiskUse: &agentv1.DiskUseCall{}}}, DiskUseTimeout, nil)
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DiskUse{DiskUse: &agentv1.DiskUseCall{DockerCleanupProtection: dockerProtection(ctx)}}}, DiskUseTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -1340,6 +1340,15 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	logins := map[int]registry.Auth{}
 	for i := range desired {
 		d := &desired[i]
+		if d.DockerMaintenance != nil {
+			if !s.DockerCleanup() {
+				return nil, fault.New(ErrOlderAgent, "update the agent to review Docker cleanup")
+			}
+			call.Desired = append(call.Desired, &agentv1.DesiredResource{
+				Resource: resourcepb.Ref(d.Ref), DockerMaintenance: d.DockerMaintenance,
+			})
+			continue
+		}
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
@@ -1500,6 +1509,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // that stream, can open. A step sent again on the agent's next stream, as
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if step.DockerMaintenance != nil {
+		return s.applyDockerCleanup(ctx, step)
+	}
 	workload := step.NeedsRunControl || step.ChangesRunIntent() || step.ExactRestart != "" || resource.RunIntent(desired) != 0
 	if workload && !s.DockerWorkloadControls() {
 		return s.workloadControlsError()

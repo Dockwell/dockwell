@@ -14,12 +14,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
 // Desired is one resource as a change wants it; a nil Spec deletes it.
 type Desired struct {
-	Ref  Ref
-	Spec proto.Message
+	DockerMaintenance *v1.DockerMaintenance
+	Ref               Ref
+	Spec              proto.Message
 	// NeedsRunControl gates a write whose previous revision had explicit run intent.
 	// The control plane uses it to choose a compatible agent.
 	NeedsRunControl bool `json:"-"`

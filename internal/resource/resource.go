@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+
 	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"google.golang.org/protobuf/proto"
@@ -175,6 +177,7 @@ type JailPlan struct {
 
 // Decision is a driver's judgement of one step.
 type Decision struct {
+	DockerMaintenance *v1.DockerMaintenance `json:",omitempty"`
 	// PlannedLeads says where the server paths the resource mounts led when this
 	// was planned, for those that lead elsewhere. What makes a container checks
 	// again, and refuses what leads elsewhere by then.

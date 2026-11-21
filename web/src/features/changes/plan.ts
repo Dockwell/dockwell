@@ -86,6 +86,15 @@ export function reboots(plan: Plan | undefined): boolean {
   return (plan?.servers ?? []).some((s) => s.steps.some((step) => step.reboot !== undefined));
 }
 
+/** A cleanup plan's steps are the whole plan and have no undo. */
+export function cleansDocker(plan: Plan | undefined): boolean {
+  return !!plan?.resources.length && plan.resources.every((item) => item.dockerMaintenance !== undefined);
+}
+
+export function resumesDockerCleanup(plan: Plan | undefined): boolean {
+  return !!plan?.resources.some((item) => item.dockerMaintenance?.resumeCleanupToken);
+}
+
 /** A step that starts what's there and isn't running, so nothing serves while it does. */
 export function startsStopped(step: PlanStep): boolean {
   return step.changes.some((c) => c.path === "state" && c.to === "running");

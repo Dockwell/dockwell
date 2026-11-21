@@ -111,6 +111,7 @@ import {
   canUndo,
   changeTo,
   changing,
+  cleansDocker,
   diffResources,
   failedStep,
   foldPlumbing,
@@ -134,6 +135,7 @@ import {
   reboots,
   replacesIfNewer,
   restarts,
+  resumesDockerCleanup,
   routeDomain,
   routeWhereOf,
   shortFingerprint,
@@ -768,7 +770,8 @@ function ChangeSheet({
       reboots(plan) ||
       unitWithoutUndo(plan) ||
       plan?.removes ||
-      panelStartsAgain(plan) ? (
+      panelStartsAgain(plan) ||
+      cleansDocker(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
         <Trans>Undo for {undoDays} days if this replaces anything</Trans>
@@ -1117,6 +1120,15 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   // Only what runs can be a website's; a plan that runs nothing, such as a reboot, reads no websites.
   const websiteOf = useWebsiteOfEnvironment(goesLive(plan).length > 0);
   // A change of labels alone says it of the servers, which take no step (ADR 0091).
+  if (resumesDockerCleanup(plan)) {
+    if (phase === "applying") return t`Re-enabling Docker cleanup`;
+    if (phase === "failed") return t`Could not re-enable Docker cleanup`;
+    if (phase === "history" || phase === "arrived") return t`Docker cleanup re-enabled`;
+  } else if (cleansDocker(plan)) {
+    if (phase === "applying") return t`Cleaning up Docker`;
+    if (phase === "failed") return t`Docker cleanup failed`;
+    if (phase === "history" || phase === "arrived") return t`Docker cleanup complete`;
+  }
   const labelled = labelsOnly(plan);
   if (labelled.length > 0) {
     const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(labelled);
@@ -1433,6 +1445,7 @@ function PlanBody({
   const upgrade = upgradeOf(plan);
   const phased = upgrade !== undefined && !fleet;
   const showSteps =
+    cleansDocker(plan) ||
     (phase === "applying" && !phased) ||
     ((fleet || installs) && (ran || phase === "review")) ||
     (phase === "failed" && (steps.length > 1 || fleet) && !phased);
@@ -1541,7 +1554,7 @@ function PlanBody({
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
       {showSteps ? null : <CloudflareSteps plan={plan} />}
       {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
-      {unitOnly ? null : (
+      {unitOnly || cleansDocker(plan) ? null : (
         <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
           {cameToNothing ? (
             <h3 className="dw-text-label plan-heading">{setOut}</h3>

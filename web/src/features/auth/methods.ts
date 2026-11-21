@@ -161,6 +161,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DockerService.getDockerObject": "may",
   "DockerService.getDockerOverview": "may",
   "DockerService.listDockerObjects": { within: "DockerService.getDockerOverview" },
+  "DockerService.planDockerMaintenance": "may",
+  "DockerService.previewDockerCleanup": { within: "DockerService.getDockerOverview" },
   "DockerService.watchDockerObjects": { within: "DockerService.getDockerOverview" },
 
   "DomainService.checkDnsProvider": "may",

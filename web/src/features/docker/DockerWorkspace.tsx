@@ -15,22 +15,26 @@ import { ServerFrame } from "../servers/ServerFrame";
 import { useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { DockerCleanup } from "./DockerCleanup";
 import { ContainerStatus, DockerContainers } from "./DockerContainers";
+import { DockerImages } from "./DockerImages";
 import { rowWithHealth, useDockerWatch } from "./live";
 import { Fact, LiveUpdates, Unread } from "./parts";
 
 import "./Docker.css";
 
-export type DockerTab = "overview" | "containers";
+export type DockerTab = "overview" | "containers" | "images" | "cleanup";
 
 export function DockerWorkspace({
   serverId,
   tab,
   attention,
+  group,
 }: {
   serverId?: string;
   tab: DockerTab;
   attention?: boolean | undefined;
+  group?: string | undefined;
 }) {
   const { t } = useLingui();
   const allowed = useMay()(DockerService.method.getDockerOverview).allowed;
@@ -51,6 +55,7 @@ export function DockerWorkspace({
             key={serverId}
             tab={tab}
             attention={attention}
+            group={group}
             servers={[{ id: server.id, name: server.name }]}
             server={server}
             multiple={servers.length > 1}
@@ -119,9 +124,10 @@ interface WorkspaceProps {
   server?: Server | undefined;
   multiple: boolean;
   attention?: boolean | undefined;
+  group?: string | undefined;
 }
 
-function Workspace({ tab, servers, server, multiple, attention }: WorkspaceProps) {
+function Workspace({ tab, servers, server, multiple, attention, group }: WorkspaceProps) {
   const { t } = useLingui();
   const ids = servers.map((s) => s.id);
   return (
@@ -144,6 +150,9 @@ function Workspace({ tab, servers, server, multiple, attention }: WorkspaceProps
               >
                 <Trans>Containers</Trans>
               </RouterTabLink>
+              <RouterTabLink to="/servers/$serverId/docker/images" params={{ serverId: server.id }}>
+                <Trans>Images</Trans>
+              </RouterTabLink>
             </>
           ) : (
             <>
@@ -157,13 +166,20 @@ function Workspace({ tab, servers, server, multiple, attention }: WorkspaceProps
               >
                 <Trans>Containers</Trans>
               </RouterTabLink>
+              <RouterTabLink
+                to="/servers/docker"
+                search={{ view: "images" }}
+                activeOptions={{ exact: true, includeSearch: true }}
+              >
+                <Trans>Images</Trans>
+              </RouterTabLink>
             </>
           )}
         </TabNav>
         {server && multiple ? (
           <RouterButtonLink
             to="/servers/docker"
-            search={tab === "containers" ? { view: "containers" } : {}}
+            search={tab === "overview" ? {} : { view: tab }}
             variant="ghost"
             size="sm"
             icon="grid"
@@ -174,6 +190,10 @@ function Workspace({ tab, servers, server, multiple, attention }: WorkspaceProps
       </div>
       {tab === "overview" ? (
         <Overview servers={servers} server={server} ids={ids} />
+      ) : tab === "images" ? (
+        <DockerImages servers={servers} fleet={!server} />
+      ) : tab === "cleanup" ? (
+        <DockerCleanup servers={servers} group={group} />
       ) : (
         <DockerContainers servers={servers} fleet={server === undefined} attention={attention} />
       )}
@@ -261,7 +281,19 @@ function Overview({
               </Link>
             )}
             <Metric label={t`Compose projects`} value={sum("composeProjects")} icon="layers" />
-            <Metric label={t`Images`} value={sum("images")} icon="archive" />
+            {server ? (
+              <Link
+                className="docker-metric-link"
+                to="/servers/$serverId/docker/images"
+                params={{ serverId: server.id }}
+              >
+                <Metric label={t`Images`} value={sum("images")} icon="archive" />
+              </Link>
+            ) : (
+              <Link className="docker-metric-link" to="/servers/docker" search={{ view: "images" }}>
+                <Metric label={t`Images`} value={sum("images")} icon="archive" />
+              </Link>
+            )}
             {server ? (
               <Link
                 className="docker-metric-link"
@@ -282,7 +314,33 @@ function Overview({
             )}
           </div>
           <div className="docker-overview-grid">
-            {server ? <DiskUsePanel server={server} /> : null}
+            {server ? (
+              <DiskUsePanel server={server} dockerWorkspace />
+            ) : (
+              <Panel title={t`Docker disk usage`} actions={<Icon name="archive" />}>
+                <ul className="docker-servers">
+                  {rows.map((row) => {
+                    const name = servers.find((s) => s.id === row.serverId)?.name ?? row.serverId;
+                    return (
+                      <li key={row.serverId}>
+                        <Link className="dw-link" to="/servers/$serverId/docker" params={{ serverId: row.serverId }}>
+                          {name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <RouterButtonLink
+                  to="/servers/docker"
+                  search={{ view: "cleanup" }}
+                  icon="trash"
+                  variant="secondary"
+                  size="sm"
+                >
+                  <Trans>Review cleanup</Trans>
+                </RouterButtonLink>
+              </Panel>
+            )}
             <Panel title={t`Engine inventory`} actions={<Icon name="layers" size={18} />}>
               <dl className="docker-facts">
                 <Fact label={t`Networks`} value={sum("networks")} />
@@ -351,10 +409,10 @@ function EngineFacts({ summary }: { summary: DockerServerSummary }) {
       {summary.liveRestore !== undefined ? (
         <Fact label={t`Live restore`} value={summary.liveRestore ? t`On` : t`Off`} />
       ) : null}
-      <Fact
-        label={t`Registry mirrors`}
-        value={
-          summary.registryMirrors.length ? (
+      {summary.registryMirrors.length ? (
+        <Fact
+          label={t`Registry mirrors`}
+          value={
             <ul className="docker-detail-list">
               {summary.registryMirrors.map((mirror) => (
                 <li key={mirror}>
@@ -362,11 +420,9 @@ function EngineFacts({ summary }: { summary: DockerServerSummary }) {
                 </li>
               ))}
             </ul>
-          ) : (
-            t`None`
-          )
-        }
-      />
+          }
+        />
+      ) : null}
     </>
   );
 }

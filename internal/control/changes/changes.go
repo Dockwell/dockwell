@@ -481,6 +481,17 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
 	client, _ := authapi.ClientFrom(ctx)
 	switch {
+	case r.State == store.ChangePlanned && r.Plan.HasDockerMaintenance():
+		target := r.ID + ":" + r.Fingerprint
+		if req.Msg.GetProof() == "" {
+			h.auth.AskedForStepUp(p, auth.StepUpApproveChange, target, func() { h.noteUnconfirmed(r.ID, who) })
+			return nil, stepUpNeeded(auth.ErrNeedsStepUp, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
+		}
+		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApproveChange, target)
+		if err != nil {
+			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
+		}
+		giveBack = back
 	case approve.Protected && approve.Theirs:
 		// One passkey approves the plan, root's included: it's bound to its fingerprint.
 		target := r.ID + ":" + r.Fingerprint
@@ -1547,7 +1558,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
-			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), Panel: resourcepb.Panel(r.Panel),
+			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), DockerMaintenance: r.DockerMaintenance, Panel: resourcepb.Panel(r.Panel),
 			AgentUpgrade:  resourcepb.AgentUpgrade(r.AgentUpgrade),
 			LetsGo:        r.Forget,
 			Storage:       linkStorageProto(r.Storage),
@@ -1631,7 +1642,7 @@ func intentProto(i *revision.Intent) *dockwellv1.Intent {
 func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	p := &dockwellv1.StepProgress{
 		ServerId: s.Server, ResourceId: s.ResourceID, Resource: resourcepb.Ref(s.Ref), Action: resourcepb.Action(s.Action),
-		State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
+		DockerReceipts: s.DockerReceipts, State: stepStates[s.State], Message: s.Message, Activity: s.Activity, Detail: s.Detail, Reason: s.Reason, Lost: s.Lost,
 		Wave:  int32(s.Wave), //nolint:gosec // a wave's number, at most the fleet's size
 		Phase: dockwellv1.StepPhase(s.Phase), DoneBytes: s.Done, TotalBytes: s.Total,
 	}

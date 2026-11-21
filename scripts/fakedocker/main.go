@@ -276,6 +276,18 @@ func main() {
 	}
 	t := &tb{dir: dir}
 	e := dockertest.New(t)
+	if os.Getenv("FAKEDOCKER_CLEANUP_FIXTURE") == "1" {
+		used := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+		e.SetBuildCache(
+			docker.DiskUsageCache{ID: "fixtureidlebuildcache0001", Size: 48 << 20, CreatedAt: used, LastUsedAt: &used},
+			docker.DiskUsageCache{ID: "fixturebusybuildcache0002", Size: 24 << 20, CreatedAt: used, LastUsedAt: &used, InUse: true},
+		)
+		e.AddLocalImage("fixture/cleanup-image-with-a-long-repository-name:review", dockertest.Image{
+			Size: 52 << 20, Created: used, Layer: "sha256:" + strings.Repeat("d", 64),
+		})
+		e.AddLocalImage("", dockertest.Image{Size: 10 << 20, Created: used})
+		e.AddNetwork(docker.Network{Name: "fixture-idle-network", Scope: "local", Driver: "bridge"})
+	}
 	// Where /info says Docker keeps its data, for a run that wants the agent to add up
 	// a disk this machine has: /var/lib/docker unless set.
 	e.DockerRoot = os.Getenv("FAKEDOCKER_ROOT")

@@ -17,7 +17,9 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
 import "./DiskUse.css";
+import { RouterButtonLink } from "../../lib/links";
 import { useMay } from "../auth/may";
+import { DockerDiskTable } from "../docker/DockerDiskTable";
 
 /** How long what takes the disk stands before the page asks again, while it's open. Docker adds up every volume to answer. */
 const ASK_EVERY_MS = 5 * 60_000;
@@ -37,7 +39,7 @@ interface Part {
  * images, volumes, containers, logs and everything else, as its agent adds it up
  * when this opens (ADR 0040); and any other disk by what's used and free.
  */
-export function DiskUsePanel({ server }: { server: Server }) {
+export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Server; dockerWorkspace?: boolean }) {
   const { t } = useLingui();
   const connected = server.connection === Connection.CONNECTED;
   // An agent that can't read Docker can't ask it either.
@@ -56,18 +58,32 @@ export function DiskUsePanel({ server }: { server: Server }) {
   // While Docker adds it up, each disk shows what's used and free, as when it can't say.
   const busy = asking && use.isPending;
   const others = disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
-  if (!allowed || (!busy && !dockerDisk && disks.length === 0)) return null;
+  const breakdown = docker?.dockerBreakdown.length ? docker : undefined;
+  if (!allowed || (!busy && !dockerDisk && !breakdown && disks.length === 0)) return null;
   return (
     <Panel
       title={t`Disk usage`}
       actions={
-        dockerDisk && !overCounted(dockerDisk) ? <code className="panel-meta">{dockerDisk.mountPoint}</code> : null
+        breakdown ? (
+          <RouterButtonLink
+            to="/servers/$serverId/docker/cleanup"
+            params={{ serverId: server.id }}
+            icon="trash"
+            size="sm"
+            variant="secondary"
+          >
+            <Trans>Review cleanup</Trans>
+          </RouterButtonLink>
+        ) : dockerDisk && !overCounted(dockerDisk) ? (
+          <code className="panel-meta">{dockerDisk.mountPoint}</code>
+        ) : null
       }
       className="disk-use"
     >
       <div className="disk-use-body" aria-busy={busy}>
         {busy && disks.length === 0 ? <DiskSkeleton /> : null}
-        {dockerDisk ? <DockerDisk use={dockerDisk} server={server} /> : null}
+        {breakdown ? <DockerDiskTable used={breakdown} serverId={server.id} /> : null}
+        {dockerDisk && (!breakdown || !dockerWorkspace) ? <DockerDisk use={dockerDisk} server={server} /> : null}
         {others.map((disk) => (
           <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
         ))}

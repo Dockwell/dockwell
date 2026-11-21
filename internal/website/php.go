@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -48,10 +49,10 @@ var PHPExtensions = []string{"opcache", "mysqli", "gd", "intl", "imagick", "zip"
 // so it never copies WordPress into a site's folder. Pin a new set to a release at
 // least 14 days old.
 var phpRuntimes = []Runtime{
-	{"8.5", "8.5.12", "wordpress:7.1.3-php8.5-fpm-alpine@sha256:8697f1b7fbedab67817bfe66f1cc8da15fc8f0e556c516ffab151fe3d0b2116d"},
-	{"8.4", "8.4.27", "wordpress:7.1.3-php8.4-fpm-alpine@sha256:c6c6f760a4aec3d16c192c45d52d1942646d41a985f49433757d595305018bfd"},
-	{"8.3", "8.3.36", "wordpress:7.1.3-php8.3-fpm-alpine@sha256:82d93a279778e5307902813c402b9118521e8104459a0e350ed719f6d6c4d1ab"},
-	{"8.2", "8.2.35", "wordpress:7.1.3-php8.2-fpm-alpine@sha256:8f223dd023f58fcab49a909899ec07ea058cf731fc0947fdee881285da74b9dc"},
+	{"8.5", "8.5.12", docker.WebsitePHP85Image},
+	{"8.4", "8.4.27", docker.WebsitePHP84Image},
+	{"8.3", "8.3.36", docker.WebsitePHP83Image},
+	{"8.2", "8.2.35", docker.WebsitePHP82Image},
 }
 
 // PHPRuntimes are the versions of PHP a website can run, newest first.

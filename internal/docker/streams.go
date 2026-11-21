@@ -339,6 +339,14 @@ func (c *Client) RemoveImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// RemoveReviewedImage removes a full image ID without force or parent pruning.
+func (c *Client) RemoveReviewedImage(ctx context.Context, id string) error {
+	if !IsImageID(id) {
+		return errors.New("cleanup requires a full Docker image ID")
+	}
+	return c.do(ctx, http.MethodDelete, "/images/"+escRef(id), url.Values{"force": {"false"}, "noprune": {"true"}}, nil, nil)
+}
+
 // UntagImage takes a tag away, and with it the image where it was its last name
 // and nothing uses it. An image a container uses keeps it, and says so.
 func (c *Client) UntagImage(ctx context.Context, ref string) error {

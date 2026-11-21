@@ -4,6 +4,7 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"net/http"
 )
 
@@ -11,6 +12,7 @@ import (
 type Network struct {
 	ID       string `json:"Id"`
 	Name     string `json:"Name"`
+	Scope    string
 	Driver   string `json:"Driver"`
 	Internal bool   `json:"Internal"`
 	// EnableIPv6 is true for a network that gives its containers IPv6, so
@@ -81,6 +83,18 @@ func (c *Client) ListNetworks(ctx context.Context) ([]Network, error) {
 	var out []Network
 	if err := c.do(ctx, http.MethodGet, "/networks", nil, nil, &out); err != nil {
 		return nil, err
+	}
+	return out, nil
+}
+
+// ListCleanupNetworks reads a byte-bounded network inventory for cleanup.
+func (c *Client) ListCleanupNetworks(ctx context.Context, maxRows int) ([]Network, error) {
+	var out []Network
+	if err := c.boundedJSON(ctx, http.MethodGet, "/networks", nil, &out); err != nil {
+		return nil, err
+	}
+	if len(out) > maxRows {
+		return nil, errors.New("there are too many Docker networks to review")
 	}
 	return out, nil
 }

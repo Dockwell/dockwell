@@ -3049,6 +3049,74 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/docker/cleanup:
+        get:
+            tags:
+                - DockerService
+            description: PreviewDockerCleanup lists the artifacts each selected Engine can account for.
+            operationId: DockerService_PreviewDockerCleanup
+            parameters:
+                - name: serverIds
+                  in: query
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: filters.taggedImages
+                  in: query
+                  schema:
+                    type: boolean
+                - name: filters.networks
+                  in: query
+                  schema:
+                    type: boolean
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PreviewDockerCleanupResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/maintenance:
+        post:
+            tags:
+                - DockerService
+            description: PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+            operationId: DockerService_PlanDockerMaintenance
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanDockerMaintenanceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanDockerMaintenanceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/docker/object:
         get:
             tags:
@@ -3066,6 +3134,7 @@ paths:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
                 - name: key.engineId
@@ -3110,6 +3179,7 @@ paths:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
                 - name: filter.search
@@ -15267,6 +15337,96 @@ components:
                     type: string
                     description: 'The account that holds it: one token can reach zones in several.'
             description: DnsZoneCheck is what writing a record in one zone came to.
+        DockerCleanupFilters:
+            type: object
+            properties:
+                taggedImages:
+                    type: boolean
+                networks:
+                    type: boolean
+            description: DockerCleanupFilters opts in to artifacts beyond the default review.
+        DockerCleanupPause:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                token:
+                    type: string
+                reason:
+                    enum:
+                        - DOCKER_RECEIPT_REASON_UNSPECIFIED
+                        - DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED
+                        - DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED
+                        - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
+                    type: string
+                    format: enum
+            description: DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
+        DockerCleanupSelection:
+            type: object
+            properties:
+                filters:
+                    $ref: '#/components/schemas/DockerCleanupFilters'
+                targets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupTarget'
+            description: DockerCleanupSelection is the user's selection from a cleanup preview.
+        DockerCleanupTarget:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                kind:
+                    enum:
+                        - DOCKER_CLEANUP_KIND_UNSPECIFIED
+                        - DOCKER_CLEANUP_KIND_IMAGE
+                        - DOCKER_CLEANUP_KIND_BUILD_CACHE
+                        - DOCKER_CLEANUP_KIND_NETWORK
+                        - DOCKER_CLEANUP_KIND_CONTAINER
+                        - DOCKER_CLEANUP_KIND_VOLUME
+                        - DOCKER_CLEANUP_KIND_LOG
+                    type: string
+                    format: enum
+                engineId:
+                    type: string
+                name:
+                    type: string
+                reason:
+                    enum:
+                        - DOCKER_CLEANUP_REASON_UNSPECIFIED
+                        - DOCKER_CLEANUP_REASON_DANGLING
+                        - DOCKER_CLEANUP_REASON_UNUSED
+                        - DOCKER_CLEANUP_REASON_IDLE
+                        - DOCKER_CLEANUP_REASON_IN_USE
+                        - DOCKER_CLEANUP_REASON_ROLLBACK
+                        - DOCKER_CLEANUP_REASON_DESIRED
+                        - DOCKER_CLEANUP_REASON_TAKE_ON
+                        - DOCKER_CLEANUP_REASON_RETAINED
+                        - DOCKER_CLEANUP_REASON_EXACT_REMOVAL_UNAVAILABLE
+                        - DOCKER_CLEANUP_REASON_SHARED
+                        - DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
+                        - DOCKER_CLEANUP_REASON_DISABLED
+                        - DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
+                    type: string
+                    format: enum
+                lastUsedAt:
+                    type: string
+                    format: date-time
+                estimatedBytes:
+                    type: string
+                evidence:
+                    type: string
+                imageTags:
+                    type: array
+                    items:
+                        type: string
+                    description: Every reviewed tag of the image, in order. Empty for a dangling image.
+                imageDigests:
+                    type: array
+                    items:
+                        type: string
+                    description: Every reviewed repository digest of the image, in order.
+            description: DockerCleanupTarget records the reviewed identity and its eligibility evidence.
         DockerContainer:
             type: object
             properties:
@@ -15342,6 +15502,53 @@ components:
             description: |-
                 DockerContainer is a projection of Engine facts. It omits environment,
                  commands, raw labels, health check output and arbitrary driver options.
+        DockerDiskCategory:
+            type: object
+            properties:
+                kind:
+                    enum:
+                        - DOCKER_CLEANUP_KIND_UNSPECIFIED
+                        - DOCKER_CLEANUP_KIND_IMAGE
+                        - DOCKER_CLEANUP_KIND_BUILD_CACHE
+                        - DOCKER_CLEANUP_KIND_NETWORK
+                        - DOCKER_CLEANUP_KIND_CONTAINER
+                        - DOCKER_CLEANUP_KIND_VOLUME
+                        - DOCKER_CLEANUP_KIND_LOG
+                    type: string
+                    format: enum
+                usedBytes:
+                    type: string
+                reclaimableBytes:
+                    type: string
+                observedAt:
+                    type: string
+                    format: date-time
+                blockers:
+                    type: array
+                    items:
+                        enum:
+                            - DOCKER_CLEANUP_REASON_UNSPECIFIED
+                            - DOCKER_CLEANUP_REASON_DANGLING
+                            - DOCKER_CLEANUP_REASON_UNUSED
+                            - DOCKER_CLEANUP_REASON_IDLE
+                            - DOCKER_CLEANUP_REASON_IN_USE
+                            - DOCKER_CLEANUP_REASON_ROLLBACK
+                            - DOCKER_CLEANUP_REASON_DESIRED
+                            - DOCKER_CLEANUP_REASON_TAKE_ON
+                            - DOCKER_CLEANUP_REASON_RETAINED
+                            - DOCKER_CLEANUP_REASON_EXACT_REMOVAL_UNAVAILABLE
+                            - DOCKER_CLEANUP_REASON_SHARED
+                            - DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
+                            - DOCKER_CLEANUP_REASON_DISABLED
+                            - DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
+                        type: string
+                        format: enum
+                partial:
+                    type: boolean
+                otherMountsBytes:
+                    type: string
+                    description: Local volumes can be accounted for outside the Engine's own disk.
+            description: DockerDiskCategory measures one Docker category as of the server's observation.
         DockerEndpoint:
             type: object
             properties:
@@ -15352,6 +15559,105 @@ components:
                 ipv6:
                     type: string
             description: DockerEndpoint is a container’s current address on one Docker network.
+        DockerImage:
+            type: object
+            properties:
+                tags:
+                    type: array
+                    items:
+                        type: string
+                digests:
+                    type: array
+                    items:
+                        type: string
+                platform:
+                    type: string
+                totalBytes:
+                    type: string
+                uniqueBytes:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+                state:
+                    enum:
+                        - DOCKER_IMAGE_STATE_UNSPECIFIED
+                        - DOCKER_IMAGE_STATE_USED
+                        - DOCKER_IMAGE_STATE_UNUSED
+                        - DOCKER_IMAGE_STATE_DANGLING
+                    type: string
+                    format: enum
+                containers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageContainer'
+                deployments:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageDeployment'
+                layers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageLayer'
+                history:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageHistory'
+                detailsTruncated:
+                    type: boolean
+                historyUnavailable:
+                    type: boolean
+            description: |-
+                DockerImage is the safe local projection of an image. History omits instructions,
+                 comments, tags and arbitrary metadata from the Engine's history endpoint.
+        DockerImageContainer:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/DockerObjectKey'
+                name:
+                    type: string
+            description: DockerImageContainer names a container instance holding the image.
+        DockerImageDeployment:
+            type: object
+            properties:
+                serviceId:
+                    type: string
+                serviceName:
+                    type: string
+                revision:
+                    type: string
+            description: DockerImageDeployment names a revision that holds the image.
+        DockerImageHistory:
+            type: object
+            properties:
+                createdAt:
+                    type: string
+                    format: date-time
+                sizeBytes:
+                    type: string
+            description: DockerImageHistory contains only the safe fields of an image history entry.
+        DockerImageLayer:
+            type: object
+            properties:
+                diffId:
+                    type: string
+                sizeBytes:
+                    type: string
+            description: DockerImageLayer names a root filesystem layer in base-to-top order.
+        DockerMaintenance:
+            type: object
+            properties:
+                targets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupTarget'
+                changeId:
+                    type: string
+                resumeCleanupToken:
+                    type: string
+                    description: The reviewed pause to clear. Empty when this plan removes artifacts.
+            description: DockerMaintenance is the exact scope of an irreversible local cleanup.
         DockerObject:
             type: object
             properties:
@@ -15391,6 +15697,8 @@ components:
                     description: The managed revision used when planning a run-state change.
                 container:
                     $ref: '#/components/schemas/DockerContainer'
+                image:
+                    $ref: '#/components/schemas/DockerImage'
             description: DockerObject combines observed facts with ownership resolved by the control plane.
         DockerObjectKey:
             type: object
@@ -15401,12 +15709,43 @@ components:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
                 engineId:
                     type: string
                     description: Full Engine ID. A container name or ID prefix cannot stand in for it.
             description: DockerObjectKey identifies an Engine object on one server.
+        DockerReceipt:
+            type: object
+            properties:
+                target:
+                    $ref: '#/components/schemas/DockerCleanupTarget'
+                state:
+                    enum:
+                        - DOCKER_RECEIPT_STATE_UNSPECIFIED
+                        - DOCKER_RECEIPT_STATE_REMOVED
+                        - DOCKER_RECEIPT_STATE_CHANGED
+                        - DOCKER_RECEIPT_STATE_FAILED
+                        - DOCKER_RECEIPT_STATE_UNKNOWN
+                    type: string
+                    format: enum
+                beforeBytes:
+                    type: string
+                afterBytes:
+                    type: string
+                recheckedEngineId:
+                    type: string
+                    description: The identity observed immediately before the attempted removal.
+                reason:
+                    enum:
+                        - DOCKER_RECEIPT_REASON_UNSPECIFIED
+                        - DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED
+                        - DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED
+                        - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
+                    type: string
+                    format: enum
+            description: DockerReceipt reports one approved target's outcome.
         DockerServerSummary:
             type: object
             properties:
@@ -23271,6 +23610,28 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanAgentUpgradeResponse carries the planned upgrade.
+        PlanDockerMaintenanceRequest:
+            type: object
+            properties:
+                summary:
+                    type: string
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+                expectedSnapshot:
+                    type: string
+                cleanup:
+                    $ref: '#/components/schemas/DockerCleanupSelection'
+                resumeCleanupToken:
+                    type: string
+            description: PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.
+        PlanDockerMaintenanceResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: PlanDockerMaintenanceResponse carries a standard reviewable change.
         PlanInstallUpdatesRequest:
             type: object
             properties:
@@ -23644,6 +24005,8 @@ components:
         PlanStep:
             type: object
             properties:
+                dockerMaintenance:
+                    $ref: '#/components/schemas/DockerMaintenance'
                 resourceId:
                     type: string
                     description: The resource's ID.
@@ -24079,6 +24442,8 @@ components:
         PlannedResource:
             type: object
             properties:
+                dockerMaintenance:
+                    $ref: '#/components/schemas/DockerMaintenance'
                 id:
                     type: string
                     description: The resource's ID. A new resource has its ID from when it is planned.
@@ -24284,6 +24649,30 @@ components:
                         How much of that a backup leaves alone, in bytes: one that would go below this is
                          refused, or stops, so a backup never fills the disk.
             description: PreviewBackupResponse says what backing up a volume would do.
+        PreviewDockerCleanupResponse:
+            type: object
+            properties:
+                candidates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupTarget'
+                exclusions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupTarget'
+                snapshot:
+                    type: string
+                unavailable:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerUnavailable'
+                nextPageToken:
+                    type: string
+                pauses:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupPause'
+            description: PreviewDockerCleanupResponse reports eligible and protected artifacts on one page.
         PreviewWebsiteRequest:
             type: object
             properties:
@@ -26513,6 +26902,10 @@ components:
         ServerDiskUse:
             type: object
             properties:
+                dockerBreakdown:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerDiskCategory'
                 time:
                     type: string
                     description: When the agent added it up, on the server's clock.
@@ -28906,6 +29299,10 @@ components:
         StepProgress:
             type: object
             properties:
+                dockerReceipts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerReceipt'
                 serverId:
                     type: string
                     description: The server it runs on.

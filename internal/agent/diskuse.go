@@ -40,50 +40,58 @@ var infoWait = 5 * time.Second
 type diskUse struct {
 	docker    *docker.Client
 	collector *collect.Collector
+	cleanupMu sync.Mutex
 	// logs reads Docker's data directory, for its containers' logs. Nil reads the
 	// real one.
 	logs func(root string) fs.FS
 	now  func() time.Time
 
-	mu      sync.Mutex
-	last    *dockwellv1.ServerDiskUse
-	at      time.Time
-	running chan struct{} // closed when the count under way ends
-	err     error         // what the last count failed with
-	errAt   time.Time     // when it did, so a count that failed isn't tried again for diskUseFor
+	mu                         sync.Mutex
+	last                       *dockwellv1.ServerDiskUse
+	lastDF                     *docker.DiskUsage
+	at                         time.Time
+	running                    chan struct{} // closed when the count under way ends
+	err                        error         // what the last count failed with
+	previewCount, previewError bool
+	errAt                      time.Time // when it did, so a count that failed isn't tried again for diskUseFor
 }
 
 // read answers a disk use call.
 func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
+	use, _, err := d.snapshot(ctx, false)
+	return use, err
+}
+
+// snapshot returns the measurement and its immutable Engine rows from the same
+// count. A fresh read waits for a count already in flight before starting its own.
+func (d *diskUse) snapshot(ctx context.Context, fresh bool) (*dockwellv1.ServerDiskUse, *docker.DiskUsage, error) {
+	return d.snapshotMode(ctx, fresh, false)
+}
+
+func (d *diskUse) snapshotMode(ctx context.Context, fresh, preview bool) (*dockwellv1.ServerDiskUse, *docker.DiskUsage, error) {
 	if d == nil || d.docker == nil {
-		return nil, errors.New("this agent can't read Docker's disk use, as it has no Docker driver")
+		return nil, nil, errors.New("this agent can't read Docker's disk use, as it has no Docker driver")
 	}
 	for {
 		d.mu.Lock()
-		if d.last != nil && d.now().Sub(d.at) < diskUseFor {
-			out := proto.CloneOf(d.last)
+		if !fresh && (!preview || d.previewCount) && d.last != nil && d.lastDF != nil && d.now().Sub(d.at) < diskUseFor {
+			out, df := proto.CloneOf(d.last), d.lastDF
 			d.mu.Unlock()
-			return out, nil
+			return out, df, nil
 		}
 		// A Docker that failed to answer, or took too long, isn't asked again
 		// at once by each page that opens.
-		if d.err != nil && d.now().Sub(d.errAt) < diskUseFor {
+		if !fresh && preview == d.previewError && d.err != nil && d.now().Sub(d.errAt) < diskUseFor {
 			err := d.err
 			d.mu.Unlock()
-			return nil, err
+			return nil, nil, err
 		}
 		if running := d.running; running != nil {
 			d.mu.Unlock()
 			select {
 			case <-running:
 			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-			d.mu.Lock()
-			err := d.err
-			d.mu.Unlock()
-			if err != nil {
-				return nil, err
+				return nil, nil, ctx.Err()
 			}
 			continue
 		}
@@ -93,39 +101,51 @@ func (d *diskUse) read(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
 
 		// The count goes on for whoever else waits, even if this caller leaves.
 		count, cancel := context.WithTimeout(context.WithoutCancel(ctx), diskUseWait)
-		out, err := d.count(count)
+		out, df, err := d.count(count, preview)
 		cancel()
 		d.mu.Lock()
-		d.running, d.err, d.errAt = nil, err, d.now()
+		d.running, d.err, d.errAt, d.previewError = nil, err, d.now(), preview
 		if err == nil {
-			d.last, d.at = out, d.now()
+			d.last, d.lastDF, d.at, d.previewCount = out, df, d.now(), preview
+			at := d.at
+			time.AfterFunc(diskUseFor, func() {
+				d.mu.Lock()
+				defer d.mu.Unlock()
+				if d.at.Equal(at) {
+					d.lastDF = nil
+				}
+			})
 		}
 		close(running)
 		d.mu.Unlock()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return proto.CloneOf(out), nil
+		return proto.CloneOf(out), df, nil
 	}
 }
 
 // count asks Docker, and adds up what its data takes on its disk.
-func (d *diskUse) count(ctx context.Context) (*dockwellv1.ServerDiskUse, error) {
+func (d *diskUse) count(ctx context.Context, preview bool) (*dockwellv1.ServerDiskUse, *docker.DiskUsage, error) {
 	asked, cancel := context.WithTimeout(ctx, infoWait)
 	info, err := d.docker.Info(asked)
 	cancel()
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("its Docker didn't say where it keeps its data within %s. Check that Docker is running with systemctl status docker", human.Duration(infoWait))
+			return nil, nil, fmt.Errorf("its Docker didn't say where it keeps its data within %s. Check that Docker is running with systemctl status docker", human.Duration(infoWait))
 		}
-		return nil, err
+		return nil, nil, err
 	}
-	df, err := d.docker.DiskUsage(ctx)
+	read := d.docker.DiskUsage
+	if preview {
+		read = d.docker.CleanupDiskUsage
+	}
+	df, err := read(ctx)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("its Docker took more than %s to add up its images and volumes, as it reads every volume to do that, which is slow on a big disk. Try again in a few minutes", human.Duration(diskUseWait))
+			return nil, nil, fmt.Errorf("its Docker took more than %s to add up its images and volumes, as it reads every volume to do that, which is slow on a big disk. Try again in a few minutes", human.Duration(diskUseWait))
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	root := info.DockerRootDir
 	if root == "" {
@@ -172,7 +192,8 @@ func (d *diskUse) count(ctx context.Context) (*dockwellv1.ServerDiskUse, error) 
 		logs = os.DirFS
 	}
 	out.LogsBytes = logsSize(logs(root))
-	return out, nil
+	d.dockerBreakdown(out, df)
+	return out, df, nil
 }
 
 // logsSize adds up the logs Docker keeps for its containers, in its data

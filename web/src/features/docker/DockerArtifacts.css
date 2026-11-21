@@ -1,0 +1,225 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.docker-artifact-heading {
+  flex-wrap: wrap;
+}
+
+.docker-artifact-heading h2,
+.docker-artifact-name,
+.docker-artifact-name > div,
+.docker-artifact-list,
+.docker-cleanup-item,
+.docker-layer-list {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docker-artifact-list,
+.docker-cleanup-list,
+.docker-history-list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.docker-artifact-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.docker-image-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) max-content minmax(0, 3fr);
+  align-items: start;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+
+.docker-artifact-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.docker-artifact-name > svg {
+  flex: none;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.docker-image-data {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.docker-image-data .docker-fact,
+.docker-image-data .docker-fact + .docker-fact {
+  display: block;
+  border: 0;
+  padding: 0;
+}
+
+.docker-image-data dt,
+.docker-cleanup-meta,
+.docker-disk-measured {
+  color: var(--ink-muted);
+  font-size: var(--type-caption-size);
+}
+
+.docker-aliases,
+.docker-cleanup-disclosure {
+  margin-top: var(--space-2);
+}
+
+.docker-aliases summary,
+.docker-cleanup-disclosure summary {
+  width: fit-content;
+  color: var(--ink-muted);
+  cursor: pointer;
+  min-height: 32px;
+  align-content: center;
+}
+
+.docker-layer-list {
+  margin: 0;
+  padding-inline-start: var(--space-6);
+}
+
+.docker-layer-list li,
+.docker-history-list li {
+  padding-block: var(--space-2);
+}
+
+.docker-history-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.docker-image-row + .docker-image-row,
+.docker-cleanup-list > li + li,
+.docker-history-list > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.docker-cleanup-item {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.docker-cleanup-choice {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 44px;
+  align-content: center;
+}
+
+.docker-cleanup-choice input {
+  flex: none;
+  margin: 3px 0 0;
+  accent-color: var(--cobalt);
+}
+
+.docker-cleanup-choice code,
+.docker-cleanup-meta {
+  display: block;
+}
+
+.docker-cleanup-filters,
+.docker-cleanup-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.docker-cleanup-footer {
+  justify-content: space-between;
+}
+
+.docker-disclosure-label,
+.docker-disk-category {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.docker-disk-category svg {
+  flex: none;
+}
+
+.docker-disk-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.docker-disk-table th,
+.docker-disk-table td {
+  padding: var(--space-2) var(--space-1);
+  text-align: start;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.docker-disk-table thead th,
+.docker-disk-quantity {
+  white-space: nowrap;
+}
+
+.docker-disk-table tbody th {
+  font-weight: 500;
+}
+
+.docker-disk-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.docker-disk-table td:last-child,
+.docker-disk-table th:last-child {
+  text-align: end;
+}
+
+.docker-disk-measured {
+  margin: var(--space-2) 0 0;
+}
+
+@media (max-width: 1024px) {
+  .docker-image-row {
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .docker-image-data {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 430px) {
+  .docker-image-data {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .docker-cleanup-item {
+    flex-wrap: wrap;
+  }
+
+  .docker-cleanup-disclosure summary,
+  .docker-aliases summary {
+    min-height: 44px;
+  }
+}
+
+.docker-image-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

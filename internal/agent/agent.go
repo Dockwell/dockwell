@@ -123,6 +123,8 @@ type Config struct {
 	Docker *docker.Client
 	// PruneRunState forgets saved intent for containers Docker has removed.
 	PruneRunState func(context.Context) error
+	// DockerIngressImage is the configured ingress image, including local overrides.
+	DockerIngressImage string
 	// Probes checks a connection from where an app is (ADR 0099). Nil checks none.
 	Probes *probe.Runner
 	// Tunnels finds the Cloudflare tunnels cloudflared runs here (ADR 0104). Nil
@@ -521,6 +523,18 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.Files != nil {
 		wg.Go(func() { cfg.Files.KeepDeleted(ctx) })
 	}
+	if cfg.Dir != "" && cfg.Docker != nil {
+		wg.Go(func() {
+			for {
+				cfg.disks.cleanupMu.Lock()
+				pruneDockerReceipts(cfg.Dir, time.Now())
+				cfg.disks.cleanupMu.Unlock()
+				if !sleep(ctx, 24*time.Hour) {
+					return
+				}
+			}
+		})
+	}
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
 	if cfg.Terminals != nil {
@@ -693,7 +707,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, WorkloadControls: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

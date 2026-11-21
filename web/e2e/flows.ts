@@ -53,16 +53,18 @@ export interface Flow {
 }
 
 /** Runs every flow in this folder, in order. */
-export async function runFlows(page: Page, run: FlowRun): Promise<void> {
+export async function runFlows(page: Page, run: FlowRun, only?: string): Promise<void> {
   const dir = dirname(fileURLToPath(import.meta.url));
   const flows: { file: string; flow: Flow }[] = [];
   for (const file of readdirSync(dir).filter((name) => name.endsWith("-flow.ts"))) {
+    if (only && file !== `${only}-flow.ts`) continue;
     const module = (await import(pathToFileURL(join(dir, file)).href)) as { flow?: Flow };
     if (!module.flow) {
       throw new Error(`${file} exports no flow, so sign-in.ts can't run it. Export one, as settings-flow.ts does.`);
     }
     flows.push({ file, flow: module.flow });
   }
+  if (only && flows.length === 0) throw new Error(`Unknown e2e flow ${only}`);
   flows.sort((a, b) => a.flow.order - b.flow.order || a.file.localeCompare(b.file));
   run.step(`flows: ${flows.map(({ file }) => file.replace(/-flow\.ts$/, "")).join(", ")}`);
   for (const { flow } of flows) await flow.run(page, run);

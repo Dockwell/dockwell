@@ -27,6 +27,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/identity"
 	"github.com/dockwell/dockwell/internal/labels"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -44,8 +45,10 @@ type Service struct {
 	systemEvery time.Duration
 	// audited is when each reader's reading of each server's system log last went
 	// on record.
-	auditMu sync.Mutex
-	audited map[string]time.Time
+	auditMu          sync.Mutex
+	audited          map[string]time.Time
+	diskProtectionMu sync.Mutex
+	diskProtection   map[string]diskProtection
 }
 
 var _ dockwellv1connect.ServerServiceHandler = (*Service)(nil)
@@ -106,6 +109,12 @@ func (s *Service) GetServerDiskUse(ctx context.Context, req *connect.Request[doc
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf(
 			"the agent on %s isn't connected, so nothing can say what takes its disk now. Check the server; this works again when its agent reconnects", srv.GetName()), authapi.ReasonUnavailable)
 	}
+	if session.DockerArtifactCleanup() {
+		held, err := s.cachedDiskProtection(ctx, srv.GetId())
+		if err == nil {
+			ctx = resource.WithDockerProtection(ctx, held)
+		}
+	}
 	use, err := session.DiskUse(ctx)
 	if err != nil {
 		var se *resource.ServerError
@@ -115,6 +124,30 @@ func (s *Service) GetServerDiskUse(ctx context.Context, req *connect.Request[doc
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what takes its disk now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
 	}
 	return connect.NewResponse(&dockwellv1.GetServerDiskUseResponse{DiskUse: use}), nil
+}
+
+type diskProtection struct {
+	held resource.DockerProtection
+	at   time.Time
+}
+
+// Cache only image references for this estimate. Preview and apply read fresh state.
+func (s *Service) cachedDiskProtection(ctx context.Context, server string) (resource.DockerProtection, error) {
+	s.diskProtectionMu.Lock()
+	defer s.diskProtectionMu.Unlock()
+	now := time.Now()
+	if previous, ok := s.diskProtection[server]; ok && now.Sub(previous.at) < 30*time.Second {
+		return previous.held, nil
+	}
+	held, err := revision.DockerCleanupProtection(ctx, s.db, server, now, false)
+	if err != nil {
+		return resource.DockerProtection{}, err
+	}
+	if s.diskProtection == nil || len(s.diskProtection) >= 64 {
+		s.diskProtection = make(map[string]diskProtection)
+	}
+	s.diskProtection[server] = diskProtection{held: held, at: now}
+	return held, nil
 }
 
 // CheckServerPorts asks a server's agent what holds some of its ports, for a form

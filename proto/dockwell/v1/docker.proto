@@ -59,6 +59,36 @@ service DockerService {
     option (google.api.http) = {get: "/v1/docker/object"};
   }
 
+  // PreviewDockerCleanup lists the artifacts each selected Engine can account for.
+  rpc PreviewDockerCleanup(PreviewDockerCleanupRequest) returns (PreviewDockerCleanupResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "preview-cleanup"
+    };
+    option (google.api.http) = {get: "/v1/docker/cleanup"};
+  }
+
+  // PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+  rpc PlanDockerMaintenance(PlanDockerMaintenanceRequest) returns (PlanDockerMaintenanceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "plan-maintenance"
+    };
+    option (google.api.http) = {
+      post: "/v1/docker/maintenance"
+      body: "*"
+    };
+  }
+
   // WatchDockerObjects streams invalidations and samples while a view is open.
   rpc WatchDockerObjects(WatchDockerObjectsRequest) returns (stream WatchDockerObjectsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -77,6 +107,7 @@ service DockerService {
 enum DockerObjectKind {
   DOCKER_OBJECT_KIND_UNSPECIFIED = 0;
   DOCKER_OBJECT_KIND_CONTAINER = 1;
+  DOCKER_OBJECT_KIND_IMAGE = 3;
 }
 
 // DockerOwnership says who is responsible for a container.
@@ -124,6 +155,7 @@ message DockerObject {
   int64 managed_revision = 8;
   oneof detail {
     DockerContainer container = 10;
+    DockerImage image = 12;
   }
 }
 
@@ -286,4 +318,108 @@ message WatchDockerObjectsResponse {
   bool resync = 5;
   repeated DockerHealthUpdate health_updates = 6;
   DockerWatchStatus watch_status = 7;
+}
+
+// DockerImageState distinguishes a live dependency from a tagged or dangling image.
+enum DockerImageState {
+  DOCKER_IMAGE_STATE_UNSPECIFIED = 0;
+  DOCKER_IMAGE_STATE_USED = 1;
+  DOCKER_IMAGE_STATE_UNUSED = 2;
+  DOCKER_IMAGE_STATE_DANGLING = 3;
+}
+
+// DockerImage is the safe local projection of an image. History omits instructions,
+// comments, tags and arbitrary metadata from the Engine's history endpoint.
+message DockerImage {
+  repeated string tags = 1;
+  repeated string digests = 2;
+  string platform = 3;
+  optional uint64 total_bytes = 4;
+  optional uint64 unique_bytes = 5;
+  google.protobuf.Timestamp created_at = 6;
+  DockerImageState state = 7;
+  repeated DockerImageContainer containers = 8;
+  repeated DockerImageDeployment deployments = 9;
+  repeated DockerImageLayer layers = 10;
+  repeated DockerImageHistory history = 11;
+  bool details_truncated = 12;
+  bool history_unavailable = 13;
+}
+
+// DockerImageContainer names a container instance holding the image.
+message DockerImageContainer {
+  DockerObjectKey key = 1;
+  string name = 2;
+}
+
+// DockerImageLayer names a root filesystem layer in base-to-top order.
+message DockerImageLayer {
+  string diff_id = 1;
+  optional uint64 size_bytes = 2;
+}
+
+// DockerImageDeployment names a revision that holds the image.
+message DockerImageDeployment {
+  string service_id = 1;
+  string service_name = 2;
+  int64 revision = 3;
+}
+
+// DockerImageHistory contains only the safe fields of an image history entry.
+message DockerImageHistory {
+  google.protobuf.Timestamp created_at = 1;
+  optional uint64 size_bytes = 2;
+}
+
+// DockerCleanupFilters opts in to artifacts beyond the default review.
+message DockerCleanupFilters {
+  bool tagged_images = 1;
+  bool networks = 2;
+}
+
+// PreviewDockerCleanupRequest selects the servers and artifact filters to read.
+message PreviewDockerCleanupRequest {
+  repeated string server_ids = 1;
+  DockerCleanupFilters filters = 2;
+  uint32 page_size = 3;
+  string page_token = 4;
+}
+
+// PreviewDockerCleanupResponse reports eligible and protected artifacts on one page.
+message PreviewDockerCleanupResponse {
+  repeated DockerCleanupTarget candidates = 1;
+  repeated DockerCleanupTarget exclusions = 2;
+  string snapshot = 3;
+  repeated DockerUnavailable unavailable = 4;
+  string next_page_token = 5;
+  repeated DockerCleanupPause pauses = 6;
+}
+
+// DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
+message DockerCleanupPause {
+  string server_id = 1;
+  string token = 2;
+  DockerReceiptReason reason = 3;
+}
+
+// PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.
+message PlanDockerMaintenanceRequest {
+  string summary = 1;
+  repeated string server_ids = 2;
+  string expected_snapshot = 3;
+  oneof operation {
+    DockerCleanupSelection cleanup = 10;
+    string resume_cleanup_token = 11;
+  }
+}
+
+// DockerCleanupSelection is the user's selection from a cleanup preview.
+message DockerCleanupSelection {
+  DockerCleanupFilters filters = 1;
+  repeated DockerCleanupTarget targets = 2;
+}
+
+// PlanDockerMaintenanceResponse carries a standard reviewable change.
+message PlanDockerMaintenanceResponse {
+  Change change = 1;
 }

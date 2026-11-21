@@ -440,7 +440,7 @@ func (e *Engine) listImages(w http.ResponseWriter, r *http.Request) {
 }
 
 // removeImage removes an image by reference.
-func (e *Engine) removeImage(w http.ResponseWriter, ref string, force bool) {
+func (e *Engine) removeImage(w http.ResponseWriter, ref string, force, noPrune bool) {
 	img := e.images[ref]
 	if img == nil {
 		fail(w, http.StatusNotFound, "No such image: %s", ref)
@@ -452,6 +452,13 @@ func (e *Engine) removeImage(w http.ResponseWriter, ref string, force bool) {
 				fail(w, http.StatusConflict, "conflict: unable to remove repository reference %q (must force) - container %s is using its referenced image %s", ref, c.ID[:12], img.id)
 				return
 			}
+		}
+	}
+	if !force && noPrune && ref == img.id {
+		tags, _ := e.imageRefs(img)
+		if len(tags) > 1 {
+			fail(w, http.StatusConflict, "image is referenced in multiple repositories")
+			return
 		}
 	}
 	for k, v := range e.images {

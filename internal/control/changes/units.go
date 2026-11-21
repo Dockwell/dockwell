@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -145,4 +147,18 @@ func standsAsAsked(action resource.UnitAction, name string, servers []string) st
 	case resource.UnitRestart, resource.UnitReload:
 	}
 	return fmt.Sprintf("there's nothing to %s for %s on %s", action, name, where)
+}
+
+// PlanDockerMaintenance starts a revisionless host plan for reviewed cleanup or recovery.
+func (h *Handler) PlanDockerMaintenance(ctx context.Context, summary string, plans map[string]*dockwellv1.DockerMaintenance) (*dockwellv1.Change, error) {
+	var edits []revision.Edit
+	for _, server := range slices.Sorted(maps.Keys(plans)) {
+		edits = append(edits, revision.Edit{
+			Ref:               resource.Ref{Kind: host.Kind, Scope: server, Name: host.Name},
+			DockerMaintenance: plans[server],
+		})
+	}
+	return h.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
+		return h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+	})
 }

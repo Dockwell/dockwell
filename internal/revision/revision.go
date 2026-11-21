@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -201,8 +202,9 @@ type Engine struct {
 	// on names the servers each owned change runs steps on, and dockerFor the
 	// change whose install restarts Docker on a server, so neither runs beside
 	// the other there (ADR 0064, Holds).
-	on        map[string][]string
-	dockerFor map[string]string
+	on         map[string][]string
+	dockerFor  map[string]string
+	cleanupFor map[string]string
 	// waiters are the owned changes Resume waits on: it skipped a change
 	// because one of these held it or one of its resources, or a rollback
 	// ended its first run waiting for a server that is back. Once one lets
@@ -287,8 +289,9 @@ type RestartTarget struct {
 
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
-	Ref  resource.Ref
-	Spec proto.Message
+	DockerMaintenance *dockwellv1.DockerMaintenance
+	Ref               resource.Ref
+	Spec              proto.Message
 	// Unholds says the edit may lift a catalog install's hold, as an applied
 	// OpenCatalogInstall does, which no other write of its pin may (ADR 0105).
 	Unholds bool
@@ -614,8 +617,9 @@ const (
 
 // ResourcePlan is what a plan does to one resource as a whole.
 type ResourcePlan struct {
-	ID  string
-	Ref resource.Ref
+	DockerMaintenance *dockwellv1.DockerMaintenance `json:",omitempty"`
+	ID                string
+	Ref               resource.Ref
 	// Restart says the change restarts it, which makes no revision.
 	Restart       bool           `json:",omitempty"`
 	RestartTarget *RestartTarget `json:",omitempty"`
@@ -771,12 +775,17 @@ func (p *Plan) Counts() Counts {
 	return c
 }
 
+// HasDockerMaintenance reports whether applying the plan needs an exact cleanup approval.
+func (p *Plan) HasDockerMaintenance() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.DockerMaintenance != nil })
+}
+
 // HostAccess reports a plan that lets a resource reach more of its server
 // than it could, which a person approves (ADR 0021).
 func (p *Plan) HostAccess() bool {
 	// An install of updates reaches the whole server, as root, which a person approves.
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
-		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil || r.AgentUpgrade != nil
+		return len(r.HostAccess) > 0 || r.Install != nil || r.Reboot != nil || r.Unit != nil || r.Panel != nil || r.AgentUpgrade != nil || r.DockerMaintenance != nil
 	})
 }
 
@@ -850,6 +859,7 @@ func (p *Plan) Destructive() bool {
 
 // item is one edit with what it starts from.
 type item struct {
+	dockerMaintenance *dockwellv1.DockerMaintenance
 	// reverses says this item undoes a change, so it takes what that change made
 	// and no more.
 	reverses bool
@@ -972,7 +982,7 @@ type item struct {
 // to roll back, and what goes wrong leaves its revision as it was. A restore into a
 // new database isn't one: it makes its service (ADR 0106).
 func (it item) noRevision() bool {
-	return it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.dockerMaintenance != nil || it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -1010,6 +1020,9 @@ func (it item) restoreOn(server string) *resource.RestoreSource {
 // changes reports whether the item makes a new revision: its spec, or
 // where it runs, differs from the latest revision.
 func (it item) changes() bool {
+	if it.dockerMaintenance != nil {
+		return false
+	}
 	if it.rotates {
 		return true // whatever the values are, and without comparing them
 	}
@@ -1236,6 +1249,10 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		items[i].forget = slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Forget && ed.Ref == items[i].ref })
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Unit != nil && ed.Ref == items[i].ref }); j >= 0 {
 			items[i].unit = &resource.UnitAsked{Change: changeID, Name: p.Edits[j].Unit.Name, Action: p.Edits[j].Unit.Action}
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.DockerMaintenance != nil && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].dockerMaintenance = proto.CloneOf(p.Edits[j].DockerMaintenance)
+			items[i].dockerMaintenance.ChangeId = changeID
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Panel != nil && ed.Ref == items[i].ref }); j >= 0 {
 			asked := *p.Edits[j].Panel
@@ -3229,6 +3246,13 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			// What an action on a unit does is what the agent read of it: a unit that
 			// moved since makes the plan stale.
+			if m := s.DockerMaintenance; m != nil {
+				data, err := (proto.MarshalOptions{Deterministic: true}).Marshal(m)
+				if err != nil {
+					return nil, err
+				}
+				fmt.Fprintf(fp, "docker-maintenance %s|%x\n", server, data)
+			}
 			if u := s.Unit; u != nil {
 				units[ids[s.Ref]] = u
 				fmt.Fprintf(fp, "unit %s|%s|%s|%s|%t|%s|%s|%s|%d|%t\n", server, ref(s.Ref), u.Name, u.Action, u.WasRunning, u.WasAtBoot,
@@ -3436,6 +3460,12 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		rp.Forget = items[i].forget
 		if rp.Action != resource.ActionNone {
 			rp.NoUndo = e.kinds.ActsElsewhere(items[i].ref.Kind, items[i].current, items[i].spec)
+		}
+		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
+			rp.NoUndo = "Docker cleanup removes the selected artifacts permanently."
+			if rp.DockerMaintenance.GetResumeCleanupToken() != "" {
+				rp.NoUndo = "Re-enabling Docker cleanup clears a safety pause."
+			}
 		}
 		if masked[items[i].ref] {
 			for j := range rp.Changes {
@@ -3703,7 +3733,7 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 	desired := make([]resource.Desired, len(its))
 	exact := make(map[resource.Ref]string)
 	for i, it := range its {
-		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
+		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
 		if target := it.restartTarget; target != nil {
 			desired[i].ExactRestart = target.Container
@@ -4450,7 +4480,7 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 	if err != nil {
 		return nil, err
 	}
-	if err := e.holdServers(c.ID, plan, rollback); err != nil {
+	if err := e.holdServers(c.ID, plan, rollback, false); err != nil {
 		return nil, err
 	}
 	if rollback {
@@ -4715,7 +4745,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			return q.server, q.step.Ref.Kind, q.step.Action != resource.ActionDelete
 		})
 	}
-	digests := map[at]string{}
+	images := map[at]resource.Image{}
 	// over is how many servers the change was planned over. A resumed run's plan has
 	// only those with steps left, and a change's error names its server once there's
 	// more than one.
@@ -4976,7 +5006,11 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		callCtx = resource.WithOutcome(callCtx, func(o resource.Outcome) {
 			// The first note stands: that a pull failed says more than what came of it.
 			told.Digest, told.Note, told.Untouched = cmp.Or(o.Digest, told.Digest), cmp.Or(told.Note, o.Note), told.Untouched || o.Untouched
+			told.LocalImageID = cmp.Or(o.LocalImageID, told.LocalImageID)
 			told.Did = cmp.Or(o.Did, told.Did)
+			if len(o.DockerReceipts) > 0 {
+				e.dockerReceipts(c.ID, index, o.DockerReceipts)
+			}
 			told.Backup = cmp.Or(o.Backup, told.Backup)
 			if b := o.Backup; b != nil && !slices.ContainsFunc(taken, func(t resource.BackupTaken) bool { return t.ID == b.ID }) {
 				taken = append(taken, *b)
@@ -5020,7 +5054,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			desired = it.current
 		}
 		mu.Unlock()
-		err := agent.Apply(callCtx, step, desired)
+		err := e.applyStep(callCtx, agent, q.server, step, desired)
 		mu.Lock()
 		called()
 		if q.step.Unit != nil && e.onUnit != nil {
@@ -5119,8 +5153,9 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			did, said = resource.ActionNone, alreadyHasIt
 		}
 		p, u := e.finished(c.ID, q.index, said, did)
-		digests[at{q.server, it.ref}] = told.Digest
-		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, told.Digest) {
+		image := resource.Image{Digest: told.Digest, ID: told.LocalImageID}
+		images[at{q.server, it.ref}] = image
+		if e.deployedImage(ctx, c.ID, it, q.server, nil, p, image) {
 			e.announce(c.ID, u)
 		}
 		done[at{q.server, it.ref}] = true
@@ -5284,7 +5319,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 				continue
 			}
 			if !done[at{s, it.ref}] || it.pull && it.rev != it.base {
-				e.deployedImage(ctx, c.ID, it, s, nil, nil, digests[at{s, it.ref}])
+				e.deployedImage(ctx, c.ID, it, s, nil, nil, images[at{s, it.ref}])
 			}
 		}
 	}
@@ -5458,11 +5493,11 @@ func stepFailure(server string, err error) error {
 // happened, and Drift reads the servers, not this. It reports whether the
 // record was written.
 func (e *Engine) deployed(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress) bool {
-	return e.deployedImage(ctx, changeID, it, server, failed, progress, "")
+	return e.deployedImage(ctx, changeID, it, server, failed, progress, resource.Image{})
 }
 
 // deployedImage is deployed, with what image it ran, as its registry knows it.
-func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress, digest string) bool {
+func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, server string, failed error, progress *Progress, image resource.Image) bool {
 	now := e.now()
 	err := e.db.Revise(ctx, func(tx *store.RevisionTx) error {
 		if err := writeProgress(ctx, tx, changeID, progress); err != nil {
@@ -5481,7 +5516,7 @@ func (e *Engine) deployedImage(ctx context.Context, changeID string, it *item, s
 		case failed != nil:
 			return nil //nolint:nilerr // a failed step off a server leaves its deployment as it was
 		case slices.Contains(it.servers, server):
-			return tx.SetDeploymentState(ctx, store.Deployment{ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentLive, Digest: digest, UpdatedAt: now})
+			return tx.SetDeploymentState(ctx, store.Deployment{ResourceID: it.id, Revision: it.rev, Server: server, State: store.DeploymentLive, Digest: image.Digest, LocalImageID: image.ID, UpdatedAt: now})
 		default:
 			return tx.Supersede(ctx, it.id, server, it.rev+1, now)
 		}
@@ -5612,7 +5647,7 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if err != nil {
 				return err
 			}
-			if !bytes.Equal(it.encoded, asked) || it.base == 0 {
+			if dockerMaintenanceIn(planned, ref) == nil && (!bytes.Equal(it.encoded, asked) || it.base == 0) {
 				continue // a later change moved it on
 			}
 			it.run, it.adopt, it.adoptName, it.public = ci.Run, ci.Adopts, ci.AdoptsName, ci.Public
@@ -5645,6 +5680,10 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			it.deleteShared = deletesSharedIn(planned, ref)
 			it.removal, it.forget = removalIn(planned), forgetIn(planned, ref)
 			it.panel = panelIn(planned, ref)
+			it.dockerMaintenance = dockerMaintenanceIn(planned, ref)
+			if it.dockerMaintenance != nil && it.id == "" {
+				it.id = ci.ResourceID
+			}
 			if err := markGone(ctx, tx, &it); err != nil {
 				return err
 			}
@@ -5705,6 +5744,10 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 	if err != nil {
 		e.letGo(ctx, changeID)
 		return nil, err
+	}
+	if err := e.holdServers(changeID, recorded, IsRollback(c), true); err != nil {
+		e.letGo(ctx, changeID)
+		return nil, fault.New(ErrPending, "%w", err)
 	}
 	before, err := decodeProgress(c.Progress)
 	if err != nil {
@@ -5874,6 +5917,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 		it.deleteShared = deletesSharedIn(asked, ref)
 		it.removal, it.forget = removalIn(asked), forgetIn(asked, ref)
 		it.panel = panelIn(asked, ref)
+		it.dockerMaintenance = dockerMaintenanceIn(asked, ref)
 		items = append(items, it)
 	}
 	if err := e.checkPlanned(ctx, tx, c, items); err != nil {

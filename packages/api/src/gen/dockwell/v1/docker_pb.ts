@@ -6,7 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { ResourceRef } from "./change_pb";
+import type { Change, DockerCleanupTarget, DockerReceiptReason, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
 import type { ContainerMount, ContainerPort, ContainerState } from "./container_pb";
 import { file_dockwell_v1_container } from "./container_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/docker.proto.
  */
 export const file_dockwell_v1_docker: GenFile = /*@__PURE__*/
-  fileDesc("Chhkb2Nrd2VsbC92MS9kb2NrZXIucHJvdG8SC2RvY2t3ZWxsLnYxImQKD0RvY2tlck9iamVjdEtleRIRCglzZXJ2ZXJfaWQYASABKAkSKwoEa2luZBgCIAEoDjIdLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEtpbmQSEQoJZW5naW5lX2lkGAMgASgJIv0CCgxEb2NrZXJPYmplY3QSKQoDa2V5GAEgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5EgwKBG5hbWUYAiABKAkSLwoJb3duZXJzaGlwGAMgASgOMhwuZG9ja3dlbGwudjEuRG9ja2VyT3duZXJzaGlwEi8KC29ic2VydmVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyChBtYW5hZ2VkX3Jlc291cmNlGAUgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKgoFc3RhdGUYBiABKA4yGy5kb2Nrd2VsbC52MS5Db250YWluZXJTdGF0ZRIbChNtYW5hZ2VkX3Jlc291cmNlX2lkGAcgASgJEhgKEG1hbmFnZWRfcmV2aXNpb24YCCABKAMSMQoJY29udGFpbmVyGAogASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyQ29udGFpbmVySABCCAoGZGV0YWlsIoIGCg9Eb2NrZXJDb250YWluZXISDQoFaW1hZ2UYASABKAkSEAoIaW1hZ2VfaWQYAiABKAkSLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKc3RhcnRlZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoZWRfYXQYBSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBmhlYWx0aBgGIAEoDjIZLmRvY2t3ZWxsLnYxLkRvY2tlckhlYWx0aBIpCgVwb3J0cxgHIAMoCzIaLmRvY2t3ZWxsLnYxLkNvbnRhaW5lclBvcnQSLgoJZW5kcG9pbnRzGAggAygLMhsuZG9ja3dlbGwudjEuRG9ja2VyRW5kcG9pbnQSKwoGbW91bnRzGAkgAygLMhsuZG9ja3dlbGwudjEuQ29udGFpbmVyTW91bnQSFwoPY29tcG9zZV9wcm9qZWN0GAogASgJEhcKD2NvbXBvc2Vfc2VydmljZRgLIAEoCRIPCgdvbmVfb2ZmGAwgASgIEhYKCWV4aXRfY29kZRgNIAEoBUgAiAEBEhIKCm9vbV9raWxsZWQYDiABKAgSFQoNcmVzdGFydF9jb3VudBgPIAEoDRIWCg5yZXN0YXJ0X3BvbGljeRgQIAEoCRIXCg9yZXN0YXJ0X3JldHJpZXMYESABKA0SGgoSbWVtb3J5X2xpbWl0X2J5dGVzGBIgASgEEhcKD2NwdV9saW1pdF9uYW5vcxgTIAEoBBISCgpsb2dfZHJpdmVyGBQgASgJEhQKDGxvZ19tYXhfc2l6ZRgVIAEoCRIVCg1sb2dfbWF4X2ZpbGVzGBYgASgNEjQKEGNvbmZpZ3VyZWRfcG9ydHMYFyADKAsyGi5kb2Nrd2VsbC52MS5Db250YWluZXJQb3J0EhkKEWRldGFpbHNfdHJ1bmNhdGVkGBggASgIQgwKCl9leGl0X2NvZGUiPQoORG9ja2VyRW5kcG9pbnQSDwoHbmV0d29yaxgBIAEoCRIMCgRpcHY0GAIgASgJEgwKBGlwdjYYAyABKAkiygMKDERvY2tlclNhbXBsZRIpCgNrZXkYASABKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkSLwoLb2JzZXJ2ZWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhgKC2NwdV9wZXJjZW50GAMgASgBSACIAQESGQoMbWVtb3J5X2J5dGVzGAQgASgESAGIAQESHwoSbWVtb3J5X2xpbWl0X2J5dGVzGAUgASgESAKIAQESHQoQbmV0d29ya19yeF9ieXRlcxgGIAEoBEgDiAEBEh0KEG5ldHdvcmtfdHhfYnl0ZXMYByABKARIBIgBARIdChBibG9ja19yZWFkX2J5dGVzGAggASgESAWIAQESHgoRYmxvY2tfd3JpdGVfYnl0ZXMYCSABKARIBogBAUIOCgxfY3B1X3BlcmNlbnRCDwoNX21lbW9yeV9ieXRlc0IVChNfbWVtb3J5X2xpbWl0X2J5dGVzQhMKEV9uZXR3b3JrX3J4X2J5dGVzQhMKEV9uZXR3b3JrX3R4X2J5dGVzQhMKEV9ibG9ja19yZWFkX2J5dGVzQhQKEl9ibG9ja193cml0ZV9ieXRlcyJTChFEb2NrZXJVbmF2YWlsYWJsZRIRCglzZXJ2ZXJfaWQYASABKAkSKwoFc3RhdGUYAiABKA4yHC5kb2Nrd2VsbC52MS5Eb2NrZXJSZWFkU3RhdGUiuAMKE0RvY2tlclNlcnZlclN1bW1hcnkSEQoJc2VydmVyX2lkGAEgASgJEi8KC29ic2VydmVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBISCgpjb250YWluZXJzGAMgASgNEg8KB3J1bm5pbmcYBCABKA0SGAoQY29tcG9zZV9wcm9qZWN0cxgFIAEoDRIOCgZpbWFnZXMYBiABKA0SEAoIbmV0d29ya3MYByABKA0SDwoHdm9sdW1lcxgIIAEoDRIWCg5lbmdpbmVfdmVyc2lvbhgJIAEoCRIWCg5leGFjdF90ZXJtaW5hbBgKIAEoCBIWCg5yb290X2RpcmVjdG9yeRgLIAEoCRIWCg5sb2dnaW5nX2RyaXZlchgMIAEoCRIZCgxsaXZlX3Jlc3RvcmUYDSABKAhIAIgBARIYChByZWdpc3RyeV9taXJyb3JzGA4gAygJEhcKD25lZWRzX2F0dGVudGlvbhgPIAEoDRIsCglhdHRlbnRpb24YECADKAsyGS5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RCDwoNX2xpdmVfcmVzdG9yZSIuChhHZXREb2NrZXJPdmVydmlld1JlcXVlc3QSEgoKc2VydmVyX2lkcxgBIAMoCSKMAQoZR2V0RG9ja2VyT3ZlcnZpZXdSZXNwb25zZRI6ChBzZXJ2ZXJfc3VtbWFyaWVzGAEgAygLMiAuZG9ja3dlbGwudjEuRG9ja2VyU2VydmVyU3VtbWFyeRIzCgt1bmF2YWlsYWJsZRgCIAMoCzIeLmRvY2t3ZWxsLnYxLkRvY2tlclVuYXZhaWxhYmxlIsQBChJEb2NrZXJPYmplY3RGaWx0ZXISDgoGc2VhcmNoGAEgASgJEioKBXN0YXRlGAIgASgOMhsuZG9ja3dlbGwudjEuQ29udGFpbmVyU3RhdGUSLwoJb3duZXJzaGlwGAMgASgOMhwuZG9ja3dlbGwudjEuRG9ja2VyT3duZXJzaGlwEhcKD2NvbXBvc2VfcHJvamVjdBgEIAEoCRIPCgdzdG9wcGVkGAUgASgIEhcKD25lZWRzX2F0dGVudGlvbhgGIAEoCCKzAQoYTGlzdERvY2tlck9iamVjdHNSZXF1ZXN0EhIKCnNlcnZlcl9pZHMYASADKAkSKwoEa2luZBgCIAEoDjIdLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEtpbmQSLwoGZmlsdGVyGAMgASgLMh8uZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0RmlsdGVyEhEKCXBhZ2Vfc2l6ZRgEIAEoDRISCgpwYWdlX3Rva2VuGAUgASgJIqcBChlMaXN0RG9ja2VyT2JqZWN0c1Jlc3BvbnNlEioKB29iamVjdHMYASADKAsyGS5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3QSFwoPbmV4dF9wYWdlX3Rva2VuGAIgASgJEhAKCHNuYXBzaG90GAMgASgJEjMKC3VuYXZhaWxhYmxlGAQgAygLMh4uZG9ja3dlbGwudjEuRG9ja2VyVW5hdmFpbGFibGUiXAoWR2V0RG9ja2VyT2JqZWN0UmVxdWVzdBIpCgNrZXkYASABKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkSFwoPbGFzdF9rbm93bl9uYW1lGAIgASgJInsKF0dldERvY2tlck9iamVjdFJlc3BvbnNlEikKBm9iamVjdBgBIAEoCzIZLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdBI1Cg9yZXBsYWNlbWVudF9rZXkYAiABKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkioQEKGVdhdGNoRG9ja2VyT2JqZWN0c1JlcXVlc3QSOAoJc2VsZWN0aW9uGAEgASgLMiUuZG9ja3dlbGwudjEuTGlzdERvY2tlck9iamVjdHNSZXF1ZXN0EhYKDmFmdGVyX3NuYXBzaG90GAIgASgJEjIKDHZpc2libGVfa2V5cxgDIAMoCzIcLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEtleSKbAQoSRG9ja2VySGVhbHRoVXBkYXRlEikKA2tleRgBIAEoCzIcLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEtleRIpCgZoZWFsdGgYAiABKA4yGS5kb2Nrd2VsbC52MS5Eb2NrZXJIZWFsdGgSLwoLb2JzZXJ2ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIjQKEURvY2tlcldhdGNoU3RhdHVzEhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRsaXZlGAIgASgIIsICChpXYXRjaERvY2tlck9iamVjdHNSZXNwb25zZRIQCghzbmFwc2hvdBgBIAEoCRIyCgxjaGFuZ2VkX2tleXMYAiADKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkSKgoHc2FtcGxlcxgDIAMoCzIZLmRvY2t3ZWxsLnYxLkRvY2tlclNhbXBsZRIzCgt1bmF2YWlsYWJsZRgEIAMoCzIeLmRvY2t3ZWxsLnYxLkRvY2tlclVuYXZhaWxhYmxlEg4KBnJlc3luYxgFIAEoCBI3Cg5oZWFsdGhfdXBkYXRlcxgGIAMoCzIfLmRvY2t3ZWxsLnYxLkRvY2tlckhlYWx0aFVwZGF0ZRI0Cgx3YXRjaF9zdGF0dXMYByABKAsyHi5kb2Nrd2VsbC52MS5Eb2NrZXJXYXRjaFN0YXR1cypYChBEb2NrZXJPYmplY3RLaW5kEiIKHkRPQ0tFUl9PQkpFQ1RfS0lORF9VTlNQRUNJRklFRBAAEiAKHERPQ0tFUl9PQkpFQ1RfS0lORF9DT05UQUlORVIQASqNAQoPRG9ja2VyT3duZXJzaGlwEiAKHERPQ0tFUl9PV05FUlNISVBfVU5TUEVDSUZJRUQQABIcChhET0NLRVJfT1dORVJTSElQX01BTkFHRUQQARIdChlET0NLRVJfT1dORVJTSElQX0VYVEVSTkFMEAISGwoXRE9DS0VSX09XTkVSU0hJUF9TWVNURU0QAyqBAQoMRG9ja2VySGVhbHRoEh0KGURPQ0tFUl9IRUFMVEhfVU5TUEVDSUZJRUQQABIaChZET0NLRVJfSEVBTFRIX1NUQVJUSU5HEAESGQoVRE9DS0VSX0hFQUxUSF9IRUFMVEhZEAISGwoXRE9DS0VSX0hFQUxUSF9VTkhFQUxUSFkQAyqjAQoPRG9ja2VyUmVhZFN0YXRlEiEKHURPQ0tFUl9SRUFEX1NUQVRFX1VOU1BFQ0lGSUVEEAASHQoZRE9DS0VSX1JFQURfU1RBVEVfT0ZGTElORRABEiQKIERPQ0tFUl9SRUFEX1NUQVRFX0FHRU5UX09VVERBVEVEEAISKAokRE9DS0VSX1JFQURfU1RBVEVfRU5HSU5FX1VOQVZBSUxBQkxFEAMy3QUKDURvY2tlclNlcnZpY2USqAEKEUdldERvY2tlck92ZXJ2aWV3EiUuZG9ja3dlbGwudjEuR2V0RG9ja2VyT3ZlcnZpZXdSZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0RG9ja2VyT3ZlcnZpZXdSZXNwb25zZSJEkAIBoLsYAaq7GBIKBmRvY2tlchIIb3ZlcnZpZXfAuxgEyLsYBNC7GAaC0+STAhUSEy92MS9kb2NrZXIvb3ZlcnZpZXcSowEKEUxpc3REb2NrZXJPYmplY3RzEiUuZG9ja3dlbGwudjEuTGlzdERvY2tlck9iamVjdHNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuTGlzdERvY2tlck9iamVjdHNSZXNwb25zZSI/kAIBoLsYAaq7GA4KBmRvY2tlchIEbGlzdMC7GATIuxgE0LsYBoLT5JMCFBISL3YxL2RvY2tlci9vYmplY3RzEp8BCg9HZXREb2NrZXJPYmplY3QSIy5kb2Nrd2VsbC52MS5HZXREb2NrZXJPYmplY3RSZXF1ZXN0GiQuZG9ja3dlbGwudjEuR2V0RG9ja2VyT2JqZWN0UmVzcG9uc2UiQZACAaC7GAGquxgRCgZkb2NrZXISB2luc3BlY3TAuxgEyLsYBNC7GAaC0+STAhMSES92MS9kb2NrZXIvb2JqZWN0Eo8BChJXYXRjaERvY2tlck9iamVjdHMSJi5kb2Nrd2VsbC52MS5XYXRjaERvY2tlck9iamVjdHNSZXF1ZXN0GicuZG9ja3dlbGwudjEuV2F0Y2hEb2NrZXJPYmplY3RzUmVzcG9uc2UiJpACAaC7GAGquxgPCgZkb2NrZXISBXdhdGNowLsYBMi7GATQuxgGMAEaR6K7GEMKBmRvY2tlchI5SW5zcGVjdCB0aGUgRG9ja2VyIEVuZ2luZSBhbmQgdGhlIGNvbnRhaW5lcnMgb24gYSBzZXJ2ZXIuQqQBCg9jb20uZG9ja3dlbGwudjFCC0RvY2tlclByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_container, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chhkb2Nrd2VsbC92MS9kb2NrZXIucHJvdG8SC2RvY2t3ZWxsLnYxImQKD0RvY2tlck9iamVjdEtleRIRCglzZXJ2ZXJfaWQYASABKAkSKwoEa2luZBgCIAEoDjIdLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEtpbmQSEQoJZW5naW5lX2lkGAMgASgJIqgDCgxEb2NrZXJPYmplY3QSKQoDa2V5GAEgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5EgwKBG5hbWUYAiABKAkSLwoJb3duZXJzaGlwGAMgASgOMhwuZG9ja3dlbGwudjEuRG9ja2VyT3duZXJzaGlwEi8KC29ic2VydmVkX2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyChBtYW5hZ2VkX3Jlc291cmNlGAUgASgLMhguZG9ja3dlbGwudjEuUmVzb3VyY2VSZWYSKgoFc3RhdGUYBiABKA4yGy5kb2Nrd2VsbC52MS5Db250YWluZXJTdGF0ZRIbChNtYW5hZ2VkX3Jlc291cmNlX2lkGAcgASgJEhgKEG1hbmFnZWRfcmV2aXNpb24YCCABKAMSMQoJY29udGFpbmVyGAogASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyQ29udGFpbmVySAASKQoFaW1hZ2UYDCABKAsyGC5kb2Nrd2VsbC52MS5Eb2NrZXJJbWFnZUgAQggKBmRldGFpbCKCBgoPRG9ja2VyQ29udGFpbmVyEg0KBWltYWdlGAEgASgJEhAKCGltYWdlX2lkGAIgASgJEi4KCmNyZWF0ZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi4KCnN0YXJ0ZWRfYXQYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEi8KC2ZpbmlzaGVkX2F0GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgZoZWFsdGgYBiABKA4yGS5kb2Nrd2VsbC52MS5Eb2NrZXJIZWFsdGgSKQoFcG9ydHMYByADKAsyGi5kb2Nrd2VsbC52MS5Db250YWluZXJQb3J0Ei4KCWVuZHBvaW50cxgIIAMoCzIbLmRvY2t3ZWxsLnYxLkRvY2tlckVuZHBvaW50EisKBm1vdW50cxgJIAMoCzIbLmRvY2t3ZWxsLnYxLkNvbnRhaW5lck1vdW50EhcKD2NvbXBvc2VfcHJvamVjdBgKIAEoCRIXCg9jb21wb3NlX3NlcnZpY2UYCyABKAkSDwoHb25lX29mZhgMIAEoCBIWCglleGl0X2NvZGUYDSABKAVIAIgBARISCgpvb21fa2lsbGVkGA4gASgIEhUKDXJlc3RhcnRfY291bnQYDyABKA0SFgoOcmVzdGFydF9wb2xpY3kYECABKAkSFwoPcmVzdGFydF9yZXRyaWVzGBEgASgNEhoKEm1lbW9yeV9saW1pdF9ieXRlcxgSIAEoBBIXCg9jcHVfbGltaXRfbmFub3MYEyABKAQSEgoKbG9nX2RyaXZlchgUIAEoCRIUCgxsb2dfbWF4X3NpemUYFSABKAkSFQoNbG9nX21heF9maWxlcxgWIAEoDRI0ChBjb25maWd1cmVkX3BvcnRzGBcgAygLMhouZG9ja3dlbGwudjEuQ29udGFpbmVyUG9ydBIZChFkZXRhaWxzX3RydW5jYXRlZBgYIAEoCEIMCgpfZXhpdF9jb2RlIj0KDkRvY2tlckVuZHBvaW50Eg8KB25ldHdvcmsYASABKAkSDAoEaXB2NBgCIAEoCRIMCgRpcHY2GAMgASgJIsoDCgxEb2NrZXJTYW1wbGUSKQoDa2V5GAEgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5Ei8KC29ic2VydmVkX2F0GAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIYCgtjcHVfcGVyY2VudBgDIAEoAUgAiAEBEhkKDG1lbW9yeV9ieXRlcxgEIAEoBEgBiAEBEh8KEm1lbW9yeV9saW1pdF9ieXRlcxgFIAEoBEgCiAEBEh0KEG5ldHdvcmtfcnhfYnl0ZXMYBiABKARIA4gBARIdChBuZXR3b3JrX3R4X2J5dGVzGAcgASgESASIAQESHQoQYmxvY2tfcmVhZF9ieXRlcxgIIAEoBEgFiAEBEh4KEWJsb2NrX3dyaXRlX2J5dGVzGAkgASgESAaIAQFCDgoMX2NwdV9wZXJjZW50Qg8KDV9tZW1vcnlfYnl0ZXNCFQoTX21lbW9yeV9saW1pdF9ieXRlc0ITChFfbmV0d29ya19yeF9ieXRlc0ITChFfbmV0d29ya190eF9ieXRlc0ITChFfYmxvY2tfcmVhZF9ieXRlc0IUChJfYmxvY2tfd3JpdGVfYnl0ZXMiUwoRRG9ja2VyVW5hdmFpbGFibGUSEQoJc2VydmVyX2lkGAEgASgJEisKBXN0YXRlGAIgASgOMhwuZG9ja3dlbGwudjEuRG9ja2VyUmVhZFN0YXRlIrgDChNEb2NrZXJTZXJ2ZXJTdW1tYXJ5EhEKCXNlcnZlcl9pZBgBIAEoCRIvCgtvYnNlcnZlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEgoKY29udGFpbmVycxgDIAEoDRIPCgdydW5uaW5nGAQgASgNEhgKEGNvbXBvc2VfcHJvamVjdHMYBSABKA0SDgoGaW1hZ2VzGAYgASgNEhAKCG5ldHdvcmtzGAcgASgNEg8KB3ZvbHVtZXMYCCABKA0SFgoOZW5naW5lX3ZlcnNpb24YCSABKAkSFgoOZXhhY3RfdGVybWluYWwYCiABKAgSFgoOcm9vdF9kaXJlY3RvcnkYCyABKAkSFgoObG9nZ2luZ19kcml2ZXIYDCABKAkSGQoMbGl2ZV9yZXN0b3JlGA0gASgISACIAQESGAoQcmVnaXN0cnlfbWlycm9ycxgOIAMoCRIXCg9uZWVkc19hdHRlbnRpb24YDyABKA0SLAoJYXR0ZW50aW9uGBAgAygLMhkuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0Qg8KDV9saXZlX3Jlc3RvcmUiLgoYR2V0RG9ja2VyT3ZlcnZpZXdSZXF1ZXN0EhIKCnNlcnZlcl9pZHMYASADKAkijAEKGUdldERvY2tlck92ZXJ2aWV3UmVzcG9uc2USOgoQc2VydmVyX3N1bW1hcmllcxgBIAMoCzIgLmRvY2t3ZWxsLnYxLkRvY2tlclNlcnZlclN1bW1hcnkSMwoLdW5hdmFpbGFibGUYAiADKAsyHi5kb2Nrd2VsbC52MS5Eb2NrZXJVbmF2YWlsYWJsZSLEAQoSRG9ja2VyT2JqZWN0RmlsdGVyEg4KBnNlYXJjaBgBIAEoCRIqCgVzdGF0ZRgCIAEoDjIbLmRvY2t3ZWxsLnYxLkNvbnRhaW5lclN0YXRlEi8KCW93bmVyc2hpcBgDIAEoDjIcLmRvY2t3ZWxsLnYxLkRvY2tlck93bmVyc2hpcBIXCg9jb21wb3NlX3Byb2plY3QYBCABKAkSDwoHc3RvcHBlZBgFIAEoCBIXCg9uZWVkc19hdHRlbnRpb24YBiABKAgiswEKGExpc3REb2NrZXJPYmplY3RzUmVxdWVzdBISCgpzZXJ2ZXJfaWRzGAEgAygJEisKBGtpbmQYAiABKA4yHS5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLaW5kEi8KBmZpbHRlchgDIAEoCzIfLmRvY2t3ZWxsLnYxLkRvY2tlck9iamVjdEZpbHRlchIRCglwYWdlX3NpemUYBCABKA0SEgoKcGFnZV90b2tlbhgFIAEoCSKnAQoZTGlzdERvY2tlck9iamVjdHNSZXNwb25zZRIqCgdvYmplY3RzGAEgAygLMhkuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0EhcKD25leHRfcGFnZV90b2tlbhgCIAEoCRIQCghzbmFwc2hvdBgDIAEoCRIzCgt1bmF2YWlsYWJsZRgEIAMoCzIeLmRvY2t3ZWxsLnYxLkRvY2tlclVuYXZhaWxhYmxlIlwKFkdldERvY2tlck9iamVjdFJlcXVlc3QSKQoDa2V5GAEgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5EhcKD2xhc3Rfa25vd25fbmFtZRgCIAEoCSJ7ChdHZXREb2NrZXJPYmplY3RSZXNwb25zZRIpCgZvYmplY3QYASABKAsyGS5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3QSNQoPcmVwbGFjZW1lbnRfa2V5GAIgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5IqEBChlXYXRjaERvY2tlck9iamVjdHNSZXF1ZXN0EjgKCXNlbGVjdGlvbhgBIAEoCzIlLmRvY2t3ZWxsLnYxLkxpc3REb2NrZXJPYmplY3RzUmVxdWVzdBIWCg5hZnRlcl9zbmFwc2hvdBgCIAEoCRIyCgx2aXNpYmxlX2tleXMYAyADKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkimwEKEkRvY2tlckhlYWx0aFVwZGF0ZRIpCgNrZXkYASABKAsyHC5kb2Nrd2VsbC52MS5Eb2NrZXJPYmplY3RLZXkSKQoGaGVhbHRoGAIgASgOMhkuZG9ja3dlbGwudjEuRG9ja2VySGVhbHRoEi8KC29ic2VydmVkX2F0GAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI0ChFEb2NrZXJXYXRjaFN0YXR1cxIRCglzZXJ2ZXJfaWQYASABKAkSDAoEbGl2ZRgCIAEoCCLCAgoaV2F0Y2hEb2NrZXJPYmplY3RzUmVzcG9uc2USEAoIc25hcHNob3QYASABKAkSMgoMY2hhbmdlZF9rZXlzGAIgAygLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5EioKB3NhbXBsZXMYAyADKAsyGS5kb2Nrd2VsbC52MS5Eb2NrZXJTYW1wbGUSMwoLdW5hdmFpbGFibGUYBCADKAsyHi5kb2Nrd2VsbC52MS5Eb2NrZXJVbmF2YWlsYWJsZRIOCgZyZXN5bmMYBSABKAgSNwoOaGVhbHRoX3VwZGF0ZXMYBiADKAsyHy5kb2Nrd2VsbC52MS5Eb2NrZXJIZWFsdGhVcGRhdGUSNAoMd2F0Y2hfc3RhdHVzGAcgASgLMh4uZG9ja3dlbGwudjEuRG9ja2VyV2F0Y2hTdGF0dXMi+wMKC0RvY2tlckltYWdlEgwKBHRhZ3MYASADKAkSDwoHZGlnZXN0cxgCIAMoCRIQCghwbGF0Zm9ybRgDIAEoCRIYCgt0b3RhbF9ieXRlcxgEIAEoBEgAiAEBEhkKDHVuaXF1ZV9ieXRlcxgFIAEoBEgBiAEBEi4KCmNyZWF0ZWRfYXQYBiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEiwKBXN0YXRlGAcgASgOMh0uZG9ja3dlbGwudjEuRG9ja2VySW1hZ2VTdGF0ZRI1Cgpjb250YWluZXJzGAggAygLMiEuZG9ja3dlbGwudjEuRG9ja2VySW1hZ2VDb250YWluZXISNwoLZGVwbG95bWVudHMYCSADKAsyIi5kb2Nrd2VsbC52MS5Eb2NrZXJJbWFnZURlcGxveW1lbnQSLQoGbGF5ZXJzGAogAygLMh0uZG9ja3dlbGwudjEuRG9ja2VySW1hZ2VMYXllchIwCgdoaXN0b3J5GAsgAygLMh8uZG9ja3dlbGwudjEuRG9ja2VySW1hZ2VIaXN0b3J5EhkKEWRldGFpbHNfdHJ1bmNhdGVkGAwgASgIEhsKE2hpc3RvcnlfdW5hdmFpbGFibGUYDSABKAhCDgoMX3RvdGFsX2J5dGVzQg8KDV91bmlxdWVfYnl0ZXMiTwoURG9ja2VySW1hZ2VDb250YWluZXISKQoDa2V5GAEgASgLMhwuZG9ja3dlbGwudjEuRG9ja2VyT2JqZWN0S2V5EgwKBG5hbWUYAiABKAkiSwoQRG9ja2VySW1hZ2VMYXllchIPCgdkaWZmX2lkGAEgASgJEhcKCnNpemVfYnl0ZXMYAiABKARIAIgBAUINCgtfc2l6ZV9ieXRlcyJTChVEb2NrZXJJbWFnZURlcGxveW1lbnQSEgoKc2VydmljZV9pZBgBIAEoCRIUCgxzZXJ2aWNlX25hbWUYAiABKAkSEAoIcmV2aXNpb24YAyABKAMibAoSRG9ja2VySW1hZ2VIaXN0b3J5Ei4KCmNyZWF0ZWRfYXQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCnNpemVfYnl0ZXMYAiABKARIAIgBAUINCgtfc2l6ZV9ieXRlcyI/ChREb2NrZXJDbGVhbnVwRmlsdGVycxIVCg10YWdnZWRfaW1hZ2VzGAEgASgIEhAKCG5ldHdvcmtzGAIgASgIIowBChtQcmV2aWV3RG9ja2VyQ2xlYW51cFJlcXVlc3QSEgoKc2VydmVyX2lkcxgBIAMoCRIyCgdmaWx0ZXJzGAIgASgLMiEuZG9ja3dlbGwudjEuRG9ja2VyQ2xlYW51cEZpbHRlcnMSEQoJcGFnZV9zaXplGAMgASgNEhIKCnBhZ2VfdG9rZW4YBCABKAkimwIKHFByZXZpZXdEb2NrZXJDbGVhbnVwUmVzcG9uc2USNAoKY2FuZGlkYXRlcxgBIAMoCzIgLmRvY2t3ZWxsLnYxLkRvY2tlckNsZWFudXBUYXJnZXQSNAoKZXhjbHVzaW9ucxgCIAMoCzIgLmRvY2t3ZWxsLnYxLkRvY2tlckNsZWFudXBUYXJnZXQSEAoIc25hcHNob3QYAyABKAkSMwoLdW5hdmFpbGFibGUYBCADKAsyHi5kb2Nrd2VsbC52MS5Eb2NrZXJVbmF2YWlsYWJsZRIXCg9uZXh0X3BhZ2VfdG9rZW4YBSABKAkSLwoGcGF1c2VzGAYgAygLMh8uZG9ja3dlbGwudjEuRG9ja2VyQ2xlYW51cFBhdXNlImgKEkRvY2tlckNsZWFudXBQYXVzZRIRCglzZXJ2ZXJfaWQYASABKAkSDQoFdG9rZW4YAiABKAkSMAoGcmVhc29uGAMgASgOMiAuZG9ja3dlbGwudjEuRG9ja2VyUmVjZWlwdFJlYXNvbiLDAQocUGxhbkRvY2tlck1haW50ZW5hbmNlUmVxdWVzdBIPCgdzdW1tYXJ5GAEgASgJEhIKCnNlcnZlcl9pZHMYAiADKAkSGQoRZXhwZWN0ZWRfc25hcHNob3QYAyABKAkSNgoHY2xlYW51cBgKIAEoCzIjLmRvY2t3ZWxsLnYxLkRvY2tlckNsZWFudXBTZWxlY3Rpb25IABIeChRyZXN1bWVfY2xlYW51cF90b2tlbhgLIAEoCUgAQgsKCW9wZXJhdGlvbiJ/ChZEb2NrZXJDbGVhbnVwU2VsZWN0aW9uEjIKB2ZpbHRlcnMYASABKAsyIS5kb2Nrd2VsbC52MS5Eb2NrZXJDbGVhbnVwRmlsdGVycxIxCgd0YXJnZXRzGAIgAygLMiAuZG9ja3dlbGwudjEuRG9ja2VyQ2xlYW51cFRhcmdldCJECh1QbGFuRG9ja2VyTWFpbnRlbmFuY2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UqdgoQRG9ja2VyT2JqZWN0S2luZBIiCh5ET0NLRVJfT0JKRUNUX0tJTkRfVU5TUEVDSUZJRUQQABIgChxET0NLRVJfT0JKRUNUX0tJTkRfQ09OVEFJTkVSEAESHAoYRE9DS0VSX09CSkVDVF9LSU5EX0lNQUdFEAMqjQEKD0RvY2tlck93bmVyc2hpcBIgChxET0NLRVJfT1dORVJTSElQX1VOU1BFQ0lGSUVEEAASHAoYRE9DS0VSX09XTkVSU0hJUF9NQU5BR0VEEAESHQoZRE9DS0VSX09XTkVSU0hJUF9FWFRFUk5BTBACEhsKF0RPQ0tFUl9PV05FUlNISVBfU1lTVEVNEAMqgQEKDERvY2tlckhlYWx0aBIdChlET0NLRVJfSEVBTFRIX1VOU1BFQ0lGSUVEEAASGgoWRE9DS0VSX0hFQUxUSF9TVEFSVElORxABEhkKFURPQ0tFUl9IRUFMVEhfSEVBTFRIWRACEhsKF0RPQ0tFUl9IRUFMVEhfVU5IRUFMVEhZEAMqowEKD0RvY2tlclJlYWRTdGF0ZRIhCh1ET0NLRVJfUkVBRF9TVEFURV9VTlNQRUNJRklFRBAAEh0KGURPQ0tFUl9SRUFEX1NUQVRFX09GRkxJTkUQARIkCiBET0NLRVJfUkVBRF9TVEFURV9BR0VOVF9PVVREQVRFRBACEigKJERPQ0tFUl9SRUFEX1NUQVRFX0VOR0lORV9VTkFWQUlMQUJMRRADKpMBChBEb2NrZXJJbWFnZVN0YXRlEiIKHkRPQ0tFUl9JTUFHRV9TVEFURV9VTlNQRUNJRklFRBAAEhsKF0RPQ0tFUl9JTUFHRV9TVEFURV9VU0VEEAESHQoZRE9DS0VSX0lNQUdFX1NUQVRFX1VOVVNFRBACEh8KG0RPQ0tFUl9JTUFHRV9TVEFURV9EQU5HTElORxADMtkICg1Eb2NrZXJTZXJ2aWNlEqgBChFHZXREb2NrZXJPdmVydmlldxIlLmRvY2t3ZWxsLnYxLkdldERvY2tlck92ZXJ2aWV3UmVxdWVzdBomLmRvY2t3ZWxsLnYxLkdldERvY2tlck92ZXJ2aWV3UmVzcG9uc2UiRJACAaC7GAGquxgSCgZkb2NrZXISCG92ZXJ2aWV3wLsYBMi7GATQuxgGgtPkkwIVEhMvdjEvZG9ja2VyL292ZXJ2aWV3EqMBChFMaXN0RG9ja2VyT2JqZWN0cxIlLmRvY2t3ZWxsLnYxLkxpc3REb2NrZXJPYmplY3RzUmVxdWVzdBomLmRvY2t3ZWxsLnYxLkxpc3REb2NrZXJPYmplY3RzUmVzcG9uc2UiP5ACAaC7GAGquxgOCgZkb2NrZXISBGxpc3TAuxgEyLsYBNC7GAaC0+STAhQSEi92MS9kb2NrZXIvb2JqZWN0cxKfAQoPR2V0RG9ja2VyT2JqZWN0EiMuZG9ja3dlbGwudjEuR2V0RG9ja2VyT2JqZWN0UmVxdWVzdBokLmRvY2t3ZWxsLnYxLkdldERvY2tlck9iamVjdFJlc3BvbnNlIkGQAgGguxgBqrsYEQoGZG9ja2VyEgdpbnNwZWN0wLsYBMi7GATQuxgGgtPkkwITEhEvdjEvZG9ja2VyL29iamVjdBK3AQoUUHJldmlld0RvY2tlckNsZWFudXASKC5kb2Nrd2VsbC52MS5QcmV2aWV3RG9ja2VyQ2xlYW51cFJlcXVlc3QaKS5kb2Nrd2VsbC52MS5QcmV2aWV3RG9ja2VyQ2xlYW51cFJlc3BvbnNlIkqQAgGguxgBqrsYGQoGZG9ja2VyEg9wcmV2aWV3LWNsZWFudXDAuxgEyLsYBNC7GAaC0+STAhQSEi92MS9kb2NrZXIvY2xlYW51cBK/AQoVUGxhbkRvY2tlck1haW50ZW5hbmNlEikuZG9ja3dlbGwudjEuUGxhbkRvY2tlck1haW50ZW5hbmNlUmVxdWVzdBoqLmRvY2t3ZWxsLnYxLlBsYW5Eb2NrZXJNYWludGVuYW5jZVJlc3BvbnNlIk+guxgCqrsYGgoGZG9ja2VyEhBwbGFuLW1haW50ZW5hbmNlwLsYBMi7GATQuxgGgtPkkwIbOgEqIhYvdjEvZG9ja2VyL21haW50ZW5hbmNlEo8BChJXYXRjaERvY2tlck9iamVjdHMSJi5kb2Nrd2VsbC52MS5XYXRjaERvY2tlck9iamVjdHNSZXF1ZXN0GicuZG9ja3dlbGwudjEuV2F0Y2hEb2NrZXJPYmplY3RzUmVzcG9uc2UiJpACAaC7GAGquxgPCgZkb2NrZXISBXdhdGNowLsYBMi7GATQuxgGMAEaR6K7GEMKBmRvY2tlchI5SW5zcGVjdCB0aGUgRG9ja2VyIEVuZ2luZSBhbmQgdGhlIGNvbnRhaW5lcnMgb24gYSBzZXJ2ZXIuQqQBCg9jb20uZG9ja3dlbGwudjFCC0RvY2tlclByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_change, file_dockwell_v1_container, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * DockerObjectKey identifies an Engine object on one server.
@@ -110,6 +110,12 @@ export type DockerObject = Message<"dockwell.v1.DockerObject"> & {
      */
     value: DockerContainer;
     case: "container";
+  } | {
+    /**
+     * @generated from field: dockwell.v1.DockerImage image = 12;
+     */
+    value: DockerImage;
+    case: "image";
   } | { case: undefined; value?: undefined };
 };
 
@@ -811,6 +817,407 @@ export const WatchDockerObjectsResponseSchema: GenMessage<WatchDockerObjectsResp
   messageDesc(file_dockwell_v1_docker, 17);
 
 /**
+ * DockerImage is the safe local projection of an image. History omits instructions,
+ * comments, tags and arbitrary metadata from the Engine's history endpoint.
+ *
+ * @generated from message dockwell.v1.DockerImage
+ */
+export type DockerImage = Message<"dockwell.v1.DockerImage"> & {
+  /**
+   * @generated from field: repeated string tags = 1;
+   */
+  tags: string[];
+
+  /**
+   * @generated from field: repeated string digests = 2;
+   */
+  digests: string[];
+
+  /**
+   * @generated from field: string platform = 3;
+   */
+  platform: string;
+
+  /**
+   * @generated from field: optional uint64 total_bytes = 4;
+   */
+  totalBytes?: bigint | undefined;
+
+  /**
+   * @generated from field: optional uint64 unique_bytes = 5;
+   */
+  uniqueBytes?: bigint | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 6;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: dockwell.v1.DockerImageState state = 7;
+   */
+  state: DockerImageState;
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerImageContainer containers = 8;
+   */
+  containers: DockerImageContainer[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerImageDeployment deployments = 9;
+   */
+  deployments: DockerImageDeployment[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerImageLayer layers = 10;
+   */
+  layers: DockerImageLayer[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerImageHistory history = 11;
+   */
+  history: DockerImageHistory[];
+
+  /**
+   * @generated from field: bool details_truncated = 12;
+   */
+  detailsTruncated: boolean;
+
+  /**
+   * @generated from field: bool history_unavailable = 13;
+   */
+  historyUnavailable: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerImage.
+ * Use `create(DockerImageSchema)` to create a new message.
+ */
+export const DockerImageSchema: GenMessage<DockerImage> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 18);
+
+/**
+ * DockerImageContainer names a container instance holding the image.
+ *
+ * @generated from message dockwell.v1.DockerImageContainer
+ */
+export type DockerImageContainer = Message<"dockwell.v1.DockerImageContainer"> & {
+  /**
+   * @generated from field: dockwell.v1.DockerObjectKey key = 1;
+   */
+  key?: DockerObjectKey | undefined;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerImageContainer.
+ * Use `create(DockerImageContainerSchema)` to create a new message.
+ */
+export const DockerImageContainerSchema: GenMessage<DockerImageContainer> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 19);
+
+/**
+ * DockerImageLayer names a root filesystem layer in base-to-top order.
+ *
+ * @generated from message dockwell.v1.DockerImageLayer
+ */
+export type DockerImageLayer = Message<"dockwell.v1.DockerImageLayer"> & {
+  /**
+   * @generated from field: string diff_id = 1;
+   */
+  diffId: string;
+
+  /**
+   * @generated from field: optional uint64 size_bytes = 2;
+   */
+  sizeBytes?: bigint | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerImageLayer.
+ * Use `create(DockerImageLayerSchema)` to create a new message.
+ */
+export const DockerImageLayerSchema: GenMessage<DockerImageLayer> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 20);
+
+/**
+ * DockerImageDeployment names a revision that holds the image.
+ *
+ * @generated from message dockwell.v1.DockerImageDeployment
+ */
+export type DockerImageDeployment = Message<"dockwell.v1.DockerImageDeployment"> & {
+  /**
+   * @generated from field: string service_id = 1;
+   */
+  serviceId: string;
+
+  /**
+   * @generated from field: string service_name = 2;
+   */
+  serviceName: string;
+
+  /**
+   * @generated from field: int64 revision = 3;
+   */
+  revision: bigint;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerImageDeployment.
+ * Use `create(DockerImageDeploymentSchema)` to create a new message.
+ */
+export const DockerImageDeploymentSchema: GenMessage<DockerImageDeployment> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 21);
+
+/**
+ * DockerImageHistory contains only the safe fields of an image history entry.
+ *
+ * @generated from message dockwell.v1.DockerImageHistory
+ */
+export type DockerImageHistory = Message<"dockwell.v1.DockerImageHistory"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp created_at = 1;
+   */
+  createdAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: optional uint64 size_bytes = 2;
+   */
+  sizeBytes?: bigint | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerImageHistory.
+ * Use `create(DockerImageHistorySchema)` to create a new message.
+ */
+export const DockerImageHistorySchema: GenMessage<DockerImageHistory> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 22);
+
+/**
+ * DockerCleanupFilters opts in to artifacts beyond the default review.
+ *
+ * @generated from message dockwell.v1.DockerCleanupFilters
+ */
+export type DockerCleanupFilters = Message<"dockwell.v1.DockerCleanupFilters"> & {
+  /**
+   * @generated from field: bool tagged_images = 1;
+   */
+  taggedImages: boolean;
+
+  /**
+   * @generated from field: bool networks = 2;
+   */
+  networks: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerCleanupFilters.
+ * Use `create(DockerCleanupFiltersSchema)` to create a new message.
+ */
+export const DockerCleanupFiltersSchema: GenMessage<DockerCleanupFilters> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 23);
+
+/**
+ * PreviewDockerCleanupRequest selects the servers and artifact filters to read.
+ *
+ * @generated from message dockwell.v1.PreviewDockerCleanupRequest
+ */
+export type PreviewDockerCleanupRequest = Message<"dockwell.v1.PreviewDockerCleanupRequest"> & {
+  /**
+   * @generated from field: repeated string server_ids = 1;
+   */
+  serverIds: string[];
+
+  /**
+   * @generated from field: dockwell.v1.DockerCleanupFilters filters = 2;
+   */
+  filters?: DockerCleanupFilters | undefined;
+
+  /**
+   * @generated from field: uint32 page_size = 3;
+   */
+  pageSize: number;
+
+  /**
+   * @generated from field: string page_token = 4;
+   */
+  pageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PreviewDockerCleanupRequest.
+ * Use `create(PreviewDockerCleanupRequestSchema)` to create a new message.
+ */
+export const PreviewDockerCleanupRequestSchema: GenMessage<PreviewDockerCleanupRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 24);
+
+/**
+ * PreviewDockerCleanupResponse reports eligible and protected artifacts on one page.
+ *
+ * @generated from message dockwell.v1.PreviewDockerCleanupResponse
+ */
+export type PreviewDockerCleanupResponse = Message<"dockwell.v1.PreviewDockerCleanupResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.DockerCleanupTarget candidates = 1;
+   */
+  candidates: DockerCleanupTarget[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerCleanupTarget exclusions = 2;
+   */
+  exclusions: DockerCleanupTarget[];
+
+  /**
+   * @generated from field: string snapshot = 3;
+   */
+  snapshot: string;
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerUnavailable unavailable = 4;
+   */
+  unavailable: DockerUnavailable[];
+
+  /**
+   * @generated from field: string next_page_token = 5;
+   */
+  nextPageToken: string;
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerCleanupPause pauses = 6;
+   */
+  pauses: DockerCleanupPause[];
+};
+
+/**
+ * Describes the message dockwell.v1.PreviewDockerCleanupResponse.
+ * Use `create(PreviewDockerCleanupResponseSchema)` to create a new message.
+ */
+export const PreviewDockerCleanupResponseSchema: GenMessage<PreviewDockerCleanupResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 25);
+
+/**
+ * DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
+ *
+ * @generated from message dockwell.v1.DockerCleanupPause
+ */
+export type DockerCleanupPause = Message<"dockwell.v1.DockerCleanupPause"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string token = 2;
+   */
+  token: string;
+
+  /**
+   * @generated from field: dockwell.v1.DockerReceiptReason reason = 3;
+   */
+  reason: DockerReceiptReason;
+};
+
+/**
+ * Describes the message dockwell.v1.DockerCleanupPause.
+ * Use `create(DockerCleanupPauseSchema)` to create a new message.
+ */
+export const DockerCleanupPauseSchema: GenMessage<DockerCleanupPause> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 26);
+
+/**
+ * PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.
+ *
+ * @generated from message dockwell.v1.PlanDockerMaintenanceRequest
+ */
+export type PlanDockerMaintenanceRequest = Message<"dockwell.v1.PlanDockerMaintenanceRequest"> & {
+  /**
+   * @generated from field: string summary = 1;
+   */
+  summary: string;
+
+  /**
+   * @generated from field: repeated string server_ids = 2;
+   */
+  serverIds: string[];
+
+  /**
+   * @generated from field: string expected_snapshot = 3;
+   */
+  expectedSnapshot: string;
+
+  /**
+   * @generated from oneof dockwell.v1.PlanDockerMaintenanceRequest.operation
+   */
+  operation: {
+    /**
+     * @generated from field: dockwell.v1.DockerCleanupSelection cleanup = 10;
+     */
+    value: DockerCleanupSelection;
+    case: "cleanup";
+  } | {
+    /**
+     * @generated from field: string resume_cleanup_token = 11;
+     */
+    value: string;
+    case: "resumeCleanupToken";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.v1.PlanDockerMaintenanceRequest.
+ * Use `create(PlanDockerMaintenanceRequestSchema)` to create a new message.
+ */
+export const PlanDockerMaintenanceRequestSchema: GenMessage<PlanDockerMaintenanceRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 27);
+
+/**
+ * DockerCleanupSelection is the user's selection from a cleanup preview.
+ *
+ * @generated from message dockwell.v1.DockerCleanupSelection
+ */
+export type DockerCleanupSelection = Message<"dockwell.v1.DockerCleanupSelection"> & {
+  /**
+   * @generated from field: dockwell.v1.DockerCleanupFilters filters = 1;
+   */
+  filters?: DockerCleanupFilters | undefined;
+
+  /**
+   * @generated from field: repeated dockwell.v1.DockerCleanupTarget targets = 2;
+   */
+  targets: DockerCleanupTarget[];
+};
+
+/**
+ * Describes the message dockwell.v1.DockerCleanupSelection.
+ * Use `create(DockerCleanupSelectionSchema)` to create a new message.
+ */
+export const DockerCleanupSelectionSchema: GenMessage<DockerCleanupSelection> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 28);
+
+/**
+ * PlanDockerMaintenanceResponse carries a standard reviewable change.
+ *
+ * @generated from message dockwell.v1.PlanDockerMaintenanceResponse
+ */
+export type PlanDockerMaintenanceResponse = Message<"dockwell.v1.PlanDockerMaintenanceResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanDockerMaintenanceResponse.
+ * Use `create(PlanDockerMaintenanceResponseSchema)` to create a new message.
+ */
+export const PlanDockerMaintenanceResponseSchema: GenMessage<PlanDockerMaintenanceResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_docker, 29);
+
+/**
  * DockerObjectKind names the types of Engine object this inventory can read.
  *
  * @generated from enum dockwell.v1.DockerObjectKind
@@ -825,6 +1232,11 @@ export enum DockerObjectKind {
    * @generated from enum value: DOCKER_OBJECT_KIND_CONTAINER = 1;
    */
   CONTAINER = 1,
+
+  /**
+   * @generated from enum value: DOCKER_OBJECT_KIND_IMAGE = 3;
+   */
+  IMAGE = 3,
 }
 
 /**
@@ -933,6 +1345,39 @@ export const DockerReadStateSchema: GenEnum<DockerReadState> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_docker, 3);
 
 /**
+ * DockerImageState distinguishes a live dependency from a tagged or dangling image.
+ *
+ * @generated from enum dockwell.v1.DockerImageState
+ */
+export enum DockerImageState {
+  /**
+   * @generated from enum value: DOCKER_IMAGE_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: DOCKER_IMAGE_STATE_USED = 1;
+   */
+  USED = 1,
+
+  /**
+   * @generated from enum value: DOCKER_IMAGE_STATE_UNUSED = 2;
+   */
+  UNUSED = 2,
+
+  /**
+   * @generated from enum value: DOCKER_IMAGE_STATE_DANGLING = 3;
+   */
+  DANGLING = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.DockerImageState.
+ */
+export const DockerImageStateSchema: GenEnum<DockerImageState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_docker, 4);
+
+/**
  * DockerService reads the Engine inventory on selected servers through their agents.
  *
  * @generated from service dockwell.v1.DockerService
@@ -967,6 +1412,26 @@ export const DockerService: GenService<{
     methodKind: "unary";
     input: typeof GetDockerObjectRequestSchema;
     output: typeof GetDockerObjectResponseSchema;
+  },
+  /**
+   * PreviewDockerCleanup lists the artifacts each selected Engine can account for.
+   *
+   * @generated from rpc dockwell.v1.DockerService.PreviewDockerCleanup
+   */
+  previewDockerCleanup: {
+    methodKind: "unary";
+    input: typeof PreviewDockerCleanupRequestSchema;
+    output: typeof PreviewDockerCleanupResponseSchema;
+  },
+  /**
+   * PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+   *
+   * @generated from rpc dockwell.v1.DockerService.PlanDockerMaintenance
+   */
+  planDockerMaintenance: {
+    methodKind: "unary";
+    input: typeof PlanDockerMaintenanceRequestSchema;
+    output: typeof PlanDockerMaintenanceResponseSchema;
   },
   /**
    * WatchDockerObjects streams invalidations and samples while a view is open.

@@ -428,6 +428,7 @@ message GetServerDiskUseResponse {
 // as Docker and the agent added it up. Docker's parts can come to more than
 // the disk holds, when Docker's data spans disks of its own.
 message ServerDiskUse {
+  repeated DockerDiskCategory docker_breakdown = 400;
   // When the agent added it up, on the server's clock.
   google.protobuf.Timestamp time = 1;
   // Where Docker keeps its data, such as "/var/lib/docker".
@@ -1091,4 +1092,16 @@ message SystemLogLine {
   string message = 5;
   // Where it is, for the page before it. Opaque.
   string cursor = 6;
+}
+
+// DockerDiskCategory measures one Docker category as of the server's observation.
+message DockerDiskCategory {
+  DockerCleanupKind kind = 1;
+  optional uint64 used_bytes = 2;
+  optional uint64 reclaimable_bytes = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  repeated DockerCleanupReason blockers = 5;
+  bool partial = 6;
+  // Local volumes can be accounted for outside the Engine's own disk.
+  optional uint64 other_mounts_bytes = 7;
 }

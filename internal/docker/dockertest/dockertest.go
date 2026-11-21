@@ -41,6 +41,9 @@ import (
 // Image is an image the fake can pull.
 type Image struct {
 	Config docker.Config
+	// Created and Layer describe a fixture image's local creation time and DiffID.
+	Created time.Time
+	Layer   string
 	// Address is where a running container of it says it is, in place of an address on
 	// its network, so a test can answer a real check from there.
 	Address string
@@ -123,7 +126,11 @@ type Engine struct {
 	// Socket is where it listens.
 	Socket string
 	// APIVersion and MinAPIVersion are what /version reports.
-	APIVersion, MinAPIVersion string
+	APIVersion, MinAPIVersion     string
+	EngineVersion, EnginePlatform string
+	// IgnoreBuildCacheID simulates an Engine returning an unsafe prune scope.
+	IgnoreBuildCacheID, HideExtraCacheDeletes  bool
+	ReportExtraCacheID, ConcurrentCacheRemoval string
 	// DockerRoot is where /info says the engine keeps its data:
 	// /var/lib/docker unless set.
 	DockerRoot string
@@ -212,6 +219,7 @@ type Engine struct {
 	// unless set. ContainerSizes is what each container wrote to its own layer,
 	// by name without the slash.
 	VolumeSizes, ContainerSizes map[string]int64
+	cacheRecords                []docker.DiskUsageCache
 }
 
 type image struct {
@@ -326,6 +334,7 @@ func New(t testing.TB) *Engine {
 	e := &Engine{
 		Socket:     filepath.Join(dir, "docker.sock"),
 		APIVersion: "1.47", MinAPIVersion: "1.24",
+		EngineVersion: "27.3.1", EnginePlatform: "Docker Engine - Community",
 		Registry:   map[string]Image{},
 		published:  map[string]Image{},
 		images:     map[string]*image{},
@@ -475,7 +484,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 	case path == "/_ping":
 		_, _ = w.Write([]byte("OK"))
 	case path == "/version":
-		writeJSON(w, http.StatusOK, map[string]string{"Version": "27.3.1", "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion, "Arch": "amd64"})
+		writeJSON(w, http.StatusOK, map[string]any{"Version": e.EngineVersion, "ApiVersion": e.APIVersion, "MinAPIVersion": e.MinAPIVersion, "Arch": "amd64", "Platform": map[string]string{"Name": e.EnginePlatform}})
 	case path == "/events":
 		e.serveEvents(w, r)
 	case path == "/info":
@@ -529,7 +538,13 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.serveDistribution(w, r, strings.Join(parts[1:len(parts)-1], "/"))
 	case parts[0] == "volumes":
 		e.serveVolumes(w, r, parts[1:])
+	case r.Method == http.MethodPost && path == "/build/prune":
+		e.pruneBuildCache(w, r)
 	case r.Method == http.MethodGet && path == "/system/df":
+		if r.URL.Query().Get("type") == "build-cache" {
+			writeJSON(w, http.StatusOK, docker.DiskUsage{BuildCache: e.cacheRecords})
+			return
+		}
 		writeJSON(w, http.StatusOK, e.diskUsage())
 	case parts[0] == "networks":
 		e.serveNetworks(w, r, parts[1:])
@@ -572,7 +587,7 @@ func (e *Engine) distinctImages() map[*image]bool {
 // ContainerSizes has it; and each volume as VolumeSizes has it, with how many
 // containers use it.
 func (e *Engine) diskUsage() docker.DiskUsage {
-	var out docker.DiskUsage
+	out := docker.DiskUsage{BuildCache: e.cacheRecords}
 	for img := range e.distinctImages() {
 		used := int64(0)
 		for _, c := range e.containers {
@@ -581,7 +596,12 @@ func (e *Engine) diskUsage() docker.DiskUsage {
 			}
 		}
 		out.LayersSize += img.Size
-		out.Images = append(out.Images, docker.DiskUsageImage{ID: img.id, Size: img.Size, Containers: used})
+		tags, digests := e.imageRefs(img)
+		row := docker.DiskUsageImage{ID: img.id, Size: img.Size, Containers: used, RepoTags: tags, RepoDigests: digests, Labels: img.Config.Labels}
+		if !img.created.IsZero() {
+			row.Created = img.created.Unix()
+		}
+		out.Images = append(out.Images, row)
 	}
 	for _, c := range e.containers {
 		out.Containers = append(out.Containers, docker.DiskUsageContainer{ID: c.ID, SizeRw: e.ContainerSizes[strings.TrimPrefix(c.Name, "/")]})
@@ -599,6 +619,92 @@ func (e *Engine) diskUsage() docker.DiskUsage {
 	slices.SortFunc(out.Containers, func(a, b docker.DiskUsageContainer) int { return strings.Compare(a.ID, b.ID) })
 	slices.SortFunc(out.Volumes, func(a, b docker.DiskUsageVolume) int { return strings.Compare(a.Name, b.Name) })
 	return out
+}
+
+// SetBuildCache replaces the fixture records reported by the Engine.
+func (e *Engine) SetBuildCache(records ...docker.DiskUsageCache) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cacheRecords = slices.Clone(records)
+}
+
+func (e *Engine) pruneBuildCache(w http.ResponseWriter, r *http.Request) {
+	var filters map[string]map[string]bool
+	if err := json.Unmarshal([]byte(r.URL.Query().Get("filters")), &filters); err != nil ||
+		len(filters["id"]) != 1 || len(filters["until"]) != 1 {
+		fail(w, http.StatusBadRequest, "the fixture requires an exact cache ID and cutoff")
+		return
+	}
+	for key := range filters {
+		if key != "id" && key != "until" && key != "inuse" && key != "shared" {
+			fail(w, http.StatusBadRequest, "unsupported fixture cache filter")
+			return
+		}
+	}
+	var pattern *regexp.Regexp
+	for value := range filters["id"] {
+		var err error
+		pattern, err = regexp.Compile(value)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid cache id filter")
+			return
+		}
+	}
+	var cutoff time.Time
+	for stamp := range filters["until"] {
+		parsed, err := time.Parse(time.RFC3339Nano, stamp)
+		if err != nil {
+			fail(w, http.StatusBadRequest, "invalid cache cutoff")
+			return
+		}
+		cutoff = parsed
+	}
+	var deleted []string
+	e.cacheRecords = slices.DeleteFunc(e.cacheRecords, func(record docker.DiskUsageCache) bool {
+		if record.ID == e.ConcurrentCacheRemoval {
+			return true
+		}
+		// BuildKit's UsageInfo exposes inuse and shared as presence-only
+		// fields. In prune, inuse is absent and shared is excluded without all.
+		if !matchesPrunePresence(filters, "inuse", false) || !matchesPrunePresence(filters, "shared", record.Shared) ||
+			record.InUse || record.Shared || record.Type == "internal" || record.Type == "frontend" ||
+			(record.LastUsedAt != nil && record.LastUsedAt.After(cutoff)) {
+			return false
+		}
+		matches := pattern.MatchString(record.ID)
+		if matches || e.IgnoreBuildCacheID {
+			if matches || !e.HideExtraCacheDeletes {
+				deleted = append(deleted, record.ID)
+			}
+			return true
+		}
+		return false
+	})
+	if e.ReportExtraCacheID != "" {
+		deleted = append(deleted, e.ReportExtraCacheID)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"CachesDeleted": deleted})
+}
+
+func matchesPrunePresence(filters map[string]map[string]bool, field string, present bool) bool {
+	values, filtered := filters[field]
+	return !filtered || present && (len(values) == 0 || values[""])
+}
+
+func (e *Engine) imageRefs(asked *image) (tags, digests []string) {
+	for ref, row := range e.images {
+		if row != asked || ref == row.id {
+			continue
+		}
+		if strings.Contains(ref, "@") {
+			digests = append(digests, ref)
+		} else {
+			tags = append(tags, ref)
+		}
+	}
+	slices.Sort(tags)
+	slices.Sort(digests)
+	return tags, digests
 }
 
 // ncpu is how many CPUs the fake server has.
@@ -637,8 +743,11 @@ func (e *Engine) FailedToStart(name, why string) {
 func (e *Engine) AddLocalImage(ref string, img Image) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	i := &image{id: "sha256:" + newID(), Image: img}
-	e.images[docker.WithTag(ref)], e.images[i.id] = i, i
+	i := &image{id: "sha256:" + newID(), created: img.Created, layer: img.Layer, Image: img}
+	e.images[i.id] = i
+	if ref != "" {
+		e.images[docker.WithTag(ref)] = i
+	}
 }
 
 // image finds a pulled image as the engine takes a reference: by its name
@@ -684,7 +793,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 	case r.Method == http.MethodGet && path == "/images/json":
 		e.listImages(w, r)
 	case r.Method == http.MethodDelete:
-		e.removeImage(w, strings.TrimPrefix(path, "/images/"), truthy(r.URL.Query().Get("force")))
+		e.removeImage(w, strings.TrimPrefix(path, "/images/"), truthy(r.URL.Query().Get("force")), truthy(r.URL.Query().Get("noprune")))
 	case r.Method == http.MethodPost && path == "/images/create":
 		ref := r.URL.Query().Get("fromImage")
 		if tag := r.URL.Query().Get("tag"); tag != "" {
@@ -754,6 +863,18 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		}
 		e.images[r.URL.Query().Get("repo")+":"+r.URL.Query().Get("tag")] = img
 		w.WriteHeader(http.StatusCreated)
+	case r.Method == http.MethodGet && strings.HasSuffix(path, "/history"):
+		ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/history")
+		img := e.image(ref)
+		if img == nil {
+			fail(w, http.StatusNotFound, "No such image: %s", ref)
+			return
+		}
+		writeJSON(w, http.StatusOK, []map[string]any{{
+			"Created": img.created.Unix(), "Size": img.Size,
+			"CreatedBy": "RUN fixture-history-secret", "Comment": "fixture-history-comment",
+		}})
+
 	case r.Method == http.MethodGet && strings.HasSuffix(path, "/json"):
 		ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
 		img := e.image(ref)
@@ -772,13 +893,14 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 				cfg.Volumes[v] = struct{}{}
 			}
 		}
-		out := docker.Image{ID: img.id, Config: &cfg, Created: img.created, Size: img.Size}
+		tags, digests := e.imageRefs(img)
+		out := docker.Image{
+			ID: img.id, Config: &cfg, Created: img.created, Size: img.Size,
+			RepoTags: tags, RepoDigests: digests,
+		}
+		out.OS, out.Architecture = "linux", "amd64"
 		if img.layer != "" {
 			out.RootFS.Layers = []string{img.layer}
-		}
-		// An image built here has none.
-		if img.digest != "" {
-			out.RepoDigests = []string{img.repo + "@" + img.digest}
 		}
 		writeJSON(w, http.StatusOK, out)
 	default:
@@ -1229,7 +1351,7 @@ func (e *Engine) list(w http.ResponseWriter, r *http.Request) {
 		}
 		if c.matches(f) {
 			out = append(out, docker.ContainerSummary{
-				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Image: e.listedImage(c), Ports: summaryPorts(c), Mounts: c.Mounts,
+				ID: c.ID, Names: []string{c.Name}, Labels: c.Config.Labels, Created: c.created, Image: e.listedImage(c), ImageID: c.img.id, Ports: summaryPorts(c), Mounts: c.Mounts,
 				State: c.State.Status, Status: statusLine(c), NetworkSettings: docker.SummaryNetworks{Networks: listedNetworks(c)},
 			})
 		}
@@ -1823,7 +1945,7 @@ func (e *Engine) serveNetworks(w http.ResponseWriter, r *http.Request, parts []s
 			fail(w, http.StatusConflict, "network with name %s already exists", req.Name)
 			return
 		}
-		n := &docker.Network{ID: newID(), Name: req.Name, Driver: req.Driver, Internal: req.Internal, Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
+		n := &docker.Network{ID: newID(), Name: req.Name, Scope: "local", Driver: req.Driver, Internal: req.Internal, Options: maps.Clone(req.Options), Labels: maps.Clone(req.Labels)}
 		if req.IPAM != nil {
 			// As the default IPAM driver refuses it.
 			for _, c := range req.IPAM.Config {

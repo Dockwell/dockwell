@@ -50,9 +50,10 @@ type Client struct {
 	socket string
 	http   *http.Client
 
-	mu      sync.Mutex
-	version string // negotiated by the first successful Ping
-	engine  string // the engine's version, such as "27.3.1"
+	mu       sync.Mutex
+	version  string // negotiated by the first successful Ping
+	platform string
+	engine   string // the engine's version, such as "27.3.1"
 	// unusable says why the client can't reach any engine, such as
 	// DOCKER_HOST naming one it can't speak to.
 	unusable error
@@ -121,6 +122,9 @@ func scrubMount(message string) string {
 // IsNotFound reports the engine saying what was asked for doesn't exist.
 func IsNotFound(err error) bool { return status(err) == http.StatusNotFound }
 
+// IsBadRequest reports that the Engine rejected the request before applying it.
+func IsBadRequest(err error) bool { return status(err) == http.StatusBadRequest }
+
 // IsConflict reports the engine refusing because of what exists, such as
 // a name in use or a volume a container uses.
 func IsConflict(err error) bool { return status(err) == http.StatusConflict }
@@ -183,6 +187,7 @@ func (c *Client) Ping(ctx context.Context) error {
 	defer cancel()
 	var v struct {
 		Version       string
+		Platform      struct{ Name string }
 		APIVersion    string `json:"ApiVersion"`
 		MinAPIVersion string `json:"MinAPIVersion"`
 	}
@@ -202,7 +207,7 @@ func (c *Client) Ping(ctx context.Context) error {
 			"Update the agent to the control plane's version", v.Version, use)}
 	}
 	c.mu.Lock()
-	c.version, c.engine = use, v.Version
+	c.version, c.engine, c.platform = use, v.Version, v.Platform.Name
 	c.mu.Unlock()
 	return nil
 }
@@ -386,6 +391,30 @@ func (c *Client) raw(ctx context.Context, method, path string, query url.Values,
 	}
 	return nil
 }
+
+// boundedJSON decodes inventory and maintenance replies within a byte budget,
+// before the Engine's response can be buffered or expanded into Go objects.
+func (c *Client) boundedJSON(ctx context.Context, method, path string, query url.Values, out any) error {
+	path, err := c.versioned(ctx, path)
+	if err != nil {
+		return err
+	}
+	res, err := c.send(ctx, method, path, query, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body := &io.LimitedReader{R: res.Body, N: maxInventoryBytes}
+	if err := json.NewDecoder(body).Decode(out); err != nil {
+		if body.N == 0 && errors.Is(err, io.ErrUnexpectedEOF) {
+			return errors.New("the Docker reply exceeds the 8 MiB review limit")
+		}
+		return err
+	}
+	return nil
+}
+
+const maxInventoryBytes = 8 << 20
 
 // send sends a request, and turns an answer of 400 or more into an
 // *Error. The caller closes the body of what it returns.
