@@ -50,6 +50,25 @@ export interface GlyphProps {
 /** The bare status shape used inside StatusBadge, for custom rows and legends. */
 export declare function Glyph(props: GlyphProps): React.ReactElement;
 
+export type BrandId =
+  | 'cloudflare' | 'backblaze' | 'google-cloud' | 'resend' | 'mailgun' | 'brevo'
+  | 'github' | 'docker' | 'gitlab' | 'discord' | 'telegram' | 'ntfy' | 'gmail' | 'fastmail'
+  | 'php' | 'nodejs' | 'python' | 'go' | 'openjdk'
+  | 'amazon-s3' | 'amazon-ses' | 'amazon-ecr' | 'postmark';
+export interface BrandMarkProps {
+  /** The service whose own mark it is. Left out, the tile draws `icon` from the product's set. */
+  brand?: BrandId;
+  /** The product's own icon, for a service with no mark of its own, such as another S3-compatible store. */
+  icon?: IconName;
+  /** The tile's side in pixels. Default 32. */
+  size?: number;
+  /** What a screen reader says for it. Left out, the tile is decorative, beside the service's name. */
+  label?: string;
+  className?: string;
+}
+/** A service's own mark on a tile: the light art ground in both themes, the dark one for a light mark, or edge to edge. */
+export declare function BrandMark(props: BrandMarkProps): React.ReactElement;
+
 export interface LogoProps {
   /** logotype: the full name with the dock-and-water D. mark: the D alone. icon: the app icon tile (fixed colours, for favicons and app stores). */
   variant?: 'logotype' | 'mark' | 'icon';

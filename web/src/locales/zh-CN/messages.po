@@ -7872,7 +7872,7 @@ msgstr "在各服务器的磁盘上，按计划另存加密副本到服务器之
 
 #. placeholder {0}: b.destination
 #. placeholder {0}: server.name
-#. placeholder {0}: where.server
+#. placeholder {0}: where.server ?? ""
 msgid "On {0}"
 msgstr "在 {0} 上"
 
@@ -18902,8 +18902,8 @@ msgstr "任何 DNS 服务商"
 
 #. placeholder {0}: c.bucket
 #. placeholder {0}: d.bucket
-msgid "Bucket <0>{0}</0> at <1>{host}</1>"
-msgstr "存储桶 <0>{0}</0>，位于 <1>{host}</1>"
+msgid "Bucket <0>{0}</0> at <1/>"
+msgstr "存储桶 <0>{0}</0>，位于 <1/>"
 
 msgid "Certificates by DNS, its proxy and tunnels"
 msgstr "通过 DNS 签发证书，以及它的代理和隧道"

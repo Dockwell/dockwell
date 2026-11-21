@@ -228,7 +228,12 @@ describe("Alert channels", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add channel" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
-    expect(within(sheet).getByLabelText("Mail service")).toHaveValue("gmail");
+    // Each service a card with its own mark, Gmail picked first.
+    const services = within(sheet).getByRole("group", { name: "Mail service" });
+    expect(within(services).getByRole("radio", { name: "Gmail" })).toBeChecked();
+    expect(
+      within(services).getByText("Gmail").closest("label")?.querySelector(".dw-brand-mark svg path"),
+    ).not.toBeNull();
     // The server's settings and the name wait under Advanced, said in a line.
     expect(within(sheet).queryByLabelText("SMTP server")).toBeNull();
     expect(within(sheet).getByRole("button", { name: "Advanced" })).toHaveTextContent(
@@ -274,7 +279,7 @@ describe("Alert channels", () => {
     );
     await user.click(await screen.findByRole("button", { name: "Add channel" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
-    await user.selectOptions(within(sheet).getByLabelText("Mail service"), "other");
+    await user.click(within(sheet).getByRole("radio", { name: "Another SMTP server" }));
     const server = within(sheet).getByLabelText("SMTP server");
     // Another server starts empty, not as the service picked before.
     expect(server).toHaveValue("");

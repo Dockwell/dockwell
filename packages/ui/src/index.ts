@@ -7,6 +7,8 @@
 // Guidelines for every component live in design/system/components/<Name>/README.md.
 
 export { Advanced, type AdvancedProps } from "./components/Advanced/Advanced";
+export { BrandMark, type BrandMarkProps } from "./components/BrandMark/BrandMark";
+export { BRANDS, type Brand, type BrandId, brandIds } from "./components/BrandMark/brands";
 export { Button, ButtonLink, type ButtonLinkProps, type ButtonProps } from "./components/Button/Button";
 export { Callout, type CalloutProps } from "./components/Callout/Callout";
 export { CodeField, type CodeFieldProps } from "./components/CodeField/CodeField";

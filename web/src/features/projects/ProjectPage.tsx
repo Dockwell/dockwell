@@ -10,6 +10,7 @@ import { type FormEvent, type ReactNode, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { imageOf, nameOf } from "../apps/app";
+import { ImageName } from "../apps/ImageName";
 import { MayEdit } from "../auth/MayEdit";
 import { useMay } from "../auth/may";
 import { useRoleNames } from "../auth/user";
@@ -175,7 +176,7 @@ function Contents({ view }: { view: ProjectView }) {
     rows.push(
       <li key={app.id} className="project-row">
         <Link to="/apps/$serviceId" params={{ serviceId: app.id }} className="project-row-link">
-          <RowBody icon="service" name={nameOf(app)} sub={<code>{imageOf(app)}</code>} link />
+          <RowBody icon="service" name={nameOf(app)} sub={<ImageName image={imageOf(app)} />} link />
         </Link>
       </li>,
     );
@@ -184,7 +185,7 @@ function Contents({ view }: { view: ProjectView }) {
     rows.push(
       <li key={db.id} className="project-row">
         <Link to="/databases/$serviceId" params={{ serviceId: db.id }} className="project-row-link">
-          <RowBody icon="database" name={nameOf(db)} sub={<code>{imageOf(db)}</code>} link />
+          <RowBody icon="database" name={nameOf(db)} sub={<ImageName image={imageOf(db)} />} link />
         </Link>
       </li>,
     );

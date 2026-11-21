@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import { type GitHubAppInfo, GitProviderService, StepUpAction } from "@dockwell/api";
-import { Button, ButtonLink, Callout, Icon, SegmentedControl, Sheet, StatusBadge, TextField } from "@dockwell/ui";
+import { BrandMark, Button, ButtonLink, Callout, SegmentedControl, Sheet, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -74,9 +74,7 @@ export function GitHubSection() {
           {list.length > 0 ? null : (
             <article className="dw-panel integrations-card" aria-label="GitHub">
               <div className="integrations-card-head">
-                <span className="integrations-mark" aria-hidden="true">
-                  <Icon name="branch" size={16} />
-                </span>
+                <BrandMark brand="github" />
                 <span className="settings-meta">{t`Not connected`}</span>
               </div>
               <div className="integrations-card-text">
@@ -160,9 +158,7 @@ function GitHubCard({
   return (
     <article className="dw-panel integrations-card" aria-label="GitHub">
       <div className="integrations-card-head">
-        <span className="integrations-mark" aria-hidden="true">
-          <Icon name="branch" size={16} />
-        </span>
+        <BrandMark brand="github" />
         {app.gone ? (
           <StatusBadge status="down" label={t`Deleted on GitHub`} />
         ) : (

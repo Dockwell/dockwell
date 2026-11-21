@@ -23,13 +23,12 @@ import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import { useOwnerWords } from "./Owner";
-import { StoreMark } from "./Stores";
+import { RepositoryMark, StoreMark } from "./Stores";
 import type { CatalogSearch } from "./search";
 import {
   categoryLabel,
   type EntryWords,
   installOf,
-  monogram,
   stranger,
   useCatalogPages,
   useEntryWords,
@@ -434,7 +433,7 @@ function Chip({
 }
 
 /** One app: its own logo, what it does, its version and any existing installations. */
-/** A catalog's mark: Dockwell's own, a store's, or its initials. */
+/** A catalog's mark: Dockwell's own, a store's, or its repository host's. */
 function SourceMark({ source, said }: { source: CatalogSourceInfo; said: string }) {
   if (source.own) {
     return (
@@ -444,11 +443,7 @@ function SourceMark({ source, said }: { source: CatalogSourceInfo; said: string 
     );
   }
   if (source.store) return <StoreMark id={source.store} name={said} size={32} />;
-  return (
-    <span className="store-mark is-small" aria-hidden="true">
-      {monogram(said)}
-    </span>
-  );
+  return <RepositoryMark repository={source.source?.repository ?? ""} size={32} />;
 }
 
 function Card({
@@ -490,6 +485,8 @@ function Card({
   const services = useServices().data ?? [];
   const domains = useAllDomains().last?.domains ?? [];
   const where = count === 1 && first ? installedAt(first, services, domains) : undefined;
+  const whereWords = where ? (where.domain ? where.domain : t`On ${where.server ?? ""}`) : "";
+  const opens = where !== undefined && Boolean(first?.webServiceId);
   const body = (
     <>
       <span className="catalog-card-head">
@@ -510,34 +507,46 @@ function Card({
         ) : null}
       </span>
       <span className="catalog-card-summary">{words.summary}</span>
-      <span className="catalog-card-foot">
-        <span className="catalog-card-about">
-          {where ? (
-            <span className="catalog-card-where">
-              <Icon name={where.domain ? "globe" : "server"} size={12} />
-              <span>{where.domain ? where.domain : t`On ${where.server}`}</span>
-            </span>
-          ) : null}
-          <code>{entry.version}</code>
-          {also?.length ? (
-            <span
-              className="catalog-card-from"
-              title={t`From the catalogs ${list([source ?? "", ...also].filter(Boolean))}`}
-            >
-              <Icon name="branch" size={12} />
-              <span>
-                {named(source ?? "")} · {t`also in ${list(also.map(named))}`}
+      <span className="catalog-card-end">
+        {where ? (
+          // Where it's reached, on a line of its own, so a long domain or server name
+          // never crowds the version, its catalog or Open off the row under it.
+          <span className="catalog-card-where" title={whereWords}>
+            <Icon name={where.domain ? "globe" : "server"} size={12} />
+            <span>{whereWords}</span>
+          </span>
+        ) : null}
+        <span className="catalog-card-foot">
+          <span className="catalog-card-about">
+            <code>{entry.version}</code>
+            {also?.length ? (
+              <span
+                className="catalog-card-from"
+                title={t`From the catalogs ${list([source ?? "", ...also].filter(Boolean))}`}
+              >
+                <Icon name="branch" size={12} />
+                <span>
+                  {named(source ?? "")} · {t`also in ${list(also.map(named))}`}
+                </span>
               </span>
-            </span>
-          ) : source ? (
-            <span className="catalog-card-from" title={t`From the catalog ${source}`}>
-              <Icon name="branch" size={12} />
-              <span>{named(source)}</span>
+            ) : source ? (
+              <span className="catalog-card-from" title={t`From the catalog ${source}`}>
+                <Icon name="branch" size={12} />
+                <span>{named(source)}</span>
+              </span>
+            ) : null}
+          </span>
+          {opens ? (
+            // Open is a link of its own beside the card's, never inside it: this keeps
+            // its room in the row, as wide as the word is in the reader's language, so
+            // nothing in the row runs under it.
+            <span className="catalog-card-open-room" aria-hidden="true">
+              <Trans>Open</Trans>
             </span>
           ) : null}
-        </span>
-        <span className="catalog-card-more" aria-hidden="true">
-          <Icon name="arrow-right" size={14} />
+          <span className="catalog-card-more" aria-hidden="true">
+            <Icon name="arrow-right" size={14} />
+          </span>
         </span>
       </span>
     </>
@@ -547,7 +556,7 @@ function Card({
       {body}
     </Link>
   );
-  if (!where || !first?.webServiceId) return card;
+  if (!opens || !first?.webServiceId) return card;
   // The installed app a step away, beside the card's own way to its details: never a
   // link inside a link.
   return (

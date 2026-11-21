@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import type { Runtime, ServiceInfo, WebsiteRuntime } from "@dockwell/api";
+import type { BrandId } from "@dockwell/ui";
 
 import { appOf } from "./app";
 
 /** The languages an app from a folder runs on, as a spec names them, in the order the panel offers them (ADR 0058). */
 export const APP_LANGUAGES = ["node", "python", "go", "java"] as const;
 
-/** A language's two letters, as a runtime's card marks it. */
-export const LANGUAGE_MARKS: Readonly<Record<string, string>> = {
-  php: "Ph",
-  node: "No",
-  python: "Py",
-  go: "Go",
-  java: "Ja",
+/** Each language's own mark, for its tile, by its ID; another has the product's terminal icon. */
+export const LANGUAGE_MARKS: Readonly<Record<string, BrandId>> = {
+  php: "php",
+  node: "nodejs",
+  python: "python",
+  go: "go",
+  java: "openjdk",
 };
 
 /** What an app from a folder runs on, or undefined for an app from an image. */

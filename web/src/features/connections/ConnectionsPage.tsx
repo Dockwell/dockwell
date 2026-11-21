@@ -31,6 +31,7 @@ import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { LastCheckCell, useLastCheck } from "./LastCheck";
 import { type MailProviderId, mailPlaceOf, mailProvider } from "./mail";
+import { ConnectionMark, DestinationMark } from "./ProviderMark";
 import { hostOf, type ProviderId, placeOf, provider } from "./providers";
 import { ServiceTiles } from "./ServiceTiles";
 import { appsOf } from "./storage";
@@ -192,7 +193,7 @@ export function ConnectionsPage() {
             row.kind === "connection" ? (
               <li key={row.id}>
                 <Link to="/connections/$name" params={{ name: row.connection.name }} className="connections-phone-row">
-                  <Mark connection={row.connection} />
+                  <ConnectionMark connection={row.connection} />
                   <span className="connections-phone-text">
                     <span className="connections-mono connections-name">{row.connection.name}</span>
                     <span className="connections-meta">
@@ -273,7 +274,7 @@ function ConnectionsTable({
       render: (row) =>
         row.kind === "connection" ? (
           <div className="connections-cell-name">
-            <Mark connection={row.connection} />
+            <ConnectionMark connection={row.connection} />
             <div className="dw-cell">
               <Link
                 to="/connections/$name"
@@ -399,35 +400,6 @@ function whereDestination(d: BackupDestinationInfo): string {
   if (!d.endpoint) return d.bucket;
   const p = provider(placeOf(d.endpoint).provider);
   return [p.name || hostOf(d.endpoint), d.bucket].filter(Boolean).join(" · ");
-}
-
-/** A connection's tile: its store's two letters. */
-export function Mark({ connection }: { connection: ConnectionInfo }) {
-  if (connection.kind === LinkKind.SMTP) {
-    const m = connection.host ? mailProvider(mailPlaceOf(connection.host).provider) : undefined;
-    return (
-      <span className="connection-mark" aria-hidden>
-        {m?.mark ?? "@"}
-      </span>
-    );
-  }
-  const p = connection.endpoint ? provider(placeOf(connection.endpoint, connection.region).provider) : undefined;
-  // Another store's tile is a plus where it's picked; saved, it's S3 storage.
-  return (
-    <span className="connection-mark" aria-hidden>
-      {p && p.id !== "other" ? p.mark : "S3"}
-    </span>
-  );
-}
-
-/** A standalone legacy backup destination's store tile. */
-function DestinationMark({ destination }: { destination: BackupDestinationInfo }) {
-  const p = destination.endpoint ? provider(placeOf(destination.endpoint).provider) : undefined;
-  return (
-    <span className="connection-mark" aria-hidden>
-      {p && p.id !== "other" ? p.mark : "S3"}
-    </span>
-  );
 }
 
 /** A phone row's last check, in a line: the state, and when. */

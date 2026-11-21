@@ -13,6 +13,7 @@ import { StateLine } from "../apps/DomainStep";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
+import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
 import { pickerStatus, useStorage } from "./storage";
 import "./Backups.css";
 
@@ -75,15 +76,18 @@ export function DestinationsPanel({ destinations }: { destinations: readonly Bac
             const c = item.connection;
             return (
               <li key={item.key} className="backup-policy">
-                <div className="backup-state">
-                  {c ? (
-                    <Link to="/connections/$name" params={{ name: c.name }} className="backup-dest-link">
-                      {c.name}
-                    </Link>
-                  ) : (
-                    <span>{item.name}</span>
-                  )}
-                  {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
+                <div className="backup-dest-head">
+                  {c ? <ConnectionMark connection={c} /> : d ? <DestinationMark destination={d} /> : null}
+                  <div className="backup-state">
+                    {c ? (
+                      <Link to="/connections/$name" params={{ name: c.name }} className="backup-dest-link">
+                        {c.name}
+                      </Link>
+                    ) : (
+                      <span>{item.name}</span>
+                    )}
+                    {item.bucket ? <code className="backup-why">{item.bucket}</code> : null}
+                  </div>
                 </div>
                 <div className="backup-state">
                   {d ? (

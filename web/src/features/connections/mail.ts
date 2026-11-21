@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { SmtpSecurity } from "@dockwell/api";
+import type { BrandId } from "@dockwell/ui";
 
 /**
  * The mail services a connection to a mail server is made for, each with where its
@@ -13,8 +14,8 @@ export interface MailProvider {
   id: MailProviderId;
   /** The service's name, which no translation changes. */
   name: string;
-  /** Two letters for its tile. */
-  mark: string;
+  /** Its own mark, for its tile; another server has none, and its tile draws an envelope. */
+  brand?: BrandId;
   /** Its regions, where a person picks one, first the default. Empty where it has none. */
   regions: readonly string[];
   /** Its server, from the region picked; empty for another server, which a person types. */
@@ -52,7 +53,7 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "resend",
     name: "Resend",
-    mark: "Re",
+    brand: "resend",
     regions: [],
     host: () => "smtp.resend.com",
     user: "resend",
@@ -63,7 +64,7 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "postmark",
     name: "Postmark",
-    mark: "Pm",
+    brand: "postmark",
     regions: [],
     host: () => "smtp.postmarkapp.com",
     user: "",
@@ -74,7 +75,7 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "ses",
     name: "Amazon SES",
-    mark: "SE",
+    brand: "amazon-ses",
     regions: SES_REGIONS,
     host: (region) => (region ? `email-smtp.${region}.amazonaws.com` : ""),
     user: "",
@@ -85,7 +86,7 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "mailgun",
     name: "Mailgun",
-    mark: "Mg",
+    brand: "mailgun",
     regions: ["us", "eu"],
     host: (region) => (region === "eu" ? "smtp.eu.mailgun.org" : "smtp.mailgun.org"),
     user: "",
@@ -96,7 +97,7 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "brevo",
     name: "Brevo",
-    mark: "Br",
+    brand: "brevo",
     regions: [],
     host: () => "smtp-relay.brevo.com",
     user: "",
@@ -107,7 +108,6 @@ export const MAIL_PROVIDERS: readonly MailProvider[] = [
   {
     id: "mail",
     name: "",
-    mark: "@",
     regions: [],
     host: () => "",
     user: "",

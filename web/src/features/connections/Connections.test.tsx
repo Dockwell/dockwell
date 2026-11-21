@@ -220,6 +220,12 @@ describe("Connections", () => {
   it("starts empty with a tile for each store, and holds nothing back below an admin but the way to add one", async () => {
     const user = userEvent.setup();
     renderAt("/connections", { ...fleet(), resources: places() });
+    // Each store's tile draws its own mark, not letters standing in for it.
+    for (const name of ["Cloudflare R2", "Amazon S3", "Backblaze B2", "Google Cloud Storage", "Postmark"]) {
+      const tile = await screen.findByRole("button", { name });
+      expect(tile.querySelector(".dw-brand-mark svg path")).not.toBeNull();
+      expect(tile.textContent).toBe(name === "Google Cloud Storage" ? "Google Cloud" : name);
+    }
     await user.click(await screen.findByRole("button", { name: "Backblaze B2" }));
     const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
     expect(within(sheet).getByRole("button", { name: "Backblaze B2" })).toHaveAttribute("aria-pressed", "true");

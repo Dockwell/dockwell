@@ -3,7 +3,7 @@
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { CatalogService, type CatalogSourceInfo, type CatalogStore } from "@dockwell/api";
-import { Button, cx, Icon } from "@dockwell/ui";
+import { type BrandId, BrandMark, Button, cx, Icon } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useMemo } from "react";
@@ -28,6 +28,26 @@ export function StoreMark({ id, name, size = 40 }: { id: string; name: string; s
       {mark ? <img src={mark} alt="" width={size} height={size} /> : monogram(name)}
     </span>
   );
+}
+
+/** The host a repository is on, as its own mark where it has one: GitHub's or GitLab's. */
+function repositoryBrand(repository: string): BrandId | undefined {
+  try {
+    const host = new URL(repository).hostname.toLowerCase();
+    if (host === "github.com") return "github";
+    if (host === "gitlab.com") return "gitlab";
+  } catch {
+    // A repository that isn't a URL names no host.
+  }
+  return undefined;
+}
+
+/**
+ * A source read from a Git repository of its own, not a store: its host's mark where
+ * the host has one, or a branch from the product's own set. Never initials.
+ */
+export function RepositoryMark({ repository, size = 40 }: { repository: string; size?: 32 | 40 }) {
+  return <BrandMark brand={repositoryBrand(repository)} icon="branch" size={size} className="store-repository" />;
 }
 
 /** What a store is called, in the reader's language: its format's words, as the store's own repository reads. */
@@ -91,7 +111,7 @@ export function useAddStore(sources: readonly CatalogSourceInfo[]): (store: Cata
  * What a store brings, in a line: that a source reads it, where one does, and how
  * many of its apps install. Its licence is on its name's line (#792).
  */
-export function StoreFacts({ store }: { store: CatalogStore }) {
+export function StoreFacts({ store, licence }: { store: CatalogStore; licence?: ReactNode }) {
   const { t } = useLingui();
   const at = store.commit.slice(0, 12);
   return (
@@ -113,6 +133,7 @@ export function StoreFacts({ store }: { store: CatalogStore }) {
               other: `About ${store.installs} of # apps install`,
             })}
       </span>
+      {licence}
     </span>
   );
 }
@@ -136,16 +157,9 @@ export function StoreTile({
     <li className="store-tile">
       <StoreMark id={store.id} name={store.label} size={small ? 32 : 40} />
       <span className="store-tile-words">
-        {/* Its licence beside its name, never on a line of its own, so every tile is the same (#792). */}
-        <span className="store-tile-name-line">
-          <span className="store-tile-name" title={named(store)}>
-            {named(store)}
-          </span>
-          <span className="store-licence" title={licence(store.license)}>
-            {licence(store.license)}
-          </span>
-        </span>
-        <StoreFacts store={store} />
+        {/* Its name whole, and its licence with what it brings, which wraps, so neither is cut short. */}
+        <span className="store-tile-name">{named(store)}</span>
+        <StoreFacts store={store} licence={<span className="store-licence">{licence(store.license)}</span>} />
       </span>
       {action ? <span className="store-tile-action">{action}</span> : null}
     </li>
