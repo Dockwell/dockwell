@@ -19,6 +19,8 @@ import (
 type Image struct {
 	ID     string  `json:"Id"`
 	Config *Config `json:"Config"`
+	// Descriptor is the store's OCI target, when the Engine exposes one.
+	Descriptor *ImageDescriptor
 	// Created is when it was made.
 	Created time.Time `json:"Created"`
 	// RepoDigests are what its registries call it, such as nginx@sha256:ab12….
@@ -36,6 +38,12 @@ type Image struct {
 	RootFS struct {
 		Layers []string `json:"Layers"`
 	} `json:"RootFS"`
+}
+
+// ImageDescriptor identifies the OCI target of an image in the Engine store.
+type ImageDescriptor struct {
+	MediaType string `json:"mediaType"`
+	Digest    string `json:"digest"`
 }
 
 // Digest says what a registry calls an image a reference names, or nothing for

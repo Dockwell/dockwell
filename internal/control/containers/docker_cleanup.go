@@ -174,6 +174,9 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Reques
 	if _, ok := m.GetOperation().(*v1.PlanDockerMaintenanceRequest_ResumeCleanupToken); ok {
 		return h.planResumeDockerCleanup(ctx, m)
 	}
+	if m.GetPull() != nil || m.GetTag() != nil {
+		return h.planDockerImage(ctx, m)
+	}
 	cleanup := m.GetCleanup()
 	selected := cleanup.GetTargets()
 	if len(m.GetServerIds()) == 0 || len(m.GetExpectedSnapshot()) != 64 || len(selected) == 0 || len(selected) > 12 || len(m.GetSummary()) > 200 {

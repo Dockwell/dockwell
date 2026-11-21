@@ -48,9 +48,10 @@ func (s StepState) Final() bool { return s == StepDone || s == StepFailed || s =
 
 // StepProgress is one step of an applying change and how it is going.
 type StepProgress struct {
-	DockerReceipts []*dockwellv1.DockerReceipt `json:"docker_receipts,omitempty"`
-	Server         string                      `json:"server"`
-	ResourceID     string                      `json:"resource_id"`
+	DockerImageReceipts []*dockwellv1.DockerImageReceipt `json:"docker_image_receipts,omitempty"`
+	DockerReceipts      []*dockwellv1.DockerReceipt      `json:"docker_receipts,omitempty"`
+	Server              string                           `json:"server"`
+	ResourceID          string                           `json:"resource_id"`
 	// Provider tells a route's steps at Cloudflare apart from its own step on its
 	// server, which has none (ADR 0104).
 	Provider string          `json:"provider,omitempty"`
@@ -683,6 +684,16 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 // stepMessage is message for a step, in its own words where it restarts a
 // resource, rather than replacing it for a new spec.
 func stepMessage(state StepState, st *resource.Step, server string) string {
+	if image := st.DockerMaintenance.GetImageAction(); image != nil {
+		verb := "Pull image"
+		if image.GetTag() != nil {
+			verb = "Set image tag"
+		}
+		if state == StepQueued || state == StepRunning || state == StepDone {
+			return fmt.Sprintf("%s on %s", verb, server)
+		}
+		return message(state, st.Action, st.Ref, server)
+	}
 	if st.DockerMaintenance.GetResumeCleanupToken() != "" {
 		switch state {
 		case StepQueued:

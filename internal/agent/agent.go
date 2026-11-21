@@ -528,6 +528,7 @@ func Run(ctx context.Context, cfg Config) error {
 			for {
 				cfg.disks.cleanupMu.Lock()
 				pruneDockerReceipts(cfg.Dir, time.Now())
+				pruneDockerImageActions(cfg.Dir, time.Now())
 				cfg.disks.cleanupMu.Unlock()
 				if !sleep(ctx, 24*time.Hour) {
 					return
@@ -707,7 +708,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

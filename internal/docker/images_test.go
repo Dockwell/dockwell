@@ -3,10 +3,72 @@
 package docker_test
 
 import (
+	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 )
+
+func TestImageImportKeepsRegistryPortsInTheRepository(t *testing.T) {
+	for _, ref := range []struct{ input, repository, tag string }{
+		{"fixture/helper:seed", "fixture/helper", "seed"},
+		{"127.0.0.1:5000/fixture/image:review", "127.0.0.1:5000/fixture/image", "review"},
+		{"localhost:5000/fixture/image", "localhost:5000/fixture/image", ""},
+		{"[::1]:5000/fixture/image:review", "[::1]:5000/fixture/image", "review"},
+	} {
+		t.Run(ref.input, func(t *testing.T) {
+			engine := dockertest.New(t)
+			engine.Intercept(func(r *http.Request) error {
+				if strings.HasSuffix(r.URL.Path, "/images/create") {
+					q := r.URL.Query()
+					if q.Get("fromSrc") != "-" || q.Get("repo") != ref.repository || q.Get("tag") != ref.tag {
+						return fmt.Errorf("import sends %v, want repo %q and tag %q", q, ref.repository, ref.tag)
+					}
+				}
+				return nil
+			})
+			if err := engine.Client().ImportImage(t.Context(), ref.input, strings.NewReader("fixture tar")); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestImagePullAndTagKeepRegistryPorts(t *testing.T) {
+	const repo = "127.0.0.1:5000/fixture/image"
+	digest := "sha256:" + strings.Repeat("a", 64)
+	pinned := repo + "@" + digest
+	engine := dockertest.New(t)
+	engine.Registry[pinned] = dockertest.Image{Digest: digest}
+	engine.Intercept(func(r *http.Request) error {
+		q := r.URL.Query()
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/images/create"):
+			if q.Get("fromImage") != pinned || q.Get("tag") != "" {
+				return fmt.Errorf("pull sends %v, want the full pinned reference", q)
+			}
+		case strings.HasSuffix(r.URL.Path, "/tag"):
+			if q.Get("repo") != repo || q.Get("tag") != "review" {
+				return fmt.Errorf("tag sends %v, want repo %q and tag review", q, repo)
+			}
+		}
+		return nil
+	})
+	client := engine.Client()
+	if err := client.PullImage(t.Context(), pinned, nil); err != nil {
+		t.Fatal(err)
+	}
+	image, err := client.InspectImage(t.Context(), pinned)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.TagImage(t.Context(), image.ID, repo+":review"); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // What a registry calls an image comes from that image's repository, however a
 // reference writes it. ADR 0021 says what taking the first of several comes to.

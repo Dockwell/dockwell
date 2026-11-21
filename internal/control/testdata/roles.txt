@@ -179,6 +179,7 @@ ImageService.CheckRegistryLogin                read         admin      admin    
 ImageService.GetImage                          read         developer  developer  project
 ImageService.ListImageTags                     read         developer  developer  project
 ImageService.ListRegistryLogins                read         viewer     viewer     named
+ImageService.ListRegistryRepositories          read         admin      admin      install  session
 ImageService.SearchImages                      read         developer  developer  project
 ImportService.CheckPanelDomains                read         admin      admin      install  session
 ImportService.ImportCoolify                    plan         admin      admin      install

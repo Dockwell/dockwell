@@ -61,7 +61,10 @@ type Image struct {
 	Size int64
 	// Digest is what its registry calls it. Without one it has one of its own, so
 	// a tag moves when a test gives it an image with another.
-	Digest string
+	Digest       string
+	ConfigDigest string
+	// Index says the digest names a manifest list on the containerd image store.
+	Index bool
 	// PullError fails a pull of it, with what a registry would say.
 	PullError string
 	// Architecture is what it's built for: amd64, as the fake server is, if it's empty.
@@ -85,6 +88,8 @@ type Image struct {
 
 // Engine is a fake Docker Engine.
 type Engine struct {
+	// ContainerdImageStore reports descriptor IDs in place of classic config IDs.
+	ContainerdImageStore bool
 	// Services are the Swarm services it runs, as a swarm's manager lists them. Nil
 	// is an engine that isn't in a swarm.
 	Services []docker.Service
@@ -510,7 +515,11 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		for _, r := range e.Registries {
 			index[r] = map[string]any{"Secure": false}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"Images": len(e.distinctImages()), "DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
+		var driverStatus [][]string
+		if e.ContainerdImageStore {
+			driverStatus = [][]string{{"driver-type", "io.containerd.snapshotter.v1"}}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"Images": len(e.distinctImages()), "DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "DriverStatus": driverStatus, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
 	case path == "/services" && r.Method == http.MethodGet:
 		// An engine that isn't a swarm's manager says so, as Docker does.
 		if e.Services == nil {
@@ -850,7 +859,14 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			return
 		}
 		repo, _, _ := strings.Cut(ref, "@")
-		img := &image{id: "sha256:" + newID(), digest: digest, repo: repoOf(repo), Image: src}
+		imageID := src.ConfigDigest
+		if e.ContainerdImageStore {
+			imageID = digest
+		}
+		if imageID == "" {
+			imageID = "sha256:" + newID()
+		}
+		img := &image{id: imageID, digest: digest, repo: repoOf(repo), Image: src}
 		e.images[ref], e.images[img.id], e.images[img.repo+"@"+digest] = img, img, img
 		e.published[digest] = src
 		_ = enc.Encode(map[string]string{"status": "Status: Downloaded newer image for " + ref})
@@ -882,10 +898,6 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			fail(w, http.StatusNotFound, "No such image: %s", ref)
 			return
 		}
-		if img.Architecture != "" {
-			writeJSON(w, http.StatusOK, docker.Image{ID: img.id, Config: &img.Config, Architecture: img.Architecture})
-			return
-		}
 		cfg := img.Config
 		if len(img.Volumes) > 0 {
 			cfg.Volumes = map[string]struct{}{}
@@ -898,7 +910,14 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			ID: img.id, Config: &cfg, Created: img.created, Size: img.Size,
 			RepoTags: tags, RepoDigests: digests,
 		}
-		out.OS, out.Architecture = "linux", "amd64"
+		out.OS, out.Architecture = "linux", cmp.Or(img.Architecture, "amd64")
+		if e.ContainerdImageStore {
+			media := "application/vnd.oci.image.manifest.v1+json"
+			if img.Index {
+				media = "application/vnd.oci.image.index.v1+json"
+			}
+			out.Descriptor = &docker.ImageDescriptor{Digest: img.id, MediaType: media}
+		}
 		if img.layer != "" {
 			out.RootFS.Layers = []string{img.layer}
 		}

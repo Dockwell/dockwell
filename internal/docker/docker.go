@@ -231,6 +231,8 @@ type Info struct {
 	SecurityOptions []string
 	// LiveRestoreEnabled says containers keep running while the engine restarts.
 	LiveRestoreEnabled bool
+	// DriverStatus includes the image store's driver type on the snapshotter.
+	DriverStatus [][]string
 	// RegistryConfig is how it reaches registries: its mirrors of Docker Hub,
 	// and which registries it reaches over plain HTTP.
 	RegistryConfig *RegistryConfig
@@ -239,6 +241,13 @@ type Info struct {
 	Swarm struct {
 		Nodes int
 	}
+}
+
+// ContainerdImageStore reports whether IDs name OCI targets on this Engine.
+func (i *Info) ContainerdImageStore() bool {
+	return slices.ContainsFunc(i.DriverStatus, func(row []string) bool {
+		return len(row) == 2 && row[0] == "driver-type" && row[1] == "io.containerd.snapshotter.v1"
+	})
 }
 
 // RegistryConfig is how the engine reaches registries, as its daemon.json says.

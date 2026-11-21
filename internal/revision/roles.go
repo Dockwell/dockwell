@@ -161,7 +161,7 @@ func (e *Engine) checkRolesOf(ctx context.Context, tx *store.Tx, actor string, c
 			continue
 		}
 		if it.dockerMaintenance != nil && a != discarding && !installAdmin(ctx) {
-			return &Refusal{act: a, Held: place.Holds(caller.Grants, place.Install), Needs: store.RoleAdmin, Why: "Docker cleanup requires an install admin"}
+			return &Refusal{act: a, Held: place.Holds(caller.Grants, place.Install), Needs: store.RoleAdmin, Why: "Docker maintenance requires an install admin"}
 		}
 		held := place.Holds(caller.Grants, at.Place)
 		if it.follows {

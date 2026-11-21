@@ -793,7 +793,7 @@ func (s *Session) progressed(p *agentv1.CallProgress) {
 	s.mu.Unlock()
 	if o := p.GetOutcome(); o != nil {
 		if told != nil {
-			told(resource.Outcome{DockerReceipts: o.GetDockerReceipt(), LocalImageID: o.GetLocalImageId(), Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
+			told(resource.Outcome{DockerReceipts: o.GetDockerReceipt(), DockerImageReceipts: o.GetDockerImageReceipt(), LocalImageID: o.GetLocalImageId(), Digest: o.GetDigest(), Previous: o.GetPrevious(), Replacing: o.GetReplacing(), Note: o.GetNote(), Untouched: o.GetUntouched(), Did: resourcepb.DidFrom(o.GetDid()), Backup: backupTaken(o.GetBackup()), Waits: accessWait(o.GetWaits())})
 		}
 		return
 	}
@@ -1510,6 +1510,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	if step.DockerMaintenance != nil {
+		if step.DockerMaintenance.GetImageAction() != nil {
+			return s.applyDockerImage(ctx, step)
+		}
 		return s.applyDockerCleanup(ctx, step)
 	}
 	workload := step.NeedsRunControl || step.ChangesRunIntent() || step.ExactRestart != "" || resource.RunIntent(desired) != 0

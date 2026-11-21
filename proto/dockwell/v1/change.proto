@@ -2736,6 +2736,7 @@ enum FieldOp {
 // StepProgress is one step of an applying change, and how it is going.
 message StepProgress {
   repeated DockerReceipt docker_receipts = 400;
+  repeated DockerImageReceipt docker_image_receipts = 401;
   // The server it runs on.
   string server_id = 1;
   // The resource's ID.
@@ -2887,6 +2888,7 @@ message DockerMaintenance {
   string change_id = 2;
   // The reviewed pause to clear. Empty when this plan removes artifacts.
   string resume_cleanup_token = 3;
+  DockerImageAction image_action = 4;
 }
 
 // DockerReceipt reports one approved target's outcome.
@@ -2917,4 +2919,98 @@ enum DockerReceiptState {
   DOCKER_RECEIPT_STATE_CHANGED = 2;
   DOCKER_RECEIPT_STATE_FAILED = 3;
   DOCKER_RECEIPT_STATE_UNKNOWN = 4;
+}
+
+// DockerImageSourceKey identifies one image on one Engine.
+message DockerImageSourceKey {
+  string server_id = 1;
+  string image_id = 2;
+}
+
+// DockerImagePull names the registry reference and the optional expected local binding.
+message DockerImagePull {
+  string reference = 1;
+  string login_id = 2;
+  optional string expected_local_image_id = 3;
+  string credential_project = 4;
+}
+
+// DockerImageTag assigns one alias to an immutable local image.
+message DockerImageTag {
+  DockerImageSourceKey source_key = 1;
+  string destination = 2;
+  bool move_existing = 3;
+}
+
+// DockerImageBinding is the local tag evidence the change reviewed.
+message DockerImageBinding {
+  string reference = 1;
+  string image_id = 2;
+  // The local evidence keeps config, index and platform manifest identities separate.
+  DockerRegistryDescriptor local = 3;
+  bool expect_absent = 4;
+}
+
+// DockerImageLoginRef identifies a reviewed connection revision without carrying credentials.
+message DockerImageLoginRef {
+  string id = 1;
+  string name = 2;
+  string host = 3;
+  int64 revision = 4;
+}
+
+// DockerRegistryDescriptor identifies the resolved native manifest and its image config.
+message DockerRegistryDescriptor {
+  string repository = 1;
+  // Digest of the multi-platform index or manifest list, when known.
+  string index_digest = 2;
+  // Digest of the manifest for the selected platform, when known.
+  string manifest_digest = 3;
+  string platform = 4;
+  // Digest of the platform's image config, when known. Engine image IDs are separate.
+  string config_digest = 5;
+}
+
+// DockerImageAction carries frozen evidence for one reviewed image operation.
+message DockerImageAction {
+  repeated DockerImageBinding bindings = 1;
+  DockerRegistryDescriptor descriptor = 2;
+  repeated DockerImageLoginRef approved_logins = 5;
+  string credential_project = 9;
+  // A stored plan sets exactly one of these fields. The plan reader also supports
+  // older JSON records, so the persisted action uses ordinary message fields.
+  DockerImageTag tag = 12;
+  DockerImagePull pull = 18;
+}
+
+// DockerImageReceipt records what the selected Engine verified after the action.
+message DockerImageReceipt {
+  DockerImageOutcome outcome = 1;
+  DockerImageReason reason = 2;
+  DockerImageSourceKey image_key = 3;
+  string reference = 4;
+  string digest = 5;
+  string previous_image_id = 10;
+}
+
+// DockerImageOutcome distinguishes verified results, refusals and uncertain results.
+enum DockerImageOutcome {
+  DOCKER_IMAGE_OUTCOME_UNSPECIFIED = 0;
+  DOCKER_IMAGE_OUTCOME_APPLIED = 1;
+  DOCKER_IMAGE_OUTCOME_UNCHANGED = 2;
+  DOCKER_IMAGE_OUTCOME_REFUSED = 3;
+  DOCKER_IMAGE_OUTCOME_FAILED = 4;
+  DOCKER_IMAGE_OUTCOME_UNKNOWN = 6;
+}
+
+// DockerImageReason says why an image action could not be verified or applied.
+enum DockerImageReason {
+  DOCKER_IMAGE_REASON_UNSPECIFIED = 0;
+  DOCKER_IMAGE_REASON_STALE = 1;
+  DOCKER_IMAGE_REASON_PROTECTED = 2;
+  DOCKER_IMAGE_REASON_CREDENTIAL_REFUSED = 3;
+  DOCKER_IMAGE_REASON_REALM_CHANGED = 4;
+  DOCKER_IMAGE_REASON_UNSUPPORTED_PLATFORM = 5;
+  DOCKER_IMAGE_REASON_VERIFICATION_FAILED = 9;
+  DOCKER_IMAGE_REASON_UNSUPPORTED = 10;
 }

@@ -150,6 +150,30 @@ func (im *images) read(ctx context.Context, call *agentv1.ImageCall) (*agentv1.I
 			return nil, err
 		}
 		return &agentv1.ImageResult{Answer: &agentv1.ImageResult_Image{Image: res}}, nil
+	case call.GetRepositories() != nil:
+		ask := call.GetRepositories()
+		host := ask.GetRegistry()
+		r, err := registry.Parse(host + "/fixture")
+		if err != nil || r.Registry != host || len(ask.GetPageToken()) > 255 || len(ask.GetNamePrefix()) > 255 || ask.GetPageSize() > 100 {
+			return nil, errors.New("the registry repository selection is invalid")
+		}
+		take, err := im.turn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer take()
+		size := int(ask.GetPageSize())
+		if size == 0 {
+			size = 30
+		}
+		names, next, err := client.Repositories(ctx, host, ask.GetPageToken(), size)
+		out := &dockwellv1.ListRegistryRepositoriesResponse{EnumerationSupported: err == nil, NextPageToken: next}
+		for _, name := range names {
+			if strings.HasPrefix(name, ask.GetNamePrefix()) {
+				out.Repositories = append(out.Repositories, &dockwellv1.DockerRegistryRepository{Name: name})
+			}
+		}
+		return &agentv1.ImageResult{Answer: &agentv1.ImageResult_Repositories{Repositories: out}}, nil
 	case call.GetDigests() != nil:
 		res, err := im.digestsOf(ctx, client, call.GetDigests().GetReferences())
 		if err != nil {
