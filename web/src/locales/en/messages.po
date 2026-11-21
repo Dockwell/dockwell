@@ -14080,6 +14080,354 @@ msgstr "Wrong token"
 msgid "Zones"
 msgstr "Zones"
 
+msgid "Back to containers"
+msgstr "Back to containers"
+
+msgid "Compose project"
+msgstr "Compose project"
+
+msgid "Compose service"
+msgstr "Compose service"
+
+msgid "Configured port bindings"
+msgstr "Configured port bindings"
+
+msgid "Container"
+msgstr "Container"
+
+msgid "Container ID"
+msgstr "Container ID"
+
+msgid "Container couldn't be inspected"
+msgstr "Container couldn't be inspected"
+
+msgid "Container views"
+msgstr "Container views"
+
+msgid "Containers"
+msgstr "Containers"
+
+msgid "Copy redacted inspection data"
+msgstr "Copy redacted inspection data"
+
+msgid "Docker"
+msgstr "Docker"
+
+msgid "Docker inventory needs an admin"
+msgstr "Docker inventory needs an admin"
+
+msgid "Docker returned more attachments than fit in this view"
+msgstr "Docker returned more attachments than fit in this view"
+
+msgid "Driver"
+msgstr "Driver"
+
+msgid "Driver default"
+msgstr "Driver default"
+
+msgid "Engine default"
+msgstr "Engine default"
+
+msgid "Exit code"
+msgstr "Exit code"
+
+msgid "Exit reason"
+msgstr "Exit reason"
+
+msgid "I/O"
+msgstr "I/O"
+
+msgid "Image ID"
+msgstr "Image ID"
+
+msgid "Inspect"
+msgstr "Inspect"
+
+msgid "Inspect data"
+msgstr "Inspect data"
+
+msgid "Last exit"
+msgstr "Last exit"
+
+msgid "Lifecycle"
+msgstr "Lifecycle"
+
+msgid "Logging"
+msgstr "Logging"
+
+msgid "Maximum file size"
+msgstr "Maximum file size"
+
+msgid "Maximum files"
+msgstr "Maximum files"
+
+msgid "Mounts"
+msgstr "Mounts"
+
+msgid "Never started"
+msgstr "Never started"
+
+msgid "No address"
+msgstr "No address"
+
+msgid "No mounts"
+msgstr "No mounts"
+
+msgid "No network attachments"
+msgstr "No network attachments"
+
+msgid "No ports published"
+msgstr "No ports published"
+
+msgid "Open a container from Docker"
+msgstr "Open a container from Docker"
+
+msgid "Open containers"
+msgstr "Open containers"
+
+msgid "Open replacement"
+msgstr "Open replacement"
+
+msgid "Out of memory"
+msgstr "Out of memory"
+
+msgid "Published ports"
+msgstr "Published ports"
+
+msgid "Read from disk"
+msgstr "Read from disk"
+
+msgid "Read only"
+msgstr "Read only"
+
+msgid "Reading container"
+msgstr "Reading container"
+
+msgid "Received"
+msgstr "Received"
+
+msgid "Redacted inspection data"
+msgstr "Redacted inspection data"
+
+msgid "Restart policy"
+msgstr "Restart policy"
+
+msgid "Restart retries"
+msgstr "Restart retries"
+
+#. placeholder {0}: times.ago(timestampDate(live.observedAt), now)
+msgid "Sampled {0}"
+msgstr "Sampled {0}"
+
+msgid "Sent"
+msgstr "Sent"
+
+msgid "Share of one CPU"
+msgstr "Share of one CPU"
+
+msgid "Show redacted JSON"
+msgstr "Show redacted JSON"
+
+msgid "Summary"
+msgstr "Summary"
+
+msgid "This container is gone"
+msgstr "This container is gone"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Unlimited"
+msgstr "Unlimited"
+
+msgid "Written to disk"
+msgstr "Written to disk"
+
+#. placeholder {0}: Number(container.cpuLimitNanos) / 1e9
+msgid "{0} CPUs"
+msgstr "{0} CPUs"
+
+#. placeholder {0}: values.length - 2
+msgid "+{0} more"
+msgstr "+{0} more"
+
+#. placeholder {0}: row.name
+msgid "Actions for {0}"
+msgstr "Actions for {0}"
+
+msgid "Addresses"
+msgstr "Addresses"
+
+msgid "All ownership"
+msgstr "All ownership"
+
+msgid "Clear Compose project filter"
+msgstr "Clear Compose project filter"
+
+msgid "Container inventory"
+msgstr "Container inventory"
+
+msgid "Container inventory changed"
+msgstr "Container inventory changed"
+
+msgid "Container ownership"
+msgstr "Container ownership"
+
+msgid "Container pages"
+msgstr "Container pages"
+
+msgid "Container state"
+msgstr "Container state"
+
+msgid "Containers couldn't be read"
+msgstr "Containers couldn't be read"
+
+msgid "Filter by this Compose project"
+msgstr "Filter by this Compose project"
+
+#. placeholder {0}: row.name
+msgid "Logs for {0}"
+msgstr "Logs for {0}"
+
+msgid "Managed by Dockwell"
+msgstr "Managed by Dockwell"
+
+msgid "Name, image or project"
+msgstr "Name, image or project"
+
+msgid "Needs attention"
+msgstr "Needs attention"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "No containers here"
+msgstr "No containers here"
+
+msgid "No containers match"
+msgstr "No containers match"
+
+msgid "No sample"
+msgstr "No sample"
+
+msgid "Not managed"
+msgstr "Not managed"
+
+#. placeholder {0}: pages.length
+msgid "Page {0}"
+msgstr "Page {0}"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Reading containers"
+msgstr "Reading containers"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Refresh containers"
+msgstr "Refresh containers"
+
+msgid "Refresh list"
+msgstr "Refresh list"
+
+msgid "Search containers"
+msgstr "Search containers"
+
+#. placeholder {0}: row.name
+msgid "Terminal for {0}"
+msgstr "Terminal for {0}"
+
+msgid "Uptime"
+msgstr "Uptime"
+
+msgid "Usage"
+msgstr "Usage"
+
+msgid "memory"
+msgstr "memory"
+
+msgid "Compose projects"
+msgstr "Compose projects"
+
+msgid "Docker inventory couldn't be read"
+msgstr "Docker inventory couldn't be read"
+
+msgid "Docker overview"
+msgstr "Docker overview"
+
+msgid "Docker root directory"
+msgstr "Docker root directory"
+
+msgid "Docker views"
+msgstr "Docker views"
+
+msgid "Engine inventory"
+msgstr "Engine inventory"
+
+msgid "Engine version"
+msgstr "Engine version"
+
+msgid "Images"
+msgstr "Images"
+
+msgid "Live restore"
+msgstr "Live restore"
+
+msgid "Logging driver"
+msgstr "Logging driver"
+
+msgid "No servers to inspect"
+msgstr "No servers to inspect"
+
+msgid "Open Servers"
+msgstr "Open Servers"
+
+msgid "Reading Docker inventory"
+msgstr "Reading Docker inventory"
+
+msgid "Refresh Docker overview"
+msgstr "Refresh Docker overview"
+
+msgid "Registry mirrors"
+msgstr "Registry mirrors"
+
+msgid "Server range"
+msgstr "Server range"
+
+msgid "Servers {first} to {last}"
+msgstr "Servers {first} to {last}"
+
+#. placeholder {0}: row.running
+#. placeholder {1}: row.containers
+msgid "{0} of {1} running"
+msgstr "{0} of {1} running"
+
+#. placeholder {0}: rows.length
+#. placeholder {1}: servers.length
+msgid "{0} of {1} selected servers answered"
+msgstr "{0} of {1} selected servers answered"
+
+#. placeholder {0}: sum("running")
+msgid "{0} running"
+msgstr "{0} running"
+
+msgid "Agent disconnected"
+msgstr "Agent disconnected"
+
+msgid "Agent update needed"
+msgstr "Agent update needed"
+
+msgid "Docker isn't answering"
+msgstr "Docker isn't answering"
+
+msgid "Live updates paused"
+msgstr "Live updates paused"
+
+msgid "Some servers didn't answer"
+msgstr "Some servers didn't answer"
+
 msgid "Can't edit DNS"
 msgstr "Can't edit DNS"
 
@@ -14437,10 +14785,6 @@ msgstr "{name} isn't a text file under 1 MB any more, so it can't be saved here.
 
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
-
-#. placeholder {0}: row.name
-msgid "Actions for {0}"
-msgstr "Actions for {0}"
 
 msgid "Back to {folder}"
 msgstr "Back to {folder}"
@@ -14945,9 +15289,6 @@ msgstr "Stop {service}"
 msgid "Stops"
 msgstr "Stops"
 
-msgid "Summary"
-msgstr "Summary"
-
 msgid "System service"
 msgstr "System service"
 
@@ -15079,12 +15420,6 @@ msgstr "Becomes"
 
 msgid "Certificate"
 msgstr "Certificate"
-
-msgid "Compose project"
-msgstr "Compose project"
-
-msgid "Containers"
-msgstr "Containers"
 
 msgid "Couldn't read what 1Panel keeps"
 msgstr "Couldn't read what 1Panel keeps"
@@ -15322,6 +15657,12 @@ msgstr "<0>{revision}</0> was replaced at {finished}."
 msgid "Catching up"
 msgstr "Catching up"
 
+msgid "Docker keeps this log without a size limit."
+msgstr "Docker keeps this log without a size limit."
+
+msgid "Inspect logging"
+msgstr "Inspect logging"
+
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "It ran as <0>{ranAs}</0>."
 
@@ -15339,6 +15680,9 @@ msgstr "Its agent isn't connected, so its logs can't be read now. Its containers
 
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
+
+msgid "Log rotation is off"
+msgstr "Log rotation is off"
 
 msgid "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
 msgstr "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
@@ -15410,9 +15754,6 @@ msgstr "Can't read these logs now"
 
 msgid "Close the search"
 msgstr "Close the search"
-
-msgid "Container"
-msgstr "Container"
 
 msgid "Copied the lines shown"
 msgstr "Copied the lines shown"
@@ -15689,9 +16030,6 @@ msgstr "Copy the command that restarts Docker"
 
 msgid "Copy the start command"
 msgstr "Copy the start command"
-
-msgid "Inspect"
-msgstr "Inspect"
 
 msgid "It joined, and its agent hasn't connected yet."
 msgstr "It joined, and its agent hasn't connected yet."
@@ -16421,9 +16759,6 @@ msgstr "Docker counts {0} for its images, volumes, containers and logs, more tha
 
 msgid "Free"
 msgstr "Free"
-
-msgid "Images"
-msgstr "Images"
 
 msgid "Other files"
 msgstr "Other files"
@@ -17322,14 +17657,8 @@ msgstr "This SSH server takes new logins, a way back onto the server. Restart it
 msgid "Totals"
 msgstr "Totals"
 
-msgid "Uptime"
-msgstr "Uptime"
-
 msgid "every 2 s"
 msgstr "every 2 s"
-
-msgid "memory"
-msgstr "memory"
 
 msgid "uptime"
 msgstr "uptime"
@@ -17515,6 +17844,9 @@ msgstr "Firewall"
 msgid "No server with this ID"
 msgstr "No server with this ID"
 
+msgid "Open Docker on {name}"
+msgstr "Open Docker on {name}"
+
 msgid "Open a terminal on {name}"
 msgstr "Open a terminal on {name}"
 
@@ -17591,9 +17923,6 @@ msgstr "{memShare} in use"
 msgid "{rx} in · {tx} out"
 msgstr "{rx} in · {tx} out"
 
-msgid "Addresses"
-msgstr "Addresses"
-
 msgid "Can't read Docker"
 msgstr "Can't read Docker"
 
@@ -17602,9 +17931,6 @@ msgstr "Control plane"
 
 msgid "Copy {ip}"
 msgstr "Copy {ip}"
-
-msgid "Docker"
-msgstr "Docker"
 
 msgid "For {connected}"
 msgstr "For {connected}"
@@ -17708,9 +18034,6 @@ msgstr "Group by {k}"
 
 msgid "Group the servers"
 msgstr "Group the servers"
-
-msgid "Needs attention"
-msgstr "Needs attention"
 
 msgid "No groups"
 msgstr "No groups"
@@ -20657,8 +20980,15 @@ msgstr "A terminal here is a root shell on <0>{0}</0>, through its agent, so it 
 msgid "A terminal takes a passkey, and there's none for this address"
 msgstr "A terminal takes a passkey, and there's none for this address"
 
+msgid "Add argument"
+msgstr "Add argument"
+
 msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
 msgstr "Another tab or window attached to it, so what you type there goes to it. It goes on running."
+
+#. placeholder {0}: index + 1
+msgid "Argument {0}"
+msgstr "Argument {0}"
 
 msgid "Can't reach the terminal"
 msgstr "Can't reach the terminal"
@@ -20686,6 +21016,9 @@ msgstr "Copy selection"
 
 msgid "Ended"
 msgstr "Ended"
+
+msgid "Executable"
+msgstr "Executable"
 
 msgid "Find in scrollback"
 msgstr "Find in scrollback"
@@ -20719,6 +21052,16 @@ msgstr "Open a terminal"
 
 msgid "Open somewhere else"
 msgstr "Open somewhere else"
+
+#. placeholder {0}: index + 1
+msgid "Remove argument {0}"
+msgstr "Remove argument {0}"
+
+msgid "Run a command"
+msgstr "Run a command"
+
+msgid "Run command"
+msgstr "Run command"
 
 msgid "Select text in the terminal to copy it"
 msgstr "Select text in the terminal to copy it"

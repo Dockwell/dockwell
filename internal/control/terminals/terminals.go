@@ -248,7 +248,14 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's agent is too old to open terminals. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
-	container := req.Msg.GetContainer()
+	name, exact, argv := req.Msg.GetContainer(), req.Msg.GetContainerId(), req.Msg.GetArgv()
+	if err := terminal.ValidateContainerTarget(name, exact, argv); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if exact != "" && !session.ExactTerminal() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal by Docker ID"), "agent_outdated")
+	}
+	container := cmp.Or(exact, name)
 	if container != "" {
 		if len(container) > 255 || strings.ContainsFunc(container, func(r rune) bool { return r <= ' ' || r == '/' || r == ':' }) {
 			return nil, authapi.Invalid(errors.New("name a container as Docker does, by its name or full ID, with no spaces, slashes or colons"))
@@ -326,7 +333,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, h.rpcError(ctx, err)
 	}
 	call := &agentv1.OpenTerminalCall{
-		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: container, Confirmed: confirmed,
+		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: name, ContainerId: exact, Argv: argv, Confirmed: confirmed,
 	}
 	opened, err := session.OpenTerminal(ctx, call)
 	if err == nil && opened.GetNeedsStepUp() && !confirmed {

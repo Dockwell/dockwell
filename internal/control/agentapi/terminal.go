@@ -59,7 +59,15 @@ func (a *Agents) reportTerminalEnded(server string, ended *agentv1.TerminalEnded
 
 // OpenTerminal asks the agent to start a shell.
 func (s *Session) OpenTerminal(ctx context.Context, call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalResult, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_OpenTerminal{OpenTerminal: call}}, TerminalTimeout, nil)
+	prepare := func(current *Session) error {
+		// Calls can move to a renewed stream. Check the capability on every
+		// stream so an older agent never sees an exact request as host exec.
+		if (call.GetContainerId() != "" || len(call.GetArgv()) != 0) && !current.ExactTerminal() {
+			return connect.NewError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal by Docker ID"))
+		}
+		return nil
+	}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_OpenTerminal{OpenTerminal: call}}, TerminalTimeout, prepare)
 	if err != nil {
 		return nil, err
 	}

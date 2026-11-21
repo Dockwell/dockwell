@@ -1,0 +1,287 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package dockwell.v1;
+
+import "dockwell/v1/change.proto";
+import "dockwell/v1/container.proto";
+import "dockwell/v1/options.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// DockerService reads the Engine inventory on selected servers through their agents.
+service DockerService {
+  option (dockwell.v1.nouns) = {
+    name: "docker"
+    help: "Inspect the Docker Engine and the containers on a server."
+  };
+
+  // GetDockerOverview counts the inventory on each selected server.
+  rpc GetDockerOverview(GetDockerOverviewRequest) returns (GetDockerOverviewResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "overview"
+    };
+    option (google.api.http) = {get: "/v1/docker/overview"};
+  }
+
+  // ListDockerObjects reads one bounded page of the selected inventory.
+  rpc ListDockerObjects(ListDockerObjectsRequest) returns (ListDockerObjectsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "list"
+    };
+    option (google.api.http) = {get: "/v1/docker/objects"};
+  }
+
+  // GetDockerObject reads details at one immutable Engine identity.
+  rpc GetDockerObject(GetDockerObjectRequest) returns (GetDockerObjectResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "inspect"
+    };
+    option (google.api.http) = {get: "/v1/docker/object"};
+  }
+
+  // WatchDockerObjects streams invalidations and samples while a view is open.
+  rpc WatchDockerObjects(WatchDockerObjectsRequest) returns (stream WatchDockerObjectsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "watch"
+    };
+  }
+}
+
+// DockerObjectKind names the types of Engine object this inventory can read.
+enum DockerObjectKind {
+  DOCKER_OBJECT_KIND_UNSPECIFIED = 0;
+  DOCKER_OBJECT_KIND_CONTAINER = 1;
+}
+
+// DockerOwnership says who is responsible for a container.
+enum DockerOwnership {
+  DOCKER_OWNERSHIP_UNSPECIFIED = 0;
+  DOCKER_OWNERSHIP_MANAGED = 1;
+  DOCKER_OWNERSHIP_EXTERNAL = 2;
+  DOCKER_OWNERSHIP_SYSTEM = 3;
+}
+
+// DockerHealth is what the Engine reports for a configured health check.
+enum DockerHealth {
+  DOCKER_HEALTH_UNSPECIFIED = 0;
+  DOCKER_HEALTH_STARTING = 1;
+  DOCKER_HEALTH_HEALTHY = 2;
+  DOCKER_HEALTH_UNHEALTHY = 3;
+}
+
+// DockerReadState says why a server cannot answer an inventory read.
+enum DockerReadState {
+  DOCKER_READ_STATE_UNSPECIFIED = 0;
+  DOCKER_READ_STATE_OFFLINE = 1;
+  DOCKER_READ_STATE_AGENT_OUTDATED = 2;
+  DOCKER_READ_STATE_ENGINE_UNAVAILABLE = 3;
+}
+
+// DockerObjectKey identifies an Engine object on one server.
+message DockerObjectKey {
+  string server_id = 1;
+  DockerObjectKind kind = 2;
+  // Full Engine ID. A container name or ID prefix cannot stand in for it.
+  string engine_id = 3;
+}
+
+// DockerObject combines observed facts with ownership resolved by the control plane.
+message DockerObject {
+  DockerObjectKey key = 1;
+  string name = 2;
+  DockerOwnership ownership = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  ResourceRef managed_resource = 5;
+  ContainerState state = 6;
+  string managed_resource_id = 7;
+  oneof detail {
+    DockerContainer container = 10;
+  }
+}
+
+// DockerContainer is a projection of Engine facts. It omits environment,
+// commands, raw labels, health check output and arbitrary driver options.
+message DockerContainer {
+  string image = 1;
+  string image_id = 2;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  DockerHealth health = 6;
+  repeated ContainerPort ports = 7;
+  repeated DockerEndpoint endpoints = 8;
+  repeated ContainerMount mounts = 9;
+  string compose_project = 10;
+  string compose_service = 11;
+  bool one_off = 12;
+  optional int32 exit_code = 13;
+  bool oom_killed = 14;
+  uint32 restart_count = 15;
+  string restart_policy = 16;
+  uint32 restart_retries = 17;
+  uint64 memory_limit_bytes = 18;
+  uint64 cpu_limit_nanos = 19;
+  string log_driver = 20;
+  string log_max_size = 21;
+  uint32 log_max_files = 22;
+  repeated ContainerPort configured_ports = 23;
+  bool details_truncated = 24;
+}
+
+// DockerEndpoint is a container’s current address on one Docker network.
+message DockerEndpoint {
+  string network = 1;
+  string ipv4 = 2;
+  string ipv6 = 3;
+}
+
+// DockerSample holds available usage counters for one container.
+message DockerSample {
+  DockerObjectKey key = 1;
+  google.protobuf.Timestamp observed_at = 2;
+  // As a percentage of one CPU, over the preceding sample interval.
+  optional double cpu_percent = 3;
+  optional uint64 memory_bytes = 4;
+  optional uint64 memory_limit_bytes = 5;
+  optional uint64 network_rx_bytes = 6;
+  optional uint64 network_tx_bytes = 7;
+  optional uint64 block_read_bytes = 8;
+  optional uint64 block_write_bytes = 9;
+}
+
+// DockerUnavailable names a server that did not answer a read.
+message DockerUnavailable {
+  string server_id = 1;
+  DockerReadState state = 2;
+}
+
+// DockerServerSummary counts the Engine inventory at one point in time.
+message DockerServerSummary {
+  string server_id = 1;
+  google.protobuf.Timestamp observed_at = 2;
+  uint32 containers = 3;
+  uint32 running = 4;
+  uint32 compose_projects = 5;
+  uint32 images = 6;
+  uint32 networks = 7;
+  uint32 volumes = 8;
+  string engine_version = 9;
+  bool exact_terminal = 10;
+  string root_directory = 11;
+  string logging_driver = 12;
+  optional bool live_restore = 13;
+  repeated string registry_mirrors = 14;
+  uint32 needs_attention = 15;
+  repeated DockerObject attention = 16;
+}
+
+// GetDockerOverviewRequest identifies the servers whose counts are wanted.
+message GetDockerOverviewRequest {
+  // IDs or names, at most 32. Unset selects a lone server.
+  repeated string server_ids = 1;
+}
+
+// GetDockerOverviewResponse lists the servers that answered and those that could not.
+message GetDockerOverviewResponse {
+  repeated DockerServerSummary server_summaries = 1;
+  repeated DockerUnavailable unavailable = 2;
+}
+
+// DockerObjectFilter narrows a read across the selected servers.
+message DockerObjectFilter {
+  string search = 1;
+  // Unset includes all lifecycle states.
+  ContainerState state = 2;
+  DockerOwnership ownership = 3;
+  string compose_project = 4;
+  // Includes every state except running. Use state for a single exact state.
+  bool stopped = 5;
+  bool needs_attention = 6;
+}
+
+// ListDockerObjectsRequest selects a page of objects.
+message ListDockerObjectsRequest {
+  repeated string server_ids = 1;
+  DockerObjectKind kind = 2;
+  DockerObjectFilter filter = 3;
+  uint32 page_size = 4;
+  string page_token = 5;
+}
+
+// ListDockerObjectsResponse is the page and the cursor for the remainder.
+message ListDockerObjectsResponse {
+  repeated DockerObject objects = 1;
+  string next_page_token = 2;
+  string snapshot = 3;
+  repeated DockerUnavailable unavailable = 4;
+}
+
+// GetDockerObjectRequest identifies the instance to inspect.
+message GetDockerObjectRequest {
+  DockerObjectKey key = 1;
+  // An optional exact name lets a missing ID point to the replacement, if any.
+  string last_known_name = 2;
+}
+
+// GetDockerObjectResponse gives the requested object or the ID now using its name.
+message GetDockerObjectResponse {
+  DockerObject object = 1;
+  DockerObjectKey replacement_key = 2;
+}
+
+// WatchDockerObjectsRequest selects the servers and visible IDs to watch.
+message WatchDockerObjectsRequest {
+  ListDockerObjectsRequest selection = 1;
+  string after_snapshot = 2;
+  repeated DockerObjectKey visible_keys = 3;
+}
+
+// DockerHealthUpdate changes one row without invalidating the inventory.
+message DockerHealthUpdate {
+  DockerObjectKey key = 1;
+  DockerHealth health = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+// DockerWatchStatus describes live updates independently of snapshot reads.
+message DockerWatchStatus {
+  string server_id = 1;
+  bool live = 2;
+}
+
+// WatchDockerObjectsResponse describes changes, samples or which reads need resync.
+message WatchDockerObjectsResponse {
+  string snapshot = 1;
+  repeated DockerObjectKey changed_keys = 2;
+  repeated DockerSample samples = 3;
+  repeated DockerUnavailable unavailable = 4;
+  bool resync = 5;
+  repeated DockerHealthUpdate health_updates = 6;
+  DockerWatchStatus watch_status = 7;
+}

@@ -15,6 +15,8 @@ import { labelFor, serviceNameFor } from "./containers";
  * joins it; otherwise it goes to the install's default environment. Once it's applied, the app's
  * page opens.
  */
+type TakeOnContainer = Pick<ServerContainer, "name" | "composeService" | "composeProject"> & { engineId?: string };
+
 export function useTakeOn(serverId: string) {
   const transport = useTransport();
   const sheet = useChangeSheet();
@@ -22,18 +24,18 @@ export function useTakeOn(serverId: string) {
   const places = usePlaces();
 
   /** The environment a container goes to unless a person picks another. */
-  const environmentFor = (container: ServerContainer): string => {
+  const environmentFor = (container: TakeOnContainer): string => {
     const project = container.composeProject;
     const joins = project ? places.environments.find((e) => e.project === labelFor(project)) : undefined;
     return joins?.id || places.defaultEnvironment?.id || "";
   };
 
-  const take = (container: ServerContainer, service = serviceNameFor(container), environment = "") =>
+  const take = (container: TakeOnContainer, service = serviceNameFor(container), environment = "") =>
     sheet.open({
       kind: "plan",
       make: () =>
         createClient(ContainerService, transport).adoptContainer({
-          id: container.name,
+          id: container.engineId || container.name,
           server: serverId,
           service,
           environment: environment || environmentFor(container),

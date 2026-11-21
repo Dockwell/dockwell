@@ -691,6 +691,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -824,6 +825,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	sendStats := func() error {
 		stats := cfg.Collector.Stats(ctx, time.Now())
 		stats.Interval = durationpb.New(interval)
+		calls.rememberInventorySamples(stats)
 		err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Stats{Stats: stats}})
 		if !errors.Is(err, io.EOF) {
 			return err

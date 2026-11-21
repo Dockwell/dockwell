@@ -14080,6 +14080,354 @@ msgstr "令牌错误"
 msgid "Zones"
 msgstr "区域"
 
+msgid "Back to containers"
+msgstr "返回容器列表"
+
+msgid "Compose project"
+msgstr "Compose 项目"
+
+msgid "Compose service"
+msgstr "Compose 服务"
+
+msgid "Configured port bindings"
+msgstr "已配置的端口绑定"
+
+msgid "Container"
+msgstr "容器"
+
+msgid "Container ID"
+msgstr "容器 ID"
+
+msgid "Container couldn't be inspected"
+msgstr "无法检查容器"
+
+msgid "Container views"
+msgstr "容器视图"
+
+msgid "Containers"
+msgstr "容器"
+
+msgid "Copy redacted inspection data"
+msgstr "复制已隐去敏感信息的检查数据"
+
+msgid "Docker"
+msgstr "Docker"
+
+msgid "Docker inventory needs an admin"
+msgstr "查看 Docker 清单需要管理员权限"
+
+msgid "Docker returned more attachments than fit in this view"
+msgstr "Docker 返回的连接和挂载项超过了此视图的显示上限"
+
+msgid "Driver"
+msgstr "驱动"
+
+msgid "Driver default"
+msgstr "驱动默认值"
+
+msgid "Engine default"
+msgstr "引擎默认值"
+
+msgid "Exit code"
+msgstr "退出代码"
+
+msgid "Exit reason"
+msgstr "退出原因"
+
+msgid "I/O"
+msgstr "输入和输出"
+
+msgid "Image ID"
+msgstr "镜像 ID"
+
+msgid "Inspect"
+msgstr "查看"
+
+msgid "Inspect data"
+msgstr "检查数据"
+
+msgid "Last exit"
+msgstr "上次退出"
+
+msgid "Lifecycle"
+msgstr "运行状态"
+
+msgid "Logging"
+msgstr "日志设置"
+
+msgid "Maximum file size"
+msgstr "文件大小上限"
+
+msgid "Maximum files"
+msgstr "文件数量上限"
+
+msgid "Mounts"
+msgstr "挂载"
+
+msgid "Never started"
+msgstr "从未启动"
+
+msgid "No address"
+msgstr "没有地址"
+
+msgid "No mounts"
+msgstr "没有挂载项"
+
+msgid "No network attachments"
+msgstr "未连接网络"
+
+msgid "No ports published"
+msgstr "未发布端口"
+
+msgid "Open a container from Docker"
+msgstr "从 Docker 列表打开容器"
+
+msgid "Open containers"
+msgstr "打开容器列表"
+
+msgid "Open replacement"
+msgstr "打开替代容器"
+
+msgid "Out of memory"
+msgstr "内存不足"
+
+msgid "Published ports"
+msgstr "已发布端口"
+
+msgid "Read from disk"
+msgstr "磁盘读取"
+
+msgid "Read only"
+msgstr "只读"
+
+msgid "Reading container"
+msgstr "正在读取容器"
+
+msgid "Received"
+msgstr "接收"
+
+msgid "Redacted inspection data"
+msgstr "已隐去敏感信息的检查数据"
+
+msgid "Restart policy"
+msgstr "重启策略"
+
+msgid "Restart retries"
+msgstr "重试次数"
+
+#. placeholder {0}: times.ago(timestampDate(live.observedAt), now)
+msgid "Sampled {0}"
+msgstr "采样于 {0}"
+
+msgid "Sent"
+msgstr "发送"
+
+msgid "Share of one CPU"
+msgstr "占单个 CPU 的比例"
+
+msgid "Show redacted JSON"
+msgstr "显示已隐去敏感信息的 JSON"
+
+msgid "Summary"
+msgstr "摘要"
+
+msgid "This container is gone"
+msgstr "此容器已不存在"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Unlimited"
+msgstr "无限制"
+
+msgid "Written to disk"
+msgstr "磁盘写入"
+
+#. placeholder {0}: Number(container.cpuLimitNanos) / 1e9
+msgid "{0} CPUs"
+msgstr "{0} 个 CPU"
+
+#. placeholder {0}: values.length - 2
+msgid "+{0} more"
+msgstr "另有 {0} 项"
+
+#. placeholder {0}: row.name
+msgid "Actions for {0}"
+msgstr "{0} 的操作"
+
+msgid "Addresses"
+msgstr "地址"
+
+msgid "All ownership"
+msgstr "所有归属"
+
+msgid "Clear Compose project filter"
+msgstr "清除 Compose 项目筛选"
+
+msgid "Container inventory"
+msgstr "容器清单"
+
+msgid "Container inventory changed"
+msgstr "容器清单已变更"
+
+msgid "Container ownership"
+msgstr "容器归属"
+
+msgid "Container pages"
+msgstr "容器分页"
+
+msgid "Container state"
+msgstr "容器状态"
+
+msgid "Containers couldn't be read"
+msgstr "无法读取容器"
+
+msgid "Filter by this Compose project"
+msgstr "按此 Compose 项目筛选"
+
+#. placeholder {0}: row.name
+msgid "Logs for {0}"
+msgstr "{0} 的日志"
+
+msgid "Managed by Dockwell"
+msgstr "由 Dockwell 管理"
+
+msgid "Name, image or project"
+msgstr "名称、镜像或项目"
+
+msgid "Needs attention"
+msgstr "需要关注"
+
+msgid "Next"
+msgstr "下一页"
+
+msgid "No containers here"
+msgstr "没有容器"
+
+msgid "No containers match"
+msgstr "没有符合条件的容器"
+
+msgid "No sample"
+msgstr "暂无采样"
+
+msgid "Not managed"
+msgstr "未纳管"
+
+#. placeholder {0}: pages.length
+msgid "Page {0}"
+msgstr "第 {0} 页"
+
+msgid "Previous"
+msgstr "上一页"
+
+msgid "Reading containers"
+msgstr "正在读取容器"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Refresh containers"
+msgstr "刷新容器"
+
+msgid "Refresh list"
+msgstr "刷新列表"
+
+msgid "Search containers"
+msgstr "搜索容器"
+
+#. placeholder {0}: row.name
+msgid "Terminal for {0}"
+msgstr "{0} 的终端"
+
+msgid "Uptime"
+msgstr "运行时长"
+
+msgid "Usage"
+msgstr "用量"
+
+msgid "memory"
+msgstr "内存"
+
+msgid "Compose projects"
+msgstr "Compose 项目"
+
+msgid "Docker inventory couldn't be read"
+msgstr "无法读取 Docker 清单"
+
+msgid "Docker overview"
+msgstr "Docker 概览"
+
+msgid "Docker root directory"
+msgstr "Docker 根目录"
+
+msgid "Docker views"
+msgstr "Docker 视图"
+
+msgid "Engine inventory"
+msgstr "引擎清单"
+
+msgid "Engine version"
+msgstr "引擎版本"
+
+msgid "Images"
+msgstr "镜像"
+
+msgid "Live restore"
+msgstr "实时恢复"
+
+msgid "Logging driver"
+msgstr "日志驱动"
+
+msgid "No servers to inspect"
+msgstr "没有可检查的服务器"
+
+msgid "Open Servers"
+msgstr "打开服务器列表"
+
+msgid "Reading Docker inventory"
+msgstr "正在读取 Docker 清单"
+
+msgid "Refresh Docker overview"
+msgstr "刷新 Docker 概览"
+
+msgid "Registry mirrors"
+msgstr "镜像加速地址"
+
+msgid "Server range"
+msgstr "服务器范围"
+
+msgid "Servers {first} to {last}"
+msgstr "第 {first} 至第 {last} 台服务器"
+
+#. placeholder {0}: row.running
+#. placeholder {1}: row.containers
+msgid "{0} of {1} running"
+msgstr "{1} 个中有 {0} 个正在运行"
+
+#. placeholder {0}: rows.length
+#. placeholder {1}: servers.length
+msgid "{0} of {1} selected servers answered"
+msgstr "所选 {1} 台服务器中有 {0} 台已响应"
+
+#. placeholder {0}: sum("running")
+msgid "{0} running"
+msgstr "{0} 个正在运行"
+
+msgid "Agent disconnected"
+msgstr "代理已断开连接"
+
+msgid "Agent update needed"
+msgstr "需要更新代理"
+
+msgid "Docker isn't answering"
+msgstr "Docker 无响应"
+
+msgid "Live updates paused"
+msgstr "实时更新已暂停"
+
+msgid "Some servers didn't answer"
+msgstr "部分服务器无响应"
+
 msgid "Can't edit DNS"
 msgstr "无法编辑 DNS"
 
@@ -14437,10 +14785,6 @@ msgstr "{name} 已不再是 1 MB 以内的文本文件，所以无法在这里�
 
 msgid "{name} now leads to <0>{moved}</0>, so saving would write there. Nothing was saved, and what you typed is still here. Load the server's version to see what's there."
 msgstr "{name} 现在指向 <0>{moved}</0>，保存会写到那里。没有保存任何内容，你输入的内容还在这里。载入服务器上的版本，看看那里有什么。"
-
-#. placeholder {0}: row.name
-msgid "Actions for {0}"
-msgstr "{0} 的操作"
 
 msgid "Back to {folder}"
 msgstr "返回 {folder}"
@@ -14945,9 +15289,6 @@ msgstr "停止 {service}"
 msgid "Stops"
 msgstr "停止"
 
-msgid "Summary"
-msgstr "摘要"
-
 msgid "System service"
 msgstr "系统服务"
 
@@ -15079,12 +15420,6 @@ msgstr "将成为"
 
 msgid "Certificate"
 msgstr "证书"
-
-msgid "Compose project"
-msgstr "Compose 项目"
-
-msgid "Containers"
-msgstr "容器"
 
 msgid "Couldn't read what 1Panel keeps"
 msgstr "无法读取 1Panel 保存的内容"
@@ -15322,6 +15657,12 @@ msgstr "<0>{revision}</0> 于 {finished} 被替换。"
 msgid "Catching up"
 msgstr "正在补读"
 
+msgid "Docker keeps this log without a size limit."
+msgstr "Docker 保存此日志时不限制文件大小。"
+
+msgid "Inspect logging"
+msgstr "检查日志设置"
+
 msgid "It ran as <0>{ranAs}</0>."
 msgstr "它曾以 <0>{ranAs}</0> 运行。"
 
@@ -15339,6 +15680,9 @@ msgstr "它的 Agent 未连接，所以现在无法读取它的日志。它的�
 
 msgid "Its container stopped at {at} with exit code {code}. These are its last lines, and new lines show once it starts again."
 msgstr "其容器在 {at} 停止，退出码为 {code}。这是最后的日志，再次启动后会显示新日志。"
+
+msgid "Log rotation is off"
+msgstr "日志轮转已关闭"
 
 msgid "Rather than read all that came then through the network before showing anything, it started again from the newest lines."
 msgstr "为了不必先通过网络读完那段时间的所有日志再显示，它从最新的日志重新开始。"
@@ -15410,9 +15754,6 @@ msgstr "现在无法读取这些日志"
 
 msgid "Close the search"
 msgstr "关闭搜索"
-
-msgid "Container"
-msgstr "容器"
 
 msgid "Copied the lines shown"
 msgstr "已复制显示的日志"
@@ -15689,9 +16030,6 @@ msgstr "复制重启 Docker 的命令"
 
 msgid "Copy the start command"
 msgstr "复制启动命令"
-
-msgid "Inspect"
-msgstr "查看"
 
 msgid "It joined, and its agent hasn't connected yet."
 msgstr "它已加入，代理还没有连接。"
@@ -16421,9 +16759,6 @@ msgstr "Docker 统计其镜像、卷、容器和日志共占 {0}，超过此磁�
 
 msgid "Free"
 msgstr "可用"
-
-msgid "Images"
-msgstr "镜像"
 
 msgid "Other files"
 msgstr "其他文件"
@@ -17322,14 +17657,8 @@ msgstr "此 SSH 服务器接受新的登录，是重新进入服务器的途径�
 msgid "Totals"
 msgstr "总计"
 
-msgid "Uptime"
-msgstr "运行时长"
-
 msgid "every 2 s"
 msgstr "每 2 秒"
-
-msgid "memory"
-msgstr "内存"
 
 msgid "uptime"
 msgstr "运行时长"
@@ -17515,6 +17844,9 @@ msgstr "防火墙"
 msgid "No server with this ID"
 msgstr "没有这个 ID 的服务器"
 
+msgid "Open Docker on {name}"
+msgstr "打开 {name} 的 Docker"
+
 msgid "Open a terminal on {name}"
 msgstr "在 {name} 上打开终端"
 
@@ -17591,9 +17923,6 @@ msgstr "已使用 {memShare}"
 msgid "{rx} in · {tx} out"
 msgstr "接收 {rx} · 发送 {tx}"
 
-msgid "Addresses"
-msgstr "地址"
-
 msgid "Can't read Docker"
 msgstr "无法读取 Docker"
 
@@ -17602,9 +17931,6 @@ msgstr "控制平面"
 
 msgid "Copy {ip}"
 msgstr "复制 {ip}"
-
-msgid "Docker"
-msgstr "Docker"
 
 msgid "For {connected}"
 msgstr "已连接 {connected}"
@@ -17708,9 +18034,6 @@ msgstr "按 {k} 分组"
 
 msgid "Group the servers"
 msgstr "为服务器分组"
-
-msgid "Needs attention"
-msgstr "需要关注"
 
 msgid "No groups"
 msgstr "不分组"
@@ -20657,8 +20980,15 @@ msgstr "这里的终端是 <0>{0}</0> 上的 root shell，通过它的代理连�
 msgid "A terminal takes a passkey, and there's none for this address"
 msgstr "打开终端需要通行密钥，而此地址还没有"
 
+msgid "Add argument"
+msgstr "添加参数"
+
 msgid "Another tab or window attached to it, so what you type there goes to it. It goes on running."
 msgstr "另一个标签页或窗口连接了它，所以你在那里输入的内容会发送给它。它会继续运行。"
+
+#. placeholder {0}: index + 1
+msgid "Argument {0}"
+msgstr "参数 {0}"
 
 msgid "Can't reach the terminal"
 msgstr "无法连接终端"
@@ -20686,6 +21016,9 @@ msgstr "复制所选内容"
 
 msgid "Ended"
 msgstr "已结束"
+
+msgid "Executable"
+msgstr "可执行文件"
 
 msgid "Find in scrollback"
 msgstr "在回滚记录中查找"
@@ -20719,6 +21052,16 @@ msgstr "打开终端"
 
 msgid "Open somewhere else"
 msgstr "已在别处打开"
+
+#. placeholder {0}: index + 1
+msgid "Remove argument {0}"
+msgstr "移除参数 {0}"
+
+msgid "Run a command"
+msgstr "运行命令"
+
+msgid "Run command"
+msgstr "运行命令"
 
 msgid "Select text in the terminal to copy it"
 msgstr "在终端中选中文字即可复制"

@@ -78,7 +78,7 @@ export {
   Tabs,
   type TabsProps,
 } from "./components/Tabs/Tabs";
-export { Tag, type TagProps } from "./components/Tag/Tag";
+export { Tag, TagLink, type TagLinkProps, type TagProps } from "./components/Tag/Tag";
 export { TextField, type TextFieldProps } from "./components/TextField/TextField";
 export { Timeline, type TimelineEvent, type TimelineKind, type TimelineProps } from "./components/Timeline/Timeline";
 export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toast";

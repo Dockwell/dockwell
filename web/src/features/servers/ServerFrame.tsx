@@ -4,6 +4,7 @@ import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  DockerService,
   FileService,
   FirewallService,
   ImportService,
@@ -153,6 +154,16 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
         label: a.id === "remove" ? t`Remove ${name} from the fleet` : t`Reboot ${name}`,
         run: () => a.onSelect?.(),
       })),
+    ...(may(DockerService.method.getDockerOverview).allowed
+      ? [
+          {
+            id: "docker",
+            icon: "layers" as const,
+            label: t`Open Docker on ${name}`,
+            run: () => void navigate({ to: "/servers/$serverId/docker", params: { serverId } }),
+          },
+        ]
+      : []),
     ...(may(TerminalService.method.listTerminals).allowed
       ? [
           {
@@ -208,6 +219,11 @@ function ServerPage({ server, fleet, status, phoneHead, noTabs, children }: Serv
             <Trans>Overview</Trans>
           </RouterTabLink>
           {/* A way to a place you can't read is left out (ADR 0059). */}
+          {may(DockerService.method.getDockerOverview).allowed ? (
+            <RouterTabLink to="/servers/$serverId/docker" params={{ serverId: server.id }}>
+              <Trans>Docker</Trans>
+            </RouterTabLink>
+          ) : null}
           {may(FileService.method.listFiles).allowed ? (
             <RouterTabLink to="/servers/$serverId/files" params={{ serverId: server.id }}>
               <Trans>Files</Trans>

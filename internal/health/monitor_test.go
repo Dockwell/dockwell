@@ -35,12 +35,10 @@ func labels(service string, number int, extra ...string) map[string]string {
 
 func add(e *dockertest.Engine, service string, extra ...string) *docker.Container {
 	return e.AddContainer(docker.Container{
-		Name:   "/" + docker.InstanceName(project, service, 1),
-		Config: docker.Config{Labels: labels(service, 1, extra...)},
-		State:  docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(-time.Hour)},
-		NetworkSettings: struct {
-			Networks map[string]*docker.EndpointSettings `json:"Networks"`
-		}{Networks: map[string]*docker.EndpointSettings{"bridge": {IPAddress: "172.17.0.2"}}},
+		Name:            "/" + docker.InstanceName(project, service, 1),
+		Config:          docker.Config{Labels: labels(service, 1, extra...)},
+		State:           docker.State{Status: "running", Running: true, StartedAt: time.Now().Add(-time.Hour)},
+		NetworkSettings: docker.ContainerNetworkSettings{Networks: map[string]*docker.EndpointSettings{"bridge": {IPAddress: "172.17.0.2"}}},
 	})
 }
 

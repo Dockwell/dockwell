@@ -125,6 +125,10 @@ DatabaseService.CreateDatabaseUser             plan         developer  developer
 DatabaseService.GetDatabase                    read         viewer     viewer     project
 DatabaseService.ListDatabases                  read         viewer     viewer     project
 DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project
+DockerService.GetDockerObject                  read         admin      admin      install
+DockerService.GetDockerOverview                read         admin      admin      install
+DockerService.ListDockerObjects                read         admin      admin      install
+DockerService.WatchDockerObjects               read         admin      admin      install
 DomainService.CheckDnsProvider                 plan         admin      admin      install  session
 DomainService.CheckDomain                      plan         developer  developer  named
 DomainService.CheckSigninProvider              read         admin      admin      install  session

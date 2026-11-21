@@ -423,3 +423,34 @@
     transition: none;
   }
 }
+
+.terminal-exec {
+  min-width: 0;
+  max-width: min(340px, 100%);
+  margin: var(--space-4) auto 0;
+  text-align: left;
+}
+
+.terminal-exec summary {
+  cursor: pointer;
+  text-align: center;
+}
+
+.terminal-exec form {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.terminal-exec-actions,
+.terminal-exec-argument {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.terminal-exec-argument > :first-child {
+  min-width: 0;
+  flex: 1;
+}

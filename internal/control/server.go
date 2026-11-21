@@ -890,6 +890,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
+		handle(dockwellv1connect.NewDockerServiceHandler(own, opts...))
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		// A backup restores into a new database the catalog way (ADR 0106).
 		(*backupsOut).InstallWith(imports.PlanInstall)

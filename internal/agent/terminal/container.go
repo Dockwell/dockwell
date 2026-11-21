@@ -149,18 +149,52 @@ func find(ctx context.Context, d *docker.Client, ref string) (*docker.Container,
 	return c, err
 }
 
+// ValidateContainerTarget is used at both ends of the stream. A custom command
+// needs an immutable ID and is passed as argv, directly to Docker.
+func ValidateContainerTarget(name, id string, argv []string) error {
+	if id != "" && (name != "" || !docker.IsFullID(id)) {
+		return errors.New("use a full Docker ID in place of the container name")
+	}
+	if len(argv) == 0 {
+		return nil
+	}
+	if id == "" || len(argv) > 64 || argv[0] == "" {
+		return errors.New("an executable and at most 63 arguments need a full Docker ID")
+	}
+	total := 0
+	for _, arg := range argv {
+		total += len(arg)
+		if total > 8192 || strings.ContainsRune(arg, 0) {
+			return errors.New("arguments must fit in 8 KiB and contain no NUL bytes")
+		}
+	}
+	return nil
+}
+
 // startInContainer runs the first shell container has, on a terminal of cols by
 // rows, once it's checked whether the container is as good as root on its server,
 // which takes confirmed. It returns the shell, who it runs as where, and the
 // container it found, which is set with ErrNeedsStepUp too.
-func (m *Manager) startInContainer(ctx context.Context, container string, confirmed bool, cols, rows uint16) (process, string, found, error) {
+func (m *Manager) startInContainer(ctx context.Context, container, exact string, argv []string, confirmed bool, cols, rows uint16) (process, string, found, error) {
 	d := m.opts.Docker
 	if d == nil {
 		return nil, "", found{}, errors.New("this agent can't reach Docker, so it can't open a shell in a container")
 	}
-	c, err := find(ctx, d, container)
-	if err != nil {
-		return nil, "", found{}, err
+	var c *docker.Container
+	var err error
+	if exact != "" {
+		c, err = d.InspectContainer(ctx, exact)
+		if docker.IsNotFound(err) || err == nil && c.ID != exact {
+			return nil, "", found{}, errors.New("that container is gone. Open the current container from Docker")
+		}
+		if err != nil {
+			return nil, "", found{}, errors.New("the Engine could not read the selected container")
+		}
+	} else {
+		c, err = find(ctx, d, container)
+		if err != nil {
+			return nil, "", found{}, err
+		}
 	}
 	name := strings.TrimPrefix(c.Name, "/")
 	in := found{id: c.ID, name: name}
@@ -177,27 +211,37 @@ func (m *Manager) startInContainer(ctx context.Context, container string, confir
 	if root && !confirmed {
 		return nil, "", in, ErrNeedsStepUp
 	}
-	shell := ""
-	for _, s := range shells {
-		has, err := d.HasPath(ctx, c.ID, s)
-		if err != nil {
-			return nil, "", in, err
+	command := argv
+	if len(command) == 0 {
+		shell := ""
+		for _, s := range shells {
+			has, err := d.HasPath(ctx, c.ID, s)
+			if err != nil {
+				return nil, "", in, err
+			}
+			if has {
+				shell = s
+				break
+			}
 		}
-		if has {
-			shell = s
-			break
+		if shell == "" {
+			return nil, "", in, fmt.Errorf("%s's image has none of %s and %s, as an image made to run one program, such as a distroless one, hasn't. "+
+				"Its logs are on its app's page", name, strings.Join(shells[:len(shells)-1], ", "), shells[len(shells)-1])
 		}
-	}
-	if shell == "" {
-		return nil, "", in, fmt.Errorf("%s's image has none of %s and %s, as an image made to run one program, such as a distroless one, hasn't. "+
-			"Its logs are on its app's page", name, strings.Join(shells[:len(shells)-1], ", "), shells[len(shells)-1])
+		command = []string{shell}
 	}
 	// The connection outlives the call that opened it, until the terminal ends.
 	life, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	t, err := d.ExecWithTerminal(life, c.ID, []string{shell}, []string{"TERM=xterm-256color", "COLORTERM=truecolor"}, cols, rows)
+	t, err := d.ExecWithTerminal(life, c.ID, command, []string{"TERM=xterm-256color", "COLORTERM=truecolor"}, cols, rows)
 	if err != nil {
 		cancel()
-		return nil, "", in, fmt.Errorf("can't start %s in %s: %w", shell, name, err)
+		if errors.Is(err, docker.ErrExecContainerChanged) {
+			return nil, "", in, err
+		}
+		if len(argv) != 0 {
+			return nil, "", in, fmt.Errorf("could not start the executable in %s. Check that it exists and is executable", name)
+		}
+		return nil, "", in, fmt.Errorf("can't start %s in %s: %w", command[0], name, err)
 	}
 	s := &execShell{t: t, cancel: cancel, cols: cols, rows: rows}
 	// An engine older than ConsoleSize starts it at its own size.

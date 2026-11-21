@@ -246,6 +246,9 @@ func (m *Manager) signal() {
 // has, in it. A container that's as good as root on the server takes a passkey,
 // which call says confirmed it, or Open returns ErrNeedsStepUp and starts nothing.
 func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*agentv1.OpenTerminalResult, error) {
+	if err := ValidateContainerTarget(call.GetContainer(), call.GetContainerId(), call.GetArgv()); err != nil {
+		return nil, err
+	}
 	id := call.GetId()
 	if id == "" {
 		return nil, errors.New("a terminal needs an ID; the control plane gives it one")
@@ -275,8 +278,8 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		in    found
 		err   error
 	)
-	if container := call.GetContainer(); container != "" {
-		proc, title, in, err = m.startInContainer(ctx, container, call.GetConfirmed(), cols, rows)
+	if container, exact := call.GetContainer(), call.GetContainerId(); container != "" || exact != "" {
+		proc, title, in, err = m.startInContainer(ctx, container, exact, call.GetArgv(), call.GetConfirmed(), cols, rows)
 	} else {
 		proc, title, err = m.startOnServer(cols, rows)
 	}

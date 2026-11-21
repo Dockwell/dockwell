@@ -527,35 +527,43 @@ func (h *Handler) read(ctx context.Context, s Server, name string) (*agentv1.Con
 // project of Dockwell's with a service it has never heard of. A one-off from docker
 // compose run is no service's, whatever its project.
 func (h *Handler) others(ctx context.Context, list []*dockwellv1.ServerContainer) ([]*dockwellv1.ServerContainer, int32, error) {
-	if !slices.ContainsFunc(list, mayBeOwn) {
-		return list, 0, nil
-	}
-	known := map[string]bool{}
-	err := h.db.View(ctx, func(tx *store.Tx) error {
-		for _, kind := range []resource.Kind{service.Kind, container.Kind} {
-			names, err := tx.EverManaged(ctx, string(kind))
-			if err != nil {
-				return err
-			}
-			for _, n := range names {
-				known[docker.Project(n.Scope)+"/"+n.Name] = true
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, 0, h.internal(ctx, err)
+	known, err := h.managedContainers(ctx, list)
+	if err != nil || len(known) == 0 {
+		return list, 0, err
 	}
 	var own int32
 	others := make([]*dockwellv1.ServerContainer, 0, len(list))
 	for _, c := range list {
-		if mayBeOwn(c) && known[c.GetComposeProject()+"/"+c.GetComposeService()] {
+		if mayBeOwn(c) && known[c.GetComposeProject()+"/"+c.GetComposeService()] != nil {
 			own++
 			continue
 		}
 		others = append(others, c)
 	}
 	return others, own, nil
+}
+
+func (h *Handler) managedContainers(ctx context.Context, list []*dockwellv1.ServerContainer) (map[string]*dockwellv1.ResourceRef, error) {
+	if !slices.ContainsFunc(list, mayBeOwn) {
+		return nil, nil
+	}
+	known := map[string]*dockwellv1.ResourceRef{}
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		for _, kind := range []resource.Kind{container.Kind, service.Kind} {
+			names, err := tx.EverManaged(ctx, string(kind))
+			if err != nil {
+				return err
+			}
+			for _, n := range names {
+				known[docker.Project(n.Scope)+"/"+n.Name] = &dockwellv1.ResourceRef{Kind: string(kind), Name: n.Name, Scope: n.Scope}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	return known, nil
 }
 
 // mayBeOwn says a container is a service of a Compose project, which is what

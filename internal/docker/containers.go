@@ -194,7 +194,8 @@ type EndpointSettings struct {
 	IPAMConfig *EndpointIPAM `json:"IPAMConfig,omitempty"`
 	// IPAddress is the address it has there while it runs, as the engine
 	// reports it. The engine takes no such thing in a request.
-	IPAddress string `json:"IPAddress,omitempty"`
+	IPAddress         string `json:"IPAddress,omitempty"`
+	GlobalIPv6Address string `json:"GlobalIPv6Address,omitempty"`
 }
 
 // EndpointIPAM is the address a container asks for on a network.
@@ -216,21 +217,25 @@ type CreateRequest struct {
 
 // Container is a container as the engine reports it.
 type Container struct {
-	ID              string     `json:"Id"`
-	Created         time.Time  `json:"Created"`
-	Name            string     `json:"Name"`  // with a leading slash
-	Image           string     `json:"Image"` // the image's ID
-	Config          Config     `json:"Config"`
-	HostConfig      HostConfig `json:"HostConfig"`
-	State           State      `json:"State"`
-	RestartCount    int        `json:"RestartCount"`
-	NetworkSettings struct {
-		Networks map[string]*EndpointSettings `json:"Networks"`
-	} `json:"NetworkSettings"`
+	ID              string                   `json:"Id"`
+	Created         time.Time                `json:"Created"`
+	Name            string                   `json:"Name"`  // with a leading slash
+	Image           string                   `json:"Image"` // the image's ID
+	Config          Config                   `json:"Config"`
+	HostConfig      HostConfig               `json:"HostConfig"`
+	State           State                    `json:"State"`
+	RestartCount    int                      `json:"RestartCount"`
+	NetworkSettings ContainerNetworkSettings `json:"NetworkSettings"`
 	// Mounts are what is mounted now, the image's anonymous volumes too.
 	Mounts []MountPoint `json:"Mounts"`
 	// LogPath is where json-file keeps its log, on the server.
 	LogPath string `json:"LogPath"`
+}
+
+// ContainerNetworkSettings describes a container's live Engine attachments.
+type ContainerNetworkSettings struct {
+	Networks map[string]*EndpointSettings `json:"Networks"`
+	Ports    map[string][]PortBinding     `json:"Ports"`
 }
 
 // MountPoint is something mounted in a container now.
@@ -405,7 +410,8 @@ type ContainerSummary struct {
 	Created int64 `json:"Created"`
 	// Image is what it was made from, as it was asked for, or the image's ID once
 	// that name means another image, or none.
-	Image string `json:"Image"`
+	Image   string `json:"Image"`
+	ImageID string `json:"ImageID"`
 	// Ports are the ports it publishes, and those it only exposes. Only a port
 	// it has bound on the server now has a PublicPort, so a stopped one holds none.
 	Ports []SummaryPort `json:"Ports"`

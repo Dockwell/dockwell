@@ -251,10 +251,8 @@ func (s *setup) service(name string) {
 		Config: docker.Config{Labels: map[string]string{
 			docker.LabelProject: project, docker.LabelService: name, docker.LabelNumber: "1", docker.LabelOneoff: "False",
 		}},
-		State: docker.State{Running: true, Status: "running"},
-		NetworkSettings: struct {
-			Networks map[string]*docker.EndpointSettings `json:"Networks"`
-		}{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+		State:           docker.State{Running: true, Status: "running"},
+		NetworkSettings: docker.ContainerNetworkSettings{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
 	})
 }
 
@@ -360,9 +358,7 @@ func TestARouteReachesAContainerNamedAfterItsEnvironment(t *testing.T) {
 	add := func(name, service string) {
 		s.engine.AddContainer(docker.Container{
 			Name: "/" + name, Config: docker.Config{Labels: labels(service)}, State: docker.State{Running: true, Status: "running"},
-			NetworkSettings: struct {
-				Networks map[string]*docker.EndpointSettings `json:"Networks"`
-			}{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+			NetworkSettings: docker.ContainerNetworkSettings{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
 		})
 	}
 	add("0123456789ab_default.production.api-1", "api")
@@ -1059,11 +1055,9 @@ func TestARouteReachesWhatWasTakenOn(t *testing.T) {
 	s := newSetup(t)
 	s.Client.Adopted = &docker.Adopted{}
 	c := s.engine.AddContainer(docker.Container{
-		Name:  "/legacy_api",
-		State: docker.State{Running: true, Status: "running"},
-		NetworkSettings: struct {
-			Networks map[string]*docker.EndpointSettings `json:"Networks"`
-		}{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
+		Name:            "/legacy_api",
+		State:           docker.State{Running: true, Status: "running"},
+		NetworkSettings: docker.ContainerNetworkSettings{Networks: map[string]*docker.EndpointSettings{"bridge": {}}},
 	})
 	if err := s.Client.Adopted.Take(c.ID, docker.Taken{Project: docker.Project(envID), Service: "api", Name: "legacy_api"}); err != nil {
 		t.Fatal(err)

@@ -21,6 +21,7 @@ export * from "./gen/dockwell/v1/compose_pb";
 export * from "./gen/dockwell/v1/connection_pb";
 export * from "./gen/dockwell/v1/container_pb";
 export * from "./gen/dockwell/v1/database_pb";
+export * from "./gen/dockwell/v1/docker_pb";
 export * from "./gen/dockwell/v1/domain_pb";
 export * from "./gen/dockwell/v1/event_pb";
 export * from "./gen/dockwell/v1/file_pb";

@@ -42,8 +42,9 @@ func (e *ExecTerminal) Resize(ctx context.Context, cols, rows uint16) error {
 
 // ExecState is how an exec instance stands.
 type ExecState struct {
-	Running  bool `json:"Running"`
-	ExitCode int  `json:"ExitCode"`
+	Running     bool   `json:"Running"`
+	ExitCode    int    `json:"ExitCode"`
+	ContainerID string `json:"ContainerID"`
 	// Pid is the process's ID on the server, outside the container.
 	Pid int `json:"Pid"`
 }
@@ -55,9 +56,13 @@ func (e *ExecTerminal) State(ctx context.Context) (ExecState, error) {
 	return s, err
 }
 
+// ErrExecContainerChanged means Docker resolved a different container when it
+// created the exec. The command did not start.
+var ErrExecContainerChanged = errors.New("the container changed before the terminal opened. Open the current container from Docker")
+
 // ExecWithTerminal runs cmd in a running container on a terminal of cols by rows,
 // as the container's own user, with its environment and env besides, and returns
-// its streams. Cancelling ctx ends them.
+// its streams. The id must be the full container ID. Cancelling ctx ends them.
 func (c *Client) ExecWithTerminal(ctx context.Context, id string, cmd, env []string, cols, rows uint16) (*ExecTerminal, error) {
 	var made struct {
 		ID string `json:"Id"`
@@ -70,6 +75,18 @@ func (c *Client) ExecWithTerminal(ctx context.Context, id string, cmd, env []str
 	if err := c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/exec", nil, req, &made); err != nil {
 		return nil, err
 	}
+	terminal := &ExecTerminal{c: c, id: made.ID}
+	// Docker can resolve an ID-shaped name after the original container goes
+	// away. Inspect the created exec before it can run in the wrong container.
+	state, err := terminal.State(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if state.ContainerID != id {
+		// Docker has no exec delete endpoint. Its daemon keeps the unstarted
+		// descriptor until the replacement container stops or is removed.
+		return nil, ErrExecContainerChanged
+	}
 	h, err := c.hijack(ctx, "/exec/"+esc(made.ID)+"/start", nil, struct {
 		Detach, Tty bool
 		ConsoleSize [2]uint16 `json:",omitempty"`
@@ -77,7 +94,8 @@ func (c *Client) ExecWithTerminal(ctx context.Context, id string, cmd, env []str
 	if err != nil {
 		return nil, err
 	}
-	return &ExecTerminal{c: c, id: made.ID, h: h}, nil
+	terminal.h = h
+	return terminal, nil
 }
 
 // HasPath reports whether a container has something at path, from its own
