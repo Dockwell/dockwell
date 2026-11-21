@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { Button, Callout, Icon, Panel, Table, type TableColumn } from "@dockwell/ui";
+import { Button, Callout, Icon, Loading, Panel, SkeletonRows, Table, type TableColumn } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -141,11 +141,9 @@ export function WebsiteFiles() {
         flush
       >
         {listed.isPending ? (
-          <div className="website-files-loading" aria-busy="true">
-            <span className="dw-sr">
-              <Trans>Loading its files</Trans>
-            </span>
-          </div>
+          <Loading label={t`Loading its files`}>
+            <SkeletonRows rows={5} lines={1} lead="icon" end="value" dense />
+          </Loading>
         ) : listed.error ? (
           reasonOf(listed.error) === "not_found" ? (
             <div className="website-files-note">

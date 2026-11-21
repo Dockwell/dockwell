@@ -47,6 +47,7 @@ import { formatClock } from "../../lib/format";
 import { useAppDeploy } from "../apps/deployAction";
 import { EmptyState } from "../shell/EmptyState";
 import { drawEntry } from "./draw";
+import { LinesLoading } from "./LinesLoading";
 import { LogContext } from "./LogContext";
 import { DeepWords, LogFoot, SearchCount } from "./LogFoot";
 import { LogNote } from "./LogNote";
@@ -798,6 +799,7 @@ export function LogsPage({
             rangeFixed={span !== undefined}
             levelFiltered={levelFiltered}
             phone={phone}
+            catchingUp={stream.catchingUp ?? false}
             onPause={() => setFollow(false)}
             onLastSkip={() => {
               const e = active.lastSkip;
@@ -1366,16 +1368,7 @@ function emptyOf({
     );
   }
   if (deep) {
-    if (deep.loading) {
-      return (
-        <EmptyState icon="search" title={<Trans>Searching all the servers keep</Trans>}>
-          <p aria-busy="true" className="logs-working">
-            <Icon name="refresh" size={14} className="dw-spin" />
-            <Trans>It reads each container's log, at most for 30 s.</Trans>
-          </p>
-        </EmptyState>
-      );
-    }
+    if (deep.loading) return <LinesLoading source searching />;
     if (deep.error) {
       return (
         <EmptyState
@@ -1534,13 +1527,7 @@ function emptyOf({
       </EmptyState>
     );
   }
-  return (
-    <EmptyState icon="terminal" title={<Trans>Reading logs</Trans>}>
-      <p aria-busy="true" className="logs-working">
-        <Icon name="refresh" size={14} className="dw-spin" />
-      </p>
-    </EmptyState>
-  );
+  return <LinesLoading source={sources.size > 1} />;
 }
 
 /** The stream itself, apart so that a batch of lines redraws it alone, and not the page around it. */

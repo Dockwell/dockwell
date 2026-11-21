@@ -23,9 +23,11 @@ import {
 import {
   Button,
   Callout,
+  Loading,
   Panel,
   SegmentedControl,
   SelectField,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -40,6 +42,7 @@ import { useEffect, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
 import { RouterButtonLink, RouterTagLink } from "../../lib/links";
+import { useHeldRows } from "../../lib/loading";
 import { useTimeWords } from "../../lib/time";
 import { useWorkloadControls } from "../apps/workload";
 import { useMay } from "../auth/may";
@@ -494,15 +497,21 @@ export function DockerContainers({
           },
         ]
       : []),
-    { key: "image", header: t`Image`, width: "23%", render: (row) => <ImageReference image={row.container?.image} /> },
+    {
+      key: "image",
+      header: t`Image`,
+      width: "23%",
+      render: (row) => <ImageReference image={row.container?.image} />,
+      skeleton: "mono",
+    },
     {
       key: "ports",
       header: t`Published ports`,
       render: (row) => <ValuePreview values={row.container?.ports.map(dockerPort) ?? []} />,
     },
-    { key: "addresses", header: t`Addresses`, render: addresses },
-    { key: "usage", header: t`Usage`, render: measured },
-    { key: "uptime", header: t`Uptime`, render: uptime },
+    { key: "addresses", header: t`Addresses`, render: addresses, skeleton: "mono" },
+    { key: "usage", header: t`Usage`, render: measured, skeleton: "short" },
+    { key: "uptime", header: t`Uptime`, render: uptime, skeleton: "short" },
     {
       key: "actions",
       header: (
@@ -534,6 +543,8 @@ export function DockerContainers({
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;
   const waiting = query.isPending || query.isPlaceholderData;
+  const held = useHeldRows("docker.containers", waiting ? undefined : list.length);
+  const slow = fleet ? t`Docker is slow to answer on these servers` : t`Docker is slow to answer on this server`;
   const imports: MenuAction[] = [
     ...(may(ContainerService.method.adoptContainer).allowed
       ? [
@@ -588,6 +599,7 @@ export function DockerContainers({
             size="sm"
             variant="ghost"
             onClick={refresh}
+            loading={query.isFetching && !waiting}
             aria-label={t`Refresh containers`}
             title={t`Refresh containers`}
           />
@@ -682,10 +694,25 @@ export function DockerContainers({
           {sentence(query.error)}
         </Callout>
       ) : null}
-      {waiting && list.length === 0 ? (
-        <p role="status">
-          <Trans>Reading containers</Trans>
-        </p>
+      {waiting && list.length === 0 && !query.error ? (
+        <Panel flush>
+          {compact ? (
+            <Loading label={t`Loading containers`} slow={slow}>
+              <SkeletonRows rows={held} end="pill" />
+            </Loading>
+          ) : (
+            <Table
+              className="docker-table"
+              caption={t`Container inventory`}
+              rows={[]}
+              columns={columns}
+              loading
+              loadingRows={held}
+              loadingLabel={t`Loading containers`}
+              slow={slow}
+            />
+          )}
+        </Panel>
       ) : null}
       {!waiting && !query.error && list.length === 0 && !query.data?.unavailable.length ? (
         <EmptyState

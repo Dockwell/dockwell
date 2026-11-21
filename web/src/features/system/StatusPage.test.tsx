@@ -4,7 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError } from "@connectrpc/connect";
 import { BuildInfoSchema, GetVersionResponseSchema } from "@dockwell/api";
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -74,13 +74,18 @@ describe("StatusPage", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "The control plane is running" })).toBeVisible();
   });
 
-  it("says it is connecting only when the answer is slow", async () => {
+  it("draws the page's head while it connects, and says what the wait is only when it runs long", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      renderAt("/status", { system: { getVersion: () => new Promise(() => {}) } });
+      const { container } = renderAt("/status", { system: { getVersion: () => new Promise(() => {}) } });
+      // The head's shape at once, and no sentence: a fast answer flashes nothing.
+      await waitFor(() => expect(container.querySelector(".status-reserve .dw-skeleton.is-text-title")).not.toBeNull());
       expect(screen.queryByText("Connecting to the control plane")).toBeNull();
       await act(() => vi.advanceTimersByTimeAsync(350));
-      expect(screen.getByRole("heading", { level: 1, name: "Connecting to the control plane" })).toBeVisible();
+      expect(screen.getByText("Connecting to the control plane")).toHaveClass("dw-sr");
+      // Past a few seconds, what the wait is, in place.
+      await act(() => vi.advanceTimersByTimeAsync(3000));
+      expect(screen.getByText("The control server is slow to answer")).toBeVisible();
     } finally {
       vi.useRealTimers();
     }

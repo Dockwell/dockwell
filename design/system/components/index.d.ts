@@ -213,6 +213,8 @@ export interface TableColumn<Row> {
   mono?: boolean;
   muted?: boolean;
   render?: (row: Row) => React.ReactNode;
+  /** The shape its cells take while loading. Left out: the first column a name, a header no one sees an action, one keyed status, state or health a pill, right-aligned a number, mono a machine value, the rest text. */
+  skeleton?: 'name' | 'titled' | 'text' | 'mono' | 'short' | 'number' | 'pill' | 'icon' | 'action' | 'none';
 }
 export interface TableProps<Row = Record<string, unknown>> {
   columns: TableColumn<Row>[];
@@ -224,9 +226,88 @@ export interface TableProps<Row = Record<string, unknown>> {
   empty?: React.ReactNode;
   caption?: string;
   maxHeight?: number | string;
+  /** The rows are on their way: with none yet, draws loadingRows rows of each column's shape under the real header. Rows it has stay. */
+  loading?: boolean;
+  /** Default 3: as many as last time, where the page knows. */
+  loadingRows?: number;
+  /** Said once to assistive technology, such as "Loading images". */
+  loadingLabel?: string;
+  /** The one line a long wait gets, above the shapes, after 3 s. */
+  slow?: React.ReactNode;
   className?: string;
 }
 export declare function Table<Row = Record<string, unknown>>(props: TableProps<Row>): React.ReactElement;
+
+export type SkeletonText = 'title' | 'heading' | 'body' | 'label' | 'caption' | 'code' | 'code-sm' | 'metric';
+export interface SkeletonProps {
+  /** line: text, in its text style's line box; block: a panel, chart, field or button; pill: a badge or tag; circle: an icon or glyph. */
+  shape?: 'line' | 'block' | 'pill' | 'circle';
+  /** A line's text style. Default body. */
+  text?: SkeletonText;
+  width?: number | string;
+  /** A block's or a pill's height. */
+  height?: number | string;
+  /** A circle's diameter. Default 16. */
+  size?: number;
+  /** Sits in a line of text rather than on a line of its own. */
+  inline?: boolean;
+  className?: string;
+}
+/** One shape of what is on its way, where it will land and at its size. Waits 150 ms, then pulses slowly; still under reduced motion. Decorative. */
+export declare function Skeleton(props: SkeletonProps): React.ReactElement;
+
+export interface LoadingProps {
+  /** Said once, politely, to assistive technology, such as "Loading images". Never shown. */
+  label: string;
+  /** One short line in place once the wait runs long, naming what it is: "Docker is measuring disk use on this server". */
+  slow?: React.ReactNode;
+  /** Default 3000 ms. */
+  slowAfter?: number;
+  /** The shapes, in the layout the content will take. */
+  children?: React.ReactNode;
+  className?: string;
+}
+/** A region whose content is on its way: aria-busy, its label said once, its shapes, and a line for a long wait. */
+export declare function Loading(props: LoadingProps): React.ReactElement;
+
+export interface SkeletonRowsProps {
+  rows?: number;
+  lead?: 'icon' | 'mark';
+  /** A title alone, or a title over a sub line. Default 2. */
+  lines?: 1 | 2;
+  end?: 'pill' | 'value' | 'chevron';
+  /** 48px rows rather than 56px. */
+  dense?: boolean;
+  className?: string;
+}
+/** A list's rows on their way, as phone lists and lists that aren't tables draw them. */
+export declare function SkeletonRows(props: SkeletonRowsProps): React.ReactElement;
+
+export interface SkeletonFactsProps { count?: number; layout?: 'grid' | 'rows'; className?: string }
+/** Label and value pairs on their way: in a grid, as a detail page's facts, or in rows, as an aside's. */
+export declare function SkeletonFacts(props: SkeletonFactsProps): React.ReactElement;
+
+export interface SkeletonCardProps {
+  /** The real title where it is known. Left out, a heading-sized line. */
+  title?: React.ReactNode;
+  noHead?: boolean;
+  /** Lines in the body. Default 3. */
+  lines?: number;
+  /** A block of this height in the body, for a chart, a map or a log. */
+  height?: number | string;
+  children?: React.ReactNode;
+  flush?: boolean;
+  className?: string;
+}
+/** A panel on its way: its head and the shape of its body. */
+export declare function SkeletonCard(props: SkeletonCardProps): React.ReactElement;
+
+export interface SkeletonFieldProps { height?: number; label?: number; className?: string }
+/** A form field on its way, where its choices come from a read: its label over its control. */
+export declare function SkeletonField(props: SkeletonFieldProps): React.ReactElement;
+
+/** A tab row on its way, for a page whose tabs depend on what loads. */
+export declare function SkeletonTabs(props: { count?: number; className?: string }): React.ReactElement;
 
 export interface FleetServer { id: string; name: string; status: Status; cpu?: number | null; mem?: number | null; ip?: string; note?: string }
 export interface FleetGroup { label?: string; meta?: string; servers: FleetServer[]; /** @deprecated use servers */ nodes?: FleetServer[] }

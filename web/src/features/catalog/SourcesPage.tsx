@@ -9,9 +9,12 @@ import {
   Callout,
   cx,
   Icon,
+  Loading,
   PHONE_QUERY,
   SelectField,
   Sheet,
+  Skeleton,
+  SkeletonCard,
   Switch,
   TextField,
   useMediaQuery,
@@ -125,9 +128,12 @@ export function SourcesPage() {
           {sentence(sources.error)}
         </Callout>
       ) : !list ? (
-        <p className="sources-note" aria-busy="true">
-          <Trans>Reading the sources</Trans>
-        </p>
+        <Loading label={t`Reading the sources`} className="sources-list">
+          <Skeleton text="heading" width={160} />
+          {["first", "second"].map((key) => (
+            <SkeletonCard key={key} lines={2} />
+          ))}
+        </Loading>
       ) : list.length === 0 ? (
         <>
           <EmptyState

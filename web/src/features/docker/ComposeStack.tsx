@@ -21,9 +21,14 @@ import {
   Button,
   Callout,
   Icon,
+  Loading,
   Panel,
   SelectField,
   Sheet,
+  Skeleton,
+  SkeletonCard,
+  SkeletonRows,
+  SkeletonTabs,
   StatusBadge,
   Table,
   type TableColumn,
@@ -315,9 +320,14 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
             {sentence(object.error ?? workspace.error)}
           </Callout>
         ) : loading ? (
-          <p aria-busy="true" className="compose-muted">
-            <Trans>Reading stack</Trans>
-          </p>
+          <Loading label={t`Loading the stack`} slow={t`Docker is slow to answer on this server`}>
+            <div className="compose-tabs">
+              <SkeletonTabs count={5} />
+            </div>
+            <SkeletonCard title={t`Services`} flush>
+              <SkeletonRows rows={3} end="pill" />
+            </SkeletonCard>
+          </Loading>
         ) : row ? (
           <>
             <div className="compose-tabs">
@@ -598,13 +608,6 @@ function StackServices({
       </Callout>
     );
   }
-  if (list.isPending) {
-    return (
-      <p aria-busy="true" className="compose-muted">
-        <Trans>Reading services</Trans>
-      </p>
-    );
-  }
   const rows: StackServiceRow[] = observed.map((row) => ({
     id: row.key?.engineId ?? "",
     name: row.managedResource?.name || containerOf(row)?.composeService || row.name,
@@ -721,8 +724,8 @@ function StackServices({
         </div>
       ),
     },
-    { key: "image", header: t`Image`, width: "26%", render: image },
-    { key: "ports", header: t`Published ports`, render: ports },
+    { key: "image", header: t`Image`, width: "26%", render: image, skeleton: "mono" },
+    { key: "ports", header: t`Published ports`, render: ports, skeleton: "mono" },
     { key: "state", header: t`State`, width: 106, render: state },
     { key: "restarts", header: t`Restarts`, width: 105, align: "right", render: restarts },
     ...(environment
@@ -741,6 +744,25 @@ function StackServices({
           search={search}
           onSearch={onSearch}
         />
+      ) : list.isPending ? (
+        compact ? (
+          <Loading label={t`Loading services`} slow={t`Docker is slow to answer on this server`}>
+            <Panel flush>
+              <SkeletonRows rows={Math.max(1, Math.min(services.length, 6))} end="pill" />
+            </Panel>
+          </Loading>
+        ) : (
+          <Table
+            className="compose-table"
+            columns={columns}
+            rows={[]}
+            caption={t`Services`}
+            loading
+            loadingRows={Math.max(1, Math.min(services.length, 6))}
+            loadingLabel={t`Loading services`}
+            slow={t`Docker is slow to answer on this server`}
+          />
+        )
       ) : rows.length === 0 ? (
         <EmptyState icon="service" title={t`No services to show`} />
       ) : compact ? (
@@ -809,7 +831,13 @@ function StackLogs({
         options={sources.map((source) => ({ value: source.id, label: source.name }))}
         onChange={(event) => onSearch({ view: "logs", service: event.target.value })}
       />
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <Loading label={t`Loading logs`}>
+            <Skeleton shape="block" height={360} />
+          </Loading>
+        }
+      >
         <Logs
           key={selected.id}
           id={selected.id}
@@ -935,7 +963,9 @@ function ComposeBackupRow({
           <Trans>Latest backup</Trans>
         </Link>
       ) : (
-        <span className="compose-muted">{pending ? t`Checking backup source` : t`No completed backup`}</span>
+        <span className="compose-muted" aria-busy={pending || undefined}>
+          {pending ? <Skeleton width={96} inline /> : t`No completed backup`}
+        </span>
       )}
       {canBackup ? (
         <div className="compose-actions">

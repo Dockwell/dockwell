@@ -5,9 +5,11 @@ import { Connection, type Process, type Server } from "@dockwell/api";
 import {
   Button,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
   SegmentedControl,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -98,7 +100,28 @@ function Processes({ server }: { server: Server }) {
       </p>
     );
   } else if (!list) {
-    body = failure ?? <ProcessesSkeleton />;
+    body =
+      failure ??
+      (view === "processes" && !phone ? (
+        <ProcessTable
+          rows={[]}
+          owners={owners}
+          measured={measured}
+          sort={sort}
+          onSort={() => {}}
+          onEnd={setEnding}
+          caption={t`Processes on ${server.name}`}
+          filtered={false}
+          loading
+          slow={t`${server.name} is slow to list what runs on it`}
+        />
+      ) : (
+        <Loading label={t`Reading what runs here`} slow={t`${server.name} is slow to list what runs on it`}>
+          <Panel flush>
+            <SkeletonRows rows={8} end="value" dense />
+          </Panel>
+        </Loading>
+      ));
   } else if (view === "processes") {
     const rows = found.slice(0, shown);
     body = (
@@ -274,7 +297,18 @@ function ProcessTable({
   onEnd,
   caption,
   filtered,
-}: RowsProps & { sort: Sort; onSort: (key: SortKey) => void; caption: string; filtered: boolean }) {
+  loading = false,
+  slow,
+}: RowsProps & {
+  sort: Sort;
+  onSort: (key: SortKey) => void;
+  caption: string;
+  filtered: boolean;
+  /** The first list is on its way: the table draws its rows' shapes under its real header. */
+  loading?: boolean;
+  /** What a long wait for it is. */
+  slow?: string;
+}) {
   const { t, i18n } = useLingui();
   const ownerWords = useOwnerWords();
   const uptime = useUptime();
@@ -357,6 +391,10 @@ function ProcessTable({
       rowKey="pid"
       density="compact"
       caption={caption}
+      loading={loading}
+      loadingRows={10}
+      loadingLabel={t`Reading what runs here`}
+      slow={slow}
       empty={filtered ? t`Nothing that runs matches.` : t`Nothing runs here but the kernel.`}
     />
   );
@@ -518,9 +556,9 @@ function ServicesPanel({ units, total, busy }: { units: readonly ProcessGroup[];
       flush
     >
       {busy ? (
-        <p className="procs-panel-note" aria-busy="true">
-          <Trans>Reading what runs here</Trans>
-        </p>
+        <Loading label={t`Reading what runs here`}>
+          <SkeletonRows rows={4} lines={1} end="value" dense />
+        </Loading>
       ) : shown.length === 0 ? (
         <p className="procs-panel-note">{t`No systemd unit runs a process here.`}</p>
       ) : (
@@ -627,22 +665,4 @@ function TotalsPanel({ server, count, locale }: { server: Server; count: number 
 
 function share(part: bigint, whole: bigint): number {
   return whole > 0n ? (Number(part) / Number(whole)) * 100 : 0;
-}
-
-/** Where rows go while the first list comes: their shape, and no numbers. */
-function ProcessesSkeleton() {
-  const { t } = useLingui();
-  return (
-    <div className="procs-skeleton" aria-busy="true">
-      <span className="dw-sr">{t`Reading what runs here`}</span>
-      {Array.from({ length: 8 }, (_, i) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: placeholders with nothing else to tell them apart
-        <div key={i} className="procs-skeleton-row" aria-hidden="true">
-          <span className="is-name" />
-          <span className="is-num" />
-          <span className="is-num" />
-        </div>
-      ))}
-    </div>
-  );
 }

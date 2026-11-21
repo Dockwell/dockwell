@@ -301,7 +301,9 @@ describe("UpdatesPage", () => {
     await renderUpdates(() =>
       answer({ checking: true, packages: [], readTime: undefined, listsTime: undefined, automatic: undefined }),
     );
-    expect(await screen.findByText("Asking hz-1 which updates wait…")).toBeVisible();
+    // The packages' rows as shapes, said only to assistive technology until the wait runs long.
+    expect(await screen.findByText("Asking hz-1 which updates wait")).toHaveClass("dw-sr");
+    expect(document.querySelectorAll(".updates-section .dw-skeleton-row").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "Checking" })).toHaveAttribute("aria-disabled", "true");
     for (const words of [/up to date/i, "None waiting", "Never refreshed", "Not needed", "Security updates"]) {
       expect(screen.queryByText(words)).toBeNull();

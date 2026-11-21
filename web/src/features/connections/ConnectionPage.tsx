@@ -23,8 +23,12 @@ import {
   Button,
   Callout,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonRows,
   StatusBadge,
   Switch,
   Table,
@@ -102,7 +106,16 @@ export function ConnectionPage({ name }: { name: string }) {
   if (!connection) {
     return (
       <Page title={name} machineTitle breadcrumb={<Crumbs />} backLink={<BackToConnections />}>
-        {query.isPending ? null : query.error ? (
+        {query.isPending ? (
+          <Loading label={t`Loading the connection`} className="connection-loading">
+            <SkeletonCard>
+              <SkeletonFacts count={4} layout="rows" />
+            </SkeletonCard>
+            <SkeletonCard flush>
+              <SkeletonRows rows={2} lead="icon" />
+            </SkeletonCard>
+          </Loading>
+        ) : query.error ? (
           <Callout tone="critical" title={t`Dockwell can't read its connections`}>
             {sentence(query.error)}
           </Callout>

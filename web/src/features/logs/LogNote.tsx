@@ -137,13 +137,6 @@ export function LogNote({
       </LogCallout>
     );
   }
-  if (stream.catchingUp) {
-    return (
-      <LogCallout tone="info" title={t`Catching up`}>
-        <Trans>Reading what came while this tab was away. It follows live again once it has.</Trans>
-      </LogCallout>
-    );
-  }
   const failing = logErrors[0];
   if (failing) {
     return (

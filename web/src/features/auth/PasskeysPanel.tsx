@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { AuthService, type Passkey, StepUpAction } from "@dockwell/api";
-import { Button, Icon, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Icon, Loading, Panel, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -93,9 +93,9 @@ export function PasskeysPanel({ rpId, addElsewhere = false }: { rpId: string; ad
           ))}
         </ul>
       ) : (
-        <p className="profile-empty" aria-busy="true">
-          <Trans>Loading passkeys</Trans>
-        </p>
+        <Loading label={t`Loading passkeys`}>
+          <SkeletonRows rows={2} lead="mark" end="value" className="profile-skeleton" />
+        </Loading>
       )}
       <p className="profile-note">
         <Trans>Keep at least two, so losing one device never locks you out. Each works only on its address.</Trans>

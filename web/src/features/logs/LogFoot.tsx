@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { LogGapReason } from "@dockwell/api";
-import { Button } from "@dockwell/ui";
+import { Button, Glyph } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -142,6 +142,7 @@ export function LogFoot({
   rangeFixed,
   levelFiltered,
   phone,
+  catchingUp = false,
   onPause,
   onLastSkip,
 }: {
@@ -158,6 +159,8 @@ export function LogFoot({
   rangeFixed?: boolean;
   levelFiltered: boolean;
   phone: boolean;
+  /** Reading what came while the tab was away, under the lines it kept, before it follows live again. */
+  catchingUp?: boolean;
   onPause: () => void;
   onLastSkip: () => void;
 }) {
@@ -185,6 +188,14 @@ export function LogFoot({
             one: `${shown} of the ${total} lines loaded matches.`,
             other: `${shown} of the ${total} lines loaded match.`,
           });
+  } else if (catchingUp) {
+    // A quiet state in place, under the lines it kept: they stay as they were until what came lands.
+    words = (
+      <span className="logs-foot-catching" role="status">
+        <Glyph shape="spinner" size={12} />
+        <Trans>Catching up on what came while this tab was away</Trans>
+      </span>
+    );
   } else if (live && !following) {
     const at = clockSeconds(store.heldSince);
     const count = store.arrived.toLocaleString(i18n.locale);

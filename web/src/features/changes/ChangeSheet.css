@@ -32,16 +32,6 @@
   margin: 0;
 }
 
-.plan-loading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin: 0;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--ink-muted);
-}
-
 /* Where it stands, in the title's own place through the flow. A long name wraps, and the mark stays on its first line. */
 .plan-title {
   display: flex;

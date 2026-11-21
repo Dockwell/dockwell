@@ -41,6 +41,7 @@ export const colors = {
     "link": "#2450d6",
     "selection": "#e8edfc",
     "choice-on": "#eef2fd",
+    "skeleton": "#e1e4de",
     "scrim": "#191c1a59"
   },
   "dark": {
@@ -80,6 +81,7 @@ export const colors = {
     "link": "#809dff",
     "selection": "#19244a",
     "choice-on": "#1e2431",
+    "skeleton": "#2a2f2c",
     "scrim": "#000000a6"
   }
 } as const;

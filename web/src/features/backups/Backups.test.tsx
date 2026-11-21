@@ -1022,7 +1022,7 @@ describe("the backups page", () => {
       }),
     );
     const panel = await screen.findByRole("region", { name: "Destinations" });
-    await user.click(within(panel).getByRole("button", { name: /^Add( storage)?$/ }));
+    await user.click(await within(panel).findByRole("button", { name: /^Add( storage)?$/ }));
     const sheet = await screen.findByRole("dialog", { name: "Add a connection" });
     expect(within(sheet).getByRole("textbox", { name: "Bucket" })).toBeVisible();
     // Storage alone: mail server tiles are not shown.

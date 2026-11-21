@@ -6,6 +6,7 @@ import { cx, hasContent } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
 import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
+import { LoadingStatus, Skeleton } from "../Skeleton/Skeleton";
 import "./FolderPicker.css";
 
 /** What a folder holds, as far as choosing one needs: its own folders, by name. */
@@ -274,6 +275,7 @@ export function FolderPicker({
               </label>
             </div>
           ) : null}
+          {shown === undefined && !cantRead ? <LoadingStatus label={strings.reading} /> : null}
           <ul
             className="dw-folder-list"
             aria-label={strings.foldersIn(at)}
@@ -282,7 +284,13 @@ export function FolderPicker({
             {cantRead ? (
               <li className="dw-folder-quiet">{strings.cantRead}</li>
             ) : shown === undefined ? (
-              <li className="dw-folder-quiet">{strings.reading}</li>
+              // The folders on their way, as rows of the list they will be; the list says it is busy.
+              [96, 72, 120, 88].map((width) => (
+                <li key={width} className="dw-folder-row is-placeholder" aria-hidden="true">
+                  <Skeleton shape="circle" size={14} />
+                  <Skeleton text="label" width={width} />
+                </li>
+              ))
             ) : shown.folders.length === 0 ? (
               <li className="dw-folder-quiet">
                 {searching ? strings.noMatch(finding.trim()) : shown.cut ? strings.noneShown : strings.empty}

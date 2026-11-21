@@ -2,12 +2,18 @@
 
 import { createRouter } from "@tanstack/react-router";
 
+import { RoutePending } from "../features/shell/RoutePending";
 import { routeTree } from "../routeTree.gen";
 
 export const router = createRouter({
   routeTree,
   defaultPreload: "intent",
   scrollRestoration: true,
+  // A screen whose code is still on its way shows a page's shape, not nothing; the
+  // shapes wait 150 ms more themselves, so a fast load still shows neither.
+  defaultPendingComponent: RoutePending,
+  defaultPendingMs: 150,
+  defaultPendingMinMs: 0,
 });
 
 declare module "@tanstack/react-router" {

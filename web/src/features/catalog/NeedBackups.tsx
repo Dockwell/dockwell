@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { BackupPolicy_Every, BackupState, type CatalogInstall, CatalogService, ChangeService } from "@dockwell/api";
-import { Button, Callout, Icon } from "@dockwell/ui";
+import { Button, Callout, Icon, Skeleton } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -94,11 +94,18 @@ export function NeedBackups({ install, need }: { install: CatalogInstall; need: 
         </Callout>
       ) : null}
       <ul className="app-backups" aria-label={t`Its database's backups`}>
-        {backups.length === 0 ? (
-          <li className="app-backup">
-            <span className="app-backup-latest">
-              {listed.isPending ? t`Reading its backups` : t`Its database isn't backed up alone yet`}
+        {backups.length === 0 && listed.isPending ? (
+          <li className="app-backup" aria-busy="true">
+            <span className="app-backup-name">
+              <Skeleton width={120} />
             </span>
+            <span className="app-backup-latest">
+              <Skeleton width={96} />
+            </span>
+          </li>
+        ) : backups.length === 0 ? (
+          <li className="app-backup">
+            <span className="app-backup-latest">{t`Its database isn't backed up alone yet`}</span>
           </li>
         ) : null}
         {backups.map((b) => (

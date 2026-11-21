@@ -36,7 +36,7 @@ export function Overview() {
   if (state.status === "connecting") {
     return (
       <OverviewPage title={t`Overview`}>
-        <Connecting error={state.error} />
+        <Connecting error={state.error} shape="overview" />
       </OverviewPage>
     );
   }

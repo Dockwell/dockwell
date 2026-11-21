@@ -231,10 +231,7 @@ a.phone-row:hover {
   font-size: 13px;
 }
 
-.phone-skeleton {
-  display: block;
-  width: 160px;
-  height: 12px;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
+/* What happened, on its way, as the timeline sets it. */
+.phone-skeleton-rows .dw-skeleton-row {
+  padding: 0;
 }

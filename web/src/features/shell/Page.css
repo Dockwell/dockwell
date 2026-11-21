@@ -237,3 +237,10 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* A screen whose code is on its way: its head, then a panel, a page's gap apart. */
+.route-pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}

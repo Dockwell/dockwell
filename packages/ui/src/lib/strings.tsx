@@ -53,6 +53,8 @@ export interface UIStrings {
   trend: string;
   /** Table: shown when there are no rows and the caller gave no empty state. */
   tableEmpty: string;
+  /** Said to assistive technology while a table's rows are on their way and the caller gave no label. */
+  loading: string;
   fleetGrid: {
     /** A number of servers: the legend total and a group's default meta. */
     servers: (count: number) => string;
@@ -144,7 +146,7 @@ export interface UIStrings {
     lookingIn: string;
     /** Accessible name of the list of a folder's folders. */
     foldersIn: (path: string) => string;
-    /** In the list: while it's read, when it holds no folder, and when it can't be read. */
+    /** Said while the list is read, as its rows' shapes show; in the list, when it holds no folder, and when it can't be read. */
     reading: string;
     empty: string;
     cantRead: string;
@@ -249,6 +251,7 @@ export const englishStrings: UIStrings = {
     `Trend over ${one(samples, "sample", "samples")}, latest ${latest.toLocaleString("en", { maximumFractionDigits: 2 })}`,
   trend: "trend",
   tableEmpty: "Nothing here yet.",
+  loading: "Loading",
   fleetGrid: {
     servers: (n) => one(n, "server", "servers"),
     count: (n, status) => `${count(n)} ${englishStrings.status[status].toLowerCase()}`,

@@ -211,8 +211,8 @@ describe("FilesPage", () => {
 
   it("lists a folder, folders first, and says where you are", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
-    await screen.findByRole("table", { name: "Files in /var/www" });
-    await screen.findByText("wp-admin");
+    const table = await screen.findByRole("table", { name: "Files in /var/www" });
+    await within(table).findByText("wp-admin");
     expect(rowNames()).toEqual(["cache", "current", "wp-admin", ".user.ini", "index.php"]);
     const path = screen.getByRole("navigation", { name: "Path" });
     expect(within(path).getByRole("link", { name: "var" })).toBeVisible();

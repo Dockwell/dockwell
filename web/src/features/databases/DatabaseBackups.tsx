@@ -2,7 +2,7 @@
 
 import type { BackupPolicyInfo, Database } from "@dockwell/api";
 import { BackupPolicy_Drill, ChangeService } from "@dockwell/api";
-import { Button, Callout, Panel, StatusBadge } from "@dockwell/ui";
+import { Button, Callout, Loading, Panel, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
@@ -183,7 +183,13 @@ function VolumeBackups({ db }: { db: Database }) {
           )}
         </div>
       </Panel>
-      {query.isPending ? null : backups.length === 0 ? (
+      {query.isPending ? (
+        <Loading label={t`Loading backups of ${name}`}>
+          <Panel flush>
+            <SkeletonRows rows={3} lead="icon" end="pill" />
+          </Panel>
+        </Loading>
+      ) : backups.length === 0 ? (
         <Panel>
           <EmptyState icon="archive" title={t`No backups of ${name} yet`}>
             <Trans>A backup before a change or an upgrade lets you put it back.</Trans>

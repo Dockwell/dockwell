@@ -20,10 +20,12 @@ import {
   Button,
   Callout,
   cx,
+  Loading,
   Panel,
   PHONE_QUERY,
   SelectField,
   Sheet,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -67,7 +69,8 @@ export function BackupsPage() {
   const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
   const backups = query.data?.backups ?? [];
   const policies = usePolicies().data?.policies ?? [];
-  const destinations = useDestinations().data?.destinations ?? [];
+  const destinationsRead = useDestinations();
+  const destinations = destinationsRead.data?.destinations ?? [];
   const action =
     volumes.length > 0 ? (
       <Button variant="primary" icon="archive" onClick={() => setTaking(true)}>
@@ -117,7 +120,20 @@ export function BackupsPage() {
               onEdit={(policy) => setScheduling({ editing: policy })}
             />
           ) : null}
-          {query.isPending ? null : backups.length === 0 ? (
+          {query.isPending ? (
+            <section className="backups-runs">
+              <div className="backups-runs-head">
+                <h2 className="dw-text-heading">
+                  <Trans>Recent runs</Trans>
+                </h2>
+              </div>
+              <Loading label={t`Loading backups`}>
+                <Panel flush>
+                  <SkeletonRows rows={4} lead="icon" end="pill" />
+                </Panel>
+              </Loading>
+            </section>
+          ) : backups.length === 0 ? (
             volumes.length > 0 ? (
               <EmptyState icon="archive" title={t`No backups yet`} action={action}>
                 <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
@@ -147,7 +163,7 @@ export function BackupsPage() {
         </div>
         {/* Where they go, and how their restores test, in one column, as the Backups mock has them (#793). */}
         <div className="backups-side">
-          <DestinationsPanel destinations={destinations} />
+          <DestinationsPanel destinations={destinations} pending={destinationsRead.isPending} />
           <RestoreTests policies={policies} backups={backups} />
         </div>
       </div>

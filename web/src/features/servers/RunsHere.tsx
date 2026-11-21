@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { DeploymentState, type Server, type ServiceInfo } from "@dockwell/api";
-import { Icon, type IconName } from "@dockwell/ui";
+import { Icon, type IconName, Skeleton } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link, type LinkProps } from "@tanstack/react-router";
@@ -62,13 +62,13 @@ function Card({ icon, kind, title, sub, link, busy = false }: CardProps) {
           {busy ? (
             <>
               <span className="dw-sr">{kind}</span>
-              <span className="runs-skeleton is-title" />
+              <Skeleton text="label" width={64} />
             </>
           ) : (
             title
           )}
         </span>
-        <span className="runs-sub">{busy ? <span className="runs-skeleton is-sub" /> : sub}</span>
+        <span className="runs-sub">{busy ? <Skeleton text="caption" width={140} /> : sub}</span>
       </span>
       <span className="runs-chevron">
         <Icon name="chevron-right" size={16} />

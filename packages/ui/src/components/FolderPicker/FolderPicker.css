@@ -145,6 +145,10 @@
 .dw-folder-row.is-chosen {
   background: var(--selection);
 }
+/* A folder on its way: the row's shape, and nothing to press. */
+.dw-folder-row.is-placeholder {
+  cursor: default;
+}
 .dw-folder-row:disabled {
   color: var(--ink-muted);
   cursor: default;

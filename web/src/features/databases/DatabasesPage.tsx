@@ -18,8 +18,11 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  Skeleton,
+  SkeletonRows,
   STATUS,
   StatusBadge,
   Table,
@@ -456,40 +459,20 @@ function DatabasesSkeleton({ fleet }: { fleet: boolean }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const heads = useColumnHeads(fleet);
   const columns = useMemo<TableColumn<{ id: string }>[]>(
-    () =>
-      heads.map((head) => ({
-        ...head,
-        render: () => (
-          <span className="databases-skeleton-bar" style={{ width: head.key === "name" ? "44%" : "64%" }} />
-        ),
-      })),
+    () => heads.map((head) => ({ ...head, render: () => null, skeleton: head.key === "name" ? "titled" : undefined })),
     [heads],
   );
   const label = t`Loading the databases`;
   if (phone) {
     return (
-      <Panel flush className="databases-phone" aria-busy="true">
-        <span className="dw-sr">{label}</span>
-        {["44%", "32%"].map((width) => (
-          <div key={width} className="databases-skeleton-line" aria-hidden="true">
-            <span className="databases-skeleton-bar" style={{ width }} />
-            <span className="databases-skeleton-bar is-short" />
-          </div>
-        ))}
-      </Panel>
+      <Loading label={label}>
+        <Panel flush className="databases-phone">
+          <SkeletonRows rows={2} lead="mark" />
+        </Panel>
+      </Loading>
     );
   }
-  return (
-    <div aria-busy="true">
-      <span className="dw-sr">{label}</span>
-      <Table
-        className="databases-table databases-skeleton"
-        columns={columns}
-        rows={[{ id: "1" }, { id: "2" }]}
-        rowClassName={() => "databases-skeleton-row"}
-      />
-    </div>
-  );
+  return <Table className="databases-table" columns={columns} rows={[]} loading loadingRows={2} loadingLabel={label} />;
 }
 
 /**
@@ -599,8 +582,14 @@ function EngineTiles({ groups, pending }: { groups: readonly EngineGroup[]; pend
   if (groups.length === 0) {
     return (
       <ul ref={grid} style={style} aria-label={t`Engines`} aria-busy="true" className="databases-engine-grid">
-        {Array.from({ length: placeholders }, (_, k) => `placeholder-${k}`).map((k) => (
-          <li key={k} className="databases-engine is-placeholder" />
+        {Array.from({ length: placeholders }, (_, k) => `placeholder-${k}`).map((k, index) => (
+          <li key={k} className="databases-engine is-placeholder" aria-hidden="true">
+            <Skeleton shape="block" width={32} height={32} />
+            <span className="databases-engine-text">
+              <Skeleton text="label" width={[72, 88, 64, 80, 96][index % 5]} />
+              <Skeleton text="caption" width={40} />
+            </span>
+          </li>
         ))}
       </ul>
     );
@@ -868,9 +857,13 @@ function RecentActivity({ databases }: { databases: readonly Database[] }) {
     >
       {items.length > 0 ? (
         <Timeline events={items} />
+      ) : pending ? (
+        <Loading label={t`Reading what happened`}>
+          <SkeletonRows rows={2} lead="icon" dense className="databases-quiet-rows" />
+        </Loading>
       ) : (
         <p className="databases-muted databases-quiet">
-          {pending ? <Trans>Reading what happened</Trans> : <Trans>Nothing has happened to them lately</Trans>}
+          <Trans>Nothing has happened to them lately</Trans>
         </p>
       )}
     </Panel>

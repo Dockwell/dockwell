@@ -16,9 +16,12 @@ import {
   Advanced,
   Button,
   Callout,
+  Loading,
+  Panel,
   PHONE_QUERY,
   SegmentedControl,
   Sheet,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -149,7 +152,26 @@ function SystemServices({ server }: { server: Server }) {
       </p>
     );
   } else if (!list) {
-    body = failure ?? <p className="procs-note">{t`Reading…`}</p>;
+    body =
+      failure ??
+      (phone ? (
+        <Loading label={t`Reading the system services`} slow={t`${server.name} is slow to list its services`}>
+          <Panel flush>
+            <SkeletonRows rows={8} end="pill" />
+          </Panel>
+        </Loading>
+      ) : (
+        <ServiceTable
+          rows={[]}
+          onOpen={setOpen}
+          caption={t`System services on ${server.name}`}
+          none={none}
+          server={server}
+          list={undefined}
+          acts={acts}
+          loading
+        />
+      ));
   } else if (list.init === SystemInit.OTHER) {
     body = (
       <p className="procs-note" role="status">
@@ -471,6 +493,7 @@ function ServiceTable({
   server,
   list,
   acts,
+  loading = false,
 }: {
   rows: readonly SystemServiceInfo[];
   onOpen: (name: string) => void;
@@ -479,6 +502,8 @@ function ServiceTable({
   server: Server;
   list: SystemServiceList | undefined;
   acts: UnitActions;
+  /** The first list is on its way: the table draws its rows' shapes under its real header. */
+  loading?: boolean;
 }) {
   const { t, i18n } = useLingui();
   const atBoot = useAtBoot();
@@ -510,6 +535,10 @@ function ServiceTable({
       rowKey="name"
       onRowClick={(s) => onOpen(s.name)}
       caption={caption}
+      loading={loading}
+      loadingRows={10}
+      loadingLabel={t`Reading the system services`}
+      slow={t`${server.name} is slow to list its services`}
       empty={<p className="procs-note">{none}</p>}
     />
   );

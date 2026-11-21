@@ -40,7 +40,7 @@ export function ServersPanel({ linked = false, reconnectingNote = true }: Server
     >
       {fleet.status === "connecting" ? (
         <div className="servers-empty">
-          <Connecting error={fleet.error} />
+          <Connecting error={fleet.error} shape="panel" />
         </div>
       ) : fleet.servers.length === 0 ? (
         <p className="servers-empty">

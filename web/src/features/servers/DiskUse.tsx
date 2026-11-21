@@ -11,7 +11,7 @@ import {
   type ServerDiskUse,
   ServerService,
 } from "@dockwell/api";
-import { Panel } from "@dockwell/ui";
+import { Loading, Panel, Skeleton } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
@@ -101,11 +101,8 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
         {others.map((disk) => (
           <PlainDisk key={disk.mountPoint} disk={disk} server={server} />
         ))}
-        {busy && disks.length > 0 ? (
-          <p className="disk-use-note">
-            <Trans>Adding up what takes the disk Docker keeps its data on.</Trans>
-          </p>
-        ) : null}
+        {/* What arrived shows; only Docker's share of its disk is still on its way, and is marked as such. */}
+        {busy && disks.length > 0 ? <DiskSkeleton bar={false} /> : null}
         {use.error && asking && !dockerDisk ? <p className="disk-use-note">{sentence(use.error)}</p> : null}
       </div>
     </Panel>
@@ -251,21 +248,24 @@ function PlainDisk({ disk, server }: { disk: DiskUsage; server: Server }) {
 }
 
 /** Where the breakdown goes while Docker adds it up: its shape, and no numbers that could be wrong. */
-function DiskSkeleton() {
+function DiskSkeleton({ bar = true }: { bar?: boolean }) {
   const { t } = useLingui();
   return (
-    <div className="disk-use-docker" aria-busy="true">
-      <span className="dw-sr">{t`Adding up what takes the disk`}</span>
-      <div className="disk-use-bar is-skeleton" />
+    <Loading
+      label={t`Adding up what takes the disk`}
+      slow={t`Docker is measuring disk use on this server`}
+      className="disk-use-docker"
+    >
+      {bar ? <Skeleton shape="block" height={14} /> : null}
       <div className="disk-use-legend" aria-hidden="true">
         {["a", "b", "c", "d"].map((key) => (
           <div key={key} className="disk-use-item">
-            <span className="disk-use-ghost is-label" />
-            <span className="disk-use-ghost is-bytes" />
+            <Skeleton text="caption" width={56} className="disk-use-ghost" />
+            <Skeleton text="label" width={72} className="disk-use-ghost" />
           </div>
         ))}
       </div>
-    </div>
+    </Loading>
   );
 }
 

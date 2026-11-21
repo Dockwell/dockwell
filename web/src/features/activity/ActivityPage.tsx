@@ -23,9 +23,12 @@ import {
   cx,
   Icon,
   type IconName,
+  Loading,
   Panel,
   PHONE_QUERY,
   SegmentedControl,
+  Skeleton,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -226,9 +229,7 @@ export function ActivityPage({
         {sentence(state.error)} <Trans>Dockwell keeps trying.</Trans>
       </Callout>
     ) : (
-      <p className="activity-note" aria-busy="true">
-        <Trans>Loading activity</Trans>
-      </p>
+      <ActivitySkeleton phone={phone} />
     );
   } else if (events.length === 0) {
     body = (
@@ -1004,9 +1005,9 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
                   {sentence(full.error)}
                 </p>
               ) : (
-                <p className="activity-note" aria-busy="true">
-                  <Trans>Loading the plan</Trans>
-                </p>
+                <Loading label={t`Loading the plan`}>
+                  <SkeletonRows rows={Math.max(1, Math.min(rows.length || 2, 4))} lead="icon" lines={1} dense />
+                </Loading>
               )}
             </div>
           ) : null}
@@ -1301,5 +1302,30 @@ function HealthFacts({ event }: { event: Event }) {
         </>
       ) : null}
     </>
+  );
+}
+
+/** A day of events on its way: its heading, and its table's own columns, or a phone's timeline. */
+function ActivitySkeleton({ phone }: { phone: boolean }) {
+  const { t } = useLingui();
+  const columns: TableColumn<{ id: string }>[] = [
+    { key: "title", header: t`Event`, render: () => null, skeleton: "titled" },
+    { key: "actor", header: t`By`, width: 172, render: () => null, skeleton: "short" },
+    { key: "time", header: t`When`, width: 104, align: "right", render: () => null },
+  ];
+  return (
+    <section className="activity-day">
+      <div className="activity-day-head" aria-hidden="true">
+        <Skeleton text="heading" width={72} />
+        <Skeleton text="caption" width={120} />
+      </div>
+      {phone ? (
+        <Loading label={t`Loading activity`}>
+          <SkeletonRows rows={5} lead="icon" />
+        </Loading>
+      ) : (
+        <Table columns={columns} rows={[]} loading loadingRows={6} loadingLabel={t`Loading activity`} />
+      )}
+    </section>
   );
 }

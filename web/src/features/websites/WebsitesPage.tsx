@@ -8,8 +8,11 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  Skeleton,
+  SkeletonRows,
   STATUS,
   Table,
   type TableColumn,
@@ -23,7 +26,6 @@ import { type ReactNode, useMemo } from "react";
 import { sentence } from "../../lib/errors";
 import { formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
-import { ListSkeleton } from "../apps/AppsPage";
 import type { DomainRead } from "../apps/domains";
 import type { HealthView } from "../apps/health";
 import { useFleetView } from "../servers/useFleet";
@@ -64,7 +66,15 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
 
   let body: ReactNode;
   if (pending) {
-    body = phone ? <ListSkeleton label={t`Loading websites`} /> : <WebsitesSkeleton label={t`Loading websites`} />;
+    body = phone ? (
+      <Loading label={t`Loading websites`}>
+        <Panel flush>
+          <SkeletonRows rows={3} end="pill" />
+        </Panel>
+      </Loading>
+    ) : (
+      <WebsitesSkeleton label={t`Loading websites`} />
+    );
   } else if (websites.error) {
     body = (
       <Callout
@@ -107,7 +117,7 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
       title={t`Websites`}
       // The line is held while they load, so the list doesn't move when it lands. With none, there is no line
       // to hold, and Files stands level with the title rather than under an empty one.
-      lead={pending ? <span aria-hidden="true">&nbsp;</span> : count === 0 ? undefined : lead}
+      lead={pending ? <Skeleton width={96} inline /> : count === 0 ? undefined : lead}
       className="websites-page"
       actions={
         <>
@@ -278,21 +288,12 @@ function WebsitesSkeleton({ label }: { label: string }) {
     () =>
       heads.map((head) => ({
         ...head,
-        render: () => <span className="apps-skeleton-bar" style={{ width: head.key === "website" ? "44%" : "64%" }} />,
+        render: () => null,
+        skeleton: head.key === "website" ? "titled" : undefined,
       })),
     [heads],
   );
-  return (
-    <div aria-busy="true">
-      <span className="dw-sr">{label}</span>
-      <Table
-        className="websites-table apps-skeleton"
-        columns={columns}
-        rows={[{ id: "1" }, { id: "2" }, { id: "3" }]}
-        rowClassName={() => "apps-skeleton-row"}
-      />
-    </div>
-  );
+  return <Table className="websites-table" columns={columns} rows={[]} loading loadingLabel={label} />;
 }
 
 /** The list on a phone: a website's domain and a line of how it stands, as M-Apps draws apps. */

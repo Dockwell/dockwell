@@ -45,12 +45,14 @@ import {
   Glyph,
   Icon,
   type IconName,
+  Loading,
   PHONE_QUERY,
   PlanDiff,
   SelectField,
   Sheet,
   SheetSwap,
   SheetView,
+  Skeleton,
   StatusBadge,
   Switch,
   TextField,
@@ -1373,10 +1375,28 @@ function PlanBody({
   if (phase === "planning") {
     return (
       <div className="plan-body">
-        <p className="plan-loading" aria-busy="true">
-          <Glyph shape="spinner" size={14} />
-          <Trans>Planning: asking each server what this would take</Trans>
-        </p>
+        <Loading
+          label={t`Planning: asking each server what this would take`}
+          slow={t`Each server is still working out what this would take`}
+          className="dw-plan"
+        >
+          <div className="dw-plan-summary" aria-hidden="true">
+            <Skeleton text="label" width={220} />
+          </div>
+          <ul className="dw-plan-list" aria-hidden="true">
+            {[160, 128, 184].map((width) => (
+              <li key={width} className="dw-plan-res">
+                <div className="dw-plan-row">
+                  <Skeleton shape="circle" size={14} />
+                  <Skeleton shape="circle" size={16} />
+                  <Skeleton text="code" width={width} />
+                  <Skeleton text="label" width={56} />
+                  <span />
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Loading>
       </div>
     );
   }

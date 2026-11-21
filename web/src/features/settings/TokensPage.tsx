@@ -21,6 +21,7 @@ import {
   Panel,
   PHONE_QUERY,
   SelectField,
+  Skeleton,
   StatusBadge,
   Table,
   type TableColumn,
@@ -102,9 +103,21 @@ export function TokensPage() {
     );
   } else if (!tokens.data) {
     body = (
-      <div className="tokens-skeleton" aria-busy="true">
-        <span className="dw-sr">{t`Loading tokens`}</span>
-      </div>
+      <Table
+        className="tokens-table"
+        columns={[
+          { key: "name", header: t`Token`, render: () => null, skeleton: "titled" },
+          { key: "scopes", header: t`Scopes`, width: 200, render: () => null, skeleton: "pill" },
+          { key: "created", header: t`Created`, width: 96, render: () => null, skeleton: "short" },
+          { key: "used", header: t`Last used`, width: 112, render: () => null, skeleton: "short" },
+          { key: "expires", header: t`Expires`, width: 148, render: () => null, skeleton: "short" },
+          { key: "act", header: <span className="dw-sr">{t`Actions`}</span>, width: 112, render: () => null },
+        ]}
+        rows={[]}
+        loading
+        loadingRows={2}
+        loadingLabel={t`Loading tokens`}
+      />
     );
   } else if (list.length === 0) {
     body = (
@@ -659,8 +672,8 @@ function Reach({
                 />
               ))
             ) : (
-              <span className="settings-muted" aria-busy="true">
-                {listed.error ? t`Dockwell can't list your projects` : t`Loading your projects`}
+              <span className="settings-muted" aria-busy={listed.error ? undefined : true}>
+                {listed.error ? t`Dockwell can't list your projects` : <Skeleton width={160} />}
               </span>
             )}
           </fieldset>

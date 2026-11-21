@@ -21,12 +21,6 @@
   min-width: 200px;
 }
 
-.projects-loading {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: 13px;
-}
-
 /* A project's mark: what it came from, as an icon in a square, as the rail's items have. */
 .projects-mark {
   display: inline-flex;

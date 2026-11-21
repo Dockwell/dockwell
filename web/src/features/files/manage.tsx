@@ -4,7 +4,7 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import { type DeletedFile, type FileEntry, FileService, FileType, StepUpAction } from "@dockwell/api";
-import { Button, ButtonLink, Callout, Icon, Sheet, Switch, TextField } from "@dockwell/ui";
+import { Button, ButtonLink, Callout, Icon, Loading, Sheet, SkeletonRows, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
@@ -595,9 +595,9 @@ export function DeletedSheet({
         {failure ? <Refused failure={failure} noPasskey={noPasskey} onAdded={() => setFailure(undefined)} /> : null}
         {query.error ? <Callout tone="critical">{sentence(query.error)}</Callout> : null}
         {query.isPending ? (
-          <p className="files-sheet-line">
-            <Trans>Reading what was deleted</Trans>
-          </p>
+          <Loading label={t`Reading what was deleted`}>
+            <SkeletonRows rows={3} lead="icon" end="value" dense />
+          </Loading>
         ) : deleted.length === 0 && !query.error ? (
           <p className="files-sheet-line">
             <Trans>Nothing is in Recently deleted.</Trans>

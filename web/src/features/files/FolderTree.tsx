@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType } from "@dockwell/api";
-import { cx, Icon } from "@dockwell/ui";
+import { cx, Icon, Skeleton } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -163,7 +163,18 @@ function Children({ path, depth, state }: { path: string; depth: number; state: 
       </p>
     );
   }
-  if (!query.data) return null;
+  if (!query.data) {
+    // Its folders on their way, under it, as its list will set them.
+    return (
+      <ul aria-busy="true" aria-label={t`Reading this folder`}>
+        {[88, 64].map((width) => (
+          <li key={width} className="files-tree-note" style={indent} aria-hidden="true">
+            <Skeleton text="label" width={width} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
   const folders = query.data.entries
     .filter((entry) => opensAsFolder(entry) && !entry.unreadableName)
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));

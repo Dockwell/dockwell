@@ -3,20 +3,40 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import { type DockerImage, DockerImageState, DockerObjectKind, DockerService, type Server } from "@dockwell/api";
-import { Button, Callout, Icon, Panel, StatusBadge, TextField } from "@dockwell/ui";
+import {
+  Button,
+  Callout,
+  Icon,
+  Loading,
+  Panel,
+  SegmentedControl,
+  Skeleton,
+  SkeletonCard,
+  SkeletonFacts,
+  SkeletonRows,
+  StatusBadge,
+  Table,
+  type TableColumn,
+  TextField,
+  useMediaQuery,
+} from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { keepPreviousData } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
+import { useHeldRows } from "../../lib/loading";
 import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
 import { useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
+import "./Docker.css";
 import "./DockerArtifacts.css";
 
 function shortImageId(id: string): string {
@@ -37,10 +57,40 @@ function ImageStatus({ state }: { state: DockerImageState }) {
   }
 }
 
+type ImageFilter = "all" | "used" | "unused" | "dangling";
+
+const FILTERED: Readonly<Record<Exclude<ImageFilter, "all">, DockerImageState>> = {
+  used: DockerImageState.USED,
+  unused: DockerImageState.UNUSED,
+  dangling: DockerImageState.DANGLING,
+};
+
+interface ImageRow {
+  id: string;
+  serverId: string;
+  engineId: string;
+  /** When Docker last measured it; until then, its state and sizes are still being counted. */
+  measured: boolean;
+  image: DockerImage;
+}
+
+/**
+ * Whether a row stays under a state filter. One still being measured has no state
+ * yet, so it stays under every filter rather than drop out of sight as if it were
+ * none of them.
+ */
+function keeps(row: ImageRow, filter: ImageFilter): boolean {
+  if (filter === "all") return true;
+  if (row.image.state === DockerImageState.UNSPECIFIED && !row.measured) return true;
+  return row.image.state === FILTERED[filter];
+}
+
 export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server, "id" | "name">[]; fleet: boolean }) {
   const { t, i18n } = useLingui();
+  const compact = useMediaQuery("(max-width: 900px)");
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<ImageFilter>("all");
   const [pages, setPages] = useState([""]);
   const pageToken = pages.at(-1) ?? "";
   useEffect(() => {
@@ -56,32 +106,160 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
   const query = useQuery(
     DockerService.method.listDockerObjects,
     { serverIds, kind: DockerObjectKind.IMAGE, filter: { search }, pageToken },
-    { retry: false, refetchOnWindowFocus: false },
+    // A new search or page keeps the last list in place until its answer lands.
+    { retry: false, refetchOnWindowFocus: false, placeholderData: keepPreviousData },
   );
   const refresh = () => {
     if (pageToken) setPages([""]);
     else void query.refetch();
   };
   const watch = useDockerWatch(serverIds, [], () => void query.refetch(), false, DockerObjectKind.IMAGE);
-  const rows = query.data?.objects ?? [];
+  const rows: ImageRow[] = (query.data?.objects ?? []).flatMap((row) =>
+    row.key && row.detail.case === "image"
+      ? [
+          {
+            id: `${row.key.serverId}/${row.key.engineId}`,
+            serverId: row.key.serverId,
+            engineId: row.key.engineId,
+            measured: row.observedAt !== undefined,
+            image: row.detail.value,
+          },
+        ]
+      : [],
+  );
+  const shown = rows.filter((row) => keeps(row, filter));
   const next = query.data?.nextPageToken;
+  const held = useHeldRows(
+    "docker.images",
+    query.isSuccess && !query.isPlaceholderData && !search && !pageToken ? rows.length : undefined,
+  );
+  const slow = fleet
+    ? t`Docker is slow to list images on these servers`
+    : t`Docker is slow to list images on this server`;
+  const serverName = (id: string) => servers.find((s) => s.id === id)?.name ?? id;
+  const link = (row: ImageRow) => (
+    <Link
+      className="dw-link docker-row-link docker-cell-text"
+      title={row.image.tags[0] ?? row.engineId}
+      to="/servers/$serverId/docker/images/$imageId"
+      params={{ serverId: row.serverId, imageId: row.engineId }}
+    >
+      <code>{row.image.tags[0] ?? shortImageId(row.engineId)}</code>
+    </Link>
+  );
+  const moreTags = (row: ImageRow) =>
+    row.image.tags.length > 1 ? (
+      <span className="docker-muted docker-cell-text" title={row.image.tags.slice(1).join("\n")}>
+        {plural(row.image.tags.length - 1, { one: "and # more tag", other: "and # more tags" })}
+      </span>
+    ) : null;
+  const columns: TableColumn<ImageRow>[] = [
+    {
+      key: "image",
+      header: t`Image`,
+      width: fleet ? "30%" : "36%",
+      skeleton: "titled",
+      render: (row) => (
+        <div className="docker-image-name">
+          {link(row)}
+          {moreTags(row)}
+        </div>
+      ),
+    },
+    ...(fleet
+      ? [
+          {
+            key: "server",
+            header: t`Server`,
+            width: "14%",
+            render: (row: ImageRow) => (
+              <Link
+                className="dw-link docker-cell-text"
+                title={serverName(row.serverId)}
+                to="/servers/$serverId/docker"
+                params={{ serverId: row.serverId }}
+              >
+                {serverName(row.serverId)}
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    { key: "state", header: t`State`, width: 120, render: (row) => <ImageState row={row} /> },
+    {
+      key: "platform",
+      header: t`Platform`,
+      mono: true,
+      render: (row) => (
+        <span className="docker-cell-text" title={row.image.platform || undefined}>
+          {row.image.platform || t`Unknown`}
+        </span>
+      ),
+    },
+    {
+      key: "total",
+      header: t`Total`,
+      width: 96,
+      align: "right",
+      render: (row) => <ImageBytes bytes={row.image.totalBytes} pending={!row.measured} />,
+    },
+    {
+      key: "unique",
+      header: t`Unique`,
+      width: 96,
+      align: "right",
+      render: (row) => <ImageBytes bytes={row.image.uniqueBytes} pending={!row.measured} />,
+    },
+    {
+      key: "created",
+      header: t`Created`,
+      width: 168,
+      skeleton: "short",
+      render: (row) => (
+        <span className="docker-cell-text">
+          {row.image.createdAt ? formatDateTime(timestampDate(row.image.createdAt), i18n.locale) : t`Unknown`}
+        </span>
+      ),
+    },
+  ];
+  const filteredOut = rows.length > 0 && shown.length === 0;
   return (
     <>
       <div className="docker-section-heading">
         <h2>
-          <Trans>Local images</Trans>
+          <Trans>Images</Trans>
         </h2>
-        <Button variant="ghost" size="sm" icon="refresh" onClick={refresh}>
-          <Trans>Refresh</Trans>
-        </Button>
+        <div className="docker-heading-actions">
+          <Button
+            icon="refresh"
+            size="sm"
+            variant="ghost"
+            onClick={refresh}
+            loading={query.isFetching && !query.isPending}
+            aria-label={t`Refresh images`}
+            title={t`Refresh images`}
+          />
+        </div>
       </div>
       <div className="docker-filters">
+        <SegmentedControl
+          label={t`Image state`}
+          value={filter}
+          options={[
+            { value: "all", label: t`All` },
+            { value: "used", label: t`Used` },
+            { value: "unused", label: t`Unused` },
+            { value: "dangling", label: t`Dangling` },
+          ]}
+          onChange={(value: ImageFilter) => setFilter(value)}
+        />
         <TextField
-          label={t`Search images`}
-          placeholder={t`Tag, digest or ID`}
+          icon="search"
           value={input}
           maxLength={255}
           onChange={(event) => setInput(event.target.value)}
+          placeholder={t`Tag, digest or ID`}
+          aria-label={t`Search images`}
         />
       </div>
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
@@ -93,65 +271,86 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             : sentence(query.error)}
         </Callout>
       ) : null}
-      {query.isPending ? <ImageLoading /> : null}
+      {query.isPending && !query.error ? (
+        compact ? (
+          <Loading label={t`Loading local images`} slow={slow}>
+            <Panel flush>
+              <SkeletonRows rows={held} end="pill" />
+            </Panel>
+          </Loading>
+        ) : (
+          <Panel flush>
+            <Table
+              className="docker-table docker-image-table"
+              columns={columns}
+              rows={[]}
+              caption={t`Local images`}
+              loading
+              loadingRows={held}
+              loadingLabel={t`Loading local images`}
+              slow={slow}
+            />
+          </Panel>
+        )
+      ) : null}
       {rows.length === 0 && query.isSuccess && !next && !query.data.unavailable.length ? (
         <EmptyState icon="archive" title={search ? t`No matching images` : t`No local images`} />
       ) : null}
-      {rows.length ? (
-        <ul className="docker-artifact-list" aria-label={t`Local images`}>
-          {rows.map((row) => {
-            if (!row.key || row.detail.case !== "image") return null;
-            const { serverId, engineId } = row.key;
-            const image = row.detail.value;
-            return (
-              <li className="docker-image-row" key={`${serverId}/${engineId}`}>
+      {filteredOut ? (
+        <EmptyState
+          icon="archive"
+          title={
+            filter === "used" ? t`No used images` : filter === "unused" ? t`No unused images` : t`No dangling images`
+          }
+          action={
+            <Button size="sm" onClick={() => setFilter("all")}>
+              <Trans>Show all images</Trans>
+            </Button>
+          }
+        />
+      ) : null}
+      {shown.length ? (
+        compact ? (
+          <ul className="docker-artifact-list" aria-label={t`Local images`}>
+            {shown.map((row) => (
+              <li className="docker-image-row" key={row.id}>
                 <div className="docker-artifact-name">
                   <Icon name="archive" />
                   <div>
-                    <Link
-                      className="dw-link docker-row-link"
-                      to="/servers/$serverId/docker/images/$imageId"
-                      params={{ serverId, imageId: engineId }}
-                    >
-                      <code>{image.tags[0] ?? shortImageId(engineId)}</code>
-                    </Link>
-                    {fleet ? (
-                      <div className="docker-muted">{servers.find((s) => s.id === serverId)?.name ?? serverId}</div>
-                    ) : null}
-                    {image.tags.length > 1 ? (
-                      <details className="docker-aliases">
-                        <summary>
-                          <Trans>More tags</Trans>
-                        </summary>
-                        <ul className="docker-detail-list">
-                          {image.tags.slice(1).map((tag) => (
-                            <li key={tag}>
-                              <code>{tag}</code>
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    ) : null}
+                    {link(row)}
+                    {fleet ? <div className="docker-muted">{serverName(row.serverId)}</div> : null}
+                    {moreTags(row)}
                   </div>
                 </div>
-                {image.state === DockerImageState.UNSPECIFIED && !row.observedAt ? (
-                  <span className="docker-pending-size" aria-hidden="true" />
-                ) : (
-                  <ImageStatus state={image.state} />
-                )}
+                <ImageState row={row} />
                 <dl className="docker-image-data">
-                  <Fact label={t`Platform`} value={image.platform || t`Unknown`} mono />
-                  <Fact label={t`Total`} value={<ImageBytes bytes={image.totalBytes} pending={!row?.observedAt} />} />
-                  <Fact label={t`Unique`} value={<ImageBytes bytes={image.uniqueBytes} pending={!row?.observedAt} />} />
+                  <Fact label={t`Platform`} value={row.image.platform || t`Unknown`} mono />
+                  <Fact label={t`Total`} value={<ImageBytes bytes={row.image.totalBytes} pending={!row.measured} />} />
+                  <Fact
+                    label={t`Unique`}
+                    value={<ImageBytes bytes={row.image.uniqueBytes} pending={!row.measured} />}
+                  />
                   <Fact
                     label={t`Created`}
-                    value={image.createdAt ? formatDateTime(timestampDate(image.createdAt), i18n.locale) : t`Unknown`}
+                    value={
+                      row.image.createdAt ? formatDateTime(timestampDate(row.image.createdAt), i18n.locale) : t`Unknown`
+                    }
                   />
                 </dl>
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        ) : (
+          <Panel flush>
+            <Table
+              className="docker-table docker-image-table"
+              columns={columns}
+              rows={shown}
+              rowKey="id"
+              caption={t`Local images`}
+            />
+          </Panel>
+        )
       ) : null}
       {next || pageToken ? (
         <div className="docker-pager">
@@ -167,32 +366,24 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
   );
 }
 
+/** Its state, or, while Docker still counts what uses it, the shape of a state on its way. */
+function ImageState({ row }: { row: ImageRow }) {
+  const { t } = useLingui();
+  if (row.image.state === DockerImageState.UNSPECIFIED && !row.measured) {
+    return (
+      <span role="img" aria-label={t`Measuring`}>
+        <Skeleton shape="pill" width={64} inline />
+      </span>
+    );
+  }
+  return <ImageStatus state={row.image.state} />;
+}
+
 function ImageBytes({ bytes, pending }: { bytes: bigint | undefined; pending: boolean }) {
   const { t, i18n } = useLingui();
   if (bytes !== undefined) return formatBytes(bytes, i18n.locale);
   if (!pending) return t`Unknown`;
   return <MeasuringSize />;
-}
-
-function ImageLoading() {
-  const { t } = useLingui();
-  return (
-    <div role="status" aria-label={t`Reading local images`}>
-      <div className="docker-artifact-list" aria-hidden="true">
-        {["first", "second", "third"].map((row) => (
-          <div className="docker-image-row docker-image-loading" key={row}>
-            <span className="docker-pending-size" />
-            <span className="docker-pending-size" />
-            <div className="docker-image-data">
-              <span className="docker-pending-size" />
-              <span className="docker-pending-size" />
-              <span className="docker-pending-size" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function DockerImageDetail({ serverId, imageId }: { serverId: string; imageId: string }) {
@@ -212,7 +403,15 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
         <section className="docker-detail-body">
           <div className="docker-section-heading docker-artifact-heading">
             <h2>
-              <code>{image?.tags[0] ?? shortImageId(imageId)}</code>
+              {allowed && read.isPending ? (
+                // Its name is on its way: a tag replaces the ID once read, so the ID isn't shown meanwhile.
+                <>
+                  <span className="dw-sr">{shortImageId(imageId)}</span>
+                  <Skeleton text="heading" width={220} />
+                </>
+              ) : (
+                <code>{image?.tags[0] ?? shortImageId(imageId)}</code>
+              )}
             </h2>
             <RouterButtonLink
               to="/servers/$serverId/docker/images"
@@ -220,15 +419,25 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
               variant="secondary"
               size="sm"
             >
-              <Trans>Local images</Trans>
+              <Trans>All images</Trans>
             </RouterButtonLink>
           </div>
           <LiveUpdates paused={watch.paused} retry={watch.retry} />
           {!allowed ? <EmptyState icon="lock" title={t`Docker inventory needs an admin`} /> : null}
           {allowed && read.isPending ? (
-            <p role="status">
-              <Trans>Reading image</Trans>
-            </p>
+            <Loading
+              label={t`Loading the image`}
+              slow={t`Docker is slow to answer on this server`}
+              className="docker-detail-loading"
+            >
+              <SkeletonCard title={t`Image details`}>
+                <SkeletonFacts count={5} layout="rows" className="docker-facts" />
+              </SkeletonCard>
+              <SkeletonCard title={t`Used by`} flush>
+                <SkeletonRows rows={2} lead="icon" lines={1} dense />
+              </SkeletonCard>
+              <SkeletonCard title={t`Layers`} lines={3} />
+            </Loading>
           ) : null}
           {read.error ? (
             <Callout title={t`Image couldn't be read`} tone="warning">

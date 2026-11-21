@@ -14,6 +14,9 @@ import {
   Button,
   Callout,
   Icon,
+  Loading,
+  Panel,
+  SkeletonRows,
   StatusBadge,
   Table,
   type TableColumn,
@@ -22,11 +25,13 @@ import {
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
+import { useHeldRows } from "../../lib/loading";
 import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { ActionMenu } from "../shell/ActionMenu";
@@ -112,7 +117,8 @@ export function DockerComposes({
       pageSize: 20,
       pageToken: tokens.at(-1) ?? "",
     },
-    { retry: false, refetchOnWindowFocus: false },
+    // A new search, filter or page keeps the last list in place until its answer lands.
+    { retry: false, refetchOnWindowFocus: false, placeholderData: keepPreviousData },
   );
   const watch = useDockerWatch(
     servers.map((server) => server.id),
@@ -121,6 +127,7 @@ export function DockerComposes({
     true,
   );
   const rows = query.data?.objects.filter((row) => row.key !== undefined) ?? [];
+  const held = useHeldRows("docker.composes", query.isSuccess && !query.isPlaceholderData ? rows.length : undefined);
   const now = useTickingNow(
     rows.reduce((last, row) => Math.max(last, row.observedAt ? timestampMs(row.observedAt) : 0), 0),
   );
@@ -208,9 +215,15 @@ export function DockerComposes({
           },
         ]),
     { key: "state", header: t`State`, width: "14%", render: (row) => <ComposeStatus row={row} /> },
-    { key: "services", header: t`Services`, width: "11%", render: counts },
-    { key: "ownership", header: t`Ownership`, width: 152, render: (row) => <ComposeOwnership row={row} /> },
-    { key: "directory", header: t`Source directory`, render: directory },
+    { key: "services", header: t`Services`, width: "11%", render: counts, skeleton: "short" },
+    {
+      key: "ownership",
+      header: t`Ownership`,
+      width: 152,
+      render: (row) => <ComposeOwnership row={row} />,
+      skeleton: "pill",
+    },
+    { key: "directory", header: t`Source directory`, render: directory, skeleton: "mono" },
     { key: "changed", header: t`Last change`, width: 102, render: changed },
     { key: "actions", header: <span className="dw-sr">{t`Actions`}</span>, width: 56, render: operations },
   ];
@@ -268,7 +281,14 @@ export function DockerComposes({
               }}
             />
           ) : null}
-          <Button variant="ghost" size="sm" icon="refresh" aria-label={t`Refresh`} onClick={refresh} />
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="refresh"
+            aria-label={t`Refresh`}
+            onClick={refresh}
+            loading={query.isFetching && !query.isPending}
+          />
           {canImport || canTake ? (
             <ActionMenu
               label={t`Import`}
@@ -364,9 +384,24 @@ export function DockerComposes({
           />
         )
       ) : query.isPending ? (
-        <p className="compose-muted" aria-busy="true">
-          <Trans>Reading Compose projects</Trans>
-        </p>
+        compact ? (
+          <Loading label={t`Loading Compose projects`} slow={t`Docker is slow to answer on this server`}>
+            <Panel flush>
+              <SkeletonRows rows={held} end="pill" />
+            </Panel>
+          </Loading>
+        ) : (
+          <Table
+            className="compose-table"
+            columns={columns}
+            rows={[]}
+            caption={t`Compose projects`}
+            loading
+            loadingRows={held}
+            loadingLabel={t`Loading Compose projects`}
+            slow={t`Docker is slow to answer on this server`}
+          />
+        )
       ) : !query.error ? (
         <EmptyState icon="layers" title={outside ? t`No outside Compose projects` : t`No Compose projects found`} />
       ) : null}

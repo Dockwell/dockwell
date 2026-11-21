@@ -4,7 +4,21 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import { BuildState, ChangeService, DesiredRunState, LogService, Protocol, ServiceService } from "@dockwell/api";
-import { Button, ButtonLink, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  ButtonLink,
+  Callout,
+  Icon,
+  Loading,
+  PHONE_QUERY,
+  Skeleton,
+  SkeletonCard,
+  SkeletonFacts,
+  StatusBadge,
+  TabNav,
+  Tag,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, type RefObject, useMemo, useRef, useState } from "react";
@@ -74,20 +88,44 @@ export function AppLayout({ serviceId, children }: { serviceId: string; children
   // A service that is gone can still have logs its servers kept, as when its
   // first deploy failed and was rolled back, and Activity links to them.
   const logs = useMatch({ from: "/_shell/apps/$serviceId/logs", shouldThrow: false });
+  const overview = useMatch({ from: "/_shell/apps/$serviceId/", shouldThrow: false });
   if (!value && logs && !query.isPending && !query.error) {
     return <GoneAppFrame serviceId={serviceId}>{children}</GoneAppFrame>;
   }
   if (!value) {
     return (
-      <Page title={t`App`} fullBody={logs !== undefined} back="/apps" breadcrumb={<Crumbs />}>
+      <Page
+        title={t`App`}
+        pending={query.isPending}
+        fullBody={logs !== undefined}
+        back="/apps"
+        breadcrumb={<Crumbs />}
+        className={query.isPending ? "app-page" : undefined}
+      >
         {query.isPending ? (
-          <div className="app-loading" aria-busy="true">
-            <span className="dw-sr">
-              <Trans>Loading the app</Trans>
-            </span>
-            <div className="app-skeleton is-tabs" />
-            <div className="app-skeleton is-panel" />
-          </div>
+          <>
+            <AppTabs serviceId={serviceId} />
+            <Loading label={t`Loading the app`}>
+              {overview ? (
+                <div className="app-overview">
+                  <div className="app-main">
+                    <SkeletonCard lines={2} />
+                    <SkeletonCard height={160} />
+                  </div>
+                  <div className="app-aside">
+                    <SkeletonCard>
+                      <SkeletonFacts count={4} layout="rows" />
+                    </SkeletonCard>
+                    <SkeletonCard lines={2} />
+                  </div>
+                </div>
+              ) : logs ? (
+                <Skeleton shape="block" height={420} />
+              ) : (
+                <SkeletonCard lines={4} />
+              )}
+            </Loading>
+          </>
         ) : query.error ? (
           <Callout tone="critical" title={t`Can't load this app`}>
             {sentence(query.error)} <Trans>Nothing changed on the server. Reload the page to try again.</Trans>
@@ -474,25 +512,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       className="app-page"
     >
       {/* An app's logs have all of a phone's screen, and the header goes back out of them. */}
-      {phone && onLogs ? null : (
-        <TabNav label={t`App sections`}>
-          <RouterTabLink to="/apps/$serviceId" params={{ serviceId }} activeOptions={{ exact: true }}>
-            <Trans>Overview</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/apps/$serviceId/deployments" params={{ serviceId }} count={Number(service.revision)}>
-            <Trans>Deployments</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/apps/$serviceId/logs" params={{ serviceId }}>
-            <Trans>Logs</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
-            <Trans>Environment</Trans>
-          </RouterTabLink>
-          <RouterTabLink to="/apps/$serviceId/settings" params={{ serviceId }}>
-            <Trans>Settings</Trans>
-          </RouterTabLink>
-        </TabNav>
-      )}
+      {phone && onLogs ? null : <AppTabs serviceId={serviceId} deployments={Number(service.revision)} />}
       <LogsSearchButton value={searchButton}>
         {/* A tab's empty state offers Deploy as the header does, where the reader may, and not while it moves. */}
         <AppDeployAction.Provider value={changeable && !runtime && mayDeploy.allowed ? deploy : undefined}>
@@ -530,5 +550,29 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       {deploying && runtime ? <RuntimeSheet service={service} onClose={() => setDeploying(false)} /> : null}
       {deploying && !runtime ? <DeploySheet service={service} onClose={() => setDeploying(false)} /> : null}
     </Page>
+  );
+}
+
+/** An app's tabs, which draw at once, before the app they open has loaded. */
+function AppTabs({ serviceId, deployments }: { serviceId: string; deployments?: number }) {
+  const { t } = useLingui();
+  return (
+    <TabNav label={t`App sections`}>
+      <RouterTabLink to="/apps/$serviceId" params={{ serviceId }} activeOptions={{ exact: true }}>
+        <Trans>Overview</Trans>
+      </RouterTabLink>
+      <RouterTabLink to="/apps/$serviceId/deployments" params={{ serviceId }} count={deployments}>
+        <Trans>Deployments</Trans>
+      </RouterTabLink>
+      <RouterTabLink to="/apps/$serviceId/logs" params={{ serviceId }}>
+        <Trans>Logs</Trans>
+      </RouterTabLink>
+      <RouterTabLink to="/apps/$serviceId/environment" params={{ serviceId }}>
+        <Trans>Environment</Trans>
+      </RouterTabLink>
+      <RouterTabLink to="/apps/$serviceId/settings" params={{ serviceId }}>
+        <Trans>Settings</Trans>
+      </RouterTabLink>
+    </TabNav>
   );
 }

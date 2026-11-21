@@ -2,7 +2,7 @@
 
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { ActorKind, ChangeService, Connection, EventKind, type Server, ServerStrain } from "@dockwell/api";
-import { Button, Icon, Metric, StatusBadge, Tag } from "@dockwell/ui";
+import { Button, Icon, Loading, Metric, SkeletonRows, StatusBadge, Tag } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
@@ -230,13 +230,16 @@ function RunsHere({ server }: { server: Server }) {
         .sort((a, b) => (a.resource?.name ?? "").localeCompare(b.resource?.name ?? "")),
     [services.data, server.id],
   );
-  if (services.isPending) return null;
   return (
     <section className="servers-inspector-section" aria-label={t`Runs here`}>
       <h3 className="servers-inspector-label">
         <Trans>Runs here</Trans>
       </h3>
-      {here.length === 0 ? (
+      {services.isPending ? (
+        <Loading label={t`Loading what runs here`}>
+          <SkeletonRows rows={2} lines={1} lead="icon" end="pill" dense className="servers-inspector-skeleton" />
+        </Loading>
+      ) : here.length === 0 ? (
         <p className="servers-inspector-quiet">
           <Trans>No apps run here.</Trans>
         </p>

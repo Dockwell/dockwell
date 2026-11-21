@@ -11,6 +11,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 
 import { sentence } from "../../lib/errors";
 import { drawEntry } from "./draw";
+import { LinesLoading } from "./LinesLoading";
 import { type Entry, LogStore } from "./store";
 import { replicaLabel, selectionText } from "./words";
 
@@ -167,9 +168,7 @@ export function LogContext({
             done ? (
               <Trans>Nothing else was written around this line.</Trans>
             ) : (
-              <span aria-busy="true">
-                <Trans>Reading the lines around it</Trans>
-              </span>
+              <LinesLoading source={false} label={t`Reading the lines around it`} />
             )
           }
         />

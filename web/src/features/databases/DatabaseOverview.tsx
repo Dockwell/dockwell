@@ -25,6 +25,7 @@ import {
   type MetricProps,
   Panel,
   PHONE_QUERY,
+  Skeleton,
   StatusBadge,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -441,13 +442,17 @@ function BackupsPanel({ db }: { db: Database }) {
         <div className="databases-fact">
           <dt>{t`How`}</dt>
           <dd>
-            {!how.known
-              ? how.failed
-                ? t`Its server didn't say`
-                : t`Asking its server`
-              : how.dump
-                ? t`${dumpOf}'s own dump, while it runs: nothing stops`
-                : t`A copy of its files, which stops it a moment`}
+            {!how.known ? (
+              how.failed ? (
+                t`Its server didn't say`
+              ) : (
+                <Skeleton width={200} inline />
+              )
+            ) : how.dump ? (
+              t`${dumpOf}'s own dump, while it runs: nothing stops`
+            ) : (
+              t`A copy of its files, which stops it a moment`
+            )}
           </dd>
         </div>
         <div className="databases-fact">

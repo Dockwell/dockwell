@@ -46,6 +46,22 @@
   padding-top: 4px;
   padding-bottom: 4px;
 }
+/* While the first rows are on their way: each column's shape under the real
+   header, and above them the line a long wait gets. */
+.dw-table td.is-num .dw-skeleton {
+  margin-left: auto;
+}
+.dw-table td .dw-table-skeleton-action {
+  margin-left: auto;
+}
+.dw-table-slow td {
+  height: auto;
+}
+.dw-table td .dw-loading-slow {
+  padding: 0;
+  white-space: normal;
+}
+
 .dw-table th:first-child,
 .dw-table td:first-child {
   padding-left: var(--space-4);
@@ -123,4 +139,9 @@
 .dw-cell-sub {
   font: 400 12px / 16px var(--font-mono);
   color: var(--ink-muted);
+}
+
+/* A two-line first cell on its way: its two lines, as tight as the words they stand for. */
+.dw-table-skeleton-row td .dw-cell {
+  gap: 0;
 }

@@ -13,6 +13,7 @@ import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
 import { ReadFailed } from "../shell/ReadFailed";
+import { CardsLoading } from "./CardsLoading";
 import { GitHubManageSheet, type Removed } from "./GitHubManage";
 import { installUrl, useDeliveryWords, useGitHubApps } from "./github";
 import "./GitHub.css";
@@ -56,10 +57,7 @@ export function GitHubSection() {
           }
         />
       ) : !apps.data ? (
-        <div className="integrations-grid" aria-busy="true">
-          <div className="dw-panel integrations-card integrations-skeleton" />
-          <span className="dw-sr">{t`Loading GitHub Apps`}</span>
-        </div>
+        <CardsLoading label={t`Loading GitHub Apps`} cards={1} />
       ) : (
         <div className="integrations-grid">
           {list.map((app) => (

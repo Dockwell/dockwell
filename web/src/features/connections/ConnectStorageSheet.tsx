@@ -16,9 +16,11 @@ import {
   Callout,
   cx,
   Icon,
+  Loading,
   PHONE_QUERY,
   SelectField,
   Sheet,
+  SkeletonField,
   Switch,
   TextField,
   useMediaQuery,
@@ -296,7 +298,11 @@ export function ConnectStorageSheet({
             }}
           />
         )}
-        {fixedConnection ? null : !loading && usable.length === 0 ? (
+        {fixedConnection ? null : loading ? (
+          <Loading label={t`Loading the connections`}>
+            <SkeletonField label={88} />
+          </Loading>
+        ) : usable.length === 0 ? (
           <Callout
             tone="info"
             title={t`No connection reaches this project`}

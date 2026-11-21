@@ -11,7 +11,7 @@ The product requirements live next door in [`docs/product/prd.md`](../docs/produ
 | [`system/README.md`](system/README.md) | The brand book. Start here: principles, how the product writes, colour, type, spacing, shape, motion, focus, layout, iconography and the logo. |
 | [`system/tokens.json`](system/tokens.json) | Every token, in light and dark, each with a usage note. This is the source; everything else is generated from it. |
 | [`system/tokens.css`](system/tokens.css) | CSS variables generated from `tokens.json`, plus the `@font-face` rules. Themes switch with `data-theme="light"` or `"dark"` on the root. |
-| `system/components/<Name>/README.md` | Usage guidelines for each of the 23 components. `FleetOverview` is a whole example page built only from the system; the `Cover` folder holds only the system's cover. |
+| `system/components/<Name>/README.md` | Usage guidelines for each of the 24 components. `FleetOverview` is a whole example page built only from the system; the `Cover` folder holds only the system's cover. |
 | [`system/components/index.d.ts`](system/components/index.d.ts) | Every component's props, as TypeScript types with doc comments. |
 | `system/components/bundle.js`, `bundle.css` | The reference implementation: one classic script that assigns `window.Dockwell` and expects React 18 on `window`. Port from it; don't ship it. |
 | `system/components/<Name>/preview.html` | Live examples of each component. They expect a host page that injects the tokens, the bundle and React, so they don't open on their own. |

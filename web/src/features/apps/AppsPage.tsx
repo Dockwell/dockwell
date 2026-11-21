@@ -7,10 +7,12 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
   SegmentedControl,
   SelectField,
+  SkeletonRows,
   STATUS,
   StatusBadge,
   Table,
@@ -329,7 +331,11 @@ export function AppsPage({
   let body: ReactNode;
   if (pending) {
     body = (
-      <AppsSkeleton label={t`Loading apps`} fleet={fleet} rows={Math.min(Math.max(all?.length ?? 3, 1), HELD_ROWS)} />
+      <AppsSkeleton
+        label={t`Loading apps`}
+        fleet={fleet}
+        rows={Math.min(Math.max(all?.length ?? (Number(remembered(COUNT_KEY)) || 3), 1), HELD_ROWS)}
+      />
     );
   } else if (apps.error) {
     // Without the websites, a website's own web server would list as an app.
@@ -1064,41 +1070,21 @@ function AppsSkeleton({ label, fleet, rows = 3 }: { label: string; fleet: boolea
     () =>
       heads.map((head) => ({
         ...head,
-        render: () => <span className="apps-skeleton-bar" style={{ width: head.key === "app" ? "44%" : "64%" }} />,
+        render: () => null,
+        skeleton: head.key === "app" ? "titled" : head.key === "revision" ? "mono" : undefined,
       })),
     [heads],
   );
-  if (phone) return <ListSkeleton label={label} rows={rows} />;
-  return (
-    <div aria-busy="true">
-      <span className="dw-sr">{label}</span>
-      <Table
-        className="apps-table apps-skeleton"
-        columns={columns}
-        rows={Array.from({ length: rows }, (_, i) => ({ id: String(i + 1) }))}
-        rowClassName={() => "apps-skeleton-row"}
-      />
-    </div>
-  );
-}
-
-/** While a first list is on its way: the shape of its rows. */
-export function ListSkeleton({ label, rows = 3 }: { label: string; rows?: number }) {
-  // Each line is its place, which is all a key needs to say of a line that holds one.
-  const lines = Array.from({ length: rows }, (_, i) => ({ key: `line-${i + 1}`, width: ["44%", "32%", "38%"][i % 3] }));
-  return (
-    <Panel flush className="apps-skeleton">
-      <div aria-busy="true">
-        <span className="dw-sr">{label}</span>
-        {lines.map(({ key, width }) => (
-          <div key={key} className="apps-skeleton-line" aria-hidden="true">
-            <span className="apps-skeleton-bar" style={{ width }} />
-            <span className="apps-skeleton-bar is-short" />
-          </div>
-        ))}
-      </div>
-    </Panel>
-  );
+  if (phone) {
+    return (
+      <Loading label={label}>
+        <Panel flush>
+          <SkeletonRows rows={rows} end="pill" />
+        </Panel>
+      </Loading>
+    );
+  }
+  return <Table className="apps-table" columns={columns} rows={[]} loading loadingRows={rows} loadingLabel={label} />;
 }
 
 /** The services Databases lists, by ID, which Apps calls databases too. */

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Connection, HealthCheckKind, TerminalService } from "@dockwell/api";
-import { StatusBadge } from "@dockwell/ui";
+import { Loading, SkeletonRows, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo } from "react";
 
@@ -214,12 +214,15 @@ export function RunsOnServers({ health, fleet }: { health: AppHealth; fleet: boo
   if (health.read === "failed") {
     return <p className="app-runs-unread">{words.unread(health, now)}</p>;
   }
-  if (health.read === "reading" || health.servers.length === 0) {
+  if (health.read === "reading") {
     return (
-      <p className="app-runs-unread" aria-busy={health.read === "reading"}>
-        {health.read === "reading" ? t`Reading how it runs.` : t`It isn't placed on a server.`}
-      </p>
+      <Loading label={t`Reading how it runs`}>
+        <SkeletonRows rows={Math.max(1, health.servers.length)} lead="icon" end="value" dense />
+      </Loading>
     );
+  }
+  if (health.servers.length === 0) {
+    return <p className="app-runs-unread">{t`It isn't placed on a server.`}</p>;
   }
   return (
     <ul className="app-runs">

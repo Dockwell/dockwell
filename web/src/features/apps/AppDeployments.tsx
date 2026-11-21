@@ -21,10 +21,12 @@ import {
   hasDigest,
   Icon,
   type IconName,
+  Loading,
   Panel,
   PHONE_QUERY,
   type PlanValue,
   Sheet,
+  SkeletonRows,
   type Status,
   StatusBadge,
   Table,
@@ -50,7 +52,6 @@ import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { useApp, useRevisions } from "./AppContext";
-import { ListSkeleton } from "./AppsPage";
 import {
   bareImage,
   builtCommit,
@@ -304,8 +305,21 @@ export function AppDeployments() {
           {plural(Number(latest), { one: "# deployment · newest first", other: "# deployments · newest first" })}
         </span>
       </div>
-      {!revisions ? (
-        <ListSkeleton label={t`Loading revisions`} />
+      {!revisions && phone ? (
+        <Loading label={t`Loading revisions`}>
+          <Panel flush>
+            <SkeletonRows rows={3} end="value" />
+          </Panel>
+        </Loading>
+      ) : !revisions ? (
+        <Table
+          className="deploy-table"
+          columns={columns}
+          rows={[]}
+          caption={t`Deployments of ${appName}`}
+          loading
+          loadingLabel={t`Loading revisions`}
+        />
       ) : phone ? (
         <Panel flush>
           <ul className="deploy-phone">

@@ -13,7 +13,19 @@ import {
   LinkKind,
   AlertEmail_Security as Security,
 } from "@dockwell/api";
-import { Advanced, type BrandId, BrandMark, Button, Callout, cx, SelectField, Sheet, TextField } from "@dockwell/ui";
+import {
+  Advanced,
+  type BrandId,
+  BrandMark,
+  Button,
+  Callout,
+  cx,
+  Loading,
+  SelectField,
+  Sheet,
+  SkeletonField,
+  TextField,
+} from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -687,7 +699,11 @@ export function ChannelSheet({ channel, onClose }: { channel?: AlertChannelInfo;
 
           {form.type === "email" ? (
             <>
-              {mailConnections.length > 0 ? (
+              {connectionsQuery.isPending ? (
+                <Loading label={t`Loading mail servers`}>
+                  <SkeletonField height={96} label={96} />
+                </Loading>
+              ) : mailConnections.length > 0 ? (
                 <MailPicker
                   connections={mailConnections}
                   value={form.connection}

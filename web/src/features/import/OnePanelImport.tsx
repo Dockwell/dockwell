@@ -13,7 +13,7 @@ import {
   ImportWaitsFor,
   type Server,
 } from "@dockwell/api";
-import { Button, Callout, Icon, type IconName, Panel, Tag } from "@dockwell/ui";
+import { Button, Callout, Icon, type IconName, Loading, Panel, SkeletonCard, SkeletonRows, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
@@ -172,11 +172,7 @@ export function OnePanelImport({ server }: { server: Server }) {
       <Panel title={t`Move in from 1Panel`}>
         <div className="onepanel-intro">
           <p>
-            {reading && !found ? (
-              <Trans>Reading what 1Panel keeps on {server.name}</Trans>
-            ) : (
-              <Trans>Read-only. Nothing changes until you apply the plan.</Trans>
-            )}
+            <Trans>Read-only. Nothing changes until you apply the plan.</Trans>
           </p>
           <div className="onepanel-actions">
             {toTake ? reviewButton : null}
@@ -186,6 +182,20 @@ export function OnePanelImport({ server }: { server: Server }) {
           </div>
         </div>
       </Panel>
+      {reading && !found && !failure ? (
+        <Loading
+          label={t`Reading what 1Panel keeps on ${server.name}`}
+          slow={t`Reading what 1Panel keeps on ${server.name}`}
+          className="onepanel-loading"
+        >
+          <SkeletonCard flush>
+            <SkeletonRows rows={3} lead="icon" end="pill" />
+          </SkeletonCard>
+          <SkeletonCard flush>
+            <SkeletonRows rows={2} lead="icon" end="pill" />
+          </SkeletonCard>
+        </Loading>
+      ) : null}
       {failure && notHere ? (
         <Callout tone="info" title={t`1Panel isn't on this server`}>
           {sentence(failure)}

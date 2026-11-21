@@ -8,8 +8,10 @@ import {
   cx,
   Glyph,
   Icon,
+  Loading,
   Panel,
   PHONE_QUERY,
+  SkeletonRows,
   STATUS,
   StatusBadge,
   Table,
@@ -91,9 +93,9 @@ export function ContainersPanel({ server }: { server: Server }) {
   ) : list.error ? (
     <p className="containers-note">{sentence(list.error)}</p>
   ) : !list.data ? (
-    <p className="containers-note" aria-busy="true">
-      <Trans>Reading what Docker runs here</Trans>
-    </p>
+    <Loading label={t`Reading what Docker runs here`} slow={t`Docker is slow to answer on ${server.name}`}>
+      <SkeletonRows rows={3} lead="icon" end="pill" />
+    </Loading>
   ) : (
     <>
       <div className="containers-lead">

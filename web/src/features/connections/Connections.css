@@ -446,3 +446,10 @@ a.connections-name:hover {
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+/* A connection on its way: its facts, then what uses it. */
+.connection-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}

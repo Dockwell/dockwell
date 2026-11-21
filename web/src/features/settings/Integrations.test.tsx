@@ -143,7 +143,7 @@ describe("Integrations", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Integrations" })).toBeVisible();
     expect(screen.queryByText(/connected · /)).toBeNull();
     expect(screen.queryByText(/buckets? · /)).toBeNull();
-    expect(screen.getByText("Loading where backups go")).toBeInTheDocument();
+    expect(await screen.findByText("Loading where backups go")).toHaveClass("dw-sr");
     answer({ destinations: [r2] });
     expect(
       await screen.findByText(

@@ -14,7 +14,7 @@ import {
   PanelKind,
   type Server,
 } from "@dockwell/api";
-import { Button, Callout, Panel } from "@dockwell/ui";
+import { Button, Callout, Loading, Panel, SkeletonCard, SkeletonRows } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
@@ -51,6 +51,7 @@ export function MoveInPage({ serverId }: { serverId: string }) {
 }
 
 function MoveIn({ server }: { server: Server }) {
+  const { t } = useLingui();
   const onePanel = useOnePanelHere(server);
   const panel = usePanelOn(server);
   // 1Panel's page reads as it opens, so it waits until Coolify's and Dokploy's check
@@ -58,6 +59,19 @@ function MoveIn({ server }: { server: Server }) {
   const settled = usePanelCheckSettled(server);
   return (
     <>
+      {!settled && panel === undefined ? (
+        // Which panel runs here is on its way: the move-in page's own panels, at their place.
+        <Loading
+          label={t`Checking which panel runs on ${server.name}`}
+          slow={t`${server.name} is slow to say which panel runs on it`}
+          className="onepanel-loading"
+        >
+          <SkeletonCard lines={2} />
+          <SkeletonCard flush>
+            <SkeletonRows rows={3} lead="icon" end="pill" />
+          </SkeletonCard>
+        </Loading>
+      ) : null}
       {panel !== undefined ? (
         <PanelImport server={server} kind={panel.kind} running={panel.running} proxyStopped={panel.proxyStopped} />
       ) : null}

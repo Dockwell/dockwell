@@ -1,7 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { type AlertRuleInfo, AlertState, AlertRule_Severity as Severity } from "@dockwell/api";
-import { Button, Icon, PHONE_QUERY, StatusBadge, Table, type TableColumn, Tag, useMediaQuery } from "@dockwell/ui";
+import {
+  Button,
+  Icon,
+  Loading,
+  Panel,
+  PHONE_QUERY,
+  SkeletonCard,
+  SkeletonRows,
+  StatusBadge,
+  Table,
+  type TableColumn,
+  Tag,
+  useMediaQuery,
+} from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -36,7 +49,12 @@ export function AlertsTab() {
     <AlertsPage>
       {alerts.error ? (
         <ReadFailed error={alerts.error} title={t`Can't load the alerts`} />
-      ) : !alerts.data ? null : list.length === 0 ? (
+      ) : !alerts.data ? (
+        <Loading label={t`Loading the alerts`} className="alerts-loading">
+          <SkeletonCard lines={2} />
+          <SkeletonCard lines={2} />
+        </Loading>
+      ) : list.length === 0 ? (
         <EmptyState
           icon="check"
           title={t`Nothing has fired`}
@@ -142,7 +160,17 @@ export function RulesTab() {
     >
       {rules.error ? (
         <ReadFailed error={rules.error} title={t`Can't load the rules`} />
-      ) : !rules.data ? null : phone ? (
+      ) : !rules.data ? (
+        phone ? (
+          <Loading label={t`Loading the rules`}>
+            <Panel flush>
+              <SkeletonRows rows={3} end="pill" />
+            </Panel>
+          </Loading>
+        ) : (
+          <Table columns={columns} rows={[]} caption={t`Alert rules`} loading loadingLabel={t`Loading the rules`} />
+        )
+      ) : phone ? (
         <ul className="alerts-phone-list" aria-label={t`Alert rules`}>
           {list.map((r) => (
             <li key={r.id} className="alerts-phone-row">

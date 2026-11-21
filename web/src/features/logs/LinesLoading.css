@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Lines on their way, in the log's own columns, from the top of its body. */
+.dw-log-empty:has(.logs-skeleton) {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: var(--space-2) 0;
+}
+.logs-skeleton {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+/* The log's own columns, whatever the stream around them draws: a time, a source where
+   there are several, the level's place, and the line. */
+.logs-skeleton-line {
+  display: grid;
+  grid-template-columns: 96px 10px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  height: 19px;
+  padding: 0 var(--space-4);
+}
+.logs-skeleton-line.has-source {
+  grid-template-columns: 96px 120px 10px minmax(0, 1fr);
+}
+.dw-log-empty .dw-loading-slow {
+  padding: var(--space-1) var(--space-4) var(--space-2);
+}

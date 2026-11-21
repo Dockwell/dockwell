@@ -1,7 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Holds the page's height while the first request is in flight. */
+/* The control plane on its way: the head and its line, at their sizes. */
 .status-reserve {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   min-height: 168px;
 }
 

@@ -224,11 +224,10 @@
   gap: var(--space-1);
 }
 
-.docker-image-loading {
-  align-items: center;
-  min-height: 66px;
-}
-
-.docker-image-loading > .docker-pending-size:first-child {
-  width: min(15ch, 100%);
+/* An image's name over how many more tags it has, in the table's first cell. */
+.docker-image-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }

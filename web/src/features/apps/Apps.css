@@ -99,27 +99,6 @@
   box-shadow: var(--focus-ring);
 }
 
-/* While the app is on its way: its tabs and first panel, so little moves when it lands. */
-.app-loading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-}
-
-.app-skeleton {
-  background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
-}
-
-.app-skeleton.is-tabs {
-  height: 40px;
-}
-
-.app-skeleton.is-panel {
-  height: 160px;
-  border-radius: var(--radius-md);
-}
-
 .apps-new {
   text-decoration: none;
 }
@@ -131,10 +110,6 @@
 }
 
 /* About a row of the timeline for each row it will have. */
-.app-timeline-loading {
-  min-height: calc(var(--app-timeline-rows, 1) * 52px);
-}
-
 .app-note a {
   color: var(--cobalt);
 }
@@ -1119,32 +1094,6 @@
 .apps-phone-head .apps-show-first {
   flex: none;
   height: 44px;
-}
-
-/* The shape of a list on its way. Nothing shimmers: only three things in the system loop. */
-.apps-skeleton-line {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-2);
-  height: 56px;
-  padding: 0 var(--space-4);
-}
-
-.apps-skeleton-line + .apps-skeleton-line {
-  border-top: 1px solid var(--line);
-}
-
-.apps-skeleton-bar {
-  display: block;
-  height: 12px;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-}
-
-.apps-skeleton-bar.is-short {
-  width: 24%;
-  height: 10px;
 }
 
 /* One app: the working column, and the facts beside it. */
@@ -3112,7 +3061,6 @@
 }
 
 .new-app-entry.is-placeholder {
-  background: var(--surface-sunken);
   cursor: default;
 }
 

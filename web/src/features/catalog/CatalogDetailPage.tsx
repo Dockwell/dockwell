@@ -2,7 +2,7 @@
 
 import { useQuery } from "@connectrpc/connect-query";
 import { CatalogService } from "@dockwell/api";
-import { Button, Callout, Icon, SegmentedControl } from "@dockwell/ui";
+import { Button, Callout, Icon, Loading, SegmentedControl, Skeleton, SkeletonCard, SkeletonFacts } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -95,6 +95,7 @@ export function CatalogDetailPage({
   return (
     <Page
       title={app}
+      pending={!entry && !got.error}
       breadcrumb={back}
       backLink={phoneBack}
       lead={entry ? words.summary : undefined}
@@ -124,9 +125,26 @@ export function CatalogDetailPage({
           </Button>
         </Callout>
       ) : !entry ? (
-        <p className="catalog-note" aria-busy="true">
-          <Trans>Reading this app</Trans>
-        </p>
+        <Loading label={t`Reading this app`}>
+          <SkeletonFacts count={5} className="catalog-facts" />
+          <div className="catalog-detail-layout">
+            <div className="catalog-detail-main">
+              <section className="catalog-section" aria-hidden="true">
+                <Skeleton text="heading" width={96} />
+                <Skeleton shape="block" height={220} />
+              </section>
+              <section className="catalog-section" aria-hidden="true">
+                <Skeleton text="heading" width={72} />
+                <Skeleton width="96%" />
+                <Skeleton width="88%" />
+                <Skeleton width="64%" />
+              </section>
+            </div>
+            <div className="catalog-detail-aside" aria-hidden="true">
+              <SkeletonCard lines={3} />
+            </div>
+          </div>
+        </Loading>
       ) : (
         <>
           <div className="catalog-detail-phone-intro">

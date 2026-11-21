@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* Import once, at the root of an app: tokens, then the global foundations.
-   Each component brings its own stylesheet, except Panel and Table: pages put
-   dw-panel and dw-table on their own elements too, as the mocks do, so their
-   rules come with the foundations rather than with whichever screen first draws
-   one. */
+   Each component brings its own stylesheet, except Panel, Table and Skeleton:
+   pages put dw-panel and dw-table on their own elements too, as the mocks do,
+   and every screen draws skeletons while it waits, so their rules come with the
+   foundations rather than with whichever screen first draws one. */
 @import "./tokens.css";
 @import "./base.css";
 @import "../components/Panel/Panel.css";
 @import "../components/Table/Table.css";
+@import "../components/Skeleton/Skeleton.css";
