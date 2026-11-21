@@ -88,6 +88,7 @@ import { Route as ShellSettingsSettingsIntegrationsIndexRouteImport } from './ro
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
 import { Route as ShellServersServerIdDockerIndexRouteImport } from './routes/_shell/servers.$serverId.docker.index'
 import { Route as ShellServersServerIdDockerCleanupRouteImport } from './routes/_shell/servers.$serverId.docker.cleanup'
+import { Route as ShellServersServerIdDockerSettingsRouteImport } from './routes/_shell/servers.$serverId.docker.settings'
 import { Route as ShellSettingsSettingsIntegrationsGithubCreatedRouteImport } from './routes/_shell/_settings/settings.integrations.github.created'
 import { Route as ShellServersServerIdDockerComposesComposeIdRouteImport } from './routes/_shell/servers.$serverId.docker.composes.$composeId'
 import { Route as ShellServersServerIdDockerContainersIndexRouteImport } from './routes/_shell/servers.$serverId.docker.containers.index'
@@ -520,6 +521,16 @@ const ShellServersServerIdDockerCleanupRoute =
     path: '/servers/$serverId/docker/cleanup',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdDockerSettingsRoute =
+  ShellServersServerIdDockerSettingsRouteImport.update({
+    id: '/servers/$serverId/docker/settings',
+    path: '/servers/$serverId/docker/settings',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.settings.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const ShellSettingsSettingsIntegrationsGithubCreatedRoute =
   ShellSettingsSettingsIntegrationsGithubCreatedRouteImport.update({
     id: '/settings/integrations/github/created',
@@ -691,6 +702,7 @@ export interface FileRoutesByFullPath {
   '/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
+  '/servers/$serverId/docker/settings': typeof ShellServersServerIdDockerSettingsRoute
   '/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
@@ -777,6 +789,7 @@ export interface FileRoutesByTo {
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
+  '/servers/$serverId/docker/settings': typeof ShellServersServerIdDockerSettingsRoute
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
@@ -869,6 +882,7 @@ export interface FileRoutesById {
   '/_shell/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/_shell/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
+  '/_shell/servers/$serverId/docker/settings': typeof ShellServersServerIdDockerSettingsRoute
   '/_shell/_settings/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/_shell/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/_shell/_settings/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
@@ -960,6 +974,7 @@ export interface FileRouteTypes {
     | '/websites/$websiteId/'
     | '/servers/$serverId/containers/$name'
     | '/servers/$serverId/docker/cleanup'
+    | '/servers/$serverId/docker/settings'
     | '/settings/integrations/'
     | '/servers/$serverId/docker/'
     | '/settings/integrations/github/created'
@@ -1046,6 +1061,7 @@ export interface FileRouteTypes {
     | '/websites/$websiteId'
     | '/servers/$serverId/containers/$name'
     | '/servers/$serverId/docker/cleanup'
+    | '/servers/$serverId/docker/settings'
     | '/settings/integrations'
     | '/servers/$serverId/docker'
     | '/settings/integrations/github/created'
@@ -1137,6 +1153,7 @@ export interface FileRouteTypes {
     | '/_shell/websites/$websiteId/'
     | '/_shell/servers/$serverId/containers/$name'
     | '/_shell/servers/$serverId/docker/cleanup'
+    | '/_shell/servers/$serverId/docker/settings'
     | '/_shell/_settings/settings/integrations/'
     | '/_shell/servers/$serverId/docker/'
     | '/_shell/_settings/settings/integrations/github/created'
@@ -1703,6 +1720,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdDockerCleanupRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/docker/settings': {
+      id: '/_shell/servers/$serverId/docker/settings'
+      path: '/servers/$serverId/docker/settings'
+      fullPath: '/servers/$serverId/docker/settings'
+      preLoaderRoute: typeof ShellServersServerIdDockerSettingsRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/_settings/settings/integrations/github/created': {
       id: '/_shell/_settings/settings/integrations/github/created'
       path: '/settings/integrations/github/created'
@@ -1946,6 +1970,7 @@ interface ShellRouteChildren {
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
   ShellServersServerIdDockerCleanupRoute: typeof ShellServersServerIdDockerCleanupRoute
+  ShellServersServerIdDockerSettingsRoute: typeof ShellServersServerIdDockerSettingsRoute
   ShellServersServerIdDockerIndexRoute: typeof ShellServersServerIdDockerIndexRoute
   ShellServersServerIdDockerComposesComposeIdRoute: typeof ShellServersServerIdDockerComposesComposeIdRoute
   ShellServersServerIdDockerContainersContainerIdRoute: typeof ShellServersServerIdDockerContainersContainerIdRoute
@@ -2009,6 +2034,8 @@ const ShellRouteChildren: ShellRouteChildren = {
     ShellServersServerIdContainersNameRoute,
   ShellServersServerIdDockerCleanupRoute:
     ShellServersServerIdDockerCleanupRoute,
+  ShellServersServerIdDockerSettingsRoute:
+    ShellServersServerIdDockerSettingsRoute,
   ShellServersServerIdDockerIndexRoute: ShellServersServerIdDockerIndexRoute,
   ShellServersServerIdDockerComposesComposeIdRoute:
     ShellServersServerIdDockerComposesComposeIdRoute,

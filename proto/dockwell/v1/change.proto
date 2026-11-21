@@ -1562,6 +1562,7 @@ enum IntentKind {
 
 // PlannedResource is what a plan does to one resource as a whole.
 message PlannedResource {
+  DockerDaemonPlan docker_daemon = 401;
   DockerMaintenance docker_maintenance = 400;
   // The resource's ID. A new resource has its ID from when it is planned.
   string id = 1;
@@ -1712,6 +1713,7 @@ enum GuessableSecret {
 // HostAccessKind is what a resource reaches on its server.
 enum HostAccessKind {
   HOST_ACCESS_KIND_UNSPECIFIED = 0;
+  HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS = 400;
   // A server path, mounted into a container, or by a volume's bind option.
   HOST_ACCESS_KIND_SERVER_PATH = 1;
   // Docker's or containerd's socket, or a path that holds one: control of
@@ -1842,6 +1844,7 @@ message ServerPlan {
 
 // PlanStep is what applying does to one resource on one server.
 message PlanStep {
+  DockerDaemonPlan docker_daemon = 401;
   DockerStorageGuard docker_storage_guard = 402;
   DockerMaintenance docker_maintenance = 400;
   // The resource's ID.
@@ -3079,4 +3082,29 @@ enum DockerNetworkAttachmentAction {
   DOCKER_NETWORK_ATTACHMENT_ACTION_UNSPECIFIED = 0;
   DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT = 1;
   DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT = 2;
+}
+
+// DockerDaemonAction identifies how Docker activates a reviewed configuration.
+enum DockerDaemonAction {
+  DOCKER_DAEMON_ACTION_UNSPECIFIED = 0;
+  DOCKER_DAEMON_ACTION_RELOAD = 1;
+  DOCKER_DAEMON_ACTION_RESTART = 2;
+}
+
+// DockerDaemonImpact describes activation, recovery and effects on running workloads.
+message DockerDaemonImpact {
+  DockerDaemonAction action = 1;
+  optional bool live_restore = 2;
+  uint32 running_count = 3;
+  uint32 may_stay_stopped_count = 4;
+  repeated string affected_workloads = 5;
+  bool coverage_complete = 6;
+  DockerDaemonAction recovery_action = 7;
+}
+
+// DockerDaemonPlan holds the reviewed impact and opaque agent evidence.
+message DockerDaemonPlan {
+  DockerDaemonImpact impact = 1;
+  string evidence = 2;
+  repeated FieldChange file_changes = 3;
 }

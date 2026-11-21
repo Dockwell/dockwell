@@ -174,6 +174,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.TAKES_ON]: 3,
   [HostAccessKind.BACKUP_OF]: 0,
   [HostAccessKind.SERVER_SHELL]: 0,
+  [HostAccessKind.DOCKER_DAEMON_SETTINGS]: 0,
   [HostAccessKind.CERTIFICATE_KEY]: 2,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
@@ -488,6 +489,12 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
           more: t`The control plane proves ${path} by DNS. A key on a server serves its names from there, so you confirm the first one with your passkey.`,
         };
       }
+      case HostAccessKind.DOCKER_DAEMON_SETTINGS:
+        return {
+          key,
+          title: t`Change Docker daemon settings on ${server}`,
+          more: t`You confirm this change with your passkey.`,
+        };
       case HostAccessKind.SERVER_SHELL:
         return {
           key,

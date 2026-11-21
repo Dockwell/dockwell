@@ -81,10 +81,12 @@ var agentPackages = []string{
 	"internal/probe",    // checking a connection from an app's networks, in a throwaway container of the agent's own binary (ADR 0099)
 	"internal/registry", // reading an image from its registry, for a form (ADR 0062)
 	"internal/resource",
-	"internal/resource/binding",   // a service's environment and label, from what it uses
-	"internal/resource/container", // the Docker driver's kinds
-	"internal/resource/fail2ban",  // fail2ban's jails, on every server (ADR 0052)
-	"internal/resource/firewall",  // firewall rules and the policy, on every server (ADR 0052)
+	"internal/resource/binding",      // a service's environment and label, from what it uses
+	"internal/resource/container",    // the Docker driver's kinds
+	"internal/resource/dockerdaemon", // the local Docker settings driver and recovery worker (ADR 0107)
+	"internal/resource/dockerlog",    // the Docker driver's log policy and inventory projection (ADR 0107)
+	"internal/resource/fail2ban",     // fail2ban's jails, on every server (ADR 0052)
+	"internal/resource/firewall",     // firewall rules and the policy, on every server (ADR 0052)
 	"internal/resource/network",
 	"internal/resource/resourcepb",
 	"internal/resource/route", // the ingress's kind (ADR 0024)
@@ -100,6 +102,7 @@ var agentPackages = []string{
 // agentModules are the other modules the agent build may link packages of.
 var agentModules = []string{
 	"connectrpc.com/connect",                    // the agent's stream to the control plane
+	"github.com/docker/go-units",                // Docker's own parser for log sizes
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
 	"golang.org/x/sys",                          // system calls, for x/term

@@ -231,7 +231,11 @@ type Info struct {
 	// SecurityOptions lists how it runs, such as name=rootless.
 	SecurityOptions []string
 	// LiveRestoreEnabled says containers keep running while the engine restarts.
-	LiveRestoreEnabled bool
+	LiveRestoreEnabled  bool
+	DefaultAddressPools []struct {
+		Base string
+		Size uint32
+	}
 	// DriverStatus includes the image store's driver type on the snapshotter.
 	DriverStatus [][]string
 	// RegistryConfig is how it reaches registries: its mirrors of Docker Hub,
@@ -240,7 +244,8 @@ type Info struct {
 	// Swarm is the swarm it's in, where it's in one: Nodes is how many nodes it
 	// has.
 	Swarm struct {
-		Nodes int
+		Nodes          int
+		LocalNodeState string
 	}
 }
 

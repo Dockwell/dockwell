@@ -245,6 +245,7 @@ var proposers = map[string]bool{
 	"dockwell.v1.CatalogService.SetCatalogSource":           true,
 	"dockwell.v1.CatalogService.RemoveCatalogSource":        true,
 	"dockwell.v1.ContainerService.AdoptContainer":           true,
+	"dockwell.v1.DockerService.PlanDockerContainerLogging":  true,
 	"dockwell.v1.DockerService.PlanDockerMaintenance":       true,
 	"dockwell.v1.DockerService.PlanDockerNetworkAttachment": true,
 	"dockwell.v1.ServiceService.DeployService":              true,

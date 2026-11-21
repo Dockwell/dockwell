@@ -496,7 +496,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
 	client, _ := authapi.ClientFrom(ctx)
 	switch {
-	case r.State == store.ChangePlanned && r.Plan.HasDockerMaintenance():
+	case r.State == store.ChangePlanned && (r.Plan.HasDockerMaintenance() || slices.ContainsFunc(r.Plan.Resources, func(p revision.ResourcePlan) bool { return p.DockerDaemon != nil })):
 		target := r.ID + ":" + r.Fingerprint
 		if req.Msg.GetProof() == "" {
 			h.auth.AskedForStepUp(p, auth.StepUpApproveChange, target, func() { h.noteUnconfirmed(r.ID, who) })
@@ -1599,7 +1599,7 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 		out.Resources = append(out.Resources, &dockwellv1.PlannedResource{
 			Id: r.ID, Resource: resourcepb.Ref(r.Ref), Action: resourcepb.Action(r.Action), BaseRevision: int64(r.Base),
 			Changes: resourcepb.Changes(r.Changes), Servers: r.Servers, PreviousServers: r.Previous,
-			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), DockerMaintenance: r.DockerMaintenance, Panel: resourcepb.Panel(r.Panel),
+			HostAccess: resourcepb.HostAccess(r.HostAccess), Install: resourcepb.Install(r.Install), Reboot: resourcepb.Reboot(r.Reboot), Unit: resourcepb.Unit(r.Unit), DockerDaemon: r.DockerDaemon, DockerMaintenance: r.DockerMaintenance, Panel: resourcepb.Panel(r.Panel),
 			AgentUpgrade:  resourcepb.AgentUpgrade(r.AgentUpgrade),
 			LetsGo:        r.Forget,
 			Storage:       linkStorageProto(r.Storage),
@@ -1619,7 +1619,11 @@ func planProto(r *revision.Record) *dockwellv1.Plan {
 			UntilHealthy: resourcepb.Duration(s.UntilHealthy),
 		}
 		for j := range s.Steps {
-			sp.Steps = append(sp.Steps, resourcepb.Step(s.Steps[j], ids[s.Steps[j].Ref]))
+			step := resourcepb.Step(s.Steps[j], ids[s.Steps[j].Ref])
+			if d := step.GetDockerDaemon(); d != nil {
+				step.DockerDaemon = &dockwellv1.DockerDaemonPlan{Impact: d.GetImpact(), FileChanges: d.GetFileChanges()}
+			}
+			sp.Steps = append(sp.Steps, step)
 		}
 		out.Servers = append(out.Servers, sp)
 	}

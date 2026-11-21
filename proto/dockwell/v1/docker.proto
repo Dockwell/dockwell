@@ -218,6 +218,48 @@ service DockerService {
     };
   }
 
+  // GetDockerSettings reads the effective Engine settings and known configuration sources.
+  rpc GetDockerSettings(GetDockerSettingsRequest) returns (GetDockerSettingsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "get-settings"
+    };
+    option (google.api.http) = {get: "/v1/docker/settings"};
+  }
+
+  // CheckDockerSettings validates proposed defaults on one server before review.
+  rpc CheckDockerSettings(CheckDockerSettingsRequest) returns (CheckDockerSettingsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "check-settings"
+    };
+    option (google.api.http) = {
+      post: "/v1/docker/settings/check"
+      body: "*"
+    };
+  }
+
+  // PlanDockerContainerLogging reviews finite logging limits for a managed workload.
+  rpc PlanDockerContainerLogging(PlanDockerContainerLoggingRequest) returns (PlanDockerContainerLoggingResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/docker/settings/logging/plan"
+      body: "*"
+    };
+  }
+
   // WatchDockerObjects streams invalidations and samples while a view is open.
   rpc WatchDockerObjects(WatchDockerObjectsRequest) returns (stream WatchDockerObjectsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -327,6 +369,7 @@ message DockerContainer {
   // An untrusted absolute path hint from Compose. Read it only through FileService.
   string compose_directory = 25;
   repeated DockerVolumeMountRef volume_mounts = 26;
+  DockerLogRotationState log_rotation = 27;
 }
 
 // DockerEndpoint is a container’s current address on one Docker network.
@@ -404,6 +447,7 @@ message GetDockerOverviewResponse {
 
 // DockerObjectFilter narrows a read across the selected servers.
 message DockerObjectFilter {
+  DockerLogRotationState log_rotation = 9;
   string search = 1;
   // Unset includes all lifecycle states.
   ContainerState state = 2;
@@ -825,4 +869,108 @@ message DownloadDockerArtifactRequest {
 // DownloadDockerArtifactResponse carries one frame of the sealed export.
 message DownloadDockerArtifactResponse {
   google.api.HttpBody body = 1;
+}
+
+// DockerLogRotationState classifies the effective rotation of a container log.
+enum DockerLogRotationState {
+  DOCKER_LOG_ROTATION_STATE_UNSPECIFIED = 0;
+  DOCKER_LOG_ROTATION_STATE_BOUNDED = 1;
+  DOCKER_LOG_ROTATION_STATE_UNBOUNDED = 2;
+  DOCKER_LOG_ROTATION_STATE_DRIVER_MANAGED = 3;
+  DOCKER_LOG_ROTATION_STATE_UNKNOWN = 4;
+}
+
+// DockerSettings is the safe projection of one Engine and the groups Dockwell manages.
+message DockerSettings {
+  google.protobuf.Timestamp observed_at = 1;
+  string engine_version = 2;
+  string api_version = 3;
+  string endpoint = 4;
+  string mode = 5;
+  string manager = 6;
+  string source = 7;
+  string data_root = 8;
+  optional bool live_restore = 9;
+  optional bool ipv6 = 10;
+  string image_store = 11;
+  repeated string mirrors = 12;
+  repeated string insecure_entries = 13;
+  dockwell.resource.v1alpha1.DockerDaemonLogging logging = 14;
+  repeated dockwell.resource.v1alpha1.DockerAddressPool pools = 15;
+  map<string, bool> known_features = 16;
+  string editability_reason = 17;
+  int64 managed_revision = 18;
+  repeated DockerSettingSource provenance = 19;
+  // Present on a separate logging summary read when all running workloads were checked.
+  optional uint32 running_logging_mismatch = 20;
+  string recovery_attention = 21;
+  bool pending_file_review = 22;
+}
+
+// DockerSettingSource describes where a projected setting came from.
+message DockerSettingSource {
+  string field = 1;
+  string source_kind = 2;
+  string availability = 3;
+}
+
+// DockerSettingsFindingReason classifies a settings validation finding.
+enum DockerSettingsFindingReason {
+  DOCKER_SETTINGS_FINDING_REASON_UNSPECIFIED = 0;
+  DOCKER_SETTINGS_FINDING_REASON_UNSUPPORTED = 1;
+  DOCKER_SETTINGS_FINDING_REASON_INVALID = 2;
+  DOCKER_SETTINGS_FINDING_REASON_CONFLICT = 3;
+}
+
+// DockerSettingsFinding identifies a setting that needs attention before review.
+message DockerSettingsFinding {
+  string field = 1;
+  DockerSettingsFindingReason reason = 2;
+  string detail = 3;
+  bool review_current_file = 4;
+}
+
+// GetDockerSettingsRequest selects one server.
+message GetDockerSettingsRequest {
+  string server_id = 1;
+  bool logging_summary = 2;
+}
+
+// GetDockerSettingsResponse returns the selected Engine settings.
+message GetDockerSettingsResponse {
+  DockerSettings settings = 1;
+}
+
+// CheckDockerSettingsRequest identifies the server and the candidate overlay.
+message CheckDockerSettingsRequest {
+  string server_id = 1;
+  dockwell.resource.v1alpha1.DockerDaemon draft = 2;
+}
+
+// CheckDockerSettingsResponse reports validation findings or activation impact.
+message CheckDockerSettingsResponse {
+  repeated DockerSettingsFinding findings = 1;
+  DockerDaemonImpact impact = 2;
+  // In draft order, after validation.
+  repeated DockerMirrorReachability mirror_reachability = 3;
+}
+
+// DockerMirrorReachability describes an anonymous HTTPS check from the agent.
+enum DockerMirrorReachability {
+  DOCKER_MIRROR_REACHABILITY_UNSPECIFIED = 0;
+  DOCKER_MIRROR_REACHABILITY_REACHABLE = 1;
+  DOCKER_MIRROR_REACHABILITY_UNREACHABLE = 2;
+  DOCKER_MIRROR_REACHABILITY_NOT_CHECKED = 3;
+}
+
+// PlanDockerContainerLoggingRequest identifies the reviewed container, revision and policy.
+message PlanDockerContainerLoggingRequest {
+  DockerObjectKey container = 1;
+  int64 base_revision = 2;
+  dockwell.resource.v1alpha1.ContainerLogging logging = 3;
+}
+
+// PlanDockerContainerLoggingResponse returns a reviewed workload change.
+message PlanDockerContainerLoggingResponse {
+  Change change = 1;
 }

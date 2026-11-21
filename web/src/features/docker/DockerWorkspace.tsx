@@ -40,7 +40,17 @@ import "./Docker.css";
 
 const Composes = lazy(async () => ({ default: (await import("./DockerComposes")).DockerComposes }));
 
-export type DockerTab = "overview" | "containers" | "composes" | "images" | "networks" | "volumes" | "cleanup";
+const Settings = lazy(async () => ({ default: (await import("./DockerSettings")).DockerSettings }));
+
+export type DockerTab =
+  | "overview"
+  | "containers"
+  | "composes"
+  | "images"
+  | "networks"
+  | "volumes"
+  | "cleanup"
+  | "settings";
 
 export function DockerWorkspace({
   serverId,
@@ -146,6 +156,8 @@ interface WorkspaceProps {
 
 function Workspace({ tab, servers, server, multiple, attention, group }: WorkspaceProps) {
   const { t } = useLingui();
+  const may = useMay();
+  const canReadSettings = may(DockerService.method.getDockerSettings).allowed;
   const ids = servers.map((s) => s.id);
   return (
     <section className="docker-workspace" aria-label={t`Docker`}>
@@ -183,6 +195,11 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
               <RouterTabLink to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
                 <Trans>Volumes</Trans>
               </RouterTabLink>
+              {canReadSettings ? (
+                <RouterTabLink to="/servers/$serverId/docker/settings" params={{ serverId: server.id }}>
+                  <Trans>Settings</Trans>
+                </RouterTabLink>
+              ) : null}
             </>
           ) : (
             <>
@@ -230,7 +247,7 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
         {server && multiple ? (
           <RouterButtonLink
             to="/servers/docker"
-            search={tab === "overview" ? {} : { view: tab }}
+            search={tab === "overview" || tab === "settings" ? {} : { view: tab }}
             variant="ghost"
             size="sm"
             icon="grid"
@@ -259,6 +276,16 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
         <DockerStorage servers={servers} fleet={!server} key="networks" />
       ) : tab === "volumes" ? (
         <DockerStorage servers={servers} fleet={!server} volumes key="volumes" />
+      ) : tab === "settings" && server && canReadSettings ? (
+        <Suspense
+          fallback={
+            <Loading label={t`Loading Docker settings`}>
+              <SkeletonFacts count={6} />
+            </Loading>
+          }
+        >
+          <Settings serverId={server.id} />
+        </Suspense>
       ) : tab === "cleanup" ? (
         <DockerCleanup servers={servers} group={group} />
       ) : (

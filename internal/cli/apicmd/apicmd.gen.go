@@ -1611,6 +1611,21 @@ func Methods() []*apicli.Method {
 			Call: apicli.Unary[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse](dockwellv1connect.DockerServiceCheckDockerNetworkProcedure),
 		},
 		{
+			Name:      "dockwell.v1.DockerService.CheckDockerSettings",
+			Procedure: dockwellv1connect.DockerServiceCheckDockerSettingsProcedure,
+			HTTP:      "POST /v1/docker/settings/check",
+			Noun:      "docker",
+			Verb:      "check-settings",
+			Short:     "Validate proposed defaults on one server before review",
+			Long:      "Validate proposed defaults on one server before review.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "server_id"},
+				{Path: "draft"},
+			},
+			Call: apicli.Unary[v1.CheckDockerSettingsRequest, v1.CheckDockerSettingsResponse](dockwellv1connect.DockerServiceCheckDockerSettingsProcedure),
+		},
+		{
 			Name:      "dockwell.v1.DockerService.DownloadDockerArtifact",
 			Procedure: dockwellv1connect.DockerServiceDownloadDockerArtifactProcedure,
 			HTTP:      "GET /v1/docker/artifacts/{server_id}/{artifact_id}/bytes",
@@ -1656,6 +1671,21 @@ func Methods() []*apicli.Method {
 				{Path: "artifact_id"},
 			},
 			Call: apicli.Unary[v1.GetDockerArtifactRequest, v1.DockerArtifactInfo](dockwellv1connect.DockerServiceGetDockerArtifactProcedure),
+		},
+		{
+			Name:      "dockwell.v1.DockerService.GetDockerSettings",
+			Procedure: dockwellv1connect.DockerServiceGetDockerSettingsProcedure,
+			HTTP:      "GET /v1/docker/settings",
+			Noun:      "docker",
+			Verb:      "get-settings",
+			Short:     "Read the effective Engine settings and known configuration sources",
+			Long:      "Read the effective Engine settings and known configuration sources.",
+			Effect:    v1.Effect_EFFECT_READ,
+			Fields: []apicli.Field{
+				{Path: "server_id"},
+				{Path: "logging_summary"},
+			},
+			Call: apicli.Unary[v1.GetDockerSettingsRequest, v1.GetDockerSettingsResponse](dockwellv1connect.DockerServiceGetDockerSettingsProcedure),
 		},
 		{
 			Name:      "dockwell.v1.DockerService.GetDockerObject",
@@ -1717,6 +1747,22 @@ func Methods() []*apicli.Method {
 				{Path: "server_ids", Help: "IDs or names, at most 32. Unset selects a lone server."},
 			},
 			Call: apicli.Unary[v1.GetDockerOverviewRequest, v1.GetDockerOverviewResponse](dockwellv1connect.DockerServiceGetDockerOverviewProcedure),
+		},
+		{
+			Name:      "dockwell.v1.DockerService.PlanDockerContainerLogging",
+			Procedure: dockwellv1connect.DockerServicePlanDockerContainerLoggingProcedure,
+			HTTP:      "POST /v1/docker/settings/logging/plan",
+			Noun:      "docker",
+			Verb:      "plan",
+			Short:     "Review finite logging limits for a managed workload",
+			Long:      "Review finite logging limits for a managed workload.",
+			Effect:    v1.Effect_EFFECT_PLAN,
+			Fields: []apicli.Field{
+				{Path: "container"},
+				{Path: "base_revision"},
+				{Path: "logging"},
+			},
+			Call: apicli.Unary[v1.PlanDockerContainerLoggingRequest, v1.PlanDockerContainerLoggingResponse](dockwellv1connect.DockerServicePlanDockerContainerLoggingProcedure),
 		},
 		{
 			Name:      "dockwell.v1.DockerService.PlanDockerNetworkAttachment",
@@ -4320,7 +4366,7 @@ func Nouns() []apicli.Noun {
 		{Name: "control-plane", Short: "Return what serves the panel and API", Long: "The control plane serves the panel and API, beside an agent of its own. It says\nthe build it runs, where it keeps its state and the install's key, the addresses\nit answers on, and how it's doing. Most of that comes from how dockwell run was\nstarted, and changes there."},
 		{Name: "databases", Short: "List, get or connect databases, and 4 more", Long: "DatabaseService is the services that run a database Dockwell knows: PostgreSQL,\nMySQL, MariaDB, Redis, Valkey and MongoDB, from their official images, whether\nDockwell made them or took them on. A database is a service, so it changes as\nany service does, by a change with a plan. What this adds is what the database\nitself says, read in its own container with its own tools, which sign in with\nwhat its environment already holds, so no password passes through Dockwell. See\ndocs/adr/0038-databases.md.\n\nNothing here carries a password, nor a value of a database's environment."},
 		{Name: "dns-providers", Short: "List, sync, check, create, update or delete DNS providers", Long: "What writes a DNS zone's records, so the control plane can prove a name by\nDNS-01 and get its certificate, behind NAT or for a wildcard. A provider is\ninstall-wide: an admin connects it as a change, with a plan. Its token stays on\nthe control plane and goes to no server. dockwell dns-providers check writes and\ndeletes a TXT record without saving anything. See\ndocs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.\n\ndockwell dns-providers create, update and delete each propose a change, show its\nplan, and ask before applying it."},
-		{Name: "docker", Short: "Overview, list, inspect, check, begin, get, finish, abort, upload, download or watch docker, and 4 more", Long: "Inspect the Docker Engine and the containers on a server."},
+		{Name: "docker", Short: "Overview, list, inspect, check, begin, get, finish, abort, upload, download, plan or watch docker, and 6 more", Long: "Inspect the Docker Engine and the containers on a server."},
 		{Name: "domains", Short: "List or check domains", Long: "Where the domains of your routes stand: what each sends where, and whether its\ncertificate is pending, issued or failed, with what to do when it failed. Change\nroutes with ChangeService, as kind route. See\ndocs/adr/0024-the-caddy-ingress-driver.md."},
 		{Name: "drift", Short: "List, revert or adopt drift", Long: "Drift is a difference between what a server has and the latest revision of a\nresource it should have, as when someone changed it by hand. dockwell drift list\nasks each connected server's agent, and changes nothing. dockwell drift revert\nplans putting the revision back, and dockwell drift adopt plans keeping what the\nserver has as a new revision: each is a change, with a plan to apply."},
 		{Name: "events", Short: "List, count or watch events", Long: "EventService is the timeline: every change to managed state, with who made it\nand from where, beside what servers and people did that belongs with it, such as\na server joining or someone signing in. See docs/adr/0020-the-event-timeline.md.\n\nA change is one event, which moves on as the change does: planned, then\napplying, then applied or failed. Rollbacks and undos are changes of their own,\neach naming the change it reverts. A discarded change isn't on the timeline, and\nnor is the change that set up an install's default project and environment.\nEvery other event comes from the audit log, as it was recorded.\n\nEvents carry no secret, no spec and no address.\n\ndockwell events watch streams, so it has no REST path. A REST client polls GET\n/v1/events, or opens the stream with Connect, gRPC or gRPC-Web, with the same\ncredentials."},
@@ -4369,6 +4415,20 @@ func Nouns() []apicli.Noun {
 // can hold.
 func Kinds() []*apicli.Kind {
 	return []*apicli.Kind{
+		{
+			Field: "docker_daemon",
+			Noun:  "docker-daemons",
+			Short: "",
+			Long:  "DockerDaemon is an overlay of approved Docker daemon setting groups.",
+			Fields: []apicli.Field{
+				{Path: "mirrors.urls"},
+				{Path: "logging.driver"},
+				{Path: "logging.max_size_bytes"},
+				{Path: "logging.max_files"},
+				{Path: "address_pools.pools"},
+				{Path: "review_current_file", Help: "Review activation of the current local file without taking ownership of it."},
+			},
+		},
 		{
 			Field: "project",
 			Noun:  "projects",
@@ -4488,6 +4548,10 @@ func Kinds() []*apicli.Kind {
 				{Path: "app.sysctls", Help: "Kernel settings of its own namespaces, such as \"net.ipv4.ip_forward\": \"1\". Only net.*, kernel.shm*, kernel.msg*, kernel.sem and fs.mqueue.* are a container's own, and none reaches the server. net.* takes no host network."},
 				{Path: "app.network_aliases", Help: "Names it answers to on one of its networks alone, each as network=name, such as \"default=web\", with the network as networks or external_networks names it: a name another container there linked to it by (ADR 0089). On a container with one network, it's the same as aliases, and reads as that."},
 				{Path: "app.desired_run_state", Help: "The workload's durable run intent. Unspecified preserves legacy behavior."},
+				{Path: "app.logging.mode"},
+				{Path: "app.logging.limits.driver"},
+				{Path: "app.logging.limits.max_size_bytes"},
+				{Path: "app.logging.limits.max_files"},
 				{Path: "variables", Help: "The environment's variables the service uses, each under the name the service sees it as: DATABASE_HOST=DB_HOST gives the service the variable DB_HOST as DATABASE_HOST. An empty value means the variable of the same name."},
 				{Path: "secrets", Help: "The environment's secrets the service uses, named as for variables. Using a secret doesn't let anyone read it: its value goes only to the servers the service runs on, and only their agents decrypt it."},
 				{Path: "build.git.url", Help: "The repository, such as \"https://github.com/acme/web.git\", over HTTPS, or HTTP on a private network. It can't hold a user, a password or a token."},
@@ -4588,6 +4652,10 @@ func Kinds() []*apicli.Kind {
 				{Path: "sysctls", Help: "Kernel settings of its own namespaces, such as \"net.ipv4.ip_forward\": \"1\". Only net.*, kernel.shm*, kernel.msg*, kernel.sem and fs.mqueue.* are a container's own, and none reaches the server. net.* takes no host network."},
 				{Path: "network_aliases", Help: "Names it answers to on one of its networks alone, each as network=name, such as \"default=web\", with the network as networks or external_networks names it: a name another container there linked to it by (ADR 0089). On a container with one network, it's the same as aliases, and reads as that."},
 				{Path: "desired_run_state", Help: "The workload's durable run intent. Unspecified preserves legacy behavior."},
+				{Path: "logging.mode"},
+				{Path: "logging.limits.driver"},
+				{Path: "logging.limits.max_size_bytes"},
+				{Path: "logging.limits.max_files"},
 			},
 		},
 		{

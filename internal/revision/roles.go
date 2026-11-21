@@ -584,7 +584,7 @@ func installWide(a resource.Access) string {
 		return "sets a zone at Cloudflare to Full (strict)"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
-		resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether,
+		resource.AccessDockerDaemon, resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether,
 		resource.AccessPublicPort, resource.AccessCloudflareTakeover: // as good as root, which the first check holds, or a person's to approve, as plain HTTP for anyone is
 	}
 	return ""

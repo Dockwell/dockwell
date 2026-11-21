@@ -68,11 +68,11 @@ import "./SystemServicesPage.css";
  * likely action, and a unit's sheet every action, its facts and its journal
  * (ADR 0082). An action is a plan, applied from the plan sheet.
  */
-export function SystemServicesPage({ serverId }: { serverId: string }) {
-  return <ServerFrame id={serverId}>{(server) => <SystemServices server={server} />}</ServerFrame>;
+export function SystemServicesPage({ serverId, unit }: { serverId: string; unit?: string }) {
+  return <ServerFrame id={serverId}>{(server) => <SystemServices server={server} unit={unit} />}</ServerFrame>;
 }
 
-function SystemServices({ server }: { server: Server }) {
+function SystemServices({ server, unit }: { server: Server; unit?: string }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const connected = server.connection === Connection.CONNECTED;
@@ -80,13 +80,13 @@ function SystemServices({ server }: { server: Server }) {
   const [view, setView] = useState<SystemView>("all");
   const [query, setQuery] = useState("");
   const filter = useDeferredValue(query);
-  const [open, setOpen] = useState<string>();
+  const [open, setOpen] = useState(unit);
   const acts = useUnitActions(server.id);
   const all = list?.services ?? [];
   const failed = all.filter((s) => s.state === SystemServiceState.FAILED).length;
   const running = all.filter((s) => s.state === SystemServiceState.RUNNING).length;
   const shown = useMemo(() => all.filter((s) => inView(s, view) && matchesService(s, filter)), [all, view, filter]);
-  const opened = all.find((s) => s.name === open);
+  const opened = all.find((s) => s.name === open || (open === "docker.service" && s.name === "docker"));
 
   const views = [
     { value: "all" as const, label: t({ message: "All", context: "system services" }), count: all.length },

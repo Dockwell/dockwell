@@ -187,6 +187,8 @@ message Container {
   repeated string network_aliases = 106;
   // The workload's durable run intent. Unspecified preserves legacy behavior.
   DesiredRunState desired_run_state = 400;
+  // Unset preserves Dockwell's existing logging policy.
+  ContainerLogging logging = 401;
 }
 
 // DesiredRunState is the state requested in a workload's revision.
@@ -1743,6 +1745,7 @@ enum CatalogFormat {
 message Spec {
   // The kind's spec.
   oneof kind {
+    DockerDaemon docker_daemon = 400;
     // A project, kind "project".
     Project project = 1;
     // An environment, kind "environment".
@@ -2547,4 +2550,49 @@ enum LinkPart {
   LINK_PART_SENDER = 61;
   LINK_PART_SENDER_NAME = 62;
   LINK_PART_MET = 70;
+}
+
+// DockerDaemon is an overlay of approved Docker daemon setting groups.
+message DockerDaemon {
+  DockerRegistryMirrors mirrors = 1;
+  DockerDaemonLogging logging = 2;
+  DockerDefaultAddressPools address_pools = 3;
+  // Review activation of the current local file without taking ownership of it.
+  bool review_current_file = 4;
+}
+
+// DockerRegistryMirrors lists the ordered Docker Hub mirrors. An empty list clears them.
+message DockerRegistryMirrors {
+  repeated string urls = 1;
+}
+
+// DockerDaemonLogging gives a supported log driver and its finite rotation limits.
+message DockerDaemonLogging {
+  string driver = 1;
+  uint64 max_size_bytes = 2;
+  uint32 max_files = 3;
+}
+
+// DockerDefaultAddressPools lists the IPv4 ranges for future network allocations.
+message DockerDefaultAddressPools {
+  repeated DockerAddressPool pools = 1;
+}
+
+// DockerAddressPool pairs a base CIDR with the prefix length of each allocated network.
+message DockerAddressPool {
+  string base = 1;
+  uint32 prefix_length = 2;
+}
+
+// ContainerLoggingMode selects daemon inheritance or explicit rotation limits.
+enum ContainerLoggingMode {
+  CONTAINER_LOGGING_MODE_UNSPECIFIED = 0;
+  CONTAINER_LOGGING_MODE_INHERIT = 1;
+  CONTAINER_LOGGING_MODE_LIMITS = 2;
+}
+
+// ContainerLogging is the log policy recorded on a workload revision.
+message ContainerLogging {
+  ContainerLoggingMode mode = 1;
+  DockerDaemonLogging limits = 2;
 }

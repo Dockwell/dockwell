@@ -566,7 +566,7 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 		dec.Effect, dec.Downtime, dec.UntilHealthy = resource.EffectRecreate, 0, 0
 		return nil
 	}
-	img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
+	img, err := d.Client.InspectImage(ctx, rolloutImage(desired, dec, newest(others)))
 	switch {
 	case err == nil:
 	case docker.IsNotFound(err):
@@ -1182,6 +1182,10 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 // their data stays, and those kept for it come back. discard removes what it
 // made, and gives back what it took.
 func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, name string, old *docker.Container) (string, func(error) error, error) {
+	if dec.KeepWorkloadImage && (old == nil || !docker.IsImageID(old.Image) || workloadImageRef(old) != spec.GetImage()) {
+		resource.Report(ctx, resource.Outcome{Untouched: true})
+		return "", nil, errors.New("the workload's original image could not be verified. Open the container and review log rotation again")
+	}
 	// The names it takes are checked again with the lock held, until it is on its
 	// networks: a check a moment ago doesn't see another change making a container.
 	if networks, _ := joinedByName(t, spec); len(networks) > 0 {
@@ -1210,6 +1214,9 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 				req.HostConfig.NetworkMode = id
 			}
 		}
+	}
+	if dec.KeepWorkloadImage {
+		req.Labels[labelKeptImageRef], req.Image = spec.GetImage(), old.Image
 	}
 	if err := rendered(req, spec); err != nil {
 		return "", nil, err
@@ -1310,6 +1317,13 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, discard(err)
 	}
 	return id, discard, nil
+}
+
+func rolloutImage(spec *resourcev1.Container, dec *resource.Decision, old *docker.Container) string {
+	if dec.KeepWorkloadImage && old != nil {
+		return old.Image
+	}
+	return docker.WithTag(spec.GetImage())
 }
 
 // numberLabel is the container-number label of what is made at t.

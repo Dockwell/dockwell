@@ -42,6 +42,7 @@ func Commands() []string {
 		"databases",
 		"dns-providers",
 		"docker",
+		"docker-daemons",
 		"domains",
 		"drift",
 		"environments",

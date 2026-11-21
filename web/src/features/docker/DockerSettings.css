@@ -1,0 +1,118 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.docker-settings,
+.docker-settings-loading,
+.docker-settings-column,
+.docker-settings-layout,
+.docker-setting-fields {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.docker-settings {
+  width: 100%;
+}
+
+.docker-settings .docker-section-heading h2 {
+  margin-inline-end: auto;
+}
+
+.docker-setting-fields {
+  margin-block-start: var(--space-3);
+}
+
+.docker-setting-mirror,
+.docker-setting-pair,
+.docker-setting-pool {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.docker-setting-mirror {
+  align-items: start;
+}
+
+.docker-mirror-status {
+  grid-column: 1 / -1;
+}
+
+.docker-mirror-status:empty {
+  display: none;
+}
+
+.docker-settings-service {
+  margin-block-start: var(--space-4);
+}
+
+.docker-setting-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.docker-setting-pool {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+}
+
+.docker-setting-add-pool {
+  justify-self: start;
+}
+
+.docker-settings-review,
+.docker-setting-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.docker-settings-review {
+  justify-content: flex-end;
+}
+
+.docker-settings-json,
+.docker-settings .docker-fact-grid {
+  overflow-wrap: anywhere;
+}
+
+.docker-settings .docker-fact-grid {
+  margin: 0;
+}
+
+.docker-settings-json {
+  white-space: pre-wrap;
+}
+
+.docker-setting-empty {
+  padding: var(--space-4);
+}
+
+@media (min-width: 1150px) {
+  .docker-settings-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .docker-settings .docker-fact {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.85fr);
+  }
+
+  .docker-setting-pair,
+  .docker-setting-pool {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .docker-setting-pool > button {
+    justify-self: end;
+  }
+
+  .docker-settings-review {
+    position: sticky;
+    bottom: 0;
+    padding-block: var(--space-3);
+    background: var(--page);
+  }
+}

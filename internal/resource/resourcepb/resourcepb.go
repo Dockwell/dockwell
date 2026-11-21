@@ -120,7 +120,7 @@ func FromChanges(fcs []*dockwellv1.FieldChange) []resource.Change {
 // Step converts a step. resourceID names the resource, when known.
 func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p := &dockwellv1.PlanStep{
-		DockerMaintenance: s.DockerMaintenance, DockerStorageGuard: s.DockerStorageGuard.Proto(), ResourceId: resourceID, Resource: Ref(s.Ref), Action: Action(s.Action), Effect: effects[s.Effect],
+		DockerDaemon: s.DockerDaemon, DockerMaintenance: s.DockerMaintenance, DockerStorageGuard: s.DockerStorageGuard.Proto(), ResourceId: resourceID, Resource: Ref(s.Ref), Action: Action(s.Action), Effect: effects[s.Effect],
 		DestroysData: s.Destroys, Changes: Changes(s.Changes),
 	}
 	if s.Downtime > 0 {
@@ -422,6 +422,7 @@ var accessKinds = map[resource.AccessKind]dockwellv1.HostAccessKind{
 	resource.AccessOpened:         dockwellv1.HostAccessKind_HOST_ACCESS_KIND_ACCESS_OPENED,
 	resource.AccessHTTPSOff:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_HTTPS_OFF,
 	resource.AccessBackupOf:       dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF,
+	resource.AccessDockerDaemon:   dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS,
 	resource.AccessServerShell:    dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL,
 	resource.AccessCertificateKey: dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY,
 
@@ -470,7 +471,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s := resource.Step{
 		Ref: FromRef(p.GetResource()), Changes: FromChanges(p.GetChanges()),
 		DockerStorageGuard: resource.DockerStorageGuardFrom(p.GetDockerStorageGuard()),
-		Decision:           resource.Decision{Destroys: p.GetDestroysData(), DockerMaintenance: p.GetDockerMaintenance()},
+		Decision:           resource.Decision{Destroys: p.GetDestroysData(), DockerDaemon: p.GetDockerDaemon(), DockerMaintenance: p.GetDockerMaintenance()},
 	}
 	var ok bool
 	if s.Action, ok = from(actions, p.GetAction()); !ok {

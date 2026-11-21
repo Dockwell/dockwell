@@ -23,6 +23,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource/dockerlog"
 )
 
 const dockerInventoryPage = 24
@@ -44,6 +45,9 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 		limit = 256
 	}
 	filter := ask.GetFilter()
+	if filter.GetLogRotation() != 0 {
+		limit = min(limit, 20)
+	}
 	search := strings.ToLower(strings.TrimSpace(filter.GetSearch()))
 	var snapshot [sha256.Size]byte
 	err := d.EachContainer(ctx, nil, func(s *docker.ContainerSummary) error {
@@ -165,6 +169,7 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 		for _, row := range out.Objects[begin:min(begin+4, len(out.Objects))] {
 			group.Go(func() {
 				if held, err := d.InspectContainer(ctx, row.GetKey().GetEngineId()); err == nil && held.ID == row.GetKey().GetEngineId() {
+					row.GetContainer().LogRotation = dockerlog.RotationState(held.HostConfig.LogConfig)
 					row.GetContainer().StartedAt = inventoryTime(held.State.StartedAt)
 					row.GetContainer().Health = inventoryHealth(held.State.Health)
 					row.GetContainer().RestartCount = countOf(held.RestartCount)
@@ -172,6 +177,9 @@ func dockerInventoryList(ctx context.Context, d *docker.Client, ask *agentv1.Doc
 			})
 		}
 		group.Wait()
+	}
+	if wanted := filter.GetLogRotation(); wanted != 0 {
+		out.Objects = slices.DeleteFunc(out.Objects, func(row *v1.DockerObject) bool { return row.GetContainer().GetLogRotation() != wanted })
 	}
 	return out, nil
 }
@@ -285,6 +293,7 @@ func dockerInventoryDetail(ctx context.Context, d *docker.Client, ask *agentv1.D
 	body.Mounts = mountsOf(held.Mounts[:min(len(held.Mounts), listEach)])
 	body.DetailsTruncated = len(held.Mounts) > listEach || len(held.NetworkSettings.Networks) > listEach ||
 		len(body.Ports) == listEach || len(body.ConfiguredPorts) == listEach
+	body.LogRotation = dockerlog.RotationState(held.HostConfig.LogConfig)
 	if log := held.HostConfig.LogConfig; log != nil {
 		body.LogDriver = composeIdentity(log.Type)
 		// Rotation numbers are the only options projected. Reject even a

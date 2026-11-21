@@ -315,6 +315,27 @@ jobs:
           sudo env INSTALL="$PWD/scripts/install.sh" RELEASES="file://$PWD/releases" KEY="$PWD/releases/cosign.pub" \
             MIRROR="file://$PWD/mirror" OLD="$OLD" NEW="$NEW" COSIGN="$(command -v cosign)" sh scripts/install-test/run.sh
 
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Docker settings on the host's systemd service
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -o pipefail
+          source releases/versions
+          go test -c -o docker-settings.test ./internal/resource/dockerdaemon
+          mkdir -p test-agent
+          tar -xzf "releases/good/download/v$NEW/dockwell-agent_${NEW}_linux_${ARCH}.tar.gz" -C test-agent dockwell
+          sudo ./scripts/install-test/docker-settings.sh "$PWD/test-agent/dockwell" "$PWD/docker-settings.test" | tee docker-systemd.out
+          for test in TestDockerSettingsReloadOnSystemd TestDockerSettingsRestartOnSystemd \
+            TestDockerSettingsRestoreFailedStartOnSystemd TestDockerSettingsRestoresAfterStartLimitOnSystemd \
+            TestDockerSettingsLiveRestoreOnSystemd TestDockerSettingsWorkerLossOnSystemd \
+            TestDockerSettingsAgentRestartAcknowledgesLiveWorkerOnSystemd TestDockerSettingsReviewsTheCurrentFileOnSystemd; do
+            grep -F -- "--- PASS: $test " docker-systemd.out
+          done
+
   install-time:
     name: Install time on 1 CPU (${{ matrix.release }})
     needs: snapshot

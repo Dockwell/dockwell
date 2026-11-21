@@ -293,6 +293,7 @@ type Edit struct {
 	DockerStorageGuard  *dockwellv1.DockerStorageGuard
 	DockerStorageCreate bool
 	DockerMaintenance   *dockwellv1.DockerMaintenance
+	DockerLoggingTarget *DockerLoggingTarget
 	Ref                 resource.Ref
 	Spec                proto.Message
 	// Unholds says the edit may lift a catalog install's hold, as an applied
@@ -622,10 +623,12 @@ const (
 
 // ResourcePlan is what a plan does to one resource as a whole.
 type ResourcePlan struct {
-	DockerStorageGuard *resource.DockerStorageGuard  `json:",omitempty"`
-	DockerMaintenance  *dockwellv1.DockerMaintenance `json:",omitempty"`
-	ID                 string
-	Ref                resource.Ref
+	DockerStorageGuard  *resource.DockerStorageGuard  `json:",omitempty"`
+	DockerDaemon        *dockwellv1.DockerDaemonPlan  `json:",omitempty"`
+	DockerMaintenance   *dockwellv1.DockerMaintenance `json:",omitempty"`
+	DockerLoggingTarget *DockerLoggingTarget          `json:",omitempty"`
+	ID                  string
+	Ref                 resource.Ref
 	// Restart says the change restarts it, which makes no revision.
 	Restart       bool           `json:",omitempty"`
 	RestartTarget *RestartTarget `json:",omitempty"`
@@ -948,8 +951,9 @@ type item struct {
 	// restart names the restart the item is to have: the change's ID. It makes
 	// no revision, so it isn't a difference between specs, and what a step makes
 	// carries it, so planning again finds it done or not.
-	restart       string
-	restartTarget *RestartTarget
+	restart             string
+	restartTarget       *RestartTarget
+	dockerLoggingTarget *DockerLoggingTarget
 	// restore is what its data comes back from, as a restart is, on one server.
 	restore *resource.RestoreSource
 	// forLink is the link the edit is made for (Edit.For), and backupOne the one
@@ -993,11 +997,16 @@ type item struct {
 	madeForRoute bool
 }
 
+func reviewsDaemonFile(spec proto.Message) bool {
+	daemon, _ := spec.(*resourcev1.DockerDaemon)
+	return daemon.GetReviewCurrentFile()
+}
+
 // noRevision reports an item that acts on a resource as it is, so it has nothing
 // to roll back, and what goes wrong leaves its revision as it was. A restore into a
 // new database isn't one: it makes its service (ADR 0106).
 func (it item) noRevision() bool {
-	return it.dockerMaintenance != nil || it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
+	return it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) || it.restart != "" || it.restore != nil && !it.restore.IntoNew() || it.moveFrom != (resource.Ref{}) && !it.changes() || it.install != nil && !it.changes() || it.reboot != "" && !it.changes() || it.upgrade != nil && !it.changes() || it.unit != nil && !it.changes() || it.panel != nil && !it.changes() || len(it.backups) > 0 && !it.changes()
 }
 
 // backupOn is the backup the item takes on a server first, if any.
@@ -1035,7 +1044,7 @@ func (it item) restoreOn(server string) *resource.RestoreSource {
 // changes reports whether the item makes a new revision: its spec, or
 // where it runs, differs from the latest revision.
 func (it item) changes() bool {
-	if it.dockerMaintenance != nil {
+	if it.dockerMaintenance != nil || reviewsDaemonFile(it.spec) {
 		return false
 	}
 	if it.rotates {
@@ -1093,6 +1102,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	// A removal of a server with nothing on it edits nothing: the server leaving is the change.
 	if len(p.Edits) == 0 && p.Removes == nil {
 		return nil, fault.New(ErrInvalid, "the change has no edits. Add one for each resource to change")
+	}
+	if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Ref.Kind == "docker.daemon" }) && (len(p.Edits) != 1 || p.Removes != nil) {
+		return nil, fault.New(ErrInvalid, "review Docker settings separately from other resources")
 	}
 	if p.Removes != nil {
 		if err := removerRole(ctx, planning, p.Removes); err != nil {
@@ -1227,6 +1239,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 			if it.restartTarget != nil && (it.changes() || !slices.Contains(it.placed, it.restartTarget.Server)) {
 				return nil, fault.New(ErrStale, "the workload's revision or placement changed. Review the current instance again")
 			}
+		}
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.DockerLoggingTarget != nil && ed.Ref == items[i].ref }); j >= 0 {
+			items[i].dockerLoggingTarget = p.Edits[j].DockerLoggingTarget
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Backup && ed.Ref == items[i].ref }); j >= 0 && items[i].current != nil {
 			items[i].backups = make(map[string]string, len(items[i].placed))
@@ -3014,6 +3029,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		if target := it.restartTarget; target != nil {
 			fmt.Fprintf(fp, "pinned restart %s|%s|%s\n", ref(it.ref), target.Server, target.Container)
 		}
+		if target := it.dockerLoggingTarget; target != nil {
+			fmt.Fprintf(fp, "pinned logging %s|%s|%s\n", ref(it.ref), target.Server, target.Container)
+		}
 		sum := sha256.Sum256(it.encoded)
 		_, _ = fmt.Fprintf(keyed, "%s|%t\n", item(e.digest(changeID, it)), it.rotates)
 		_, _ = io.WriteString(plain, item(sum[:])+"\n")
@@ -3278,6 +3296,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 				}
 				fmt.Fprintf(fp, "docker-storage %s|%x\n", server, data)
 			}
+			if d := s.DockerDaemon; d != nil {
+				fmt.Fprintf(fp, "docker-daemon %s|%s|%s\n", server, ref(s.Ref), d.GetEvidence())
+			}
 			if m := s.DockerMaintenance; m != nil {
 				data, err := (proto.MarshalOptions{Deterministic: true}).Marshal(m)
 				if err != nil {
@@ -3489,9 +3510,26 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			rp.RootDevices = slices.Compact(slices.Sorted(slices.Values(root)))
 		}
 		rp.AgentUpgrade = upgrades[items[i].id]
+		if items[i].ref.Kind == "docker.daemon" {
+			for _, server := range plan.Servers {
+				for j := range server.Steps {
+					step := &server.Steps[j]
+					if step.Ref == rp.Ref && step.DockerDaemon != nil {
+						rp.DockerDaemon = &dockwellv1.DockerDaemonPlan{Impact: step.DockerDaemon.GetImpact(), FileChanges: step.DockerDaemon.GetFileChanges()}
+					}
+				}
+			}
+			if rp.DockerDaemon != nil {
+				rp.HostAccess = append(rp.HostAccess, resource.Access{Kind: resource.AccessDockerDaemon, Path: items[i].ref.Scope, SameAsRoot: true})
+			}
+		}
 		rp.Forget = items[i].forget
 		if rp.Action != resource.ActionNone {
 			rp.NoUndo = e.kinds.ActsElsewhere(items[i].ref.Kind, items[i].current, items[i].spec)
+		}
+		if reviewsDaemonFile(items[i].spec) {
+			rp.Changes = nil
+			rp.NoUndo = "Activating the local file does not change Dockwell's desired settings."
 		}
 		rp.DockerStorageGuard = items[i].dockerStorageGuard
 		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
@@ -3766,6 +3804,13 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 
 // planOn asks a server's agent what the items would take there.
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
+	if len(its) == 1 {
+		if approved := its[0].unfinished[server]; approved != nil && approved.DockerDaemon != nil {
+			// The daemon can be down during recovery. Resume the frozen step;
+			// its worker checks the transaction without repeating the write.
+			return []resource.Step{*approved}, nil
+		}
+	}
 	desired := make([]resource.Desired, len(its))
 	exact := make(map[resource.Ref]string)
 	guards := make(map[resource.Ref]*resource.DockerStorageGuard)
@@ -3792,6 +3837,13 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 	}
 	ctx, done := e.calling(ctx)
 	defer done()
+	for _, it := range its {
+		if it.unfinished[server] == nil {
+			if err := checkDockerLoggingTarget(ctx, agent, it.dockerLoggingTarget, server); err != nil {
+				return nil, &AgentError{Server: name, Doing: "plan", Err: err}
+			}
+		}
+	}
 	steps, err := agent.Plan(ctx, desired)
 	if err != nil {
 		return nil, &AgentError{Server: name, Doing: "plan", Err: err}
@@ -3976,7 +4028,8 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	}
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
-		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", RestartTarget: it.restartTarget, Restore: it.restore, Backups: it.backups, Move: it.move,
+		DockerLoggingTarget: it.dockerLoggingTarget,
+		Servers:             slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", RestartTarget: it.restartTarget, Restore: it.restore, Backups: it.backups, Move: it.move,
 		BackupOne: it.backupOne, BackupAlso: it.backupAlso, AlsoFor: it.alsoFor,
 	}
 	if it.moveFrom != (resource.Ref{}) {
@@ -5004,7 +5057,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			progress.Steps[q.index].State == StepWaiting && !progress.Steps[q.index].Started.IsZero()
 		agent, online := e.agents.Agent(q.server)
 		if !online || agent == nil || !planned[q.server] {
-			if asked && !IsRollback(c) {
+			if (asked || q.step.DockerDaemon != nil) && !IsRollback(c) {
 				wait(q, "")
 				return result{}
 			}
@@ -5110,7 +5163,15 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 			desired = it.current
 		}
 		mu.Unlock()
-		err := e.applyStep(callCtx, agent, q.server, step, desired)
+		var err error
+		if !r.resumed {
+			err = checkDockerLoggingTarget(callCtx, agent, it.dockerLoggingTarget, q.server)
+		}
+		if err == nil {
+			err = e.applyStep(callCtx, agent, q.server, step, desired)
+		} else {
+			told.Untouched = true
+		}
 		mu.Lock()
 		called()
 		if q.step.Unit != nil && e.onUnit != nil {
@@ -5122,7 +5183,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		case err == nil:
 		case e.stoppedBy(err):
 			return result{outcome: interrupted, err: interrupt(qi)}
-		case (IsRollback(c) || it.noRevision()) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
+		case (IsRollback(c) || it.noRevision() || step.DockerDaemon != nil) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
 			// The agent went away: the call never reached it, or it may
 			// have run. Either way a rollback waits for the server, as for
 			// one that isn't connected, and Resume plans the step against
@@ -5703,7 +5764,17 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if err != nil {
 				return err
 			}
-			if dockerMaintenanceIn(planned, ref) == nil && (!bytes.Equal(it.encoded, asked) || it.base == 0) {
+			if daemonPlan := planned.first(ref, nil); daemonPlan != nil && len(daemonPlan.DockerDaemon.GetFileChanges()) > 0 {
+				if it.base != ci.BaseRevision {
+					continue
+				}
+				it.spec, err = e.kinds.Decode(ref.Kind, asked)
+				if err != nil || !reviewsDaemonFile(it.spec) {
+					return errors.New("cannot read the reviewed Docker settings activation")
+				}
+				it.encoded, it.id = asked, cmp.Or(it.id, ci.ResourceID)
+			}
+			if dockerMaintenanceIn(planned, ref) == nil && !reviewsDaemonFile(it.spec) && (!bytes.Equal(it.encoded, asked) || it.base == 0) {
 				continue // a later change moved it on
 			}
 			it.run, it.adopt, it.adoptName, it.public = ci.Run, ci.Adopts, ci.AdoptsName, ci.Public
@@ -5720,12 +5791,16 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			// the revision the change started from was, so the steps
 			// that remain on servers it left still run.
 			it.servers = it.placed
+			if reviewsDaemonFile(it.spec) {
+				it.servers = ci.Servers
+			}
 			if it.placed, err = e.placement(ctx, tx, it, ci.BaseRevision); err != nil {
 				return err
 			}
 			if restart := restartIn(planned, ref); restart != nil {
 				it.restart, it.restartTarget = c.ID, restart.RestartTarget
 			}
+			it.dockerLoggingTarget = dockerLoggingTargetIn(planned, ref)
 			it.restore, it.backups, it.move, it.forLink = restoreIn(planned, ref)
 			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(planned, ref)
 			it.install = installIn(planned, ref)
@@ -5964,6 +6039,7 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 		if restart := restartIn(asked, ref); restart != nil {
 			it.restart, it.restartTarget = c.ID, restart.RestartTarget
 		}
+		it.dockerLoggingTarget = dockerLoggingTargetIn(asked, ref)
 		it.restore, it.backups, it.move, it.forLink = restoreIn(asked, ref)
 		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(asked, ref)
 		it.install = installIn(asked, ref)
@@ -6036,7 +6112,9 @@ func (e *Engine) fail(ctx context.Context, c store.Change, at resource.Ref, caus
 	if err := e.finish(ctx, c, store.ChangeFailed, plain, "change.failed", e.progress(c.ID)); err != nil {
 		return errors.Join(ferr, err)
 	}
-	if IsRollback(c) {
+	// The daemon worker restores the reviewed file and activation itself. A
+	// fresh automatic revision would activate Docker without review or passkey.
+	if IsRollback(c) || at.Kind == "docker.daemon" {
 		e.published(c.ID, store.ChangeFailed)
 		return ferr
 	}

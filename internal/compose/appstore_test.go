@@ -327,6 +327,8 @@ func accessClass(a resource.Access) string {
 	switch a.Kind {
 	case resource.AccessPath:
 		return "a server path"
+	case resource.AccessDockerDaemon:
+		return "Docker daemon settings"
 	case resource.AccessDocker:
 		return "Docker's socket"
 	case resource.AccessNetwork:
