@@ -53,6 +53,9 @@ const (
 	AgentServiceSendFileProcedure = "/dockwell.agent.v1.AgentService/SendFile"
 	// AgentServiceForwardProcedure is the fully-qualified name of the AgentService's Forward RPC.
 	AgentServiceForwardProcedure = "/dockwell.agent.v1.AgentService/Forward"
+	// AgentServiceCheckDockerArtifactPinsProcedure is the fully-qualified name of the AgentService's
+	// CheckDockerArtifactPins RPC.
+	AgentServiceCheckDockerArtifactPinsProcedure = "/dockwell.agent.v1.AgentService/CheckDockerArtifactPins"
 )
 
 // AgentServiceClient is a client for the dockwell.agent.v1.AgentService service.
@@ -97,6 +100,8 @@ type AgentServiceClient interface {
 	// down. Flow control is the backpressure. A person opens an app's web UI
 	// this way, through the panel (ADR 0061).
 	Forward(context.Context) *connect.BidiStreamForClient[v1.ForwardRequest, v1.ForwardResponse]
+	// CheckDockerArtifactPins identifies completed plans for this server's staged archives.
+	CheckDockerArtifactPins(context.Context, *connect.Request[v1.CheckDockerArtifactPinsRequest]) (*connect.Response[v1.CheckDockerArtifactPinsResponse], error)
 }
 
 // NewAgentServiceClient constructs a client for the dockwell.agent.v1.AgentService service. By
@@ -158,19 +163,26 @@ func NewAgentServiceClient(httpClient connect.HTTPClient, baseURL string, opts .
 			connect.WithSchema(agentServiceMethods.ByName("Forward")),
 			connect.WithClientOptions(opts...),
 		),
+		checkDockerArtifactPins: connect.NewClient[v1.CheckDockerArtifactPinsRequest, v1.CheckDockerArtifactPinsResponse](
+			httpClient,
+			baseURL+AgentServiceCheckDockerArtifactPinsProcedure,
+			connect.WithSchema(agentServiceMethods.ByName("CheckDockerArtifactPins")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // agentServiceClient implements AgentServiceClient.
 type agentServiceClient struct {
-	join             *connect.Client[v1.JoinRequest, v1.JoinResponse]
-	renewCertificate *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
-	connect          *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
-	sendLogs         *connect.Client[v1.SendLogsRequest, v1.SendLogsResponse]
-	terminal         *connect.Client[v1.TerminalRequest, v1.TerminalResponse]
-	receiveFile      *connect.Client[v1.ReceiveFileRequest, v1.ReceiveFileResponse]
-	sendFile         *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
-	forward          *connect.Client[v1.ForwardRequest, v1.ForwardResponse]
+	join                    *connect.Client[v1.JoinRequest, v1.JoinResponse]
+	renewCertificate        *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
+	connect                 *connect.Client[v1.ConnectRequest, v1.ConnectResponse]
+	sendLogs                *connect.Client[v1.SendLogsRequest, v1.SendLogsResponse]
+	terminal                *connect.Client[v1.TerminalRequest, v1.TerminalResponse]
+	receiveFile             *connect.Client[v1.ReceiveFileRequest, v1.ReceiveFileResponse]
+	sendFile                *connect.Client[v1.SendFileRequest, v1.SendFileResponse]
+	forward                 *connect.Client[v1.ForwardRequest, v1.ForwardResponse]
+	checkDockerArtifactPins *connect.Client[v1.CheckDockerArtifactPinsRequest, v1.CheckDockerArtifactPinsResponse]
 }
 
 // Join calls dockwell.agent.v1.AgentService.Join.
@@ -211,6 +223,11 @@ func (c *agentServiceClient) SendFile(ctx context.Context) *connect.ClientStream
 // Forward calls dockwell.agent.v1.AgentService.Forward.
 func (c *agentServiceClient) Forward(ctx context.Context) *connect.BidiStreamForClient[v1.ForwardRequest, v1.ForwardResponse] {
 	return c.forward.CallBidiStream(ctx)
+}
+
+// CheckDockerArtifactPins calls dockwell.agent.v1.AgentService.CheckDockerArtifactPins.
+func (c *agentServiceClient) CheckDockerArtifactPins(ctx context.Context, req *connect.Request[v1.CheckDockerArtifactPinsRequest]) (*connect.Response[v1.CheckDockerArtifactPinsResponse], error) {
+	return c.checkDockerArtifactPins.CallUnary(ctx, req)
 }
 
 // AgentServiceHandler is an implementation of the dockwell.agent.v1.AgentService service.
@@ -255,6 +272,8 @@ type AgentServiceHandler interface {
 	// down. Flow control is the backpressure. A person opens an app's web UI
 	// this way, through the panel (ADR 0061).
 	Forward(context.Context, *connect.BidiStream[v1.ForwardRequest, v1.ForwardResponse]) error
+	// CheckDockerArtifactPins identifies completed plans for this server's staged archives.
+	CheckDockerArtifactPins(context.Context, *connect.Request[v1.CheckDockerArtifactPinsRequest]) (*connect.Response[v1.CheckDockerArtifactPinsResponse], error)
 }
 
 // NewAgentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -312,6 +331,12 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 		connect.WithSchema(agentServiceMethods.ByName("Forward")),
 		connect.WithHandlerOptions(opts...),
 	)
+	agentServiceCheckDockerArtifactPinsHandler := connect.NewUnaryHandler(
+		AgentServiceCheckDockerArtifactPinsProcedure,
+		svc.CheckDockerArtifactPins,
+		connect.WithSchema(agentServiceMethods.ByName("CheckDockerArtifactPins")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.agent.v1.AgentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AgentServiceJoinProcedure:
@@ -330,6 +355,8 @@ func NewAgentServiceHandler(svc AgentServiceHandler, opts ...connect.HandlerOpti
 			agentServiceSendFileHandler.ServeHTTP(w, r)
 		case AgentServiceForwardProcedure:
 			agentServiceForwardHandler.ServeHTTP(w, r)
+		case AgentServiceCheckDockerArtifactPinsProcedure:
+			agentServiceCheckDockerArtifactPinsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -369,4 +396,8 @@ func (UnimplementedAgentServiceHandler) SendFile(context.Context, *connect.Clien
 
 func (UnimplementedAgentServiceHandler) Forward(context.Context, *connect.BidiStream[v1.ForwardRequest, v1.ForwardResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.Forward is not implemented"))
+}
+
+func (UnimplementedAgentServiceHandler) CheckDockerArtifactPins(context.Context, *connect.Request[v1.CheckDockerArtifactPinsRequest]) (*connect.Response[v1.CheckDockerArtifactPinsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.agent.v1.AgentService.CheckDockerArtifactPins is not implemented"))
 }

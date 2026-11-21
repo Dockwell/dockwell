@@ -33,7 +33,8 @@ var agentPackages = []string{
 	"gen/dockwell/resource/v1alpha1",
 	"gen/dockwell/v1",
 	"internal/agent",
-	"internal/agent/access", // who reaches the server, under the firewall's timer (ADR 0052)
+	"internal/agent/access",   // who reaches the server, under the firewall's timer (ADR 0052)
+	"internal/agent/artifact", // the private image archive spool (ADR 0107)
 	"internal/agent/collect",
 	"internal/agent/desired", // what the server should run, kept sealed (ADR 0054)
 	"internal/agent/enroll",

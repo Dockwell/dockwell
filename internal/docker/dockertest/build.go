@@ -486,12 +486,21 @@ func (e *Engine) loadImage(w http.ResponseWriter, r *http.Request) {
 		var config struct {
 			Config  docker.Config `json:"config"`
 			Created time.Time     `json:"created"`
+			RootFS  struct {
+				DiffIDs []string `json:"diff_ids"`
+			}
 		}
 		if err := json.Unmarshal(files[m.Config], &config); err != nil {
 			_ = enc.Encode(map[string]any{"error": "invalid config", "errorDetail": map[string]string{"message": "invalid config " + m.Config}})
 			return
 		}
 		img := &image{id: "sha256:" + newID(), created: config.Created, Image: Image{Config: config.Config}}
+		if len(m.RepoTags) == 0 {
+			sum := sha256.Sum256(files[m.Config])
+			img.id = "sha256:" + hex.EncodeToString(sum[:])
+			img.archiveConfig, img.archiveLayers = files[m.Config], config.RootFS.DiffIDs
+			_ = enc.Encode(map[string]string{"stream": "Loaded image ID: " + img.id + "\n"})
+		}
 		e.images[img.id] = img
 		for _, tag := range m.RepoTags {
 			img.repo = repoOf(tag)

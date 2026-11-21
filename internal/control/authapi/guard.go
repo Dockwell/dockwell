@@ -376,6 +376,28 @@ func Authorizer(svc *auth.Service, logger *slog.Logger) func(ctx context.Context
 	}
 }
 
+// TrackInstallStream authenticates a raw HTTP install-scoped stream and keeps
+// its session and current role checked while bytes are being sent or received.
+func TrackInstallStream(svc *auth.Service, logger *slog.Logger) func(context.Context, string) (context.Context, func(), error) {
+	i := &interceptor{svc: svc, logger: logger}
+	return func(ctx context.Context, procedure string) (context.Context, func(), error) {
+		allowed, err := i.authorize(ctx, procedure)
+		if err != nil {
+			return ctx, nil, err
+		}
+		p, ok := PrincipalFrom(allowed)
+		if !ok || svc == nil {
+			return ctx, nil, ReasonError(connect.CodeUnauthenticated, auth.ErrUnauthenticated, ReasonUnauthenticated)
+		}
+		client, _ := ClientFrom(allowed)
+		tracked, stop := svc.Track(allowed, client, p, func(recheck context.Context) error {
+			_, err := i.gateCall(recheck, client, p, procedure)
+			return err
+		})
+		return tracked, stop, nil
+	}
+}
+
 type interceptor struct {
 	svc    *auth.Service
 	logger *slog.Logger

@@ -97,6 +97,10 @@ service AgentService {
   rpc Forward(stream ForwardRequest) returns (stream ForwardResponse) {
     option (dockwell.v1.effect) = EFFECT_READ;
   }
+  // CheckDockerArtifactPins identifies completed plans for this server's staged archives.
+  rpc CheckDockerArtifactPins(CheckDockerArtifactPinsRequest) returns (CheckDockerArtifactPinsResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+  }
 }
 
 // ConnectRequest is one message from the agent.
@@ -934,6 +938,7 @@ message Call {
     DockerInventoryWatchCall docker_inventory_watch = 402;
     DockerMaintenancePreviewCall docker_maintenance_preview = 404;
     CheckDockerNetworkCall check_docker_network = 405;
+    DockerArtifactControlCall docker_artifact_control = 406;
   }
 }
 
@@ -2691,6 +2696,7 @@ message CallResult {
     DockerInventoryWatchResult docker_inventory_watch = 402;
     DockerMaintenancePreviewResult docker_maintenance_preview = 404;
     CheckDockerNetworkResult check_docker_network = 405;
+    DockerArtifactControlResult docker_artifact_control = 406;
   }
 }
 
@@ -2936,6 +2942,7 @@ message DockerCapabilities {
   bool network_volume_inventory = 7;
   bool compose_members = 8;
   bool image_operations = 9;
+  bool artifact_transfers = 10;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
@@ -3024,4 +3031,66 @@ message CheckDockerNetworkCall {
 // CheckDockerNetworkResult reports conflicts without changing the Engine.
 message CheckDockerNetworkResult {
   repeated dockwell.v1.DockerNetworkFinding findings = 1;
+}
+
+// DockerArtifactControlCall carries lease metadata. Bytes use ReceiveFile and SendFile.
+message DockerArtifactControlCall {
+  string artifact_id = 1;
+  string owner_binding = 2;
+  oneof operation {
+    BeginDockerArtifactCall begin_upload = 10;
+    DockwellDockerArtifactEmpty status = 11;
+    DockerArtifactStream receive = 12;
+    DockwellDockerArtifactEmpty seal = 13;
+    DockerArtifactStream send = 14;
+    DockwellDockerArtifactEmpty abort = 15;
+    DockwellDockerArtifactEmpty list = 18;
+    DockwellDockerArtifactEmpty discard_export = 19;
+    DockerArtifactPin pin = 20;
+    DockerArtifactPin release_pin = 21;
+  }
+}
+
+// DockwellDockerArtifactEmpty selects an operation that needs only the lease and owner.
+message DockwellDockerArtifactEmpty {}
+
+// BeginDockerArtifactCall declares the spool lease and the optional expected digest.
+message BeginDockerArtifactCall {
+  dockwell.v1.DockerArtifactKind kind = 1;
+  uint64 size_bytes = 2;
+  string sha256 = 3;
+  bool gzip = 4;
+  string file_name = 5;
+}
+
+// DockerArtifactStream names the single-use byte stream and its exact extent.
+message DockerArtifactStream {
+  uint64 stream = 1;
+  uint64 offset = 2;
+  uint64 length = 3;
+}
+
+// DockerArtifactControlResult returns lease metadata or a safe refusal.
+message DockerArtifactControlResult {
+  dockwell.v1.DockerArtifactInfo artifact = 1;
+  dockwell.v1.DockerImageReason reason = 3;
+  repeated dockwell.v1.DockerArtifactInfo artifacts = 4;
+  dockwell.v1.DockerArtifactSpace space = 5;
+}
+
+// DockerArtifactPin ties one staged lease to its exact reviewed change.
+message DockerArtifactPin {
+  string artifact_id = 1;
+  string change_id = 2;
+}
+
+// CheckDockerArtifactPinsRequest lists the pins held on the calling server.
+message CheckDockerArtifactPinsRequest {
+  repeated DockerArtifactPin pins = 1;
+}
+
+// CheckDockerArtifactPinsResponse separates ended plans from absent records.
+message CheckDockerArtifactPinsResponse {
+  repeated DockerArtifactPin ended = 1;
+  repeated DockerArtifactPin absent = 2;
 }

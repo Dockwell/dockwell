@@ -60,11 +60,22 @@ export GOMEMLIMIT
 # Each from its own copy, as on a server of its own.
 cp "$full" "$work/control"
 cp "$agent" "$work/agent"
-
-# The control plane's own agent has no Docker, and what's measured is the agent build's.
-export DOCKWELL_LOG_FORMAT=text DOCKWELL_DATA_DIR=$work/control.d
-DOCKER_HOST=unix://$work/none.sock "$work/control" run --listen 127.0.0.1:0 --agent-listen 127.0.0.1:0 --log-format json >"$work/control.log" 2>&1 &
+python3 "$root/scripts/artifact-load.py" fixture "$work" "$mib"
+go build -o "$work/fakedocker" "$root/scripts/fakedocker"
+DOCKWELL_TEST_ARCHIVE_LAYER="$work/layer.tar" "$work/fakedocker" "$work/docker" >"$work/docker.log" 2>&1 &
 pids+=($!)
+for _ in $(seq 100); do
+  [[ -S "$work/docker/docker.sock" ]] && break
+  sleep 0.1
+done
+[[ -S "$work/docker/docker.sock" ]] || fail "the fake Engine did not start"
+
+
+# Both agent editions use the same local synthetic Engine.
+export DOCKWELL_LOG_FORMAT=text DOCKWELL_DATA_DIR=$work/control.d
+DOCKER_HOST=unix://$work/docker/docker.sock "$work/control" run --listen 127.0.0.1:0 --agent-listen 127.0.0.1:0 --log-format json >"$work/control.log" 2>&1 &
+control_pid=$!
+pids+=("$control_pid")
 addr=
 for _ in $(seq 100); do
   addr=$(sed -n 's/.*"listener":"control plane","addr":"\([^"]*\)".*/\1/p' "$work/control.log")
@@ -84,7 +95,7 @@ origin=${link%%/claim#*}
 ticket=$("$work/control" token create 2>>"$work/control.log" | awk '$1 == "dockwell" && $2 == "join" { print $3 }')
 [[ -n "$ticket" ]] || fail "dockwell token create printed no ticket"
 "$work/agent" join --data-dir "$work/agent.d" --name load-agent "$ticket" >"$work/join.log" 2>&1 || fail "the agent build didn't join"
-DOCKER_HOST=unix://$work/none.sock "$work/agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
+DOCKER_HOST=unix://$work/docker/docker.sock "$work/agent" run --data-dir "$work/agent.d" --log-format json >"$work/agent.log" 2>&1 &
 agent_pid=$!
 pids+=("$agent_pid")
 for _ in $(seq 150); do
@@ -101,6 +112,10 @@ api() {
 }
 id=$(api GET /v1/servers | jq -r '.servers[] | select(.name == "load-agent") | .id')
 [[ -n $id ]] || fail "the joined agent isn't among the servers"
+
+"$full" login --local >/dev/null 2>&1 || fail "can't sign in on the control server"
+"$full" services create transfer-probe --on "$id" --app-image fixture/transfer:prints --yes >"$work/probe.log" 2>&1 ||
+  fail "can't run the log probe"
 
 sleep "$settle"
 settled=$(rss "$agent_pid")
@@ -172,4 +187,13 @@ done
 most=$(peak "$agent_pid")
 echo "four downloads of $mib MiB at once, in $((SECONDS - went)) s: agent at most $most MB, budget $max_mb MB"
 awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory came to $most MB, past its budget of $max_mb"
+DOCKWELL_LOAD_COOKIE="$cookie" python3 "$root/scripts/artifact-load.py" run "$work" "$origin" "$id" "$agent_pid" "$max_mb" ||
+  fail "the artifact transfer run failed"
+own_id=$(api GET /v1/servers | jq -r '.servers[] | select(.controlServer) | .id')
+[[ -n $own_id ]] || fail "the control server isn't among the servers"
+echo "full build with embedded agent, 250 MB budget"
+DOCKWELL_LOAD_COOKIE="$cookie" python3 "$root/scripts/artifact-load.py" run "$work" "$origin" "$own_id" "$control_pid" 250 ||
+  fail "the embedded-agent artifact transfer run failed"
+sleep 3
+echo "agent after artifact cleanup: $(rss "$agent_pid") MB RSS"
 echo "transfers-load: ok"

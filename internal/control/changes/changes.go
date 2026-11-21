@@ -76,6 +76,8 @@ type Handler struct {
 	// what follows the app's address too, and says so (ADR 0103). Nil writes nothing
 	// more.
 	Address func(ctx context.Context, edits []revision.Edit) ([]revision.Edit, []revision.Note, error)
+	// DiscardDockerArchives releases staging for a discarded Docker archive action.
+	DiscardDockerArchives func(context.Context, *dockwellv1.Change)
 }
 
 // GitLogins checks a build's git login, as a plan is made: one named must reach
@@ -811,6 +813,9 @@ func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwe
 	c, err := h.change(ctx, req.Msg.GetId())
 	if err != nil {
 		return nil, err
+	}
+	if h.DiscardDockerArchives != nil {
+		h.DiscardDockerArchives(ctx, c)
 	}
 	return connect.NewResponse(&dockwellv1.DiscardChangeResponse{Change: c}), nil
 }
@@ -1730,6 +1735,10 @@ func (h *Handler) rpcError(ctx context.Context, err error) error {
 	// agent's plan, didn't fail.
 	if errors.Is(err, context.Canceled) {
 		return connect.NewError(connect.CodeCanceled, err)
+	}
+	var refusal *connect.Error
+	if errors.As(err, &refusal) {
+		return refusal
 	}
 	var choice *scope.ChoiceError
 	if errors.As(err, &choice) {

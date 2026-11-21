@@ -427,14 +427,19 @@ func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release f
 // at most transferWindow of each stream, and transferConnWindow in all, before the
 // agent reads it. Go's own is 4 MiB a stream, and three uploads at once, each
 // waiting on a disk, took an agent past its 40 MB. A frame is 128 KiB, so this
-// still has two on their way to each. Its parts come without gzip, and an
+// keeps room for one and the next frame’s header. Its parts come without gzip, and an
 // upload's in one buffer its stream keeps (transfers).
-func (i *Identity) TransferClient() (client agentv1connect.AgentServiceClient, release func(), err error) {
+func (i *Identity) TransferClient(artifact bool) (client agentv1connect.AgentServiceClient, release func(), err error) {
 	cfg, err := i.ClientTLS()
 	if err != nil {
 		return nil, nil, err
 	}
 	hc := transferHTTPClient(cfg)
+	if artifact {
+		h2 := hc.Transport.(*http.Transport).HTTP2 //nolint:forcetypeassert // httpClient's own
+		h2.MaxReceiveBufferPerStream = 144 << 10
+		h2.MaxReceiveBufferPerConnection = 3 * (144 << 10)
+	}
 	return newTransfers(hc, i.ControlURL), hc.CloseIdleConnections, nil
 }
 
@@ -450,7 +455,7 @@ func transferHTTPClient(cfg *tls.Config) *http.Client {
 
 const (
 	transferWindow     = 256 << 10
-	transferConnWindow = 1 << 20
+	transferConnWindow = 4 * transferWindow
 )
 
 // ForwardClient is Client for connections to apps opened through the panel,

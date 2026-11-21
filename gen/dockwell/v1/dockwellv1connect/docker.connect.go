@@ -56,6 +56,27 @@ const (
 	// DockerServicePlanDockerNetworkAttachmentProcedure is the fully-qualified name of the
 	// DockerService's PlanDockerNetworkAttachment RPC.
 	DockerServicePlanDockerNetworkAttachmentProcedure = "/dockwell.v1.DockerService/PlanDockerNetworkAttachment"
+	// DockerServiceBeginDockerArtifactUploadProcedure is the fully-qualified name of the
+	// DockerService's BeginDockerArtifactUpload RPC.
+	DockerServiceBeginDockerArtifactUploadProcedure = "/dockwell.v1.DockerService/BeginDockerArtifactUpload"
+	// DockerServiceGetDockerArtifactProcedure is the fully-qualified name of the DockerService's
+	// GetDockerArtifact RPC.
+	DockerServiceGetDockerArtifactProcedure = "/dockwell.v1.DockerService/GetDockerArtifact"
+	// DockerServiceListDockerArtifactsProcedure is the fully-qualified name of the DockerService's
+	// ListDockerArtifacts RPC.
+	DockerServiceListDockerArtifactsProcedure = "/dockwell.v1.DockerService/ListDockerArtifacts"
+	// DockerServiceFinishDockerArtifactUploadProcedure is the fully-qualified name of the
+	// DockerService's FinishDockerArtifactUpload RPC.
+	DockerServiceFinishDockerArtifactUploadProcedure = "/dockwell.v1.DockerService/FinishDockerArtifactUpload"
+	// DockerServiceAbortDockerArtifactProcedure is the fully-qualified name of the DockerService's
+	// AbortDockerArtifact RPC.
+	DockerServiceAbortDockerArtifactProcedure = "/dockwell.v1.DockerService/AbortDockerArtifact"
+	// DockerServiceUploadDockerArtifactProcedure is the fully-qualified name of the DockerService's
+	// UploadDockerArtifact RPC.
+	DockerServiceUploadDockerArtifactProcedure = "/dockwell.v1.DockerService/UploadDockerArtifact"
+	// DockerServiceDownloadDockerArtifactProcedure is the fully-qualified name of the DockerService's
+	// DownloadDockerArtifact RPC.
+	DockerServiceDownloadDockerArtifactProcedure = "/dockwell.v1.DockerService/DownloadDockerArtifact"
 	// DockerServiceWatchDockerObjectsProcedure is the fully-qualified name of the DockerService's
 	// WatchDockerObjects RPC.
 	DockerServiceWatchDockerObjectsProcedure = "/dockwell.v1.DockerService/WatchDockerObjects"
@@ -78,6 +99,30 @@ type DockerServiceClient interface {
 	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
 	// PlanDockerNetworkAttachment records a normal workload revision for one attachment.
 	PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error)
+	// BeginDockerArtifactUpload reserves space and returns the new upload lease.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	BeginDockerArtifactUpload(context.Context, *connect.Request[v1.BeginDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// GetDockerArtifact reads the current lease for its creating actor and session.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	GetDockerArtifact(context.Context, *connect.Request[v1.GetDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// ListDockerArtifacts lists live leases created by this actor and session on one server.
+	ListDockerArtifacts(context.Context, *connect.Request[v1.ListDockerArtifactsRequest]) (*connect.Response[v1.ListDockerArtifactsResponse], error)
+	// FinishDockerArtifactUpload queues validation of a completed upload.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	FinishDockerArtifactUpload(context.Context, *connect.Request[v1.FinishDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// AbortDockerArtifact discards the staged bytes for the selected lease.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	AbortDockerArtifact(context.Context, *connect.Request[v1.AbortDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// UploadDockerArtifact appends one verified extent to an upload.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	UploadDockerArtifact(context.Context) *connect.ClientStreamForClient[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo]
+	// DownloadDockerArtifact streams an exact extent from a sealed export.
+	DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest]) (*connect.ServerStreamForClient[v1.DownloadDockerArtifactResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error)
 }
@@ -139,6 +184,51 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerNetworkAttachment")),
 			connect.WithClientOptions(opts...),
 		),
+		beginDockerArtifactUpload: connect.NewClient[v1.BeginDockerArtifactUploadRequest, v1.DockerArtifactInfo](
+			httpClient,
+			baseURL+DockerServiceBeginDockerArtifactUploadProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("BeginDockerArtifactUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		getDockerArtifact: connect.NewClient[v1.GetDockerArtifactRequest, v1.DockerArtifactInfo](
+			httpClient,
+			baseURL+DockerServiceGetDockerArtifactProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("GetDockerArtifact")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		listDockerArtifacts: connect.NewClient[v1.ListDockerArtifactsRequest, v1.ListDockerArtifactsResponse](
+			httpClient,
+			baseURL+DockerServiceListDockerArtifactsProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("ListDockerArtifacts")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		finishDockerArtifactUpload: connect.NewClient[v1.FinishDockerArtifactUploadRequest, v1.DockerArtifactInfo](
+			httpClient,
+			baseURL+DockerServiceFinishDockerArtifactUploadProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("FinishDockerArtifactUpload")),
+			connect.WithClientOptions(opts...),
+		),
+		abortDockerArtifact: connect.NewClient[v1.AbortDockerArtifactRequest, v1.DockerArtifactInfo](
+			httpClient,
+			baseURL+DockerServiceAbortDockerArtifactProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("AbortDockerArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		uploadDockerArtifact: connect.NewClient[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo](
+			httpClient,
+			baseURL+DockerServiceUploadDockerArtifactProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("UploadDockerArtifact")),
+			connect.WithClientOptions(opts...),
+		),
+		downloadDockerArtifact: connect.NewClient[v1.DownloadDockerArtifactRequest, v1.DownloadDockerArtifactResponse](
+			httpClient,
+			baseURL+DockerServiceDownloadDockerArtifactProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("DownloadDockerArtifact")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 		watchDockerObjects: connect.NewClient[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse](
 			httpClient,
 			baseURL+DockerServiceWatchDockerObjectsProcedure,
@@ -158,6 +248,13 @@ type dockerServiceClient struct {
 	planDockerMaintenance       *connect.Client[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse]
 	checkDockerNetwork          *connect.Client[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse]
 	planDockerNetworkAttachment *connect.Client[v1.PlanDockerNetworkAttachmentRequest, v1.PlanDockerNetworkAttachmentResponse]
+	beginDockerArtifactUpload   *connect.Client[v1.BeginDockerArtifactUploadRequest, v1.DockerArtifactInfo]
+	getDockerArtifact           *connect.Client[v1.GetDockerArtifactRequest, v1.DockerArtifactInfo]
+	listDockerArtifacts         *connect.Client[v1.ListDockerArtifactsRequest, v1.ListDockerArtifactsResponse]
+	finishDockerArtifactUpload  *connect.Client[v1.FinishDockerArtifactUploadRequest, v1.DockerArtifactInfo]
+	abortDockerArtifact         *connect.Client[v1.AbortDockerArtifactRequest, v1.DockerArtifactInfo]
+	uploadDockerArtifact        *connect.Client[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo]
+	downloadDockerArtifact      *connect.Client[v1.DownloadDockerArtifactRequest, v1.DownloadDockerArtifactResponse]
 	watchDockerObjects          *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
 }
 
@@ -196,6 +293,41 @@ func (c *dockerServiceClient) PlanDockerNetworkAttachment(ctx context.Context, r
 	return c.planDockerNetworkAttachment.CallUnary(ctx, req)
 }
 
+// BeginDockerArtifactUpload calls dockwell.v1.DockerService.BeginDockerArtifactUpload.
+func (c *dockerServiceClient) BeginDockerArtifactUpload(ctx context.Context, req *connect.Request[v1.BeginDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return c.beginDockerArtifactUpload.CallUnary(ctx, req)
+}
+
+// GetDockerArtifact calls dockwell.v1.DockerService.GetDockerArtifact.
+func (c *dockerServiceClient) GetDockerArtifact(ctx context.Context, req *connect.Request[v1.GetDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return c.getDockerArtifact.CallUnary(ctx, req)
+}
+
+// ListDockerArtifacts calls dockwell.v1.DockerService.ListDockerArtifacts.
+func (c *dockerServiceClient) ListDockerArtifacts(ctx context.Context, req *connect.Request[v1.ListDockerArtifactsRequest]) (*connect.Response[v1.ListDockerArtifactsResponse], error) {
+	return c.listDockerArtifacts.CallUnary(ctx, req)
+}
+
+// FinishDockerArtifactUpload calls dockwell.v1.DockerService.FinishDockerArtifactUpload.
+func (c *dockerServiceClient) FinishDockerArtifactUpload(ctx context.Context, req *connect.Request[v1.FinishDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return c.finishDockerArtifactUpload.CallUnary(ctx, req)
+}
+
+// AbortDockerArtifact calls dockwell.v1.DockerService.AbortDockerArtifact.
+func (c *dockerServiceClient) AbortDockerArtifact(ctx context.Context, req *connect.Request[v1.AbortDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return c.abortDockerArtifact.CallUnary(ctx, req)
+}
+
+// UploadDockerArtifact calls dockwell.v1.DockerService.UploadDockerArtifact.
+func (c *dockerServiceClient) UploadDockerArtifact(ctx context.Context) *connect.ClientStreamForClient[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo] {
+	return c.uploadDockerArtifact.CallClientStream(ctx)
+}
+
+// DownloadDockerArtifact calls dockwell.v1.DockerService.DownloadDockerArtifact.
+func (c *dockerServiceClient) DownloadDockerArtifact(ctx context.Context, req *connect.Request[v1.DownloadDockerArtifactRequest]) (*connect.ServerStreamForClient[v1.DownloadDockerArtifactResponse], error) {
+	return c.downloadDockerArtifact.CallServerStream(ctx, req)
+}
+
 // WatchDockerObjects calls dockwell.v1.DockerService.WatchDockerObjects.
 func (c *dockerServiceClient) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error) {
 	return c.watchDockerObjects.CallServerStream(ctx, req)
@@ -218,6 +350,30 @@ type DockerServiceHandler interface {
 	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
 	// PlanDockerNetworkAttachment records a normal workload revision for one attachment.
 	PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error)
+	// BeginDockerArtifactUpload reserves space and returns the new upload lease.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	BeginDockerArtifactUpload(context.Context, *connect.Request[v1.BeginDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// GetDockerArtifact reads the current lease for its creating actor and session.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	GetDockerArtifact(context.Context, *connect.Request[v1.GetDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// ListDockerArtifacts lists live leases created by this actor and session on one server.
+	ListDockerArtifacts(context.Context, *connect.Request[v1.ListDockerArtifactsRequest]) (*connect.Response[v1.ListDockerArtifactsResponse], error)
+	// FinishDockerArtifactUpload queues validation of a completed upload.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	FinishDockerArtifactUpload(context.Context, *connect.Request[v1.FinishDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// AbortDockerArtifact discards the staged bytes for the selected lease.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	AbortDockerArtifact(context.Context, *connect.Request[v1.AbortDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// UploadDockerArtifact appends one verified extent to an upload.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	UploadDockerArtifact(context.Context, *connect.ClientStream[v1.UploadDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
+	// DownloadDockerArtifact streams an exact extent from a sealed export.
+	DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest], *connect.ServerStream[v1.DownloadDockerArtifactResponse]) error
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error
 }
@@ -275,6 +431,51 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerNetworkAttachment")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dockerServiceBeginDockerArtifactUploadHandler := connect.NewUnaryHandler(
+		DockerServiceBeginDockerArtifactUploadProcedure,
+		svc.BeginDockerArtifactUpload,
+		connect.WithSchema(dockerServiceMethods.ByName("BeginDockerArtifactUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceGetDockerArtifactHandler := connect.NewUnaryHandler(
+		DockerServiceGetDockerArtifactProcedure,
+		svc.GetDockerArtifact,
+		connect.WithSchema(dockerServiceMethods.ByName("GetDockerArtifact")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceListDockerArtifactsHandler := connect.NewUnaryHandler(
+		DockerServiceListDockerArtifactsProcedure,
+		svc.ListDockerArtifacts,
+		connect.WithSchema(dockerServiceMethods.ByName("ListDockerArtifacts")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceFinishDockerArtifactUploadHandler := connect.NewUnaryHandler(
+		DockerServiceFinishDockerArtifactUploadProcedure,
+		svc.FinishDockerArtifactUpload,
+		connect.WithSchema(dockerServiceMethods.ByName("FinishDockerArtifactUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceAbortDockerArtifactHandler := connect.NewUnaryHandler(
+		DockerServiceAbortDockerArtifactProcedure,
+		svc.AbortDockerArtifact,
+		connect.WithSchema(dockerServiceMethods.ByName("AbortDockerArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceUploadDockerArtifactHandler := connect.NewClientStreamHandler(
+		DockerServiceUploadDockerArtifactProcedure,
+		svc.UploadDockerArtifact,
+		connect.WithSchema(dockerServiceMethods.ByName("UploadDockerArtifact")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceDownloadDockerArtifactHandler := connect.NewServerStreamHandler(
+		DockerServiceDownloadDockerArtifactProcedure,
+		svc.DownloadDockerArtifact,
+		connect.WithSchema(dockerServiceMethods.ByName("DownloadDockerArtifact")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	dockerServiceWatchDockerObjectsHandler := connect.NewServerStreamHandler(
 		DockerServiceWatchDockerObjectsProcedure,
 		svc.WatchDockerObjects,
@@ -298,6 +499,20 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 			dockerServiceCheckDockerNetworkHandler.ServeHTTP(w, r)
 		case DockerServicePlanDockerNetworkAttachmentProcedure:
 			dockerServicePlanDockerNetworkAttachmentHandler.ServeHTTP(w, r)
+		case DockerServiceBeginDockerArtifactUploadProcedure:
+			dockerServiceBeginDockerArtifactUploadHandler.ServeHTTP(w, r)
+		case DockerServiceGetDockerArtifactProcedure:
+			dockerServiceGetDockerArtifactHandler.ServeHTTP(w, r)
+		case DockerServiceListDockerArtifactsProcedure:
+			dockerServiceListDockerArtifactsHandler.ServeHTTP(w, r)
+		case DockerServiceFinishDockerArtifactUploadProcedure:
+			dockerServiceFinishDockerArtifactUploadHandler.ServeHTTP(w, r)
+		case DockerServiceAbortDockerArtifactProcedure:
+			dockerServiceAbortDockerArtifactHandler.ServeHTTP(w, r)
+		case DockerServiceUploadDockerArtifactProcedure:
+			dockerServiceUploadDockerArtifactHandler.ServeHTTP(w, r)
+		case DockerServiceDownloadDockerArtifactProcedure:
+			dockerServiceDownloadDockerArtifactHandler.ServeHTTP(w, r)
 		case DockerServiceWatchDockerObjectsProcedure:
 			dockerServiceWatchDockerObjectsHandler.ServeHTTP(w, r)
 		default:
@@ -335,6 +550,34 @@ func (UnimplementedDockerServiceHandler) CheckDockerNetwork(context.Context, *co
 
 func (UnimplementedDockerServiceHandler) PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerNetworkAttachment is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) BeginDockerArtifactUpload(context.Context, *connect.Request[v1.BeginDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.BeginDockerArtifactUpload is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) GetDockerArtifact(context.Context, *connect.Request[v1.GetDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.GetDockerArtifact is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) ListDockerArtifacts(context.Context, *connect.Request[v1.ListDockerArtifactsRequest]) (*connect.Response[v1.ListDockerArtifactsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.ListDockerArtifacts is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) FinishDockerArtifactUpload(context.Context, *connect.Request[v1.FinishDockerArtifactUploadRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.FinishDockerArtifactUpload is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) AbortDockerArtifact(context.Context, *connect.Request[v1.AbortDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.AbortDockerArtifact is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) UploadDockerArtifact(context.Context, *connect.ClientStream[v1.UploadDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.UploadDockerArtifact is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest], *connect.ServerStream[v1.DownloadDockerArtifactResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.DownloadDockerArtifact is not implemented"))
 }
 
 func (UnimplementedDockerServiceHandler) WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {

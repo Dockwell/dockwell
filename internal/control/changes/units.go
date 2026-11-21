@@ -151,6 +151,15 @@ func standsAsAsked(action resource.UnitAction, name string, servers []string) st
 
 // PlanDockerMaintenance starts a revisionless host plan for reviewed cleanup or recovery.
 func (h *Handler) PlanDockerMaintenance(ctx context.Context, summary string, plans map[string]*dockwellv1.DockerMaintenance) (*dockwellv1.Change, error) {
+	return h.planDockerMaintenance(ctx, summary, plans, nil)
+}
+
+// PlanDockerArchive pins a staged archive before recording its reviewed change.
+func (h *Handler) PlanDockerArchive(ctx context.Context, summary, server string, action *dockwellv1.DockerImageAction, pin func(context.Context, string) error) (*dockwellv1.Change, error) {
+	return h.planDockerMaintenance(ctx, summary, map[string]*dockwellv1.DockerMaintenance{server: {ImageAction: action}}, pin)
+}
+
+func (h *Handler) planDockerMaintenance(ctx context.Context, summary string, plans map[string]*dockwellv1.DockerMaintenance, pin func(context.Context, string) error) (*dockwellv1.Change, error) {
 	var edits []revision.Edit
 	for _, server := range slices.Sorted(maps.Keys(plans)) {
 		edits = append(edits, revision.Edit{
@@ -159,6 +168,6 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, summary string, pla
 		})
 	}
 	return h.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
-		return h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits})
+		return h.engine.Propose(ctx, revision.Proposal{Summary: summary, Actor: who.Actor, Via: who.Via, Edits: edits, PinDockerArchive: pin})
 	})
 }

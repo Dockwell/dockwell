@@ -24,6 +24,7 @@ import { useTimeWords } from "../../lib/time";
 import { splitVersion } from "../../lib/versions";
 import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { DockerArchiveStep } from "./DockerArchiveStep";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
@@ -257,6 +258,8 @@ function StepRow({
   const time = useTimeWords();
   const providerLine = useProviderLine();
   const imageAction = step.dockerMaintenance?.imageAction;
+  if (imageAction?.load || imageAction?.export)
+    return <DockerArchiveStep action={imageAction} server={server} live={live} />;
   if (imageAction) {
     const binding = imageAction.bindings[0];
     const reference = binding?.reference ?? "";

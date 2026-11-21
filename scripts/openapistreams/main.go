@@ -156,7 +156,16 @@ func mark(doc *yaml.Node, streams map[string]stream) ([]route, error) {
 					"content", mapping(r.request, mapping("schema", binary())),
 				))
 				r.responses = []string{"application/json"}
+				if s.operationID == "DockerService_UploadDockerArtifact" {
+					appendHeader(op, "Dockwell-Artifact-Prefix-SHA256", "SHA-256 of the committed bytes before this segment, required when offset is nonzero.")
+				}
 			case "response":
+				if s.operationID == "DockerService_DownloadDockerArtifact" {
+					markArtifactDownload(op)
+					r.query = nil
+					r.responses = []string{"application/x-tar"}
+					break
+				}
 				ok := mapping(
 					"description", scalar("The bytes, as they're read: a file as it is, or a folder as a zip archive made as it goes. One that stops partway cuts the connection, so it can't pass for the whole."),
 					"headers", mapping(
@@ -186,6 +195,39 @@ func mark(doc *yaml.Node, streams map[string]stream) ([]route, error) {
 	}
 	slices.SortFunc(routes, func(a, b route) int { return strings.Compare(a.operationID, b.operationID) })
 	return routes, nil
+}
+
+func appendHeader(op *yaml.Node, name, description string) {
+	params := get(op, "parameters")
+	params.Content = append(params.Content, mapping(
+		"name", scalar(name), "in", scalar("header"),
+		"description", scalar(description), "schema", mapping("type", scalar("string")),
+	))
+}
+
+func markArtifactDownload(op *yaml.Node) {
+	params := get(op, "parameters")
+	params.Content = slices.DeleteFunc(params.Content, func(p *yaml.Node) bool { return get(p, "in").Value == "query" })
+	appendHeader(op, "Range", "One byte range to read from the sealed archive.")
+	appendHeader(op, "If-Range", "The archive's strong ETag. A mismatch returns the full archive.")
+	reply := func(description string) *yaml.Node {
+		return mapping(
+			"description", scalar(description),
+			"headers", mapping(
+				"Accept-Ranges", mapping("schema", mapping("type", scalar("string"))),
+				"Content-Disposition", mapping("schema", mapping("type", scalar("string"))),
+				"Content-Length", mapping("schema", mapping("type", scalar("integer"))),
+				"ETag", mapping("schema", mapping("type", scalar("string"))),
+			),
+			"content", mapping("application/x-tar", mapping("schema", binary())),
+		)
+	}
+	partial := reply("The selected range of the sealed archive.")
+	set(get(partial, "headers"), "Content-Range", mapping("schema", mapping("type", scalar("string"))))
+	responses := get(op, "responses")
+	set(responses, "200", reply("The complete sealed Docker image archive."))
+	set(responses, "206", partial)
+	set(responses, "416", mapping("description", scalar("The range is outside this archive.")))
 }
 
 // get is a mapping's value for key, or an empty node. With key "", it's n itself.

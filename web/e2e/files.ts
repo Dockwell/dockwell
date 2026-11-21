@@ -298,7 +298,7 @@ async function main() {
   await page.getByRole("button", { name: "Close nginx.conf" }).click();
   await sleep(200);
   if ((await code.inputValue()) !== "unsaved\n") fail("leaving took what was typed without asking");
-  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
   await page.getByRole("button", { name: "Close nginx.conf" }).click();
   await code.waitFor({ state: "detached" });
   await page.getByText("nginx.conf").click();
@@ -344,7 +344,7 @@ async function main() {
   await page.getByText(keys).first().waitFor();
   await shoot(page, "swapped-link");
   if (readFileSync(keys, "utf8") !== "deploy_key: AAAA\n") fail("a save went through a link swapped in");
-  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
   await page.getByRole("button", { name: "Close config.yml" }).click();
   await yml.waitFor({ state: "detached" });
 
@@ -362,7 +362,7 @@ async function main() {
   await page.getByText("The passkey prompt closed", { exact: false }).waitFor();
   await shoot(page, "way-back-in");
   if (readFileSync(keys, "utf8") !== "deploy_key: AAAA\n") fail("a way back in saved with no passkey");
-  await page.getByRole("button", { name: "Discard" }).click();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
   await page.getByRole("button", { name: "Close authorized_keys" }).click();
   await authorized.waitFor({ state: "detached" });
 

@@ -78,6 +78,9 @@ const (
 
 // Server reads a server's files.
 type Server struct {
+	// Embedded leaves process-wide GC tuning to the control plane.
+	Embedded bool
+
 	// AnswerWithin is how long a path has to answer. Zero means answerWithin.
 	AnswerWithin time.Duration
 	// Touching hears of each path a call is about to touch, on the goroutine that
@@ -100,9 +103,10 @@ type Server struct {
 	// settle hands back what transfers used, once none has run for settleAfter,
 	// and gcWas is the collector's target from before they started, when gcSet.
 	// It's mu that guards them.
-	settle *time.Timer
-	gcWas  int
-	gcSet  bool
+	settle          *time.Timer
+	gcWas           int
+	gcSet           bool
+	activeTransfers int
 
 	// mu is never held across anything that touches a disk.
 	mu    sync.Mutex
@@ -185,35 +189,65 @@ func Busy() *agentv1.FileRefusal {
 // in, and returns how to give it back. They're long, so they don't take the places
 // listings and reads need. One that waits transferWait for none fails with ErrBusy.
 func (s *Server) TakeTransfer(ctx context.Context) (func(), error) {
-	wait := time.NewTimer(cmp.Or(s.transferWait, transferWait))
-	defer wait.Stop()
+	ctx, cancel := context.WithTimeoutCause(ctx, cmp.Or(s.transferWait, transferWait), ErrBusy)
+	defer cancel()
+	release, err := s.WaitTransfer(ctx)
+	if err != nil && !errors.Is(err, ErrBusy) {
+		return nil, fmt.Errorf("the agent is busy with %d other uploads and downloads: %w", transfers, err)
+	}
+	return release, err
+}
+
+// WaitTransfer admits a transfer until its caller's deadline.
+func (s *Server) WaitTransfer(ctx context.Context) (func(), error) {
 	select {
 	case s.transfers <- struct{}{}:
-		s.mu.Lock()
-		if !s.gcSet {
-			s.gcWas, s.gcSet = debug.SetGCPercent(transferGC), true
-			// Off, or lower already, stays as it is.
-			if s.gcWas < transferGC {
-				debug.SetGCPercent(s.gcWas)
-			}
-		}
-		s.mu.Unlock()
+		release := s.holdTransferMemory()
 		return func() {
 			<-s.transfers
-			s.settleSoon()
+			release()
 		}, nil
-	case <-wait.C:
-		return nil, ErrBusy
 	case <-ctx.Done():
-		return nil, fmt.Errorf("the agent is busy with %d other uploads and downloads: %w", transfers, ctx.Err())
+		return nil, context.Cause(ctx)
 	}
 }
 
-// settleSoon has settleIfIdle run once settleAfter passes with nothing more to
-// settle.
+func (s *Server) holdTransferMemory() func() {
+	if s.Embedded {
+		return func() {}
+	}
+	s.mu.Lock()
+	s.activeTransfers++
+	if !s.gcSet {
+		s.gcWas, s.gcSet = debug.SetGCPercent(transferGC), true
+		// Off, or lower already, stays as it is.
+		if s.gcWas < transferGC {
+			debug.SetGCPercent(s.gcWas)
+		}
+	}
+	s.mu.Unlock()
+	return func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.activeTransfers--
+		if s.activeTransfers != 0 {
+			return
+		}
+		s.scheduleSettle()
+	}
+}
+
 func (s *Server) settleSoon() {
+	if s.Embedded {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.scheduleSettle()
+}
+
+// scheduleSettle is called with mu held.
+func (s *Server) scheduleSettle() {
 	if s.settle == nil {
 		s.settle = time.AfterFunc(settleAfter, s.settleIfIdle)
 	} else {
@@ -228,7 +262,7 @@ func (s *Server) settleSoon() {
 func (s *Server) settleIfIdle() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if len(s.transfers) != 0 {
+	if s.activeTransfers != 0 {
 		return
 	}
 	if s.gcSet {

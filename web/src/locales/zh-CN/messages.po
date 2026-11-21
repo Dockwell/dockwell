@@ -9670,6 +9670,9 @@ msgstr "应用此计划即批准 {0} 的变更，需要验证你的通行密钥"
 msgid "Applying this asks for your passkey"
 msgstr "应用此计划时会要求验证你的通行密钥"
 
+msgid "Archive action failed"
+msgstr "归档操作失败"
+
 msgid "Cleaning up Docker"
 msgstr "正在清理 Docker"
 
@@ -9745,11 +9748,20 @@ msgstr "如果你不保留就关闭，这项更改会自动撤回。"
 msgid "Image action failed"
 msgstr "镜像操作失败"
 
+msgid "Image archive ready"
+msgstr "镜像归档已就绪"
+
 msgid "Image pulled"
 msgstr "镜像已拉取"
 
 msgid "Image tag set"
 msgstr "镜像标签已设置"
+
+msgid "Images imported"
+msgstr "已导入镜像"
+
+msgid "Importing images"
+msgstr "正在导入镜像"
 
 msgid "In environment <0>{environment}</0>"
 msgstr "位于环境 <0>{environment}</0>"
@@ -9837,6 +9849,9 @@ msgstr "在“域名”中打开 {domain}"
 
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
+
+msgid "Preparing image archive"
+msgstr "正在准备镜像归档"
 
 msgid "Pulling image"
 msgstr "正在拉取镜像"
@@ -10196,6 +10211,21 @@ msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
+
+msgid "Checking download access"
+msgstr "正在检查下载权限"
+
+msgid "Copy full image ID"
+msgstr "复制完整镜像 ID"
+
+msgid "Image only"
+msgstr "仅镜像"
+
+msgid "Load the reviewed archive on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上加载已审阅的归档"
+
+msgid "The archive is available to the session that planned it while its lease is active."
+msgstr "在租约有效期内，创建计划的会话可以下载归档。"
 
 msgctxt "what stops while Docker restarts"
 msgid "App"
@@ -14532,6 +14562,170 @@ msgstr "不可用"
 msgid "Volumes and their data stay."
 msgstr "保留存储卷及其数据。"
 
+msgid "Choose an image"
+msgstr "选择镜像"
+
+msgid "Choose image"
+msgstr "选择镜像"
+
+msgid "Export image"
+msgstr "导出镜像"
+
+msgid "Image actions"
+msgstr "镜像操作"
+
+msgid "Import image"
+msgstr "导入镜像"
+
+msgid "{image} on {server}"
+msgstr "{server} 上的 {image}"
+
+msgid ".tar or .tar.gz, up to 8 GiB"
+msgstr ".tar 或 .tar.gz，最大 8 GiB"
+
+msgid "Change file"
+msgstr "更换文件"
+
+msgid "Checking the archive"
+msgstr "正在检查归档"
+
+msgid "Choose a Docker image archive and start a new import."
+msgstr "选择 Docker 镜像归档并重新导入。"
+
+msgid "Choose an archive up to 8 GiB."
+msgstr "请选择不超过 8 GiB 的归档。"
+
+msgid "Choose another tag"
+msgstr "换用其他标签"
+
+msgid "Choose file"
+msgstr "选择文件"
+
+msgid "Choose the same file to resume this upload."
+msgstr "选择同一文件以继续上传。"
+
+msgid "Docker could not list the local tags."
+msgstr "Docker 无法列出本地标签。"
+
+msgid "Docker image archive"
+msgstr "Docker 镜像归档"
+
+msgid "Drop a Docker image archive"
+msgstr "拖放 Docker 镜像归档"
+
+msgid "Estimating time"
+msgstr "正在估算剩余时间"
+
+msgid "Image archive"
+msgstr "镜像归档"
+
+msgid "Image import needs attention"
+msgstr "请检查镜像导入"
+
+msgid "Images in the archive"
+msgstr "归档中的镜像"
+
+#. placeholder {0}: shortImageId(holder)
+msgid "On this server, this tag points to <0>{0}</0>."
+msgstr "此标签在这台服务器上指向 <0>{0}</0>。"
+
+msgid "Resume"
+msgstr "继续"
+
+msgid "Tag"
+msgstr "标签"
+
+msgid "Tag to include"
+msgstr "要包含的标签"
+
+msgid "The archive could not be reviewed."
+msgstr "无法审阅归档。"
+
+#. placeholder {0}: formatBytes(info.failureSpace.requiredBytes, i18n.locale)
+#. placeholder {1}: formatBytes(info.failureSpace.availableBytes, i18n.locale)
+msgid "The archive needs {0}, with {1} available."
+msgstr "归档需要 {0}，当前可用空间为 {1}。"
+
+msgid "The image export could not be reviewed."
+msgstr "无法审阅镜像导出。"
+
+msgid "The received bytes differ from the selected file."
+msgstr "收到的字节与所选文件不同。"
+
+msgid "The upload status couldn't be read"
+msgstr "无法读取上传状态"
+
+msgid "This archive couldn't be verified"
+msgstr "无法验证此归档"
+
+msgid "Upload archive"
+msgstr "上传归档"
+
+msgid "Use <0>{suggested}</0>"
+msgstr "使用 <0>{suggested}</0>"
+
+msgid "Waiting for a transfer slot"
+msgstr "正在等待传输名额"
+
+#. placeholder {0}: Math.ceil(remaining / 60)
+msgid "{0} min left"
+msgstr "还需 {0} 分钟"
+
+#. placeholder {0}: formatBytes(item.receivedBytes, i18n.locale)
+#. placeholder {0}: formatBytes(progress, i18n.locale)
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: formatBytes(item.sizeBytes, i18n.locale)
+#. placeholder {1}: formatBytes(size, i18n.locale)
+#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
+msgid "{0} of {1}"
+msgstr "第 {0} 个，共 {1} 个"
+
+#. placeholder {0}: formatBytes(speed, i18n.locale)
+msgid "{0}/s · {timeLeft}"
+msgstr "{0}/秒 · {timeLeft}"
+
+msgid "{remaining} s left"
+msgstr "还需 {remaining} 秒"
+
+msgid "Abort"
+msgstr "中止"
+
+msgid "Awaiting export"
+msgstr "等待导出"
+
+msgid "Awaiting upload"
+msgstr "等待上传"
+
+msgid "Check failed"
+msgstr "验证失败"
+
+msgid "Image export"
+msgstr "镜像导出"
+
+msgid "Image transfers"
+msgstr "镜像传输"
+
+msgid "No image transfers on this server."
+msgstr "这台服务器没有镜像传输。"
+
+msgid "Reading image transfers"
+msgstr "正在读取镜像传输"
+
+msgid "Ready"
+msgstr "就绪"
+
+msgid "Retry transfers"
+msgstr "重试读取"
+
+msgid "Review"
+msgstr "查看"
+
+msgid "Transfer couldn't be aborted"
+msgstr "无法中止传输"
+
+msgid "View"
+msgstr "查看"
+
 msgid "Checking Docker artifacts"
 msgstr "正在检查 Docker 对象"
 
@@ -14994,9 +15188,6 @@ msgstr "全部镜像"
 
 msgid "Build instructions are redacted"
 msgstr "构建指令已隐藏"
-
-msgid "Copy full image ID"
-msgstr "复制完整镜像 ID"
 
 msgid "Dangling"
 msgstr "悬空"
@@ -16826,11 +17017,6 @@ msgstr "{0, plural, other {已于 {at} 暂停。此后又有 {count} 行。}}"
 msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
 msgstr "{0, plural, other {已加载的 {total} 行中有 {shown} 行匹配。}}"
 
-#. placeholder {0}: step.toLocaleString(i18n.locale)
-#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
-msgid "{0} of {1}"
-msgstr "第 {0} 个，共 {1} 个"
-
 msgid "{down} couldn't be searched, so its lines aren't in this."
 msgstr "无法搜索 {down}，结果中不含它的日志。"
 
@@ -17403,9 +17589,6 @@ msgstr "还没有任何变更"
 
 msgid "Recent changes"
 msgstr "最近的变更"
-
-msgid "Review"
-msgstr "查看"
 
 msgid "{plans} plans not applied"
 msgstr "{plans} 个计划未应用"

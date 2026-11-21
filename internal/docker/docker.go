@@ -50,10 +50,11 @@ type Client struct {
 	socket string
 	http   *http.Client
 
-	mu       sync.Mutex
-	version  string // negotiated by the first successful Ping
-	platform string
-	engine   string // the engine's version, such as "27.3.1"
+	mu            sync.Mutex
+	version       string // negotiated by the first successful Ping
+	advertisedAPI string // the highest API the Engine offers
+	platform      string
+	engine        string // the engine's version, such as "27.3.1"
 	// unusable says why the client can't reach any engine, such as
 	// DOCKER_HOST naming one it can't speak to.
 	unusable error
@@ -207,7 +208,7 @@ func (c *Client) Ping(ctx context.Context) error {
 			"Update the agent to the control plane's version", v.Version, use)}
 	}
 	c.mu.Lock()
-	c.version, c.engine, c.platform = use, v.Version, v.Platform.Name
+	c.version, c.advertisedAPI, c.engine, c.platform = use, v.APIVersion, v.Version, v.Platform.Name
 	c.mu.Unlock()
 	return nil
 }

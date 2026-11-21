@@ -509,6 +509,8 @@ type Proposal struct {
 	// same transaction, by its ID, as a restore into a new database records each
 	// secret it copies into the plan (ADR 0106).
 	Records func(change string) []store.Event
+	// PinDockerArchive holds the reviewed bytes before this plan becomes visible.
+	PinDockerArchive func(ctx context.Context, change string) error
 }
 
 // OneBackup is an app's database dumped alone before its update: the server's
@@ -1345,6 +1347,11 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		return nil, err
 	}
 	plan.Change, plan.Summary, plan.Reverts, plan.Notes, plan.RollsBackTo, plan.Intent = changeID, p.Summary, reverts, p.Notes, p.RollsBackTo, p.Intent
+	if p.PinDockerArchive != nil {
+		if err := p.PinDockerArchive(ctx, changeID); err != nil {
+			return nil, err
+		}
+	}
 	record, err := json.Marshal(plan)
 	if err != nil {
 		return nil, err

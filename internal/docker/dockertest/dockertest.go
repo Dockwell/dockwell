@@ -88,6 +88,7 @@ type Image struct {
 
 // Engine is a fake Docker Engine.
 type Engine struct {
+	ArchiveLayer string // Test fixture backing a large saved image.
 	// ContainerdImageStore reports descriptor IDs in place of classic config IDs.
 	ContainerdImageStore bool
 	// Services are the Swarm services it runs, as a swarm's manager lists them. Nil
@@ -228,6 +229,8 @@ type Engine struct {
 }
 
 type image struct {
+	archiveConfig []byte
+	archiveLayers []string
 	// imported says it came from docker import, so a container of it is a helper.
 	imported bool
 	// created is when it was made, for an image a build made.
@@ -465,6 +468,10 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		return // it may follow for as long as its client reads, so it holds no lock
 	}
 	if e.serveStream(w, r) {
+		return
+	}
+	if r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/images/") && strings.HasSuffix(r.URL.Path, "/get") {
+		e.saveImage(w, r)
 		return
 	}
 	if r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/images/load") {
@@ -918,7 +925,9 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 			}
 			out.Descriptor = &docker.ImageDescriptor{Digest: img.id, MediaType: media}
 		}
-		if img.layer != "" {
+		if img.archiveLayers != nil {
+			out.RootFS.Layers = img.archiveLayers
+		} else if img.layer != "" {
 			out.RootFS.Layers = []string{img.layer}
 		}
 		writeJSON(w, http.StatusOK, out)

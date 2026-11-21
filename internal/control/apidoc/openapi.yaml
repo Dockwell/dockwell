@@ -3105,6 +3105,305 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/docker/artifacts/{serverId}:
+        get:
+            tags:
+                - DockerService
+            description: ListDockerArtifacts lists live leases created by this actor and session on one server.
+            operationId: DockerService_ListDockerArtifacts
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDockerArtifactsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - DockerService
+            description: |-
+                BeginDockerArtifactUpload reserves space and returns the new upload lease.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_BeginDockerArtifactUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BeginDockerArtifactUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/artifacts/{serverId}/{artifactId}:
+        get:
+            tags:
+                - DockerService
+            description: |-
+                GetDockerArtifact reads the current lease for its creating actor and session.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_GetDockerArtifact
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: artifactId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/artifacts/{serverId}/{artifactId}/bytes:
+        get:
+            tags:
+                - DockerService
+            description: DownloadDockerArtifact streams an exact extent from a sealed export.
+            operationId: DockerService_DownloadDockerArtifact
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: artifactId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: Range
+                  in: header
+                  description: One byte range to read from the sealed archive.
+                  schema:
+                    type: string
+                - name: If-Range
+                  in: header
+                  description: The archive's strong ETag. A mismatch returns the full archive.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: The complete sealed Docker image archive.
+                    headers:
+                        Accept-Ranges:
+                            schema:
+                                type: string
+                        Content-Disposition:
+                            schema:
+                                type: string
+                        Content-Length:
+                            schema:
+                                type: integer
+                        ETag:
+                            schema:
+                                type: string
+                    content:
+                        application/x-tar:
+                            schema:
+                                type: string
+                                format: binary
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+                206:
+                    description: The selected range of the sealed archive.
+                    headers:
+                        Accept-Ranges:
+                            schema:
+                                type: string
+                        Content-Disposition:
+                            schema:
+                                type: string
+                        Content-Length:
+                            schema:
+                                type: integer
+                        ETag:
+                            schema:
+                                type: string
+                        Content-Range:
+                            schema:
+                                type: string
+                    content:
+                        application/x-tar:
+                            schema:
+                                type: string
+                                format: binary
+                416:
+                    description: The range is outside this archive.
+            x-dockwell-stream: response
+        put:
+            tags:
+                - DockerService
+            description: |-
+                UploadDockerArtifact appends one verified extent to an upload.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_UploadDockerArtifact
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: artifactId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: offset
+                  in: query
+                  schema:
+                    type: string
+                - name: Dockwell-Artifact-Prefix-SHA256
+                  in: header
+                  description: SHA-256 of the committed bytes before this segment, required when offset is nonzero.
+                  schema:
+                    type: string
+            requestBody:
+                description: 'The bytes, from offset, as they come: not JSON. Send a large file as several requests, each from where the last ended.'
+                required: true
+                content:
+                    application/octet-stream:
+                        schema:
+                            type: string
+                            format: binary
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+            x-dockwell-stream: request
+    /v1/docker/artifacts/{serverId}/{artifactId}/finish:
+        post:
+            tags:
+                - DockerService
+            description: |-
+                FinishDockerArtifactUpload queues validation of a completed upload.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_FinishDockerArtifactUpload
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: artifactId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/FinishDockerArtifactUploadRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/artifacts/{serverId}/{artifactId}:abort:
+        post:
+            tags:
+                - DockerService
+            description: |-
+                AbortDockerArtifact discards the staged bytes for the selected lease.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_AbortDockerArtifact
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: artifactId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/AbortDockerArtifactRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/docker/cleanup:
         get:
             tags:
@@ -9158,6 +9457,14 @@ paths:
                                 $ref: '#/components/schemas/Status'
 components:
     schemas:
+        AbortDockerArtifactRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                artifactId:
+                    type: string
+            description: AbortDockerArtifactRequest cancels a selected lease.
         AccessStays:
             type: object
             properties:
@@ -10799,6 +11106,27 @@ components:
                     type: string
                     description: PublicKeyCredentialCreationOptionsJSON.
             description: BeginClaimResponse carries the options for creating the passkey.
+        BeginDockerArtifactUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                kind:
+                    enum:
+                        - DOCKER_ARTIFACT_KIND_UNSPECIFIED
+                        - DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
+                        - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
+                    type: string
+                    format: enum
+                sizeBytes:
+                    type: string
+                sha256:
+                    type: string
+                gzip:
+                    type: boolean
+                fileName:
+                    type: string
+            description: BeginDockerArtifactUploadRequest declares the kind and size to reserve.
         BeginLinkProviderRequest:
             type: object
             properties:
@@ -15584,6 +15912,91 @@ components:
                     type: string
                     description: 'The account that holds it: one token can reach zones in several.'
             description: DnsZoneCheck is what writing a record in one zone came to.
+        DockerArchiveImage:
+            type: object
+            properties:
+                imageId:
+                    type: string
+                platform:
+                    type: string
+                proposedTags:
+                    type: array
+                    items:
+                        type: string
+                sizeBytes:
+                    type: string
+            description: DockerArchiveImage is the safe preview of one verified image in an archive.
+        DockerArtifactInfo:
+            type: object
+            properties:
+                artifactId:
+                    type: string
+                kind:
+                    enum:
+                        - DOCKER_ARTIFACT_KIND_UNSPECIFIED
+                        - DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
+                        - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
+                    type: string
+                    format: enum
+                state:
+                    enum:
+                        - DOCKER_ARTIFACT_STATE_UNSPECIFIED
+                        - DOCKER_ARTIFACT_STATE_RECEIVING
+                        - DOCKER_ARTIFACT_STATE_CHECKING
+                        - DOCKER_ARTIFACT_STATE_READY
+                        - DOCKER_ARTIFACT_STATE_EXPIRED
+                        - DOCKER_ARTIFACT_STATE_ABORTED
+                        - DOCKER_ARTIFACT_STATE_FAILED
+                    type: string
+                    format: enum
+                sizeBytes:
+                    type: string
+                receivedBytes:
+                    type: string
+                sha256:
+                    type: string
+                expiresAt:
+                    type: string
+                    format: date-time
+                maxBytes:
+                    type: string
+                images:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerArchiveImage'
+                fileName:
+                    type: string
+                committedPrefixSha256:
+                    type: string
+                failure:
+                    enum:
+                        - DOCKER_IMAGE_REASON_UNSPECIFIED
+                        - DOCKER_IMAGE_REASON_STALE
+                        - DOCKER_IMAGE_REASON_PROTECTED
+                        - DOCKER_IMAGE_REASON_CREDENTIAL_REFUSED
+                        - DOCKER_IMAGE_REASON_REALM_CHANGED
+                        - DOCKER_IMAGE_REASON_UNSUPPORTED_PLATFORM
+                        - DOCKER_IMAGE_REASON_QUOTA
+                        - DOCKER_IMAGE_REASON_ARCHIVE_REFUSED
+                        - DOCKER_IMAGE_REASON_EXPIRED
+                        - DOCKER_IMAGE_REASON_VERIFICATION_FAILED
+                        - DOCKER_IMAGE_REASON_UNSUPPORTED
+                        - DOCKER_IMAGE_REASON_LEASE_LIMIT
+                        - DOCKER_IMAGE_REASON_TRANSFER_BUSY
+                        - DOCKER_IMAGE_REASON_ARTIFACT_PINNED
+                    type: string
+                    format: enum
+                failureSpace:
+                    $ref: '#/components/schemas/DockerArtifactSpace'
+            description: DockerArtifactInfo is the common lease state returned by each artifact operation.
+        DockerArtifactSpace:
+            type: object
+            properties:
+                requiredBytes:
+                    type: string
+                availableBytes:
+                    type: string
+            description: DockerArtifactSpace gives the storage needed and available at a quota refusal.
         DockerCleanupFilters:
             type: object
             properties:
@@ -15898,6 +16311,10 @@ components:
                         $ref: '#/components/schemas/DockerImageBinding'
                 descriptor:
                     $ref: '#/components/schemas/DockerRegistryDescriptor'
+                stagedSourceId:
+                    type: string
+                sourceSha256:
+                    type: string
                 approvedLogins:
                     type: array
                     items:
@@ -15910,6 +16327,10 @@ components:
                     description: |-
                         A stored plan sets exactly one of these fields. The plan reader also supports
                          older JSON records, so the persisted action uses ordinary message fields.
+                load:
+                    $ref: '#/components/schemas/DockerImageLoad'
+                export:
+                    $ref: '#/components/schemas/DockerImageExport'
                 pull:
                     $ref: '#/components/schemas/DockerImagePull'
             description: DockerImageAction carries frozen evidence for one reviewed image operation.
@@ -15955,6 +16376,18 @@ components:
                 sameContent:
                     type: boolean
             description: DockerImageDigestCheck compares a local binding with the native registry manifest.
+        DockerImageExport:
+            type: object
+            properties:
+                sourceKey:
+                    $ref: '#/components/schemas/DockerImageSourceKey'
+                platform:
+                    type: string
+                tags:
+                    type: array
+                    items:
+                        type: string
+            description: DockerImageExport names an immutable local image and the aliases to include.
         DockerImageHistory:
             type: object
             properties:
@@ -15964,6 +16397,14 @@ components:
                 sizeBytes:
                     type: string
             description: DockerImageHistory contains only the safe fields of an image history entry.
+        DockerImageImportTag:
+            type: object
+            properties:
+                imageId:
+                    type: string
+                alias:
+                    type: string
+            description: DockerImageImportTag attaches one reviewed alias to a verified archive image.
         DockerImageLayer:
             type: object
             properties:
@@ -15972,6 +16413,20 @@ components:
                 sizeBytes:
                     type: string
             description: DockerImageLayer names a root filesystem layer in base-to-top order.
+        DockerImageLoad:
+            type: object
+            properties:
+                artifactId:
+                    type: string
+                selectedImageIds:
+                    type: array
+                    items:
+                        type: string
+                tags:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerImageImportTag'
+            description: DockerImageLoad names one verified archive and the aliases to add.
         DockerImageLoginRef:
             type: object
             properties:
@@ -16017,8 +16472,14 @@ components:
                         - DOCKER_IMAGE_REASON_CREDENTIAL_REFUSED
                         - DOCKER_IMAGE_REASON_REALM_CHANGED
                         - DOCKER_IMAGE_REASON_UNSUPPORTED_PLATFORM
+                        - DOCKER_IMAGE_REASON_QUOTA
+                        - DOCKER_IMAGE_REASON_ARCHIVE_REFUSED
+                        - DOCKER_IMAGE_REASON_EXPIRED
                         - DOCKER_IMAGE_REASON_VERIFICATION_FAILED
                         - DOCKER_IMAGE_REASON_UNSUPPORTED
+                        - DOCKER_IMAGE_REASON_LEASE_LIMIT
+                        - DOCKER_IMAGE_REASON_TRANSFER_BUSY
+                        - DOCKER_IMAGE_REASON_ARTIFACT_PINNED
                     type: string
                     format: enum
                 imageKey:
@@ -16026,6 +16487,12 @@ components:
                 reference:
                     type: string
                 digest:
+                    type: string
+                artifactId:
+                    type: string
+                sizeBytes:
+                    type: string
+                sha256:
                     type: string
                 previousImageId:
                     type: string
@@ -16046,6 +16513,10 @@ components:
                 canPull:
                     type: boolean
                 canTag:
+                    type: boolean
+                canImport:
+                    type: boolean
+                canExport:
                     type: boolean
             description: DockerImageSupport describes image controls available from the connected Engine and agent.
         DockerImageTag:
@@ -16837,6 +17308,12 @@ components:
                         What a stranger gets from each of its routes that keeps anyone out, by path,
                          as the server last asked them (ADR 0087).
             description: DomainStatus is where one domain's certificate and DNS stand on a server.
+        DownloadDockerArtifactResponse:
+            type: object
+            properties:
+                body:
+                    type: string
+            description: DownloadDockerArtifactResponse carries one frame of the sealed export.
         DownloadFileResponse:
             type: object
             properties:
@@ -18391,6 +18868,14 @@ components:
             description: |-
                 FinishClaimResponse carries the new owner. The response sets the session
                  cookie.
+        FinishDockerArtifactUploadRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                artifactId:
+                    type: string
+            description: FinishDockerArtifactUploadRequest seals a complete upload.
         FinishGitHubAppRequest:
             type: object
             properties:
@@ -21610,6 +22095,14 @@ components:
                         $ref: '#/components/schemas/DnsProviderInfo'
                     description: Sorted by name.
             description: ListDnsProvidersResponse holds the DNS providers.
+        ListDockerArtifactsResponse:
+            type: object
+            properties:
+                artifacts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerArtifactInfo'
+            description: ListDockerArtifactsResponse returns active leases for the current actor and session.
         ListDockerObjectsResponse:
             type: object
             properties:
@@ -24377,6 +24870,10 @@ components:
                     type: string
                 tag:
                     $ref: '#/components/schemas/DockerImageTag'
+                load:
+                    $ref: '#/components/schemas/DockerImageLoad'
+                export:
+                    $ref: '#/components/schemas/DockerImageExport'
                 pull:
                     $ref: '#/components/schemas/DockerImagePull'
             description: PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.

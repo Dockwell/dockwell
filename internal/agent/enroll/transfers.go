@@ -77,6 +77,22 @@ func (*partCodec) Marshal(message any) ([]byte, error) {
 	return proto.Marshal(m)
 }
 
+func (*partCodec) MarshalAppend(dst []byte, message any) ([]byte, error) {
+	m, ok := message.(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("%T isn't a protocol buffers message", message)
+	}
+	return proto.MarshalOptions{}.MarshalAppend(dst, m)
+}
+
+func (t *transfers) SendFile(ctx context.Context) *connect.ClientStreamForClient[agentv1.SendFileRequest, agentv1.SendFileResponse] {
+	client := connect.NewClient[agentv1.SendFileRequest, agentv1.SendFileResponse](
+		t.hc, t.url+agentv1connect.AgentServiceSendFileProcedure,
+		connect.WithGRPC(), noTransferGzip, connect.WithCodec(&partCodec{}),
+	)
+	return client.CallClientStream(ctx)
+}
+
 func (c *partCodec) Unmarshal(data []byte, message any) error {
 	part, ok := message.(*agentv1.ReceiveFileResponse)
 	if !ok {

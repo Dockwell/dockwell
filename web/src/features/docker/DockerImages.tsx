@@ -36,14 +36,11 @@ import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
 import { useImageActions } from "./DockerImageActions";
+import { shortImageId } from "./imageIdentity";
 import { useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
 import "./Docker.css";
 import "./DockerArtifacts.css";
-
-function shortImageId(id: string): string {
-  return id.replace(/^sha256:/, "").slice(0, 12);
-}
 
 function ImageStatus({ state }: { state: DockerImageState }) {
   const { t } = useLingui();
@@ -80,6 +77,8 @@ function selection(row: ImageRow) {
   return {
     serverId: row.serverId,
     imageId: row.engineId,
+    tags: row.image.tags,
+    platform: row.image.platform,
     alias: row.image.tags.find((tag) => !tag.includes("@")) ?? "",
   };
 }
@@ -281,6 +280,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
               <Skeleton shape="pill" width={110} height={30} />
             </Loading>
           ) : null}
+          {actions.archiveMenu(shown.map(selection))}
         </div>
       </div>
       <div className="docker-filters">
@@ -305,6 +305,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         />
       </div>
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
+      {actions.leases}
       {actions.sheets}
       <Unread values={query.data?.unavailable ?? []} servers={servers} retry={refresh} />
       {query.error ? (
@@ -445,7 +446,13 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
   const row = read.data?.object;
   const image = row?.detail.case === "image" ? row.detail.value : undefined;
   const actions = useImageActions([{ id: serverId, name: "" }], () => void read.refetch());
-  const selected = { serverId, imageId, alias: image?.tags.find((tag) => !tag.includes("@")) ?? "" };
+  const selected = {
+    serverId,
+    imageId,
+    tags: image?.tags ?? [],
+    platform: image?.platform ?? "",
+    alias: image?.tags.find((tag) => !tag.includes("@")) ?? "",
+  };
   return (
     <ServerFrame id={serverId} phoneHead={{ phoneTitle: t`Image` }}>
       {(server) => (
@@ -471,7 +478,7 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
               >
                 <Trans>All images</Trans>
               </RouterButtonLink>
-              {image ? actions.rowMenu(selected) : null}
+              {image ? actions.rowMenu(selected, true) : null}
             </div>
           </div>
           {actions.rowResult(selected)}

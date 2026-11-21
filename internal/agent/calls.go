@@ -112,11 +112,13 @@ type calls struct {
 	// transfers is what uploads and downloads go over: a connection of its own,
 	// as logs have, kept for this stream's calls, so a file's next part doesn't wait
 	// on a handshake. It goes with the stream, so a renewed certificate reaches it.
-	transfers struct {
-		sync.Mutex
-		client  agentv1connect.AgentServiceClient
-		release func()
-	}
+	transfers, artifactTransfers transferConnection
+}
+
+type transferConnection struct {
+	sync.Mutex
+	client  agentv1connect.AgentServiceClient
+	release func()
 }
 
 func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest) error, key *delivery.Key) *calls {
@@ -853,6 +855,8 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckDockerNetwork{CheckDockerNetwork: out}}
+	case call.GetDockerArtifactControl() != nil:
+		return c.dockerArtifact(ctx, call.GetDockerArtifactControl())
 	case call.GetDockerMaintenancePreview() != nil:
 		out, err := c.dockerCleanupPreview(ctx, call.GetDockerMaintenancePreview())
 		if err != nil {
@@ -1567,27 +1571,33 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 
 // transferClient is the client uploads and downloads go over, made the first time
 // one asks.
-func (c *calls) transferClient() (agentv1connect.AgentServiceClient, error) {
-	c.transfers.Lock()
-	defer c.transfers.Unlock()
-	if c.transfers.client == nil {
-		client, release, err := c.cfg.Identity.TransferClient()
+func (c *calls) transferClient(artifact bool) (agentv1connect.AgentServiceClient, error) {
+	conn := &c.transfers
+	if artifact {
+		conn = &c.artifactTransfers
+	}
+	conn.Lock()
+	defer conn.Unlock()
+	if conn.client == nil {
+		client, release, err := c.cfg.Identity.TransferClient(artifact)
 		if err != nil {
 			return nil, err
 		}
-		c.transfers.client, c.transfers.release = client, release
+		conn.client, conn.release = client, release
 	}
-	return c.transfers.client, nil
+	return conn.client, nil
 }
 
-// dropTransfers lets the transfers' connection go once the stream's calls end.
+// dropTransfers lets the transfers' connections go once the stream's calls end.
 func (c *calls) dropTransfers() {
-	c.transfers.Lock()
-	defer c.transfers.Unlock()
-	if c.transfers.release != nil {
-		c.transfers.release()
+	for _, conn := range []*transferConnection{&c.transfers, &c.artifactTransfers} {
+		conn.Lock()
+		if conn.release != nil {
+			conn.release()
+		}
+		conn.client, conn.release = nil, nil
+		conn.Unlock()
 	}
-	c.transfers.client, c.transfers.release = nil, nil
 }
 
 // writeUpload writes an upload's bytes as ReceiveFile brings them, over the
@@ -1597,7 +1607,7 @@ func (c *calls) writeUpload(ctx context.Context, call *agentv1.WriteUploadCall) 
 	fail := func(err error) *agentv1.CallResult {
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
 	}
-	client, err := c.transferClient()
+	client, err := c.transferClient(false)
 	if err != nil {
 		return fail(err)
 	}
@@ -1628,7 +1638,7 @@ func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *a
 	fail := func(err error) *agentv1.CallResult {
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Error{Error: &agentv1.CallError{Message: err.Error()}}}
 	}
-	client, err := c.transferClient()
+	client, err := c.transferClient(false)
 	if err != nil {
 		return fail(err)
 	}

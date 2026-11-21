@@ -161,6 +161,13 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DatabaseService.setDatabaseExternalAccess": "may",
 
   "DockerService.checkDockerNetwork": "may",
+  "DockerService.abortDockerArtifact": { within: "DockerService.beginDockerArtifactUpload" },
+  "DockerService.beginDockerArtifactUpload": "may",
+  "DockerService.downloadDockerArtifact": { within: "DockerService.beginDockerArtifactUpload" },
+  "DockerService.finishDockerArtifactUpload": { within: "DockerService.beginDockerArtifactUpload" },
+  "DockerService.getDockerArtifact": { within: "DockerService.beginDockerArtifactUpload" },
+  "DockerService.listDockerArtifacts": { within: "DockerService.beginDockerArtifactUpload" },
+  "DockerService.uploadDockerArtifact": { within: "DockerService.beginDockerArtifactUpload" },
   "DockerService.getDockerObject": "may",
   "DockerService.getDockerOverview": "may",
   "DockerService.listDockerObjects": { within: "DockerService.getDockerOverview" },

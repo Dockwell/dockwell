@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http/httptrace"
 	"net/netip"
+	"path/filepath"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,7 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
+	"github.com/dockwell/dockwell/internal/agent/artifact"
 	"github.com/dockwell/dockwell/internal/agent/collect"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/enroll"
@@ -64,7 +66,10 @@ type AccessConfirmer interface {
 
 // Config configures Run.
 type Config struct {
-	Logger *slog.Logger
+	artifacts *artifact.Spool
+	// ArtifactClock supplies the lease clock for tests. Nil uses the system clock.
+	ArtifactClock func() time.Time
+	Logger        *slog.Logger
 	// Dir is the agent's data directory, holding its identity.
 	Dir string
 	// Identity is this server's identity, loaded from Dir.
@@ -505,6 +510,13 @@ func Run(ctx context.Context, cfg Config) error {
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	cfg.ssh = newSSHReader(cfg)
 	cfg.fail2ban = newFail2banReader(cfg)
+	if cfg.Dir != "" && cfg.Docker != nil {
+		var err error
+		cfg.artifacts, err = artifact.OpenWithClock(filepath.Join(cfg.Dir, "docker-artifacts"), cfg.ArtifactClock)
+		if err != nil {
+			cfg.Logger.Warn("Docker artifacts are unavailable", slog.String("error", err.Error()))
+		}
+	}
 	cfg.images = newImages(cfg.Docker, cfg.Images, nil)
 	cfg.ports = &ingress.Holders{Client: cfg.Docker, OwnersFor: socketOwnersFor}
 	if cfg.Drivers == nil {
@@ -527,7 +539,12 @@ func Run(ctx context.Context, cfg Config) error {
 
 	var wg sync.WaitGroup
 	if cfg.Files != nil {
+		cfg.Files.Embedded = cfg.Build.Edition != buildinfo.Agent
 		wg.Go(func() { cfg.Files.KeepDeleted(ctx) })
+	}
+	if cfg.artifacts != nil {
+		wg.Go(func() { cfg.artifacts.RunSeals(ctx, cfg.takeArtifactTransfer) })
+		wg.Go(func() { cfg.artifacts.Sweep(ctx, cfg.checkArtifactPins) })
 	}
 	if cfg.Dir != "" && cfg.Docker != nil {
 		wg.Go(func() {
@@ -721,7 +738,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ArtifactTransfers: cfg.artifacts != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

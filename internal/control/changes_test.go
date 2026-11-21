@@ -107,8 +107,9 @@ type testServer struct {
 	// health says how its services are, when set.
 	health agent.HealthReporter
 	// disk reads its files. dataDir is what that takes for Dockwell's directory.
-	disk    *agentfiles.Server
-	dataDir string
+	disk          *agentfiles.Server
+	dataDir       string
+	artifactClock func() time.Time
 	// backups takes its backups, when it has Docker.
 	backups *backup.Runner
 	// updates reads its package updates, when set.
@@ -229,7 +230,7 @@ func (s *testServer) run(t *testing.T) {
 	cfg := agent.Config{
 		Collector: collector,
 		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
-		Docker: s.client, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
+		Docker: s.client, ArtifactClock: s.artifactClock, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
 		System: s.system, Certificates: s.certs, Tunnels: s.tunnels,
 	}
 	if cfg.Probe == nil {

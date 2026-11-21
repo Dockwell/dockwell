@@ -14,6 +14,7 @@ import {
   ConnectionService,
   ContainerService,
   DatabaseService,
+  DockerService,
   DomainService,
   EventService,
   FileService,
@@ -90,6 +91,7 @@ export type Api = {
   alerts?: Partial<ServiceImpl<typeof AlertService>>;
   terminals?: Partial<ServiceImpl<typeof TerminalService>>;
   images?: Partial<ServiceImpl<typeof ImageService>>;
+  docker?: Partial<ServiceImpl<typeof DockerService>>;
   appUpdates?: Partial<ServiceImpl<typeof ServiceUpdateService>>;
   connections?: Partial<ServiceImpl<typeof ConnectionService>>;
 };
@@ -151,6 +153,7 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
       service(HealthService, { listHealth: () => ({}), ...api.health });
       service(ContainerService, { listContainers: () => ({}), ...api.containers });
       // Images read nothing unless a test says what, as a test reaches no registry.
+      service(DockerService, api.docker ?? {});
       service(ImageService, {
         searchImages: () => ({}),
         listImageTags: () => ({}),
