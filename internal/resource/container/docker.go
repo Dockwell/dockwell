@@ -42,6 +42,11 @@ const LabelSet = docker.OwnPrefix + "set"
 // Docker is a Runtime on the Docker Engine.
 type Docker struct {
 	Client *docker.Client
+	// RunStateDir holds run-control records by immutable Engine ID.
+	RunStateDir string
+	runStates   sync.Map
+	runMu       sync.Mutex
+	runLocks    map[string]*runLock
 	// PullLogins remembers which registry login pulled each image, so a copy one
 	// app pulled with a login isn't run by another without asking its registry
 	// (ADR 0086). Nil remembers in memory alone.
@@ -601,6 +606,9 @@ func restartPolicy(name string) resourcev1.RestartPolicy {
 
 // restartOf is a spec's restart policy as Docker takes it.
 func restartOf(spec *resourcev1.Container) docker.RestartPolicy {
+	if IsStopped(spec) {
+		return docker.RestartPolicy{Name: "no"}
+	}
 	return docker.RestartPolicy{Name: restartNames[spec.GetRestart()], MaximumRetryCount: int(spec.GetRestartRetries())}
 }
 
@@ -1334,7 +1342,12 @@ func (d *Docker) StartAt(ctx context.Context, t Target) error {
 		return fmt.Errorf("there's no container for %s to start", t.Name)
 	}
 	// Docker quotes what it couldn't run, which can be a value's (ADR 0096).
-	return hideIn(d.Client.StartContainer(ctx, c.ID), valuesInContainer(c))
+	return d.WithRunIntent(c.ID, func(stopped bool) error {
+		if stopped {
+			return fmt.Errorf("%s is stopped by its revision", t.Name)
+		}
+		return hideIn(d.Client.StartContainer(ctx, c.ID), valuesInContainer(c))
+	})
 }
 
 // stands is the container that says how t stands, for the agent's own look while
@@ -1447,7 +1460,7 @@ func (d *Docker) projected(ctx context.Context, t Target, c *docker.Container) (
 		return nil, err
 	}
 	hideTakenValues(c, out)
-	return out, nil
+	return out, d.projectRun(c, out)
 }
 
 // hideTakenValues reads each of a taken-on container's command, entrypoint and
@@ -1587,7 +1600,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 	// A rollout stopped partway reads as its new container, with the old one still
 	// there or a name still to give: that isn't done, however it reads.
 	finished := len(all) == 1 && !all[0].temp && !all[0].stopping
-	if finished && old.Image == img.ID && notRunning(old) == "" {
+	if finished && old.Image == img.ID && (notRunning(old) == "" || IsStopped(spec)) {
 		resource.Report(ctx, resource.Outcome{Digest: digest})
 		return true, nil
 	}
@@ -1965,7 +1978,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	// A change in place leaves what it finds as it is, and verifies nothing that
 	// doesn't run, so what a rollout left would stay and read as applied. A rollout
 	// is what finishes it (ADR 0027).
-	if dec.Action == resource.ActionUpdate && unfinished(all) {
+	if dec.Action == resource.ActionUpdate && d.unfinished(all, desired) {
 		dec.Action, dec.Effect, dec.Downtime = resource.ActionReplace, resource.EffectRecreate, stopGrace(all[0].Container)+LogCatchUp+recreateStart
 	}
 	var c *docker.Container
@@ -2057,7 +2070,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 			return nil
 		}
 	}
-	if hc := desired.GetHealthcheck(); dec.Action == resource.ActionReplace && !complete(hc) {
+	if hc := desired.GetHealthcheck(); !IsStopped(desired) && dec.Action == resource.ActionReplace && !complete(hc) {
 		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
 		switch {
 		case err == nil:
@@ -2115,7 +2128,9 @@ func (d *Docker) discard(ctx context.Context, id, name string) {
 	if err := d.Client.RemoveContainer(ctx, id, true); err != nil && !docker.IsNotFound(err) {
 		d.logger().Warn("can't remove a container made for a change that failed, so it is left on the server. Remove it with docker rm -f",
 			slog.String("container", name), slog.String("id", id[:min(12, len(id))]), slog.String("error", err.Error()))
+		return
 	}
+	d.forgetRun(id)
 }
 
 // discardFailed removes a container that ran and failed with nothing to follow it,
@@ -2146,7 +2161,7 @@ func (d *Docker) logger() *slog.Logger {
 
 // Update changes the restart policy and the limits in place, on each container
 // of t.
-func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Container) error {
+func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
 	all, err := d.instances(ctx, t)
 	switch {
 	case err != nil:
@@ -2165,13 +2180,7 @@ func (d *Docker) Update(ctx context.Context, t Target, spec *resourcev1.Containe
 		return err
 	}
 	for _, c := range all {
-		err := d.Client.UpdateContainer(ctx, c.ID, docker.ContainerUpdate{
-			RestartPolicy:     restartOf(spec),
-			NanoCPUs:          cpuNanos(spec.GetResources().GetCpus()),
-			Memory:            memoryBytes(spec.GetResources().GetMemory()),
-			MemoryReservation: memoryBytes(spec.GetResources().GetMemoryReservation()),
-		})
-		if err != nil {
+		if err := d.updateRun(ctx, t, c, spec, dec); err != nil {
 			return err
 		}
 	}
@@ -2213,6 +2222,7 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 		if err := d.Client.RemoveContainer(ctx, i.ID, true); err != nil && !docker.IsNotFound(err) {
 			return err
 		}
+		d.forgetRun(i.ID)
 		d.keep(t, imageVolumes(i.Container))
 	}
 	return nil

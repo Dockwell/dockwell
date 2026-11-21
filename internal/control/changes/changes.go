@@ -802,16 +802,17 @@ func (h *Handler) RestartService(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.Invalid(errors.New("name the service to restart, by its ID or its name, such as web"))
 	}
 	var ref resource.Ref
-	if strings.HasPrefix(m.GetId(), id.Service+"_") {
+	exact := m.GetServerId() != "" || m.GetContainerId() != ""
+	if strings.HasPrefix(m.GetId(), id.Service+"_") || exact && strings.HasPrefix(m.GetId(), id.Resource+"_") {
 		err = h.db.View(ctx, func(tx *store.Tx) error {
 			r, err := tx.GetResourceByID(ctx, m.GetId())
-			if errors.Is(err, store.ErrNotFound) || err == nil && (r.Spec == nil || r.Kind != string(service.Kind)) {
+			if errors.Is(err, store.ErrNotFound) || err == nil && (r.Spec == nil || r.Kind != string(service.Kind) && (!exact || r.Kind != "container")) {
 				return fault.New(scope.ErrNotFound, "there's no service %s. Check its ID, or list the resources to find it", m.GetId())
 			}
 			if err != nil {
 				return err
 			}
-			ref = resource.Ref{Kind: service.Kind, Scope: r.Scope, Name: r.Name}
+			ref = resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 			return nil
 		})
 		if err != nil {
@@ -824,7 +825,13 @@ func (h *Handler) RestartService(ctx context.Context, req *connect.Request[dockw
 		}
 		ref = resource.Ref{Kind: service.Kind, Scope: e.ID, Name: m.GetId()}
 	}
-	plan, err := h.engine.Restart(ctx, ref, who, strings.TrimSpace(m.GetSummary()))
+	summary := strings.TrimSpace(m.GetSummary())
+	var plan *revision.Plan
+	if exact {
+		plan, err = h.engine.RestartInstance(ctx, ref, who, summary, revision.RestartTarget{Server: m.GetServerId(), Container: m.GetContainerId()})
+	} else {
+		plan, err = h.engine.Restart(ctx, ref, who, summary)
+	}
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}
@@ -1061,6 +1068,18 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				}
 				return err
 			}
+			if state := runIntentOnly(spec); state != 0 {
+				if e.GetBaseRevision() <= 0 || len(e.GetServers()) != 0 || len(e.GetKeepEnv()) != 0 ||
+					len(e.GetEnvToSecrets()) != 0 || e.GetWithContents() || e.GetKeepSharedIn() != "" || e.GetDeleteShared() {
+					return fault.New(revision.ErrInvalid, "a run-state edit needs its base revision and no other changes")
+				}
+				spec, err = h.engine.SpecWithRunIntent(ctx, tx, ref, int(e.GetBaseRevision()), state)
+				if err != nil {
+					return err
+				}
+				out = append(out, revision.Edit{Ref: ref, Spec: spec, Base: int(e.GetBaseRevision())})
+				continue
+			}
 			if spec, err = withNewAppDefaults(ctx, tx, ref, spec); err != nil {
 				return err
 			}
@@ -1095,6 +1114,27 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 		return nil
 	})
 	return out, err
+}
+
+// runIntentOnly recognizes the narrow edit that changes run state without
+// reading the rest of the workload's spec into the panel.
+func runIntentOnly(spec proto.Message) resourcev1.DesiredRunState {
+	state := resource.RunIntent(spec)
+	if state == 0 {
+		return 0
+	}
+	app := &resourcev1.Container{DesiredRunState: state}
+	switch spec.(type) {
+	case *resourcev1.Service:
+		if proto.Equal(spec, &resourcev1.Service{Runs: &resourcev1.Service_App{App: app}}) {
+			return state
+		}
+	case *resourcev1.Container:
+		if proto.Equal(spec, app) {
+			return state
+		}
+	}
+	return 0
 }
 
 // withNewAppDefaults gives a service a change makes, with no automatic updates of

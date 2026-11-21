@@ -12613,9 +12613,11 @@ type DesiredResource struct {
 	// Upgrades the agent, for a server's host: the version, and the install script
 	// to run for it with its SHA-256 (ADR 0094). Numbered in the block fleet
 	// actions hold, 350 to 359.
-	UpgradeAgent  *UpgradeAgent `protobuf:"bytes,351,opt,name=upgrade_agent,json=upgradeAgent,proto3" json:"upgrade_agent,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UpgradeAgent *UpgradeAgent `protobuf:"bytes,351,opt,name=upgrade_agent,json=upgradeAgent,proto3" json:"upgrade_agent,omitempty"`
+	// Restarts only this exact Engine instance (ADR 0107).
+	ExactRestartId string `protobuf:"bytes,408,opt,name=exact_restart_id,json=exactRestartId,proto3" json:"exact_restart_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *DesiredResource) Reset() {
@@ -12800,6 +12802,13 @@ func (x *DesiredResource) GetUpgradeAgent() *UpgradeAgent {
 		return x.UpgradeAgent
 	}
 	return nil
+}
+
+func (x *DesiredResource) GetExactRestartId() string {
+	if x != nil {
+		return x.ExactRestartId
+	}
+	return ""
 }
 
 // PanelAction is stopping or starting the own containers and services of Coolify
@@ -15888,13 +15897,15 @@ func (x *ObservedResource) GetSpec() []byte {
 	return nil
 }
 
-// DockerCapabilities advertises the Docker inventory protocol and exact-ID exec.
+// DockerCapabilities advertises optional Docker operations.
 type DockerCapabilities struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Inventory     bool                   `protobuf:"varint,1,opt,name=inventory,proto3" json:"inventory,omitempty"`
 	ExactTerminal bool                   `protobuf:"varint,2,opt,name=exact_terminal,json=exactTerminal,proto3" json:"exact_terminal,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// The agent honors durable run state and pinned restarts.
+	WorkloadControls bool `protobuf:"varint,3,opt,name=workload_controls,json=workloadControls,proto3" json:"workload_controls,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DockerCapabilities) Reset() {
@@ -15937,6 +15948,13 @@ func (x *DockerCapabilities) GetInventory() bool {
 func (x *DockerCapabilities) GetExactTerminal() bool {
 	if x != nil {
 		return x.ExactTerminal
+	}
+	return false
+}
+
+func (x *DockerCapabilities) GetWorkloadControls() bool {
+	if x != nil {
+		return x.WorkloadControls
 	}
 	return false
 }
@@ -17203,7 +17221,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06script\x18\x03 \x01(\fR\x06script\x12#\n" +
 	"\rscript_sha256\x18\x04 \x01(\tR\fscriptSha256\x12\x16\n" +
 	"\x06mirror\x18\x05 \x01(\tR\x06mirror\x12#\n" +
-	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xca\a\n" +
+	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xf5\a\n" +
 	"\x0fDesiredResource\x124\n" +
 	"\bresource\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12\x17\n" +
 	"\x04spec\x18\x02 \x01(\fH\x00R\x04spec\x88\x01\x01\x12\x12\n" +
@@ -17229,7 +17247,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x14build_registry_auths\x18\xbb\x02 \x01(\fR\x12buildRegistryAuths\x12%\n" +
 	"\x0ebuild_git_auth\x18\xe8\x02 \x01(\fR\fbuildGitAuth\x125\n" +
 	"\x05panel\x18\xcd\x02 \x01(\v2\x1e.dockwell.agent.v1.PanelActionR\x05panel\x12E\n" +
-	"\rupgrade_agent\x18\xdf\x02 \x01(\v2\x1f.dockwell.agent.v1.UpgradeAgentR\fupgradeAgentB\a\n" +
+	"\rupgrade_agent\x18\xdf\x02 \x01(\v2\x1f.dockwell.agent.v1.UpgradeAgentR\fupgradeAgent\x12)\n" +
+	"\x10exact_restart_id\x18\x98\x03 \x01(\tR\x0eexactRestartIdB\a\n" +
 	"\x05_spec\"\x80\x02\n" +
 	"\vPanelAction\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x12,\n" +
@@ -17442,10 +17461,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +
 	"\x04spec\x18\x01 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
-	"\x05_spec\"Y\n" +
+	"\x05_spec\"\x86\x01\n" +
 	"\x12DockerCapabilities\x12\x1c\n" +
 	"\tinventory\x18\x01 \x01(\bR\tinventory\x12%\n" +
-	"\x0eexact_terminal\x18\x02 \x01(\bR\rexactTerminal\"\xc2\x01\n" +
+	"\x0eexact_terminal\x18\x02 \x01(\bR\rexactTerminal\x12+\n" +
+	"\x11workload_controls\x18\x03 \x01(\bR\x10workloadControls\"\xc2\x01\n" +
 	"\x17DockerInventoryListCall\x127\n" +
 	"\x06filter\x18\x01 \x01(\v2\x1f.dockwell.v1.DockerObjectFilterR\x06filter\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\rR\bpageSize\x12\x19\n" +

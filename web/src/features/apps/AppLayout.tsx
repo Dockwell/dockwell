@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { BuildState, ChangeService, LogService, Protocol, ServiceService } from "@dockwell/api";
+import { BuildState, ChangeService, DesiredRunState, LogService, Protocol, ServiceService } from "@dockwell/api";
 import { Button, ButtonLink, Callout, Icon, PHONE_QUERY, StatusBadge, TabNav, Tag, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch, useNavigate } from "@tanstack/react-router";
@@ -31,6 +31,7 @@ import {
   recordSaysMore,
   revisionName,
   shortImage,
+  stoppedByRevision,
 } from "./app";
 import { shortCommit, shownRepository } from "./Build";
 import { DeploySheet } from "./DeploySheet";
@@ -45,6 +46,7 @@ import { useWhoWords } from "./revision";
 import { runtimeOf, runtimeWords } from "./runtime";
 import { usePlaces, useServices } from "./useServices";
 import { useAppWords } from "./words";
+import { useWorkloadControls } from "./workload";
 import "./Apps.css";
 import { useMay } from "../auth/may";
 import { useServicesWatch } from "./ServicesLive";
@@ -213,7 +215,8 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const revisions = useRevisions(serviceId).revisions;
   const latest = revisions?.[0];
   const ago = service.updateTime ? time.ago(timestampDate(service.updateTime), now) : "";
-  const runsWord = healthWords.word(health);
+  const stopped = stoppedByRevision(service, state);
+  const runsWord = stopped ? t`Stopped` : healthWords.word(health);
   // A build someone cancelled stops a deploy on purpose, and isn't news the way a rollback is (ADR 0046).
   const cancelled =
     state.kind === "rolled-back" &&
@@ -223,7 +226,13 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   // Nothing changes what can't be read, which the overview says.
   const changeable = state.kind !== "unreadable";
   // Nothing restarts while it is moving, or where it has no server to do it on.
-  const restartable = !moving && state.kind !== "unplaced" && changeable;
+  const isStopped = appOf(service)?.desiredRunState === DesiredRunState.STOPPED;
+  const restartable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
+  const startable = !moving && state.kind !== "unplaced" && changeable && isStopped;
+  const { changeRun } = useWorkloadControls();
+  const start = () => {
+    if (service.resource) changeRun(service.resource, service.revision, true);
+  };
   const build = service.spec?.build;
   const source = build?.source.case === "git" ? build.source.value : undefined;
   // An app that builds from Git deploys the newest commit of its branch, with nothing to choose (ADR 0046).
@@ -244,6 +253,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const may = useMay();
   const here = { environment: environmentOf(service) };
   const mayRestart = may(ChangeService.method.restartService, here);
+  const mayStart = may(ChangeService.method.proposeChange, here);
   const mayDeploy = may(ServiceService.method.deployService, here);
   const mayChangeVersion = may(ServiceService.method.changeServiceRuntime, here);
   // One Open, in the header, to the app's domain once it serves and anyone may reach it (#797):
@@ -253,7 +263,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       ? domain.routes.filter((route) => !route.held && route.path === "").map((route) => visitorUrl(domain, route))
       : [],
   );
-  const opensAt = reached[0];
+  const opensAt = stopped ? undefined : reached[0];
   // The command bar offers what the header does, first (#795): only what the reader may do.
   const navigate = useNavigate();
   const mayChange = runtime ? mayChangeVersion : mayDeploy;
@@ -267,6 +277,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             run: () => void window.open(opensAt, "_blank", "noopener"),
           },
         ]
+      : []),
+    ...(startable && mayStart.allowed
+      ? [{ id: "start", icon: "play" as const, label: t`Start ${name}`, hint: t`Opens a plan`, run: start }]
       : []),
     ...(changeable && mayChange.allowed
       ? [
@@ -335,7 +348,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
       }
       badge={
         <>
-          <HealthBadge health={health} title={healthTitle} />
+          {stopped ? (
+            <StatusBadge status="stopped" label={t`Stopped`} labelIsState />
+          ) : (
+            <HealthBadge health={health} title={healthTitle} />
+          )}
           {shown.app ? <Tag className="app-catalog-name">{shown.app}</Tag> : null}
           {source ? (
             <Tag icon="branch" className="app-branch">
@@ -423,8 +440,18 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             <Trans>Logs</Trans>
           </RouterButtonLink>
           {changeable ? (
-            <Button variant="primary" icon="deploy" onClick={deploy} {...(runtime ? mayChangeVersion : mayDeploy).off}>
+            <Button
+              variant={startable ? "secondary" : "primary"}
+              icon="deploy"
+              onClick={deploy}
+              {...(runtime ? mayChangeVersion : mayDeploy).off}
+            >
               {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
+            </Button>
+          ) : null}
+          {startable ? (
+            <Button variant="primary" icon="play" onClick={start} {...mayStart.off}>
+              <Trans>Start</Trans>
             </Button>
           ) : null}
         </>
@@ -483,15 +510,21 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans>Restart</Trans>
             </Button>
           ) : null}
-          <Button
-            variant="primary"
-            icon="deploy"
-            size="lg"
-            onClick={deploy}
-            {...(runtime ? mayChangeVersion : mayDeploy).off}
-          >
-            {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
-          </Button>
+          {startable ? (
+            <Button variant="primary" icon="play" size="lg" onClick={start} {...mayStart.off}>
+              <Trans>Start</Trans>
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon="deploy"
+              size="lg"
+              onClick={deploy}
+              {...(runtime ? mayChangeVersion : mayDeploy).off}
+            >
+              {runtime ? <Trans>Change version</Trans> : <Trans>Deploy</Trans>}
+            </Button>
+          )}
         </div>
       ) : null}
       {deploying && runtime ? <RuntimeSheet service={service} onClose={() => setDeploying(false)} /> : null}

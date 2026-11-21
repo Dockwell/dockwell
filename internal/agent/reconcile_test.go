@@ -893,3 +893,23 @@ func TestDockerDownIsOneWait(t *testing.T) {
 		t.Errorf("the journal says %+v; want one wait for the server", entries)
 	}
 }
+
+func TestExplicitStopDoesNotReviveDuringLocalReconciliation(t *testing.T) {
+	s := newStand(t)
+	app := &resourcev1.Container{
+		Image: "nginx:1.27", Restart: resourcev1.RestartPolicy_RESTART_POLICY_ALWAYS,
+		DesiredRunState: resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED,
+	}
+	s.run(t, webRef, app, nil)
+	s.e.DaemonKilled()
+	s.pass(t)
+	held := s.e.Container("web")
+	if held == nil || held.State.Running || !held.State.StartedAt.IsZero() || held.HostConfig.RestartPolicy.Name != "no" {
+		t.Fatal("an explicitly stopped container ran after Docker and the agent reconciled")
+	}
+	s.e.Remove("web")
+	s.pass(t)
+	if s.e.Container("web") != nil {
+		t.Fatal("the agent revived a missing container with explicit stop intent")
+	}
+}

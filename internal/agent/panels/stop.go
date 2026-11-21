@@ -48,6 +48,8 @@ const (
 // Stopper stops and starts a panel's own containers and services, with Docker.
 type Stopper struct {
 	Docker *docker.Client
+	// WithRunIntent protects a container a Dockwell revision has stopped.
+	WithRunIntent func(string, func(bool) error) error
 	// TaskWait is how long a scale waits for the service's tasks to be over, its
 	// grace period and taskMargin where it's zero; a test sets less.
 	TaskWait time.Duration
@@ -248,12 +250,7 @@ func (s Stopper) ApplyPanel(ctx context.Context, p resource.Panel, say func(stri
 			// Started first, and its policy put back after: one that doesn't start
 			// stays at no, so Docker or a reboot doesn't keep trying it.
 			say("Starting " + part.Name)
-			if part.WasRunning {
-				err = s.start(ctx, part.Name)
-			}
-			if err == nil && part.WasRestart != "" {
-				err = s.Docker.UpdateRestartPolicy(ctx, part.Name, docker.RestartPolicy{Name: part.WasRestart})
-			}
+			err = s.start(ctx, part)
 		default:
 			// Its restart policy first: one that's always would start it again with
 			// Docker or the server.
@@ -419,16 +416,30 @@ func verb(start bool) string {
 	return "stop"
 }
 
-// start starts a container, where it isn't running already.
-func (s Stopper) start(ctx context.Context, name string) error {
-	c, err := s.Docker.InspectContainer(ctx, name)
+// start puts a panel container back as it stood, if Dockwell hasn't stopped it since.
+func (s Stopper) start(ctx context.Context, part resource.PanelPart) error {
+	c, err := s.Docker.InspectContainer(ctx, part.Name)
 	if err != nil {
 		return err
 	}
-	if c.State.Running {
+	start := func(stopped bool) error {
+		if stopped {
+			return errors.New("this container is stopped by its Dockwell revision. Use Start from its app")
+		}
+		if part.WasRunning && !c.State.Running {
+			if err := s.Docker.StartContainer(ctx, c.ID); err != nil {
+				return err
+			}
+		}
+		if part.WasRestart != "" {
+			return s.Docker.UpdateRestartPolicy(ctx, c.ID, docker.RestartPolicy{Name: part.WasRestart})
+		}
 		return nil
 	}
-	return s.Docker.StartContainer(ctx, name)
+	if s.WithRunIntent == nil {
+		return start(false)
+	}
+	return s.WithRunIntent(c.ID, start)
 }
 
 // anyThere reports any of names on the server.

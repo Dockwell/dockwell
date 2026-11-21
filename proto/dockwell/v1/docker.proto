@@ -120,6 +120,8 @@ message DockerObject {
   ResourceRef managed_resource = 5;
   ContainerState state = 6;
   string managed_resource_id = 7;
+  // The managed revision used when planning a run-state change.
+  int64 managed_revision = 8;
   oneof detail {
     DockerContainer container = 10;
   }

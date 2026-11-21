@@ -4,6 +4,7 @@ package revision
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,6 +46,25 @@ func withLinkedBlog(t *testing.T) linkedBlog {
 	}}))
 	e.RequireRoles()
 	return linkedBlog{x: x, blog: blog, blogEnv: blogEnv.ID, forBlog: resource.Ref{Kind: link.Kind, Scope: blogEnv.ID, Name: "db"}}
+}
+
+func TestAStopNamesDependencyLinksFromOtherEnvironments(t *testing.T) {
+	x := withLinkedBlog(t).x
+	before := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{}}}
+	after := &resourcev1.Service{Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+		DesiredRunState: resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED,
+	}}}
+	notes, err := x.e.workloadNotes(t.Context(), []item{{
+		ref: resource.Ref{Kind: serviceKind, Scope: x.env, Name: "web"}, current: before, spec: after,
+	}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(notes, func(note Note) bool {
+		return note.Reason == "workload_dependants" && slices.Equal(note.Names, []string{"db"})
+	}) {
+		t.Fatalf("stop notes missed the other environment's link: %v", notes)
+	}
 }
 
 // in is a caller holding role in blog alone: for admin, what Narrow gives an

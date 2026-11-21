@@ -4,6 +4,7 @@ import { toJson } from "@bufbuild/protobuf";
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ContainerService,
   type DockerContainer,
   type DockerObject,
   DockerObjectKind,
@@ -16,7 +17,7 @@ import {
 import { Button, Callout, Icon, Metric, Panel, TabNav } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
@@ -31,6 +32,7 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ContainerActions, ContainerStatus, dockerPort, Ownership } from "./DockerContainers";
+import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, Fact, LiveUpdates } from "./parts";
 import type { ContainerDetailSearch } from "./search";
@@ -75,7 +77,9 @@ export function DockerContainerDetail({
     </span>
   ) : undefined;
   const sample = connected ? samples.get(dockerKey(serverId, containerId)) : undefined;
+
   const searchButton = useRef<(() => void) | null>(null);
+  const [takeOn, setTakeOn] = useState<DockerObject>();
   const params = { serverId, containerId };
   const label = object?.name ?? search.name ?? t`Container`;
   const supportedLogs =
@@ -85,11 +89,13 @@ export function DockerContainerDetail({
     (object.ownership !== DockerOwnership.MANAGED ||
       (object.managedResource?.kind === "service" && !!object.managedResourceId));
   const view = search.view;
+  const canTake = object?.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
   const container = containerOf(object);
   const replacement = query.data?.replacementKey;
   const hint = object ? { name: object.name } : search.name ? { name: search.name } : {};
   return (
     <LogsSearchButton value={searchButton}>
+      {takeOn ? <DockerTakeOn row={takeOn} onClose={() => setTakeOn(undefined)} /> : null}
       <Page
         title={label}
         machineTitle={!!(object || search.name)}
@@ -117,7 +123,16 @@ export function DockerContainerDetail({
             </Link>
           </nav>
         }
-        actions={object ? <ContainerActions row={object} /> : undefined}
+        actions={
+          object ? (
+            <ContainerActions
+              row={object}
+              takeOnMode="primary"
+              onApplied={() => void query.refetch()}
+              onTakeOn={setTakeOn}
+            />
+          ) : undefined
+        }
         phoneAction={
           view === "logs" && supportedLogs ? (
             <button
@@ -127,6 +142,15 @@ export function DockerContainerDetail({
               onClick={() => searchButton.current?.()}
             >
               <Icon name="search" size={20} />
+            </button>
+          ) : canTake ? (
+            <button
+              type="button"
+              className="mobile-header-button"
+              aria-label={t`Take on`}
+              onClick={() => setTakeOn(object)}
+            >
+              <Icon name="plus" size={20} />
             </button>
           ) : undefined
         }

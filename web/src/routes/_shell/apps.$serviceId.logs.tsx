@@ -2,7 +2,8 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { LogsPage, readLogsSearch } from "../../features/logs/LogsPage";
+import { LogsPage } from "../../features/logs/LogsPage";
+import { readLogsSearch } from "../../features/logs/search";
 
 /** An app's logs: following live, a time range, or one deploy's. */
 export const Route = createFileRoute("/_shell/apps/$serviceId/logs")({

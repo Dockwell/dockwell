@@ -51,6 +51,7 @@ export interface MoreSettings {
   command: string;
   user: string;
   restart: RestartPolicy;
+  restartRetries: string;
   /** The most memory it may use, such as 512M. */
   memory: string;
   /** The most CPUs it may use, such as 0.5. */
@@ -63,6 +64,7 @@ export const DEFAULT_SETTINGS: MoreSettings = {
   command: "",
   user: "",
   restart: RestartPolicy.UNSPECIFIED,
+  restartRetries: "",
   memory: "",
   cpus: "",
   healthPath: "",
@@ -307,6 +309,9 @@ function moreFields(form: ImageForm) {
     ...(command.length > 0 ? { command } : {}),
     ...(more.user.trim() ? { user: more.user.trim() } : {}),
     ...(more.restart !== RestartPolicy.UNSPECIFIED ? { restart: more.restart } : {}),
+    ...(more.restart === RestartPolicy.ON_FAILURE && more.restartRetries !== ""
+      ? { restartRetries: Number(more.restartRetries) }
+      : {}),
     ...(more.memory.trim() || more.cpus.trim()
       ? { resources: { memory: more.memory.trim(), cpus: more.cpus.trim() } }
       : {}),

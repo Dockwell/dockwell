@@ -535,7 +535,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
+			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), ExactRestart: d.GetExactRestartId(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
 			if id := d.GetBackupId(); id != "" {
 				want.Backup = &resource.BackupAsked{ID: id, Database: d.GetBackupDatabase()}
 				for _, also := range d.GetBackupAlso() {
@@ -623,6 +623,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if err != nil {
 			return fail(err)
 		}
+		step.ExactRestart = call.GetApply().GetDesired().GetExactRestartId()
 		step.Ref, step.Pulled, step.Finishing = ref, call.GetApply().GetPulled(), call.GetApply().GetFinishing()
 		// A jail's step writes what the fail2ban read looks at, so the read asked next
 		// starts again, written or put back: the Fail2ban card refetches as the plan
@@ -713,14 +714,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		// A kind under the firewall's timer is kept only once confirmed, which
 		// the step can't say: the access manager keeps what was confirmed itself
 		// (ADR 0052), so it isn't desired state until then.
-		if c.cfg.Desired != nil && !c.guardsAccess(ref.Kind) {
+		if c.cfg.Desired != nil && !c.guardsAccess(ref.Kind) && step.ExactRestart == "" {
 			deploy := call.GetApply().GetDeploy()
 			r := desired.Record{
 				Ref: ref, ScopeName: call.GetApply().GetDesired().GetScopeName(), Revision: deploy.GetRevision(), Change: deploy.GetChangeId(),
 				Values: resource.ValuesFrom(applyCtx),
 				// A step that made it, made it again or restarted it started it, so
 				// what was seen of it stopped is gone.
-				Started: step.Action == resource.ActionCreate || step.Action == resource.ActionReplace || step.Effect != resource.EffectNone,
+				Started: resource.RunIntent(spec) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED &&
+					(step.Action == resource.ActionCreate || step.Action == resource.ActionReplace || step.Effect != resource.EffectNone || step.ChangesRunIntent()),
 			}
 			if err := c.keep(ctx, r, spec); err != nil {
 				c.logger.Warn("applied a step, but can't keep it as what this server runs, so the server can't put it back while the control plane is away. "+

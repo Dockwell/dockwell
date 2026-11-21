@@ -59,6 +59,7 @@ const (
 	// servicePrefix starts the Compose project of what lives in an environment,
 	// its ID in lowercase. Compose's other projects on the server are their own.
 	servicePrefix = "env_"
+	hostPrefix    = "srv_"
 )
 
 // Monitor watches the containers of a server's services, for as long as they
@@ -419,7 +420,8 @@ func (m *Monitor) scan(ctx context.Context) time.Duration {
 	for k := range list {
 		s := &list[k]
 		project := s.Labels[docker.LabelProject]
-		if !strings.HasPrefix(project, servicePrefix) || s.Labels[docker.LabelOneoff] == "True" {
+		managed := strings.HasPrefix(project, servicePrefix) || strings.HasPrefix(project, hostPrefix)
+		if !managed || s.Labels[docker.LabelOneoff] == "True" {
 			continue
 		}
 		w := m.watched[s.ID]

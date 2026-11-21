@@ -70,9 +70,16 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 	if m.GetId() == "" {
 		return nil, authapi.ReasonError(connect.CodeInvalidArgument, errors.New("name a container, by its name or its full ID"), "invalid")
 	}
+	expected := m.GetExpectedContainerId()
+	if expected != "" && !docker.IsFullID(expected) {
+		return nil, authapi.Invalid(errors.New("use the full Engine ID of the reviewed container"))
+	}
 	s, c, err := h.Find(ctx, m.GetServer(), m.GetId())
 	if err != nil {
 		return nil, err
+	}
+	if expected != "" && expected != c.GetId() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this container was replaced. Open the current container and review Take on again"), "container_replaced")
 	}
 	_, env, err := h.changes.Environment(ctx, m.GetProject(), m.GetEnvironment())
 	if err != nil {
@@ -121,7 +128,7 @@ func (h *Handler) AdoptContainer(ctx context.Context, req *connect.Request[dockw
 		Servers:  []string{s.ID},
 	}
 	notes := []revision.Note{{Reason: "takes_on", Message: fmt.Sprintf(
-		"Takes on %s as it is: it keeps running, with no restart. Changing its image later replaces it, under a name of Dockwell's, and it keeps its volumes. What it wrote anywhere else goes with the old container.", c.GetName())}}
+		"Keeps %s in place with its current state, environment, networks and mounts. A future image change replaces the container and keeps mounted data.", c.GetName())}}
 	if p := c.GetComposeProject(); p != "" {
 		notes = append(notes, revision.ManagedElsewhere(resource.Elsewhere{Manager: found.Manager, Container: c.GetName(), Project: p, Folder: found.Folder}))
 	}

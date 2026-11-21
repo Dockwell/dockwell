@@ -599,7 +599,7 @@ func (r *Runner) unpack(ctx context.Context, t volume.Target, file string) (swap
 
 // replaceWithDump starts the database anew, on an empty volume, and loads the dump
 // into it. It stops at the first thing that fails, for giveBack to put back the copy.
-func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file string, db *database) error {
+func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file string, db *database) (err error) {
 	f, err := os.Open(file) //nolint:gosec // under the agent's own directory
 	if err != nil {
 		return err
@@ -609,7 +609,10 @@ func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file stri
 	if _, err := r.tool(ctx, t, "empty", docker.Streams{}); err != nil {
 		return err
 	}
-	if err := r.startContainer(ctx, db.id); err != nil {
+	// The database may start just to load this dump. On every exit, its saved
+	// state has the last word, even if the restore's context was cancelled.
+	defer func() { err = errors.Join(err, r.stopAfterRestore(ctx, db)) }()
+	if err := r.withRunIntent(db.id, func(bool) error { return r.startContainer(ctx, db.id) }); err != nil {
 		return fmt.Errorf("can't start %s: %w", db.name, err)
 	}
 	if err := r.awaitReady(ctx, db); err != nil {
@@ -620,6 +623,35 @@ func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file stri
 		return fmt.Errorf("the dump didn't load: %w", err)
 	}
 	return nil
+}
+
+func (r *Runner) stopAfterRestore(ctx context.Context, db *database) error {
+	ctx, cancel := resource.Finishing(ctx, startWait)
+	defer cancel()
+	return r.withRunIntent(db.id, func(stopped bool) error {
+		if !stopped {
+			return nil
+		}
+		c, err := r.Client.InspectContainer(ctx, db.id)
+		if docker.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if c.HostConfig.RestartPolicy.Name != "no" {
+			if err := r.Client.UpdateRestartPolicy(ctx, db.id, docker.RestartPolicy{Name: "no"}); err != nil {
+				return fmt.Errorf("can't keep %s stopped after restoring: %w", db.name, err)
+			}
+		}
+		if !c.State.Running && !c.State.Restarting {
+			return nil
+		}
+		if err := r.Client.StopContainer(ctx, db.id, db.stopWait); err != nil && !docker.IsNotFound(err) {
+			return fmt.Errorf("can't return %s to its saved stopped state: %w", db.name, err)
+		}
+		return nil
+	})
 }
 
 const (
@@ -649,6 +681,10 @@ func (r *Runner) startAll(ctx context.Context, run string, u *users, db *databas
 	}
 	var containers []*user
 	if db != nil {
+		// Also do this when a restore resumes after the load finished.
+		if err := r.stopAfterRestore(ctx, db); err != nil {
+			return err
+		}
 		containers = append(containers, db.user)
 	}
 	for _, id := range list[run].Containers {

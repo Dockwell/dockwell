@@ -3,7 +3,8 @@
 import { SegmentedControl } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { LogsPage, type LogsSearch } from "../logs/LogsPage";
+import { LogsPage } from "../logs/LogsPage";
+import type { LogsSearch } from "../logs/search";
 import { EmptyState } from "../shell/EmptyState";
 import { useWebsiteValue } from "./WebsiteLayout";
 import { kindOf } from "./website";

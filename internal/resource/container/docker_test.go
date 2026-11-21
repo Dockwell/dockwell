@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -94,6 +96,36 @@ func unchanged(t *testing.T, l resource.Local, ref resource.Ref, spec proto.Mess
 	}
 	if steps[0].Action != resource.ActionNone {
 		t.Errorf("%s drifted right after it was applied: %s %v", ref, steps[0].Action, steps[0].Changes)
+	}
+}
+
+func TestRunStateRecordsGoWithTheirContainers(t *testing.T) {
+	e := dockertest.New(t)
+	images(e)
+	d := &container.Docker{Client: e.Client(), RunStateDir: t.TempDir()}
+	l := resource.Local{Drivers: resource.NewRegistry(&container.Driver{Runtime: d})}
+	records := make(map[string]string)
+	for _, name := range []string{"external", "managed", "kept"} {
+		ref := resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: name}
+		apply(t, l, ref, &resourcev1.Container{Image: "nginx:1.27", DesiredRunState: resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED})
+		records[name] = filepath.Join(d.RunStateDir, e.Container(name).ID+".json")
+		if _, err := os.Stat(records[name]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apply(t, l, resource.Ref{Kind: container.Kind, Scope: "srv_A", Name: "managed"}, nil)
+	if _, err := os.Stat(records["managed"]); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Dockwell deletion left a run record: %v", err)
+	}
+	e.Remove("external")
+	if err := d.PruneRunState(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(records["external"]); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("external deletion left a run record: %v", err)
+	}
+	if _, err := os.Stat(records["kept"]); err != nil {
+		t.Fatalf("prune removed a live container's run record: %v", err)
 	}
 }
 

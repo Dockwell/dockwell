@@ -7,6 +7,7 @@ import {
   Connection,
   type Container,
   DeploymentState,
+  DesiredRunState,
   type ServiceDeployment,
   type ServiceInfo,
   type ServiceRevision,
@@ -20,6 +21,13 @@ import type { AppHealth, HealthKind } from "./health";
 /** What a service runs, as the first screens know it: an app from an image. */
 export function appOf(service: ServiceInfo): Container | undefined {
   return service.spec?.runs.case === "app" ? service.spec.runs.value : undefined;
+}
+
+export function stoppedByRevision(service: ServiceInfo, state: AppState): boolean {
+  return (
+    (state.kind === "live" || state.kind === "rolled-back") &&
+    appOf(service)?.desiredRunState === DesiredRunState.STOPPED
+  );
 }
 
 /** The image a service runs, or empty for a kind that has none. */

@@ -39,6 +39,39 @@
   border-bottom: 0;
 }
 
+.docker-section-heading,
+.docker-heading-actions {
+  flex-wrap: wrap;
+}
+
+.docker-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.docker-take-on-sheet .dw-sheet-title {
+  overflow-wrap: anywhere;
+}
+
+.docker-take-on {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.docker-take-on-kept {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--ink-muted);
+}
+
+.docker-take-on-kept svg {
+  flex: none;
+  margin-top: 2px;
+}
+
 .docker-section-heading h2 {
   margin: 0;
   font-size: var(--type-heading-size, 18px);

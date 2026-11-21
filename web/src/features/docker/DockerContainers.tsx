@@ -3,6 +3,8 @@
 import { timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ChangeService,
+  ComposeService,
   type ContainerPort,
   ContainerService,
   ContainerState,
@@ -13,6 +15,7 @@ import {
   DockerOwnership,
   type DockerSample,
   DockerService,
+  ImportService,
   LogService,
   type Server,
   TerminalService,
@@ -38,12 +41,13 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
 import { RouterButtonLink, RouterTagLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
+import { useWorkloadControls } from "../apps/workload";
 import { useMay } from "../auth/may";
 import { statusOf, useContainerStateWord } from "../servers/containers";
-import { useTakeOn } from "../servers/takeOn";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, LiveUpdates, Unread } from "./parts";
 
@@ -169,12 +173,28 @@ function Usage({ sample, now }: { sample?: DockerSample | undefined; now: number
   );
 }
 
-export function ContainerActions({ row, stack }: { row: DockerObject; stack?: (project: string) => void }) {
+export function ContainerActions({
+  row,
+  stack,
+  takeOnMode = "menu",
+  onApplied,
+  onTakeOn,
+}: {
+  row: DockerObject;
+  stack?: (project: string) => void;
+  takeOnMode?: "menu" | "primary" | "choose";
+  onApplied?: () => void;
+  onTakeOn: (row: DockerObject) => void;
+}) {
   const { t } = useLingui();
   const may = useMay();
   const navigate = useNavigate();
   const key = row.key;
-  const { take } = useTakeOn(key?.serverId ?? "");
+  const managed = row.managedResource;
+  const { changeRun, restartInstance } = useWorkloadControls();
+  const canTake = row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
+  const showTakeOn = canTake && takeOnMode !== "menu";
+  const showShortcuts = takeOnMode !== "choose" || !canTake;
   if (!key) return null;
   const params = { serverId: key.serverId, containerId: key.engineId };
   const log =
@@ -199,20 +219,37 @@ export function ContainerActions({ row, stack }: { row: DockerObject; stack?: (p
       onSelect: () => void navigate({ to: "/apps/$serviceId", params: { serviceId } }),
     });
   }
-  if (row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed) {
-    const container = containerOf(row);
+  if (canTake && !showTakeOn) {
     actions.push({
       id: "take-on",
       label: t`Take on`,
       icon: "plus",
-      onSelect: () =>
-        take({
-          engineId: key.engineId,
-          name: row.name,
-          composeService: container?.composeService ?? "",
-          composeProject: container?.composeProject ?? "",
-        }),
+      onSelect: () => onTakeOn(row),
     });
+  }
+  if (managed && row.managedRevision > 0n && row.managedResourceId) {
+    const where = managed.kind === "container" ? { install: true as const } : { environment: managed.scope };
+    const active = [ContainerState.RUNNING, ContainerState.PAUSED, ContainerState.RESTARTING].includes(row.state);
+    const mayPlan = may(ChangeService.method.proposeChange, where);
+    if (mayPlan.allowed) {
+      actions.unshift({
+        id: active ? "stop" : "start",
+        label: active ? t`Stop workload` : t`Start workload`,
+        icon: active ? "stop" : "play",
+        onSelect: () => changeRun(managed, row.managedRevision, !active, onApplied),
+      });
+    }
+    if (
+      (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) &&
+      may(ChangeService.method.restartService, where).allowed
+    ) {
+      actions.splice(mayPlan.allowed ? 1 : 0, 0, {
+        id: "restart",
+        label: t`Restart this container`,
+        icon: "refresh",
+        onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
+      });
+    }
   }
   const project = containerOf(row)?.composeProject;
   if (stack && project) {
@@ -225,7 +262,12 @@ export function ContainerActions({ row, stack }: { row: DockerObject; stack?: (p
   }
   return (
     <div className="docker-row-actions">
-      {log ? (
+      {showTakeOn ? (
+        <Button icon="plus" variant="secondary" size="sm" onClick={() => onTakeOn(row)}>
+          <Trans>Take on</Trans>
+        </Button>
+      ) : null}
+      {log && showShortcuts ? (
         <RouterButtonLink
           to={detailTarget}
           params={params}
@@ -237,7 +279,7 @@ export function ContainerActions({ row, stack }: { row: DockerObject; stack?: (p
           title={t`Logs`}
         />
       ) : null}
-      {terminal ? (
+      {terminal && showShortcuts ? (
         <RouterButtonLink
           to={shellTarget}
           params={{ serverId: key.serverId }}
@@ -254,6 +296,35 @@ export function ContainerActions({ row, stack }: { row: DockerObject; stack?: (p
   );
 }
 
+/** While the next first page loads, keep only rows that still fit the selection. */
+function matchesSelection(
+  row: DockerObject,
+  selection: {
+    search: string;
+    state: State;
+    ownership: DockerOwnership;
+    project: string;
+  },
+): boolean {
+  const container = containerOf(row);
+  const running = row.state === ContainerState.RUNNING;
+  const attention =
+    row.state === ContainerState.RESTARTING ||
+    (row.state === ContainerState.EXITED && !!container?.exitCode) ||
+    container?.health === DockerHealth.UNHEALTHY;
+  return (
+    (selection.state !== "running" || running) &&
+    (selection.state !== "stopped" || !running) &&
+    (selection.state !== "attention" || attention) &&
+    (!selection.ownership || selection.ownership === row.ownership) &&
+    (!selection.project || selection.project === container?.composeProject) &&
+    [row.name, container?.image, row.key?.engineId, container?.composeProject]
+      .join(" ")
+      .toLowerCase()
+      .includes(selection.search.toLowerCase())
+  );
+}
+
 export function DockerContainers({
   servers,
   fleet,
@@ -264,6 +335,12 @@ export function DockerContainers({
   attention?: boolean | undefined;
 }) {
   const { t } = useLingui();
+  const may = useMay();
+  const navigate = useNavigate();
+  const serverId = !fleet || servers.length === 1 ? servers[0]?.id : undefined;
+  const [choosingContainer, setChoosingContainer] = useState(false);
+  const [takeOn, setTakeOn] = useState<DockerObject>();
+
   const compact = useMediaQuery("(max-width: 1150px)");
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
@@ -290,7 +367,21 @@ export function DockerContainers({
       pageToken: cursor,
       pageSize: 16,
     },
-    { retry: false, refetchOnWindowFocus: false },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      // The query key changes for filters, even when a visible container
+      // still belongs to both selections. Keep its keyed row until the new
+      // first page arrives so a click or keyboard focus can stay on it.
+      placeholderData: (previous) =>
+        !cursor && previous
+          ? {
+              ...previous,
+              objects: previous.objects.filter((row) => matchesSelection(row, { search, state, ownership, project })),
+              nextPageToken: "",
+            }
+          : undefined,
+    },
   );
   const rows = query.data?.objects ?? [];
   const visible = rows.flatMap((row) => (row.key ? [row.key] : []));
@@ -324,6 +415,7 @@ export function DockerContainers({
     setSearch("");
     setState("all");
     setOwnership(DockerOwnership.UNSPECIFIED);
+    setChoosingContainer(false);
     stack("");
   };
 
@@ -341,7 +433,15 @@ export function DockerContainers({
       <Ownership row={row.object} />
     </div>
   );
-  const dots = (row: Row) => <ContainerActions row={row.object} stack={stack} />;
+  const dots = (row: Row) => (
+    <ContainerActions
+      row={row.object}
+      stack={stack}
+      takeOnMode={choosingContainer ? "choose" : "menu"}
+      onApplied={refresh}
+      onTakeOn={setTakeOn}
+    />
+  );
   const measured = (row: Row) => (
     <Usage
       sample={connected && row.object.state === ContainerState.RUNNING ? samples.get(row.id) : undefined}
@@ -421,15 +521,77 @@ export function DockerContainers({
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;
+  const waiting = query.isPending || query.isPlaceholderData;
+  const imports: MenuAction[] = [
+    ...(may(ContainerService.method.adoptContainer).allowed
+      ? [
+          {
+            id: "take-on",
+            label: t`Take on a container`,
+            icon: "service" as const,
+            onSelect: () => {
+              clear();
+              setOwnership(DockerOwnership.EXTERNAL);
+              setChoosingContainer(true);
+            },
+          },
+        ]
+      : []),
+    ...(may(ComposeService.method.importCompose).allowed
+      ? [
+          {
+            id: "compose",
+            label: t`Compose file`,
+            icon: "file" as const,
+            onSelect: () =>
+              void navigate({
+                to: "/apps/new",
+                search: { source: "compose", ...(serverId ? { server: serverId } : {}) },
+              }),
+          },
+        ]
+      : []),
+    ...(serverId && may(ImportService.method.importOnePanel).allowed
+      ? [
+          {
+            id: "move-in",
+            label: t`Move in`,
+            icon: "download" as const,
+            onSelect: () => void navigate({ to: "/servers/$serverId/import", params: { serverId } }),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <>
+      {takeOn ? <DockerTakeOn row={takeOn} onClose={() => setTakeOn(undefined)} /> : null}
       <div className="docker-section-heading">
         <h2>
           <Trans>Containers</Trans>
         </h2>
-        <Button icon="refresh" size="sm" variant="ghost" onClick={refresh} aria-label={t`Refresh containers`}>
-          <Trans>Refresh</Trans>
-        </Button>
+        <div className="docker-heading-actions">
+          <Button
+            icon="refresh"
+            size="sm"
+            variant="ghost"
+            onClick={refresh}
+            aria-label={t`Refresh containers`}
+            title={t`Refresh containers`}
+          />
+          <ActionMenu actions={imports} label={t`Import`} icon="download" text={t`Import`} />
+          {may(ChangeService.method.proposeChange).allowed ? (
+            <RouterButtonLink
+              to="/apps/new"
+              search={{ source: "image", advanced: true, ...(serverId ? { server: serverId } : {}) }}
+              icon="plus"
+              size="sm"
+              variant="primary"
+            >
+              <Trans>New container</Trans>
+            </RouterButtonLink>
+          ) : null}
+        </div>
       </div>
       <div className="docker-filters">
         <SegmentedControl
@@ -460,6 +622,7 @@ export function DockerContainers({
           value={String(ownership)}
           onChange={(event) => {
             setOwnership(Number(event.target.value));
+            setChoosingContainer(false);
             setPages([""]);
             setChanged(false);
           }}
@@ -507,12 +670,12 @@ export function DockerContainers({
           {sentence(query.error)}
         </Callout>
       ) : null}
-      {query.isPending ? (
+      {waiting && list.length === 0 ? (
         <p role="status">
           <Trans>Reading containers</Trans>
         </p>
       ) : null}
-      {!query.isPending && !query.error && list.length === 0 && !query.data?.unavailable.length ? (
+      {!waiting && !query.error && list.length === 0 && !query.data?.unavailable.length ? (
         <EmptyState
           icon="service"
           title={filtered ? t`No containers match` : t`No containers here`}
@@ -556,7 +719,13 @@ export function DockerContainers({
               ))}
             </ul>
           ) : (
-            <Table className="docker-table" caption={t`Container inventory`} rows={list} columns={columns} />
+            <Table
+              className="docker-table"
+              caption={t`Container inventory`}
+              rows={list}
+              rowKey="id"
+              columns={columns}
+            />
           )}
         </Panel>
       ) : null}

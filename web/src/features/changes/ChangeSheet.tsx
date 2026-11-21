@@ -17,6 +17,7 @@ import {
   Connection,
   ConnectionService,
   DatabaseService,
+  DockerService,
   type Domain,
   type DomainRoute,
   DomainService,
@@ -425,6 +426,7 @@ function refreshAfter(queryClient: QueryClient): void {
     AlertService,
     TaskService,
     ImageService,
+    DockerService,
   ]) {
     void queryClient.invalidateQueries({ queryKey: createConnectQueryKey({ schema, cardinality: undefined }) });
   }
@@ -1850,7 +1852,13 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const rebooting = servers.flatMap((s) => s.steps).some((s) => s.reboot !== undefined);
   // An action on a system service says what it does to what that unit serves (ADR 0082).
   const unit = servers.flatMap((s) => s.steps).find((s) => s.unit !== undefined)?.unit;
-  const running = rebooting ? (
+  const stopsWorkload = plan?.notes.some((note) => note.reason === "workload_stops");
+  const startsWorkload = plan?.notes.some((note) => note.reason === "workload_starts");
+  const running = stopsWorkload ? (
+    <Trans>stays stopped until started</Trans>
+  ) : startsWorkload ? (
+    <Trans>starts and verifies health</Trans>
+  ) : rebooting ? (
     <Trans>everything there is offline until it's back</Trans>
   ) : unit?.replacesRules ? (
     <Trans>published ports may stop answering until Docker restarts</Trans>

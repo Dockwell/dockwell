@@ -9168,6 +9168,9 @@ components:
                         Takes it on as it is where its database's password is one of its own names,
                          which anyone can guess (ADR 0096). Without it, such a container is refused,
                          saying so.
+                expectedContainerId:
+                    type: string
+                    description: If set, the reviewed container must still have this full Engine ID.
             description: AdoptContainerRequest names a container, and what to make of it.
         AdoptContainerResponse:
             type: object
@@ -13904,6 +13907,14 @@ components:
                          such as "default=web", with the network as networks or external_networks
                          names it: a name another container there linked to it by (ADR 0089). On a
                          container with one network, it's the same as aliases, and reads as that.
+                desiredRunState:
+                    enum:
+                        - DESIRED_RUN_STATE_UNSPECIFIED
+                        - DESIRED_RUN_STATE_RUNNING
+                        - DESIRED_RUN_STATE_STOPPED
+                    type: string
+                    description: The workload's durable run intent. Unspecified preserves legacy behavior.
+                    format: enum
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
@@ -15375,6 +15386,9 @@ components:
                     format: enum
                 managedResourceId:
                     type: string
+                managedRevision:
+                    type: string
+                    description: The managed revision used when planning a run-state change.
                 container:
                     $ref: '#/components/schemas/DockerContainer'
             description: DockerObject combines observed facts with ownership resolved by the control plane.
@@ -15899,7 +15913,9 @@ components:
                         - $ref: '#/components/schemas/Spec'
                     description: |-
                         What the resource should be. Every field is set as given: an edit
-                         replaces the whole spec. Unset only with delete.
+                         replaces the whole spec. Unset only with delete. A Container or Service
+                         app containing only desired_run_state keeps the current spec and applies
+                         that run intent at the supplied base_revision. It takes no placement.
                 delete:
                     type: boolean
                     description: |-
@@ -25074,6 +25090,13 @@ components:
                 summary:
                     type: string
                     description: What the restart is for, for the timeline. Empty says what it restarts.
+                serverId:
+                    type: string
+                    description: |-
+                        Together these scope the restart to one existing managed instance.
+                         With both set, id may also be the managed resource ID of a server container.
+                containerId:
+                    type: string
             description: RestartServiceRequest names a service to restart.
         RestartServiceResponse:
             type: object

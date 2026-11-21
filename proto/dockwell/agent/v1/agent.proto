@@ -2427,6 +2427,8 @@ message DesiredResource {
   // to run for it with its SHA-256 (ADR 0094). Numbered in the block fleet
   // actions hold, 350 to 359.
   UpgradeAgent upgrade_agent = 351;
+  // Restarts only this exact Engine instance (ADR 0107).
+  string exact_restart_id = 408;
 }
 
 // PanelAction is stopping or starting the own containers and services of Coolify
@@ -2906,10 +2908,12 @@ message ObservedResource {
   optional bytes spec = 1;
 }
 
-// DockerCapabilities advertises the Docker inventory protocol and exact-ID exec.
+// DockerCapabilities advertises optional Docker operations.
 message DockerCapabilities {
   bool inventory = 1;
   bool exact_terminal = 2;
+  // The agent honors durable run state and pinned restarts.
+  bool workload_controls = 3;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.

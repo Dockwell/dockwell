@@ -104,6 +104,8 @@ type Runner struct {
 	// Paths follows server paths, to check where they lead before a container
 	// starts again or a restore writes through one. Nil checks nothing.
 	Paths *container.Paths
+	// RunControl shares the agent's saved workload intent with backup cleanup.
+	RunControl *container.Docker
 	// Binary is what runs in the helper; /proc/self/exe unless set, which stays
 	// right across an upgrade that replaces the file.
 	Binary string
@@ -664,12 +666,25 @@ func (r *Runner) startContainer(ctx context.Context, id string) error {
 	return r.Client.StartContainer(ctx, id)
 }
 
+func (r *Runner) withRunIntent(id string, action func(stopped bool) error) error {
+	if r.RunControl == nil {
+		return action(false)
+	}
+	return r.RunControl.WithRunIntent(id, action)
+}
+
 // start starts containers, and forgets them once all of them are.
 func (r *Runner) start(ctx context.Context, run string, containers []*user) error {
 	var down downList
 	for _, c := range containers {
-		resource.Progress(ctx, "Starting "+c.name)
-		if err := r.startContainer(ctx, c.id); err != nil && !docker.IsNotFound(err) {
+		err := r.withRunIntent(c.id, func(stopped bool) error {
+			if stopped {
+				return nil
+			}
+			resource.Progress(ctx, "Starting "+c.name)
+			return r.startContainer(ctx, c.id)
+		})
+		if err != nil && !docker.IsNotFound(err) {
 			down = append(down, stayedDown{user: c, err: err})
 		}
 	}
@@ -766,7 +781,7 @@ func (r *Runner) Recover(ctx context.Context) error {
 		for _, id := range list[run].Containers {
 			containers = append(containers, &user{id: id, name: shortID(id)})
 		}
-		r.logger().Warn("something stopped containers for a backup or restore, and they didn't start again, so the agent starts them now", slog.Int("containers", len(containers)))
+		r.logger().Warn("a backup or restore left containers stopped, and the agent checks which should start again", slog.Int("containers", len(containers)))
 		err := r.start(ctx, run, containers)
 		var down downList
 		switch {

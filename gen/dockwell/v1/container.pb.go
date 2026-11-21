@@ -119,8 +119,10 @@ type AdoptContainerRequest struct {
 	// which anyone can guess (ADR 0096). Without it, such a container is refused,
 	// saying so.
 	GuessablePassword bool `protobuf:"varint,7,opt,name=guessable_password,json=guessablePassword,proto3" json:"guessable_password,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// If set, the reviewed container must still have this full Engine ID.
+	ExpectedContainerId string `protobuf:"bytes,400,opt,name=expected_container_id,json=expectedContainerId,proto3" json:"expected_container_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *AdoptContainerRequest) Reset() {
@@ -200,6 +202,13 @@ func (x *AdoptContainerRequest) GetGuessablePassword() bool {
 		return x.GuessablePassword
 	}
 	return false
+}
+
+func (x *AdoptContainerRequest) GetExpectedContainerId() string {
+	if x != nil {
+		return x.ExpectedContainerId
+	}
+	return ""
 }
 
 // AdoptContainerResponse carries the plan.
@@ -678,7 +687,7 @@ var File_dockwell_v1_container_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\n" +
-	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe5\x01\n" +
+	"\x1bdockwell/v1/container.proto\x12\vdockwell.v1\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x02\n" +
 	"\x15AdoptContainerRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
@@ -687,7 +696,8 @@ const file_dockwell_v1_container_proto_rawDesc = "" +
 	"\venvironment\x18\x05 \x01(\tR\venvironment\x12\x1f\n" +
 	"\vhost_access\x18\x06 \x01(\bR\n" +
 	"hostAccess\x12-\n" +
-	"\x12guessable_password\x18\a \x01(\bR\x11guessablePassword\"E\n" +
+	"\x12guessable_password\x18\a \x01(\bR\x11guessablePassword\x123\n" +
+	"\x15expected_container_id\x18\x90\x03 \x01(\tR\x13expectedContainerId\"E\n" +
 	"\x16AdoptContainerResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"/\n" +
 	"\x15ListContainersRequest\x12\x16\n" +

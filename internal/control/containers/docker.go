@@ -104,7 +104,7 @@ func (h *Handler) GetDockerOverview(ctx context.Context, req *connect.Request[v1
 					summary.ServerId, summary.ExactTerminal = s.ID, session.ExactTerminal()
 					for _, row := range summary.GetAttention() {
 						row.Key = &v1.DockerObjectKey{ServerId: s.ID, Kind: v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER, EngineId: row.GetKey().GetEngineId()}
-						row.ManagedResource, row.ManagedResourceId = nil, ""
+						row.ManagedResource, row.ManagedResourceId, row.ManagedRevision = nil, "", 0
 					}
 					summaries[i] = summary
 					return
@@ -373,7 +373,7 @@ func (h *Handler) classifyDocker(ctx context.Context, server string, list []*v1.
 	// resources and the independently observed full instance ID.
 	for _, row := range list {
 		row.Key = &v1.DockerObjectKey{ServerId: server, Kind: v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER, EngineId: row.GetKey().GetEngineId()}
-		row.ManagedResource, row.ManagedResourceId = nil, ""
+		row.ManagedResource, row.ManagedResourceId, row.ManagedRevision = nil, "", 0
 		if row.GetOwnership() != v1.DockerOwnership_DOCKER_OWNERSHIP_SYSTEM {
 			row.Ownership = v1.DockerOwnership_DOCKER_OWNERSHIP_EXTERNAL
 		}
@@ -382,33 +382,56 @@ func (h *Handler) classifyDocker(ctx context.Context, server string, list []*v1.
 		return nil
 	}
 	report, _ := h.agents.Health(server)
-	if len(report.Instances) == 0 {
-		return nil
-	}
 	byID := make(map[string]*v1.InstanceHealth, len(report.Instances))
 	for _, item := range report.Instances {
 		byID[item.GetContainerId()] = item
 	}
-	placed := make(map[string]store.Resource)
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
-		resources, err := tx.ListPlaced(ctx, server)
-		for _, held := range resources {
+		listed, err := tx.ListPlaced(ctx, server)
+		if err != nil || len(listed) == 0 {
+			return err
+		}
+		byProject := make(map[string]store.Resource)
+		placed := make(map[string]store.Resource)
+		for _, held := range listed {
 			if held.Kind == string(service.Kind) || held.Kind == string(container.Kind) {
-				placed[docker.Project(held.Scope)+"/"+held.Name] = held
+				byProject[docker.Project(held.Scope)+"/"+held.Name] = held
+				placed[held.ID] = held
 			}
 		}
-		return err
+		var unresolved []*v1.DockerObject
+		for _, row := range list {
+			if row.GetOwnership() == v1.DockerOwnership_DOCKER_OWNERSHIP_SYSTEM {
+				continue
+			}
+			instance := byID[row.GetKey().GetEngineId()]
+			if held, ok := byProject[instance.GetProject()+"/"+instance.GetService()]; ok {
+				ownDockerRow(row, held)
+			} else {
+				unresolved = append(unresolved, row)
+			}
+		}
+		if len(unresolved) == 0 || len(placed) == 0 {
+			return nil
+		}
+		adopted, err := tx.PlacedAdoptions(ctx, server)
+		if err != nil {
+			return err
+		}
+		for _, row := range unresolved {
+			if held, ok := placed[adopted[row.GetKey().GetEngineId()]]; ok {
+				ownDockerRow(row, held)
+			}
+		}
+		return nil
 	}); err != nil {
 		return h.internal(ctx, err)
 	}
-	for _, row := range list {
-		instance := byID[row.GetKey().GetEngineId()]
-		held, ok := placed[instance.GetProject()+"/"+instance.GetService()]
-		if ok {
-			row.Ownership = v1.DockerOwnership_DOCKER_OWNERSHIP_MANAGED
-			row.ManagedResource = &v1.ResourceRef{Kind: held.Kind, Scope: held.Scope, Name: held.Name}
-			row.ManagedResourceId = held.ID
-		}
-	}
 	return nil
+}
+
+func ownDockerRow(row *v1.DockerObject, held store.Resource) {
+	row.Ownership = v1.DockerOwnership_DOCKER_OWNERSHIP_MANAGED
+	row.ManagedResource = &v1.ResourceRef{Kind: held.Kind, Scope: held.Scope, Name: held.Name}
+	row.ManagedResourceId, row.ManagedRevision = held.ID, int64(held.Revision)
 }

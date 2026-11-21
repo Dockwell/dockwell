@@ -3316,6 +3316,12 @@ msgstr "设置"
 msgid "Show the logs of {name}"
 msgstr "显示 {name} 的日志"
 
+msgid "Start"
+msgstr "启动"
+
+msgid "Start {name}"
+msgstr "启动 {name}"
+
 msgid "build cancelled {ago}"
 msgstr "构建已于{ago}取消"
 
@@ -5296,6 +5302,9 @@ msgstr "不要在那里传入密钥。"
 msgid "Empty in the image"
 msgstr "镜像中为空"
 
+msgid "Enter zero or a whole number up to 4,294,967,295."
+msgstr "请输入 0 到 4,294,967,295 之间的整数。"
+
 msgid "Environment variables"
 msgstr "环境变量"
 
@@ -5463,6 +5472,9 @@ msgstr "移除不在此文件中的内容"
 msgid "Required"
 msgstr "必填"
 
+msgid "Restart retries"
+msgstr "重试次数"
+
 msgid "Restarts on errors"
 msgstr "出错时重启"
 
@@ -5532,6 +5544,9 @@ msgstr "文件过大，无法读取"
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "这个文件有 {kib} KiB，而 Dockwell 最多读取 {limit} KiB。请删除 Dockwell 不会运行的内容，或把服务拆分到多个文件中导入。"
 
+msgid "Unlimited"
+msgstr "无限制"
+
 msgid "Up to {cpus} CPUs"
 msgstr "最多 {cpus} 个 CPU"
 
@@ -5588,6 +5603,9 @@ msgstr "将 {where} 写成列表即可保持隐藏。"
 
 msgid "You approve what it reaches in the plan"
 msgstr "你将在计划中批准它可访问的内容"
+
+msgid "Zero allows unlimited retries."
+msgstr "设为 0 时，重试次数不限。"
 
 msgid "command"
 msgstr "命令"
@@ -6455,6 +6473,9 @@ msgstr "部署失败后正在回滚"
 msgid "Rolling back after a failed deploy failed too"
 msgstr "部署失败后的回滚也失败了"
 
+msgid "Started"
+msgstr "开始时间"
+
 msgid "Taking it off {left}"
 msgstr "正在把它从 {left} 上移走"
 
@@ -6653,6 +6674,9 @@ msgstr "未部署"
 msgid "Rollback failed"
 msgstr "回滚失败"
 
+msgid "Run state"
+msgstr "运行状态"
+
 msgid "Unless someone stops it"
 msgstr "除非有人停止它"
 
@@ -6694,6 +6718,9 @@ msgstr "工作目录"
 
 msgid "{servers} offline"
 msgstr "{servers} 离线"
+
+msgid "Stop {name}"
+msgstr "停止 {name}"
 
 msgid "Accept an invite"
 msgstr "接受邀请"
@@ -7737,9 +7764,6 @@ msgstr "恢复"
 
 msgid "Schedule"
 msgstr "计划"
-
-msgid "Started"
-msgstr "开始时间"
 
 msgid "Test restore"
 msgstr "测试恢复"
@@ -9895,6 +9919,12 @@ msgstr "拉取使用 <0>{loginList}</0>"
 msgid "rolling, with nothing stopped"
 msgstr "滚动发布，不停止任何内容"
 
+msgid "starts and verifies health"
+msgstr "启动并验证健康状态"
+
+msgid "stays stopped until started"
+msgstr "保持停止，直到手动启动"
+
 #. placeholder {0}: going.length
 msgid "visitors lose {0} addresses"
 msgstr "访问者将失去 {0} 个地址"
@@ -10688,9 +10718,6 @@ msgstr "拉取镜像"
 msgid "Pulled of the image"
 msgstr "镜像已拉取的部分"
 
-msgid "Start"
-msgstr "启动"
-
 msgid "To come"
 msgstr "待进行"
 
@@ -11209,6 +11236,9 @@ msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
 msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 msgstr "“拒绝其他所有流量”会丢弃隧道的下一次握手，经隧道的 SSH 也随之中断，尽管隧道连通时测试仍会通过。"
 
+msgid "Dependency links"
+msgstr "依赖链接"
+
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
 
@@ -11256,6 +11286,12 @@ msgstr "用于 {what}。"
 
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
+
+msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
+msgstr "健康检查将暂停，路由将没有可用的后端。依赖此工作负载的应用可能无法访问它。"
+
+msgid "Health checks resume and routes can serve the workload again. Dependent apps keep running."
+msgstr "健康检查将恢复，路由可重新转发流量。依赖此工作负载的应用继续运行。"
 
 msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
 msgstr "如果备份失败，升级会就此停止，不做其他操作。撤销会恢复旧版本，但不会恢复新版本对数据的改动：如需恢复数据，请恢复备份。"
@@ -11393,6 +11429,9 @@ msgstr "它的卷会先备份"
 msgid "Keep a rule that allows the tunnel's UDP port."
 msgstr "请保留一条允许隧道 UDP 端口的规则。"
 
+msgid "Keeps its identity and files."
+msgstr "保留容器标识和文件。"
+
 msgid "Labels alone: no step runs on {on}, online or offline."
 msgstr "仅改标签：{on} 上不会运行任何步骤，无论在线与否。"
 
@@ -11470,11 +11509,17 @@ msgstr "用 {taken} 的副本替换 {server} 上的 {name}"
 msgid "Replaces {name} on {server} with the dump from {taken}"
 msgstr "用 {taken} 的转储替换 {server} 上的 {name}"
 
+msgid "Restarts only container {id} on this server"
+msgstr "仅重启此服务器上的容器 {id}"
+
 msgid "Restore {which}, from {when}, from Backups after this."
 msgstr "完成后请在“备份”中恢复 {which}，创建于 {when}。"
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "修订版本 {revision} 在各服务器上运行的 {image} 镜像不同，因此 {name} 将运行 {image} 当前指向的镜像"
+
+msgid "Routes"
+msgstr "路由"
 
 msgid "Run it again once it's back."
 msgstr "它恢复连接后请再运行一次。"
@@ -11493,8 +11538,14 @@ msgstr "{0} 上的 SSH 只对 {from} 开放"
 msgid "Something may still manage {container}"
 msgstr "可能还有其他工具在管理 {container}"
 
+msgid "Starts on every placed server"
+msgstr "在部署此工作负载的所有服务器上启动"
+
 msgid "Stops following its branch, and stays at this commit until you move it."
 msgstr "不再跟随分支，停留在此提交，直到你移动它。"
+
+msgid "Stops on every placed server"
+msgstr "在部署此工作负载的所有服务器上停止"
 
 msgid "Take out the range that covers everything for it to ban anyone."
 msgstr "去掉覆盖所有地址的范围，它才能封禁任何人。"
@@ -11782,6 +11833,9 @@ msgstr "{count, plural, other {应用目录将显示这个提交中的 # 个应�
 
 msgid "{counts} {lifting}"
 msgstr "{counts}{lifting}"
+
+msgid "{database} runs only while the dump loads, then stops again."
+msgstr "{database} 只在加载转储时运行，加载后会再次停止。"
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} 会在空卷上重新启动并加载转储（{size}）。密码会恢复为当时的值。如果无法加载，现有内容会恢复。服务器会保留其副本 7 天，撤销即可恢复。"
@@ -14212,9 +14266,6 @@ msgstr "已隐去敏感信息的检查数据"
 msgid "Restart policy"
 msgstr "重启策略"
 
-msgid "Restart retries"
-msgstr "重试次数"
-
 #. placeholder {0}: times.ago(timestampDate(live.observedAt), now)
 msgid "Sampled {0}"
 msgstr "采样于 {0}"
@@ -14236,9 +14287,6 @@ msgstr "此容器已不存在"
 
 msgid "Unavailable"
 msgstr "不可用"
-
-msgid "Unlimited"
-msgstr "无限制"
 
 msgid "Written to disk"
 msgstr "磁盘写入"
@@ -14285,6 +14333,9 @@ msgstr "无法读取容器"
 msgid "Filter by this Compose project"
 msgstr "按此 Compose 项目筛选"
 
+msgid "Import"
+msgstr "导入"
+
 #. placeholder {0}: row.name
 msgid "Logs for {0}"
 msgstr "{0} 的日志"
@@ -14292,11 +14343,17 @@ msgstr "{0} 的日志"
 msgid "Managed by Dockwell"
 msgstr "由 Dockwell 管理"
 
+msgid "Move in"
+msgstr "迁入"
+
 msgid "Name, image or project"
 msgstr "名称、镜像或项目"
 
 msgid "Needs attention"
 msgstr "需要关注"
+
+msgid "New container"
+msgstr "新建容器"
 
 msgid "Next"
 msgstr "下一页"
@@ -14323,17 +14380,26 @@ msgstr "上一页"
 msgid "Reading containers"
 msgstr "正在读取容器"
 
-msgid "Refresh"
-msgstr "刷新"
-
 msgid "Refresh containers"
 msgstr "刷新容器"
 
 msgid "Refresh list"
 msgstr "刷新列表"
 
+msgid "Restart this container"
+msgstr "重启此容器"
+
 msgid "Search containers"
 msgstr "搜索容器"
+
+msgid "Start workload"
+msgstr "启动工作负载"
+
+msgid "Stop workload"
+msgstr "停止工作负载"
+
+msgid "Take on a container"
+msgstr "接管容器"
 
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
@@ -14347,6 +14413,16 @@ msgstr "用量"
 
 msgid "memory"
 msgstr "内存"
+
+msgid "App name"
+msgstr "应用名称"
+
+msgid "Keeps the current container, mounts, network connections and environment."
+msgstr "保留当前容器、挂载、网络连接和环境变量。"
+
+#. placeholder {0}: row.name
+msgid "Take on {0}"
+msgstr "接管 {0}"
 
 msgid "Compose projects"
 msgstr "Compose 项目"
@@ -14386,6 +14462,9 @@ msgstr "打开服务器列表"
 
 msgid "Reading Docker inventory"
 msgstr "正在读取 Docker 清单"
+
+msgid "Refresh"
+msgstr "刷新"
 
 msgid "Refresh Docker overview"
 msgstr "刷新 Docker 概览"
@@ -15463,9 +15542,6 @@ msgstr "稍后，在 {panel} 的代理交出 80 和 443 端口之后"
 msgid "Left to move: {what}"
 msgstr "待迁移：{what}"
 
-msgid "Move in"
-msgstr "迁入"
-
 msgid "Move in from 1Panel"
 msgstr "从 1Panel 迁入"
 
@@ -15531,9 +15607,6 @@ msgstr "重新启动 {name}"
 
 msgid "Start {proxy} again"
 msgstr "重新启动 {proxy}"
-
-msgid "Stop {name}"
-msgstr "停止 {name}"
 
 msgid "Take it on as it is: its key is one of its own names, which anyone can guess."
 msgstr "按原样接管：它的密钥是它自己的名称之一，任何人都能猜到。"

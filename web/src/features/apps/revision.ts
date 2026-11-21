@@ -155,6 +155,11 @@ export function useRevisionTitle() {
         if (failed) return plain(t`Couldn't publish port ${number}`);
         return plain(moving ? t`Publishing port ${number}` : t`Published port ${number}`);
       }
+      const runState = rev.changes[0];
+      if (!failed && !moving && rev.changes.length === 1 && runState && fields[0] === "desired_run_state") {
+        if (runState.to === "stopped") return plain(t`Stopped`);
+        if (runState.to === "running" || runState.from === "stopped") return plain(t`Started`);
+      }
       const [first] = fields;
       if (first === undefined) {
         // Where it runs isn't a field of its spec, so this is what it changed.

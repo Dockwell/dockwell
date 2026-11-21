@@ -76,6 +76,7 @@ import {
   isMoving,
   nameOf,
   revisionName,
+  stoppedByRevision,
   valuesOf,
 } from "./app";
 import { DomainFacts, DomainNote, useSilent } from "./DomainNote";
@@ -465,6 +466,7 @@ function AppNotice() {
         </Callout>
       );
   }
+  if (stoppedByRevision(service, state)) return null;
   // An update that just landed says so, with Undo, in the place of what's newer (ADR 0080), so here
   // it's what its health says.
   return (
@@ -544,7 +546,24 @@ function RunningPanel() {
       flush
       className="app-running"
     >
-      <RunsOnServers health={health} fleet={fleet} />
+      {stoppedByRevision(service, state) ? (
+        <ul className="app-runs">
+          {service.deployments.map((deployment) => (
+            <li key={deployment.serverId} className="app-runs-row">
+              {fleet ? (
+                <code className="app-runs-server">
+                  <RefLink kind="server" id={deployment.serverId} look="plain">
+                    {deployment.serverName}
+                  </RefLink>
+                </code>
+              ) : null}
+              <StatusBadge status="stopped" label={t`Stopped`} labelIsState />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <RunsOnServers health={health} fleet={fleet} />
+      )}
       {phone ? (
         <p className="app-running-now">
           {state.kind === "rollback-failed" ? (
@@ -1107,7 +1126,8 @@ function RecentDeployments() {
  */
 function HealthCheckPanel() {
   const { t } = useLingui();
-  const { service, health } = useApp();
+  const { service, state, health } = useApp();
+  const stopped = stoppedByRevision(service, state);
   const words = useHealthWords();
   const time = useTimeWords();
   const now = useControlPlaneNow(15_000);
@@ -1144,7 +1164,9 @@ function HealthCheckPanel() {
   // The badge goes by how each server reads, as the head does, never by a single
   // check's result: a check can fail below its retries and the app still read healthy.
   let badge: ReactNode = null;
-  if (hasCheck && unread > 0) {
+  if (hasCheck && stopped) {
+    badge = <StatusBadge status="stopped" label={t`Paused`} labelIsState />;
+  } else if (hasCheck && unread > 0) {
     badge = (
       <StatusBadge status="unknown" label={several ? t`${passing} of ${total} passing` : t`Unknown`} labelIsState />
     );
@@ -1167,7 +1189,7 @@ function HealthCheckPanel() {
   }
   // What to say it said: the newest failing server's, or else the newest of any,
   // and during a rollout what the latest revision's container said.
-  const heard = read ? health.servers : [];
+  const heard = read && !stopped ? health.servers : [];
   const at = (s: RunsOnServer) => (s.newest ?? s).last?.at?.getTime() ?? 0;
   const failingFirst = heard.filter((s) => s.kind === "unhealthy").sort((a, b) => at(b) - at(a));
   const chosen = failingFirst[0] ?? [...heard].sort((a, b) => at(b) - at(a))[0];

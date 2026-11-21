@@ -453,14 +453,16 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go keptImages.KeepPruned(ctx, logger)
 	mounted := &container.Files{Dir: paths.Files, Client: client}
 	go mounted.KeepPruned(ctx, logger)
-	containers := container.Driver{Runtime: &container.Docker{
+	runtime := &container.Docker{
 		Client: client, Deleted: kept, Logger: logger, Paths: paths, Folders: container.HostFolders{}, Files: mounted, Ingress: routes, Logs: archive, Devices: container.HostDevices,
 		BeforeReplace: database.Reader{Client: client}.BeforeReplace, Room: dockerRoom(client), Kept: keptImages,
-		PullLogins: &container.PullLogins{Path: filepath.Join(dir.Agent(), "pull-logins.json")},
-	}}
+		PullLogins:  &container.PullLogins{Path: filepath.Join(dir.Agent(), "pull-logins.json")},
+		RunStateDir: filepath.Join(dir.Agent(), "container-run-state"),
+	}
+	containers := container.Driver{Runtime: runtime}
 	volumes := &volume.Docker{Client: client, Kept: kept, Paths: paths}
 	go volumes.KeepPruned(ctx, logger)
-	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger}
+	backups := &backup.Runner{Client: client, Root: filepath.Join(dir.Agent(), "backups"), Paths: paths, Logger: logger, RunControl: runtime}
 	go backups.Keep(ctx)
 	go archive.KeepPruned(ctx)
 	go routes.KeepReconciled(ctx, ingressEvery)
@@ -546,11 +548,12 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups, Moves: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			users, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
-			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
+			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, WithRunIntent: runtime.WithRunIntent, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,
 		UpgradesItself: true,
 		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Tunnels: tunnelFinder(stdio, logger), Health: monitor,
-		Backups: backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
+		PruneRunState: runtime.PruneRunState,
+		Backups:       backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, SSHSessions: sessions,
 		System: units,
 	}

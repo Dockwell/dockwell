@@ -519,6 +519,7 @@ func (*Driver) WhatRuns(spec proto.Message) proto.Message {
 	s := proto.Clone(spec).(*resourcev1.Service)
 	if app := s.GetApp(); app != nil {
 		app.Resources = nil
+		app.DesiredRunState = 0
 	}
 	return s
 }
@@ -881,7 +882,7 @@ func (d *Driver) finishMove(ctx context.Context, step resource.Step, app *resour
 		}
 	}
 	// What stopped starts again only on a database that's up and healthy.
-	if err := d.Containers.VerifyAt(ctx, t); err != nil {
+	if err := d.Containers.VerifyAt(ctx, t, app); err != nil {
 		return err
 	}
 	return d.Movers.FinishMove(ctx, moveOf(ctx, step, app))
@@ -911,7 +912,7 @@ func (d *Driver) move(ctx context.Context, step resource.Step, app *resourcev1.C
 		if err := d.Containers.ApplyAt(ctx, t, step, app); err != nil {
 			return err
 		}
-		return d.Containers.VerifyAt(ctx, t)
+		return d.Containers.VerifyAt(ctx, t, app)
 	})
 	if err != nil {
 		return resource.Plainly(fmt.Sprintf("Dockwell can't move %s to its new release: %s.", step.Ref.Name, strings.TrimRight(strings.TrimSpace(err.Error()), ".")), err)
@@ -920,8 +921,8 @@ func (d *Driver) move(ctx context.Context, step resource.Step, app *resourcev1.C
 }
 
 // Verify checks the service's container is healthy.
-func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
-	return d.Containers.VerifyAt(ctx, TargetIn(ctx, ref))
+func (d *Driver) Verify(ctx context.Context, ref resource.Ref, desired proto.Message) error {
+	return d.Containers.VerifyAt(ctx, TargetIn(ctx, ref), desired)
 }
 
 // Settle says what is left of a service that reads back as its spec: what a
@@ -982,4 +983,14 @@ func tidyArchitectures(svc *resourcev1.Service) error {
 		svc.Architectures = nil
 	}
 	return nil
+}
+
+// PlanRestart plans an in-place restart of a single Engine instance.
+func (d *Driver) PlanRestart(ctx context.Context, ref resource.Ref, spec proto.Message, change, engineID string) (resource.Decision, error) {
+	return d.Containers.PlanRestartAt(ctx, TargetIn(ctx, ref), spec, change, engineID)
+}
+
+// ApplyRestart restarts and checks the single instance in the reviewed plan.
+func (d *Driver) ApplyRestart(ctx context.Context, ref resource.Ref, spec proto.Message, change, engineID string) error {
+	return d.Containers.ApplyRestartAt(ctx, TargetIn(ctx, ref), spec, change, engineID)
 }

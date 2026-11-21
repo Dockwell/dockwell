@@ -130,7 +130,7 @@ type Runtime interface {
 	Run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error
 	// Update changes what Docker can change on a running container: its restart
 	// policy, and its limits.
-	Update(ctx context.Context, t Target, spec *resourcev1.Container) error
+	Update(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error
 	// Remove stops and removes the container.
 	Remove(ctx context.Context, t Target) error
 	// Healthy reports whether the container is running and passes its
@@ -432,6 +432,9 @@ func validateWords(c *resourcev1.Container) error {
 // validateRestart refuses a count of restarts on a policy with none, which
 // Docker refuses as it makes the container, so only once the change is applied.
 func validateRestart(c *resourcev1.Container) error {
+	if state := c.GetDesiredRunState(); state < 0 || state > stopped {
+		return fmt.Errorf("unknown desired run state %d", state)
+	}
 	if c.GetRestartRetries() > 0 && c.GetRestart() != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {
 		return fmt.Errorf("only on-failure restarts a set number of times, and this container's policy is %s. Use on-failure, or leave restart_retries out", restartNames[c.GetRestart()])
 	}
@@ -933,7 +936,7 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 		}
 	}
 	dec := resource.Decision{Action: resource.ActionReplace, Effect: resource.EffectRecreate, Downtime: downtime}
-	if b := HealthBound(desired.(*resourcev1.Container).GetHealthcheck(), nil); b > 0 {
+	if b := HealthBound(desired.(*resourcev1.Container).GetHealthcheck(), nil); b > 0 && !IsStopped(desired) {
 		dec.UntilHealthy = downtime + b
 	}
 	return dec, nil
@@ -945,7 +948,7 @@ func (d *Driver) Plan(actual, desired proto.Message, changes []resource.Change) 
 func inPlace(changes []resource.Change) bool {
 	for _, c := range changes {
 		switch c.Path {
-		case "restart", "restart_retries":
+		case "restart", "restart_retries", "desired_run_state":
 		case "resources.cpus", "resources.memory", "resources.memory_reservation":
 			if c.Op == resource.OpRemoved {
 				return false
@@ -1101,12 +1104,12 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 					Did:  resource.Did(resource.ActionUpdate),
 					Note: fmt.Sprintf("%s is already the newest image, so only %s's restart policy or limits changed", spec.GetImage(), t.Service),
 				})
-				return d.Runtime.Update(ctx, t, spec)
+				return d.Runtime.Update(ctx, t, spec, step.Decision)
 			}
 		}
 		return d.Runtime.Run(ctx, t, spec, step.Decision)
 	case resource.ActionUpdate:
-		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container))
+		return d.Runtime.Update(ctx, t, desired.(*resourcev1.Container), step.Decision)
 	case resource.ActionDelete:
 		return d.Runtime.Remove(ctx, t)
 	default:
@@ -1145,6 +1148,7 @@ var exposedPort = lazyre.Regexp(`^\d{1,5}/(tcp|udp|sctp)$`)
 func (*Driver) WhatRuns(spec proto.Message) proto.Message {
 	c := proto.Clone(spec).(*resourcev1.Container)
 	c.Resources = nil
+	c.DesiredRunState = 0
 	return c
 }
 
@@ -1158,8 +1162,8 @@ func (*Driver) UserOf(spec proto.Message) string { return spec.(*resourcev1.Cont
 func (*Driver) SetImage(spec proto.Message, image string) { spec.(*resourcev1.Container).Image = image }
 
 // Verify checks the container is running and passes its health check.
-func (d *Driver) Verify(ctx context.Context, ref resource.Ref, _ proto.Message) error {
-	return d.Runtime.Healthy(ctx, HostTarget(ref))
+func (d *Driver) Verify(ctx context.Context, ref resource.Ref, desired proto.Message) error {
+	return d.VerifyAt(ctx, HostTarget(ref), desired)
 }
 
 // preparer is a Runtime that can do what a run does before anything stops.
@@ -1177,7 +1181,13 @@ func (d *Driver) PrepareAt(ctx context.Context, t Target, spec *resourcev1.Conta
 }
 
 // VerifyAt checks the container at t is running and healthy.
-func (d *Driver) VerifyAt(ctx context.Context, t Target) error {
+func (d *Driver) VerifyAt(ctx context.Context, t Target, desired proto.Message) error {
+	if rt, ok := d.Runtime.(*Docker); ok {
+		return rt.verifyRun(ctx, t, desired)
+	}
+	if IsStopped(desired) {
+		return nil
+	}
 	return d.Runtime.Healthy(ctx, t)
 }
 
@@ -1197,4 +1207,32 @@ func (d *Driver) ReadyKey() any {
 		return r.ReadyKey()
 	}
 	return d
+}
+
+// PlanRestart plans an in-place restart of a server container.
+func (d *Driver) PlanRestart(ctx context.Context, ref resource.Ref, spec proto.Message, change, engineID string) (resource.Decision, error) {
+	return d.PlanRestartAt(ctx, HostTarget(ref), spec, change, engineID)
+}
+
+// ApplyRestart restarts and checks the reviewed server container.
+func (d *Driver) ApplyRestart(ctx context.Context, ref resource.Ref, spec proto.Message, change, engineID string) error {
+	return d.ApplyRestartAt(ctx, HostTarget(ref), spec, change, engineID)
+}
+
+// PlanRestartAt plans an in-place restart of a single Engine instance.
+func (d *Driver) PlanRestartAt(ctx context.Context, t Target, spec proto.Message, change, engineID string) (resource.Decision, error) {
+	rt, ok := d.Runtime.(*Docker)
+	if !ok {
+		return resource.Decision{}, errors.New("this runtime can't restart a single Engine instance")
+	}
+	return rt.PlanRestart(ctx, t, spec, change, engineID)
+}
+
+// ApplyRestartAt restarts and checks the single instance in the reviewed plan.
+func (d *Driver) ApplyRestartAt(ctx context.Context, t Target, spec proto.Message, change, engineID string) error {
+	rt, ok := d.Runtime.(*Docker)
+	if !ok {
+		return errors.New("this runtime can't restart a single Engine instance")
+	}
+	return rt.ApplyRestart(ctx, t, spec, change, engineID)
 }

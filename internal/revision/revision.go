@@ -279,6 +279,12 @@ func ChainEditHooks(hooks ...EditHook) EditHook {
 // Kinds is the registry the engine reads and checks specs with.
 func (e *Engine) Kinds() *resource.Registry { return e.kinds }
 
+// RestartTarget pins a restart to the Engine identity on one placed server.
+type RestartTarget struct {
+	Server    string
+	Container string
+}
+
 // Edit sets one resource's desired spec; a nil Spec deletes it.
 type Edit struct {
 	Ref  resource.Ref
@@ -297,7 +303,8 @@ type Edit struct {
 	// held route's setup link, which alone may write or clear it (ADR 0105).
 	SetsUp bool
 	// Restart asks for the resource to restart, with its spec as it is.
-	Restart bool
+	Restart       bool
+	RestartTarget *RestartTarget
 	// Restore asks for the resource's data to come back from a backup, with its
 	// spec as it is, on the server that holds the backup (ADR 0033).
 	Restore *resource.RestoreSource
@@ -610,7 +617,8 @@ type ResourcePlan struct {
 	ID  string
 	Ref resource.Ref
 	// Restart says the change restarts it, which makes no revision.
-	Restart bool `json:",omitempty"`
+	Restart       bool           `json:",omitempty"`
+	RestartTarget *RestartTarget `json:",omitempty"`
 	// Install is what the change installs on its server, for a server's host:
 	// the agent's simulation of the exact command. It makes no revision, and
 	// can't be undone (ADR 0064).
@@ -915,7 +923,8 @@ type item struct {
 	// restart names the restart the item is to have: the change's ID. It makes
 	// no revision, so it isn't a difference between specs, and what a step makes
 	// carries it, so planning again finds it done or not.
-	restart string
+	restart       string
+	restartTarget *RestartTarget
 	// restore is what its data comes back from, as a restart is, on one server.
 	restore *resource.RestoreSource
 	// forLink is the link the edit is made for (Edit.For), and backupOne the one
@@ -1012,6 +1021,9 @@ func (it item) changes() bool {
 // targets are the servers applying the item takes steps on: where it is
 // and where it goes, less the servers that were removed.
 func (it item) targets() []string {
+	if it.restartTarget != nil {
+		return []string{it.restartTarget.Server}
+	}
 	out := slices.Concat(it.placed, it.servers)
 	slices.Sort(out)
 	return slices.DeleteFunc(slices.Compact(out), func(s string) bool { return slices.Contains(it.gone, s) })
@@ -1181,8 +1193,12 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		if items[i].move != nil {
 			items[i].move.Change = changeID
 		}
-		if slices.ContainsFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }) {
-			items[i].restart = changeID
+		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Restart && ed.Ref == items[i].ref }); j >= 0 {
+			it := &items[i]
+			it.restart, it.restartTarget = changeID, p.Edits[j].RestartTarget
+			if it.restartTarget != nil && (it.changes() || !slices.Contains(it.placed, it.restartTarget.Server)) {
+				return nil, fault.New(ErrStale, "the workload's revision or placement changed. Review the current instance again")
+			}
 		}
 		if j := slices.IndexFunc(p.Edits, func(ed Edit) bool { return ed.Backup && ed.Ref == items[i].ref }); j >= 0 && items[i].current != nil {
 			items[i].backups = make(map[string]string, len(items[i].placed))
@@ -1275,6 +1291,9 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 		p.Notes = slices.DeleteFunc(slices.Clone(p.Notes), func(n Note) bool { return n.IfItChanges })
 	}
 	p.Notes = unmeasuredNotes(plan, sharedNameNotes(plan, elsewhereNotes(plan, e.keptRootNotes(plan, items, e.keptNotes(items, e.confinedNotes(items, e.textNotes(items, e.dataNotes(plan, items, startingNotes(plan, p.Notes)))))))))
+	if p.Notes, err = e.workloadNotes(ctx, items, p.Notes); err != nil {
+		return nil, err
+	}
 	if p.Notes, err = e.taskNotes(ctx, plan, items, p.Notes); err != nil {
 		return nil, err
 	}
@@ -2950,6 +2969,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		item := func(digest []byte) string {
 			return fmt.Sprintf("item %s|%s|%d|%t|%x|%s", stable(it.id), ref(it.ref), it.base, it.spec != nil, digest, strings.Join(it.servers, " "))
 		}
+		if target := it.restartTarget; target != nil {
+			fmt.Fprintf(fp, "pinned restart %s|%s|%s\n", ref(it.ref), target.Server, target.Container)
+		}
 		sum := sha256.Sum256(it.encoded)
 		_, _ = fmt.Fprintf(keyed, "%s|%t\n", item(e.digest(changeID, it)), it.rotates)
 		_, _ = io.WriteString(plain, item(sum[:])+"\n")
@@ -3022,6 +3044,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		}
 		if sp.Offline || sp.Unplanned != "" {
 			for _, it := range its {
+				if it.restartTarget != nil {
+					return nil, fault.New(ErrOffline, "%s must be connected to verify the instance to restart", sp.Name)
+				}
 				if it.restoreOn(server) != nil || it.backups[server] != "" {
 					// Nothing but its server can say what a restore or a backup would
 					// stop, or whether it still has what a restore brings back.
@@ -3316,6 +3341,21 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			if r := s.Restore; r != nil {
 				fmt.Fprintf(fp, "  restore %s|%s|%s|%s|%d|%d|%v|%s|%s\n", r.Backup, r.Undoes, r.Method, r.Database, r.Taken.UnixNano(), r.Size, r.Stops, r.WrittenBy, r.RunsOn)
+				name, err := e.stoppedRestoreDatabase(ctx, server, s)
+				if err != nil {
+					return nil, err
+				}
+				if name != "" {
+					if a, ok := agent.(interface{ DockerWorkloadControls() bool }); ok && !a.DockerWorkloadControls() {
+						return nil, &AgentError{Server: sp.Name, Doing: "plan", Err: fmt.Errorf("%w: update the agent to restore a database saved as stopped", resource.ErrAgentTooOld)}
+					}
+					s.NeedsRunControl = true
+					fmt.Fprintf(fp, "  restore-stopped %s\n", name)
+					plan.Notes = append(plan.Notes, Note{
+						Reason: "restore_stopped_database", Ref: s.Ref, Names: []string{name},
+						Message: name + " runs only while the dump loads, then stops again.",
+					})
+				}
 			}
 			// What it will cost stays out: a file that grew is no reason to review this again.
 			if b := s.BackupFirst; b != nil {
@@ -3661,8 +3701,14 @@ func (e *Engine) digest(changeID string, it *item) []byte {
 // planOn asks a server's agent what the items would take there.
 func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name string, its []*item) ([]resource.Step, error) {
 	desired := make([]resource.Desired, len(its))
+	exact := make(map[resource.Ref]string)
 	for i, it := range its {
 		desired[i] = resource.Desired{Ref: it.ref, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
+		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
+		if target := it.restartTarget; target != nil {
+			desired[i].ExactRestart = target.Container
+			exact[it.ref] = target.Container
+		}
 	}
 	// An agent from before would make the volume empty, and the data would stay
 	// behind in one the change deletes (ADR 0084, #572).
@@ -3678,6 +3724,12 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 	}
 	if len(steps) != len(desired) {
 		return nil, fmt.Errorf("can't plan on %s: its agent judged %d steps for %d resources", name, len(steps), len(desired))
+	}
+	for i := range steps {
+		steps[i].ExactRestart = exact[steps[i].Ref]
+		if steps[i].ExactRestart != "" {
+			steps[i].Restart = resourceRestart(its, steps[i].Ref)
+		}
 	}
 	return steps, nil
 }
@@ -3841,7 +3893,7 @@ func (it item) resourcePlan(steps []resource.Action) ResourcePlan {
 	}
 	rp := ResourcePlan{
 		ID: it.id, Ref: it.ref, Base: it.base, Changes: diff(it.current, it.spec),
-		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", Restore: it.restore, Backups: it.backups, Move: it.move,
+		Servers: slices.Clone(it.servers), Previous: slices.Clone(it.placed), Restart: it.restart != "", RestartTarget: it.restartTarget, Restore: it.restore, Backups: it.backups, Move: it.move,
 		BackupOne: it.backupOne, BackupAlso: it.backupAlso, AlsoFor: it.alsoFor,
 	}
 	if it.moveFrom != (resource.Ref{}) {
@@ -4962,6 +5014,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		// it's given is read first, as another server's step may change the item
 		// once the lock is let go.
 		step, desired := *q.step, it.desiredOn(q.server)
+		step.NeedsRunControl = step.NeedsRunControl || resource.RunIntent(it.currentOn(q.server)) != 0
 		if q.backupOnly {
 			// A deletion's backup reads the volume as it is.
 			desired = it.current
@@ -5579,8 +5632,8 @@ func (e *Engine) prepareResume(ctx context.Context, changeID string) (*committed
 			if it.placed, err = e.placement(ctx, tx, it, ci.BaseRevision); err != nil {
 				return err
 			}
-			if restarts(planned, ref) {
-				it.restart = c.ID
+			if restart := restartIn(planned, ref); restart != nil {
+				it.restart, it.restartTarget = c.ID, restart.RestartTarget
 			}
 			it.restore, it.backups, it.move, it.forLink = restoreIn(planned, ref)
 			it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(planned, ref)
@@ -5808,8 +5861,8 @@ func (e *Engine) current(ctx context.Context, tx *store.Tx, c store.Change, aske
 				return nil, err
 			}
 		}
-		if restarts(asked, ref) {
-			it.restart = c.ID
+		if restart := restartIn(asked, ref); restart != nil {
+			it.restart, it.restartTarget = c.ID, restart.RestartTarget
 		}
 		it.restore, it.backups, it.move, it.forLink = restoreIn(asked, ref)
 		it.backupOne, it.backupAlso, it.alsoFor = backupOneIn(asked, ref)
@@ -6115,8 +6168,17 @@ func installIn(p *planRead, ref resource.Ref) *resource.InstallAsked {
 
 // restarts reports a change that restarts a resource, as its plan says: a
 // restart isn't in the spec the store keeps for the change's item.
-func restarts(p *planRead, ref resource.Ref) bool {
-	return p.first(ref, func(r *ResourcePlan) bool { return r.Restart }) != nil
+func restarts(p *planRead, ref resource.Ref) bool { return restartIn(p, ref) != nil }
+
+func restartIn(p *planRead, ref resource.Ref) *ResourcePlan {
+	return p.first(ref, func(r *ResourcePlan) bool { return r.Restart })
+}
+
+func resourceRestart(items []*item, ref resource.Ref) string {
+	if it := itemOf(items, ref); it != nil {
+		return it.restart
+	}
+	return ""
 }
 
 // Restart plans restarting a resource on every server it runs on, with its spec
@@ -6124,12 +6186,26 @@ func restarts(p *planRead, ref resource.Ref) bool {
 // no spec. So it has nothing to undo, and if it fails there is nothing to roll
 // back. A kind that can't restart is refused.
 func (e *Engine) Restart(ctx context.Context, ref resource.Ref, by By, summary string) (*Plan, error) {
+	return e.restart(ctx, ref, by, summary, nil)
+}
+
+// RestartInstance plans a restart on the existing placement and immutable ID.
+func (e *Engine) RestartInstance(ctx context.Context, ref resource.Ref, by By, summary string, target RestartTarget) (*Plan, error) {
+	if target.Server == "" || !docker.IsFullID(target.Container) {
+		return nil, fault.New(ErrInvalid, "name both the server and the full Engine ID of the instance to restart")
+	}
+	return e.restart(ctx, ref, by, summary, &target)
+}
+
+func (e *Engine) restart(ctx context.Context, ref resource.Ref, by By, summary string, target *RestartTarget) (*Plan, error) {
 	t, err := e.kinds.Type(ref.Kind)
 	if err != nil {
 		return nil, fault.New(ErrInvalid, "%w", err)
 	}
-	if _, ok := t.(resource.Settler); !ok {
-		return nil, fault.New(ErrInvalid, "a %s can't be restarted. Only a service can: edit it, or make it again", ref.Kind)
+	_, service := t.(resource.Settler)
+	_, instance := t.(resource.InstanceRestarter)
+	if target == nil && !service || target != nil && !instance {
+		return nil, fault.New(ErrInvalid, "a %s can't be restarted this way", ref.Kind)
 	}
 	var it item
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
@@ -6142,10 +6218,23 @@ func (e *Engine) Restart(ctx context.Context, ref resource.Ref, by By, summary s
 	if it.current == nil {
 		return nil, fault.New(ErrInvalid, "there's no %s to restart. Check its name and environment", ref)
 	}
+	if resource.RunIntent(it.current) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
+		return nil, fault.New(ErrInvalid, "%s is stopped by its revision. Use Start", ref.Name)
+	}
+	if target != nil && !slices.Contains(it.placed, target.Server) {
+		return nil, fault.New(ErrInvalid, "%s is not placed on the selected server", ref.Name)
+	}
 	if summary == "" {
 		summary = "Restart " + ref.Name
 	}
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: []Edit{{Ref: ref, Spec: it.current, Restart: true}}}, "", false)
+	var notes []Note
+	if target != nil {
+		notes = append(notes, Note{
+			Reason: "restart_instance", Ref: ref, Names: []string{target.Container[:12]},
+			Message: fmt.Sprintf("Restarts only container %s on the server shown. Its identity and files are kept.", target.Container[:12]),
+		})
+	}
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Notes: notes, Edits: []Edit{{Ref: ref, Spec: it.current, Base: it.base, Restart: true, RestartTarget: target}}}, "", false)
 }
 
 // BackupStep is a backup a step of a change took.

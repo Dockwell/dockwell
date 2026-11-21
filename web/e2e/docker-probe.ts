@@ -128,6 +128,11 @@ export async function dockerRun(
   return made.Id;
 }
 
+/** Reads the container directly, including the configuration an adoption kept. */
+export function dockerInspect(socket: string, id: string): Promise<Inspected> {
+  return get(socket, `/containers/${id}/json`);
+}
+
 /** Whether a container has been touched: anything that restarts or replaces it changes this. */
 export async function dockerStarted(socket: string, id: string): Promise<string> {
   const seen = await get<{ Id: string; RestartCount: number; State: { StartedAt: string } }>(
@@ -147,6 +152,11 @@ export async function dockerRemove(socket: string, id: string, volume: string): 
 export async function dockerHealth(socket: string, id: string, status: string, output: string): Promise<void> {
   const query = new URLSearchParams({ status, output });
   await call(socket, "POST", `/containers/${id}/x-dockwell-health?${query}`);
+}
+
+/** Leaves a container restarting on the fake Engine until a test restarts it. */
+export async function dockerRestartLoop(socket: string, id: string): Promise<void> {
+  await call(socket, "POST", `/containers/${id}/x-dockwell-restarting`);
 }
 
 /** What a run's Dockwell makes on Docker, by the ID or name Docker removes it by. */
