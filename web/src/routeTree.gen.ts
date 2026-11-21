@@ -85,9 +85,12 @@ import { Route as ShellWebsitesWebsiteIdLogsRouteImport } from './routes/_shell/
 import { Route as ShellSettingsSettingsIntegrationsIndexRouteImport } from './routes/_shell/_settings/settings.integrations.index'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
 import { Route as ShellServersServerIdDockerIndexRouteImport } from './routes/_shell/servers.$serverId.docker.index'
+import { Route as ShellServersServerIdDockerCleanupRouteImport } from './routes/_shell/servers.$serverId.docker.cleanup'
 import { Route as ShellSettingsSettingsIntegrationsGithubCreatedRouteImport } from './routes/_shell/_settings/settings.integrations.github.created'
 import { Route as ShellServersServerIdDockerContainersIndexRouteImport } from './routes/_shell/servers.$serverId.docker.containers.index'
 import { Route as ShellServersServerIdDockerContainersContainerIdRouteImport } from './routes/_shell/servers.$serverId.docker.containers.$containerId'
+import { Route as ShellServersServerIdDockerImagesIndexRouteImport } from './routes/_shell/servers.$serverId.docker.images.index'
+import { Route as ShellServersServerIdDockerImagesImageIdRouteImport } from './routes/_shell/servers.$serverId.docker.images.$imageId'
 import { Route as ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport } from './routes/_shell/_settings/settings.integrations.github.$appId.installed'
 
 const ShellRoute = ShellRouteImport.update({
@@ -498,6 +501,12 @@ const ShellServersServerIdDockerIndexRoute =
     path: '/servers/$serverId/docker/',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdDockerCleanupRoute =
+  ShellServersServerIdDockerCleanupRouteImport.update({
+    id: '/servers/$serverId/docker/cleanup',
+    path: '/servers/$serverId/docker/cleanup',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellSettingsSettingsIntegrationsGithubCreatedRoute =
   ShellSettingsSettingsIntegrationsGithubCreatedRouteImport.update({
     id: '/settings/integrations/github/created',
@@ -514,6 +523,18 @@ const ShellServersServerIdDockerContainersContainerIdRoute =
   ShellServersServerIdDockerContainersContainerIdRouteImport.update({
     id: '/servers/$serverId/docker/containers/$containerId',
     path: '/servers/$serverId/docker/containers/$containerId',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdDockerImagesIndexRoute =
+  ShellServersServerIdDockerImagesIndexRouteImport.update({
+    id: '/servers/$serverId/docker/images/',
+    path: '/servers/$serverId/docker/images/',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdDockerImagesImageIdRoute =
+  ShellServersServerIdDockerImagesImageIdRouteImport.update({
+    id: '/servers/$serverId/docker/images/$imageId',
+    path: '/servers/$serverId/docker/images/$imageId',
     getParentRoute: () => ShellRoute,
   } as any)
 const ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute =
@@ -596,11 +617,14 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
   '/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
+  '/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesByTo {
@@ -673,11 +697,14 @@ export interface FileRoutesByTo {
   '/servers/$serverId': typeof ShellServersServerIdIndexRoute
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/servers/$serverId/docker': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/servers/$serverId/docker/containers': typeof ShellServersServerIdDockerContainersIndexRoute
+  '/servers/$serverId/docker/images': typeof ShellServersServerIdDockerImagesIndexRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesById {
@@ -756,11 +783,14 @@ export interface FileRoutesById {
   '/_shell/servers/$serverId/': typeof ShellServersServerIdIndexRoute
   '/_shell/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
+  '/_shell/servers/$serverId/docker/cleanup': typeof ShellServersServerIdDockerCleanupRoute
   '/_shell/_settings/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
   '/_shell/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/_shell/_settings/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
   '/_shell/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/_shell/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
   '/_shell/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
+  '/_shell/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
   '/_shell/_settings/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRouteTypes {
@@ -838,11 +868,14 @@ export interface FileRouteTypes {
     | '/servers/$serverId/'
     | '/websites/$websiteId/'
     | '/servers/$serverId/containers/$name'
+    | '/servers/$serverId/docker/cleanup'
     | '/settings/integrations/'
     | '/servers/$serverId/docker/'
     | '/settings/integrations/github/created'
     | '/servers/$serverId/docker/containers/$containerId'
+    | '/servers/$serverId/docker/images/$imageId'
     | '/servers/$serverId/docker/containers/'
+    | '/servers/$serverId/docker/images/'
     | '/settings/integrations/github/$appId/installed'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -915,11 +948,14 @@ export interface FileRouteTypes {
     | '/servers/$serverId'
     | '/websites/$websiteId'
     | '/servers/$serverId/containers/$name'
+    | '/servers/$serverId/docker/cleanup'
     | '/settings/integrations'
     | '/servers/$serverId/docker'
     | '/settings/integrations/github/created'
     | '/servers/$serverId/docker/containers/$containerId'
+    | '/servers/$serverId/docker/images/$imageId'
     | '/servers/$serverId/docker/containers'
+    | '/servers/$serverId/docker/images'
     | '/settings/integrations/github/$appId/installed'
   id:
     | '__root__'
@@ -997,11 +1033,14 @@ export interface FileRouteTypes {
     | '/_shell/servers/$serverId/'
     | '/_shell/websites/$websiteId/'
     | '/_shell/servers/$serverId/containers/$name'
+    | '/_shell/servers/$serverId/docker/cleanup'
     | '/_shell/_settings/settings/integrations/'
     | '/_shell/servers/$serverId/docker/'
     | '/_shell/_settings/settings/integrations/github/created'
     | '/_shell/servers/$serverId/docker/containers/$containerId'
+    | '/_shell/servers/$serverId/docker/images/$imageId'
     | '/_shell/servers/$serverId/docker/containers/'
+    | '/_shell/servers/$serverId/docker/images/'
     | '/_shell/_settings/settings/integrations/github/$appId/installed'
   fileRoutesById: FileRoutesById
 }
@@ -1548,6 +1587,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdDockerIndexRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/docker/cleanup': {
+      id: '/_shell/servers/$serverId/docker/cleanup'
+      path: '/servers/$serverId/docker/cleanup'
+      fullPath: '/servers/$serverId/docker/cleanup'
+      preLoaderRoute: typeof ShellServersServerIdDockerCleanupRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/_settings/settings/integrations/github/created': {
       id: '/_shell/_settings/settings/integrations/github/created'
       path: '/settings/integrations/github/created'
@@ -1567,6 +1613,20 @@ declare module '@tanstack/react-router' {
       path: '/servers/$serverId/docker/containers/$containerId'
       fullPath: '/servers/$serverId/docker/containers/$containerId'
       preLoaderRoute: typeof ShellServersServerIdDockerContainersContainerIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/images/': {
+      id: '/_shell/servers/$serverId/docker/images/'
+      path: '/servers/$serverId/docker/images'
+      fullPath: '/servers/$serverId/docker/images/'
+      preLoaderRoute: typeof ShellServersServerIdDockerImagesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/images/$imageId': {
+      id: '/_shell/servers/$serverId/docker/images/$imageId'
+      path: '/servers/$serverId/docker/images/$imageId'
+      fullPath: '/servers/$serverId/docker/images/$imageId'
+      preLoaderRoute: typeof ShellServersServerIdDockerImagesImageIdRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/_settings/settings/integrations/github/$appId/installed': {
@@ -1734,9 +1794,12 @@ interface ShellRouteChildren {
   ShellServersServerIdUpdatesRoute: typeof ShellServersServerIdUpdatesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
+  ShellServersServerIdDockerCleanupRoute: typeof ShellServersServerIdDockerCleanupRoute
   ShellServersServerIdDockerIndexRoute: typeof ShellServersServerIdDockerIndexRoute
   ShellServersServerIdDockerContainersContainerIdRoute: typeof ShellServersServerIdDockerContainersContainerIdRoute
+  ShellServersServerIdDockerImagesImageIdRoute: typeof ShellServersServerIdDockerImagesImageIdRoute
   ShellServersServerIdDockerContainersIndexRoute: typeof ShellServersServerIdDockerContainersIndexRoute
+  ShellServersServerIdDockerImagesIndexRoute: typeof ShellServersServerIdDockerImagesIndexRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
@@ -1787,11 +1850,17 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:
     ShellServersServerIdContainersNameRoute,
+  ShellServersServerIdDockerCleanupRoute:
+    ShellServersServerIdDockerCleanupRoute,
   ShellServersServerIdDockerIndexRoute: ShellServersServerIdDockerIndexRoute,
   ShellServersServerIdDockerContainersContainerIdRoute:
     ShellServersServerIdDockerContainersContainerIdRoute,
+  ShellServersServerIdDockerImagesImageIdRoute:
+    ShellServersServerIdDockerImagesImageIdRoute,
   ShellServersServerIdDockerContainersIndexRoute:
     ShellServersServerIdDockerContainersIndexRoute,
+  ShellServersServerIdDockerImagesIndexRoute:
+    ShellServersServerIdDockerImagesIndexRoute,
 }
 
 const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)

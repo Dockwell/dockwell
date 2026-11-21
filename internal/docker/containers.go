@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -484,17 +485,26 @@ func (c *Client) ListContainers(ctx context.Context, filters map[string][]string
 // at once. The summary is each's alone, and an error from each ends the list. It
 // takes no label filter, as Docker can't apply one to what was taken on.
 func (c *Client) EachContainer(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error) error {
+	return c.eachContainer(ctx, filters, each, false)
+}
+
+// EachCleanupContainer streams the containers with a byte bound for maintenance.
+func (c *Client) EachCleanupContainer(ctx context.Context, each func(*ContainerSummary) error) error {
+	return c.eachContainer(ctx, nil, each, true)
+}
+
+func (c *Client) eachContainer(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error, bounded bool) error {
 	taken := c.Adopted.snapshot()
 	return c.eachListed(ctx, filters, func(s *ContainerSummary) error {
 		if t, ok := taken[s.ID]; ok {
 			s.Labels = asTaken(s.Labels, t, plainSummaryName(s.Names))
 		}
 		return each(s)
-	})
+	}, bounded)
 }
 
 // eachListed reads Docker's list as it comes.
-func (c *Client) eachListed(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error) error {
+func (c *Client) eachListed(ctx context.Context, filters map[string][]string, each func(*ContainerSummary) error, bounds ...bool) error {
 	q, err := listQuery(filters)
 	if err != nil {
 		return err
@@ -510,7 +520,11 @@ func (c *Client) eachListed(ctx context.Context, filters map[string][]string, ea
 	defer res.Body.Close()
 	defer discard(res.Body)
 	read := func(err error) error { return fmt.Errorf("can't read Docker's list of containers: %w", err) }
-	dec := json.NewDecoder(res.Body)
+	var body io.Reader = res.Body
+	if len(bounds) > 0 && bounds[0] {
+		body = io.LimitReader(body, maxInventoryBytes)
+	}
+	dec := json.NewDecoder(body)
 	if _, err := dec.Token(); err != nil {
 		return read(err)
 	}
@@ -522,6 +536,9 @@ func (c *Client) eachListed(ctx context.Context, filters map[string][]string, ea
 		if err := each(&s); err != nil {
 			return err
 		}
+	}
+	if _, err := dec.Token(); err != nil {
+		return read(err)
 	}
 	return nil
 }

@@ -5,6 +5,8 @@ package docker
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"time"
 )
 
 // DiskUsage is what Docker says its data takes, as `docker system df` reads it:
@@ -20,7 +22,10 @@ type DiskUsage struct {
 
 // DiskUsageImage is one image's share.
 type DiskUsageImage struct {
-	ID string `json:"Id"`
+	ID                    string `json:"Id"`
+	RepoTags, RepoDigests []string
+	Labels                map[string]string
+	Created               int64
 	// Size is all of its layers, and SharedSize those other images have too, or
 	// -1 when Docker didn't work that out.
 	Size, SharedSize int64
@@ -54,9 +59,14 @@ type VolumeUsage struct {
 
 // DiskUsageCache is one record of the build cache.
 type DiskUsageCache struct {
-	Size   int64
-	InUse  bool
-	Shared bool
+	ID         string
+	Type       string
+	UsageCount int
+	CreatedAt  time.Time
+	LastUsedAt *time.Time
+	Size       int64
+	InUse      bool
+	Shared     bool
 }
 
 // DiskUsage asks Docker what its data takes. Docker adds up every volume to
@@ -67,4 +77,20 @@ func (c *Client) DiskUsage(ctx context.Context) (*DiskUsage, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// CleanupDiskUsage reads the preview's bounded Engine snapshot.
+func (c *Client) CleanupDiskUsage(ctx context.Context) (*DiskUsage, error) {
+	var out DiskUsage
+	if err := c.boundedJSON(ctx, http.MethodGet, "/system/df", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// BuildCacheUsage verifies a prune without walking volumes or image storage.
+func (c *Client) BuildCacheUsage(ctx context.Context) ([]DiskUsageCache, error) {
+	var out DiskUsage
+	err := c.do(ctx, http.MethodGet, "/system/df", url.Values{"type": {"build-cache"}}, nil, &out)
+	return out.BuildCache, err
 }

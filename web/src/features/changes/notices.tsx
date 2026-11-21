@@ -29,12 +29,14 @@ import { installationOf, useGitHubApps } from "../settings/github";
 import {
   asGoodAsRoot,
   changing,
+  cleansDocker,
   factAndRest,
   installs,
   keepsData,
   onlyIfNewer,
   reboots,
   reloadsProxy,
+  resumesDockerCleanup,
   shownName,
   startsStopped,
 } from "./plan";
@@ -81,6 +83,7 @@ function accessOf(plan: Plan): HostAccess[] {
  */
 export function needsConfirming(plan: Plan | undefined): boolean {
   if (!plan) return false;
+  if (cleansDocker(plan)) return false;
   const access = accessOf(plan);
   // A removal that destroys nothing more is confirmed by its passkey alone, which it always asks (#800):
   // the plan says it's for good, and a second code to type says nothing more.
@@ -141,7 +144,7 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       reboots(plan) ||
       // A removal cuts a server off and revokes what it holds (ADR 0090).
       plan.removes !== undefined ||
-      plan.resources.some((r) => r.unit?.passkey === true) ||
+      plan.resources.some((r) => r.unit?.passkey === true || r.dockerMaintenance !== undefined) ||
       // An Open whose owner isn't made: who reaches it first takes it, or anyone signs
       // in with a password everyone knows (ADR 0105).
       plan.notes.some((n) => n.reason === "opens_to_everyone" || n.reason === "known_password"))
@@ -785,6 +788,11 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { root } = useReaches(plan);
   const managed = useManagedElsewhere();
   if (!plan) return [];
+  if (cleansDocker(plan)) {
+    return applied || resumesDockerCleanup(plan)
+      ? []
+      : [{ key: "cleanup", title: t`Docker cleanup permanently removes the selected Docker artifacts` }];
+  }
   // What a tool would delete leads, as acting on it there is what loses data, and it
   // can't wait below everything a plan of many services has to say.
   const out: Notice[] = [

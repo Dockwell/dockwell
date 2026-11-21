@@ -1760,7 +1760,7 @@ func notRunning(c *docker.Container) string {
 // not the deploy, so a failure to read it doesn't fail anything.
 func (d *Docker) reportRan(ctx context.Context, c *docker.Container) {
 	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil {
-		resource.Report(ctx, resource.Outcome{Digest: img.Digest(c.Config.Image)})
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(c.Config.Image), LocalImageID: img.ID})
 	}
 }
 

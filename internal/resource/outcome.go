@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+
 	"google.golang.org/protobuf/proto"
 )
 
@@ -19,9 +21,13 @@ var ErrAlreadySo = errors.New("already as asked")
 
 // Outcome is what a step found out on its server, for the record.
 type Outcome struct {
+	DockerReceipts []*v1.DockerReceipt
 	// Digest is the image the step leaves running, as its registry knows it.
 	// Empty for one no registry knows.
 	Digest string
+	// LocalImageID identifies the exact image on this Engine, including builds
+	// and imported images that have no registry digest.
+	LocalImageID string
 	// Previous is the digest of the image it replaces, where a pull found a newer
 	// one.
 	Previous string
@@ -137,4 +143,22 @@ func BareImage(image string) string {
 // PinnedImage is an image pinned to a digest, keeping its tag to say what it was.
 func PinnedImage(image, digest string) string {
 	return BareImage(image) + "@" + digest
+}
+
+// DockerProtection names the references kept by desired state and retained deployments.
+type DockerProtection struct {
+	Images, Networks []string
+}
+
+type dockerProtectionKey struct{}
+
+// WithDockerProtection supplies current dependencies to a Docker cleanup call.
+func WithDockerProtection(ctx context.Context, held DockerProtection) context.Context {
+	return context.WithValue(ctx, dockerProtectionKey{}, held)
+}
+
+// DockerProtectionOf reads the protection snapshot for a Docker cleanup call.
+func DockerProtectionOf(ctx context.Context) (DockerProtection, bool) {
+	held, ok := ctx.Value(dockerProtectionKey{}).(DockerProtection)
+	return held, ok
 }

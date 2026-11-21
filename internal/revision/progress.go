@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
@@ -46,8 +48,9 @@ func (s StepState) Final() bool { return s == StepDone || s == StepFailed || s =
 
 // StepProgress is one step of an applying change and how it is going.
 type StepProgress struct {
-	Server     string `json:"server"`
-	ResourceID string `json:"resource_id"`
+	DockerReceipts []*dockwellv1.DockerReceipt `json:"docker_receipts,omitempty"`
+	Server         string                      `json:"server"`
+	ResourceID     string                      `json:"resource_id"`
 	// Provider tells a route's steps at Cloudflare apart from its own step on its
 	// server, which has none (ADR 0104).
 	Provider string          `json:"provider,omitempty"`
@@ -273,11 +276,16 @@ func (e *Engine) claim(changeID, takesOver string, items []item, resumeLater boo
 // holdServers notes the servers a change runs steps on, and refuses it while an
 // install restarts Docker on one of them, or, for such an install, while another
 // change runs steps on its server: Docker restarting under a deploy fails both
-// (ADR 0064, Holds). A rollback isn't refused, as it puts back what was.
-func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
+// (ADR 0064, Holds). Rollbacks and resumed changes keep their existing
+// restart rules. Cleanup holds the server against every other change so
+// its desired dependencies stay valid while the agent removes artifacts.
+func (e *Engine) holdServers(changeID string, plan *Plan, rollback, resuming bool) error {
 	servers := serversOf(plan)
-	var docker []string
+	var docker, cleanup []string
 	for i := range plan.Resources {
+		if plan.Resources[i].DockerMaintenance != nil {
+			cleanup = append(cleanup, plan.Resources[i].Ref.Scope)
+		}
 		// A reboot takes down everything on its server, as Docker restarting does.
 		// So does restarting Docker as a system service (ADR 0082).
 		if in := plan.Resources[i].Install; in != nil && in.DockerRestarts || plan.Resources[i].Reboot != nil ||
@@ -288,17 +296,35 @@ func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
 	e.pmu.Lock()
 	defer e.pmu.Unlock()
 	if e.on == nil {
-		e.on, e.dockerFor = map[string][]string{}, map[string]string{}
+		e.on, e.dockerFor, e.cleanupFor = map[string][]string{}, map[string]string{}, map[string]string{}
 	}
-	if !rollback {
-		name := func(server string) string {
-			for _, s := range plan.Servers {
-				if s.Server == server {
-					return cmp.Or(s.Name, server)
-				}
+	name := func(server string) string {
+		for _, s := range plan.Servers {
+			if s.Server == server {
+				return cmp.Or(s.Name, server)
 			}
-			return server
 		}
+		return server
+	}
+	for _, s := range servers {
+		if other := e.cleanupFor[s]; other != "" && other != changeID {
+			if resuming {
+				e.waiters[other] = true
+			}
+			return fault.New(ErrBusy, "Docker cleanup is applying on %s. Apply this change again once it ends", name(s))
+		}
+	}
+	for _, s := range cleanup {
+		for other, theirs := range e.on {
+			if other != changeID && slices.Contains(theirs, s) {
+				if resuming {
+					e.waiters[other] = true
+				}
+				return fault.New(ErrBusy, "%s is applying on %s. Apply Docker cleanup again once it ends", other, name(s))
+			}
+		}
+	}
+	if !rollback && !resuming {
 		for _, s := range servers {
 			if other, ok := e.dockerFor[s]; ok && other != changeID {
 				return fault.New(ErrBusy, "%s installs updates on %s now and restarts Docker there, so this change can't run there yet. Apply it again once that one ends", other, name(s))
@@ -313,8 +339,13 @@ func (e *Engine) holdServers(changeID string, plan *Plan, rollback bool) error {
 		}
 	}
 	e.on[changeID] = servers
-	for _, s := range docker {
-		e.dockerFor[s] = changeID
+	if !resuming {
+		for _, s := range docker {
+			e.dockerFor[s] = changeID
+		}
+	}
+	for _, s := range cleanup {
+		e.cleanupFor[s] = changeID
 	}
 	return nil
 }
@@ -334,6 +365,11 @@ func (e *Engine) letGo(ctx context.Context, changeID string) {
 	for s, c := range e.dockerFor {
 		if c == changeID {
 			delete(e.dockerFor, s)
+		}
+	}
+	for server, change := range e.cleanupFor {
+		if change == changeID {
+			delete(e.cleanupFor, server)
 		}
 	}
 	for id, c := range e.busy {
@@ -647,6 +683,27 @@ func message(state StepState, action resource.Action, ref resource.Ref, server s
 // stepMessage is message for a step, in its own words where it restarts a
 // resource, rather than replacing it for a new spec.
 func stepMessage(state StepState, st *resource.Step, server string) string {
+	if st.DockerMaintenance.GetResumeCleanupToken() != "" {
+		switch state {
+		case StepQueued:
+			return "Waiting to re-enable Docker cleanup on " + server
+		case StepRunning:
+			return "Re-enabling Docker cleanup on " + server
+		case StepDone:
+			return "Re-enabled Docker cleanup on " + server
+		case StepFailed, StepSkipped, StepWaiting:
+		}
+	} else if st.DockerMaintenance != nil {
+		switch state {
+		case StepQueued:
+			return "Waiting to clean up Docker on " + server
+		case StepRunning:
+			return "Cleaning up Docker on " + server
+		case StepDone:
+			return "Cleaned up Docker on " + server
+		case StepFailed, StepSkipped, StepWaiting:
+		}
+	}
 	if st.Provider != nil {
 		return providerWords(state, st.Provider)
 	}

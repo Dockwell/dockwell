@@ -9634,11 +9634,17 @@ msgstr "Applying this approves {0}'s change, with your passkey"
 msgid "Applying this asks for your passkey"
 msgstr "Applying this asks for your passkey"
 
+msgid "Cleaning up Docker"
+msgstr "Cleaning up Docker"
+
 msgid "Copy {at}"
 msgstr "Copy {at}"
 
 msgid "Copy {where}"
 msgstr "Copy {where}"
+
+msgid "Could not re-enable Docker cleanup"
+msgstr "Could not re-enable Docker cleanup"
 
 msgid "Couldn't create {made}"
 msgstr "Couldn't create {made}"
@@ -9654,6 +9660,15 @@ msgstr "Disabling {name} at boot on {server}"
 
 msgid "Discarded"
 msgstr "Discarded"
+
+msgid "Docker cleanup complete"
+msgstr "Docker cleanup complete"
+
+msgid "Docker cleanup failed"
+msgstr "Docker cleanup failed"
+
+msgid "Docker cleanup re-enabled"
+msgstr "Docker cleanup re-enabled"
 
 msgid "Dockwell let go of {subject}"
 msgstr "Dockwell let go of {subject}"
@@ -9774,6 +9789,9 @@ msgstr "Open {domain} in Domains"
 
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
+
+msgid "Re-enabling Docker cleanup"
+msgstr "Re-enabling Docker cleanup"
 
 msgid "Rebooting {server}"
 msgstr "Rebooting {server}"
@@ -10262,6 +10280,9 @@ msgstr "Back up <0>{name}</0>, with {stops} stopped for an exact copy and starte
 msgid "Brings back the data the server kept"
 msgstr "Brings back the data the server kept"
 
+msgid "Clean up Docker on <0>{server}</0>"
+msgstr "Clean up Docker on <0>{server}</0>"
+
 msgid "Destroys data"
 msgstr "Destroys data"
 
@@ -10326,6 +10347,9 @@ msgstr "Pulled in"
 #. placeholder {0}: step.registryLogin
 msgid "Pulls with the registry login {0}"
 msgstr "Pulls with the registry login {0}"
+
+msgid "Re-enable Docker cleanup on <0>{server}</0>"
+msgstr "Re-enable Docker cleanup on <0>{server}</0>"
 
 msgid "Reaches {reach} on {server}"
 msgstr "Reaches {reach} on {server}"
@@ -11241,6 +11265,9 @@ msgstr "Dependency links"
 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
+
+msgid "Docker cleanup permanently removes the selected Docker artifacts"
+msgstr "Docker cleanup permanently removes the selected Docker artifacts"
 
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell couldn't list the repository's branches and tags"
@@ -14134,6 +14161,68 @@ msgstr "Wrong token"
 msgid "Zones"
 msgstr "Zones"
 
+msgid "Checking Docker artifacts"
+msgstr "Checking Docker artifacts"
+
+msgid "Cleanup candidates changed"
+msgstr "Cleanup candidates changed"
+
+msgid "Cleanup couldn't be read"
+msgstr "Cleanup couldn't be read"
+
+msgid "Cleanup options"
+msgstr "Cleanup options"
+
+msgid "Cleanup paused on {server}"
+msgstr "Cleanup paused on {server}"
+
+msgid "Include unused images with tags or digests"
+msgstr "Include unused images with tags or digests"
+
+msgid "Include unused networks"
+msgstr "Include unused networks"
+
+msgid "Last used {lastUsed}"
+msgstr "Last used {lastUsed}"
+
+msgid "No eligible artifacts"
+msgstr "No eligible artifacts"
+
+msgid "Open container"
+msgstr "Open container"
+
+msgid "Protected artifacts"
+msgstr "Protected artifacts"
+
+msgid "Re-enable cleanup"
+msgstr "Re-enable cleanup"
+
+msgid "Review again"
+msgstr "Review again"
+
+msgid "Review cleanup"
+msgstr "Review cleanup"
+
+msgid "Show more artifacts"
+msgstr "Show more artifacts"
+
+#. placeholder {0}: selected.length
+msgid "{0} selected · {estimated} estimated"
+msgstr "{0} selected · {estimated} estimated"
+
+msgid "Before {before} · after {after}"
+msgstr "Before {before} · after {after}"
+
+msgid "Outcome unknown"
+msgstr "Outcome unknown"
+
+#. placeholder {0}: receipt.recheckedEngineId
+msgid "Verified ID <0>{0}</0>"
+msgstr "Verified ID <0>{0}</0>"
+
+msgid "{display} estimated"
+msgstr "{display} estimated"
+
 msgid "Back to containers"
 msgstr "Back to containers"
 
@@ -14414,6 +14503,126 @@ msgstr "Usage"
 msgid "memory"
 msgstr "memory"
 
+msgid "Docker disk usage"
+msgstr "Docker disk usage"
+
+#. placeholder {0}: formatDateTime(timestampDate(used.time), i18n.locale)
+msgid "Measured {0}"
+msgstr "Measured {0}"
+
+msgid "Partial count"
+msgstr "Partial count"
+
+msgid "Reclaimable"
+msgstr "Reclaimable"
+
+msgid "Used"
+msgstr "Used"
+
+#. placeholder {0}: formatBytes(row.otherMountsBytes, i18n.locale)
+msgid "{0} on other disks"
+msgstr "{0} on other disks"
+
+msgid "Build instructions are redacted"
+msgstr "Build instructions are redacted"
+
+msgid "Copy full image ID"
+msgstr "Copy full image ID"
+
+msgid "Dangling"
+msgstr "Dangling"
+
+msgid "History unavailable"
+msgstr "History unavailable"
+
+msgid "Image couldn't be read"
+msgstr "Image couldn't be read"
+
+msgid "Image details"
+msgstr "Image details"
+
+msgid "Image is gone"
+msgstr "Image is gone"
+
+msgid "Images couldn't be read"
+msgstr "Images couldn't be read"
+
+msgid "Instructions redacted"
+msgstr "Instructions redacted"
+
+msgid "Layers"
+msgstr "Layers"
+
+msgid "Local images"
+msgstr "Local images"
+
+msgid "More tags"
+msgstr "More tags"
+
+msgid "No containers or retained deployments"
+msgstr "No containers or retained deployments"
+
+msgid "No layers reported"
+msgstr "No layers reported"
+
+msgid "No local images"
+msgstr "No local images"
+
+msgid "No matching images"
+msgstr "No matching images"
+
+msgid "Only the first entries are shown"
+msgstr "Only the first entries are shown"
+
+msgid "Platform"
+msgstr "Platform"
+
+msgid "Reading image"
+msgstr "Reading image"
+
+msgid "Reading local images"
+msgstr "Reading local images"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+#. placeholder {0}: String(deployment.revision)
+msgid "Retained revision {0}"
+msgstr "Retained revision {0}"
+
+msgid "Search images"
+msgstr "Search images"
+
+msgid "Tag, digest or ID"
+msgstr "Tag, digest or ID"
+
+msgid "Tags and digests"
+msgstr "Tags and digests"
+
+msgid "The image list changed. Refresh it to continue."
+msgstr "The image list changed. Refresh it to continue."
+
+msgid "Total"
+msgstr "Total"
+
+msgid "Total size"
+msgstr "Total size"
+
+msgid "Unique"
+msgstr "Unique"
+
+msgid "Unique size"
+msgstr "Unique size"
+
+msgid "Unknown date"
+msgstr "Unknown date"
+
+msgid "Unknown size"
+msgstr "Unknown size"
+
+msgid "Unused"
+msgstr "Unused"
+
 msgid "App name"
 msgstr "App name"
 
@@ -14463,9 +14672,6 @@ msgstr "Open Servers"
 msgid "Reading Docker inventory"
 msgstr "Reading Docker inventory"
 
-msgid "Refresh"
-msgstr "Refresh"
-
 msgid "Refresh Docker overview"
 msgstr "Refresh Docker overview"
 
@@ -14491,6 +14697,72 @@ msgstr "{0} of {1} selected servers answered"
 #. placeholder {0}: sum("running")
 msgid "{0} running"
 msgstr "{0} running"
+
+msgid "Build cache"
+msgstr "Build cache"
+
+msgid "Cleanup disabled after a build cache removal"
+msgstr "Cleanup disabled after a build cache removal"
+
+msgid "Docker artifacts"
+msgstr "Docker artifacts"
+
+msgid "Docker refused to remove this image by ID"
+msgstr "Docker refused to remove this image by ID"
+
+msgid "Docker removed other build cache records"
+msgstr "Docker removed other build cache records"
+
+msgid "Has more than one tag"
+msgstr "Has more than one tag"
+
+msgid "Idle build cache"
+msgstr "Idle build cache"
+
+msgid "In use"
+msgstr "In use"
+
+msgid "In use by builds"
+msgstr "In use by builds"
+
+msgid "Logs are never removed here"
+msgstr "Logs are never removed here"
+
+msgid "Managed or built-in"
+msgstr "Managed or built-in"
+
+msgid "Needed for rollback or deployment"
+msgstr "Needed for rollback or deployment"
+
+msgid "Only local networks can be removed here"
+msgstr "Only local networks can be removed here"
+
+msgid "Shared storage"
+msgstr "Shared storage"
+
+msgid "Tagged in more than one repository"
+msgstr "Tagged in more than one repository"
+
+msgid "Take on before deletion"
+msgstr "Take on before deletion"
+
+msgid "The build cache removal could not be verified"
+msgstr "The build cache removal could not be verified"
+
+msgid "This Docker version can't remove one cache record at a time"
+msgstr "This Docker version can't remove one cache record at a time"
+
+msgid "This image has tags that could not all be reviewed"
+msgstr "This image has tags that could not all be reviewed"
+
+msgid "Unknown eligibility"
+msgstr "Unknown eligibility"
+
+msgid "Volumes require take-on before deletion"
+msgstr "Volumes require take-on before deletion"
+
+msgid "Writable layers"
+msgstr "Writable layers"
 
 msgid "Agent disconnected"
 msgstr "Agent disconnected"
@@ -16838,9 +17110,6 @@ msgstr "Other files"
 
 msgid "The system and anything outside Docker"
 msgstr "The system and anything outside Docker"
-
-msgid "Used"
-msgstr "Used"
 
 msgid "What Docker keeps of what they print"
 msgstr "What Docker keeps of what they print"
@@ -19950,9 +20219,6 @@ msgstr "The least anyone may choose"
 
 msgid "The passkey prompt closed, so the floor didn't change."
 msgstr "The passkey prompt closed, so the floor didn't change."
-
-msgid "Platform"
-msgstr "Platform"
 
 msgid "1 token"
 msgstr "1 token"

@@ -44,6 +44,12 @@ const (
 	// DockerServiceGetDockerObjectProcedure is the fully-qualified name of the DockerService's
 	// GetDockerObject RPC.
 	DockerServiceGetDockerObjectProcedure = "/dockwell.v1.DockerService/GetDockerObject"
+	// DockerServicePreviewDockerCleanupProcedure is the fully-qualified name of the DockerService's
+	// PreviewDockerCleanup RPC.
+	DockerServicePreviewDockerCleanupProcedure = "/dockwell.v1.DockerService/PreviewDockerCleanup"
+	// DockerServicePlanDockerMaintenanceProcedure is the fully-qualified name of the DockerService's
+	// PlanDockerMaintenance RPC.
+	DockerServicePlanDockerMaintenanceProcedure = "/dockwell.v1.DockerService/PlanDockerMaintenance"
 	// DockerServiceWatchDockerObjectsProcedure is the fully-qualified name of the DockerService's
 	// WatchDockerObjects RPC.
 	DockerServiceWatchDockerObjectsProcedure = "/dockwell.v1.DockerService/WatchDockerObjects"
@@ -57,6 +63,10 @@ type DockerServiceClient interface {
 	ListDockerObjects(context.Context, *connect.Request[v1.ListDockerObjectsRequest]) (*connect.Response[v1.ListDockerObjectsResponse], error)
 	// GetDockerObject reads details at one immutable Engine identity.
 	GetDockerObject(context.Context, *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error)
+	// PreviewDockerCleanup lists the artifacts each selected Engine can account for.
+	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
+	// PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error)
 }
@@ -93,6 +103,19 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		previewDockerCleanup: connect.NewClient[v1.PreviewDockerCleanupRequest, v1.PreviewDockerCleanupResponse](
+			httpClient,
+			baseURL+DockerServicePreviewDockerCleanupProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("PreviewDockerCleanup")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		planDockerMaintenance: connect.NewClient[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse](
+			httpClient,
+			baseURL+DockerServicePlanDockerMaintenanceProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
+			connect.WithClientOptions(opts...),
+		),
 		watchDockerObjects: connect.NewClient[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse](
 			httpClient,
 			baseURL+DockerServiceWatchDockerObjectsProcedure,
@@ -105,10 +128,12 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // dockerServiceClient implements DockerServiceClient.
 type dockerServiceClient struct {
-	getDockerOverview  *connect.Client[v1.GetDockerOverviewRequest, v1.GetDockerOverviewResponse]
-	listDockerObjects  *connect.Client[v1.ListDockerObjectsRequest, v1.ListDockerObjectsResponse]
-	getDockerObject    *connect.Client[v1.GetDockerObjectRequest, v1.GetDockerObjectResponse]
-	watchDockerObjects *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
+	getDockerOverview     *connect.Client[v1.GetDockerOverviewRequest, v1.GetDockerOverviewResponse]
+	listDockerObjects     *connect.Client[v1.ListDockerObjectsRequest, v1.ListDockerObjectsResponse]
+	getDockerObject       *connect.Client[v1.GetDockerObjectRequest, v1.GetDockerObjectResponse]
+	previewDockerCleanup  *connect.Client[v1.PreviewDockerCleanupRequest, v1.PreviewDockerCleanupResponse]
+	planDockerMaintenance *connect.Client[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse]
+	watchDockerObjects    *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
 }
 
 // GetDockerOverview calls dockwell.v1.DockerService.GetDockerOverview.
@@ -126,6 +151,16 @@ func (c *dockerServiceClient) GetDockerObject(ctx context.Context, req *connect.
 	return c.getDockerObject.CallUnary(ctx, req)
 }
 
+// PreviewDockerCleanup calls dockwell.v1.DockerService.PreviewDockerCleanup.
+func (c *dockerServiceClient) PreviewDockerCleanup(ctx context.Context, req *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error) {
+	return c.previewDockerCleanup.CallUnary(ctx, req)
+}
+
+// PlanDockerMaintenance calls dockwell.v1.DockerService.PlanDockerMaintenance.
+func (c *dockerServiceClient) PlanDockerMaintenance(ctx context.Context, req *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
+	return c.planDockerMaintenance.CallUnary(ctx, req)
+}
+
 // WatchDockerObjects calls dockwell.v1.DockerService.WatchDockerObjects.
 func (c *dockerServiceClient) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error) {
 	return c.watchDockerObjects.CallServerStream(ctx, req)
@@ -139,6 +174,10 @@ type DockerServiceHandler interface {
 	ListDockerObjects(context.Context, *connect.Request[v1.ListDockerObjectsRequest]) (*connect.Response[v1.ListDockerObjectsResponse], error)
 	// GetDockerObject reads details at one immutable Engine identity.
 	GetDockerObject(context.Context, *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error)
+	// PreviewDockerCleanup lists the artifacts each selected Engine can account for.
+	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
+	// PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error
 }
@@ -171,6 +210,19 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	dockerServicePreviewDockerCleanupHandler := connect.NewUnaryHandler(
+		DockerServicePreviewDockerCleanupProcedure,
+		svc.PreviewDockerCleanup,
+		connect.WithSchema(dockerServiceMethods.ByName("PreviewDockerCleanup")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServicePlanDockerMaintenanceHandler := connect.NewUnaryHandler(
+		DockerServicePlanDockerMaintenanceProcedure,
+		svc.PlanDockerMaintenance,
+		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
+		connect.WithHandlerOptions(opts...),
+	)
 	dockerServiceWatchDockerObjectsHandler := connect.NewServerStreamHandler(
 		DockerServiceWatchDockerObjectsProcedure,
 		svc.WatchDockerObjects,
@@ -186,6 +238,10 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 			dockerServiceListDockerObjectsHandler.ServeHTTP(w, r)
 		case DockerServiceGetDockerObjectProcedure:
 			dockerServiceGetDockerObjectHandler.ServeHTTP(w, r)
+		case DockerServicePreviewDockerCleanupProcedure:
+			dockerServicePreviewDockerCleanupHandler.ServeHTTP(w, r)
+		case DockerServicePlanDockerMaintenanceProcedure:
+			dockerServicePlanDockerMaintenanceHandler.ServeHTTP(w, r)
 		case DockerServiceWatchDockerObjectsProcedure:
 			dockerServiceWatchDockerObjectsHandler.ServeHTTP(w, r)
 		default:
@@ -207,6 +263,14 @@ func (UnimplementedDockerServiceHandler) ListDockerObjects(context.Context, *con
 
 func (UnimplementedDockerServiceHandler) GetDockerObject(context.Context, *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.GetDockerObject is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PreviewDockerCleanup is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerMaintenance is not implemented"))
 }
 
 func (UnimplementedDockerServiceHandler) WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {

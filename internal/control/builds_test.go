@@ -14,6 +14,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/docker/dockertest"
 	"github.com/dockwell/dockwell/internal/gittest"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
@@ -431,6 +432,80 @@ func TestABuildOfAPullRequestsHeadIsRefused(t *testing.T) {
 			if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), says) {
 				t.Errorf("a build of %s = %v", ref, err)
 			}
+		}
+	})
+}
+
+func TestDockerCleanupKeepsBuiltRevisionForRollback(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		ctx := t.Context()
+		g := newGitBench(t, backend)
+		g.repo.Commit("main", "First build", map[string]string{"Dockerfile": webDockerfile, "app.js": "1"})
+		first := g.propose(t, g.buildEdit("main", nil))
+		g.done(t, first)
+		web := g.service(t, "", "web")
+		old := g.e.Newest(docker.Project(web.GetResource().GetScope()), "web")
+		g.repo.Commit("main", "Second build", map[string]string{"app.js": "2"})
+		res, err := g.s.DeployService(ctx, connect.NewRequest(&dockwellv1.DeployServiceRequest{Id: web.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		second := g.done(t, res.Msg.GetChange())
+		server := g.f.lastDocker.id.ServerID
+		if err := g.f.store.View(ctx, func(tx *store.Tx) error {
+			rows, err := tx.RetainedDockerDeployments(ctx, server, time.Now().Add(-time.Hour))
+			if err == nil && !slices.ContainsFunc(rows, func(row store.DockerDeployment) bool {
+				return row.ResourceID == web.GetId() && row.Revision == 1 && row.LocalImageID == old.Image && row.Digest == ""
+			}) {
+				t.Errorf("built revision has no exact local image identity: %v", rows)
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		g.e.AddLocalImage("fixture/disposable:1", dockertest.Image{Size: 1024})
+		d := dockwellv1connect.NewDockerServiceClient(g.b, g.b.origin, connect.WithProtoJSON())
+		filters := &dockwellv1.DockerCleanupFilters{TaggedImages: true}
+		preview, err := d.PreviewDockerCleanup(ctx, connect.NewRequest(&dockwellv1.PreviewDockerCleanupRequest{
+			ServerIds: []string{server}, Filters: filters,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		targets := preview.Msg.GetCandidates()
+		if len(targets) != 1 || targets[0].GetName() != "fixture/disposable:1" {
+			t.Fatalf("unsafe tagged cleanup scope: %v", targets)
+		}
+		plan, err := d.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{server}, ExpectedSnapshot: preview.Msg.GetSnapshot(),
+			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Cleanup{
+				Cleanup: &dockwellv1.DockerCleanupSelection{Filters: filters, Targets: targets},
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		change := plan.Msg.GetChange()
+		fingerprint := change.GetPlan().GetFingerprint()
+		watch := watchWithin(t, g.c, change.GetId(), 15*time.Second)
+		proof := stepUpFor(t, g.b, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, change.GetId()+":"+fingerprint)
+		if _, err := g.c.ApplyChange(ctx, connect.NewRequest(&dockwellv1.ApplyChangeRequest{
+			Id: change.GetId(), Fingerprint: fingerprint, Proof: proof,
+		})); err != nil {
+			t.Fatal(err)
+		}
+		if finished := waitWatchWithin(t, watch, 15*time.Second).last(); finished.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("cleanup failed: %v", finished)
+		}
+		undo, err := g.c.UndoChange(ctx, connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: second.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		g.done(t, undo.Msg.GetChange())
+		got := g.e.Newest(docker.Project(web.GetResource().GetScope()), "web")
+		if got == nil || !got.State.Running || got.Image != old.Image {
+			t.Fatalf("rollback did not run the previous build %s: %+v", old.Image, got)
 		}
 	})
 }

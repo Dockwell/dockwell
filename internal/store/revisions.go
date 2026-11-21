@@ -164,9 +164,10 @@ type Deployment struct {
 	Error      string
 	// Digest is the image it ran there, as its registry knows it, where it runs
 	// one and that's known. Setting a state leaves it as it was if this is empty.
-	Digest    string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Digest       string
+	LocalImageID string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // CreateChange records a planned change and its items.
@@ -896,9 +897,10 @@ func (t *RevisionTx) PlaceRevision(ctx context.Context, resourceID string, revis
 // live, the earlier revisions it replaces on that server are superseded.
 // ErrNotFound means the revision was never placed on the server.
 func (t *RevisionTx) SetDeploymentState(ctx context.Context, d Deployment) error {
-	res, err := t.exec(ctx, `UPDATE deployments SET state = ?, error = ?, updated_at = ?, digest = CASE WHEN ? = '' THEN digest ELSE ? END
+	res, err := t.exec(ctx, `UPDATE deployments SET state = ?, error = ?, updated_at = ?, digest = CASE WHEN ? = '' THEN digest ELSE ? END,
+		image_id = CASE WHEN ? = '' THEN image_id ELSE ? END
 		WHERE resource_id = ? AND revision = ? AND server_id = ?`,
-		d.State, nullString(d.Error), millis(d.UpdatedAt), d.Digest, d.Digest, d.ResourceID, d.Revision, d.Server)
+		d.State, nullString(d.Error), millis(d.UpdatedAt), d.Digest, d.Digest, d.LocalImageID, d.LocalImageID, d.ResourceID, d.Revision, d.Server)
 	if err != nil {
 		return fmt.Errorf("can't update the deployment of %s on %s: %w", d.ResourceID, d.Server, err)
 	}
@@ -1176,6 +1178,41 @@ func (t *Tx) PlacedAdoptions(ctx context.Context, server string) (map[string]str
 			return nil, err
 		}
 		out[containerID] = resourceID
+	}
+	return out, rows.Err()
+}
+
+// DockerDeployment contains the identities and sealed spec of a retained image deployment.
+type DockerDeployment struct {
+	ResourceID           string
+	Revision             int
+	Kind, Name           string
+	Digest, LocalImageID string
+	Spec                 []byte
+}
+
+// RetainedDockerDeployments reads live, pending and recently replaced images.
+func (t *Tx) RetainedDockerDeployments(ctx context.Context, server string, since time.Time) ([]DockerDeployment, error) {
+	rows, err := t.query(ctx, `SELECT d.resource_id, d.revision, r.kind, r.name, d.digest, d.image_id, v.spec
+		FROM deployments d JOIN resources r ON r.id = d.resource_id
+		JOIN revisions v ON v.resource_id = d.resource_id AND v.number = d.revision
+		WHERE d.server_id = ? AND v.spec IS NOT NULL AND r.kind IN ('service', 'container') AND
+		(d.state IN (?, ?) OR d.updated_at >= ?)
+		ORDER BY d.resource_id, d.revision DESC LIMIT 3001`, server, DeploymentLive, DeploymentPending, millis(since))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DockerDeployment
+	for rows.Next() {
+		if len(out) == 3000 {
+			return nil, errors.New("too many retained deployments to review Docker cleanup")
+		}
+		var d DockerDeployment
+		if err := rows.Scan(&d.ResourceID, &d.Revision, &d.Kind, &d.Name, &d.Digest, &d.LocalImageID, &d.Spec); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
 	}
 	return out, rows.Err()
 }

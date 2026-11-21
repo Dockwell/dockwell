@@ -40,7 +40,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
-
 import { sentence } from "../../lib/errors";
 import { dayKey, formatBytes, formatClock, formatDateTime, formatWeekday, sameDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
@@ -49,7 +48,8 @@ import { initials } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { BecauseNotice, FailureNotice, MachineWords } from "../changes/FailureNotice";
 import { useFieldRows } from "../changes/fields";
-import { canUndo, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
+import { PlanSteps } from "../changes/PlanSteps";
+import { canUndo, cleansDocker, failedStep, shortFingerprint, wentOffline } from "../changes/plan";
 import { RollbackLine, rollbackSubject, useRollbackWord } from "../changes/RollbackLine";
 import { type StepLook, useChangeWords } from "../changes/words";
 import { parentOf } from "../files/paths";
@@ -990,7 +990,15 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
                 <Trans>What changed</Trans>
               </h3>
               {full.data?.change ? (
-                <RecordedPlan plan={full.data.change.plan} applied={change.state === ChangeState.APPLIED} rows={rows} />
+                cleansDocker(full.data.change.plan) ? (
+                  <PlanSteps plan={full.data.change.plan} progress={full.data.change.steps} />
+                ) : (
+                  <RecordedPlan
+                    plan={full.data.change.plan}
+                    applied={change.state === ChangeState.APPLIED}
+                    rows={rows}
+                  />
+                )
               ) : full.error ? (
                 <p className="activity-note" role="alert">
                   {sentence(full.error)}

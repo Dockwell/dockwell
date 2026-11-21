@@ -149,7 +149,8 @@ export const flow: Flow = {
       const engine = page.getByRole("region", { name: "Engine inventory" });
       await engine.getByText("Docker root directory").waitFor();
       await engine.getByText("Logging driver").waitFor();
-      await engine.getByText("Registry mirrors").waitFor();
+      if (await engine.locator("dd").evaluateAll((values) => values.some((dd) => !dd.textContent?.trim())))
+        throw new Error("an empty Engine inventory fact was rendered");
       const attention = page.getByRole("link", { name: "Needs attention", exact: false });
       await page.getByRole("region", { name: "Needs attention" }).getByRole("link", { name: attentionName }).waitFor();
       await assertLayouts(page, "docker overview", () => assertActiveTab(page, "Overview"));

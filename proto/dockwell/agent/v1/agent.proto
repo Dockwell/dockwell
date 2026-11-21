@@ -300,6 +300,9 @@ message CallProgress {
 
 // StepOutcome is what a step found out on its server.
 message StepOutcome {
+  repeated dockwell.v1.DockerReceipt docker_receipt = 400;
+  // The local Engine ID of the image the step leaves running.
+  string local_image_id = 401;
   // The image it leaves running, as its registry knows it.
   string digest = 1;
   // The digest of the image it replaces, where a pull found a newer one.
@@ -928,6 +931,7 @@ message Call {
     DockerInventoryListCall docker_inventory_list = 400;
     DockerInventoryDetailCall docker_inventory_detail = 401;
     DockerInventoryWatchCall docker_inventory_watch = 402;
+    DockerMaintenancePreviewCall docker_maintenance_preview = 404;
   }
 }
 
@@ -1277,7 +1281,9 @@ message EndProcessResult {
 
 // DiskUseCall asks what takes the room on the disk that holds Docker's data.
 // An agent answers from what it added up in the last 30 s, if it did.
-message DiskUseCall {}
+message DiskUseCall {
+  DockerCleanupProtection docker_cleanup_protection = 1;
+}
 // TaskRunsCall reads the runs an agent's scheduled tasks have had since the
 // control plane last read them. The agent keeps each run until a read past it,
 // up to 100 for each task.
@@ -2276,6 +2282,7 @@ message PlanCall {
 
 // ApplyCall asks the agent to carry out one step.
 message ApplyCall {
+  DockerCleanupProtection docker_cleanup_protection = 400;
   // The step, as the plan has it.
   dockwell.v1.PlanStep step = 1;
   // The resource as the step leaves it.
@@ -2352,6 +2359,7 @@ message UpgradeAgent {
 
 // DesiredResource is one resource as a change wants it.
 message DesiredResource {
+  dockwell.v1.DockerMaintenance docker_maintenance = 400;
   // The resource.
   dockwell.v1.ResourceRef resource = 1;
   // Its spec, encoded as its kind's message. Unset deletes it; an empty
@@ -2675,6 +2683,7 @@ message CallResult {
     DockerInventoryListResult docker_inventory_list = 400;
     DockerInventoryDetailResult docker_inventory_detail = 401;
     DockerInventoryWatchResult docker_inventory_watch = 402;
+    DockerMaintenancePreviewResult docker_maintenance_preview = 404;
   }
 }
 
@@ -2914,6 +2923,9 @@ message DockerCapabilities {
   bool exact_terminal = 2;
   // The agent honors durable run state and pinned restarts.
   bool workload_controls = 3;
+  bool image_inventory = 5;
+  bool cleanup = 4;
+  bool artifact_cleanup = 6;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
@@ -2923,6 +2935,7 @@ message DockerInventoryListCall {
   string after_id = 3;
   string snapshot = 4;
   bool overview = 5;
+  dockwell.v1.DockerObjectKind kind = 6;
 }
 
 // DockerInventoryListResult carries a page, a server summary or a request to resync.
@@ -2938,6 +2951,7 @@ message DockerInventoryListResult {
 message DockerInventoryDetailCall {
   string container_id = 1;
   string last_known_name = 2;
+  string image_id = 3;
 }
 
 // DockerInventoryDetailResult returns safe details or the full ID of a replacement.
@@ -2964,4 +2978,24 @@ message DockerInventoryChanged {
   bool resync = 4;
   repeated dockwell.v1.DockerHealthUpdate health_updates = 5;
   optional bool event_stream_ready = 6;
+}
+
+// DockerMaintenancePreviewCall reads cleanup candidates and blockers on this Engine.
+message DockerMaintenancePreviewCall {
+  dockwell.v1.DockerCleanupFilters filters = 1;
+  repeated string protected_images = 2;
+  repeated string protected_networks = 3;
+  bool fresh = 4;
+}
+
+// DockerMaintenancePreviewResult contains the bounded Engine projection.
+message DockerMaintenancePreviewResult {
+  repeated dockwell.v1.DockerCleanupTarget targets = 1;
+  dockwell.v1.DockerCleanupPause pause = 2;
+}
+
+// DockerCleanupProtection holds the current control-plane dependencies for a server.
+message DockerCleanupProtection {
+  repeated string images = 1;
+  repeated string networks = 2;
 }

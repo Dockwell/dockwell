@@ -528,6 +528,9 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	fail := callFailed
 	switch {
 	case call.GetPlan() != nil:
+		if result, checked := c.planDockerMaintenance(call.GetPlan()); checked {
+			return result
+		}
 		wanted := make([]resource.Desired, 0, len(call.GetPlan().GetDesired()))
 		names := map[string]string{}
 		for _, d := range call.GetPlan().GetDesired() {
@@ -619,6 +622,13 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(fmt.Errorf("this agent can't read the step it was sent: %w. "+
 				"The control plane is newer than the agent, so update the agent to the control plane's version", err))
 		}
+		if want := call.GetApply().GetDesired(); want.GetDockerMaintenance() != nil || step.DockerMaintenance != nil {
+			if step.DockerMaintenance == nil || !proto.Equal(want.GetDockerMaintenance(), step.DockerMaintenance) ||
+				resourcepb.FromRef(want.GetResource()) != step.Ref {
+				return fail(errors.New("the Docker cleanup scope differs from its plan"))
+			}
+			return c.runDockerMaintenance(ctx, call.GetId(), step.Ref, step.DockerMaintenance, call.GetApply().GetDockerCleanupProtection())
+		}
 		ref, spec, err := c.decode(call.GetApply().GetDesired())
 		if err != nil {
 			return fail(err)
@@ -652,7 +662,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		ctx = resource.WithActivities(ctx, progress.say)
 		ctx = resource.WithOutcome(ctx, func(o resource.Outcome) {
 			_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{
-				Id: call.GetId(), Outcome: &agentv1.StepOutcome{Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup), Waits: accessWait(o.Waits)},
+				Id: call.GetId(), Outcome: &agentv1.StepOutcome{DockerReceipt: o.DockerReceipts, LocalImageId: o.LocalImageID, Digest: o.Digest, Previous: o.Previous, Replacing: o.Replacing, Note: o.Note, Untouched: o.Untouched, Did: resourcepb.Did(o.Did), Backup: backupTaken(o.Backup), Waits: accessWait(o.Waits)},
 			}}})
 		})
 		if d := call.GetApply().GetDeploy(); d != nil {
@@ -770,7 +780,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		case <-ctx.Done():
 			return fail(errDockerInventory)
 		}
-		out, err := dockerInventoryList(ctx, c.cfg.Docker, call.GetDockerInventoryList())
+		ask := call.GetDockerInventoryList()
+		var out *agentv1.DockerInventoryListResult
+		var err error
+		if ask.GetKind() == dockerImageKind {
+			out, err = c.dockerImageList(ctx, ask)
+		} else {
+			out, err = dockerInventoryList(ctx, c.cfg.Docker, ask)
+		}
 		if err != nil {
 			return fail(err)
 		}
@@ -782,11 +799,24 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		case <-ctx.Done():
 			return fail(errDockerInventory)
 		}
-		out, err := dockerInventoryDetail(ctx, c.cfg.Docker, call.GetDockerInventoryDetail())
+		ask := call.GetDockerInventoryDetail()
+		var out *agentv1.DockerInventoryDetailResult
+		var err error
+		if ask.GetImageId() != "" {
+			out, err = c.dockerImageDetail(ctx, ask.GetImageId())
+		} else {
+			out, err = dockerInventoryDetail(ctx, c.cfg.Docker, ask)
+		}
 		if err != nil {
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerInventoryDetail{DockerInventoryDetail: out}}
+	case call.GetDockerMaintenancePreview() != nil:
+		out, err := c.dockerCleanupPreview(ctx, call.GetDockerMaintenancePreview())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerMaintenancePreview{DockerMaintenancePreview: out}}
 	case call.GetDockerInventoryWatch() != nil:
 		if err := c.watchInventory(call.GetDockerInventoryWatch()); err != nil {
 			return fail(err)
@@ -805,7 +835,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_Firewall{Firewall: read}}
 	case call.GetDiskUse() != nil:
-		found, err := c.cfg.disks.read(ctx)
+		found, err := c.dockerDiskUse(ctx, call.GetDiskUse().GetDockerCleanupProtection())
 		if err != nil {
 			return fail(err)
 		}

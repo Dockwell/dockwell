@@ -26,6 +26,9 @@ type Image struct {
 	RepoDigests []string `json:"RepoDigests"`
 	// Architecture is what it's built for, such as amd64.
 	Architecture string `json:"Architecture"`
+	OS           string `json:"Os"`
+	Variant      string
+	RepoTags     []string
 	// Size is what it takes on the server's disk, unpacked, in bytes.
 	Size int64 `json:"Size"`
 	// RootFS is its layers, by DiffID: the SHA-256 of each layer's tar, as
@@ -265,4 +268,22 @@ func SizeOf(done, total int64) string {
 		return fmt.Sprintf("%.0f", v)
 	}
 	return num(float64(done)/div) + " of " + num(f) + " " + units[i]
+}
+
+// ImageHistoryEntry deliberately decodes only those fields safe to display.
+type ImageHistoryEntry struct {
+	Created int64
+	Size    int64
+}
+
+// ImageHistory reads ordered history metadata, omitting instruction strings.
+func (c *Client) ImageHistory(ctx context.Context, id string) ([]ImageHistoryEntry, error) {
+	var out []ImageHistoryEntry
+	err := c.do(ctx, http.MethodGet, "/images/"+escRef(id)+"/history", nil, nil, &out)
+	return out, err
+}
+
+// IsImageID reports whether id is the Engine's full content address.
+func IsImageID(id string) bool {
+	return strings.HasPrefix(id, "sha256:") && IsFullID(strings.TrimPrefix(id, "sha256:"))
 }

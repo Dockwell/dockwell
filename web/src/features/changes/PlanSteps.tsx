@@ -19,9 +19,9 @@ import {
 import { Icon, StatusBadge, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-
 import { useTimeWords } from "../../lib/time";
 import { splitVersion } from "../../lib/versions";
+import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
@@ -249,6 +249,30 @@ function StepRow({
   const { t } = useLingui();
   const time = useTimeWords();
   const providerLine = useProviderLine();
+  if (step.dockerMaintenance) {
+    const status = live ? words.step(live.state) : undefined;
+    return (
+      <li className="plan-step">
+        <span className="plan-step-what">
+          {status ? <StatusBadge label={status.word} status={status.status} /> : null}
+          <span className="plan-step-line">
+            {step.dockerMaintenance.resumeCleanupToken ? (
+              <Trans>
+                Re-enable Docker cleanup on <code>{server}</code>
+              </Trans>
+            ) : (
+              <Trans>
+                Clean up Docker on <code>{server}</code>
+              </Trans>
+            )}
+          </span>
+        </span>
+        {step.dockerMaintenance.targets.length > 0 ? (
+          <DockerCleanupReceipts targets={step.dockerMaintenance.targets} receipts={live?.dockerReceipts ?? []} />
+        ) : null}
+      </li>
+    );
+  }
   const name = step.resource?.name ?? step.resourceId;
   const look = live ? words.step(live.state) : undefined;
   const planning = !live;

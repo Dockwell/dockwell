@@ -33,6 +33,12 @@
   border-bottom: 1px solid var(--line);
 }
 
+.docker-navigation > .dw-tabs {
+  flex: 1;
+  margin-inline-end: 0;
+  padding-inline-end: 0;
+}
+
 .docker-navigation > .dw-tabs,
 .docker-detail-nav > .dw-tabs {
   min-width: 0;

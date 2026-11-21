@@ -11,12 +11,45 @@ import (
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
 const dockerCallWait = 12 * time.Second
 
 // DockerInventory reports whether this agent supports Docker inventory reads.
 func (s *Session) DockerInventory() bool { return s.dockerCapabilities.GetInventory() }
+
+// DockerImages reports support for local images and their detail.
+func (s *Session) DockerImages() bool { return s.dockerCapabilities.GetImageInventory() }
+
+// DockerCleanup reports support for reviewed cleanup.
+func (s *Session) DockerCleanup() bool { return s.dockerCapabilities.GetCleanup() }
+
+// DockerArtifactCleanup reports support for image and network removals.
+func (s *Session) DockerArtifactCleanup() bool { return s.dockerCapabilities.GetArtifactCleanup() }
+
+func dockerProtection(ctx context.Context) *agentv1.DockerCleanupProtection {
+	held, ok := resource.DockerProtectionOf(ctx)
+	if !ok {
+		return nil
+	}
+	return &agentv1.DockerCleanupProtection{Images: held.Images, Networks: held.Networks}
+}
+
+// DockerCleanupPreview reads Engine evidence without changing it.
+func (s *Session) DockerCleanupPreview(ctx context.Context, ask *agentv1.DockerMaintenancePreviewCall) (*agentv1.DockerMaintenancePreviewResult, error) {
+	call := &agentv1.Call{Call: &agentv1.Call_DockerMaintenancePreview{DockerMaintenancePreview: ask}}
+	result, err := s.callOnceWithin(ctx, call, DiskUseTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if out := result.GetDockerMaintenancePreview(); out != nil {
+		return out, nil
+	}
+	return nil, errors.New("the agent didn't return Docker cleanup evidence")
+}
 
 // ExactTerminal reports whether this agent understands immutable IDs and argv.
 func (s *Session) ExactTerminal() bool { return s.dockerCapabilities.GetExactTerminal() }
@@ -26,7 +59,11 @@ func (s *Session) DockerWorkloadControls() bool { return s.dockerCapabilities.Ge
 
 // DockerList reads a bounded inventory page or counters from this agent.
 func (s *Session) DockerList(ctx context.Context, ask *agentv1.DockerInventoryListCall) (*agentv1.DockerInventoryListResult, error) {
-	r, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryList{DockerInventoryList: ask}}, dockerCallWait)
+	wait := dockerCallWait
+	if ask.GetKind() == dockwellv1.DockerObjectKind_DOCKER_OBJECT_KIND_IMAGE {
+		wait = DiskUseTimeout
+	}
+	r, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryList{DockerInventoryList: ask}}, wait)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +75,11 @@ func (s *Session) DockerList(ctx context.Context, ask *agentv1.DockerInventoryLi
 
 // DockerDetail inspects the exact instance through this agent.
 func (s *Session) DockerDetail(ctx context.Context, ask *agentv1.DockerInventoryDetailCall) (*agentv1.DockerInventoryDetailResult, error) {
-	r, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryDetail{DockerInventoryDetail: ask}}, dockerCallWait)
+	wait := dockerCallWait
+	if ask.GetImageId() != "" {
+		wait = DiskUseTimeout
+	}
+	r, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryDetail{DockerInventoryDetail: ask}}, wait)
 	if err != nil {
 		return nil, err
 	}
@@ -146,4 +187,22 @@ func (s *Session) dockerChanged(msg *agentv1.DockerInventoryChanged) {
 		}
 		inbox <- msg
 	}
+}
+
+func (s *Session) applyDockerCleanup(ctx context.Context, step resource.Step) error {
+	call := &agentv1.ApplyCall{
+		Step:                    resourcepb.Step(step, ""),
+		DockerCleanupProtection: dockerProtection(ctx),
+		Desired:                 &agentv1.DesiredResource{Resource: resourcepb.Ref(step.Ref), DockerMaintenance: step.DockerMaintenance},
+	}
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout,
+		func(session *Session) error {
+			if !session.DockerCleanup() || !session.DockerArtifactCleanup() && slices.ContainsFunc(step.DockerMaintenance.GetTargets(), func(t *dockwellv1.DockerCleanupTarget) bool {
+				return t.GetKind() != dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE
+			}) {
+				return fault.New(ErrOlderAgent, "update the agent to apply Docker cleanup")
+			}
+			return nil
+		})
+	return err
 }

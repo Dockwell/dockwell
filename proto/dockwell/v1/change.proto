@@ -1557,6 +1557,7 @@ enum IntentKind {
 
 // PlannedResource is what a plan does to one resource as a whole.
 message PlannedResource {
+  DockerMaintenance docker_maintenance = 400;
   // The resource's ID. A new resource has its ID from when it is planned.
   string id = 1;
   // The resource.
@@ -1836,6 +1837,7 @@ message ServerPlan {
 
 // PlanStep is what applying does to one resource on one server.
 message PlanStep {
+  DockerMaintenance docker_maintenance = 400;
   // The resource's ID.
   string resource_id = 1;
   // The resource.
@@ -2730,6 +2732,7 @@ enum FieldOp {
 
 // StepProgress is one step of an applying change, and how it is going.
 message StepProgress {
+  repeated DockerReceipt docker_receipts = 400;
   // The server it runs on.
   string server_id = 1;
   // The resource's ID.
@@ -2828,4 +2831,87 @@ message ChangeElsewhere {
   // The reader holds none of its edits, only what it takes in, so its summary and
   // who made it are left out, as they'd describe the other project.
   bool edits_elsewhere = 3;
+}
+
+// DockerCleanupKind identifies an artifact or a protected category.
+enum DockerCleanupKind {
+  DOCKER_CLEANUP_KIND_UNSPECIFIED = 0;
+  DOCKER_CLEANUP_KIND_IMAGE = 1;
+  DOCKER_CLEANUP_KIND_BUILD_CACHE = 2;
+  DOCKER_CLEANUP_KIND_NETWORK = 3;
+  DOCKER_CLEANUP_KIND_CONTAINER = 4;
+  DOCKER_CLEANUP_KIND_VOLUME = 5;
+  DOCKER_CLEANUP_KIND_LOG = 6;
+}
+
+// DockerCleanupReason explains why an artifact can or cannot be removed.
+enum DockerCleanupReason {
+  DOCKER_CLEANUP_REASON_UNSPECIFIED = 0;
+  DOCKER_CLEANUP_REASON_DANGLING = 1;
+  DOCKER_CLEANUP_REASON_UNUSED = 2;
+  DOCKER_CLEANUP_REASON_IDLE = 3;
+  DOCKER_CLEANUP_REASON_IN_USE = 4;
+  DOCKER_CLEANUP_REASON_ROLLBACK = 5;
+  DOCKER_CLEANUP_REASON_DESIRED = 6;
+  DOCKER_CLEANUP_REASON_TAKE_ON = 7;
+  DOCKER_CLEANUP_REASON_RETAINED = 8;
+  DOCKER_CLEANUP_REASON_EXACT_REMOVAL_UNAVAILABLE = 9;
+  DOCKER_CLEANUP_REASON_SHARED = 10;
+  DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES = 11;
+  DOCKER_CLEANUP_REASON_DISABLED = 12;
+  DOCKER_CLEANUP_REASON_MULTIPLE_TAGS = 13;
+}
+
+// DockerCleanupTarget records the reviewed identity and its eligibility evidence.
+message DockerCleanupTarget {
+  string server_id = 1;
+  DockerCleanupKind kind = 2;
+  string engine_id = 3;
+  string name = 4;
+  DockerCleanupReason reason = 5;
+  google.protobuf.Timestamp last_used_at = 6;
+  optional uint64 estimated_bytes = 7;
+  string evidence = 8;
+  // Every reviewed tag of the image, in order. Empty for a dangling image.
+  repeated string image_tags = 9;
+  // Every reviewed repository digest of the image, in order.
+  repeated string image_digests = 10;
+}
+
+// DockerMaintenance is the exact scope of an irreversible local cleanup.
+message DockerMaintenance {
+  repeated DockerCleanupTarget targets = 1;
+  string change_id = 2;
+  // The reviewed pause to clear. Empty when this plan removes artifacts.
+  string resume_cleanup_token = 3;
+}
+
+// DockerReceipt reports one approved target's outcome.
+message DockerReceipt {
+  DockerCleanupTarget target = 1;
+  DockerReceiptState state = 2;
+  optional uint64 before_bytes = 3;
+  optional uint64 after_bytes = 4;
+  // The identity observed immediately before the attempted removal.
+  string rechecked_engine_id = 5;
+  reserved 6;
+  reserved "detail";
+  DockerReceiptReason reason = 7;
+}
+
+// DockerReceiptReason explains a removal refusal or verification failure.
+enum DockerReceiptReason {
+  DOCKER_RECEIPT_REASON_UNSPECIFIED = 0;
+  DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED = 1;
+  DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED = 2;
+  DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED = 3;
+}
+
+// DockerReceiptState distinguishes refusals from an interrupted operation.
+enum DockerReceiptState {
+  DOCKER_RECEIPT_STATE_UNSPECIFIED = 0;
+  DOCKER_RECEIPT_STATE_REMOVED = 1;
+  DOCKER_RECEIPT_STATE_CHANGED = 2;
+  DOCKER_RECEIPT_STATE_FAILED = 3;
+  DOCKER_RECEIPT_STATE_UNKNOWN = 4;
 }

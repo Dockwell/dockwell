@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ import (
 )
 
 const (
+	dockerImageKind  = v1.DockerObjectKind_DOCKER_OBJECT_KIND_IMAGE
 	dockerPageSize   = 24
 	dockerMaxServers = 32
 )
@@ -138,6 +140,7 @@ func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (do
 	if err != nil {
 		return dockerCursor{}, err
 	}
+	fmt.Fprintln(h, request.GetKind())
 	h.Write(encoded)
 	selection := hex.EncodeToString(h.Sum(nil))
 	token := request.GetPageToken()
@@ -149,7 +152,7 @@ func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (do
 		data, err := base64.RawURLEncoding.DecodeString(token)
 		if err == nil && json.Unmarshal(data, &cursor) == nil && cursor.Selection == selection &&
 			cursor.Server >= 0 && cursor.Server < len(servers) &&
-			(cursor.After == "" || docker.IsFullID(cursor.After) && len(cursor.Snapshot) == 64) {
+			(cursor.After == "" || dockerKeyID(request.GetKind(), cursor.After) && len(cursor.Snapshot) == 64) {
 			return cursor, nil
 		}
 	}
@@ -159,8 +162,8 @@ func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (do
 // ListDockerObjects reads a page of Docker inventory across the selection.
 func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1.ListDockerObjectsRequest]) (*connect.Response[v1.ListDockerObjectsResponse], error) {
 	m := req.Msg
-	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) {
-		return nil, authapi.Invalid(errors.New("select containers and use a search of at most 255 bytes"))
+	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind {
+		return nil, authapi.Invalid(errors.New("select a supported Docker inventory and use a search of at most 255 bytes"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
 	if err != nil {
@@ -180,11 +183,14 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 	for visits := 0; len(out.Objects) < page && cursor.Server < len(servers) && visits < 6; visits++ {
 		s := servers[cursor.Server]
 		session, state := h.dockerAgent(s)
+		if session != nil && m.GetKind() == dockerImageKind && !session.DockerImages() {
+			session, state = nil, v1.DockerReadState_DOCKER_READ_STATE_AGENT_OUTDATED
+		}
 		if session == nil {
 			out.Unavailable = append(out.Unavailable, &v1.DockerUnavailable{ServerId: s.ID, State: state})
 		} else {
 			res, err := session.DockerList(ctx, &agentv1.DockerInventoryListCall{
-				Filter: m.GetFilter(), PageSize: uint32(min(max(0, page-len(out.Objects)), dockerPageSize)), AfterId: cursor.After, Snapshot: cursor.Snapshot,
+				Kind: m.GetKind(), Filter: m.GetFilter(), PageSize: uint32(min(max(0, page-len(out.Objects)), dockerPageSize)), AfterId: cursor.After, Snapshot: cursor.Snapshot,
 			})
 			if err != nil {
 				out.Unavailable = append(out.Unavailable, &v1.DockerUnavailable{ServerId: s.ID, State: v1.DockerReadState_DOCKER_READ_STATE_ENGINE_UNAVAILABLE})
@@ -193,11 +199,11 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 					return nil, authapi.ReasonError(connect.CodeAborted, errors.New("the Docker inventory changed. Refresh the list"), "docker_resync")
 				}
 				items := res.GetObjects()
-				if err := h.classifyDocker(ctx, s.ID, items); err != nil {
+				if err := h.classifyDockerObjects(ctx, s.ID, m.GetKind(), items); err != nil {
 					return nil, err
 				}
 				for _, row := range items {
-					if ownership := m.GetFilter().GetOwnership(); ownership == 0 || row.GetOwnership() == ownership {
+					if ownership := m.GetFilter().GetOwnership(); m.GetKind() == dockerImageKind || ownership == 0 || row.GetOwnership() == ownership {
 						out.Objects = append(out.Objects, row)
 					}
 				}
@@ -225,11 +231,33 @@ func containerKind(kind v1.DockerObjectKind) bool {
 	return kind == 0 || kind == v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER
 }
 
+func dockerKeyID(kind v1.DockerObjectKind, id string) bool {
+	if kind == dockerImageKind {
+		return docker.IsImageID(id)
+	}
+	return docker.IsFullID(id)
+}
+
+func (h *Handler) classifyDockerObjects(ctx context.Context, server string, kind v1.DockerObjectKind, rows []*v1.DockerObject) error {
+	if kind != dockerImageKind {
+		return h.classifyDocker(ctx, server, rows)
+	}
+	for _, row := range rows {
+		row.Key.ServerId = server
+		for _, container := range row.GetImage().GetContainers() {
+			if key := container.GetKey(); key != nil {
+				key.ServerId = server
+			}
+		}
+	}
+	return nil
+}
+
 // GetDockerObject reads an immutable Engine instance through its agent.
 func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error) {
 	key := req.Msg.GetKey()
-	if !containerKind(key.GetKind()) || !docker.IsFullID(key.GetEngineId()) || len(req.Msg.GetLastKnownName()) > 255 {
-		return nil, authapi.Invalid(errors.New("a container detail needs its full Docker ID"))
+	if (!containerKind(key.GetKind()) && key.GetKind() != dockerImageKind) || !dockerKeyID(key.GetKind(), key.GetEngineId()) || len(req.Msg.GetLastKnownName()) > 255 {
+		return nil, authapi.Invalid(errors.New("a Docker object detail needs its full Engine ID"))
 	}
 	s, err := h.server(ctx, key.GetServerId())
 	if err != nil {
@@ -242,13 +270,25 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 		}
 		return nil, notConnected(s)
 	}
-	res, err := session.DockerDetail(ctx, &agentv1.DockerInventoryDetailCall{ContainerId: key.GetEngineId(), LastKnownName: req.Msg.GetLastKnownName()})
+	ask := &agentv1.DockerInventoryDetailCall{ContainerId: key.GetEngineId(), LastKnownName: req.Msg.GetLastKnownName()}
+	if key.GetKind() == dockerImageKind {
+		if !session.DockerImages() {
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("this agent needs an update to inspect local images"), "agent_outdated")
+		}
+		ask = &agentv1.DockerInventoryDetailCall{ImageId: key.GetEngineId()}
+	}
+	res, err := session.DockerDetail(ctx, ask)
 	if err != nil {
-		return nil, authapi.ReasonError(connect.CodeUnavailable, errors.New("the Engine could not inspect this container. Try again when it answers"), authapi.ReasonUnavailable)
+		return nil, authapi.ReasonError(connect.CodeUnavailable, errors.New("the Engine could not inspect this object. Try again when it answers"), authapi.ReasonUnavailable)
 	}
 	if res.GetObject() != nil {
-		if err := h.classifyDocker(ctx, s.ID, []*v1.DockerObject{res.GetObject()}); err != nil {
+		if err := h.classifyDockerObjects(ctx, s.ID, key.GetKind(), []*v1.DockerObject{res.GetObject()}); err != nil {
 			return nil, err
+		}
+	}
+	if image := res.GetObject().GetImage(); image != nil {
+		if err := h.imageDeployments(ctx, s.ID, key.GetEngineId(), image); err != nil {
+			return nil, h.internal(ctx, err)
 		}
 	}
 	if replacement := res.GetReplacementKey(); replacement != nil {

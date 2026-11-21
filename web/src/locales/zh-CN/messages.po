@@ -9634,11 +9634,17 @@ msgstr "应用此计划即批准 {0} 的变更，需要验证你的通行密钥"
 msgid "Applying this asks for your passkey"
 msgstr "应用此计划时会要求验证你的通行密钥"
 
+msgid "Cleaning up Docker"
+msgstr "正在清理 Docker"
+
 msgid "Copy {at}"
 msgstr "复制 {at}"
 
 msgid "Copy {where}"
 msgstr "复制 {where}"
+
+msgid "Could not re-enable Docker cleanup"
+msgstr "无法重新启用 Docker 清理"
 
 msgid "Couldn't create {made}"
 msgstr "无法创建 {made}"
@@ -9654,6 +9660,15 @@ msgstr "正在取消 {name} 在 {server} 上的开机启动"
 
 msgid "Discarded"
 msgstr "已丢弃"
+
+msgid "Docker cleanup complete"
+msgstr "Docker 清理完成"
+
+msgid "Docker cleanup failed"
+msgstr "Docker 清理失败"
+
+msgid "Docker cleanup re-enabled"
+msgstr "已重新启用 Docker 清理"
 
 msgid "Dockwell let go of {subject}"
 msgstr "Dockwell 已放开 {subject}"
@@ -9774,6 +9789,9 @@ msgstr "在“域名”中打开 {domain}"
 
 msgid "Planning: asking each server what this would take"
 msgstr "正在计划：询问每台服务器需要做什么"
+
+msgid "Re-enabling Docker cleanup"
+msgstr "正在重新启用 Docker 清理"
 
 msgid "Rebooting {server}"
 msgstr "正在重启 {server}"
@@ -10262,6 +10280,9 @@ msgstr "备份 <0>{name}</0>：停止 {stops} 以获得精确副本，之后重�
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
 
+msgid "Clean up Docker on <0>{server}</0>"
+msgstr "清理 <0>{server}</0> 上的 Docker"
+
 msgid "Destroys data"
 msgstr "会销毁数据"
 
@@ -10326,6 +10347,9 @@ msgstr "随附安装"
 #. placeholder {0}: step.registryLogin
 msgid "Pulls with the registry login {0}"
 msgstr "拉取时使用镜像仓库登录 {0}"
+
+msgid "Re-enable Docker cleanup on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上重新启用 Docker 清理"
 
 msgid "Reaches {reach} on {server}"
 msgstr "可访问 {server} 上的 {reach}"
@@ -11241,6 +11265,9 @@ msgstr "依赖链接"
 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
+
+msgid "Docker cleanup permanently removes the selected Docker artifacts"
+msgstr "Docker 清理将永久删除所选 Docker 对象"
 
 msgid "Dockwell couldn't list the repository's branches and tags"
 msgstr "Dockwell 无法列出该仓库的分支和标签"
@@ -14134,6 +14161,68 @@ msgstr "令牌错误"
 msgid "Zones"
 msgstr "区域"
 
+msgid "Checking Docker artifacts"
+msgstr "正在检查 Docker 对象"
+
+msgid "Cleanup candidates changed"
+msgstr "可清理对象已变更"
+
+msgid "Cleanup couldn't be read"
+msgstr "无法读取清理信息"
+
+msgid "Cleanup options"
+msgstr "清理选项"
+
+msgid "Cleanup paused on {server}"
+msgstr "{server} 上的清理已暂停"
+
+msgid "Include unused images with tags or digests"
+msgstr "包括带标签或摘要的未使用镜像"
+
+msgid "Include unused networks"
+msgstr "包含未使用的网络"
+
+msgid "Last used {lastUsed}"
+msgstr "上次使用于 {lastUsed}"
+
+msgid "No eligible artifacts"
+msgstr "没有可清理的对象"
+
+msgid "Open container"
+msgstr "打开容器"
+
+msgid "Protected artifacts"
+msgstr "受保护的对象"
+
+msgid "Re-enable cleanup"
+msgstr "重新启用清理"
+
+msgid "Review again"
+msgstr "重新审查"
+
+msgid "Review cleanup"
+msgstr "审查清理"
+
+msgid "Show more artifacts"
+msgstr "显示更多对象"
+
+#. placeholder {0}: selected.length
+msgid "{0} selected · {estimated} estimated"
+msgstr "已选择 {0} 项 · 预计可回收 {estimated}"
+
+msgid "Before {before} · after {after}"
+msgstr "清理前 {before} · 清理后 {after}"
+
+msgid "Outcome unknown"
+msgstr "结果未知"
+
+#. placeholder {0}: receipt.recheckedEngineId
+msgid "Verified ID <0>{0}</0>"
+msgstr "已核对 ID <0>{0}</0>"
+
+msgid "{display} estimated"
+msgstr "预计可回收 {display}"
+
 msgid "Back to containers"
 msgstr "返回容器列表"
 
@@ -14414,6 +14503,126 @@ msgstr "用量"
 msgid "memory"
 msgstr "内存"
 
+msgid "Docker disk usage"
+msgstr "Docker 磁盘用量"
+
+#. placeholder {0}: formatDateTime(timestampDate(used.time), i18n.locale)
+msgid "Measured {0}"
+msgstr "测量时间 {0}"
+
+msgid "Partial count"
+msgstr "部分数据"
+
+msgid "Reclaimable"
+msgstr "可回收"
+
+msgid "Used"
+msgstr "已用"
+
+#. placeholder {0}: formatBytes(row.otherMountsBytes, i18n.locale)
+msgid "{0} on other disks"
+msgstr "另有 {0} 位于其他磁盘上"
+
+msgid "Build instructions are redacted"
+msgstr "构建指令已隐藏"
+
+msgid "Copy full image ID"
+msgstr "复制完整镜像 ID"
+
+msgid "Dangling"
+msgstr "悬空"
+
+msgid "History unavailable"
+msgstr "无法读取历史记录"
+
+msgid "Image couldn't be read"
+msgstr "无法读取镜像"
+
+msgid "Image details"
+msgstr "镜像详情"
+
+msgid "Image is gone"
+msgstr "镜像已不存在"
+
+msgid "Images couldn't be read"
+msgstr "无法读取镜像列表"
+
+msgid "Instructions redacted"
+msgstr "指令已隐藏"
+
+msgid "Layers"
+msgstr "镜像层"
+
+msgid "Local images"
+msgstr "本地镜像"
+
+msgid "More tags"
+msgstr "更多标签"
+
+msgid "No containers or retained deployments"
+msgstr "没有使用此镜像的容器或保留的部署"
+
+msgid "No layers reported"
+msgstr "未报告镜像层"
+
+msgid "No local images"
+msgstr "没有本地镜像"
+
+msgid "No matching images"
+msgstr "没有匹配的镜像"
+
+msgid "Only the first entries are shown"
+msgstr "仅显示前几项"
+
+msgid "Platform"
+msgstr "平台"
+
+msgid "Reading image"
+msgstr "正在读取镜像"
+
+msgid "Reading local images"
+msgstr "正在读取本地镜像"
+
+msgid "Refresh"
+msgstr "刷新"
+
+#. placeholder {0}: String(deployment.revision)
+msgid "Retained revision {0}"
+msgstr "保留的修订版本 {0}"
+
+msgid "Search images"
+msgstr "搜索镜像"
+
+msgid "Tag, digest or ID"
+msgstr "标签、摘要或 ID"
+
+msgid "Tags and digests"
+msgstr "标签和摘要"
+
+msgid "The image list changed. Refresh it to continue."
+msgstr "镜像列表已变更，请刷新后继续。"
+
+msgid "Total"
+msgstr "总计"
+
+msgid "Total size"
+msgstr "总大小"
+
+msgid "Unique"
+msgstr "独占"
+
+msgid "Unique size"
+msgstr "独占大小"
+
+msgid "Unknown date"
+msgstr "日期未知"
+
+msgid "Unknown size"
+msgstr "大小未知"
+
+msgid "Unused"
+msgstr "未使用"
+
 msgid "App name"
 msgstr "应用名称"
 
@@ -14463,9 +14672,6 @@ msgstr "打开服务器列表"
 msgid "Reading Docker inventory"
 msgstr "正在读取 Docker 清单"
 
-msgid "Refresh"
-msgstr "刷新"
-
 msgid "Refresh Docker overview"
 msgstr "刷新 Docker 概览"
 
@@ -14491,6 +14697,72 @@ msgstr "所选 {1} 台服务器中有 {0} 台已响应"
 #. placeholder {0}: sum("running")
 msgid "{0} running"
 msgstr "{0} 个正在运行"
+
+msgid "Build cache"
+msgstr "构建缓存"
+
+msgid "Cleanup disabled after a build cache removal"
+msgstr "删除构建缓存后已停用清理"
+
+msgid "Docker artifacts"
+msgstr "Docker 对象"
+
+msgid "Docker refused to remove this image by ID"
+msgstr "Docker 拒绝按 ID 删除此镜像"
+
+msgid "Docker removed other build cache records"
+msgstr "Docker 删除了其他构建缓存记录"
+
+msgid "Has more than one tag"
+msgstr "有多个标签"
+
+msgid "Idle build cache"
+msgstr "闲置的构建缓存"
+
+msgid "In use"
+msgstr "使用中"
+
+msgid "In use by builds"
+msgstr "构建正在使用"
+
+msgid "Logs are never removed here"
+msgstr "此处不会删除日志"
+
+msgid "Managed or built-in"
+msgstr "受管理或内置"
+
+msgid "Needed for rollback or deployment"
+msgstr "回滚或部署所需"
+
+msgid "Only local networks can be removed here"
+msgstr "此处仅可删除本地网络"
+
+msgid "Shared storage"
+msgstr "共享存储"
+
+msgid "Tagged in more than one repository"
+msgstr "在多个仓库中带有标签"
+
+msgid "Take on before deletion"
+msgstr "删除前先接管"
+
+msgid "The build cache removal could not be verified"
+msgstr "无法验证构建缓存的删除结果"
+
+msgid "This Docker version can't remove one cache record at a time"
+msgstr "此 Docker 版本无法单独删除一条缓存记录"
+
+msgid "This image has tags that could not all be reviewed"
+msgstr "无法审查此镜像的全部标签"
+
+msgid "Unknown eligibility"
+msgstr "清理状态未知"
+
+msgid "Volumes require take-on before deletion"
+msgstr "请先接管卷，再删除"
+
+msgid "Writable layers"
+msgstr "可写层"
 
 msgid "Agent disconnected"
 msgstr "代理已断开连接"
@@ -16838,9 +17110,6 @@ msgstr "其他文件"
 
 msgid "The system and anything outside Docker"
 msgstr "系统及 Docker 之外的一切"
-
-msgid "Used"
-msgstr "已用"
 
 msgid "What Docker keeps of what they print"
 msgstr "Docker 保存的容器输出"
@@ -19950,9 +20219,6 @@ msgstr "任何人可选的最低要求"
 
 msgid "The passkey prompt closed, so the floor didn't change."
 msgstr "通行密钥提示已关闭，最低要求没有改变。"
-
-msgid "Platform"
-msgstr "平台"
 
 msgid "1 token"
 msgstr "1 个令牌"

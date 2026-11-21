@@ -51,7 +51,7 @@ process.env["DOCKWELL_TEST_BUILD_SECRETS"] ??= mkdtempSync(join(tmpdir(), "dockw
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
-  options: { shots: { type: "string" }, "fake-docker": { type: "string" } },
+  options: { shots: { type: "string" }, "fake-docker": { type: "string" }, flow: { type: "string" } },
 });
 const bin = resolve(positionals[0] ?? "bin/dockwell");
 const shots = values.shots ? resolve(values.shots) : undefined;
@@ -153,6 +153,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
     stdio: ["ignore", "pipe", "inherit"],
     env: {
       ...process.env,
+      FAKEDOCKER_CLEANUP_FIXTURE: "1",
       FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
       FAKEDOCKER_REGISTRY: registry,
       FAKEDOCKER_CLOUDFLARE: cloudflare,
@@ -265,7 +266,7 @@ async function withAuthenticator(context: BrowserContext, page: Page) {
 }
 
 async function shoot(page: Page, name: string) {
-  if (!shots) return;
+  if (!shots || (values.flow && !name.startsWith(`${values.flow}-`))) return;
   const viewport = page.viewportSize();
   const colorScheme = await page.evaluate(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
@@ -273,12 +274,62 @@ async function shoot(page: Page, name: string) {
   try {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      for (const width of [1440, 800, 390, 360]) {
+      for (const width of name.startsWith("docker-slice4-") ? [1440, 1024, 390, 320] : [1440, 800, 390, 360]) {
         await atWidth(page, { width, height: width === 1440 ? 900 : 844 });
         // A full-page shot of a long page starts at its top, as someone arriving would see it.
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(100);
-        await page.screenshot({ path: join(shots, `${name}-${width}-${scheme}.png`), fullPage: true });
+        const artifact = name.startsWith("docker-slice4-");
+        const privateValues = artifact
+          ? [
+              page.locator(".server-address-tagged, .server-page .page-lead"),
+              page.getByText("Mira Chen", { exact: true }),
+            ]
+          : [];
+        await Promise.all(
+          privateValues.map((where) =>
+            where.evaluateAll((nodes) => {
+              for (const node of nodes) {
+                if (node instanceof HTMLElement && !node.hasAttribute("data-capture-private")) {
+                  node.setAttribute("data-capture-private", node.style.display);
+                  node.style.display = "none";
+                }
+              }
+            }),
+          ),
+        );
+        const root = page.locator(".docker-fact", { hasText: "Docker root directory" }).locator("dd code");
+        const fixtureRoot = artifact
+          ? await root.evaluateAll((nodes) =>
+              nodes.map((node) => {
+                const text = node.textContent;
+                node.textContent = "/var/lib/docker";
+                return text;
+              }),
+            )
+          : [];
+        try {
+          await page.screenshot({
+            path: join(shots, `${name}-${width}-${scheme}.png`),
+            fullPage: !artifact || (name !== "docker-slice4-plan" && name !== "docker-slice4-receipt"),
+          });
+        } finally {
+          if (fixtureRoot.length)
+            await root.evaluateAll((nodes, texts) => {
+              nodes.forEach((node, index) => {
+                node.textContent = texts[index] ?? "";
+              });
+            }, fixtureRoot);
+          if (artifact)
+            await page.locator("[data-capture-private]").evaluateAll((nodes) => {
+              for (const node of nodes) {
+                if (node instanceof HTMLElement) {
+                  node.style.display = node.getAttribute("data-capture-private") ?? "";
+                  node.removeAttribute("data-capture-private");
+                }
+              }
+            });
+        }
       }
     }
   } finally {
@@ -915,36 +966,41 @@ async function main() {
   );
   if (fakeSocket !== "") {
     const before = await dockerMade(fakeSocket);
-    await runFlows(page, {
-      origin,
-      step,
-      shoot,
-      browser,
-      context,
-      docker: dockerProbe(fakeSocket),
-      socket: fakeSocket,
-      bin,
-      data,
-      env: { DOCKER_HOST: `unix://${fakeSocket}` },
-      catalogDir,
-      cgroups,
-      stopByHand: (id) => dockerStop(fakeSocket, id),
-      // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
-      hangDocker: () => {
-        docker?.kill("SIGSTOP");
-        return () => docker?.kill("SIGCONT");
+    await runFlows(
+      page,
+      {
+        origin,
+        step,
+        shoot,
+        browser,
+        context,
+        docker: dockerProbe(fakeSocket),
+        socket: fakeSocket,
+        bin,
+        data,
+        env: { DOCKER_HOST: `unix://${fakeSocket}` },
+        catalogDir,
+        cgroups,
+        stopByHand: (id) => dockerStop(fakeSocket, id),
+        // A daemon that hangs, as a stuck storage driver makes Docker: it takes calls and answers none.
+        hangDocker: () => {
+          docker?.kill("SIGSTOP");
+          return () => docker?.kill("SIGCONT");
+        },
+        // A control plane that stops answering and keeps its connections, as a frozen
+        // process or a proxy holding them open does.
+        freezeControlPlane: () => {
+          server?.kill("SIGSTOP");
+          return () => server?.kill("SIGCONT");
+        },
       },
-      // A control plane that stops answering and keeps its connections, as a frozen
-      // process or a proxy holding them open does.
-      freezeControlPlane: () => {
-        server?.kill("SIGSTOP");
-        return () => server?.kill("SIGCONT");
-      },
-    });
+      values.flow,
+    );
     // What make docker-panel-e2e does at its end, where only CI could see it.
     step("Docker: what the run made comes off, networks and volumes too");
     const made = await dockerMade(fakeSocket);
-    if (made.networks.length === 0) fail("the flow left no network, so this shows nothing about removing one");
+    if (!values.flow && made.networks.length === 0)
+      fail("the flow left no network, so this shows nothing about removing one");
     const left = await removeMade(fakeSocket, before);
     if (left.length > 0) fail(`removing what the run made left ${left.join(", ")}`);
   }
