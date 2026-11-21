@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
+	containerkind "github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -718,6 +719,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			}
 			pullCtx = resource.WithBuildGitAuth(pullCtx, header)
 		}
+		if guard := step.DockerStorageGuard.GetAttachment(); guard != nil {
+			if err := c.checkDockerAttachmentApply(pullCtx, step, guard); err != nil {
+				resource.Report(ctx, resource.Outcome{Untouched: true})
+				return fail(err)
+			}
+			if !step.Finishing {
+				pullCtx = containerkind.WithDockerAttachment(pullCtx, guard)
+			}
+		}
 		if err := c.local.Apply(pullCtx, step, spec); err != nil {
 			if step.Action == resource.ActionDelete && c.cfg.Desired != nil {
 				// What's left of it is the control plane's to finish, not the agent's to
@@ -790,9 +800,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		ask := call.GetDockerInventoryList()
 		var out *agentv1.DockerInventoryListResult
 		var err error
-		if ask.GetKind() == dockerImageKind {
+		switch ask.GetKind() {
+		case dockerNetworkKind:
+			out, err = c.dockerNetworkList(ctx, ask)
+		case dockerVolumeKind:
+			out, err = c.dockerVolumeList(ctx, ask)
+		case dockerImageKind:
 			out, err = c.dockerImageList(ctx, ask)
-		} else {
+		default:
 			out, err = dockerInventoryList(ctx, c.cfg.Docker, ask)
 		}
 		if err != nil {
@@ -809,15 +824,35 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		ask := call.GetDockerInventoryDetail()
 		var out *agentv1.DockerInventoryDetailResult
 		var err error
-		if ask.GetImageId() != "" {
+		switch {
+		case ask.GetVolumeKey() != "":
+			out, err = c.dockerVolumeDetail(ctx, ask.GetVolumeKey())
+		case ask.GetNetworkId() != "":
+			out, err = c.dockerNetworkDetail(ctx, ask.GetNetworkId())
+		case ask.GetImageId() != "":
 			out, err = c.dockerImageDetail(ctx, ask.GetImageId())
-		} else {
+		default:
 			out, err = dockerInventoryDetail(ctx, c.cfg.Docker, ask)
+			if err == nil {
+				c.volumeLinks(ctx, out.GetObject().GetContainer())
+			}
 		}
 		if err != nil {
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerInventoryDetail{DockerInventoryDetail: out}}
+	case call.GetCheckDockerNetwork() != nil:
+		select {
+		case c.inventoryReads <- struct{}{}:
+			defer func() { <-c.inventoryReads }()
+		case <-ctx.Done():
+			return fail(errDockerInventory)
+		}
+		out, err := c.checkDockerNetwork(ctx, call.GetCheckDockerNetwork())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckDockerNetwork{CheckDockerNetwork: out}}
 	case call.GetDockerMaintenancePreview() != nil:
 		out, err := c.dockerCleanupPreview(ctx, call.GetDockerMaintenancePreview())
 		if err != nil {

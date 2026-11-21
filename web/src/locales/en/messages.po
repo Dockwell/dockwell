@@ -14810,6 +14810,7 @@ msgstr "Written to disk"
 msgid "{0} CPUs"
 msgstr "{0} CPUs"
 
+#. placeholder {0}: remaining.toLocaleString(i18n.locale)
 #. placeholder {0}: values.length - 2
 msgid "+{0} more"
 msgstr "+{0} more"
@@ -15116,6 +15117,87 @@ msgstr "Unused"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, one {and # more tag} other {and # more tags}}"
 
+msgid "Address pools"
+msgstr "Address pools"
+
+msgid "Attached containers"
+msgstr "Attached containers"
+
+msgid "Choices couldn't be read"
+msgstr "Choices couldn't be read"
+
+msgid "Choose a container"
+msgstr "Choose a container"
+
+msgid "Choose a network"
+msgstr "Choose a network"
+
+msgid "Connect another network"
+msgstr "Connect another network"
+
+msgid "Connect container"
+msgstr "Connect container"
+
+msgid "Containers still use this network"
+msgstr "Containers still use this network"
+
+msgid "Docker couldn't verify all attachments"
+msgstr "Docker couldn't verify all attachments"
+
+msgid "Docker needs this built-in network"
+msgstr "Docker needs this built-in network"
+
+msgid "Dockwell needs this network"
+msgstr "Dockwell needs this network"
+
+msgid "Driver options"
+msgstr "Driver options"
+
+msgid "IPv6"
+msgstr "IPv6"
+
+msgid "Internal network"
+msgstr "Internal network"
+
+msgid "Labels"
+msgstr "Labels"
+
+msgid "Loading choices"
+msgstr "Loading choices"
+
+msgid "Managed networks are removed through a revision plan"
+msgstr "Managed networks are removed through a revision plan"
+
+msgid "Network actions"
+msgstr "Network actions"
+
+msgid "Network couldn't be read"
+msgstr "Network couldn't be read"
+
+msgid "Network details"
+msgstr "Network details"
+
+msgid "No containers attached"
+msgstr "No containers attached"
+
+msgid "No matching choices"
+msgstr "No matching choices"
+
+msgid "Only local networks can be removed here"
+msgstr "Only local networks can be removed here"
+
+msgid "Search networks"
+msgstr "Search networks"
+
+msgid "This is the workload's last network"
+msgstr "This is the workload's last network"
+
+msgid "This network is a shared link"
+msgstr "This network is a shared link"
+
+msgid "This network is gone"
+msgstr "This network is gone"
+
 msgid "Browse registry"
 msgstr "Browse registry"
 
@@ -15182,6 +15264,147 @@ msgstr "Tags unavailable"
 msgid "{fallbackName} if needed"
 msgstr "{fallbackName} if needed"
 
+msgid "All drivers"
+msgstr "All drivers"
+
+msgid "Anonymous"
+msgstr "Anonymous"
+
+msgid "Docker is measuring disk use on these servers"
+msgstr "Docker is measuring disk use on these servers"
+
+msgid "Docker networks"
+msgstr "Docker networks"
+
+msgid "Docker volumes"
+msgstr "Docker volumes"
+
+msgid "Find a network"
+msgstr "Find a network"
+
+msgid "Find a volume"
+msgstr "Find a volume"
+
+#. placeholder {0}: pool.gateway
+msgid "Gateway <0>{0}</0>"
+msgstr "Gateway <0>{0}</0>"
+
+msgid "Loading Docker networks"
+msgstr "Loading Docker networks"
+
+msgid "Loading Docker volumes"
+msgstr "Loading Docker volumes"
+
+msgid "Measured {at}"
+msgstr "Measured {at}"
+
+msgid "Mountpoint"
+msgstr "Mountpoint"
+
+msgid "Networks couldn't be read"
+msgstr "Networks couldn't be read"
+
+msgid "New network"
+msgstr "New network"
+
+msgid "New volume"
+msgstr "New volume"
+
+msgid "No matching networks"
+msgstr "No matching networks"
+
+msgid "No matching volumes"
+msgstr "No matching volumes"
+
+msgid "No networks"
+msgstr "No networks"
+
+msgid "No pools reported"
+msgstr "No pools reported"
+
+msgid "No volumes"
+msgstr "No volumes"
+
+msgid "Size unknown"
+msgstr "Size unknown"
+
+msgid "Volumes couldn't be read"
+msgstr "Volumes couldn't be read"
+
+msgid "Bridge · Advanced"
+msgstr "Bridge · Advanced"
+
+msgid "Checked on the selected server"
+msgstr "Checked on the selected server"
+
+msgid "Checking network settings"
+msgstr "Checking network settings"
+
+msgid "Choose a gateway inside its subnet"
+msgstr "Choose a gateway inside its subnet"
+
+msgid "Choose a server"
+msgstr "Choose a server"
+
+msgid "Choose an environment"
+msgstr "Choose an environment"
+
+msgid "Create network {name}"
+msgstr "Create network {name}"
+
+msgid "Create volume {name}"
+msgstr "Create volume {name}"
+
+msgid "Enable IPv6"
+msgstr "Enable IPv6"
+
+msgid "Enter one valid subnet per address family"
+msgstr "Enter one valid subnet per address family"
+
+msgid "IPv4 gateway"
+msgstr "IPv4 gateway"
+
+msgid "IPv4 subnet"
+msgstr "IPv4 subnet"
+
+msgid "IPv6 gateway"
+msgstr "IPv6 gateway"
+
+msgid "IPv6 subnet"
+msgstr "IPv6 subnet"
+
+msgid "Loading environments"
+msgstr "Loading environments"
+
+msgid "Local driver"
+msgstr "Local driver"
+
+msgid "Network check failed"
+msgstr "Network check failed"
+
+msgid "Network name"
+msgstr "Network name"
+
+#. placeholder {0}: finding.conflictingSubnet
+#. placeholder {1}: finding.conflictingNetwork
+msgid "Overlaps {0} on {1}"
+msgstr "Overlaps {0} on {1}"
+
+msgid "The Engine refused these settings"
+msgstr "The Engine refused these settings"
+
+msgid "The panel is slow to list environments"
+msgstr "The panel is slow to list environments"
+
+msgid "The selected Engine couldn't check this network"
+msgstr "The selected Engine couldn't check this network"
+
+msgid "This network name is in use"
+msgstr "This network name is in use"
+
+msgid "Volume name"
+msgstr "Volume name"
+
 msgid "App name"
 msgstr "App name"
 
@@ -15191,6 +15414,63 @@ msgstr "Keeps the current container, mounts, network connections and environment
 #. placeholder {0}: row.name
 msgid "Take on {0}"
 msgstr "Take on {0}"
+
+msgid "Backups and schedules"
+msgstr "Backups and schedules"
+
+msgid "Backups are available for managed volumes"
+msgstr "Backups are available for managed volumes"
+
+msgid "Checking Files access"
+msgstr "Checking Files access"
+
+msgid "Desired mounts"
+msgstr "Desired mounts"
+
+msgid "Docker didn't report when this volume was created"
+msgstr "Docker didn't report when this volume was created"
+
+msgid "Files can't open this mountpoint"
+msgstr "Files can't open this mountpoint"
+
+msgid "Loading desired mounts"
+msgstr "Loading desired mounts"
+
+msgid "Measured"
+msgstr "Measured"
+
+msgid "Mounted by"
+msgstr "Mounted by"
+
+msgid "No containers mount this volume"
+msgstr "No containers mount this volume"
+
+msgid "Open current volume"
+msgstr "Open current volume"
+
+msgid "Open files"
+msgstr "Open files"
+
+msgid "The server is slow to check Files access"
+msgstr "The server is slow to check Files access"
+
+msgid "The server is slow to list desired mounts"
+msgstr "The server is slow to list desired mounts"
+
+msgid "This volume is gone"
+msgstr "This volume is gone"
+
+msgid "This volume was replaced"
+msgstr "This volume was replaced"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "Volume couldn't be read"
+msgstr "Volume couldn't be read"
+
+msgid "Volume details"
+msgstr "Volume details"
 
 msgid "Docker inventory couldn't be read"
 msgstr "Docker inventory couldn't be read"
@@ -15287,9 +15567,6 @@ msgstr "Managed or built-in"
 msgid "Needed for rollback or deployment"
 msgstr "Needed for rollback or deployment"
 
-msgid "Only local networks can be removed here"
-msgstr "Only local networks can be removed here"
-
 msgid "Shared storage"
 msgstr "Shared storage"
 
@@ -15331,6 +15608,24 @@ msgstr "Live updates paused"
 
 msgid "Some servers didn't answer"
 msgstr "Some servers didn't answer"
+
+msgid "Built in"
+msgstr "Built in"
+
+msgid "Loading the network"
+msgstr "Loading the network"
+
+msgid "Loading the volume"
+msgstr "Loading the volume"
+
+msgid "Mount target"
+msgstr "Mount target"
+
+msgid "Retained for recovery"
+msgstr "Retained for recovery"
+
+msgid "Some attachments couldn't be listed"
+msgstr "Some attachments couldn't be listed"
 
 msgid "Can't edit DNS"
 msgstr "Can't edit DNS"
@@ -15715,9 +16010,6 @@ msgstr "Deleted {0}"
 #. placeholder {0}: nameOf(deleted.path)
 msgid "Deleted {0} for good"
 msgstr "Deleted {0} for good"
-
-msgid "Docker volumes"
-msgstr "Docker volumes"
 
 msgid "Dockwell doesn't open this"
 msgstr "Dockwell doesn't open this"
@@ -17475,9 +17767,6 @@ msgstr "It's the address {controlName} goes out from."
 
 msgid "Joins with"
 msgstr "Joins with"
-
-msgid "Labels"
-msgstr "Labels"
 
 msgid "Make a new command"
 msgstr "Make a new command"
@@ -22642,9 +22931,6 @@ msgstr "Dockwell can't read this volume"
 msgid "Its driver's options stay hidden, as they may hold a password."
 msgstr "Its driver's options stay hidden, as they may hold a password."
 
-msgid "Mounted by"
-msgstr "Mounted by"
-
 msgid "No app mounts it"
 msgstr "No app mounts it"
 
@@ -22759,9 +23045,6 @@ msgstr "A static site, sent as its files are."
 
 msgid "Another site, or an address on your network."
 msgstr "Another site, or an address on your network."
-
-msgid "Choose a server"
-msgstr "Choose a server"
 
 msgid "Choose the server it runs on."
 msgstr "Choose the server it runs on."
@@ -23288,9 +23571,6 @@ msgstr "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 
 msgid "Static files"
 msgstr "Static files"
-
-msgid "Type"
-msgstr "Type"
 
 #. placeholder {0}: only.name
 msgid "Websites on {0}"

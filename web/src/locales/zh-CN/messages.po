@@ -14810,6 +14810,7 @@ msgstr "磁盘写入"
 msgid "{0} CPUs"
 msgstr "{0} 个 CPU"
 
+#. placeholder {0}: remaining.toLocaleString(i18n.locale)
 #. placeholder {0}: values.length - 2
 msgid "+{0} more"
 msgstr "另有 {0} 项"
@@ -15116,6 +15117,87 @@ msgstr "未使用"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, other {还有 # 个标签}}"
 
+msgid "Address pools"
+msgstr "地址池"
+
+msgid "Attached containers"
+msgstr "已连接的容器"
+
+msgid "Choices couldn't be read"
+msgstr "无法读取选项"
+
+msgid "Choose a container"
+msgstr "选择容器"
+
+msgid "Choose a network"
+msgstr "选择网络"
+
+msgid "Connect another network"
+msgstr "连接另一个网络"
+
+msgid "Connect container"
+msgstr "连接容器"
+
+msgid "Containers still use this network"
+msgstr "仍有容器在使用此网络"
+
+msgid "Docker couldn't verify all attachments"
+msgstr "Docker 无法核实所有连接"
+
+msgid "Docker needs this built-in network"
+msgstr "Docker 需要此内置网络"
+
+msgid "Dockwell needs this network"
+msgstr "Dockwell 需要此网络"
+
+msgid "Driver options"
+msgstr "驱动选项"
+
+msgid "IPv6"
+msgstr "IPv6"
+
+msgid "Internal network"
+msgstr "内部网络"
+
+msgid "Labels"
+msgstr "标签"
+
+msgid "Loading choices"
+msgstr "正在加载选项"
+
+msgid "Managed networks are removed through a revision plan"
+msgstr "受管网络需通过修订计划移除"
+
+msgid "Network actions"
+msgstr "网络操作"
+
+msgid "Network couldn't be read"
+msgstr "无法读取网络"
+
+msgid "Network details"
+msgstr "网络详情"
+
+msgid "No containers attached"
+msgstr "没有已连接的容器"
+
+msgid "No matching choices"
+msgstr "没有匹配的选项"
+
+msgid "Only local networks can be removed here"
+msgstr "此处仅可删除本地网络"
+
+msgid "Search networks"
+msgstr "搜索网络"
+
+msgid "This is the workload's last network"
+msgstr "这是此工作负载的最后一个网络"
+
+msgid "This network is a shared link"
+msgstr "此网络是共享链接"
+
+msgid "This network is gone"
+msgstr "此网络已不存在"
+
 msgid "Browse registry"
 msgstr "浏览镜像仓库"
 
@@ -15182,6 +15264,147 @@ msgstr "无法读取标签"
 msgid "{fallbackName} if needed"
 msgstr "需要时使用 {fallbackName}"
 
+msgid "All drivers"
+msgstr "所有驱动"
+
+msgid "Anonymous"
+msgstr "匿名"
+
+msgid "Docker is measuring disk use on these servers"
+msgstr "Docker 正在测量这些服务器的磁盘用量"
+
+msgid "Docker networks"
+msgstr "Docker 网络"
+
+msgid "Docker volumes"
+msgstr "Docker 卷"
+
+msgid "Find a network"
+msgstr "查找网络"
+
+msgid "Find a volume"
+msgstr "查找卷"
+
+#. placeholder {0}: pool.gateway
+msgid "Gateway <0>{0}</0>"
+msgstr "网关 <0>{0}</0>"
+
+msgid "Loading Docker networks"
+msgstr "正在加载 Docker 网络"
+
+msgid "Loading Docker volumes"
+msgstr "正在加载 Docker 卷"
+
+msgid "Measured {at}"
+msgstr "测量于 {at}"
+
+msgid "Mountpoint"
+msgstr "挂载点"
+
+msgid "Networks couldn't be read"
+msgstr "无法读取网络"
+
+msgid "New network"
+msgstr "新建网络"
+
+msgid "New volume"
+msgstr "新建卷"
+
+msgid "No matching networks"
+msgstr "没有匹配的网络"
+
+msgid "No matching volumes"
+msgstr "没有匹配的卷"
+
+msgid "No networks"
+msgstr "没有网络"
+
+msgid "No pools reported"
+msgstr "未报告地址池"
+
+msgid "No volumes"
+msgstr "没有卷"
+
+msgid "Size unknown"
+msgstr "大小未知"
+
+msgid "Volumes couldn't be read"
+msgstr "无法读取卷"
+
+msgid "Bridge · Advanced"
+msgstr "桥接 · 高级"
+
+msgid "Checked on the selected server"
+msgstr "已在所选服务器上检查"
+
+msgid "Checking network settings"
+msgstr "正在检查网络设置"
+
+msgid "Choose a gateway inside its subnet"
+msgstr "请选择子网内的网关"
+
+msgid "Choose a server"
+msgstr "选择服务器"
+
+msgid "Choose an environment"
+msgstr "选择环境"
+
+msgid "Create network {name}"
+msgstr "创建网络 {name}"
+
+msgid "Create volume {name}"
+msgstr "创建卷 {name}"
+
+msgid "Enable IPv6"
+msgstr "启用 IPv6"
+
+msgid "Enter one valid subnet per address family"
+msgstr "每种地址族请输入一个有效子网"
+
+msgid "IPv4 gateway"
+msgstr "IPv4 网关"
+
+msgid "IPv4 subnet"
+msgstr "IPv4 子网"
+
+msgid "IPv6 gateway"
+msgstr "IPv6 网关"
+
+msgid "IPv6 subnet"
+msgstr "IPv6 子网"
+
+msgid "Loading environments"
+msgstr "正在加载环境"
+
+msgid "Local driver"
+msgstr "本地驱动"
+
+msgid "Network check failed"
+msgstr "网络检查失败"
+
+msgid "Network name"
+msgstr "网络名称"
+
+#. placeholder {0}: finding.conflictingSubnet
+#. placeholder {1}: finding.conflictingNetwork
+msgid "Overlaps {0} on {1}"
+msgstr "与 {1} 上的 {0} 重叠"
+
+msgid "The Engine refused these settings"
+msgstr "Docker 引擎拒绝了这些设置"
+
+msgid "The panel is slow to list environments"
+msgstr "面板列出环境的速度较慢"
+
+msgid "The selected Engine couldn't check this network"
+msgstr "所选 Docker 引擎无法检查此网络"
+
+msgid "This network name is in use"
+msgstr "此网络名称已被使用"
+
+msgid "Volume name"
+msgstr "卷名称"
+
 msgid "App name"
 msgstr "应用名称"
 
@@ -15191,6 +15414,63 @@ msgstr "保留当前容器、挂载、网络连接和环境变量。"
 #. placeholder {0}: row.name
 msgid "Take on {0}"
 msgstr "接管 {0}"
+
+msgid "Backups and schedules"
+msgstr "备份与计划"
+
+msgid "Backups are available for managed volumes"
+msgstr "受管卷可以备份"
+
+msgid "Checking Files access"
+msgstr "正在检查文件访问权限"
+
+msgid "Desired mounts"
+msgstr "配置的挂载"
+
+msgid "Docker didn't report when this volume was created"
+msgstr "Docker 未报告此卷的创建时间"
+
+msgid "Files can't open this mountpoint"
+msgstr "文件管理无法打开此挂载点"
+
+msgid "Loading desired mounts"
+msgstr "正在加载已配置的挂载"
+
+msgid "Measured"
+msgstr "测量时间"
+
+msgid "Mounted by"
+msgstr "挂载者"
+
+msgid "No containers mount this volume"
+msgstr "没有容器挂载此卷"
+
+msgid "Open current volume"
+msgstr "打开当前卷"
+
+msgid "Open files"
+msgstr "打开文件"
+
+msgid "The server is slow to check Files access"
+msgstr "服务器检查文件访问权限的速度较慢"
+
+msgid "The server is slow to list desired mounts"
+msgstr "服务器列出已配置挂载的速度较慢"
+
+msgid "This volume is gone"
+msgstr "此卷已不存在"
+
+msgid "This volume was replaced"
+msgstr "此卷已被替换"
+
+msgid "Type"
+msgstr "类型"
+
+msgid "Volume couldn't be read"
+msgstr "无法读取卷"
+
+msgid "Volume details"
+msgstr "卷详情"
 
 msgid "Docker inventory couldn't be read"
 msgstr "无法读取 Docker 清单"
@@ -15287,9 +15567,6 @@ msgstr "受管理或内置"
 msgid "Needed for rollback or deployment"
 msgstr "回滚或部署所需"
 
-msgid "Only local networks can be removed here"
-msgstr "此处仅可删除本地网络"
-
 msgid "Shared storage"
 msgstr "共享存储"
 
@@ -15331,6 +15608,24 @@ msgstr "实时更新已暂停"
 
 msgid "Some servers didn't answer"
 msgstr "部分服务器无响应"
+
+msgid "Built in"
+msgstr "内置"
+
+msgid "Loading the network"
+msgstr "正在加载网络"
+
+msgid "Loading the volume"
+msgstr "正在加载卷"
+
+msgid "Mount target"
+msgstr "挂载目标"
+
+msgid "Retained for recovery"
+msgstr "保留以供恢复"
+
+msgid "Some attachments couldn't be listed"
+msgstr "部分连接无法列出"
 
 msgid "Can't edit DNS"
 msgstr "无法编辑 DNS"
@@ -15715,9 +16010,6 @@ msgstr "已删除 {0}"
 #. placeholder {0}: nameOf(deleted.path)
 msgid "Deleted {0} for good"
 msgstr "已永久删除 {0}"
-
-msgid "Docker volumes"
-msgstr "Docker 卷"
 
 msgid "Dockwell doesn't open this"
 msgstr "Dockwell 不打开这一项"
@@ -17475,9 +17767,6 @@ msgstr "这是 {controlName} 访问外网所用的地址。"
 
 msgid "Joins with"
 msgstr "加入时带有"
-
-msgid "Labels"
-msgstr "标签"
 
 msgid "Make a new command"
 msgstr "生成新命令"
@@ -22642,9 +22931,6 @@ msgstr "Dockwell 无法读取这个卷"
 msgid "Its driver's options stay hidden, as they may hold a password."
 msgstr "它的驱动选项可能包含密码，所以保持隐藏。"
 
-msgid "Mounted by"
-msgstr "挂载者"
-
 msgid "No app mounts it"
 msgstr "没有应用挂载它"
 
@@ -22759,9 +23045,6 @@ msgstr "静态网站，文件原样发送。"
 
 msgid "Another site, or an address on your network."
 msgstr "另一个网站，或你网络中的某个地址。"
-
-msgid "Choose a server"
-msgstr "选择服务器"
 
 msgid "Choose the server it runs on."
 msgstr "请选择它运行的服务器。"
@@ -23288,9 +23571,6 @@ msgstr "托管文件夹或 PHP 应用，或将域名转发到 URL 或端口。"
 
 msgid "Static files"
 msgstr "静态文件"
-
-msgid "Type"
-msgstr "类型"
 
 #. placeholder {0}: only.name
 msgid "Websites on {0}"

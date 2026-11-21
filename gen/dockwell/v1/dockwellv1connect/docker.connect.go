@@ -50,6 +50,12 @@ const (
 	// DockerServicePlanDockerMaintenanceProcedure is the fully-qualified name of the DockerService's
 	// PlanDockerMaintenance RPC.
 	DockerServicePlanDockerMaintenanceProcedure = "/dockwell.v1.DockerService/PlanDockerMaintenance"
+	// DockerServiceCheckDockerNetworkProcedure is the fully-qualified name of the DockerService's
+	// CheckDockerNetwork RPC.
+	DockerServiceCheckDockerNetworkProcedure = "/dockwell.v1.DockerService/CheckDockerNetwork"
+	// DockerServicePlanDockerNetworkAttachmentProcedure is the fully-qualified name of the
+	// DockerService's PlanDockerNetworkAttachment RPC.
+	DockerServicePlanDockerNetworkAttachmentProcedure = "/dockwell.v1.DockerService/PlanDockerNetworkAttachment"
 	// DockerServiceWatchDockerObjectsProcedure is the fully-qualified name of the DockerService's
 	// WatchDockerObjects RPC.
 	DockerServiceWatchDockerObjectsProcedure = "/dockwell.v1.DockerService/WatchDockerObjects"
@@ -67,6 +73,11 @@ type DockerServiceClient interface {
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
 	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
+	// CheckDockerNetwork validates a candidate against selected Engines.
+	// REST carries the address pools in the request body.
+	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
+	// PlanDockerNetworkAttachment records a normal workload revision for one attachment.
+	PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error)
 }
@@ -116,6 +127,18 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
 			connect.WithClientOptions(opts...),
 		),
+		checkDockerNetwork: connect.NewClient[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse](
+			httpClient,
+			baseURL+DockerServiceCheckDockerNetworkProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("CheckDockerNetwork")),
+			connect.WithClientOptions(opts...),
+		),
+		planDockerNetworkAttachment: connect.NewClient[v1.PlanDockerNetworkAttachmentRequest, v1.PlanDockerNetworkAttachmentResponse](
+			httpClient,
+			baseURL+DockerServicePlanDockerNetworkAttachmentProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerNetworkAttachment")),
+			connect.WithClientOptions(opts...),
+		),
 		watchDockerObjects: connect.NewClient[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse](
 			httpClient,
 			baseURL+DockerServiceWatchDockerObjectsProcedure,
@@ -128,12 +151,14 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 
 // dockerServiceClient implements DockerServiceClient.
 type dockerServiceClient struct {
-	getDockerOverview     *connect.Client[v1.GetDockerOverviewRequest, v1.GetDockerOverviewResponse]
-	listDockerObjects     *connect.Client[v1.ListDockerObjectsRequest, v1.ListDockerObjectsResponse]
-	getDockerObject       *connect.Client[v1.GetDockerObjectRequest, v1.GetDockerObjectResponse]
-	previewDockerCleanup  *connect.Client[v1.PreviewDockerCleanupRequest, v1.PreviewDockerCleanupResponse]
-	planDockerMaintenance *connect.Client[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse]
-	watchDockerObjects    *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
+	getDockerOverview           *connect.Client[v1.GetDockerOverviewRequest, v1.GetDockerOverviewResponse]
+	listDockerObjects           *connect.Client[v1.ListDockerObjectsRequest, v1.ListDockerObjectsResponse]
+	getDockerObject             *connect.Client[v1.GetDockerObjectRequest, v1.GetDockerObjectResponse]
+	previewDockerCleanup        *connect.Client[v1.PreviewDockerCleanupRequest, v1.PreviewDockerCleanupResponse]
+	planDockerMaintenance       *connect.Client[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse]
+	checkDockerNetwork          *connect.Client[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse]
+	planDockerNetworkAttachment *connect.Client[v1.PlanDockerNetworkAttachmentRequest, v1.PlanDockerNetworkAttachmentResponse]
+	watchDockerObjects          *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
 }
 
 // GetDockerOverview calls dockwell.v1.DockerService.GetDockerOverview.
@@ -161,6 +186,16 @@ func (c *dockerServiceClient) PlanDockerMaintenance(ctx context.Context, req *co
 	return c.planDockerMaintenance.CallUnary(ctx, req)
 }
 
+// CheckDockerNetwork calls dockwell.v1.DockerService.CheckDockerNetwork.
+func (c *dockerServiceClient) CheckDockerNetwork(ctx context.Context, req *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error) {
+	return c.checkDockerNetwork.CallUnary(ctx, req)
+}
+
+// PlanDockerNetworkAttachment calls dockwell.v1.DockerService.PlanDockerNetworkAttachment.
+func (c *dockerServiceClient) PlanDockerNetworkAttachment(ctx context.Context, req *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error) {
+	return c.planDockerNetworkAttachment.CallUnary(ctx, req)
+}
+
 // WatchDockerObjects calls dockwell.v1.DockerService.WatchDockerObjects.
 func (c *dockerServiceClient) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error) {
 	return c.watchDockerObjects.CallServerStream(ctx, req)
@@ -178,6 +213,11 @@ type DockerServiceHandler interface {
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
 	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
+	// CheckDockerNetwork validates a candidate against selected Engines.
+	// REST carries the address pools in the request body.
+	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
+	// PlanDockerNetworkAttachment records a normal workload revision for one attachment.
+	PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error
 }
@@ -223,6 +263,18 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dockerServiceCheckDockerNetworkHandler := connect.NewUnaryHandler(
+		DockerServiceCheckDockerNetworkProcedure,
+		svc.CheckDockerNetwork,
+		connect.WithSchema(dockerServiceMethods.ByName("CheckDockerNetwork")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServicePlanDockerNetworkAttachmentHandler := connect.NewUnaryHandler(
+		DockerServicePlanDockerNetworkAttachmentProcedure,
+		svc.PlanDockerNetworkAttachment,
+		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerNetworkAttachment")),
+		connect.WithHandlerOptions(opts...),
+	)
 	dockerServiceWatchDockerObjectsHandler := connect.NewServerStreamHandler(
 		DockerServiceWatchDockerObjectsProcedure,
 		svc.WatchDockerObjects,
@@ -242,6 +294,10 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 			dockerServicePreviewDockerCleanupHandler.ServeHTTP(w, r)
 		case DockerServicePlanDockerMaintenanceProcedure:
 			dockerServicePlanDockerMaintenanceHandler.ServeHTTP(w, r)
+		case DockerServiceCheckDockerNetworkProcedure:
+			dockerServiceCheckDockerNetworkHandler.ServeHTTP(w, r)
+		case DockerServicePlanDockerNetworkAttachmentProcedure:
+			dockerServicePlanDockerNetworkAttachmentHandler.ServeHTTP(w, r)
 		case DockerServiceWatchDockerObjectsProcedure:
 			dockerServiceWatchDockerObjectsHandler.ServeHTTP(w, r)
 		default:
@@ -271,6 +327,14 @@ func (UnimplementedDockerServiceHandler) PreviewDockerCleanup(context.Context, *
 
 func (UnimplementedDockerServiceHandler) PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerMaintenance is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.CheckDockerNetwork is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) PlanDockerNetworkAttachment(context.Context, *connect.Request[v1.PlanDockerNetworkAttachmentRequest]) (*connect.Response[v1.PlanDockerNetworkAttachmentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerNetworkAttachment is not implemented"))
 }
 
 func (UnimplementedDockerServiceHandler) WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {

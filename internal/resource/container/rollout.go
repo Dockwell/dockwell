@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/lazyre"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/ingress"
@@ -1199,6 +1200,17 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, err
 	}
 	req, later, restored := d.createRequest(ctx, t, spec, old, kept)
+	guard := dockerAttachment(ctx)
+	if guard != nil && guard.GetAction() == v1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT {
+		name, id := guard.GetNetworkName(), guard.GetNetworkId()
+		if endpoint, ok := req.NetworkingConfig.EndpointsConfig[name]; ok {
+			delete(req.NetworkingConfig.EndpointsConfig, name)
+			req.NetworkingConfig.EndpointsConfig[id] = endpoint
+			if req.HostConfig.NetworkMode == name {
+				req.HostConfig.NetworkMode = id
+			}
+		}
+	}
 	if err := rendered(req, spec); err != nil {
 		return "", nil, err
 	}
@@ -1256,7 +1268,11 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		return "", nil, discard(err)
 	}
 	for _, n := range later {
-		if err := d.Client.ConnectNetwork(ctx, n, id, aliasesOn(t, spec, specNetwork(t, n))); err != nil {
+		target := n
+		if n == guard.GetNetworkName() {
+			target = guard.GetNetworkId()
+		}
+		if err := d.Client.ConnectNetwork(ctx, target, id, aliasesOn(t, spec, specNetwork(t, n))); err != nil {
 			return "", nil, discard(fmt.Errorf("can't put %s on the network %s: %w", t.Name, n, err))
 		}
 	}
@@ -1267,6 +1283,27 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 			if err := d.Client.ConnectNetwork(ctx, j.Network, id, []string{j.Alias}); err != nil && !docker.IsNotFound(err) {
 				return "", nil, discard(fmt.Errorf("can't put %s on the link network %s: %w", t.Name, j.Network, err))
 			}
+		}
+	}
+	if guard != nil {
+		observed, err := d.Client.InspectContainer(ctx, id)
+		if err != nil {
+			return "", nil, discard(err)
+		}
+		endpoint := observed.NetworkEndpoint(guard.GetNetworkName(), guard.GetNetworkId())
+		var confirmed bool
+		if guard.GetAction() == v1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT && endpoint != nil {
+			// Before start, an Engine can leave the endpoint's ID unset.
+			// We supplied the full ID when creating or connecting it.
+			n, err := d.Client.InspectNetwork(ctx, guard.GetNetworkId())
+			confirmed = err == nil && n.ID == guard.GetNetworkId() && n.Name == guard.GetNetworkName() &&
+				(endpoint.NetworkID == "" || endpoint.NetworkID == n.ID)
+		}
+		if guard.GetAction() == v1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT {
+			confirmed = endpoint == nil
+		}
+		if !confirmed {
+			return "", nil, discard(errors.New("Docker did not confirm the reviewed network attachment"))
 		}
 	}
 	if err := d.joinIngress(ctx, t, spec, id); err != nil {

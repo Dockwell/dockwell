@@ -120,7 +120,7 @@ func FromChanges(fcs []*dockwellv1.FieldChange) []resource.Change {
 // Step converts a step. resourceID names the resource, when known.
 func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 	p := &dockwellv1.PlanStep{
-		DockerMaintenance: s.DockerMaintenance, ResourceId: resourceID, Resource: Ref(s.Ref), Action: Action(s.Action), Effect: effects[s.Effect],
+		DockerMaintenance: s.DockerMaintenance, DockerStorageGuard: s.DockerStorageGuard.Proto(), ResourceId: resourceID, Resource: Ref(s.Ref), Action: Action(s.Action), Effect: effects[s.Effect],
 		DestroysData: s.Destroys, Changes: Changes(s.Changes),
 	}
 	if s.Downtime > 0 {
@@ -469,7 +469,8 @@ func (e *UnknownError) Error() string {
 func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 	s := resource.Step{
 		Ref: FromRef(p.GetResource()), Changes: FromChanges(p.GetChanges()),
-		Decision: resource.Decision{Destroys: p.GetDestroysData(), DockerMaintenance: p.GetDockerMaintenance()},
+		DockerStorageGuard: resource.DockerStorageGuardFrom(p.GetDockerStorageGuard()),
+		Decision:           resource.Decision{Destroys: p.GetDestroysData(), DockerMaintenance: p.GetDockerMaintenance()},
 	}
 	var ok bool
 	if s.Action, ok = from(actions, p.GetAction()); !ok {

@@ -32,7 +32,7 @@ it("releases the Compose connection in a hidden tab and reopens it on return", a
       },
     });
   });
-  const { unmount } = renderHook(() => useDockerWatch(["viewed"], [], () => {}, true), {
+  const { unmount } = renderHook(() => useDockerWatch(["viewed"], [], () => {}, DockerObjectKind.COMPOSE), {
     wrapper: ({ children }: { children: ReactNode }) => (
       <TransportProvider transport={transport}>{children}</TransportProvider>
     ),

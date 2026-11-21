@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 )
 
 // Network is a network as the engine reports it.
@@ -13,19 +14,23 @@ type Network struct {
 	ID       string `json:"Id"`
 	Name     string `json:"Name"`
 	Scope    string
+	Created  time.Time
 	Driver   string `json:"Driver"`
 	Internal bool   `json:"Internal"`
 	// EnableIPv6 is true for a network that gives its containers IPv6, so
 	// Docker publishes their ports over IPv6 itself, not through its proxy.
-	EnableIPv6 bool              `json:"EnableIPv6"`
-	Options    map[string]string `json:"Options"`
-	Labels     map[string]string `json:"Labels"`
-	// IPAM is how it gives out addresses.
-	IPAM IPAM `json:"IPAM"`
-	// Containers on the network, by ID.
-	Containers map[string]struct {
-		Name string `json:"Name"`
-	} `json:"Containers"`
+	EnableIPv6 bool                       `json:"EnableIPv6"`
+	Options    map[string]string          `json:"Options"`
+	Labels     map[string]string          `json:"Labels"`
+	IPAM       IPAM                       `json:"IPAM"`
+	Containers map[string]NetworkEndpoint `json:"Containers"`
+}
+
+// NetworkEndpoint is an attachment reported by network inspect.
+type NetworkEndpoint struct {
+	Name        string
+	IPv4Address string
+	IPv6Address string
 }
 
 // IPAM is how a network gives out addresses.
@@ -41,11 +46,12 @@ type IPAMConfig struct {
 
 // NetworkCreate is the body of a network create.
 type NetworkCreate struct {
-	Name     string            `json:"Name"`
-	Driver   string            `json:"Driver,omitempty"`
-	Internal bool              `json:"Internal,omitempty"`
-	Options  map[string]string `json:"Options,omitempty"`
-	Labels   map[string]string `json:"Labels,omitempty"`
+	Name       string            `json:"Name"`
+	Driver     string            `json:"Driver,omitempty"`
+	Internal   bool              `json:"Internal,omitempty"`
+	EnableIPv6 *bool             `json:"EnableIPv6,omitempty"`
+	Options    map[string]string `json:"Options,omitempty"`
+	Labels     map[string]string `json:"Labels,omitempty"`
 	// IPAM configures its subnet. Unset, the engine picks one that is free
 	// on the server.
 	IPAM *IPAM `json:"IPAM,omitempty"`
@@ -116,3 +122,19 @@ func (c *Client) CreateNetwork(ctx context.Context, n *NetworkCreate) (string, e
 func (c *Client) RemoveNetwork(ctx context.Context, name string) error {
 	return c.do(ctx, http.MethodDelete, "/networks/"+esc(name), nil, nil, nil)
 }
+
+// MatchesReviewedNetwork identifies a possibly ID-keyed endpoint of the reviewed network.
+func MatchesReviewedNetwork(key, endpointID, name, id string) bool {
+	return key == name || key == id || endpointID == id
+}
+
+// NetworkEndpoint finds an endpoint keyed by name or by its reviewed full ID.
+func (c *Container) NetworkEndpoint(name, id string) *EndpointSettings {
+	if ep := c.NetworkSettings.Networks[name]; ep != nil {
+		return ep
+	}
+	return c.NetworkSettings.Networks[id]
+}
+
+// LabelStorageCreation marks a create-only step's object for safe retries.
+const LabelStorageCreation = OwnPrefix + "storage-creation"

@@ -16,7 +16,7 @@ export function MeasuringSize() {
   );
 }
 
-export function Fact({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
+export function Fact({ label, value, mono }: { label: ReactNode; value: ReactNode; mono?: boolean }) {
   return (
     <div className="docker-fact">
       <dt>{label}</dt>

@@ -6,16 +6,20 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
 	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -103,7 +107,7 @@ func (s *Session) callOnceWithin(ctx context.Context, call *agentv1.Call, timeou
 
 // WatchDocker keeps a renewable subscription on this stream. Updates are
 // coalesced here when a slow public client is unable to consume them.
-func (s *Session) WatchDocker(ctx context.Context, visible []string, emit func(*agentv1.DockerInventoryChanged) error) error {
+func (s *Session) WatchDocker(ctx context.Context, kind dockwellv1.DockerObjectKind, visible []string, emit func(*agentv1.DockerInventoryChanged) error) error {
 	id := rand.Text()
 	inbox := make(chan *agentv1.DockerInventoryChanged, 1)
 
@@ -124,7 +128,7 @@ func (s *Session) WatchDocker(ctx context.Context, visible []string, emit func(*
 	}()
 
 	renew := func(ctx context.Context, stop bool) error {
-		ask := &agentv1.DockerInventoryWatchCall{SubscriptionId: id, VisibleIds: visible, Stop: stop}
+		ask := &agentv1.DockerInventoryWatchCall{SubscriptionId: id, VisibleIds: visible, Stop: stop, Kind: kind}
 		reply, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryWatch{DockerInventoryWatch: ask}}, 3*time.Second)
 		if err == nil && reply.GetDockerInventoryWatch() == nil {
 			return errors.New("the agent didn't confirm the Docker subscription")
@@ -277,4 +281,75 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 		return session.imageOperationAuth(wanted, step.Ref, login)
 	})
 	return err
+}
+
+// DockerStorage reports support for storage inventory and guarded storage plans.
+func (s *Session) DockerStorage() bool { return s.dockerCapabilities.GetNetworkVolumeInventory() }
+
+// CheckDockerNetwork asks this Engine to validate a candidate without changing it.
+func (s *Session) CheckDockerNetwork(ctx context.Context, ask *agentv1.CheckDockerNetworkCall) (*agentv1.CheckDockerNetworkResult, error) {
+	result, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_CheckDockerNetwork{CheckDockerNetwork: ask}}, dockerCallWait)
+	if err != nil {
+		return nil, err
+	}
+	if out := result.GetCheckDockerNetwork(); out != nil {
+		return out, nil
+	}
+	return nil, errors.New("the agent did not check the Docker network")
+}
+
+func (s *Session) checkDockerStoragePlan(ctx context.Context, d *resource.Desired) error {
+	n, _ := d.Spec.(*resourcev1.Network)
+	if !s.DockerStorage() && (d.DockerStorageGuard != nil || n.GetIpam() != nil) {
+		return fault.New(ErrOlderAgent, "update the agent to review this Docker storage plan")
+	}
+	if guard := d.DockerStorageGuard.GetCreate(); n != nil && (guard != nil || n.GetIpam() != nil) {
+		name := network.TargetOf(d.Ref).Name
+		result, err := s.CheckDockerNetwork(ctx, &agentv1.CheckDockerNetworkCall{EngineName: name, Spec: n})
+		if err != nil {
+			return err
+		}
+		for _, finding := range result.GetFindings() {
+			switch finding.GetCode() {
+			case dockwellv1.DockerNetworkCheckCode_DOCKER_NETWORK_CHECK_CODE_SUBNET_OVERLAP:
+				if finding.GetConflictingNetwork() == name {
+					continue
+				}
+				return fmt.Errorf("the subnet overlaps %s on %s", finding.GetConflictingSubnet(), finding.GetConflictingNetwork())
+			case dockwellv1.DockerNetworkCheckCode_DOCKER_NETWORK_CHECK_CODE_NAME_IN_USE:
+				// A fresh plan checks ActionCreate. A resumed create then
+				// checks its creation token on the agent, before any write.
+			default:
+				return fmt.Errorf("the Engine refused the network's %s", finding.GetFieldPath())
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Session) checkDockerAttachmentPlan(ctx context.Context, g *dockwellv1.DockerNetworkAttachmentGuard) error {
+	net, err := s.DockerDetail(ctx, &agentv1.DockerInventoryDetailCall{NetworkId: g.GetNetworkId()})
+	if err != nil || net.GetObject().GetKey().GetEngineId() != g.GetNetworkId() || net.GetObject().GetName() != g.GetNetworkName() {
+		return errors.New("the reviewed network changed. Review the attachment again")
+	}
+	ctr, err := s.DockerDetail(ctx, &agentv1.DockerInventoryDetailCall{ContainerId: g.GetContainerId()})
+	if err != nil || ctr.GetObject().GetKey().GetEngineId() != g.GetContainerId() {
+		return errors.New("the reviewed container changed. Review the attachment again")
+	}
+	for _, ep := range ctr.GetObject().GetContainer().GetEndpoints() {
+		if !docker.MatchesReviewedNetwork(ep.GetNetwork(), ep.GetNetworkId(), g.GetNetworkName(), g.GetNetworkId()) {
+			continue
+		}
+		if g.GetAction() == dockwellv1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT &&
+			(ep.GetNetworkId() == g.GetNetworkId() || ep.GetNetworkId() == "") &&
+			g.GetNetworkId() == g.GetExpectedEndpointId() {
+			return nil
+		}
+		return errors.New("the reviewed network attachment changed. Review it again")
+	}
+	if g.GetAction() != dockwellv1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT ||
+		ctr.GetObject().GetContainer().GetDetailsTruncated() || g.GetExpectedEndpointId() != "" {
+		return errors.New("the reviewed network attachment changed. Review it again")
+	}
+	return nil
 }

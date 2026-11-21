@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/network"
 )
 
 // Item is one resource a Compose file makes: its name and spec.
@@ -169,7 +170,7 @@ var (
 	// A config is a file the Compose file writes out as its content.
 	configKeys  = keys("content")
 	configRef   = keys("source", "target", "mode", "uid", "gid")
-	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name")
+	networkKeys = keys("driver", "driver_opts", "internal", "labels", "external", "name", "enable_ipv6", "ipam")
 	// start_interval is how often a check runs while start_period lasts, which only
 	// says how soon a new container is first seen healthy, and Docker before 25
 	// doesn't keep it, so it's taken and dropped: checks run at interval throughout.
@@ -935,7 +936,7 @@ func stack(p *model) (*Stack, error) {
 		// One the server has makes no resource: each service that joins it says
 		// so in its own spec (ADR 0021).
 		if bool(n.External) {
-			if n.Driver != "" || len(n.DriverOpts) > 0 || n.Internal || len(n.Labels) > 0 {
+			if n.Driver != "" || len(n.DriverOpts) > 0 || n.Internal || len(n.Labels) > 0 || n.EnableIPv6 != nil || len(n.Ipam.Config) > 0 || n.Ipam.Driver != "" || len(n.Ipam.Options) > 0 {
 				return nil, invalid("the network %s is external, so Dockwell doesn't make it, and can't give it a driver, options, internal or labels. Remove them", name)
 			}
 			continue
@@ -943,9 +944,25 @@ func stack(p *model) (*Stack, error) {
 		if n.Name != "" {
 			return nil, invalid("the network %s %s", name, why["name"])
 		}
-		out.Networks = append(out.Networks, Item[*resourcev1.Network]{Name: name, Spec: &resourcev1.Network{
+		spec := &resourcev1.Network{
 			Driver: n.Driver, Options: nonEmpty(n.DriverOpts), Internal: n.Internal, Labels: userLabels(n.Labels),
-		}})
+		}
+		if n.Ipam.Driver != "" && n.Ipam.Driver != "default" || len(n.Ipam.Options) > 0 {
+			return nil, invalid("the network %s uses custom IPAM. Use the default driver and remove its options", name)
+		}
+		if n.EnableIPv6 != nil || len(n.Ipam.Config) > 0 {
+			spec.Ipam = &resourcev1.NetworkIPAM{EnableIpv6: n.EnableIPv6}
+			for _, pool := range n.Ipam.Config {
+				if pool == nil || pool.IPRange != "" || len(pool.AuxiliaryAddresses) > 0 {
+					return nil, invalid("the network %s needs IPAM pools with only subnet and gateway", name)
+				}
+				spec.Ipam.Pools = append(spec.Ipam.Pools, &resourcev1.NetworkIPAMPool{Subnet: pool.Subnet, Gateway: pool.Gateway})
+			}
+			if err := network.CheckIPAM(spec); err != nil {
+				return nil, invalid("the network %s: %v", name, err)
+			}
+		}
+		out.Networks = append(out.Networks, Item[*resourcev1.Network]{Name: name, Spec: spec})
 	}
 	for _, name := range slices.Sorted(maps.Keys(p.Volumes)) {
 		v := p.Volumes[name]

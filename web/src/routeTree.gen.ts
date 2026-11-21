@@ -94,6 +94,10 @@ import { Route as ShellServersServerIdDockerContainersIndexRouteImport } from '.
 import { Route as ShellServersServerIdDockerContainersContainerIdRouteImport } from './routes/_shell/servers.$serverId.docker.containers.$containerId'
 import { Route as ShellServersServerIdDockerImagesIndexRouteImport } from './routes/_shell/servers.$serverId.docker.images.index'
 import { Route as ShellServersServerIdDockerImagesImageIdRouteImport } from './routes/_shell/servers.$serverId.docker.images.$imageId'
+import { Route as ShellServersServerIdDockerNetworksIndexRouteImport } from './routes/_shell/servers.$serverId.docker.networks.index'
+import { Route as ShellServersServerIdDockerNetworksNetworkIdRouteImport } from './routes/_shell/servers.$serverId.docker.networks.$networkId'
+import { Route as ShellServersServerIdDockerVolumesIndexRouteImport } from './routes/_shell/servers.$serverId.docker.volumes.index'
+import { Route as ShellServersServerIdDockerVolumesVolumeKeyRouteImport } from './routes/_shell/servers.$serverId.docker.volumes.$volumeKey'
 import { Route as ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport } from './routes/_shell/_settings/settings.integrations.github.$appId.installed'
 
 const ShellServersServerIdDockerComposesIndexLazyRouteImport = createFileRoute(
@@ -566,6 +570,46 @@ const ShellServersServerIdDockerImagesImageIdRoute =
     path: '/servers/$serverId/docker/images/$imageId',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdDockerNetworksIndexRoute =
+  ShellServersServerIdDockerNetworksIndexRouteImport.update({
+    id: '/servers/$serverId/docker/networks/',
+    path: '/servers/$serverId/docker/networks/',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.networks.index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const ShellServersServerIdDockerNetworksNetworkIdRoute =
+  ShellServersServerIdDockerNetworksNetworkIdRouteImport.update({
+    id: '/servers/$serverId/docker/networks/$networkId',
+    path: '/servers/$serverId/docker/networks/$networkId',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.networks.$networkId.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const ShellServersServerIdDockerVolumesIndexRoute =
+  ShellServersServerIdDockerVolumesIndexRouteImport.update({
+    id: '/servers/$serverId/docker/volumes/',
+    path: '/servers/$serverId/docker/volumes/',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.volumes.index.lazy').then(
+      (d) => d.Route,
+    ),
+  )
+const ShellServersServerIdDockerVolumesVolumeKeyRoute =
+  ShellServersServerIdDockerVolumesVolumeKeyRouteImport.update({
+    id: '/servers/$serverId/docker/volumes/$volumeKey',
+    path: '/servers/$serverId/docker/volumes/$volumeKey',
+    getParentRoute: () => ShellRoute,
+  } as any).lazy(() =>
+    import('./routes/_shell/servers.$serverId.docker.volumes.$volumeKey.lazy').then(
+      (d) => d.Route,
+    ),
+  )
 const ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute =
   ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport.update({
     id: '/settings/integrations/github/$appId/installed',
@@ -653,8 +697,12 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
+  '/servers/$serverId/docker/networks/$networkId': typeof ShellServersServerIdDockerNetworksNetworkIdRoute
+  '/servers/$serverId/docker/volumes/$volumeKey': typeof ShellServersServerIdDockerVolumesVolumeKeyRoute
   '/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/servers/$serverId/docker/networks/': typeof ShellServersServerIdDockerNetworksIndexRoute
+  '/servers/$serverId/docker/volumes/': typeof ShellServersServerIdDockerVolumesIndexRoute
   '/servers/$serverId/docker/composes/': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
@@ -735,8 +783,12 @@ export interface FileRoutesByTo {
   '/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
+  '/servers/$serverId/docker/networks/$networkId': typeof ShellServersServerIdDockerNetworksNetworkIdRoute
+  '/servers/$serverId/docker/volumes/$volumeKey': typeof ShellServersServerIdDockerVolumesVolumeKeyRoute
   '/servers/$serverId/docker/containers': typeof ShellServersServerIdDockerContainersIndexRoute
   '/servers/$serverId/docker/images': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/servers/$serverId/docker/networks': typeof ShellServersServerIdDockerNetworksIndexRoute
+  '/servers/$serverId/docker/volumes': typeof ShellServersServerIdDockerVolumesIndexRoute
   '/servers/$serverId/docker/composes': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
@@ -823,8 +875,12 @@ export interface FileRoutesById {
   '/_shell/servers/$serverId/docker/composes/$composeId': typeof ShellServersServerIdDockerComposesComposeIdRoute
   '/_shell/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
   '/_shell/servers/$serverId/docker/images/$imageId': typeof ShellServersServerIdDockerImagesImageIdRoute
+  '/_shell/servers/$serverId/docker/networks/$networkId': typeof ShellServersServerIdDockerNetworksNetworkIdRoute
+  '/_shell/servers/$serverId/docker/volumes/$volumeKey': typeof ShellServersServerIdDockerVolumesVolumeKeyRoute
   '/_shell/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/_shell/servers/$serverId/docker/images/': typeof ShellServersServerIdDockerImagesIndexRoute
+  '/_shell/servers/$serverId/docker/networks/': typeof ShellServersServerIdDockerNetworksIndexRoute
+  '/_shell/servers/$serverId/docker/volumes/': typeof ShellServersServerIdDockerVolumesIndexRoute
   '/_shell/servers/$serverId/docker/composes/': typeof ShellServersServerIdDockerComposesIndexLazyRoute
   '/_shell/_settings/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
@@ -910,8 +966,12 @@ export interface FileRouteTypes {
     | '/servers/$serverId/docker/composes/$composeId'
     | '/servers/$serverId/docker/containers/$containerId'
     | '/servers/$serverId/docker/images/$imageId'
+    | '/servers/$serverId/docker/networks/$networkId'
+    | '/servers/$serverId/docker/volumes/$volumeKey'
     | '/servers/$serverId/docker/containers/'
     | '/servers/$serverId/docker/images/'
+    | '/servers/$serverId/docker/networks/'
+    | '/servers/$serverId/docker/volumes/'
     | '/servers/$serverId/docker/composes/'
     | '/settings/integrations/github/$appId/installed'
   fileRoutesByTo: FileRoutesByTo
@@ -992,8 +1052,12 @@ export interface FileRouteTypes {
     | '/servers/$serverId/docker/composes/$composeId'
     | '/servers/$serverId/docker/containers/$containerId'
     | '/servers/$serverId/docker/images/$imageId'
+    | '/servers/$serverId/docker/networks/$networkId'
+    | '/servers/$serverId/docker/volumes/$volumeKey'
     | '/servers/$serverId/docker/containers'
     | '/servers/$serverId/docker/images'
+    | '/servers/$serverId/docker/networks'
+    | '/servers/$serverId/docker/volumes'
     | '/servers/$serverId/docker/composes'
     | '/settings/integrations/github/$appId/installed'
   id:
@@ -1079,8 +1143,12 @@ export interface FileRouteTypes {
     | '/_shell/servers/$serverId/docker/composes/$composeId'
     | '/_shell/servers/$serverId/docker/containers/$containerId'
     | '/_shell/servers/$serverId/docker/images/$imageId'
+    | '/_shell/servers/$serverId/docker/networks/$networkId'
+    | '/_shell/servers/$serverId/docker/volumes/$volumeKey'
     | '/_shell/servers/$serverId/docker/containers/'
     | '/_shell/servers/$serverId/docker/images/'
+    | '/_shell/servers/$serverId/docker/networks/'
+    | '/_shell/servers/$serverId/docker/volumes/'
     | '/_shell/servers/$serverId/docker/composes/'
     | '/_shell/_settings/settings/integrations/github/$appId/installed'
   fileRoutesById: FileRoutesById
@@ -1684,6 +1752,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdDockerImagesImageIdRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/docker/networks/': {
+      id: '/_shell/servers/$serverId/docker/networks/'
+      path: '/servers/$serverId/docker/networks'
+      fullPath: '/servers/$serverId/docker/networks/'
+      preLoaderRoute: typeof ShellServersServerIdDockerNetworksIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/networks/$networkId': {
+      id: '/_shell/servers/$serverId/docker/networks/$networkId'
+      path: '/servers/$serverId/docker/networks/$networkId'
+      fullPath: '/servers/$serverId/docker/networks/$networkId'
+      preLoaderRoute: typeof ShellServersServerIdDockerNetworksNetworkIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/volumes/': {
+      id: '/_shell/servers/$serverId/docker/volumes/'
+      path: '/servers/$serverId/docker/volumes'
+      fullPath: '/servers/$serverId/docker/volumes/'
+      preLoaderRoute: typeof ShellServersServerIdDockerVolumesIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/volumes/$volumeKey': {
+      id: '/_shell/servers/$serverId/docker/volumes/$volumeKey'
+      path: '/servers/$serverId/docker/volumes/$volumeKey'
+      fullPath: '/servers/$serverId/docker/volumes/$volumeKey'
+      preLoaderRoute: typeof ShellServersServerIdDockerVolumesVolumeKeyRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/_settings/settings/integrations/github/$appId/installed': {
       id: '/_shell/_settings/settings/integrations/github/$appId/installed'
       path: '/settings/integrations/github/$appId/installed'
@@ -1854,8 +1950,12 @@ interface ShellRouteChildren {
   ShellServersServerIdDockerComposesComposeIdRoute: typeof ShellServersServerIdDockerComposesComposeIdRoute
   ShellServersServerIdDockerContainersContainerIdRoute: typeof ShellServersServerIdDockerContainersContainerIdRoute
   ShellServersServerIdDockerImagesImageIdRoute: typeof ShellServersServerIdDockerImagesImageIdRoute
+  ShellServersServerIdDockerNetworksNetworkIdRoute: typeof ShellServersServerIdDockerNetworksNetworkIdRoute
+  ShellServersServerIdDockerVolumesVolumeKeyRoute: typeof ShellServersServerIdDockerVolumesVolumeKeyRoute
   ShellServersServerIdDockerContainersIndexRoute: typeof ShellServersServerIdDockerContainersIndexRoute
   ShellServersServerIdDockerImagesIndexRoute: typeof ShellServersServerIdDockerImagesIndexRoute
+  ShellServersServerIdDockerNetworksIndexRoute: typeof ShellServersServerIdDockerNetworksIndexRoute
+  ShellServersServerIdDockerVolumesIndexRoute: typeof ShellServersServerIdDockerVolumesIndexRoute
   ShellServersServerIdDockerComposesIndexLazyRoute: typeof ShellServersServerIdDockerComposesIndexLazyRoute
 }
 
@@ -1916,10 +2016,18 @@ const ShellRouteChildren: ShellRouteChildren = {
     ShellServersServerIdDockerContainersContainerIdRoute,
   ShellServersServerIdDockerImagesImageIdRoute:
     ShellServersServerIdDockerImagesImageIdRoute,
+  ShellServersServerIdDockerNetworksNetworkIdRoute:
+    ShellServersServerIdDockerNetworksNetworkIdRoute,
+  ShellServersServerIdDockerVolumesVolumeKeyRoute:
+    ShellServersServerIdDockerVolumesVolumeKeyRoute,
   ShellServersServerIdDockerContainersIndexRoute:
     ShellServersServerIdDockerContainersIndexRoute,
   ShellServersServerIdDockerImagesIndexRoute:
     ShellServersServerIdDockerImagesIndexRoute,
+  ShellServersServerIdDockerNetworksIndexRoute:
+    ShellServersServerIdDockerNetworksIndexRoute,
+  ShellServersServerIdDockerVolumesIndexRoute:
+    ShellServersServerIdDockerVolumesIndexRoute,
   ShellServersServerIdDockerComposesIndexLazyRoute:
     ShellServersServerIdDockerComposesIndexLazyRoute,
 }

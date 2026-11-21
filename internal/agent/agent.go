@@ -16,8 +16,12 @@ import (
 	"log/slog"
 	"maps"
 	"math/rand/v2"
+	"net"
+	"net/http/httptrace"
+	"net/netip"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"connectrpc.com/connect"
@@ -46,6 +50,7 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
+	networkkind "github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
 
@@ -125,6 +130,7 @@ type Config struct {
 	PruneRunState func(context.Context) error
 	// DockerIngressImage is the configured ingress image, including local overrides.
 	DockerIngressImage string
+	DockerVolumeKept   func(string) (bool, error)
 	// Probes checks a connection from where an app is (ADR 0099). Nil checks none.
 	Probes *probe.Runner
 	// Tunnels finds the Cloudflare tunnels cloudflared runs here (ADR 0104). Nil
@@ -679,6 +685,13 @@ func session(ctx context.Context, cfg Config) (err error) {
 	parent := ctx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	var peer atomic.Pointer[netip.Addr]
+	ctx = httptrace.WithClientTrace(ctx, &httptrace.ClientTrace{GotConn: func(info httptrace.GotConnInfo) {
+		if addr, ok := info.Conn.RemoteAddr().(*net.TCPAddr); ok {
+			ip := addr.AddrPort().Addr()
+			peer.Store(&ip)
+		}
+	}})
 	stream := client.Connect(ctx)
 	defer func() { _ = stream.CloseRequest(); _ = stream.CloseResponse() }()
 
@@ -708,7 +721,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
@@ -747,6 +760,9 @@ func session(ctx context.Context, cfg Config) (err error) {
 	// The calls outlive the stream's context, which stops the receiver, so
 	// the stream ends in order: refuse new calls, stop receiving, then
 	// cancel what still runs and wait for it.
+	if addr := peer.Load(); addr != nil {
+		parent = networkkind.WithControlPeer(parent, *addr)
+	}
 	calls := newCalls(parent, cfg, send, key)
 	recvErr := make(chan error, 1)
 	received := make(chan struct{})

@@ -10,10 +10,18 @@ import { serviceNameFor } from "../servers/containers";
 import { useTakeOn } from "../servers/takeOn";
 import { containerOf } from "./parts";
 
-export function DockerTakeOn({ row, onClose }: { row: DockerObject; onClose: () => void }) {
+export function DockerTakeOn({
+  row,
+  onClose,
+  onApplied,
+}: {
+  row: DockerObject;
+  onClose: () => void;
+  onApplied?: () => void;
+}) {
   const { t } = useLingui();
   const places = usePlaces();
-  const { take, environmentFor } = useTakeOn(row.key?.serverId ?? "");
+  const { take, environmentFor } = useTakeOn(row.key?.serverId ?? "", onApplied);
   const details = containerOf(row);
   const container = {
     engineId: row.key?.engineId ?? "",

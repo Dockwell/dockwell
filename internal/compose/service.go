@@ -305,10 +305,20 @@ func joinNetworks(name string, s *types.ServiceConfig, c *resourcev1.Container, 
 	// A name on each of its networks is an alias; one on some alone is one of its
 	// network_aliases, as network=name (the review of ADR 0097, L4).
 	on := map[string][]string{}
+	dnsNetworks := len(s.Networks)
 	for _, key := range slices.Sorted(maps.Keys(s.Networks)) {
 		n, spec := p.Networks[key], key
 		if bool(n.External) {
 			spec = cmp.Or(n.Name, key)
+			if spec == "bridge" {
+				if len(s.Networks) == 1 {
+					return invalidAt(place{what, "networks." + key}, "%s lists Docker's built-in bridge as its only network. Use network_mode: bridge to keep that membership", what)
+				}
+				if cfg := s.Networks[key]; cfg != nil && len(cfg.Aliases) > 0 {
+					return invalidAt(place{what, "networks." + key + ".aliases"}, "%s gives Docker's built-in bridge an alias, which the bridge cannot provide. Put the alias on another network", what)
+				}
+				dnsNetworks--
+			}
 			c.ExternalNetworks = append(c.ExternalNetworks, spec)
 		} else {
 			c.Networks = append(c.Networks, key)
@@ -323,7 +333,7 @@ func joinNetworks(name string, s *types.ServiceConfig, c *resourcev1.Container, 
 	}
 	c.Aliases = nil
 	for _, a := range slices.Sorted(maps.Keys(on)) {
-		if len(on[a]) == len(s.Networks) {
+		if len(on[a]) == dnsNetworks {
 			c.Aliases = append(c.Aliases, a)
 			continue
 		}

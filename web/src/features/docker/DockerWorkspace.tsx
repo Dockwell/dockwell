@@ -32,6 +32,7 @@ import { Page } from "../shell/Page";
 import { DockerCleanup } from "./DockerCleanup";
 import { ContainerStatus, DockerContainers } from "./DockerContainers";
 import { DockerImages } from "./DockerImages";
+import { DockerStorage } from "./DockerStorage";
 import { rowWithHealth, useDockerWatch } from "./live";
 import { Fact, LiveUpdates, Unread } from "./parts";
 
@@ -39,7 +40,7 @@ import "./Docker.css";
 
 const Composes = lazy(async () => ({ default: (await import("./DockerComposes")).DockerComposes }));
 
-export type DockerTab = "overview" | "containers" | "composes" | "images" | "cleanup";
+export type DockerTab = "overview" | "containers" | "composes" | "images" | "networks" | "volumes" | "cleanup";
 
 export function DockerWorkspace({
   serverId,
@@ -176,6 +177,12 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
               <RouterTabLink to="/servers/$serverId/docker/images" params={{ serverId: server.id }}>
                 <Trans>Images</Trans>
               </RouterTabLink>
+              <RouterTabLink to="/servers/$serverId/docker/networks" params={{ serverId: server.id }}>
+                <Trans>Networks</Trans>
+              </RouterTabLink>
+              <RouterTabLink to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
+                <Trans>Volumes</Trans>
+              </RouterTabLink>
             </>
           ) : (
             <>
@@ -202,6 +209,20 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
                 activeOptions={{ exact: true, includeSearch: true }}
               >
                 <Trans>Images</Trans>
+              </RouterTabLink>
+              <RouterTabLink
+                to="/servers/docker"
+                search={{ view: "networks" }}
+                activeOptions={{ exact: true, includeSearch: true }}
+              >
+                <Trans>Networks</Trans>
+              </RouterTabLink>
+              <RouterTabLink
+                to="/servers/docker"
+                search={{ view: "volumes" }}
+                activeOptions={{ exact: true, includeSearch: true }}
+              >
+                <Trans>Volumes</Trans>
               </RouterTabLink>
             </>
           )}
@@ -234,6 +255,10 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
         </Suspense>
       ) : tab === "images" ? (
         <DockerImages servers={servers} fleet={!server} />
+      ) : tab === "networks" ? (
+        <DockerStorage servers={servers} fleet={!server} key="networks" />
+      ) : tab === "volumes" ? (
+        <DockerStorage servers={servers} fleet={!server} volumes key="volumes" />
       ) : tab === "cleanup" ? (
         <DockerCleanup servers={servers} group={group} />
       ) : (
@@ -425,8 +450,38 @@ function Overview({
             )}
             <Panel title={t`Engine inventory`} actions={<Icon name="layers" size={18} />}>
               <dl className="docker-facts">
-                <Fact label={t`Networks`} value={sum("networks")} />
-                <Fact label={t`Volumes`} value={sum("volumes")} />
+                <Fact
+                  label={t`Networks`}
+                  value={
+                    server ? (
+                      <Link
+                        className="dw-link"
+                        to="/servers/$serverId/docker/networks"
+                        params={{ serverId: server.id }}
+                      >
+                        {sum("networks")}
+                      </Link>
+                    ) : (
+                      <Link className="dw-link" to="/servers/docker" search={{ view: "networks" }}>
+                        {sum("networks")}
+                      </Link>
+                    )
+                  }
+                />
+                <Fact
+                  label={t`Volumes`}
+                  value={
+                    server ? (
+                      <Link className="dw-link" to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
+                        {sum("volumes")}
+                      </Link>
+                    ) : (
+                      <Link className="dw-link" to="/servers/docker" search={{ view: "volumes" }}>
+                        {sum("volumes")}
+                      </Link>
+                    )
+                  }
+                />
                 {server && rows[0] ? <EngineFacts summary={rows[0]} /> : null}
               </dl>
             </Panel>

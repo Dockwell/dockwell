@@ -1,0 +1,161 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.docker-storage-filters,
+.docker-storage-actions,
+.docker-storage-attachment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.docker-storage-filters > .dw-field {
+  flex: 0 1 auto;
+}
+
+.docker-storage-filters > .docker-storage-search {
+  flex: 1 1 12rem;
+  max-width: 24rem;
+}
+
+.docker-storage-filters select {
+  max-width: min(11rem, 100%);
+}
+
+.docker-storage-list-table .dw-table,
+.docker-storage-attachment-table .dw-table {
+  table-layout: fixed;
+}
+
+.docker-storage-list-table .dw-table :is(th, td),
+.docker-storage-attachment-table .dw-table :is(th, td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docker-storage-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.docker-storage-name svg,
+.docker-storage-detail .docker-card-head > :last-child {
+  flex: none;
+}
+
+.docker-storage-name span,
+.docker-storage-detail code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docker-storage-mountpoint {
+  display: flex;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.docker-storage-mountpoint span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.docker-storage-mountpoint span + span {
+  flex: 0 0 auto;
+  max-width: 75%;
+}
+
+.docker-storage-muted {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.docker-storage-pools,
+.docker-storage-attachments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.docker-storage-pools {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.docker-storage-pools code {
+  overflow-wrap: anywhere;
+}
+
+.docker-storage-detail .docker-facts .docker-storage-pools {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: var(--space-3);
+}
+
+.docker-storage-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.docker-storage-form details > div {
+  margin-top: var(--space-3);
+}
+
+.docker-storage-attachments li {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.docker-storage-attachments li + li {
+  border-top: 1px solid var(--line);
+}
+
+.docker-storage-attachment-note {
+  color: var(--ink-muted);
+}
+
+.is-flush > .docker-storage-attachment-note {
+  margin: var(--space-3);
+}
+
+.docker-storage-page .page-title-row {
+  flex-wrap: wrap;
+}
+
+.docker-storage-page .page-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Match the storage title on desktop when a long Engine name wraps on a phone. */
+.mobile-header:has(+ .docker-storage-page) .mobile-header-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 850px) {
+  .docker-storage-attachment-table .dw-table :is(th, td) {
+    padding-inline: var(--space-2);
+  }
+}
+
+@media (max-width: 520px) {
+  .docker-storage-filters > .docker-storage-search {
+    flex-basis: 100%;
+    max-width: none;
+    order: -1;
+  }
+  .docker-storage-filters .dw-field {
+    min-width: 0;
+  }
+  .docker-storage-list .docker-card-head .dw-tag {
+    white-space: normal;
+  }
+}

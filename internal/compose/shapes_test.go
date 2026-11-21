@@ -117,9 +117,9 @@ func TestAnInstalledAppReads(t *testing.T) {
 	}
 }
 
-func read(t *testing.T, file string, env ...string) (*compose.Stack, error) {
+func read(t *testing.T, file string) (*compose.Stack, error) {
 	t.Helper()
-	return compose.Read(t.Context(), compose.Input{File: []byte(file), Env: strings.Join(env, "\n"), Directory: "/srv/app"})
+	return compose.Read(t.Context(), compose.Input{File: []byte(file), Directory: "/srv/app"})
 }
 
 // What each table's row says a file does, and each refusal by name.
@@ -653,5 +653,57 @@ func TestAnExportSaysWhatAnAppReachesOfItsServer(t *testing.T) {
 	}
 	if _, err := compose.Parse(t.Context(), out.File, nil); err == nil {
 		t.Error("an import takes devices")
+	}
+}
+
+func TestComposeKeepsTheBuiltInBridgeAlongsideAnotherNetwork(t *testing.T) {
+	file := `services:
+  web:
+    image: nginx:1.27
+    networks:
+      legacy: {}
+      back:
+        aliases: [website]
+networks:
+  legacy:
+    name: bridge
+    external: true
+  back: {}
+`
+	check := func(s *compose.Stack) {
+		t.Helper()
+		c := only(t, s, "web")
+		if err := container.Validate(c); err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(c.GetExternalNetworks(), []string{"bridge"}) ||
+			!slices.Equal(c.GetNetworks(), []string{"back"}) ||
+			!slices.Equal(c.GetAliases(), []string{"website"}) || len(c.GetNetworkAliases()) != 0 {
+			t.Fatalf("bridge, network, and DNS alias = %v", c)
+		}
+	}
+	stack, err := read(t, file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(stack)
+	exported, err := compose.Export("env_fixture", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := read(t, string(exported.File))
+	if err != nil {
+		t.Fatalf("the bridge or its other network could not be imported again: %v\n%s", err, exported.File)
+	}
+	check(again)
+
+	const web = "services:\n  web:\n    image: nginx:1.27\n"
+	_, err = read(t, web+"    networks: [legacy]\nnetworks: {legacy: {external: true, name: bridge}}\n")
+	if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(compose.Message(err), "Use network_mode: bridge to keep that membership") {
+		t.Fatalf("the explicit sole bridge refusal = %v", err)
+	}
+	_, err = read(t, strings.Replace(file, "legacy: {}", "legacy: {aliases: [old-name]}", 1))
+	if !errors.Is(err, compose.ErrInvalid) || !strings.Contains(compose.Message(err), "the bridge cannot provide") {
+		t.Fatalf("the built-in bridge alias refusal = %v", err)
 	}
 }

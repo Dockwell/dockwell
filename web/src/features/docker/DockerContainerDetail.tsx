@@ -345,12 +345,12 @@ function Summary({
           </dl>
         </Panel>
       </div>
-      <Attachments container={container} />
+      <Attachments container={container} serverId={object.key?.serverId ?? ""} />
     </div>
   );
 }
 
-function Attachments({ container }: { container: DockerContainer }) {
+function Attachments({ container, serverId }: { container: DockerContainer; serverId: string }) {
   const { t } = useLingui();
   return (
     <div className="docker-overview-grid">
@@ -375,7 +375,19 @@ function Attachments({ container }: { container: DockerContainer }) {
             {container.endpoints.map((n) => (
               <Fact
                 key={n.network}
-                label={n.network}
+                label={
+                  n.networkId && serverId ? (
+                    <Link
+                      className="dw-link"
+                      to="/servers/$serverId/docker/networks/$networkId"
+                      params={{ serverId, networkId: n.networkId }}
+                    >
+                      {n.network}
+                    </Link>
+                  ) : (
+                    n.network
+                  )
+                }
                 value={[n.ipv4, n.ipv6].filter(Boolean).join(" · ") || t`No address`}
                 mono
               />
@@ -390,24 +402,37 @@ function Attachments({ container }: { container: DockerContainer }) {
       <Panel title={t`Mounts`}>
         {container.mounts.length ? (
           <dl className="docker-facts">
-            {container.mounts.map((m) => (
-              <Fact
-                key={m.target}
-                label={m.target}
-                value={
-                  <>
-                    {mountSource(m)}
-                    {m.readOnly ? (
-                      <>
-                        {" "}
-                        · <Trans>Read only</Trans>
-                      </>
-                    ) : null}
-                  </>
-                }
-                mono
-              />
-            ))}
+            {container.mounts.map((m) => {
+              const key = container.volumeMounts.find((item) => item.mountTarget === m.target)?.volumeKey;
+              return (
+                <Fact
+                  key={m.target}
+                  label={m.target}
+                  value={
+                    <>
+                      {key?.engineId && serverId ? (
+                        <Link
+                          className="dw-link"
+                          to="/servers/$serverId/docker/volumes/$volumeKey"
+                          params={{ serverId, volumeKey: key.engineId }}
+                        >
+                          {mountSource(m)}
+                        </Link>
+                      ) : (
+                        mountSource(m)
+                      )}
+                      {m.readOnly ? (
+                        <>
+                          {" "}
+                          · <Trans>Read only</Trans>
+                        </>
+                      ) : null}
+                    </>
+                  }
+                  mono
+                />
+              );
+            })}
           </dl>
         ) : (
           <span className="docker-muted">

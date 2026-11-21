@@ -1340,6 +1340,14 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	logins := map[int]registry.Auth{}
 	for i := range desired {
 		d := &desired[i]
+		if err := s.checkDockerStoragePlan(ctx, d); err != nil {
+			return nil, err
+		}
+		if g := d.DockerStorageGuard.GetAttachment(); g != nil && !d.RetryDockerAttachment {
+			if err := s.checkDockerAttachmentPlan(ctx, g); err != nil {
+				return nil, err
+			}
+		}
 		if d.DockerMaintenance != nil {
 			if !s.DockerCleanup() {
 				return nil, fault.New(ErrOlderAgent, "update the agent to review Docker cleanup")
@@ -1466,6 +1474,11 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		// The step is about the resource asked for, whatever the agent says, and
 		// pulls with the login the control plane sent, by name.
+		if d := desired[i]; d.RetryDockerAttachment && steps[i].Action != resource.ActionNone {
+			if err := s.checkDockerAttachmentPlan(ctx, d.DockerStorageGuard.GetAttachment()); err != nil {
+				return nil, err
+			}
+		}
 		steps[i].Ref, steps[i].Alongside, steps[i].Via = want, alongside, via
 		steps[i].RegistryLogin, steps[i].RegistryLoginVersion = logins[i].Name, logins[i].Version
 		// A step that builds names the logins its base images may pull with; the
@@ -1509,6 +1522,9 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // that stream, can open. A step sent again on the agent's next stream, as
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	if spec, _ := desired.(*resourcev1.Network); !s.DockerStorage() && (step.DockerStorageGuard != nil || spec.GetIpam() != nil) {
+		return fault.New(ErrOlderAgent, "update the agent to apply this Docker storage plan")
+	}
 	if step.DockerMaintenance != nil {
 		if step.DockerMaintenance.GetImageAction() != nil {
 			return s.applyDockerImage(ctx, step)

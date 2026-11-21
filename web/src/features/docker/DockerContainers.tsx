@@ -58,10 +58,16 @@ type State = "all" | "running" | "stopped" | "attention";
 const shellTarget = "/servers/$serverId/terminal";
 const detailTarget = "/servers/$serverId/docker/containers/$containerId";
 
-export function ContainerStatus({ row }: { row: DockerObject }) {
+export function ContainerStatus({
+  row,
+  state = row?.state ?? ContainerState.UNSPECIFIED,
+}: {
+  row?: DockerObject;
+  state?: ContainerState;
+}) {
   const { t } = useLingui();
   const stateWord = useContainerStateWord();
-  if (row.state === ContainerState.RUNNING) {
+  if (state === ContainerState.RUNNING) {
     switch (containerOf(row)?.health) {
       case DockerHealth.HEALTHY:
         return <StatusBadge status="healthy" label={t`Healthy`} title={t`Healthy`} labelIsState />;
@@ -73,8 +79,8 @@ export function ContainerStatus({ row }: { row: DockerObject }) {
         return <StatusBadge status="healthy" label={t`Running`} title={t`Running`} labelIsState />;
     }
   }
-  const label = stateWord(row.state);
-  return <StatusBadge status={statusOf(row.state)} label={label} title={label} labelIsState />;
+  const label = stateWord(state);
+  return <StatusBadge status={statusOf(state)} label={label} title={label} labelIsState />;
 }
 
 export function Ownership({ row }: { row: DockerObject }) {

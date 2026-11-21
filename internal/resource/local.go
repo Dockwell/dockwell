@@ -19,9 +19,12 @@ import (
 
 // Desired is one resource as a change wants it; a nil Spec deletes it.
 type Desired struct {
-	DockerMaintenance *v1.DockerMaintenance
-	Ref               Ref
-	Spec              proto.Message
+	DockerStorageGuard *DockerStorageGuard `json:"-"`
+	DockerMaintenance  *v1.DockerMaintenance
+	Ref                Ref
+	// RetryDockerAttachment allows an unfinished step to plan its already applied spec.
+	RetryDockerAttachment bool `json:"-"`
+	Spec                  proto.Message
 	// NeedsRunControl gates a write whose previous revision had explicit run intent.
 	// The control plane uses it to choose a compatible agent.
 	NeedsRunControl bool `json:"-"`

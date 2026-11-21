@@ -4,17 +4,22 @@ package docker
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 )
 
 // Volume is a volume as the engine reports it.
 type Volume struct {
 	Name      string            `json:"Name"`
 	Driver    string            `json:"Driver"`
+	Scope     string            `json:"Scope"`
 	Options   map[string]string `json:"Options"`
 	Labels    map[string]string `json:"Labels"`
 	CreatedAt string            `json:"CreatedAt"`
@@ -64,6 +69,7 @@ func (c *Client) ListVolumes(ctx context.Context, label string) ([]Volume, error
 
 // VolumeCreate is the body of a volume create.
 type VolumeCreate struct {
+	Scope      string
 	Name       string            `json:"Name"`
 	Driver     string            `json:"Driver,omitempty"`
 	DriverOpts map[string]string `json:"DriverOpts,omitempty"`
@@ -94,4 +100,46 @@ func (c *Client) CreateVolume(ctx context.Context, v *VolumeCreate) (*Volume, er
 // refused, which IsConflict reports.
 func (c *Client) RemoveVolume(ctx context.Context, name string) error {
 	return c.do(ctx, http.MethodDelete, "/volumes/"+esc(name), url.Values{"force": {"false"}}, nil, nil)
+}
+
+// InventoryVolumes reads volume metadata within the inventory byte budget.
+func (c *Client) InventoryVolumes(ctx context.Context, maxRows int) ([]Volume, error) {
+	var out struct {
+		Volumes []Volume
+	}
+	if err := c.boundedJSON(ctx, http.MethodGet, "/volumes", nil, &out); err != nil {
+		return nil, err
+	}
+	if len(out.Volumes) > maxRows {
+		return nil, errors.New("there are too many Docker volumes for this inventory")
+	}
+	return out.Volumes, nil
+}
+
+// VolumeInventoryKey binds the name to the generation evidence Docker provides.
+func VolumeInventoryKey(v *Volume) string {
+	sum := sha256.Sum256([]byte(v.Name + "\x00" + v.Driver + "\x00" + v.Scope + "\x00" + v.CreatedAt + "\x00" + v.Labels[LabelStorageCreation]))
+	return base64.RawURLEncoding.EncodeToString([]byte(v.Name)) + "." + hex.EncodeToString(sum[:])
+}
+
+// VolumeInventoryName validates the key and extracts the exact lookup name.
+func VolumeInventoryName(key string) (string, bool) {
+	if len(key) > 406 {
+		return "", false
+	}
+	encoded, fingerprint, found := strings.Cut(key, ".")
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
+	name := string(decoded)
+	if !found || !IsFullID(fingerprint) || err != nil || name == "" || len(name) > 255 ||
+		name == "." || name == ".." || strings.ContainsFunc(name, func(r rune) bool {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			return false
+		default:
+			return true
+		}
+	}) {
+		return "", false
+	}
+	return name, true
 }

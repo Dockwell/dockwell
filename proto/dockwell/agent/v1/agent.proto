@@ -933,6 +933,7 @@ message Call {
     DockerInventoryDetailCall docker_inventory_detail = 401;
     DockerInventoryWatchCall docker_inventory_watch = 402;
     DockerMaintenancePreviewCall docker_maintenance_preview = 404;
+    CheckDockerNetworkCall check_docker_network = 405;
   }
 }
 
@@ -2689,6 +2690,7 @@ message CallResult {
     DockerInventoryDetailResult docker_inventory_detail = 401;
     DockerInventoryWatchResult docker_inventory_watch = 402;
     DockerMaintenancePreviewResult docker_maintenance_preview = 404;
+    CheckDockerNetworkResult check_docker_network = 405;
   }
 }
 
@@ -2931,6 +2933,7 @@ message DockerCapabilities {
   bool image_inventory = 5;
   bool cleanup = 4;
   bool artifact_cleanup = 6;
+  bool network_volume_inventory = 7;
   bool compose_members = 8;
   bool image_operations = 9;
 }
@@ -2961,6 +2964,8 @@ message DockerInventoryDetailCall {
   string container_id = 1;
   string last_known_name = 2;
   string image_id = 3;
+  string network_id = 4;
+  string volume_key = 5;
 }
 
 // DockerInventoryDetailResult returns safe details or the full ID of a replacement.
@@ -2974,6 +2979,7 @@ message DockerInventoryWatchCall {
   string subscription_id = 1;
   repeated string visible_ids = 2;
   bool stop = 3;
+  dockwell.v1.DockerObjectKind kind = 4;
 }
 
 // DockerInventoryWatchResult acknowledges a subscription request.
@@ -3007,4 +3013,15 @@ message DockerMaintenancePreviewResult {
 message DockerCleanupProtection {
   repeated string images = 1;
   repeated string networks = 2;
+}
+
+// CheckDockerNetworkCall asks the selected Engine about a proposed network.
+message CheckDockerNetworkCall {
+  string engine_name = 1;
+  dockwell.resource.v1alpha1.Network spec = 2;
+}
+
+// CheckDockerNetworkResult reports conflicts without changing the Engine.
+message CheckDockerNetworkResult {
+  repeated dockwell.v1.DockerNetworkFinding findings = 1;
 }

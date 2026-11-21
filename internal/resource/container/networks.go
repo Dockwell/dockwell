@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -36,7 +38,6 @@ const (
 var dockerOwnNetworks = map[string]string{
 	"host":    "It is the server's own network. Use host_network, as network_mode: host does in a Compose file",
 	"none":    "It means no network, which Dockwell can't run yet",
-	bridge:    "It is Docker's default network, where a service with no networks goes. Leave it out",
 	"default": "It means Docker's default network, where a service with no networks goes. Leave it out",
 	// A container on it could take the address of a service that is stopped, and
 	// get its traffic (ADR 0024).
@@ -68,6 +69,9 @@ func validateNetworking(c *resourcev1.Container) error {
 			return fmt.Errorf("the network %s is listed both as one of the environment's and as one the server has, and a Compose file can't hold both. Rename the environment's", n)
 		}
 		seen[n] = true
+	}
+	if len(c.GetNetworks()) == 0 && slices.Equal(c.GetExternalNetworks(), []string{bridge}) {
+		c.ExternalNetworks = nil
 	}
 	slices.Sort(c.ExternalNetworks)
 	seen = map[string]bool{}
@@ -108,6 +112,8 @@ func validateNetworkAliases(c *resourcev1.Container, seen map[string]bool) error
 		switch {
 		case !ok || !slices.Contains(all, n):
 			return fmt.Errorf("%q isn't a name on one of the container's networks: give it as network=name, such as default=web, with a network it joins", na)
+		case n == bridge && slices.Contains(c.GetExternalNetworks(), bridge):
+			return errors.New("the default Docker bridge does not provide network aliases. Give the alias on a different network")
 		case CheckAlias(a) != nil:
 			return fmt.Errorf("%q %w", a, CheckAlias(a))
 		case seen[strings.ToLower(a)]:
@@ -117,7 +123,11 @@ func validateNetworkAliases(c *resourcev1.Container, seen map[string]bool) error
 		}
 		once[strings.ToLower(na)] = true
 	}
-	if len(all) == 1 && len(c.GetNetworkAliases()) > 0 {
+	dnsNetworks := len(all)
+	if slices.Contains(c.GetExternalNetworks(), bridge) {
+		dnsNetworks--
+	}
+	if dnsNetworks == 1 && len(c.GetNetworkAliases()) > 0 {
 		for _, na := range c.GetNetworkAliases() {
 			_, a, _ := strings.Cut(na, "=")
 			c.Aliases = append(c.Aliases, a)
@@ -204,7 +214,9 @@ func networkAccess(c *resourcev1.Container) []resource.Access {
 	}
 	names := strings.Join(c.GetAliases(), ",")
 	for _, n := range c.GetExternalNetworks() {
-		out = append(out, resource.Access{Kind: resource.AccessExternalNetwork, Path: n, Detail: names})
+		if n != bridge {
+			out = append(out, resource.Access{Kind: resource.AccessExternalNetwork, Path: n, Detail: names})
+		}
 	}
 	return out
 }
@@ -223,7 +235,9 @@ func Answers(name string, c *resourcev1.Container) []resource.Answer {
 			out = append(out, resource.Answer{Network: n, Name: a})
 		}
 		for _, n := range c.GetExternalNetworks() {
-			out = append(out, resource.Answer{Network: n, External: true, Name: a})
+			if n != bridge {
+				out = append(out, resource.Answer{Network: n, External: true, Name: a})
+			}
 		}
 	}
 	for _, na := range c.GetNetworkAliases() {
@@ -238,10 +252,20 @@ func Answers(name string, c *resourcev1.Container) []resource.Answer {
 // container on its own, then those the server has.
 func dockerNetworks(t Target, spec *resourcev1.Container) []string {
 	out := make([]string, 0, len(spec.GetNetworks())+len(spec.GetExternalNetworks()))
-	for _, n := range spec.GetNetworks() {
-		out = append(out, t.DockerName(n))
+	if slices.Contains(spec.GetExternalNetworks(), bridge) || !t.Scoped && slices.Contains(spec.GetNetworks(), bridge) {
+		out = append(out, bridge)
 	}
-	return append(out, spec.GetExternalNetworks()...)
+	for _, n := range spec.GetNetworks() {
+		if t.Scoped || n != bridge {
+			out = append(out, t.DockerName(n))
+		}
+	}
+	for _, n := range spec.GetExternalNetworks() {
+		if n != bridge {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // endpointAliases are the names a container at t answers to on each network it
@@ -252,6 +276,51 @@ func endpointAliases(t Target, spec *resourcev1.Container) []string {
 		return nil
 	}
 	return append([]string{t.Service}, spec.GetAliases()...)
+}
+
+// VerifyFinishedAttachment identifies the replacement made by the approved deploy.
+func (d *Docker) VerifyFinishedAttachment(ctx context.Context, t Target, guard *v1.DockerNetworkAttachmentGuard) error {
+	deploy := resource.DeployOf(ctx)
+	held, err := d.current(ctx, t)
+	if err != nil || held == nil || deploy.Change == "" || deploy.Revision <= 0 ||
+		held.ID == guard.GetContainerId() || held.Config.Labels[LabelChange] != deploy.Change ||
+		held.Config.Labels[LabelRevision] != strconv.Itoa(deploy.Revision) {
+		return errors.New("could not identify the replacement from the approved network change. Review the workload again")
+	}
+	name, networkID := guard.GetNetworkName(), guard.GetNetworkId()
+	ep := held.NetworkEndpoint(name, networkID)
+	switch guard.GetAction() {
+	case v1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_CONNECT:
+		if ep != nil && (ep.NetworkID == networkID || ep.NetworkID == "") {
+			if live, err := d.Client.InspectNetwork(ctx, networkID); err == nil && live.ID == networkID && live.Name == name {
+				return nil
+			}
+		}
+	case v1.DockerNetworkAttachmentAction_DOCKER_NETWORK_ATTACHMENT_ACTION_DISCONNECT:
+		if ep == nil {
+			return nil
+		}
+	default:
+	}
+	return errors.New("the replacement does not have the approved network membership. Review the workload again")
+}
+
+// Docker can key a secondary endpoint by ID until the container starts.
+func (d *Docker) nameNetworkEndpoints(ctx context.Context, c *docker.Container) error {
+	for key, endpoint := range c.NetworkSettings.Networks {
+		if !docker.IsFullID(key) || endpoint != nil && endpoint.NetworkID != "" && endpoint.NetworkID != key {
+			continue
+		}
+		n, err := d.Client.InspectNetwork(ctx, key)
+		if err != nil {
+			return err
+		}
+		if n.ID == key && n.Name != key {
+			delete(c.NetworkSettings.Networks, key)
+			c.NetworkSettings.Networks[n.Name] = endpoint
+		}
+	}
+	return nil
 }
 
 // projectNetworks reads a container's networks back into out. A service's that
@@ -288,7 +357,7 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 		default:
 			out.ExternalNetworks = append(out.ExternalNetworks, n)
 		}
-		if ep := c.NetworkSettings.Networks[n]; t.Scoped && ep != nil {
+		if ep := c.NetworkSettings.Networks[n]; t.Scoped && ep != nil && n != bridge {
 			for _, a := range ep.Aliases {
 				if a != t.Service && a != t.Name && a != strings.TrimPrefix(c.Name, "/") && (len(a) != 12 || !strings.HasPrefix(c.ID, a)) {
 					names[a] = true
@@ -305,9 +374,13 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	// network_aliases. What was taken on reads as it always did, a name on any of its
 	// networks as an alias, but what others linked to it by.
 	var only []string
-	if t.Scoped && !taken && len(networks) > 1 {
+	dnsNetworks := len(networks)
+	if slices.Contains(out.GetExternalNetworks(), bridge) {
+		dnsNetworks--
+	}
+	if t.Scoped && !taken && dnsNetworks > 1 {
 		for a, nets := range on {
-			if len(nets) < len(networks) {
+			if len(nets) < dnsNetworks {
 				delete(names, a)
 				for n := range nets {
 					only = append(only, n+"="+a)
@@ -325,7 +398,7 @@ func projectNetworks(c *docker.Container, t Target, out *resourcev1.Container) {
 	if linked := c.Config.Labels[docker.LabelLinkedAs]; t.Scoped && linked != "" {
 		for _, na := range strings.Split(linked, ",") {
 			n, a, _ := strings.Cut(na, "=")
-			if len(networks) == 1 {
+			if dnsNetworks == 1 {
 				names[a] = true
 				continue
 			}
@@ -363,7 +436,10 @@ func (d *Docker) checkRouted(ctx context.Context, t Target, spec *resourcev1.Con
 // networks others join.
 func joinedByName(t Target, spec *resourcev1.Container) (networks, names []string) {
 	if t.Scoped {
-		return spec.GetExternalNetworks(), endpointAliases(t, spec)
+		if !slices.Contains(spec.GetExternalNetworks(), bridge) {
+			return spec.GetExternalNetworks(), endpointAliases(t, spec)
+		}
+		return slices.DeleteFunc(slices.Clone(spec.GetExternalNetworks()), func(n string) bool { return n == bridge }), endpointAliases(t, spec)
 	}
 	for _, n := range spec.GetNetworks() {
 		if n != bridge && n != "host" && n != "none" {
@@ -552,4 +628,16 @@ func takenName(t Target, network, name string, c *docker.Container) error {
 	}
 	return fmt.Errorf("%s. Give %s another name in place of %s, in its aliases or its Compose file's container_name, or remove that container with docker rm %s if nothing needs it, then plan again. "+
 		"Stopping it isn't enough: Docker keeps a stopped container on its networks, and it answers there again when it starts", said, what, name, other)
+}
+
+type dockerAttachmentKey struct{}
+
+// WithDockerAttachment carries the re-inspected attachment to the rollout's Engine request.
+func WithDockerAttachment(ctx context.Context, guard *v1.DockerNetworkAttachmentGuard) context.Context {
+	return context.WithValue(ctx, dockerAttachmentKey{}, guard)
+}
+
+func dockerAttachment(ctx context.Context) *v1.DockerNetworkAttachmentGuard {
+	guard, _ := ctx.Value(dockerAttachmentKey{}).(*v1.DockerNetworkAttachmentGuard)
+	return guard
 }

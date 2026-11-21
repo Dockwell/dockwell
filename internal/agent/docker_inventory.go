@@ -353,7 +353,7 @@ func inventoryEndpoints(networks map[string]*docker.EndpointSettings) []*v1.Dock
 	for _, name := range names[:min(len(names), listEach)] {
 		if n := networks[name]; n != nil {
 			result = append(result, &v1.DockerEndpoint{
-				Network: bounded(name, 255), Ipv4: inventoryAddress(n.IPAddress), Ipv6: inventoryAddress(n.GlobalIPv6Address),
+				Network: bounded(name, 255), NetworkId: fullNetworkID(n.NetworkID), Ipv4: inventoryAddress(n.IPAddress), Ipv6: inventoryAddress(n.GlobalIPv6Address),
 			})
 		}
 	}
@@ -386,4 +386,11 @@ func bounded(value string, size int) string {
 		return strings.ToValidUTF8(value[:size], "")
 	}
 	return value
+}
+
+func fullNetworkID(id string) string {
+	if docker.IsFullID(id) {
+		return id
+	}
+	return ""
 }
