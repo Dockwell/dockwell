@@ -524,6 +524,7 @@ export const GetServerDiskUseRequestSchema: GenMessage<GetServerDiskUseRequest> 
 
 /**
  * GetServerDiskUseResponse says what takes the room on a server's disk.
+ * With Prefer: respond-async, an unset disk_use.time means the Engine count is underway.
  *
  * @generated from message dockwell.v1.GetServerDiskUseResponse
  */

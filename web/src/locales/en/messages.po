@@ -14850,6 +14850,9 @@ msgstr "Layers"
 msgid "Local images"
 msgstr "Local images"
 
+msgid "Measuring"
+msgstr "Measuring"
+
 msgid "More tags"
 msgstr "More tags"
 

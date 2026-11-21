@@ -15,7 +15,8 @@ import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
-import { Fact, Unread } from "./parts";
+import { useDockerWatch } from "./live";
+import { Fact, LiveUpdates, Unread } from "./parts";
 import "./DockerArtifacts.css";
 
 function shortImageId(id: string): string {
@@ -51,15 +52,17 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     }, 200);
     return () => clearTimeout(timer);
   }, [input, search]);
+  const serverIds = servers.map((s) => s.id);
   const query = useQuery(
     DockerService.method.listDockerObjects,
-    { serverIds: servers.map((s) => s.id), kind: DockerObjectKind.IMAGE, filter: { search }, pageToken },
+    { serverIds, kind: DockerObjectKind.IMAGE, filter: { search }, pageToken },
     { retry: false, refetchOnWindowFocus: false },
   );
   const refresh = () => {
     if (pageToken) setPages([""]);
     else void query.refetch();
   };
+  const watch = useDockerWatch(serverIds, [], () => void query.refetch(), false, DockerObjectKind.IMAGE);
   const rows = query.data?.objects ?? [];
   const next = query.data?.nextPageToken;
   return (
@@ -81,6 +84,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
           onChange={(event) => setInput(event.target.value)}
         />
       </div>
+      <LiveUpdates paused={watch.paused} retry={watch.retry} />
       <Unread values={query.data?.unavailable ?? []} servers={servers} retry={refresh} />
       {query.error ? (
         <Callout tone="warning" title={t`Images couldn't be read`}>
@@ -89,11 +93,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             : sentence(query.error)}
         </Callout>
       ) : null}
-      {query.isPending ? (
-        <p role="status">
-          <Trans>Reading local images</Trans>
-        </p>
-      ) : null}
+      {query.isPending ? <ImageLoading /> : null}
       {rows.length === 0 && query.isSuccess && !next && !query.data.unavailable.length ? (
         <EmptyState icon="archive" title={search ? t`No matching images` : t`No local images`} />
       ) : null}
@@ -134,17 +134,15 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
                     ) : null}
                   </div>
                 </div>
-                <ImageStatus state={image.state} />
+                {image.state === DockerImageState.UNSPECIFIED && !row.observedAt ? (
+                  <span className="docker-pending-size" aria-hidden="true" />
+                ) : (
+                  <ImageStatus state={image.state} />
+                )}
                 <dl className="docker-image-data">
                   <Fact label={t`Platform`} value={image.platform || t`Unknown`} mono />
-                  <Fact
-                    label={t`Total`}
-                    value={image.totalBytes === undefined ? t`Unknown` : formatBytes(image.totalBytes, i18n.locale)}
-                  />
-                  <Fact
-                    label={t`Unique`}
-                    value={image.uniqueBytes === undefined ? t`Unknown` : formatBytes(image.uniqueBytes, i18n.locale)}
-                  />
+                  <Fact label={t`Total`} value={<ImageBytes bytes={image.totalBytes} pending={!row?.observedAt} />} />
+                  <Fact label={t`Unique`} value={<ImageBytes bytes={image.uniqueBytes} pending={!row?.observedAt} />} />
                   <Fact
                     label={t`Created`}
                     value={image.createdAt ? formatDateTime(timestampDate(image.createdAt), i18n.locale) : t`Unknown`}
@@ -169,6 +167,34 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
   );
 }
 
+function ImageBytes({ bytes, pending }: { bytes: bigint | undefined; pending: boolean }) {
+  const { t, i18n } = useLingui();
+  if (bytes !== undefined) return formatBytes(bytes, i18n.locale);
+  if (!pending) return t`Unknown`;
+  return <span className="docker-pending-size" role="img" aria-label={t`Measuring`} />;
+}
+
+function ImageLoading() {
+  const { t } = useLingui();
+  return (
+    <div role="status" aria-label={t`Reading local images`}>
+      <div className="docker-artifact-list" aria-hidden="true">
+        {["first", "second", "third"].map((row) => (
+          <div className="docker-image-row docker-image-loading" key={row}>
+            <span className="docker-pending-size" />
+            <span className="docker-pending-size" />
+            <div className="docker-image-data">
+              <span className="docker-pending-size" />
+              <span className="docker-pending-size" />
+              <span className="docker-pending-size" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function DockerImageDetail({ serverId, imageId }: { serverId: string; imageId: string }) {
   const { t, i18n } = useLingui();
   const allowed = useMay()(DockerService.method.getDockerObject).allowed;
@@ -177,6 +203,7 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
     { key: { serverId, engineId: imageId, kind: DockerObjectKind.IMAGE } },
     { enabled: allowed, retry: false },
   );
+  const watch = useDockerWatch(allowed ? [serverId] : [], [], () => void read.refetch(), false, DockerObjectKind.IMAGE);
   const row = read.data?.object;
   const image = row?.detail.case === "image" ? row.detail.value : undefined;
   return (
@@ -196,6 +223,7 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
               <Trans>Local images</Trans>
             </RouterButtonLink>
           </div>
+          <LiveUpdates paused={watch.paused} retry={watch.retry} />
           {!allowed ? <EmptyState icon="lock" title={t`Docker inventory needs an admin`} /> : null}
           {allowed && read.isPending ? (
             <p role="status">
@@ -224,11 +252,11 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
                   <Fact label={t`Platform`} value={image.platform || t`Unknown`} mono />
                   <Fact
                     label={t`Total size`}
-                    value={image.totalBytes === undefined ? t`Unknown` : formatBytes(image.totalBytes, i18n.locale)}
+                    value={<ImageBytes bytes={image.totalBytes} pending={!row?.observedAt} />}
                   />
                   <Fact
                     label={t`Unique size`}
-                    value={image.uniqueBytes === undefined ? t`Unknown` : formatBytes(image.uniqueBytes, i18n.locale)}
+                    value={<ImageBytes bytes={image.uniqueBytes} pending={!row?.observedAt} />}
                   />
                   <Fact
                     label={t`Created`}

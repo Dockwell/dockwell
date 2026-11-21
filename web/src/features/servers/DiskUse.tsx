@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { create } from "@bufbuild/protobuf";
-import { useQuery } from "@connectrpc/connect-query";
+import { createClient } from "@connectrpc/connect";
+import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
   Connection,
   type DiskUsage,
@@ -13,6 +14,7 @@ import {
 import { Panel } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQuery } from "@tanstack/react-query";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
@@ -46,20 +48,32 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
   // What fills a server's disks is an admin's to read, and the panel is left out for anyone else (ADR 0059).
   const allowed = useMay()(ServerService.method.getServerDiskUse).allowed;
   const asking = allowed && connected && server.dockerUnreadableSince === undefined;
-  const use = useQuery(
-    ServerService.method.getServerDiskUse,
-    { id: server.id },
-    // Docker adds up every volume to answer, so coming back to the tab asks nothing.
-    { enabled: asking, staleTime: 30_000, refetchInterval: ASK_EVERY_MS, refetchOnWindowFocus: false, retry: false },
-  );
+  const transport = useTransport();
+  const input = { id: server.id };
+  const queryKey = createConnectQueryKey({
+    schema: ServerService.method.getServerDiskUse,
+    input,
+    cardinality: "finite",
+  });
+  const use = useQuery({
+    queryKey: [...queryKey, "progressive"],
+    queryFn: ({ signal }) =>
+      createClient(ServerService, transport).getServerDiskUse(input, { signal, headers: { Prefer: "respond-async" } }),
+    enabled: asking,
+    staleTime: 30_000,
+    // The separate server overview also uses this panel, without a Docker watch.
+    refetchInterval: ({ state }) => (state.data?.diskUse && !state.data.diskUse.time ? 2_000 : ASK_EVERY_MS),
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
   const disks = server.stats?.disks.filter((disk) => disk.sizeBytes > 0n) ?? [];
   const docker = use.data?.diskUse;
   const dockerDisk = docker && docker.sizeBytes > 0n ? docker : undefined;
   // While Docker adds it up, each disk shows what's used and free, as when it can't say.
-  const busy = asking && use.isPending;
+  const busy = asking && (use.isPending || (docker !== undefined && !docker.time));
   const others = disks.filter((disk) => disk.mountPoint !== dockerDisk?.mountPoint);
   const breakdown = docker?.dockerBreakdown.length ? docker : undefined;
-  if (!allowed || (!busy && !dockerDisk && !breakdown && disks.length === 0)) return null;
+  if (!allowed || (!busy && !dockerDisk && !breakdown && disks.length === 0 && !use.error)) return null;
   return (
     <Panel
       title={t`Disk usage`}

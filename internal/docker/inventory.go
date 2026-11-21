@@ -38,6 +38,24 @@ func (c *Client) InventoryInfo(ctx context.Context) (InventoryEngine, error) {
 	return info, nil
 }
 
+// InventoryImage holds the fields in Engine's image summary. Engines may
+// omit usage and platform information when shared size is not requested.
+type InventoryImage struct {
+	DiskUsageImage
+	Size, Containers *int64
+	Descriptor       *struct {
+		Platform *struct{ OS, Architecture, Variant string }
+	}
+}
+
+// InventoryImages reads image identities and inexpensive facts without asking
+// Docker to measure shared layers or walk volumes.
+func (c *Client) InventoryImages(ctx context.Context) ([]InventoryImage, error) {
+	var rows []InventoryImage
+	err := c.boundedJSON(ctx, http.MethodGet, "/images/json", url.Values{"all": {"1"}}, &rows)
+	return rows, err
+}
+
 // InventoryEvents reports lifecycle and health changes. It decodes no attributes,
 // which can hold labels and other user-supplied values.
 func (c *Client) InventoryEvents(ctx context.Context, opened func(), changed func(Event)) error {

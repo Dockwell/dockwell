@@ -40,6 +40,7 @@ export function useDockerWatch(
   keys: readonly DockerObjectKey[],
   refresh: () => void,
   refreshOnHealth = false,
+  kind = refreshOnHealth ? DockerObjectKind.COMPOSE : DockerObjectKind.CONTAINER,
 ) {
   const transport = useTransport();
   const [samples, setSamples] = useState<ReadonlyMap<string, DockerSample>>(new Map());
@@ -93,7 +94,7 @@ export function useDockerWatch(
       try {
         for await (const update of client.watchDockerObjects(
           {
-            selection: { serverIds, kind: refreshOnHealth ? DockerObjectKind.COMPOSE : DockerObjectKind.CONTAINER },
+            selection: { serverIds, kind },
             visibleKeys,
           },
           { signal: abort.signal, timeoutMs: 0 },
@@ -146,7 +147,7 @@ export function useDockerWatch(
       clearTimeout(pending);
       abort.abort();
     };
-  }, [attempt, refreshOnHealth, serverKey, transport, visibleKey]);
+  }, [attempt, kind, refreshOnHealth, serverKey, transport, visibleKey]);
 
   return {
     connected: servers.some((id) => live.get(id) === true),

@@ -3152,7 +3152,7 @@ paths:
         post:
             tags:
                 - DockerService
-            description: PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+            description: PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
             operationId: DockerService_PlanDockerMaintenance
             requestBody:
                 content:
@@ -18443,7 +18443,9 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/ServerDiskUse'
                     description: What takes the room on the disk that holds Docker's data.
-            description: GetServerDiskUseResponse says what takes the room on a server's disk.
+            description: |-
+                GetServerDiskUseResponse says what takes the room on a server's disk.
+                 With Prefer: respond-async, an unset disk_use.time means the Engine count is underway.
         GetServerFail2banResponse:
             type: object
             properties:

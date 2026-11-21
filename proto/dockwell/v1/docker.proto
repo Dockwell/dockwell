@@ -73,7 +73,7 @@ service DockerService {
     option (google.api.http) = {get: "/v1/docker/cleanup"};
   }
 
-  // PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+  // PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
   rpc PlanDockerMaintenance(PlanDockerMaintenanceRequest) returns (PlanDockerMaintenanceResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -129,6 +129,7 @@ enum DockerHealth {
 
 // DockerReadState says why a server cannot answer an inventory read.
 enum DockerReadState {
+  // In a cleanup preview this means the disk measurement is still underway.
   DOCKER_READ_STATE_UNSPECIFIED = 0;
   DOCKER_READ_STATE_OFFLINE = 1;
   DOCKER_READ_STATE_AGENT_OUTDATED = 2;

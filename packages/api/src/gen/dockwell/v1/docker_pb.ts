@@ -1396,6 +1396,8 @@ export const DockerHealthSchema: GenEnum<DockerHealth> = /*@__PURE__*/
  */
 export enum DockerReadState {
   /**
+   * In a cleanup preview this means the disk measurement is still underway.
+   *
    * @generated from enum value: DOCKER_READ_STATE_UNSPECIFIED = 0;
    */
   UNSPECIFIED = 0,
@@ -1502,7 +1504,7 @@ export const DockerService: GenService<{
     output: typeof PreviewDockerCleanupResponseSchema;
   },
   /**
-   * PlanDockerMaintenance freezes reviewed targets or the current pause for ApplyChange.
+   * PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
    *
    * @generated from rpc dockwell.v1.DockerService.PlanDockerMaintenance
    */

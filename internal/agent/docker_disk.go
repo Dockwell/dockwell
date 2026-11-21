@@ -4,7 +4,10 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 
@@ -82,12 +85,16 @@ func (d *diskUse) dockerBreakdown(out *v1.ServerDiskUse, df *docker.DiskUsage) {
 }
 
 // dockerDiskUse computes the default image estimate against current desired
-// state. snapshot returns a clone, so one request cannot alter another's count.
+// state. Each request annotates its own copy of the cached measurement.
 func (c *calls) dockerDiskUse(ctx context.Context, protection *agentv1.DockerCleanupProtection) (*v1.ServerDiskUse, error) {
-	use, df, err := c.cfg.disks.snapshot(ctx, false)
+	use, df, err := c.cfg.disks.cached(ctx)
+	if errors.Is(err, errDiskMeasuring) {
+		return &v1.ServerDiskUse{}, nil
+	}
 	if err != nil {
 		return nil, err
 	}
+	use = proto.CloneOf(use)
 	if c.cleanupDisabled() {
 		for _, row := range use.DockerBreakdown {
 			if row.Kind == cleanupImage || row.Kind == cleanupCache {

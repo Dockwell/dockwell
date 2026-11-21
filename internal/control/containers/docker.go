@@ -337,10 +337,11 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 // WatchDockerObjects follows invalidations and live samples across the selection.
 func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest], stream *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {
 	m := req.Msg
-	compose := m.GetSelection().GetKind() == composeKind
+	kind := m.GetSelection().GetKind()
+	compose := kind == composeKind
 	if len(m.GetVisibleKeys()) > 16 || len(m.GetAfterSnapshot()) > 128 ||
-		!compose && !containerKind(m.GetSelection().GetKind()) || compose && len(m.GetVisibleKeys()) > 0 {
-		return authapi.Invalid(errors.New("watch Compose summaries or containers, with at most 16 visible container IDs"))
+		!compose && kind != v1.DockerObjectKind_DOCKER_OBJECT_KIND_IMAGE && !containerKind(kind) || !containerKind(kind) && len(m.GetVisibleKeys()) > 0 {
+		return authapi.Invalid(errors.New("watch Docker images, Compose summaries or containers, with at most 16 visible container IDs"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetSelection().GetServerIds())
 	if err != nil {

@@ -425,6 +425,23 @@ func (e *Engine) listImages(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, "%v", err)
 		return
 	}
+	if len(f["reference"]) == 0 {
+		var out []map[string]any
+		for img := range e.distinctImages() {
+			tags, digests := e.imageRefs(img)
+			architecture := img.Architecture
+			if architecture == "" {
+				architecture = "amd64"
+			}
+			out = append(out, map[string]any{
+				"Id": img.id, "RepoTags": tags, "RepoDigests": digests, "Size": img.Size,
+				"Created": img.created.Unix(), "Containers": -1,
+				"Descriptor": map[string]any{"platform": map[string]string{"os": "linux", "architecture": architecture}},
+			})
+		}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 	var out []map[string]any
 	for ref, img := range e.images {
 		if strings.HasPrefix(ref, "sha256:") {
