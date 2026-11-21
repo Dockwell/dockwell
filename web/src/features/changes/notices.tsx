@@ -30,6 +30,8 @@ import {
   asGoodAsRoot,
   changing,
   cleansDocker,
+  dockerImageAction,
+  dockerImagePasskey,
   factAndRest,
   installs,
   keepsData,
@@ -83,7 +85,7 @@ function accessOf(plan: Plan): HostAccess[] {
  */
 export function needsConfirming(plan: Plan | undefined): boolean {
   if (!plan) return false;
-  if (cleansDocker(plan)) return false;
+  if (cleansDocker(plan) || dockerImageAction(plan)) return false;
   const access = accessOf(plan);
   // A removal that destroys nothing more is confirmed by its passkey alone, which it always asks (#800):
   // the plan says it's for good, and a second code to type says nothing more.
@@ -144,7 +146,9 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       reboots(plan) ||
       // A removal cuts a server off and revokes what it holds (ADR 0090).
       plan.removes !== undefined ||
-      plan.resources.some((r) => r.unit?.passkey === true || r.dockerMaintenance !== undefined) ||
+      cleansDocker(plan) ||
+      dockerImagePasskey(plan) ||
+      plan.resources.some((r) => r.unit?.passkey === true) ||
       // An Open whose owner isn't made: who reaches it first takes it, or anyone signs
       // in with a password everyone knows (ADR 0105).
       plan.notes.some((n) => n.reason === "opens_to_everyone" || n.reason === "known_password"))
@@ -788,6 +792,18 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { root } = useReaches(plan);
   const managed = useManagedElsewhere();
   if (!plan) return [];
+  if (dockerImageAction(plan)) {
+    return !applied && dockerImagePasskey(plan)
+      ? [
+          {
+            key: "image-tag",
+            title: t`This moves the tag`,
+            detail: t`Both images and their other tags stay.`,
+            amber: true,
+          },
+        ]
+      : [];
+  }
   if (cleansDocker(plan)) {
     return applied || resumesDockerCleanup(plan)
       ? []

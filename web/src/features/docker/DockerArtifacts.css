@@ -231,3 +231,162 @@
   gap: 2px;
   min-width: 0;
 }
+
+.docker-image-row-actions,
+.docker-image-link-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.docker-image-row-actions {
+  justify-content: end;
+}
+
+.docker-image-row .docker-row-link {
+  overflow: visible;
+  white-space: normal;
+}
+
+.docker-image-platform {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docker-image-link-actions {
+  flex-wrap: wrap;
+}
+
+.docker-image-fields {
+  display: grid;
+  gap: var(--space-4);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.docker-image-compare,
+.docker-image-fields + .docker-image-current {
+  display: block;
+  margin-block-start: var(--space-4);
+}
+
+.docker-image-fields .docker-repository-choice {
+  justify-content: start;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+
+.docker-image-name .dw-loading {
+  min-height: 18px;
+}
+
+.docker-image-alias {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docker-registry-choice,
+.docker-pull-tags {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.docker-registry-access,
+.docker-pull-reference {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.docker-pull-reference .dw-field {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.docker-registry-access {
+  align-items: center;
+}
+
+.docker-registry-access .dw-tag {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docker-repository-choices,
+.docker-pull-tags ul {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  min-width: 0;
+}
+
+.docker-repository-choices {
+  display: grid;
+  padding: var(--space-1);
+}
+
+.docker-pull-tags h3 {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+}
+
+.docker-pull-tags ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.docker-pull-tags li + li {
+  border-top: 1px solid var(--line);
+}
+
+.docker-pull-tags .docker-pull-tag {
+  width: 100%;
+  min-height: 52px;
+  height: auto;
+  padding-block: var(--space-2);
+  text-align: start;
+  white-space: normal;
+}
+
+.docker-pull-tag .dw-btn-label {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.docker-pull-tag[aria-pressed="true"] {
+  background: var(--selection);
+}
+
+.docker-pull-tag-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.docker-pull-tag-name svg {
+  flex: none;
+}
+
+.docker-pull-tag-digest {
+  grid-column: 1 / -1;
+  color: var(--ink-muted);
+  font-size: var(--type-caption-size);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}

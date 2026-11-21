@@ -4,6 +4,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   type BackupFirst,
   BackupMethod,
+  DockerImageOutcome,
   HostAccessKind,
   type HostAgentUpgrade,
   type Intent,
@@ -255,6 +256,72 @@ function StepRow({
   const { t } = useLingui();
   const time = useTimeWords();
   const providerLine = useProviderLine();
+  const imageAction = step.dockerMaintenance?.imageAction;
+  if (imageAction) {
+    const binding = imageAction.bindings[0];
+    const reference = binding?.reference ?? "";
+    const old = binding?.imageId ?? "";
+    const remote = imageAction.descriptor;
+    const local = binding?.local;
+    const status = live ? words.step(live.state) : undefined;
+    const receipt = live?.dockerImageReceipts[0];
+    const verified = receipt?.outcome === DockerImageOutcome.APPLIED ? receipt.imageKey?.imageId : undefined;
+    const replaces = Boolean(old && imageAction.pull);
+    const evidence = [
+      [t`Current image ID`, old],
+      [t`Current registry index digest`, local?.indexDigest],
+      [t`Current platform manifest digest`, local?.manifestDigest],
+      [t`Current image config digest`, local?.configDigest],
+      verified
+        ? [t`Verified image ID`, verified]
+        : [old ? t`New image ID` : t`Image ID`, imageAction.tag?.sourceKey?.imageId],
+      [replaces ? t`New registry index digest` : t`Registry index digest`, remote?.indexDigest],
+      [replaces ? t`New platform manifest digest` : t`Platform manifest digest`, remote?.manifestDigest],
+      [replaces ? t`New image config digest` : t`Image config digest`, remote?.configDigest],
+      [t`Platform`, remote?.platform],
+    ] as const;
+    const login = imageAction.approvedLogins[0]?.name;
+    return (
+      <li className="plan-step plan-step-image">
+        <span className="plan-step-what">
+          {status ? <StatusBadge label={status.word} status={status.status} /> : null}
+          <span className="plan-step-line">
+            {receipt?.outcome === DockerImageOutcome.UNKNOWN ? (
+              <Trans>Result unknown</Trans>
+            ) : imageAction.pull ? (
+              <Trans>
+                Pull <code>{reference}</code> on <code>{server}</code>
+              </Trans>
+            ) : (
+              <Trans>
+                Set tag <code>{reference}</code> on <code>{server}</code>
+              </Trans>
+            )}
+          </span>
+        </span>
+        <dl className="plan-image-evidence">
+          {evidence.map(([label, value]) =>
+            value ? (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>
+                  <code>{value}</code>
+                </dd>
+              </div>
+            ) : null,
+          )}
+          {login ? (
+            <div>
+              <dt>
+                <Trans>Registry login</Trans>
+              </dt>
+              <dd>{login}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </li>
+    );
+  }
   if (step.dockerMaintenance) {
     const status = live ? words.step(live.state) : undefined;
     return (

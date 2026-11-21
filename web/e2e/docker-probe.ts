@@ -84,6 +84,11 @@ export function dockerProbe(socket: string) {
 
 export type DockerProbe = ReturnType<typeof dockerProbe>;
 
+/** Sets an image alias directly on the Engine. */
+export async function dockerTag(socket: string, id: string, repository: string, tag: string): Promise<void> {
+  await call(socket, "POST", `/images/${id}/tag?${new URLSearchParams({ repo: repository, tag })}`);
+}
+
 /** Stops a container, as someone at the server would by hand. */
 export async function dockerStop(socket: string, id: string): Promise<void> {
   await call(socket, "POST", `/containers/${id}/stop`);

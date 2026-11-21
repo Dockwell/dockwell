@@ -274,12 +274,14 @@ async function shoot(page: Page, name: string) {
   try {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
-      for (const width of name.startsWith("docker-slice4-") ? [1440, 1024, 390, 320] : [1440, 800, 390, 360]) {
+      const cleanup = name.startsWith("docker-slice4-");
+      const imageAction = name.startsWith("docker-slice6a-") || name === "registry-logins-docker-pull";
+      const artifact = cleanup || imageAction;
+      for (const width of cleanup ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {
         await atWidth(page, { width, height: width === 1440 ? 900 : 844 });
         // A full-page shot of a long page starts at its top, as someone arriving would see it.
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.waitForTimeout(100);
-        const artifact = name.startsWith("docker-slice4-");
         const privateValues = artifact
           ? [
               page.locator(".server-address-tagged, .server-page .page-lead"),
@@ -311,7 +313,7 @@ async function shoot(page: Page, name: string) {
         try {
           await page.screenshot({
             path: join(shots, `${name}-${width}-${scheme}.png`),
-            fullPage: !artifact || (name !== "docker-slice4-plan" && name !== "docker-slice4-receipt"),
+            fullPage: !imageAction && (!cleanup || (name !== "docker-slice4-plan" && name !== "docker-slice4-receipt")),
           });
         } finally {
           if (fixtureRoot.length)
