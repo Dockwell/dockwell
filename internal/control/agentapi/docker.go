@@ -21,6 +21,9 @@ func (s *Session) DockerInventory() bool { return s.dockerCapabilities.GetInvent
 // ExactTerminal reports whether this agent understands immutable IDs and argv.
 func (s *Session) ExactTerminal() bool { return s.dockerCapabilities.GetExactTerminal() }
 
+// DockerWorkloadControls reports whether the agent preserves saved Docker run intent.
+func (s *Session) DockerWorkloadControls() bool { return s.dockerCapabilities.GetWorkloadControls() }
+
 // DockerList reads a bounded inventory page or counters from this agent.
 func (s *Session) DockerList(ctx context.Context, ask *agentv1.DockerInventoryListCall) (*agentv1.DockerInventoryListResult, error) {
 	r, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerInventoryList{DockerInventoryList: ask}}, dockerCallWait)

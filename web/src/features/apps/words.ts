@@ -49,6 +49,7 @@ export function useAppWords(): AppWords {
       },
       /** A field of a service, as a change names it, in words. */
       field(name: string): string {
+        if (name === "desired_run_state") return t`Run state`;
         const fields: Readonly<Record<string, string>> = {
           image: t`image`,
           command: t`command`,

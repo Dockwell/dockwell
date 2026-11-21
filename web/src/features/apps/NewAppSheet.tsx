@@ -174,6 +174,8 @@ const ENV_LINES = 6;
 export function NewAppSheet({
   source,
   runtime,
+  initialServer,
+  initialAdvanced = false,
   onSource,
   onClose,
   query = "",
@@ -183,6 +185,8 @@ export function NewAppSheet({
   source: NewAppSource;
   /** The language and version a runtime's card asked for, for a folder. */
   runtime?: { language: string; version?: string | undefined } | undefined;
+  initialServer?: string | undefined;
+  initialAdvanced?: boolean | undefined;
   onSource: (source: NewAppSource) => void;
   onClose: () => void;
   /** From the catalog: the words searched for, and what picking an app does (#617). */
@@ -214,7 +218,7 @@ export function NewAppSheet({
   }, [source]);
 
   const [environment, setEnvironment] = useState("");
-  const [chosenServers, setChosenServers] = useState<readonly string[]>([]);
+  const [chosenServers, setChosenServers] = useState<readonly string[]>(initialServer ? [initialServer] : []);
 
   const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
   const [git, setGit] = useState<GitForm>(emptyGit);
@@ -307,7 +311,7 @@ export function NewAppSheet({
   const folders = useServerFolders(fleet ? chosenServers[0] : onlyId);
   // The form as it plans: each port that follows a free one has it.
   const shown = useMemo(() => withFreePorts(image, ports), [image, ports]);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(initialAdvanced);
   // What a found image declares fills in what nobody has changed.
   const fillFrom = useCallback(
     (read: ImageRead) =>
@@ -389,6 +393,13 @@ export function NewAppSheet({
     const more = image.more ?? DEFAULT_SETTINGS;
     if (splitWords(more.command) === undefined)
       out["more.command"] = t`A quote isn't closed. Close it, or leave it out.`;
+    if (
+      more.restart === RestartPolicy.ON_FAILURE &&
+      more.restartRetries !== "" &&
+      (!/^\d+$/.test(more.restartRetries) || Number(more.restartRetries) > 4_294_967_295)
+    ) {
+      out["more.restartRetries"] = t`Enter zero or a whole number up to 4,294,967,295.`;
+    }
     if (more.memory.trim() !== "" && !validMemory(more.memory))
       out["more.memory"] = t`Use an amount from 6M, such as 512M or 2G.`;
     if (more.cpus.trim() !== "" && !validCpus(more.cpus))
@@ -575,6 +586,7 @@ export function NewAppSheet({
     image.ports.length > 0 ||
     image.env.length > 0 ||
     image.mounts.length > 0 ||
+    changedSettings(image.more) > 0 ||
     file !== "";
   const leave = () => {
     if (typed && !leaving) setLeaving(true);
@@ -2173,8 +2185,25 @@ function MoreSection({
           label={t`Restarts`}
           value={String(more.restart)}
           options={RESTARTS.map((p) => ({ value: String(p), label: words.restart(p) }))}
-          onChange={(event) => set({ restart: Number(event.target.value) as RestartPolicy }, "restart")}
+          onChange={(event) => {
+            const restart = Number(event.target.value) as RestartPolicy;
+            set(
+              { restart, restartRetries: restart === RestartPolicy.ON_FAILURE ? more.restartRetries : "" },
+              "restart",
+            );
+          }}
         />
+        {more.restart === RestartPolicy.ON_FAILURE ? (
+          <TextField
+            label={t`Restart retries`}
+            value={more.restartRetries}
+            inputMode="numeric"
+            placeholder={t`Unlimited`}
+            hint={t`Zero allows unlimited retries.`}
+            error={errors["more.restartRetries"]}
+            onChange={(event) => set({ restartRetries: event.target.value }, "restartRetries")}
+          />
+        ) : null}
         <TextField
           label={t`Memory limit`}
           mono

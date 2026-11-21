@@ -11,8 +11,9 @@ import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
 import { usePlaces } from "../apps/useServices";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { LogsPage, type LogsSearch } from "../logs/LogsPage";
+import { LogsPage } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
+import type { LogsSearch } from "../logs/search";
 import { Page } from "../shell/Page";
 import { useMadeWords } from "./ContainersPanel";
 import {

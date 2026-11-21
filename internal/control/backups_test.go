@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -432,10 +435,13 @@ func testAFailedBackupShowsOnTheTimeline(t *testing.T, backend store.Backend) {
 // A database's dump stops nothing, and a restore of one takes in the app.
 func TestADumpThroughTheAPI(t *testing.T) {
 	t.Parallel()
-	storetest.Each(t, testADumpThroughTheAPI)
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		t.Run("running", func(t *testing.T) { testADumpThroughTheAPI(t, backend, false) })
+		t.Run("stopped", func(t *testing.T) { testADumpThroughTheAPI(t, backend, true) })
+	})
 }
 
-func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
+func testADumpThroughTheAPI(t *testing.T, backend store.Backend, stopped bool) {
 	f := startFull(t, backend, nil)
 	b := signedIn(t, f)
 	e := f.addDockerServer(t)
@@ -467,6 +473,9 @@ func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 	if got := e.Started(docker.ContainerName(project, "db")); got != starts {
 		t.Errorf("a dump restarted the database: %d, was %d", got, starts)
 	}
+	if stopped {
+		applyStoppedWorkload(t, ch, &dockwellv1.ResourceRef{Kind: "service", Scope: ref.Scope, Name: "db"})
+	}
 
 	writeData(t, dir, "data.sql", "gone")
 	planned, err := bc.RestoreBackup(t.Context(), connect.NewRequest(&dockwellv1.RestoreBackupRequest{Id: backup.GetId()}))
@@ -475,8 +484,18 @@ func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 	}
 	change := planned.Msg.GetChange()
 	r := change.GetPlan().GetServers()[0].GetSteps()[0].GetRestore()
-	if !slices.Equal(r.GetStops(), []string{"db", "web", "worker"}) || r.GetDatabase() != "PostgreSQL" {
+	stops := []string{"db", "web", "worker"}
+	if stopped {
+		stops = []string{"web", "worker"}
+	}
+	if !slices.Equal(r.GetStops(), stops) || r.GetDatabase() != "PostgreSQL" {
 		t.Errorf("the plan says %v", r)
+	}
+	note := slices.ContainsFunc(change.GetPlan().GetNotes(), func(note *dockwellv1.PlanNote) bool {
+		return note.GetReason() == "restore_stopped_database" && slices.Equal(note.GetNames(), []string{"db"})
+	})
+	if note != stopped {
+		t.Fatalf("restore notes = %v, stopped = %v", change.GetPlan().GetNotes(), stopped)
 	}
 	w := watch(t, ch, change.GetId())
 	if _, err := ch.ApplyChange(t.Context(), connect.NewRequest(&dockwellv1.ApplyChangeRequest{Id: change.GetId(), Fingerprint: change.GetPlan().GetFingerprint()})); err != nil {
@@ -489,9 +508,80 @@ func testADumpThroughTheAPI(t *testing.T, backend store.Backend) {
 		t.Errorf("the database holds %q", got)
 	}
 	for _, service := range []string{"db", "web", "worker"} {
-		if c := e.Container(docker.ContainerName(project, service)); c == nil || !c.State.Running {
-			t.Errorf("%s isn't running", service)
+		c := e.Container(docker.ContainerName(project, service))
+		wantStopped := stopped && service == "db"
+		if c == nil || c.State.Running == wantStopped || wantStopped && c.HostConfig.RestartPolicy.Name != "no" {
+			t.Errorf("%s: want stopped %v after restore, got %v", service, wantStopped, c)
 		}
+	}
+}
+
+func TestAStopAppliedDuringBackupHolds(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		e := f.addDockerServer(t)
+		ch, bc := changeClient(b, b.origin), backupClient(b, b.origin)
+		volumeID, dir := webWithData(t, e, ch)
+		writeData(t, dir, "orders.db", "the orders")
+		var scope string
+		if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+			v, err := tx.GetResourceByID(t.Context(), volumeID)
+			scope = v.Scope
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+		name := docker.ContainerName(docker.Project(scope), "web")
+		before := e.Container(name)
+		if before == nil || !before.State.Running {
+			t.Fatal("the workload didn't start before its backup")
+		}
+		var stalled atomic.Bool
+		packing, released := make(chan struct{}), make(chan struct{})
+		release := sync.OnceFunc(func() { close(released) })
+		defer release()
+		e.Intercept(func(req *http.Request) error {
+			if req.Method != http.MethodPost || !strings.HasSuffix(req.URL.Path, "/start") {
+				return nil
+			}
+			if c := e.Container(name); c != nil && !c.State.Running && stalled.CompareAndSwap(false, true) {
+				close(packing)
+				select {
+				case <-released:
+				case <-req.Context().Done():
+					return req.Context().Err()
+				}
+			}
+			return nil
+		})
+		defer e.Intercept(nil)
+		res, err := bc.CreateBackup(t.Context(), connect.NewRequest(&dockwellv1.CreateBackupRequest{VolumeId: volumeID, Stop: true}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-packing:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the backup didn't start copying after stopping the workload")
+		}
+		applyStoppedWorkload(t, ch, &dockwellv1.ResourceRef{Kind: "service", Scope: scope, Name: "web"})
+		release()
+		if got := waitBackup(t, bc, res.Msg.GetBackup().GetId()); got.GetState() != dockwellv1.BackupState_BACKUP_STATE_DONE {
+			t.Fatalf("backup ended: %v", got)
+		}
+		after := e.Container(name)
+		if after == nil || after.ID != before.ID || after.State.Running || after.HostConfig.RestartPolicy.Name != "no" || !after.State.StartedAt.Equal(before.State.StartedAt) {
+			t.Fatal("backup cleanup brought the stopped workload back")
+		}
+	})
+}
+
+func applyStoppedWorkload(t *testing.T, c dockwellv1connect.ChangeServiceClient, ref *dockwellv1.ResourceRef) {
+	t.Helper()
+	if done := apply(t, c, propose(t, c, "Stop workload", stopWorkloadEdit(ref))); done.GetState() != dockwellv1.ChangeState_CHANGE_STATE_APPLIED {
+		t.Fatalf("stop ended: %v", done.GetError())
 	}
 }
 

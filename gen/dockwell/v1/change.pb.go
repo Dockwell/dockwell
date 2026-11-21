@@ -1815,7 +1815,9 @@ type Edit struct {
 	// that names the options.
 	Resource *ResourceRef `protobuf:"bytes,1,opt,name=resource,proto3" json:"resource,omitempty"`
 	// What the resource should be. Every field is set as given: an edit
-	// replaces the whole spec. Unset only with delete.
+	// replaces the whole spec. Unset only with delete. A Container or Service
+	// app containing only desired_run_state keeps the current spec and applies
+	// that run intent at the supplied base_revision. It takes no placement.
 	Spec *v1alpha1.Spec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Deletes the resource. An environment goes only once what lives in it has
 	// gone, in this change or an earlier one. A project takes its environments
@@ -3073,7 +3075,11 @@ type RestartServiceRequest struct {
 	// environments.
 	Environment string `protobuf:"bytes,3,opt,name=environment,proto3" json:"environment,omitempty"`
 	// What the restart is for, for the timeline. Empty says what it restarts.
-	Summary       string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,4,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Together these scope the restart to one existing managed instance.
+	// With both set, id may also be the managed resource ID of a server container.
+	ServerId      string `protobuf:"bytes,400,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	ContainerId   string `protobuf:"bytes,401,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3132,6 +3138,20 @@ func (x *RestartServiceRequest) GetEnvironment() string {
 func (x *RestartServiceRequest) GetSummary() string {
 	if x != nil {
 		return x.Summary
+	}
+	return ""
+}
+
+func (x *RestartServiceRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *RestartServiceRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
 	}
 	return ""
 }
@@ -10567,12 +10587,14 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x14DiscardChangeRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"D\n" +
 	"\x15DiscardChangeResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"}\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xbf\x01\n" +
 	"\x15RestartServiceRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x03 \x01(\tR\venvironment\x12\x18\n" +
-	"\asummary\x18\x04 \x01(\tR\asummary\"E\n" +
+	"\asummary\x18\x04 \x01(\tR\asummary\x12\x1c\n" +
+	"\tserver_id\x18\x90\x03 \x01(\tR\bserverId\x12\"\n" +
+	"\fcontainer_id\x18\x91\x03 \x01(\tR\vcontainerId\"E\n" +
 	"\x16RestartServiceResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9a\x01\n" +
 	"\fFleetRollout\x12\x1b\n" +

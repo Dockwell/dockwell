@@ -2,7 +2,7 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { readLogsSearch } from "../../features/logs/LogsPage";
+import { readLogsSearch } from "../../features/logs/search";
 import { ContainerPage } from "../../features/servers/ContainerPage";
 
 /** A container Dockwell didn't make, with what it prints: its view of the logs is in its URL, as an app's is. */

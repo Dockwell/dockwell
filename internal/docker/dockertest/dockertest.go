@@ -1025,6 +1025,11 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			close(c.started)
 		}
 		w.WriteHeader(http.StatusNoContent)
+	case r.Method == http.MethodPost && action == "restart":
+		c.log.end()
+		e.emit(c, "stop", "die")
+		c.State.Running = false
+		e.serveContainers(w, r, []string{c.ID, "start"})
 	case r.Method == http.MethodPost && action == "stop":
 		if !c.State.Running {
 			w.WriteHeader(http.StatusNotModified)
@@ -1076,6 +1081,9 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			e.emit(c, "health_status: "+status)
 		}
 		c.State.Health = h
+		w.WriteHeader(http.StatusNoContent)
+	case r.Method == http.MethodPost && action == "x-dockwell-restarting":
+		e.restarting(c, 1)
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "rename":
 		name := r.URL.Query().Get("name")
@@ -2268,9 +2276,15 @@ func (e *Engine) SetRestarting(name string, exitCode int) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if c := e.byNameOrID(name); c != nil {
-		c.State = docker.State{Status: "restarting", Restarting: true, ExitCode: exitCode}
-		c.RestartCount++
+		e.restarting(c, exitCode)
 	}
+}
+
+func (e *Engine) restarting(c *container, exitCode int) {
+	c.State = docker.State{Status: "restarting", Restarting: true, ExitCode: exitCode, StartedAt: c.State.StartedAt}
+	c.RestartCount++
+	c.log.end()
+	e.emit(c, "die")
 }
 
 // Stop stops a container behind Dockwell's back.

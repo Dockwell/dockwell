@@ -2,7 +2,7 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { type LogsSearch, readLogsSearch } from "../../features/logs/LogsPage";
+import { type LogsSearch, readLogsSearch } from "../../features/logs/search";
 import { WebsiteLogs, type Which } from "../../features/websites/WebsiteLogs";
 
 type WebsiteLogsSearch = LogsSearch & { which?: Which };

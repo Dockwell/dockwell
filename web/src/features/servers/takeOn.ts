@@ -15,7 +15,10 @@ import { labelFor, serviceNameFor } from "./containers";
  * joins it; otherwise it goes to the install's default environment. Once it's applied, the app's
  * page opens.
  */
-type TakeOnContainer = Pick<ServerContainer, "name" | "composeService" | "composeProject"> & { engineId?: string };
+type TakeOnContainer = Pick<ServerContainer, "name" | "composeService" | "composeProject"> & {
+  engineId?: string;
+  id?: string;
+};
 
 export function useTakeOn(serverId: string) {
   const transport = useTransport();
@@ -30,12 +33,14 @@ export function useTakeOn(serverId: string) {
     return joins?.id || places.defaultEnvironment?.id || "";
   };
 
-  const take = (container: TakeOnContainer, service = serviceNameFor(container), environment = "") =>
+  const take = (container: TakeOnContainer, service = serviceNameFor(container), environment = "") => {
+    const expectedContainerId = container.engineId || container.id;
     sheet.open({
       kind: "plan",
       make: () =>
         createClient(ContainerService, transport).adoptContainer({
-          id: container.engineId || container.name,
+          id: container.name,
+          ...(expectedContainerId ? { expectedContainerId } : {}),
           server: serverId,
           service,
           environment: environment || environmentFor(container),
@@ -47,6 +52,7 @@ export function useTakeOn(serverId: string) {
         }
       },
     });
+  };
 
   return { take, environmentFor };
 }

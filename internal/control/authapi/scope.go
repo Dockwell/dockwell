@@ -41,6 +41,7 @@ var notObjects = map[string]bool{"actor_id": true, "ceremony_id": true, "session
 // install's database, kept on a server another project may run, taken for the
 // install's link (ADR 0084).
 var boundToID = map[string]map[string]bool{
+	dockwellv1connect.ChangeServiceRestartServiceProcedure:      {"server_id": true, "container_id": true},
 	dockwellv1connect.CatalogServiceRestoreCatalogNeedProcedure: {"backup_id": true},
 }
 

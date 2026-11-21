@@ -192,6 +192,15 @@ func (d *Docker) matches(ctx context.Context, t Target, c *docker.Container, spe
 		return false, err
 	}
 	Normalize(got)
+	if c.State.Status == neverStarted && spec.GetDesiredRunState() == running {
+		record, err := d.runRecord(c.ID)
+		if err != nil {
+			return false, err
+		}
+		if record.State == running {
+			got.DesiredRunState = running
+		}
+	}
 	leaveOutValues(got, spec)
 	return resource.Equal(got, spec), nil
 }
@@ -551,6 +560,11 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 		return err
 	}
 	dec.Rollout = p
+	if IsStopped(desired) {
+		p.Rolling = false
+		dec.Effect, dec.Downtime, dec.UntilHealthy = resource.EffectRecreate, 0, 0
+		return nil
+	}
 	img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
 	switch {
 	case err == nil:
@@ -632,8 +646,18 @@ const neverStarted = "created"
 // starts it: Docker's restart policy passes over what never ran. One someone stopped
 // by hand has run, and that isn't drift (ADR 0021): it stays stopped. One a rollout
 // marked isn't one a person stopped: the step that marked it didn't get to the end.
-func unfinished(all []*instance) bool {
-	return len(all) > 1 || len(all) == 1 && (all[0].temp || all[0].stopping || all[0].State.Status == neverStarted)
+func (d *Docker) unfinished(all []*instance, desired *resourcev1.Container) bool {
+	switch {
+	case len(all) == 0:
+		return false
+	case len(all) > 1 || all[0].temp || all[0].stopping:
+		return true
+	case all[0].State.Status != neverStarted || IsStopped(desired):
+		return false
+	default:
+		record, _ := d.runRecord(all[0].ID)
+		return record.State != stopped
+	}
 }
 
 // Left says what is left of a service that reads back as its spec: another
@@ -647,7 +671,7 @@ func (d *Docker) Left(ctx context.Context, t Target, desired *resourcev1.Contain
 	if err != nil {
 		return resource.Decision{}, false, err
 	}
-	if keep != nil && !unfinished(all) {
+	if keep != nil && !d.unfinished(all, desired) {
 		return resource.Decision{}, false, nil
 	}
 	dec := resource.Decision{}
@@ -681,7 +705,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	}
 	// One that's stuck restarting or paused reads as running, and doesn't serve, and
 	// nothing short of a new one puts that right.
-	if keep != nil && stuck(keep) {
+	if !IsStopped(spec) && keep != nil && stuck(keep) {
 		others, keep = withNewestFirst(others, keep), nil
 	}
 	// A tag that moved names a new image, and a container of its old one still reads
@@ -695,6 +719,9 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 		case err != nil && !docker.IsNotFound(err):
 			return err
 		}
+	}
+	if IsStopped(spec) {
+		return d.stopFirst(ctx, t, spec, dec, keep, others)
 	}
 	plan, err := d.decide(ctx, t, spec, keep, others)
 	if err != nil {
@@ -716,7 +743,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	// What isn't running and is already what's asked for only has to start, as under
 	// docker compose up, so what it wrote stays. Its plan can't say that, as a pull may
 	// yet find something newer, so the step says what it did.
-	startsOnly := keep != nil && !unfinished(all) && dec.Restart == "" && notRunning(keep.Container) != ""
+	startsOnly := keep != nil && !d.unfinished(all, spec) && dec.Restart == "" && notRunning(keep.Container) != ""
 	if plan.Rolling {
 		err = d.startFirst(ctx, t, spec, dec, keep, others, plan)
 	} else {
@@ -772,7 +799,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 	// What a rollout that stopped partway was stopping is what this one wants: it
 	// has to finish stopping before it can start, or it could stop under what
 	// comes to depend on it.
-	if keep != nil && keep.stopping {
+	if keep != nil && keep.stopping && !IsStopped(spec) {
 		if err := d.bringBack(ctx, t, keep, dec.PlannedLeads); err != nil {
 			return err
 		}
@@ -959,7 +986,18 @@ func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(
 	defer cancel()
 	// What this step made hasn't run, and has nothing to say a mark doesn't.
 	_ = made(nil)
-	if err := d.bringBack(ctx, t, o, planned); err != nil {
+	leftStopped := false
+	err := d.WithRunIntent(o.ID, func(stopped bool) error {
+		leftStopped = stopped
+		if stopped {
+			return nil
+		}
+		return d.bringBack(ctx, t, o, planned)
+	})
+	if leftStopped {
+		return cause
+	}
+	if err != nil {
 		// docker start would follow the link, and what moved says what to do.
 		if moved := (*PathMovedError)(nil); errors.As(err, &moved) {
 			return fmt.Errorf("%w. The old %s had begun to stop, and can't be started again, so nothing of it may be running: %w", cause, t.Service, err)
@@ -1019,7 +1057,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		id, name = keep.ID, keep.name()
 		// Here, while what runs goes on running, and again right before it starts:
 		// bringBack checks for itself.
-		if !keep.State.Running && !keep.stopping {
+		if !IsStopped(spec) && !keep.State.Running && !keep.stopping {
 			if err := d.startsAsPlanned(ctx, t, spec, dec, keep.ID); err != nil {
 				return err
 			}
@@ -1035,7 +1073,10 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 				return err
 			}
 			if left != nil {
-				_ = d.Client.RemoveContainer(ctx, left.ID, true) // a try that failed before
+				if err := d.Client.RemoveContainer(ctx, left.ID, true); err != nil && !docker.IsNotFound(err) {
+					return err
+				}
+				d.forgetRun(left.ID)
 				others = slices.DeleteFunc(others, func(o *instance) bool { return o.ID == left.ID })
 			}
 		}
@@ -1047,7 +1088,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	d.Points.Reach(PointSwapReady)
 	// What ran can go back only while nothing that ran has gone, and the new one
 	// hasn't started.
-	canGoBack := keep == nil || !keep.State.Running
+	canGoBack := !IsStopped(spec) && (keep == nil || !keep.State.Running)
 	for _, o := range others {
 		if o.ID == id {
 			continue
@@ -1080,6 +1121,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			return err
 		}
 		canGoBack = canGoBack && !ran
+		d.forgetRun(o.ID)
 		d.keep(t, covered(o.Container, spec))
 	}
 	d.Points.Reach(PointSwapGone)
@@ -1089,7 +1131,7 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 	defer cancel()
 	// What this step keeps is what a rollout that stopped partway marked: Docker
 	// may still be stopping it.
-	if keep != nil && keep.stopping {
+	if keep != nil && keep.stopping && !IsStopped(spec) {
 		if err := d.bringBack(ctx, t, keep, dec.PlannedLeads); err != nil {
 			return err
 		}
@@ -1101,6 +1143,12 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		}
 	}
 	d.Points.Reach(PointSwapNamed)
+	if IsStopped(spec) {
+		if keep != nil {
+			return d.updateRun(ctx, t, keep, spec, dec)
+		}
+		return nil
+	}
 	if keep == nil || !keep.State.Running {
 		// Again, after the stop grace: a link can come between.
 		if err := d.startsAsPlanned(ctx, t, spec, dec, id); err != nil {
@@ -1195,6 +1243,12 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		d.discard(ctx, id, name)
 		undo()
 		return err
+	}
+	if want := spec.GetDesiredRunState(); want != 0 {
+		record := runRecord{State: want, Policy: spec.GetRestart(), Retries: spec.GetRestartRetries()}
+		if err := d.rememberRun(id, record); err != nil {
+			return "", nil, discard(err)
+		}
 	}
 	// Docker gave each new volume the owner of the image's folder as it made the
 	// container, so its owner comes now, before anything runs.

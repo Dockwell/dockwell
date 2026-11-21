@@ -1149,3 +1149,33 @@ func (t *Tx) PageRevisions(ctx context.Context, resourceID string, before, limit
 	}
 	return out, rows.Err()
 }
+
+// PlacedAdoptions maps original Engine IDs to resources still placed on the
+// server. A deleted revision ends the adoption, even if its resource is later
+// recreated under the same name. Callers match these IDs against a current
+// Engine read.
+func (t *Tx) PlacedAdoptions(ctx context.Context, server string) (map[string]string, error) {
+	rows, err := t.query(ctx, `SELECT a.adopts, r.id
+		FROM deployments d
+		JOIN resources r ON r.id = d.resource_id AND r.revision = d.revision
+		JOIN change_items a ON a.resource_id = r.id AND a.adopts <> ''
+		JOIN revisions v ON v.resource_id = r.id AND v.change_id = a.change_id
+		JOIN deployments original ON original.resource_id = r.id AND original.revision = v.number AND original.server_id = d.server_id
+		JOIN changes c ON c.id = a.change_id
+		WHERE d.server_id = ? AND c.state = ?
+		  AND NOT EXISTS (SELECT 1 FROM revisions gone WHERE gone.resource_id = r.id AND gone.number > v.number AND gone.spec IS NULL)
+		ORDER BY v.number`, server, ChangeApplied)
+	if err != nil {
+		return nil, fmt.Errorf("can't read placed container adoptions: %w", err)
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var containerID, resourceID string
+		if err := rows.Scan(&containerID, &resourceID); err != nil {
+			return nil, err
+		}
+		out[containerID] = resourceID
+	}
+	return out, rows.Err()
+}

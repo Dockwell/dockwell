@@ -10,16 +10,14 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 )
 
-// Every field a container took on from devices on, and a health check from
-// start_interval on, is one an agent before Hello.runs_host_access drops without a
-// word, so the one gate the control plane asks names each: a field added here and
-// not there fails this (the review of ADR 0097, L8).
+// The host-access block and the health check's start_interval are guarded by
+// Hello.runs_host_access. The Docker workload block has its own capability.
 func TestTheHostAccessGateNamesEveryNewField(t *testing.T) {
-	check := func(m protoreflect.Message, from protoreflect.FieldNumber, wrap func(protoreflect.Message) *resourcev1.Container) {
+	check := func(m protoreflect.Message, from, through protoreflect.FieldNumber, wrap func(protoreflect.Message) *resourcev1.Container) {
 		fields := m.Descriptor().Fields()
 		for i := range fields.Len() {
 			fd := fields.Get(i)
-			if fd.Number() < from {
+			if fd.Number() < from || fd.Number() > through {
 				continue
 			}
 			msg := m.New()
@@ -29,10 +27,10 @@ func TestTheHostAccessGateNamesEveryNewField(t *testing.T) {
 			}
 		}
 	}
-	check((&resourcev1.Container{}).ProtoReflect(), 101, func(m protoreflect.Message) *resourcev1.Container {
+	check((&resourcev1.Container{}).ProtoReflect(), 101, 109, func(m protoreflect.Message) *resourcev1.Container {
 		return m.Interface().(*resourcev1.Container)
 	})
-	check((&resourcev1.Healthcheck{}).ProtoReflect(), 8, func(m protoreflect.Message) *resourcev1.Container {
+	check((&resourcev1.Healthcheck{}).ProtoReflect(), 8, 8, func(m protoreflect.Message) *resourcev1.Container {
 		return &resourcev1.Container{Healthcheck: m.Interface().(*resourcev1.Healthcheck)}
 	})
 }

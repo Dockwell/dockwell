@@ -563,6 +563,17 @@ func (c *Client) StartContainer(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/start", nil, nil, nil)
 }
 
+// UnpauseContainer allows Docker to send the stop signal to a paused instance.
+func (c *Client) UnpauseContainer(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/unpause", nil, nil, nil)
+}
+
+// RestartContainer restarts an existing container, keeping its identity and files.
+func (c *Client) RestartContainer(ctx context.Context, id string, timeout time.Duration) error {
+	q := url.Values{"t": {strconv.Itoa(int(timeout / time.Second))}}
+	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/restart", q, nil, nil)
+}
+
 // StopContainer stops a container, killing it after timeout; one already
 // stopped is left be.
 func (c *Client) StopContainer(ctx context.Context, id string, timeout time.Duration) error {

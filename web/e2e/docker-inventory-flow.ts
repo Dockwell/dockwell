@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { Page } from "playwright-core";
+import type { Page, Request, Route } from "playwright-core";
 
 import { dockerHealth, dockerRemove, dockerRun } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
@@ -21,8 +21,8 @@ async function assertLayouts(page: Page, title: string, check?: () => Promise<vo
     await page.emulateMedia({ colorScheme });
     for (const width of [1440, 1024, 390, 320]) {
       await atWidth(page, { width, height: 900 });
-      await assertFits(page, `${title} at ${width} ${colorScheme}`);
       await check?.();
+      await assertFits(page, `${title} at ${width} ${colorScheme}`);
     }
   }
   await page.emulateMedia({ colorScheme: "light" });
@@ -41,8 +41,12 @@ async function assertActiveTab(page: Page, name: "Overview" | "Containers") {
 }
 
 async function assertImageClips(page: Page) {
-  const image = page.getByTitle(longImage, { exact: true });
+  const cards = (page.viewportSize()?.width ?? 1440) <= 1150;
+  // The shell can finish resizing before the inventory's media query swaps
+  // the table for cards. Measure the image in the layout this width uses.
+  const image = page.locator(cards ? ".docker-card-list" : ".docker-table").getByTitle(longImage, { exact: true });
   await image.waitFor();
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
   const clips = await image.evaluate((element) => {
     const style = getComputedStyle(element);
     const cell = element.closest("td, li");
@@ -64,6 +68,56 @@ async function assertImageClips(page: Page) {
     }),
   );
   if (escaped) throw new Error("a Docker table cell crosses into another column");
+}
+
+// Hold a new query open while the same container still belongs to its
+// selection. The browser must keep the exact link node and its focus.
+async function assertRowRetained(page: Page) {
+  const row = page.getByRole("link", { name, exact: true });
+  const search = page.getByRole("textbox", { name: "Search containers" });
+  const old = await row.elementHandle();
+  const request = "**/dockwell.v1.DockerService/ListDockerObjects*";
+  const filtered = "inventory-exampl";
+  const comesFromFilter = (query: Request) => {
+    const url = new URL(query.url());
+    const message = url.searchParams.get("message");
+    const body = message
+      ? Buffer.from(message, url.searchParams.get("base64") === "1" ? "base64url" : "utf8")
+      : query.postDataBuffer();
+    return (
+      url.pathname.endsWith("/dockwell.v1.DockerService/ListDockerObjects") &&
+      !!body?.includes(filtered) &&
+      !body.includes(name)
+    );
+  };
+  let release: () => void = () => {};
+  let forwarded: Promise<void> | undefined;
+  const resume = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const intercept = (route: Route) => {
+    if (forwarded || !comesFromFilter(route.request())) return route.continue();
+    forwarded = resume.then(() => route.continue());
+    return forwarded;
+  };
+  await page.route(request, intercept);
+  try {
+    const arrived = page.waitForRequest(comesFromFilter, { timeout: 5_000 });
+    await search.fill(filtered);
+    await row.focus();
+    await arrived;
+    await page.evaluate(
+      () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+    );
+    if (!(await old?.evaluate((link) => link.isConnected && document.activeElement === link))) {
+      throw new Error("the inventory replaced a focused row while a matching filter loaded");
+    }
+  } finally {
+    release();
+    await forwarded;
+    await page.unroute(request, intercept);
+    await old?.dispose();
+  }
 }
 
 export const flow: Flow = {
@@ -120,6 +174,9 @@ export const flow: Flow = {
       await page.getByRole("row").filter({ has: row }).getByText("5 MB", { exact: false }).waitFor({ timeout: 20_000 });
 
       await assertLayouts(page, "container inventory");
+      await row.waitFor();
+      step("docker inventory: a focused row stays in place while a matching filter loads");
+      await assertRowRetained(page);
       await search.fill("");
       await page.getByRole("radio", { name: "All", exact: true }).click();
       await row.waitFor();
@@ -130,6 +187,8 @@ export const flow: Flow = {
       await page.keyboard.press("Escape");
       await row.click();
       await page.getByRole("region", { name: "Lifecycle" }).waitFor();
+      await page.getByRole("button", { name: "Take on", exact: true }).waitFor();
+      await page.getByRole("link", { name: `Terminal for ${name}` }).waitFor();
       if (!page.url().includes(id)) throw new Error("container URL doesn't contain its full ID");
       await page.getByText("5 MB", { exact: true }).waitFor({ timeout: 20_000 });
       await assertLayouts(page, "docker summary");

@@ -8,6 +8,8 @@ import { InstallSheet } from "../../features/catalog/InstallSheet";
 
 interface NewAppSearch {
   /** Where the app comes from: the catalog unless it says otherwise (#617). */
+  server?: string;
+  advanced?: boolean;
   source?: "git" | "image" | "compose" | "folder";
   /** For a folder: the language and version a runtime's card asked for. */
   language?: string;
@@ -22,9 +24,13 @@ const text = (value: unknown): string | undefined => (typeof value === "string" 
 /** New app: its sheet over the list, as Apps-New draws it, at an address of its own. */
 export const Route = createFileRoute("/_shell/apps/new")({
   validateSearch: (search: Record<string, unknown>): NewAppSearch => {
-    if (search["source"] === "compose") return { source: "compose" };
-    if (search["source"] === "git") return { source: "git" };
-    if (search["source"] === "image") return { source: "image" };
+    const server = text(search["server"]);
+    const selection = server ? { server } : {};
+    if (search["source"] === "compose") return { source: "compose", ...selection };
+    if (search["source"] === "git") return { source: "git", ...selection };
+    if (search["source"] === "image") {
+      return { source: "image", ...selection, ...(search["advanced"] === true ? { advanced: true } : {}) };
+    }
     if (search["source"] === "folder") {
       const language = text(search["language"]);
       const version = search["version"];
@@ -39,16 +45,25 @@ export const Route = createFileRoute("/_shell/apps/new")({
     return { ...(q ? { q } : {}), ...(entry ? { entry } : {}) };
   },
   component: function NewApp() {
-    const { source, language, version, q, entry } = Route.useSearch();
+    const { source, language, version, q, entry, server, advanced } = Route.useSearch();
     const navigate = useNavigate();
     const onSource = (next: NewAppSource) =>
-      void navigate({ to: "/apps/new", search: next === "catalog" ? {} : { source: next }, replace: true });
-    const onClose = () => void navigate({ to: "/apps" });
+      void navigate({
+        to: "/apps/new",
+        search: next === "catalog" ? {} : { source: next, ...(server ? { server } : {}) },
+        replace: true,
+      });
+    const onClose = () =>
+      void (server
+        ? navigate({ to: "/servers/$serverId/docker/containers", params: { serverId: server } })
+        : navigate({ to: "/apps" }));
     return (
       <AppsPage>
         {source ? (
           <NewAppSheet
             source={source}
+            initialServer={server}
+            initialAdvanced={advanced}
             runtime={language ? { language, version } : undefined}
             onSource={onSource}
             onClose={onClose}

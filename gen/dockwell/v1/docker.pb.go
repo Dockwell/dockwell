@@ -303,6 +303,8 @@ type DockerObject struct {
 	ManagedResource   *ResourceRef           `protobuf:"bytes,5,opt,name=managed_resource,json=managedResource,proto3" json:"managed_resource,omitempty"`
 	State             ContainerState         `protobuf:"varint,6,opt,name=state,proto3,enum=dockwell.v1.ContainerState" json:"state,omitempty"`
 	ManagedResourceId string                 `protobuf:"bytes,7,opt,name=managed_resource_id,json=managedResourceId,proto3" json:"managed_resource_id,omitempty"`
+	// The managed revision used when planning a run-state change.
+	ManagedRevision int64 `protobuf:"varint,8,opt,name=managed_revision,json=managedRevision,proto3" json:"managed_revision,omitempty"`
 	// Types that are valid to be assigned to Detail:
 	//
 	//	*DockerObject_Container
@@ -388,6 +390,13 @@ func (x *DockerObject) GetManagedResourceId() string {
 		return x.ManagedResourceId
 	}
 	return ""
+}
+
+func (x *DockerObject) GetManagedRevision() int64 {
+	if x != nil {
+		return x.ManagedRevision
+	}
+	return 0
 }
 
 func (x *DockerObject) GetDetail() isDockerObject_Detail {
@@ -1750,7 +1759,7 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"\x0fDockerObjectKey\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x121\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x1d.dockwell.v1.DockerObjectKindR\x04kind\x12\x1b\n" +
-	"\tengine_id\x18\x03 \x01(\tR\bengineId\"\xbb\x03\n" +
+	"\tengine_id\x18\x03 \x01(\tR\bengineId\"\xe6\x03\n" +
 	"\fDockerObject\x12.\n" +
 	"\x03key\x18\x01 \x01(\v2\x1c.dockwell.v1.DockerObjectKeyR\x03key\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12:\n" +
@@ -1759,7 +1768,8 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"observedAt\x12C\n" +
 	"\x10managed_resource\x18\x05 \x01(\v2\x18.dockwell.v1.ResourceRefR\x0fmanagedResource\x121\n" +
 	"\x05state\x18\x06 \x01(\x0e2\x1b.dockwell.v1.ContainerStateR\x05state\x12.\n" +
-	"\x13managed_resource_id\x18\a \x01(\tR\x11managedResourceId\x12<\n" +
+	"\x13managed_resource_id\x18\a \x01(\tR\x11managedResourceId\x12)\n" +
+	"\x10managed_revision\x18\b \x01(\x03R\x0fmanagedRevision\x12<\n" +
 	"\tcontainer\x18\n" +
 	" \x01(\v2\x1c.dockwell.v1.DockerContainerH\x00R\tcontainerB\b\n" +
 	"\x06detail\"\xa8\b\n" +

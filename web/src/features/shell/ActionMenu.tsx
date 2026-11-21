@@ -39,12 +39,14 @@ export function ActionMenu({
   actions,
   icon = "more",
   className,
+  text,
 }: {
   /** What the button is called for a screen reader, such as "Actions for git.example.com". */
   label: string;
   actions: readonly MenuAction[];
   icon?: IconName;
   className?: string;
+  text?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
@@ -166,16 +168,18 @@ export function ActionMenu({
   return (
     <span className={cx("action-menu-anchor", className)} ref={root}>
       <Button
-        variant="ghost"
+        variant={text ? "secondary" : "ghost"}
         size="sm"
         icon={icon}
-        className="action-menu-button"
+        className={text ? undefined : "action-menu-button"}
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => setOpen(!open)}
-      />
+      >
+        {text}
+      </Button>
       {open ? (
         <div
           id={id}

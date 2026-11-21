@@ -121,6 +121,8 @@ type Config struct {
 	SSHSessions func(ctx context.Context) []string
 	// Docker lists this server's containers. Nil lists none.
 	Docker *docker.Client
+	// PruneRunState forgets saved intent for containers Docker has removed.
+	PruneRunState func(context.Context) error
 	// Probes checks a connection from where an app is (ADR 0099). Nil checks none.
 	Probes *probe.Runner
 	// Tunnels finds the Cloudflare tunnels cloudflared runs here (ADR 0104). Nil
@@ -691,7 +693,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, WorkloadControls: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

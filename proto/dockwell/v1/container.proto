@@ -75,6 +75,8 @@ message AdoptContainerRequest {
   // which anyone can guess (ADR 0096). Without it, such a container is refused,
   // saying so.
   bool guessable_password = 7;
+  // If set, the reviewed container must still have this full Engine ID.
+  string expected_container_id = 400;
 }
 
 // AdoptContainerResponse carries the plan.

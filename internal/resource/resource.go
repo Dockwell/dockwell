@@ -2027,9 +2027,18 @@ type HostAccesser interface {
 	HostAccess(spec proto.Message) []Access
 }
 
+// InstanceRestarter plans and applies a restart pinned to a single container.
+type InstanceRestarter interface {
+	PlanRestart(context.Context, Ref, proto.Message, string, string) (Decision, error)
+	ApplyRestart(context.Context, Ref, proto.Message, string, string) error
+}
+
 // Step is what applying a change does to one resource.
 type Step struct {
-	Ref Ref
+	ExactRestart string `json:",omitempty"`
+	// NeedsRunControl gates apply and stream replacement on the control plane.
+	NeedsRunControl bool `json:",omitempty"`
+	Ref             Ref
 	Decision
 	// Changes are the fields that differ between what the server has and
 	// what is desired.

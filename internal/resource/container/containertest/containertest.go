@@ -98,14 +98,14 @@ func (f *Fake) Left(_ context.Context, t container.Target, _ *resourcev1.Contain
 }
 
 // Update changes the restart policy and the limits in place.
-func (f *Fake) Update(_ context.Context, t container.Target, spec *resourcev1.Container) error {
+func (f *Fake) Update(_ context.Context, t container.Target, spec *resourcev1.Container, _ resource.Decision) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c, ok := f.containers[key(t)]
 	if !ok {
 		return fmt.Errorf("no container %s", t.Name)
 	}
-	c.Restart, c.RestartRetries = spec.GetRestart(), spec.GetRestartRetries()
+	c.Restart, c.RestartRetries, c.DesiredRunState = spec.GetRestart(), spec.GetRestartRetries(), spec.GetDesiredRunState()
 	c.Resources = proto.CloneOf(spec.GetResources())
 	return nil
 }

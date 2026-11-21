@@ -185,6 +185,15 @@ message Container {
   // names it: a name another container there linked to it by (ADR 0089). On a
   // container with one network, it's the same as aliases, and reads as that.
   repeated string network_aliases = 106;
+  // The workload's durable run intent. Unspecified preserves legacy behavior.
+  DesiredRunState desired_run_state = 400;
+}
+
+// DesiredRunState is the state requested in a workload's revision.
+enum DesiredRunState {
+  DESIRED_RUN_STATE_UNSPECIFIED = 0;
+  DESIRED_RUN_STATE_RUNNING = 1;
+  DESIRED_RUN_STATE_STOPPED = 2;
 }
 
 // Device is a device of the server a container reaches.

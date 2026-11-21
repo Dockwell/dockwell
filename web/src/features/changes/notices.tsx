@@ -1002,6 +1002,34 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     switch (note.reason) {
       case "managed_elsewhere":
         return managed(note, key);
+      case "workload_stops":
+        return {
+          key,
+          title: t`Stops on every placed server`,
+          detail: t`Health checks pause. Routes lose their backend. Apps that use this workload may lose access.`,
+        };
+      case "workload_starts":
+        return {
+          key,
+          title: t`Starts on every placed server`,
+          detail: t`Health checks resume and routes can serve the workload again. Dependent apps keep running.`,
+        };
+      case "workload_routes":
+        return { key, title: t`Routes`, detail: list(note.names) };
+      case "workload_dependants":
+        return { key, title: t`Dependency links`, detail: list(note.names) };
+      case "restore_stopped_database": {
+        const database = note.names[0] ?? "";
+        return { key, title: t`${database} runs only while the dump loads, then stops again.` };
+      }
+      case "restart_instance": {
+        const id = note.names[0] ?? "";
+        return {
+          key,
+          title: t`Restarts only container ${id} on this server`,
+          detail: t`Keeps its identity and files.`,
+        };
+      }
       case "shares_a_name": {
         const [shared = "", network = "", ...others] = note.names;
         const also = others.join(", ");

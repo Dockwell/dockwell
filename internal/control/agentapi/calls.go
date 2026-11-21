@@ -1343,7 +1343,11 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
-		dr, err := desiredProto(d.Ref, s.agents.kinds.OnServer(d.Ref.Kind, d.Spec))
+		spec := s.agents.kinds.OnServer(d.Ref.Kind, d.Spec)
+		if d.ExactRestart != "" {
+			spec = nil
+		}
+		dr, err := desiredProto(d.Ref, spec)
 		if err != nil {
 			return nil, err
 		}
@@ -1353,7 +1357,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			logins[i] = a
 		}
 		dr.Pull, dr.Run = d.Pull, d.Run
-		dr.Restart = d.Restart
+		dr.Restart, dr.ExactRestartId = d.Restart, d.ExactRestart
 		dr.Rollback = d.Rollback
 		dr.Adopt = d.Adopt
 		if r := d.Restore; r != nil {
@@ -1405,8 +1409,14 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		call.Desired = append(call.Desired, dr)
 	}
 	var seal func(*Session) error
-	if len(logins) > 0 {
+	workload := slices.ContainsFunc(desired, func(d resource.Desired) bool {
+		return d.NeedsRunControl || resource.RunIntent(d.Spec) != 0 || d.ExactRestart != ""
+	})
+	if workload || len(logins) > 0 {
 		seal = func(on *Session) error {
+			if workload && !on.dockerCapabilities.GetWorkloadControls() {
+				return on.workloadControlsError()
+			}
 			for i, a := range logins {
 				sealed, err := on.sealLogin(desired[i].Ref, a)
 				if err != nil {
@@ -1490,6 +1500,10 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 // that stream, can open. A step sent again on the agent's next stream, as
 // when it moves to a renewed certificate, is sealed again for that one.
 func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
+	workload := step.NeedsRunControl || step.ChangesRunIntent() || step.ExactRestart != "" || resource.RunIntent(desired) != 0
+	if workload && !s.DockerWorkloadControls() {
+		return s.workloadControlsError()
+	}
 	if err := s.supports(step.Ref); err != nil {
 		return err
 	}
@@ -1523,10 +1537,15 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if err := s.checkReads(ctx, []resource.Ref{step.Ref}); err != nil {
 		return err
 	}
+	if step.ExactRestart != "" {
+		// The agent already has the instance. The call needs only its identity.
+		desired = nil
+	}
 	dr, err := desiredProto(step.Ref, s.agents.kinds.OnServer(step.Ref.Kind, desired))
 	if err != nil {
 		return err
 	}
+	dr.ExactRestartId = step.ExactRestart
 	dr.ScopeName = s.scopeName(ctx, step.Ref)
 	// A restore into a new database reads its backup from the volume the change
 	// names, which the step's plan doesn't carry (ADR 0106).
@@ -1572,8 +1591,11 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
+	if workload || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
 		seal = func(on *Session) error {
+			if workload && !on.dockerCapabilities.GetWorkloadControls() {
+				return on.workloadControlsError()
+			}
 			if uses {
 				sealed, err := on.seal(step.Ref, values)
 				if err != nil {
@@ -1657,6 +1679,9 @@ func (s *Session) Holds() (held map[resource.Ref]int64, cache string, keeps bool
 // It changes nothing on the server. It says whether the agent kept it, which it
 // doesn't when it keeps a later revision.
 func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Message, revision int, change, imageDigest string) (bool, error) {
+	if err := s.checkWorkloadControls(spec, ""); err != nil {
+		return false, err
+	}
 	if err := s.supports(ref); err != nil {
 		return false, err
 	}
@@ -1695,8 +1720,11 @@ func (s *Session) Remember(ctx context.Context, ref resource.Ref, spec proto.Mes
 	defer clear(values)
 	call := &agentv1.RememberCall{Desired: dr, Deploy: &agentv1.Deploy{Revision: int64(revision), ChangeId: change}, ImageDigest: imageDigest}
 	var seal func(*Session) error
-	if uses {
+	if uses || resource.RunIntent(spec) != 0 {
 		seal = func(on *Session) error {
+			if err := on.checkWorkloadControls(spec, ""); err != nil || !uses {
+				return err
+			}
 			sealed, err := on.seal(ref, values)
 			call.Values = sealed
 			return err
@@ -1858,6 +1886,9 @@ func (s *Session) checkTakenWrites(ref resource.Ref, adopts string, spec proto.M
 // Its words name no route, as drift is listed to anyone who can read any project.
 func (s *Session) CheckRead(desired []resource.Desired) error {
 	for i := range desired {
+		if err := s.checkWorkloadControls(desired[i].Spec, ""); err != nil {
+			return err
+		}
 		if s.checkRedirect(desired[i].Spec) != nil {
 			return fmt.Errorf("%w: %s's agent is older than this release, so it can't serve a redirect that runs there. Update its agent, then check drift again",
 				resource.ErrAgentTooOld, s.name)
@@ -1894,6 +1925,12 @@ func (s *Session) checkRedirect(spec proto.Message) error {
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for di := range desired {
 		d := &desired[di]
+		if d.NeedsRunControl && !s.DockerWorkloadControls() {
+			return s.workloadControlsError()
+		}
+		if err := s.checkWorkloadControls(d.Spec, d.ExactRestart); err != nil {
+			return err
+		}
 		if err := s.checkWrites(d.Ref, d.Spec); err != nil {
 			return err
 		}
@@ -2562,4 +2599,16 @@ func (s *Session) sealing(volume *dockwellv1.ResourceRef, destination map[string
 func (s *Session) Forgotten(ctx context.Context, services []*agentv1.ForgottenService) error {
 	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Forgotten{Forgotten: &agentv1.ForgottenCall{Services: services}}}, ObserveTimeout, nil)
 	return err
+}
+
+// Old agents must never discard stop intent or perform a whole-workload restart.
+func (s *Session) checkWorkloadControls(spec proto.Message, exactRestart string) error {
+	if s.dockerCapabilities.GetWorkloadControls() || resource.RunIntent(spec) == 0 && exactRestart == "" {
+		return nil
+	}
+	return s.workloadControlsError()
+}
+
+func (s *Session) workloadControlsError() error {
+	return fmt.Errorf("%w: update the agent on %s to use managed Docker workload controls", resource.ErrAgentTooOld, s.name)
 }

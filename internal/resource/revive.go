@@ -6,6 +6,8 @@ import (
 	"context"
 
 	"google.golang.org/protobuf/proto"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 )
 
 // RunState is how a resource that runs something stands on its server, as an
@@ -101,4 +103,21 @@ func (l Local) Attacher(ref Ref) Attacher {
 	}
 	a, _ := d.(Attacher)
 	return a
+}
+
+// Workload returns the container spec a resource runs.
+func Workload(spec proto.Message) *resourcev1.Container {
+	switch s := spec.(type) {
+	case *resourcev1.Container:
+		return s
+	case *resourcev1.Service:
+		return s.GetApp()
+	default:
+		return nil
+	}
+}
+
+// RunIntent gets the desired state of a container or service.
+func RunIntent(spec proto.Message) resourcev1.DesiredRunState {
+	return Workload(spec).GetDesiredRunState()
 }

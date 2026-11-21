@@ -3316,6 +3316,12 @@ msgstr "Settings"
 msgid "Show the logs of {name}"
 msgstr "Show the logs of {name}"
 
+msgid "Start"
+msgstr "Start"
+
+msgid "Start {name}"
+msgstr "Start {name}"
+
 msgid "build cancelled {ago}"
 msgstr "build cancelled {ago}"
 
@@ -5296,6 +5302,9 @@ msgstr "Don't pass a secret there."
 msgid "Empty in the image"
 msgstr "Empty in the image"
 
+msgid "Enter zero or a whole number up to 4,294,967,295."
+msgstr "Enter zero or a whole number up to 4,294,967,295."
+
 msgid "Environment variables"
 msgstr "Environment variables"
 
@@ -5463,6 +5472,9 @@ msgstr "Remove what isn't in this file"
 msgid "Required"
 msgstr "Required"
 
+msgid "Restart retries"
+msgstr "Restart retries"
+
 msgid "Restarts on errors"
 msgstr "Restarts on errors"
 
@@ -5532,6 +5544,9 @@ msgstr "This file is too large to read"
 msgid "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 msgstr "This file is {kib} KiB, and Dockwell reads files of up to {limit} KiB. Leave out what Dockwell doesn't run, or import the services in more than one file."
 
+msgid "Unlimited"
+msgstr "Unlimited"
+
 msgid "Up to {cpus} CPUs"
 msgstr "Up to {cpus} CPUs"
 
@@ -5588,6 +5603,9 @@ msgstr "Write the {where} as a list to keep it hidden."
 
 msgid "You approve what it reaches in the plan"
 msgstr "You approve what it reaches in the plan"
+
+msgid "Zero allows unlimited retries."
+msgstr "Zero allows unlimited retries."
 
 msgid "command"
 msgstr "command"
@@ -6455,6 +6473,9 @@ msgstr "Rolling back after a failed deploy"
 msgid "Rolling back after a failed deploy failed too"
 msgstr "Rolling back after a failed deploy failed too"
 
+msgid "Started"
+msgstr "Started"
+
 msgid "Taking it off {left}"
 msgstr "Taking it off {left}"
 
@@ -6653,6 +6674,9 @@ msgstr "Not placed"
 msgid "Rollback failed"
 msgstr "Rollback failed"
 
+msgid "Run state"
+msgstr "Run state"
+
 msgid "Unless someone stops it"
 msgstr "Unless someone stops it"
 
@@ -6694,6 +6718,9 @@ msgstr "working directory"
 
 msgid "{servers} offline"
 msgstr "{servers} offline"
+
+msgid "Stop {name}"
+msgstr "Stop {name}"
 
 msgid "Accept an invite"
 msgstr "Accept an invite"
@@ -7737,9 +7764,6 @@ msgstr "Restore"
 
 msgid "Schedule"
 msgstr "Schedule"
-
-msgid "Started"
-msgstr "Started"
 
 msgid "Test restore"
 msgstr "Test restore"
@@ -9895,6 +9919,12 @@ msgstr "pulls with <0>{loginList}</0>"
 msgid "rolling, with nothing stopped"
 msgstr "rolling, with nothing stopped"
 
+msgid "starts and verifies health"
+msgstr "starts and verifies health"
+
+msgid "stays stopped until started"
+msgstr "stays stopped until started"
+
 #. placeholder {0}: going.length
 msgid "visitors lose {0} addresses"
 msgstr "visitors lose {0} addresses"
@@ -10688,9 +10718,6 @@ msgstr "Pull the image"
 msgid "Pulled of the image"
 msgstr "Pulled of the image"
 
-msgid "Start"
-msgstr "Start"
-
 msgid "To come"
 msgstr "To come"
 
@@ -11209,6 +11236,9 @@ msgstr "Deny everything else closes what no rule lets in on {0}"
 msgid "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 msgstr "Deny everything else drops the tunnel's next handshake, and SSH over it with it, though it passes the test while the tunnel is up."
 
+msgid "Dependency links"
+msgstr "Dependency links"
+
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
 
@@ -11256,6 +11286,12 @@ msgstr "For {what}."
 
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
+
+msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
+msgstr "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
+
+msgid "Health checks resume and routes can serve the workload again. Dependent apps keep running."
+msgstr "Health checks resume and routes can serve the workload again. Dependent apps keep running."
 
 msgid "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
 msgstr "If a backup fails, the upgrade stops there, with nothing else done. Undoing this puts the old version back, but not what the new one changed in its data: restore the backup for that."
@@ -11393,6 +11429,9 @@ msgstr "Its volumes are backed up first"
 msgid "Keep a rule that allows the tunnel's UDP port."
 msgstr "Keep a rule that allows the tunnel's UDP port."
 
+msgid "Keeps its identity and files."
+msgstr "Keeps its identity and files."
+
 msgid "Labels alone: no step runs on {on}, online or offline."
 msgstr "Labels alone: no step runs on {on}, online or offline."
 
@@ -11470,11 +11509,17 @@ msgstr "Replaces {name} on {server} with the copy from {taken}"
 msgid "Replaces {name} on {server} with the dump from {taken}"
 msgstr "Replaces {name} on {server} with the dump from {taken}"
 
+msgid "Restarts only container {id} on this server"
+msgstr "Restarts only container {id} on this server"
+
 msgid "Restore {which}, from {when}, from Backups after this."
 msgstr "Restore {which}, from {when}, from Backups after this."
 
 msgid "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
 msgstr "Revision {revision} ran different images of {image} on each server, so {name} runs what {image} is now"
+
+msgid "Routes"
+msgstr "Routes"
 
 msgid "Run it again once it's back."
 msgstr "Run it again once it's back."
@@ -11493,8 +11538,14 @@ msgstr "SSH on {0} stays open only from {from}"
 msgid "Something may still manage {container}"
 msgstr "Something may still manage {container}"
 
+msgid "Starts on every placed server"
+msgstr "Starts on every placed server"
+
 msgid "Stops following its branch, and stays at this commit until you move it."
 msgstr "Stops following its branch, and stays at this commit until you move it."
+
+msgid "Stops on every placed server"
+msgstr "Stops on every placed server"
 
 msgid "Take out the range that covers everything for it to ban anyone."
 msgstr "Take out the range that covers everything for it to ban anyone."
@@ -11782,6 +11833,9 @@ msgstr "{count, plural, one {The catalog shows # app from this commit: {names}.}
 
 msgid "{counts} {lifting}"
 msgstr "{counts} {lifting}"
+
+msgid "{database} runs only while the dump loads, then stops again."
+msgstr "{database} runs only while the dump loads, then stops again."
 
 msgid "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
 msgstr "{database} starts anew on an empty volume and loads the dump, {size}. Passwords go back to what they were. If it won't load, what's there now comes back. The server keeps a copy of that for 7 days, and undoing this puts it back."
@@ -14212,9 +14266,6 @@ msgstr "Redacted inspection data"
 msgid "Restart policy"
 msgstr "Restart policy"
 
-msgid "Restart retries"
-msgstr "Restart retries"
-
 #. placeholder {0}: times.ago(timestampDate(live.observedAt), now)
 msgid "Sampled {0}"
 msgstr "Sampled {0}"
@@ -14236,9 +14287,6 @@ msgstr "This container is gone"
 
 msgid "Unavailable"
 msgstr "Unavailable"
-
-msgid "Unlimited"
-msgstr "Unlimited"
 
 msgid "Written to disk"
 msgstr "Written to disk"
@@ -14285,6 +14333,9 @@ msgstr "Containers couldn't be read"
 msgid "Filter by this Compose project"
 msgstr "Filter by this Compose project"
 
+msgid "Import"
+msgstr "Import"
+
 #. placeholder {0}: row.name
 msgid "Logs for {0}"
 msgstr "Logs for {0}"
@@ -14292,11 +14343,17 @@ msgstr "Logs for {0}"
 msgid "Managed by Dockwell"
 msgstr "Managed by Dockwell"
 
+msgid "Move in"
+msgstr "Move in"
+
 msgid "Name, image or project"
 msgstr "Name, image or project"
 
 msgid "Needs attention"
 msgstr "Needs attention"
+
+msgid "New container"
+msgstr "New container"
 
 msgid "Next"
 msgstr "Next"
@@ -14323,17 +14380,26 @@ msgstr "Previous"
 msgid "Reading containers"
 msgstr "Reading containers"
 
-msgid "Refresh"
-msgstr "Refresh"
-
 msgid "Refresh containers"
 msgstr "Refresh containers"
 
 msgid "Refresh list"
 msgstr "Refresh list"
 
+msgid "Restart this container"
+msgstr "Restart this container"
+
 msgid "Search containers"
 msgstr "Search containers"
+
+msgid "Start workload"
+msgstr "Start workload"
+
+msgid "Stop workload"
+msgstr "Stop workload"
+
+msgid "Take on a container"
+msgstr "Take on a container"
 
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
@@ -14347,6 +14413,16 @@ msgstr "Usage"
 
 msgid "memory"
 msgstr "memory"
+
+msgid "App name"
+msgstr "App name"
+
+msgid "Keeps the current container, mounts, network connections and environment."
+msgstr "Keeps the current container, mounts, network connections and environment."
+
+#. placeholder {0}: row.name
+msgid "Take on {0}"
+msgstr "Take on {0}"
 
 msgid "Compose projects"
 msgstr "Compose projects"
@@ -14386,6 +14462,9 @@ msgstr "Open Servers"
 
 msgid "Reading Docker inventory"
 msgstr "Reading Docker inventory"
+
+msgid "Refresh"
+msgstr "Refresh"
 
 msgid "Refresh Docker overview"
 msgstr "Refresh Docker overview"
@@ -15463,9 +15542,6 @@ msgstr "Later, once {panel}'s proxy hands over ports 80 and 443"
 msgid "Left to move: {what}"
 msgstr "Left to move: {what}"
 
-msgid "Move in"
-msgstr "Move in"
-
 msgid "Move in from 1Panel"
 msgstr "Move in from 1Panel"
 
@@ -15531,9 +15607,6 @@ msgstr "Start {name} again"
 
 msgid "Start {proxy} again"
 msgstr "Start {proxy} again"
-
-msgid "Stop {name}"
-msgstr "Stop {name}"
 
 msgid "Take it on as it is: its key is one of its own names, which anyone can guess."
 msgstr "Take it on as it is: its key is one of its own names, which anyone can guess."

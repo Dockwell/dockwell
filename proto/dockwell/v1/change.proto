@@ -397,7 +397,9 @@ message Edit {
   // that names the options.
   ResourceRef resource = 1;
   // What the resource should be. Every field is set as given: an edit
-  // replaces the whole spec. Unset only with delete.
+  // replaces the whole spec. Unset only with delete. A Container or Service
+  // app containing only desired_run_state keeps the current spec and applies
+  // that run intent at the supplied base_revision. It takes no placement.
   dockwell.resource.v1alpha1.Spec spec = 2;
   // Deletes the resource. An environment goes only once what lives in it has
   // gone, in this change or an earlier one. A project takes its environments
@@ -652,6 +654,10 @@ message RestartServiceRequest {
   string environment = 3;
   // What the restart is for, for the timeline. Empty says what it restarts.
   string summary = 4;
+  // Together these scope the restart to one existing managed instance.
+  // With both set, id may also be the managed resource ID of a server container.
+  string server_id = 400;
+  string container_id = 401;
 }
 
 // RestartServiceResponse carries the planned restart.

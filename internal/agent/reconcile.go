@@ -20,6 +20,7 @@ import (
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 )
 
@@ -194,6 +195,7 @@ func newReconciler(cfg Config, p *presence, held *unfinished) *reconciler {
 func (r *reconciler) run(ctx context.Context) {
 	tick := time.NewTicker(r.every)
 	defer tick.Stop()
+	r.pruneRunState(ctx)
 	for {
 		r.recoverActions(ctx)
 		if r.presence.down() {
@@ -205,9 +207,21 @@ func (r *reconciler) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
+			r.pruneRunState(ctx)
 		case <-r.presence.wake:
 		case <-r.lost:
 		}
+	}
+}
+
+func (r *reconciler) pruneRunState(ctx context.Context) {
+	if r.cfg.PruneRunState == nil {
+		return
+	}
+	look, cancel := context.WithTimeout(ctx, lookTimeout)
+	defer cancel()
+	if err := r.cfg.PruneRunState(look); err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
+		r.cfg.Logger.Warn("can't forget run state for removed containers yet", "error", err)
 	}
 }
 
@@ -329,6 +343,9 @@ func (r *reconciler) one(ctx context.Context, ref resource.Ref, act bool) {
 // running or stopped, and started if Docker couldn't start it; one that's gone is
 // made again, unless it was last seen stopped or what it mounts is gone.
 func (r *reconciler) runs(ctx context.Context, rv resource.Reviver, rec desired.Record, spec proto.Message, act bool) {
+	if container.IsStopped(spec) {
+		return
+	}
 	ref := rec.Ref
 	at := r.now()
 	look, cancel := context.WithTimeout(ctx, lookTimeout)

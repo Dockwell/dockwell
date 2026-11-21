@@ -12,12 +12,17 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/proto"
+
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 )
 
 // Desired is one resource as a change wants it; a nil Spec deletes it.
 type Desired struct {
 	Ref  Ref
 	Spec proto.Message
+	// NeedsRunControl gates a write whose previous revision had explicit run intent.
+	// The control plane uses it to choose a compatible agent.
+	NeedsRunControl bool `json:"-"`
 	// Pull asks the server for the resource's image again as the step applies,
 	// and to replace what runs only if that's newer. It says what a request asks
 	// for, not what the spec is, so it isn't kept.
@@ -33,6 +38,8 @@ type Desired struct {
 	// Restart names a restart the resource is to have, though its spec hasn't
 	// changed: the change's ID. Its kind is a Settler.
 	Restart string
+	// ExactRestart identifies the single instance of Restart, by full Engine ID.
+	ExactRestart string
 	// Adopt takes on this container, by its full ID, as what the resource runs, in
 	// place of making one. Its kind is an Adopter.
 	Adopt string
@@ -342,7 +349,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't plan %s: %w", want.Ref, err)
 		}
-		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, MoveVolumeFrom: want.MoveVolumeFrom, Prepare: want.Prepare}, d
+		normal[i], drivers[i] = Desired{Ref: want.Ref, Spec: spec, Pull: want.Pull, Run: want.Run, Restart: want.Restart, ExactRestart: want.ExactRestart, Rollback: want.Rollback, Adopt: want.Adopt, Restore: want.Restore, Backup: want.Backup, Move: want.Move, Install: want.Install, Reboot: want.Reboot, Unit: want.Unit, Panel: want.Panel, Upgrade: want.Upgrade, MoveVolumeFrom: want.MoveVolumeFrom, Prepare: want.Prepare}, d
 	}
 	for i := range normal {
 		want := &normal[i]
@@ -351,6 +358,19 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run})
 		if want.Prepare != nil {
 			ctx = want.Prepare(ctx)
+		}
+		if want.ExactRestart != "" {
+			r, ok := d.(InstanceRestarter)
+			if !ok {
+				return nil, fmt.Errorf("can't restart one instance of %s", want.Ref)
+			}
+			dec, err := r.PlanRestart(ctx, want.Ref, spec, want.Restart, want.ExactRestart)
+			if err != nil {
+				return nil, err
+			}
+			dec.Restart = want.Restart
+			steps = append(steps, Step{Ref: want.Ref, Decision: dec, ExactRestart: want.ExactRestart})
+			continue
 		}
 		if c, ok := d.(Checker); ok && spec != nil {
 			if err := c.Check(ctx, want.Ref, spec); err != nil {
@@ -548,7 +568,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		// or a restart does, or is replacing it anyway. The plan says which, and nothing
 		// is up for that to take down. What a crash left is work to finish, not
 		// something stopped, so it has no such word.
-		if r, ok := d.(Runner); ok && spec != nil && actual != nil && (want.Run || want.Restart != "" || step.Action == ActionReplace && !settling) {
+		if r, ok := d.(Runner); ok && spec != nil && !step.ChangesRunIntent() && RunIntent(spec) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED && actual != nil && (want.Run || want.Restart != "" || step.Action == ActionReplace && !settling) {
 			state, err := r.NotRunning(ctx, want.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)
@@ -762,6 +782,13 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	if err != nil {
 		return err
 	}
+	if step.ExactRestart != "" {
+		r, ok := d.(InstanceRestarter)
+		if !ok {
+			return cantApply(ctx, step, fmt.Errorf("this agent can't restart one instance of %s", step.Ref.Kind))
+		}
+		return r.ApplyRestart(ctx, step.Ref, desired, step.Restart, step.ExactRestart)
+	}
 	if desired, err = normalize(d, desired); err != nil {
 		return cantApply(ctx, step, err)
 	}
@@ -877,7 +904,7 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 	}
 	// A change in place leaves what someone stopped stopped, so nothing is running
 	// to verify.
-	if r, ok := d.(Runner); ok && step.Action == ActionUpdate {
+	if r, ok := d.(Runner); ok && step.Action == ActionUpdate && RunIntent(desired) == 0 && !step.ChangesRunIntent() {
 		if state, err := r.NotRunning(ctx, step.Ref); err == nil && state != "" {
 			return nil
 		}
@@ -1072,4 +1099,11 @@ func WithBuildGitAuth(ctx context.Context, header string) context.Context {
 func BuildGitAuthOf(ctx context.Context) string {
 	h, _ := ctx.Value(buildGitAuthKey{}).(string)
 	return h
+}
+
+// ChangesRunIntent reports a modification of the workload's desired run state.
+func (s Step) ChangesRunIntent() bool {
+	return slices.ContainsFunc(s.Changes, func(c Change) bool {
+		return c.Path == "desired_run_state" || c.Path == "app.desired_run_state"
+	})
 }

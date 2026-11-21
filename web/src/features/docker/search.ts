@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type LogsSearch, readLogsSearch } from "../logs/LogsPage";
+import { type LogsSearch, readLogsSearch } from "../logs/search";
 
 /**
  * What a container's page keeps in its address. It lives apart from the page, so the route

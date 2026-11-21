@@ -85,12 +85,13 @@ func (f *fullServer) addServerNamed(t *testing.T, name string, more func() []res
 	client := e.Client()
 	client.Adopted = &docker.Adopted{}
 	archive := &agentlogs.Archive{Dir: t.TempDir(), Client: client, Logger: slog.New(slog.DiscardHandler), Free: func(string) (uint64, error) { return 1 << 40, nil }}
-	containers := container.Driver{Runtime: &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}, Probe: f.probe, Devices: f.devices}}
+	runtime := &container.Docker{Client: client, Settle: time.Millisecond, Poll: time.Millisecond, Soak: -1, Logs: archive, Paths: &container.Paths{Client: client, DataDir: t.TempDir()}, Probe: f.probe, Devices: f.devices}
+	containers := container.Driver{Runtime: runtime}
 	helper := filepath.Join(t.TempDir(), "dockwell")
 	if err := os.WriteFile(helper, []byte("#!agent\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper, Work: 1000}
+	backups := &backup.Runner{Client: client, Root: t.TempDir(), Binary: helper, Work: 1000, RunControl: runtime}
 	volumes := &volume.Driver{Runtime: &volume.Docker{Client: client, Kept: &volume.Kept{}}, Restores: backups, BacksUp: backups, Moves: backups}
 	var volumeType resource.Type = volumes
 	if f.volumes != nil {
