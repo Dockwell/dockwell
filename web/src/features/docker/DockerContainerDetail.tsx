@@ -23,7 +23,7 @@ import { formatBytes, formatPercent } from "../../lib/format";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
-import { LogsPage, type LogsSearch, readLogsSearch } from "../logs/LogsPage";
+import { LogsPage } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { CopyButton } from "../servers/CopyButton";
 import { mountSource } from "../servers/containers";
@@ -33,25 +33,12 @@ import { Page } from "../shell/Page";
 import { ContainerActions, ContainerStatus, dockerPort, Ownership } from "./DockerContainers";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, Fact, LiveUpdates } from "./parts";
+import type { ContainerDetailSearch } from "./search";
 
 import "./Docker.css";
 
 const detail = "/servers/$serverId/docker/containers/$containerId";
 const inventory = "/servers/$serverId/docker/containers";
-
-export interface ContainerDetailSearch extends LogsSearch {
-  name?: string;
-  view?: "inspect" | "logs";
-}
-
-export function readContainerDetailSearch(search: Record<string, unknown>): ContainerDetailSearch {
-  const result: ContainerDetailSearch = readLogsSearch(search);
-  if (typeof search["name"] === "string" && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/.test(search["name"])) {
-    result.name = search["name"];
-  }
-  if (search["view"] === "inspect" || search["view"] === "logs") result.view = search["view"];
-  return result;
-}
 
 export function DockerContainerDetail({
   serverId,
