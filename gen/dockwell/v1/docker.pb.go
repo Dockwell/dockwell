@@ -188,6 +188,7 @@ func (DockerHealth) EnumDescriptor() ([]byte, []int) {
 type DockerReadState int32
 
 const (
+	// In a cleanup preview this means the disk measurement is still underway.
 	DockerReadState_DOCKER_READ_STATE_UNSPECIFIED        DockerReadState = 0
 	DockerReadState_DOCKER_READ_STATE_OFFLINE            DockerReadState = 1
 	DockerReadState_DOCKER_READ_STATE_AGENT_OUTDATED     DockerReadState = 2

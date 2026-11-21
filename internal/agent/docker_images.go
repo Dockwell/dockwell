@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -45,6 +46,8 @@ func imageRow(measurement *v1.ServerDiskUse, row docker.DiskUsageImage) *v1.Dock
 	}
 	var state v1.DockerImageState
 	switch {
+	case row.Containers < 0:
+		state = v1.DockerImageState_DOCKER_IMAGE_STATE_UNSPECIFIED
 	case row.Containers > 0:
 		state = v1.DockerImageState_DOCKER_IMAGE_STATE_USED
 	case len(imageTags(row.RepoTags))+len(imageTags(row.RepoDigests)) == 0:
@@ -73,13 +76,23 @@ func imagePlatform(target *v1.DockerImage, image *docker.Image) {
 }
 
 func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventoryListCall) (*agentv1.DockerInventoryListResult, error) {
-	use, df, err := c.cfg.disks.snapshot(ctx, false)
+	if c.cfg.Docker == nil {
+		return nil, errDockerInventory
+	}
+	images, err := c.cfg.Docker.InventoryImages(ctx)
 	if err != nil {
 		return nil, errDockerInventory
 	}
+	use, df, diskErr := c.cfg.disks.cached(ctx)
+	if diskErr != nil && !errors.Is(diskErr, errDiskMeasuring) {
+		// The measurement finished without a number. Leave size absent and
+		// distinguish it from a count that is still underway.
+		use = &v1.ServerDiskUse{Time: timestamppb.Now()}
+	}
 	search := strings.ToLower(ask.GetFilter().GetSearch())
-	ids := make([]int, 0, len(df.Images))
-	for i, row := range df.Images {
+	ids := make([]int, 0, len(images))
+	for i := range images {
+		row := &images[i]
 		if !docker.IsImageID(row.ID) {
 			continue
 		}
@@ -89,11 +102,11 @@ func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventor
 			ids = append(ids, i)
 		}
 	}
-	slices.SortFunc(ids, func(a, b int) int { return strings.Compare(df.Images[a].ID, df.Images[b].ID) })
+	slices.SortFunc(ids, func(a, b int) int { return strings.Compare(images[a].ID, images[b].ID) })
 	hash := sha256.New()
 	for _, i := range ids {
-		row := &df.Images[i]
-		fmt.Fprintln(hash, row.ID, row.RepoTags, row.RepoDigests, row.Containers)
+		row := &images[i]
+		fmt.Fprintln(hash, row.ID, slices.Sorted(slices.Values(row.RepoTags)), slices.Sorted(slices.Values(row.RepoDigests)))
 	}
 	out := &agentv1.DockerInventoryListResult{Snapshot: hex.EncodeToString(hash.Sum(nil))}
 	if ask.GetSnapshot() != "" && ask.GetSnapshot() != out.Snapshot {
@@ -105,17 +118,32 @@ func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventor
 		page = 24
 	}
 	for _, i := range ids {
-		row := df.Images[i]
-		if row.ID <= ask.GetAfterId() {
+		raw := images[i]
+		if raw.ID <= ask.GetAfterId() {
 			continue
 		}
 		if len(out.Objects) == page {
 			out.NextId = out.Objects[page-1].GetKey().GetEngineId()
 			break
 		}
+		row := raw.DiskUsageImage
+		row.Size, row.SharedSize, row.Containers = -1, -1, -1
+		if raw.Size != nil {
+			row.Size = *raw.Size
+		}
+		if raw.Containers != nil {
+			row.Containers = *raw.Containers
+		}
+		if measured := diskImage(df, row.ID); measured != nil {
+			row.SharedSize, row.Containers = measured.SharedSize, measured.Containers
+			if row.Size < 0 {
+				row.Size = measured.Size
+			}
+		}
 		item := imageRow(use, row)
-		if image, err := c.cfg.Docker.InspectImage(ctx, row.ID); err == nil && image.ID == row.ID {
-			imagePlatform(item.GetImage(), image)
+		if raw.Descriptor != nil && raw.Descriptor.Platform != nil {
+			p := raw.Descriptor.Platform
+			imagePlatform(item.GetImage(), &docker.Image{OS: p.OS, Architecture: p.Architecture, Variant: p.Variant})
 		}
 		out.Objects = append(out.Objects, item)
 	}
@@ -134,18 +162,15 @@ func (c *calls) dockerImageDetail(ctx context.Context, id string) (*agentv1.Dock
 	if err != nil {
 		return nil, errDockerInventory
 	}
-	use, df, err := c.cfg.disks.snapshot(ctx, false)
-	if err != nil {
-		return nil, errDockerInventory
+	use, df, diskErr := c.cfg.disks.cached(ctx)
+	if diskErr != nil && !errors.Is(diskErr, errDiskMeasuring) {
+		use = &v1.ServerDiskUse{Time: timestamppb.Now()}
 	}
 	row := docker.DiskUsageImage{ID: id, Size: image.Size, SharedSize: -1, Containers: 0, RepoTags: image.RepoTags, RepoDigests: image.RepoDigests}
-	for _, measured := range df.Images {
-		if measured.ID == id {
-			row.SharedSize = measured.SharedSize
-			if image.RepoTags == nil {
-				row.RepoTags = measured.RepoTags
-			}
-			break
+	if measured := diskImage(df, id); measured != nil {
+		row.SharedSize = measured.SharedSize
+		if image.RepoTags == nil {
+			row.RepoTags = measured.RepoTags
 		}
 	}
 	var containers []*v1.DockerImageContainer
@@ -195,6 +220,17 @@ func (c *calls) dockerImageDetail(ctx context.Context, id string) (*agentv1.Dock
 	}
 	detail.DetailsTruncated = detail.DetailsTruncated || len(image.RootFS.Layers) > 256 || len(history) > 256 || row.Containers > 64
 	return out, nil
+}
+
+func diskImage(df *docker.DiskUsage, id string) *docker.DiskUsageImage {
+	if df != nil {
+		for i := range df.Images {
+			if df.Images[i].ID == id {
+				return &df.Images[i]
+			}
+		}
+	}
+	return nil
 }
 
 func imageDate(unix int64) *timestamppb.Timestamp {

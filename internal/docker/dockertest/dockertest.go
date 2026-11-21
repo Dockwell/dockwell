@@ -606,8 +606,8 @@ func (e *Engine) diskUsage() docker.DiskUsage {
 	for _, c := range e.containers {
 		out.Containers = append(out.Containers, docker.DiskUsageContainer{ID: c.ID, SizeRw: e.ContainerSizes[strings.TrimPrefix(c.Name, "/")]})
 	}
-	for name := range e.volumes {
-		v := docker.DiskUsageVolume{Name: name, Mountpoint: "/var/lib/docker/volumes/" + name + "/_data", UsageData: &docker.VolumeUsage{Size: e.VolumeSizes[name]}}
+	for name, held := range e.volumes {
+		v := docker.DiskUsageVolume{Name: name, Mountpoint: fixtureVolumePath(held), CreatedAt: held.CreatedAt, UsageData: &docker.VolumeUsage{Size: e.VolumeSizes[name]}}
 		for _, c := range e.containers {
 			if slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == name }) {
 				v.UsageData.RefCount++
@@ -1829,12 +1829,18 @@ func (e *Engine) volumeInUse(name string) string {
 	return ""
 }
 
+func fixtureVolumePath(v *docker.Volume) string {
+	return cmp.Or(v.Mountpoint, "/var/lib/docker/volumes/"+v.Name+"/_data")
+}
+
 func (e *Engine) serveVolumes(w http.ResponseWriter, r *http.Request, parts []string) {
 	switch {
 	case len(parts) == 0 && r.Method == http.MethodGet:
 		list := make([]*docker.Volume, 0, len(e.volumes))
 		for _, name := range slices.Sorted(maps.Keys(e.volumes)) {
-			list = append(list, e.volumes[name])
+			item := *e.volumes[name]
+			item.Mountpoint = fixtureVolumePath(&item)
+			list = append(list, &item)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"Volumes": list})
 	case r.Method == http.MethodPost && len(parts) == 1 && parts[0] == "create":

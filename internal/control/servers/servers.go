@@ -115,15 +115,34 @@ func (s *Service) GetServerDiskUse(ctx context.Context, req *connect.Request[doc
 			ctx = resource.WithDockerProtection(ctx, held)
 		}
 	}
-	use, err := session.DiskUse(ctx)
-	if err != nil {
-		var se *resource.ServerError
-		if errors.As(err, &se) {
-			err = se.Err
+	// Interactive callers can show other facts while the count runs. Existing
+	// API and CLI callers that ask specifically for disk usage get the completed
+	// answer, as do older panels.
+	async := req.Header().Get("Prefer") == "respond-async"
+	ctx, cancel := context.WithTimeout(ctx, agentapi.DiskUseTimeout)
+	defer cancel()
+	for {
+		use, err := session.DiskUse(ctx)
+		if err != nil {
+			var se *resource.ServerError
+			if errors.As(err, &se) {
+				err = se.Err
+			}
+			return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what takes its disk now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
 		}
-		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't say what takes its disk now: %w", srv.GetName(), err), authapi.ReasonUnavailable)
+		if use.GetTime() != nil || async {
+			res := connect.NewResponse(&dockwellv1.GetServerDiskUseResponse{DiskUse: use})
+			if async {
+				res.Header().Set("Preference-Applied", "respond-async")
+			}
+			return res, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second):
+		}
 	}
-	return connect.NewResponse(&dockwellv1.GetServerDiskUseResponse{DiskUse: use}), nil
 }
 
 type diskProtection struct {

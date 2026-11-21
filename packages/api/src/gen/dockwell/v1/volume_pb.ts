@@ -159,7 +159,8 @@ export type VolumeOnServer = Message<"dockwell.v1.VolumeOnServer"> & {
   serverName: string;
 
   /**
-   * What it holds there, in bytes, as Docker adds it up. Unset with unread.
+   * What it holds there, in bytes, or -1 while Docker is measuring.
+   * If unread is set, this value is unavailable.
    *
    * @generated from field: int64 size_bytes = 3;
    */
@@ -168,7 +169,7 @@ export type VolumeOnServer = Message<"dockwell.v1.VolumeOnServer"> & {
   /**
    * Where its files are on the server, such as
    * "/var/lib/docker/volumes/default-production_data/_data", for the server's
-   * files page. Empty with unread.
+   * files page. Present when the Engine supplies it, even before measurement.
    *
    * @generated from field: string path = 4;
    */

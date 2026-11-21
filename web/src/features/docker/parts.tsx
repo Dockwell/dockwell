@@ -5,6 +5,12 @@ import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import "./DiskMeasurements.css";
+
+export function MeasuringSize() {
+  const { t } = useLingui();
+  return <span className="docker-pending-size" role="img" aria-label={t`Measuring`} />;
+}
 
 export function Fact({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (

@@ -5,6 +5,7 @@ package docker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
@@ -19,6 +20,27 @@ type Volume struct {
 	CreatedAt string            `json:"CreatedAt"`
 	// Mountpoint is where its files are on the server, for a local volume.
 	Mountpoint string `json:"Mountpoint,omitempty"`
+}
+
+// VolumeIdentity is the part of the volume inventory used for disk reads.
+type VolumeIdentity struct {
+	Name, Mountpoint, CreatedAt string
+}
+
+// VolumeInventory reads live volume identities without asking Docker to measure
+// them or decoding driver options and labels.
+func (c *Client) VolumeInventory(ctx context.Context) ([]VolumeIdentity, error) {
+	var out struct {
+		Volumes  []VolumeIdentity
+		Warnings []string
+	}
+	if err := c.boundedJSON(ctx, http.MethodGet, "/volumes", nil, &out); err != nil {
+		return nil, err
+	}
+	if len(out.Warnings) > 0 {
+		return nil, errors.New("could not list all Docker volumes")
+	}
+	return out.Volumes, nil
 }
 
 // ListVolumes lists the volumes that have a label, whatever its value.

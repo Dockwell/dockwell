@@ -20,6 +20,7 @@ import { PoliciesPanel, usePolicies } from "../backups/PoliciesPanel";
 import { PolicySheet } from "../backups/PolicySheet";
 import { useBackups } from "../backups/useBackups";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { MeasuringSize } from "../docker/parts";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
@@ -33,7 +34,14 @@ import "./VolumePage.css";
  */
 export function VolumePage({ volumeId }: { volumeId: string }) {
   const { t } = useLingui();
-  const query = useQuery(VolumeService.method.getVolume, { id: volumeId });
+  const query = useQuery(
+    VolumeService.method.getVolume,
+    { id: volumeId },
+    {
+      refetchInterval: ({ state }) =>
+        state.data?.volume?.servers.some((server) => !server.unread && server.sizeBytes < 0n) ? 2_000 : false,
+    },
+  );
   const volume = query.data?.volume;
   const name = volume?.resource?.name ?? "";
   const phone = useMediaQuery(PHONE_QUERY);
@@ -115,7 +123,7 @@ function OnServers({ volume }: { volume: VolumeInfo }) {
               <span className="volume-muted">{s.unread}</span>
             ) : (
               <span className="volume-size">
-                {formatBytes(s.sizeBytes, i18n.locale)}
+                {s.sizeBytes < 0n ? <MeasuringSize /> : formatBytes(s.sizeBytes, i18n.locale)}
                 {s.containers > 0 ? (
                   <span className="volume-muted">
                     {" · "}

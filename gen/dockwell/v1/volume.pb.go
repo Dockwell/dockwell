@@ -244,11 +244,12 @@ type VolumeOnServer struct {
 	// The server's ID and name.
 	ServerId   string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	ServerName string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
-	// What it holds there, in bytes, as Docker adds it up. Unset with unread.
+	// What it holds there, in bytes, or -1 while Docker is measuring.
+	// If unread is set, this value is unavailable.
 	SizeBytes int64 `protobuf:"varint,3,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
 	// Where its files are on the server, such as
 	// "/var/lib/docker/volumes/default-production_data/_data", for the server's
-	// files page. Empty with unread.
+	// files page. Present when the Engine supplies it, even before measurement.
 	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
 	// How many containers use it there.
 	Containers uint32 `protobuf:"varint,5,opt,name=containers,proto3" json:"containers,omitempty"`

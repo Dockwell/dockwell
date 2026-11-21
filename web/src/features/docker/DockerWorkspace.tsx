@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { useQuery } from "@connectrpc/connect-query";
-import { type DockerServerSummary, DockerService, type Server } from "@dockwell/api";
+import { createConnectQueryKey, useQuery } from "@connectrpc/connect-query";
+import { type DockerServerSummary, DockerService, type Server, ServerService } from "@dockwell/api";
 import { Button, Callout, Icon, Metric, Panel, SelectField, TabNav } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { lazy, Suspense, useState } from "react";
 
@@ -231,6 +232,7 @@ function Overview({
   ids: string[];
 }) {
   const { t, i18n } = useLingui();
+  const cache = useQueryClient();
   const read = useQuery(DockerService.method.getDockerOverview, { serverIds: ids }, { retry: false });
   const data = read.data;
   const rows = data?.serverSummaries ?? [];
@@ -238,7 +240,18 @@ function Overview({
   const { health, paused, retry } = useDockerWatch(
     ids,
     attention.flatMap((row) => (row.key ? [row.key] : [])),
-    () => void read.refetch(),
+    () => {
+      void read.refetch();
+      if (server) {
+        void cache.invalidateQueries({
+          queryKey: createConnectQueryKey({
+            schema: ServerService.method.getServerDiskUse,
+            input: { id: server.id },
+            cardinality: "finite",
+          }),
+        });
+      }
+    },
   );
   const sum = (
     key: "containers" | "running" | "composeProjects" | "images" | "networks" | "volumes" | "needsAttention",

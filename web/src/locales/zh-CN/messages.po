@@ -15064,6 +15064,9 @@ msgstr "Docker 无响应"
 msgid "Live updates paused"
 msgstr "实时更新已暂停"
 
+msgid "Measuring"
+msgstr "正在测量"
+
 msgid "Some servers didn't answer"
 msgstr "部分服务器无响应"
 

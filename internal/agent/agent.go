@@ -495,7 +495,7 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	cfg.outlook = &outlook{}
 	cfg.firewall = newFirewallReader(cfg)
-	cfg.disks = &diskUse{docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
+	cfg.disks = &diskUse{lifetime: ctx, docker: cfg.Docker, collector: cfg.Collector, now: time.Now}
 	cfg.procs = newProcesses(cfg.Collector, cfg.Docker)
 	cfg.ssh = newSSHReader(cfg)
 	cfg.fail2ban = newFail2banReader(cfg)

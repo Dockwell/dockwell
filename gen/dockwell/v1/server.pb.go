@@ -1698,6 +1698,7 @@ func (x *GetServerDiskUseRequest) GetId() string {
 }
 
 // GetServerDiskUseResponse says what takes the room on a server's disk.
+// With Prefer: respond-async, an unset disk_use.time means the Engine count is underway.
 type GetServerDiskUseResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What takes the room on the disk that holds Docker's data.
@@ -1781,7 +1782,7 @@ type ServerDiskUse struct {
 	Containers uint32 `protobuf:"varint,14,opt,name=containers,proto3" json:"containers,omitempty"`
 	// How many volumes there are.
 	Volumes uint32 `protobuf:"varint,15,opt,name=volumes,proto3" json:"volumes,omitempty"`
-	// Each volume Docker keeps, with what it holds, for a volume's own page.
+	// Each volume in the Engine inventory, with what it holds when measured.
 	// Numbered apart, as open work adds to this message.
 	VolumeUse     []*VolumeDiskUse `protobuf:"bytes,60,rep,name=volume_use,json=volumeUse,proto3" json:"volume_use,omitempty"`
 	unknownFields protoimpl.UnknownFields

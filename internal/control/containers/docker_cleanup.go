@@ -22,6 +22,7 @@ import (
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
@@ -55,6 +56,10 @@ func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filte
 				if result, err := session.DockerCleanupPreview(ctx, ask); err == nil {
 					reads[i].targets = result.GetTargets()
 					reads[i].pause = result.GetPause()
+					return
+				} else if resource.ReasonOf(err) == resource.ReasonDiskMeasuring {
+					// Present, with the default state, means the count is pending.
+					reads[i].unavailable = &v1.DockerUnavailable{ServerId: s.ID}
 					return
 				}
 				state = v1.DockerReadState_DOCKER_READ_STATE_ENGINE_UNAVAILABLE
@@ -127,7 +132,7 @@ func (h *Handler) PreviewDockerCleanup(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
-	out, targets, err := h.readDockerCleanup(ctx, servers, req.Msg.GetFilters(), req.Msg.GetPageToken() == "")
+	out, targets, err := h.readDockerCleanup(ctx, servers, req.Msg.GetFilters(), false)
 	if err != nil {
 		return nil, err
 	}
