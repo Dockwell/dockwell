@@ -3049,6 +3049,160 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/docker/object:
+        get:
+            tags:
+                - DockerService
+            description: GetDockerObject reads details at one immutable Engine identity.
+            operationId: DockerService_GetDockerObject
+            parameters:
+                - name: key.serverId
+                  in: query
+                  schema:
+                    type: string
+                - name: key.kind
+                  in: query
+                  schema:
+                    enum:
+                        - DOCKER_OBJECT_KIND_UNSPECIFIED
+                        - DOCKER_OBJECT_KIND_CONTAINER
+                    type: string
+                    format: enum
+                - name: key.engineId
+                  in: query
+                  description: Full Engine ID. A container name or ID prefix cannot stand in for it.
+                  schema:
+                    type: string
+                - name: lastKnownName
+                  in: query
+                  description: An optional exact name lets a missing ID point to the replacement, if any.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDockerObjectResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/objects:
+        get:
+            tags:
+                - DockerService
+            description: ListDockerObjects reads one bounded page of the selected inventory.
+            operationId: DockerService_ListDockerObjects
+            parameters:
+                - name: serverIds
+                  in: query
+                  schema:
+                    type: array
+                    items:
+                        type: string
+                - name: kind
+                  in: query
+                  schema:
+                    enum:
+                        - DOCKER_OBJECT_KIND_UNSPECIFIED
+                        - DOCKER_OBJECT_KIND_CONTAINER
+                    type: string
+                    format: enum
+                - name: filter.search
+                  in: query
+                  schema:
+                    type: string
+                - name: filter.state
+                  in: query
+                  description: Unset includes all lifecycle states.
+                  schema:
+                    enum:
+                        - CONTAINER_STATE_UNSPECIFIED
+                        - CONTAINER_STATE_CREATED
+                        - CONTAINER_STATE_RUNNING
+                        - CONTAINER_STATE_PAUSED
+                        - CONTAINER_STATE_RESTARTING
+                        - CONTAINER_STATE_REMOVING
+                        - CONTAINER_STATE_EXITED
+                        - CONTAINER_STATE_DEAD
+                    type: string
+                    format: enum
+                - name: filter.ownership
+                  in: query
+                  schema:
+                    enum:
+                        - DOCKER_OWNERSHIP_UNSPECIFIED
+                        - DOCKER_OWNERSHIP_MANAGED
+                        - DOCKER_OWNERSHIP_EXTERNAL
+                        - DOCKER_OWNERSHIP_SYSTEM
+                    type: string
+                    format: enum
+                - name: filter.composeProject
+                  in: query
+                  schema:
+                    type: string
+                - name: filter.stopped
+                  in: query
+                  description: Includes every state except running. Use state for a single exact state.
+                  schema:
+                    type: boolean
+                - name: filter.needsAttention
+                  in: query
+                  schema:
+                    type: boolean
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListDockerObjectsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/overview:
+        get:
+            tags:
+                - DockerService
+            description: GetDockerOverview counts the inventory on each selected server.
+            operationId: DockerService_GetDockerOverview
+            parameters:
+                - name: serverIds
+                  in: query
+                  description: IDs or names, at most 32. Unset selects a lone server.
+                  schema:
+                    type: array
+                    items:
+                        type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDockerOverviewResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/domains:
         get:
             tags:
@@ -15102,6 +15256,205 @@ components:
                     type: string
                     description: 'The account that holds it: one token can reach zones in several.'
             description: DnsZoneCheck is what writing a record in one zone came to.
+        DockerContainer:
+            type: object
+            properties:
+                image:
+                    type: string
+                imageId:
+                    type: string
+                createdAt:
+                    type: string
+                    format: date-time
+                startedAt:
+                    type: string
+                    format: date-time
+                finishedAt:
+                    type: string
+                    format: date-time
+                health:
+                    enum:
+                        - DOCKER_HEALTH_UNSPECIFIED
+                        - DOCKER_HEALTH_STARTING
+                        - DOCKER_HEALTH_HEALTHY
+                        - DOCKER_HEALTH_UNHEALTHY
+                    type: string
+                    format: enum
+                ports:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerPort'
+                endpoints:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerEndpoint'
+                mounts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerMount'
+                composeProject:
+                    type: string
+                composeService:
+                    type: string
+                oneOff:
+                    type: boolean
+                exitCode:
+                    type: integer
+                    format: int32
+                oomKilled:
+                    type: boolean
+                restartCount:
+                    type: integer
+                    format: uint32
+                restartPolicy:
+                    type: string
+                restartRetries:
+                    type: integer
+                    format: uint32
+                memoryLimitBytes:
+                    type: string
+                cpuLimitNanos:
+                    type: string
+                logDriver:
+                    type: string
+                logMaxSize:
+                    type: string
+                logMaxFiles:
+                    type: integer
+                    format: uint32
+                configuredPorts:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerPort'
+                detailsTruncated:
+                    type: boolean
+            description: |-
+                DockerContainer is a projection of Engine facts. It omits environment,
+                 commands, raw labels, health check output and arbitrary driver options.
+        DockerEndpoint:
+            type: object
+            properties:
+                network:
+                    type: string
+                ipv4:
+                    type: string
+                ipv6:
+                    type: string
+            description: DockerEndpoint is a container’s current address on one Docker network.
+        DockerObject:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/DockerObjectKey'
+                name:
+                    type: string
+                ownership:
+                    enum:
+                        - DOCKER_OWNERSHIP_UNSPECIFIED
+                        - DOCKER_OWNERSHIP_MANAGED
+                        - DOCKER_OWNERSHIP_EXTERNAL
+                        - DOCKER_OWNERSHIP_SYSTEM
+                    type: string
+                    format: enum
+                observedAt:
+                    type: string
+                    format: date-time
+                managedResource:
+                    $ref: '#/components/schemas/ResourceRef'
+                state:
+                    enum:
+                        - CONTAINER_STATE_UNSPECIFIED
+                        - CONTAINER_STATE_CREATED
+                        - CONTAINER_STATE_RUNNING
+                        - CONTAINER_STATE_PAUSED
+                        - CONTAINER_STATE_RESTARTING
+                        - CONTAINER_STATE_REMOVING
+                        - CONTAINER_STATE_EXITED
+                        - CONTAINER_STATE_DEAD
+                    type: string
+                    format: enum
+                managedResourceId:
+                    type: string
+                container:
+                    $ref: '#/components/schemas/DockerContainer'
+            description: DockerObject combines observed facts with ownership resolved by the control plane.
+        DockerObjectKey:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                kind:
+                    enum:
+                        - DOCKER_OBJECT_KIND_UNSPECIFIED
+                        - DOCKER_OBJECT_KIND_CONTAINER
+                    type: string
+                    format: enum
+                engineId:
+                    type: string
+                    description: Full Engine ID. A container name or ID prefix cannot stand in for it.
+            description: DockerObjectKey identifies an Engine object on one server.
+        DockerServerSummary:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                observedAt:
+                    type: string
+                    format: date-time
+                containers:
+                    type: integer
+                    format: uint32
+                running:
+                    type: integer
+                    format: uint32
+                composeProjects:
+                    type: integer
+                    format: uint32
+                images:
+                    type: integer
+                    format: uint32
+                networks:
+                    type: integer
+                    format: uint32
+                volumes:
+                    type: integer
+                    format: uint32
+                engineVersion:
+                    type: string
+                exactTerminal:
+                    type: boolean
+                rootDirectory:
+                    type: string
+                loggingDriver:
+                    type: string
+                liveRestore:
+                    type: boolean
+                registryMirrors:
+                    type: array
+                    items:
+                        type: string
+                needsAttention:
+                    type: integer
+                    format: uint32
+                attention:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerObject'
+            description: DockerServerSummary counts the Engine inventory at one point in time.
+        DockerUnavailable:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                state:
+                    enum:
+                        - DOCKER_READ_STATE_UNSPECIFIED
+                        - DOCKER_READ_STATE_OFFLINE
+                        - DOCKER_READ_STATE_AGENT_OUTDATED
+                        - DOCKER_READ_STATE_ENGINE_UNAVAILABLE
+                    type: string
+                    format: enum
+            description: DockerUnavailable names a server that did not answer a read.
         DockwellFirewallRule:
             type: object
             properties:
@@ -17489,6 +17842,26 @@ components:
                         - $ref: '#/components/schemas/Database'
                     description: The database.
             description: GetDatabaseResponse is one database.
+        GetDockerObjectResponse:
+            type: object
+            properties:
+                object:
+                    $ref: '#/components/schemas/DockerObject'
+                replacementKey:
+                    $ref: '#/components/schemas/DockerObjectKey'
+            description: GetDockerObjectResponse gives the requested object or the ID now using its name.
+        GetDockerOverviewResponse:
+            type: object
+            properties:
+                serverSummaries:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerServerSummary'
+                unavailable:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerUnavailable'
+            description: GetDockerOverviewResponse lists the servers that answered and those that could not.
         GetGitHookResponse:
             type: object
             properties:
@@ -20201,6 +20574,22 @@ components:
                         $ref: '#/components/schemas/DnsProviderInfo'
                     description: Sorted by name.
             description: ListDnsProvidersResponse holds the DNS providers.
+        ListDockerObjectsResponse:
+            type: object
+            properties:
+                objects:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerObject'
+                nextPageToken:
+                    type: string
+                snapshot:
+                    type: string
+                unavailable:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerUnavailable'
+            description: ListDockerObjectsResponse is the page and the cursor for the remainder.
         ListDomainsResponse:
             type: object
             properties:
@@ -21956,6 +22345,16 @@ components:
                     description: |-
                         A container on the server, by name or full ID, to open a shell in, in place of
                          the server's own.
+                containerId:
+                    type: string
+                    description: Full Engine ID in place of container. The passkey target includes this ID.
+                argv:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Run an executable directly in the container, with no shell expansion.
+                         Empty selects an available shell. The arguments are not audited.
             description: OpenTerminalRequest names a server.
         OpenTerminalResponse:
             type: object
@@ -30415,6 +30814,8 @@ tags:
          through Dockwell. See docs/adr/0038-databases.md.
 
          Nothing here carries a password, nor a value of a database's environment.
+    - name: DockerService
+      description: DockerService reads the Engine inventory on selected servers through their agents.
     - name: DomainService
       description: |-
         DomainService says where the domains of your routes stand: what each sends

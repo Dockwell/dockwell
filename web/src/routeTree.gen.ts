@@ -47,6 +47,7 @@ import { Route as ShellDatabasesServiceIdRouteImport } from './routes/_shell/dat
 import { Route as ShellProjectsIndexRouteImport } from './routes/_shell/projects.index'
 import { Route as ShellProjectsProjectIdRouteImport } from './routes/_shell/projects.$projectId'
 import { Route as ShellServersIndexRouteImport } from './routes/_shell/servers.index'
+import { Route as ShellServersDockerRouteImport } from './routes/_shell/servers.docker'
 import { Route as ShellVolumesVolumeIdRouteImport } from './routes/_shell/volumes.$volumeId'
 import { Route as ShellWebsitesIndexRouteImport } from './routes/_shell/websites.index'
 import { Route as ShellWebsitesWebsiteIdRouteImport } from './routes/_shell/websites.$websiteId'
@@ -83,7 +84,10 @@ import { Route as ShellWebsitesWebsiteIdFilesRouteImport } from './routes/_shell
 import { Route as ShellWebsitesWebsiteIdLogsRouteImport } from './routes/_shell/websites.$websiteId.logs'
 import { Route as ShellSettingsSettingsIntegrationsIndexRouteImport } from './routes/_shell/_settings/settings.integrations.index'
 import { Route as ShellServersServerIdContainersNameRouteImport } from './routes/_shell/servers.$serverId.containers.$name'
+import { Route as ShellServersServerIdDockerIndexRouteImport } from './routes/_shell/servers.$serverId.docker.index'
 import { Route as ShellSettingsSettingsIntegrationsGithubCreatedRouteImport } from './routes/_shell/_settings/settings.integrations.github.created'
+import { Route as ShellServersServerIdDockerContainersIndexRouteImport } from './routes/_shell/servers.$serverId.docker.containers.index'
+import { Route as ShellServersServerIdDockerContainersContainerIdRouteImport } from './routes/_shell/servers.$serverId.docker.containers.$containerId'
 import { Route as ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport } from './routes/_shell/_settings/settings.integrations.github.$appId.installed'
 
 const ShellRoute = ShellRouteImport.update({
@@ -272,6 +276,11 @@ const ShellProjectsProjectIdRoute = ShellProjectsProjectIdRouteImport.update({
 const ShellServersIndexRoute = ShellServersIndexRouteImport.update({
   id: '/servers/',
   path: '/servers/',
+  getParentRoute: () => ShellRoute,
+} as any)
+const ShellServersDockerRoute = ShellServersDockerRouteImport.update({
+  id: '/servers/docker',
+  path: '/servers/docker',
   getParentRoute: () => ShellRoute,
 } as any)
 const ShellVolumesVolumeIdRoute = ShellVolumesVolumeIdRouteImport.update({
@@ -483,11 +492,29 @@ const ShellServersServerIdContainersNameRoute =
     path: '/servers/$serverId/containers/$name',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellServersServerIdDockerIndexRoute =
+  ShellServersServerIdDockerIndexRouteImport.update({
+    id: '/servers/$serverId/docker/',
+    path: '/servers/$serverId/docker/',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellSettingsSettingsIntegrationsGithubCreatedRoute =
   ShellSettingsSettingsIntegrationsGithubCreatedRouteImport.update({
     id: '/settings/integrations/github/created',
     path: '/settings/integrations/github/created',
     getParentRoute: () => ShellSettingsRoute,
+  } as any)
+const ShellServersServerIdDockerContainersIndexRoute =
+  ShellServersServerIdDockerContainersIndexRouteImport.update({
+    id: '/servers/$serverId/docker/containers/',
+    path: '/servers/$serverId/docker/containers/',
+    getParentRoute: () => ShellRoute,
+  } as any)
+const ShellServersServerIdDockerContainersContainerIdRoute =
+  ShellServersServerIdDockerContainersContainerIdRouteImport.update({
+    id: '/servers/$serverId/docker/containers/$containerId',
+    path: '/servers/$serverId/docker/containers/$containerId',
+    getParentRoute: () => ShellRoute,
   } as any)
 const ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute =
   ShellSettingsSettingsIntegrationsGithubAppIdInstalledRouteImport.update({
@@ -525,6 +552,7 @@ export interface FileRoutesByFullPath {
   '/connections/$name': typeof ShellConnectionsNameRoute
   '/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/servers/docker': typeof ShellServersDockerRoute
   '/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/websites/new': typeof ShellWebsitesNewRoute
@@ -569,7 +597,10 @@ export interface FileRoutesByFullPath {
   '/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesByTo {
@@ -599,6 +630,7 @@ export interface FileRoutesByTo {
   '/changes/$changeId': typeof ShellChangesChangeIdRoute
   '/connections/$name': typeof ShellConnectionsNameRoute
   '/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/servers/docker': typeof ShellServersDockerRoute
   '/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/websites/new': typeof ShellWebsitesNewRoute
   '/alerts': typeof ShellAlertsIndexRoute
@@ -642,7 +674,10 @@ export interface FileRoutesByTo {
   '/websites/$websiteId': typeof ShellWebsitesWebsiteIdIndexRoute
   '/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/settings/integrations': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/servers/$serverId/docker': typeof ShellServersServerIdDockerIndexRoute
   '/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/servers/$serverId/docker/containers': typeof ShellServersServerIdDockerContainersIndexRoute
   '/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRoutesById {
@@ -677,6 +712,7 @@ export interface FileRoutesById {
   '/_shell/connections/$name': typeof ShellConnectionsNameRoute
   '/_shell/databases/$serviceId': typeof ShellDatabasesServiceIdRouteWithChildren
   '/_shell/projects/$projectId': typeof ShellProjectsProjectIdRoute
+  '/_shell/servers/docker': typeof ShellServersDockerRoute
   '/_shell/volumes/$volumeId': typeof ShellVolumesVolumeIdRoute
   '/_shell/websites/$websiteId': typeof ShellWebsitesWebsiteIdRouteWithChildren
   '/_shell/websites/new': typeof ShellWebsitesNewRoute
@@ -721,7 +757,10 @@ export interface FileRoutesById {
   '/_shell/websites/$websiteId/': typeof ShellWebsitesWebsiteIdIndexRoute
   '/_shell/servers/$serverId/containers/$name': typeof ShellServersServerIdContainersNameRoute
   '/_shell/_settings/settings/integrations/': typeof ShellSettingsSettingsIntegrationsIndexRoute
+  '/_shell/servers/$serverId/docker/': typeof ShellServersServerIdDockerIndexRoute
   '/_shell/_settings/settings/integrations/github/created': typeof ShellSettingsSettingsIntegrationsGithubCreatedRoute
+  '/_shell/servers/$serverId/docker/containers/$containerId': typeof ShellServersServerIdDockerContainersContainerIdRoute
+  '/_shell/servers/$serverId/docker/containers/': typeof ShellServersServerIdDockerContainersIndexRoute
   '/_shell/_settings/settings/integrations/github/$appId/installed': typeof ShellSettingsSettingsIntegrationsGithubAppIdInstalledRoute
 }
 export interface FileRouteTypes {
@@ -755,6 +794,7 @@ export interface FileRouteTypes {
     | '/connections/$name'
     | '/databases/$serviceId'
     | '/projects/$projectId'
+    | '/servers/docker'
     | '/volumes/$volumeId'
     | '/websites/$websiteId'
     | '/websites/new'
@@ -799,7 +839,10 @@ export interface FileRouteTypes {
     | '/websites/$websiteId/'
     | '/servers/$serverId/containers/$name'
     | '/settings/integrations/'
+    | '/servers/$serverId/docker/'
     | '/settings/integrations/github/created'
+    | '/servers/$serverId/docker/containers/$containerId'
+    | '/servers/$serverId/docker/containers/'
     | '/settings/integrations/github/$appId/installed'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -829,6 +872,7 @@ export interface FileRouteTypes {
     | '/changes/$changeId'
     | '/connections/$name'
     | '/projects/$projectId'
+    | '/servers/docker'
     | '/volumes/$volumeId'
     | '/websites/new'
     | '/alerts'
@@ -872,7 +916,10 @@ export interface FileRouteTypes {
     | '/websites/$websiteId'
     | '/servers/$serverId/containers/$name'
     | '/settings/integrations'
+    | '/servers/$serverId/docker'
     | '/settings/integrations/github/created'
+    | '/servers/$serverId/docker/containers/$containerId'
+    | '/servers/$serverId/docker/containers'
     | '/settings/integrations/github/$appId/installed'
   id:
     | '__root__'
@@ -906,6 +953,7 @@ export interface FileRouteTypes {
     | '/_shell/connections/$name'
     | '/_shell/databases/$serviceId'
     | '/_shell/projects/$projectId'
+    | '/_shell/servers/docker'
     | '/_shell/volumes/$volumeId'
     | '/_shell/websites/$websiteId'
     | '/_shell/websites/new'
@@ -950,7 +998,10 @@ export interface FileRouteTypes {
     | '/_shell/websites/$websiteId/'
     | '/_shell/servers/$serverId/containers/$name'
     | '/_shell/_settings/settings/integrations/'
+    | '/_shell/servers/$serverId/docker/'
     | '/_shell/_settings/settings/integrations/github/created'
+    | '/_shell/servers/$serverId/docker/containers/$containerId'
+    | '/_shell/servers/$serverId/docker/containers/'
     | '/_shell/_settings/settings/integrations/github/$appId/installed'
   fileRoutesById: FileRoutesById
 }
@@ -1231,6 +1282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersIndexRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/docker': {
+      id: '/_shell/servers/docker'
+      path: '/servers/docker'
+      fullPath: '/servers/docker'
+      preLoaderRoute: typeof ShellServersDockerRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/volumes/$volumeId': {
       id: '/_shell/volumes/$volumeId'
       path: '/volumes/$volumeId'
@@ -1483,12 +1541,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellServersServerIdContainersNameRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/servers/$serverId/docker/': {
+      id: '/_shell/servers/$serverId/docker/'
+      path: '/servers/$serverId/docker'
+      fullPath: '/servers/$serverId/docker/'
+      preLoaderRoute: typeof ShellServersServerIdDockerIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/_settings/settings/integrations/github/created': {
       id: '/_shell/_settings/settings/integrations/github/created'
       path: '/settings/integrations/github/created'
       fullPath: '/settings/integrations/github/created'
       preLoaderRoute: typeof ShellSettingsSettingsIntegrationsGithubCreatedRouteImport
       parentRoute: typeof ShellSettingsRoute
+    }
+    '/_shell/servers/$serverId/docker/containers/': {
+      id: '/_shell/servers/$serverId/docker/containers/'
+      path: '/servers/$serverId/docker/containers'
+      fullPath: '/servers/$serverId/docker/containers/'
+      preLoaderRoute: typeof ShellServersServerIdDockerContainersIndexRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/servers/$serverId/docker/containers/$containerId': {
+      id: '/_shell/servers/$serverId/docker/containers/$containerId'
+      path: '/servers/$serverId/docker/containers/$containerId'
+      fullPath: '/servers/$serverId/docker/containers/$containerId'
+      preLoaderRoute: typeof ShellServersServerIdDockerContainersContainerIdRouteImport
+      parentRoute: typeof ShellRoute
     }
     '/_shell/_settings/settings/integrations/github/$appId/installed': {
       id: '/_shell/_settings/settings/integrations/github/$appId/installed'
@@ -1632,6 +1711,7 @@ interface ShellRouteChildren {
   ShellConnectionsNameRoute: typeof ShellConnectionsNameRoute
   ShellDatabasesServiceIdRoute: typeof ShellDatabasesServiceIdRouteWithChildren
   ShellProjectsProjectIdRoute: typeof ShellProjectsProjectIdRoute
+  ShellServersDockerRoute: typeof ShellServersDockerRoute
   ShellVolumesVolumeIdRoute: typeof ShellVolumesVolumeIdRoute
   ShellWebsitesWebsiteIdRoute: typeof ShellWebsitesWebsiteIdRouteWithChildren
   ShellWebsitesNewRoute: typeof ShellWebsitesNewRoute
@@ -1654,6 +1734,9 @@ interface ShellRouteChildren {
   ShellServersServerIdUpdatesRoute: typeof ShellServersServerIdUpdatesRoute
   ShellServersServerIdIndexRoute: typeof ShellServersServerIdIndexRoute
   ShellServersServerIdContainersNameRoute: typeof ShellServersServerIdContainersNameRoute
+  ShellServersServerIdDockerIndexRoute: typeof ShellServersServerIdDockerIndexRoute
+  ShellServersServerIdDockerContainersContainerIdRoute: typeof ShellServersServerIdDockerContainersContainerIdRoute
+  ShellServersServerIdDockerContainersIndexRoute: typeof ShellServersServerIdDockerContainersIndexRoute
 }
 
 const ShellRouteChildren: ShellRouteChildren = {
@@ -1680,6 +1763,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellConnectionsNameRoute: ShellConnectionsNameRoute,
   ShellDatabasesServiceIdRoute: ShellDatabasesServiceIdRouteWithChildren,
   ShellProjectsProjectIdRoute: ShellProjectsProjectIdRoute,
+  ShellServersDockerRoute: ShellServersDockerRoute,
   ShellVolumesVolumeIdRoute: ShellVolumesVolumeIdRoute,
   ShellWebsitesWebsiteIdRoute: ShellWebsitesWebsiteIdRouteWithChildren,
   ShellWebsitesNewRoute: ShellWebsitesNewRoute,
@@ -1703,6 +1787,11 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellServersServerIdIndexRoute: ShellServersServerIdIndexRoute,
   ShellServersServerIdContainersNameRoute:
     ShellServersServerIdContainersNameRoute,
+  ShellServersServerIdDockerIndexRoute: ShellServersServerIdDockerIndexRoute,
+  ShellServersServerIdDockerContainersContainerIdRoute:
+    ShellServersServerIdDockerContainersContainerIdRoute,
+  ShellServersServerIdDockerContainersIndexRoute:
+    ShellServersServerIdDockerContainersIndexRoute,
 }
 
 const ShellRouteWithChildren = ShellRoute._addFileChildren(ShellRouteChildren)

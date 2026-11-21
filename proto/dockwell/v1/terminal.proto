@@ -153,6 +153,11 @@ message OpenTerminalRequest {
   // A container on the server, by name or full ID, to open a shell in, in place of
   // the server's own.
   string container = 5;
+  // Full Engine ID in place of container. The passkey target includes this ID.
+  string container_id = 400;
+  // Run an executable directly in the container, with no shell expansion.
+  // Empty selects an available shell. The arguments are not audited.
+  repeated string argv = 401;
 }
 
 // OpenTerminalResponse is the terminal, running.

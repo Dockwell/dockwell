@@ -293,6 +293,9 @@ func (c *container) inspected() any {
 		}
 	}
 	host, config := section("HostConfig"), section("Config")
+	if c.State.Running || c.State.Paused {
+		section("NetworkSettings")["Ports"] = c.HostConfig.PortBindings
+	}
 	if _, set := host["NetworkMode"]; !set {
 		host["NetworkMode"] = "bridge"
 	}
@@ -456,6 +459,10 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		e.loadImage(w, r)
 		return
 	}
+	if strings.HasSuffix(r.URL.Path, "/events") && r.URL.Query().Get("until") == "" {
+		e.serveLiveEvents(w, r)
+		return
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	path := r.URL.Path
@@ -494,7 +501,7 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		for _, r := range e.Registries {
 			index[r] = map[string]any{"Secure": false}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
+		writeJSON(w, http.StatusOK, map[string]any{"Images": len(e.distinctImages()), "DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
 	case path == "/services" && r.Method == http.MethodGet:
 		// An engine that isn't a swarm's manager says so, as Docker does.
 		if e.Services == nil {
@@ -552,18 +559,21 @@ func (e *Engine) serveSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (e *Engine) distinctImages() map[*image]bool {
+	seen := make(map[*image]bool, len(e.images))
+	for _, img := range e.images {
+		seen[img] = true
+	}
+	return seen
+}
+
 // diskUsage is what /system/df says: each pulled image at its size, each layer
 // counted once, so an image under two tags is one; each container's own layer as
 // ContainerSizes has it; and each volume as VolumeSizes has it, with how many
 // containers use it.
 func (e *Engine) diskUsage() docker.DiskUsage {
 	var out docker.DiskUsage
-	seen := map[*image]bool{}
-	for _, img := range e.images {
-		if seen[img] {
-			continue
-		}
-		seen[img] = true
+	for img := range e.distinctImages() {
 		used := int64(0)
 		for _, c := range e.containers {
 			if c.img == img {
@@ -927,6 +937,18 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 	case r.Method == http.MethodGet && action == "json":
 		e.process(c)
 		writeJSON(w, http.StatusOK, c.inspected())
+	case r.Method == http.MethodGet && action == "stats" && c.State.Running:
+		writeJSON(w, http.StatusOK, map[string]any{
+			"cpu_stats": map[string]any{
+				"cpu_usage":        map[string]uint64{"total_usage": 105},
+				"system_cpu_usage": 1500, "online_cpus": 4,
+			},
+			"precpu_stats": map[string]any{
+				"cpu_usage": map[string]uint64{"total_usage": 100}, "system_cpu_usage": 1100,
+			},
+			"memory_stats": map[string]uint64{"usage": 5 << 20},
+			"networks":     map[string]any{"eth0": map[string]uint64{"rx_bytes": 2 << 20, "tx_bytes": 1 << 20}},
+		})
 	case r.Method == http.MethodPost && action == "exec":
 		e.createExec(w, r, c)
 	case r.Method == http.MethodHead && action == "archive":
@@ -1022,6 +1044,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		c.State.Paused, c.State.Status = true, "paused"
+		e.emit(c, "pause")
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "unpause":
 		if !c.State.Paused {
@@ -1029,6 +1052,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		c.State.Paused, c.State.Status = false, "running"
+		e.emit(c, "unpause")
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "kill":
 		if !c.State.Running {
@@ -1048,6 +1072,9 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 		if status == "unhealthy" {
 			h.FailingStreak, h.Log[0].ExitCode = 3, 1
 		}
+		if c.State.Health == nil || c.State.Health.Status != status {
+			e.emit(c, "health_status: "+status)
+		}
 		c.State.Health = h
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "rename":
@@ -1057,6 +1084,7 @@ func (e *Engine) serveContainers(w http.ResponseWriter, r *http.Request, parts [
 			return
 		}
 		c.Name = "/" + name
+		e.emit(c, "rename")
 		w.WriteHeader(http.StatusNoContent)
 	case r.Method == http.MethodPost && action == "update":
 		var body struct {
@@ -2166,6 +2194,53 @@ func (e *Engine) serveEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// serveLiveEvents keeps the browser fixture's inventory up to date after its
+// list. Real engine subscriptions are exercised through the same client.
+func (e *Engine) serveLiveEvents(w http.ResponseWriter, r *http.Request) {
+	e.mu.Lock()
+	since := e.wall().UTC()
+	e.mu.Unlock()
+	flusher := http.NewResponseController(w)
+	if flusher.Flush() != nil {
+		return
+	}
+	tick := time.NewTicker(75 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-tick.C:
+			e.mu.Lock()
+			var actions []event
+			for _, event := range e.events {
+				if event.at.After(since) {
+					actions = append(actions, event)
+				}
+			}
+			since = e.wall().UTC()
+			e.mu.Unlock()
+			for _, event := range actions {
+				if json.NewEncoder(w).Encode(map[string]any{"Type": "container", "Action": event.action, "Actor": map[string]string{"ID": event.id}}) != nil {
+					return
+				}
+			}
+			if len(actions) > 0 && flusher.Flush() != nil {
+				return
+			}
+		}
+	}
+}
+
+// EmitContainerEvents records Docker events that leave the container unchanged.
+func (e *Engine) EmitContainerEvents(name string, actions ...string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if c := e.byNameOrID(name); c != nil {
+		e.emit(c, actions...)
+	}
+}
+
 // SetHealth moves a container's health check on, as its next run would, with
 // what it printed.
 func (e *Engine) SetHealth(name, status, output string) {
@@ -2181,6 +2256,9 @@ func (e *Engine) SetHealth(name, status, output string) {
 		run.ExitCode, h.FailingStreak = 1, 3
 	}
 	h.Log = []docker.HealthRun{run}
+	if c.State.Health == nil || c.State.Health.Status != status {
+		e.emit(c, "health_status: "+status)
+	}
 	c.State.Health = h
 }
 

@@ -174,11 +174,15 @@ function levelNames(levels: ReadonlySet<LogLevel>): string | undefined {
 export function LogsPage({
   id,
   server = "",
+  sourceId,
+  onInspectLogging,
   search,
   onSearch,
 }: {
   id: string;
   server?: string;
+  sourceId?: string;
+  onInspectLogging?: () => void;
   search: LogsSearch;
   onSearch: (next: LogsSearch) => void;
 }) {
@@ -199,7 +203,10 @@ export function LogsPage({
     },
   );
   const service = sources.data?.service;
-  const allSources = sources.data?.sources;
+  const allSources = useMemo(
+    () => (sourceId ? sources.data?.sources.filter((source) => source.id === sourceId) : sources.data?.sources),
+    [sources.data?.sources, sourceId],
+  );
   const deploys = useMemo(() => deploysOf(allSources ?? []), [allSources]);
   const refetch = sources.refetch;
   const later = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -239,7 +246,13 @@ export function LogsPage({
   const [rangeRead, setRangeRead] = useState(0);
   const request = useMemo(() => {
     if (!loaded || deployGone) return undefined;
-    const base = { id, server, changeId: chosenChange, revision: chosenRevision };
+    const base = {
+      id,
+      server,
+      changeId: chosenChange,
+      revision: chosenRevision,
+      ...(sourceId ? { sourceIds: [sourceId] } : {}),
+    };
     if (range) return { ...base, last: durationFromMs(RANGE_MS[range]), tail: MAX_LINES, once: true };
     if (spanFrom !== undefined && spanTo !== undefined) {
       return {
@@ -252,7 +265,7 @@ export function LogsPage({
     }
     if (reading) return { ...base, tail: MAX_LINES, once: true };
     return { ...base, tail: LIVE_TAIL };
-  }, [id, server, range, spanFrom, spanTo, chosenChange, chosenRevision, reading, deployGone, loaded]);
+  }, [id, server, sourceId, range, spanFrom, spanTo, chosenChange, chosenRevision, reading, deployGone, loaded]);
   const asking = request;
   // biome-ignore lint/correctness/useExhaustiveDependencies: a range is read again when it changes, and reaches to then
   const now = useMemo(() => Date.now(), [range, rangeRead]);
@@ -262,7 +275,7 @@ export function LogsPage({
   const levels = useMemo(() => levelsOf({ ...(search.levels ? { levels: search.levels } : {}) }), [search.levels]);
   const deepOn = Boolean(search.deep && search.q);
   const deepLevels = useMemo(() => [...levels], [levels]);
-  const deep = useDeepSearch(id, server, deepOn, search.q ?? "", deepLevels, deepStore);
+  const deep = useDeepSearch(id, server, deepOn, search.q ?? "", deepLevels, deepStore, sourceId);
   const active = deepOn ? deepStore : store;
 
   // How entries are drawn: their time, their source's name and the words of a note.
@@ -718,6 +731,7 @@ export function LogsPage({
         stopped={stopped === false ? [] : stopped}
         logErrors={logErrors}
         unbounded={unbounded}
+        onInspectLogging={onInspectLogging}
         outside={server !== ""}
         chosen={chosen}
         rolledBackTo={chosen?.failed && currentDeploy ? deployRevision(currentDeploy) : undefined}
@@ -810,7 +824,7 @@ export function LogsPage({
               </div>
             ) : undefined
           ) : !search.q ? (
-            <EarlierLines id={id} server={server} store={active} chosen={chosen} search={search} />
+            <EarlierLines id={id} server={server} sourceId={sourceId} store={active} chosen={chosen} search={search} />
           ) : undefined
         }
         stream={stream}
@@ -1235,12 +1249,14 @@ function SearchSaid({ store, deep, typed }: { store: LogStore; deep: DeepSearch 
 function EarlierLines({
   id,
   server,
+  sourceId,
   store,
   chosen,
   search,
 }: {
   id: string;
   server: string;
+  sourceId?: string | undefined;
   store: LogStore;
   chosen: Deploy | undefined;
   search: LogsSearch;
@@ -1283,6 +1299,7 @@ function EarlierLines({
         id,
         server,
         pageSize: OLDER_PAGE,
+        ...(sourceId ? { sourceIds: [sourceId] } : {}),
         pageToken: state.token,
         changeId: chosen?.change ?? "",
         // Strictly before what is here: a page token, once there is one, says so itself.

@@ -158,6 +158,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DatabaseService.listDatabases": "read",
   "DatabaseService.setDatabaseExternalAccess": "may",
 
+  "DockerService.getDockerObject": "may",
+  "DockerService.getDockerOverview": "may",
+  "DockerService.listDockerObjects": { within: "DockerService.getDockerOverview" },
+  "DockerService.watchDockerObjects": { within: "DockerService.getDockerOverview" },
+
   "DomainService.checkDnsProvider": "may",
   "DomainService.listCertificates": "unused",
   "DomainService.checkDomain": "may",

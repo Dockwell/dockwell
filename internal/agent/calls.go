@@ -90,7 +90,9 @@ type calls struct {
 	// grace is how long a call gets to end once it should.
 	grace time.Duration
 	// unfinished is what outlives its call on this agent, on any stream.
-	unfinished *unfinished
+	unfinished     *unfinished
+	inventory      inventoryWatches
+	inventoryReads chan struct{}
 
 	mu      sync.Mutex
 	running map[uint64]context.CancelFunc
@@ -131,7 +133,7 @@ func newCalls(ctx context.Context, cfg Config, send func(*agentv1.ConnectRequest
 	}
 	return &calls{
 		ctx: ctx, end: end, cfg: cfg, local: resource.Local{Drivers: cfg.Drivers}, delivery: key, server: server, send: send, logger: cfg.Logger,
-		grace: grace, unfinished: held,
+		grace: grace, unfinished: held, inventoryReads: make(chan struct{}, 3),
 		running: map[uint64]context.CancelFunc{}, reading: map[uint64]context.CancelFunc{},
 		idle: make(chan struct{}, 1), drained: make(chan struct{}),
 	}
@@ -759,6 +761,35 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_LogSources{LogSources: &agentv1.LogSourcesResult{Sources: sources}}}
+	case call.GetDockerInventoryList() != nil:
+		select {
+		case c.inventoryReads <- struct{}{}:
+			defer func() { <-c.inventoryReads }()
+		case <-ctx.Done():
+			return fail(errDockerInventory)
+		}
+		out, err := dockerInventoryList(ctx, c.cfg.Docker, call.GetDockerInventoryList())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerInventoryList{DockerInventoryList: out}}
+	case call.GetDockerInventoryDetail() != nil:
+		select {
+		case c.inventoryReads <- struct{}{}:
+			defer func() { <-c.inventoryReads }()
+		case <-ctx.Done():
+			return fail(errDockerInventory)
+		}
+		out, err := dockerInventoryDetail(ctx, c.cfg.Docker, call.GetDockerInventoryDetail())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerInventoryDetail{DockerInventoryDetail: out}}
+	case call.GetDockerInventoryWatch() != nil:
+		if err := c.watchInventory(call.GetDockerInventoryWatch()); err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerInventoryWatch{DockerInventoryWatch: &agentv1.DockerInventoryWatchResult{}}}
 	case call.GetContainers() != nil:
 		found, err := containers(ctx, c.cfg.Docker, call.GetContainers())
 		if err != nil {

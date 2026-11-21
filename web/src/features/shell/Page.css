@@ -210,3 +210,30 @@
     padding-right: max(var(--space-4), env(safe-area-inset-right));
   }
 }
+
+.page-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.page-breadcrumbs a {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-breadcrumbs a:hover {
+  color: var(--ink);
+}
+
+.page-breadcrumbs a:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

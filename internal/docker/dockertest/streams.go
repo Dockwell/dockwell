@@ -398,7 +398,7 @@ func (e *Engine) inspectExec(w http.ResponseWriter, id string) {
 	if x.shell != nil && x.running {
 		pid = x.shell.cmd.Process.Pid
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"Running": x.running, "ExitCode": x.exitCode, "Pid": pid})
+	writeJSON(w, http.StatusOK, map[string]any{"Running": x.running, "ExitCode": x.exitCode, "Pid": pid, "ContainerID": x.container.ID})
 }
 
 // importImage makes an image from a tar, as docker import does.

@@ -1,0 +1,368 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.docker-workspace,
+.docker-detail-body {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.docker-navigation,
+.docker-detail-nav,
+.docker-section-heading,
+.docker-row-actions,
+.docker-card-head,
+.docker-card-foot,
+.docker-pager {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.docker-navigation,
+.docker-detail-nav,
+.docker-section-heading,
+.docker-card-head,
+.docker-card-foot {
+  justify-content: space-between;
+}
+
+.docker-navigation,
+.docker-detail-nav {
+  border-bottom: 1px solid var(--line);
+}
+
+.docker-navigation > .dw-tabs,
+.docker-detail-nav > .dw-tabs {
+  min-width: 0;
+  border-bottom: 0;
+}
+
+.docker-section-heading h2 {
+  margin: 0;
+  font-size: var(--type-heading-size, 18px);
+  font-weight: 600;
+}
+
+.docker-section-heading p {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-muted);
+}
+
+.docker-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.docker-metric-link {
+  min-width: 0;
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.docker-metric-link:hover .dw-metric-label {
+  color: var(--link);
+}
+
+.docker-metrics .dw-metric-value {
+  overflow-wrap: anywhere;
+}
+
+.docker-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(275px, 100%), 1fr));
+  gap: var(--space-4);
+}
+
+.docker-overview-grid > * {
+  min-width: 0;
+}
+
+.docker-facts {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+
+.docker-fact {
+  display: grid;
+  grid-template-columns: minmax(88px, 40%) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  min-width: 0;
+}
+
+.docker-fact + .docker-fact {
+  border-top: 1px solid var(--line);
+}
+
+.docker-fact dt {
+  color: var(--ink-muted);
+}
+
+.docker-fact dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docker-fact dt,
+.docker-detail-list,
+.docker-servers {
+  overflow-wrap: anywhere;
+}
+
+.docker-detail-list,
+.docker-servers,
+.docker-card-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.docker-servers li {
+  padding: var(--space-2) 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+}
+
+.docker-detail-list li + li {
+  margin-top: var(--space-2);
+}
+
+.docker-servers li + li {
+  border-top: 1px solid var(--line);
+}
+
+.docker-header-status,
+.docker-live-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.docker-live-note {
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+}
+
+.docker-overview-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.docker-row-link {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.docker-row-link:hover {
+  color: var(--cobalt);
+  text-decoration: underline;
+}
+
+.docker-servers .dw-link:not(.docker-row-link),
+.docker-table .dw-link:not(.docker-row-link),
+.docker-unread .dw-link {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+.docker-unread {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.docker-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.docker-filters > *,
+.docker-scope {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.docker-filters > :nth-child(2) {
+  flex: 1 1 210px;
+}
+
+.docker-scope {
+  max-width: 320px;
+  margin-bottom: var(--space-3);
+}
+
+.docker-port-preview,
+.docker-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+}
+
+.docker-table {
+  min-width: 0;
+}
+
+.docker-table table {
+  table-layout: fixed;
+}
+
+.docker-table .dw-table th {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.docker-table th:first-child {
+  width: 17%;
+}
+
+.docker-cell-text,
+.docker-table .dw-status-label,
+.docker-table .docker-usage {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docker-image-ref {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.docker-table .docker-image-ref {
+  max-width: min(100%, 18rem);
+}
+
+.docker-table .dw-status {
+  max-width: 100%;
+}
+
+.docker-table .dw-status .dw-glyph {
+  flex: none;
+}
+
+.docker-table .docker-port-preview {
+  display: block;
+}
+
+.docker-name > .dw-tag {
+  max-width: 100%;
+}
+
+.docker-name {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.docker-muted {
+  color: var(--ink-muted);
+}
+
+.docker-row-actions {
+  gap: var(--space-1);
+  justify-content: flex-end;
+  flex: 0 0 auto;
+}
+
+.docker-pager {
+  justify-content: flex-end;
+}
+
+.docker-card {
+  padding: var(--space-3) var(--space-4);
+}
+
+.docker-card + .docker-card {
+  border-top: 1px solid var(--line);
+}
+
+.docker-card-head {
+  align-items: flex-start;
+}
+
+.docker-card-image {
+  margin-top: var(--space-2);
+}
+
+.docker-card-foot {
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.docker-card-foot > div:first-child {
+  min-width: 0;
+}
+
+.docker-json summary {
+  cursor: pointer;
+  font-weight: 550;
+}
+
+.docker-json-scroll {
+  max-height: 350px;
+  overflow: auto;
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.docker-json pre {
+  margin: 0;
+  white-space: inherit;
+  overflow-wrap: inherit;
+}
+
+@media (max-width: 639px) {
+  .docker-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .docker-metrics .dw-metric-value {
+    font-size: clamp(1rem, 5.5vw, 1.6rem);
+  }
+
+  .docker-row-actions .dw-btn,
+  .docker-row-actions button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .docker-filters {
+    gap: var(--space-2);
+  }
+}
+
+@media (max-width: 389px) {
+  .docker-filters .dw-seg {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+}

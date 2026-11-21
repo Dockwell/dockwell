@@ -9,6 +9,14 @@ const containerName = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/;
 
 /** Reads which container a shell is for, leaving out what can't be one. */
 function readSearch(search: Record<string, unknown>): TerminalSearch {
+  const exact = search["containerId"];
+  const title = search["containerTitle"];
+  if (typeof exact === "string" && /^[0-9a-f]{64}$/.test(exact)) {
+    return {
+      containerId: exact,
+      ...(typeof title === "string" && containerName.test(title) ? { containerTitle: title } : {}),
+    };
+  }
   const container = search["container"];
   return typeof container === "string" && containerName.test(container) ? { container } : {};
 }

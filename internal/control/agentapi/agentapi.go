@@ -339,6 +339,8 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:
 				session.deliver(msg.GetResult())
+			case msg.GetDockerInventoryChanged() != nil && session != nil:
+				session.dockerChanged(msg.GetDockerInventoryChanged())
 			case msg.GetProgress() != nil && session != nil:
 				session.progressed(msg.GetProgress())
 			case msg.GetKinds() != nil && session != nil:

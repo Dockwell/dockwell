@@ -80,6 +80,14 @@ function useVisibleHeight(): number | undefined {
 export interface TerminalSearch {
   /** A container on the server, by name, for a shell in it. */
   container?: string;
+  containerId?: string;
+  containerTitle?: string;
+}
+
+interface ExactTerminal {
+  id: string;
+  name: string;
+  argv?: string[];
 }
 
 /** A server's terminal, as its own tab of the server's page, and the shells in its containers. */
@@ -109,7 +117,20 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
           : undefined
       }
     >
-      {(server) => <Terminals server={server} phone={phone} container={search.container} onTitle={setTitle} />}
+      {(server) => (
+        <Terminals
+          key={search.containerId ?? "terminal"}
+          server={server}
+          phone={phone}
+          container={search.container}
+          exact={
+            search.containerId
+              ? { id: search.containerId, name: search.containerTitle || search.containerId.slice(0, 12) }
+              : undefined
+          }
+          onTitle={setTitle}
+        />
+      )}
     </ServerFrame>
   );
 }
@@ -131,10 +152,11 @@ interface TerminalsProps {
   phone: boolean;
   /** A container a shell is wanted in, from the page's URL. */
   container: string | undefined;
+  exact?: ExactTerminal | undefined;
   onTitle: (title: string | undefined) => void;
 }
 
-function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
+function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps) {
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
@@ -158,7 +180,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string>();
   // A terminal took a passkey and there's none for this address: for which shell.
-  const [noPasskey, setNoPasskey] = useState<{ container?: string }>();
+  const [noPasskey, setNoPasskey] = useState<{ container?: string; exact?: ExactTerminal }>();
   // A container's shell that the agent found as good as root, waiting for the person
   // to go on to the passkey, or not, once they've read why.
   const [asking, setAsking] = useState<{ container: string; go: (yes: boolean) => void }>();
@@ -187,6 +209,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     return () => window.removeEventListener("resize", measure);
   }, [phone, measure]);
   const merged = useRef(false);
+  const exactTabs = useRef(new Set<string>());
 
   // The tabs come back from what the control plane lists once it has answered since the page
   // came back, not from what was kept before: a terminal that ended since isn't listed (#652).
@@ -197,8 +220,11 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
     const open = listed.data.terminals;
     setTabs((now) => [...open.filter((o) => !now.some((n) => n.id === o.id)), ...now]);
     // A shell asked for in a container shows that container's, or the offer to open one.
-    setActive((now) => now ?? (container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id));
-  }, [listed.data, listed.isFetchedAfterMount, container]);
+    setActive(
+      (now) =>
+        now ?? (exact ? undefined : container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id),
+    );
+  }, [listed.data, listed.isFetchedAfterMount, container, exact]);
 
   /**
    * Takes a terminal out of the list kept for this server, so the page doesn't bring it back
@@ -221,7 +247,13 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
 
   const names = tabNames(tabs);
   // A container in the page's address with no shell open in it yet.
-  const wanted = container && !tabs.some((tab) => tab.container === container) ? container : undefined;
+  const wanted = exact
+    ? tabs.some((tab) => exactTabs.current.has(tab.id))
+      ? undefined
+      : exact.name
+    : container && !tabs.some((tab) => tab.container === container)
+      ? container
+      : undefined;
   const current = tabs.find((tab) => tab.id === active);
   const status = current ? statuses[current.id] : undefined;
   useEffect(() => onTitle(current?.title), [current?.title, onTitle]);
@@ -230,13 +262,15 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
 
   /** Opens the server's own terminal, or a shell in a container on it. */
   const open = useCallback(
-    async (inContainer?: string) => {
+    async (inContainer?: string, targetContainer?: ExactTerminal) => {
       setOpening(true);
       setProblem(undefined);
       setNoPasskey(undefined);
       const want = size ?? { columns: 80, rows: 24 };
       // A container's shell asks for a passkey only where the agent finds it as good as root.
-      const target = inContainer ? `${serverId}:${inContainer}` : serverId;
+      const ref = targetContainer?.id ?? inContainer;
+      const name = targetContainer?.name ?? inContainer;
+      const target = ref ? `${serverId}:${ref}` : serverId;
       try {
         const res = await withStepUpIfAsked(
           transport,
@@ -249,14 +283,15 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
               rows: want.rows,
               proof,
               container: inContainer ?? "",
+              ...(targetContainer ? { containerId: targetContainer.id, argv: targetContainer.argv ?? [] } : {}),
             }),
           // Only the agent can tell a container reaches as far as root, so the page says
           // that before the browser asks. A server's terminal said so in its offer.
-          inContainer
+          name
             ? () =>
                 new Promise<boolean>((resolve) =>
                   setAsking({
-                    container: inContainer,
+                    container: name,
                     go: (yes) => {
                       setAsking(undefined);
                       resolve(yes);
@@ -267,6 +302,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
         );
         const opened = res.terminal;
         if (opened) {
+          if (targetContainer) exactTabs.current.add(opened.id);
           setTabs((now) => [...now, opened]);
           setActive(opened.id);
         }
@@ -279,7 +315,9 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
           // They read why, and chose not to: nothing to say.
         } else if (reason === "no_passkey_here") {
           // Adding one here opens what was asked for once it's made.
-          setNoPasskey({ container: inContainer });
+          setNoPasskey(
+            targetContainer ? { container: targetContainer.name, exact: targetContainer } : { container: inContainer },
+          );
         } else if (err instanceof PasskeyError && err.problem === "cancelled") {
           setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
         } else {
@@ -366,7 +404,11 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
       status={status}
       root={!current.container || current.title.startsWith("root@")}
       onBringBack={() => handle()?.bringBack()}
-      onOpen={() => void open(current.container || undefined)}
+      onOpen={() =>
+        void (exact && exactTabs.current.has(current.id)
+          ? open(undefined, exact)
+          : open(current.container || undefined))
+      }
       onClose={() => void close(current.id)}
       opening={opening}
     />
@@ -381,18 +423,28 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
         </Trans>
       }
       action={
-        <Button variant="primary" size="lg" icon="terminal" loading={opening} onClick={() => void open(wanted)}>
+        <Button
+          variant="primary"
+          size="lg"
+          icon="terminal"
+          loading={opening}
+          onClick={() => void (exact ? open(undefined, exact) : open(wanted))}
+        >
           <Trans>Open a shell</Trans>
         </Button>
       }
     >
-      <p>
-        <Trans>
-          A shell in <code>{wanted}</code> runs in the container, as its own user, with the first of bash, ash and sh
-          its image has. One in a container that reaches as far as root on <code>{server.name}</code> asks for your
-          passkey.
-        </Trans>
-      </p>
+      {exact ? (
+        <ExecForm opening={opening} run={(argv) => void open(undefined, { ...exact, argv })} />
+      ) : (
+        <p>
+          <Trans>
+            A shell in <code>{wanted}</code> runs in the container, as its own user, with the first of bash, ash and sh
+            its image has. One in a container that reaches as far as root on <code>{server.name}</code> asks for your
+            passkey.
+          </Trans>
+        </p>
+      )}
     </EmptyState>
   ) : null;
 
@@ -446,7 +498,7 @@ function Terminals({ server, phone, container, onTitle }: TerminalsProps) {
           ? t`A shell in ${shellIn} takes a passkey, and there's none for this address`
           : t`A terminal takes a passkey, and there's none for this address`
       }
-      onAdded={() => void open(noPasskey.container)}
+      onAdded={() => void (noPasskey.exact ? open(undefined, noPasskey.exact) : open(noPasskey.container))}
     />
   ) : problem ? (
     <Callout tone="critical" title={<Trans>No terminal opened</Trans>}>
@@ -854,5 +906,69 @@ function SessionMenu({ open, onOpenChange, onPaste, onClear, onClose }: MenuProp
         </div>
       ) : null}
     </span>
+  );
+}
+
+function ExecForm({ opening, run }: { opening: boolean; run: (argv: string[]) => void }) {
+  const { t } = useLingui();
+  const [executable, setExecutable] = useState("");
+  const [args, setArgs] = useState<{ key: number; value: string }[]>([]);
+  const next = useRef(0);
+  return (
+    <details className="terminal-exec">
+      <summary>
+        <Trans>Run a command</Trans>
+      </summary>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (executable.trim() && !opening) run([executable.trim(), ...args.map((arg) => arg.value)]);
+        }}
+      >
+        <TextField
+          label={t`Executable`}
+          placeholder="/bin/date"
+          value={executable}
+          onChange={(event) => setExecutable(event.target.value)}
+        />
+        {args.map((arg, index) => (
+          <div key={arg.key} className="terminal-exec-argument">
+            <TextField
+              label={t`Argument ${index + 1}`}
+              value={arg.value}
+              onChange={(event) => {
+                const value = event.target.value;
+                setArgs((all) => all.map((item) => (item.key === arg.key ? { ...item, value } : item)));
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              icon="x"
+              aria-label={t`Remove argument ${index + 1}`}
+              onClick={() => setArgs((all) => all.filter((item) => item.key !== arg.key))}
+            />
+          </div>
+        ))}
+        <div className="terminal-exec-actions">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            icon="plus"
+            disabled={args.length >= 63}
+            onClick={() => {
+              const key = next.current++;
+              setArgs((all) => [...all, { key, value: "" }]);
+            }}
+          >
+            <Trans>Add argument</Trans>
+          </Button>
+          <Button type="submit" size="sm" icon="terminal" disabled={!executable.trim()} loading={opening}>
+            <Trans>Run command</Trans>
+          </Button>
+        </div>
+      </form>
+    </details>
   );
 }

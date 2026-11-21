@@ -53,3 +53,26 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
+
+.dw-tag-link {
+  max-width: 100%;
+  text-decoration: none;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.dw-tag-link-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dw-tag-link:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+
+.dw-tag-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}

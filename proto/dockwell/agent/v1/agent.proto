@@ -10,6 +10,7 @@ import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/database.proto";
+import "dockwell/v1/docker.proto";
 import "dockwell/v1/domain.proto";
 import "dockwell/v1/file.proto";
 import "dockwell/v1/firewall.proto";
@@ -148,6 +149,7 @@ message ConnectRequest {
     // What the agent did, or couldn't do, on its own while the control plane
     // was away, sent as its stream opens (ADR 0054).
     Reconciled reconciled = 163;
+    DockerInventoryChanged docker_inventory_changed = 403;
   }
 }
 
@@ -609,6 +611,8 @@ message Hello {
   // whether each answers (#791). Numbered in the block a service's ports hold,
   // 390 to 399.
   bool reads_app_ports = 392;
+  // Docker inventory and maintenance use 400 to 419 (ADR 0107).
+  DockerCapabilities docker_capabilities = 400;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -921,6 +925,9 @@ message Call {
     // Read the ports a service's container exposes and listens on, and whether
     // each answers (#791). A service's ports take 390 to 399.
     AppPortsCall app_ports = 390;
+    DockerInventoryListCall docker_inventory_list = 400;
+    DockerInventoryDetailCall docker_inventory_detail = 401;
+    DockerInventoryWatchCall docker_inventory_watch = 402;
   }
 }
 
@@ -1328,6 +1335,10 @@ message OpenTerminalCall {
   // True when a passkey confirmed opening a shell in container, which one that's as
   // good as root on the server takes.
   bool confirmed = 6;
+  // The exact Engine ID, in place of the legacy container reference.
+  string container_id = 400;
+  // An explicit container executable and arguments. Empty selects a shell.
+  repeated string argv = 401;
 }
 
 // OpenTerminalResult is the terminal, running.
@@ -2659,6 +2670,9 @@ message CallResult {
     MakeAppOwnerResult make_app_owner = 381;
     ReadAppOwnerResult read_app_owner = 383;
     AppPortsResult app_ports = 391;
+    DockerInventoryListResult docker_inventory_list = 400;
+    DockerInventoryDetailResult docker_inventory_detail = 401;
+    DockerInventoryWatchResult docker_inventory_watch = 402;
   }
 }
 
@@ -2890,4 +2904,60 @@ message ObservedResource {
   // Its spec, encoded as its kind's message. Unset when the server doesn't
   // have it.
   optional bytes spec = 1;
+}
+
+// DockerCapabilities advertises the Docker inventory protocol and exact-ID exec.
+message DockerCapabilities {
+  bool inventory = 1;
+  bool exact_terminal = 2;
+}
+
+// DockerInventoryListCall reads counters or a bounded page from the local Engine.
+message DockerInventoryListCall {
+  dockwell.v1.DockerObjectFilter filter = 1;
+  uint32 page_size = 2;
+  string after_id = 3;
+  string snapshot = 4;
+  bool overview = 5;
+}
+
+// DockerInventoryListResult carries a page, a server summary or a request to resync.
+message DockerInventoryListResult {
+  repeated dockwell.v1.DockerObject objects = 1;
+  string next_id = 2;
+  string snapshot = 3;
+  dockwell.v1.DockerServerSummary overview = 4;
+  bool resync = 5;
+}
+
+// DockerInventoryDetailCall inspects a full container ID and optionally looks for its replacement.
+message DockerInventoryDetailCall {
+  string container_id = 1;
+  string last_known_name = 2;
+}
+
+// DockerInventoryDetailResult returns safe details or the full ID of a replacement.
+message DockerInventoryDetailResult {
+  dockwell.v1.DockerObject object = 1;
+  dockwell.v1.DockerObjectKey replacement_key = 2;
+}
+
+// DockerInventoryWatchCall starts, renews or stops a short-lived subscription.
+message DockerInventoryWatchCall {
+  string subscription_id = 1;
+  repeated string visible_ids = 2;
+  bool stop = 3;
+}
+
+// DockerInventoryWatchResult acknowledges a subscription request.
+message DockerInventoryWatchResult {}
+
+// DockerInventoryChanged is bounded and sent only while a watch is held.
+message DockerInventoryChanged {
+  string subscription_id = 1;
+  repeated dockwell.v1.DockerObjectKey changed_keys = 2;
+  repeated dockwell.v1.DockerSample samples = 3;
+  bool resync = 4;
+  repeated dockwell.v1.DockerHealthUpdate health_updates = 5;
+  optional bool event_stream_ready = 6;
 }

@@ -6,7 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -174,5 +177,54 @@ func TestStoppingWaitsForTerminalStartup(t *testing.T) {
 	}
 	if end := takeEnded(t, m, "trm_starting").GetEnd(); end.GetReason() != dockwellv1.TerminalEndReason_TERMINAL_END_REASON_AGENT_RESTARTED {
 		t.Errorf("ended with %v", end)
+	}
+}
+
+func TestExactTerminalValidatesAndPinsTheExec(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddLocalImage("fixture:1", dockertest.Image{Shell: "/bin/sh"})
+	id := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	e.AddContainer(docker.Container{ID: id, Name: "/fixture", Config: docker.Config{Image: "fixture:1"}})
+	var checked string
+	m := New(Options{Docker: e.Client(), AsGoodAsRoot: func(_ context.Context, got string) (bool, error) {
+		checked = got
+		return true, nil
+	}})
+	t.Cleanup(m.closeAll)
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_short", ContainerId: id[:12], Argv: []string{"/bin/sh"}}); err == nil {
+		t.Fatal("an ID prefix opened a terminal")
+	}
+	request := &agentv1.OpenTerminalCall{Id: "trm_exact", ContainerId: id, Argv: []string{"/bin/sh", "-i"}}
+	asked, err := m.Open(t.Context(), request)
+	if err != nil || !asked.GetNeedsStepUp() || checked != id || len(m.Known()) != 0 {
+		t.Fatalf("exact terminal must hold for confirmation: %v, %v, checked %s", asked, err, checked)
+	}
+	request.Confirmed = true
+	opened, err := m.Open(t.Context(), request)
+	if err != nil || opened.GetContainerId() != id || opened.GetContainerName() != "fixture" {
+		t.Fatalf("exact terminal: %v, %v", opened, err)
+	}
+}
+
+func TestExactTerminalRejectsAnExecBoundToADifferentContainer(t *testing.T) {
+	e := dockertest.New(t)
+	var started atomic.Bool
+	e.Intercept(func(request *http.Request) error {
+		if strings.Contains(request.URL.Path, "/exec/") && strings.HasSuffix(request.URL.Path, "/start") {
+			started.Store(true)
+		}
+		return nil
+	})
+	e.AddLocalImage("fixture:1", dockertest.Image{Shell: "/bin/sh"})
+	id := e.AddContainer(docker.Container{Name: "/fixture", Config: docker.Config{Image: "fixture:1"}}).ID
+	m := New(Options{Docker: e.Client(), AsGoodAsRoot: func(_ context.Context, _ string) (bool, error) {
+		e.Remove(id)
+		e.AddContainer(docker.Container{Name: "/" + id, Config: docker.Config{Image: "fixture:1"}})
+		return false, nil
+	}})
+	t.Cleanup(m.closeAll)
+	_, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_exact", ContainerId: id, Argv: []string{"/bin/sh"}})
+	if !errors.Is(err, docker.ErrExecContainerChanged) || len(m.Known()) != 0 || started.Load() {
+		t.Fatalf("a terminal must open in the instance whose access was checked: %v", err)
 	}
 }

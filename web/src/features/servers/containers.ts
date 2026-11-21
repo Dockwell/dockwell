@@ -59,7 +59,7 @@ export function mountSource(mount: ContainerMount): string {
 }
 
 /** What a service that takes a container on is called unless someone says, as the control plane works it out. */
-export function serviceNameFor(container: ServerContainer): string {
+export function serviceNameFor(container: Pick<ServerContainer, "name" | "composeService">): string {
   return labelFor(container.composeService || container.name);
 }
 

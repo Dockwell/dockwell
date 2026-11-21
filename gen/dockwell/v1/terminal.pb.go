@@ -221,7 +221,12 @@ type OpenTerminalRequest struct {
 	Proof string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
 	// A container on the server, by name or full ID, to open a shell in, in place of
 	// the server's own.
-	Container     string `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
+	Container string `protobuf:"bytes,5,opt,name=container,proto3" json:"container,omitempty"`
+	// Full Engine ID in place of container. The passkey target includes this ID.
+	ContainerId string `protobuf:"bytes,400,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	// Run an executable directly in the container, with no shell expansion.
+	// Empty selects an available shell. The arguments are not audited.
+	Argv          []string `protobuf:"bytes,401,rep,name=argv,proto3" json:"argv,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -289,6 +294,20 @@ func (x *OpenTerminalRequest) GetContainer() string {
 		return x.Container
 	}
 	return ""
+}
+
+func (x *OpenTerminalRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+func (x *OpenTerminalRequest) GetArgv() []string {
+	if x != nil {
+		return x.Argv
+	}
+	return nil
 }
 
 // OpenTerminalResponse is the terminal, running.
@@ -911,13 +930,15 @@ const file_dockwell_v1_terminal_proto_rawDesc = "" +
 	"\topen_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\bopenTime\x12\x18\n" +
 	"\acolumns\x18\x05 \x01(\rR\acolumns\x12\x12\n" +
 	"\x04rows\x18\x06 \x01(\rR\x04rows\x12\x1c\n" +
-	"\tcontainer\x18\a \x01(\tR\tcontainer\"\x94\x01\n" +
+	"\tcontainer\x18\a \x01(\tR\tcontainer\"\xcd\x01\n" +
 	"\x13OpenTerminalRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x18\n" +
 	"\acolumns\x18\x02 \x01(\rR\acolumns\x12\x12\n" +
 	"\x04rows\x18\x03 \x01(\rR\x04rows\x12\x14\n" +
 	"\x05proof\x18\x04 \x01(\tR\x05proof\x12\x1c\n" +
-	"\tcontainer\x18\x05 \x01(\tR\tcontainer\"I\n" +
+	"\tcontainer\x18\x05 \x01(\tR\tcontainer\x12\"\n" +
+	"\fcontainer_id\x18\x90\x03 \x01(\tR\vcontainerId\x12\x13\n" +
+	"\x04argv\x18\x91\x03 \x03(\tR\x04argv\"I\n" +
 	"\x14OpenTerminalResponse\x121\n" +
 	"\bterminal\x18\x01 \x01(\v2\x15.dockwell.v1.TerminalR\bterminal\"3\n" +
 	"\x14ListTerminalsRequest\x12\x1b\n" +

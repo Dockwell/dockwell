@@ -79,6 +79,7 @@ export function LogNote({
   noCurrent,
   locale,
   onReadMissed,
+  onInspectLogging,
 }: {
   name: string;
   stream: StreamState;
@@ -94,6 +95,7 @@ export function LogNote({
   locale: string;
   /** Reads what came while this tab was away for long, as a time range of its own. */
   onReadMissed?: () => void;
+  onInspectLogging?: (() => void) | undefined;
 }) {
   const { t } = useLingui();
   const first = down[0];
@@ -167,6 +169,21 @@ export function LogNote({
   }
   const wild = unbounded[0];
   if (wild) {
+    if (onInspectLogging) {
+      return (
+        <Callout
+          tone="warning"
+          title={t`Log rotation is off`}
+          actions={
+            <Button variant="secondary" size="sm" onClick={onInspectLogging}>
+              <Trans>Inspect logging</Trans>
+            </Button>
+          }
+        >
+          <Trans>Docker keeps this log without a size limit.</Trans>
+        </Callout>
+      );
+    }
     return (
       <LogCallout tone="warning" title={t`This container's log has no limit on ${wild.serverName}`}>
         {outside ? (

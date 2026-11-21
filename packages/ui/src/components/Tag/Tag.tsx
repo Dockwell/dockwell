@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 
 import { cx } from "../../lib/cx";
 import { useUIStrings } from "../../lib/strings";
@@ -25,13 +25,17 @@ export interface TagProps {
   className?: string;
 }
 
+function tagClass(tone: TagProps["tone"], words: boolean, className?: string) {
+  return cx("dw-tag", tone && `dw-tag-${tone}`, words && "dw-tag-words", className);
+}
+
 /** A key:value label or selector, set in mono because machines read it, or in sans for words a person reads. Tags never carry status. */
 export function Tag({ label, value, tone, words = false, icon, onRemove, removeLabel, children, className }: TagProps) {
   const strings = useUIStrings();
   const plainChildren = typeof children === "string" || typeof children === "number" ? String(children) : "";
   const text = removeLabel ?? ([label, value].filter((part) => part != null).join(":") || plainChildren);
   return (
-    <span className={cx("dw-tag", tone && `dw-tag-${tone}`, words && "dw-tag-words", className)}>
+    <span className={tagClass(tone, words, className)}>
       {icon ? <Icon name={icon} size={12} /> : null}
       {label != null ? <span className="dw-tag-key">{value != null ? `${label}:` : label}</span> : null}
       {value != null ? <span className="dw-tag-value">{value}</span> : children}
@@ -41,5 +45,16 @@ export function Tag({ label, value, tone, words = false, icon, onRemove, removeL
         </button>
       ) : null}
     </span>
+  );
+}
+
+export type TagLinkProps = Pick<TagProps, "tone" | "words"> & ComponentPropsWithRef<"a">;
+
+/** The tag itself is a link. */
+export function TagLink({ tone, words = false, children, className, ...props }: TagLinkProps) {
+  return (
+    <a {...props} className={tagClass(tone, words, cx("dw-tag-link", className))}>
+      <span className="dw-tag-link-label">{children}</span>
+    </a>
   );
 }
