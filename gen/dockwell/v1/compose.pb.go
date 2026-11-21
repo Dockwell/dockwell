@@ -913,6 +913,531 @@ func (x *ExportComposeResponse) GetOmitted() []string {
 	return nil
 }
 
+// The environment is addressed by its immutable ID.
+type GetComposeWorkspaceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EnvironmentId string                 `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetComposeWorkspaceRequest) Reset() {
+	*x = GetComposeWorkspaceRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComposeWorkspaceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComposeWorkspaceRequest) ProtoMessage() {}
+
+func (x *GetComposeWorkspaceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComposeWorkspaceRequest.ProtoReflect.Descriptor instead.
+func (*GetComposeWorkspaceRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetComposeWorkspaceRequest) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+// The portable workspace and the snapshot required to plan edits to it.
+type GetComposeWorkspaceResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Workspace     *ComposeWorkspace           `protobuf:"bytes,1,opt,name=workspace,proto3" json:"workspace,omitempty"`
+	Snapshot      string                      `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Omissions     []*ComposeWorkspaceOmission `protobuf:"bytes,3,rep,name=omissions,proto3" json:"omissions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetComposeWorkspaceResponse) Reset() {
+	*x = GetComposeWorkspaceResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComposeWorkspaceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComposeWorkspaceResponse) ProtoMessage() {}
+
+func (x *GetComposeWorkspaceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComposeWorkspaceResponse.ProtoReflect.Descriptor instead.
+func (*GetComposeWorkspaceResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetComposeWorkspaceResponse) GetWorkspace() *ComposeWorkspace {
+	if x != nil {
+		return x.Workspace
+	}
+	return nil
+}
+
+func (x *GetComposeWorkspaceResponse) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+func (x *GetComposeWorkspaceResponse) GetOmissions() []*ComposeWorkspaceOmission {
+	if x != nil {
+		return x.Omissions
+	}
+	return nil
+}
+
+// The editable Compose projection of a managed environment.
+type ComposeWorkspace struct {
+	state           protoimpl.MessageState      `protogen:"open.v1"`
+	EnvironmentId   string                      `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	ProjectId       string                      `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name            string                      `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	EnvironmentName string                      `protobuf:"bytes,4,opt,name=environment_name,json=environmentName,proto3" json:"environment_name,omitempty"`
+	Yaml            string                      `protobuf:"bytes,5,opt,name=yaml,proto3" json:"yaml,omitempty"`
+	Resources       []*ComposeWorkspaceResource `protobuf:"bytes,6,rep,name=resources,proto3" json:"resources,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ComposeWorkspace) Reset() {
+	*x = ComposeWorkspace{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeWorkspace) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeWorkspace) ProtoMessage() {}
+
+func (x *ComposeWorkspace) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeWorkspace.ProtoReflect.Descriptor instead.
+func (*ComposeWorkspace) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ComposeWorkspace) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *ComposeWorkspace) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ComposeWorkspace) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeWorkspace) GetEnvironmentName() string {
+	if x != nil {
+		return x.EnvironmentName
+	}
+	return ""
+}
+
+func (x *ComposeWorkspace) GetYaml() string {
+	if x != nil {
+		return x.Yaml
+	}
+	return ""
+}
+
+func (x *ComposeWorkspace) GetResources() []*ComposeWorkspaceResource {
+	if x != nil {
+		return x.Resources
+	}
+	return nil
+}
+
+// A managed resource and the servers it is placed on.
+type ComposeWorkspaceResource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	ResourceId    string                 `protobuf:"bytes,3,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	ServerIds     []string               `protobuf:"bytes,4,rep,name=server_ids,json=serverIds,proto3" json:"server_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeWorkspaceResource) Reset() {
+	*x = ComposeWorkspaceResource{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeWorkspaceResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeWorkspaceResource) ProtoMessage() {}
+
+func (x *ComposeWorkspaceResource) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeWorkspaceResource.ProtoReflect.Descriptor instead.
+func (*ComposeWorkspaceResource) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ComposeWorkspaceResource) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceResource) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceResource) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceResource) GetServerIds() []string {
+	if x != nil {
+		return x.ServerIds
+	}
+	return nil
+}
+
+// An omission names a value kept on the control plane, never the value itself.
+type ComposeWorkspaceOmission struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Sealed        bool                   `protobuf:"varint,4,opt,name=sealed,proto3" json:"sealed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeWorkspaceOmission) Reset() {
+	*x = ComposeWorkspaceOmission{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeWorkspaceOmission) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeWorkspaceOmission) ProtoMessage() {}
+
+func (x *ComposeWorkspaceOmission) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeWorkspaceOmission.ProtoReflect.Descriptor instead.
+func (*ComposeWorkspaceOmission) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ComposeWorkspaceOmission) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceOmission) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceOmission) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceOmission) GetSealed() bool {
+	if x != nil {
+		return x.Sealed
+	}
+	return false
+}
+
+// Draft edits and confirmed removals against a specific workspace snapshot.
+type PlanComposeWorkspaceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EnvironmentId string                 `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	Snapshot      string                 `protobuf:"bytes,2,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	// Omit for a removal-only plan.
+	Yaml             *string                    `protobuf:"bytes,3,opt,name=yaml,proto3,oneof" json:"yaml,omitempty"`
+	ExplicitRemovals []*ComposeWorkspaceRemoval `protobuf:"bytes,5,rep,name=explicit_removals,json=explicitRemovals,proto3" json:"explicit_removals,omitempty"`
+	// The server in the workspace. Additions go here, and a removal-only
+	// plan can select resources placed here.
+	ServerId      string `protobuf:"bytes,6,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanComposeWorkspaceRequest) Reset() {
+	*x = PlanComposeWorkspaceRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanComposeWorkspaceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanComposeWorkspaceRequest) ProtoMessage() {}
+
+func (x *PlanComposeWorkspaceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanComposeWorkspaceRequest.ProtoReflect.Descriptor instead.
+func (*PlanComposeWorkspaceRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *PlanComposeWorkspaceRequest) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+func (x *PlanComposeWorkspaceRequest) GetSnapshot() string {
+	if x != nil {
+		return x.Snapshot
+	}
+	return ""
+}
+
+func (x *PlanComposeWorkspaceRequest) GetYaml() string {
+	if x != nil && x.Yaml != nil {
+		return *x.Yaml
+	}
+	return ""
+}
+
+func (x *PlanComposeWorkspaceRequest) GetExplicitRemovals() []*ComposeWorkspaceRemoval {
+	if x != nil {
+		return x.ExplicitRemovals
+	}
+	return nil
+}
+
+func (x *PlanComposeWorkspaceRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// A resource selected for removal from the workspace's environment.
+type ComposeWorkspaceRemoval struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeWorkspaceRemoval) Reset() {
+	*x = ComposeWorkspaceRemoval{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeWorkspaceRemoval) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeWorkspaceRemoval) ProtoMessage() {}
+
+func (x *ComposeWorkspaceRemoval) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeWorkspaceRemoval.ProtoReflect.Descriptor instead.
+func (*ComposeWorkspaceRemoval) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ComposeWorkspaceRemoval) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ComposeWorkspaceRemoval) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// A reviewed change, a source-line refusal, or removals to confirm.
+type PlanComposeWorkspaceResponse struct {
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Change *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	// The first invalid field and its source line, when the draft can't run.
+	Refusal *ComposeRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	// A draft that omits resources must confirm these exact removals.
+	Removals      []*ComposeWorkspaceRemoval `protobuf:"bytes,3,rep,name=removals,proto3" json:"removals,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanComposeWorkspaceResponse) Reset() {
+	*x = PlanComposeWorkspaceResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanComposeWorkspaceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanComposeWorkspaceResponse) ProtoMessage() {}
+
+func (x *PlanComposeWorkspaceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanComposeWorkspaceResponse.ProtoReflect.Descriptor instead.
+func (*PlanComposeWorkspaceResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PlanComposeWorkspaceResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+func (x *PlanComposeWorkspaceResponse) GetRefusal() *ComposeRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+func (x *PlanComposeWorkspaceResponse) GetRemovals() []*ComposeWorkspaceRemoval {
+	if x != nil {
+		return x.Removals
+	}
+	return nil
+}
+
 var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
@@ -983,11 +1508,53 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\aservice\x18\x03 \x01(\tR\aservice\"K\n" +
 	"\x15ExportComposeResponse\x12\x18\n" +
 	"\acompose\x18\x01 \x01(\tR\acompose\x12\x18\n" +
-	"\aomitted\x18\x02 \x03(\tR\aomitted2\xa4\x04\n" +
+	"\aomitted\x18\x02 \x03(\tR\aomitted\"C\n" +
+	"\x1aGetComposeWorkspaceRequest\x12%\n" +
+	"\x0eenvironment_id\x18\x01 \x01(\tR\renvironmentId\"\xbb\x01\n" +
+	"\x1bGetComposeWorkspaceResponse\x12;\n" +
+	"\tworkspace\x18\x01 \x01(\v2\x1d.dockwell.v1.ComposeWorkspaceR\tworkspace\x12\x1a\n" +
+	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\x12C\n" +
+	"\tomissions\x18\x03 \x03(\v2%.dockwell.v1.ComposeWorkspaceOmissionR\tomissions\"\xf0\x01\n" +
+	"\x10ComposeWorkspace\x12%\n" +
+	"\x0eenvironment_id\x18\x01 \x01(\tR\renvironmentId\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
+	"\x10environment_name\x18\x04 \x01(\tR\x0fenvironmentName\x12\x12\n" +
+	"\x04yaml\x18\x05 \x01(\tR\x04yaml\x12C\n" +
+	"\tresources\x18\x06 \x03(\v2%.dockwell.v1.ComposeWorkspaceResourceR\tresources\"\x82\x01\n" +
+	"\x18ComposeWorkspaceResource\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1f\n" +
+	"\vresource_id\x18\x03 \x01(\tR\n" +
+	"resourceId\x12\x1d\n" +
+	"\n" +
+	"server_ids\x18\x04 \x03(\tR\tserverIds\"n\n" +
+	"\x18ComposeWorkspaceOmission\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
+	"\x06sealed\x18\x04 \x01(\bR\x06sealed\"\x8b\x02\n" +
+	"\x1bPlanComposeWorkspaceRequest\x12%\n" +
+	"\x0eenvironment_id\x18\x01 \x01(\tR\renvironmentId\x12\x1a\n" +
+	"\bsnapshot\x18\x02 \x01(\tR\bsnapshot\x12\x1d\n" +
+	"\x04yaml\x18\x03 \x01(\tB\x04\xa8\xbb\x18\x01H\x00R\x04yaml\x88\x01\x01\x12Q\n" +
+	"\x11explicit_removals\x18\x05 \x03(\v2$.dockwell.v1.ComposeWorkspaceRemovalR\x10explicitRemovals\x12\x1b\n" +
+	"\tserver_id\x18\x06 \x01(\tR\bserverIdB\a\n" +
+	"\x05_yamlJ\x04\b\x04\x10\x05R\vkept_values\"A\n" +
+	"\x17ComposeWorkspaceRemoval\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"\xc4\x01\n" +
+	"\x1cPlanComposeWorkspaceResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x125\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12@\n" +
+	"\bremovals\x18\x03 \x03(\v2$.dockwell.v1.ComposeWorkspaceRemovalR\bremovals2\x8a\a\n" +
 	"\x0eComposeService\x12\x85\x01\n" +
 	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"-\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12\x85\x01\n" +
 	"\fAdoptCompose\x12 .dockwell.v1.AdoptComposeRequest\x1a!.dockwell.v1.AdoptComposeResponse\"0\xa0\xbb\x18\x02\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:adopt\x12\x81\x01\n" +
-	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\",\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12~\n" +
+	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\",\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12\xac\x01\n" +
+	"\x13GetComposeWorkspace\x12'.dockwell.v1.GetComposeWorkspaceRequest\x1a(.dockwell.v1.GetComposeWorkspaceResponse\"B\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02)\x12'/v1/compose/workspaces/{environment_id}\x90\x02\x01\x12\xb4\x01\n" +
+	"\x14PlanComposeWorkspace\x12(.dockwell.v1.PlanComposeWorkspaceRequest\x1a).dockwell.v1.PlanComposeWorkspaceResponse\"G\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x021:\x01*\",/v1/compose/workspaces/{environment_id}:plan\x12~\n" +
 	"\rExportCompose\x12!.dockwell.v1.ExportComposeRequest\x1a\".dockwell.v1.ExportComposeResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/compose\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fComposeProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
@@ -1003,49 +1570,68 @@ func file_dockwell_v1_compose_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_compose_proto_rawDescData
 }
 
-var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_dockwell_v1_compose_proto_goTypes = []any{
-	(*AdoptComposeRequest)(nil),   // 0: dockwell.v1.AdoptComposeRequest
-	(*AdoptComposeResponse)(nil),  // 1: dockwell.v1.AdoptComposeResponse
-	(*ImportComposeRequest)(nil),  // 2: dockwell.v1.ImportComposeRequest
-	(*ImportComposeResponse)(nil), // 3: dockwell.v1.ImportComposeResponse
-	(*CheckComposeRequest)(nil),   // 4: dockwell.v1.CheckComposeRequest
-	(*CheckComposeResponse)(nil),  // 5: dockwell.v1.CheckComposeResponse
-	(*ExposedVariable)(nil),       // 6: dockwell.v1.ExposedVariable
-	(*ComposeRefusal)(nil),        // 7: dockwell.v1.ComposeRefusal
-	(*ComposeVariable)(nil),       // 8: dockwell.v1.ComposeVariable
-	(*ExportComposeRequest)(nil),  // 9: dockwell.v1.ExportComposeRequest
-	(*ExportComposeResponse)(nil), // 10: dockwell.v1.ExportComposeResponse
-	nil,                           // 11: dockwell.v1.ImportComposeRequest.VariablesEntry
-	nil,                           // 12: dockwell.v1.CheckComposeRequest.VariablesEntry
-	(*Change)(nil),                // 13: dockwell.v1.Change
-	(*ServiceInfo)(nil),           // 14: dockwell.v1.ServiceInfo
-	(*ResourceRef)(nil),           // 15: dockwell.v1.ResourceRef
+	(*AdoptComposeRequest)(nil),          // 0: dockwell.v1.AdoptComposeRequest
+	(*AdoptComposeResponse)(nil),         // 1: dockwell.v1.AdoptComposeResponse
+	(*ImportComposeRequest)(nil),         // 2: dockwell.v1.ImportComposeRequest
+	(*ImportComposeResponse)(nil),        // 3: dockwell.v1.ImportComposeResponse
+	(*CheckComposeRequest)(nil),          // 4: dockwell.v1.CheckComposeRequest
+	(*CheckComposeResponse)(nil),         // 5: dockwell.v1.CheckComposeResponse
+	(*ExposedVariable)(nil),              // 6: dockwell.v1.ExposedVariable
+	(*ComposeRefusal)(nil),               // 7: dockwell.v1.ComposeRefusal
+	(*ComposeVariable)(nil),              // 8: dockwell.v1.ComposeVariable
+	(*ExportComposeRequest)(nil),         // 9: dockwell.v1.ExportComposeRequest
+	(*ExportComposeResponse)(nil),        // 10: dockwell.v1.ExportComposeResponse
+	(*GetComposeWorkspaceRequest)(nil),   // 11: dockwell.v1.GetComposeWorkspaceRequest
+	(*GetComposeWorkspaceResponse)(nil),  // 12: dockwell.v1.GetComposeWorkspaceResponse
+	(*ComposeWorkspace)(nil),             // 13: dockwell.v1.ComposeWorkspace
+	(*ComposeWorkspaceResource)(nil),     // 14: dockwell.v1.ComposeWorkspaceResource
+	(*ComposeWorkspaceOmission)(nil),     // 15: dockwell.v1.ComposeWorkspaceOmission
+	(*PlanComposeWorkspaceRequest)(nil),  // 16: dockwell.v1.PlanComposeWorkspaceRequest
+	(*ComposeWorkspaceRemoval)(nil),      // 17: dockwell.v1.ComposeWorkspaceRemoval
+	(*PlanComposeWorkspaceResponse)(nil), // 18: dockwell.v1.PlanComposeWorkspaceResponse
+	nil,                                  // 19: dockwell.v1.ImportComposeRequest.VariablesEntry
+	nil,                                  // 20: dockwell.v1.CheckComposeRequest.VariablesEntry
+	(*Change)(nil),                       // 21: dockwell.v1.Change
+	(*ServiceInfo)(nil),                  // 22: dockwell.v1.ServiceInfo
+	(*ResourceRef)(nil),                  // 23: dockwell.v1.ResourceRef
 }
 var file_dockwell_v1_compose_proto_depIdxs = []int32{
-	13, // 0: dockwell.v1.AdoptComposeResponse.change:type_name -> dockwell.v1.Change
-	11, // 1: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
-	13, // 2: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
+	21, // 0: dockwell.v1.AdoptComposeResponse.change:type_name -> dockwell.v1.Change
+	19, // 1: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
+	21, // 2: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
 	6,  // 3: dockwell.v1.ImportComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	12, // 4: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
+	20, // 4: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
 	7,  // 5: dockwell.v1.CheckComposeResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
 	8,  // 6: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
-	14, // 7: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
+	22, // 7: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
 	6,  // 8: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	15, // 9: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
-	2,  // 10: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
-	0,  // 11: dockwell.v1.ComposeService.AdoptCompose:input_type -> dockwell.v1.AdoptComposeRequest
-	4,  // 12: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
-	9,  // 13: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
-	3,  // 14: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
-	1,  // 15: dockwell.v1.ComposeService.AdoptCompose:output_type -> dockwell.v1.AdoptComposeResponse
-	5,  // 16: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
-	10, // 17: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
-	14, // [14:18] is the sub-list for method output_type
-	10, // [10:14] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	23, // 9: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
+	13, // 10: dockwell.v1.GetComposeWorkspaceResponse.workspace:type_name -> dockwell.v1.ComposeWorkspace
+	15, // 11: dockwell.v1.GetComposeWorkspaceResponse.omissions:type_name -> dockwell.v1.ComposeWorkspaceOmission
+	14, // 12: dockwell.v1.ComposeWorkspace.resources:type_name -> dockwell.v1.ComposeWorkspaceResource
+	17, // 13: dockwell.v1.PlanComposeWorkspaceRequest.explicit_removals:type_name -> dockwell.v1.ComposeWorkspaceRemoval
+	21, // 14: dockwell.v1.PlanComposeWorkspaceResponse.change:type_name -> dockwell.v1.Change
+	7,  // 15: dockwell.v1.PlanComposeWorkspaceResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
+	17, // 16: dockwell.v1.PlanComposeWorkspaceResponse.removals:type_name -> dockwell.v1.ComposeWorkspaceRemoval
+	2,  // 17: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
+	0,  // 18: dockwell.v1.ComposeService.AdoptCompose:input_type -> dockwell.v1.AdoptComposeRequest
+	4,  // 19: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
+	11, // 20: dockwell.v1.ComposeService.GetComposeWorkspace:input_type -> dockwell.v1.GetComposeWorkspaceRequest
+	16, // 21: dockwell.v1.ComposeService.PlanComposeWorkspace:input_type -> dockwell.v1.PlanComposeWorkspaceRequest
+	9,  // 22: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
+	3,  // 23: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
+	1,  // 24: dockwell.v1.ComposeService.AdoptCompose:output_type -> dockwell.v1.AdoptComposeResponse
+	5,  // 25: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
+	12, // 26: dockwell.v1.ComposeService.GetComposeWorkspace:output_type -> dockwell.v1.GetComposeWorkspaceResponse
+	18, // 27: dockwell.v1.ComposeService.PlanComposeWorkspace:output_type -> dockwell.v1.PlanComposeWorkspaceResponse
+	10, // 28: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
+	23, // [23:29] is the sub-list for method output_type
+	17, // [17:23] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_compose_proto_init() }
@@ -1056,13 +1642,14 @@ func file_dockwell_v1_compose_proto_init() {
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_service_proto_init()
+	file_dockwell_v1_compose_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_compose_proto_rawDesc), len(file_dockwell_v1_compose_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

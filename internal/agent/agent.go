@@ -707,7 +707,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

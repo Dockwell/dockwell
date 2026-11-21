@@ -69,6 +69,28 @@ service ComposeService {
     };
   }
 
+  // GetComposeWorkspace reads a managed environment's editable Compose projection.
+  rpc GetComposeWorkspace(GetComposeWorkspaceRequest) returns (GetComposeWorkspaceResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {get: "/v1/compose/workspaces/{environment_id}"};
+  }
+
+  // PlanComposeWorkspace reviews edits and exact removals from a previously read base.
+  rpc PlanComposeWorkspace(PlanComposeWorkspaceRequest) returns (PlanComposeWorkspaceResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (google.api.http) = {
+      post: "/v1/compose/workspaces/{environment_id}:plan"
+      body: "*"
+    };
+  }
+
   // ExportCompose writes a Compose file of an environment, or of one service
   // with the volumes and networks it uses. It never includes a secret: an
   // environment variable whose value may hold one is listed by name, for
@@ -283,4 +305,71 @@ message ExportComposeResponse {
   // driver options, as "volumes.NAME.driver_opts": the file makes that
   // volume with none, so write them in by hand if it isn't on the server.
   repeated string omitted = 2;
+}
+
+// The environment is addressed by its immutable ID.
+message GetComposeWorkspaceRequest {
+  string environment_id = 1;
+}
+
+// The portable workspace and the snapshot required to plan edits to it.
+message GetComposeWorkspaceResponse {
+  ComposeWorkspace workspace = 1;
+  string snapshot = 2;
+  repeated ComposeWorkspaceOmission omissions = 3;
+}
+
+// The editable Compose projection of a managed environment.
+message ComposeWorkspace {
+  string environment_id = 1;
+  string project_id = 2;
+  string name = 3;
+  string environment_name = 4;
+  string yaml = 5;
+  repeated ComposeWorkspaceResource resources = 6;
+}
+
+// A managed resource and the servers it is placed on.
+message ComposeWorkspaceResource {
+  string kind = 1;
+  string name = 2;
+  string resource_id = 3;
+  repeated string server_ids = 4;
+}
+
+// An omission names a value kept on the control plane, never the value itself.
+message ComposeWorkspaceOmission {
+  string kind = 1;
+  string name = 2;
+  string path = 3;
+  bool sealed = 4;
+}
+
+// Draft edits and confirmed removals against a specific workspace snapshot.
+message PlanComposeWorkspaceRequest {
+  string environment_id = 1;
+  string snapshot = 2;
+  // Omit for a removal-only plan.
+  optional string yaml = 3 [(dockwell.v1.from_file) = true];
+  reserved 4;
+  reserved "kept_values";
+  repeated ComposeWorkspaceRemoval explicit_removals = 5;
+  // The server in the workspace. Additions go here, and a removal-only
+  // plan can select resources placed here.
+  string server_id = 6;
+}
+
+// A resource selected for removal from the workspace's environment.
+message ComposeWorkspaceRemoval {
+  string kind = 1;
+  string name = 2;
+}
+
+// A reviewed change, a source-line refusal, or removals to confirm.
+message PlanComposeWorkspaceResponse {
+  Change change = 1;
+  // The first invalid field and its source line, when the draft can't run.
+  ComposeRefusal refusal = 2;
+  // A draft that omits resources must confirm these exact removals.
+  repeated ComposeWorkspaceRemoval removals = 3;
 }

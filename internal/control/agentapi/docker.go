@@ -21,6 +21,9 @@ const dockerCallWait = 12 * time.Second
 // DockerInventory reports whether this agent supports Docker inventory reads.
 func (s *Session) DockerInventory() bool { return s.dockerCapabilities.GetInventory() }
 
+// DockerComposeMembers reports whether the agent supports the lightweight membership scan.
+func (s *Session) DockerComposeMembers() bool { return s.dockerCapabilities.GetComposeMembers() }
+
 // DockerImages reports support for local images and their detail.
 func (s *Session) DockerImages() bool { return s.dockerCapabilities.GetImageInventory() }
 

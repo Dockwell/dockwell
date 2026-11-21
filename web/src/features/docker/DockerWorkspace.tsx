@@ -5,7 +5,7 @@ import { type DockerServerSummary, DockerService, type Server } from "@dockwell/
 import { Button, Callout, Icon, Metric, Panel, SelectField, TabNav } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
@@ -23,7 +23,9 @@ import { Fact, LiveUpdates, Unread } from "./parts";
 
 import "./Docker.css";
 
-export type DockerTab = "overview" | "containers" | "images" | "cleanup";
+const Composes = lazy(async () => ({ default: (await import("./DockerComposes")).DockerComposes }));
+
+export type DockerTab = "overview" | "containers" | "composes" | "images" | "cleanup";
 
 export function DockerWorkspace({
   serverId,
@@ -150,6 +152,13 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
               >
                 <Trans>Containers</Trans>
               </RouterTabLink>
+              <RouterTabLink
+                to="/servers/$serverId/docker/composes"
+                params={{ serverId: server.id }}
+                activeOptions={{ exact: true, includeSearch: false }}
+              >
+                <Trans>Composes</Trans>
+              </RouterTabLink>
               <RouterTabLink to="/servers/$serverId/docker/images" params={{ serverId: server.id }}>
                 <Trans>Images</Trans>
               </RouterTabLink>
@@ -165,6 +174,13 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
                 activeOptions={{ exact: true }}
               >
                 <Trans>Containers</Trans>
+              </RouterTabLink>
+              <RouterTabLink
+                to="/servers/docker"
+                search={{ view: "composes" }}
+                activeOptions={{ exact: true, includeSearch: true }}
+              >
+                <Trans>Composes</Trans>
               </RouterTabLink>
               <RouterTabLink
                 to="/servers/docker"
@@ -190,6 +206,10 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
       </div>
       {tab === "overview" ? (
         <Overview servers={servers} server={server} ids={ids} />
+      ) : tab === "composes" ? (
+        <Suspense fallback={null}>
+          <Composes servers={servers} serverId={server?.id} />
+        </Suspense>
       ) : tab === "images" ? (
         <DockerImages servers={servers} fleet={!server} />
       ) : tab === "cleanup" ? (
@@ -280,7 +300,19 @@ function Overview({
                 {containers}
               </Link>
             )}
-            <Metric label={t`Compose projects`} value={sum("composeProjects")} icon="layers" />
+            {server ? (
+              <Link
+                className="docker-metric-link"
+                to="/servers/$serverId/docker/composes"
+                params={{ serverId: server.id }}
+              >
+                <Metric label={t`Compose projects`} value={sum("composeProjects")} icon="layers" />
+              </Link>
+            ) : (
+              <Link className="docker-metric-link" to="/servers/docker" search={{ view: "composes" }}>
+                <Metric label={t`Compose projects`} value={sum("composeProjects")} icon="layers" />
+              </Link>
+            )}
             {server ? (
               <Link
                 className="docker-metric-link"

@@ -194,6 +194,16 @@ type Exported struct {
 // docker compose makes reads back as the service, and importing the file
 // keeps its references (usesOf).
 func Export(project string, stack *Stack) (*Exported, error) {
+	return export(project, stack, true)
+}
+
+// ExportWorkspace writes the editor's portable projection. It represents kept
+// environment values by name and leaves Engine bookkeeping out of the file.
+func ExportWorkspace(project string, stack *Stack) (*Exported, error) {
+	return export(project, stack, false)
+}
+
+func export(project string, stack *Stack, comments bool) (*Exported, error) {
 	f := file{Name: project, Services: map[string]serviceEntry{}}
 	var omitted []string
 	volumesLeft, ownLabel, namesValues := false, false, false
@@ -248,6 +258,10 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		for _, k := range left {
 			omitted = append(omitted, s.Name+"."+k)
+			if !comments {
+				placeholder := "${" + k + "}"
+				entry.Environment[k] = &placeholder
+			}
 		}
 		for _, p := range c.GetPorts() {
 			entry.Ports = append(entry.Ports, quoted(portString(p)))
@@ -410,21 +424,26 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		}
 		// The labels of the container the service runs as, what it uses
 		// included, with its environment's names alone.
-		names := maps.Clone(c.GetEnv())
-		if names == nil && len(binding.Uses(s.Spec)) > 0 {
-			names = map[string]string{}
-		}
-		for _, u := range binding.Uses(s.Spec) {
-			names[u.As] = ""
-		}
-		run := binding.App(s.Spec, names)
-		entry.Labels = maps.Clone(run.GetLabels())
-		if own := container.OwnLabels(run); len(own) > 0 {
-			if entry.Labels == nil {
-				entry.Labels = map[string]string{}
+		entry.Labels = maps.Clone(c.GetLabels())
+		if comments {
+			names := maps.Clone(c.GetEnv())
+			if names == nil && len(binding.Uses(s.Spec)) > 0 {
+				names = map[string]string{}
 			}
-			maps.Copy(entry.Labels, own)
-			ownLabel = true
+			for _, u := range binding.Uses(s.Spec) {
+				names[u.As] = ""
+			}
+			run := binding.App(s.Spec, names)
+			entry.Labels = maps.Clone(run.GetLabels())
+			if own := container.OwnLabels(run); len(own) > 0 {
+				if entry.Labels == nil {
+					entry.Labels = map[string]string{}
+				}
+				maps.Copy(entry.Labels, own)
+				ownLabel = true
+			}
+		} else {
+			maps.DeleteFunc(entry.Labels, func(key, _ string) bool { return workspaceLabel(key) })
 		}
 		entry.Labels = escapeValues(entry.Labels)
 		f.Services[s.Name] = entry
@@ -434,12 +453,15 @@ func Export(project string, stack *Stack) (*Exported, error) {
 			f.Networks = map[string]networkEntry{}
 		}
 		labels := maps.Clone(n.Spec.GetLabels())
-		if own := network.OwnLabels(n.Spec); len(own) > 0 {
+		if own := network.OwnLabels(n.Spec); comments && len(own) > 0 {
 			if labels == nil {
 				labels = map[string]string{}
 			}
 			maps.Copy(labels, own)
 			ownLabel = true
+		}
+		if !comments {
+			maps.DeleteFunc(labels, func(key, _ string) bool { return workspaceLabel(key) })
 		}
 		f.Networks[n.Name] = networkEntry{
 			Driver: escape(n.Spec.GetDriver()), DriverOpts: escapeValues(n.Spec.GetOptions()), Internal: n.Spec.GetInternal(), Labels: escapeValues(labels),
@@ -452,6 +474,9 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		// Options may hold a password, as a CIFS mount's goes in o, and
 		// have no form for a shell to fill in, so they are left out whole.
 		entry := volumeEntry{Driver: escape(v.Spec.GetDriver()), Labels: escapeValues(v.Spec.GetLabels())}
+		if !comments {
+			maps.DeleteFunc(entry.Labels, func(key, _ string) bool { return workspaceLabel(key) })
+		}
 		if len(v.Spec.GetOptions()) > 0 {
 			fd := v.Spec.ProtoReflect().Descriptor().Fields().ByName("options")
 			if resource.IsSensitive(fd) {
@@ -464,24 +489,26 @@ func Export(project string, stack *Stack) (*Exported, error) {
 		f.Volumes[v.Name] = entry
 	}
 	var buf bytes.Buffer
-	buf.WriteString("# Written by Dockwell. Its name is the Compose project Dockwell runs it in, so\n" +
-		"# docker compose sees what Dockwell runs.\n")
-	if ownLabel {
-		buf.WriteString("# A " + container.LabelSet + " label is there on purpose: it says what the spec set, so what compose makes reads back the same.\n")
-	}
-	if len(omitted) > 0 {
-		buf.WriteString("# A variable written as NAME: null is there on purpose. Its value may be a secret,\n" +
-			"# so it is left out: set it in your shell, or in an .env file beside this one,\n" +
-			"# before docker compose up.\n")
-	}
-	if namesValues {
-		buf.WriteString("# A ${NAME} in a command, an entrypoint or a health check is there on purpose too.\n" +
-			"# Dockwell keeps the value out of what it shows, and docker compose reads it from\n" +
-			"# your shell, or an .env file beside this one, so set it before docker compose up.\n")
-	}
-	if volumesLeft {
-		buf.WriteString("# A volume's driver options may hold secrets, so they are left out too. Docker\n" +
-			"# keeps them with a volume that is on the server already; write them in for a new one.\n")
+	if comments {
+		buf.WriteString("# Written by Dockwell. Its name is the Compose project Dockwell runs it in, so\n" +
+			"# docker compose sees what Dockwell runs.\n")
+		if ownLabel {
+			buf.WriteString("# A " + container.LabelSet + " label is there on purpose: it says what the spec set, so what compose makes reads back the same.\n")
+		}
+		if len(omitted) > 0 {
+			buf.WriteString("# A variable written as NAME: null is there on purpose. Its value may be a secret,\n" +
+				"# so it is left out: set it in your shell, or in an .env file beside this one,\n" +
+				"# before docker compose up.\n")
+		}
+		if namesValues {
+			buf.WriteString("# A ${NAME} in a command, an entrypoint or a health check is there on purpose too.\n" +
+				"# Dockwell keeps the value out of what it shows, and docker compose reads it from\n" +
+				"# your shell, or an .env file beside this one, so set it before docker compose up.\n")
+		}
+		if volumesLeft {
+			buf.WriteString("# A volume's driver options may hold secrets, so they are left out too. Docker\n" +
+				"# keeps them with a volume that is on the server already; write them in for a new one.\n")
+		}
 	}
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)

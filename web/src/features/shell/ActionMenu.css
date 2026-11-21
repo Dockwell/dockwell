@@ -26,6 +26,7 @@
 /* Placed on the viewport once measured, out of any box that scrolls (#798). */
 .action-menu.is-placed {
   position: fixed;
+  top: auto;
 }
 
 .action-menu-item {

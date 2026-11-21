@@ -2339,6 +2339,62 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/compose/workspaces/{environmentId}:
+        get:
+            tags:
+                - ComposeService
+            description: GetComposeWorkspace reads a managed environment's editable Compose projection.
+            operationId: ComposeService_GetComposeWorkspace
+            parameters:
+                - name: environmentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetComposeWorkspaceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/compose/workspaces/{environmentId}:plan:
+        post:
+            tags:
+                - ComposeService
+            description: PlanComposeWorkspace reviews edits and exact removals from a previously read base.
+            operationId: ComposeService_PlanComposeWorkspace
+            parameters:
+                - name: environmentId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanComposeWorkspaceRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanComposeWorkspaceResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/compose:adopt:
         post:
             tags:
@@ -3134,6 +3190,7 @@ paths:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
@@ -3179,6 +3236,7 @@ paths:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
@@ -3213,6 +3271,9 @@ paths:
                     format: enum
                 - name: filter.composeProject
                   in: query
+                  description: |-
+                    The Engine's Compose project. With managed ownership, managed:<environment
+                     ID> selects verified members regardless of their Engine project label.
                   schema:
                     type: string
                 - name: filter.stopped
@@ -7347,7 +7408,10 @@ paths:
             parameters:
                 - name: id
                   in: path
-                  description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                  description: |-
+                    The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                     An environment ID restarts its placed services in a single plan, keeping
+                     ones saved as stopped in that state.
                   required: true
                   schema:
                     type: string
@@ -13095,6 +13159,58 @@ components:
                     type: boolean
                     description: True when it needs a value, as the file gives it no default.
             description: ComposeVariable is a variable a Compose file uses, such as ${TAG}.
+        ComposeWorkspace:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                projectId:
+                    type: string
+                name:
+                    type: string
+                environmentName:
+                    type: string
+                yaml:
+                    type: string
+                resources:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeWorkspaceResource'
+            description: The editable Compose projection of a managed environment.
+        ComposeWorkspaceOmission:
+            type: object
+            properties:
+                kind:
+                    type: string
+                name:
+                    type: string
+                path:
+                    type: string
+                sealed:
+                    type: boolean
+            description: An omission names a value kept on the control plane, never the value itself.
+        ComposeWorkspaceRemoval:
+            type: object
+            properties:
+                kind:
+                    type: string
+                name:
+                    type: string
+            description: A resource selected for removal from the workspace's environment.
+        ComposeWorkspaceResource:
+            type: object
+            properties:
+                kind:
+                    type: string
+                name:
+                    type: string
+                resourceId:
+                    type: string
+                serverIds:
+                    type: array
+                    items:
+                        type: string
+            description: A managed resource and the servers it is placed on.
         ConfirmChangeRequest:
             type: object
             properties:
@@ -15427,6 +15543,29 @@ components:
                         type: string
                     description: Every reviewed repository digest of the image, in order.
             description: DockerCleanupTarget records the reviewed identity and its eligibility evidence.
+        DockerCompose:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                runningServices:
+                    type: integer
+                    format: uint32
+                totalServices:
+                    type: integer
+                    format: uint32
+                sourceDirectory:
+                    type: string
+                engineProject:
+                    type: string
+                servicesNeedingAttention:
+                    type: integer
+                    format: uint32
+                observationUnavailable:
+                    type: boolean
+                checking:
+                    type: boolean
+            description: DockerCompose groups distinct Compose services on one server.
         DockerContainer:
             type: object
             properties:
@@ -15499,6 +15638,9 @@ components:
                         $ref: '#/components/schemas/ContainerPort'
                 detailsTruncated:
                     type: boolean
+                composeDirectory:
+                    type: string
+                    description: An untrusted absolute path hint from Compose. Read it only through FileService.
             description: |-
                 DockerContainer is a projection of Engine facts. It omits environment,
                  commands, raw labels, health check output and arbitrary driver options.
@@ -15675,6 +15817,9 @@ components:
                     format: enum
                 observedAt:
                     type: string
+                    description: |-
+                        Observation time for containers. For Compose, the last saved service
+                         revision (managed) or newest container creation observed (outside).
                     format: date-time
                 managedResource:
                     $ref: '#/components/schemas/ResourceRef'
@@ -15697,6 +15842,8 @@ components:
                     description: The managed revision used when planning a run-state change.
                 container:
                     $ref: '#/components/schemas/DockerContainer'
+                compose:
+                    $ref: '#/components/schemas/DockerCompose'
                 image:
                     $ref: '#/components/schemas/DockerImage'
             description: DockerObject combines observed facts with ownership resolved by the control plane.
@@ -15709,6 +15856,7 @@ components:
                     enum:
                         - DOCKER_OBJECT_KIND_UNSPECIFIED
                         - DOCKER_OBJECT_KIND_CONTAINER
+                        - DOCKER_OBJECT_KIND_COMPOSE
                         - DOCKER_OBJECT_KIND_IMAGE
                     type: string
                     format: enum
@@ -18181,6 +18329,18 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetComposeWorkspaceResponse:
+            type: object
+            properties:
+                workspace:
+                    $ref: '#/components/schemas/ComposeWorkspace'
+                snapshot:
+                    type: string
+                omissions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeWorkspaceOmission'
+            description: The portable workspace and the snapshot required to plan edits to it.
         GetControlPlaneResponse:
             type: object
             properties:
@@ -23610,6 +23770,41 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: PlanAgentUpgradeResponse carries the planned upgrade.
+        PlanComposeWorkspaceRequest:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+                snapshot:
+                    type: string
+                yaml:
+                    type: string
+                    description: Omit for a removal-only plan.
+                explicitRemovals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeWorkspaceRemoval'
+                serverId:
+                    type: string
+                    description: |-
+                        The server in the workspace. Additions go here, and a removal-only
+                         plan can select resources placed here.
+            description: Draft edits and confirmed removals against a specific workspace snapshot.
+        PlanComposeWorkspaceResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+                refusal:
+                    allOf:
+                        - $ref: '#/components/schemas/ComposeRefusal'
+                    description: The first invalid field and its source line, when the draft can't run.
+                removals:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeWorkspaceRemoval'
+                    description: A draft that omits resources must confirm these exact removals.
+            description: A reviewed change, a source-line refusal, or removals to confirm.
         PlanDockerMaintenanceRequest:
             type: object
             properties:
@@ -25465,7 +25660,10 @@ components:
             properties:
                 id:
                     type: string
-                    description: The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                    description: |-
+                        The service's ID, such as "svc_01JD6Z3R8M9QF2K7T4XW5BNC0V", or its name.
+                         An environment ID restarts its placed services in a single plan, keeping
+                         ones saved as stopped in that state.
                 project:
                     type: string
                     description: |-
@@ -25484,9 +25682,10 @@ components:
                     description: |-
                         Together these scope the restart to one existing managed instance.
                          With both set, id may also be the managed resource ID of a server container.
+                         With an environment ID, server_id limits the stack restart to that server.
                 containerId:
                     type: string
-            description: RestartServiceRequest names a service to restart.
+            description: RestartServiceRequest names a service or a managed stack to restart.
         RestartServiceResponse:
             type: object
             properties:

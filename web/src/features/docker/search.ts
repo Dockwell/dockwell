@@ -19,3 +19,36 @@ export function readContainerDetailSearch(search: Record<string, unknown>): Cont
   if (search["view"] === "inspect" || search["view"] === "logs") result.view = search["view"];
   return result;
 }
+
+export type ComposeRunAction = "start" | "stop" | "restart";
+
+export interface ComposeDetailSearch extends LogsSearch {
+  view?: "file" | "logs" | "environment" | "backups";
+  service?: string;
+  action?: "delete" | "take-on" | ComposeRunAction;
+}
+
+export function readComposeDetailSearch(search: Record<string, unknown>): ComposeDetailSearch {
+  const result: ComposeDetailSearch = readLogsSearch(search);
+  const view = search["view"];
+  if (view === "file" || view === "logs" || view === "environment" || view === "backups") result.view = view;
+  const service = search["service"];
+  if (typeof service === "string" && /^[\w.-]{1,128}$/.test(service)) result.service = service;
+  const action = search["action"];
+  if (action === "delete" || action === "take-on" || action === "start" || action === "stop" || action === "restart")
+    result.action = action;
+  return result;
+}
+
+export interface FleetDockerSearch {
+  view?: "containers" | "composes" | "images" | "cleanup";
+  attention?: boolean;
+}
+
+export function readFleetDockerSearch(search: Record<string, unknown>): FleetDockerSearch {
+  if (search["view"] === "composes" || search["view"] === "images" || search["view"] === "cleanup")
+    return { view: search["view"] };
+  if (search["view"] === "containers")
+    return { view: "containers", ...(search["attention"] === true ? { attention: true } : {}) };
+  return {};
+}

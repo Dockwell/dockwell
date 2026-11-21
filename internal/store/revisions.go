@@ -626,6 +626,28 @@ func (t *Tx) ListPlaced(ctx context.Context, server string) ([]Resource, error) 
 		WHERE d.server_id = ? AND v.spec IS NOT NULL ORDER BY r.kind, r.scope, r.name`, server)
 }
 
+// PlacedRevisionTimes reports the latest saved change per scope of a kind
+// placed on this server.
+func (t *Tx) PlacedRevisionTimes(ctx context.Context, server, kind string) (map[string]time.Time, error) {
+	rows, err := t.query(ctx, `SELECT r.scope, MAX(v.created_at)`+latest+`
+		JOIN deployments d ON d.resource_id = r.id AND d.revision = r.revision
+		WHERE d.server_id = ? AND r.kind = ? AND v.spec IS NOT NULL GROUP BY r.scope`, server, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]time.Time{}
+	for rows.Next() {
+		var scope string
+		var at int64
+		if err := rows.Scan(&scope, &at); err != nil {
+			return nil, err
+		}
+		out[scope] = fromMillis(at)
+	}
+	return out, rows.Err()
+}
+
 // ListLive returns what a server runs as its latest revisions have it: every
 // resource whose latest revision applied there and is live, by kind, scope and
 // name. It's what the server's agent keeps as its desired state (ADR 0054).

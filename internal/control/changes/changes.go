@@ -188,6 +188,8 @@ type Also struct {
 	// IDs are what new resources the edits make are called, by what's edited, where
 	// the method chose one up front (revision.Edit.ID).
 	IDs map[resource.Ref]string
+	// MustCreate names additions that must still be absent when the proposal loads them.
+	MustCreate map[resource.Ref]bool
 	// Base is the revision the request's edits were made from (revision.Edit).
 	Base int
 	// IfNothing refuses a plan that would do nothing (revision.Proposal).
@@ -275,6 +277,7 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 			edits[i].Base = also.Base
 		}
 		edits[i].Pull, edits[i].Run = also.Pull, also.Run
+		edits[i].MustCreate = also.MustCreate[edits[i].Ref]
 		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 		edits[i].Public = also.Public[edits[i].Ref]
@@ -802,7 +805,7 @@ func (h *Handler) DiscardChange(ctx context.Context, req *connect.Request[dockwe
 	return connect.NewResponse(&dockwellv1.DiscardChangeResponse{Change: c}), nil
 }
 
-// RestartService plans restarting a service.
+// RestartService plans restarting a service or a managed Compose stack.
 func (h *Handler) RestartService(ctx context.Context, req *connect.Request[dockwellv1.RestartServiceRequest]) (*connect.Response[dockwellv1.RestartServiceResponse], error) {
 	who, _, err := by(ctx)
 	if err != nil {
@@ -811,6 +814,28 @@ func (h *Handler) RestartService(ctx context.Context, req *connect.Request[dockw
 	m := req.Msg
 	if m.GetId() == "" {
 		return nil, authapi.Invalid(errors.New("name the service to restart, by its ID or its name, such as web"))
+	}
+	if strings.HasPrefix(m.GetId(), id.Environment+"_") {
+		if m.GetContainerId() != "" {
+			return nil, authapi.Invalid(errors.New("a stack restart cannot target one container"))
+		}
+		project, env, err := h.Environment(ctx, "", m.GetId())
+		if err != nil {
+			return nil, err
+		}
+		summary := strings.TrimSpace(m.GetSummary())
+		if summary == "" {
+			summary = "Restart stack " + cmp.Or(project.DisplayName, project.Name)
+		}
+		plan, err := h.engine.RestartEnvironment(ctx, env.ID, m.GetServerId(), who, summary)
+		if err != nil {
+			return nil, h.rpcError(ctx, err)
+		}
+		change, err := h.change(ctx, plan.Change)
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(&dockwellv1.RestartServiceResponse{Change: change}), nil
 	}
 	var ref resource.Ref
 	exact := m.GetServerId() != "" || m.GetContainerId() != ""

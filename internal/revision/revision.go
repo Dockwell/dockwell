@@ -3735,7 +3735,7 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 	for i, it := range its {
 		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
-		if target := it.restartTarget; target != nil {
+		if target := it.restartTarget; target != nil && target.Container != "" {
 			desired[i].ExactRestart = target.Container
 			exact[it.ref] = target.Container
 		}
@@ -6239,6 +6239,39 @@ func (e *Engine) RestartInstance(ctx context.Context, ref resource.Ref, by By, s
 		return nil, fault.New(ErrInvalid, "name both the server and the full Engine ID of the instance to restart")
 	}
 	return e.restart(ctx, ref, by, summary, &target)
+}
+
+// RestartEnvironment plans a single restart of the environment's placed
+// services. Services saved as stopped retain that intent.
+func (e *Engine) RestartEnvironment(ctx context.Context, environmentID, serverID string, by By, summary string) (*Plan, error) {
+	var target *RestartTarget
+	if serverID != "" {
+		target = &RestartTarget{Server: serverID}
+	}
+	var edits []Edit
+	if err := e.db.View(ctx, func(tx *store.Tx) error {
+		services, err := tx.ListResources(ctx, environmentID, "service")
+		if err != nil {
+			return err
+		}
+		for _, held := range services {
+			ref := resource.Ref{Kind: "service", Scope: environmentID, Name: held.Name}
+			it, err := e.load(ctx, tx, ref)
+			if err != nil {
+				return err
+			}
+			if it.current != nil && len(it.placed) > 0 && (target == nil || slices.Contains(it.placed, serverID)) && resource.RunIntent(it.current) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
+				edits = append(edits, Edit{Ref: ref, Spec: it.current, Base: it.base, Restart: true, RestartTarget: target})
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if len(edits) == 0 {
+		return nil, fault.New(ErrInvalid, "this stack has no services to restart. Use Start for services saved as stopped")
+	}
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits}, "", false)
 }
 
 func (e *Engine) restart(ctx context.Context, ref resource.Ref, by By, summary string, target *RestartTarget) (*Plan, error) {

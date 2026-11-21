@@ -108,7 +108,14 @@ export async function dockerExec(socket: string, id: string, command: string[]):
 export async function dockerRun(
   socket: string,
   name: string,
-  run: { image: string; command?: string[]; env?: string[]; port?: number; mount?: string },
+  run: {
+    image: string;
+    command?: string[];
+    env?: string[];
+    port?: number;
+    mount?: string;
+    labels?: Readonly<Record<string, string>>;
+  },
 ): Promise<string> {
   const [from, tag = "latest"] = run.image.split(":");
   await call(socket, "POST", `/images/create?${new URLSearchParams({ fromImage: from ?? "", tag })}`);
@@ -117,6 +124,7 @@ export async function dockerRun(
       Image: run.image,
       Cmd: run.command,
       Env: run.env,
+      Labels: run.labels,
       ExposedPorts: run.port ? { "80/tcp": {} } : undefined,
       HostConfig: {
         PortBindings: run.port ? { "80/tcp": [{ HostPort: String(run.port) }] } : undefined,

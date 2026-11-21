@@ -11459,6 +11459,12 @@ msgstr "Keep a rule that allows the tunnel's UDP port."
 msgid "Keeps its identity and files."
 msgstr "Keeps its identity and files."
 
+msgid "Kept logs for {names} become unreadable and expire in 7 days."
+msgstr "Kept logs for {names} become unreadable and expire in 7 days."
+
+msgid "Kept logs for {names} become unreadable and expire in 7 days. Undoing the change brings them back."
+msgstr "Kept logs for {names} become unreadable and expire in 7 days. Undoing the change brings them back."
+
 msgid "Labels alone: no step runs on {on}, online or offline."
 msgstr "Labels alone: no step runs on {on}, online or offline."
 
@@ -11888,6 +11894,12 @@ msgstr "{names} isn't connected, so it isn't in this change"
 msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 msgstr "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 
+msgid "{names}'s kept logs can't be read from then on, and go in 7 days."
+msgstr "{names}'s kept logs can't be read from then on, and go in 7 days."
+
+msgid "{names}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+msgstr "{names}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+
 msgid "{name} answers on port {path} on every address of {server}"
 msgstr "{name} answers on port {path} on every address of {server}"
 
@@ -12014,12 +12026,6 @@ msgstr "{name}'s data uses {features}'s features, which {to} can't run"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name}'s features go up to {from} before it moves to {to}"
-
-msgid "{name}'s kept logs can't be read from then on, and go in 7 days."
-msgstr "{name}'s kept logs can't be read from then on, and go in 7 days."
-
-msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
-msgstr "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
 
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
 msgstr "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
@@ -14161,6 +14167,245 @@ msgstr "Wrong token"
 msgid "Zones"
 msgstr "Zones"
 
+msgid "Both versions are below."
+msgstr "Both versions are below."
+
+msgid "Can't review this draft"
+msgstr "Can't review this draft"
+
+msgid "Couldn't load the latest file. Try again."
+msgstr "Couldn't load the latest file. Try again."
+
+msgid "Kept in Dockwell"
+msgstr "Kept in Dockwell"
+
+msgid "Latest file"
+msgstr "Latest file"
+
+#. placeholder {0}: refusal.message
+msgid "Line {line}: {0}"
+msgstr "Line {line}: {0}"
+
+msgid "Network"
+msgstr "Network"
+
+msgid "Previous draft"
+msgstr "Previous draft"
+
+msgid "Reload and keep my edits"
+msgstr "Reload and keep my edits"
+
+msgid "Removing these resources needs review"
+msgstr "Removing these resources needs review"
+
+msgid "Replace a placeholder to change its value, or delete the line to remove it."
+msgstr "Replace a placeholder to change its value, or delete the line to remove it."
+
+msgid "Review plan with removals"
+msgstr "Review plan with removals"
+
+msgid "Review your edits against the latest file."
+msgstr "Review your edits against the latest file."
+
+msgid "Sealed value"
+msgstr "Sealed value"
+
+msgid "Service"
+msgstr "Service"
+
+msgid "Some edits overlap the latest file"
+msgstr "Some edits overlap the latest file"
+
+msgid "This stack changed since you opened it"
+msgstr "This stack changed since you opened it"
+
+msgid "Couldn't read every service in this stack."
+msgstr "Couldn't read every service in this stack."
+
+msgid "Delete stack"
+msgstr "Delete stack"
+
+msgid "Restart stack"
+msgstr "Restart stack"
+
+msgid "Start stack"
+msgstr "Start stack"
+
+msgid "Start stack {name}"
+msgstr "Start stack {name}"
+
+msgid "Stop stack"
+msgstr "Stop stack"
+
+msgid "Stop stack {name}"
+msgstr "Stop stack {name}"
+
+msgid "The stack's servers changed. Refresh to review the latest placements."
+msgstr "The stack's servers changed. Refresh to review the latest placements."
+
+msgid "This stack has no services placed on a server."
+msgstr "This stack has no services placed on a server."
+
+msgid "Can't open this source"
+msgstr "Can't open this source"
+
+msgid "Folder path"
+msgstr "Folder path"
+
+msgid "Import from a server folder"
+msgstr "Import from a server folder"
+
+msgid "Next page"
+msgstr "Next page"
+
+msgid "No Compose files or folders on this page"
+msgstr "No Compose files or folders on this page"
+
+msgid "Open folder"
+msgstr "Open folder"
+
+msgid "Parent folder"
+msgstr "Parent folder"
+
+msgid "Reading folder"
+msgstr "Reading folder"
+
+msgid "The source changed or is too large. Choose a regular Compose file in this folder."
+msgstr "The source changed or is too large. Choose a regular Compose file in this folder."
+
+msgid "Back to Composes"
+msgstr "Back to Composes"
+
+msgid "Backup sources"
+msgstr "Backup sources"
+
+msgid "Can't read these services"
+msgstr "Can't read these services"
+
+msgid "Can't read this stack"
+msgstr "Can't read this stack"
+
+msgid "Checking backup source"
+msgstr "Checking backup source"
+
+msgid "Compose project"
+msgstr "Compose project"
+
+msgid "Compose workspace"
+msgstr "Compose workspace"
+
+msgid "Composes"
+msgstr "Composes"
+
+msgid "Containers on {server} keep their state, networks and data."
+msgstr "Containers on {server} keep their state, networks and data."
+
+msgid "Docker"
+msgstr "Docker"
+
+#. placeholder {0}: item.name
+msgid "Include volume {0}"
+msgstr "Include volume {0}"
+
+msgid "Keep existing host access"
+msgstr "Keep existing host access"
+
+msgid "Keep guessable database passwords"
+msgstr "Keep guessable database passwords"
+
+msgid "Latest backup"
+msgstr "Latest backup"
+
+msgid "No completed backup"
+msgstr "No completed backup"
+
+msgid "No container"
+msgstr "No container"
+
+msgid "No managed volumes to back up"
+msgstr "No managed volumes to back up"
+
+msgid "No service logs here"
+msgstr "No service logs here"
+
+msgid "No services to show"
+msgstr "No services to show"
+
+msgid "No variables set"
+msgstr "No variables set"
+
+msgid "On {serverCount} servers"
+msgstr "On {serverCount} servers"
+
+msgid "Open Files"
+msgstr "Open Files"
+
+msgid "Open environment"
+msgstr "Open environment"
+
+msgid "Preview backup"
+msgstr "Preview backup"
+
+msgid "Previous page"
+msgstr "Previous page"
+
+msgid "Published ports"
+msgstr "Published ports"
+
+msgid "Reading services"
+msgstr "Reading services"
+
+msgid "Reading stack"
+msgstr "Reading stack"
+
+msgid "Remove the stack's workloads and networks"
+msgstr "Remove the stack's workloads and networks"
+
+msgid "Review deletion"
+msgstr "Review deletion"
+
+msgid "Select every placement of a volume to remove it."
+msgstr "Select every placement of a volume to remove it."
+
+msgid "Service logs"
+msgstr "Service logs"
+
+msgid "Services"
+msgstr "Services"
+
+msgid "Set in Compose"
+msgstr "Set in Compose"
+
+msgid "Source directory"
+msgstr "Source directory"
+
+msgid "Start and Stop apply to each listed placement."
+msgstr "Start and Stop apply to each listed placement."
+
+msgid "Take on the whole project"
+msgstr "Take on the whole project"
+
+msgid "Take on this project to manage it"
+msgstr "Take on this project to manage it"
+
+msgid "Take on {project}"
+msgstr "Take on {project}"
+
+msgid "The selected volumes and their data will be removed."
+msgstr "The selected volumes and their data will be removed."
+
+msgid "These workloads are placed on several servers"
+msgstr "These workloads are placed on several servers"
+
+msgid "This stack is gone"
+msgstr "This stack is gone"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "Volumes and their data stay."
+msgstr "Volumes and their data stay."
+
 msgid "Checking Docker artifacts"
 msgstr "Checking Docker artifacts"
 
@@ -14223,11 +14468,75 @@ msgstr "Verified ID <0>{0}</0>"
 msgid "{display} estimated"
 msgstr "{display} estimated"
 
+msgid "Can't read Compose projects"
+msgstr "Can't read Compose projects"
+
+msgid "Compose projects"
+msgstr "Compose projects"
+
+msgid "Existing project"
+msgstr "Existing project"
+
+msgid "Find a Compose project"
+msgstr "Find a Compose project"
+
+msgid "Import"
+msgstr "Import"
+
+msgid "Last change"
+msgstr "Last change"
+
+msgid "Managed by Dockwell"
+msgstr "Managed by Dockwell"
+
+msgid "Needs attention"
+msgstr "Needs attention"
+
+msgid "New Compose"
+msgstr "New Compose"
+
+msgid "Newest container created {date}"
+msgstr "Newest container created {date}"
+
+msgid "No Compose projects found"
+msgstr "No Compose projects found"
+
+msgid "No outside Compose projects"
+msgstr "No outside Compose projects"
+
+msgid "Not managed"
+msgstr "Not managed"
+
+msgid "Ownership"
+msgstr "Ownership"
+
+msgid "Partly running"
+msgstr "Partly running"
+
+msgid "Reading Compose projects"
+msgstr "Reading Compose projects"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Show all projects"
+msgstr "Show all projects"
+
+msgid "Some Engine observations are unavailable"
+msgstr "Some Engine observations are unavailable"
+
+msgid "Upload a file"
+msgstr "Upload a file"
+
+#. placeholder {0}: body.totalServices
+msgid "{0} placed"
+msgstr "{0} placed"
+
+msgid "{running} / {total} running"
+msgstr "{running} / {total} running"
+
 msgid "Back to containers"
 msgstr "Back to containers"
-
-msgid "Compose project"
-msgstr "Compose project"
 
 msgid "Compose service"
 msgstr "Compose service"
@@ -14252,9 +14561,6 @@ msgstr "Containers"
 
 msgid "Copy redacted inspection data"
 msgstr "Copy redacted inspection data"
-
-msgid "Docker"
-msgstr "Docker"
 
 msgid "Docker inventory needs an admin"
 msgstr "Docker inventory needs an admin"
@@ -14334,9 +14640,6 @@ msgstr "Open replacement"
 msgid "Out of memory"
 msgstr "Out of memory"
 
-msgid "Published ports"
-msgstr "Published ports"
-
 msgid "Read from disk"
 msgstr "Read from disk"
 
@@ -14373,9 +14676,6 @@ msgstr "Summary"
 
 msgid "This container is gone"
 msgstr "This container is gone"
-
-msgid "Unavailable"
-msgstr "Unavailable"
 
 msgid "Written to disk"
 msgstr "Written to disk"
@@ -14422,24 +14722,15 @@ msgstr "Containers couldn't be read"
 msgid "Filter by this Compose project"
 msgstr "Filter by this Compose project"
 
-msgid "Import"
-msgstr "Import"
-
 #. placeholder {0}: row.name
 msgid "Logs for {0}"
 msgstr "Logs for {0}"
-
-msgid "Managed by Dockwell"
-msgstr "Managed by Dockwell"
 
 msgid "Move in"
 msgstr "Move in"
 
 msgid "Name, image or project"
 msgstr "Name, image or project"
-
-msgid "Needs attention"
-msgstr "Needs attention"
 
 msgid "New container"
 msgstr "New container"
@@ -14455,9 +14746,6 @@ msgstr "No containers match"
 
 msgid "No sample"
 msgstr "No sample"
-
-msgid "Not managed"
-msgstr "Not managed"
 
 #. placeholder {0}: pages.length
 msgid "Page {0}"
@@ -14484,8 +14772,14 @@ msgstr "Search containers"
 msgid "Start workload"
 msgstr "Start workload"
 
+msgid "Start workload on {workloadServers} servers"
+msgstr "Start workload on {workloadServers} servers"
+
 msgid "Stop workload"
 msgstr "Stop workload"
+
+msgid "Stop workload on {workloadServers} servers"
+msgstr "Stop workload on {workloadServers} servers"
 
 msgid "Take on a container"
 msgstr "Take on a container"
@@ -14583,9 +14877,6 @@ msgstr "Reading image"
 msgid "Reading local images"
 msgstr "Reading local images"
 
-msgid "Refresh"
-msgstr "Refresh"
-
 #. placeholder {0}: String(deployment.revision)
 msgid "Retained revision {0}"
 msgstr "Retained revision {0}"
@@ -14632,9 +14923,6 @@ msgstr "Keeps the current container, mounts, network connections and environment
 #. placeholder {0}: row.name
 msgid "Take on {0}"
 msgstr "Take on {0}"
-
-msgid "Compose projects"
-msgstr "Compose projects"
 
 msgid "Docker inventory couldn't be read"
 msgstr "Docker inventory couldn't be read"
@@ -17958,15 +18246,9 @@ msgstr "Processes on {0}"
 msgid "Reading what runs here"
 msgstr "Reading what runs here"
 
-msgid "Service"
-msgstr "Service"
-
 #. placeholder {0}: owner.name
 msgid "Service {0}"
 msgstr "Service {0}"
-
-msgid "Services"
-msgstr "Services"
 
 #. placeholder {0}: server.name
 msgid "Services on {0}"
@@ -18246,9 +18528,6 @@ msgstr "Disk"
 
 msgid "Load average"
 msgstr "Load average"
-
-msgid "Network"
-msgstr "Network"
 
 msgid "The agent reports no disks"
 msgstr "The agent reports no disks"

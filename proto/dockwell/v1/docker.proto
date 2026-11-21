@@ -107,6 +107,7 @@ service DockerService {
 enum DockerObjectKind {
   DOCKER_OBJECT_KIND_UNSPECIFIED = 0;
   DOCKER_OBJECT_KIND_CONTAINER = 1;
+  DOCKER_OBJECT_KIND_COMPOSE = 2;
   DOCKER_OBJECT_KIND_IMAGE = 3;
 }
 
@@ -147,6 +148,8 @@ message DockerObject {
   DockerObjectKey key = 1;
   string name = 2;
   DockerOwnership ownership = 3;
+  // Observation time for containers. For Compose, the last saved service
+  // revision (managed) or newest container creation observed (outside).
   google.protobuf.Timestamp observed_at = 4;
   ResourceRef managed_resource = 5;
   ContainerState state = 6;
@@ -155,6 +158,7 @@ message DockerObject {
   int64 managed_revision = 8;
   oneof detail {
     DockerContainer container = 10;
+    DockerCompose compose = 11;
     DockerImage image = 12;
   }
 }
@@ -186,6 +190,8 @@ message DockerContainer {
   uint32 log_max_files = 22;
   repeated ContainerPort configured_ports = 23;
   bool details_truncated = 24;
+  // An untrusted absolute path hint from Compose. Read it only through FileService.
+  string compose_directory = 25;
 }
 
 // DockerEndpoint is a container’s current address on one Docker network.
@@ -193,6 +199,18 @@ message DockerEndpoint {
   string network = 1;
   string ipv4 = 2;
   string ipv6 = 3;
+}
+
+// DockerCompose groups distinct Compose services on one server.
+message DockerCompose {
+  string environment_id = 1;
+  uint32 running_services = 2;
+  uint32 total_services = 3;
+  string source_directory = 4;
+  string engine_project = 5;
+  uint32 services_needing_attention = 6;
+  bool observation_unavailable = 7;
+  bool checking = 8;
 }
 
 // DockerSample holds available usage counters for one container.
@@ -253,6 +271,8 @@ message DockerObjectFilter {
   // Unset includes all lifecycle states.
   ContainerState state = 2;
   DockerOwnership ownership = 3;
+  // The Engine's Compose project. With managed ownership, managed:<environment
+  // ID> selects verified members regardless of their Engine project label.
   string compose_project = 4;
   // Includes every state except running. Use state for a single exact state.
   bool stopped = 5;

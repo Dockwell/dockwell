@@ -11459,6 +11459,12 @@ msgstr "请保留一条允许隧道 UDP 端口的规则。"
 msgid "Keeps its identity and files."
 msgstr "保留容器标识和文件。"
 
+msgid "Kept logs for {names} become unreadable and expire in 7 days."
+msgstr "{names} 的保留日志将无法读取，并在 7 天后删除。"
+
+msgid "Kept logs for {names} become unreadable and expire in 7 days. Undoing the change brings them back."
+msgstr "{names} 的保留日志将无法读取，并在 7 天后删除。撤销更改可恢复读取。"
+
 msgid "Labels alone: no step runs on {on}, online or offline."
 msgstr "仅改标签：{on} 上不会运行任何步骤，无论在线与否。"
 
@@ -11888,6 +11894,12 @@ msgstr "{names} 未连接，因此不在此变更中"
 msgid "{names}'s agent is older than fleet upgrades, so it isn't in this change"
 msgstr "{names} 的代理早于集群升级功能，因此不在此变更中"
 
+msgid "{names}'s kept logs can't be read from then on, and go in 7 days."
+msgstr "{names} 的保留日志从此无法读取，并在 7 天后删除。"
+
+msgid "{names}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
+msgstr "{names} 的保留日志从此无法读取，并在 7 天后删除。撤销更改可恢复读取。"
+
 msgid "{name} answers on port {path} on every address of {server}"
 msgstr "{name} 在 {server} 的每个地址上通过端口 {path} 应答"
 
@@ -12014,12 +12026,6 @@ msgstr "{name} 的数据用到了 {features} 的功能，{to} 无法运行"
 
 msgid "{name}'s features go up to {from} before it moves to {to}"
 msgstr "{name} 在升级到 {to} 之前，功能先提升到 {from}"
-
-msgid "{name}'s kept logs can't be read from then on, and go in 7 days."
-msgstr "此后无法读取 {name} 保留的日志，7 天后删除。"
-
-msgid "{name}'s kept logs can't be read from then on, and go in 7 days. Undoing this brings them back."
-msgstr "此后无法读取 {name} 保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们。"
 
 msgid "{name}'s rollout order says to start first, so the old and new containers both write there for as long as this takes."
 msgstr "{name} 的发布顺序设置为先启动，因此在此过程中新旧容器都会写入那里。"
@@ -14161,6 +14167,245 @@ msgstr "令牌错误"
 msgid "Zones"
 msgstr "区域"
 
+msgid "Both versions are below."
+msgstr "下方保留了两个版本。"
+
+msgid "Can't review this draft"
+msgstr "无法审阅此草稿"
+
+msgid "Couldn't load the latest file. Try again."
+msgstr "无法加载最新文件。请重试。"
+
+msgid "Kept in Dockwell"
+msgstr "保留在 Dockwell 中"
+
+msgid "Latest file"
+msgstr "最新文件"
+
+#. placeholder {0}: refusal.message
+msgid "Line {line}: {0}"
+msgstr "第 {line} 行：{0}"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "Previous draft"
+msgstr "上一份草稿"
+
+msgid "Reload and keep my edits"
+msgstr "重新加载并保留我的修改"
+
+msgid "Removing these resources needs review"
+msgstr "请审阅将要移除的资源"
+
+msgid "Replace a placeholder to change its value, or delete the line to remove it."
+msgstr "替换占位符可更改其值，删除整行可移除该值。"
+
+msgid "Review plan with removals"
+msgstr "审阅包含移除操作的计划"
+
+msgid "Review your edits against the latest file."
+msgstr "请根据最新文件审查你的修改。"
+
+msgid "Sealed value"
+msgstr "加密值"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Some edits overlap the latest file"
+msgstr "部分修改与最新文件冲突"
+
+msgid "This stack changed since you opened it"
+msgstr "打开后，此应用栈已发生更改"
+
+msgid "Couldn't read every service in this stack."
+msgstr "无法读取此应用栈中的所有服务。"
+
+msgid "Delete stack"
+msgstr "删除应用栈"
+
+msgid "Restart stack"
+msgstr "重启应用栈"
+
+msgid "Start stack"
+msgstr "启动应用栈"
+
+msgid "Start stack {name}"
+msgstr "启动应用栈 {name}"
+
+msgid "Stop stack"
+msgstr "停止应用栈"
+
+msgid "Stop stack {name}"
+msgstr "停止应用栈 {name}"
+
+msgid "The stack's servers changed. Refresh to review the latest placements."
+msgstr "此项目的服务器已变更，请刷新后查看最新的部署位置。"
+
+msgid "This stack has no services placed on a server."
+msgstr "此应用栈没有部署到服务器的服务。"
+
+msgid "Can't open this source"
+msgstr "无法打开此来源"
+
+msgid "Folder path"
+msgstr "文件夹路径"
+
+msgid "Import from a server folder"
+msgstr "从服务器文件夹导入"
+
+msgid "Next page"
+msgstr "下一页"
+
+msgid "No Compose files or folders on this page"
+msgstr "此页没有 Compose 文件或文件夹"
+
+msgid "Open folder"
+msgstr "打开文件夹"
+
+msgid "Parent folder"
+msgstr "上级文件夹"
+
+msgid "Reading folder"
+msgstr "正在读取文件夹"
+
+msgid "The source changed or is too large. Choose a regular Compose file in this folder."
+msgstr "来源已更改或文件过大。请选择此文件夹中的常规 Compose 文件。"
+
+msgid "Back to Composes"
+msgstr "返回 Compose 项目"
+
+msgid "Backup sources"
+msgstr "备份来源"
+
+msgid "Can't read these services"
+msgstr "无法读取这些服务"
+
+msgid "Can't read this stack"
+msgstr "无法读取此应用栈"
+
+msgid "Checking backup source"
+msgstr "正在检查备份来源"
+
+msgid "Compose project"
+msgstr "Compose 项目"
+
+msgid "Compose workspace"
+msgstr "Compose 工作区"
+
+msgid "Composes"
+msgstr "Compose 项目"
+
+msgid "Containers on {server} keep their state, networks and data."
+msgstr "{server} 上的容器将保留状态、网络和数据。"
+
+msgid "Docker"
+msgstr "Docker"
+
+#. placeholder {0}: item.name
+msgid "Include volume {0}"
+msgstr "同时移除存储卷 {0}"
+
+msgid "Keep existing host access"
+msgstr "保留现有主机访问权限"
+
+msgid "Keep guessable database passwords"
+msgstr "保留容易猜到的数据库密码"
+
+msgid "Latest backup"
+msgstr "最新备份"
+
+msgid "No completed backup"
+msgstr "没有已完成的备份"
+
+msgid "No container"
+msgstr "无容器"
+
+msgid "No managed volumes to back up"
+msgstr "没有可备份的受管卷"
+
+msgid "No service logs here"
+msgstr "这里没有服务日志"
+
+msgid "No services to show"
+msgstr "没有可显示的服务"
+
+msgid "No variables set"
+msgstr "未设置变量"
+
+msgid "On {serverCount} servers"
+msgstr "位于 {serverCount} 台服务器"
+
+msgid "Open Files"
+msgstr "打开文件管理"
+
+msgid "Open environment"
+msgstr "打开环境变量"
+
+msgid "Preview backup"
+msgstr "预览备份"
+
+msgid "Previous page"
+msgstr "上一页"
+
+msgid "Published ports"
+msgstr "已发布端口"
+
+msgid "Reading services"
+msgstr "正在读取服务"
+
+msgid "Reading stack"
+msgstr "正在读取应用栈"
+
+msgid "Remove the stack's workloads and networks"
+msgstr "移除此应用栈的工作负载和网络"
+
+msgid "Review deletion"
+msgstr "审阅删除"
+
+msgid "Select every placement of a volume to remove it."
+msgstr "要移除存储卷，请选中它所在的每台服务器。"
+
+msgid "Service logs"
+msgstr "服务日志"
+
+msgid "Services"
+msgstr "服务"
+
+msgid "Set in Compose"
+msgstr "在 Compose 中设置"
+
+msgid "Source directory"
+msgstr "源目录"
+
+msgid "Start and Stop apply to each listed placement."
+msgstr "启动和停止会作用于下列所有部署位置。"
+
+msgid "Take on the whole project"
+msgstr "接管整个项目"
+
+msgid "Take on this project to manage it"
+msgstr "接管此项目即可进行管理"
+
+msgid "Take on {project}"
+msgstr "接管 {project}"
+
+msgid "The selected volumes and their data will be removed."
+msgstr "所选存储卷及其数据将被移除。"
+
+msgid "These workloads are placed on several servers"
+msgstr "这些工作负载部署在多台服务器上"
+
+msgid "This stack is gone"
+msgstr "此应用栈已不存在"
+
+msgid "Unavailable"
+msgstr "不可用"
+
+msgid "Volumes and their data stay."
+msgstr "保留存储卷及其数据。"
+
 msgid "Checking Docker artifacts"
 msgstr "正在检查 Docker 对象"
 
@@ -14223,11 +14468,75 @@ msgstr "已核对 ID <0>{0}</0>"
 msgid "{display} estimated"
 msgstr "预计可回收 {display}"
 
+msgid "Can't read Compose projects"
+msgstr "无法读取 Compose 项目"
+
+msgid "Compose projects"
+msgstr "Compose 项目"
+
+msgid "Existing project"
+msgstr "现有项目"
+
+msgid "Find a Compose project"
+msgstr "查找 Compose 项目"
+
+msgid "Import"
+msgstr "导入"
+
+msgid "Last change"
+msgstr "最近更改"
+
+msgid "Managed by Dockwell"
+msgstr "由 Dockwell 管理"
+
+msgid "Needs attention"
+msgstr "需要关注"
+
+msgid "New Compose"
+msgstr "新建 Compose 项目"
+
+msgid "Newest container created {date}"
+msgstr "最新容器创建于 {date}"
+
+msgid "No Compose projects found"
+msgstr "未找到 Compose 项目"
+
+msgid "No outside Compose projects"
+msgstr "没有外部 Compose 项目"
+
+msgid "Not managed"
+msgstr "未纳管"
+
+msgid "Ownership"
+msgstr "管理归属"
+
+msgid "Partly running"
+msgstr "部分运行"
+
+msgid "Reading Compose projects"
+msgstr "正在读取 Compose 项目"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Show all projects"
+msgstr "显示所有项目"
+
+msgid "Some Engine observations are unavailable"
+msgstr "部分 Docker 引擎状态无法读取"
+
+msgid "Upload a file"
+msgstr "上传文件"
+
+#. placeholder {0}: body.totalServices
+msgid "{0} placed"
+msgstr "已部署 {0} 项"
+
+msgid "{running} / {total} running"
+msgstr "{running} / {total} 正在运行"
+
 msgid "Back to containers"
 msgstr "返回容器列表"
-
-msgid "Compose project"
-msgstr "Compose 项目"
 
 msgid "Compose service"
 msgstr "Compose 服务"
@@ -14252,9 +14561,6 @@ msgstr "容器"
 
 msgid "Copy redacted inspection data"
 msgstr "复制已隐去敏感信息的检查数据"
-
-msgid "Docker"
-msgstr "Docker"
 
 msgid "Docker inventory needs an admin"
 msgstr "查看 Docker 清单需要管理员权限"
@@ -14334,9 +14640,6 @@ msgstr "打开替代容器"
 msgid "Out of memory"
 msgstr "内存不足"
 
-msgid "Published ports"
-msgstr "已发布端口"
-
 msgid "Read from disk"
 msgstr "磁盘读取"
 
@@ -14373,9 +14676,6 @@ msgstr "摘要"
 
 msgid "This container is gone"
 msgstr "此容器已不存在"
-
-msgid "Unavailable"
-msgstr "不可用"
 
 msgid "Written to disk"
 msgstr "磁盘写入"
@@ -14422,24 +14722,15 @@ msgstr "无法读取容器"
 msgid "Filter by this Compose project"
 msgstr "按此 Compose 项目筛选"
 
-msgid "Import"
-msgstr "导入"
-
 #. placeholder {0}: row.name
 msgid "Logs for {0}"
 msgstr "{0} 的日志"
-
-msgid "Managed by Dockwell"
-msgstr "由 Dockwell 管理"
 
 msgid "Move in"
 msgstr "迁入"
 
 msgid "Name, image or project"
 msgstr "名称、镜像或项目"
-
-msgid "Needs attention"
-msgstr "需要关注"
 
 msgid "New container"
 msgstr "新建容器"
@@ -14455,9 +14746,6 @@ msgstr "没有符合条件的容器"
 
 msgid "No sample"
 msgstr "暂无采样"
-
-msgid "Not managed"
-msgstr "未纳管"
 
 #. placeholder {0}: pages.length
 msgid "Page {0}"
@@ -14484,8 +14772,14 @@ msgstr "搜索容器"
 msgid "Start workload"
 msgstr "启动工作负载"
 
+msgid "Start workload on {workloadServers} servers"
+msgstr "在 {workloadServers} 台服务器上启动工作负载"
+
 msgid "Stop workload"
 msgstr "停止工作负载"
+
+msgid "Stop workload on {workloadServers} servers"
+msgstr "在 {workloadServers} 台服务器上停止工作负载"
 
 msgid "Take on a container"
 msgstr "接管容器"
@@ -14583,9 +14877,6 @@ msgstr "正在读取镜像"
 msgid "Reading local images"
 msgstr "正在读取本地镜像"
 
-msgid "Refresh"
-msgstr "刷新"
-
 #. placeholder {0}: String(deployment.revision)
 msgid "Retained revision {0}"
 msgstr "保留的修订版本 {0}"
@@ -14632,9 +14923,6 @@ msgstr "保留当前容器、挂载、网络连接和环境变量。"
 #. placeholder {0}: row.name
 msgid "Take on {0}"
 msgstr "接管 {0}"
-
-msgid "Compose projects"
-msgstr "Compose 项目"
 
 msgid "Docker inventory couldn't be read"
 msgstr "无法读取 Docker 清单"
@@ -17958,15 +18246,9 @@ msgstr "{0} 上的进程"
 msgid "Reading what runs here"
 msgstr "正在读取这里运行的内容"
 
-msgid "Service"
-msgstr "服务"
-
 #. placeholder {0}: owner.name
 msgid "Service {0}"
 msgstr "服务 {0}"
-
-msgid "Services"
-msgstr "服务"
 
 #. placeholder {0}: server.name
 msgid "Services on {0}"
@@ -18246,9 +18528,6 @@ msgstr "磁盘"
 
 msgid "Load average"
 msgstr "平均负载"
-
-msgid "Network"
-msgstr "网络"
 
 msgid "The agent reports no disks"
 msgstr "代理没有上报磁盘"

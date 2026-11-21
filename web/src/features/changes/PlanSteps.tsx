@@ -89,6 +89,7 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
               fleet={fleet}
               intent={intentOf(plan)}
               noUndo={plan?.removes !== undefined}
+              groupedLogs={plan?.notes.some((note) => note.reason === "compose_keeps_data") ?? false}
               tunnelled={tunnelled}
             />
           ))}
@@ -160,6 +161,7 @@ function ServerSteps({
   fleet,
   intent,
   noUndo,
+  groupedLogs,
   tunnelled,
 }: {
   server: ServerPlan;
@@ -169,6 +171,7 @@ function ServerSteps({
   intent: Intent | undefined;
   /** The change has no undo, as a removal hasn't (ADR 0090). */
   noUndo: boolean;
+  groupedLogs: boolean;
   /** The routes the plan publishes through a tunnel at Cloudflare, by ID. */
   tunnelled: Set<string>;
 }) {
@@ -214,6 +217,7 @@ function ServerSteps({
               fleet={fleet}
               intent={intent?.resourceId === step.resourceId ? intent : undefined}
               noUndo={noUndo}
+              groupedLogs={groupedLogs}
               tunnelled={tunnelled.has(step.resourceId)}
             />
           ))}
@@ -232,6 +236,7 @@ function StepRow({
   fleet,
   intent,
   noUndo,
+  groupedLogs,
   tunnelled,
 }: {
   step: PlanStep;
@@ -243,6 +248,7 @@ function StepRow({
   /** What the change is for, when this step is what does it. */
   intent: Intent | undefined;
   noUndo: boolean;
+  groupedLogs: boolean;
   /** Whether the plan publishes this route through a tunnel at Cloudflare. */
   tunnelled: boolean;
 }) {
@@ -366,7 +372,7 @@ function StepRow({
           {buildLogins ? (
             <span className="plan-step-warn">{t`Its Dockerfile can read any image ${buildLogins} can read`}</span>
           ) : null}
-          {step.hidesLogs ? (
+          {step.hidesLogs && !groupedLogs ? (
             <span>
               {noUndo
                 ? t`Its kept logs can't be read from then on, and go in 7 days`

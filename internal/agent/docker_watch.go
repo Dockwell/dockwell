@@ -287,6 +287,12 @@ func (c *calls) sendInventory(ctx context.Context, run uint64, resync, ready, sa
 	group.Wait()
 	for id, keys := range viewers {
 		msg := &agentv1.DockerInventoryChanged{SubscriptionId: id, Resync: resync, EventStreamReady: &ready}
+		if len(keys) == 0 {
+			// Summary viewers need changes in health without per-container sampling.
+			for _, update := range health {
+				msg.HealthUpdates = append(msg.HealthUpdates, update)
+			}
+		}
 		for _, key := range keys {
 			if sample := samples[key]; sample != nil {
 				msg.Samples = append(msg.Samples, sample)

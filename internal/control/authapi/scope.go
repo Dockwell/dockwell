@@ -133,6 +133,7 @@ var requestBound = map[string]bool{
 	dockwellv1connect.LogServiceReadLogsProcedure:                 true,
 	dockwellv1connect.LogServiceWatchLogsProcedure:                true,
 	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
+	dockwellv1connect.ComposeServiceGetComposeWorkspaceProcedure:  true,
 	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
 	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
 	// A service's ports are its container's, which the request named (#791).

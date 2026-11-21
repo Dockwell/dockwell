@@ -44,6 +44,12 @@ const (
 	// ComposeServiceCheckComposeProcedure is the fully-qualified name of the ComposeService's
 	// CheckCompose RPC.
 	ComposeServiceCheckComposeProcedure = "/dockwell.v1.ComposeService/CheckCompose"
+	// ComposeServiceGetComposeWorkspaceProcedure is the fully-qualified name of the ComposeService's
+	// GetComposeWorkspace RPC.
+	ComposeServiceGetComposeWorkspaceProcedure = "/dockwell.v1.ComposeService/GetComposeWorkspace"
+	// ComposeServicePlanComposeWorkspaceProcedure is the fully-qualified name of the ComposeService's
+	// PlanComposeWorkspace RPC.
+	ComposeServicePlanComposeWorkspaceProcedure = "/dockwell.v1.ComposeService/PlanComposeWorkspace"
 	// ComposeServiceExportComposeProcedure is the fully-qualified name of the ComposeService's
 	// ExportCompose RPC.
 	ComposeServiceExportComposeProcedure = "/dockwell.v1.ComposeService/ExportCompose"
@@ -70,6 +76,10 @@ type ComposeServiceClient interface {
 	// change, so a form can check a file as someone types it. It is a POST, as
 	// a file doesn't fit in a URL.
 	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
+	// GetComposeWorkspace reads a managed environment's editable Compose projection.
+	GetComposeWorkspace(context.Context, *connect.Request[v1.GetComposeWorkspaceRequest]) (*connect.Response[v1.GetComposeWorkspaceResponse], error)
+	// PlanComposeWorkspace reviews edits and exact removals from a previously read base.
+	PlanComposeWorkspace(context.Context, *connect.Request[v1.PlanComposeWorkspaceRequest]) (*connect.Response[v1.PlanComposeWorkspaceResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
 	// environment variable whose value may hold one is listed by name, for
@@ -107,6 +117,19 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(composeServiceMethods.ByName("CheckCompose")),
 			connect.WithClientOptions(opts...),
 		),
+		getComposeWorkspace: connect.NewClient[v1.GetComposeWorkspaceRequest, v1.GetComposeWorkspaceResponse](
+			httpClient,
+			baseURL+ComposeServiceGetComposeWorkspaceProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("GetComposeWorkspace")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		planComposeWorkspace: connect.NewClient[v1.PlanComposeWorkspaceRequest, v1.PlanComposeWorkspaceResponse](
+			httpClient,
+			baseURL+ComposeServicePlanComposeWorkspaceProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("PlanComposeWorkspace")),
+			connect.WithClientOptions(opts...),
+		),
 		exportCompose: connect.NewClient[v1.ExportComposeRequest, v1.ExportComposeResponse](
 			httpClient,
 			baseURL+ComposeServiceExportComposeProcedure,
@@ -119,10 +142,12 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // composeServiceClient implements ComposeServiceClient.
 type composeServiceClient struct {
-	importCompose *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
-	adoptCompose  *connect.Client[v1.AdoptComposeRequest, v1.AdoptComposeResponse]
-	checkCompose  *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
-	exportCompose *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
+	importCompose        *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
+	adoptCompose         *connect.Client[v1.AdoptComposeRequest, v1.AdoptComposeResponse]
+	checkCompose         *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
+	getComposeWorkspace  *connect.Client[v1.GetComposeWorkspaceRequest, v1.GetComposeWorkspaceResponse]
+	planComposeWorkspace *connect.Client[v1.PlanComposeWorkspaceRequest, v1.PlanComposeWorkspaceResponse]
+	exportCompose        *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
 }
 
 // ImportCompose calls dockwell.v1.ComposeService.ImportCompose.
@@ -138,6 +163,16 @@ func (c *composeServiceClient) AdoptCompose(ctx context.Context, req *connect.Re
 // CheckCompose calls dockwell.v1.ComposeService.CheckCompose.
 func (c *composeServiceClient) CheckCompose(ctx context.Context, req *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error) {
 	return c.checkCompose.CallUnary(ctx, req)
+}
+
+// GetComposeWorkspace calls dockwell.v1.ComposeService.GetComposeWorkspace.
+func (c *composeServiceClient) GetComposeWorkspace(ctx context.Context, req *connect.Request[v1.GetComposeWorkspaceRequest]) (*connect.Response[v1.GetComposeWorkspaceResponse], error) {
+	return c.getComposeWorkspace.CallUnary(ctx, req)
+}
+
+// PlanComposeWorkspace calls dockwell.v1.ComposeService.PlanComposeWorkspace.
+func (c *composeServiceClient) PlanComposeWorkspace(ctx context.Context, req *connect.Request[v1.PlanComposeWorkspaceRequest]) (*connect.Response[v1.PlanComposeWorkspaceResponse], error) {
+	return c.planComposeWorkspace.CallUnary(ctx, req)
 }
 
 // ExportCompose calls dockwell.v1.ComposeService.ExportCompose.
@@ -166,6 +201,10 @@ type ComposeServiceHandler interface {
 	// change, so a form can check a file as someone types it. It is a POST, as
 	// a file doesn't fit in a URL.
 	CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error)
+	// GetComposeWorkspace reads a managed environment's editable Compose projection.
+	GetComposeWorkspace(context.Context, *connect.Request[v1.GetComposeWorkspaceRequest]) (*connect.Response[v1.GetComposeWorkspaceResponse], error)
+	// PlanComposeWorkspace reviews edits and exact removals from a previously read base.
+	PlanComposeWorkspace(context.Context, *connect.Request[v1.PlanComposeWorkspaceRequest]) (*connect.Response[v1.PlanComposeWorkspaceResponse], error)
 	// ExportCompose writes a Compose file of an environment, or of one service
 	// with the volumes and networks it uses. It never includes a secret: an
 	// environment variable whose value may hold one is listed by name, for
@@ -199,6 +238,19 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 		connect.WithSchema(composeServiceMethods.ByName("CheckCompose")),
 		connect.WithHandlerOptions(opts...),
 	)
+	composeServiceGetComposeWorkspaceHandler := connect.NewUnaryHandler(
+		ComposeServiceGetComposeWorkspaceProcedure,
+		svc.GetComposeWorkspace,
+		connect.WithSchema(composeServiceMethods.ByName("GetComposeWorkspace")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	composeServicePlanComposeWorkspaceHandler := connect.NewUnaryHandler(
+		ComposeServicePlanComposeWorkspaceProcedure,
+		svc.PlanComposeWorkspace,
+		connect.WithSchema(composeServiceMethods.ByName("PlanComposeWorkspace")),
+		connect.WithHandlerOptions(opts...),
+	)
 	composeServiceExportComposeHandler := connect.NewUnaryHandler(
 		ComposeServiceExportComposeProcedure,
 		svc.ExportCompose,
@@ -214,6 +266,10 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 			composeServiceAdoptComposeHandler.ServeHTTP(w, r)
 		case ComposeServiceCheckComposeProcedure:
 			composeServiceCheckComposeHandler.ServeHTTP(w, r)
+		case ComposeServiceGetComposeWorkspaceProcedure:
+			composeServiceGetComposeWorkspaceHandler.ServeHTTP(w, r)
+		case ComposeServicePlanComposeWorkspaceProcedure:
+			composeServicePlanComposeWorkspaceHandler.ServeHTTP(w, r)
 		case ComposeServiceExportComposeProcedure:
 			composeServiceExportComposeHandler.ServeHTTP(w, r)
 		default:
@@ -235,6 +291,14 @@ func (UnimplementedComposeServiceHandler) AdoptCompose(context.Context, *connect
 
 func (UnimplementedComposeServiceHandler) CheckCompose(context.Context, *connect.Request[v1.CheckComposeRequest]) (*connect.Response[v1.CheckComposeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.CheckCompose is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) GetComposeWorkspace(context.Context, *connect.Request[v1.GetComposeWorkspaceRequest]) (*connect.Response[v1.GetComposeWorkspaceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.GetComposeWorkspace is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) PlanComposeWorkspace(context.Context, *connect.Request[v1.PlanComposeWorkspaceRequest]) (*connect.Response[v1.PlanComposeWorkspaceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.PlanComposeWorkspace is not implemented"))
 }
 
 func (UnimplementedComposeServiceHandler) ExportCompose(context.Context, *connect.Request[v1.ExportComposeRequest]) (*connect.Response[v1.ExportComposeResponse], error) {

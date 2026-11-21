@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource/container"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/store"
@@ -132,6 +134,7 @@ type dockerCursor struct {
 
 func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (dockerCursor, error) {
 	h := sha256.New()
+	h.Write([]byte{byte(request.GetKind())}) //nolint:gosec // inventory kinds fit in one byte.
 	for _, server := range servers {
 		h.Write([]byte(server.ID))
 		h.Write([]byte{0})
@@ -162,7 +165,7 @@ func inventoryCursor(servers []Server, request *v1.ListDockerObjectsRequest) (do
 // ListDockerObjects reads a page of Docker inventory across the selection.
 func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1.ListDockerObjectsRequest]) (*connect.Response[v1.ListDockerObjectsResponse], error) {
 	m := req.Msg
-	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind {
+	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind && m.GetKind() != composeKind {
 		return nil, authapi.Invalid(errors.New("select a supported Docker inventory and use a search of at most 255 bytes"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
@@ -178,6 +181,38 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 	if page == 0 {
 		page = dockerPageSize
 	}
+	if m.GetKind() == v1.DockerObjectKind_DOCKER_OBJECT_KIND_COMPOSE {
+		if err := h.listDockerComposes(ctx, servers, m.GetFilter(), &cursor, out, page); err != nil {
+			return nil, err
+		}
+	} else if err := h.listDockerContainers(ctx, servers, m, &cursor, out, page); err != nil {
+		return nil, err
+	}
+	if cursor.Server < len(servers) {
+		token, err := json.Marshal(cursor)
+		if err != nil {
+			return nil, h.internal(ctx, err)
+		}
+		out.NextPageToken = base64.RawURLEncoding.EncodeToString(token)
+	}
+	return connect.NewResponse(out), nil
+}
+
+func (h *Handler) listDockerContainers(ctx context.Context, servers []Server, m *v1.ListDockerObjectsRequest, cursor *dockerCursor, out *v1.ListDockerObjectsResponse, page int) error {
+	filter := m.GetFilter()
+	agentFilter := filter
+	scope := ""
+	if selected, ok := strings.CutPrefix(filter.GetComposeProject(), "managed:"); ok && filter.GetOwnership() == v1.DockerOwnership_DOCKER_OWNERSHIP_MANAGED {
+		if _, err := id.Parse(id.Environment, selected); err != nil {
+			return authapi.Invalid(errors.New("select a managed Compose environment"))
+		}
+		// A project taken on without a restart still has its old Engine
+		// labels. For a managed stack, select by confirmed control-plane
+		// ownership after reading the inventory.
+		scope = selected
+		agentFilter = proto.CloneOf(filter)
+		agentFilter.ComposeProject = ""
+	}
 	// Bound work even with a selective ownership filter on a large fleet. A
 	// next token can remain when a page found no matches in its budget.
 	for visits := 0; len(out.Objects) < page && cursor.Server < len(servers) && visits < 6; visits++ {
@@ -190,19 +225,22 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 			out.Unavailable = append(out.Unavailable, &v1.DockerUnavailable{ServerId: s.ID, State: state})
 		} else {
 			res, err := session.DockerList(ctx, &agentv1.DockerInventoryListCall{
-				Kind: m.GetKind(), Filter: m.GetFilter(), PageSize: uint32(min(max(0, page-len(out.Objects)), dockerPageSize)), AfterId: cursor.After, Snapshot: cursor.Snapshot,
+				Kind: m.GetKind(), Filter: agentFilter, PageSize: uint32(min(max(0, page-len(out.Objects)), dockerPageSize)), AfterId: cursor.After, Snapshot: cursor.Snapshot,
 			})
 			if err != nil {
 				out.Unavailable = append(out.Unavailable, &v1.DockerUnavailable{ServerId: s.ID, State: v1.DockerReadState_DOCKER_READ_STATE_ENGINE_UNAVAILABLE})
 			} else {
 				if res.GetResync() {
-					return nil, authapi.ReasonError(connect.CodeAborted, errors.New("the Docker inventory changed. Refresh the list"), "docker_resync")
+					return authapi.ReasonError(connect.CodeAborted, errors.New("the Docker inventory changed. Refresh the list"), "docker_resync")
 				}
 				items := res.GetObjects()
 				if err := h.classifyDockerObjects(ctx, s.ID, m.GetKind(), items); err != nil {
-					return nil, err
+					return err
 				}
 				for _, row := range items {
+					if scope != "" && (row.GetManagedResource().GetKind() != "service" || row.GetManagedResource().GetScope() != scope) {
+						continue
+					}
 					if ownership := m.GetFilter().GetOwnership(); m.GetKind() == dockerImageKind || ownership == 0 || row.GetOwnership() == ownership {
 						out.Objects = append(out.Objects, row)
 					}
@@ -217,25 +255,21 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 		cursor.Server++
 		cursor.After, cursor.Snapshot = "", ""
 	}
-	if cursor.Server < len(servers) {
-		token, err := json.Marshal(cursor)
-		if err != nil {
-			return nil, h.internal(ctx, err)
-		}
-		out.NextPageToken = base64.RawURLEncoding.EncodeToString(token)
-	}
-	return connect.NewResponse(out), nil
+	return nil
 }
 
 func containerKind(kind v1.DockerObjectKind) bool {
 	return kind == 0 || kind == v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER
 }
 
-func dockerKeyID(kind v1.DockerObjectKind, id string) bool {
-	if kind == dockerImageKind {
-		return docker.IsImageID(id)
+func dockerKeyID(kind v1.DockerObjectKind, engineID string) bool {
+	if kind == composeKind {
+		return len(engineID) <= 263 && composeInventoryID.MatchString(engineID)
 	}
-	return docker.IsFullID(id)
+	if kind == dockerImageKind {
+		return docker.IsImageID(engineID)
+	}
+	return docker.IsFullID(engineID)
 }
 
 func (h *Handler) classifyDockerObjects(ctx context.Context, server string, kind v1.DockerObjectKind, rows []*v1.DockerObject) error {
@@ -256,6 +290,9 @@ func (h *Handler) classifyDockerObjects(ctx context.Context, server string, kind
 // GetDockerObject reads an immutable Engine instance through its agent.
 func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.GetDockerObjectRequest]) (*connect.Response[v1.GetDockerObjectResponse], error) {
 	key := req.Msg.GetKey()
+	if key.GetKind() == v1.DockerObjectKind_DOCKER_OBJECT_KIND_COMPOSE {
+		return h.getDockerCompose(ctx, key)
+	}
 	if (!containerKind(key.GetKind()) && key.GetKind() != dockerImageKind) || !dockerKeyID(key.GetKind(), key.GetEngineId()) || len(req.Msg.GetLastKnownName()) > 255 {
 		return nil, authapi.Invalid(errors.New("a Docker object detail needs its full Engine ID"))
 	}
@@ -300,8 +337,10 @@ func (h *Handler) GetDockerObject(ctx context.Context, req *connect.Request[v1.G
 // WatchDockerObjects follows invalidations and live samples across the selection.
 func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest], stream *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {
 	m := req.Msg
-	if len(m.GetVisibleKeys()) > 16 || len(m.GetAfterSnapshot()) > 128 || !containerKind(m.GetSelection().GetKind()) {
-		return authapi.Invalid(errors.New("select containers and at most 16 visible IDs to watch"))
+	compose := m.GetSelection().GetKind() == composeKind
+	if len(m.GetVisibleKeys()) > 16 || len(m.GetAfterSnapshot()) > 128 ||
+		!compose && !containerKind(m.GetSelection().GetKind()) || compose && len(m.GetVisibleKeys()) > 0 {
+		return authapi.Invalid(errors.New("watch Compose summaries or containers, with at most 16 visible container IDs"))
 	}
 	servers, err := h.dockerServers(ctx, m.GetSelection().GetServerIds())
 	if err != nil {
@@ -334,7 +373,7 @@ func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v
 	}
 	for _, s := range servers {
 		keys := visible[s.ID]
-		workers.Go(func() { h.watchDockerServer(ctx, s, keys, emit) })
+		workers.Go(func() { h.watchDockerServer(ctx, s, keys, compose, emit) })
 	}
 	heartbeat := time.NewTicker(10 * time.Second)
 	defer heartbeat.Stop()
@@ -354,7 +393,7 @@ func (h *Handler) WatchDockerObjects(ctx context.Context, req *connect.Request[v
 	}
 }
 
-func (h *Handler) watchDockerServer(ctx context.Context, s Server, visible []string, emit func(*v1.WatchDockerObjectsResponse) error) {
+func (h *Handler) watchDockerServer(ctx context.Context, s Server, visible []string, compose bool, emit func(*v1.WatchDockerObjectsResponse) error) {
 	backoff := 5 * time.Second
 	var live *bool
 	report := func(next bool) error {
@@ -385,7 +424,7 @@ func (h *Handler) watchDockerServer(ctx context.Context, s Server, visible []str
 					}
 				}
 				for _, update := range msg.GetHealthUpdates() {
-					if key := update.GetKey(); slices.Contains(visible, key.GetEngineId()) {
+					if key := update.GetKey(); slices.Contains(visible, key.GetEngineId()) || compose && docker.IsFullID(key.GetEngineId()) {
 						key.ServerId = s.ID
 						frame.HealthUpdates = append(frame.HealthUpdates, update)
 					}

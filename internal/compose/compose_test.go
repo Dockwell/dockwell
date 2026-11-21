@@ -22,6 +22,30 @@ import (
 
 const project = "env_01kat4zr6e3v0y5xbkzb5d9q6m"
 
+func TestWorkspaceReferencesFollowTheLocalEnvironment(t *testing.T) {
+	const draft = `name: example
+services:
+  web:
+    image: nginx
+    command: ["serve", "${TOKEN}"]
+    environment:
+      TOKEN: changed
+`
+	markers := map[string]string{"TOKEN": "marker"}
+	stack, err := compose.ParseWorkspace(t.Context(), []byte(draft), markers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app := stack.Services[0].Spec.GetApp()
+	if app.GetEnv()["TOKEN"] != "changed" || !slices.Contains(app.GetReferences(), "command") {
+		t.Fatalf("bad local reference: %v", app)
+	}
+	withoutLine := strings.ReplaceAll(draft, "    environment:\n      TOKEN: changed\n", "")
+	if _, err := compose.ParseWorkspace(t.Context(), []byte(withoutLine), markers); err == nil || !strings.Contains(err.Error(), "still refers to TOKEN") {
+		t.Fatalf("removing an environment line that its own command still uses: %v", err)
+	}
+}
+
 const shop = `
 name: ignored
 x-common: &common
