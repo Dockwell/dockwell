@@ -3,10 +3,12 @@
 package control
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -48,6 +50,32 @@ func testDiskUseIsAskedForAndKeptAWhile(t *testing.T, backend store.Backend) {
 		t.Fatalf("Docker was asked what its data takes %d times before anyone asked", n)
 	}
 	id := f.lastDocker.id.ServerID
+	release := make(chan struct{})
+	held := true
+	defer func() {
+		if held {
+			close(release)
+		}
+	}()
+	e.Intercept(func(req *http.Request) error {
+		if strings.HasSuffix(req.URL.Path, "/system/df") {
+			select {
+			case <-release:
+			case <-req.Context().Done():
+			}
+		}
+		return nil
+	})
+	ask := connect.NewRequest(&dockwellv1.GetServerDiskUseRequest{Id: id})
+	ask.Header().Set("Prefer", "respond-async")
+	quick, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	pending, err := sc.GetServerDiskUse(quick, ask)
+	if err != nil || pending.Msg.GetDiskUse().GetTime() != nil || pending.Header().Get("Preference-Applied") != "respond-async" {
+		t.Fatalf("progressive disk use waited for the count: %v, %v", pending, err)
+	}
+	close(release)
+	held = false
 	res, err := sc.GetServerDiskUse(t.Context(), connect.NewRequest(&dockwellv1.GetServerDiskUseRequest{Id: id}))
 	if err != nil {
 		t.Fatal(err)

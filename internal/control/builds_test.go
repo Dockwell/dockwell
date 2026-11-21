@@ -467,18 +467,15 @@ func TestDockerCleanupKeepsBuiltRevisionForRollback(t *testing.T) {
 		g.e.AddLocalImage("fixture/disposable:1", dockertest.Image{Size: 1024})
 		d := dockwellv1connect.NewDockerServiceClient(g.b, g.b.origin, connect.WithProtoJSON())
 		filters := &dockwellv1.DockerCleanupFilters{TaggedImages: true}
-		preview, err := d.PreviewDockerCleanup(ctx, connect.NewRequest(&dockwellv1.PreviewDockerCleanupRequest{
+		preview := dockerCleanupMeasured(t, d, &dockwellv1.PreviewDockerCleanupRequest{
 			ServerIds: []string{server}, Filters: filters,
-		}))
-		if err != nil {
-			t.Fatal(err)
-		}
-		targets := preview.Msg.GetCandidates()
+		})
+		targets := preview.GetCandidates()
 		if len(targets) != 1 || targets[0].GetName() != "fixture/disposable:1" {
 			t.Fatalf("unsafe tagged cleanup scope: %v", targets)
 		}
 		plan, err := d.PlanDockerMaintenance(ctx, connect.NewRequest(&dockwellv1.PlanDockerMaintenanceRequest{
-			ServerIds: []string{server}, ExpectedSnapshot: preview.Msg.GetSnapshot(),
+			ServerIds: []string{server}, ExpectedSnapshot: preview.GetSnapshot(),
 			Operation: &dockwellv1.PlanDockerMaintenanceRequest_Cleanup{
 				Cleanup: &dockwellv1.DockerCleanupSelection{Filters: filters, Targets: targets},
 			},

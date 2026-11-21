@@ -1698,6 +1698,7 @@ func (x *GetServerDiskUseRequest) GetId() string {
 }
 
 // GetServerDiskUseResponse says what takes the room on a server's disk.
+// With Prefer: respond-async, an unset disk_use.time means the Engine count is underway.
 type GetServerDiskUseResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What takes the room on the disk that holds Docker's data.

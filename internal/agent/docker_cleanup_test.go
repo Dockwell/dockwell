@@ -564,6 +564,9 @@ func TestDockerCleanupPreviewByteCapDoesNotAffectDiskUse(t *testing.T) {
 	c.cfg.disks.mu.Lock()
 	c.cfg.disks.errAt = time.Time{}
 	c.cfg.disks.mu.Unlock()
+	if _, _, err := c.cfg.disks.snapshotMode(t.Context(), true, true); err == nil {
+		t.Fatal("the background measurement must use the preview byte limit")
+	}
 	preview(false)
 }
 

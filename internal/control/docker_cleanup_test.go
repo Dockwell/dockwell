@@ -20,6 +20,22 @@ import (
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
 
+func dockerCleanupMeasured(t *testing.T, client dockwellv1connect.DockerServiceClient, request *v1.PreviewDockerCleanupRequest) *v1.PreviewDockerCleanupResponse {
+	t.Helper()
+	var preview *v1.PreviewDockerCleanupResponse
+	eventually(t, "the Docker cleanup count is ready", func() bool {
+		res, err := client.PreviewDockerCleanup(t.Context(), connect.NewRequest(request))
+		if err != nil {
+			t.Fatal(err)
+		}
+		preview = res.Msg
+		return !slices.ContainsFunc(preview.GetUnavailable(), func(row *v1.DockerUnavailable) bool {
+			return row.GetState() == v1.DockerReadState_DOCKER_READ_STATE_UNSPECIFIED
+		})
+	})
+	return preview
+}
+
 func TestDockerCleanupExactScopeAndReceipts(t *testing.T) {
 	t.Parallel()
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
@@ -36,11 +52,7 @@ func TestDockerCleanupExactScopeAndReceipts(t *testing.T) {
 		changeRPC := changeClient(b, b.origin)
 		preview := func() *v1.PreviewDockerCleanupResponse {
 			t.Helper()
-			res, err := dockerRPC.PreviewDockerCleanup(t.Context(), connect.NewRequest(&v1.PreviewDockerCleanupRequest{ServerIds: []string{server}}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			return res.Msg
+			return dockerCleanupMeasured(t, dockerRPC, &v1.PreviewDockerCleanupRequest{ServerIds: []string{server}})
 		}
 		plan := func() *v1.Change {
 			t.Helper()
@@ -126,13 +138,9 @@ func TestDockerCleanupResumesAfterPasskeyAndKeepsCatalogPin(t *testing.T) {
 		changes := changeClient(b, b.origin)
 		preview := func() *v1.PreviewDockerCleanupResponse {
 			t.Helper()
-			p, err := client.PreviewDockerCleanup(t.Context(), connect.NewRequest(&v1.PreviewDockerCleanupRequest{
+			return dockerCleanupMeasured(t, client, &v1.PreviewDockerCleanupRequest{
 				ServerIds: serverIDs, Filters: &v1.DockerCleanupFilters{TaggedImages: true},
-			}))
-			if err != nil {
-				t.Fatal(err)
-			}
-			return p.Msg
+			})
 		}
 		plan := func(operation *v1.PlanDockerMaintenanceRequest) *v1.Change {
 			t.Helper()
