@@ -1739,6 +1739,39 @@ enum CatalogFormat {
   CATALOG_FORMAT_UMBREL = 7;
 }
 
+// ComposeTemplate is a project's portable Compose definition and its inputs.
+message ComposeTemplate {
+  string compose_yaml = 1;
+  string description = 2;
+  repeated ComposeTemplateInput inputs = 3;
+  ComposeTemplateGit git = 4;
+}
+
+// ComposeTemplateInput describes a value a new workspace takes.
+message ComposeTemplateInput {
+  string name = 1;
+  ComposeTemplateInputKind kind = 2;
+  optional string default_value = 3;
+  bool required = 4;
+}
+
+// ComposeTemplateInputKind selects how an input is checked and kept.
+enum ComposeTemplateInputKind {
+  COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED = 0;
+  COMPOSE_TEMPLATE_INPUT_KIND_TEXT = 1;
+  COMPOSE_TEMPLATE_INPUT_KIND_SECRET = 2;
+  COMPOSE_TEMPLATE_INPUT_KIND_PORT = 3;
+  COMPOSE_TEMPLATE_INPUT_KIND_IMAGE = 4;
+}
+
+// ComposeTemplateGit records the source of a saved file.
+message ComposeTemplateGit {
+  string repository = 1;
+  string ref = 2;
+  string path = 3;
+  string commit = 4;
+}
+
 // Spec is the desired state of one resource, of any kind: the field that is
 // set says which. Edits in the API carry specs in it, so one message takes
 // every kind.
@@ -1746,6 +1779,7 @@ message Spec {
   // The kind's spec.
   oneof kind {
     DockerDaemon docker_daemon = 400;
+    ComposeTemplate compose_template = 401;
     // A project, kind "project".
     Project project = 1;
     // An environment, kind "environment".

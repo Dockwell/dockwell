@@ -36,6 +36,7 @@ import { Route as ShellAlertsRulesRouteImport } from './routes/_shell/alerts.rul
 import { Route as ShellAppsIndexRouteImport } from './routes/_shell/apps.index'
 import { Route as ShellAppsServiceIdRouteImport } from './routes/_shell/apps.$serviceId'
 import { Route as ShellAppsNewRouteImport } from './routes/_shell/apps.new'
+import { Route as ShellAppsTemplatesRouteImport } from './routes/_shell/apps.templates'
 import { Route as ShellBackupsIndexRouteImport } from './routes/_shell/backups.index'
 import { Route as ShellBackupsBackupIdRouteImport } from './routes/_shell/backups.$backupId'
 import { Route as ShellCatalogIndexRouteImport } from './routes/_shell/catalog.index'
@@ -228,6 +229,13 @@ const ShellAppsNewRoute = ShellAppsNewRouteImport.update({
   path: '/apps/new',
   getParentRoute: () => ShellRoute,
 } as any)
+const ShellAppsTemplatesRoute = ShellAppsTemplatesRouteImport.update({
+  id: '/apps/templates',
+  path: '/apps/templates',
+  getParentRoute: () => ShellRoute,
+} as any).lazy(() =>
+  import('./routes/_shell/apps.templates.lazy').then((d) => d.Route),
+)
 const ShellBackupsIndexRoute = ShellBackupsIndexRouteImport.update({
   id: '/backups/',
   path: '/backups/',
@@ -650,6 +658,7 @@ export interface FileRoutesByFullPath {
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/apps/new': typeof ShellAppsNewRoute
+  '/apps/templates': typeof ShellAppsTemplatesRoute
   '/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/catalog/sources': typeof ShellCatalogSourcesRoute
@@ -739,6 +748,7 @@ export interface FileRoutesByTo {
   '/alerts/checks': typeof ShellAlertsChecksRoute
   '/alerts/rules': typeof ShellAlertsRulesRoute
   '/apps/new': typeof ShellAppsNewRoute
+  '/apps/templates': typeof ShellAppsTemplatesRoute
   '/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/catalog/sources': typeof ShellCatalogSourcesRoute
@@ -830,6 +840,7 @@ export interface FileRoutesById {
   '/_shell/alerts/rules': typeof ShellAlertsRulesRoute
   '/_shell/apps/$serviceId': typeof ShellAppsServiceIdRouteWithChildren
   '/_shell/apps/new': typeof ShellAppsNewRoute
+  '/_shell/apps/templates': typeof ShellAppsTemplatesRoute
   '/_shell/backups/$backupId': typeof ShellBackupsBackupIdRoute
   '/_shell/catalog/$entryId': typeof ShellCatalogEntryIdRouteWithChildren
   '/_shell/catalog/sources': typeof ShellCatalogSourcesRoute
@@ -922,6 +933,7 @@ export interface FileRouteTypes {
     | '/alerts/rules'
     | '/apps/$serviceId'
     | '/apps/new'
+    | '/apps/templates'
     | '/backups/$backupId'
     | '/catalog/$entryId'
     | '/catalog/sources'
@@ -1011,6 +1023,7 @@ export interface FileRouteTypes {
     | '/alerts/checks'
     | '/alerts/rules'
     | '/apps/new'
+    | '/apps/templates'
     | '/backups/$backupId'
     | '/catalog/$entryId'
     | '/catalog/sources'
@@ -1101,6 +1114,7 @@ export interface FileRouteTypes {
     | '/_shell/alerts/rules'
     | '/_shell/apps/$serviceId'
     | '/_shell/apps/new'
+    | '/_shell/apps/templates'
     | '/_shell/backups/$backupId'
     | '/_shell/catalog/$entryId'
     | '/_shell/catalog/sources'
@@ -1354,6 +1368,13 @@ declare module '@tanstack/react-router' {
       path: '/apps/new'
       fullPath: '/apps/new'
       preLoaderRoute: typeof ShellAppsNewRouteImport
+      parentRoute: typeof ShellRoute
+    }
+    '/_shell/apps/templates': {
+      id: '/_shell/apps/templates'
+      path: '/apps/templates'
+      fullPath: '/apps/templates'
+      preLoaderRoute: typeof ShellAppsTemplatesRouteImport
       parentRoute: typeof ShellRoute
     }
     '/_shell/backups/': {
@@ -1939,6 +1960,7 @@ interface ShellRouteChildren {
   ShellAlertsRulesRoute: typeof ShellAlertsRulesRoute
   ShellAppsServiceIdRoute: typeof ShellAppsServiceIdRouteWithChildren
   ShellAppsNewRoute: typeof ShellAppsNewRoute
+  ShellAppsTemplatesRoute: typeof ShellAppsTemplatesRoute
   ShellBackupsBackupIdRoute: typeof ShellBackupsBackupIdRoute
   ShellCatalogEntryIdRoute: typeof ShellCatalogEntryIdRouteWithChildren
   ShellCatalogSourcesRoute: typeof ShellCatalogSourcesRoute
@@ -2001,6 +2023,7 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellAlertsRulesRoute: ShellAlertsRulesRoute,
   ShellAppsServiceIdRoute: ShellAppsServiceIdRouteWithChildren,
   ShellAppsNewRoute: ShellAppsNewRoute,
+  ShellAppsTemplatesRoute: ShellAppsTemplatesRoute,
   ShellBackupsBackupIdRoute: ShellBackupsBackupIdRoute,
   ShellCatalogEntryIdRoute: ShellCatalogEntryIdRouteWithChildren,
   ShellCatalogSourcesRoute: ShellCatalogSourcesRoute,

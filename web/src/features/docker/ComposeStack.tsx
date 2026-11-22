@@ -27,6 +27,7 @@ import {
   Sheet,
   Skeleton,
   SkeletonCard,
+  SkeletonField,
   SkeletonRows,
   SkeletonTabs,
   StatusBadge,
@@ -48,6 +49,7 @@ import { useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
+import { ActionMenu } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ComposeEditor, ComposeResourceKind, KeptValues } from "./ComposeEditor";
@@ -63,6 +65,7 @@ import { useBackupRows } from "./useComposeBackups";
 import "./Compose.css";
 
 const inventory = "/servers/$serverId/docker/composes";
+const SaveTemplate = lazy(async () => ({ default: (await import("./ComposeTemplates")).TemplateDraftSheet }));
 const Logs = lazy(async () => ({ default: (await import("../logs/LogsPage")).LogsPage }));
 const BackUpSheet = lazy(async () => ({ default: (await import("../backups/BackUpSheet")).BackUpSheet }));
 
@@ -81,6 +84,7 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
   const navigate = useNavigate();
   const queries = useQueryClient();
   const [taking, setTaking] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [backup, setBackup] = useState<string>();
   const [deleting, setDeleting] = useState(false);
   const [volumeSelection, setVolumeSelection] = useState<{ snapshot: string; copies: ReadonlySet<string> }>();
@@ -132,6 +136,11 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
       name: volume.name,
       environment,
     }));
+  const templateProject = workspace.data?.workspace?.projectId ?? "";
+  const canSaveTemplate =
+    !outside &&
+    !!templateProject &&
+    may(ComposeService.method.prepareComposeTemplate, { project: templateProject }).allowed;
   const canDelete = canEdit && services.length > 0;
   const closeAction = () => {
     if (search.action) {
@@ -226,6 +235,14 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
         <Button icon="archive" onClick={() => setBackup(volumes[0]?.id)}>
           <Trans>Back up</Trans>
         </Button>
+      ) : null}
+      {canSaveTemplate ? (
+        <ActionMenu
+          label={t`Template actions`}
+          actions={[
+            { id: "template", label: t`Save as template`, icon: "layers", onSelect: () => setSavingTemplate(true) },
+          ]}
+        />
       ) : null}
       {canDelete ? (
         <Button
@@ -462,6 +479,24 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
             )}
           </div>
         </Sheet>
+      ) : null}
+      {savingTemplate && canSaveTemplate ? (
+        <Suspense
+          fallback={
+            <Sheet open title={t`Save as template`} onClose={() => setSavingTemplate(false)}>
+              <Loading label={t`Checking Compose file`}>
+                <SkeletonField />
+              </Loading>
+            </Sheet>
+          }
+        >
+          <SaveTemplate
+            projectId={templateProject}
+            environmentId={environment}
+            suggestedName={row?.name}
+            onClose={() => setSavingTemplate(false)}
+          />
+        </Suspense>
       ) : null}
       {(deleting || search.action === "delete") && canDelete ? (
         <Sheet

@@ -677,6 +677,18 @@ func InRevision(resourceID, kind string, number int) SpecAt {
 	return SpecAt{ResourceID: resourceID, Kind: kind, Revision: number}
 }
 
+// InComposeSource binds a sealed projection separately from the full revision.
+func InComposeSource(resourceID, kind string, number int) SpecAt {
+	return InRevision(resourceID, kind+".compose-source", number)
+}
+
+// ComposeSource reads only the projection that can be used to save a template.
+func (t *Tx) ComposeSource(ctx context.Context, r Resource) ([]byte, error) {
+	var source []byte
+	err := t.queryRow(ctx, "SELECT compose_source FROM revisions WHERE resource_id = ? AND number = ?", r.ID, r.Revision).Scan(&source)
+	return source, err
+}
+
 // InChange is where a change keeps the spec its item at position asks
 // for.
 func InChange(resourceID, kind, changeID string, position int) SpecAt {
@@ -721,11 +733,12 @@ type NewRevision struct {
 	ID string
 	// Number is the number the revision must get, which a sealed spec is
 	// bound to; 0 takes the next, whatever it is.
-	Number   int
-	Spec     []byte // nil deletes
-	Change   string
-	Position int // of the change item asking for it
-	At       time.Time
+	Number        int
+	Spec          []byte // nil deletes
+	ComposeSource []byte // sealed projection without environment or driver option values
+	Change        string
+	Position      int // of the change item asking for it
+	At            time.Time
 	// Uses is what the spec uses of others in its scope, by reference,
 	// kept in the clear beside it.
 	Uses []Use
@@ -762,8 +775,8 @@ func (t *RevisionTx) AddRevision(ctx context.Context, n NewRevision) (Revision, 
 		return Revision{}, fmt.Errorf("%s %s is at revision %d, so its next is %d, not %d: %w", n.Kind, n.Name, r.Revision-1, r.Revision, n.Number, ErrConflict)
 	}
 	r.Spec, r.ChangeID = n.Spec, n.Change
-	if _, err := t.exec(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		r.ID, r.Revision, n.Spec, n.Change, n.Position, millis(n.At)); err != nil {
+	if _, err := t.exec(ctx, `INSERT INTO revisions (resource_id, number, spec, change_id, position, created_at, compose_source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, r.Revision, n.Spec, n.Change, n.Position, millis(n.At), n.ComposeSource); err != nil {
 		return Revision{}, fmt.Errorf("can't record a revision of %s %s: %w", n.Kind, n.Name, err)
 	}
 	if _, err := t.exec(ctx, `UPDATE resources SET revision = ? WHERE id = ?`, r.Revision, r.ID); err != nil {
@@ -1237,4 +1250,12 @@ func (t *Tx) RetainedDockerDeployments(ctx context.Context, server string, since
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+// PageProjectResources returns live resources of a project and kind in name order.
+func (t *Tx) PageProjectResources(ctx context.Context, scope, kind, after, query string, limit int) ([]Resource, error) {
+	query = strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(query)
+	return t.listResources(ctx, `SELECT `+resourceColumns+latest+`
+		WHERE r.scope = ? AND r.kind = ? AND r.name > ? AND LOWER(r.name) LIKE ? ESCAPE '!'
+		AND v.spec IS NOT NULL ORDER BY r.name LIMIT ?`, scope, kind, after, "%"+query+"%", limit)
 }

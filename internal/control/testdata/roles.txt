@@ -111,9 +111,13 @@ ChangeService.WatchChange                      read         viewer     viewer   
 ComposeService.AdoptCompose                    plan         admin      admin      install  session
 ComposeService.CheckCompose                    plan         developer  developer  project
 ComposeService.ExportCompose                   read         viewer     viewer     project
+ComposeService.GetComposeTemplate              read         viewer     viewer     project
 ComposeService.GetComposeWorkspace             read         admin      admin      install
 ComposeService.ImportCompose                   plan         developer  developer  project
+ComposeService.ListComposeTemplates            read         viewer     viewer     project
 ComposeService.PlanComposeWorkspace            plan         admin      admin      install
+ComposeService.PlanFromComposeTemplate         plan         developer  developer  project
+ComposeService.PrepareComposeTemplate          plan         developer  developer  project
 ConnectionService.CheckConnection              read         admin      admin      install  session
 ConnectionService.ConnectStorage               plan         developer  developer  project
 ConnectionService.DisconnectStorage            plan         developer  developer  project

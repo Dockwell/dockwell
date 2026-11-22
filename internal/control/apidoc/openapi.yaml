@@ -2340,6 +2340,100 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/compose/templates/{id}:
+        get:
+            tags:
+                - ComposeService
+            description: GetComposeTemplate reads a template revision and optionally its history.
+            operationId: ComposeService_GetComposeTemplate
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: revision
+                  in: query
+                  schema:
+                    type: string
+                - name: historyPageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: historyPageToken
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetComposeTemplateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/compose/templates/{id}:plan:
+        post:
+            tags:
+                - ComposeService
+            description: PlanFromComposeTemplate plans a workspace from the exact template revision.
+            operationId: ComposeService_PlanFromComposeTemplate
+            parameters:
+                - name: id
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanFromComposeTemplateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanFromComposeTemplateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/compose/templates:prepare:
+        post:
+            tags:
+                - ComposeService
+            description: PrepareComposeTemplate prepares a portable, secret-free definition for review.
+            operationId: ComposeService_PrepareComposeTemplate
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PrepareComposeTemplateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PrepareComposeTemplateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/compose/workspaces/{environmentId}:
         get:
             tags:
@@ -5235,6 +5329,44 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/UpdateProfileResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/projects/{projectId}/compose-templates:
+        get:
+            tags:
+                - ComposeService
+            description: ListComposeTemplates lists the templates in one project.
+            operationId: ComposeService_ListComposeTemplates
+            parameters:
+                - name: projectId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: pageSize
+                  in: query
+                  schema:
+                    type: integer
+                    format: int32
+                - name: pageToken
+                  in: query
+                  schema:
+                    type: string
+                - name: query
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListComposeTemplatesResponse'
                 default:
                     description: Default error response
                     content:
@@ -13788,6 +13920,118 @@ components:
                          can't always tell which. Otherwise the same as line.
                     format: int32
             description: ComposeRefusal is why a Compose file can't be imported.
+        ComposeTemplate:
+            type: object
+            properties:
+                composeYaml:
+                    type: string
+                description:
+                    type: string
+                inputs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeTemplateInput'
+                git:
+                    $ref: '#/components/schemas/ComposeTemplateGit'
+            description: ComposeTemplate is a project's portable Compose definition and its inputs.
+        ComposeTemplateDestination:
+            type: object
+            properties:
+                environmentName:
+                    type: string
+                serverId:
+                    type: string
+            description: ComposeTemplateDestination gives the new environment and selected server.
+        ComposeTemplateGit:
+            type: object
+            properties:
+                repository:
+                    type: string
+                ref:
+                    type: string
+                path:
+                    type: string
+                commit:
+                    type: string
+            description: ComposeTemplateGit records the source of a saved file.
+        ComposeTemplateGitSource:
+            type: object
+            properties:
+                repository:
+                    type: string
+                ref:
+                    type: string
+                path:
+                    type: string
+            description: ComposeTemplateGitSource selects one file from public Git.
+        ComposeTemplateInput:
+            type: object
+            properties:
+                name:
+                    type: string
+                kind:
+                    enum:
+                        - COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED
+                        - COMPOSE_TEMPLATE_INPUT_KIND_TEXT
+                        - COMPOSE_TEMPLATE_INPUT_KIND_SECRET
+                        - COMPOSE_TEMPLATE_INPUT_KIND_PORT
+                        - COMPOSE_TEMPLATE_INPUT_KIND_IMAGE
+                    type: string
+                    format: enum
+                defaultValue:
+                    type: string
+                required:
+                    type: boolean
+            description: ComposeTemplateInput describes a value a new workspace takes.
+        ComposeTemplateRevision:
+            type: object
+            properties:
+                revision:
+                    type: string
+                changedAt:
+                    type: string
+                    format: date-time
+                changeId:
+                    type: string
+            description: ComposeTemplateRevision names a reviewed, saved definition.
+        ComposeTemplateStackSource:
+            type: object
+            properties:
+                environmentId:
+                    type: string
+            description: ComposeTemplateStackSource selects a managed workspace by ID.
+        ComposeTemplateSummary:
+            type: object
+            properties:
+                id:
+                    type: string
+                projectId:
+                    type: string
+                name:
+                    type: string
+                revision:
+                    type: string
+                description:
+                    type: string
+                inputCount:
+                    type: integer
+                    format: int32
+                updatedAt:
+                    type: string
+                    format: date-time
+                archived:
+                    type: boolean
+            description: ComposeTemplateSummary is the library's projection of a revision.
+        ComposeTemplateValue:
+            type: object
+            properties:
+                name:
+                    type: string
+                value:
+                    type: string
+                generate:
+                    type: boolean
+            description: ComposeTemplateValue supplies one input or requests a generated secret.
         ComposeVariable:
             type: object
             properties:
@@ -19798,6 +20042,20 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change.
             description: GetChangeResponse carries one change.
+        GetComposeTemplateResponse:
+            type: object
+            properties:
+                template:
+                    $ref: '#/components/schemas/ComposeTemplateSummary'
+                spec:
+                    $ref: '#/components/schemas/ComposeTemplate'
+                history:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeTemplateRevision'
+                nextHistoryPageToken:
+                    type: string
+            description: GetComposeTemplateResponse holds the selected definition and optional history.
         GetComposeWorkspaceResponse:
             type: object
             properties:
@@ -22512,6 +22770,16 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListChangesResponse is a page of changes.
+        ListComposeTemplatesResponse:
+            type: object
+            properties:
+                templates:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeTemplateSummary'
+                nextPageToken:
+                    type: string
+            description: ListComposeTemplatesResponse holds a page of summaries.
         ListConnectionsResponse:
             type: object
             properties:
@@ -25401,6 +25669,28 @@ components:
                 change:
                     $ref: '#/components/schemas/Change'
             description: PlanDockerNetworkAttachmentResponse returns the reviewed change for application.
+        PlanFromComposeTemplateRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                revision:
+                    type: string
+                destination:
+                    $ref: '#/components/schemas/ComposeTemplateDestination'
+                inputs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeTemplateValue'
+            description: PlanFromComposeTemplateRequest pins a revision, placement and input choices.
+        PlanFromComposeTemplateResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+                refusal:
+                    $ref: '#/components/schemas/ComposeRefusal'
+            description: PlanFromComposeTemplateResponse has the usual review or a safe refusal.
         PlanInstallUpdatesRequest:
             type: object
             properties:
@@ -26387,6 +26677,30 @@ components:
                          port, published for the addresses its server's two external rules let in. No
                          change may leave it without both rules on every server the database runs on.
             description: PortMapping publishes a container port on the server.
+        PrepareComposeTemplateRequest:
+            type: object
+            properties:
+                projectId:
+                    type: string
+                composeYaml:
+                    type: string
+                stack:
+                    $ref: '#/components/schemas/ComposeTemplateStackSource'
+                git:
+                    $ref: '#/components/schemas/ComposeTemplateGitSource'
+            description: PrepareComposeTemplateRequest selects one source. Raw YAML is never logged.
+        PrepareComposeTemplateResponse:
+            type: object
+            properties:
+                draft:
+                    $ref: '#/components/schemas/ComposeTemplate'
+                refusal:
+                    $ref: '#/components/schemas/ComposeRefusal'
+                omissions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ComposeWorkspaceOmission'
+            description: PrepareComposeTemplateResponse contains a validated draft or a refusal.
         PreviewBackupResponse:
             type: object
             properties:
@@ -30817,6 +31131,8 @@ components:
             properties:
                 dockerDaemon:
                     $ref: '#/components/schemas/DockerDaemon'
+                composeTemplate:
+                    $ref: '#/components/schemas/ComposeTemplate'
                 project:
                     allOf:
                         - $ref: '#/components/schemas/Project'

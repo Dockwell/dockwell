@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -60,14 +61,15 @@ type Handler struct {
 	db         *store.DB
 	keeper     *secrets.Keeper
 	logger     *slog.Logger
+	gitClient  *http.Client
 }
 
 var _ dockwellv1connect.ComposeServiceHandler = (*Handler)(nil)
 
 // New returns a handler that plans through ch and engine, and reads specs from
 // db, opening the sealed ones with keeper.
-func New(ch *changes.Handler, ct *containers.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger) *Handler {
-	return &Handler{changes: ch, containers: ct, engine: engine, db: db, keeper: keeper, logger: logger}
+func New(ch *changes.Handler, ct *containers.Handler, engine *revision.Engine, db *store.DB, keeper *secrets.Keeper, logger *slog.Logger, gitClient *http.Client) *Handler {
+	return &Handler{changes: ch, containers: ct, engine: engine, db: db, keeper: keeper, logger: logger, gitClient: gitClient}
 }
 
 func invalid(err error) error {
@@ -417,6 +419,7 @@ func setEnv(stack *compose.Stack, env map[string]map[string]string) {
 
 // planning is what a plan adds to a file read for a place.
 type planning struct {
+	createOnly bool
 	// secrets are new secrets to keep beside what the file makes, by name.
 	secrets map[string]string
 	// upgrade says a file's project is the file's own to change, so it needs no
@@ -639,12 +642,20 @@ func (h *Handler) plan(ctx context.Context, m *dockwellv1.ImportComposeRequest, 
 			sets[resource.Ref{Kind: service.Kind, Scope: env, Name: s.Name}] = true
 		}
 	}
+	var mustCreate map[resource.Ref]bool
+	if also.createOnly {
+		mustCreate = make(map[resource.Ref]bool, len(edits))
+		for _, e := range edits {
+			r := e.GetResource()
+			mustCreate[resource.Ref{Kind: resource.Kind(r.GetKind()), Scope: r.GetScope(), Name: r.GetName()}] = true
+		}
+	}
 	return h.changes.Propose(ctx, summary, edits, func(choice *scope.ChoiceError, _ string) string {
 		if choice.Level == scope.ServerLevel {
 			return "servers"
 		}
 		return ""
-	}, changes.Also{Restores: also.restores, Records: also.records, Edits: place.made, IDs: ids, Public: public, Owners: owners, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
+	}, changes.Also{MustCreate: mustCreate, Restores: also.restores, Records: also.records, Edits: place.made, IDs: ids, Public: public, Owners: owners, SetsArchitectures: sets, BackUp: also.backUp, BackUpOne: also.backUpOne, SkipBackup: also.skipBackup, Empties: also.empties, Intent: also.intent, Notes: slices.Concat(also.notes, updates, planNotes(env, stack.Notices), exposedNotes(env, stack.Exposed, stack.ExposedMore, m.GetVariables()), rotationNotes(env, stack.Rotations))})
 }
 
 // usersAfterTheirServers moves each database user the edits make in env right after

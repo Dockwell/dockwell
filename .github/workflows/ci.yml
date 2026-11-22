@@ -191,7 +191,8 @@ jobs:
             TestDockerNetworkAttachmentRolloutOnRealDocker \
             TestDockerNetworkAttachmentRevisionOnRealDocker \
             TestDockerVolumeGuardedCreateAndInventoryOnRealDocker \
-            TestDockerVolumeInventoryMountsAndBackupOnRealDocker; do
+            TestDockerVolumeInventoryMountsAndBackupOnRealDocker \
+            TestComposeTemplateDeploysPinnedRevisionOnRealDocker; do
             if grep -q "^--- PASS: $test " "$log"; then
               continue
             fi

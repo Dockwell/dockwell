@@ -129,13 +129,17 @@ var aboutTheRequest = map[protoreflect.FullName]bool{
 // service's revisions, each whole, though a revision's change may have reached
 // another project too. The filter leaves them whole.
 var requestBound = map[string]bool{
-	dockwellv1connect.LogServiceListLogSourcesProcedure:           true,
-	dockwellv1connect.LogServiceReadLogsProcedure:                 true,
-	dockwellv1connect.LogServiceWatchLogsProcedure:                true,
-	dockwellv1connect.ComposeServiceCheckComposeProcedure:         true,
-	dockwellv1connect.ComposeServiceGetComposeWorkspaceProcedure:  true,
-	dockwellv1connect.ComposeServiceImportComposeProcedure:        true,
-	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure: true,
+	dockwellv1connect.ComposeServiceListComposeTemplatesProcedure:    true,
+	dockwellv1connect.ComposeServiceGetComposeTemplateProcedure:      true,
+	dockwellv1connect.ComposeServicePrepareComposeTemplateProcedure:  true,
+	dockwellv1connect.ComposeServicePlanFromComposeTemplateProcedure: true,
+	dockwellv1connect.LogServiceListLogSourcesProcedure:              true,
+	dockwellv1connect.LogServiceReadLogsProcedure:                    true,
+	dockwellv1connect.LogServiceWatchLogsProcedure:                   true,
+	dockwellv1connect.ComposeServiceCheckComposeProcedure:            true,
+	dockwellv1connect.ComposeServiceGetComposeWorkspaceProcedure:     true,
+	dockwellv1connect.ComposeServiceImportComposeProcedure:           true,
+	dockwellv1connect.ServiceServiceListServiceRevisionsProcedure:    true,
 	// A service's ports are its container's, which the request named (#791).
 	dockwellv1connect.ServiceServiceCheckServicePortsProcedure: true,
 	// An install's database's backups are the install's, taken for its link, though

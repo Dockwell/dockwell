@@ -32,6 +32,7 @@ import (
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
@@ -1849,6 +1850,21 @@ func (e *Engine) stored(ctx context.Context, tx *store.Tx, it *item, at store.Sp
 	return e.sealer.Seal(ctx, tx, at, encoded)
 }
 
+func (e *Engine) composeSource(ctx context.Context, tx *store.Tx, it *item, number int) ([]byte, error) {
+	if !it.sealed || it.spec == nil {
+		return nil, nil
+	}
+	projection := compose.TemplateProjection(it.spec)
+	if projection == nil {
+		return nil, nil
+	}
+	encoded, err := resource.Encode(projection)
+	if err != nil {
+		return nil, err
+	}
+	return e.sealer.Seal(ctx, tx, store.InComposeSource(it.id, string(it.ref.Kind), number), encoded)
+}
+
 // open reads the encoding of a spec stored at at: opened, if it is sealed.
 func (e *Engine) open(ctx context.Context, tx *store.Tx, at store.SpecAt, stored []byte) ([]byte, error) {
 	if stored == nil || e.sealer == nil {
@@ -2846,36 +2862,34 @@ func (e *Engine) withEnvironmentsGoing(ctx context.Context, tx *store.Tx, items 
 	return items, nil
 }
 
-// withContentsGoing takes what lives in a project's or an environment's
-// environments when an edit deletes it with its contents (Edit.WithContents): each
-// resource there, deleted in the same change, so the plan lists it, the checks
-// after this see it as any edit, and the engine orders it by what uses what, as
-// it orders edits a person names one by one (ADR 0074).
+// withContentsGoing takes what lives directly in a scope and, for a project,
+// in each of its environments. Each resource is a deletion in the same plan,
+// checked and ordered as an edit a person names one by one (ADR 0074).
 func (e *Engine) withContentsGoing(ctx context.Context, tx *store.Tx, items []item, named map[resource.Ref]bool) ([]item, error) {
 	n := len(items)
 	for i := range n {
 		if !items[i].withContents || items[i].spec != nil || items[i].current == nil {
 			continue
 		}
-		environments := []string{items[i].id}
+		scopes := []string{items[i].id}
 		if items[i].ref.Kind == scope.ProjectKind {
 			envs, err := tx.ListResources(ctx, items[i].id, string(scope.EnvironmentKind))
 			if err != nil {
 				return items, err
 			}
-			environments = environments[:0]
 			for j := range envs {
-				environments = append(environments, envs[j].ID)
+				scopes = append(scopes, envs[j].ID)
 			}
 		}
-		for _, env := range environments {
-			inside, err := tx.ListResources(ctx, env, "")
+		for _, parent := range scopes {
+			inside, err := tx.ListResources(ctx, parent, "")
 			if err != nil {
 				return items, err
 			}
 			for j := range inside {
-				ref := resource.Ref{Kind: resource.Kind(inside[j].Kind), Scope: env, Name: inside[j].Name}
-				if named[ref] {
+				ref := resource.Ref{Kind: resource.Kind(inside[j].Kind), Scope: parent, Name: inside[j].Name}
+				// withEnvironmentsGoing already added each environment itself.
+				if named[ref] || ref.Kind == scope.EnvironmentKind {
 					continue
 				}
 				named[ref] = true
@@ -2914,7 +2928,12 @@ func refuseWhatsHeld(ctx context.Context, tx *store.Tx, items []item, project *i
 		}
 	}
 	var words, commands []string
+	hasTemplates := false
 	held := func(r *store.Resource, env string) string {
+		if r.Kind == string(compose.TemplateKind) {
+			hasTemplates = true
+			return "Compose template " + r.Name
+		}
 		command := fmt.Sprintf("dockwell %ss delete %s --project %s", r.Kind, r.Name, project.ref.Name)
 		if env != "" && environments > 1 {
 			command += " --environment " + env
@@ -2940,6 +2959,10 @@ func refuseWhatsHeld(ctx context.Context, tx *store.Tx, items []item, project *i
 		if len(here) > 0 {
 			words = append(words, human.List(here)+" in "+stored[i].Name)
 		}
+	}
+	if hasTemplates {
+		return fault.New(ErrInvalid, "project %s still holds %s, so it stays. Open Compose templates in that project to review deleting a template, or use Delete in Projects to review deleting the project and everything in it",
+			project.ref.Name, human.List(words))
 	}
 	if len(commands) == 0 {
 		return nil
@@ -4680,9 +4703,13 @@ func (e *Engine) commitOwned(ctx context.Context, c store.Change, asked *planRea
 			if err != nil {
 				return err
 			}
+			source, err := e.composeSource(ctx, tx.Tx, it, number)
+			if err != nil {
+				return err
+			}
 			rev, err := tx.AddRevision(ctx, store.NewRevision{
 				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id, Number: number,
-				Spec: spec, Change: c.ID, Position: i, At: now, Uses: storeUses(e.usesOf(it, it.spec)),
+				Spec: spec, ComposeSource: source, Change: c.ID, Position: i, At: now, Uses: storeUses(e.usesOf(it, it.spec)),
 			})
 			if err != nil {
 				return err
@@ -5596,9 +5623,13 @@ func (e *Engine) pulledNewer(ctx context.Context, changeID string, items []item,
 			if err != nil {
 				return err
 			}
+			source, err := e.composeSource(ctx, tx.Tx, it, number)
+			if err != nil {
+				return err
+			}
 			made, err := tx.AddRevision(ctx, store.NewRevision{
 				Kind: string(it.ref.Kind), Scope: it.ref.Scope, Name: it.ref.Name, ID: it.id, Number: number,
-				Spec: spec, Change: changeID, Position: slices.IndexFunc(items, func(o item) bool { return o.id == it.id }), At: now, Uses: storeUses(e.usesOf(it, it.spec)),
+				Spec: spec, ComposeSource: source, Change: changeID, Position: slices.IndexFunc(items, func(o item) bool { return o.id == it.id }), At: now, Uses: storeUses(e.usesOf(it, it.spec)),
 			})
 			if err != nil {
 				return err

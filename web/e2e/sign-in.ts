@@ -285,6 +285,7 @@ async function shoot(page: Page, name: string) {
         name.startsWith("docker-slice6c-") ||
         name.startsWith("docker-slice6d-") ||
         name.startsWith("registry-logins-push-") ||
+        name.startsWith("docker-slice8-") ||
         name === "registry-logins-docker-pull";
       const artifact = storage || imageAction;
       for (const width of storage ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {

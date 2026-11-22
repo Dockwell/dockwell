@@ -30,11 +30,13 @@ import {
   Glyph,
   Icon,
   type IconName,
+  Loading,
   PHONE_QUERY,
   PortField,
   SegmentedControl,
   SelectField,
   Sheet,
+  SkeletonField,
   StatusBadge,
   Switch,
   Tag,
@@ -52,8 +54,10 @@ import {
   type ClipboardEvent,
   type FormEvent,
   Fragment,
+  lazy,
   type ReactNode,
   type Ref,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -130,6 +134,8 @@ import { useAppWords } from "./words";
  * Where a new app comes from: a Git repository it builds (ADR 0046), an image, a
  * Compose file, or a folder on the server with a runtime (ADR 0058).
  */
+const TemplateUse = lazy(async () => ({ default: (await import("../docker/ComposeTemplates")).TemplateUseSheet }));
+
 export type NewAppSource = "catalog" | "git" | "image" | "compose" | "folder";
 
 /** The ways a new app comes in, the catalog first, as the source control offers them (#617). */
@@ -221,6 +227,7 @@ export function NewAppSheet({
     firstField.current?.focus();
   }, [source]);
 
+  const [usingTemplate, setUsingTemplate] = useState(false);
   const [environment, setEnvironment] = useState("");
   const [chosenServers, setChosenServers] = useState<readonly string[]>(initialServer ? [initialServer] : []);
 
@@ -670,6 +677,22 @@ export function NewAppSheet({
     source === "compose" &&
     (check.data?.services ?? []).some((s) => (appOf(s)?.mounts ?? []).some((m) => m.source.case === "hostPath"));
 
+  if (usingTemplate && source === "compose") {
+    return (
+      <Suspense
+        fallback={
+          <Sheet open onClose={onClose} title={t`Use Compose template`}>
+            <Loading label={t`Reading templates`}>
+              <SkeletonField />
+            </Loading>
+          </Sheet>
+        }
+      >
+        <TemplateUse initialServer={chosenServers[0] ?? initialServer} onClose={onClose} />
+      </Suspense>
+    );
+  }
+
   // From the catalog, the same sheet holds a search and the apps it finds; a pick hands
   // the sheet on to that app's install form (#617).
   if (source === "catalog") {
@@ -904,37 +927,44 @@ export function NewAppSheet({
             <EnvSection form={shown} errors={errors} update={update} clear={clearError} />
           </>
         ) : (
-          <ComposeFields
-            file={file}
-            onFile={(next) => {
-              setFile(next);
-              setErrors(({ project: _, ...rest }) => rest);
-            }}
-            tooBig={fileTooBig ? fileBytes : undefined}
-            variables={variables}
-            onVariables={setVariables}
-            envFile={envFile}
-            onEnvFile={setEnvFile}
-            directory={directory}
-            onDirectory={setDirectory}
-            check={check}
-            fieldRef={firstField}
-            project={project}
-            onProject={(next) => {
-              setTypedProject(next);
-              setErrors(({ project: _, ...rest }) => rest);
-            }}
-            projectError={
-              errors["project"] ??
-              (projectInvalid
-                ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
-                : undefined)
-            }
-            projectKnown={projectKnown}
-            projectRequired={defaultHasApps}
-            projectMovedFrom={fileNameTaken && projectName === nextFree(fileName, places.projects) ? fileName : ""}
-            projectNext={projectKnown ? nextFree(projectName, places.projects) : ""}
-          />
+          <>
+            {may(ComposeService.method.planFromComposeTemplate).allowed ? (
+              <Button variant="ghost" icon="layers" onClick={() => setUsingTemplate(true)}>
+                <Trans>From template</Trans>
+              </Button>
+            ) : null}
+            <ComposeFields
+              file={file}
+              onFile={(next) => {
+                setFile(next);
+                setErrors(({ project: _, ...rest }) => rest);
+              }}
+              tooBig={fileTooBig ? fileBytes : undefined}
+              variables={variables}
+              onVariables={setVariables}
+              envFile={envFile}
+              onEnvFile={setEnvFile}
+              directory={directory}
+              onDirectory={setDirectory}
+              check={check}
+              fieldRef={firstField}
+              project={project}
+              onProject={(next) => {
+                setTypedProject(next);
+                setErrors(({ project: _, ...rest }) => rest);
+              }}
+              projectError={
+                errors["project"] ??
+                (projectInvalid
+                  ? t`Use lowercase letters, digits and dashes, starting with a letter, such as shop.`
+                  : undefined)
+              }
+              projectKnown={projectKnown}
+              projectRequired={defaultHasApps}
+              projectMovedFrom={fileNameTaken && projectName === nextFree(fileName, places.projects) ? fileName : ""}
+              projectNext={projectKnown ? nextFree(projectName, places.projects) : ""}
+            />
+          </>
         )}
         {source === "compose" && choosesEnvironment ? (
           <SelectField

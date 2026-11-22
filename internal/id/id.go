@@ -33,6 +33,8 @@ const (
 	// ProviderLink is an account at a sign-in provider linked to a person (ADR 0095).
 	ProviderLink = "plk"
 
+	ComposeTemplate = "cpt"
+
 	Organization = "org"
 	Project      = "prj"
 	Environment  = "env"
