@@ -24,7 +24,7 @@ func TestCleanupRemovesOneBuildCacheRecordOnRealDocker(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !client.ExactCacheRemoval() {
-		t.Skip("exact cache removal requires Docker Engine Community 27.3.1 or 28.5.2")
+		t.Skip("exact cache removal requires Docker Engine Community 27.3.1, 28.5.2 or 29.4.1")
 	}
 	socket := os.Getenv(dockertest.EnvReal)
 	if socket == "1" {
@@ -109,24 +109,6 @@ func TestCleanupRemovesOneBuildCacheRecordOnRealDocker(t *testing.T) {
 	}
 	if !slices.ContainsFunc(after, func(row docker.DiskUsageCache) bool { return row.ID == second.ID }) {
 		t.Fatalf("second build's cache record %s was removed", second.ID)
-	}
-}
-
-func TestCleanupBuildCacheStaysDisabledOnContainerd29OnRealDocker(t *testing.T) {
-	client := dockertest.Real(t)
-	info, err := client.Info(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, engine := client.Version()
-	if !info.ContainerdImageStore() || !strings.HasPrefix(engine, "29.") {
-		t.Skip("this check needs Docker Engine 29 with the containerd image store")
-	}
-	if client.ExactCacheRemoval() {
-		t.Fatal("Engine 29 offered exact cache removal without an approved filter")
-	}
-	if _, err := client.RemoveBuildCache(t.Context(), strings.Repeat("a", 25), nil); err == nil || err.Error() != "this Engine cannot target the exact cache record" {
-		t.Fatalf("exact cache removal on Engine 29: %v", err)
 	}
 }
 

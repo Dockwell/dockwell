@@ -578,6 +578,8 @@ func TestDockerCleanupCacheRequiresVerifiedEngine(t *testing.T) {
 		{"27.3.1", "Docker Engine - Community", true},
 		{"28.5.2", "Docker Engine - Community", true},
 		{"28.5.3", "Docker Engine - Community", false},
+		{"29.4.1", "Docker Engine - Community", true},
+		{"29.4.2", "Docker Engine - Community", false},
 		{"27.3.1", "compatibility daemon", false},
 	} {
 		t.Run(tc.version+"/"+tc.platform, func(t *testing.T) {

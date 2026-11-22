@@ -559,6 +559,36 @@ func TestDownloadingAFolder(t *testing.T) {
 	}
 }
 
+func TestFilesRefusesAHardLinkToAPathProtectedFile(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	protected := filepath.Join(site, ".pgpass")
+	alias := filepath.Join(site, "report.txt")
+	write(t, protected, "private fixture")
+	write(t, filepath.Join(site, "public.txt"), "public fixture")
+	if err := os.Link(protected, alias); err != nil {
+		t.Fatal(err)
+	}
+	if sent, _, out := d.download(t, alias); out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || len(sent) != 0 {
+		t.Fatalf("download opened a protected inode under another name: %v", out)
+	}
+	if got := d.read(t, alias); got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Fatalf("preview opened a protected inode under another name: %v", got)
+	}
+	_, data, out := d.download(t, site)
+	if out.GetRefusal() != nil {
+		t.Fatal(out)
+	}
+	z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(z.File) != 1 || z.File[0].Name != "public.txt" {
+		t.Fatalf("archive should include the public file only: %v", z.File)
+	}
+}
+
 // A folder's archive takes what it checked: a FIFO swapped in for a file between
 // the check and the open is left out. It's a race, so this runs it long enough to
 // have caught it before (the review saw it within a hundred).

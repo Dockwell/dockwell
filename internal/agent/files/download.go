@@ -114,16 +114,21 @@ func (s *Server) openDownload(ctx context.Context, t *trail, p string) (*opened,
 		w.close()
 		return nil, &agentv1.FileRefusal{Kind: agentv1.FileRefusal_KIND_NOT_FOUND, Path: o.where, Message: o.where + " changed as the agent opened it. Download it again"}
 	}
+	if st.Nlink != 1 {
+		_ = unix.Close(fd)
+		w.close()
+		return nil, refused(o.where, hardLinkedFile)
+	}
 	o.f = os.NewFile(uintptr(fd), o.where)
 	w.st = st
 	return o, nil
 }
 
-// sameAs reports whether fd is what was is, by device and inode, and of the type
-// kind, as a name can lead elsewhere between a stat and an open.
+// sameAs checks the opened identity and type and leaves hard-linked files out.
 func sameAs(fd int, was *unix.Stat_t, kind uint32) bool {
 	var st unix.Stat_t
-	return unix.Fstat(fd, &st) == nil && st.Mode&unix.S_IFMT == kind && identify(&st) == identify(was)
+	return unix.Fstat(fd, &st) == nil && st.Mode&unix.S_IFMT == kind && identify(&st) == identify(was) &&
+		(kind != unix.S_IFREG || st.Nlink == 1)
 }
 
 // heldBack says what a file's beginning holds that a read refuses, or nothing.

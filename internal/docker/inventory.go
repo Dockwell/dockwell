@@ -39,11 +39,11 @@ func (c *Client) InventoryInfo(ctx context.Context) (InventoryEngine, error) {
 }
 
 // InventoryImage holds the fields in Engine's image summary. Engines may
-// omit usage and platform information when shared size is not requested.
+// omit size and platform information when shared size is not requested.
 type InventoryImage struct {
 	DiskUsageImage
-	Size, Containers *int64
-	Descriptor       *struct {
+	Size       *int64
+	Descriptor *struct {
 		Platform *struct{ OS, Architecture, Variant string }
 	}
 }

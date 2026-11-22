@@ -536,6 +536,10 @@ func version(where string, st *unix.Stat_t, text []byte) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// hardLinkedFile is the refusal for a regular file with more than one link.
+// Files can't tell whether its other name is protected, as image builds can't.
+const hardLinkedFile = "a hard link, a file with another name"
+
 // readText opens the walk's last part for reading, through the descriptor of the
 // directory that holds it, and reads its first MaxFileBytes. A file only
 // opens as what the walk checked: a FIFO swapped in would hang a read, and
@@ -560,6 +564,9 @@ func readText(t *trail, w *walked) ([]byte, bool, *agentv1.FileRefusal) {
 			Kind: agentv1.FileRefusal_KIND_NOT_FOUND, Path: where,
 			Message: where + " changed as the agent opened it. Open it again",
 		}
+	}
+	if st.Nlink != 1 {
+		return nil, false, refused(where, hardLinkedFile)
 	}
 	w.st = st
 	text, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
