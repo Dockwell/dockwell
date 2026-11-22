@@ -11,10 +11,11 @@
 package dockwellv1
 
 import (
-	_ "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	v1alpha1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -1438,11 +1439,973 @@ func (x *PlanComposeWorkspaceResponse) GetRemovals() []*ComposeWorkspaceRemoval 
 	return nil
 }
 
+// ListComposeTemplatesRequest searches the live library of a project.
+type ListComposeTemplatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId     string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	Query         string                 `protobuf:"bytes,4,opt,name=query,proto3" json:"query,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListComposeTemplatesRequest) Reset() {
+	*x = ListComposeTemplatesRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListComposeTemplatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListComposeTemplatesRequest) ProtoMessage() {}
+
+func (x *ListComposeTemplatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListComposeTemplatesRequest.ProtoReflect.Descriptor instead.
+func (*ListComposeTemplatesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListComposeTemplatesRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ListComposeTemplatesRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListComposeTemplatesRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+func (x *ListComposeTemplatesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+// ListComposeTemplatesResponse holds a page of summaries.
+type ListComposeTemplatesResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Templates     []*ComposeTemplateSummary `protobuf:"bytes,1,rep,name=templates,proto3" json:"templates,omitempty"`
+	NextPageToken string                    `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListComposeTemplatesResponse) Reset() {
+	*x = ListComposeTemplatesResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListComposeTemplatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListComposeTemplatesResponse) ProtoMessage() {}
+
+func (x *ListComposeTemplatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListComposeTemplatesResponse.ProtoReflect.Descriptor instead.
+func (*ListComposeTemplatesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListComposeTemplatesResponse) GetTemplates() []*ComposeTemplateSummary {
+	if x != nil {
+		return x.Templates
+	}
+	return nil
+}
+
+func (x *ListComposeTemplatesResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
+// GetComposeTemplateRequest selects the current revision when revision is zero.
+type GetComposeTemplateRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Revision         int64                  `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	HistoryPageSize  int32                  `protobuf:"varint,3,opt,name=history_page_size,json=historyPageSize,proto3" json:"history_page_size,omitempty"`
+	HistoryPageToken string                 `protobuf:"bytes,4,opt,name=history_page_token,json=historyPageToken,proto3" json:"history_page_token,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetComposeTemplateRequest) Reset() {
+	*x = GetComposeTemplateRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComposeTemplateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComposeTemplateRequest) ProtoMessage() {}
+
+func (x *GetComposeTemplateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComposeTemplateRequest.ProtoReflect.Descriptor instead.
+func (*GetComposeTemplateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetComposeTemplateRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GetComposeTemplateRequest) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *GetComposeTemplateRequest) GetHistoryPageSize() int32 {
+	if x != nil {
+		return x.HistoryPageSize
+	}
+	return 0
+}
+
+func (x *GetComposeTemplateRequest) GetHistoryPageToken() string {
+	if x != nil {
+		return x.HistoryPageToken
+	}
+	return ""
+}
+
+// GetComposeTemplateResponse holds the selected definition and optional history.
+type GetComposeTemplateResponse struct {
+	state                protoimpl.MessageState     `protogen:"open.v1"`
+	Template             *ComposeTemplateSummary    `protobuf:"bytes,1,opt,name=template,proto3" json:"template,omitempty"`
+	Spec                 *v1alpha1.ComposeTemplate  `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	History              []*ComposeTemplateRevision `protobuf:"bytes,3,rep,name=history,proto3" json:"history,omitempty"`
+	NextHistoryPageToken string                     `protobuf:"bytes,4,opt,name=next_history_page_token,json=nextHistoryPageToken,proto3" json:"next_history_page_token,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetComposeTemplateResponse) Reset() {
+	*x = GetComposeTemplateResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetComposeTemplateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetComposeTemplateResponse) ProtoMessage() {}
+
+func (x *GetComposeTemplateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetComposeTemplateResponse.ProtoReflect.Descriptor instead.
+func (*GetComposeTemplateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetComposeTemplateResponse) GetTemplate() *ComposeTemplateSummary {
+	if x != nil {
+		return x.Template
+	}
+	return nil
+}
+
+func (x *GetComposeTemplateResponse) GetSpec() *v1alpha1.ComposeTemplate {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *GetComposeTemplateResponse) GetHistory() []*ComposeTemplateRevision {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *GetComposeTemplateResponse) GetNextHistoryPageToken() string {
+	if x != nil {
+		return x.NextHistoryPageToken
+	}
+	return ""
+}
+
+// ComposeTemplateSummary is the library's projection of a revision.
+type ComposeTemplateSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ProjectId     string                 `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Revision      int64                  `protobuf:"varint,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	InputCount    int32                  `protobuf:"varint,6,opt,name=input_count,json=inputCount,proto3" json:"input_count,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Archived      bool                   `protobuf:"varint,8,opt,name=archived,proto3" json:"archived,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateSummary) Reset() {
+	*x = ComposeTemplateSummary{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateSummary) ProtoMessage() {}
+
+func (x *ComposeTemplateSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateSummary.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateSummary) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ComposeTemplateSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ComposeTemplateSummary) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *ComposeTemplateSummary) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeTemplateSummary) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *ComposeTemplateSummary) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ComposeTemplateSummary) GetInputCount() int32 {
+	if x != nil {
+		return x.InputCount
+	}
+	return 0
+}
+
+func (x *ComposeTemplateSummary) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *ComposeTemplateSummary) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
+}
+
+// ComposeTemplateRevision names a reviewed, saved definition.
+type ComposeTemplateRevision struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      int64                  `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	ChangedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=changed_at,json=changedAt,proto3" json:"changed_at,omitempty"`
+	ChangeId      string                 `protobuf:"bytes,3,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateRevision) Reset() {
+	*x = ComposeTemplateRevision{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateRevision) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateRevision) ProtoMessage() {}
+
+func (x *ComposeTemplateRevision) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateRevision.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateRevision) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ComposeTemplateRevision) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *ComposeTemplateRevision) GetChangedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ChangedAt
+	}
+	return nil
+}
+
+func (x *ComposeTemplateRevision) GetChangeId() string {
+	if x != nil {
+		return x.ChangeId
+	}
+	return ""
+}
+
+// PrepareComposeTemplateRequest selects one source. Raw YAML is never logged.
+type PrepareComposeTemplateRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProjectId string                 `protobuf:"bytes,1,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// Types that are valid to be assigned to Source:
+	//
+	//	*PrepareComposeTemplateRequest_ComposeYaml
+	//	*PrepareComposeTemplateRequest_Stack
+	//	*PrepareComposeTemplateRequest_Git
+	Source        isPrepareComposeTemplateRequest_Source `protobuf_oneof:"source"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrepareComposeTemplateRequest) Reset() {
+	*x = PrepareComposeTemplateRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareComposeTemplateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareComposeTemplateRequest) ProtoMessage() {}
+
+func (x *PrepareComposeTemplateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareComposeTemplateRequest.ProtoReflect.Descriptor instead.
+func (*PrepareComposeTemplateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *PrepareComposeTemplateRequest) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *PrepareComposeTemplateRequest) GetSource() isPrepareComposeTemplateRequest_Source {
+	if x != nil {
+		return x.Source
+	}
+	return nil
+}
+
+func (x *PrepareComposeTemplateRequest) GetComposeYaml() string {
+	if x != nil {
+		if x, ok := x.Source.(*PrepareComposeTemplateRequest_ComposeYaml); ok {
+			return x.ComposeYaml
+		}
+	}
+	return ""
+}
+
+func (x *PrepareComposeTemplateRequest) GetStack() *ComposeTemplateStackSource {
+	if x != nil {
+		if x, ok := x.Source.(*PrepareComposeTemplateRequest_Stack); ok {
+			return x.Stack
+		}
+	}
+	return nil
+}
+
+func (x *PrepareComposeTemplateRequest) GetGit() *ComposeTemplateGitSource {
+	if x != nil {
+		if x, ok := x.Source.(*PrepareComposeTemplateRequest_Git); ok {
+			return x.Git
+		}
+	}
+	return nil
+}
+
+type isPrepareComposeTemplateRequest_Source interface {
+	isPrepareComposeTemplateRequest_Source()
+}
+
+type PrepareComposeTemplateRequest_ComposeYaml struct {
+	ComposeYaml string `protobuf:"bytes,2,opt,name=compose_yaml,json=composeYaml,proto3,oneof"`
+}
+
+type PrepareComposeTemplateRequest_Stack struct {
+	Stack *ComposeTemplateStackSource `protobuf:"bytes,3,opt,name=stack,proto3,oneof"`
+}
+
+type PrepareComposeTemplateRequest_Git struct {
+	Git *ComposeTemplateGitSource `protobuf:"bytes,4,opt,name=git,proto3,oneof"`
+}
+
+func (*PrepareComposeTemplateRequest_ComposeYaml) isPrepareComposeTemplateRequest_Source() {}
+
+func (*PrepareComposeTemplateRequest_Stack) isPrepareComposeTemplateRequest_Source() {}
+
+func (*PrepareComposeTemplateRequest_Git) isPrepareComposeTemplateRequest_Source() {}
+
+// PrepareComposeTemplateResponse contains a validated draft or a refusal.
+type PrepareComposeTemplateResponse struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Draft         *v1alpha1.ComposeTemplate   `protobuf:"bytes,1,opt,name=draft,proto3" json:"draft,omitempty"`
+	Refusal       *ComposeRefusal             `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	Omissions     []*ComposeWorkspaceOmission `protobuf:"bytes,3,rep,name=omissions,proto3" json:"omissions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PrepareComposeTemplateResponse) Reset() {
+	*x = PrepareComposeTemplateResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PrepareComposeTemplateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PrepareComposeTemplateResponse) ProtoMessage() {}
+
+func (x *PrepareComposeTemplateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PrepareComposeTemplateResponse.ProtoReflect.Descriptor instead.
+func (*PrepareComposeTemplateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *PrepareComposeTemplateResponse) GetDraft() *v1alpha1.ComposeTemplate {
+	if x != nil {
+		return x.Draft
+	}
+	return nil
+}
+
+func (x *PrepareComposeTemplateResponse) GetRefusal() *ComposeRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+func (x *PrepareComposeTemplateResponse) GetOmissions() []*ComposeWorkspaceOmission {
+	if x != nil {
+		return x.Omissions
+	}
+	return nil
+}
+
+// ComposeTemplateStackSource selects a managed workspace by ID.
+type ComposeTemplateStackSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EnvironmentId string                 `protobuf:"bytes,1,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateStackSource) Reset() {
+	*x = ComposeTemplateStackSource{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateStackSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateStackSource) ProtoMessage() {}
+
+func (x *ComposeTemplateStackSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateStackSource.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateStackSource) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ComposeTemplateStackSource) GetEnvironmentId() string {
+	if x != nil {
+		return x.EnvironmentId
+	}
+	return ""
+}
+
+// ComposeTemplateGitSource selects one file from public Git.
+type ComposeTemplateGitSource struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repository    string                 `protobuf:"bytes,1,opt,name=repository,proto3" json:"repository,omitempty"`
+	Ref           string                 `protobuf:"bytes,2,opt,name=ref,proto3" json:"ref,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateGitSource) Reset() {
+	*x = ComposeTemplateGitSource{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateGitSource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateGitSource) ProtoMessage() {}
+
+func (x *ComposeTemplateGitSource) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateGitSource.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateGitSource) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ComposeTemplateGitSource) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *ComposeTemplateGitSource) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *ComposeTemplateGitSource) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// PlanFromComposeTemplateRequest pins a revision, placement and input choices.
+type PlanFromComposeTemplateRequest struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Id            string                      `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Revision      int64                       `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Destination   *ComposeTemplateDestination `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	Inputs        []*ComposeTemplateValue     `protobuf:"bytes,4,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanFromComposeTemplateRequest) Reset() {
+	*x = PlanFromComposeTemplateRequest{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanFromComposeTemplateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanFromComposeTemplateRequest) ProtoMessage() {}
+
+func (x *PlanFromComposeTemplateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanFromComposeTemplateRequest.ProtoReflect.Descriptor instead.
+func (*PlanFromComposeTemplateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *PlanFromComposeTemplateRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *PlanFromComposeTemplateRequest) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *PlanFromComposeTemplateRequest) GetDestination() *ComposeTemplateDestination {
+	if x != nil {
+		return x.Destination
+	}
+	return nil
+}
+
+func (x *PlanFromComposeTemplateRequest) GetInputs() []*ComposeTemplateValue {
+	if x != nil {
+		return x.Inputs
+	}
+	return nil
+}
+
+// PlanFromComposeTemplateResponse has the usual review or a safe refusal.
+type PlanFromComposeTemplateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        *Change                `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	Refusal       *ComposeRefusal        `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlanFromComposeTemplateResponse) Reset() {
+	*x = PlanFromComposeTemplateResponse{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlanFromComposeTemplateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlanFromComposeTemplateResponse) ProtoMessage() {}
+
+func (x *PlanFromComposeTemplateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlanFromComposeTemplateResponse.ProtoReflect.Descriptor instead.
+func (*PlanFromComposeTemplateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *PlanFromComposeTemplateResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+func (x *PlanFromComposeTemplateResponse) GetRefusal() *ComposeRefusal {
+	if x != nil {
+		return x.Refusal
+	}
+	return nil
+}
+
+// ComposeTemplateDestination gives the new environment and selected server.
+type ComposeTemplateDestination struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	EnvironmentName string                 `protobuf:"bytes,1,opt,name=environment_name,json=environmentName,proto3" json:"environment_name,omitempty"`
+	ServerId        string                 `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateDestination) Reset() {
+	*x = ComposeTemplateDestination{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateDestination) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateDestination) ProtoMessage() {}
+
+func (x *ComposeTemplateDestination) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateDestination.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateDestination) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *ComposeTemplateDestination) GetEnvironmentName() string {
+	if x != nil {
+		return x.EnvironmentName
+	}
+	return ""
+}
+
+func (x *ComposeTemplateDestination) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ComposeTemplateValue supplies one input or requests a generated secret.
+type ComposeTemplateValue struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Types that are valid to be assigned to Choice:
+	//
+	//	*ComposeTemplateValue_Value
+	//	*ComposeTemplateValue_Generate
+	Choice        isComposeTemplateValue_Choice `protobuf_oneof:"choice"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateValue) Reset() {
+	*x = ComposeTemplateValue{}
+	mi := &file_dockwell_v1_compose_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateValue) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateValue) ProtoMessage() {}
+
+func (x *ComposeTemplateValue) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_compose_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateValue.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateValue) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_compose_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ComposeTemplateValue) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeTemplateValue) GetChoice() isComposeTemplateValue_Choice {
+	if x != nil {
+		return x.Choice
+	}
+	return nil
+}
+
+func (x *ComposeTemplateValue) GetValue() string {
+	if x != nil {
+		if x, ok := x.Choice.(*ComposeTemplateValue_Value); ok {
+			return x.Value
+		}
+	}
+	return ""
+}
+
+func (x *ComposeTemplateValue) GetGenerate() bool {
+	if x != nil {
+		if x, ok := x.Choice.(*ComposeTemplateValue_Generate); ok {
+			return x.Generate
+		}
+	}
+	return false
+}
+
+type isComposeTemplateValue_Choice interface {
+	isComposeTemplateValue_Choice()
+}
+
+type ComposeTemplateValue_Value struct {
+	Value string `protobuf:"bytes,2,opt,name=value,proto3,oneof"`
+}
+
+type ComposeTemplateValue_Generate struct {
+	Generate bool `protobuf:"varint,3,opt,name=generate,proto3,oneof"`
+}
+
+func (*ComposeTemplateValue_Value) isComposeTemplateValue_Choice() {}
+
+func (*ComposeTemplateValue_Generate) isComposeTemplateValue_Choice() {}
+
 var File_dockwell_v1_compose_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\n" +
-	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\"\xcd\x01\n" +
+	"\x19dockwell/v1/compose.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x19dockwell/v1/service.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcd\x01\n" +
 	"\x13AdoptComposeRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x18\n" +
@@ -1548,8 +2511,88 @@ const file_dockwell_v1_compose_proto_rawDesc = "" +
 	"\x1cPlanComposeWorkspaceResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x125\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12@\n" +
-	"\bremovals\x18\x03 \x03(\v2$.dockwell.v1.ComposeWorkspaceRemovalR\bremovals2\x8a\a\n" +
-	"\x0eComposeService\x12\x85\x01\n" +
+	"\bremovals\x18\x03 \x03(\v2$.dockwell.v1.ComposeWorkspaceRemovalR\bremovals\"\x8e\x01\n" +
+	"\x1bListComposeTemplatesRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\x12\x14\n" +
+	"\x05query\x18\x04 \x01(\tR\x05query\"\x89\x01\n" +
+	"\x1cListComposeTemplatesResponse\x12A\n" +
+	"\ttemplates\x18\x01 \x03(\v2#.dockwell.v1.ComposeTemplateSummaryR\ttemplates\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xa1\x01\n" +
+	"\x19GetComposeTemplateRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x12*\n" +
+	"\x11history_page_size\x18\x03 \x01(\x05R\x0fhistoryPageSize\x12,\n" +
+	"\x12history_page_token\x18\x04 \x01(\tR\x10historyPageToken\"\x95\x02\n" +
+	"\x1aGetComposeTemplateResponse\x12?\n" +
+	"\btemplate\x18\x01 \x01(\v2#.dockwell.v1.ComposeTemplateSummaryR\btemplate\x12?\n" +
+	"\x04spec\x18\x02 \x01(\v2+.dockwell.resource.v1alpha1.ComposeTemplateR\x04spec\x12>\n" +
+	"\ahistory\x18\x03 \x03(\v2$.dockwell.v1.ComposeTemplateRevisionR\ahistory\x125\n" +
+	"\x17next_history_page_token\x18\x04 \x01(\tR\x14nextHistoryPageToken\"\x91\x02\n" +
+	"\x16ComposeTemplateSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x02 \x01(\tR\tprojectId\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1a\n" +
+	"\brevision\x18\x04 \x01(\x03R\brevision\x12 \n" +
+	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x1f\n" +
+	"\vinput_count\x18\x06 \x01(\x05R\n" +
+	"inputCount\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12\x1a\n" +
+	"\barchived\x18\b \x01(\bR\barchived\"\x8d\x01\n" +
+	"\x17ComposeTemplateRevision\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x03R\brevision\x129\n" +
+	"\n" +
+	"changed_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tchangedAt\x12\x1b\n" +
+	"\tchange_id\x18\x03 \x01(\tR\bchangeId\"\xf3\x01\n" +
+	"\x1dPrepareComposeTemplateRequest\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x01 \x01(\tR\tprojectId\x12-\n" +
+	"\fcompose_yaml\x18\x02 \x01(\tB\b\xa8\xbb\x18\x01\xc8\xf3\x18\x01H\x00R\vcomposeYaml\x12?\n" +
+	"\x05stack\x18\x03 \x01(\v2'.dockwell.v1.ComposeTemplateStackSourceH\x00R\x05stack\x129\n" +
+	"\x03git\x18\x04 \x01(\v2%.dockwell.v1.ComposeTemplateGitSourceH\x00R\x03gitB\b\n" +
+	"\x06source\"\xdf\x01\n" +
+	"\x1ePrepareComposeTemplateResponse\x12A\n" +
+	"\x05draft\x18\x01 \x01(\v2+.dockwell.resource.v1alpha1.ComposeTemplateR\x05draft\x125\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\x12C\n" +
+	"\tomissions\x18\x03 \x03(\v2%.dockwell.v1.ComposeWorkspaceOmissionR\tomissions\"C\n" +
+	"\x1aComposeTemplateStackSource\x12%\n" +
+	"\x0eenvironment_id\x18\x01 \x01(\tR\renvironmentId\"`\n" +
+	"\x18ComposeTemplateGitSource\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x01 \x01(\tR\n" +
+	"repository\x12\x10\n" +
+	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\"\xd2\x01\n" +
+	"\x1ePlanFromComposeTemplateRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x03R\brevision\x12I\n" +
+	"\vdestination\x18\x03 \x01(\v2'.dockwell.v1.ComposeTemplateDestinationR\vdestination\x129\n" +
+	"\x06inputs\x18\x04 \x03(\v2!.dockwell.v1.ComposeTemplateValueR\x06inputs\"\x85\x01\n" +
+	"\x1fPlanFromComposeTemplateResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\x125\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1b.dockwell.v1.ComposeRefusalR\arefusal\"d\n" +
+	"\x1aComposeTemplateDestination\x12)\n" +
+	"\x10environment_name\x18\x01 \x01(\tR\x0fenvironmentName\x12\x1b\n" +
+	"\tserver_id\x18\x02 \x01(\tR\bserverId\"t\n" +
+	"\x14ComposeTemplateValue\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\x05value\x18\x02 \x01(\tB\b\xc8\xf3\x18\x01\xd0\xf3\x18\x01H\x00R\x05value\x12\x1c\n" +
+	"\bgenerate\x18\x03 \x01(\bH\x00R\bgenerateB\b\n" +
+	"\x06choice2\xb8\r\n" +
+	"\x0eComposeService\x12\xd0\x01\n" +
+	"\x14ListComposeTemplates\x12(.dockwell.v1.ListComposeTemplatesRequest\x1a).dockwell.v1.ListComposeTemplatesResponse\"c\xa0\xbb\x18\x01\xaa\xbb\x18\x19\n" +
+	"\acompose\x12\x0elist-templates\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02-\x12+/v1/projects/{project_id}/compose-templates\x90\x02\x01\x12\xb7\x01\n" +
+	"\x12GetComposeTemplate\x12&.dockwell.v1.GetComposeTemplateRequest\x1a'.dockwell.v1.GetComposeTemplateResponse\"P\xa0\xbb\x18\x01\xaa\xbb\x18\x17\n" +
+	"\acompose\x12\fget-template\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x1c\x12\x1a/v1/compose/templates/{id}\x90\x02\x01\x12\xca\x01\n" +
+	"\x16PrepareComposeTemplate\x12*.dockwell.v1.PrepareComposeTemplateRequest\x1a+.dockwell.v1.PrepareComposeTemplateResponse\"W\xa0\xbb\x18\x02\xaa\xbb\x18\x1b\n" +
+	"\acompose\x12\x10prepare-template\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/compose/templates:prepare\x12\xd1\x01\n" +
+	"\x17PlanFromComposeTemplate\x12+.dockwell.v1.PlanFromComposeTemplateRequest\x1a,.dockwell.v1.PlanFromComposeTemplateResponse\"[\xa0\xbb\x18\x02\xaa\xbb\x18\x1d\n" +
+	"\acompose\x12\x12plan-from-template\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/v1/compose/templates/{id}:plan\x12\x85\x01\n" +
 	"\rImportCompose\x12!.dockwell.v1.ImportComposeRequest\x1a\".dockwell.v1.ImportComposeResponse\"-\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x17:\x01*\"\x12/v1/compose:import\x12\x85\x01\n" +
 	"\fAdoptCompose\x12 .dockwell.v1.AdoptComposeRequest\x1a!.dockwell.v1.AdoptComposeResponse\"0\xa0\xbb\x18\x02\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:adopt\x12\x81\x01\n" +
 	"\fCheckCompose\x12 .dockwell.v1.CheckComposeRequest\x1a!.dockwell.v1.CheckComposeResponse\",\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x04\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/compose:check\x12\xac\x01\n" +
@@ -1570,68 +2613,107 @@ func file_dockwell_v1_compose_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_compose_proto_rawDescData
 }
 
-var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_dockwell_v1_compose_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_dockwell_v1_compose_proto_goTypes = []any{
-	(*AdoptComposeRequest)(nil),          // 0: dockwell.v1.AdoptComposeRequest
-	(*AdoptComposeResponse)(nil),         // 1: dockwell.v1.AdoptComposeResponse
-	(*ImportComposeRequest)(nil),         // 2: dockwell.v1.ImportComposeRequest
-	(*ImportComposeResponse)(nil),        // 3: dockwell.v1.ImportComposeResponse
-	(*CheckComposeRequest)(nil),          // 4: dockwell.v1.CheckComposeRequest
-	(*CheckComposeResponse)(nil),         // 5: dockwell.v1.CheckComposeResponse
-	(*ExposedVariable)(nil),              // 6: dockwell.v1.ExposedVariable
-	(*ComposeRefusal)(nil),               // 7: dockwell.v1.ComposeRefusal
-	(*ComposeVariable)(nil),              // 8: dockwell.v1.ComposeVariable
-	(*ExportComposeRequest)(nil),         // 9: dockwell.v1.ExportComposeRequest
-	(*ExportComposeResponse)(nil),        // 10: dockwell.v1.ExportComposeResponse
-	(*GetComposeWorkspaceRequest)(nil),   // 11: dockwell.v1.GetComposeWorkspaceRequest
-	(*GetComposeWorkspaceResponse)(nil),  // 12: dockwell.v1.GetComposeWorkspaceResponse
-	(*ComposeWorkspace)(nil),             // 13: dockwell.v1.ComposeWorkspace
-	(*ComposeWorkspaceResource)(nil),     // 14: dockwell.v1.ComposeWorkspaceResource
-	(*ComposeWorkspaceOmission)(nil),     // 15: dockwell.v1.ComposeWorkspaceOmission
-	(*PlanComposeWorkspaceRequest)(nil),  // 16: dockwell.v1.PlanComposeWorkspaceRequest
-	(*ComposeWorkspaceRemoval)(nil),      // 17: dockwell.v1.ComposeWorkspaceRemoval
-	(*PlanComposeWorkspaceResponse)(nil), // 18: dockwell.v1.PlanComposeWorkspaceResponse
-	nil,                                  // 19: dockwell.v1.ImportComposeRequest.VariablesEntry
-	nil,                                  // 20: dockwell.v1.CheckComposeRequest.VariablesEntry
-	(*Change)(nil),                       // 21: dockwell.v1.Change
-	(*ServiceInfo)(nil),                  // 22: dockwell.v1.ServiceInfo
-	(*ResourceRef)(nil),                  // 23: dockwell.v1.ResourceRef
+	(*AdoptComposeRequest)(nil),             // 0: dockwell.v1.AdoptComposeRequest
+	(*AdoptComposeResponse)(nil),            // 1: dockwell.v1.AdoptComposeResponse
+	(*ImportComposeRequest)(nil),            // 2: dockwell.v1.ImportComposeRequest
+	(*ImportComposeResponse)(nil),           // 3: dockwell.v1.ImportComposeResponse
+	(*CheckComposeRequest)(nil),             // 4: dockwell.v1.CheckComposeRequest
+	(*CheckComposeResponse)(nil),            // 5: dockwell.v1.CheckComposeResponse
+	(*ExposedVariable)(nil),                 // 6: dockwell.v1.ExposedVariable
+	(*ComposeRefusal)(nil),                  // 7: dockwell.v1.ComposeRefusal
+	(*ComposeVariable)(nil),                 // 8: dockwell.v1.ComposeVariable
+	(*ExportComposeRequest)(nil),            // 9: dockwell.v1.ExportComposeRequest
+	(*ExportComposeResponse)(nil),           // 10: dockwell.v1.ExportComposeResponse
+	(*GetComposeWorkspaceRequest)(nil),      // 11: dockwell.v1.GetComposeWorkspaceRequest
+	(*GetComposeWorkspaceResponse)(nil),     // 12: dockwell.v1.GetComposeWorkspaceResponse
+	(*ComposeWorkspace)(nil),                // 13: dockwell.v1.ComposeWorkspace
+	(*ComposeWorkspaceResource)(nil),        // 14: dockwell.v1.ComposeWorkspaceResource
+	(*ComposeWorkspaceOmission)(nil),        // 15: dockwell.v1.ComposeWorkspaceOmission
+	(*PlanComposeWorkspaceRequest)(nil),     // 16: dockwell.v1.PlanComposeWorkspaceRequest
+	(*ComposeWorkspaceRemoval)(nil),         // 17: dockwell.v1.ComposeWorkspaceRemoval
+	(*PlanComposeWorkspaceResponse)(nil),    // 18: dockwell.v1.PlanComposeWorkspaceResponse
+	(*ListComposeTemplatesRequest)(nil),     // 19: dockwell.v1.ListComposeTemplatesRequest
+	(*ListComposeTemplatesResponse)(nil),    // 20: dockwell.v1.ListComposeTemplatesResponse
+	(*GetComposeTemplateRequest)(nil),       // 21: dockwell.v1.GetComposeTemplateRequest
+	(*GetComposeTemplateResponse)(nil),      // 22: dockwell.v1.GetComposeTemplateResponse
+	(*ComposeTemplateSummary)(nil),          // 23: dockwell.v1.ComposeTemplateSummary
+	(*ComposeTemplateRevision)(nil),         // 24: dockwell.v1.ComposeTemplateRevision
+	(*PrepareComposeTemplateRequest)(nil),   // 25: dockwell.v1.PrepareComposeTemplateRequest
+	(*PrepareComposeTemplateResponse)(nil),  // 26: dockwell.v1.PrepareComposeTemplateResponse
+	(*ComposeTemplateStackSource)(nil),      // 27: dockwell.v1.ComposeTemplateStackSource
+	(*ComposeTemplateGitSource)(nil),        // 28: dockwell.v1.ComposeTemplateGitSource
+	(*PlanFromComposeTemplateRequest)(nil),  // 29: dockwell.v1.PlanFromComposeTemplateRequest
+	(*PlanFromComposeTemplateResponse)(nil), // 30: dockwell.v1.PlanFromComposeTemplateResponse
+	(*ComposeTemplateDestination)(nil),      // 31: dockwell.v1.ComposeTemplateDestination
+	(*ComposeTemplateValue)(nil),            // 32: dockwell.v1.ComposeTemplateValue
+	nil,                                     // 33: dockwell.v1.ImportComposeRequest.VariablesEntry
+	nil,                                     // 34: dockwell.v1.CheckComposeRequest.VariablesEntry
+	(*Change)(nil),                          // 35: dockwell.v1.Change
+	(*ServiceInfo)(nil),                     // 36: dockwell.v1.ServiceInfo
+	(*ResourceRef)(nil),                     // 37: dockwell.v1.ResourceRef
+	(*v1alpha1.ComposeTemplate)(nil),        // 38: dockwell.resource.v1alpha1.ComposeTemplate
+	(*timestamppb.Timestamp)(nil),           // 39: google.protobuf.Timestamp
 }
 var file_dockwell_v1_compose_proto_depIdxs = []int32{
-	21, // 0: dockwell.v1.AdoptComposeResponse.change:type_name -> dockwell.v1.Change
-	19, // 1: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
-	21, // 2: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
+	35, // 0: dockwell.v1.AdoptComposeResponse.change:type_name -> dockwell.v1.Change
+	33, // 1: dockwell.v1.ImportComposeRequest.variables:type_name -> dockwell.v1.ImportComposeRequest.VariablesEntry
+	35, // 2: dockwell.v1.ImportComposeResponse.change:type_name -> dockwell.v1.Change
 	6,  // 3: dockwell.v1.ImportComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	20, // 4: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
+	34, // 4: dockwell.v1.CheckComposeRequest.variables:type_name -> dockwell.v1.CheckComposeRequest.VariablesEntry
 	7,  // 5: dockwell.v1.CheckComposeResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
 	8,  // 6: dockwell.v1.CheckComposeResponse.variables:type_name -> dockwell.v1.ComposeVariable
-	22, // 7: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
+	36, // 7: dockwell.v1.CheckComposeResponse.services:type_name -> dockwell.v1.ServiceInfo
 	6,  // 8: dockwell.v1.CheckComposeResponse.exposed_variables:type_name -> dockwell.v1.ExposedVariable
-	23, // 9: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
+	37, // 9: dockwell.v1.ExposedVariable.resource:type_name -> dockwell.v1.ResourceRef
 	13, // 10: dockwell.v1.GetComposeWorkspaceResponse.workspace:type_name -> dockwell.v1.ComposeWorkspace
 	15, // 11: dockwell.v1.GetComposeWorkspaceResponse.omissions:type_name -> dockwell.v1.ComposeWorkspaceOmission
 	14, // 12: dockwell.v1.ComposeWorkspace.resources:type_name -> dockwell.v1.ComposeWorkspaceResource
 	17, // 13: dockwell.v1.PlanComposeWorkspaceRequest.explicit_removals:type_name -> dockwell.v1.ComposeWorkspaceRemoval
-	21, // 14: dockwell.v1.PlanComposeWorkspaceResponse.change:type_name -> dockwell.v1.Change
+	35, // 14: dockwell.v1.PlanComposeWorkspaceResponse.change:type_name -> dockwell.v1.Change
 	7,  // 15: dockwell.v1.PlanComposeWorkspaceResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
 	17, // 16: dockwell.v1.PlanComposeWorkspaceResponse.removals:type_name -> dockwell.v1.ComposeWorkspaceRemoval
-	2,  // 17: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
-	0,  // 18: dockwell.v1.ComposeService.AdoptCompose:input_type -> dockwell.v1.AdoptComposeRequest
-	4,  // 19: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
-	11, // 20: dockwell.v1.ComposeService.GetComposeWorkspace:input_type -> dockwell.v1.GetComposeWorkspaceRequest
-	16, // 21: dockwell.v1.ComposeService.PlanComposeWorkspace:input_type -> dockwell.v1.PlanComposeWorkspaceRequest
-	9,  // 22: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
-	3,  // 23: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
-	1,  // 24: dockwell.v1.ComposeService.AdoptCompose:output_type -> dockwell.v1.AdoptComposeResponse
-	5,  // 25: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
-	12, // 26: dockwell.v1.ComposeService.GetComposeWorkspace:output_type -> dockwell.v1.GetComposeWorkspaceResponse
-	18, // 27: dockwell.v1.ComposeService.PlanComposeWorkspace:output_type -> dockwell.v1.PlanComposeWorkspaceResponse
-	10, // 28: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
-	23, // [23:29] is the sub-list for method output_type
-	17, // [17:23] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	23, // 17: dockwell.v1.ListComposeTemplatesResponse.templates:type_name -> dockwell.v1.ComposeTemplateSummary
+	23, // 18: dockwell.v1.GetComposeTemplateResponse.template:type_name -> dockwell.v1.ComposeTemplateSummary
+	38, // 19: dockwell.v1.GetComposeTemplateResponse.spec:type_name -> dockwell.resource.v1alpha1.ComposeTemplate
+	24, // 20: dockwell.v1.GetComposeTemplateResponse.history:type_name -> dockwell.v1.ComposeTemplateRevision
+	39, // 21: dockwell.v1.ComposeTemplateSummary.updated_at:type_name -> google.protobuf.Timestamp
+	39, // 22: dockwell.v1.ComposeTemplateRevision.changed_at:type_name -> google.protobuf.Timestamp
+	27, // 23: dockwell.v1.PrepareComposeTemplateRequest.stack:type_name -> dockwell.v1.ComposeTemplateStackSource
+	28, // 24: dockwell.v1.PrepareComposeTemplateRequest.git:type_name -> dockwell.v1.ComposeTemplateGitSource
+	38, // 25: dockwell.v1.PrepareComposeTemplateResponse.draft:type_name -> dockwell.resource.v1alpha1.ComposeTemplate
+	7,  // 26: dockwell.v1.PrepareComposeTemplateResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
+	15, // 27: dockwell.v1.PrepareComposeTemplateResponse.omissions:type_name -> dockwell.v1.ComposeWorkspaceOmission
+	31, // 28: dockwell.v1.PlanFromComposeTemplateRequest.destination:type_name -> dockwell.v1.ComposeTemplateDestination
+	32, // 29: dockwell.v1.PlanFromComposeTemplateRequest.inputs:type_name -> dockwell.v1.ComposeTemplateValue
+	35, // 30: dockwell.v1.PlanFromComposeTemplateResponse.change:type_name -> dockwell.v1.Change
+	7,  // 31: dockwell.v1.PlanFromComposeTemplateResponse.refusal:type_name -> dockwell.v1.ComposeRefusal
+	19, // 32: dockwell.v1.ComposeService.ListComposeTemplates:input_type -> dockwell.v1.ListComposeTemplatesRequest
+	21, // 33: dockwell.v1.ComposeService.GetComposeTemplate:input_type -> dockwell.v1.GetComposeTemplateRequest
+	25, // 34: dockwell.v1.ComposeService.PrepareComposeTemplate:input_type -> dockwell.v1.PrepareComposeTemplateRequest
+	29, // 35: dockwell.v1.ComposeService.PlanFromComposeTemplate:input_type -> dockwell.v1.PlanFromComposeTemplateRequest
+	2,  // 36: dockwell.v1.ComposeService.ImportCompose:input_type -> dockwell.v1.ImportComposeRequest
+	0,  // 37: dockwell.v1.ComposeService.AdoptCompose:input_type -> dockwell.v1.AdoptComposeRequest
+	4,  // 38: dockwell.v1.ComposeService.CheckCompose:input_type -> dockwell.v1.CheckComposeRequest
+	11, // 39: dockwell.v1.ComposeService.GetComposeWorkspace:input_type -> dockwell.v1.GetComposeWorkspaceRequest
+	16, // 40: dockwell.v1.ComposeService.PlanComposeWorkspace:input_type -> dockwell.v1.PlanComposeWorkspaceRequest
+	9,  // 41: dockwell.v1.ComposeService.ExportCompose:input_type -> dockwell.v1.ExportComposeRequest
+	20, // 42: dockwell.v1.ComposeService.ListComposeTemplates:output_type -> dockwell.v1.ListComposeTemplatesResponse
+	22, // 43: dockwell.v1.ComposeService.GetComposeTemplate:output_type -> dockwell.v1.GetComposeTemplateResponse
+	26, // 44: dockwell.v1.ComposeService.PrepareComposeTemplate:output_type -> dockwell.v1.PrepareComposeTemplateResponse
+	30, // 45: dockwell.v1.ComposeService.PlanFromComposeTemplate:output_type -> dockwell.v1.PlanFromComposeTemplateResponse
+	3,  // 46: dockwell.v1.ComposeService.ImportCompose:output_type -> dockwell.v1.ImportComposeResponse
+	1,  // 47: dockwell.v1.ComposeService.AdoptCompose:output_type -> dockwell.v1.AdoptComposeResponse
+	5,  // 48: dockwell.v1.ComposeService.CheckCompose:output_type -> dockwell.v1.CheckComposeResponse
+	12, // 49: dockwell.v1.ComposeService.GetComposeWorkspace:output_type -> dockwell.v1.GetComposeWorkspaceResponse
+	18, // 50: dockwell.v1.ComposeService.PlanComposeWorkspace:output_type -> dockwell.v1.PlanComposeWorkspaceResponse
+	10, // 51: dockwell.v1.ComposeService.ExportCompose:output_type -> dockwell.v1.ExportComposeResponse
+	42, // [42:52] is the sub-list for method output_type
+	32, // [32:42] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_compose_proto_init() }
@@ -1643,13 +2725,22 @@ func file_dockwell_v1_compose_proto_init() {
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_service_proto_init()
 	file_dockwell_v1_compose_proto_msgTypes[16].OneofWrappers = []any{}
+	file_dockwell_v1_compose_proto_msgTypes[25].OneofWrappers = []any{
+		(*PrepareComposeTemplateRequest_ComposeYaml)(nil),
+		(*PrepareComposeTemplateRequest_Stack)(nil),
+		(*PrepareComposeTemplateRequest_Git)(nil),
+	}
+	file_dockwell_v1_compose_proto_msgTypes[32].OneofWrappers = []any{
+		(*ComposeTemplateValue_Value)(nil),
+		(*ComposeTemplateValue_Generate)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_compose_proto_rawDesc), len(file_dockwell_v1_compose_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

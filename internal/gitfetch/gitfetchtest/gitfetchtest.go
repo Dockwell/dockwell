@@ -174,6 +174,14 @@ func (r *Repo) Link(name, target string) {
 	}
 }
 
+// Submodule records a gitlink in the index, without fetching the commit.
+func (r *Repo) Submodule(name, commit string) {
+	r.t.Helper()
+	r.git("update-index", "--add", "--cacheinfo", "160000,"+commit+","+name)
+	r.dated("commit", "-q", "-m", "add a submodule")
+	r.next = r.next.Add(time.Second)
+}
+
 func (r *Repo) git(args ...string) string {
 	r.t.Helper()
 	return r.run(nil, args...)
@@ -193,8 +201,8 @@ func (r *Repo) run(env []string, args ...string) string {
 }
 
 // dated runs git as git does, with the date the next commit takes.
-func (r *Repo) dated(args ...string) string {
+func (r *Repo) dated(args ...string) {
 	r.t.Helper()
 	date := strconv.FormatInt(r.next.Unix(), 10) + " +0000"
-	return r.run([]string{"GIT_AUTHOR_DATE=" + date, "GIT_COMMITTER_DATE=" + date}, args...)
+	r.run([]string{"GIT_AUTHOR_DATE=" + date, "GIT_COMMITTER_DATE=" + date}, args...)
 }

@@ -30,6 +30,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/compose"
 	"github.com/dockwell/dockwell/internal/control/actors"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/paging"
@@ -284,6 +285,12 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		}
 		edits[i].Pull, edits[i].Run = also.Pull, also.Run
 		edits[i].MustCreate = also.MustCreate[edits[i].Ref]
+		if edits[i].Ref.Kind == compose.TemplateKind && edits[i].Base == 0 {
+			if edits[i].Spec == nil {
+				return nil, authapi.Invalid(errors.New("name the current revision to delete a Compose template"))
+			}
+			edits[i].MustCreate = true
+		}
 		a := also.Adopts[edits[i].Ref]
 		edits[i].Adopt, edits[i].AdoptName = a.ID, a.Name
 		edits[i].Public = also.Public[edits[i].Ref]

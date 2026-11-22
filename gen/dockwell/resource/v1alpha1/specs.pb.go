@@ -606,6 +606,62 @@ func (CatalogFormat) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{9}
 }
 
+// ComposeTemplateInputKind selects how an input is checked and kept.
+type ComposeTemplateInputKind int32
+
+const (
+	ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED ComposeTemplateInputKind = 0
+	ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_TEXT        ComposeTemplateInputKind = 1
+	ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_SECRET      ComposeTemplateInputKind = 2
+	ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_PORT        ComposeTemplateInputKind = 3
+	ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_IMAGE       ComposeTemplateInputKind = 4
+)
+
+// Enum value maps for ComposeTemplateInputKind.
+var (
+	ComposeTemplateInputKind_name = map[int32]string{
+		0: "COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED",
+		1: "COMPOSE_TEMPLATE_INPUT_KIND_TEXT",
+		2: "COMPOSE_TEMPLATE_INPUT_KIND_SECRET",
+		3: "COMPOSE_TEMPLATE_INPUT_KIND_PORT",
+		4: "COMPOSE_TEMPLATE_INPUT_KIND_IMAGE",
+	}
+	ComposeTemplateInputKind_value = map[string]int32{
+		"COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED": 0,
+		"COMPOSE_TEMPLATE_INPUT_KIND_TEXT":        1,
+		"COMPOSE_TEMPLATE_INPUT_KIND_SECRET":      2,
+		"COMPOSE_TEMPLATE_INPUT_KIND_PORT":        3,
+		"COMPOSE_TEMPLATE_INPUT_KIND_IMAGE":       4,
+	}
+)
+
+func (x ComposeTemplateInputKind) Enum() *ComposeTemplateInputKind {
+	p := new(ComposeTemplateInputKind)
+	*p = x
+	return p
+}
+
+func (x ComposeTemplateInputKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ComposeTemplateInputKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10].Descriptor()
+}
+
+func (ComposeTemplateInputKind) Type() protoreflect.EnumType {
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10]
+}
+
+func (x ComposeTemplateInputKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ComposeTemplateInputKind.Descriptor instead.
+func (ComposeTemplateInputKind) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{10}
+}
+
 // ConnectionReach says which projects may use a connection, said, never implied.
 type ConnectionReach int32
 
@@ -643,11 +699,11 @@ func (x ConnectionReach) String() string {
 }
 
 func (ConnectionReach) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11].Descriptor()
 }
 
 func (ConnectionReach) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[10]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11]
 }
 
 func (x ConnectionReach) Number() protoreflect.EnumNumber {
@@ -656,7 +712,7 @@ func (x ConnectionReach) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ConnectionReach.Descriptor instead.
 func (ConnectionReach) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{10}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{11}
 }
 
 // SmtpSecurity is how a connection to a mail server is secured. Its numbers are
@@ -701,11 +757,11 @@ func (x SmtpSecurity) String() string {
 }
 
 func (SmtpSecurity) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12].Descriptor()
 }
 
 func (SmtpSecurity) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[11]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12]
 }
 
 func (x SmtpSecurity) Number() protoreflect.EnumNumber {
@@ -714,7 +770,7 @@ func (x SmtpSecurity) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SmtpSecurity.Descriptor instead.
 func (SmtpSecurity) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{11}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{12}
 }
 
 // LinkKind is what a link reaches beyond a database, numbered as the catalog
@@ -753,11 +809,11 @@ func (x LinkKind) String() string {
 }
 
 func (LinkKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[13].Descriptor()
 }
 
 func (LinkKind) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[12]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[13]
 }
 
 func (x LinkKind) Number() protoreflect.EnumNumber {
@@ -766,7 +822,7 @@ func (x LinkKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LinkKind.Descriptor instead.
 func (LinkKind) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{13}
 }
 
 // LinkFeature is what an app needs of what a link reaches, numbered as the catalog
@@ -828,11 +884,11 @@ func (x LinkFeature) String() string {
 }
 
 func (LinkFeature) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[13].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[14].Descriptor()
 }
 
 func (LinkFeature) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[13]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[14]
 }
 
 func (x LinkFeature) Number() protoreflect.EnumNumber {
@@ -841,7 +897,7 @@ func (x LinkFeature) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LinkFeature.Descriptor instead.
 func (LinkFeature) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{14}
 }
 
 // LinkEngine is what runs a database, as Dockwell knows it (ADR 0038). Its numbers
@@ -894,11 +950,11 @@ func (x LinkEngine) String() string {
 }
 
 func (LinkEngine) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[14].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[15].Descriptor()
 }
 
 func (LinkEngine) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[14]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[15]
 }
 
 func (x LinkEngine) Number() protoreflect.EnumNumber {
@@ -907,7 +963,7 @@ func (x LinkEngine) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LinkEngine.Descriptor instead.
 func (LinkEngine) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{15}
 }
 
 // LinkPart is what a name a link sets holds. Its numbers are the catalog format's
@@ -1004,11 +1060,11 @@ func (x LinkPart) String() string {
 }
 
 func (LinkPart) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[15].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[16].Descriptor()
 }
 
 func (LinkPart) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[15]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[16]
 }
 
 func (x LinkPart) Number() protoreflect.EnumNumber {
@@ -1017,7 +1073,7 @@ func (x LinkPart) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use LinkPart.Descriptor instead.
 func (LinkPart) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{15}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{16}
 }
 
 // ContainerLoggingMode selects daemon inheritance or explicit rotation limits.
@@ -1054,11 +1110,11 @@ func (x ContainerLoggingMode) String() string {
 }
 
 func (ContainerLoggingMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[16].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[17].Descriptor()
 }
 
 func (ContainerLoggingMode) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[16]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[17]
 }
 
 func (x ContainerLoggingMode) Number() protoreflect.EnumNumber {
@@ -1067,7 +1123,7 @@ func (x ContainerLoggingMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ContainerLoggingMode.Descriptor instead.
 func (ContainerLoggingMode) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{16}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{17}
 }
 
 // Which updates it takes.
@@ -1111,11 +1167,11 @@ func (x AutoUpdate_Level) String() string {
 }
 
 func (AutoUpdate_Level) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[17].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[18].Descriptor()
 }
 
 func (AutoUpdate_Level) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[17]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[18]
 }
 
 func (x AutoUpdate_Level) Number() protoreflect.EnumNumber {
@@ -1167,11 +1223,11 @@ func (x ImageBuild_Builder) String() string {
 }
 
 func (ImageBuild_Builder) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[18].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[19].Descriptor()
 }
 
 func (ImageBuild_Builder) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[18]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[19]
 }
 
 func (x ImageBuild_Builder) Number() protoreflect.EnumNumber {
@@ -1223,11 +1279,11 @@ func (x BackupPolicy_Every) String() string {
 }
 
 func (BackupPolicy_Every) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[19].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[20].Descriptor()
 }
 
 func (BackupPolicy_Every) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[19]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[20]
 }
 
 func (x BackupPolicy_Every) Number() protoreflect.EnumNumber {
@@ -1281,11 +1337,11 @@ func (x BackupPolicy_Drill) String() string {
 }
 
 func (BackupPolicy_Drill) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[20].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[21].Descriptor()
 }
 
 func (BackupPolicy_Drill) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[20]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[21]
 }
 
 func (x BackupPolicy_Drill) Number() protoreflect.EnumNumber {
@@ -1395,11 +1451,11 @@ func (x AlertRule_Condition) String() string {
 }
 
 func (AlertRule_Condition) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[21].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[22].Descriptor()
 }
 
 func (AlertRule_Condition) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[21]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[22]
 }
 
 func (x AlertRule_Condition) Number() protoreflect.EnumNumber {
@@ -1408,7 +1464,7 @@ func (x AlertRule_Condition) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AlertRule_Condition.Descriptor instead.
 func (AlertRule_Condition) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{77, 0}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{80, 0}
 }
 
 // How much it matters, which a message says and a channel can choose by.
@@ -1447,11 +1503,11 @@ func (x AlertRule_Severity) String() string {
 }
 
 func (AlertRule_Severity) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[22].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[23].Descriptor()
 }
 
 func (AlertRule_Severity) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[22]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[23]
 }
 
 func (x AlertRule_Severity) Number() protoreflect.EnumNumber {
@@ -1460,7 +1516,7 @@ func (x AlertRule_Severity) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AlertRule_Severity.Descriptor instead.
 func (AlertRule_Severity) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{77, 1}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{80, 1}
 }
 
 // How Dockwell secures its connection to the SMTP server.
@@ -1504,11 +1560,11 @@ func (x AlertEmail_Security) String() string {
 }
 
 func (AlertEmail_Security) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[23].Descriptor()
+	return file_dockwell_resource_v1alpha1_specs_proto_enumTypes[24].Descriptor()
 }
 
 func (AlertEmail_Security) Type() protoreflect.EnumType {
-	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[23]
+	return &file_dockwell_resource_v1alpha1_specs_proto_enumTypes[24]
 }
 
 func (x AlertEmail_Security) Number() protoreflect.EnumNumber {
@@ -1517,7 +1573,7 @@ func (x AlertEmail_Security) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AlertEmail_Security.Descriptor instead.
 func (AlertEmail_Security) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{81, 0}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{84, 0}
 }
 
 // Container is one Docker container: run by hand on a server, or a
@@ -7810,6 +7866,213 @@ func (x *CatalogSource) GetFormat() CatalogFormat {
 	return CatalogFormat_CATALOG_FORMAT_UNSPECIFIED
 }
 
+// ComposeTemplate is a project's portable Compose definition and its inputs.
+type ComposeTemplate struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	ComposeYaml   string                  `protobuf:"bytes,1,opt,name=compose_yaml,json=composeYaml,proto3" json:"compose_yaml,omitempty"`
+	Description   string                  `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Inputs        []*ComposeTemplateInput `protobuf:"bytes,3,rep,name=inputs,proto3" json:"inputs,omitempty"`
+	Git           *ComposeTemplateGit     `protobuf:"bytes,4,opt,name=git,proto3" json:"git,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplate) Reset() {
+	*x = ComposeTemplate{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplate) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplate) ProtoMessage() {}
+
+func (x *ComposeTemplate) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplate.ProtoReflect.Descriptor instead.
+func (*ComposeTemplate) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *ComposeTemplate) GetComposeYaml() string {
+	if x != nil {
+		return x.ComposeYaml
+	}
+	return ""
+}
+
+func (x *ComposeTemplate) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ComposeTemplate) GetInputs() []*ComposeTemplateInput {
+	if x != nil {
+		return x.Inputs
+	}
+	return nil
+}
+
+func (x *ComposeTemplate) GetGit() *ComposeTemplateGit {
+	if x != nil {
+		return x.Git
+	}
+	return nil
+}
+
+// ComposeTemplateInput describes a value a new workspace takes.
+type ComposeTemplateInput struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Name          string                   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Kind          ComposeTemplateInputKind `protobuf:"varint,2,opt,name=kind,proto3,enum=dockwell.resource.v1alpha1.ComposeTemplateInputKind" json:"kind,omitempty"`
+	DefaultValue  *string                  `protobuf:"bytes,3,opt,name=default_value,json=defaultValue,proto3,oneof" json:"default_value,omitempty"`
+	Required      bool                     `protobuf:"varint,4,opt,name=required,proto3" json:"required,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateInput) Reset() {
+	*x = ComposeTemplateInput{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateInput) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateInput) ProtoMessage() {}
+
+func (x *ComposeTemplateInput) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateInput.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateInput) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *ComposeTemplateInput) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ComposeTemplateInput) GetKind() ComposeTemplateInputKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ComposeTemplateInputKind_COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED
+}
+
+func (x *ComposeTemplateInput) GetDefaultValue() string {
+	if x != nil && x.DefaultValue != nil {
+		return *x.DefaultValue
+	}
+	return ""
+}
+
+func (x *ComposeTemplateInput) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+// ComposeTemplateGit records the source of a saved file.
+type ComposeTemplateGit struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Repository    string                 `protobuf:"bytes,1,opt,name=repository,proto3" json:"repository,omitempty"`
+	Ref           string                 `protobuf:"bytes,2,opt,name=ref,proto3" json:"ref,omitempty"`
+	Path          string                 `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+	Commit        string                 `protobuf:"bytes,4,opt,name=commit,proto3" json:"commit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComposeTemplateGit) Reset() {
+	*x = ComposeTemplateGit{}
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComposeTemplateGit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComposeTemplateGit) ProtoMessage() {}
+
+func (x *ComposeTemplateGit) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComposeTemplateGit.ProtoReflect.Descriptor instead.
+func (*ComposeTemplateGit) Descriptor() ([]byte, []int) {
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ComposeTemplateGit) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *ComposeTemplateGit) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *ComposeTemplateGit) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ComposeTemplateGit) GetCommit() string {
+	if x != nil {
+		return x.Commit
+	}
+	return ""
+}
+
 // Spec is the desired state of one resource, of any kind: the field that is
 // set says which. Edits in the API carry specs in it, so one message takes
 // every kind.
@@ -7820,6 +8083,7 @@ type Spec struct {
 	// Types that are valid to be assigned to Kind:
 	//
 	//	*Spec_DockerDaemon
+	//	*Spec_ComposeTemplate
 	//	*Spec_Project
 	//	*Spec_Environment
 	//	*Spec_Service
@@ -7856,7 +8120,7 @@ type Spec struct {
 
 func (x *Spec) Reset() {
 	*x = Spec{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[61]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7868,7 +8132,7 @@ func (x *Spec) String() string {
 func (*Spec) ProtoMessage() {}
 
 func (x *Spec) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[61]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7881,7 +8145,7 @@ func (x *Spec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Spec.ProtoReflect.Descriptor instead.
 func (*Spec) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{61}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *Spec) GetKind() isSpec_Kind {
@@ -7895,6 +8159,15 @@ func (x *Spec) GetDockerDaemon() *DockerDaemon {
 	if x != nil {
 		if x, ok := x.Kind.(*Spec_DockerDaemon); ok {
 			return x.DockerDaemon
+		}
+	}
+	return nil
+}
+
+func (x *Spec) GetComposeTemplate() *ComposeTemplate {
+	if x != nil {
+		if x, ok := x.Kind.(*Spec_ComposeTemplate); ok {
+			return x.ComposeTemplate
 		}
 	}
 	return nil
@@ -8169,6 +8442,10 @@ type Spec_DockerDaemon struct {
 	DockerDaemon *DockerDaemon `protobuf:"bytes,400,opt,name=docker_daemon,json=dockerDaemon,proto3,oneof"`
 }
 
+type Spec_ComposeTemplate struct {
+	ComposeTemplate *ComposeTemplate `protobuf:"bytes,401,opt,name=compose_template,json=composeTemplate,proto3,oneof"`
+}
+
 type Spec_Project struct {
 	// A project, kind "project".
 	Project *Project `protobuf:"bytes,1,opt,name=project,proto3,oneof"`
@@ -8336,6 +8613,8 @@ type Spec_GithubApp struct {
 
 func (*Spec_DockerDaemon) isSpec_Kind() {}
 
+func (*Spec_ComposeTemplate) isSpec_Kind() {}
+
 func (*Spec_Project) isSpec_Kind() {}
 
 func (*Spec_Environment) isSpec_Kind() {}
@@ -8417,7 +8696,7 @@ type DnsCertificate struct {
 
 func (x *DnsCertificate) Reset() {
 	*x = DnsCertificate{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[62]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8429,7 +8708,7 @@ func (x *DnsCertificate) String() string {
 func (*DnsCertificate) ProtoMessage() {}
 
 func (x *DnsCertificate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[62]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8442,7 +8721,7 @@ func (x *DnsCertificate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DnsCertificate.ProtoReflect.Descriptor instead.
 func (*DnsCertificate) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{62}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *DnsCertificate) GetDomains() []string {
@@ -8512,7 +8791,7 @@ type DnsProvider struct {
 
 func (x *DnsProvider) Reset() {
 	*x = DnsProvider{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[63]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8524,7 +8803,7 @@ func (x *DnsProvider) String() string {
 func (*DnsProvider) ProtoMessage() {}
 
 func (x *DnsProvider) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[63]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8537,7 +8816,7 @@ func (x *DnsProvider) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DnsProvider.ProtoReflect.Descriptor instead.
 func (*DnsProvider) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{63}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *DnsProvider) GetProvider() string {
@@ -8634,7 +8913,7 @@ type ConnectionSpec struct {
 
 func (x *ConnectionSpec) Reset() {
 	*x = ConnectionSpec{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[64]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8646,7 +8925,7 @@ func (x *ConnectionSpec) String() string {
 func (*ConnectionSpec) ProtoMessage() {}
 
 func (x *ConnectionSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[64]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8659,7 +8938,7 @@ func (x *ConnectionSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionSpec.ProtoReflect.Descriptor instead.
 func (*ConnectionSpec) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{64}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *ConnectionSpec) GetDisplayName() string {
@@ -8741,7 +9020,7 @@ type ConnectionS3 struct {
 
 func (x *ConnectionS3) Reset() {
 	*x = ConnectionS3{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[65]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8753,7 +9032,7 @@ func (x *ConnectionS3) String() string {
 func (*ConnectionS3) ProtoMessage() {}
 
 func (x *ConnectionS3) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[65]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8766,7 +9045,7 @@ func (x *ConnectionS3) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionS3.ProtoReflect.Descriptor instead.
 func (*ConnectionS3) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{65}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *ConnectionS3) GetEndpoint() string {
@@ -8829,7 +9108,7 @@ type GivenNames struct {
 
 func (x *GivenNames) Reset() {
 	*x = GivenNames{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[66]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8841,7 +9120,7 @@ func (x *GivenNames) String() string {
 func (*GivenNames) ProtoMessage() {}
 
 func (x *GivenNames) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[66]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8854,7 +9133,7 @@ func (x *GivenNames) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GivenNames.ProtoReflect.Descriptor instead.
 func (*GivenNames) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{66}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *GivenNames) GetNames() []string {
@@ -8890,7 +9169,7 @@ type ConnectionSmtp struct {
 
 func (x *ConnectionSmtp) Reset() {
 	*x = ConnectionSmtp{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[67]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8902,7 +9181,7 @@ func (x *ConnectionSmtp) String() string {
 func (*ConnectionSmtp) ProtoMessage() {}
 
 func (x *ConnectionSmtp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[67]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8915,7 +9194,7 @@ func (x *ConnectionSmtp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionSmtp.ProtoReflect.Descriptor instead.
 func (*ConnectionSmtp) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{67}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{70}
 }
 
 func (x *ConnectionSmtp) GetHost() string {
@@ -9003,7 +9282,7 @@ type RegistryLogin struct {
 
 func (x *RegistryLogin) Reset() {
 	*x = RegistryLogin{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9015,7 +9294,7 @@ func (x *RegistryLogin) String() string {
 func (*RegistryLogin) ProtoMessage() {}
 
 func (x *RegistryLogin) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9028,7 +9307,7 @@ func (x *RegistryLogin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegistryLogin.ProtoReflect.Descriptor instead.
 func (*RegistryLogin) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{68}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{71}
 }
 
 func (x *RegistryLogin) GetRegistry() string {
@@ -9095,7 +9374,7 @@ type RegistryLoginEcr struct {
 
 func (x *RegistryLoginEcr) Reset() {
 	*x = RegistryLoginEcr{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[69]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9107,7 +9386,7 @@ func (x *RegistryLoginEcr) String() string {
 func (*RegistryLoginEcr) ProtoMessage() {}
 
 func (x *RegistryLoginEcr) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[69]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9120,7 +9399,7 @@ func (x *RegistryLoginEcr) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegistryLoginEcr.ProtoReflect.Descriptor instead.
 func (*RegistryLoginEcr) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{69}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *RegistryLoginEcr) GetAccessKey() string {
@@ -9181,7 +9460,7 @@ type SigninProvider struct {
 
 func (x *SigninProvider) Reset() {
 	*x = SigninProvider{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[70]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9193,7 +9472,7 @@ func (x *SigninProvider) String() string {
 func (*SigninProvider) ProtoMessage() {}
 
 func (x *SigninProvider) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[70]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9206,7 +9485,7 @@ func (x *SigninProvider) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SigninProvider.ProtoReflect.Descriptor instead.
 func (*SigninProvider) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{70}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *SigninProvider) GetDisplayName() string {
@@ -9316,7 +9595,7 @@ type GitHubApp struct {
 
 func (x *GitHubApp) Reset() {
 	*x = GitHubApp{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[71]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9328,7 +9607,7 @@ func (x *GitHubApp) String() string {
 func (*GitHubApp) ProtoMessage() {}
 
 func (x *GitHubApp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[71]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9341,7 +9620,7 @@ func (x *GitHubApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubApp.ProtoReflect.Descriptor instead.
 func (*GitHubApp) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{71}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{74}
 }
 
 func (x *GitHubApp) GetAppId() int64 {
@@ -9442,7 +9721,7 @@ type GitHubInstallationReach struct {
 
 func (x *GitHubInstallationReach) Reset() {
 	*x = GitHubInstallationReach{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[72]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9454,7 +9733,7 @@ func (x *GitHubInstallationReach) String() string {
 func (*GitHubInstallationReach) ProtoMessage() {}
 
 func (x *GitHubInstallationReach) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[72]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9467,7 +9746,7 @@ func (x *GitHubInstallationReach) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GitHubInstallationReach.ProtoReflect.Descriptor instead.
 func (*GitHubInstallationReach) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{72}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *GitHubInstallationReach) GetInstallationId() int64 {
@@ -9525,7 +9804,7 @@ type Task struct {
 
 func (x *Task) Reset() {
 	*x = Task{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9537,7 +9816,7 @@ func (x *Task) String() string {
 func (*Task) ProtoMessage() {}
 
 func (x *Task) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9550,7 +9829,7 @@ func (x *Task) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Task.ProtoReflect.Descriptor instead.
 func (*Task) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{73}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{76}
 }
 
 func (x *Task) GetRuns() isTask_Runs {
@@ -9676,7 +9955,7 @@ type TaskShell struct {
 
 func (x *TaskShell) Reset() {
 	*x = TaskShell{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[74]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9688,7 +9967,7 @@ func (x *TaskShell) String() string {
 func (*TaskShell) ProtoMessage() {}
 
 func (x *TaskShell) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[74]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9701,7 +9980,7 @@ func (x *TaskShell) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskShell.ProtoReflect.Descriptor instead.
 func (*TaskShell) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{74}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{77}
 }
 
 func (x *TaskShell) GetCommand() string {
@@ -9733,7 +10012,7 @@ type TaskApp struct {
 
 func (x *TaskApp) Reset() {
 	*x = TaskApp{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[75]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9745,7 +10024,7 @@ func (x *TaskApp) String() string {
 func (*TaskApp) ProtoMessage() {}
 
 func (x *TaskApp) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[75]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9758,7 +10037,7 @@ func (x *TaskApp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskApp.ProtoReflect.Descriptor instead.
 func (*TaskApp) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{75}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{78}
 }
 
 func (x *TaskApp) GetService() string {
@@ -9791,7 +10070,7 @@ type TaskRequest struct {
 
 func (x *TaskRequest) Reset() {
 	*x = TaskRequest{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[76]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9803,7 +10082,7 @@ func (x *TaskRequest) String() string {
 func (*TaskRequest) ProtoMessage() {}
 
 func (x *TaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[76]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9816,7 +10095,7 @@ func (x *TaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskRequest.ProtoReflect.Descriptor instead.
 func (*TaskRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{76}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{79}
 }
 
 func (x *TaskRequest) GetUrl() string {
@@ -9871,7 +10150,7 @@ type AlertRule struct {
 
 func (x *AlertRule) Reset() {
 	*x = AlertRule{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[77]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9883,7 +10162,7 @@ func (x *AlertRule) String() string {
 func (*AlertRule) ProtoMessage() {}
 
 func (x *AlertRule) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[77]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9896,7 +10175,7 @@ func (x *AlertRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertRule.ProtoReflect.Descriptor instead.
 func (*AlertRule) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{77}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{80}
 }
 
 func (x *AlertRule) GetCondition() AlertRule_Condition {
@@ -9992,7 +10271,7 @@ type AlertCheck struct {
 
 func (x *AlertCheck) Reset() {
 	*x = AlertCheck{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[78]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10004,7 +10283,7 @@ func (x *AlertCheck) String() string {
 func (*AlertCheck) ProtoMessage() {}
 
 func (x *AlertCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[78]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10017,7 +10296,7 @@ func (x *AlertCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertCheck.ProtoReflect.Descriptor instead.
 func (*AlertCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{78}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{81}
 }
 
 func (x *AlertCheck) GetAddress() string {
@@ -10111,7 +10390,7 @@ type AlertChannel struct {
 
 func (x *AlertChannel) Reset() {
 	*x = AlertChannel{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[79]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10123,7 +10402,7 @@ func (x *AlertChannel) String() string {
 func (*AlertChannel) ProtoMessage() {}
 
 func (x *AlertChannel) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[79]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10136,7 +10415,7 @@ func (x *AlertChannel) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertChannel.ProtoReflect.Descriptor instead.
 func (*AlertChannel) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{79}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{82}
 }
 
 func (x *AlertChannel) GetTo() isAlertChannel_To {
@@ -10261,7 +10540,7 @@ type AlertWebhook struct {
 
 func (x *AlertWebhook) Reset() {
 	*x = AlertWebhook{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[80]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10273,7 +10552,7 @@ func (x *AlertWebhook) String() string {
 func (*AlertWebhook) ProtoMessage() {}
 
 func (x *AlertWebhook) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[80]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10286,7 +10565,7 @@ func (x *AlertWebhook) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertWebhook.ProtoReflect.Descriptor instead.
 func (*AlertWebhook) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{80}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{83}
 }
 
 func (x *AlertWebhook) GetUrl() string {
@@ -10334,7 +10613,7 @@ type AlertEmail struct {
 
 func (x *AlertEmail) Reset() {
 	*x = AlertEmail{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[81]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10346,7 +10625,7 @@ func (x *AlertEmail) String() string {
 func (*AlertEmail) ProtoMessage() {}
 
 func (x *AlertEmail) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[81]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10359,7 +10638,7 @@ func (x *AlertEmail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertEmail.ProtoReflect.Descriptor instead.
 func (*AlertEmail) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{81}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{84}
 }
 
 func (x *AlertEmail) GetHost() string {
@@ -10437,7 +10716,7 @@ type AlertNtfy struct {
 
 func (x *AlertNtfy) Reset() {
 	*x = AlertNtfy{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[82]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10449,7 +10728,7 @@ func (x *AlertNtfy) String() string {
 func (*AlertNtfy) ProtoMessage() {}
 
 func (x *AlertNtfy) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[82]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10462,7 +10741,7 @@ func (x *AlertNtfy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertNtfy.ProtoReflect.Descriptor instead.
 func (*AlertNtfy) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{82}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{85}
 }
 
 func (x *AlertNtfy) GetServer() string {
@@ -10500,7 +10779,7 @@ type AlertSlack struct {
 
 func (x *AlertSlack) Reset() {
 	*x = AlertSlack{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[83]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10512,7 +10791,7 @@ func (x *AlertSlack) String() string {
 func (*AlertSlack) ProtoMessage() {}
 
 func (x *AlertSlack) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[83]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10525,7 +10804,7 @@ func (x *AlertSlack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertSlack.ProtoReflect.Descriptor instead.
 func (*AlertSlack) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{83}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{86}
 }
 
 func (x *AlertSlack) GetUrl() string {
@@ -10549,7 +10828,7 @@ type AlertDiscord struct {
 
 func (x *AlertDiscord) Reset() {
 	*x = AlertDiscord{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[84]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10561,7 +10840,7 @@ func (x *AlertDiscord) String() string {
 func (*AlertDiscord) ProtoMessage() {}
 
 func (x *AlertDiscord) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[84]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10574,7 +10853,7 @@ func (x *AlertDiscord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertDiscord.ProtoReflect.Descriptor instead.
 func (*AlertDiscord) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{84}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{87}
 }
 
 func (x *AlertDiscord) GetUrl() string {
@@ -10599,7 +10878,7 @@ type AlertTelegram struct {
 
 func (x *AlertTelegram) Reset() {
 	*x = AlertTelegram{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[85]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10611,7 +10890,7 @@ func (x *AlertTelegram) String() string {
 func (*AlertTelegram) ProtoMessage() {}
 
 func (x *AlertTelegram) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[85]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10624,7 +10903,7 @@ func (x *AlertTelegram) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AlertTelegram.ProtoReflect.Descriptor instead.
 func (*AlertTelegram) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{85}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{88}
 }
 
 func (x *AlertTelegram) GetBotToken() string {
@@ -10660,7 +10939,7 @@ type ServerHost struct {
 
 func (x *ServerHost) Reset() {
 	*x = ServerHost{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[86]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10672,7 +10951,7 @@ func (x *ServerHost) String() string {
 func (*ServerHost) ProtoMessage() {}
 
 func (x *ServerHost) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[86]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10685,7 +10964,7 @@ func (x *ServerHost) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerHost.ProtoReflect.Descriptor instead.
 func (*ServerHost) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{86}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{89}
 }
 
 func (x *ServerHost) GetLabels() map[string]string {
@@ -10749,7 +11028,7 @@ type Link struct {
 
 func (x *Link) Reset() {
 	*x = Link{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[87]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10761,7 +11040,7 @@ func (x *Link) String() string {
 func (*Link) ProtoMessage() {}
 
 func (x *Link) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[87]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10774,7 +11053,7 @@ func (x *Link) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Link.ProtoReflect.Descriptor instead.
 func (*Link) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{87}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *Link) GetLabel() string {
@@ -10901,7 +11180,7 @@ type LinkAccept struct {
 
 func (x *LinkAccept) Reset() {
 	*x = LinkAccept{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[88]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10913,7 +11192,7 @@ func (x *LinkAccept) String() string {
 func (*LinkAccept) ProtoMessage() {}
 
 func (x *LinkAccept) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[88]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10926,7 +11205,7 @@ func (x *LinkAccept) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkAccept.ProtoReflect.Descriptor instead.
 func (*LinkAccept) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{88}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *LinkAccept) GetEngine() LinkEngine {
@@ -10963,7 +11242,7 @@ type LinkSet struct {
 
 func (x *LinkSet) Reset() {
 	*x = LinkSet{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[89]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10975,7 +11254,7 @@ func (x *LinkSet) String() string {
 func (*LinkSet) ProtoMessage() {}
 
 func (x *LinkSet) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[89]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10988,7 +11267,7 @@ func (x *LinkSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LinkSet.ProtoReflect.Descriptor instead.
 func (*LinkSet) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{89}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *LinkSet) GetName() string {
@@ -11040,7 +11319,7 @@ type DockerDaemon struct {
 
 func (x *DockerDaemon) Reset() {
 	*x = DockerDaemon{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[90]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11052,7 +11331,7 @@ func (x *DockerDaemon) String() string {
 func (*DockerDaemon) ProtoMessage() {}
 
 func (x *DockerDaemon) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[90]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11065,7 +11344,7 @@ func (x *DockerDaemon) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDaemon.ProtoReflect.Descriptor instead.
 func (*DockerDaemon) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{90}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *DockerDaemon) GetMirrors() *DockerRegistryMirrors {
@@ -11106,7 +11385,7 @@ type DockerRegistryMirrors struct {
 
 func (x *DockerRegistryMirrors) Reset() {
 	*x = DockerRegistryMirrors{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[91]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11118,7 +11397,7 @@ func (x *DockerRegistryMirrors) String() string {
 func (*DockerRegistryMirrors) ProtoMessage() {}
 
 func (x *DockerRegistryMirrors) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[91]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11131,7 +11410,7 @@ func (x *DockerRegistryMirrors) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerRegistryMirrors.ProtoReflect.Descriptor instead.
 func (*DockerRegistryMirrors) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{91}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *DockerRegistryMirrors) GetUrls() []string {
@@ -11153,7 +11432,7 @@ type DockerDaemonLogging struct {
 
 func (x *DockerDaemonLogging) Reset() {
 	*x = DockerDaemonLogging{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[92]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11165,7 +11444,7 @@ func (x *DockerDaemonLogging) String() string {
 func (*DockerDaemonLogging) ProtoMessage() {}
 
 func (x *DockerDaemonLogging) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[92]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11178,7 +11457,7 @@ func (x *DockerDaemonLogging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDaemonLogging.ProtoReflect.Descriptor instead.
 func (*DockerDaemonLogging) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{92}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *DockerDaemonLogging) GetDriver() string {
@@ -11212,7 +11491,7 @@ type DockerDefaultAddressPools struct {
 
 func (x *DockerDefaultAddressPools) Reset() {
 	*x = DockerDefaultAddressPools{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[93]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11224,7 +11503,7 @@ func (x *DockerDefaultAddressPools) String() string {
 func (*DockerDefaultAddressPools) ProtoMessage() {}
 
 func (x *DockerDefaultAddressPools) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[93]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11237,7 +11516,7 @@ func (x *DockerDefaultAddressPools) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDefaultAddressPools.ProtoReflect.Descriptor instead.
 func (*DockerDefaultAddressPools) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{93}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *DockerDefaultAddressPools) GetPools() []*DockerAddressPool {
@@ -11258,7 +11537,7 @@ type DockerAddressPool struct {
 
 func (x *DockerAddressPool) Reset() {
 	*x = DockerAddressPool{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[94]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11270,7 +11549,7 @@ func (x *DockerAddressPool) String() string {
 func (*DockerAddressPool) ProtoMessage() {}
 
 func (x *DockerAddressPool) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[94]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11283,7 +11562,7 @@ func (x *DockerAddressPool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerAddressPool.ProtoReflect.Descriptor instead.
 func (*DockerAddressPool) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{94}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *DockerAddressPool) GetBase() string {
@@ -11311,7 +11590,7 @@ type ContainerLogging struct {
 
 func (x *ContainerLogging) Reset() {
 	*x = ContainerLogging{}
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[95]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11323,7 +11602,7 @@ func (x *ContainerLogging) String() string {
 func (*ContainerLogging) ProtoMessage() {}
 
 func (x *ContainerLogging) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[95]
+	mi := &file_dockwell_resource_v1alpha1_specs_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11336,7 +11615,7 @@ func (x *ContainerLogging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogging.ProtoReflect.Descriptor instead.
 func (*ContainerLogging) Descriptor() ([]byte, []int) {
-	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{95}
+	return file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *ContainerLogging) GetMode() ContainerLoggingMode {
@@ -11977,9 +12256,28 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x06commit\x18\x03 \x01(\tR\x06commit\x12\x16\n" +
 	"\x06follow\x18\x04 \x01(\tR\x06follow\x12A\n" +
 	"\x06format\x18\n" +
-	" \x01(\x0e2).dockwell.resource.v1alpha1.CatalogFormatR\x06format\"\xbf\x11\n" +
+	" \x01(\x0e2).dockwell.resource.v1alpha1.CatalogFormatR\x06format\"\xe2\x01\n" +
+	"\x0fComposeTemplate\x12!\n" +
+	"\fcompose_yaml\x18\x01 \x01(\tR\vcomposeYaml\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12H\n" +
+	"\x06inputs\x18\x03 \x03(\v20.dockwell.resource.v1alpha1.ComposeTemplateInputR\x06inputs\x12@\n" +
+	"\x03git\x18\x04 \x01(\v2..dockwell.resource.v1alpha1.ComposeTemplateGitR\x03git\"\xcc\x01\n" +
+	"\x14ComposeTemplateInput\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12H\n" +
+	"\x04kind\x18\x02 \x01(\x0e24.dockwell.resource.v1alpha1.ComposeTemplateInputKindR\x04kind\x12(\n" +
+	"\rdefault_value\x18\x03 \x01(\tH\x00R\fdefaultValue\x88\x01\x01\x12\x1a\n" +
+	"\brequired\x18\x04 \x01(\bR\brequiredB\x10\n" +
+	"\x0e_default_value\"r\n" +
+	"\x12ComposeTemplateGit\x12\x1e\n" +
+	"\n" +
+	"repository\x18\x01 \x01(\tR\n" +
+	"repository\x12\x10\n" +
+	"\x03ref\x18\x02 \x01(\tR\x03ref\x12\x12\n" +
+	"\x04path\x18\x03 \x01(\tR\x04path\x12\x16\n" +
+	"\x06commit\x18\x04 \x01(\tR\x06commit\"\x9a\x12\n" +
 	"\x04Spec\x12P\n" +
-	"\rdocker_daemon\x18\x90\x03 \x01(\v2(.dockwell.resource.v1alpha1.DockerDaemonH\x00R\fdockerDaemon\x12?\n" +
+	"\rdocker_daemon\x18\x90\x03 \x01(\v2(.dockwell.resource.v1alpha1.DockerDaemonH\x00R\fdockerDaemon\x12Y\n" +
+	"\x10compose_template\x18\x91\x03 \x01(\v2+.dockwell.resource.v1alpha1.ComposeTemplateH\x00R\x0fcomposeTemplate\x12?\n" +
 	"\aproject\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.ProjectH\x00R\aproject\x12K\n" +
 	"\venvironment\x18\x02 \x01(\v2'.dockwell.resource.v1alpha1.EnvironmentH\x00R\venvironment\x12?\n" +
 	"\aservice\x18\x03 \x01(\v2#.dockwell.resource.v1alpha1.ServiceH\x00R\aservice\x12E\n" +
@@ -12325,7 +12623,13 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x16CATALOG_FORMAT_COOLIFY\x10\x04\x12\x1a\n" +
 	"\x16CATALOG_FORMAT_RUNTIPI\x10\x05\x12\x19\n" +
 	"\x15CATALOG_FORMAT_CASAOS\x10\x06\x12\x19\n" +
-	"\x15CATALOG_FORMAT_UMBREL\x10\a*n\n" +
+	"\x15CATALOG_FORMAT_UMBREL\x10\a*\xe2\x01\n" +
+	"\x18ComposeTemplateInputKind\x12+\n" +
+	"'COMPOSE_TEMPLATE_INPUT_KIND_UNSPECIFIED\x10\x00\x12$\n" +
+	" COMPOSE_TEMPLATE_INPUT_KIND_TEXT\x10\x01\x12&\n" +
+	"\"COMPOSE_TEMPLATE_INPUT_KIND_SECRET\x10\x02\x12$\n" +
+	" COMPOSE_TEMPLATE_INPUT_KIND_PORT\x10\x03\x12%\n" +
+	"!COMPOSE_TEMPLATE_INPUT_KIND_IMAGE\x10\x04*n\n" +
 	"\x0fConnectionReach\x12 \n" +
 	"\x1cCONNECTION_REACH_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19CONNECTION_REACH_PROJECTS\x10\x01\x12\x1a\n" +
@@ -12406,8 +12710,8 @@ func file_dockwell_resource_v1alpha1_specs_proto_rawDescGZIP() []byte {
 	return file_dockwell_resource_v1alpha1_specs_proto_rawDescData
 }
 
-var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 24)
-var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 120)
+var file_dockwell_resource_v1alpha1_specs_proto_enumTypes = make([]protoimpl.EnumInfo, 25)
+var file_dockwell_resource_v1alpha1_specs_proto_msgTypes = make([]protoimpl.MessageInfo, 123)
 var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(DesiredRunState)(0),              // 0: dockwell.resource.v1alpha1.DesiredRunState
 	(RolloutOrder)(0),                 // 1: dockwell.resource.v1alpha1.RolloutOrder
@@ -12419,307 +12723,315 @@ var file_dockwell_resource_v1alpha1_specs_proto_goTypes = []any{
 	(Encoding)(0),                     // 7: dockwell.resource.v1alpha1.Encoding
 	(RouteWay)(0),                     // 8: dockwell.resource.v1alpha1.RouteWay
 	(CatalogFormat)(0),                // 9: dockwell.resource.v1alpha1.CatalogFormat
-	(ConnectionReach)(0),              // 10: dockwell.resource.v1alpha1.ConnectionReach
-	(SmtpSecurity)(0),                 // 11: dockwell.resource.v1alpha1.SmtpSecurity
-	(LinkKind)(0),                     // 12: dockwell.resource.v1alpha1.LinkKind
-	(LinkFeature)(0),                  // 13: dockwell.resource.v1alpha1.LinkFeature
-	(LinkEngine)(0),                   // 14: dockwell.resource.v1alpha1.LinkEngine
-	(LinkPart)(0),                     // 15: dockwell.resource.v1alpha1.LinkPart
-	(ContainerLoggingMode)(0),         // 16: dockwell.resource.v1alpha1.ContainerLoggingMode
-	(AutoUpdate_Level)(0),             // 17: dockwell.resource.v1alpha1.AutoUpdate.Level
-	(ImageBuild_Builder)(0),           // 18: dockwell.resource.v1alpha1.ImageBuild.Builder
-	(BackupPolicy_Every)(0),           // 19: dockwell.resource.v1alpha1.BackupPolicy.Every
-	(BackupPolicy_Drill)(0),           // 20: dockwell.resource.v1alpha1.BackupPolicy.Drill
-	(AlertRule_Condition)(0),          // 21: dockwell.resource.v1alpha1.AlertRule.Condition
-	(AlertRule_Severity)(0),           // 22: dockwell.resource.v1alpha1.AlertRule.Severity
-	(AlertEmail_Security)(0),          // 23: dockwell.resource.v1alpha1.AlertEmail.Security
-	(*Container)(nil),                 // 24: dockwell.resource.v1alpha1.Container
-	(*Device)(nil),                    // 25: dockwell.resource.v1alpha1.Device
-	(*Gpus)(nil),                      // 26: dockwell.resource.v1alpha1.Gpus
-	(*Ulimit)(nil),                    // 27: dockwell.resource.v1alpha1.Ulimit
-	(*Tmpfs)(nil),                     // 28: dockwell.resource.v1alpha1.Tmpfs
-	(*Resources)(nil),                 // 29: dockwell.resource.v1alpha1.Resources
-	(*Rollout)(nil),                   // 30: dockwell.resource.v1alpha1.Rollout
-	(*Mount)(nil),                     // 31: dockwell.resource.v1alpha1.Mount
-	(*MountFile)(nil),                 // 32: dockwell.resource.v1alpha1.MountFile
-	(*Healthcheck)(nil),               // 33: dockwell.resource.v1alpha1.Healthcheck
-	(*HttpCheck)(nil),                 // 34: dockwell.resource.v1alpha1.HttpCheck
-	(*TcpCheck)(nil),                  // 35: dockwell.resource.v1alpha1.TcpCheck
-	(*PortMapping)(nil),               // 36: dockwell.resource.v1alpha1.PortMapping
-	(*FirewallRule)(nil),              // 37: dockwell.resource.v1alpha1.FirewallRule
-	(*FirewallPolicy)(nil),            // 38: dockwell.resource.v1alpha1.FirewallPolicy
-	(*Jail)(nil),                      // 39: dockwell.resource.v1alpha1.Jail
-	(*Project)(nil),                   // 40: dockwell.resource.v1alpha1.Project
-	(*Website)(nil),                   // 41: dockwell.resource.v1alpha1.Website
-	(*WebsitePhp)(nil),                // 42: dockwell.resource.v1alpha1.WebsitePhp
-	(*WebsiteFolder)(nil),             // 43: dockwell.resource.v1alpha1.WebsiteFolder
-	(*WebsiteProxy)(nil),              // 44: dockwell.resource.v1alpha1.WebsiteProxy
-	(*CatalogPin)(nil),                // 45: dockwell.resource.v1alpha1.CatalogPin
-	(*AppOwner)(nil),                  // 46: dockwell.resource.v1alpha1.AppOwner
-	(*OwnerRun)(nil),                  // 47: dockwell.resource.v1alpha1.OwnerRun
-	(*OwnerStep)(nil),                 // 48: dockwell.resource.v1alpha1.OwnerStep
-	(*OwnerCommand)(nil),              // 49: dockwell.resource.v1alpha1.OwnerCommand
-	(*OwnerRequest)(nil),              // 50: dockwell.resource.v1alpha1.OwnerRequest
-	(*OwnerCheck)(nil),                // 51: dockwell.resource.v1alpha1.OwnerCheck
-	(*PinnedNeed)(nil),                // 52: dockwell.resource.v1alpha1.PinnedNeed
-	(*Environment)(nil),               // 53: dockwell.resource.v1alpha1.Environment
-	(*Service)(nil),                   // 54: dockwell.resource.v1alpha1.Service
-	(*AutoUpdate)(nil),                // 55: dockwell.resource.v1alpha1.AutoUpdate
-	(*ImageBuild)(nil),                // 56: dockwell.resource.v1alpha1.ImageBuild
-	(*GitSource)(nil),                 // 57: dockwell.resource.v1alpha1.GitSource
-	(*Runtime)(nil),                   // 58: dockwell.resource.v1alpha1.Runtime
-	(*Variable)(nil),                  // 59: dockwell.resource.v1alpha1.Variable
-	(*Secret)(nil),                    // 60: dockwell.resource.v1alpha1.Secret
-	(*ValueFrom)(nil),                 // 61: dockwell.resource.v1alpha1.ValueFrom
-	(*ConnectionRef)(nil),             // 62: dockwell.resource.v1alpha1.ConnectionRef
-	(*ValueTemplate)(nil),             // 63: dockwell.resource.v1alpha1.ValueTemplate
-	(*TemplateName)(nil),              // 64: dockwell.resource.v1alpha1.TemplateName
-	(*ValueRef)(nil),                  // 65: dockwell.resource.v1alpha1.ValueRef
-	(*Volume)(nil),                    // 66: dockwell.resource.v1alpha1.Volume
-	(*DatabaseUser)(nil),              // 67: dockwell.resource.v1alpha1.DatabaseUser
-	(*DatabaseCopy)(nil),              // 68: dockwell.resource.v1alpha1.DatabaseCopy
-	(*BackupPolicy)(nil),              // 69: dockwell.resource.v1alpha1.BackupPolicy
-	(*BackupDestination)(nil),         // 70: dockwell.resource.v1alpha1.BackupDestination
-	(*Network)(nil),                   // 71: dockwell.resource.v1alpha1.Network
-	(*NetworkIPAM)(nil),               // 72: dockwell.resource.v1alpha1.NetworkIPAM
-	(*NetworkIPAMPool)(nil),           // 73: dockwell.resource.v1alpha1.NetworkIPAMPool
-	(*NetworkMember)(nil),             // 74: dockwell.resource.v1alpha1.NetworkMember
-	(*RouteSetup)(nil),                // 75: dockwell.resource.v1alpha1.RouteSetup
-	(*Route)(nil),                     // 76: dockwell.resource.v1alpha1.Route
-	(*RoutePublish)(nil),              // 77: dockwell.resource.v1alpha1.RoutePublish
-	(*TakeOver)(nil),                  // 78: dockwell.resource.v1alpha1.TakeOver
-	(*RouteRedirect)(nil),             // 79: dockwell.resource.v1alpha1.RouteRedirect
-	(*RouteAccess)(nil),               // 80: dockwell.resource.v1alpha1.RouteAccess
-	(*RouteSignIn)(nil),               // 81: dockwell.resource.v1alpha1.RouteSignIn
-	(*RouteSignInProvider)(nil),       // 82: dockwell.resource.v1alpha1.RouteSignInProvider
-	(*RouteUser)(nil),                 // 83: dockwell.resource.v1alpha1.RouteUser
-	(*CatalogSource)(nil),             // 84: dockwell.resource.v1alpha1.CatalogSource
-	(*Spec)(nil),                      // 85: dockwell.resource.v1alpha1.Spec
-	(*DnsCertificate)(nil),            // 86: dockwell.resource.v1alpha1.DnsCertificate
-	(*DnsProvider)(nil),               // 87: dockwell.resource.v1alpha1.DnsProvider
-	(*ConnectionSpec)(nil),            // 88: dockwell.resource.v1alpha1.ConnectionSpec
-	(*ConnectionS3)(nil),              // 89: dockwell.resource.v1alpha1.ConnectionS3
-	(*GivenNames)(nil),                // 90: dockwell.resource.v1alpha1.GivenNames
-	(*ConnectionSmtp)(nil),            // 91: dockwell.resource.v1alpha1.ConnectionSmtp
-	(*RegistryLogin)(nil),             // 92: dockwell.resource.v1alpha1.RegistryLogin
-	(*RegistryLoginEcr)(nil),          // 93: dockwell.resource.v1alpha1.RegistryLoginEcr
-	(*SigninProvider)(nil),            // 94: dockwell.resource.v1alpha1.SigninProvider
-	(*GitHubApp)(nil),                 // 95: dockwell.resource.v1alpha1.GitHubApp
-	(*GitHubInstallationReach)(nil),   // 96: dockwell.resource.v1alpha1.GitHubInstallationReach
-	(*Task)(nil),                      // 97: dockwell.resource.v1alpha1.Task
-	(*TaskShell)(nil),                 // 98: dockwell.resource.v1alpha1.TaskShell
-	(*TaskApp)(nil),                   // 99: dockwell.resource.v1alpha1.TaskApp
-	(*TaskRequest)(nil),               // 100: dockwell.resource.v1alpha1.TaskRequest
-	(*AlertRule)(nil),                 // 101: dockwell.resource.v1alpha1.AlertRule
-	(*AlertCheck)(nil),                // 102: dockwell.resource.v1alpha1.AlertCheck
-	(*AlertChannel)(nil),              // 103: dockwell.resource.v1alpha1.AlertChannel
-	(*AlertWebhook)(nil),              // 104: dockwell.resource.v1alpha1.AlertWebhook
-	(*AlertEmail)(nil),                // 105: dockwell.resource.v1alpha1.AlertEmail
-	(*AlertNtfy)(nil),                 // 106: dockwell.resource.v1alpha1.AlertNtfy
-	(*AlertSlack)(nil),                // 107: dockwell.resource.v1alpha1.AlertSlack
-	(*AlertDiscord)(nil),              // 108: dockwell.resource.v1alpha1.AlertDiscord
-	(*AlertTelegram)(nil),             // 109: dockwell.resource.v1alpha1.AlertTelegram
-	(*ServerHost)(nil),                // 110: dockwell.resource.v1alpha1.ServerHost
-	(*Link)(nil),                      // 111: dockwell.resource.v1alpha1.Link
-	(*LinkAccept)(nil),                // 112: dockwell.resource.v1alpha1.LinkAccept
-	(*LinkSet)(nil),                   // 113: dockwell.resource.v1alpha1.LinkSet
-	(*DockerDaemon)(nil),              // 114: dockwell.resource.v1alpha1.DockerDaemon
-	(*DockerRegistryMirrors)(nil),     // 115: dockwell.resource.v1alpha1.DockerRegistryMirrors
-	(*DockerDaemonLogging)(nil),       // 116: dockwell.resource.v1alpha1.DockerDaemonLogging
-	(*DockerDefaultAddressPools)(nil), // 117: dockwell.resource.v1alpha1.DockerDefaultAddressPools
-	(*DockerAddressPool)(nil),         // 118: dockwell.resource.v1alpha1.DockerAddressPool
-	(*ContainerLogging)(nil),          // 119: dockwell.resource.v1alpha1.ContainerLogging
-	nil,                               // 120: dockwell.resource.v1alpha1.Container.EnvEntry
-	nil,                               // 121: dockwell.resource.v1alpha1.Container.LabelsEntry
-	nil,                               // 122: dockwell.resource.v1alpha1.Container.SysctlsEntry
-	nil,                               // 123: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	nil,                               // 124: dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
-	nil,                               // 125: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry
-	nil,                               // 126: dockwell.resource.v1alpha1.CatalogPin.WrittenEntry
-	nil,                               // 127: dockwell.resource.v1alpha1.OwnerCommand.CaptureEntry
-	nil,                               // 128: dockwell.resource.v1alpha1.OwnerRequest.HeadersEntry
-	nil,                               // 129: dockwell.resource.v1alpha1.OwnerRequest.CaptureEntry
-	nil,                               // 130: dockwell.resource.v1alpha1.Service.VariablesEntry
-	nil,                               // 131: dockwell.resource.v1alpha1.Service.SecretsEntry
-	nil,                               // 132: dockwell.resource.v1alpha1.Service.RevisionsEntry
-	nil,                               // 133: dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
-	nil,                               // 134: dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
-	nil,                               // 135: dockwell.resource.v1alpha1.Runtime.WroteEntry
-	nil,                               // 136: dockwell.resource.v1alpha1.Variable.RevisionsEntry
-	nil,                               // 137: dockwell.resource.v1alpha1.Secret.RevisionsEntry
-	nil,                               // 138: dockwell.resource.v1alpha1.Volume.OptionsEntry
-	nil,                               // 139: dockwell.resource.v1alpha1.Volume.LabelsEntry
-	nil,                               // 140: dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
-	nil,                               // 141: dockwell.resource.v1alpha1.Network.OptionsEntry
-	nil,                               // 142: dockwell.resource.v1alpha1.Network.LabelsEntry
-	nil,                               // 143: dockwell.resource.v1alpha1.ServerHost.LabelsEntry
-	(*descriptorpb.FieldOptions)(nil), // 144: google.protobuf.FieldOptions
+	(ComposeTemplateInputKind)(0),     // 10: dockwell.resource.v1alpha1.ComposeTemplateInputKind
+	(ConnectionReach)(0),              // 11: dockwell.resource.v1alpha1.ConnectionReach
+	(SmtpSecurity)(0),                 // 12: dockwell.resource.v1alpha1.SmtpSecurity
+	(LinkKind)(0),                     // 13: dockwell.resource.v1alpha1.LinkKind
+	(LinkFeature)(0),                  // 14: dockwell.resource.v1alpha1.LinkFeature
+	(LinkEngine)(0),                   // 15: dockwell.resource.v1alpha1.LinkEngine
+	(LinkPart)(0),                     // 16: dockwell.resource.v1alpha1.LinkPart
+	(ContainerLoggingMode)(0),         // 17: dockwell.resource.v1alpha1.ContainerLoggingMode
+	(AutoUpdate_Level)(0),             // 18: dockwell.resource.v1alpha1.AutoUpdate.Level
+	(ImageBuild_Builder)(0),           // 19: dockwell.resource.v1alpha1.ImageBuild.Builder
+	(BackupPolicy_Every)(0),           // 20: dockwell.resource.v1alpha1.BackupPolicy.Every
+	(BackupPolicy_Drill)(0),           // 21: dockwell.resource.v1alpha1.BackupPolicy.Drill
+	(AlertRule_Condition)(0),          // 22: dockwell.resource.v1alpha1.AlertRule.Condition
+	(AlertRule_Severity)(0),           // 23: dockwell.resource.v1alpha1.AlertRule.Severity
+	(AlertEmail_Security)(0),          // 24: dockwell.resource.v1alpha1.AlertEmail.Security
+	(*Container)(nil),                 // 25: dockwell.resource.v1alpha1.Container
+	(*Device)(nil),                    // 26: dockwell.resource.v1alpha1.Device
+	(*Gpus)(nil),                      // 27: dockwell.resource.v1alpha1.Gpus
+	(*Ulimit)(nil),                    // 28: dockwell.resource.v1alpha1.Ulimit
+	(*Tmpfs)(nil),                     // 29: dockwell.resource.v1alpha1.Tmpfs
+	(*Resources)(nil),                 // 30: dockwell.resource.v1alpha1.Resources
+	(*Rollout)(nil),                   // 31: dockwell.resource.v1alpha1.Rollout
+	(*Mount)(nil),                     // 32: dockwell.resource.v1alpha1.Mount
+	(*MountFile)(nil),                 // 33: dockwell.resource.v1alpha1.MountFile
+	(*Healthcheck)(nil),               // 34: dockwell.resource.v1alpha1.Healthcheck
+	(*HttpCheck)(nil),                 // 35: dockwell.resource.v1alpha1.HttpCheck
+	(*TcpCheck)(nil),                  // 36: dockwell.resource.v1alpha1.TcpCheck
+	(*PortMapping)(nil),               // 37: dockwell.resource.v1alpha1.PortMapping
+	(*FirewallRule)(nil),              // 38: dockwell.resource.v1alpha1.FirewallRule
+	(*FirewallPolicy)(nil),            // 39: dockwell.resource.v1alpha1.FirewallPolicy
+	(*Jail)(nil),                      // 40: dockwell.resource.v1alpha1.Jail
+	(*Project)(nil),                   // 41: dockwell.resource.v1alpha1.Project
+	(*Website)(nil),                   // 42: dockwell.resource.v1alpha1.Website
+	(*WebsitePhp)(nil),                // 43: dockwell.resource.v1alpha1.WebsitePhp
+	(*WebsiteFolder)(nil),             // 44: dockwell.resource.v1alpha1.WebsiteFolder
+	(*WebsiteProxy)(nil),              // 45: dockwell.resource.v1alpha1.WebsiteProxy
+	(*CatalogPin)(nil),                // 46: dockwell.resource.v1alpha1.CatalogPin
+	(*AppOwner)(nil),                  // 47: dockwell.resource.v1alpha1.AppOwner
+	(*OwnerRun)(nil),                  // 48: dockwell.resource.v1alpha1.OwnerRun
+	(*OwnerStep)(nil),                 // 49: dockwell.resource.v1alpha1.OwnerStep
+	(*OwnerCommand)(nil),              // 50: dockwell.resource.v1alpha1.OwnerCommand
+	(*OwnerRequest)(nil),              // 51: dockwell.resource.v1alpha1.OwnerRequest
+	(*OwnerCheck)(nil),                // 52: dockwell.resource.v1alpha1.OwnerCheck
+	(*PinnedNeed)(nil),                // 53: dockwell.resource.v1alpha1.PinnedNeed
+	(*Environment)(nil),               // 54: dockwell.resource.v1alpha1.Environment
+	(*Service)(nil),                   // 55: dockwell.resource.v1alpha1.Service
+	(*AutoUpdate)(nil),                // 56: dockwell.resource.v1alpha1.AutoUpdate
+	(*ImageBuild)(nil),                // 57: dockwell.resource.v1alpha1.ImageBuild
+	(*GitSource)(nil),                 // 58: dockwell.resource.v1alpha1.GitSource
+	(*Runtime)(nil),                   // 59: dockwell.resource.v1alpha1.Runtime
+	(*Variable)(nil),                  // 60: dockwell.resource.v1alpha1.Variable
+	(*Secret)(nil),                    // 61: dockwell.resource.v1alpha1.Secret
+	(*ValueFrom)(nil),                 // 62: dockwell.resource.v1alpha1.ValueFrom
+	(*ConnectionRef)(nil),             // 63: dockwell.resource.v1alpha1.ConnectionRef
+	(*ValueTemplate)(nil),             // 64: dockwell.resource.v1alpha1.ValueTemplate
+	(*TemplateName)(nil),              // 65: dockwell.resource.v1alpha1.TemplateName
+	(*ValueRef)(nil),                  // 66: dockwell.resource.v1alpha1.ValueRef
+	(*Volume)(nil),                    // 67: dockwell.resource.v1alpha1.Volume
+	(*DatabaseUser)(nil),              // 68: dockwell.resource.v1alpha1.DatabaseUser
+	(*DatabaseCopy)(nil),              // 69: dockwell.resource.v1alpha1.DatabaseCopy
+	(*BackupPolicy)(nil),              // 70: dockwell.resource.v1alpha1.BackupPolicy
+	(*BackupDestination)(nil),         // 71: dockwell.resource.v1alpha1.BackupDestination
+	(*Network)(nil),                   // 72: dockwell.resource.v1alpha1.Network
+	(*NetworkIPAM)(nil),               // 73: dockwell.resource.v1alpha1.NetworkIPAM
+	(*NetworkIPAMPool)(nil),           // 74: dockwell.resource.v1alpha1.NetworkIPAMPool
+	(*NetworkMember)(nil),             // 75: dockwell.resource.v1alpha1.NetworkMember
+	(*RouteSetup)(nil),                // 76: dockwell.resource.v1alpha1.RouteSetup
+	(*Route)(nil),                     // 77: dockwell.resource.v1alpha1.Route
+	(*RoutePublish)(nil),              // 78: dockwell.resource.v1alpha1.RoutePublish
+	(*TakeOver)(nil),                  // 79: dockwell.resource.v1alpha1.TakeOver
+	(*RouteRedirect)(nil),             // 80: dockwell.resource.v1alpha1.RouteRedirect
+	(*RouteAccess)(nil),               // 81: dockwell.resource.v1alpha1.RouteAccess
+	(*RouteSignIn)(nil),               // 82: dockwell.resource.v1alpha1.RouteSignIn
+	(*RouteSignInProvider)(nil),       // 83: dockwell.resource.v1alpha1.RouteSignInProvider
+	(*RouteUser)(nil),                 // 84: dockwell.resource.v1alpha1.RouteUser
+	(*CatalogSource)(nil),             // 85: dockwell.resource.v1alpha1.CatalogSource
+	(*ComposeTemplate)(nil),           // 86: dockwell.resource.v1alpha1.ComposeTemplate
+	(*ComposeTemplateInput)(nil),      // 87: dockwell.resource.v1alpha1.ComposeTemplateInput
+	(*ComposeTemplateGit)(nil),        // 88: dockwell.resource.v1alpha1.ComposeTemplateGit
+	(*Spec)(nil),                      // 89: dockwell.resource.v1alpha1.Spec
+	(*DnsCertificate)(nil),            // 90: dockwell.resource.v1alpha1.DnsCertificate
+	(*DnsProvider)(nil),               // 91: dockwell.resource.v1alpha1.DnsProvider
+	(*ConnectionSpec)(nil),            // 92: dockwell.resource.v1alpha1.ConnectionSpec
+	(*ConnectionS3)(nil),              // 93: dockwell.resource.v1alpha1.ConnectionS3
+	(*GivenNames)(nil),                // 94: dockwell.resource.v1alpha1.GivenNames
+	(*ConnectionSmtp)(nil),            // 95: dockwell.resource.v1alpha1.ConnectionSmtp
+	(*RegistryLogin)(nil),             // 96: dockwell.resource.v1alpha1.RegistryLogin
+	(*RegistryLoginEcr)(nil),          // 97: dockwell.resource.v1alpha1.RegistryLoginEcr
+	(*SigninProvider)(nil),            // 98: dockwell.resource.v1alpha1.SigninProvider
+	(*GitHubApp)(nil),                 // 99: dockwell.resource.v1alpha1.GitHubApp
+	(*GitHubInstallationReach)(nil),   // 100: dockwell.resource.v1alpha1.GitHubInstallationReach
+	(*Task)(nil),                      // 101: dockwell.resource.v1alpha1.Task
+	(*TaskShell)(nil),                 // 102: dockwell.resource.v1alpha1.TaskShell
+	(*TaskApp)(nil),                   // 103: dockwell.resource.v1alpha1.TaskApp
+	(*TaskRequest)(nil),               // 104: dockwell.resource.v1alpha1.TaskRequest
+	(*AlertRule)(nil),                 // 105: dockwell.resource.v1alpha1.AlertRule
+	(*AlertCheck)(nil),                // 106: dockwell.resource.v1alpha1.AlertCheck
+	(*AlertChannel)(nil),              // 107: dockwell.resource.v1alpha1.AlertChannel
+	(*AlertWebhook)(nil),              // 108: dockwell.resource.v1alpha1.AlertWebhook
+	(*AlertEmail)(nil),                // 109: dockwell.resource.v1alpha1.AlertEmail
+	(*AlertNtfy)(nil),                 // 110: dockwell.resource.v1alpha1.AlertNtfy
+	(*AlertSlack)(nil),                // 111: dockwell.resource.v1alpha1.AlertSlack
+	(*AlertDiscord)(nil),              // 112: dockwell.resource.v1alpha1.AlertDiscord
+	(*AlertTelegram)(nil),             // 113: dockwell.resource.v1alpha1.AlertTelegram
+	(*ServerHost)(nil),                // 114: dockwell.resource.v1alpha1.ServerHost
+	(*Link)(nil),                      // 115: dockwell.resource.v1alpha1.Link
+	(*LinkAccept)(nil),                // 116: dockwell.resource.v1alpha1.LinkAccept
+	(*LinkSet)(nil),                   // 117: dockwell.resource.v1alpha1.LinkSet
+	(*DockerDaemon)(nil),              // 118: dockwell.resource.v1alpha1.DockerDaemon
+	(*DockerRegistryMirrors)(nil),     // 119: dockwell.resource.v1alpha1.DockerRegistryMirrors
+	(*DockerDaemonLogging)(nil),       // 120: dockwell.resource.v1alpha1.DockerDaemonLogging
+	(*DockerDefaultAddressPools)(nil), // 121: dockwell.resource.v1alpha1.DockerDefaultAddressPools
+	(*DockerAddressPool)(nil),         // 122: dockwell.resource.v1alpha1.DockerAddressPool
+	(*ContainerLogging)(nil),          // 123: dockwell.resource.v1alpha1.ContainerLogging
+	nil,                               // 124: dockwell.resource.v1alpha1.Container.EnvEntry
+	nil,                               // 125: dockwell.resource.v1alpha1.Container.LabelsEntry
+	nil,                               // 126: dockwell.resource.v1alpha1.Container.SysctlsEntry
+	nil,                               // 127: dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	nil,                               // 128: dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
+	nil,                               // 129: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry
+	nil,                               // 130: dockwell.resource.v1alpha1.CatalogPin.WrittenEntry
+	nil,                               // 131: dockwell.resource.v1alpha1.OwnerCommand.CaptureEntry
+	nil,                               // 132: dockwell.resource.v1alpha1.OwnerRequest.HeadersEntry
+	nil,                               // 133: dockwell.resource.v1alpha1.OwnerRequest.CaptureEntry
+	nil,                               // 134: dockwell.resource.v1alpha1.Service.VariablesEntry
+	nil,                               // 135: dockwell.resource.v1alpha1.Service.SecretsEntry
+	nil,                               // 136: dockwell.resource.v1alpha1.Service.RevisionsEntry
+	nil,                               // 137: dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
+	nil,                               // 138: dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
+	nil,                               // 139: dockwell.resource.v1alpha1.Runtime.WroteEntry
+	nil,                               // 140: dockwell.resource.v1alpha1.Variable.RevisionsEntry
+	nil,                               // 141: dockwell.resource.v1alpha1.Secret.RevisionsEntry
+	nil,                               // 142: dockwell.resource.v1alpha1.Volume.OptionsEntry
+	nil,                               // 143: dockwell.resource.v1alpha1.Volume.LabelsEntry
+	nil,                               // 144: dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
+	nil,                               // 145: dockwell.resource.v1alpha1.Network.OptionsEntry
+	nil,                               // 146: dockwell.resource.v1alpha1.Network.LabelsEntry
+	nil,                               // 147: dockwell.resource.v1alpha1.ServerHost.LabelsEntry
+	(*descriptorpb.FieldOptions)(nil), // 148: google.protobuf.FieldOptions
 }
 var file_dockwell_resource_v1alpha1_specs_proto_depIdxs = []int32{
-	120, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
-	36,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
+	124, // 0: dockwell.resource.v1alpha1.Container.env:type_name -> dockwell.resource.v1alpha1.Container.EnvEntry
+	37,  // 1: dockwell.resource.v1alpha1.Container.ports:type_name -> dockwell.resource.v1alpha1.PortMapping
 	3,   // 2: dockwell.resource.v1alpha1.Container.restart:type_name -> dockwell.resource.v1alpha1.RestartPolicy
-	121, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
-	31,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
-	33,  // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
-	30,  // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
-	29,  // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
-	28,  // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
-	27,  // 9: dockwell.resource.v1alpha1.Container.ulimits:type_name -> dockwell.resource.v1alpha1.Ulimit
-	25,  // 10: dockwell.resource.v1alpha1.Container.devices:type_name -> dockwell.resource.v1alpha1.Device
-	26,  // 11: dockwell.resource.v1alpha1.Container.gpus:type_name -> dockwell.resource.v1alpha1.Gpus
-	122, // 12: dockwell.resource.v1alpha1.Container.sysctls:type_name -> dockwell.resource.v1alpha1.Container.SysctlsEntry
+	125, // 3: dockwell.resource.v1alpha1.Container.labels:type_name -> dockwell.resource.v1alpha1.Container.LabelsEntry
+	32,  // 4: dockwell.resource.v1alpha1.Container.mounts:type_name -> dockwell.resource.v1alpha1.Mount
+	34,  // 5: dockwell.resource.v1alpha1.Container.healthcheck:type_name -> dockwell.resource.v1alpha1.Healthcheck
+	31,  // 6: dockwell.resource.v1alpha1.Container.rollout:type_name -> dockwell.resource.v1alpha1.Rollout
+	30,  // 7: dockwell.resource.v1alpha1.Container.resources:type_name -> dockwell.resource.v1alpha1.Resources
+	29,  // 8: dockwell.resource.v1alpha1.Container.tmpfs:type_name -> dockwell.resource.v1alpha1.Tmpfs
+	28,  // 9: dockwell.resource.v1alpha1.Container.ulimits:type_name -> dockwell.resource.v1alpha1.Ulimit
+	26,  // 10: dockwell.resource.v1alpha1.Container.devices:type_name -> dockwell.resource.v1alpha1.Device
+	27,  // 11: dockwell.resource.v1alpha1.Container.gpus:type_name -> dockwell.resource.v1alpha1.Gpus
+	126, // 12: dockwell.resource.v1alpha1.Container.sysctls:type_name -> dockwell.resource.v1alpha1.Container.SysctlsEntry
 	0,   // 13: dockwell.resource.v1alpha1.Container.desired_run_state:type_name -> dockwell.resource.v1alpha1.DesiredRunState
-	119, // 14: dockwell.resource.v1alpha1.Container.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
+	123, // 14: dockwell.resource.v1alpha1.Container.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
 	1,   // 15: dockwell.resource.v1alpha1.Rollout.order:type_name -> dockwell.resource.v1alpha1.RolloutOrder
-	32,  // 16: dockwell.resource.v1alpha1.Mount.file:type_name -> dockwell.resource.v1alpha1.MountFile
+	33,  // 16: dockwell.resource.v1alpha1.Mount.file:type_name -> dockwell.resource.v1alpha1.MountFile
 	2,   // 17: dockwell.resource.v1alpha1.Mount.relabel:type_name -> dockwell.resource.v1alpha1.Relabel
-	34,  // 18: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
-	35,  // 19: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
+	35,  // 18: dockwell.resource.v1alpha1.Healthcheck.http:type_name -> dockwell.resource.v1alpha1.HttpCheck
+	36,  // 19: dockwell.resource.v1alpha1.Healthcheck.tcp:type_name -> dockwell.resource.v1alpha1.TcpCheck
 	4,   // 20: dockwell.resource.v1alpha1.PortMapping.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
 	5,   // 21: dockwell.resource.v1alpha1.FirewallRule.action:type_name -> dockwell.resource.v1alpha1.FirewallAction
 	4,   // 22: dockwell.resource.v1alpha1.FirewallRule.protocol:type_name -> dockwell.resource.v1alpha1.Protocol
-	45,  // 23: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
-	41,  // 24: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
-	44,  // 25: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
-	43,  // 26: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
-	42,  // 27: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
-	123, // 28: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
-	124, // 29: dockwell.resource.v1alpha1.CatalogPin.companions:type_name -> dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
-	125, // 30: dockwell.resource.v1alpha1.CatalogPin.needs:type_name -> dockwell.resource.v1alpha1.CatalogPin.NeedsEntry
-	126, // 31: dockwell.resource.v1alpha1.CatalogPin.written:type_name -> dockwell.resource.v1alpha1.CatalogPin.WrittenEntry
-	90,  // 32: dockwell.resource.v1alpha1.CatalogPin.given:type_name -> dockwell.resource.v1alpha1.GivenNames
-	48,  // 33: dockwell.resource.v1alpha1.OwnerRun.steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
-	51,  // 34: dockwell.resource.v1alpha1.OwnerRun.done:type_name -> dockwell.resource.v1alpha1.OwnerCheck
-	48,  // 35: dockwell.resource.v1alpha1.OwnerRun.signups_steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
-	51,  // 36: dockwell.resource.v1alpha1.OwnerRun.signups_check:type_name -> dockwell.resource.v1alpha1.OwnerCheck
-	49,  // 37: dockwell.resource.v1alpha1.OwnerStep.command:type_name -> dockwell.resource.v1alpha1.OwnerCommand
-	50,  // 38: dockwell.resource.v1alpha1.OwnerStep.request:type_name -> dockwell.resource.v1alpha1.OwnerRequest
-	51,  // 39: dockwell.resource.v1alpha1.OwnerStep.unless:type_name -> dockwell.resource.v1alpha1.OwnerCheck
-	127, // 40: dockwell.resource.v1alpha1.OwnerCommand.capture:type_name -> dockwell.resource.v1alpha1.OwnerCommand.CaptureEntry
-	128, // 41: dockwell.resource.v1alpha1.OwnerRequest.headers:type_name -> dockwell.resource.v1alpha1.OwnerRequest.HeadersEntry
-	129, // 42: dockwell.resource.v1alpha1.OwnerRequest.capture:type_name -> dockwell.resource.v1alpha1.OwnerRequest.CaptureEntry
-	50,  // 43: dockwell.resource.v1alpha1.OwnerCheck.request:type_name -> dockwell.resource.v1alpha1.OwnerRequest
-	49,  // 44: dockwell.resource.v1alpha1.OwnerCheck.command:type_name -> dockwell.resource.v1alpha1.OwnerCommand
-	50,  // 45: dockwell.resource.v1alpha1.OwnerCheck.before:type_name -> dockwell.resource.v1alpha1.OwnerRequest
-	14,  // 46: dockwell.resource.v1alpha1.PinnedNeed.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
+	46,  // 23: dockwell.resource.v1alpha1.Project.catalog:type_name -> dockwell.resource.v1alpha1.CatalogPin
+	42,  // 24: dockwell.resource.v1alpha1.Project.website:type_name -> dockwell.resource.v1alpha1.Website
+	45,  // 25: dockwell.resource.v1alpha1.Website.proxy:type_name -> dockwell.resource.v1alpha1.WebsiteProxy
+	44,  // 26: dockwell.resource.v1alpha1.Website.folder:type_name -> dockwell.resource.v1alpha1.WebsiteFolder
+	43,  // 27: dockwell.resource.v1alpha1.Website.php:type_name -> dockwell.resource.v1alpha1.WebsitePhp
+	127, // 28: dockwell.resource.v1alpha1.CatalogPin.values:type_name -> dockwell.resource.v1alpha1.CatalogPin.ValuesEntry
+	128, // 29: dockwell.resource.v1alpha1.CatalogPin.companions:type_name -> dockwell.resource.v1alpha1.CatalogPin.CompanionsEntry
+	129, // 30: dockwell.resource.v1alpha1.CatalogPin.needs:type_name -> dockwell.resource.v1alpha1.CatalogPin.NeedsEntry
+	130, // 31: dockwell.resource.v1alpha1.CatalogPin.written:type_name -> dockwell.resource.v1alpha1.CatalogPin.WrittenEntry
+	94,  // 32: dockwell.resource.v1alpha1.CatalogPin.given:type_name -> dockwell.resource.v1alpha1.GivenNames
+	49,  // 33: dockwell.resource.v1alpha1.OwnerRun.steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
+	52,  // 34: dockwell.resource.v1alpha1.OwnerRun.done:type_name -> dockwell.resource.v1alpha1.OwnerCheck
+	49,  // 35: dockwell.resource.v1alpha1.OwnerRun.signups_steps:type_name -> dockwell.resource.v1alpha1.OwnerStep
+	52,  // 36: dockwell.resource.v1alpha1.OwnerRun.signups_check:type_name -> dockwell.resource.v1alpha1.OwnerCheck
+	50,  // 37: dockwell.resource.v1alpha1.OwnerStep.command:type_name -> dockwell.resource.v1alpha1.OwnerCommand
+	51,  // 38: dockwell.resource.v1alpha1.OwnerStep.request:type_name -> dockwell.resource.v1alpha1.OwnerRequest
+	52,  // 39: dockwell.resource.v1alpha1.OwnerStep.unless:type_name -> dockwell.resource.v1alpha1.OwnerCheck
+	131, // 40: dockwell.resource.v1alpha1.OwnerCommand.capture:type_name -> dockwell.resource.v1alpha1.OwnerCommand.CaptureEntry
+	132, // 41: dockwell.resource.v1alpha1.OwnerRequest.headers:type_name -> dockwell.resource.v1alpha1.OwnerRequest.HeadersEntry
+	133, // 42: dockwell.resource.v1alpha1.OwnerRequest.capture:type_name -> dockwell.resource.v1alpha1.OwnerRequest.CaptureEntry
+	51,  // 43: dockwell.resource.v1alpha1.OwnerCheck.request:type_name -> dockwell.resource.v1alpha1.OwnerRequest
+	50,  // 44: dockwell.resource.v1alpha1.OwnerCheck.command:type_name -> dockwell.resource.v1alpha1.OwnerCommand
+	51,  // 45: dockwell.resource.v1alpha1.OwnerCheck.before:type_name -> dockwell.resource.v1alpha1.OwnerRequest
+	15,  // 46: dockwell.resource.v1alpha1.PinnedNeed.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
 	6,   // 47: dockwell.resource.v1alpha1.Environment.protection:type_name -> dockwell.resource.v1alpha1.Protection
-	24,  // 48: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
-	130, // 49: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
-	131, // 50: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
-	132, // 51: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
-	56,  // 52: dockwell.resource.v1alpha1.Service.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
-	58,  // 53: dockwell.resource.v1alpha1.Service.runtime:type_name -> dockwell.resource.v1alpha1.Runtime
-	55,  // 54: dockwell.resource.v1alpha1.Service.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
-	17,  // 55: dockwell.resource.v1alpha1.AutoUpdate.level:type_name -> dockwell.resource.v1alpha1.AutoUpdate.Level
-	57,  // 56: dockwell.resource.v1alpha1.ImageBuild.git:type_name -> dockwell.resource.v1alpha1.GitSource
-	133, // 57: dockwell.resource.v1alpha1.ImageBuild.args:type_name -> dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
-	134, // 58: dockwell.resource.v1alpha1.ImageBuild.secrets:type_name -> dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
-	18,  // 59: dockwell.resource.v1alpha1.ImageBuild.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
-	135, // 60: dockwell.resource.v1alpha1.Runtime.wrote:type_name -> dockwell.resource.v1alpha1.Runtime.WroteEntry
-	61,  // 61: dockwell.resource.v1alpha1.Variable.from:type_name -> dockwell.resource.v1alpha1.ValueFrom
-	136, // 62: dockwell.resource.v1alpha1.Variable.revisions:type_name -> dockwell.resource.v1alpha1.Variable.RevisionsEntry
-	61,  // 63: dockwell.resource.v1alpha1.Secret.from:type_name -> dockwell.resource.v1alpha1.ValueFrom
-	137, // 64: dockwell.resource.v1alpha1.Secret.revisions:type_name -> dockwell.resource.v1alpha1.Secret.RevisionsEntry
-	63,  // 65: dockwell.resource.v1alpha1.ValueFrom.template:type_name -> dockwell.resource.v1alpha1.ValueTemplate
-	65,  // 66: dockwell.resource.v1alpha1.ValueFrom.value:type_name -> dockwell.resource.v1alpha1.ValueRef
-	62,  // 67: dockwell.resource.v1alpha1.ValueFrom.connection:type_name -> dockwell.resource.v1alpha1.ConnectionRef
-	15,  // 68: dockwell.resource.v1alpha1.ConnectionRef.part:type_name -> dockwell.resource.v1alpha1.LinkPart
-	64,  // 69: dockwell.resource.v1alpha1.ValueTemplate.names:type_name -> dockwell.resource.v1alpha1.TemplateName
+	25,  // 48: dockwell.resource.v1alpha1.Service.app:type_name -> dockwell.resource.v1alpha1.Container
+	134, // 49: dockwell.resource.v1alpha1.Service.variables:type_name -> dockwell.resource.v1alpha1.Service.VariablesEntry
+	135, // 50: dockwell.resource.v1alpha1.Service.secrets:type_name -> dockwell.resource.v1alpha1.Service.SecretsEntry
+	136, // 51: dockwell.resource.v1alpha1.Service.revisions:type_name -> dockwell.resource.v1alpha1.Service.RevisionsEntry
+	57,  // 52: dockwell.resource.v1alpha1.Service.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
+	59,  // 53: dockwell.resource.v1alpha1.Service.runtime:type_name -> dockwell.resource.v1alpha1.Runtime
+	56,  // 54: dockwell.resource.v1alpha1.Service.auto_update:type_name -> dockwell.resource.v1alpha1.AutoUpdate
+	18,  // 55: dockwell.resource.v1alpha1.AutoUpdate.level:type_name -> dockwell.resource.v1alpha1.AutoUpdate.Level
+	58,  // 56: dockwell.resource.v1alpha1.ImageBuild.git:type_name -> dockwell.resource.v1alpha1.GitSource
+	137, // 57: dockwell.resource.v1alpha1.ImageBuild.args:type_name -> dockwell.resource.v1alpha1.ImageBuild.ArgsEntry
+	138, // 58: dockwell.resource.v1alpha1.ImageBuild.secrets:type_name -> dockwell.resource.v1alpha1.ImageBuild.SecretsEntry
+	19,  // 59: dockwell.resource.v1alpha1.ImageBuild.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
+	139, // 60: dockwell.resource.v1alpha1.Runtime.wrote:type_name -> dockwell.resource.v1alpha1.Runtime.WroteEntry
+	62,  // 61: dockwell.resource.v1alpha1.Variable.from:type_name -> dockwell.resource.v1alpha1.ValueFrom
+	140, // 62: dockwell.resource.v1alpha1.Variable.revisions:type_name -> dockwell.resource.v1alpha1.Variable.RevisionsEntry
+	62,  // 63: dockwell.resource.v1alpha1.Secret.from:type_name -> dockwell.resource.v1alpha1.ValueFrom
+	141, // 64: dockwell.resource.v1alpha1.Secret.revisions:type_name -> dockwell.resource.v1alpha1.Secret.RevisionsEntry
+	64,  // 65: dockwell.resource.v1alpha1.ValueFrom.template:type_name -> dockwell.resource.v1alpha1.ValueTemplate
+	66,  // 66: dockwell.resource.v1alpha1.ValueFrom.value:type_name -> dockwell.resource.v1alpha1.ValueRef
+	63,  // 67: dockwell.resource.v1alpha1.ValueFrom.connection:type_name -> dockwell.resource.v1alpha1.ConnectionRef
+	16,  // 68: dockwell.resource.v1alpha1.ConnectionRef.part:type_name -> dockwell.resource.v1alpha1.LinkPart
+	65,  // 69: dockwell.resource.v1alpha1.ValueTemplate.names:type_name -> dockwell.resource.v1alpha1.TemplateName
 	7,   // 70: dockwell.resource.v1alpha1.TemplateName.encoding:type_name -> dockwell.resource.v1alpha1.Encoding
-	138, // 71: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
-	139, // 72: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
-	140, // 73: dockwell.resource.v1alpha1.DatabaseUser.revisions:type_name -> dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
-	68,  // 74: dockwell.resource.v1alpha1.DatabaseUser.copy_from:type_name -> dockwell.resource.v1alpha1.DatabaseCopy
-	19,  // 75: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
-	20,  // 76: dockwell.resource.v1alpha1.BackupPolicy.drill:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Drill
-	141, // 77: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
-	142, // 78: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
-	74,  // 79: dockwell.resource.v1alpha1.Network.members:type_name -> dockwell.resource.v1alpha1.NetworkMember
-	72,  // 80: dockwell.resource.v1alpha1.Network.ipam:type_name -> dockwell.resource.v1alpha1.NetworkIPAM
-	73,  // 81: dockwell.resource.v1alpha1.NetworkIPAM.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
-	75,  // 82: dockwell.resource.v1alpha1.Route.setup:type_name -> dockwell.resource.v1alpha1.RouteSetup
-	80,  // 83: dockwell.resource.v1alpha1.Route.access:type_name -> dockwell.resource.v1alpha1.RouteAccess
-	79,  // 84: dockwell.resource.v1alpha1.Route.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
-	77,  // 85: dockwell.resource.v1alpha1.Route.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	142, // 71: dockwell.resource.v1alpha1.Volume.options:type_name -> dockwell.resource.v1alpha1.Volume.OptionsEntry
+	143, // 72: dockwell.resource.v1alpha1.Volume.labels:type_name -> dockwell.resource.v1alpha1.Volume.LabelsEntry
+	144, // 73: dockwell.resource.v1alpha1.DatabaseUser.revisions:type_name -> dockwell.resource.v1alpha1.DatabaseUser.RevisionsEntry
+	69,  // 74: dockwell.resource.v1alpha1.DatabaseUser.copy_from:type_name -> dockwell.resource.v1alpha1.DatabaseCopy
+	20,  // 75: dockwell.resource.v1alpha1.BackupPolicy.every:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Every
+	21,  // 76: dockwell.resource.v1alpha1.BackupPolicy.drill:type_name -> dockwell.resource.v1alpha1.BackupPolicy.Drill
+	145, // 77: dockwell.resource.v1alpha1.Network.options:type_name -> dockwell.resource.v1alpha1.Network.OptionsEntry
+	146, // 78: dockwell.resource.v1alpha1.Network.labels:type_name -> dockwell.resource.v1alpha1.Network.LabelsEntry
+	75,  // 79: dockwell.resource.v1alpha1.Network.members:type_name -> dockwell.resource.v1alpha1.NetworkMember
+	73,  // 80: dockwell.resource.v1alpha1.Network.ipam:type_name -> dockwell.resource.v1alpha1.NetworkIPAM
+	74,  // 81: dockwell.resource.v1alpha1.NetworkIPAM.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
+	76,  // 82: dockwell.resource.v1alpha1.Route.setup:type_name -> dockwell.resource.v1alpha1.RouteSetup
+	81,  // 83: dockwell.resource.v1alpha1.Route.access:type_name -> dockwell.resource.v1alpha1.RouteAccess
+	80,  // 84: dockwell.resource.v1alpha1.Route.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	78,  // 85: dockwell.resource.v1alpha1.Route.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
 	8,   // 86: dockwell.resource.v1alpha1.RoutePublish.way:type_name -> dockwell.resource.v1alpha1.RouteWay
-	78,  // 87: dockwell.resource.v1alpha1.RoutePublish.takes_over:type_name -> dockwell.resource.v1alpha1.TakeOver
-	83,  // 88: dockwell.resource.v1alpha1.RouteAccess.users:type_name -> dockwell.resource.v1alpha1.RouteUser
-	81,  // 89: dockwell.resource.v1alpha1.RouteAccess.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
-	82,  // 90: dockwell.resource.v1alpha1.RouteSignIn.filled:type_name -> dockwell.resource.v1alpha1.RouteSignInProvider
+	79,  // 87: dockwell.resource.v1alpha1.RoutePublish.takes_over:type_name -> dockwell.resource.v1alpha1.TakeOver
+	84,  // 88: dockwell.resource.v1alpha1.RouteAccess.users:type_name -> dockwell.resource.v1alpha1.RouteUser
+	82,  // 89: dockwell.resource.v1alpha1.RouteAccess.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
+	83,  // 90: dockwell.resource.v1alpha1.RouteSignIn.filled:type_name -> dockwell.resource.v1alpha1.RouteSignInProvider
 	9,   // 91: dockwell.resource.v1alpha1.CatalogSource.format:type_name -> dockwell.resource.v1alpha1.CatalogFormat
-	114, // 92: dockwell.resource.v1alpha1.Spec.docker_daemon:type_name -> dockwell.resource.v1alpha1.DockerDaemon
-	40,  // 93: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
-	53,  // 94: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
-	54,  // 95: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
-	24,  // 96: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
-	37,  // 97: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
-	38,  // 98: dockwell.resource.v1alpha1.Spec.firewall_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
-	39,  // 99: dockwell.resource.v1alpha1.Spec.fail2ban_jail:type_name -> dockwell.resource.v1alpha1.Jail
-	66,  // 100: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
-	71,  // 101: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
-	59,  // 102: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
-	60,  // 103: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
-	76,  // 104: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
-	69,  // 105: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
-	70,  // 106: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
-	67,  // 107: dockwell.resource.v1alpha1.Spec.database_user:type_name -> dockwell.resource.v1alpha1.DatabaseUser
-	101, // 108: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
-	103, // 109: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
-	102, // 110: dockwell.resource.v1alpha1.Spec.alert_check:type_name -> dockwell.resource.v1alpha1.AlertCheck
-	84,  // 111: dockwell.resource.v1alpha1.Spec.catalog_source:type_name -> dockwell.resource.v1alpha1.CatalogSource
-	110, // 112: dockwell.resource.v1alpha1.Spec.server_host:type_name -> dockwell.resource.v1alpha1.ServerHost
-	97,  // 113: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
-	46,  // 114: dockwell.resource.v1alpha1.Spec.app_owner:type_name -> dockwell.resource.v1alpha1.AppOwner
-	111, // 115: dockwell.resource.v1alpha1.Spec.link:type_name -> dockwell.resource.v1alpha1.Link
-	92,  // 116: dockwell.resource.v1alpha1.Spec.registry_login:type_name -> dockwell.resource.v1alpha1.RegistryLogin
-	88,  // 117: dockwell.resource.v1alpha1.Spec.connection:type_name -> dockwell.resource.v1alpha1.ConnectionSpec
-	87,  // 118: dockwell.resource.v1alpha1.Spec.dns_provider:type_name -> dockwell.resource.v1alpha1.DnsProvider
-	86,  // 119: dockwell.resource.v1alpha1.Spec.certificate:type_name -> dockwell.resource.v1alpha1.DnsCertificate
-	94,  // 120: dockwell.resource.v1alpha1.Spec.signin_provider:type_name -> dockwell.resource.v1alpha1.SigninProvider
-	95,  // 121: dockwell.resource.v1alpha1.Spec.github_app:type_name -> dockwell.resource.v1alpha1.GitHubApp
-	12,  // 122: dockwell.resource.v1alpha1.ConnectionSpec.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
-	89,  // 123: dockwell.resource.v1alpha1.ConnectionSpec.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
-	10,  // 124: dockwell.resource.v1alpha1.ConnectionSpec.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
-	91,  // 125: dockwell.resource.v1alpha1.ConnectionSpec.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
-	11,  // 126: dockwell.resource.v1alpha1.ConnectionSmtp.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
-	93,  // 127: dockwell.resource.v1alpha1.RegistryLogin.ecr:type_name -> dockwell.resource.v1alpha1.RegistryLoginEcr
-	96,  // 128: dockwell.resource.v1alpha1.GitHubApp.reaches:type_name -> dockwell.resource.v1alpha1.GitHubInstallationReach
-	98,  // 129: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
-	99,  // 130: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
-	100, // 131: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
-	21,  // 132: dockwell.resource.v1alpha1.AlertRule.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
-	22,  // 133: dockwell.resource.v1alpha1.AlertRule.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
-	104, // 134: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
-	105, // 135: dockwell.resource.v1alpha1.AlertChannel.email:type_name -> dockwell.resource.v1alpha1.AlertEmail
-	106, // 136: dockwell.resource.v1alpha1.AlertChannel.ntfy:type_name -> dockwell.resource.v1alpha1.AlertNtfy
-	107, // 137: dockwell.resource.v1alpha1.AlertChannel.slack:type_name -> dockwell.resource.v1alpha1.AlertSlack
-	108, // 138: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
-	109, // 139: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
-	23,  // 140: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
-	143, // 141: dockwell.resource.v1alpha1.ServerHost.labels:type_name -> dockwell.resource.v1alpha1.ServerHost.LabelsEntry
-	14,  // 142: dockwell.resource.v1alpha1.Link.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
-	112, // 143: dockwell.resource.v1alpha1.Link.accepts:type_name -> dockwell.resource.v1alpha1.LinkAccept
-	113, // 144: dockwell.resource.v1alpha1.Link.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
-	12,  // 145: dockwell.resource.v1alpha1.Link.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
-	13,  // 146: dockwell.resource.v1alpha1.Link.features:type_name -> dockwell.resource.v1alpha1.LinkFeature
-	14,  // 147: dockwell.resource.v1alpha1.LinkAccept.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
-	15,  // 148: dockwell.resource.v1alpha1.LinkSet.part:type_name -> dockwell.resource.v1alpha1.LinkPart
-	115, // 149: dockwell.resource.v1alpha1.DockerDaemon.mirrors:type_name -> dockwell.resource.v1alpha1.DockerRegistryMirrors
-	116, // 150: dockwell.resource.v1alpha1.DockerDaemon.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
-	117, // 151: dockwell.resource.v1alpha1.DockerDaemon.address_pools:type_name -> dockwell.resource.v1alpha1.DockerDefaultAddressPools
-	118, // 152: dockwell.resource.v1alpha1.DockerDefaultAddressPools.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
-	16,  // 153: dockwell.resource.v1alpha1.ContainerLogging.mode:type_name -> dockwell.resource.v1alpha1.ContainerLoggingMode
-	116, // 154: dockwell.resource.v1alpha1.ContainerLogging.limits:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
-	52,  // 155: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry.value:type_name -> dockwell.resource.v1alpha1.PinnedNeed
-	63,  // 156: dockwell.resource.v1alpha1.CatalogPin.WrittenEntry.value:type_name -> dockwell.resource.v1alpha1.ValueTemplate
-	144, // 157: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
-	144, // 158: dockwell.resource.v1alpha1.no_flag:extendee -> google.protobuf.FieldOptions
-	159, // [159:159] is the sub-list for method output_type
-	159, // [159:159] is the sub-list for method input_type
-	159, // [159:159] is the sub-list for extension type_name
-	157, // [157:159] is the sub-list for extension extendee
-	0,   // [0:157] is the sub-list for field type_name
+	87,  // 92: dockwell.resource.v1alpha1.ComposeTemplate.inputs:type_name -> dockwell.resource.v1alpha1.ComposeTemplateInput
+	88,  // 93: dockwell.resource.v1alpha1.ComposeTemplate.git:type_name -> dockwell.resource.v1alpha1.ComposeTemplateGit
+	10,  // 94: dockwell.resource.v1alpha1.ComposeTemplateInput.kind:type_name -> dockwell.resource.v1alpha1.ComposeTemplateInputKind
+	118, // 95: dockwell.resource.v1alpha1.Spec.docker_daemon:type_name -> dockwell.resource.v1alpha1.DockerDaemon
+	86,  // 96: dockwell.resource.v1alpha1.Spec.compose_template:type_name -> dockwell.resource.v1alpha1.ComposeTemplate
+	41,  // 97: dockwell.resource.v1alpha1.Spec.project:type_name -> dockwell.resource.v1alpha1.Project
+	54,  // 98: dockwell.resource.v1alpha1.Spec.environment:type_name -> dockwell.resource.v1alpha1.Environment
+	55,  // 99: dockwell.resource.v1alpha1.Spec.service:type_name -> dockwell.resource.v1alpha1.Service
+	25,  // 100: dockwell.resource.v1alpha1.Spec.container:type_name -> dockwell.resource.v1alpha1.Container
+	38,  // 101: dockwell.resource.v1alpha1.Spec.firewall_rule:type_name -> dockwell.resource.v1alpha1.FirewallRule
+	39,  // 102: dockwell.resource.v1alpha1.Spec.firewall_policy:type_name -> dockwell.resource.v1alpha1.FirewallPolicy
+	40,  // 103: dockwell.resource.v1alpha1.Spec.fail2ban_jail:type_name -> dockwell.resource.v1alpha1.Jail
+	67,  // 104: dockwell.resource.v1alpha1.Spec.volume:type_name -> dockwell.resource.v1alpha1.Volume
+	72,  // 105: dockwell.resource.v1alpha1.Spec.network:type_name -> dockwell.resource.v1alpha1.Network
+	60,  // 106: dockwell.resource.v1alpha1.Spec.variable:type_name -> dockwell.resource.v1alpha1.Variable
+	61,  // 107: dockwell.resource.v1alpha1.Spec.secret:type_name -> dockwell.resource.v1alpha1.Secret
+	77,  // 108: dockwell.resource.v1alpha1.Spec.route:type_name -> dockwell.resource.v1alpha1.Route
+	70,  // 109: dockwell.resource.v1alpha1.Spec.backup_policy:type_name -> dockwell.resource.v1alpha1.BackupPolicy
+	71,  // 110: dockwell.resource.v1alpha1.Spec.backup_destination:type_name -> dockwell.resource.v1alpha1.BackupDestination
+	68,  // 111: dockwell.resource.v1alpha1.Spec.database_user:type_name -> dockwell.resource.v1alpha1.DatabaseUser
+	105, // 112: dockwell.resource.v1alpha1.Spec.alert_rule:type_name -> dockwell.resource.v1alpha1.AlertRule
+	107, // 113: dockwell.resource.v1alpha1.Spec.alert_channel:type_name -> dockwell.resource.v1alpha1.AlertChannel
+	106, // 114: dockwell.resource.v1alpha1.Spec.alert_check:type_name -> dockwell.resource.v1alpha1.AlertCheck
+	85,  // 115: dockwell.resource.v1alpha1.Spec.catalog_source:type_name -> dockwell.resource.v1alpha1.CatalogSource
+	114, // 116: dockwell.resource.v1alpha1.Spec.server_host:type_name -> dockwell.resource.v1alpha1.ServerHost
+	101, // 117: dockwell.resource.v1alpha1.Spec.task:type_name -> dockwell.resource.v1alpha1.Task
+	47,  // 118: dockwell.resource.v1alpha1.Spec.app_owner:type_name -> dockwell.resource.v1alpha1.AppOwner
+	115, // 119: dockwell.resource.v1alpha1.Spec.link:type_name -> dockwell.resource.v1alpha1.Link
+	96,  // 120: dockwell.resource.v1alpha1.Spec.registry_login:type_name -> dockwell.resource.v1alpha1.RegistryLogin
+	92,  // 121: dockwell.resource.v1alpha1.Spec.connection:type_name -> dockwell.resource.v1alpha1.ConnectionSpec
+	91,  // 122: dockwell.resource.v1alpha1.Spec.dns_provider:type_name -> dockwell.resource.v1alpha1.DnsProvider
+	90,  // 123: dockwell.resource.v1alpha1.Spec.certificate:type_name -> dockwell.resource.v1alpha1.DnsCertificate
+	98,  // 124: dockwell.resource.v1alpha1.Spec.signin_provider:type_name -> dockwell.resource.v1alpha1.SigninProvider
+	99,  // 125: dockwell.resource.v1alpha1.Spec.github_app:type_name -> dockwell.resource.v1alpha1.GitHubApp
+	13,  // 126: dockwell.resource.v1alpha1.ConnectionSpec.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
+	93,  // 127: dockwell.resource.v1alpha1.ConnectionSpec.s3:type_name -> dockwell.resource.v1alpha1.ConnectionS3
+	11,  // 128: dockwell.resource.v1alpha1.ConnectionSpec.reach:type_name -> dockwell.resource.v1alpha1.ConnectionReach
+	95,  // 129: dockwell.resource.v1alpha1.ConnectionSpec.smtp:type_name -> dockwell.resource.v1alpha1.ConnectionSmtp
+	12,  // 130: dockwell.resource.v1alpha1.ConnectionSmtp.security:type_name -> dockwell.resource.v1alpha1.SmtpSecurity
+	97,  // 131: dockwell.resource.v1alpha1.RegistryLogin.ecr:type_name -> dockwell.resource.v1alpha1.RegistryLoginEcr
+	100, // 132: dockwell.resource.v1alpha1.GitHubApp.reaches:type_name -> dockwell.resource.v1alpha1.GitHubInstallationReach
+	102, // 133: dockwell.resource.v1alpha1.Task.shell:type_name -> dockwell.resource.v1alpha1.TaskShell
+	103, // 134: dockwell.resource.v1alpha1.Task.app:type_name -> dockwell.resource.v1alpha1.TaskApp
+	104, // 135: dockwell.resource.v1alpha1.Task.request:type_name -> dockwell.resource.v1alpha1.TaskRequest
+	22,  // 136: dockwell.resource.v1alpha1.AlertRule.condition:type_name -> dockwell.resource.v1alpha1.AlertRule.Condition
+	23,  // 137: dockwell.resource.v1alpha1.AlertRule.severity:type_name -> dockwell.resource.v1alpha1.AlertRule.Severity
+	108, // 138: dockwell.resource.v1alpha1.AlertChannel.webhook:type_name -> dockwell.resource.v1alpha1.AlertWebhook
+	109, // 139: dockwell.resource.v1alpha1.AlertChannel.email:type_name -> dockwell.resource.v1alpha1.AlertEmail
+	110, // 140: dockwell.resource.v1alpha1.AlertChannel.ntfy:type_name -> dockwell.resource.v1alpha1.AlertNtfy
+	111, // 141: dockwell.resource.v1alpha1.AlertChannel.slack:type_name -> dockwell.resource.v1alpha1.AlertSlack
+	112, // 142: dockwell.resource.v1alpha1.AlertChannel.discord:type_name -> dockwell.resource.v1alpha1.AlertDiscord
+	113, // 143: dockwell.resource.v1alpha1.AlertChannel.telegram:type_name -> dockwell.resource.v1alpha1.AlertTelegram
+	24,  // 144: dockwell.resource.v1alpha1.AlertEmail.security:type_name -> dockwell.resource.v1alpha1.AlertEmail.Security
+	147, // 145: dockwell.resource.v1alpha1.ServerHost.labels:type_name -> dockwell.resource.v1alpha1.ServerHost.LabelsEntry
+	15,  // 146: dockwell.resource.v1alpha1.Link.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
+	116, // 147: dockwell.resource.v1alpha1.Link.accepts:type_name -> dockwell.resource.v1alpha1.LinkAccept
+	117, // 148: dockwell.resource.v1alpha1.Link.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
+	13,  // 149: dockwell.resource.v1alpha1.Link.kind:type_name -> dockwell.resource.v1alpha1.LinkKind
+	14,  // 150: dockwell.resource.v1alpha1.Link.features:type_name -> dockwell.resource.v1alpha1.LinkFeature
+	15,  // 151: dockwell.resource.v1alpha1.LinkAccept.engine:type_name -> dockwell.resource.v1alpha1.LinkEngine
+	16,  // 152: dockwell.resource.v1alpha1.LinkSet.part:type_name -> dockwell.resource.v1alpha1.LinkPart
+	119, // 153: dockwell.resource.v1alpha1.DockerDaemon.mirrors:type_name -> dockwell.resource.v1alpha1.DockerRegistryMirrors
+	120, // 154: dockwell.resource.v1alpha1.DockerDaemon.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
+	121, // 155: dockwell.resource.v1alpha1.DockerDaemon.address_pools:type_name -> dockwell.resource.v1alpha1.DockerDefaultAddressPools
+	122, // 156: dockwell.resource.v1alpha1.DockerDefaultAddressPools.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
+	17,  // 157: dockwell.resource.v1alpha1.ContainerLogging.mode:type_name -> dockwell.resource.v1alpha1.ContainerLoggingMode
+	120, // 158: dockwell.resource.v1alpha1.ContainerLogging.limits:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
+	53,  // 159: dockwell.resource.v1alpha1.CatalogPin.NeedsEntry.value:type_name -> dockwell.resource.v1alpha1.PinnedNeed
+	64,  // 160: dockwell.resource.v1alpha1.CatalogPin.WrittenEntry.value:type_name -> dockwell.resource.v1alpha1.ValueTemplate
+	148, // 161: dockwell.resource.v1alpha1.sensitive:extendee -> google.protobuf.FieldOptions
+	148, // 162: dockwell.resource.v1alpha1.no_flag:extendee -> google.protobuf.FieldOptions
+	163, // [163:163] is the sub-list for method output_type
+	163, // [163:163] is the sub-list for method input_type
+	163, // [163:163] is the sub-list for extension type_name
+	161, // [161:163] is the sub-list for extension extendee
+	0,   // [0:161] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_resource_v1alpha1_specs_proto_init() }
@@ -12753,8 +13065,10 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		(*ValueFrom_Connection)(nil),
 	}
 	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[48].OneofWrappers = []any{}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[61].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[62].OneofWrappers = []any{}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[64].OneofWrappers = []any{
 		(*Spec_DockerDaemon)(nil),
+		(*Spec_ComposeTemplate)(nil),
 		(*Spec_Project)(nil),
 		(*Spec_Environment)(nil),
 		(*Spec_Service)(nil),
@@ -12785,13 +13099,13 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		(*Spec_SigninProvider)(nil),
 		(*Spec_GithubApp)(nil),
 	}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68].OneofWrappers = []any{}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[71].OneofWrappers = []any{}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[76].OneofWrappers = []any{
 		(*Task_Shell)(nil),
 		(*Task_App)(nil),
 		(*Task_Request)(nil),
 	}
-	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[79].OneofWrappers = []any{
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[82].OneofWrappers = []any{
 		(*AlertChannel_Webhook)(nil),
 		(*AlertChannel_Email)(nil),
 		(*AlertChannel_Ntfy)(nil),
@@ -12804,8 +13118,8 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_resource_v1alpha1_specs_proto_rawDesc), len(file_dockwell_resource_v1alpha1_specs_proto_rawDesc)),
-			NumEnums:      24,
-			NumMessages:   120,
+			NumEnums:      25,
+			NumMessages:   123,
 			NumExtensions: 2,
 			NumServices:   0,
 		},

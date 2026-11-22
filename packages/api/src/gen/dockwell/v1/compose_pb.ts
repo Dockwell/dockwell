@@ -6,6 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { ComposeTemplate } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change, ResourceRef } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
@@ -13,13 +14,15 @@ import { file_dockwell_v1_options } from "./options_pb";
 import type { ServiceInfo } from "./service_pb";
 import { file_dockwell_v1_service } from "./service_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
+import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
  * Describes the file dockwell/v1/compose.proto.
  */
 export const file_dockwell_v1_compose: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKKAQoTQWRvcHRDb21wb3NlUmVxdWVzdBIMCgRuYW1lGAEgASgJEg4KBnNlcnZlchgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEhMKC2hvc3RfYWNjZXNzGAUgASgIEhoKEmd1ZXNzYWJsZV9wYXNzd29yZBgGIAEoCCI7ChRBZG9wdENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UivwIKFEltcG9ydENvbXBvc2VSZXF1ZXN0Eg8KB3N1bW1hcnkYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIVCgdjb21wb3NlGAQgASgJQgSouxgBEkMKCXZhcmlhYmxlcxgFIAMoCzIwLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0LlZhcmlhYmxlc0VudHJ5Eg8KB3NlcnZlcnMYBiADKAkSFgoOcmVtb3ZlX29ycGhhbnMYByABKAgSEQoDZW52GAggASgJQgTI8xgBEhEKCWRpcmVjdG9yeRgJIAEoCRITCgtza2lwX2JhY2t1cBgKIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIosBChVJbXBvcnRDb21wb3NlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEjcKEWV4cG9zZWRfdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgDIAEoCCLIAQoTQ2hlY2tDb21wb3NlUmVxdWVzdBIVCgdjb21wb3NlGAEgASgJQgSouxgBEkIKCXZhcmlhYmxlcxgCIAMoCzIvLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSEQoDZW52GAMgASgJQgTI8xgBEhEKCWRpcmVjdG9yeRgEIAEoCRowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIrACChRDaGVja0NvbXBvc2VSZXNwb25zZRIsCgdyZWZ1c2FsGAEgASgLMhsuZG9ja3dlbGwudjEuQ29tcG9zZVJlZnVzYWwSLwoJdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuQ29tcG9zZVZhcmlhYmxlEioKCHNlcnZpY2VzGAMgAygLMhguZG9ja3dlbGwudjEuU2VydmljZUluZm8SDwoHdm9sdW1lcxgEIAMoCRIQCghuZXR3b3JrcxgFIAMoCRIMCgRuYW1lGAYgASgJEjcKEWV4cG9zZWRfdmFyaWFibGVzGAcgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgIIAEoCBINCgVub3RlcxgJIAMoCSJaCg9FeHBvc2VkVmFyaWFibGUSDAoEbmFtZRgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEg0KBWZpZWxkGAMgASgJIkEKDkNvbXBvc2VSZWZ1c2FsEg8KB21lc3NhZ2UYASABKAkSDAoEbGluZRgCIAEoBRIQCghlbmRfbGluZRgDIAEoBSIxCg9Db21wb3NlVmFyaWFibGUSDAoEbmFtZRgBIAEoCRIQCghyZXF1aXJlZBgCIAEoCCJNChRFeHBvcnRDb21wb3NlUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3NlcnZpY2UYAyABKAkiOQoVRXhwb3J0Q29tcG9zZVJlc3BvbnNlEg8KB2NvbXBvc2UYASABKAkSDwoHb21pdHRlZBgCIAMoCSI0ChpHZXRDb21wb3NlV29ya3NwYWNlUmVxdWVzdBIWCg5lbnZpcm9ubWVudF9pZBgBIAEoCSKbAQobR2V0Q29tcG9zZVdvcmtzcGFjZVJlc3BvbnNlEjAKCXdvcmtzcGFjZRgBIAEoCzIdLmRvY2t3ZWxsLnYxLkNvbXBvc2VXb3Jrc3BhY2USEAoIc25hcHNob3QYAiABKAkSOAoJb21pc3Npb25zGAMgAygLMiUuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZU9taXNzaW9uIq4BChBDb21wb3NlV29ya3NwYWNlEhYKDmVudmlyb25tZW50X2lkGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIYChBlbnZpcm9ubWVudF9uYW1lGAQgASgJEgwKBHlhbWwYBSABKAkSOAoJcmVzb3VyY2VzGAYgAygLMiUuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZVJlc291cmNlIl8KGENvbXBvc2VXb3Jrc3BhY2VSZXNvdXJjZRIMCgRraW5kGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLcmVzb3VyY2VfaWQYAyABKAkSEgoKc2VydmVyX2lkcxgEIAMoCSJUChhDb21wb3NlV29ya3NwYWNlT21pc3Npb24SDAoEa2luZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDgoGc2VhbGVkGAQgASgIItABChtQbGFuQ29tcG9zZVdvcmtzcGFjZVJlcXVlc3QSFgoOZW52aXJvbm1lbnRfaWQYASABKAkSEAoIc25hcHNob3QYAiABKAkSFwoEeWFtbBgDIAEoCUIEqLsYAUgAiAEBEj8KEWV4cGxpY2l0X3JlbW92YWxzGAUgAygLMiQuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZVJlbW92YWwSEQoJc2VydmVyX2lkGAYgASgJQgcKBV95YW1sSgQIBBAFUgtrZXB0X3ZhbHVlcyI1ChdDb21wb3NlV29ya3NwYWNlUmVtb3ZhbBIMCgRraW5kGAEgASgJEgwKBG5hbWUYAiABKAkiqQEKHFBsYW5Db21wb3NlV29ya3NwYWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEiwKB3JlZnVzYWwYAiABKAsyGy5kb2Nrd2VsbC52MS5Db21wb3NlUmVmdXNhbBI2CghyZW1vdmFscxgDIAMoCzIkLmRvY2t3ZWxsLnYxLkNvbXBvc2VXb3Jrc3BhY2VSZW1vdmFsMooHCg5Db21wb3NlU2VydmljZRKFAQoNSW1wb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlc3BvbnNlIi2guxgCwLsYA8i7GAPQuxgEgtPkkwIXOgEqIhIvdjEvY29tcG9zZTppbXBvcnQShQEKDEFkb3B0Q29tcG9zZRIgLmRvY2t3ZWxsLnYxLkFkb3B0Q29tcG9zZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5BZG9wdENvbXBvc2VSZXNwb25zZSIwoLsYArC7GAHAuxgEyLsYBNC7GAaC0+STAhY6ASoiES92MS9jb21wb3NlOmFkb3B0EoEBCgxDaGVja0NvbXBvc2USIC5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVzcG9uc2UiLKC7GALAuxgDyLsYA9C7GASC0+STAhY6ASoiES92MS9jb21wb3NlOmNoZWNrEqwBChNHZXRDb21wb3NlV29ya3NwYWNlEicuZG9ja3dlbGwudjEuR2V0Q29tcG9zZVdvcmtzcGFjZVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5HZXRDb21wb3NlV29ya3NwYWNlUmVzcG9uc2UiQpACAaC7GAHAuxgEyLsYBNC7GAaC0+STAikSJy92MS9jb21wb3NlL3dvcmtzcGFjZXMve2Vudmlyb25tZW50X2lkfRK0AQoUUGxhbkNvbXBvc2VXb3Jrc3BhY2USKC5kb2Nrd2VsbC52MS5QbGFuQ29tcG9zZVdvcmtzcGFjZVJlcXVlc3QaKS5kb2Nrd2VsbC52MS5QbGFuQ29tcG9zZVdvcmtzcGFjZVJlc3BvbnNlIkeguxgCwLsYBMi7GATQuxgGgtPkkwIxOgEqIiwvdjEvY29tcG9zZS93b3Jrc3BhY2VzL3tlbnZpcm9ubWVudF9pZH06cGxhbhJ+Cg1FeHBvcnRDb21wb3NlEiEuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5FeHBvcnRDb21wb3NlUmVzcG9uc2UiJpACAaC7GAHAuxgCyLsYAtC7GASC0+STAg0SCy92MS9jb21wb3NlQqUBCg9jb20uZG9ja3dlbGwudjFCDENvbXBvc2VQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9jb21wb3NlLnByb3RvEgtkb2Nrd2VsbC52MSKKAQoTQWRvcHRDb21wb3NlUmVxdWVzdBIMCgRuYW1lGAEgASgJEg4KBnNlcnZlchgCIAEoCRIPCgdwcm9qZWN0GAMgASgJEhMKC2Vudmlyb25tZW50GAQgASgJEhMKC2hvc3RfYWNjZXNzGAUgASgIEhoKEmd1ZXNzYWJsZV9wYXNzd29yZBgGIAEoCCI7ChRBZG9wdENvbXBvc2VSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2UivwIKFEltcG9ydENvbXBvc2VSZXF1ZXN0Eg8KB3N1bW1hcnkYASABKAkSDwoHcHJvamVjdBgCIAEoCRITCgtlbnZpcm9ubWVudBgDIAEoCRIVCgdjb21wb3NlGAQgASgJQgSouxgBEkMKCXZhcmlhYmxlcxgFIAMoCzIwLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0LlZhcmlhYmxlc0VudHJ5Eg8KB3NlcnZlcnMYBiADKAkSFgoOcmVtb3ZlX29ycGhhbnMYByABKAgSEQoDZW52GAggASgJQgTI8xgBEhEKCWRpcmVjdG9yeRgJIAEoCRITCgtza2lwX2JhY2t1cBgKIAEoCBowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIosBChVJbXBvcnRDb21wb3NlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEjcKEWV4cG9zZWRfdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgDIAEoCCLIAQoTQ2hlY2tDb21wb3NlUmVxdWVzdBIVCgdjb21wb3NlGAEgASgJQgSouxgBEkIKCXZhcmlhYmxlcxgCIAMoCzIvLmRvY2t3ZWxsLnYxLkNoZWNrQ29tcG9zZVJlcXVlc3QuVmFyaWFibGVzRW50cnkSEQoDZW52GAMgASgJQgTI8xgBEhEKCWRpcmVjdG9yeRgEIAEoCRowCg5WYXJpYWJsZXNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIrACChRDaGVja0NvbXBvc2VSZXNwb25zZRIsCgdyZWZ1c2FsGAEgASgLMhsuZG9ja3dlbGwudjEuQ29tcG9zZVJlZnVzYWwSLwoJdmFyaWFibGVzGAIgAygLMhwuZG9ja3dlbGwudjEuQ29tcG9zZVZhcmlhYmxlEioKCHNlcnZpY2VzGAMgAygLMhguZG9ja3dlbGwudjEuU2VydmljZUluZm8SDwoHdm9sdW1lcxgEIAMoCRIQCghuZXR3b3JrcxgFIAMoCRIMCgRuYW1lGAYgASgJEjcKEWV4cG9zZWRfdmFyaWFibGVzGAcgAygLMhwuZG9ja3dlbGwudjEuRXhwb3NlZFZhcmlhYmxlEhQKDG1vcmVfZXhwb3NlZBgIIAEoCBINCgVub3RlcxgJIAMoCSJaCg9FeHBvc2VkVmFyaWFibGUSDAoEbmFtZRgBIAEoCRIqCghyZXNvdXJjZRgCIAEoCzIYLmRvY2t3ZWxsLnYxLlJlc291cmNlUmVmEg0KBWZpZWxkGAMgASgJIkEKDkNvbXBvc2VSZWZ1c2FsEg8KB21lc3NhZ2UYASABKAkSDAoEbGluZRgCIAEoBRIQCghlbmRfbGluZRgDIAEoBSIxCg9Db21wb3NlVmFyaWFibGUSDAoEbmFtZRgBIAEoCRIQCghyZXF1aXJlZBgCIAEoCCJNChRFeHBvcnRDb21wb3NlUmVxdWVzdBIPCgdwcm9qZWN0GAEgASgJEhMKC2Vudmlyb25tZW50GAIgASgJEg8KB3NlcnZpY2UYAyABKAkiOQoVRXhwb3J0Q29tcG9zZVJlc3BvbnNlEg8KB2NvbXBvc2UYASABKAkSDwoHb21pdHRlZBgCIAMoCSI0ChpHZXRDb21wb3NlV29ya3NwYWNlUmVxdWVzdBIWCg5lbnZpcm9ubWVudF9pZBgBIAEoCSKbAQobR2V0Q29tcG9zZVdvcmtzcGFjZVJlc3BvbnNlEjAKCXdvcmtzcGFjZRgBIAEoCzIdLmRvY2t3ZWxsLnYxLkNvbXBvc2VXb3Jrc3BhY2USEAoIc25hcHNob3QYAiABKAkSOAoJb21pc3Npb25zGAMgAygLMiUuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZU9taXNzaW9uIq4BChBDb21wb3NlV29ya3NwYWNlEhYKDmVudmlyb25tZW50X2lkGAEgASgJEhIKCnByb2plY3RfaWQYAiABKAkSDAoEbmFtZRgDIAEoCRIYChBlbnZpcm9ubWVudF9uYW1lGAQgASgJEgwKBHlhbWwYBSABKAkSOAoJcmVzb3VyY2VzGAYgAygLMiUuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZVJlc291cmNlIl8KGENvbXBvc2VXb3Jrc3BhY2VSZXNvdXJjZRIMCgRraW5kGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLcmVzb3VyY2VfaWQYAyABKAkSEgoKc2VydmVyX2lkcxgEIAMoCSJUChhDb21wb3NlV29ya3NwYWNlT21pc3Npb24SDAoEa2luZBgBIAEoCRIMCgRuYW1lGAIgASgJEgwKBHBhdGgYAyABKAkSDgoGc2VhbGVkGAQgASgIItABChtQbGFuQ29tcG9zZVdvcmtzcGFjZVJlcXVlc3QSFgoOZW52aXJvbm1lbnRfaWQYASABKAkSEAoIc25hcHNob3QYAiABKAkSFwoEeWFtbBgDIAEoCUIEqLsYAUgAiAEBEj8KEWV4cGxpY2l0X3JlbW92YWxzGAUgAygLMiQuZG9ja3dlbGwudjEuQ29tcG9zZVdvcmtzcGFjZVJlbW92YWwSEQoJc2VydmVyX2lkGAYgASgJQgcKBV95YW1sSgQIBBAFUgtrZXB0X3ZhbHVlcyI1ChdDb21wb3NlV29ya3NwYWNlUmVtb3ZhbBIMCgRraW5kGAEgASgJEgwKBG5hbWUYAiABKAkiqQEKHFBsYW5Db21wb3NlV29ya3NwYWNlUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlEiwKB3JlZnVzYWwYAiABKAsyGy5kb2Nrd2VsbC52MS5Db21wb3NlUmVmdXNhbBI2CghyZW1vdmFscxgDIAMoCzIkLmRvY2t3ZWxsLnYxLkNvbXBvc2VXb3Jrc3BhY2VSZW1vdmFsImcKG0xpc3RDb21wb3NlVGVtcGxhdGVzUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEhEKCXBhZ2Vfc2l6ZRgCIAEoBRISCgpwYWdlX3Rva2VuGAMgASgJEg0KBXF1ZXJ5GAQgASgJIm8KHExpc3RDb21wb3NlVGVtcGxhdGVzUmVzcG9uc2USNgoJdGVtcGxhdGVzGAEgAygLMiMuZG9ja3dlbGwudjEuQ29tcG9zZVRlbXBsYXRlU3VtbWFyeRIXCg9uZXh0X3BhZ2VfdG9rZW4YAiABKAkicAoZR2V0Q29tcG9zZVRlbXBsYXRlUmVxdWVzdBIKCgJpZBgBIAEoCRIQCghyZXZpc2lvbhgCIAEoAxIZChFoaXN0b3J5X3BhZ2Vfc2l6ZRgDIAEoBRIaChJoaXN0b3J5X3BhZ2VfdG9rZW4YBCABKAki5gEKGkdldENvbXBvc2VUZW1wbGF0ZVJlc3BvbnNlEjUKCHRlbXBsYXRlGAEgASgLMiMuZG9ja3dlbGwudjEuQ29tcG9zZVRlbXBsYXRlU3VtbWFyeRI5CgRzcGVjGAIgASgLMisuZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuQ29tcG9zZVRlbXBsYXRlEjUKB2hpc3RvcnkYAyADKAsyJC5kb2Nrd2VsbC52MS5Db21wb3NlVGVtcGxhdGVSZXZpc2lvbhIfChduZXh0X2hpc3RvcnlfcGFnZV90b2tlbhgEIAEoCSLEAQoWQ29tcG9zZVRlbXBsYXRlU3VtbWFyeRIKCgJpZBgBIAEoCRISCgpwcm9qZWN0X2lkGAIgASgJEgwKBG5hbWUYAyABKAkSEAoIcmV2aXNpb24YBCABKAMSEwoLZGVzY3JpcHRpb24YBSABKAkSEwoLaW5wdXRfY291bnQYBiABKAUSLgoKdXBkYXRlZF9hdBgHIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEAoIYXJjaGl2ZWQYCCABKAgibgoXQ29tcG9zZVRlbXBsYXRlUmV2aXNpb24SEAoIcmV2aXNpb24YASABKAMSLgoKY2hhbmdlZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASEQoJY2hhbmdlX2lkGAMgASgJIs8BCh1QcmVwYXJlQ29tcG9zZVRlbXBsYXRlUmVxdWVzdBISCgpwcm9qZWN0X2lkGAEgASgJEiAKDGNvbXBvc2VfeWFtbBgCIAEoCUIIqLsYAcjzGAFIABI4CgVzdGFjaxgDIAEoCzInLmRvY2t3ZWxsLnYxLkNvbXBvc2VUZW1wbGF0ZVN0YWNrU291cmNlSAASNAoDZ2l0GAQgASgLMiUuZG9ja3dlbGwudjEuQ29tcG9zZVRlbXBsYXRlR2l0U291cmNlSABCCAoGc291cmNlIsQBCh5QcmVwYXJlQ29tcG9zZVRlbXBsYXRlUmVzcG9uc2USOgoFZHJhZnQYASABKAsyKy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Db21wb3NlVGVtcGxhdGUSLAoHcmVmdXNhbBgCIAEoCzIbLmRvY2t3ZWxsLnYxLkNvbXBvc2VSZWZ1c2FsEjgKCW9taXNzaW9ucxgDIAMoCzIlLmRvY2t3ZWxsLnYxLkNvbXBvc2VXb3Jrc3BhY2VPbWlzc2lvbiI0ChpDb21wb3NlVGVtcGxhdGVTdGFja1NvdXJjZRIWCg5lbnZpcm9ubWVudF9pZBgBIAEoCSJJChhDb21wb3NlVGVtcGxhdGVHaXRTb3VyY2USEgoKcmVwb3NpdG9yeRgBIAEoCRILCgNyZWYYAiABKAkSDAoEcGF0aBgDIAEoCSKvAQoeUGxhbkZyb21Db21wb3NlVGVtcGxhdGVSZXF1ZXN0EgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgDEjwKC2Rlc3RpbmF0aW9uGAMgASgLMicuZG9ja3dlbGwudjEuQ29tcG9zZVRlbXBsYXRlRGVzdGluYXRpb24SMQoGaW5wdXRzGAQgAygLMiEuZG9ja3dlbGwudjEuQ29tcG9zZVRlbXBsYXRlVmFsdWUidAofUGxhbkZyb21Db21wb3NlVGVtcGxhdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2USLAoHcmVmdXNhbBgCIAEoCzIbLmRvY2t3ZWxsLnYxLkNvbXBvc2VSZWZ1c2FsIkkKGkNvbXBvc2VUZW1wbGF0ZURlc3RpbmF0aW9uEhgKEGVudmlyb25tZW50X25hbWUYASABKAkSEQoJc2VydmVyX2lkGAIgASgJIl0KFENvbXBvc2VUZW1wbGF0ZVZhbHVlEgwKBG5hbWUYASABKAkSGQoFdmFsdWUYAiABKAlCCMjzGAHQ8xgBSAASEgoIZ2VuZXJhdGUYAyABKAhIAEIICgZjaG9pY2UyuA0KDkNvbXBvc2VTZXJ2aWNlEtABChRMaXN0Q29tcG9zZVRlbXBsYXRlcxIoLmRvY2t3ZWxsLnYxLkxpc3RDb21wb3NlVGVtcGxhdGVzUmVxdWVzdBopLmRvY2t3ZWxsLnYxLkxpc3RDb21wb3NlVGVtcGxhdGVzUmVzcG9uc2UiY5ACAaC7GAGquxgZCgdjb21wb3NlEg5saXN0LXRlbXBsYXRlc8C7GALIuxgC0LsYBILT5JMCLRIrL3YxL3Byb2plY3RzL3twcm9qZWN0X2lkfS9jb21wb3NlLXRlbXBsYXRlcxK3AQoSR2V0Q29tcG9zZVRlbXBsYXRlEiYuZG9ja3dlbGwudjEuR2V0Q29tcG9zZVRlbXBsYXRlUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkdldENvbXBvc2VUZW1wbGF0ZVJlc3BvbnNlIlCQAgGguxgBqrsYFwoHY29tcG9zZRIMZ2V0LXRlbXBsYXRlwLsYAsi7GALQuxgEgtPkkwIcEhovdjEvY29tcG9zZS90ZW1wbGF0ZXMve2lkfRLKAQoWUHJlcGFyZUNvbXBvc2VUZW1wbGF0ZRIqLmRvY2t3ZWxsLnYxLlByZXBhcmVDb21wb3NlVGVtcGxhdGVSZXF1ZXN0GisuZG9ja3dlbGwudjEuUHJlcGFyZUNvbXBvc2VUZW1wbGF0ZVJlc3BvbnNlIleguxgCqrsYGwoHY29tcG9zZRIQcHJlcGFyZS10ZW1wbGF0ZcC7GAPIuxgD0LsYBILT5JMCIjoBKiIdL3YxL2NvbXBvc2UvdGVtcGxhdGVzOnByZXBhcmUS0QEKF1BsYW5Gcm9tQ29tcG9zZVRlbXBsYXRlEisuZG9ja3dlbGwudjEuUGxhbkZyb21Db21wb3NlVGVtcGxhdGVSZXF1ZXN0GiwuZG9ja3dlbGwudjEuUGxhbkZyb21Db21wb3NlVGVtcGxhdGVSZXNwb25zZSJboLsYAqq7GB0KB2NvbXBvc2USEnBsYW4tZnJvbS10ZW1wbGF0ZcC7GAPIuxgD0LsYBILT5JMCJDoBKiIfL3YxL2NvbXBvc2UvdGVtcGxhdGVzL3tpZH06cGxhbhKFAQoNSW1wb3J0Q29tcG9zZRIhLmRvY2t3ZWxsLnYxLkltcG9ydENvbXBvc2VSZXF1ZXN0GiIuZG9ja3dlbGwudjEuSW1wb3J0Q29tcG9zZVJlc3BvbnNlIi2guxgCwLsYA8i7GAPQuxgEgtPkkwIXOgEqIhIvdjEvY29tcG9zZTppbXBvcnQShQEKDEFkb3B0Q29tcG9zZRIgLmRvY2t3ZWxsLnYxLkFkb3B0Q29tcG9zZVJlcXVlc3QaIS5kb2Nrd2VsbC52MS5BZG9wdENvbXBvc2VSZXNwb25zZSIwoLsYArC7GAHAuxgEyLsYBNC7GAaC0+STAhY6ASoiES92MS9jb21wb3NlOmFkb3B0EoEBCgxDaGVja0NvbXBvc2USIC5kb2Nrd2VsbC52MS5DaGVja0NvbXBvc2VSZXF1ZXN0GiEuZG9ja3dlbGwudjEuQ2hlY2tDb21wb3NlUmVzcG9uc2UiLKC7GALAuxgDyLsYA9C7GASC0+STAhY6ASoiES92MS9jb21wb3NlOmNoZWNrEqwBChNHZXRDb21wb3NlV29ya3NwYWNlEicuZG9ja3dlbGwudjEuR2V0Q29tcG9zZVdvcmtzcGFjZVJlcXVlc3QaKC5kb2Nrd2VsbC52MS5HZXRDb21wb3NlV29ya3NwYWNlUmVzcG9uc2UiQpACAaC7GAHAuxgEyLsYBNC7GAaC0+STAikSJy92MS9jb21wb3NlL3dvcmtzcGFjZXMve2Vudmlyb25tZW50X2lkfRK0AQoUUGxhbkNvbXBvc2VXb3Jrc3BhY2USKC5kb2Nrd2VsbC52MS5QbGFuQ29tcG9zZVdvcmtzcGFjZVJlcXVlc3QaKS5kb2Nrd2VsbC52MS5QbGFuQ29tcG9zZVdvcmtzcGFjZVJlc3BvbnNlIkeguxgCwLsYBMi7GATQuxgGgtPkkwIxOgEqIiwvdjEvY29tcG9zZS93b3Jrc3BhY2VzL3tlbnZpcm9ubWVudF9pZH06cGxhbhJ+Cg1FeHBvcnRDb21wb3NlEiEuZG9ja3dlbGwudjEuRXhwb3J0Q29tcG9zZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5FeHBvcnRDb21wb3NlUmVzcG9uc2UiJpACAaC7GAHAuxgCyLsYAtC7GASC0+STAg0SCy92MS9jb21wb3NlQqUBCg9jb20uZG9ja3dlbGwudjFCDENvbXBvc2VQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_dockwell_v1_service, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * AdoptComposeRequest names a Compose project on a server.
@@ -824,6 +827,452 @@ export const PlanComposeWorkspaceResponseSchema: GenMessage<PlanComposeWorkspace
   messageDesc(file_dockwell_v1_compose, 18);
 
 /**
+ * ListComposeTemplatesRequest searches the live library of a project.
+ *
+ * @generated from message dockwell.v1.ListComposeTemplatesRequest
+ */
+export type ListComposeTemplatesRequest = Message<"dockwell.v1.ListComposeTemplatesRequest"> & {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: int32 page_size = 2;
+   */
+  pageSize: number;
+
+  /**
+   * @generated from field: string page_token = 3;
+   */
+  pageToken: string;
+
+  /**
+   * @generated from field: string query = 4;
+   */
+  query: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListComposeTemplatesRequest.
+ * Use `create(ListComposeTemplatesRequestSchema)` to create a new message.
+ */
+export const ListComposeTemplatesRequestSchema: GenMessage<ListComposeTemplatesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 19);
+
+/**
+ * ListComposeTemplatesResponse holds a page of summaries.
+ *
+ * @generated from message dockwell.v1.ListComposeTemplatesResponse
+ */
+export type ListComposeTemplatesResponse = Message<"dockwell.v1.ListComposeTemplatesResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.ComposeTemplateSummary templates = 1;
+   */
+  templates: ComposeTemplateSummary[];
+
+  /**
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListComposeTemplatesResponse.
+ * Use `create(ListComposeTemplatesResponseSchema)` to create a new message.
+ */
+export const ListComposeTemplatesResponseSchema: GenMessage<ListComposeTemplatesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 20);
+
+/**
+ * GetComposeTemplateRequest selects the current revision when revision is zero.
+ *
+ * @generated from message dockwell.v1.GetComposeTemplateRequest
+ */
+export type GetComposeTemplateRequest = Message<"dockwell.v1.GetComposeTemplateRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: int64 revision = 2;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: int32 history_page_size = 3;
+   */
+  historyPageSize: number;
+
+  /**
+   * @generated from field: string history_page_token = 4;
+   */
+  historyPageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetComposeTemplateRequest.
+ * Use `create(GetComposeTemplateRequestSchema)` to create a new message.
+ */
+export const GetComposeTemplateRequestSchema: GenMessage<GetComposeTemplateRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 21);
+
+/**
+ * GetComposeTemplateResponse holds the selected definition and optional history.
+ *
+ * @generated from message dockwell.v1.GetComposeTemplateResponse
+ */
+export type GetComposeTemplateResponse = Message<"dockwell.v1.GetComposeTemplateResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.ComposeTemplateSummary template = 1;
+   */
+  template?: ComposeTemplateSummary | undefined;
+
+  /**
+   * @generated from field: dockwell.resource.v1alpha1.ComposeTemplate spec = 2;
+   */
+  spec?: ComposeTemplate | undefined;
+
+  /**
+   * @generated from field: repeated dockwell.v1.ComposeTemplateRevision history = 3;
+   */
+  history: ComposeTemplateRevision[];
+
+  /**
+   * @generated from field: string next_history_page_token = 4;
+   */
+  nextHistoryPageToken: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetComposeTemplateResponse.
+ * Use `create(GetComposeTemplateResponseSchema)` to create a new message.
+ */
+export const GetComposeTemplateResponseSchema: GenMessage<GetComposeTemplateResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 22);
+
+/**
+ * ComposeTemplateSummary is the library's projection of a revision.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateSummary
+ */
+export type ComposeTemplateSummary = Message<"dockwell.v1.ComposeTemplateSummary"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string project_id = 2;
+   */
+  projectId: string;
+
+  /**
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * @generated from field: int64 revision = 4;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: string description = 5;
+   */
+  description: string;
+
+  /**
+   * @generated from field: int32 input_count = 6;
+   */
+  inputCount: number;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp updated_at = 7;
+   */
+  updatedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: bool archived = 8;
+   */
+  archived: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateSummary.
+ * Use `create(ComposeTemplateSummarySchema)` to create a new message.
+ */
+export const ComposeTemplateSummarySchema: GenMessage<ComposeTemplateSummary> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 23);
+
+/**
+ * ComposeTemplateRevision names a reviewed, saved definition.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateRevision
+ */
+export type ComposeTemplateRevision = Message<"dockwell.v1.ComposeTemplateRevision"> & {
+  /**
+   * @generated from field: int64 revision = 1;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp changed_at = 2;
+   */
+  changedAt?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string change_id = 3;
+   */
+  changeId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateRevision.
+ * Use `create(ComposeTemplateRevisionSchema)` to create a new message.
+ */
+export const ComposeTemplateRevisionSchema: GenMessage<ComposeTemplateRevision> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 24);
+
+/**
+ * PrepareComposeTemplateRequest selects one source. Raw YAML is never logged.
+ *
+ * @generated from message dockwell.v1.PrepareComposeTemplateRequest
+ */
+export type PrepareComposeTemplateRequest = Message<"dockwell.v1.PrepareComposeTemplateRequest"> & {
+  /**
+   * @generated from field: string project_id = 1;
+   */
+  projectId: string;
+
+  /**
+   * @generated from oneof dockwell.v1.PrepareComposeTemplateRequest.source
+   */
+  source: {
+    /**
+     * @generated from field: string compose_yaml = 2;
+     */
+    value: string;
+    case: "composeYaml";
+  } | {
+    /**
+     * @generated from field: dockwell.v1.ComposeTemplateStackSource stack = 3;
+     */
+    value: ComposeTemplateStackSource;
+    case: "stack";
+  } | {
+    /**
+     * @generated from field: dockwell.v1.ComposeTemplateGitSource git = 4;
+     */
+    value: ComposeTemplateGitSource;
+    case: "git";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.v1.PrepareComposeTemplateRequest.
+ * Use `create(PrepareComposeTemplateRequestSchema)` to create a new message.
+ */
+export const PrepareComposeTemplateRequestSchema: GenMessage<PrepareComposeTemplateRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 25);
+
+/**
+ * PrepareComposeTemplateResponse contains a validated draft or a refusal.
+ *
+ * @generated from message dockwell.v1.PrepareComposeTemplateResponse
+ */
+export type PrepareComposeTemplateResponse = Message<"dockwell.v1.PrepareComposeTemplateResponse"> & {
+  /**
+   * @generated from field: dockwell.resource.v1alpha1.ComposeTemplate draft = 1;
+   */
+  draft?: ComposeTemplate | undefined;
+
+  /**
+   * @generated from field: dockwell.v1.ComposeRefusal refusal = 2;
+   */
+  refusal?: ComposeRefusal | undefined;
+
+  /**
+   * @generated from field: repeated dockwell.v1.ComposeWorkspaceOmission omissions = 3;
+   */
+  omissions: ComposeWorkspaceOmission[];
+};
+
+/**
+ * Describes the message dockwell.v1.PrepareComposeTemplateResponse.
+ * Use `create(PrepareComposeTemplateResponseSchema)` to create a new message.
+ */
+export const PrepareComposeTemplateResponseSchema: GenMessage<PrepareComposeTemplateResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 26);
+
+/**
+ * ComposeTemplateStackSource selects a managed workspace by ID.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateStackSource
+ */
+export type ComposeTemplateStackSource = Message<"dockwell.v1.ComposeTemplateStackSource"> & {
+  /**
+   * @generated from field: string environment_id = 1;
+   */
+  environmentId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateStackSource.
+ * Use `create(ComposeTemplateStackSourceSchema)` to create a new message.
+ */
+export const ComposeTemplateStackSourceSchema: GenMessage<ComposeTemplateStackSource> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 27);
+
+/**
+ * ComposeTemplateGitSource selects one file from public Git.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateGitSource
+ */
+export type ComposeTemplateGitSource = Message<"dockwell.v1.ComposeTemplateGitSource"> & {
+  /**
+   * @generated from field: string repository = 1;
+   */
+  repository: string;
+
+  /**
+   * @generated from field: string ref = 2;
+   */
+  ref: string;
+
+  /**
+   * @generated from field: string path = 3;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateGitSource.
+ * Use `create(ComposeTemplateGitSourceSchema)` to create a new message.
+ */
+export const ComposeTemplateGitSourceSchema: GenMessage<ComposeTemplateGitSource> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 28);
+
+/**
+ * PlanFromComposeTemplateRequest pins a revision, placement and input choices.
+ *
+ * @generated from message dockwell.v1.PlanFromComposeTemplateRequest
+ */
+export type PlanFromComposeTemplateRequest = Message<"dockwell.v1.PlanFromComposeTemplateRequest"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: int64 revision = 2;
+   */
+  revision: bigint;
+
+  /**
+   * @generated from field: dockwell.v1.ComposeTemplateDestination destination = 3;
+   */
+  destination?: ComposeTemplateDestination | undefined;
+
+  /**
+   * @generated from field: repeated dockwell.v1.ComposeTemplateValue inputs = 4;
+   */
+  inputs: ComposeTemplateValue[];
+};
+
+/**
+ * Describes the message dockwell.v1.PlanFromComposeTemplateRequest.
+ * Use `create(PlanFromComposeTemplateRequestSchema)` to create a new message.
+ */
+export const PlanFromComposeTemplateRequestSchema: GenMessage<PlanFromComposeTemplateRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 29);
+
+/**
+ * PlanFromComposeTemplateResponse has the usual review or a safe refusal.
+ *
+ * @generated from message dockwell.v1.PlanFromComposeTemplateResponse
+ */
+export type PlanFromComposeTemplateResponse = Message<"dockwell.v1.PlanFromComposeTemplateResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+
+  /**
+   * @generated from field: dockwell.v1.ComposeRefusal refusal = 2;
+   */
+  refusal?: ComposeRefusal | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.PlanFromComposeTemplateResponse.
+ * Use `create(PlanFromComposeTemplateResponseSchema)` to create a new message.
+ */
+export const PlanFromComposeTemplateResponseSchema: GenMessage<PlanFromComposeTemplateResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 30);
+
+/**
+ * ComposeTemplateDestination gives the new environment and selected server.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateDestination
+ */
+export type ComposeTemplateDestination = Message<"dockwell.v1.ComposeTemplateDestination"> & {
+  /**
+   * @generated from field: string environment_name = 1;
+   */
+  environmentName: string;
+
+  /**
+   * @generated from field: string server_id = 2;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateDestination.
+ * Use `create(ComposeTemplateDestinationSchema)` to create a new message.
+ */
+export const ComposeTemplateDestinationSchema: GenMessage<ComposeTemplateDestination> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 31);
+
+/**
+ * ComposeTemplateValue supplies one input or requests a generated secret.
+ *
+ * @generated from message dockwell.v1.ComposeTemplateValue
+ */
+export type ComposeTemplateValue = Message<"dockwell.v1.ComposeTemplateValue"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from oneof dockwell.v1.ComposeTemplateValue.choice
+   */
+  choice: {
+    /**
+     * @generated from field: string value = 2;
+     */
+    value: string;
+    case: "value";
+  } | {
+    /**
+     * @generated from field: bool generate = 3;
+     */
+    value: boolean;
+    case: "generate";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message dockwell.v1.ComposeTemplateValue.
+ * Use `create(ComposeTemplateValueSchema)` to create a new message.
+ */
+export const ComposeTemplateValueSchema: GenMessage<ComposeTemplateValue> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_compose, 32);
+
+/**
  * ComposeService turns a Docker Compose file into a project's services,
  * volumes and networks, and any of them back into one. Each file gets a
  * project of its own, so two files with a service of one name run side by
@@ -836,6 +1285,46 @@ export const PlanComposeWorkspaceResponseSchema: GenMessage<PlanComposeWorkspace
  * @generated from service dockwell.v1.ComposeService
  */
 export const ComposeService: GenService<{
+  /**
+   * ListComposeTemplates lists the templates in one project.
+   *
+   * @generated from rpc dockwell.v1.ComposeService.ListComposeTemplates
+   */
+  listComposeTemplates: {
+    methodKind: "unary";
+    input: typeof ListComposeTemplatesRequestSchema;
+    output: typeof ListComposeTemplatesResponseSchema;
+  },
+  /**
+   * GetComposeTemplate reads a template revision and optionally its history.
+   *
+   * @generated from rpc dockwell.v1.ComposeService.GetComposeTemplate
+   */
+  getComposeTemplate: {
+    methodKind: "unary";
+    input: typeof GetComposeTemplateRequestSchema;
+    output: typeof GetComposeTemplateResponseSchema;
+  },
+  /**
+   * PrepareComposeTemplate prepares a portable, secret-free definition for review.
+   *
+   * @generated from rpc dockwell.v1.ComposeService.PrepareComposeTemplate
+   */
+  prepareComposeTemplate: {
+    methodKind: "unary";
+    input: typeof PrepareComposeTemplateRequestSchema;
+    output: typeof PrepareComposeTemplateResponseSchema;
+  },
+  /**
+   * PlanFromComposeTemplate plans a workspace from the exact template revision.
+   *
+   * @generated from rpc dockwell.v1.ComposeService.PlanFromComposeTemplate
+   */
+  planFromComposeTemplate: {
+    methodKind: "unary";
+    input: typeof PlanFromComposeTemplateRequestSchema;
+    output: typeof PlanFromComposeTemplateResponseSchema;
+  },
   /**
    * ImportCompose plans a Compose file into a project as a change, ready to
    * apply or discard, as ProposeChange does with edits. Each Compose service

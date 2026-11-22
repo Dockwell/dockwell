@@ -35,6 +35,7 @@ func Commands() []string {
 		"changes",
 		"claim-link",
 		"compose",
+		"compose-templates",
 		"connections",
 		"containers",
 		"control-plane",

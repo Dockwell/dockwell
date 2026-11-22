@@ -9,6 +9,7 @@ import "dockwell/v1/change.proto";
 import "dockwell/v1/options.proto";
 import "dockwell/v1/service.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 // ComposeService turns a Docker Compose file into a project's services,
 // volumes and networks, and any of them back into one. Each file gets a
@@ -19,6 +20,66 @@ import "google/api/annotations.proto";
 // runs the same with docker compose alone (PRD principle 6). See
 // docs/adr/0021-the-docker-driver.md and docs/adr/0026-the-app-screens.md.
 service ComposeService {
+  // ListComposeTemplates lists the templates in one project.
+  rpc ListComposeTemplates(ListComposeTemplatesRequest) returns (ListComposeTemplatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "compose"
+      verb: "list-templates"
+    };
+    option (google.api.http) = {get: "/v1/projects/{project_id}/compose-templates"};
+  }
+
+  // GetComposeTemplate reads a template revision and optionally its history.
+  rpc GetComposeTemplate(GetComposeTemplateRequest) returns (GetComposeTemplateResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "compose"
+      verb: "get-template"
+    };
+    option (google.api.http) = {get: "/v1/compose/templates/{id}"};
+  }
+
+  // PrepareComposeTemplate prepares a portable, secret-free definition for review.
+  rpc PrepareComposeTemplate(PrepareComposeTemplateRequest) returns (PrepareComposeTemplateResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "compose"
+      verb: "prepare-template"
+    };
+    option (google.api.http) = {
+      post: "/v1/compose/templates:prepare"
+      body: "*"
+    };
+  }
+
+  // PlanFromComposeTemplate plans a workspace from the exact template revision.
+  rpc PlanFromComposeTemplate(PlanFromComposeTemplateRequest) returns (PlanFromComposeTemplateResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_DEVELOPER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "compose"
+      verb: "plan-from-template"
+    };
+    option (google.api.http) = {
+      post: "/v1/compose/templates/{id}:plan"
+      body: "*"
+    };
+  }
+
   // ImportCompose plans a Compose file into a project as a change, ready to
   // apply or discard, as ProposeChange does with edits. Each Compose service
   // becomes a service, and each named volume and network one of its own. A
@@ -372,4 +433,117 @@ message PlanComposeWorkspaceResponse {
   ComposeRefusal refusal = 2;
   // A draft that omits resources must confirm these exact removals.
   repeated ComposeWorkspaceRemoval removals = 3;
+}
+
+// ListComposeTemplatesRequest searches the live library of a project.
+message ListComposeTemplatesRequest {
+  string project_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  string query = 4;
+}
+
+// ListComposeTemplatesResponse holds a page of summaries.
+message ListComposeTemplatesResponse {
+  repeated ComposeTemplateSummary templates = 1;
+  string next_page_token = 2;
+}
+
+// GetComposeTemplateRequest selects the current revision when revision is zero.
+message GetComposeTemplateRequest {
+  string id = 1;
+  int64 revision = 2;
+  int32 history_page_size = 3;
+  string history_page_token = 4;
+}
+
+// GetComposeTemplateResponse holds the selected definition and optional history.
+message GetComposeTemplateResponse {
+  ComposeTemplateSummary template = 1;
+  dockwell.resource.v1alpha1.ComposeTemplate spec = 2;
+  repeated ComposeTemplateRevision history = 3;
+  string next_history_page_token = 4;
+}
+
+// ComposeTemplateSummary is the library's projection of a revision.
+message ComposeTemplateSummary {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  int64 revision = 4;
+  string description = 5;
+  int32 input_count = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  bool archived = 8;
+}
+
+// ComposeTemplateRevision names a reviewed, saved definition.
+message ComposeTemplateRevision {
+  int64 revision = 1;
+  google.protobuf.Timestamp changed_at = 2;
+  string change_id = 3;
+}
+
+// PrepareComposeTemplateRequest selects one source. Raw YAML is never logged.
+message PrepareComposeTemplateRequest {
+  string project_id = 1;
+  oneof source {
+    string compose_yaml = 2 [
+      (dockwell.resource.v1alpha1.sensitive) = true,
+      (dockwell.v1.from_file) = true
+    ];
+    ComposeTemplateStackSource stack = 3;
+    ComposeTemplateGitSource git = 4;
+  }
+}
+
+// PrepareComposeTemplateResponse contains a validated draft or a refusal.
+message PrepareComposeTemplateResponse {
+  dockwell.resource.v1alpha1.ComposeTemplate draft = 1;
+  ComposeRefusal refusal = 2;
+  repeated ComposeWorkspaceOmission omissions = 3;
+}
+
+// ComposeTemplateStackSource selects a managed workspace by ID.
+message ComposeTemplateStackSource {
+  string environment_id = 1;
+}
+
+// ComposeTemplateGitSource selects one file from public Git.
+message ComposeTemplateGitSource {
+  string repository = 1;
+  string ref = 2;
+  string path = 3;
+}
+
+// PlanFromComposeTemplateRequest pins a revision, placement and input choices.
+message PlanFromComposeTemplateRequest {
+  string id = 1;
+  int64 revision = 2;
+  ComposeTemplateDestination destination = 3;
+  repeated ComposeTemplateValue inputs = 4;
+}
+
+// PlanFromComposeTemplateResponse has the usual review or a safe refusal.
+message PlanFromComposeTemplateResponse {
+  Change change = 1;
+  ComposeRefusal refusal = 2;
+}
+
+// ComposeTemplateDestination gives the new environment and selected server.
+message ComposeTemplateDestination {
+  string environment_name = 1;
+  string server_id = 2;
+}
+
+// ComposeTemplateValue supplies one input or requests a generated secret.
+message ComposeTemplateValue {
+  string name = 1;
+  oneof choice {
+    string value = 2 [
+      (dockwell.resource.v1alpha1.sensitive) = true,
+      (dockwell.resource.v1alpha1.no_flag) = true
+    ];
+    bool generate = 3;
+  }
 }

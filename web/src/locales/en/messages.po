@@ -5357,6 +5357,9 @@ msgctxt "a project name"
 msgid "Free"
 msgstr "Free"
 
+msgid "From template"
+msgstr "From template"
+
 msgid "Git"
 msgstr "Git"
 
@@ -5481,6 +5484,9 @@ msgstr "Reachable at <0>{at}</0>"
 msgid "Reaches {path}"
 msgstr "Reaches {path}"
 
+msgid "Reading templates"
+msgstr "Reading templates"
+
 msgid "Reading the file"
 msgstr "Reading the file"
 
@@ -5588,6 +5594,9 @@ msgstr "Up to {memory} and {cpus} CPUs"
 
 msgid "Update {projectMovedFrom} instead"
 msgstr "Update {projectMovedFrom} instead"
+
+msgid "Use Compose template"
+msgstr "Use Compose template"
 
 msgid "Use a volume instead"
 msgstr "Use a volume instead"
@@ -14619,6 +14628,9 @@ msgstr "Can't read these services"
 msgid "Can't read this stack"
 msgstr "Can't read this stack"
 
+msgid "Checking Compose file"
+msgstr "Checking Compose file"
+
 msgid "Compose project"
 msgstr "Compose project"
 
@@ -14701,6 +14713,9 @@ msgstr "Remove the stack's workloads and networks"
 msgid "Review deletion"
 msgstr "Review deletion"
 
+msgid "Save as template"
+msgstr "Save as template"
+
 msgid "Select every placement of a volume to remove it."
 msgstr "Select every placement of a volume to remove it."
 
@@ -14728,6 +14743,9 @@ msgstr "Take on this project to manage it"
 msgid "Take on {project}"
 msgstr "Take on {project}"
 
+msgid "Template actions"
+msgstr "Template actions"
+
 msgid "The selected volumes and their data will be removed."
 msgstr "The selected volumes and their data will be removed."
 
@@ -14742,6 +14760,217 @@ msgstr "Unavailable"
 
 msgid "Volumes and their data stay."
 msgstr "Volumes and their data stay."
+
+msgid "Add a server to run this template"
+msgstr "Add a server to run this template"
+
+msgid "Back to Compose templates"
+msgstr "Back to Compose templates"
+
+msgid "Branch, tag or commit"
+msgstr "Branch, tag or commit"
+
+msgid "Can't plan from this template"
+msgstr "Can't plan from this template"
+
+msgid "Can't prepare the template"
+msgstr "Can't prepare the template"
+
+msgid "Can't read templates"
+msgstr "Can't read templates"
+
+msgid "Can't read the template"
+msgstr "Can't read the template"
+
+msgid "Check the Compose file"
+msgstr "Check the Compose file"
+
+msgid "Check this value"
+msgstr "Check this value"
+
+msgid "Checking deployment"
+msgstr "Checking deployment"
+
+msgid "Checking this deployment is taking longer than usual"
+msgstr "Checking this deployment is taking longer than usual"
+
+msgid "Choose a Compose file up to 256 KiB."
+msgstr "Choose a Compose file up to 256 KiB."
+
+msgid "Choose a server"
+msgstr "Choose a server"
+
+msgid "Choose a template"
+msgstr "Choose a template"
+
+msgid "Clear search"
+msgstr "Clear search"
+
+msgid "Compose templates"
+msgstr "Compose templates"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Default"
+msgstr "Default"
+
+msgid "Default branch"
+msgstr "Default branch"
+
+msgid "Defaults"
+msgstr "Defaults"
+
+msgid "Delete template"
+msgstr "Delete template"
+
+#. placeholder {0}: item.name
+msgid "Delete template {0}"
+msgstr "Delete template {0}"
+
+msgid "Description"
+msgstr "Description"
+
+msgid "Download YAML"
+msgstr "Download YAML"
+
+msgid "Duplicate"
+msgstr "Duplicate"
+
+msgid "Edit Compose template {name}"
+msgstr "Edit Compose template {name}"
+
+msgid "Edit template"
+msgstr "Edit template"
+
+msgid "Enter a secret"
+msgstr "Enter a secret"
+
+msgid "File path"
+msgstr "File path"
+
+msgid "Find a template"
+msgstr "Find a template"
+
+msgid "Generate secret"
+msgstr "Generate secret"
+
+msgid "Git is still reading the selected file"
+msgstr "Git is still reading the selected file"
+
+msgid "Git repository"
+msgstr "Git repository"
+
+msgid "Git source"
+msgstr "Git source"
+
+msgid "Inputs"
+msgstr "Inputs"
+
+#. placeholder {0}: input.name
+msgid "Keep {0} as a secret"
+msgstr "Keep {0} as a secret"
+
+msgid "Line {line}"
+msgstr "Line {line}"
+
+msgid "New environment"
+msgstr "New environment"
+
+msgid "New template"
+msgstr "New template"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "No connected server can read Docker"
+msgstr "No connected server can read Docker"
+
+msgid "No matching templates"
+msgstr "No matching templates"
+
+msgid "No templates yet"
+msgstr "No templates yet"
+
+msgid "No variables"
+msgstr "No variables"
+
+msgid "Older revisions"
+msgstr "Older revisions"
+
+msgid "Open latest revision"
+msgstr "Open latest revision"
+
+#. placeholder {0}: row.revision.toString()
+msgid "Open revision {0}"
+msgstr "Open revision {0}"
+
+msgid "Open template library"
+msgstr "Open template library"
+
+msgid "Prepared Compose file"
+msgstr "Prepared Compose file"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Read file"
+msgstr "Read file"
+
+msgid "Reading template"
+msgstr "Reading template"
+
+msgid "Reading templates is taking longer than usual"
+msgstr "Reading templates is taking longer than usual"
+
+msgid "Reading this template is taking longer than usual"
+msgstr "Reading this template is taking longer than usual"
+
+msgid "Recent revisions"
+msgstr "Recent revisions"
+
+msgid "Repository URL"
+msgstr "Repository URL"
+
+msgid "Review deployment"
+msgstr "Review deployment"
+
+msgid "Review template"
+msgstr "Review template"
+
+msgid "Save Compose template {name}"
+msgstr "Save Compose template {name}"
+
+msgid "Secret value"
+msgstr "Secret value"
+
+msgid "Template"
+msgstr "Template"
+
+msgid "The Compose file check is taking longer than usual"
+msgstr "The Compose file check is taking longer than usual"
+
+msgid "The template did not produce a plan."
+msgstr "The template did not produce a plan."
+
+msgid "Upload YAML"
+msgstr "Upload YAML"
+
+msgid "Use secret inputs. The file is visible to the project."
+msgstr "Use secret inputs. The file is visible to the project."
+
+msgid "Use template"
+msgstr "Use template"
+
+msgid "Use this revision"
+msgstr "Use this revision"
+
+msgid "Workspace settings left out"
+msgstr "Workspace settings left out"
+
+#. placeholder {0}: row.inputCount
+msgid "{0} inputs"
+msgstr "{0} inputs"
 
 msgid "Choose an image"
 msgstr "Choose an image"
@@ -14907,9 +15136,6 @@ msgstr ".tar or .tar.gz, up to 1 GiB"
 msgid "Add login"
 msgstr "Add login"
 
-msgid "Branch, tag or commit"
-msgstr "Branch, tag or commit"
-
 msgid "Build context archive"
 msgstr "Build context archive"
 
@@ -14934,9 +15160,6 @@ msgstr "Choose the same file to resume the upload."
 msgid "Credential project"
 msgstr "Credential project"
 
-msgid "Default branch"
-msgstr "Default branch"
-
 msgid "Dockerfile override"
 msgstr "Dockerfile override"
 
@@ -14951,9 +15174,6 @@ msgstr "Drop a build context"
 
 msgid "Git access"
 msgstr "Git access"
-
-msgid "Git repository"
-msgstr "Git repository"
 
 msgid "Install-wide"
 msgstr "Install-wide"
@@ -15121,6 +15341,9 @@ msgstr "Show all projects"
 
 msgid "Some Engine observations are unavailable"
 msgstr "Some Engine observations are unavailable"
+
+msgid "Templates"
+msgstr "Templates"
 
 msgid "Upload a file"
 msgstr "Upload a file"
@@ -15336,9 +15559,6 @@ msgstr "Name, image or project"
 msgid "New container"
 msgstr "New container"
 
-msgid "Next"
-msgstr "Next"
-
 msgid "No containers here"
 msgstr "No containers here"
 
@@ -15351,9 +15571,6 @@ msgstr "No sample"
 #. placeholder {0}: pages.length
 msgid "Page {0}"
 msgstr "Page {0}"
-
-msgid "Previous"
-msgstr "Previous"
 
 msgid "Refresh containers"
 msgstr "Refresh containers"
@@ -16042,9 +16259,6 @@ msgstr "Checking network settings"
 
 msgid "Choose a gateway inside its subnet"
 msgstr "Choose a gateway inside its subnet"
-
-msgid "Choose a server"
-msgstr "Choose a server"
 
 msgid "Choose an environment"
 msgstr "Choose an environment"

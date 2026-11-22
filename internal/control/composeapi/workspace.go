@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
+	"github.com/dockwell/dockwell/internal/secrets"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -42,22 +43,23 @@ type workspaceRecord struct {
 }
 
 type workspaceBase struct {
-	info        *v1.GetComposeWorkspaceResponse
-	records     map[resource.Ref]workspaceRecord
-	vars        map[string]string
-	projectName string
+	info             *v1.GetComposeWorkspaceResponse
+	records          map[resource.Ref]workspaceRecord
+	vars             map[string]string
+	projectName      string
+	templateBindings compose.TemplateBindings
 }
 
 // GetComposeWorkspace reads the portable projection of a managed environment.
 func (h *Handler) GetComposeWorkspace(ctx context.Context, req *connect.Request[v1.GetComposeWorkspaceRequest]) (*connect.Response[v1.GetComposeWorkspaceResponse], error) {
-	base, err := h.workspace(ctx, req.Msg.GetEnvironmentId())
+	base, err := h.workspace(ctx, req.Msg.GetEnvironmentId(), false)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(base.info), nil
 }
 
-func (h *Handler) workspace(ctx context.Context, scopeID string) (*workspaceBase, error) {
+func (h *Handler) workspace(ctx context.Context, scopeID string, forTemplate bool) (*workspaceBase, error) {
 	if !strings.HasPrefix(scopeID, id.Environment+"_") {
 		return nil, authapi.Invalid(errors.New("a Compose workspace needs the environment ID"))
 	}
@@ -75,6 +77,9 @@ func (h *Handler) workspace(ctx context.Context, scopeID string) (*workspaceBase
 	base := &workspaceBase{
 		info: out, records: map[resource.Ref]workspaceRecord{}, vars: map[string]string{}, projectName: project.Name,
 	}
+	if forTemplate {
+		base.templateBindings = make(compose.TemplateBindings)
+	}
 	digest := sha256.New()
 	fmt.Fprintf(digest, "workspace-v2\x00%s\x00%s\x00%s\x00%s\x00", env.ID, env.Name, name, project.Name)
 	stack := &compose.Stack{LogDrivers: map[string]string{}}
@@ -89,13 +94,20 @@ func (h *Handler) workspace(ctx context.Context, scopeID string) (*workspaceBase
 			switch kind {
 			case service.Kind, volume.Kind, network.Kind, route.Kind, appowner.Kind:
 			default:
+				if forTemplate {
+					out.Omissions = append(out.Omissions, &v1.ComposeWorkspaceOmission{Kind: held.Kind, Name: held.Name, Path: templateOmission(held.Kind)})
+				}
 				continue
 			}
-			spec, err := h.keeper.Decode(ctx, tx, store.InRevision(held.ID, held.Kind, held.Revision), held.Spec)
+			spec, err := h.workspaceSpec(ctx, tx, held, forTemplate)
 			if err != nil {
 				return err
 			}
 			ref := resource.Ref{Kind: kind, Scope: env.ID, Name: held.Name}
+			if forTemplate {
+				base.project(ref, spec, stack)
+				continue
+			}
 			record := workspaceRecord{revision: held.Revision, spec: spec}
 			if kind == service.Kind || kind == volume.Kind || kind == network.Kind {
 				record.servers, err = tx.Placement(ctx, held.ID, held.Revision)
@@ -115,6 +127,9 @@ func (h *Handler) workspace(ctx context.Context, scopeID string) (*workspaceBase
 		return nil
 	})
 	if err != nil {
+		if _, ok := errors.AsType[*compose.TemplateIssue](err); ok {
+			return nil, err
+		}
 		return nil, h.internal(ctx, err)
 	}
 	out.Snapshot = hex.EncodeToString(digest.Sum(nil))
@@ -131,6 +146,47 @@ func (h *Handler) workspace(ctx context.Context, scopeID string) (*workspaceBase
 	return base, nil
 }
 
+func templateOmission(kind string) string {
+	switch kind {
+	case "backup.policy":
+		return "backup schedule"
+	case "task":
+		return "scheduled task"
+	default:
+		return kind
+	}
+}
+
+func (h *Handler) workspaceSpec(ctx context.Context, tx *store.Tx, held store.Resource, forTemplate bool) (proto.Message, error) {
+	if !forTemplate || !secrets.Sealed(held.Spec) {
+		return h.keeper.Decode(ctx, tx, store.InRevision(held.ID, held.Kind, held.Revision), held.Spec)
+	}
+	if held.Kind == string(route.Kind) {
+		return &resourcev1.Route{}, nil
+	}
+	source, err := tx.ComposeSource(ctx, held)
+	if err != nil {
+		return nil, err
+	}
+	if !secrets.Sealed(source) {
+		return nil, &compose.TemplateIssue{Reason: fmt.Sprintf("Save a new revision of %s before making a template. Its current revision was saved without a template projection.", held.Name)}
+	}
+	plain, err := h.keeper.Open(ctx, tx, store.InComposeSource(held.ID, held.Kind, held.Revision), source)
+	if err != nil {
+		return nil, err
+	}
+	var out proto.Message
+	switch resource.Kind(held.Kind) {
+	case service.Kind:
+		out = &resourcev1.Service{}
+	case volume.Kind:
+		out = &resourcev1.Volume{}
+	default:
+		return nil, errors.New("unsupported Compose template projection")
+	}
+	return out, proto.Unmarshal(plain, out)
+}
+
 func (b *workspaceBase) markerPrefix() string {
 	return "dockwell-kept-" + b.info.GetSnapshot() + "-"
 }
@@ -144,6 +200,16 @@ func (b *workspaceBase) project(ref resource.Ref, spec proto.Message, stack *com
 		if s.GetApp() == nil {
 			keep("workload", false)
 			return
+		}
+		if b.templateBindings != nil {
+			refs := map[string]string{}
+			for alias, name := range s.GetSecrets() {
+				if name == "" {
+					name = alias
+				}
+				refs[alias] = fmt.Sprintf("%s:%d", name, s.GetRevisions()[alias])
+			}
+			b.templateBindings[ref.Name] = refs
 		}
 		for _, name := range binding.ReferencedNames(s.GetApp()) {
 			b.vars[name] = ""
@@ -206,7 +272,7 @@ func (h *Handler) PlanComposeWorkspace(ctx context.Context, req *connect.Request
 	if len(m.GetYaml()) > compose.MaxFile || len(m.GetExplicitRemovals()) > 256 {
 		return nil, authapi.Invalid(errors.New("the Compose draft or its selection is too large"))
 	}
-	base, err := h.workspace(ctx, m.GetEnvironmentId())
+	base, err := h.workspace(ctx, m.GetEnvironmentId(), false)
 	if err != nil {
 		return nil, err
 	}

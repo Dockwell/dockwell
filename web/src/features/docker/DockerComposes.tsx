@@ -331,6 +331,11 @@ export function DockerComposes({
               ]}
             />
           ) : null}
+          {may(ComposeService.method.listComposeTemplates).allowed ? (
+            <Link className="dw-link" to="/apps/templates">
+              <Trans>Templates</Trans>
+            </Link>
+          ) : null}
           {canImport ? (
             <Button size="sm" variant="primary" icon="plus" onClick={openNew}>
               <Trans>New Compose</Trans>

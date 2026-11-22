@@ -162,7 +162,7 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		}
 		p, err := pl.scoped(ctx, b.EnvironmentID)
 		return []Place{p}, err
-	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource,
+	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource, id.ComposeTemplate,
 		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
 		databaseUser, catalogSource, registryLogin, dnsProvider, certificateID, signinProvider, connectionPrefix, githubApp, id.AlertRule, id.AlertChannel, id.AlertCheck:
 		r, err := tx.GetResourceByID(ctx, objectID)

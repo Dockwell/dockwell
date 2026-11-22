@@ -35,6 +35,18 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// ComposeServiceListComposeTemplatesProcedure is the fully-qualified name of the ComposeService's
+	// ListComposeTemplates RPC.
+	ComposeServiceListComposeTemplatesProcedure = "/dockwell.v1.ComposeService/ListComposeTemplates"
+	// ComposeServiceGetComposeTemplateProcedure is the fully-qualified name of the ComposeService's
+	// GetComposeTemplate RPC.
+	ComposeServiceGetComposeTemplateProcedure = "/dockwell.v1.ComposeService/GetComposeTemplate"
+	// ComposeServicePrepareComposeTemplateProcedure is the fully-qualified name of the ComposeService's
+	// PrepareComposeTemplate RPC.
+	ComposeServicePrepareComposeTemplateProcedure = "/dockwell.v1.ComposeService/PrepareComposeTemplate"
+	// ComposeServicePlanFromComposeTemplateProcedure is the fully-qualified name of the
+	// ComposeService's PlanFromComposeTemplate RPC.
+	ComposeServicePlanFromComposeTemplateProcedure = "/dockwell.v1.ComposeService/PlanFromComposeTemplate"
 	// ComposeServiceImportComposeProcedure is the fully-qualified name of the ComposeService's
 	// ImportCompose RPC.
 	ComposeServiceImportComposeProcedure = "/dockwell.v1.ComposeService/ImportCompose"
@@ -57,6 +69,14 @@ const (
 
 // ComposeServiceClient is a client for the dockwell.v1.ComposeService service.
 type ComposeServiceClient interface {
+	// ListComposeTemplates lists the templates in one project.
+	ListComposeTemplates(context.Context, *connect.Request[v1.ListComposeTemplatesRequest]) (*connect.Response[v1.ListComposeTemplatesResponse], error)
+	// GetComposeTemplate reads a template revision and optionally its history.
+	GetComposeTemplate(context.Context, *connect.Request[v1.GetComposeTemplateRequest]) (*connect.Response[v1.GetComposeTemplateResponse], error)
+	// PrepareComposeTemplate prepares a portable, secret-free definition for review.
+	PrepareComposeTemplate(context.Context, *connect.Request[v1.PrepareComposeTemplateRequest]) (*connect.Response[v1.PrepareComposeTemplateResponse], error)
+	// PlanFromComposeTemplate plans a workspace from the exact template revision.
+	PlanFromComposeTemplate(context.Context, *connect.Request[v1.PlanFromComposeTemplateRequest]) (*connect.Response[v1.PlanFromComposeTemplateResponse], error)
 	// ImportCompose plans a Compose file into a project as a change, ready to
 	// apply or discard, as ProposeChange does with edits. Each Compose service
 	// becomes a service, and each named volume and network one of its own. A
@@ -99,6 +119,32 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	composeServiceMethods := v1.File_dockwell_v1_compose_proto.Services().ByName("ComposeService").Methods()
 	return &composeServiceClient{
+		listComposeTemplates: connect.NewClient[v1.ListComposeTemplatesRequest, v1.ListComposeTemplatesResponse](
+			httpClient,
+			baseURL+ComposeServiceListComposeTemplatesProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("ListComposeTemplates")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getComposeTemplate: connect.NewClient[v1.GetComposeTemplateRequest, v1.GetComposeTemplateResponse](
+			httpClient,
+			baseURL+ComposeServiceGetComposeTemplateProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("GetComposeTemplate")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		prepareComposeTemplate: connect.NewClient[v1.PrepareComposeTemplateRequest, v1.PrepareComposeTemplateResponse](
+			httpClient,
+			baseURL+ComposeServicePrepareComposeTemplateProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("PrepareComposeTemplate")),
+			connect.WithClientOptions(opts...),
+		),
+		planFromComposeTemplate: connect.NewClient[v1.PlanFromComposeTemplateRequest, v1.PlanFromComposeTemplateResponse](
+			httpClient,
+			baseURL+ComposeServicePlanFromComposeTemplateProcedure,
+			connect.WithSchema(composeServiceMethods.ByName("PlanFromComposeTemplate")),
+			connect.WithClientOptions(opts...),
+		),
 		importCompose: connect.NewClient[v1.ImportComposeRequest, v1.ImportComposeResponse](
 			httpClient,
 			baseURL+ComposeServiceImportComposeProcedure,
@@ -142,12 +188,36 @@ func NewComposeServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // composeServiceClient implements ComposeServiceClient.
 type composeServiceClient struct {
-	importCompose        *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
-	adoptCompose         *connect.Client[v1.AdoptComposeRequest, v1.AdoptComposeResponse]
-	checkCompose         *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
-	getComposeWorkspace  *connect.Client[v1.GetComposeWorkspaceRequest, v1.GetComposeWorkspaceResponse]
-	planComposeWorkspace *connect.Client[v1.PlanComposeWorkspaceRequest, v1.PlanComposeWorkspaceResponse]
-	exportCompose        *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
+	listComposeTemplates    *connect.Client[v1.ListComposeTemplatesRequest, v1.ListComposeTemplatesResponse]
+	getComposeTemplate      *connect.Client[v1.GetComposeTemplateRequest, v1.GetComposeTemplateResponse]
+	prepareComposeTemplate  *connect.Client[v1.PrepareComposeTemplateRequest, v1.PrepareComposeTemplateResponse]
+	planFromComposeTemplate *connect.Client[v1.PlanFromComposeTemplateRequest, v1.PlanFromComposeTemplateResponse]
+	importCompose           *connect.Client[v1.ImportComposeRequest, v1.ImportComposeResponse]
+	adoptCompose            *connect.Client[v1.AdoptComposeRequest, v1.AdoptComposeResponse]
+	checkCompose            *connect.Client[v1.CheckComposeRequest, v1.CheckComposeResponse]
+	getComposeWorkspace     *connect.Client[v1.GetComposeWorkspaceRequest, v1.GetComposeWorkspaceResponse]
+	planComposeWorkspace    *connect.Client[v1.PlanComposeWorkspaceRequest, v1.PlanComposeWorkspaceResponse]
+	exportCompose           *connect.Client[v1.ExportComposeRequest, v1.ExportComposeResponse]
+}
+
+// ListComposeTemplates calls dockwell.v1.ComposeService.ListComposeTemplates.
+func (c *composeServiceClient) ListComposeTemplates(ctx context.Context, req *connect.Request[v1.ListComposeTemplatesRequest]) (*connect.Response[v1.ListComposeTemplatesResponse], error) {
+	return c.listComposeTemplates.CallUnary(ctx, req)
+}
+
+// GetComposeTemplate calls dockwell.v1.ComposeService.GetComposeTemplate.
+func (c *composeServiceClient) GetComposeTemplate(ctx context.Context, req *connect.Request[v1.GetComposeTemplateRequest]) (*connect.Response[v1.GetComposeTemplateResponse], error) {
+	return c.getComposeTemplate.CallUnary(ctx, req)
+}
+
+// PrepareComposeTemplate calls dockwell.v1.ComposeService.PrepareComposeTemplate.
+func (c *composeServiceClient) PrepareComposeTemplate(ctx context.Context, req *connect.Request[v1.PrepareComposeTemplateRequest]) (*connect.Response[v1.PrepareComposeTemplateResponse], error) {
+	return c.prepareComposeTemplate.CallUnary(ctx, req)
+}
+
+// PlanFromComposeTemplate calls dockwell.v1.ComposeService.PlanFromComposeTemplate.
+func (c *composeServiceClient) PlanFromComposeTemplate(ctx context.Context, req *connect.Request[v1.PlanFromComposeTemplateRequest]) (*connect.Response[v1.PlanFromComposeTemplateResponse], error) {
+	return c.planFromComposeTemplate.CallUnary(ctx, req)
 }
 
 // ImportCompose calls dockwell.v1.ComposeService.ImportCompose.
@@ -182,6 +252,14 @@ func (c *composeServiceClient) ExportCompose(ctx context.Context, req *connect.R
 
 // ComposeServiceHandler is an implementation of the dockwell.v1.ComposeService service.
 type ComposeServiceHandler interface {
+	// ListComposeTemplates lists the templates in one project.
+	ListComposeTemplates(context.Context, *connect.Request[v1.ListComposeTemplatesRequest]) (*connect.Response[v1.ListComposeTemplatesResponse], error)
+	// GetComposeTemplate reads a template revision and optionally its history.
+	GetComposeTemplate(context.Context, *connect.Request[v1.GetComposeTemplateRequest]) (*connect.Response[v1.GetComposeTemplateResponse], error)
+	// PrepareComposeTemplate prepares a portable, secret-free definition for review.
+	PrepareComposeTemplate(context.Context, *connect.Request[v1.PrepareComposeTemplateRequest]) (*connect.Response[v1.PrepareComposeTemplateResponse], error)
+	// PlanFromComposeTemplate plans a workspace from the exact template revision.
+	PlanFromComposeTemplate(context.Context, *connect.Request[v1.PlanFromComposeTemplateRequest]) (*connect.Response[v1.PlanFromComposeTemplateResponse], error)
 	// ImportCompose plans a Compose file into a project as a change, ready to
 	// apply or discard, as ProposeChange does with edits. Each Compose service
 	// becomes a service, and each named volume and network one of its own. A
@@ -220,6 +298,32 @@ type ComposeServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	composeServiceMethods := v1.File_dockwell_v1_compose_proto.Services().ByName("ComposeService").Methods()
+	composeServiceListComposeTemplatesHandler := connect.NewUnaryHandler(
+		ComposeServiceListComposeTemplatesProcedure,
+		svc.ListComposeTemplates,
+		connect.WithSchema(composeServiceMethods.ByName("ListComposeTemplates")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	composeServiceGetComposeTemplateHandler := connect.NewUnaryHandler(
+		ComposeServiceGetComposeTemplateProcedure,
+		svc.GetComposeTemplate,
+		connect.WithSchema(composeServiceMethods.ByName("GetComposeTemplate")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	composeServicePrepareComposeTemplateHandler := connect.NewUnaryHandler(
+		ComposeServicePrepareComposeTemplateProcedure,
+		svc.PrepareComposeTemplate,
+		connect.WithSchema(composeServiceMethods.ByName("PrepareComposeTemplate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	composeServicePlanFromComposeTemplateHandler := connect.NewUnaryHandler(
+		ComposeServicePlanFromComposeTemplateProcedure,
+		svc.PlanFromComposeTemplate,
+		connect.WithSchema(composeServiceMethods.ByName("PlanFromComposeTemplate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	composeServiceImportComposeHandler := connect.NewUnaryHandler(
 		ComposeServiceImportComposeProcedure,
 		svc.ImportCompose,
@@ -260,6 +364,14 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 	)
 	return "/dockwell.v1.ComposeService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case ComposeServiceListComposeTemplatesProcedure:
+			composeServiceListComposeTemplatesHandler.ServeHTTP(w, r)
+		case ComposeServiceGetComposeTemplateProcedure:
+			composeServiceGetComposeTemplateHandler.ServeHTTP(w, r)
+		case ComposeServicePrepareComposeTemplateProcedure:
+			composeServicePrepareComposeTemplateHandler.ServeHTTP(w, r)
+		case ComposeServicePlanFromComposeTemplateProcedure:
+			composeServicePlanFromComposeTemplateHandler.ServeHTTP(w, r)
 		case ComposeServiceImportComposeProcedure:
 			composeServiceImportComposeHandler.ServeHTTP(w, r)
 		case ComposeServiceAdoptComposeProcedure:
@@ -280,6 +392,22 @@ func NewComposeServiceHandler(svc ComposeServiceHandler, opts ...connect.Handler
 
 // UnimplementedComposeServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedComposeServiceHandler struct{}
+
+func (UnimplementedComposeServiceHandler) ListComposeTemplates(context.Context, *connect.Request[v1.ListComposeTemplatesRequest]) (*connect.Response[v1.ListComposeTemplatesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.ListComposeTemplates is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) GetComposeTemplate(context.Context, *connect.Request[v1.GetComposeTemplateRequest]) (*connect.Response[v1.GetComposeTemplateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.GetComposeTemplate is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) PrepareComposeTemplate(context.Context, *connect.Request[v1.PrepareComposeTemplateRequest]) (*connect.Response[v1.PrepareComposeTemplateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.PrepareComposeTemplate is not implemented"))
+}
+
+func (UnimplementedComposeServiceHandler) PlanFromComposeTemplate(context.Context, *connect.Request[v1.PlanFromComposeTemplateRequest]) (*connect.Response[v1.PlanFromComposeTemplateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.PlanFromComposeTemplate is not implemented"))
+}
 
 func (UnimplementedComposeServiceHandler) ImportCompose(context.Context, *connect.Request[v1.ImportComposeRequest]) (*connect.Response[v1.ImportComposeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ComposeService.ImportCompose is not implemented"))

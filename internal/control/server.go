@@ -632,7 +632,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
 		ch.DiscardDockerArchives = own.DiscardDockerArchives
-		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
+		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger, cfg.CatalogClient)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
 		catalogHandler := catalogapi.New(imports, ch, cfg.Store, cfg.Secrets, catalogSources, cfg.Build.Commit, cfg.Logger)

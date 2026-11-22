@@ -735,6 +735,9 @@ func (e *Engine) spotOf(ctx context.Context, tx *store.Tx, it *item, byID map[st
 		return envSpot(it), nil
 	}
 	switch it.level {
+	case resource.LevelProject:
+		// checkScope has verified the parent, including one created by this change.
+		return spot{Place: place.Place{Project: it.ref.Scope}}, nil
 	case resource.LevelEnvironment:
 		if env, ok := byID[it.ref.Scope]; ok && env.ref.Kind == scope.EnvironmentKind {
 			s := envSpot(env)
@@ -761,7 +764,7 @@ func (e *Engine) spotOf(ctx context.Context, tx *store.Tx, it *item, byID map[st
 			}
 		}
 		return spot{admins: "what runs on a server alone, outside a project, is an admin's"}, nil
-	case resource.LevelProject, resource.LevelOrganization:
+	case resource.LevelOrganization:
 	}
 	if _, _, changes := sharing(it); changes {
 		return spot{admins: sharingAdmins}, nil
