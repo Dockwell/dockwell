@@ -642,6 +642,7 @@ type HostAccessKind int32
 const (
 	HostAccessKind_HOST_ACCESS_KIND_UNSPECIFIED            HostAccessKind = 0
 	HostAccessKind_HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS HostAccessKind = 400
+	HostAccessKind_HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH      HostAccessKind = 401
 	// A server path, mounted into a container, or by a volume's bind option.
 	HostAccessKind_HOST_ACCESS_KIND_SERVER_PATH HostAccessKind = 1
 	// Docker's or containerd's socket, or a path that holds one: control of
@@ -752,6 +753,7 @@ var (
 	HostAccessKind_name = map[int32]string{
 		0:   "HOST_ACCESS_KIND_UNSPECIFIED",
 		400: "HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS",
+		401: "HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH",
 		1:   "HOST_ACCESS_KIND_SERVER_PATH",
 		2:   "HOST_ACCESS_KIND_DOCKER_SOCKET",
 		3:   "HOST_ACCESS_KIND_HOST_NETWORK",
@@ -786,6 +788,7 @@ var (
 	HostAccessKind_value = map[string]int32{
 		"HOST_ACCESS_KIND_UNSPECIFIED":            0,
 		"HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS": 400,
+		"HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH":      401,
 		"HOST_ACCESS_KIND_SERVER_PATH":            1,
 		"HOST_ACCESS_KIND_DOCKER_SOCKET":          2,
 		"HOST_ACCESS_KIND_HOST_NETWORK":           3,
@@ -2320,6 +2323,7 @@ type Edit struct {
 	// replaces the whole spec. Unset only with delete. A Container or Service
 	// app containing only desired_run_state keeps the current spec and applies
 	// that run intent at the supplied base_revision. It takes no placement.
+	// A RegistryLogin with only allow_push set updates that permission alone.
 	Spec *v1alpha1.Spec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
 	// Deletes the resource. An environment goes only once what lives in it has
 	// gone, in this change or an earlier one. A project takes its environments
@@ -11899,6 +11903,84 @@ func (x *DockerImageExport) GetTags() []string {
 	return nil
 }
 
+// DockerImagePush selects the exact source and the registry destination.
+// With no source key it only checks the destination's current digest.
+type DockerImagePush struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SourceKey         *DockerImageSourceKey  `protobuf:"bytes,1,opt,name=source_key,json=sourceKey,proto3" json:"source_key,omitempty"`
+	Destination       string                 `protobuf:"bytes,2,opt,name=destination,proto3" json:"destination,omitempty"`
+	LoginId           string                 `protobuf:"bytes,3,opt,name=login_id,json=loginId,proto3" json:"login_id,omitempty"`
+	DigestOnly        bool                   `protobuf:"varint,4,opt,name=digest_only,json=digestOnly,proto3" json:"digest_only,omitempty"`
+	CredentialProject string                 `protobuf:"bytes,5,opt,name=credential_project,json=credentialProject,proto3" json:"credential_project,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *DockerImagePush) Reset() {
+	*x = DockerImagePush{}
+	mi := &file_dockwell_v1_change_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DockerImagePush) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DockerImagePush) ProtoMessage() {}
+
+func (x *DockerImagePush) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_change_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DockerImagePush.ProtoReflect.Descriptor instead.
+func (*DockerImagePush) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{107}
+}
+
+func (x *DockerImagePush) GetSourceKey() *DockerImageSourceKey {
+	if x != nil {
+		return x.SourceKey
+	}
+	return nil
+}
+
+func (x *DockerImagePush) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *DockerImagePush) GetLoginId() string {
+	if x != nil {
+		return x.LoginId
+	}
+	return ""
+}
+
+func (x *DockerImagePush) GetDigestOnly() bool {
+	if x != nil {
+		return x.DigestOnly
+	}
+	return false
+}
+
+func (x *DockerImagePush) GetCredentialProject() string {
+	if x != nil {
+		return x.CredentialProject
+	}
+	return ""
+}
+
 // DockerImageBinding is the local tag evidence the change reviewed.
 type DockerImageBinding struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
@@ -11913,7 +11995,7 @@ type DockerImageBinding struct {
 
 func (x *DockerImageBinding) Reset() {
 	*x = DockerImageBinding{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[107]
+	mi := &file_dockwell_v1_change_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11925,7 +12007,7 @@ func (x *DockerImageBinding) String() string {
 func (*DockerImageBinding) ProtoMessage() {}
 
 func (x *DockerImageBinding) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[107]
+	mi := &file_dockwell_v1_change_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11938,7 +12020,7 @@ func (x *DockerImageBinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageBinding.ProtoReflect.Descriptor instead.
 func (*DockerImageBinding) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{107}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *DockerImageBinding) GetReference() string {
@@ -11982,7 +12064,7 @@ type DockerImageLoginRef struct {
 
 func (x *DockerImageLoginRef) Reset() {
 	*x = DockerImageLoginRef{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[108]
+	mi := &file_dockwell_v1_change_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11994,7 +12076,7 @@ func (x *DockerImageLoginRef) String() string {
 func (*DockerImageLoginRef) ProtoMessage() {}
 
 func (x *DockerImageLoginRef) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[108]
+	mi := &file_dockwell_v1_change_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12007,7 +12089,7 @@ func (x *DockerImageLoginRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageLoginRef.ProtoReflect.Descriptor instead.
 func (*DockerImageLoginRef) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{108}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *DockerImageLoginRef) GetId() string {
@@ -12055,7 +12137,7 @@ type DockerRegistryDescriptor struct {
 
 func (x *DockerRegistryDescriptor) Reset() {
 	*x = DockerRegistryDescriptor{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[109]
+	mi := &file_dockwell_v1_change_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12067,7 +12149,7 @@ func (x *DockerRegistryDescriptor) String() string {
 func (*DockerRegistryDescriptor) ProtoMessage() {}
 
 func (x *DockerRegistryDescriptor) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[109]
+	mi := &file_dockwell_v1_change_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12080,7 +12162,7 @@ func (x *DockerRegistryDescriptor) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerRegistryDescriptor.ProtoReflect.Descriptor instead.
 func (*DockerRegistryDescriptor) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{109}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *DockerRegistryDescriptor) GetRepository() string {
@@ -12135,6 +12217,7 @@ type DockerImageAction struct {
 	Tag           *DockerImageTag    `protobuf:"bytes,12,opt,name=tag,proto3" json:"tag,omitempty"`
 	Load          *DockerImageLoad   `protobuf:"bytes,13,opt,name=load,proto3" json:"load,omitempty"`
 	Build         *DockerImageBuild  `protobuf:"bytes,14,opt,name=build,proto3" json:"build,omitempty"`
+	Push          *DockerImagePush   `protobuf:"bytes,15,opt,name=push,proto3" json:"push,omitempty"`
 	Export        *DockerImageExport `protobuf:"bytes,17,opt,name=export,proto3" json:"export,omitempty"`
 	Pull          *DockerImagePull   `protobuf:"bytes,18,opt,name=pull,proto3" json:"pull,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -12143,7 +12226,7 @@ type DockerImageAction struct {
 
 func (x *DockerImageAction) Reset() {
 	*x = DockerImageAction{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[110]
+	mi := &file_dockwell_v1_change_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12155,7 +12238,7 @@ func (x *DockerImageAction) String() string {
 func (*DockerImageAction) ProtoMessage() {}
 
 func (x *DockerImageAction) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[110]
+	mi := &file_dockwell_v1_change_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12168,7 +12251,7 @@ func (x *DockerImageAction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageAction.ProtoReflect.Descriptor instead.
 func (*DockerImageAction) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{110}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *DockerImageAction) GetBindings() []*DockerImageBinding {
@@ -12255,6 +12338,13 @@ func (x *DockerImageAction) GetBuild() *DockerImageBuild {
 	return nil
 }
 
+func (x *DockerImageAction) GetPush() *DockerImagePush {
+	if x != nil {
+		return x.Push
+	}
+	return nil
+}
+
 func (x *DockerImageAction) GetExport() *DockerImageExport {
 	if x != nil {
 		return x.Export
@@ -12288,7 +12378,7 @@ type DockerImageReceipt struct {
 
 func (x *DockerImageReceipt) Reset() {
 	*x = DockerImageReceipt{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[111]
+	mi := &file_dockwell_v1_change_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12300,7 +12390,7 @@ func (x *DockerImageReceipt) String() string {
 func (*DockerImageReceipt) ProtoMessage() {}
 
 func (x *DockerImageReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[111]
+	mi := &file_dockwell_v1_change_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12313,7 +12403,7 @@ func (x *DockerImageReceipt) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageReceipt.ProtoReflect.Descriptor instead.
 func (*DockerImageReceipt) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{111}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *DockerImageReceipt) GetOutcome() DockerImageOutcome {
@@ -12400,7 +12490,7 @@ type DockerStorageGuard struct {
 
 func (x *DockerStorageGuard) Reset() {
 	*x = DockerStorageGuard{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[112]
+	mi := &file_dockwell_v1_change_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12412,7 +12502,7 @@ func (x *DockerStorageGuard) String() string {
 func (*DockerStorageGuard) ProtoMessage() {}
 
 func (x *DockerStorageGuard) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[112]
+	mi := &file_dockwell_v1_change_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12425,7 +12515,7 @@ func (x *DockerStorageGuard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerStorageGuard.ProtoReflect.Descriptor instead.
 func (*DockerStorageGuard) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{112}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *DockerStorageGuard) GetOperation() isDockerStorageGuard_Operation {
@@ -12480,7 +12570,7 @@ type DockerStorageCreateGuard struct {
 
 func (x *DockerStorageCreateGuard) Reset() {
 	*x = DockerStorageCreateGuard{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[113]
+	mi := &file_dockwell_v1_change_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12492,7 +12582,7 @@ func (x *DockerStorageCreateGuard) String() string {
 func (*DockerStorageCreateGuard) ProtoMessage() {}
 
 func (x *DockerStorageCreateGuard) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[113]
+	mi := &file_dockwell_v1_change_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12505,7 +12595,7 @@ func (x *DockerStorageCreateGuard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerStorageCreateGuard.ProtoReflect.Descriptor instead.
 func (*DockerStorageCreateGuard) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{113}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *DockerStorageCreateGuard) GetEngineName() string {
@@ -12536,7 +12626,7 @@ type DockerNetworkAttachmentGuard struct {
 
 func (x *DockerNetworkAttachmentGuard) Reset() {
 	*x = DockerNetworkAttachmentGuard{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[114]
+	mi := &file_dockwell_v1_change_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12548,7 +12638,7 @@ func (x *DockerNetworkAttachmentGuard) String() string {
 func (*DockerNetworkAttachmentGuard) ProtoMessage() {}
 
 func (x *DockerNetworkAttachmentGuard) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[114]
+	mi := &file_dockwell_v1_change_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12561,7 +12651,7 @@ func (x *DockerNetworkAttachmentGuard) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetworkAttachmentGuard.ProtoReflect.Descriptor instead.
 func (*DockerNetworkAttachmentGuard) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{114}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *DockerNetworkAttachmentGuard) GetNetworkId() string {
@@ -12615,7 +12705,7 @@ type DockerDaemonImpact struct {
 
 func (x *DockerDaemonImpact) Reset() {
 	*x = DockerDaemonImpact{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[115]
+	mi := &file_dockwell_v1_change_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12627,7 +12717,7 @@ func (x *DockerDaemonImpact) String() string {
 func (*DockerDaemonImpact) ProtoMessage() {}
 
 func (x *DockerDaemonImpact) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[115]
+	mi := &file_dockwell_v1_change_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12640,7 +12730,7 @@ func (x *DockerDaemonImpact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDaemonImpact.ProtoReflect.Descriptor instead.
 func (*DockerDaemonImpact) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{115}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *DockerDaemonImpact) GetAction() DockerDaemonAction {
@@ -12704,7 +12794,7 @@ type DockerDaemonPlan struct {
 
 func (x *DockerDaemonPlan) Reset() {
 	*x = DockerDaemonPlan{}
-	mi := &file_dockwell_v1_change_proto_msgTypes[116]
+	mi := &file_dockwell_v1_change_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12716,7 +12806,7 @@ func (x *DockerDaemonPlan) String() string {
 func (*DockerDaemonPlan) ProtoMessage() {}
 
 func (x *DockerDaemonPlan) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_change_proto_msgTypes[116]
+	mi := &file_dockwell_v1_change_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12729,7 +12819,7 @@ func (x *DockerDaemonPlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerDaemonPlan.ProtoReflect.Descriptor instead.
 func (*DockerDaemonPlan) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{116}
+	return file_dockwell_v1_change_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *DockerDaemonPlan) GetImpact() *DockerDaemonImpact {
@@ -13552,7 +13642,15 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"source_key\x18\x01 \x01(\v2!.dockwell.v1.DockerImageSourceKeyR\tsourceKey\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\x12\x12\n" +
-	"\x04tags\x18\x03 \x03(\tR\x04tags\"\xaf\x01\n" +
+	"\x04tags\x18\x03 \x03(\tR\x04tags\"\xe0\x01\n" +
+	"\x0fDockerImagePush\x12@\n" +
+	"\n" +
+	"source_key\x18\x01 \x01(\v2!.dockwell.v1.DockerImageSourceKeyR\tsourceKey\x12 \n" +
+	"\vdestination\x18\x02 \x01(\tR\vdestination\x12\x19\n" +
+	"\blogin_id\x18\x03 \x01(\tR\aloginId\x12\x1f\n" +
+	"\vdigest_only\x18\x04 \x01(\bR\n" +
+	"digestOnly\x12-\n" +
+	"\x12credential_project\x18\x05 \x01(\tR\x11credentialProject\"\xaf\x01\n" +
 	"\x12DockerImageBinding\x12\x1c\n" +
 	"\treference\x18\x01 \x01(\tR\treference\x12\x19\n" +
 	"\bimage_id\x18\x02 \x01(\tR\aimageId\x12;\n" +
@@ -13570,7 +13668,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\findex_digest\x18\x02 \x01(\tR\vindexDigest\x12'\n" +
 	"\x0fmanifest_digest\x18\x03 \x01(\tR\x0emanifestDigest\x12\x1a\n" +
 	"\bplatform\x18\x04 \x01(\tR\bplatform\x12#\n" +
-	"\rconfig_digest\x18\x05 \x01(\tR\fconfigDigest\"\xfe\x05\n" +
+	"\rconfig_digest\x18\x05 \x01(\tR\fconfigDigest\"\xb0\x06\n" +
 	"\x11DockerImageAction\x12;\n" +
 	"\bbindings\x18\x01 \x03(\v2\x1f.dockwell.v1.DockerImageBindingR\bbindings\x12E\n" +
 	"\n" +
@@ -13586,7 +13684,8 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12credential_project\x18\t \x01(\tR\x11credentialProject\x12-\n" +
 	"\x03tag\x18\f \x01(\v2\x1b.dockwell.v1.DockerImageTagR\x03tag\x120\n" +
 	"\x04load\x18\r \x01(\v2\x1c.dockwell.v1.DockerImageLoadR\x04load\x123\n" +
-	"\x05build\x18\x0e \x01(\v2\x1d.dockwell.v1.DockerImageBuildR\x05build\x126\n" +
+	"\x05build\x18\x0e \x01(\v2\x1d.dockwell.v1.DockerImageBuildR\x05build\x120\n" +
+	"\x04push\x18\x0f \x01(\v2\x1c.dockwell.v1.DockerImagePushR\x04push\x126\n" +
 	"\x06export\x18\x11 \x01(\v2\x1e.dockwell.v1.DockerImageExportR\x06export\x120\n" +
 	"\x04pull\x18\x12 \x01(\v2\x1c.dockwell.v1.DockerImagePullR\x04pull\"\x9c\x03\n" +
 	"\x12DockerImageReceipt\x129\n" +
@@ -13701,10 +13800,11 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1cGUESSABLE_SECRET_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"GUESSABLE_SECRET_DATABASE_PASSWORD\x10\x01\x12\x1d\n" +
 	"\x19GUESSABLE_SECRET_PASSWORD\x10\x02\x12\x18\n" +
-	"\x14GUESSABLE_SECRET_KEY\x10\x03*\xf3\b\n" +
+	"\x14GUESSABLE_SECRET_KEY\x10\x03*\x9c\t\n" +
 	"\x0eHostAccessKind\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_UNSPECIFIED\x10\x00\x12,\n" +
-	"'HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS\x10\x90\x03\x12 \n" +
+	"'HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS\x10\x90\x03\x12'\n" +
+	"\"HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH\x10\x91\x03\x12 \n" +
 	"\x1cHOST_ACCESS_KIND_SERVER_PATH\x10\x01\x12\"\n" +
 	"\x1eHOST_ACCESS_KIND_DOCKER_SOCKET\x10\x02\x12!\n" +
 	"\x1dHOST_ACCESS_KIND_HOST_NETWORK\x10\x03\x12!\n" +
@@ -13948,7 +14048,7 @@ func file_dockwell_v1_change_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_change_proto_enumTypes = make([]protoimpl.EnumInfo, 32)
-var file_dockwell_v1_change_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
+var file_dockwell_v1_change_proto_msgTypes = make([]protoimpl.MessageInfo, 119)
 var file_dockwell_v1_change_proto_goTypes = []any{
 	(AppsOnRemoval)(0),                      // 0: dockwell.v1.AppsOnRemoval
 	(SystemServiceAction)(0),                // 1: dockwell.v1.SystemServiceAction
@@ -14089,36 +14189,37 @@ var file_dockwell_v1_change_proto_goTypes = []any{
 	(*DockerImageBuild)(nil),                // 136: dockwell.v1.DockerImageBuild
 	(*DockerImageGitSource)(nil),            // 137: dockwell.v1.DockerImageGitSource
 	(*DockerImageExport)(nil),               // 138: dockwell.v1.DockerImageExport
-	(*DockerImageBinding)(nil),              // 139: dockwell.v1.DockerImageBinding
-	(*DockerImageLoginRef)(nil),             // 140: dockwell.v1.DockerImageLoginRef
-	(*DockerRegistryDescriptor)(nil),        // 141: dockwell.v1.DockerRegistryDescriptor
-	(*DockerImageAction)(nil),               // 142: dockwell.v1.DockerImageAction
-	(*DockerImageReceipt)(nil),              // 143: dockwell.v1.DockerImageReceipt
-	(*DockerStorageGuard)(nil),              // 144: dockwell.v1.DockerStorageGuard
-	(*DockerStorageCreateGuard)(nil),        // 145: dockwell.v1.DockerStorageCreateGuard
-	(*DockerNetworkAttachmentGuard)(nil),    // 146: dockwell.v1.DockerNetworkAttachmentGuard
-	(*DockerDaemonImpact)(nil),              // 147: dockwell.v1.DockerDaemonImpact
-	(*DockerDaemonPlan)(nil),                // 148: dockwell.v1.DockerDaemonPlan
-	nil,                                     // 149: dockwell.v1.RolloutPlan.RoutePortsEntry
-	(*v1alpha1.Spec)(nil),                   // 150: dockwell.resource.v1alpha1.Spec
-	(*timestamppb.Timestamp)(nil),           // 151: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),             // 152: google.protobuf.Duration
-	(*PackageUpdate)(nil),                   // 153: dockwell.v1.PackageUpdate
-	(TokenScope)(0),                         // 154: dockwell.v1.TokenScope
-	(*v1alpha1.LinkSet)(nil),                // 155: dockwell.resource.v1alpha1.LinkSet
-	(v1alpha1.ImageBuild_Builder)(0),        // 156: dockwell.resource.v1alpha1.ImageBuild.Builder
-	(v1alpha1.LinkPart)(0),                  // 157: dockwell.resource.v1alpha1.LinkPart
+	(*DockerImagePush)(nil),                 // 139: dockwell.v1.DockerImagePush
+	(*DockerImageBinding)(nil),              // 140: dockwell.v1.DockerImageBinding
+	(*DockerImageLoginRef)(nil),             // 141: dockwell.v1.DockerImageLoginRef
+	(*DockerRegistryDescriptor)(nil),        // 142: dockwell.v1.DockerRegistryDescriptor
+	(*DockerImageAction)(nil),               // 143: dockwell.v1.DockerImageAction
+	(*DockerImageReceipt)(nil),              // 144: dockwell.v1.DockerImageReceipt
+	(*DockerStorageGuard)(nil),              // 145: dockwell.v1.DockerStorageGuard
+	(*DockerStorageCreateGuard)(nil),        // 146: dockwell.v1.DockerStorageCreateGuard
+	(*DockerNetworkAttachmentGuard)(nil),    // 147: dockwell.v1.DockerNetworkAttachmentGuard
+	(*DockerDaemonImpact)(nil),              // 148: dockwell.v1.DockerDaemonImpact
+	(*DockerDaemonPlan)(nil),                // 149: dockwell.v1.DockerDaemonPlan
+	nil,                                     // 150: dockwell.v1.RolloutPlan.RoutePortsEntry
+	(*v1alpha1.Spec)(nil),                   // 151: dockwell.resource.v1alpha1.Spec
+	(*timestamppb.Timestamp)(nil),           // 152: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),             // 153: google.protobuf.Duration
+	(*PackageUpdate)(nil),                   // 154: dockwell.v1.PackageUpdate
+	(TokenScope)(0),                         // 155: dockwell.v1.TokenScope
+	(*v1alpha1.LinkSet)(nil),                // 156: dockwell.resource.v1alpha1.LinkSet
+	(v1alpha1.ImageBuild_Builder)(0),        // 157: dockwell.resource.v1alpha1.ImageBuild.Builder
+	(v1alpha1.LinkPart)(0),                  // 158: dockwell.resource.v1alpha1.LinkPart
 }
 var file_dockwell_v1_change_proto_depIdxs = []int32{
 	33,  // 0: dockwell.v1.ProposeChangeRequest.edits:type_name -> dockwell.v1.Edit
 	34,  // 1: dockwell.v1.Edit.resource:type_name -> dockwell.v1.ResourceRef
-	150, // 2: dockwell.v1.Edit.spec:type_name -> dockwell.resource.v1alpha1.Spec
+	151, // 2: dockwell.v1.Edit.spec:type_name -> dockwell.resource.v1alpha1.Spec
 	86,  // 3: dockwell.v1.ProposeChangeResponse.change:type_name -> dockwell.v1.Change
 	86,  // 4: dockwell.v1.GetChangeResponse.change:type_name -> dockwell.v1.Change
 	86,  // 5: dockwell.v1.ListChangesResponse.changes:type_name -> dockwell.v1.Change
-	151, // 6: dockwell.v1.ConfirmChangeRequest.deadline:type_name -> google.protobuf.Timestamp
+	152, // 6: dockwell.v1.ConfirmChangeRequest.deadline:type_name -> google.protobuf.Timestamp
 	86,  // 7: dockwell.v1.ConfirmChangeResponse.change:type_name -> dockwell.v1.Change
-	151, // 8: dockwell.v1.ChangeConfirmation.deadline:type_name -> google.protobuf.Timestamp
+	152, // 8: dockwell.v1.ChangeConfirmation.deadline:type_name -> google.protobuf.Timestamp
 	86,  // 9: dockwell.v1.ApplyChangeResponse.change:type_name -> dockwell.v1.Change
 	86,  // 10: dockwell.v1.WatchChangeResponse.change:type_name -> dockwell.v1.Change
 	48,  // 11: dockwell.v1.WatchChangeResponse.step:type_name -> dockwell.v1.StepUpdate
@@ -14126,9 +14227,9 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	86,  // 13: dockwell.v1.UndoChangeResponse.change:type_name -> dockwell.v1.Change
 	86,  // 14: dockwell.v1.DiscardChangeResponse.change:type_name -> dockwell.v1.Change
 	86,  // 15: dockwell.v1.RestartServiceResponse.change:type_name -> dockwell.v1.Change
-	152, // 16: dockwell.v1.FleetRollout.pause:type_name -> google.protobuf.Duration
+	153, // 16: dockwell.v1.FleetRollout.pause:type_name -> google.protobuf.Duration
 	57,  // 17: dockwell.v1.PlanRollout.waves:type_name -> dockwell.v1.RolloutWave
-	152, // 18: dockwell.v1.PlanRollout.pause:type_name -> google.protobuf.Duration
+	153, // 18: dockwell.v1.PlanRollout.pause:type_name -> google.protobuf.Duration
 	55,  // 19: dockwell.v1.PlanInstallUpdatesRequest.rollout:type_name -> dockwell.v1.FleetRollout
 	86,  // 20: dockwell.v1.PlanInstallUpdatesResponse.change:type_name -> dockwell.v1.Change
 	55,  // 21: dockwell.v1.PlanRebootRequest.rollout:type_name -> dockwell.v1.FleetRollout
@@ -14145,8 +14246,8 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	2,   // 32: dockwell.v1.HostUnit.guard:type_name -> dockwell.v1.SystemServiceGuard
 	73,  // 33: dockwell.v1.HostPanel.parts:type_name -> dockwell.v1.HostPanelPart
 	74,  // 34: dockwell.v1.HostPanelPart.was_ports:type_name -> dockwell.v1.HostPanelPort
-	152, // 35: dockwell.v1.HostReboot.last_took:type_name -> google.protobuf.Duration
-	153, // 36: dockwell.v1.PackageInstall.packages:type_name -> dockwell.v1.PackageUpdate
+	153, // 35: dockwell.v1.HostReboot.last_took:type_name -> google.protobuf.Duration
+	154, // 36: dockwell.v1.PackageInstall.packages:type_name -> dockwell.v1.PackageUpdate
 	81,  // 37: dockwell.v1.ListDriftResponse.drift:type_name -> dockwell.v1.Drift
 	80,  // 38: dockwell.v1.ListDriftResponse.unchecked_servers:type_name -> dockwell.v1.UncheckedServer
 	34,  // 39: dockwell.v1.Drift.resource:type_name -> dockwell.v1.ResourceRef
@@ -14156,12 +14257,12 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	4,   // 43: dockwell.v1.Change.state:type_name -> dockwell.v1.ChangeState
 	88,  // 44: dockwell.v1.Change.proposed_by:type_name -> dockwell.v1.Actor
 	6,   // 45: dockwell.v1.Change.proposed_via:type_name -> dockwell.v1.Surface
-	151, // 46: dockwell.v1.Change.create_time:type_name -> google.protobuf.Timestamp
+	152, // 46: dockwell.v1.Change.create_time:type_name -> google.protobuf.Timestamp
 	90,  // 47: dockwell.v1.Change.plan:type_name -> dockwell.v1.Plan
 	88,  // 48: dockwell.v1.Change.applied_by:type_name -> dockwell.v1.Actor
 	6,   // 49: dockwell.v1.Change.applied_via:type_name -> dockwell.v1.Surface
-	151, // 50: dockwell.v1.Change.apply_time:type_name -> google.protobuf.Timestamp
-	151, // 51: dockwell.v1.Change.undo_deadline:type_name -> google.protobuf.Timestamp
+	152, // 50: dockwell.v1.Change.apply_time:type_name -> google.protobuf.Timestamp
+	152, // 51: dockwell.v1.Change.undo_deadline:type_name -> google.protobuf.Timestamp
 	126, // 52: dockwell.v1.Change.steps:type_name -> dockwell.v1.StepProgress
 	87,  // 53: dockwell.v1.Change.rollback_status:type_name -> dockwell.v1.RollbackStatus
 	44,  // 54: dockwell.v1.Change.confirmation:type_name -> dockwell.v1.ChangeConfirmation
@@ -14170,11 +14271,11 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	3,   // 57: dockwell.v1.RollbackStatus.state:type_name -> dockwell.v1.RollbackState
 	5,   // 58: dockwell.v1.Actor.kind:type_name -> dockwell.v1.ActorKind
 	89,  // 59: dockwell.v1.Actor.local_access:type_name -> dockwell.v1.LocalAccess
-	154, // 60: dockwell.v1.LocalAccess.scope:type_name -> dockwell.v1.TokenScope
+	155, // 60: dockwell.v1.LocalAccess.scope:type_name -> dockwell.v1.TokenScope
 	93,  // 61: dockwell.v1.Plan.summary:type_name -> dockwell.v1.PlanSummary
 	95,  // 62: dockwell.v1.Plan.resources:type_name -> dockwell.v1.PlannedResource
 	97,  // 63: dockwell.v1.Plan.servers:type_name -> dockwell.v1.ServerPlan
-	152, // 64: dockwell.v1.Plan.undo_window:type_name -> google.protobuf.Duration
+	153, // 64: dockwell.v1.Plan.undo_window:type_name -> google.protobuf.Duration
 	92,  // 65: dockwell.v1.Plan.notes:type_name -> dockwell.v1.PlanNote
 	94,  // 66: dockwell.v1.Plan.intent:type_name -> dockwell.v1.Intent
 	91,  // 67: dockwell.v1.Plan.places:type_name -> dockwell.v1.PlanPlace
@@ -14182,7 +14283,7 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	56,  // 69: dockwell.v1.Plan.rollout:type_name -> dockwell.v1.PlanRollout
 	34,  // 70: dockwell.v1.PlanNote.resource:type_name -> dockwell.v1.ResourceRef
 	7,   // 71: dockwell.v1.Intent.kind:type_name -> dockwell.v1.IntentKind
-	148, // 72: dockwell.v1.PlannedResource.docker_daemon:type_name -> dockwell.v1.DockerDaemonPlan
+	149, // 72: dockwell.v1.PlannedResource.docker_daemon:type_name -> dockwell.v1.DockerDaemonPlan
 	129, // 73: dockwell.v1.PlannedResource.docker_maintenance:type_name -> dockwell.v1.DockerMaintenance
 	34,  // 74: dockwell.v1.PlannedResource.resource:type_name -> dockwell.v1.ResourceRef
 	18,  // 75: dockwell.v1.PlannedResource.action:type_name -> dockwell.v1.PlanAction
@@ -14197,24 +14298,24 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	124, // 84: dockwell.v1.PlannedResource.storage_before:type_name -> dockwell.v1.LinkStorage
 	122, // 85: dockwell.v1.PlannedResource.reads:type_name -> dockwell.v1.ConnectionRead
 	122, // 86: dockwell.v1.PlannedResource.reads_before:type_name -> dockwell.v1.ConnectionRead
-	155, // 87: dockwell.v1.PlannedResource.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
-	155, // 88: dockwell.v1.PlannedResource.sets_before:type_name -> dockwell.resource.v1alpha1.LinkSet
+	156, // 87: dockwell.v1.PlannedResource.sets:type_name -> dockwell.resource.v1alpha1.LinkSet
+	156, // 88: dockwell.v1.PlannedResource.sets_before:type_name -> dockwell.resource.v1alpha1.LinkSet
 	123, // 89: dockwell.v1.PlannedResource.needs:type_name -> dockwell.v1.NeedStorage
 	123, // 90: dockwell.v1.PlannedResource.needs_before:type_name -> dockwell.v1.NeedStorage
 	9,   // 91: dockwell.v1.HostAccess.kind:type_name -> dockwell.v1.HostAccessKind
-	152, // 92: dockwell.v1.ServerPlan.downtime:type_name -> google.protobuf.Duration
+	153, // 92: dockwell.v1.ServerPlan.downtime:type_name -> google.protobuf.Duration
 	98,  // 93: dockwell.v1.ServerPlan.steps:type_name -> dockwell.v1.PlanStep
-	152, // 94: dockwell.v1.ServerPlan.until_healthy:type_name -> google.protobuf.Duration
-	148, // 95: dockwell.v1.PlanStep.docker_daemon:type_name -> dockwell.v1.DockerDaemonPlan
-	144, // 96: dockwell.v1.PlanStep.docker_storage_guard:type_name -> dockwell.v1.DockerStorageGuard
+	153, // 94: dockwell.v1.ServerPlan.until_healthy:type_name -> google.protobuf.Duration
+	149, // 95: dockwell.v1.PlanStep.docker_daemon:type_name -> dockwell.v1.DockerDaemonPlan
+	145, // 96: dockwell.v1.PlanStep.docker_storage_guard:type_name -> dockwell.v1.DockerStorageGuard
 	129, // 97: dockwell.v1.PlanStep.docker_maintenance:type_name -> dockwell.v1.DockerMaintenance
 	34,  // 98: dockwell.v1.PlanStep.resource:type_name -> dockwell.v1.ResourceRef
 	18,  // 99: dockwell.v1.PlanStep.action:type_name -> dockwell.v1.PlanAction
 	19,  // 100: dockwell.v1.PlanStep.effect:type_name -> dockwell.v1.StepEffect
-	152, // 101: dockwell.v1.PlanStep.downtime:type_name -> google.protobuf.Duration
+	153, // 101: dockwell.v1.PlanStep.downtime:type_name -> google.protobuf.Duration
 	20,  // 102: dockwell.v1.PlanStep.warnings:type_name -> dockwell.v1.PlanWarning
 	125, // 103: dockwell.v1.PlanStep.changes:type_name -> dockwell.v1.FieldChange
-	152, // 104: dockwell.v1.PlanStep.until_healthy:type_name -> google.protobuf.Duration
+	153, // 104: dockwell.v1.PlanStep.until_healthy:type_name -> google.protobuf.Duration
 	96,  // 105: dockwell.v1.PlanStep.host_access:type_name -> dockwell.v1.HostAccess
 	120, // 106: dockwell.v1.PlanStep.ingress:type_name -> dockwell.v1.IngressEffect
 	121, // 107: dockwell.v1.PlanStep.domain_check:type_name -> dockwell.v1.DomainCheck
@@ -14241,45 +14342,45 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	99,  // 128: dockwell.v1.PlanStep.provider:type_name -> dockwell.v1.ProviderStep
 	10,  // 129: dockwell.v1.ProviderStep.action:type_name -> dockwell.v1.ProviderAction
 	11,  // 130: dockwell.v1.VolumeMove.method:type_name -> dockwell.v1.VolumeMoveMethod
-	156, // 131: dockwell.v1.BuildPlan.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
+	157, // 131: dockwell.v1.BuildPlan.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
 	102, // 132: dockwell.v1.BuildPlan.detection:type_name -> dockwell.v1.BuildDetection
-	156, // 133: dockwell.v1.BuildDetection.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
+	157, // 133: dockwell.v1.BuildDetection.builder:type_name -> dockwell.resource.v1alpha1.ImageBuild.Builder
 	103, // 134: dockwell.v1.BuildDetection.packages:type_name -> dockwell.v1.DetectedPackage
 	104, // 135: dockwell.v1.BuildDetection.steps:type_name -> dockwell.v1.DetectedStep
 	12,  // 136: dockwell.v1.BuildDetection.problem:type_name -> dockwell.v1.DetectionProblem
 	13,  // 137: dockwell.v1.BackupFirst.method:type_name -> dockwell.v1.BackupMethod
 	108, // 138: dockwell.v1.BackupFirst.also:type_name -> dockwell.v1.DatabaseDump
 	13,  // 139: dockwell.v1.RestorePlan.method:type_name -> dockwell.v1.BackupMethod
-	151, // 140: dockwell.v1.RestorePlan.taken_at:type_name -> google.protobuf.Timestamp
+	152, // 140: dockwell.v1.RestorePlan.taken_at:type_name -> google.protobuf.Timestamp
 	14,  // 141: dockwell.v1.RouteGoes.find:type_name -> dockwell.v1.VisitorsFind
 	15,  // 142: dockwell.v1.RouteAnswers.reach:type_name -> dockwell.v1.RouteReach
-	152, // 143: dockwell.v1.RolloutPlan.drain:type_name -> google.protobuf.Duration
-	152, // 144: dockwell.v1.RolloutPlan.healthy_within:type_name -> google.protobuf.Duration
-	152, // 145: dockwell.v1.RolloutPlan.stop_grace:type_name -> google.protobuf.Duration
+	153, // 143: dockwell.v1.RolloutPlan.drain:type_name -> google.protobuf.Duration
+	153, // 144: dockwell.v1.RolloutPlan.healthy_within:type_name -> google.protobuf.Duration
+	153, // 145: dockwell.v1.RolloutPlan.stop_grace:type_name -> google.protobuf.Duration
 	119, // 146: dockwell.v1.RolloutPlan.dropped:type_name -> dockwell.v1.DroppedMount
-	152, // 147: dockwell.v1.RolloutPlan.soak:type_name -> google.protobuf.Duration
-	149, // 148: dockwell.v1.RolloutPlan.route_ports:type_name -> dockwell.v1.RolloutPlan.RoutePortsEntry
+	153, // 147: dockwell.v1.RolloutPlan.soak:type_name -> google.protobuf.Duration
+	150, // 148: dockwell.v1.RolloutPlan.route_ports:type_name -> dockwell.v1.RolloutPlan.RoutePortsEntry
 	16,  // 149: dockwell.v1.IngressEffect.change:type_name -> dockwell.v1.IngressChange
 	17,  // 150: dockwell.v1.DomainCheck.state:type_name -> dockwell.v1.DomainCheckState
-	151, // 151: dockwell.v1.DomainCheck.read_time:type_name -> google.protobuf.Timestamp
-	157, // 152: dockwell.v1.ConnectionRead.part:type_name -> dockwell.resource.v1alpha1.LinkPart
+	152, // 151: dockwell.v1.DomainCheck.read_time:type_name -> google.protobuf.Timestamp
+	158, // 152: dockwell.v1.ConnectionRead.part:type_name -> dockwell.resource.v1alpha1.LinkPart
 	124, // 153: dockwell.v1.NeedStorage.storage:type_name -> dockwell.v1.LinkStorage
 	21,  // 154: dockwell.v1.FieldChange.op:type_name -> dockwell.v1.FieldOp
 	130, // 155: dockwell.v1.StepProgress.docker_receipts:type_name -> dockwell.v1.DockerReceipt
-	143, // 156: dockwell.v1.StepProgress.docker_image_receipts:type_name -> dockwell.v1.DockerImageReceipt
+	144, // 156: dockwell.v1.StepProgress.docker_image_receipts:type_name -> dockwell.v1.DockerImageReceipt
 	34,  // 157: dockwell.v1.StepProgress.resource:type_name -> dockwell.v1.ResourceRef
 	18,  // 158: dockwell.v1.StepProgress.action:type_name -> dockwell.v1.PlanAction
 	23,  // 159: dockwell.v1.StepProgress.state:type_name -> dockwell.v1.StepState
-	151, // 160: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
-	151, // 161: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
+	152, // 160: dockwell.v1.StepProgress.start_time:type_name -> google.protobuf.Timestamp
+	152, // 161: dockwell.v1.StepProgress.finish_time:type_name -> google.protobuf.Timestamp
 	18,  // 162: dockwell.v1.StepProgress.did:type_name -> dockwell.v1.PlanAction
 	44,  // 163: dockwell.v1.StepProgress.confirmation:type_name -> dockwell.v1.ChangeConfirmation
 	22,  // 164: dockwell.v1.StepProgress.phase:type_name -> dockwell.v1.StepPhase
 	24,  // 165: dockwell.v1.DockerCleanupTarget.kind:type_name -> dockwell.v1.DockerCleanupKind
 	25,  // 166: dockwell.v1.DockerCleanupTarget.reason:type_name -> dockwell.v1.DockerCleanupReason
-	151, // 167: dockwell.v1.DockerCleanupTarget.last_used_at:type_name -> google.protobuf.Timestamp
+	152, // 167: dockwell.v1.DockerCleanupTarget.last_used_at:type_name -> google.protobuf.Timestamp
 	128, // 168: dockwell.v1.DockerMaintenance.targets:type_name -> dockwell.v1.DockerCleanupTarget
-	142, // 169: dockwell.v1.DockerMaintenance.image_action:type_name -> dockwell.v1.DockerImageAction
+	143, // 169: dockwell.v1.DockerMaintenance.image_action:type_name -> dockwell.v1.DockerImageAction
 	128, // 170: dockwell.v1.DockerReceipt.target:type_name -> dockwell.v1.DockerCleanupTarget
 	27,  // 171: dockwell.v1.DockerReceipt.state:type_name -> dockwell.v1.DockerReceiptState
 	26,  // 172: dockwell.v1.DockerReceipt.reason:type_name -> dockwell.v1.DockerReceiptReason
@@ -14287,67 +14388,69 @@ var file_dockwell_v1_change_proto_depIdxs = []int32{
 	135, // 174: dockwell.v1.DockerImageLoad.tags:type_name -> dockwell.v1.DockerImageImportTag
 	137, // 175: dockwell.v1.DockerImageBuild.git:type_name -> dockwell.v1.DockerImageGitSource
 	131, // 176: dockwell.v1.DockerImageExport.source_key:type_name -> dockwell.v1.DockerImageSourceKey
-	141, // 177: dockwell.v1.DockerImageBinding.local:type_name -> dockwell.v1.DockerRegistryDescriptor
-	139, // 178: dockwell.v1.DockerImageAction.bindings:type_name -> dockwell.v1.DockerImageBinding
-	141, // 179: dockwell.v1.DockerImageAction.descriptor:type_name -> dockwell.v1.DockerRegistryDescriptor
-	140, // 180: dockwell.v1.DockerImageAction.approved_logins:type_name -> dockwell.v1.DockerImageLoginRef
-	141, // 181: dockwell.v1.DockerImageAction.base_descriptors:type_name -> dockwell.v1.DockerRegistryDescriptor
-	133, // 182: dockwell.v1.DockerImageAction.tag:type_name -> dockwell.v1.DockerImageTag
-	134, // 183: dockwell.v1.DockerImageAction.load:type_name -> dockwell.v1.DockerImageLoad
-	136, // 184: dockwell.v1.DockerImageAction.build:type_name -> dockwell.v1.DockerImageBuild
-	138, // 185: dockwell.v1.DockerImageAction.export:type_name -> dockwell.v1.DockerImageExport
-	132, // 186: dockwell.v1.DockerImageAction.pull:type_name -> dockwell.v1.DockerImagePull
-	28,  // 187: dockwell.v1.DockerImageReceipt.outcome:type_name -> dockwell.v1.DockerImageOutcome
-	29,  // 188: dockwell.v1.DockerImageReceipt.reason:type_name -> dockwell.v1.DockerImageReason
-	131, // 189: dockwell.v1.DockerImageReceipt.image_key:type_name -> dockwell.v1.DockerImageSourceKey
-	146, // 190: dockwell.v1.DockerStorageGuard.attachment:type_name -> dockwell.v1.DockerNetworkAttachmentGuard
-	145, // 191: dockwell.v1.DockerStorageGuard.create:type_name -> dockwell.v1.DockerStorageCreateGuard
-	30,  // 192: dockwell.v1.DockerNetworkAttachmentGuard.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
-	31,  // 193: dockwell.v1.DockerDaemonImpact.action:type_name -> dockwell.v1.DockerDaemonAction
-	31,  // 194: dockwell.v1.DockerDaemonImpact.recovery_action:type_name -> dockwell.v1.DockerDaemonAction
-	147, // 195: dockwell.v1.DockerDaemonPlan.impact:type_name -> dockwell.v1.DockerDaemonImpact
-	125, // 196: dockwell.v1.DockerDaemonPlan.file_changes:type_name -> dockwell.v1.FieldChange
-	32,  // 197: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
-	37,  // 198: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
-	39,  // 199: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
-	41,  // 200: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
-	46,  // 201: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
-	49,  // 202: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
-	42,  // 203: dockwell.v1.ChangeService.ConfirmChange:input_type -> dockwell.v1.ConfirmChangeRequest
-	51,  // 204: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
-	53,  // 205: dockwell.v1.ChangeService.RestartService:input_type -> dockwell.v1.RestartServiceRequest
-	58,  // 206: dockwell.v1.ChangeService.PlanInstallUpdates:input_type -> dockwell.v1.PlanInstallUpdatesRequest
-	60,  // 207: dockwell.v1.ChangeService.PlanReboot:input_type -> dockwell.v1.PlanRebootRequest
-	61,  // 208: dockwell.v1.ChangeService.PlanAgentUpgrade:input_type -> dockwell.v1.PlanAgentUpgradeRequest
-	64,  // 209: dockwell.v1.ChangeService.PlanRemoveServer:input_type -> dockwell.v1.PlanRemoveServerRequest
-	69,  // 210: dockwell.v1.ChangeService.PlanSystemServiceAction:input_type -> dockwell.v1.PlanSystemServiceActionRequest
-	66,  // 211: dockwell.v1.ChangeService.PlanServerLabels:input_type -> dockwell.v1.PlanServerLabelsRequest
-	78,  // 212: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
-	82,  // 213: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
-	84,  // 214: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
-	36,  // 215: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
-	38,  // 216: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
-	40,  // 217: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
-	45,  // 218: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
-	47,  // 219: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
-	50,  // 220: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
-	43,  // 221: dockwell.v1.ChangeService.ConfirmChange:output_type -> dockwell.v1.ConfirmChangeResponse
-	52,  // 222: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
-	54,  // 223: dockwell.v1.ChangeService.RestartService:output_type -> dockwell.v1.RestartServiceResponse
-	59,  // 224: dockwell.v1.ChangeService.PlanInstallUpdates:output_type -> dockwell.v1.PlanInstallUpdatesResponse
-	63,  // 225: dockwell.v1.ChangeService.PlanReboot:output_type -> dockwell.v1.PlanRebootResponse
-	62,  // 226: dockwell.v1.ChangeService.PlanAgentUpgrade:output_type -> dockwell.v1.PlanAgentUpgradeResponse
-	65,  // 227: dockwell.v1.ChangeService.PlanRemoveServer:output_type -> dockwell.v1.PlanRemoveServerResponse
-	70,  // 228: dockwell.v1.ChangeService.PlanSystemServiceAction:output_type -> dockwell.v1.PlanSystemServiceActionResponse
-	67,  // 229: dockwell.v1.ChangeService.PlanServerLabels:output_type -> dockwell.v1.PlanServerLabelsResponse
-	79,  // 230: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
-	83,  // 231: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
-	85,  // 232: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
-	215, // [215:233] is the sub-list for method output_type
-	197, // [197:215] is the sub-list for method input_type
-	197, // [197:197] is the sub-list for extension type_name
-	197, // [197:197] is the sub-list for extension extendee
-	0,   // [0:197] is the sub-list for field type_name
+	131, // 177: dockwell.v1.DockerImagePush.source_key:type_name -> dockwell.v1.DockerImageSourceKey
+	142, // 178: dockwell.v1.DockerImageBinding.local:type_name -> dockwell.v1.DockerRegistryDescriptor
+	140, // 179: dockwell.v1.DockerImageAction.bindings:type_name -> dockwell.v1.DockerImageBinding
+	142, // 180: dockwell.v1.DockerImageAction.descriptor:type_name -> dockwell.v1.DockerRegistryDescriptor
+	141, // 181: dockwell.v1.DockerImageAction.approved_logins:type_name -> dockwell.v1.DockerImageLoginRef
+	142, // 182: dockwell.v1.DockerImageAction.base_descriptors:type_name -> dockwell.v1.DockerRegistryDescriptor
+	133, // 183: dockwell.v1.DockerImageAction.tag:type_name -> dockwell.v1.DockerImageTag
+	134, // 184: dockwell.v1.DockerImageAction.load:type_name -> dockwell.v1.DockerImageLoad
+	136, // 185: dockwell.v1.DockerImageAction.build:type_name -> dockwell.v1.DockerImageBuild
+	139, // 186: dockwell.v1.DockerImageAction.push:type_name -> dockwell.v1.DockerImagePush
+	138, // 187: dockwell.v1.DockerImageAction.export:type_name -> dockwell.v1.DockerImageExport
+	132, // 188: dockwell.v1.DockerImageAction.pull:type_name -> dockwell.v1.DockerImagePull
+	28,  // 189: dockwell.v1.DockerImageReceipt.outcome:type_name -> dockwell.v1.DockerImageOutcome
+	29,  // 190: dockwell.v1.DockerImageReceipt.reason:type_name -> dockwell.v1.DockerImageReason
+	131, // 191: dockwell.v1.DockerImageReceipt.image_key:type_name -> dockwell.v1.DockerImageSourceKey
+	147, // 192: dockwell.v1.DockerStorageGuard.attachment:type_name -> dockwell.v1.DockerNetworkAttachmentGuard
+	146, // 193: dockwell.v1.DockerStorageGuard.create:type_name -> dockwell.v1.DockerStorageCreateGuard
+	30,  // 194: dockwell.v1.DockerNetworkAttachmentGuard.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
+	31,  // 195: dockwell.v1.DockerDaemonImpact.action:type_name -> dockwell.v1.DockerDaemonAction
+	31,  // 196: dockwell.v1.DockerDaemonImpact.recovery_action:type_name -> dockwell.v1.DockerDaemonAction
+	148, // 197: dockwell.v1.DockerDaemonPlan.impact:type_name -> dockwell.v1.DockerDaemonImpact
+	125, // 198: dockwell.v1.DockerDaemonPlan.file_changes:type_name -> dockwell.v1.FieldChange
+	32,  // 199: dockwell.v1.ChangeService.ProposeChange:input_type -> dockwell.v1.ProposeChangeRequest
+	37,  // 200: dockwell.v1.ChangeService.GetChange:input_type -> dockwell.v1.GetChangeRequest
+	39,  // 201: dockwell.v1.ChangeService.ListChanges:input_type -> dockwell.v1.ListChangesRequest
+	41,  // 202: dockwell.v1.ChangeService.ApplyChange:input_type -> dockwell.v1.ApplyChangeRequest
+	46,  // 203: dockwell.v1.ChangeService.WatchChange:input_type -> dockwell.v1.WatchChangeRequest
+	49,  // 204: dockwell.v1.ChangeService.UndoChange:input_type -> dockwell.v1.UndoChangeRequest
+	42,  // 205: dockwell.v1.ChangeService.ConfirmChange:input_type -> dockwell.v1.ConfirmChangeRequest
+	51,  // 206: dockwell.v1.ChangeService.DiscardChange:input_type -> dockwell.v1.DiscardChangeRequest
+	53,  // 207: dockwell.v1.ChangeService.RestartService:input_type -> dockwell.v1.RestartServiceRequest
+	58,  // 208: dockwell.v1.ChangeService.PlanInstallUpdates:input_type -> dockwell.v1.PlanInstallUpdatesRequest
+	60,  // 209: dockwell.v1.ChangeService.PlanReboot:input_type -> dockwell.v1.PlanRebootRequest
+	61,  // 210: dockwell.v1.ChangeService.PlanAgentUpgrade:input_type -> dockwell.v1.PlanAgentUpgradeRequest
+	64,  // 211: dockwell.v1.ChangeService.PlanRemoveServer:input_type -> dockwell.v1.PlanRemoveServerRequest
+	69,  // 212: dockwell.v1.ChangeService.PlanSystemServiceAction:input_type -> dockwell.v1.PlanSystemServiceActionRequest
+	66,  // 213: dockwell.v1.ChangeService.PlanServerLabels:input_type -> dockwell.v1.PlanServerLabelsRequest
+	78,  // 214: dockwell.v1.ChangeService.ListDrift:input_type -> dockwell.v1.ListDriftRequest
+	82,  // 215: dockwell.v1.ChangeService.RevertDrift:input_type -> dockwell.v1.RevertDriftRequest
+	84,  // 216: dockwell.v1.ChangeService.AdoptDrift:input_type -> dockwell.v1.AdoptDriftRequest
+	36,  // 217: dockwell.v1.ChangeService.ProposeChange:output_type -> dockwell.v1.ProposeChangeResponse
+	38,  // 218: dockwell.v1.ChangeService.GetChange:output_type -> dockwell.v1.GetChangeResponse
+	40,  // 219: dockwell.v1.ChangeService.ListChanges:output_type -> dockwell.v1.ListChangesResponse
+	45,  // 220: dockwell.v1.ChangeService.ApplyChange:output_type -> dockwell.v1.ApplyChangeResponse
+	47,  // 221: dockwell.v1.ChangeService.WatchChange:output_type -> dockwell.v1.WatchChangeResponse
+	50,  // 222: dockwell.v1.ChangeService.UndoChange:output_type -> dockwell.v1.UndoChangeResponse
+	43,  // 223: dockwell.v1.ChangeService.ConfirmChange:output_type -> dockwell.v1.ConfirmChangeResponse
+	52,  // 224: dockwell.v1.ChangeService.DiscardChange:output_type -> dockwell.v1.DiscardChangeResponse
+	54,  // 225: dockwell.v1.ChangeService.RestartService:output_type -> dockwell.v1.RestartServiceResponse
+	59,  // 226: dockwell.v1.ChangeService.PlanInstallUpdates:output_type -> dockwell.v1.PlanInstallUpdatesResponse
+	63,  // 227: dockwell.v1.ChangeService.PlanReboot:output_type -> dockwell.v1.PlanRebootResponse
+	62,  // 228: dockwell.v1.ChangeService.PlanAgentUpgrade:output_type -> dockwell.v1.PlanAgentUpgradeResponse
+	65,  // 229: dockwell.v1.ChangeService.PlanRemoveServer:output_type -> dockwell.v1.PlanRemoveServerResponse
+	70,  // 230: dockwell.v1.ChangeService.PlanSystemServiceAction:output_type -> dockwell.v1.PlanSystemServiceActionResponse
+	67,  // 231: dockwell.v1.ChangeService.PlanServerLabels:output_type -> dockwell.v1.PlanServerLabelsResponse
+	79,  // 232: dockwell.v1.ChangeService.ListDrift:output_type -> dockwell.v1.ListDriftResponse
+	83,  // 233: dockwell.v1.ChangeService.RevertDrift:output_type -> dockwell.v1.RevertDriftResponse
+	85,  // 234: dockwell.v1.ChangeService.AdoptDrift:output_type -> dockwell.v1.AdoptDriftResponse
+	217, // [217:235] is the sub-list for method output_type
+	199, // [199:217] is the sub-list for method input_type
+	199, // [199:199] is the sub-list for extension type_name
+	199, // [199:199] is the sub-list for extension extendee
+	0,   // [0:199] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_change_proto_init() }
@@ -14365,18 +14468,18 @@ func file_dockwell_v1_change_proto_init() {
 	file_dockwell_v1_change_proto_msgTypes[96].OneofWrappers = []any{}
 	file_dockwell_v1_change_proto_msgTypes[98].OneofWrappers = []any{}
 	file_dockwell_v1_change_proto_msgTypes[100].OneofWrappers = []any{}
-	file_dockwell_v1_change_proto_msgTypes[112].OneofWrappers = []any{
+	file_dockwell_v1_change_proto_msgTypes[113].OneofWrappers = []any{
 		(*DockerStorageGuard_Attachment)(nil),
 		(*DockerStorageGuard_Create)(nil),
 	}
-	file_dockwell_v1_change_proto_msgTypes[115].OneofWrappers = []any{}
+	file_dockwell_v1_change_proto_msgTypes[116].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_change_proto_rawDesc), len(file_dockwell_v1_change_proto_rawDesc)),
 			NumEnums:      32,
-			NumMessages:   118,
+			NumMessages:   119,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -143,7 +143,7 @@ func DockerCleanupProtection(ctx context.Context, db *store.DB, server string, n
 }
 
 func (e *Engine) applyStep(ctx context.Context, agent resource.Agent, server string, step resource.Step, desired proto.Message) error {
-	if step.DockerMaintenance != nil && step.DockerMaintenance.GetResumeCleanupToken() == "" {
+	if step.DockerMaintenance != nil && step.DockerMaintenance.GetResumeCleanupToken() == "" && step.DockerMaintenance.GetImageAction().GetPush() == nil {
 		held, err := DockerCleanupProtection(ctx, e.db, server, e.now(), step.DockerMaintenance.GetImageAction() == nil)
 		if err != nil {
 			return err

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Package registrylogin is the "registry.login" kind: what signs in to a container
-// registry, so an app can pull an image the registry keeps private. It lives in the
-// organization, on the control plane alone: what signs in goes to a server only
-// for the call that pulls, and from there only to its registry and the token
+// registry, for private image pulls and reviewed pushes. It lives in the
+// organization, on the control plane alone: credentials go to a server only
+// for an authorized call, and from there only to its registry and the token
 // service it was saved with. See docs/adr/0086-registry-logins-for-private-images.md.
 package registrylogin
 
@@ -30,6 +30,7 @@ var (
 	_ resource.Type       = Type{}
 	_ resource.Rotates    = Type{}
 	_ resource.Keeper     = Type{}
+	_ resource.Holder     = Type{}
 	_ resource.NewChecker = Type{}
 )
 
@@ -157,6 +158,15 @@ func (Type) CheckNew(spec proto.Message) error {
 		return fmt.Errorf("a login for %s needs a password, or better a token that only reads images", l.GetRegistry())
 	}
 	return nil
+}
+
+// HoldUnset preserves the push permission on an ordinary login edit.
+func (Type) HoldUnset(current, desired proto.Message) {
+	was := current.(*resourcev1.RegistryLogin) //nolint:forcetypeassert // the kind's own message
+	now := desired.(*resourcev1.RegistryLogin) //nolint:forcetypeassert // the kind's own message
+	if now.AllowPush == nil && was.AllowPush != nil {
+		now.AllowPush = proto.Bool(was.GetAllowPush())
+	}
 }
 
 // Keep holds on to what signs in when an update leaves it out, so a form can

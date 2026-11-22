@@ -34,13 +34,14 @@ import (
 
 // Artifact operations and states used by the spool and its callers.
 const (
-	Import    = v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
-	Export    = v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
-	Receiving = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_RECEIVING
-	Checking  = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_CHECKING
-	Ready     = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_READY
-	Failed    = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_FAILED
-	Aborted   = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_ABORTED
+	Import     = v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
+	Export     = v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
+	PushSource = v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_PUSH_SOURCE
+	Receiving  = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_RECEIVING
+	Checking   = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_CHECKING
+	Ready      = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_READY
+	Failed     = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_FAILED
+	Aborted    = v1.DockerArtifactState_DOCKER_ARTIFACT_STATE_ABORTED
 )
 
 // Refusals that the agent can send without including paths or archive contents.
@@ -99,6 +100,7 @@ type Spool struct {
 	leases     map[string]*lease
 	reserved   uint64
 	validation chan struct{}
+	pushes     chan struct{}
 	wake       chan struct{}
 	sealingID  string
 	sealCancel context.CancelFunc
@@ -126,7 +128,7 @@ func OpenWithClock(dir string, now func() time.Time) (*Spool, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	s := &Spool{dir: dir, leases: make(map[string]*lease), validation: make(chan struct{}, 1), wake: make(chan struct{}, 1), now: now}
+	s := &Spool{dir: dir, leases: make(map[string]*lease), validation: make(chan struct{}, 1), pushes: make(chan struct{}, 4), wake: make(chan struct{}, 1), now: now}
 	dirs, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -203,7 +205,7 @@ func (l *lease) recover(id string, now time.Time) bool {
 		_ = os.Remove(l.source())
 		return true
 	}
-	if info.GetKind() == Export && info.GetState() == Ready {
+	if (info.GetKind() == Export || info.GetKind() == PushSource) && info.GetState() == Ready {
 		fi, err := os.Stat(l.source())
 		return err == nil && fi.Size() == size
 	}
@@ -279,7 +281,10 @@ func (s *Spool) headroom() uint64 {
 
 // Begin starts a private lease and reserves space for its declared upload.
 func (s *Spool) Begin(owner string, kind v1.DockerArtifactKind, size uint64, sha string, compressed bool, name string) (*v1.DockerArtifactInfo, error) {
-	if owner == "" || len(owner) > 128 || !UploadKind(kind) && kind != Export || UploadKind(kind) && (size == 0 || size > uploadLimit(kind)) || kind == Dockerfile && compressed || kind == Export && (size != 0 || compressed || name != "") {
+	upload := UploadKind(kind)
+	if owner == "" || len(owner) > 128 || !upload && kind != Export && kind != PushSource ||
+		upload && (size == 0 || size > uploadLimit(kind)) || kind == Dockerfile && compressed ||
+		!upload && (size != 0 || compressed || name != "") {
 		return nil, ErrArchive
 	}
 	if sha != "" {
@@ -317,7 +322,7 @@ func (s *Spool) Begin(owner string, kind v1.DockerArtifactKind, size uint64, sha
 	l := &lease{dir: at, expires: now.Add(Lifetime), idleUntil: now.Add(idleLifetime), reserve: reservation}
 	l.Owner, l.Expected, l.Gzip = owner, sha, compressed
 	l.Info = &v1.DockerArtifactInfo{ArtifactId: id, Kind: kind, State: Receiving, SizeBytes: size, MaxBytes: uploadLimit(kind), FileName: name, ExpiresAt: timestamppb.New(l.expires)}
-	if kind == Export {
+	if kind == Export || kind == PushSource {
 		l.Info.State = Checking
 	}
 	if UploadKind(kind) {
@@ -416,6 +421,9 @@ func (s *Spool) List(owner string) []*v1.DockerArtifactInfo {
 	for _, l := range s.leases {
 		if l.Owner == owner && !l.expired(now) {
 			item := l.snapshot
+			if item.GetKind() == PushSource {
+				continue
+			}
 			items = append(items, &v1.DockerArtifactInfo{
 				ArtifactId: item.GetArtifactId(), Kind: item.GetKind(), State: item.GetState(),
 				SizeBytes: item.GetSizeBytes(), ReceivedBytes: item.GetReceivedBytes(),
@@ -674,7 +682,7 @@ func (s *Spool) Seal(ctx context.Context, id, owner string) (*v1.DockerArtifactI
 		}
 	case Dockerfile:
 		// Length and digest are already checked. Only the bounded text reader uses it.
-	case Export, v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_UNSPECIFIED:
+	case Export, PushSource, v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_UNSPECIFIED:
 		return nil, ErrUnavailable
 	}
 	previous := proto.CloneOf(l.Info)

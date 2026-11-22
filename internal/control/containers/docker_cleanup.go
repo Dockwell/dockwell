@@ -180,6 +180,9 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Reques
 	if m.GetLoad() != nil || m.GetExport() != nil {
 		return h.planDockerArchive(ctx, m)
 	}
+	if m.GetPush() != nil {
+		return h.planDockerPush(ctx, m)
+	}
 	if m.GetPull() != nil || m.GetTag() != nil {
 		return h.planDockerImage(ctx, m)
 	}

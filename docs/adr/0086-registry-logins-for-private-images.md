@@ -121,3 +121,19 @@ An independent review of the first slice found these, and each is closed, with a
 - A registry that moves its token service has its logins refused until they're checked again.
 - A build reads a private image only with a login someone named for it, from a registry its Dockerfile names, through Docker's own frontend.
 - Slices: (1) logins, the check, pulls, update checks and form reads; (2) builds' base images, as above.
+
+## Reviewed image pushes
+
+[ADR 0107](0107-docker-inventory-and-changes-on-a-server.md) adds a standalone
+push action. Saved logins start pull-only. An install admin can allow pushes
+with a separate revision, reviewed and approved with a passkey bound to its
+fingerprint. The push sheet offers this review inline. Settings → Integrations
+→ Registries exposes the same permission on the saved login. The setting changes only Dockwell's permission to use the login.
+The registry still decides whether it can write the reviewed repository.
+
+Review and apply use the approved login revision. The control plane seals
+credentials to one operation and server. The publisher requests repository
+scope, retains its token only within the operation, and checks the saved realm
+again if the token expires or is refused. Blob storage redirects use a separate
+public HTTPS transport with no registry authorization. Builds still publish
+their outputs locally.

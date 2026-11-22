@@ -219,6 +219,7 @@ func (s *Session) applyDockerCleanup(ctx context.Context, step resource.Step) er
 
 type dockerImageLogins interface {
 	DockerImageLogin(context.Context, string, string, string) (*dockwellv1.DockerImageLoginRef, registry.Auth, error)
+	DockerPushLogin(context.Context, string, string, string) (*dockwellv1.DockerImageLoginRef, registry.Auth, error)
 }
 
 // DockerImageOperations reports whether this connection understands reviewed image actions.
@@ -233,6 +234,14 @@ func (s *Session) DockerImageLogin(ctx context.Context, project, reference, id s
 		return nil, registry.Auth{}, ErrNoLogins
 	}
 	return nil, registry.Auth{}, nil
+}
+
+// DockerPushLogin reopens a saved registry login approved for push.
+func (s *Session) DockerPushLogin(ctx context.Context, project, reference, id string) (*dockwellv1.DockerImageLoginRef, registry.Auth, error) {
+	if l, ok := s.agents.logins.(dockerImageLogins); ok {
+		return l.DockerPushLogin(ctx, project, reference, id)
+	}
+	return nil, registry.Auth{}, ErrNoLogins
 }
 
 // PreviewDockerImage uses the existing read-only planning call to freeze Docker
@@ -278,7 +287,11 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 	image := plan.GetImageAction()
 	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(step.Ref), DockerMaintenance: plan}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), DockerCleanupProtection: dockerProtection(ctx), Desired: wanted}
-	wait := s.agents.applyTimeout
+	wait, reference := s.agents.applyTimeout, image.GetPull().GetReference()
+	if push := image.GetPush(); push != nil {
+		wait += registry.PushTimeout + 30*time.Minute
+		reference = push.GetDestination()
+	}
 	if image.GetBuild() != nil {
 		wait += 2*time.Hour + resource.BuildBudget
 	}
@@ -288,7 +301,11 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 		}
 		var login registry.Auth
 		if refs := image.GetApprovedLogins(); len(refs) > 0 {
-			saved, auth, err := session.DockerImageLogin(ctx, image.GetCredentialProject(), image.GetPull().GetReference(), refs[0].GetId())
+			open := session.DockerImageLogin
+			if image.GetPush() != nil {
+				open = session.DockerPushLogin
+			}
+			saved, auth, err := open(ctx, image.GetCredentialProject(), reference, refs[0].GetId())
 			if err != nil || !proto.Equal(saved, refs[0]) {
 				return errors.New("the registry login changed. Review the image action again")
 			}
@@ -296,6 +313,16 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 		}
 		return session.imageOperationAuth(wanted, step.Ref, login)
 	})
+	if push := image.GetPush(); push != nil && (errors.Is(err, ErrLost) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+		resource.Report(ctx, resource.Outcome{DockerImageReceipts: []*dockwellv1.DockerImageReceipt{{
+			Outcome:  dockwellv1.DockerImageOutcome_DOCKER_IMAGE_OUTCOME_UNKNOWN,
+			Reason:   dockwellv1.DockerImageReason_DOCKER_IMAGE_REASON_VERIFICATION_FAILED,
+			ImageKey: push.GetSourceKey(), Reference: reference, Digest: image.GetDescriptor_().GetManifestDigest(),
+		}}})
+		// A lost apply can already have published the manifest. Returning
+		// ErrLost here would queue another apply when the agent reconnects.
+		return resource.PlainlyBecause("docker_push_unknown", "The registry result is unknown. Check the destination before reviewing again", registry.ErrPushUnknown)
+	}
 	return err
 }
 

@@ -9760,6 +9760,9 @@ msgstr "Image build ended"
 msgid "Image built"
 msgstr "Image built"
 
+msgid "Image published"
+msgstr "Image published"
+
 msgid "Image pulled"
 msgstr "Image pulled"
 
@@ -9844,6 +9847,9 @@ msgstr "No undo"
 msgid "Not every server is connected"
 msgstr "Not every server is connected"
 
+msgid "Not published"
+msgstr "Not published"
+
 msgid "Nothing outside the server reaches these yet."
 msgstr "Nothing outside the server reaches these yet."
 
@@ -9864,6 +9870,12 @@ msgstr "Preparing image archive"
 
 msgid "Pulling image"
 msgstr "Pulling image"
+
+msgid "Push failed"
+msgstr "Push failed"
+
+msgid "Pushing image"
+msgstr "Pushing image"
 
 msgid "Re-enabling Docker cleanup"
 msgstr "Re-enabling Docker cleanup"
@@ -9891,6 +9903,9 @@ msgstr "Restarted {name} on {server}"
 
 msgid "Restarting {name} on {server}"
 msgstr "Restarting {name} on {server}"
+
+msgid "Result unknown"
+msgstr "Result unknown"
 
 msgid "Rolling back failed"
 msgstr "Rolling back failed"
@@ -10275,14 +10290,80 @@ msgstr "Reading the build log"
 msgid "Registry logins"
 msgstr "Registry logins"
 
-msgid "Result unknown"
-msgstr "Result unknown"
-
 msgid "The result will appear here when it finishes."
 msgstr "The result will appear here when it finishes."
 
 msgid "Uploaded context"
 msgstr "Uploaded context"
+
+msgid "Already published"
+msgstr "Already published"
+
+msgid "Check result"
+msgstr "Check result"
+
+msgid "Check what the destination serves before reviewing another push."
+msgstr "Check what the destination serves before reviewing another push."
+
+msgid "Checking the registry"
+msgstr "Checking the registry"
+
+msgid "Choose another tag"
+msgstr "Choose another tag"
+
+msgid "Destination"
+msgstr "Destination"
+
+msgid "Manifest digest"
+msgstr "Manifest digest"
+
+msgid "Platform"
+msgstr "Platform"
+
+msgid "Publish by digest"
+msgstr "Publish by digest"
+
+msgid "Publish from <0>{server}</0>"
+msgstr "Publish from <0>{server}</0>"
+
+msgid "Publishing image"
+msgstr "Publishing image"
+
+msgid "Registry"
+msgstr "Registry"
+
+msgid "Registry confirmation missing"
+msgstr "Registry confirmation missing"
+
+msgid "Registry couldn't be checked"
+msgstr "Registry couldn't be checked"
+
+msgid "Registry login"
+msgstr "Registry login"
+
+msgid "Registry serves"
+msgstr "Registry serves"
+
+msgid "Registry serves the reviewed digest"
+msgstr "Registry serves the reviewed digest"
+
+msgid "Review again"
+msgstr "Review again"
+
+msgid "Tag"
+msgstr "Tag"
+
+msgid "The destination is still empty."
+msgstr "The destination is still empty."
+
+msgid "The registry checks write access when the image is published."
+msgstr "The registry checks write access when the image is published."
+
+msgid "Verified"
+msgstr "Verified"
+
+msgid "Waiting for a transfer slot"
+msgstr "Waiting for a transfer slot"
 
 msgctxt "what stops while Docker restarts"
 msgid "App"
@@ -10540,9 +10621,6 @@ msgstr "Opens {opening}"
 msgid "Packages it installs on {server}"
 msgstr "Packages it installs on {server}"
 
-msgid "Platform"
-msgstr "Platform"
-
 msgid "Platform manifest digest"
 msgstr "Platform manifest digest"
 
@@ -10567,9 +10645,6 @@ msgstr "Reboot <0>{server}</0>"
 
 msgid "Registry index digest"
 msgstr "Registry index digest"
-
-msgid "Registry login"
-msgstr "Registry login"
 
 msgid "Reload Docker on {server}"
 msgstr "Reload Docker on {server}"
@@ -11380,6 +11455,9 @@ msgstr "An SSH tunnel is the safer way"
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "An address limit that lets in this server or private networks can't be seen."
 
+msgid "Another writer can claim this tag"
+msgstr "Another writer can claim this tag"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "Anyone who can reach this server gets it, around whatever is in front of it."
 
@@ -11877,6 +11955,9 @@ msgstr "The hour {name}'s backup gets is a guess"
 
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
+
+msgid "The registry can accept another write between the final check and publication."
+msgstr "The registry can accept another write between the final check and publication."
 
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
@@ -12887,6 +12968,9 @@ msgstr "the port {path} on the server itself, past its containers, at {detail}"
 
 msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
 msgstr "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
+
+msgid "the registry destination {path}"
+msgstr "the registry destination {path}"
 
 msgid "the rule {path} in the tunnel {detail}, which it shares with others, sending to {sendsTo}"
 msgstr "the rule {path} in the tunnel {detail}, which it shares with others, sending to {sendsTo}"
@@ -14217,9 +14301,6 @@ msgstr "Beside it"
 msgid "Create a database"
 msgstr "Create a database"
 
-msgid "Destination"
-msgstr "Destination"
-
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell can't read its databases"
 
@@ -14695,9 +14776,6 @@ msgstr "Choose a Docker image archive and start a new import."
 msgid "Choose an archive up to 8 GiB."
 msgstr "Choose an archive up to 8 GiB."
 
-msgid "Choose another tag"
-msgstr "Choose another tag"
-
 msgid "Choose file"
 msgstr "Choose file"
 
@@ -14732,9 +14810,6 @@ msgstr "On this server, this tag points to <0>{0}</0>."
 msgid "Resume"
 msgstr "Resume"
 
-msgid "Tag"
-msgstr "Tag"
-
 msgid "Tag to include"
 msgstr "Tag to include"
 
@@ -14763,9 +14838,6 @@ msgstr "Upload archive"
 
 msgid "Use <0>{suggested}</0>"
 msgstr "Use <0>{suggested}</0>"
-
-msgid "Waiting for a transfer slot"
-msgstr "Waiting for a transfer slot"
 
 #. placeholder {0}: Math.ceil(remaining / 60)
 msgid "{0} min left"
@@ -14969,9 +15041,6 @@ msgstr "Protected artifacts"
 
 msgid "Re-enable cleanup"
 msgstr "Re-enable cleanup"
-
-msgid "Review again"
-msgstr "Review again"
 
 msgid "Review cleanup"
 msgstr "Review cleanup"
@@ -15379,6 +15448,9 @@ msgstr "New tag"
 msgid "Pull image"
 msgstr "Pull image"
 
+msgid "Push image"
+msgstr "Push image"
+
 msgid "Review pull"
 msgstr "Review pull"
 
@@ -15633,9 +15705,6 @@ msgstr "On this server"
 msgid "Other registry…"
 msgstr "Other registry…"
 
-msgid "Registry"
-msgstr "Registry"
-
 msgid "Registry address"
 msgstr "Registry address"
 
@@ -15659,6 +15728,32 @@ msgstr "Tags unavailable"
 
 msgid "{fallbackName} if needed"
 msgstr "{fallbackName} if needed"
+
+msgid "Allow pushes with this login"
+msgstr "Allow pushes with this login"
+
+#. placeholder {0}: l.name
+#. placeholder {0}: login.name
+msgid "Allow pushes with {0}"
+msgstr "Allow pushes with {0}"
+
+msgid "Edit tag"
+msgstr "Edit tag"
+
+msgid "Preparing image and checking destination"
+msgstr "Preparing image and checking destination"
+
+msgid "Push couldn't be reviewed"
+msgstr "Push couldn't be reviewed"
+
+msgid "Registry logins couldn't be loaded"
+msgstr "Registry logins couldn't be loaded"
+
+msgid "Review push"
+msgstr "Review push"
+
+msgid "This destination serves a different digest."
+msgstr "This destination serves a different digest."
 
 msgid "API version"
 msgstr "API version"
@@ -21014,6 +21109,9 @@ msgstr "A backup didn't get here {when}"
 msgid "Add a provider"
 msgstr "Add a provider"
 
+msgid "Allow pushes"
+msgstr "Allow pushes"
+
 msgid "Any DNS provider"
 msgstr "Any DNS provider"
 
@@ -21051,6 +21149,10 @@ msgstr "How to route behind it"
 
 msgid "Integrations"
 msgstr "Integrations"
+
+#. placeholder {0}: l.name
+msgid "Keep {0} pull-only"
+msgstr "Keep {0} pull-only"
 
 #. placeholder {0}: k.record
 msgid "Kept: {name}, {0}"
@@ -21111,6 +21213,9 @@ msgstr "Show {hidden} more"
 
 msgid "Sign-in provider"
 msgstr "Sign-in provider"
+
+msgid "Use this login to publish reviewed images."
+msgstr "Use this login to publish reviewed images."
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "Values your apps use live in <0>Variables</0>"

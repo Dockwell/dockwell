@@ -8994,7 +8994,9 @@ type RegistryLogin struct {
 	// login is sent. Empty for a registry that signs in itself.
 	TokenHost string `protobuf:"bytes,5,opt,name=token_host,json=tokenHost,proto3" json:"token_host,omitempty"`
 	// The projects whose apps may pull with it, by ID. Empty for every project.
-	Projects      []string `protobuf:"bytes,6,rep,name=projects,proto3" json:"projects,omitempty"`
+	Projects []string `protobuf:"bytes,6,rep,name=projects,proto3" json:"projects,omitempty"`
+	// Allows reviewed image pushes. An existing login stays pull-only until enabled.
+	AllowPush     *bool `protobuf:"varint,7,opt,name=allow_push,json=allowPush,proto3,oneof" json:"allow_push,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9069,6 +9071,13 @@ func (x *RegistryLogin) GetProjects() []string {
 		return x.Projects
 	}
 	return nil
+}
+
+func (x *RegistryLogin) GetAllowPush() bool {
+	if x != nil && x.AllowPush != nil {
+		return *x.AllowPush
+	}
+	return false
 }
 
 // RegistryLoginEcr is an AWS access key that may call ECR's GetAuthorizationToken.
@@ -12052,7 +12061,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\bpassword\x18\x05 \x01(\tB\x04\xc8\xf3\x18\x01R\bpassword\x12\x16\n" +
 	"\x06sender\x18\x06 \x01(\tR\x06sender\x12\x1f\n" +
 	"\vsender_name\x18\a \x01(\tR\n" +
-	"senderName\"\xe4\x01\n" +
+	"senderName\"\x97\x02\n" +
 	"\rRegistryLogin\x12\x1a\n" +
 	"\bregistry\x18\x01 \x01(\tR\bregistry\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12 \n" +
@@ -12060,7 +12069,10 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x03ecr\x18\x04 \x01(\v2,.dockwell.resource.v1alpha1.RegistryLoginEcrR\x03ecr\x12\x1d\n" +
 	"\n" +
 	"token_host\x18\x05 \x01(\tR\ttokenHost\x12\x1a\n" +
-	"\bprojects\x18\x06 \x03(\tR\bprojects\"t\n" +
+	"\bprojects\x18\x06 \x03(\tR\bprojects\x12\"\n" +
+	"\n" +
+	"allow_push\x18\a \x01(\bH\x00R\tallowPush\x88\x01\x01B\r\n" +
+	"\v_allow_push\"t\n" +
 	"\x10RegistryLoginEcr\x12#\n" +
 	"\n" +
 	"access_key\x18\x01 \x01(\tB\x04\xc8\xf3\x18\x01R\taccessKey\x12#\n" +
@@ -12773,6 +12785,7 @@ func file_dockwell_resource_v1alpha1_specs_proto_init() {
 		(*Spec_SigninProvider)(nil),
 		(*Spec_GithubApp)(nil),
 	}
+	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[68].OneofWrappers = []any{}
 	file_dockwell_resource_v1alpha1_specs_proto_msgTypes[73].OneofWrappers = []any{
 		(*Task_Shell)(nil),
 		(*Task_App)(nil),

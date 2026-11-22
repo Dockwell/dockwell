@@ -651,6 +651,7 @@ message PlanDockerMaintenanceRequest {
     DockerImageTag tag = 12;
     DockerImageLoad load = 13;
     DockerImageBuild build = 14;
+    DockerImagePush push = 15;
     DockerImageExport export = 17;
     DockerImagePull pull = 18;
   }
@@ -676,6 +677,7 @@ message DockerImageSupport {
   bool can_build = 4;
   bool can_import = 5;
   bool can_export = 6;
+  bool can_push = 7;
 }
 
 // DockerImageDigestCheck compares a local binding with the native registry manifest.
@@ -808,6 +810,7 @@ enum DockerArtifactKind {
   DOCKER_ARTIFACT_KIND_BUILD_CONTEXT = 2;
   DOCKER_ARTIFACT_KIND_IMAGE_EXPORT = 3;
   DOCKER_ARTIFACT_KIND_DOCKERFILE = 4;
+  DOCKER_ARTIFACT_KIND_PUSH_SOURCE = 5;
 }
 
 // DockerArtifactState is the current stage of a lease.

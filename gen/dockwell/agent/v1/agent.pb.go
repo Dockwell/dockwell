@@ -17028,6 +17028,7 @@ type DockerArtifactControlCall struct {
 	//	*DockerArtifactControlCall_Send
 	//	*DockerArtifactControlCall_Abort
 	//	*DockerArtifactControlCall_SnapshotFolder
+	//	*DockerArtifactControlCall_PreparePush
 	//	*DockerArtifactControlCall_List
 	//	*DockerArtifactControlCall_DiscardExport
 	//	*DockerArtifactControlCall_Pin
@@ -17151,6 +17152,15 @@ func (x *DockerArtifactControlCall) GetSnapshotFolder() *DockerArtifactFolder {
 	return nil
 }
 
+func (x *DockerArtifactControlCall) GetPreparePush() *v1.DockerImageExport {
+	if x != nil {
+		if x, ok := x.Operation.(*DockerArtifactControlCall_PreparePush); ok {
+			return x.PreparePush
+		}
+	}
+	return nil
+}
+
 func (x *DockerArtifactControlCall) GetList() *DockwellDockerArtifactEmpty {
 	if x != nil {
 		if x, ok := x.Operation.(*DockerArtifactControlCall_List); ok {
@@ -17219,6 +17229,10 @@ type DockerArtifactControlCall_SnapshotFolder struct {
 	SnapshotFolder *DockerArtifactFolder `protobuf:"bytes,16,opt,name=snapshot_folder,json=snapshotFolder,proto3,oneof"`
 }
 
+type DockerArtifactControlCall_PreparePush struct {
+	PreparePush *v1.DockerImageExport `protobuf:"bytes,17,opt,name=prepare_push,json=preparePush,proto3,oneof"`
+}
+
 type DockerArtifactControlCall_List struct {
 	List *DockwellDockerArtifactEmpty `protobuf:"bytes,18,opt,name=list,proto3,oneof"`
 }
@@ -17248,6 +17262,8 @@ func (*DockerArtifactControlCall_Send) isDockerArtifactControlCall_Operation() {
 func (*DockerArtifactControlCall_Abort) isDockerArtifactControlCall_Operation() {}
 
 func (*DockerArtifactControlCall_SnapshotFolder) isDockerArtifactControlCall_Operation() {}
+
+func (*DockerArtifactControlCall_PreparePush) isDockerArtifactControlCall_Operation() {}
 
 func (*DockerArtifactControlCall_List) isDockerArtifactControlCall_Operation() {}
 
@@ -17495,11 +17511,12 @@ func (x *DockerArtifactStream) GetLength() uint64 {
 
 // DockerArtifactControlResult returns lease metadata or a safe refusal.
 type DockerArtifactControlResult struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
-	Artifact      *v1.DockerArtifactInfo   `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
-	Reason        v1.DockerImageReason     `protobuf:"varint,3,opt,name=reason,proto3,enum=dockwell.v1.DockerImageReason" json:"reason,omitempty"`
-	Artifacts     []*v1.DockerArtifactInfo `protobuf:"bytes,4,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
-	Space         *v1.DockerArtifactSpace  `protobuf:"bytes,5,opt,name=space,proto3" json:"space,omitempty"`
+	state         protoimpl.MessageState       `protogen:"open.v1"`
+	Artifact      *v1.DockerArtifactInfo       `protobuf:"bytes,1,opt,name=artifact,proto3" json:"artifact,omitempty"`
+	Descriptor_   *v1.DockerRegistryDescriptor `protobuf:"bytes,2,opt,name=descriptor,proto3" json:"descriptor,omitempty"`
+	Reason        v1.DockerImageReason         `protobuf:"varint,3,opt,name=reason,proto3,enum=dockwell.v1.DockerImageReason" json:"reason,omitempty"`
+	Artifacts     []*v1.DockerArtifactInfo     `protobuf:"bytes,4,rep,name=artifacts,proto3" json:"artifacts,omitempty"`
+	Space         *v1.DockerArtifactSpace      `protobuf:"bytes,5,opt,name=space,proto3" json:"space,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -17537,6 +17554,13 @@ func (*DockerArtifactControlResult) Descriptor() ([]byte, []int) {
 func (x *DockerArtifactControlResult) GetArtifact() *v1.DockerArtifactInfo {
 	if x != nil {
 		return x.Artifact
+	}
+	return nil
+}
+
+func (x *DockerArtifactControlResult) GetDescriptor_() *v1.DockerRegistryDescriptor {
+	if x != nil {
+		return x.Descriptor_
 	}
 	return nil
 }
@@ -19034,7 +19058,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"engineName\x127\n" +
 	"\x04spec\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.NetworkR\x04spec\"Y\n" +
 	"\x18CheckDockerNetworkResult\x12=\n" +
-	"\bfindings\x18\x01 \x03(\v2!.dockwell.v1.DockerNetworkFindingR\bfindings\"\x91\a\n" +
+	"\bfindings\x18\x01 \x03(\v2!.dockwell.v1.DockerNetworkFindingR\bfindings\"\xd6\a\n" +
 	"\x19DockerArtifactControlCall\x12\x1f\n" +
 	"\vartifact_id\x18\x01 \x01(\tR\n" +
 	"artifactId\x12#\n" +
@@ -19046,7 +19070,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04seal\x18\r \x01(\v2..dockwell.agent.v1.DockwellDockerArtifactEmptyH\x00R\x04seal\x12=\n" +
 	"\x04send\x18\x0e \x01(\v2'.dockwell.agent.v1.DockerArtifactStreamH\x00R\x04send\x12F\n" +
 	"\x05abort\x18\x0f \x01(\v2..dockwell.agent.v1.DockwellDockerArtifactEmptyH\x00R\x05abort\x12R\n" +
-	"\x0fsnapshot_folder\x18\x10 \x01(\v2'.dockwell.agent.v1.DockerArtifactFolderH\x00R\x0esnapshotFolder\x12D\n" +
+	"\x0fsnapshot_folder\x18\x10 \x01(\v2'.dockwell.agent.v1.DockerArtifactFolderH\x00R\x0esnapshotFolder\x12C\n" +
+	"\fprepare_push\x18\x11 \x01(\v2\x1e.dockwell.v1.DockerImageExportH\x00R\vpreparePush\x12D\n" +
 	"\x04list\x18\x12 \x01(\v2..dockwell.agent.v1.DockwellDockerArtifactEmptyH\x00R\x04list\x12W\n" +
 	"\x0ediscard_export\x18\x13 \x01(\v2..dockwell.agent.v1.DockwellDockerArtifactEmptyH\x00R\rdiscardExport\x128\n" +
 	"\x03pin\x18\x14 \x01(\v2$.dockwell.agent.v1.DockerArtifactPinH\x00R\x03pin\x12G\n" +
@@ -19068,9 +19093,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x14DockerArtifactStream\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x16\n" +
-	"\x06length\x18\x03 \x01(\x04R\x06length\"\x89\x02\n" +
+	"\x06length\x18\x03 \x01(\x04R\x06length\"\xd0\x02\n" +
 	"\x1bDockerArtifactControlResult\x12;\n" +
-	"\bartifact\x18\x01 \x01(\v2\x1f.dockwell.v1.DockerArtifactInfoR\bartifact\x126\n" +
+	"\bartifact\x18\x01 \x01(\v2\x1f.dockwell.v1.DockerArtifactInfoR\bartifact\x12E\n" +
+	"\n" +
+	"descriptor\x18\x02 \x01(\v2%.dockwell.v1.DockerRegistryDescriptorR\n" +
+	"descriptor\x126\n" +
 	"\x06reason\x18\x03 \x01(\x0e2\x1e.dockwell.v1.DockerImageReasonR\x06reason\x12=\n" +
 	"\tartifacts\x18\x04 \x03(\v2\x1f.dockwell.v1.DockerArtifactInfoR\tartifacts\x126\n" +
 	"\x05space\x18\x05 \x01(\v2 .dockwell.v1.DockerArtifactSpaceR\x05space\"Q\n" +
@@ -19436,13 +19464,15 @@ var file_dockwell_agent_v1_agent_proto_goTypes = []any{
 	(*v1.DockerCleanupPause)(nil),               // 302: dockwell.v1.DockerCleanupPause
 	(*v1alpha1.Network)(nil),                    // 303: dockwell.resource.v1alpha1.Network
 	(*v1.DockerNetworkFinding)(nil),             // 304: dockwell.v1.DockerNetworkFinding
-	(v1.DockerArtifactKind)(0),                  // 305: dockwell.v1.DockerArtifactKind
-	(*v1.DockerArtifactInfo)(nil),               // 306: dockwell.v1.DockerArtifactInfo
-	(v1.DockerImageReason)(0),                   // 307: dockwell.v1.DockerImageReason
-	(*v1.DockerArtifactSpace)(nil),              // 308: dockwell.v1.DockerArtifactSpace
-	(*v1alpha1.DockerDaemon)(nil),               // 309: dockwell.resource.v1alpha1.DockerDaemon
-	(*v1.DockerSettings)(nil),                   // 310: dockwell.v1.DockerSettings
-	(*v1.CheckDockerSettingsResponse)(nil),      // 311: dockwell.v1.CheckDockerSettingsResponse
+	(*v1.DockerImageExport)(nil),                // 305: dockwell.v1.DockerImageExport
+	(v1.DockerArtifactKind)(0),                  // 306: dockwell.v1.DockerArtifactKind
+	(*v1.DockerArtifactInfo)(nil),               // 307: dockwell.v1.DockerArtifactInfo
+	(*v1.DockerRegistryDescriptor)(nil),         // 308: dockwell.v1.DockerRegistryDescriptor
+	(v1.DockerImageReason)(0),                   // 309: dockwell.v1.DockerImageReason
+	(*v1.DockerArtifactSpace)(nil),              // 310: dockwell.v1.DockerArtifactSpace
+	(*v1alpha1.DockerDaemon)(nil),               // 311: dockwell.resource.v1alpha1.DockerDaemon
+	(*v1.DockerSettings)(nil),                   // 312: dockwell.v1.DockerSettings
+	(*v1.CheckDockerSettingsResponse)(nil),      // 313: dockwell.v1.CheckDockerSettingsResponse
 }
 var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	21,  // 0: dockwell.agent.v1.ConnectRequest.hello:type_name -> dockwell.agent.v1.Hello
@@ -19814,44 +19844,46 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	208, // 366: dockwell.agent.v1.DockerArtifactControlCall.send:type_name -> dockwell.agent.v1.DockerArtifactStream
 	205, // 367: dockwell.agent.v1.DockerArtifactControlCall.abort:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
 	207, // 368: dockwell.agent.v1.DockerArtifactControlCall.snapshot_folder:type_name -> dockwell.agent.v1.DockerArtifactFolder
-	205, // 369: dockwell.agent.v1.DockerArtifactControlCall.list:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	205, // 370: dockwell.agent.v1.DockerArtifactControlCall.discard_export:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	210, // 371: dockwell.agent.v1.DockerArtifactControlCall.pin:type_name -> dockwell.agent.v1.DockerArtifactPin
-	210, // 372: dockwell.agent.v1.DockerArtifactControlCall.release_pin:type_name -> dockwell.agent.v1.DockerArtifactPin
-	305, // 373: dockwell.agent.v1.BeginDockerArtifactCall.kind:type_name -> dockwell.v1.DockerArtifactKind
-	306, // 374: dockwell.agent.v1.DockerArtifactControlResult.artifact:type_name -> dockwell.v1.DockerArtifactInfo
-	307, // 375: dockwell.agent.v1.DockerArtifactControlResult.reason:type_name -> dockwell.v1.DockerImageReason
-	306, // 376: dockwell.agent.v1.DockerArtifactControlResult.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
-	308, // 377: dockwell.agent.v1.DockerArtifactControlResult.space:type_name -> dockwell.v1.DockerArtifactSpace
-	210, // 378: dockwell.agent.v1.CheckDockerArtifactPinsRequest.pins:type_name -> dockwell.agent.v1.DockerArtifactPin
-	210, // 379: dockwell.agent.v1.CheckDockerArtifactPinsResponse.ended:type_name -> dockwell.agent.v1.DockerArtifactPin
-	210, // 380: dockwell.agent.v1.CheckDockerArtifactPinsResponse.absent:type_name -> dockwell.agent.v1.DockerArtifactPin
-	309, // 381: dockwell.agent.v1.DockerSettingsCall.check:type_name -> dockwell.resource.v1alpha1.DockerDaemon
-	310, // 382: dockwell.agent.v1.DockerSettingsResult.settings:type_name -> dockwell.v1.DockerSettings
-	311, // 383: dockwell.agent.v1.DockerSettingsResult.checked:type_name -> dockwell.v1.CheckDockerSettingsResponse
-	31,  // 384: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	33,  // 385: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	3,   // 386: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	152, // 387: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	83,  // 388: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
-	137, // 389: dockwell.agent.v1.AgentService.ReceiveFile:input_type -> dockwell.agent.v1.ReceiveFileRequest
-	139, // 390: dockwell.agent.v1.AgentService.SendFile:input_type -> dockwell.agent.v1.SendFileRequest
-	81,  // 391: dockwell.agent.v1.AgentService.Forward:input_type -> dockwell.agent.v1.ForwardRequest
-	211, // 392: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:input_type -> dockwell.agent.v1.CheckDockerArtifactPinsRequest
-	32,  // 393: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	34,  // 394: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	24,  // 395: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	153, // 396: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	84,  // 397: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
-	138, // 398: dockwell.agent.v1.AgentService.ReceiveFile:output_type -> dockwell.agent.v1.ReceiveFileResponse
-	140, // 399: dockwell.agent.v1.AgentService.SendFile:output_type -> dockwell.agent.v1.SendFileResponse
-	82,  // 400: dockwell.agent.v1.AgentService.Forward:output_type -> dockwell.agent.v1.ForwardResponse
-	212, // 401: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:output_type -> dockwell.agent.v1.CheckDockerArtifactPinsResponse
-	393, // [393:402] is the sub-list for method output_type
-	384, // [384:393] is the sub-list for method input_type
-	384, // [384:384] is the sub-list for extension type_name
-	384, // [384:384] is the sub-list for extension extendee
-	0,   // [0:384] is the sub-list for field type_name
+	305, // 369: dockwell.agent.v1.DockerArtifactControlCall.prepare_push:type_name -> dockwell.v1.DockerImageExport
+	205, // 370: dockwell.agent.v1.DockerArtifactControlCall.list:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	205, // 371: dockwell.agent.v1.DockerArtifactControlCall.discard_export:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	210, // 372: dockwell.agent.v1.DockerArtifactControlCall.pin:type_name -> dockwell.agent.v1.DockerArtifactPin
+	210, // 373: dockwell.agent.v1.DockerArtifactControlCall.release_pin:type_name -> dockwell.agent.v1.DockerArtifactPin
+	306, // 374: dockwell.agent.v1.BeginDockerArtifactCall.kind:type_name -> dockwell.v1.DockerArtifactKind
+	307, // 375: dockwell.agent.v1.DockerArtifactControlResult.artifact:type_name -> dockwell.v1.DockerArtifactInfo
+	308, // 376: dockwell.agent.v1.DockerArtifactControlResult.descriptor:type_name -> dockwell.v1.DockerRegistryDescriptor
+	309, // 377: dockwell.agent.v1.DockerArtifactControlResult.reason:type_name -> dockwell.v1.DockerImageReason
+	307, // 378: dockwell.agent.v1.DockerArtifactControlResult.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
+	310, // 379: dockwell.agent.v1.DockerArtifactControlResult.space:type_name -> dockwell.v1.DockerArtifactSpace
+	210, // 380: dockwell.agent.v1.CheckDockerArtifactPinsRequest.pins:type_name -> dockwell.agent.v1.DockerArtifactPin
+	210, // 381: dockwell.agent.v1.CheckDockerArtifactPinsResponse.ended:type_name -> dockwell.agent.v1.DockerArtifactPin
+	210, // 382: dockwell.agent.v1.CheckDockerArtifactPinsResponse.absent:type_name -> dockwell.agent.v1.DockerArtifactPin
+	311, // 383: dockwell.agent.v1.DockerSettingsCall.check:type_name -> dockwell.resource.v1alpha1.DockerDaemon
+	312, // 384: dockwell.agent.v1.DockerSettingsResult.settings:type_name -> dockwell.v1.DockerSettings
+	313, // 385: dockwell.agent.v1.DockerSettingsResult.checked:type_name -> dockwell.v1.CheckDockerSettingsResponse
+	31,  // 386: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	33,  // 387: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	3,   // 388: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	152, // 389: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	83,  // 390: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
+	137, // 391: dockwell.agent.v1.AgentService.ReceiveFile:input_type -> dockwell.agent.v1.ReceiveFileRequest
+	139, // 392: dockwell.agent.v1.AgentService.SendFile:input_type -> dockwell.agent.v1.SendFileRequest
+	81,  // 393: dockwell.agent.v1.AgentService.Forward:input_type -> dockwell.agent.v1.ForwardRequest
+	211, // 394: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:input_type -> dockwell.agent.v1.CheckDockerArtifactPinsRequest
+	32,  // 395: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	34,  // 396: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	24,  // 397: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	153, // 398: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	84,  // 399: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
+	138, // 400: dockwell.agent.v1.AgentService.ReceiveFile:output_type -> dockwell.agent.v1.ReceiveFileResponse
+	140, // 401: dockwell.agent.v1.AgentService.SendFile:output_type -> dockwell.agent.v1.SendFileResponse
+	82,  // 402: dockwell.agent.v1.AgentService.Forward:output_type -> dockwell.agent.v1.ForwardResponse
+	212, // 403: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:output_type -> dockwell.agent.v1.CheckDockerArtifactPinsResponse
+	395, // [395:404] is the sub-list for method output_type
+	386, // [386:395] is the sub-list for method input_type
+	386, // [386:386] is the sub-list for extension type_name
+	386, // [386:386] is the sub-list for extension extendee
+	0,   // [0:386] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }
@@ -20056,6 +20088,7 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*DockerArtifactControlCall_Send)(nil),
 		(*DockerArtifactControlCall_Abort)(nil),
 		(*DockerArtifactControlCall_SnapshotFolder)(nil),
+		(*DockerArtifactControlCall_PreparePush)(nil),
 		(*DockerArtifactControlCall_List)(nil),
 		(*DockerArtifactControlCall_DiscardExport)(nil),
 		(*DockerArtifactControlCall_Pin)(nil),

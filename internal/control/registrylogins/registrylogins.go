@@ -389,6 +389,15 @@ func samePlanned(saved []Saved, planned, versions []string) error {
 
 // DockerImageLogin resolves a connection for an install-scoped image operation.
 func (l *Logins) DockerImageLogin(ctx context.Context, project, reference, loginID string) (*v1.DockerImageLoginRef, registry.Auth, error) {
+	return l.dockerImageLogin(ctx, project, reference, loginID, false)
+}
+
+// DockerPushLogin reopens a login that an install admin enabled for pushes.
+func (l *Logins) DockerPushLogin(ctx context.Context, project, reference, loginID string) (*v1.DockerImageLoginRef, registry.Auth, error) {
+	return l.dockerImageLogin(ctx, project, reference, loginID, true)
+}
+
+func (l *Logins) dockerImageLogin(ctx context.Context, project, reference, loginID string, push bool) (*v1.DockerImageLoginRef, registry.Auth, error) {
 	ref, err := registry.Parse(reference)
 	if err != nil {
 		return nil, registry.Auth{}, err
@@ -404,6 +413,9 @@ func (l *Logins) DockerImageLogin(ctx context.Context, project, reference, login
 		return nil, registry.Auth{}, err
 	}
 	if loginID == "" {
+		if push {
+			all = slices.DeleteFunc(all, func(saved Saved) bool { return !saved.Spec.GetAllowPush() })
+		}
 		saved, ok, err := pick(all, project, ref.Registry, "")
 		if err != nil || !ok {
 			return nil, registry.Auth{}, err
@@ -412,6 +424,9 @@ func (l *Logins) DockerImageLogin(ctx context.Context, project, reference, login
 	}
 	for _, saved := range all {
 		if saved.ID == loginID && saved.Spec.GetRegistry() == ref.Registry && Allows(saved.Spec, project) {
+			if push && !saved.Spec.GetAllowPush() {
+				return nil, registry.Auth{}, ErrNoLogin
+			}
 			auth, err := l.Open(ctx, saved)
 			return &v1.DockerImageLoginRef{Id: saved.ID, Name: saved.Name, Host: ref.Registry, Revision: int64(saved.Revision)}, auth, err
 		}

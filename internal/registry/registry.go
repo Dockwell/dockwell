@@ -116,6 +116,8 @@ type Options struct {
 	// registry is often there and the pull reaches it anyway, and refuse the rest
 	// of what a request must never reach.
 	Secure, Plain Doer
+	// Storage overrides the guarded credential-free blob transport in tests.
+	Storage Doer
 	// Public sends what a registry sends Dockwell to on another host: a blob
 	// kept elsewhere, or a token's realm. Nil takes netguard's client for the
 	// internet alone, so a registry can't send Dockwell into the server's own
@@ -130,6 +132,7 @@ type Options struct {
 // Client reads images from registries.
 type Client struct {
 	o      Options
+	write  Doer // injected transport for exact registry operations in tests
 	mu     sync.Mutex
 	tokens map[string]token
 	// held is what the tokens take, in bytes.
@@ -144,6 +147,7 @@ type token struct {
 
 // New makes a Client.
 func New(o Options) *Client {
+	write := o.Secure
 	if o.Secure == nil {
 		o.Secure = netguard.Client(netguard.Options{Private: true, Loopback: true, MaxBody: MaxBody, Timeout: RequestTimeout})
 	}
@@ -159,7 +163,7 @@ func New(o Options) *Client {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Client{o: o, tokens: map[string]token{}}
+	return &Client{o: o, write: write, tokens: map[string]token{}}
 }
 
 // bases are where a registry is read from, in order: Docker Hub through its

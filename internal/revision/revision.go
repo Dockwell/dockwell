@@ -792,6 +792,15 @@ func (p *Plan) HasDockerMaintenance() bool {
 	})
 }
 
+// ChangesRegistryPushPermission requires an exact passkey for a login's push grant.
+func (p *Plan) ChangesRegistryPushPermission() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		return r.Ref.Kind == "registry.login" && slices.ContainsFunc(r.Changes, func(c resource.Change) bool {
+			return c.Path == "allow_push"
+		})
+	})
+}
+
 // HasDockerImageAction identifies the install's reviewed image operations.
 func (p *Plan) HasDockerImageAction() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.DockerMaintenance.GetImageAction() != nil })
@@ -1950,6 +1959,19 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				registryPushOnly := false
+				if login, ok := it.spec.(*resourcev1.RegistryLogin); ok && login.AllowPush != nil &&
+					proto.Equal(login, &resourcev1.RegistryLogin{AllowPush: login.AllowPush}) {
+					current, ok := it.current.(*resourcev1.RegistryLogin)
+					if !ok {
+						return fault.New(ErrInvalid, "%s needs an existing login to change push permission", ed.Ref)
+					}
+					updated := proto.CloneOf(current)
+					updated.AllowPush = login.AllowPush
+					it.spec = updated
+					registryPushOnly = true
+					it.kept = resource.Kept{Reason: "kept_password", Words: "keeps the login it was saved with"}
+				}
 				// What the edit keeps is in the spec before anything checks it.
 				if len(ed.KeepEnv) > 0 {
 					if it.kept, err = e.keepEnv(it, ed.KeepEnv); err != nil {
@@ -1976,7 +1998,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					}
 				}
 				// Before anything compares it with what is there.
-				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed && !ed.Reverses {
+				if k, ok := e.keeper(ed.Ref.Kind); ok && it.current != nil && !ed.Observed && !ed.Reverses && !registryPushOnly {
 					if it.kept, err = k.Keep(it.current, it.spec); err != nil {
 						return fault.New(ErrInvalid, "%s: %w", ed.Ref, err)
 					}
@@ -2014,7 +2036,7 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 				// stored revision, not from a person, so there's no guess to hide: it rotates
 				// only where what's read changes, as the edit it undoes did (the review's M1).
 				restated := it.kept.Reason == "" && !ed.Reverses
-				it.rotates = rotate && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec) &&
+				it.rotates = rotate && !registryPushOnly && e.rotating(ed.Ref.Kind) && resource.SetsSensitive(it.spec) &&
 					(restated || e.changesWhatsRead(&it))
 			} else if it.current == nil {
 				return fault.New(ErrInvalid, "there's no %s to delete. Check its kind, name and scope", ed.Ref)
@@ -3536,6 +3558,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			rp.NoUndo = "Docker cleanup removes the selected artifacts permanently."
 			if rp.DockerMaintenance.GetImageAction() != nil {
 				rp.NoUndo = "This image action does not make a revision."
+			}
+			if push := rp.DockerMaintenance.GetImageAction().GetPush(); push != nil {
+				rp.HostAccess = append(rp.HostAccess, resource.Access{Kind: resource.AccessDockerImagePush, Path: push.GetDestination()})
 			}
 			if rp.DockerMaintenance.GetResumeCleanupToken() != "" {
 				rp.NoUndo = "Re-enabling Docker cleanup clears a safety pause."

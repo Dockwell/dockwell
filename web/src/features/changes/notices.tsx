@@ -148,6 +148,9 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       plan.removes !== undefined ||
       cleansDocker(plan) ||
       dockerImagePasskey(plan) ||
+      plan.resources.some(
+        (r) => r.resource?.kind === "registry.login" && r.changes.some((c) => c.path === "allow_push"),
+      ) ||
       plan.resources.some((r) => r.unit?.passkey === true) ||
       // An Open whose owner isn't made: who reaches it first takes it, or anyone signs
       // in with a password everyone knows (ADR 0105).
@@ -175,6 +178,7 @@ const WORST: Readonly<Partial<Record<HostAccessKind, number>>> = {
   [HostAccessKind.BACKUP_OF]: 0,
   [HostAccessKind.SERVER_SHELL]: 0,
   [HostAccessKind.DOCKER_DAEMON_SETTINGS]: 0,
+  [HostAccessKind.DOCKER_IMAGE_PUSH]: 2,
   [HostAccessKind.CERTIFICATE_KEY]: 2,
   [HostAccessKind.SERVER_PORT]: 3,
   [HostAccessKind.PLAIN_FOR_ANYONE]: 4,
@@ -251,7 +255,8 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
   // warning (ADR 0104, the polish round).
   const tunnelled = publishesThroughTunnel(plan);
   const add = (name: string, server: string, access: HostAccess) => {
-    if (access.kind === HostAccessKind.TUNNEL_RULE) return;
+    // The push step names its destination and publication has its own notice.
+    if (access.kind === HostAccessKind.TUNNEL_RULE || access.kind === HostAccessKind.DOCKER_IMAGE_PUSH) return;
     if (tunnelled && access.kind === HostAccessKind.TRUSTED_PROXY && LOOPBACK.has(access.path)) return;
     const key = `${name}/${server}/${access.kind}/${access.path}/${access.address}/${access.readOnly}/${access.holds}/${access.heldBy}/${access.detail}`;
     if (seen.has(key)) return;
@@ -799,7 +804,20 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
   const { root } = useReaches(plan);
   const managed = useManagedElsewhere();
   if (!plan) return [];
-  if (dockerImageAction(plan)) {
+  const imageAction = dockerImageAction(plan);
+  if (imageAction?.push) {
+    return !applied && !imageAction.push.digestOnly && imageAction.bindings[0]?.expectAbsent
+      ? [
+          {
+            key: "registry-tag",
+            title: t`Another writer can claim this tag`,
+            detail: t`The registry can accept another write between the final check and publication.`,
+            amber: true,
+          },
+        ]
+      : [];
+  }
+  if (imageAction) {
     return !applied && dockerImagePasskey(plan)
       ? [
           {

@@ -2014,6 +2014,8 @@ message RegistryLogin {
   string token_host = 5;
   // The projects whose apps may pull with it, by ID. Empty for every project.
   repeated string projects = 6;
+  // Allows reviewed image pushes. An existing login stays pull-only until enabled.
+  optional bool allow_push = 7;
 }
 
 // RegistryLoginEcr is an AWS access key that may call ECR's GetAuthorizationToken.

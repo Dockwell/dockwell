@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
-import { ImageService, type RegistryLoginInfo } from "@dockwell/api";
+import { type EditSchema, ImageService, type RegistryLoginInfo } from "@dockwell/api";
 
 /** The registries a person picks from, each with the host an image names it by. */
 export type RegistryKind = "hub" | "ghcr" | "gitlab" | "ecr" | "other";
@@ -97,4 +98,12 @@ export function useRegistryLogins(place?: { environment?: string; project?: stri
     { environment: place?.environment ?? "", project: place?.project ?? "" },
     { enabled, staleTime: 30_000 },
   );
+}
+
+// A permission-only edit preserves the current login and all its credentials.
+export function registryPushEdit(name: string, allowPush: boolean): MessageInitShape<typeof EditSchema> {
+  return {
+    resource: { kind: "registry.login", name },
+    spec: { kind: { case: "registryLogin", value: { allowPush } } },
+  };
 }

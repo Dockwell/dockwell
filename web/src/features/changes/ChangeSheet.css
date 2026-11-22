@@ -1067,3 +1067,23 @@ code.plan-server-chip .middle-name-head {
   color: var(--ink-muted);
   font-size: var(--type-caption-size);
 }
+
+.plan-push-destination {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  column-gap: var(--space-4);
+}
+
+.plan-push-digest {
+  grid-column: 1 / -1;
+}
+
+.plan-step-push,
+.plan-step-push [role="status"] {
+  overflow-wrap: anywhere;
+}
+
+.plan-push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

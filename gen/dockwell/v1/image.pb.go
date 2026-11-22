@@ -279,7 +279,9 @@ type RegistryLoginInfo struct {
 	// project.
 	Projects []string `protobuf:"bytes,6,rep,name=projects,proto3" json:"projects,omitempty"`
 	// Its resource's ID.
-	Id            string `protobuf:"bytes,7,opt,name=id,proto3" json:"id,omitempty"`
+	Id string `protobuf:"bytes,7,opt,name=id,proto3" json:"id,omitempty"`
+	// True when this login may authorize reviewed image pushes.
+	AllowPush     bool `protobuf:"varint,8,opt,name=allow_push,json=allowPush,proto3" json:"allow_push,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -361,6 +363,13 @@ func (x *RegistryLoginInfo) GetId() string {
 		return x.Id
 	}
 	return ""
+}
+
+func (x *RegistryLoginInfo) GetAllowPush() bool {
+	if x != nil {
+		return x.AllowPush
+	}
+	return false
 }
 
 // CheckRegistryLoginRequest is a login to try, as typed or as saved.
@@ -1593,7 +1602,7 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\aproject\x18\x01 \x01(\tR\aproject\x12 \n" +
 	"\venvironment\x18\x02 \x01(\tR\venvironment\"T\n" +
 	"\x1aListRegistryLoginsResponse\x126\n" +
-	"\x06logins\x18\x01 \x03(\v2\x1e.dockwell.v1.RegistryLoginInfoR\x06logins\"\xbc\x01\n" +
+	"\x06logins\x18\x01 \x03(\v2\x1e.dockwell.v1.RegistryLoginInfoR\x06logins\"\xdb\x01\n" +
 	"\x11RegistryLoginInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\bregistry\x18\x02 \x01(\tR\bregistry\x12\x1a\n" +
@@ -1602,7 +1611,9 @@ const file_dockwell_v1_image_proto_rawDesc = "" +
 	"\n" +
 	"token_host\x18\x05 \x01(\tR\ttokenHost\x12\x1a\n" +
 	"\bprojects\x18\x06 \x03(\tR\bprojects\x12\x0e\n" +
-	"\x02id\x18\a \x01(\tR\x02id\"\xfd\x01\n" +
+	"\x02id\x18\a \x01(\tR\x02id\x12\x1d\n" +
+	"\n" +
+	"allow_push\x18\b \x01(\bR\tallowPush\"\xfd\x01\n" +
 	"\x19CheckRegistryLoginRequest\x12\x1a\n" +
 	"\bregistry\x18\x01 \x01(\tR\bregistry\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12 \n" +

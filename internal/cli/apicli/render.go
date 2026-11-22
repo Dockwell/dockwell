@@ -1430,6 +1430,7 @@ var accessKinds = map[dockwellv1.HostAccessKind]resource.AccessKind{
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_TAKES_ON:               resource.AccessTakesOn,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_BACKUP_OF:              resource.AccessBackupOf,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS: resource.AccessDockerDaemon,
+	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH:      resource.AccessDockerImagePush,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_SERVER_SHELL:           resource.AccessServerShell,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CERTIFICATE_KEY:        resource.AccessCertificateKey,
 	dockwellv1.HostAccessKind_HOST_ACCESS_KIND_CAPABILITY:             resource.AccessCapability,

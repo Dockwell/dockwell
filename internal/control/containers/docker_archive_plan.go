@@ -117,7 +117,7 @@ func (h *Handler) planDockerArchive(ctx context.Context, m *v1.PlanDockerMainten
 func (h *Handler) DiscardDockerArchives(ctx context.Context, change *v1.Change) {
 	for _, item := range change.GetPlan().GetResources() {
 		action := item.GetDockerMaintenance().GetImageAction()
-		if action.GetExport() == nil && action.GetLoad() == nil && action.GetBuild() == nil {
+		if action.GetExport() == nil && action.GetLoad() == nil && action.GetBuild() == nil && action.GetPush() == nil {
 			continue
 		}
 		session, _ := h.dockerAgent(Server{ID: item.GetResource().GetScope()})

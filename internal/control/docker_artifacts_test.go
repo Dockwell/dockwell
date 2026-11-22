@@ -231,10 +231,15 @@ func holdArchiveTransferSlots(t *testing.T, files *agentfiles.Server) func() {
 
 func dockerArchiveFixture(t *testing.T) ([]byte, string) {
 	t.Helper()
+	return dockerArchiveWithAliases(t, "fixture/archives:original")
+}
+
+func dockerArchiveWithAliases(t *testing.T, aliases ...string) ([]byte, string) {
+	t.Helper()
 	config := []byte(`{"architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}`)
 	digest := sha256.Sum256(config)
 	name := hex.EncodeToString(digest[:]) + ".json"
-	manifest, err := json.Marshal([]map[string]any{{"Config": name, "RepoTags": []string{"fixture/archives:original"}, "Layers": []string{}}})
+	manifest, err := json.Marshal([]map[string]any{{"Config": name, "RepoTags": aliases, "Layers": []string{}}})
 	if err != nil {
 		t.Fatal(err)
 	}

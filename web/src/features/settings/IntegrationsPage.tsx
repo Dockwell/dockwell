@@ -7,6 +7,7 @@ import {
   type BackupDestinationInfo,
   BackupService,
   ChangeService,
+  ChangeState,
   type ConnectionInfo,
   type DnsProviderInfo,
   GitProviderService,
@@ -21,6 +22,7 @@ import {
   type IconName,
   PHONE_QUERY,
   StatusBadge,
+  Switch,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
@@ -40,7 +42,13 @@ import { appsOf } from "../connections/storage";
 import { DnsProviderSheet } from "../dns/DnsProviderSheet";
 import { useDnsProviders } from "../dns/dns";
 import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
-import { REGISTRY_NAMES, type RegistryKind, registryKind, useRegistryLogins } from "../registries/registries";
+import {
+  REGISTRY_NAMES,
+  type RegistryKind,
+  registryKind,
+  registryPushEdit,
+  useRegistryLogins,
+} from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
@@ -232,7 +240,13 @@ export function IntegrationsPage() {
             ) : (
               <div className="integrations-grid">
                 {loginList.map((l) => (
-                  <LoginCard key={l.id} login={l} onManage={() => setLogin({ editing: l })} manage={mayPlan.off} />
+                  <LoginCard
+                    key={l.id}
+                    onChanged={() => void logins.refetch()}
+                    login={l}
+                    onManage={() => setLogin({ editing: l })}
+                    manage={mayPlan.off}
+                  />
                 ))}
                 {/* Docker Hub and GitHub's, the registries most images come from, until one is connected. */}
                 {loginList.some((l) => l.registry === "docker.io") ? null : (
@@ -628,13 +642,16 @@ function DestinationCard({
 function LoginCard({
   login: l,
   onManage,
+  onChanged,
   manage,
 }: {
   login: RegistryLoginInfo;
   onManage: () => void;
+  onChanged: () => void;
   manage: { off?: string; disabled?: true };
 }) {
   const { t } = useLingui();
+  const sheet = useChangeSheet();
   const kind = registryKind(l.registry);
   const who =
     l.projects.length === 0
@@ -656,6 +673,22 @@ function LoginCard({
           <span className="integrations-sub">
             <code>{l.registry}</code>
           </span>
+          <Switch
+            label={t`Allow pushes`}
+            description={t`Use this login to publish reviewed images.`}
+            checked={l.allowPush}
+            disabled={Boolean(manage.off || manage.disabled)}
+            onChange={(allowed) =>
+              sheet.open({
+                kind: "propose",
+                summary: allowed ? t`Allow pushes with ${l.name}` : t`Keep ${l.name} pull-only`,
+                edits: [registryPushEdit(l.name, allowed)],
+                onClose: (change) => {
+                  if (change?.state === ChangeState.APPLIED) onChanged();
+                },
+              })
+            }
+          />
         </>
       }
       action={
