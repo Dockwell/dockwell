@@ -68,3 +68,22 @@ func DockerAliasProtected(ref string, held []string) bool {
 		return err == nil && pinned.Digest == "" && pinned.Name() == target.Name() && pinned.Reference() == target.Reference()
 	})
 }
+
+// DockerBuildID is the retained build record of a one-server image change.
+func DockerBuildID(change string) string {
+	return "bld_" + strings.TrimPrefix(change, "chg_")
+}
+
+// DockerBuildLeases lists the private inputs a standalone change needs to keep.
+func DockerBuildLeases(action *v1.DockerImageAction) []string {
+	if action.GetBuild() == nil {
+		return nil
+	}
+	var leases []string
+	for _, lease := range []string{action.GetStagedSourceId(), action.GetBuild().GetDockerfileOverrideArtifactId()} {
+		if lease != "" {
+			leases = append(leases, lease)
+		}
+	}
+	return leases
+}

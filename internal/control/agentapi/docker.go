@@ -240,8 +240,17 @@ func (s *Session) DockerImageLogin(ctx context.Context, project, reference, id s
 func (s *Session) PreviewDockerImage(ctx context.Context, ref resource.Ref, image *dockwellv1.DockerImageAction, login registry.Auth) (*dockwellv1.DockerImageAction, error) {
 	plan := &dockwellv1.DockerMaintenance{ImageAction: image}
 	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(ref), DockerMaintenance: plan}
-	reply, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: &agentv1.PlanCall{Desired: []*agentv1.DesiredResource{wanted}}}}, dockerCallWait,
-		func(session *Session) error { return session.imageOperationAuth(wanted, ref, login) })
+	wait := dockerCallWait
+	if image.GetBuild() != nil {
+		wait = 3 * time.Minute
+	}
+	reply, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Plan{Plan: &agentv1.PlanCall{Desired: []*agentv1.DesiredResource{wanted}}}}, wait,
+		func(session *Session) error {
+			if image.GetBuild() != nil {
+				return session.sealDockerBuild(ctx, ref, wanted)
+			}
+			return session.imageOperationAuth(wanted, ref, login)
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -269,7 +278,14 @@ func (s *Session) applyDockerImage(ctx context.Context, step resource.Step) erro
 	image := plan.GetImageAction()
 	wanted := &agentv1.DesiredResource{Resource: resourcepb.Ref(step.Ref), DockerMaintenance: plan}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), DockerCleanupProtection: dockerProtection(ctx), Desired: wanted}
-	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout, func(session *Session) error {
+	wait := s.agents.applyTimeout
+	if image.GetBuild() != nil {
+		wait += 2*time.Hour + resource.BuildBudget
+	}
+	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, wait, func(session *Session) error {
+		if image.GetBuild() != nil {
+			return session.sealDockerBuild(ctx, step.Ref, wanted)
+		}
 		var login registry.Auth
 		if refs := image.GetApprovedLogins(); len(refs) > 0 {
 			saved, auth, err := session.DockerImageLogin(ctx, image.GetCredentialProject(), image.GetPull().GetReference(), refs[0].GetId())

@@ -235,7 +235,7 @@ func (b *Builder) run2(ctx context.Context, name string, create *docker.CreateRe
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
 		}
-		return 0, fmt.Errorf("docker stopped answering about %s: %w", name, err)
+		return 0, containerRunError("the commit reader", err)
 	}
 	return code, nil
 }
@@ -298,14 +298,7 @@ elif f --unshallow origin "${DW_REF:-HEAD}" 2>>/tmp/fetch.log && on; then :
 elif git cat-file -e "FETCH_HEAD^{commit}" 2>/dev/null 3>&-; then say fail notonref; exit 3
 else tail -n 5 /tmp/fetch.log; say fail fetch; exit 3
 fi
-# The object a path names in the commit, if it is one of type $1, through symlinks
-# within the commit; none for one that leads out of it.
-obj() {
-  out=$(printf '%s:%s\n' "$DW_COMMIT" "$2" | git cat-file --batch-check --follow-symlinks 3>&- | head -n 1)
-  if printf '%s\n' "$out" | grep -Eq "^[0-9a-f]+ $1 [0-9]+\$"; then printf '%s' "${out%% *}"; fi
-}
-if [ -z "$(obj tree "$DW_CONTEXT")" ]; then say fail context; exit 3; fi
-dfobj=$(obj blob "${DW_CONTEXT:+$DW_CONTEXT/}$DW_DOCKERFILE")
+` + detectCommitDockerfile + `
 if [ "$DW_BUILDER" = dockerfile ] && [ -z "$dfobj" ]; then say fail dockerfile; exit 3; fi
 if [ -n "$dfobj" ] && [ "$DW_BUILDER" != railpack ]; then
   say dockerfile yes
@@ -334,12 +327,27 @@ if [ ! -s /work/railpack-info.json ]; then tail -n 5 /tmp/railpack.log; say fail
 exit 0
 `
 
+// Select the blob in the reviewed tree. An empty context or a dot selects the
+// commit's root. Nested paths are looked up before any checkout.
+const detectCommitDockerfile = `
+obj() {
+  out=$(printf '%s:%s\n' "$DW_COMMIT" "$2" | git cat-file --batch-check --follow-symlinks 3>&- | head -n 1)
+  if printf '%s\n' "$out" | grep -Eq "^[0-9a-f]+ $1 [0-9]+\$"; then printf '%s' "${out%% *}"; fi
+}
+case "$DW_CONTEXT" in
+  ""|.) git cat-file -e "$DW_COMMIT^{tree}" 3>&- || { say fail context; exit 3; }
+        dfobj=$(obj blob "$DW_DOCKERFILE") ;;
+  *)    if [ -z "$(obj tree "$DW_CONTEXT")" ]; then say fail context; exit 3; fi
+        dfobj=$(obj blob "$DW_CONTEXT/$DW_DOCKERFILE") ;;
+esac
+`
+
 // Detect reads a commit as a build would, and says how it would build: with its
 // Dockerfile, or with Railpack and what Railpack found. It builds nothing, and runs
 // beside a build.
 func (b *Builder) Detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, error) {
 	d, _, err := b.read(ctx, req, false)
-	return d, err
+	return d, hideIn(err, hiddenForms(req))
 }
 
 // read reads a commit, as Detect does, and gives the plan Railpack wrote, when it

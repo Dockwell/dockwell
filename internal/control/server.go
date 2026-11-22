@@ -740,6 +740,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		if cfg.Agents != nil {
 			buildHandler = builds.New(cfg.Store, cfg.Agents, serviceHandler, cfg.Logger)
 			buildHandler.SetSources(sources)
+			own.SetBuilds(buildHandler)
 			cfg.Changes.SetDetector(buildHandler)
 			serviceHandler.Builds = buildHandler
 			canceller = buildHandler
@@ -823,6 +824,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 			ch.SetGitLogins(apps)
 			if cfg.Agents != nil {
 				cfg.Agents.SendGitAuth(apps.AuthorizationIn)
+				cfg.Agents.SendDockerBuildGitAuth(apps.DockerBuildAuthorization)
 			}
 			if buildHandler != nil {
 				// A form's readings fetch a private repository as the plan will.

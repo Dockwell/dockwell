@@ -25,14 +25,15 @@ type Failure struct {
 
 // What a failure can come down to.
 const (
-	ReasonImage     = "image"     // the image: its name, its tag, or its platform
-	ReasonCommand   = "command"   // what the image runs isn't there, or can't run
-	ReasonExits     = "exits"     // it started, and stopped or keeps restarting
-	ReasonUnhealthy = "unhealthy" // it runs, and fails its health check
-	ReasonPort      = "port"      // a port it publishes is in use
-	ReasonMount     = "mount"     // a volume or a path it mounts
-	ReasonBuild     = "build"     // building its image from source failed
-	ReasonCancelled = "cancelled" // someone cancelled its build
+	ReasonImage           = "image"            // the image: its name, its tag, or its platform
+	ReasonCommand         = "command"          // what the image runs isn't there, or can't run
+	ReasonExits           = "exits"            // it started, and stopped or keeps restarting
+	ReasonUnhealthy       = "unhealthy"        // it runs, and fails its health check
+	ReasonPort            = "port"             // a port it publishes is in use
+	ReasonMount           = "mount"            // a volume or a path it mounts
+	ReasonBuild           = "build"            // building its image from source failed
+	ReasonCancelled       = "cancelled"        // someone cancelled its build
+	ReasonBuildPublishing = "build_publishing" // Docker is already adding the build result
 	// ReasonRegistry is the registry's own trouble: it didn't answer a pull
 	// properly, so the same pull may work in a while, and nothing about the image
 	// needs changing.

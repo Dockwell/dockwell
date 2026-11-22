@@ -25,6 +25,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	"github.com/dockwell/dockwell/internal/control/builds"
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/human"
@@ -49,6 +50,7 @@ type Server struct {
 type Handler struct {
 	agents  *agentapi.Agents
 	changes *changes.Handler
+	builds  *builds.Handler
 	db      *store.DB
 	logger  *slog.Logger
 }

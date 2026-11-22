@@ -98,6 +98,17 @@ export async function dockerRemoveImage(socket: string, ref: string): Promise<vo
   await call(socket, "DELETE", `/images/${ref}`);
 }
 
+/** Reads the exact image tag after a reviewed action. */
+export async function dockerHasImage(socket: string, ref: string): Promise<boolean> {
+  try {
+    await get(socket, `/images/${ref}/json`);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Docker answered 404 ")) return false;
+    throw error;
+  }
+}
+
 /** Sets an image alias directly on the Engine. */
 export async function dockerTag(socket: string, id: string, repository: string, tag: string): Promise<void> {
   await call(socket, "POST", `/images/${id}/tag?${new URLSearchParams({ repo: repository, tag })}`);

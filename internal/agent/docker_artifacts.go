@@ -13,6 +13,7 @@ import (
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/artifact"
+	"github.com/dockwell/dockwell/internal/agent/files"
 )
 
 func (c *calls) dockerArtifact(ctx context.Context, ask *agentv1.DockerArtifactControlCall) *agentv1.CallResult {
@@ -42,6 +43,32 @@ func (c *calls) dockerArtifact(ctx context.Context, ask *agentv1.DockerArtifactC
 		out.Artifact, err = spool.Begin(owner, begin.GetKind(), begin.GetSizeBytes(), begin.GetSha256(), begin.GetGzip(), begin.GetFileName())
 	case ask.GetList() != nil:
 		out.Artifacts = spool.List(owner)
+	case ask.GetSnapshotFolder() != nil:
+		folder := ask.GetSnapshotFolder()
+		if c.cfg.Files == nil || !artifact.ContextPath(folder.GetDockerfilePath()) {
+			err = artifact.ErrArchive
+			break
+		}
+		if override := folder.GetOverrideArtifactId(); override != "" {
+			info, readErr := spool.Status(override, owner)
+			if readErr != nil || info.GetKind() != artifact.Dockerfile || info.GetState() != artifact.Ready {
+				err = artifact.ErrUnavailable
+				break
+			}
+		}
+		var release func()
+		release, err = c.cfg.takeArtifactTransfer(ctx)
+		if err != nil {
+			break
+		}
+		defer release()
+		out.Artifact, err = c.cfg.Files.SnapshotContext(ctx, spool, owner, folder.GetPath(), folder.GetDockerfilePath())
+		if errors.Is(err, files.ErrContextHardLink) || errors.Is(err, files.ErrContextEntry) || errors.Is(err, context.DeadlineExceeded) {
+			return callFailed(err)
+		}
+		if out.Artifact == nil && err == nil {
+			err = artifact.ErrUnavailable
+		}
 	case !artifact.ValidID(id):
 		err = artifact.ErrUnavailable
 	case ask.GetPin() != nil && ask.GetPin().GetArtifactId() == id:
@@ -67,7 +94,7 @@ func (c *calls) dockerArtifact(ctx context.Context, ask *agentv1.DockerArtifactC
 	case err == nil:
 	case errors.Is(err, artifact.ErrLeaseLimit):
 		out.Reason = v1.DockerImageReason_DOCKER_IMAGE_REASON_LEASE_LIMIT
-	case errors.Is(err, artifact.ErrTransferSlots):
+	case errors.Is(err, artifact.ErrTransferSlots), ask.GetReceive() != nil && errors.Is(err, artifact.ErrBusy):
 		out.Reason = v1.DockerImageReason_DOCKER_IMAGE_REASON_TRANSFER_BUSY
 	case errors.Is(err, artifact.ErrPlanned):
 		out.Reason = v1.DockerImageReason_DOCKER_IMAGE_REASON_ARTIFACT_PINNED

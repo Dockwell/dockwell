@@ -143,6 +143,8 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
   // Docker's data, as /info says it, is on the disk this checkout is on, which is a
   // data disk here and in CI where a container's / isn't, so a server's Overview
   // adds up that disk part by part. Nothing is written there.
+  const dockerRoot = join(process.cwd(), "bin", "fakedocker-root");
+  await mkdir(dockerRoot, { recursive: true });
   // A registry of a few images beside it, for the agent to read images from (ADR 0062),
   // on a port of its own past the panel's range.
   const registry = `127.0.0.1:${port + 1000}`;
@@ -156,7 +158,7 @@ async function fakeDocker(): Promise<NodeJS.ProcessEnv> {
       ...process.env,
       FAKEDOCKER_CLEANUP_FIXTURE: "1",
       FAKEDOCKER_STORAGE_FIXTURE: storageFixture,
-      FAKEDOCKER_ROOT: join(process.cwd(), "bin", "fakedocker-root"),
+      FAKEDOCKER_ROOT: dockerRoot,
       FAKEDOCKER_REGISTRY: registry,
       FAKEDOCKER_CLOUDFLARE: cloudflare,
       FAKEDOCKER_GITHUB: github,
@@ -280,6 +282,7 @@ async function shoot(page: Page, name: string) {
       const imageAction =
         name.startsWith("docker-slice6a-") ||
         name.startsWith("docker-slice6b-") ||
+        name.startsWith("docker-slice6c-") ||
         name === "registry-logins-docker-pull";
       const artifact = storage || imageAction;
       for (const width of storage ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {

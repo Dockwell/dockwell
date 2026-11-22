@@ -245,7 +245,7 @@ export type Opening = Then &
         witnessed?: boolean;
       }
     | { kind: "undo"; id: string }
-    | { kind: "plan"; make: () => Promise<{ change?: Change | undefined }> }
+    | { kind: "plan"; make: () => Promise<{ change?: Change | undefined }>; planningLabel?: string }
     | { kind: "nothing"; summary?: string; detail?: ReactNode }
   );
 
@@ -1130,6 +1130,11 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   // A change of labels alone says it of the servers, which take no step (ADR 0091).
   const imageAction = dockerImageAction(plan);
   if (imageAction) {
+    if (imageAction.build) {
+      if (phase === "applying") return t`Building image`;
+      if (phase === "failed") return t`Image build ended`;
+      if (phase === "arrived" || phase === "history") return t`Image built`;
+    }
     if (imageAction.load || imageAction.export) {
       if (phase === "applying") return imageAction.export ? t`Preparing image archive` : t`Importing images`;
       if (phase === "arrived" || phase === "history")
@@ -1392,11 +1397,13 @@ function PlanBody({
   const runsADatabase = useRunsADatabase(plan);
   const fleet = isFleet(plan);
   if (phase === "planning") {
+    const planningLabel = opening.kind === "plan" ? opening.planningLabel : undefined;
     return (
       <div className="plan-body">
         <Loading
-          label={t`Planning: asking each server what this would take`}
-          slow={t`Each server is still working out what this would take`}
+          label={planningLabel ?? t`Planning: asking each server what this would take`}
+          slow={planningLabel ?? t`Each server is still working out what this would take`}
+          slowAfter={planningLabel ? 0 : undefined}
           className="dw-plan"
         >
           <div className="dw-plan-summary" aria-hidden="true">
@@ -1622,7 +1629,7 @@ function PlanBody({
           />
         </section>
       )}
-      {showSteps ? <PlanSteps plan={plan} progress={steps} /> : null}
+      {showSteps ? <PlanSteps plan={plan} progress={steps} changeId={change?.id ?? ""} /> : null}
       {phase === "review" ? (
         <Effects
           phone={phone}

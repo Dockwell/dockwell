@@ -4328,9 +4328,6 @@ msgstr "构建工具"
 msgid "Cache hit"
 msgstr "缓存命中率"
 
-msgid "Can't read the build's log"
-msgstr "无法读取构建日志"
-
 msgid "Cancel build"
 msgstr "取消构建"
 
@@ -4354,6 +4351,13 @@ msgstr "已失联"
 msgid "Step {step}, <0>{0}</0>"
 msgstr "第 {step} 步，<0>{0}</0>"
 
+#. placeholder {0}: build.serverName
+msgid "{0} went away during the build, so how it ended isn't known."
+msgstr "{0} 在构建期间离线，因此无法得知构建结果。"
+
+msgid "Can't read the build's log"
+msgstr "无法读取构建日志"
+
 msgid "The build printed nothing."
 msgstr "构建没有任何输出。"
 
@@ -4366,10 +4370,6 @@ msgstr "正在排队：每台服务器一次只运行一个构建。"
 #. placeholder {0}: Number(dropped)
 msgid "{0, plural, one {# line dropped, as the build printed faster than its log could take it} other {# lines dropped, as the build printed faster than its log could take them}}"
 msgstr "{0, plural, other {构建输出太快，日志来不及接收，丢弃了 # 行}}"
-
-#. placeholder {0}: build.serverName
-msgid "{0} went away during the build, so how it ended isn't known."
-msgstr "{0} 在构建期间离线，因此无法得知构建结果。"
 
 msgid "{count} lines left out"
 msgstr "省略了 {count} 行"
@@ -9673,6 +9673,9 @@ msgstr "应用此计划时会要求验证你的通行密钥"
 msgid "Archive action failed"
 msgstr "归档操作失败"
 
+msgid "Building image"
+msgstr "正在构建镜像"
+
 msgid "Cleaning up Docker"
 msgstr "正在清理 Docker"
 
@@ -9750,6 +9753,12 @@ msgstr "镜像操作失败"
 
 msgid "Image archive ready"
 msgstr "镜像归档已就绪"
+
+msgid "Image build ended"
+msgstr "镜像构建已结束"
+
+msgid "Image built"
+msgstr "镜像已构建"
 
 msgid "Image pulled"
 msgstr "镜像已拉取"
@@ -10227,6 +10236,54 @@ msgstr "在 <0>{server}</0> 上加载已审阅的归档"
 msgid "The archive is available to the session that planned it while its lease is active."
 msgstr "在租约有效期内，创建计划的会话可以下载归档。"
 
+msgid "Adding image to Docker"
+msgstr "正在将镜像添加到 Docker"
+
+msgid "Build couldn't be cancelled"
+msgstr "无法取消构建"
+
+msgid "Build failed"
+msgstr "构建失败"
+
+msgid "Build image"
+msgstr "构建镜像"
+
+msgid "Cancelling"
+msgstr "正在取消"
+
+msgid "Copy commit"
+msgstr "复制提交 ID"
+
+msgid "Docker is already adding the image"
+msgstr "Docker 已开始添加镜像"
+
+msgid "Image ID"
+msgstr "镜像 ID"
+
+msgid "Output"
+msgstr "输出"
+
+msgid "Override"
+msgstr "覆盖"
+
+msgid "Pinned base images"
+msgstr "已固定的基础镜像"
+
+msgid "Reading the build log"
+msgstr "正在读取构建日志"
+
+msgid "Registry logins"
+msgstr "镜像仓库登录"
+
+msgid "Result unknown"
+msgstr "结果未知"
+
+msgid "The result will appear here when it finishes."
+msgstr "完成后，结果会显示在这里。"
+
+msgid "Uploaded context"
+msgstr "已上传的上下文"
+
 msgctxt "what stops while Docker restarts"
 msgid "App"
 msgstr "应用"
@@ -10415,9 +10472,6 @@ msgstr "如果 Docker 未通过健康检查，Dockwell 会使用之前的设置�
 msgid "If reload fails, Dockwell restarts Docker with the previous settings."
 msgstr "如果重新加载失败，Dockwell 会使用之前的设置重启 Docker。"
 
-msgid "Image ID"
-msgstr "镜像 ID"
-
 msgid "Image config digest"
 msgstr "镜像配置摘要"
 
@@ -10522,9 +10576,6 @@ msgstr "重新加载 {server} 上的 Docker"
 
 msgid "Restart Docker on {server}"
 msgstr "重启 {server} 上的 Docker"
-
-msgid "Result unknown"
-msgstr "结果未知"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "运行控制平面自带的安装脚本（SHA-256 {sha}），它会先校验发布版本的签名再安装"
@@ -14745,6 +14796,9 @@ msgstr "等待导出"
 msgid "Awaiting upload"
 msgstr "等待上传"
 
+msgid "Build context"
+msgstr "构建上下文"
+
 msgid "Check failed"
 msgstr "验证失败"
 
@@ -14774,6 +14828,108 @@ msgstr "无法中止传输"
 
 msgid "View"
 msgstr "查看"
+
+msgid ".tar or .tar.gz, up to 1 GiB"
+msgstr ".tar 或 .tar.gz，最大 1 GiB"
+
+msgid "Add login"
+msgstr "添加登录"
+
+msgid "Branch, tag or commit"
+msgstr "分支、标签或提交"
+
+msgid "Build context archive"
+msgstr "构建上下文归档"
+
+msgid "Build input couldn't be prepared"
+msgstr "无法准备构建输入"
+
+msgid "Checking build input"
+msgstr "正在检查构建输入"
+
+msgid "Choose a .tar or .tar.gz archive up to 1 GiB."
+msgstr "请选择不超过 1 GiB 的 .tar 或 .tar.gz 归档。"
+
+msgid "Choose a file for the build."
+msgstr "请选择用于构建的文件。"
+
+msgid "Choose a registry login"
+msgstr "选择镜像仓库登录"
+
+msgid "Choose the same file to resume the upload."
+msgstr "请选择同一文件以继续上传。"
+
+msgid "Credential project"
+msgstr "凭据所属项目"
+
+msgid "Default branch"
+msgstr "默认分支"
+
+msgid "Dockerfile override"
+msgstr "Dockerfile 覆盖内容"
+
+msgid "Dockerfile path"
+msgstr "Dockerfile 路径"
+
+msgid "Dockwell adds a unique tag."
+msgstr "Dockwell 会添加唯一标签。"
+
+msgid "Drop a build context"
+msgstr "拖放构建上下文"
+
+msgid "Git access"
+msgstr "Git 访问权限"
+
+msgid "Git repository"
+msgstr "Git 仓库"
+
+msgid "Install-wide"
+msgstr "整个安装"
+
+msgid "Local image name"
+msgstr "本地镜像名称"
+
+msgid "Override Dockerfile"
+msgstr "覆盖 Dockerfile"
+
+msgid "Preparing the build folder and checking base images"
+msgstr "正在准备构建文件夹并检查基础镜像"
+
+msgid "Public repository"
+msgstr "公共仓库"
+
+msgid "Reading registry logins"
+msgstr "正在读取镜像仓库登录"
+
+msgid "Reading repositories"
+msgstr "正在读取仓库"
+
+msgid "Repository root"
+msgstr "仓库根目录"
+
+msgid "Server platform"
+msgstr "服务器平台"
+
+msgid "Subdirectory"
+msgstr "子目录"
+
+msgid "The image build could not be reviewed."
+msgstr "无法审查镜像构建。"
+
+msgid "The server couldn't verify this build input."
+msgstr "服务器无法验证此构建输入。"
+
+msgid "Upload context"
+msgstr "上传上下文"
+
+msgid "Uploaded Dockerfile"
+msgstr "已上传的 Dockerfile"
+
+msgid "Uploading build input"
+msgstr "正在上传构建输入"
+
+msgid "Use source Dockerfile"
+msgstr "使用源 Dockerfile"
 
 msgid "Checking Docker artifacts"
 msgstr "正在检查 Docker 对象"

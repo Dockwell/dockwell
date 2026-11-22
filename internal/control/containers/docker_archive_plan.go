@@ -117,14 +117,20 @@ func (h *Handler) planDockerArchive(ctx context.Context, m *v1.PlanDockerMainten
 func (h *Handler) DiscardDockerArchives(ctx context.Context, change *v1.Change) {
 	for _, item := range change.GetPlan().GetResources() {
 		action := item.GetDockerMaintenance().GetImageAction()
-		if action.GetExport() == nil && action.GetLoad() == nil {
+		if action.GetExport() == nil && action.GetLoad() == nil && action.GetBuild() == nil {
 			continue
 		}
 		session, _ := h.dockerAgent(Server{ID: item.GetResource().GetScope()})
 		if session == nil || !session.ArtifactTransfers() {
 			continue
 		}
-		releaseArchivePin(ctx, session, &agentv1.DockerArtifactPin{ArtifactId: action.GetStagedSourceId(), ChangeId: change.GetId()})
+		leases := resource.DockerBuildLeases(action)
+		if action.GetBuild() == nil {
+			leases = []string{action.GetStagedSourceId()}
+		}
+		for _, lease := range leases {
+			releaseArchivePin(ctx, session, &agentv1.DockerArtifactPin{ArtifactId: lease, ChangeId: change.GetId()})
+		}
 	}
 }
 

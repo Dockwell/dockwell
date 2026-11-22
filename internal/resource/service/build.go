@@ -70,7 +70,16 @@ type BuildRequest struct {
 	// GitAuth is the Authorization its repository is fetched with: a GitHub App's
 	// token for that repository alone, which goes no further than the fetch
 	// (ADR 0098). Empty fetches as the public do.
-	GitAuth string
+	GitAuth    string
+	Standalone *StandaloneBuild
+}
+
+// StandaloneBuild carries sealed, private inputs and the final publication gate.
+type StandaloneBuild struct {
+	StartPublication                                           func() error
+	Context, Dockerfile, Platform, Policy, CacheScope, Scratch string
+	Prepare                                                    func(context.Context, *BuildRequest, func() error) error
+	Publish                                                    func(context.Context, func() error, func(context.Context) error) error
 }
 
 // Request is what a build of svc asks its server to build, all but its secrets.

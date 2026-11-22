@@ -5,6 +5,7 @@ syntax = "proto3";
 package dockwell.v1;
 
 import "dockwell/resource/v1alpha1/specs.proto";
+import "dockwell/v1/build.proto";
 import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/options.proto";
@@ -88,6 +89,41 @@ service DockerService {
     option (google.api.http) = {
       post: "/v1/docker/maintenance"
       body: "*"
+    };
+  }
+
+  // WatchDockerImageBuild follows one standalone build from a saved line cursor.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc WatchDockerImageBuild(WatchDockerImageBuildRequest) returns (stream WatchBuildResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "watch-build"
+    };
+  }
+
+  // CancelDockerImageBuild asks the builder to stop before publication.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc CancelDockerImageBuild(CancelDockerImageBuildRequest) returns (CancelBuildResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/docker/builds/{server_id}/{change_id}/cancel"
+      body: "*"
+    };
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "cancel-build"
     };
   }
 
@@ -614,6 +650,7 @@ message PlanDockerMaintenanceRequest {
     string resume_cleanup_token = 11;
     DockerImageTag tag = 12;
     DockerImageLoad load = 13;
+    DockerImageBuild build = 14;
     DockerImageExport export = 17;
     DockerImagePull pull = 18;
   }
@@ -636,6 +673,7 @@ message DockerImageSupport {
   string default_registry = 1;
   bool can_pull = 2;
   bool can_tag = 3;
+  bool can_build = 4;
   bool can_import = 5;
   bool can_export = 6;
 }
@@ -767,7 +805,9 @@ message PlanDockerNetworkAttachmentResponse {
 enum DockerArtifactKind {
   DOCKER_ARTIFACT_KIND_UNSPECIFIED = 0;
   DOCKER_ARTIFACT_KIND_IMAGE_IMPORT = 1;
+  DOCKER_ARTIFACT_KIND_BUILD_CONTEXT = 2;
   DOCKER_ARTIFACT_KIND_IMAGE_EXPORT = 3;
+  DOCKER_ARTIFACT_KIND_DOCKERFILE = 4;
 }
 
 // DockerArtifactState is the current stage of a lease.
@@ -973,4 +1013,17 @@ message PlanDockerContainerLoggingRequest {
 // PlanDockerContainerLoggingResponse returns a reviewed workload change.
 message PlanDockerContainerLoggingResponse {
   Change change = 1;
+}
+
+// WatchDockerImageBuildRequest identifies the change on one server.
+message WatchDockerImageBuildRequest {
+  string server_id = 1;
+  string change_id = 2;
+  int64 after_line = 3;
+}
+
+// CancelDockerImageBuildRequest identifies the change on one server.
+message CancelDockerImageBuildRequest {
+  string server_id = 1;
+  string change_id = 2;
 }

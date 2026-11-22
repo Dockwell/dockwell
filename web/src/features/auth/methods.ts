@@ -175,6 +175,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DockerService.listDockerObjects": { within: "DockerService.getDockerOverview" },
   "DockerService.planDockerContainerLogging": { within: "DockerService.getDockerSettings" },
   "DockerService.planDockerMaintenance": "may",
+  "DockerService.watchDockerImageBuild": { within: "DockerService.planDockerMaintenance" },
+  "DockerService.cancelDockerImageBuild": { within: "DockerService.planDockerMaintenance" },
   "DockerService.planDockerNetworkAttachment": "may",
   "DockerService.previewDockerCleanup": { within: "DockerService.getDockerOverview" },
   "DockerService.watchDockerObjects": { within: "DockerService.getDockerOverview" },

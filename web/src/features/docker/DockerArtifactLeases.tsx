@@ -21,7 +21,7 @@ export function DockerArtifactLeases({
   resume,
 }: {
   servers: readonly Pick<Server, "id" | "name">[];
-  resume: (serverId: string, artifactId: string) => void;
+  resume: (serverId: string, artifactId: string, kind: DockerArtifactKind) => void;
 }) {
   const { i18n, t } = useLingui();
   const [server, setServer] = useState("");
@@ -82,7 +82,15 @@ export function DockerArtifactLeases({
       ) : list.data?.artifacts.length ? (
         <ul>
           {list.data.artifacts.map((item) => {
-            const incoming = item.kind === DockerArtifactKind.IMAGE_IMPORT;
+            const incoming = item.kind !== DockerArtifactKind.IMAGE_EXPORT;
+            const label =
+              item.kind === DockerArtifactKind.BUILD_CONTEXT
+                ? t`Build context`
+                : item.kind === DockerArtifactKind.DOCKERFILE
+                  ? t`Dockerfile`
+                  : incoming
+                    ? t`Image archive`
+                    : t`Image export`;
             const ready = item.state === DockerArtifactState.READY;
             const failed = item.state === DockerArtifactState.FAILED;
             const checking = item.state === DockerArtifactState.CHECKING;
@@ -100,7 +108,7 @@ export function DockerArtifactLeases({
                 <div className="docker-archive-lease-name">
                   <Icon name="archive" size={18} />
                   <div>
-                    <strong>{item.fileName || (incoming ? t`Image archive` : t`Image export`)}</strong>
+                    <strong>{item.fileName || label}</strong>
                     <small>
                       {incoming && item.receivedBytes < item.sizeBytes
                         ? t`${formatBytes(item.receivedBytes, i18n.locale)} of ${formatBytes(item.sizeBytes, i18n.locale)}`
@@ -116,8 +124,8 @@ export function DockerArtifactLeases({
                   labelIsState
                 />
                 <div className="docker-archive-lease-actions">
-                  {incoming && !failed ? (
-                    <Button variant="secondary" size="sm" onClick={() => resume(serverId, item.artifactId)}>
+                  {incoming && !failed && item.expiresAt ? (
+                    <Button variant="secondary" size="sm" onClick={() => resume(serverId, item.artifactId, item.kind)}>
                       {ready ? <Trans>Review</Trans> : checking ? <Trans>View</Trans> : <Trans>Resume</Trans>}
                     </Button>
                   ) : !incoming && ready ? (

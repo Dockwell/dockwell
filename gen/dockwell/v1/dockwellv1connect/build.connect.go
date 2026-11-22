@@ -66,6 +66,7 @@ type BuildServiceClient interface {
 	ReadBuildLog(context.Context, *connect.Request[v1.ReadBuildLogRequest]) (*connect.Response[v1.ReadBuildLogResponse], error)
 	// WatchBuild sends a build as it stands and what its log keeps, then each line
 	// and change of state as they come, until it ends.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	WatchBuild(context.Context, *connect.Request[v1.WatchBuildRequest]) (*connect.ServerStreamForClient[v1.WatchBuildResponse], error)
 	// DetectBuild reads how a commit of a repository would build, on a server, as
 	// a build would read it: with its Dockerfile, or with Railpack and what
@@ -79,6 +80,7 @@ type BuildServiceClient interface {
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	CancelBuild(context.Context, *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error)
 }
 
@@ -199,6 +201,7 @@ type BuildServiceHandler interface {
 	ReadBuildLog(context.Context, *connect.Request[v1.ReadBuildLogRequest]) (*connect.Response[v1.ReadBuildLogResponse], error)
 	// WatchBuild sends a build as it stands and what its log keeps, then each line
 	// and change of state as they come, until it ends.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	WatchBuild(context.Context, *connect.Request[v1.WatchBuildRequest], *connect.ServerStream[v1.WatchBuildResponse]) error
 	// DetectBuild reads how a commit of a repository would build, on a server, as
 	// a build would read it: with its Dockerfile, or with Railpack and what
@@ -212,6 +215,7 @@ type BuildServiceHandler interface {
 	// CancelBuild stops a build that is waiting or running. Its step fails as
 	// cancelled, before anything that runs is touched, so its change's rollback
 	// has nothing to do and what ran goes on running.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
 	CancelBuild(context.Context, *connect.Request[v1.CancelBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error)
 }
 

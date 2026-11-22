@@ -238,6 +238,17 @@ func (c *Client) SignIn(ctx context.Context, a Auth, first bool) (string, error)
 	return "", fmt.Errorf("%w: its token service answered %d", ErrUnreachable, code)
 }
 
+// CheckBuildSignIn tests the saved credentials fresh before a standalone build
+// gives them to BuildKit. Only an HTTPS registry and its approved realm may read them.
+func (c *Client) CheckBuildSignIn(ctx context.Context, a Auth) error {
+	bases := c.bases(a.Registry)
+	if !strings.HasPrefix(bases[len(bases)-1], "https://") {
+		return ErrSignIn
+	}
+	_, err := c.SignIn(ctx, a, false)
+	return err
+}
+
 // Challenge reads what a login's registry asks of a client, and refuses one that
 // would send it to a token service other than the one it was saved with, before
 // Docker is handed it for a pull, as Docker follows whatever realm a registry names.

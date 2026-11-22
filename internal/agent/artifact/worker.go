@@ -28,7 +28,7 @@ func (s *Spool) TakeValidation(ctx context.Context) (func(), error) {
 // attached to the agent, so replacing a connection cannot cancel this job.
 func (s *Spool) QueueSeal(id, owner string) (*v1.DockerArtifactInfo, error) {
 	status, err := s.Status(id, owner)
-	if err != nil || status.GetKind() != Import {
+	if err != nil || !UploadKind(status.GetKind()) {
 		return nil, errors.Join(ErrUnavailable, err)
 	}
 	if status.GetState() != Receiving {
@@ -63,7 +63,7 @@ func (s *Spool) nextSeal() string {
 	defer s.mu.Unlock()
 	now := s.now()
 	for id, l := range s.leases {
-		if l.snapshot.GetKind() == Import && l.snapshot.GetState() == Checking && !l.expired(now) {
+		if UploadKind(l.snapshot.GetKind()) && l.snapshot.GetState() == Checking && !l.expired(now) {
 			return id
 		}
 	}

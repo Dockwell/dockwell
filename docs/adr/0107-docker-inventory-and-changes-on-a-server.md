@@ -43,6 +43,38 @@ The network check uses agent call and result tag 405. Docker storage inventory u
 
 Daemon settings use agent Call and CallResult 407, DockerCapabilities 11 and 12, Spec 400, Container 401, PlanStep and PlannedResource 401, and HostAccessKind 400. The public inventory uses DockerContainer 27 and DockerObjectFilter 9 for log rotation.
 
+### Standalone Dockerfile builds
+
+A build is a reviewed image action with a receipt. It uses the existing BuildKit
+runner and queue on the chosen server. A folder is copied through the FileService
+path guard, with Docker's ignore rules applied. Uploads use the same resumable
+artifact lane as image archives. The review freezes the context hash or Git
+commit, the Dockerfile hash, the native platform and each approved base-image
+manifest. BuildKit's source policy enforces those manifest pins. Dockerfile
+overrides are private artifacts tied to the change.
+
+A build may use explicitly selected registry logins. The control plane rechecks
+their revisions when applying and seals the credentials for that change and
+agent. The runner checks the registry challenge again when work begins. The
+standalone cache is shared only by builds with the same login set and revisions.
+Logs use the existing bounded recorder and mask known credential forms.
+
+BuildKit writes its result to private scratch space. Before handing it to Docker,
+Dockwell checks the unique output tag and requires free space above the disk
+floor for twice the archive size plus 256 MiB of working space. The disk watch
+cancels the load if available space drops below the floor. User cancellation
+before the handoff leaves the output tag absent. After the handoff, the receipt
+reports the image Docker took or that the outcome could not be verified.
+Existing aliases can be assigned to the result through a separate tag review.
+
+This delivery uses `PlanDockerMaintenanceRequest.build` 14,
+`DockerImageAction` 6–8 and 14, `DockerImageReceipt.build_id` 9,
+`DockerImageOutcome` 5, `DockerImageSupport.can_build` 4,
+`DockerArtifactKind` 2 and 4, and `DockerArtifactControlCall.snapshot_folder`
+16. It reuses the 406 artifact lane and `DesiredResource.docker_registry_auth`
+401. The build log and cancellation share the existing response messages.
+The pending push and untag fields stay reserved for their approved deliveries.
+
 ## Consequences
 
 Docker, Apps and Projects share links and the same plans. An older agent can still serve its existing pages and actions, and Docker inventory reports that the agent needs an update. The agent's idle budget stays at 40 MB. Cleanup and daemon writes need real Engine checks, including interrupted apply and recovery, before their controls ship.

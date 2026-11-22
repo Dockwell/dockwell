@@ -2961,6 +2961,28 @@ message DockerImageImportTag {
   string alias = 2;
 }
 
+// DockerImageBuild selects the native builder and one context.
+message DockerImageBuild {
+  string output = 1;
+  string dockerfile_path = 2;
+  string platform = 3;
+  repeated string registry_login_ids = 4;
+  string dockerfile_override_artifact_id = 5;
+  string credential_project = 6;
+  string folder_path = 10;
+  DockerImageGitSource git = 11;
+  string context_artifact_id = 12;
+}
+
+// DockerImageGitSource selects a repository and the directory to build.
+message DockerImageGitSource {
+  string repository = 1;
+  string ref = 2;
+  string subdirectory = 3;
+  string git_login = 4;
+  string project = 5;
+}
+
 // DockerImageExport names an immutable local image and the aliases to include.
 message DockerImageExport {
   DockerImageSourceKey source_key = 1;
@@ -3004,11 +3026,15 @@ message DockerImageAction {
   string staged_source_id = 3;
   string source_sha256 = 4;
   repeated DockerImageLoginRef approved_logins = 5;
+  repeated DockerRegistryDescriptor base_descriptors = 6;
+  string git_commit = 7;
+  string dockerfile_sha256 = 8;
   string credential_project = 9;
   // A stored plan sets exactly one of these fields. The plan reader also supports
   // older JSON records, so the persisted action uses ordinary message fields.
   DockerImageTag tag = 12;
   DockerImageLoad load = 13;
+  DockerImageBuild build = 14;
   DockerImageExport export = 17;
   DockerImagePull pull = 18;
 }
@@ -3023,6 +3049,7 @@ message DockerImageReceipt {
   string artifact_id = 6;
   uint64 size_bytes = 7;
   string sha256 = 8;
+  string build_id = 9;
   string previous_image_id = 10;
 }
 
@@ -3033,6 +3060,7 @@ enum DockerImageOutcome {
   DOCKER_IMAGE_OUTCOME_UNCHANGED = 2;
   DOCKER_IMAGE_OUTCOME_REFUSED = 3;
   DOCKER_IMAGE_OUTCOME_FAILED = 4;
+  DOCKER_IMAGE_OUTCOME_CANCELLED = 5;
   DOCKER_IMAGE_OUTCOME_UNKNOWN = 6;
 }
 

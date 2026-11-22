@@ -813,6 +813,10 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			out, err = c.dockerImageList(ctx, ask)
 		default:
 			out, err = dockerInventoryList(ctx, c.cfg.Docker, ask)
+			if summary := out.GetOverview(); summary != nil && c.cfg.artifacts != nil && c.cfg.images != nil {
+				_, supported := c.cfg.Builds.(service.Builder)
+				summary.ImageOperations = &dockwellv1.DockerImageSupport{CanBuild: supported}
+			}
 		}
 		if err != nil {
 			return fail(err)
@@ -968,7 +972,11 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		cb := call.GetCancelBuild()
 		stopping := false
 		if c.cfg.Builds != nil {
-			stopping = c.cfg.Builds.Cancel(cb.GetChangeId(), resourcepb.FromRef(cb.GetResource()), cb.GetBy())
+			var err error
+			stopping, err = c.cfg.Builds.CancelWithStatus(cb.GetChangeId(), resourcepb.FromRef(cb.GetResource()), cb.GetBy())
+			if err != nil {
+				return fail(err)
+			}
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CancelBuild{CancelBuild: &agentv1.CancelBuildResult{Stopping: stopping}}}
 	case call.GetDetectBuild() != nil:

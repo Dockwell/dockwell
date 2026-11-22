@@ -843,6 +843,7 @@ export const BuildService: GenService<{
   /**
    * WatchBuild sends a build as it stands and what its log keeps, then each line
    * and change of state as they come, until it ends.
+   * buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
    *
    * @generated from rpc dockwell.v1.BuildService.WatchBuild
    */
@@ -880,6 +881,7 @@ export const BuildService: GenService<{
    * CancelBuild stops a build that is waiting or running. Its step fails as
    * cancelled, before anything that runs is touched, so its change's rollback
    * has nothing to do and what ran goes on running.
+   * buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
    *
    * @generated from rpc dockwell.v1.BuildService.CancelBuild
    */

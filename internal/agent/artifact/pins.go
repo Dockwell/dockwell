@@ -28,7 +28,7 @@ func (s *Spool) Pin(pin *agentv1.DockerArtifactPin, owner string) (*v1.DockerArt
 		}
 		return nil, ErrPlanned
 	}
-	if l.Info.GetKind() == Import && l.Info.GetState() != Ready || l.Info.GetKind() == Export && l.Info.GetState() != Checking {
+	if UploadKind(l.Info.GetKind()) && l.Info.GetState() != Ready || l.Info.GetKind() == Export && l.Info.GetState() != Checking {
 		return nil, ErrUnavailable
 	}
 	l.Pin = proto.CloneOf(pin)

@@ -50,6 +50,12 @@ const (
 	// DockerServicePlanDockerMaintenanceProcedure is the fully-qualified name of the DockerService's
 	// PlanDockerMaintenance RPC.
 	DockerServicePlanDockerMaintenanceProcedure = "/dockwell.v1.DockerService/PlanDockerMaintenance"
+	// DockerServiceWatchDockerImageBuildProcedure is the fully-qualified name of the DockerService's
+	// WatchDockerImageBuild RPC.
+	DockerServiceWatchDockerImageBuildProcedure = "/dockwell.v1.DockerService/WatchDockerImageBuild"
+	// DockerServiceCancelDockerImageBuildProcedure is the fully-qualified name of the DockerService's
+	// CancelDockerImageBuild RPC.
+	DockerServiceCancelDockerImageBuildProcedure = "/dockwell.v1.DockerService/CancelDockerImageBuild"
 	// DockerServiceCheckDockerNetworkProcedure is the fully-qualified name of the DockerService's
 	// CheckDockerNetwork RPC.
 	DockerServiceCheckDockerNetworkProcedure = "/dockwell.v1.DockerService/CheckDockerNetwork"
@@ -103,6 +109,14 @@ type DockerServiceClient interface {
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
 	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
+	// WatchDockerImageBuild follows one standalone build from a saved line cursor.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	WatchDockerImageBuild(context.Context, *connect.Request[v1.WatchDockerImageBuildRequest]) (*connect.ServerStreamForClient[v1.WatchBuildResponse], error)
+	// CancelDockerImageBuild asks the builder to stop before publication.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	CancelDockerImageBuild(context.Context, *connect.Request[v1.CancelDockerImageBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error)
 	// CheckDockerNetwork validates a candidate against selected Engines.
 	// REST carries the address pools in the request body.
 	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
@@ -185,6 +199,19 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			httpClient,
 			baseURL+DockerServicePlanDockerMaintenanceProcedure,
 			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
+			connect.WithClientOptions(opts...),
+		),
+		watchDockerImageBuild: connect.NewClient[v1.WatchDockerImageBuildRequest, v1.WatchBuildResponse](
+			httpClient,
+			baseURL+DockerServiceWatchDockerImageBuildProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("WatchDockerImageBuild")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		cancelDockerImageBuild: connect.NewClient[v1.CancelDockerImageBuildRequest, v1.CancelBuildResponse](
+			httpClient,
+			baseURL+DockerServiceCancelDockerImageBuildProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("CancelDockerImageBuild")),
 			connect.WithClientOptions(opts...),
 		),
 		checkDockerNetwork: connect.NewClient[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse](
@@ -280,6 +307,8 @@ type dockerServiceClient struct {
 	getDockerObject             *connect.Client[v1.GetDockerObjectRequest, v1.GetDockerObjectResponse]
 	previewDockerCleanup        *connect.Client[v1.PreviewDockerCleanupRequest, v1.PreviewDockerCleanupResponse]
 	planDockerMaintenance       *connect.Client[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse]
+	watchDockerImageBuild       *connect.Client[v1.WatchDockerImageBuildRequest, v1.WatchBuildResponse]
+	cancelDockerImageBuild      *connect.Client[v1.CancelDockerImageBuildRequest, v1.CancelBuildResponse]
 	checkDockerNetwork          *connect.Client[v1.CheckDockerNetworkRequest, v1.CheckDockerNetworkResponse]
 	planDockerNetworkAttachment *connect.Client[v1.PlanDockerNetworkAttachmentRequest, v1.PlanDockerNetworkAttachmentResponse]
 	beginDockerArtifactUpload   *connect.Client[v1.BeginDockerArtifactUploadRequest, v1.DockerArtifactInfo]
@@ -318,6 +347,16 @@ func (c *dockerServiceClient) PreviewDockerCleanup(ctx context.Context, req *con
 // PlanDockerMaintenance calls dockwell.v1.DockerService.PlanDockerMaintenance.
 func (c *dockerServiceClient) PlanDockerMaintenance(ctx context.Context, req *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
 	return c.planDockerMaintenance.CallUnary(ctx, req)
+}
+
+// WatchDockerImageBuild calls dockwell.v1.DockerService.WatchDockerImageBuild.
+func (c *dockerServiceClient) WatchDockerImageBuild(ctx context.Context, req *connect.Request[v1.WatchDockerImageBuildRequest]) (*connect.ServerStreamForClient[v1.WatchBuildResponse], error) {
+	return c.watchDockerImageBuild.CallServerStream(ctx, req)
+}
+
+// CancelDockerImageBuild calls dockwell.v1.DockerService.CancelDockerImageBuild.
+func (c *dockerServiceClient) CancelDockerImageBuild(ctx context.Context, req *connect.Request[v1.CancelDockerImageBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {
+	return c.cancelDockerImageBuild.CallUnary(ctx, req)
 }
 
 // CheckDockerNetwork calls dockwell.v1.DockerService.CheckDockerNetwork.
@@ -397,6 +436,14 @@ type DockerServiceHandler interface {
 	PreviewDockerCleanup(context.Context, *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error)
 	// PlanDockerMaintenance prepares reviewed targets or the current pause for ApplyChange.
 	PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error)
+	// WatchDockerImageBuild follows one standalone build from a saved line cursor.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	WatchDockerImageBuild(context.Context, *connect.Request[v1.WatchDockerImageBuildRequest], *connect.ServerStream[v1.WatchBuildResponse]) error
+	// CancelDockerImageBuild asks the builder to stop before publication.
+	// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+	// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+	CancelDockerImageBuild(context.Context, *connect.Request[v1.CancelDockerImageBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error)
 	// CheckDockerNetwork validates a candidate against selected Engines.
 	// REST carries the address pools in the request body.
 	CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error)
@@ -475,6 +522,19 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 		DockerServicePlanDockerMaintenanceProcedure,
 		svc.PlanDockerMaintenance,
 		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerMaintenance")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceWatchDockerImageBuildHandler := connect.NewServerStreamHandler(
+		DockerServiceWatchDockerImageBuildProcedure,
+		svc.WatchDockerImageBuild,
+		connect.WithSchema(dockerServiceMethods.ByName("WatchDockerImageBuild")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceCancelDockerImageBuildHandler := connect.NewUnaryHandler(
+		DockerServiceCancelDockerImageBuildProcedure,
+		svc.CancelDockerImageBuild,
+		connect.WithSchema(dockerServiceMethods.ByName("CancelDockerImageBuild")),
 		connect.WithHandlerOptions(opts...),
 	)
 	dockerServiceCheckDockerNetworkHandler := connect.NewUnaryHandler(
@@ -572,6 +632,10 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 			dockerServicePreviewDockerCleanupHandler.ServeHTTP(w, r)
 		case DockerServicePlanDockerMaintenanceProcedure:
 			dockerServicePlanDockerMaintenanceHandler.ServeHTTP(w, r)
+		case DockerServiceWatchDockerImageBuildProcedure:
+			dockerServiceWatchDockerImageBuildHandler.ServeHTTP(w, r)
+		case DockerServiceCancelDockerImageBuildProcedure:
+			dockerServiceCancelDockerImageBuildHandler.ServeHTTP(w, r)
 		case DockerServiceCheckDockerNetworkProcedure:
 			dockerServiceCheckDockerNetworkHandler.ServeHTTP(w, r)
 		case DockerServicePlanDockerNetworkAttachmentProcedure:
@@ -625,6 +689,14 @@ func (UnimplementedDockerServiceHandler) PreviewDockerCleanup(context.Context, *
 
 func (UnimplementedDockerServiceHandler) PlanDockerMaintenance(context.Context, *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerMaintenance is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) WatchDockerImageBuild(context.Context, *connect.Request[v1.WatchDockerImageBuildRequest], *connect.ServerStream[v1.WatchBuildResponse]) error {
+	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.WatchDockerImageBuild is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) CancelDockerImageBuild(context.Context, *connect.Request[v1.CancelDockerImageBuildRequest]) (*connect.Response[v1.CancelBuildResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.CancelDockerImageBuild is not implemented"))
 }
 
 func (UnimplementedDockerServiceHandler) CheckDockerNetwork(context.Context, *connect.Request[v1.CheckDockerNetworkRequest]) (*connect.Response[v1.CheckDockerNetworkResponse], error) {

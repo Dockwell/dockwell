@@ -240,3 +240,19 @@ func (h *Handler) PinGitLogin(ctx context.Context, tx *store.Tx, project, repoUR
 	}
 	return "", fmt.Errorf("the GitHub App installation %s doesn't reach this project. The project's are on %s", login, strings.Join(accounts, ", "))
 }
+
+// DockerBuildAuthorization rechecks the reviewed project's access before a
+// standalone builder fetches a private repository.
+func (h *Handler) DockerBuildAuthorization(ctx context.Context, login, url, project string) (string, error) {
+	if project == "" {
+		return "", errors.New("a private repository requires a credential project")
+	}
+	err := h.cfg.DB.View(ctx, func(tx *store.Tx) error {
+		_, err := h.PinGitLogin(ctx, tx, project, url, login)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	return h.Authorization(ctx, login, url)
+}

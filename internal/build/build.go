@@ -146,8 +146,9 @@ type key struct {
 
 // run is a build that waits or runs, which someone can cancel.
 type run struct {
-	cancel context.CancelCauseFunc
-	by     string
+	cancel     context.CancelCauseFunc
+	by         string
+	publishing bool
 }
 
 // errCancelled is why a build someone cancelled stopped.
@@ -212,14 +213,20 @@ func (b *Builder) Build(ctx context.Context, req service.BuildRequest) (err erro
 
 func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	b.init()
-	if has, err := b.Has(ctx, req.Image); err != nil || has {
-		return err
+	if req.Standalone == nil {
+		if has, err := b.Has(ctx, req.Image); err != nil || has {
+			return err
+		}
 	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	k := key{req.Change, req.Service}
 	r := &run{cancel: cancel}
 	b.mu.Lock()
+	if b.running[k] != nil && req.Standalone != nil {
+		b.mu.Unlock()
+		return errors.New("this image build is already running")
+	}
 	b.running[k] = r
 	b.mu.Unlock()
 	defer func() {
@@ -231,18 +238,61 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	}()
 
 	resource.ReportBuild(ctx, resource.BuildUpdate{State: resource.BuildQueued, Image: req.Image})
+	queue := ctx
+	if req.Standalone != nil {
+		var stop context.CancelFunc
+		queue, stop = context.WithTimeout(ctx, 2*time.Hour)
+		defer stop()
+	}
 	select {
 	case b.slot <- struct{}{}:
 	default:
 		resource.Progress(ctx, "Waiting for another build on this server to finish")
 		select {
 		case b.slot <- struct{}{}:
-		case <-ctx.Done():
+		case <-queue.Done():
+			if ctx.Err() == nil {
+				return b.ended(ctx, req, facts{}, errors.New("the build's two-hour queue lease ended"))
+			}
 			return b.ended(ctx, req, facts{}, b.stopped(ctx, r, req))
 		}
 	}
 	defer func() { <-b.slot }()
+	if req.Standalone != nil {
+		standalone := *req.Standalone
+		standalone.StartPublication = func() error {
+			b.mu.Lock()
+			defer b.mu.Unlock()
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			r.publishing = true
+			return nil
+		}
+		req.Standalone = &standalone
+		runCtx, done := context.WithTimeout(ctx, resource.BuildBudget)
+		defer done()
+		ctx = runCtx
+	}
 
+	if req.Standalone != nil {
+		started := false
+		err := req.Standalone.Prepare(ctx, &req, func() error {
+			started = true
+			return b.buildAdmitted(ctx, req, r, cancel)
+		})
+		if !started && err != nil {
+			if ctx.Err() != nil {
+				err = b.stopped(ctx, r, req)
+			}
+			return b.ended(ctx, req, facts{}, err)
+		}
+		return err
+	}
+	return b.buildAdmitted(ctx, req, r, cancel)
+}
+
+func (b *Builder) buildAdmitted(ctx context.Context, req service.BuildRequest, r *run, cancel context.CancelCauseFunc) error {
 	// What a registry said of a login before the build waited may have changed
 	// since: it's asked again now (ADR 0086).
 	if len(req.Logins) > 0 && req.Recheck != nil {
@@ -252,11 +302,13 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 		}
 		req.Logins = logins
 	}
-	if err := checkRef(req.Ref); err != nil {
-		return b.ended(ctx, req, facts{}, err)
-	}
-	if err := b.checkPlain(ctx, req.URL); err != nil {
-		return b.ended(ctx, req, facts{}, err)
+	if req.Standalone == nil || req.URL != "" {
+		if err := checkRef(req.Ref); err != nil {
+			return b.ended(ctx, req, facts{}, err)
+		}
+		if err := b.checkPlain(ctx, req.URL); err != nil {
+			return b.ended(ctx, req, facts{}, err)
+		}
 	}
 	// Its cache follows the logins it was given, before its Dockerfile is read for
 	// which it hands BuildKit, so one build keeps to one cache.
@@ -272,6 +324,14 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 		}
 	}
 	stopWatching := b.watchDisk(root, cancel)
+	if req.Standalone != nil {
+		if err := b.checkDisk(req.Standalone.Scratch); err != nil {
+			stopWatching()
+			return b.ended(ctx, req, facts{}, err)
+		}
+		stopScratch := b.watchDisk(req.Standalone.Scratch, cancel)
+		defer stopScratch()
+	}
 	rep := newReport(ctx, req, b.now)
 	builder, plan := req.Builder, []byte(nil)
 	var f facts
@@ -279,14 +339,14 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	var read *resource.BuildDetection
 	// A build with registry logins reads its Dockerfile first, whatever builds it,
 	// for what it pulls (ADR 0086).
-	if builder != resource.BuilderDockerfile || len(req.Logins) > 0 {
+	if req.Standalone == nil && (builder != resource.BuilderDockerfile || len(req.Logins) > 0) {
 		builder, plan, read, err = b.readFor(ctx, req, rep)
 	}
-	if err == nil && len(req.Logins) > 0 {
+	if err == nil && req.Standalone == nil && len(req.Logins) > 0 {
 		req.Logins, err = b.loginsFor(req, builder, read)
 	}
 	if err == nil {
-		f, err = b.run(ctx, req, rep, builder, plan, volume)
+		f, err = b.run(ctx, req, rep, builder, plan, volume, root)
 	} else {
 		// What the reading said is in the log too.
 		rep.send()
@@ -294,11 +354,11 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 	}
 	stopWatching()
 	if err != nil {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && resource.ReasonOf(err) != resource.ReasonDisk {
 			err = b.stopped(ctx, r, req)
 		}
 		var low diskLow
-		if errors.As(context.Cause(ctx), &low) && b.dropCache(context.WithoutCancel(ctx), volume) {
+		if errors.As(context.Cause(ctx), &low) && resource.ReasonOf(err) != resource.ReasonDisk && b.dropCache(context.WithoutCancel(ctx), volume) {
 			// What the build wrote is in its cache, not its container, so removing
 			// the container freed none of it.
 			plain, _ := resource.Explain(err)
@@ -309,13 +369,15 @@ func (b *Builder) build(ctx context.Context, req service.BuildRequest) error {
 		return b.ended(ctx, req, f, err)
 	}
 	_ = b.ended(ctx, req, f, nil)
-	b.prune(ctx, req)
+	if req.Standalone == nil {
+		b.prune(ctx, req)
+	}
 	return nil
 }
 
 // stopped is why a build stopped before it ended on its own: someone cancelled it,
 // or the step's own time, or its call, ran out.
-func (b *Builder) stopped(ctx context.Context, r *run, _ service.BuildRequest) error {
+func (b *Builder) stopped(ctx context.Context, r *run, req service.BuildRequest) error {
 	var low diskLow
 	switch cause := context.Cause(ctx); {
 	case errors.As(cause, &low):
@@ -324,11 +386,20 @@ func (b *Builder) stopped(ctx context.Context, r *run, _ service.BuildRequest) e
 			low)
 	case errors.Is(cause, errCancelled):
 		who := "someone"
+		b.mu.Lock()
 		if r.by != "" {
 			who = r.by
 		}
-		return &resource.Failure{Plain: "The build was cancelled by " + who + ", so nothing was deployed", Err: errCancelled, Reason: resource.ReasonCancelled}
+		b.mu.Unlock()
+		plain := "The build was cancelled by " + who + ", so nothing was deployed"
+		if req.Standalone != nil {
+			plain = "The build was cancelled by " + who + " before the image was published"
+		}
+		return &resource.Failure{Plain: plain, Err: errCancelled, Reason: resource.ReasonCancelled}
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
+		if req.Standalone != nil {
+			return resource.PlainlyBecause(resource.ReasonBuild, "The build reached its 30-minute limit", ctx.Err())
+		}
 		return resource.PlainlyBecause(resource.ReasonBuild,
 			"The build ran out of time: it has "+human.Duration(resource.BuildBudget)+" on top of what any step gets. Make it faster, or build the image in CI and deploy that",
 			ctx.Err())
@@ -387,16 +458,27 @@ func hideIn(err error, forms []string) error {
 // Cancel stops a build of service for change that waits or runs, and says whether
 // there was one. by is who cancelled it, for its log.
 func (b *Builder) Cancel(change string, svc resource.Ref, by string) bool {
+	stopping, _ := b.CancelWithStatus(change, svc, by)
+	return stopping
+}
+
+// CancelWithStatus distinguishes a build that's publishing from one that ended.
+func (b *Builder) CancelWithStatus(change string, svc resource.Ref, by string) (bool, error) {
 	b.init()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	r := b.running[key{change, svc}]
 	if r == nil {
-		return false
+		return false, nil
+	}
+	if r.publishing {
+		return false, resource.PlainlyBecause(resource.ReasonBuildPublishing,
+			"Docker is already adding the image. The result will appear here when it finishes",
+			errors.New("the build result is being published"))
 	}
 	r.by = by
 	r.cancel(errCancelled)
-	return true
+	return true, nil
 }
 
 // run builds in a builder, and loads what it makes into Docker. rep hears what the
@@ -502,7 +584,7 @@ func sentence(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte, volume string) (facts, error) {
+func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report, builder string, plan []byte, volume, root string) (facts, error) {
 	if err := b.ensureImage(ctx); err != nil {
 		return facts{}, err
 	}
@@ -558,6 +640,19 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: gitDir, Target: gitAuthMount, ReadOnly: true})
 	}
 	environment := env(req, keep)
+	if standalone := req.Standalone; standalone != nil {
+		dir, cleanup, err := b.writeSecrets(map[string]string{"Dockerfile": standalone.Dockerfile, "policy.json": standalone.Policy}, false)
+		if err != nil {
+			return facts{}, err
+		}
+		defer cleanup()
+		mounts = append(mounts, docker.Mount{Type: "bind", Source: dir, Target: standaloneMount, ReadOnly: true})
+		if standalone.Context != "" {
+			mounts = append(mounts, docker.Mount{Type: "bind", Source: standalone.Context, Target: stagedContextMount, ReadOnly: true})
+		}
+		environment = append(environment, "DW_STANDALONE=1")
+	}
+
 	if railpack {
 		mounts = append(mounts, docker.Mount{Type: "bind", Source: planDir, Target: planMount, ReadOnly: true})
 		environment = append(environment, "DW_SECRETS_HASH="+b.secretsHash(req), "DW_CACHE_KEY="+b.cacheKey(req))
@@ -615,21 +710,28 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 	}()
 
 	stopFollowing := rep.follow()
-	pr, pw := io.Pipe()
-	type load struct {
-		names []string
-		err   error
+	var code int
+	var names []string
+	var runErr, loadErr error
+	if req.Standalone != nil {
+		code, runErr, loadErr = b.loadStandalone(ctx, req, id, root, rep)
+	} else {
+		pr, pw := io.Pipe()
+		type load struct {
+			names []string
+			err   error
+		}
+		loaded := make(chan load, 1)
+		go func() {
+			names, err := b.Client.LoadImage(ctx, bufio.NewReaderSize(pr, 64<<10))
+			_ = pr.CloseWithError(err)
+			loaded <- load{names, err}
+		}()
+		code, runErr = b.Client.RunAttached(ctx, id, docker.Streams{Stdout: pw, Stderr: rep})
+		_ = pw.Close()
+		got := <-loaded
+		names, loadErr = got.names, got.err
 	}
-	loaded := make(chan load, 1)
-	go func() {
-		names, err := b.Client.LoadImage(ctx, bufio.NewReaderSize(pr, 64<<10))
-		_ = pr.CloseWithError(err)
-		loaded <- load{names, err}
-	}()
-	code, runErr := b.Client.RunAttached(ctx, id, docker.Streams{Stdout: pw, Stderr: rep})
-	_ = pw.Close()
-	got := <-loaded
-	loadErr := got.err
 	stopFollowing()
 	f := rep.facts()
 	f.memory = memory
@@ -641,17 +743,22 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 		oom = c.State.OOMKilled
 	}
 	switch {
-	case ctx.Err() != nil:
+	case resource.ReasonOf(loadErr) == resource.ReasonDisk:
+		return f, loadErr
+	case ctx.Err() != nil && (req.Standalone == nil || code != 0 || runErr != nil || loadErr != nil):
 		return f, ctx.Err()
 	case runErr != nil:
-		return f, fmt.Errorf("docker stopped answering about the build's container: %w", runErr)
+		return f, containerRunError("the build container", runErr)
 	case code != 0 || oom:
 		return f, failure(req, f, code, oom)
 	case loadErr != nil:
 		return f, resource.PlainlyBecause(resource.ReasonBuild, "Docker couldn't take the image the build made: "+loadErr.Error(), loadErr)
 	}
+	if req.Standalone != nil {
+		return f, nil // The publication gate already verified and recorded the exact output.
+	}
 	// What Docker took is the image the build names, and nothing else.
-	for _, name := range got.names {
+	for _, name := range names {
 		if name != req.Image && docker.WithTag(name) != req.Image {
 			if _, err := b.Client.RemoveUnusedImage(context.WithoutCancel(ctx), name); err != nil {
 				b.logger().Warn("can't remove an image a build loaded that it didn't name", "image", name, "error", err.Error())
@@ -668,6 +775,14 @@ func (b *Builder) run(ctx context.Context, req service.BuildRequest, rep *report
 			fmt.Errorf("the build exited 0 and %s isn't on the server", req.Image))
 	}
 	return f, nil
+}
+
+func containerRunError(container string, err error) error {
+	if strings.Contains(err.Error(), "cgroupv2") && strings.Contains(err.Error(), "threaded mode") {
+		return resource.PlainlyBecause(resource.ReasonBuild,
+			"Docker couldn't start "+container+" because its cgroup is in threaded mode. Configure Docker to use a domain cgroup with CPU, memory and PID controllers, then try again", err)
+	}
+	return fmt.Errorf("docker couldn't run %s: %w", container, err)
 }
 
 // failure is a build that failed, in words that say why and what to do.
@@ -699,6 +814,10 @@ func failure(req service.BuildRequest, f facts, code int, oom bool) error {
 		return plain("The builder had no plan from Railpack to build, so it built nothing. Deploy again, and report it if it happens again")
 	case f.failed == "buildkitd":
 		return plain("BuildKit didn't start on this server: " + strconv.Quote(cmpOr(lastWords(f.tail), "it said nothing")) + ". Check Docker can run privileged containers here")
+	case req.Standalone != nil && f.step > 0:
+		return plain(fmt.Sprintf("Step %d of %d failed. %s", f.step, f.steps, f.stepName))
+	case req.Standalone != nil && f.reachedBuildKit:
+		return plain("The image build failed")
 	case f.step > 0 && f.stepName != "":
 		// The step in quotes, as its words are the Dockerfile's. What it printed
 		// last is log content, so it is the build's failed line, for whoever may

@@ -4328,9 +4328,6 @@ msgstr "Built with"
 msgid "Cache hit"
 msgstr "Cache hit"
 
-msgid "Can't read the build's log"
-msgstr "Can't read the build's log"
-
 msgid "Cancel build"
 msgstr "Cancel build"
 
@@ -4354,6 +4351,13 @@ msgstr "Lost"
 msgid "Step {step}, <0>{0}</0>"
 msgstr "Step {step}, <0>{0}</0>"
 
+#. placeholder {0}: build.serverName
+msgid "{0} went away during the build, so how it ended isn't known."
+msgstr "{0} went away during the build, so how it ended isn't known."
+
+msgid "Can't read the build's log"
+msgstr "Can't read the build's log"
+
 msgid "The build printed nothing."
 msgstr "The build printed nothing."
 
@@ -4366,10 +4370,6 @@ msgstr "Waiting its turn: a server runs one build at a time."
 #. placeholder {0}: Number(dropped)
 msgid "{0, plural, one {# line dropped, as the build printed faster than its log could take it} other {# lines dropped, as the build printed faster than its log could take them}}"
 msgstr "{0, plural, one {# line dropped, as the build printed faster than its log could take it} other {# lines dropped, as the build printed faster than its log could take them}}"
-
-#. placeholder {0}: build.serverName
-msgid "{0} went away during the build, so how it ended isn't known."
-msgstr "{0} went away during the build, so how it ended isn't known."
 
 msgid "{count} lines left out"
 msgstr "{count} lines left out"
@@ -9673,6 +9673,9 @@ msgstr "Applying this asks for your passkey"
 msgid "Archive action failed"
 msgstr "Archive action failed"
 
+msgid "Building image"
+msgstr "Building image"
+
 msgid "Cleaning up Docker"
 msgstr "Cleaning up Docker"
 
@@ -9750,6 +9753,12 @@ msgstr "Image action failed"
 
 msgid "Image archive ready"
 msgstr "Image archive ready"
+
+msgid "Image build ended"
+msgstr "Image build ended"
+
+msgid "Image built"
+msgstr "Image built"
 
 msgid "Image pulled"
 msgstr "Image pulled"
@@ -10227,6 +10236,54 @@ msgstr "Load the reviewed archive on <0>{server}</0>"
 msgid "The archive is available to the session that planned it while its lease is active."
 msgstr "The archive is available to the session that planned it while its lease is active."
 
+msgid "Adding image to Docker"
+msgstr "Adding image to Docker"
+
+msgid "Build couldn't be cancelled"
+msgstr "Build couldn't be cancelled"
+
+msgid "Build failed"
+msgstr "Build failed"
+
+msgid "Build image"
+msgstr "Build image"
+
+msgid "Cancelling"
+msgstr "Cancelling"
+
+msgid "Copy commit"
+msgstr "Copy commit"
+
+msgid "Docker is already adding the image"
+msgstr "Docker is already adding the image"
+
+msgid "Image ID"
+msgstr "Image ID"
+
+msgid "Output"
+msgstr "Output"
+
+msgid "Override"
+msgstr "Override"
+
+msgid "Pinned base images"
+msgstr "Pinned base images"
+
+msgid "Reading the build log"
+msgstr "Reading the build log"
+
+msgid "Registry logins"
+msgstr "Registry logins"
+
+msgid "Result unknown"
+msgstr "Result unknown"
+
+msgid "The result will appear here when it finishes."
+msgstr "The result will appear here when it finishes."
+
+msgid "Uploaded context"
+msgstr "Uploaded context"
+
 msgctxt "what stops while Docker restarts"
 msgid "App"
 msgstr "App"
@@ -10415,9 +10472,6 @@ msgstr "If Docker fails its health check, Dockwell restarts it again with the pr
 msgid "If reload fails, Dockwell restarts Docker with the previous settings."
 msgstr "If reload fails, Dockwell restarts Docker with the previous settings."
 
-msgid "Image ID"
-msgstr "Image ID"
-
 msgid "Image config digest"
 msgstr "Image config digest"
 
@@ -10522,9 +10576,6 @@ msgstr "Reload Docker on {server}"
 
 msgid "Restart Docker on {server}"
 msgstr "Restart Docker on {server}"
-
-msgid "Result unknown"
-msgstr "Result unknown"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
@@ -14745,6 +14796,9 @@ msgstr "Awaiting export"
 msgid "Awaiting upload"
 msgstr "Awaiting upload"
 
+msgid "Build context"
+msgstr "Build context"
+
 msgid "Check failed"
 msgstr "Check failed"
 
@@ -14774,6 +14828,108 @@ msgstr "Transfer couldn't be aborted"
 
 msgid "View"
 msgstr "View"
+
+msgid ".tar or .tar.gz, up to 1 GiB"
+msgstr ".tar or .tar.gz, up to 1 GiB"
+
+msgid "Add login"
+msgstr "Add login"
+
+msgid "Branch, tag or commit"
+msgstr "Branch, tag or commit"
+
+msgid "Build context archive"
+msgstr "Build context archive"
+
+msgid "Build input couldn't be prepared"
+msgstr "Build input couldn't be prepared"
+
+msgid "Checking build input"
+msgstr "Checking build input"
+
+msgid "Choose a .tar or .tar.gz archive up to 1 GiB."
+msgstr "Choose a .tar or .tar.gz archive up to 1 GiB."
+
+msgid "Choose a file for the build."
+msgstr "Choose a file for the build."
+
+msgid "Choose a registry login"
+msgstr "Choose a registry login"
+
+msgid "Choose the same file to resume the upload."
+msgstr "Choose the same file to resume the upload."
+
+msgid "Credential project"
+msgstr "Credential project"
+
+msgid "Default branch"
+msgstr "Default branch"
+
+msgid "Dockerfile override"
+msgstr "Dockerfile override"
+
+msgid "Dockerfile path"
+msgstr "Dockerfile path"
+
+msgid "Dockwell adds a unique tag."
+msgstr "Dockwell adds a unique tag."
+
+msgid "Drop a build context"
+msgstr "Drop a build context"
+
+msgid "Git access"
+msgstr "Git access"
+
+msgid "Git repository"
+msgstr "Git repository"
+
+msgid "Install-wide"
+msgstr "Install-wide"
+
+msgid "Local image name"
+msgstr "Local image name"
+
+msgid "Override Dockerfile"
+msgstr "Override Dockerfile"
+
+msgid "Preparing the build folder and checking base images"
+msgstr "Preparing the build folder and checking base images"
+
+msgid "Public repository"
+msgstr "Public repository"
+
+msgid "Reading registry logins"
+msgstr "Reading registry logins"
+
+msgid "Reading repositories"
+msgstr "Reading repositories"
+
+msgid "Repository root"
+msgstr "Repository root"
+
+msgid "Server platform"
+msgstr "Server platform"
+
+msgid "Subdirectory"
+msgstr "Subdirectory"
+
+msgid "The image build could not be reviewed."
+msgstr "The image build could not be reviewed."
+
+msgid "The server couldn't verify this build input."
+msgstr "The server couldn't verify this build input."
+
+msgid "Upload context"
+msgstr "Upload context"
+
+msgid "Uploaded Dockerfile"
+msgstr "Uploaded Dockerfile"
+
+msgid "Uploading build input"
+msgstr "Uploading build input"
+
+msgid "Use source Dockerfile"
+msgstr "Use source Dockerfile"
 
 msgid "Checking Docker artifacts"
 msgstr "Checking Docker artifacts"
