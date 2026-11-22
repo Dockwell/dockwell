@@ -102,22 +102,28 @@ func TestAWayInGoesByWhatAPlaceIs(t *testing.T) {
 	}
 }
 
-// A hard link is the file it links to, whatever it's called.
+// A file can acquire another name after the editor read it.
 func TestAHardLinkToAListedFileIsOne(t *testing.T) {
 	d := newDisk(t)
-	listed := filepath.Join(d.root, "protected")
-	write(t, listed, "x\n")
-	d.server.listedFiles = []string{listed}
 	other := filepath.Join(d.root, "vol", "app.conf")
-	if err := os.MkdirAll(filepath.Dir(other), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Link(listed, other); err != nil {
-		t.Fatal(err)
-	}
+	write(t, other, "x\n")
 	version := savable(t, d, other)
-	if got := d.save(t, other, "typed\n", version).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
-		t.Fatalf("got %v", got)
+	listed := filepath.Join(d.root, "protected")
+	if err := os.Link(other, listed); err != nil {
+		t.Fatal(err)
+	}
+	d.server.listedFiles = []string{listed}
+
+	w, refusal := d.server.guard(t.Context()).walk(&trail{s: d.server}, other)
+	if refusal != nil {
+		t.Fatal(refusal)
+	}
+	defer w.close()
+	if !d.server.wayIn(w) {
+		t.Fatal("the way-in guard missed the listed inode under another name")
+	}
+	if got := d.save(t, other, "typed\n", version).GetRefusal(); got.GetKind() != agentv1.FileRefusal_KIND_REFUSED {
+		t.Fatalf("save after adding a hard link: %v", got)
 	}
 	if content, _ := os.ReadFile(listed); string(content) != "x\n" {
 		t.Fatalf("it wrote %q", content)

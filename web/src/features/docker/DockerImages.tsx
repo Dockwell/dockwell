@@ -23,7 +23,6 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { keepPreviousData } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -58,7 +57,8 @@ function ImageStatus({ state }: { state: DockerImageState }) {
 
 type ImageFilter = "all" | "used" | "unused" | "dangling";
 
-const FILTERED: Readonly<Record<Exclude<ImageFilter, "all">, DockerImageState>> = {
+const imageStates: Readonly<Record<ImageFilter, DockerImageState>> = {
+  all: DockerImageState.UNSPECIFIED,
   used: DockerImageState.USED,
   unused: DockerImageState.UNUSED,
   dangling: DockerImageState.DANGLING,
@@ -68,8 +68,8 @@ interface ImageRow {
   id: string;
   serverId: string;
   engineId: string;
-  /** When Docker last measured it; until then, its state and sizes are still being counted. */
-  measured: boolean;
+  /** Whether the disk measurement finished. Image usage is read separately. */
+  diskMeasured: boolean;
   image: DockerImage;
 }
 
@@ -81,17 +81,6 @@ function selection(row: ImageRow) {
     platform: row.image.platform,
     alias: row.image.tags.find((tag) => !tag.includes("@")) ?? "",
   };
-}
-
-/**
- * Whether a row stays under a state filter. One still being measured has no state
- * yet, so it stays under every filter rather than drop out of sight as if it were
- * none of them.
- */
-function keeps(row: ImageRow, filter: ImageFilter): boolean {
-  if (filter === "all") return true;
-  if (row.image.state === DockerImageState.UNSPECIFIED && !row.measured) return true;
-  return row.image.state === FILTERED[filter];
 }
 
 export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server, "id" | "name">[]; fleet: boolean }) {
@@ -114,9 +103,17 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
   const serverIds = servers.map((s) => s.id);
   const query = useQuery(
     DockerService.method.listDockerObjects,
-    { serverIds, kind: DockerObjectKind.IMAGE, filter: { search }, pageToken },
-    // A new search or page keeps the last list in place until its answer lands.
-    { retry: false, refetchOnWindowFocus: false, placeholderData: keepPreviousData },
+    { serverIds, kind: DockerObjectKind.IMAGE, filter: { search, imageState: imageStates[filter] }, pageToken },
+    {
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchInterval: (query) =>
+        query.state.data?.objects.some(
+          (row) => row.detail.case === "image" && row.detail.value.state === DockerImageState.UNSPECIFIED,
+        )
+          ? 15_000
+          : false,
+    },
   );
   const refresh = () => {
     if (pageToken) setPages([""]);
@@ -131,17 +128,20 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             id: `${row.key.serverId}/${row.key.engineId}`,
             serverId: row.key.serverId,
             engineId: row.key.engineId,
-            measured: row.observedAt !== undefined,
+            diskMeasured: row.observedAt !== undefined,
             image: row.detail.value,
           },
         ]
       : [],
   );
-  const shown = rows.filter((row) => keeps(row, filter));
+  const selectFilter = (value: ImageFilter) => {
+    setFilter(value);
+    setPages([""]);
+  };
   const next = query.data?.nextPageToken;
   const held = useHeldRows(
     "docker.images",
-    query.isSuccess && !query.isPlaceholderData && !search && !pageToken ? rows.length : undefined,
+    query.isSuccess && !search && filter === "all" && !pageToken ? rows.length : undefined,
   );
   const slow = fleet
     ? t`Docker is slow to list images on these servers`
@@ -209,14 +209,14 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
       header: t`Total`,
       width: 82,
       align: "right",
-      render: (row) => <ImageBytes bytes={row.image.totalBytes} pending={!row.measured} />,
+      render: (row) => <ImageBytes bytes={row.image.totalBytes} pending={!row.diskMeasured} />,
     },
     {
       key: "unique",
       header: t`Unique`,
       width: 82,
       align: "right",
-      render: (row) => <ImageBytes bytes={row.image.uniqueBytes} pending={!row.measured} />,
+      render: (row) => <ImageBytes bytes={row.image.uniqueBytes} pending={!row.diskMeasured} />,
     },
     {
       key: "created",
@@ -251,7 +251,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         ]
       : []),
   ];
-  const filteredOut = rows.length > 0 && shown.length === 0;
+  const empty = rows.length === 0 && query.isSuccess && !next && !query.data.unavailable.length;
   return (
     <>
       <div className="docker-section-heading">
@@ -280,7 +280,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
               <Skeleton shape="pill" width={110} height={30} />
             </Loading>
           ) : null}
-          {actions.archiveMenu(shown.map(selection))}
+          {actions.archiveMenu(rows.map(selection))}
         </div>
       </div>
       <div className="docker-filters">
@@ -293,7 +293,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             { value: "unused", label: t`Unused` },
             { value: "dangling", label: t`Dangling` },
           ]}
-          onChange={(value: ImageFilter) => setFilter(value)}
+          onChange={selectFilter}
         />
         <TextField
           icon="search"
@@ -337,26 +337,26 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
           </Panel>
         )
       ) : null}
-      {rows.length === 0 && query.isSuccess && !next && !query.data.unavailable.length ? (
+      {empty && (search || filter === "all") ? (
         <EmptyState icon="archive" title={search ? t`No matching images` : t`No local images`} />
       ) : null}
-      {filteredOut ? (
+      {empty && !search && filter !== "all" ? (
         <EmptyState
           icon="archive"
           title={
             filter === "used" ? t`No used images` : filter === "unused" ? t`No unused images` : t`No dangling images`
           }
           action={
-            <Button size="sm" onClick={() => setFilter("all")}>
+            <Button size="sm" onClick={() => selectFilter("all")}>
               <Trans>Show all images</Trans>
             </Button>
           }
         />
       ) : null}
-      {shown.length ? (
+      {rows.length ? (
         compact ? (
           <ul className="docker-artifact-list" aria-label={t`Local images`}>
-            {shown.map((row) => (
+            {rows.map((row) => (
               <li className="docker-image-row" key={row.id}>
                 <div className="docker-artifact-name">
                   <Icon name="archive" />
@@ -373,10 +373,13 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
                 </div>
                 <dl className="docker-image-data">
                   <Fact label={t`Platform`} value={row.image.platform || t`Unknown`} mono />
-                  <Fact label={t`Total`} value={<ImageBytes bytes={row.image.totalBytes} pending={!row.measured} />} />
+                  <Fact
+                    label={t`Total`}
+                    value={<ImageBytes bytes={row.image.totalBytes} pending={!row.diskMeasured} />}
+                  />
                   <Fact
                     label={t`Unique`}
-                    value={<ImageBytes bytes={row.image.uniqueBytes} pending={!row.measured} />}
+                    value={<ImageBytes bytes={row.image.uniqueBytes} pending={!row.diskMeasured} />}
                   />
                   <Fact
                     label={t`Created`}
@@ -393,7 +396,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             <Table
               className="docker-table docker-image-table"
               columns={columns}
-              rows={shown}
+              rows={rows}
               rowKey="id"
               caption={t`Local images`}
             />
@@ -417,7 +420,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
 /** Its state, or, while Docker still counts what uses it, the shape of a state on its way. */
 function ImageState({ row }: { row: ImageRow }) {
   const { t } = useLingui();
-  if (row.image.state === DockerImageState.UNSPECIFIED && !row.measured) {
+  if (row.image.state === DockerImageState.UNSPECIFIED) {
     return (
       <span role="img" aria-label={t`Measuring`}>
         <Skeleton shape="pill" width={64} inline />

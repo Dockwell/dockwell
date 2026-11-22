@@ -3695,6 +3695,17 @@ paths:
                   in: query
                   schema:
                     type: string
+                - name: filter.imageState
+                  in: query
+                  description: Images whose usage is still unknown stay visible under every state.
+                  schema:
+                    enum:
+                        - DOCKER_IMAGE_STATE_UNSPECIFIED
+                        - DOCKER_IMAGE_STATE_USED
+                        - DOCKER_IMAGE_STATE_UNUSED
+                        - DOCKER_IMAGE_STATE_DANGLING
+                    type: string
+                    format: enum
                 - name: pageSize
                   in: query
                   schema:

@@ -174,6 +174,11 @@ func (h *Handler) ListDockerObjects(ctx context.Context, req *connect.Request[v1
 	if len(m.GetFilter().GetSearch()) > 255 || len(m.GetFilter().GetDriver()) > 80 || len(m.GetFilter().GetComposeProject()) > 255 || !containerKind(m.GetKind()) && m.GetKind() != dockerImageKind && m.GetKind() != composeKind && !storageKind(m.GetKind()) {
 		return nil, authapi.Invalid(errors.New("select a supported Docker inventory and use a search of at most 255 bytes"))
 	}
+	if state := m.GetFilter().GetImageState(); state != 0 {
+		if _, known := v1.DockerImageState_name[int32(state)]; !known || m.GetKind() != dockerImageKind {
+			return nil, authapi.Invalid(errors.New("select a supported image state for the Docker image inventory"))
+		}
+	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
 	if err != nil {
 		return nil, err
@@ -246,6 +251,11 @@ func (h *Handler) listDockerContainers(ctx context.Context, servers []Server, m 
 				}
 				for _, row := range items {
 					if scope != "" && (row.GetManagedResource().GetKind() != "service" || row.GetManagedResource().GetScope() != scope) {
+						continue
+					}
+					// Older agents can return an unfiltered page. Keep paging
+					// through their results with the same selection.
+					if selected, state := filter.GetImageState(), row.GetImage().GetState(); selected != 0 && state != 0 && selected != state {
 						continue
 					}
 					if ownership := m.GetFilter().GetOwnership(); m.GetKind() == dockerImageKind || ownership == 0 || row.GetOwnership() == ownership {

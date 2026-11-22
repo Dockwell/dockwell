@@ -100,6 +100,9 @@ func TestCurrentDockerFileReviewResumesWithoutOwningTheFile(t *testing.T) {
 		if err := e.Resume(t.Context()); err != nil {
 			t.Fatal(err)
 		}
+		// The first apply can already have queued a resume. Wait for that
+		// run too, since Resume skips a change it finds running.
+		e.Wait()
 		if got := stored(t, db, p.Change); got.State != store.ChangeApplied || d.calls != 2 {
 			t.Fatalf("resume = %s, calls = %d", got.State, d.calls)
 		}

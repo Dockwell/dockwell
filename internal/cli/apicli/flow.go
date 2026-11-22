@@ -226,6 +226,11 @@ func (r *runner) method(ctx context.Context, m *Method, req proto.Message) error
 	if err := r.connect(ctx); err != nil {
 		return err
 	}
+	if m.Noun == "docker" {
+		if err := r.dockerServer(ctx, req); err != nil {
+			return r.explain(err)
+		}
+	}
 	if err := r.refuseInlineSecret(ctx, m); err != nil {
 		return err
 	}

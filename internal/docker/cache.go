@@ -21,14 +21,13 @@ func IsBuildCacheID(id string) bool {
 }
 
 // ExactCacheRemoval allows the Docker Engine releases whose Moby bridge
-// forwards id~= to BuildKit's cache matcher. Verified in builder/builder-next/
-// builder.go and vendor/github.com/moby/buildkit/cache/manager.go at v27.3.1
-// and v28.5.2. An API version alone says nothing about the daemon's filters.
+// forwards id~= to BuildKit's cache matcher. ADR 0107 links the source for
+// the verified releases. An API version alone says nothing about the filters.
 func (c *Client) ExactCacheRemoval() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return !older(c.version, "1.47") && c.platform == "Docker Engine - Community" &&
-		(c.engine == "27.3.1" || c.engine == "28.5.2")
+		(c.engine == "27.3.1" || c.engine == "28.5.2" || c.engine == "29.4.1")
 }
 
 // BuildCacheCutoff is the last-use limit sent with a reviewed prune.

@@ -44,25 +44,27 @@ func imageRow(measurement *v1.ServerDiskUse, row docker.DiskUsageImage) *v1.Dock
 	if len(tags) > 0 {
 		name = tags[0]
 	}
-	var state v1.DockerImageState
-	switch {
-	case row.Containers < 0:
-		state = v1.DockerImageState_DOCKER_IMAGE_STATE_UNSPECIFIED
-	case row.Containers > 0:
-		state = v1.DockerImageState_DOCKER_IMAGE_STATE_USED
-	case len(imageTags(row.RepoTags))+len(imageTags(row.RepoDigests)) == 0:
-		state = v1.DockerImageState_DOCKER_IMAGE_STATE_DANGLING
-	default:
-		state = v1.DockerImageState_DOCKER_IMAGE_STATE_UNUSED
-	}
 	image := &v1.DockerImage{
 		Tags: tags, Digests: digests, TotalBytes: measuredBytes(row.Size), UniqueBytes: imageUnique(row),
-		CreatedAt: imageDate(row.Created), State: state,
+		CreatedAt: imageDate(row.Created), State: imageUsageState(row),
 		DetailsTruncated: len(row.RepoTags) > 24 || len(row.RepoDigests) > 24,
 	}
 	return &v1.DockerObject{
 		Key: &v1.DockerObjectKey{Kind: dockerImageKind, EngineId: row.ID}, Name: name,
 		ObservedAt: measurement.GetTime(), Detail: &v1.DockerObject_Image{Image: image},
+	}
+}
+
+func imageUsageState(row docker.DiskUsageImage) v1.DockerImageState {
+	switch {
+	case row.Containers < 0:
+		return v1.DockerImageState_DOCKER_IMAGE_STATE_UNSPECIFIED
+	case row.Containers > 0:
+		return v1.DockerImageState_DOCKER_IMAGE_STATE_USED
+	case len(imageTags(row.RepoTags))+len(imageTags(row.RepoDigests)) == 0:
+		return v1.DockerImageState_DOCKER_IMAGE_STATE_DANGLING
+	default:
+		return v1.DockerImageState_DOCKER_IMAGE_STATE_UNUSED
 	}
 }
 
@@ -89,11 +91,31 @@ func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventor
 		// distinguish it from a count that is still underway.
 		use = &v1.ServerDiskUse{Time: timestamppb.Now()}
 	}
+	// Count only images in this inventory. A partial container list cannot
+	// establish that an image has no dependants, including stopped containers.
+	counts := make(map[string]int64, len(images))
+	for i := range images {
+		counts[images[i].ID] = 0
+	}
+	usageCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	usageErr := c.cfg.Docker.EachContainer(usageCtx, nil, func(container *docker.ContainerSummary) error {
+		if n, ok := counts[container.ImageID]; ok {
+			counts[container.ImageID] = n + 1
+		}
+		return nil
+	})
 	search := strings.ToLower(ask.GetFilter().GetSearch())
+	selected := ask.GetFilter().GetImageState()
 	ids := make([]int, 0, len(images))
 	for i := range images {
-		row := &images[i]
-		if !docker.IsImageID(row.ID) {
+		row := &images[i].DiskUsageImage
+		row.Containers = counts[row.ID]
+		if usageErr != nil {
+			row.Containers = -1
+		}
+		state := imageUsageState(*row)
+		if !docker.IsImageID(row.ID) || selected != 0 && state != 0 && state != selected {
 			continue
 		}
 		if search == "" || strings.Contains(strings.ToLower(row.ID), search) ||
@@ -106,7 +128,7 @@ func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventor
 	hash := sha256.New()
 	for _, i := range ids {
 		row := &images[i]
-		fmt.Fprintln(hash, row.ID, slices.Sorted(slices.Values(row.RepoTags)), slices.Sorted(slices.Values(row.RepoDigests)))
+		fmt.Fprintln(hash, row.ID, imageUsageState(row.DiskUsageImage), slices.Sorted(slices.Values(row.RepoTags)), slices.Sorted(slices.Values(row.RepoDigests)))
 	}
 	out := &agentv1.DockerInventoryListResult{Snapshot: hex.EncodeToString(hash.Sum(nil))}
 	if ask.GetSnapshot() != "" && ask.GetSnapshot() != out.Snapshot {
@@ -127,15 +149,12 @@ func (c *calls) dockerImageList(ctx context.Context, ask *agentv1.DockerInventor
 			break
 		}
 		row := raw.DiskUsageImage
-		row.Size, row.SharedSize, row.Containers = -1, -1, -1
+		row.Size, row.SharedSize = -1, -1
 		if raw.Size != nil {
 			row.Size = *raw.Size
 		}
-		if raw.Containers != nil {
-			row.Containers = *raw.Containers
-		}
 		if measured := diskImage(df, row.ID); measured != nil {
-			row.SharedSize, row.Containers = measured.SharedSize, measured.Containers
+			row.SharedSize = measured.SharedSize
 			if row.Size < 0 {
 				row.Size = measured.Size
 			}

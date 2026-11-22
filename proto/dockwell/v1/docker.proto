@@ -495,6 +495,8 @@ message DockerObjectFilter {
   bool stopped = 5;
   bool needs_attention = 6;
   string driver = 7;
+  // Images whose usage is still unknown stay visible under every state.
+  DockerImageState image_state = 8;
 }
 
 // ListDockerObjectsRequest selects a page of objects.

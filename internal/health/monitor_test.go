@@ -194,6 +194,43 @@ func TestAStartPeriodForgivesFailures(t *testing.T) {
 	}
 }
 
+// The list says a container runs before a read says when it started, and a
+// check can end in between. Its failure can't count yet: until the read, the
+// start period may still be under way.
+func TestAStartPeriodCountsOnlyOnceTheStartIsKnown(t *testing.T) {
+	e := dockertest.New(t)
+	check := &health.Check{TCP: &health.TCP{Port: 5432}, Interval: time.Millisecond, Retries: 1, StartPeriod: time.Hour}
+	c := add(e, "db", health.Label, check.Encode())
+	e.Edit(c.ID, func(c *docker.Container) { c.State.StartedAt = time.Now() })
+	name := docker.InstanceName(project, "db", 1)
+	release := make(chan struct{})
+	var once sync.Once
+	open := func() { once.Do(func() { close(release) }) }
+	e.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/containers/"+c.ID+"/json") {
+			<-release
+		}
+		return nil
+	})
+	var calls atomic.Int64
+	m := start(t, e, func(context.Context, *health.Check, string) (health.Result, error) {
+		calls.Add(1)
+		return health.Result{Output: "refused", At: time.Now()}, nil
+	})
+	t.Cleanup(open) // before the monitor stops, so its held read can end
+	got := eventually(t, "it has failed a few checks before its first read", m, func(map[string]*dockwellv1.InstanceHealth) bool { return calls.Load() > 5 })
+	if got[name].GetState() == dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY {
+		t.Errorf("before a read says when it started, it reads as %v", got[name].GetState())
+	}
+	open()
+	eventually(t, "the read lands", m, stateOf(name, dockwellv1.HealthState_HEALTH_STATE_STARTING))
+	after := calls.Load()
+	got = eventually(t, "it has failed a few more checks", m, func(map[string]*dockwellv1.InstanceHealth) bool { return calls.Load() > after+5 })
+	if got[name].GetState() != dockwellv1.HealthState_HEALTH_STATE_STARTING {
+		t.Errorf("in its start period, it reads as %v", got[name].GetState())
+	}
+}
+
 // Only what lives in an environment is a service's: another Compose project on
 // the same server, and a one-off, are their own.
 func TestItWatchesOnlyServices(t *testing.T) {

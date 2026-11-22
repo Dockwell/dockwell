@@ -723,8 +723,10 @@ func (m *Monitor) check(ctx context.Context, w *watched, c *Check, address strin
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_HEALTHY)
 		return
 	}
-	// A failure in the start period doesn't count, as Docker has it.
-	if now.Sub(w.started) < c.StartPeriod {
+	// A failure in the start period doesn't count, as Docker has it. Nor does one
+	// before a read says when the container started: the list says it runs first,
+	// and that read starts the count again anyway, as for a restart.
+	if w.started.IsZero() || now.Sub(w.started) < c.StartPeriod {
 		return
 	}
 	w.failing++
