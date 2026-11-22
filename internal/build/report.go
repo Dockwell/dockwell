@@ -123,6 +123,18 @@ func newReport(ctx context.Context, req service.BuildRequest, now func() time.Ti
 func hiddenForms(req service.BuildRequest) []string {
 	values := make(map[string]string, len(req.Secrets)+len(req.Logins))
 	maps.Copy(values, req.Secrets)
+	if req.GitAuth != "" {
+		values["git authorization"] = req.GitAuth
+		scheme, token, _ := strings.Cut(req.GitAuth, " ")
+		values["git token"] = token
+		if strings.EqualFold(scheme, "Basic") {
+			if pair, err := base64.StdEncoding.DecodeString(token); err == nil {
+				values["git login pair"] = string(pair)
+				_, values["git raw token"], _ = strings.Cut(string(pair), ":")
+				clear(pair)
+			}
+		}
+	}
 	for i, l := range req.Logins {
 		// Its password, and the forms Docker's config.json and a Basic sign-in carry it in.
 		pair := l.Username + ":" + l.Password

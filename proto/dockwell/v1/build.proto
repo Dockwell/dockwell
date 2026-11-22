@@ -69,6 +69,7 @@ service BuildService {
 
   // WatchBuild sends a build as it stands and what its log keeps, then each line
   // and change of state as they come, until it ends.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
   rpc WatchBuild(WatchBuildRequest) returns (stream WatchBuildResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -118,6 +119,7 @@ service BuildService {
   // CancelBuild stops a build that is waiting or running. Its step fails as
   // cancelled, before anything that runs is touched, so its change's rollback
   // has nothing to do and what ran goes on running.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
   rpc CancelBuild(CancelBuildRequest) returns (CancelBuildResponse) {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;

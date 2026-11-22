@@ -125,6 +125,10 @@ func syntaxOf(text string, lines []string) string {
 
 // readDockerfileImages reads text, with args as the build's own build arguments.
 func readDockerfileImages(text string, args map[string]string) (dockerfileImages, error) {
+	return dockerfileSources(text, args, false)
+}
+
+func dockerfileSources(text string, args map[string]string, standalone bool) (dockerfileImages, error) {
 	var out dockerfileImages
 	text = strings.TrimPrefix(text, "\uFEFF")
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
@@ -213,6 +217,11 @@ func readDockerfileImages(text string, args map[string]string) (dockerfileImages
 		f := strings.Fields(ins)
 		if len(f) == 0 {
 			continue
+		}
+		if standalone {
+			if err := standaloneInstruction(ins, f); err != nil {
+				return out, err
+			}
 		}
 		switch strings.ToUpper(f[0]) {
 		case "ARG":

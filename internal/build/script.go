@@ -30,9 +30,11 @@ const (
 	registriesMount = "/run/dockwell-registries"
 	// gitAuthMount holds the Authorization a private repository is fetched with,
 	// read-only, in memory (ADR 0098).
-	gitAuthMount = "/run/dockwell-git"
-	sourceDir    = "/src"
-	buildkitSock = "unix:///run/buildkit/buildkitd.sock"
+	gitAuthMount       = "/run/dockwell-git"
+	sourceDir          = "/src"
+	standaloneMount    = "/run/dockwell-build-input"
+	stagedContextMount = "/run/dockwell-build-context"
+	buildkitSock       = "unix:///run/buildkit/buildkitd.sock"
 )
 
 // fetchScript fetches the branch or tag the build names, by its full name, and checks
@@ -127,7 +129,23 @@ fi`
 const script = `set -eu
 say() { printf '` + marker + `%s\n' "$*" >&2; }
 export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false
+if [ -d "` + stagedContextMount + `" ]; then
+  ctx="` + stagedContextMount + `"
+  df="$ctx/$DW_DOCKERFILE"
+else
 ` + fetchScript + `
+fi
+if [ -n "${DW_STANDALONE:-}" ]; then
+  if [ -n "$DW_URL" ]; then
+    rm -rf ` + sourceDir + `/.git
+    if [ -n "$(find "$ctx" -type l -print -quit)" ]; then say fail context; exit 3; fi
+  fi
+  srcdf="$ctx/$DW_DOCKERFILE"
+  mkdir /tmp/dockwell-dockerfile
+  df="/tmp/dockwell-dockerfile/Dockerfile"
+  cp "` + standaloneMount + `/Dockerfile" "$df"
+  if [ -f "$srcdf.dockerignore" ]; then cp "$srcdf.dockerignore" "$df.dockerignore"; fi
+fi
 sec=` + secretsMount + `
 builder=dockerfile
 if [ "$DW_BUILDER" = railpack ]; then
@@ -212,7 +230,10 @@ func dockerfile(p string) string {
 // Dockerfile itself, and only Docker's own frontend sees the logins (ADR 0086).
 func args(req service.BuildRequest) []string {
 	var out []string
-	if len(req.Logins) > 0 {
+	if req.Standalone != nil {
+		out = append(out, "--source-policy-file", path.Join(standaloneMount, "policy.json"), "--opt", "platform="+req.Standalone.Platform)
+	}
+	if len(req.Logins) > 0 || req.Standalone != nil {
 		out = append(out, "--opt", "cmdline=")
 	}
 	for _, k := range slices.Sorted(mapsKeys(req.Args)) {

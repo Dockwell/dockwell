@@ -3,6 +3,7 @@
 package artifact
 
 import (
+	"archive/tar"
 	"bufio"
 	"compress/gzip"
 	"context"
@@ -170,7 +171,8 @@ func (l *lease) recover(id string, now time.Time) bool {
 	received := int64(info.ReceivedBytes) //nolint:gosec // journal rejects offsets beyond the size
 	_ = os.Remove(filepath.Join(l.dir, "lease.tmp"))
 	_ = os.Remove(filepath.Join(l.dir, "work.tar"))
-	if info.GetKind() == Import && (info.GetState() == Receiving || info.GetState() == Checking) {
+	_ = os.RemoveAll(filepath.Join(l.dir, "build-tree"))
+	if UploadKind(info.GetKind()) && (info.GetState() == Receiving || info.GetState() == Checking) {
 		_ = os.Remove(filepath.Join(l.dir, "expanded.tar"))
 		fi, err := os.Stat(l.source())
 		if err != nil || fi.Size() < received || os.Truncate(l.source(), received) != nil {
@@ -182,13 +184,20 @@ func (l *lease) recover(id string, now time.Time) bool {
 		}
 		return true
 	}
-	if info.GetKind() == Import && info.GetState() == Failed {
+	if UploadKind(info.GetKind()) && info.GetState() == Failed {
 		_ = os.Remove(l.source())
 		return true
 	}
-	if info.GetKind() == Import && info.GetState() == Ready {
+	if UploadKind(info.GetKind()) && info.GetState() == Ready {
 		fi, err := os.Stat(l.source())
-		return err == nil && fi.Size() > 0 && fi.Size() <= MaxExpanded && (l.Expanded || fi.Size() == size)
+		var limit int64 = MaxExpanded
+		switch info.Kind { //nolint:exhaustive // imports use the larger default; only upload kinds reach here
+		case BuildContext:
+			limit = ContextExpanded
+		case Dockerfile:
+			limit = DockerfileSize
+		}
+		return err == nil && fi.Size() > 0 && fi.Size() <= limit && (l.Expanded || fi.Size() == size)
 	}
 	if info.GetKind() == Export && info.GetState() == Checking {
 		_ = os.Remove(l.source())
@@ -270,7 +279,7 @@ func (s *Spool) headroom() uint64 {
 
 // Begin starts a private lease and reserves space for its declared upload.
 func (s *Spool) Begin(owner string, kind v1.DockerArtifactKind, size uint64, sha string, compressed bool, name string) (*v1.DockerArtifactInfo, error) {
-	if owner == "" || len(owner) > 128 || kind != Import && kind != Export || kind == Import && (size == 0 || size > MaxBytes) || kind == Export && (size != 0 || compressed || name != "") {
+	if owner == "" || len(owner) > 128 || !UploadKind(kind) && kind != Export || UploadKind(kind) && (size == 0 || size > uploadLimit(kind)) || kind == Dockerfile && compressed || kind == Export && (size != 0 || compressed || name != "") {
 		return nil, ErrArchive
 	}
 	if sha != "" {
@@ -307,11 +316,11 @@ func (s *Spool) Begin(owner string, kind v1.DockerArtifactKind, size uint64, sha
 	now := s.now()
 	l := &lease{dir: at, expires: now.Add(Lifetime), idleUntil: now.Add(idleLifetime), reserve: reservation}
 	l.Owner, l.Expected, l.Gzip = owner, sha, compressed
-	l.Info = &v1.DockerArtifactInfo{ArtifactId: id, Kind: kind, State: Receiving, SizeBytes: size, MaxBytes: MaxBytes, FileName: name, ExpiresAt: timestamppb.New(l.expires)}
+	l.Info = &v1.DockerArtifactInfo{ArtifactId: id, Kind: kind, State: Receiving, SizeBytes: size, MaxBytes: uploadLimit(kind), FileName: name, ExpiresAt: timestamppb.New(l.expires)}
 	if kind == Export {
 		l.Info.State = Checking
 	}
-	if kind == Import {
+	if UploadKind(kind) {
 		f, err := os.OpenFile(l.source(), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {
 			err = f.Close()
@@ -359,7 +368,7 @@ func sealedExport(info *v1.DockerArtifactInfo) bool {
 }
 
 func retained(info *v1.DockerArtifactInfo, pin *agentv1.DockerArtifactPin) bool {
-	return pin != nil && !sealedExport(info) || info.GetKind() == Import && info.GetState() == Checking
+	return pin != nil && !sealedExport(info) || UploadKind(info.GetKind()) && info.GetState() == Checking
 }
 
 func (l *lease) expired(now time.Time) bool {
@@ -521,7 +530,7 @@ func (s *Spool) Receive(ctx context.Context, id, owner string, offset, length ui
 		return nil, err
 	}
 	defer l.mu.Unlock()
-	if l.Info.Kind != Import || l.Info.State != Receiving || offset != l.Info.ReceivedBytes || length == 0 || length > MaxChunk || length > l.Info.SizeBytes-offset {
+	if !UploadKind(l.Info.Kind) || l.Info.State != Receiving || offset != l.Info.ReceivedBytes || length == 0 || length > MaxChunk || length > l.Info.SizeBytes-offset {
 		return nil, ErrOffset
 	}
 	f, err := os.OpenFile(l.source(), os.O_WRONLY, 0o600)
@@ -595,7 +604,7 @@ func (s *Spool) Seal(ctx context.Context, id, owner string) (*v1.DockerArtifactI
 		return nil, err
 	}
 	defer l.mu.Unlock()
-	if l.Info.Kind != Import {
+	if !UploadKind(l.Info.Kind) {
 		return nil, ErrUnavailable
 	}
 	if l.Info.State == Ready {
@@ -632,7 +641,7 @@ func (s *Spool) Seal(ctx context.Context, id, owner string) (*v1.DockerArtifactI
 			return nil, ErrArchive
 		}
 		defer gz.Close()
-		w := &quotaWriter{spool: s, lease: l, dst: f, limit: MaxExpanded, reserve: l.reserve}
+		w := &quotaWriter{spool: s, lease: l, dst: f, limit: expansionLimit(l.Info.Kind), reserve: l.reserve}
 		n, err = io.CopyBuffer(w, checkedReader{ctx, gz}, make([]byte, Frame))
 		w.close()
 		if err != nil {
@@ -645,13 +654,32 @@ func (s *Spool) Seal(ctx context.Context, id, owner string) (*v1.DockerArtifactI
 			return nil, err
 		}
 	}
-	a, err := untar(ctx, f, n)
-	if err != nil {
-		return nil, err
+	var images []*v1.DockerArchiveImage
+	switch l.Info.Kind {
+	case Import:
+		a, err := untar(ctx, f, n)
+		if err != nil {
+			return nil, err
+		}
+		images = a.images
+	case BuildContext:
+		if n < 2*tarBlock {
+			return nil, ErrArchive
+		}
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return nil, err
+		}
+		if err := walkBuildTar(ctx, f, func(*tar.Header, io.Reader) error { return nil }); err != nil {
+			return nil, err
+		}
+	case Dockerfile:
+		// Length and digest are already checked. Only the bounded text reader uses it.
+	case Export, v1.DockerArtifactKind_DOCKER_ARTIFACT_KIND_UNSPECIFIED:
+		return nil, ErrUnavailable
 	}
 	previous := proto.CloneOf(l.Info)
 	l.Expanded = expanded
-	l.Info.Images = a.images
+	l.Info.Images = images
 	l.Info.State = Ready
 	l.Info.Sha256 = l.Info.CommittedPrefixSha256
 	if end := s.now().Add(idleLifetime); end.After(l.expires) {
@@ -675,7 +703,7 @@ func (s *Spool) WithArchive(ctx context.Context, id, sha string, each func(*Arch
 		return err
 	}
 	defer l.mu.Unlock()
-	if l.Info.Kind != Import || l.Info.State != Ready || l.Info.Sha256 != sha {
+	if !UploadKind(l.Info.Kind) || l.Info.State != Ready || l.Info.Sha256 != sha {
 		return ErrUnavailable
 	}
 	f, err := os.Open(l.source())

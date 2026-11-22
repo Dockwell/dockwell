@@ -688,6 +688,8 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 		verb := "Pull image"
 		if image.GetTag() != nil {
 			verb = "Set image tag"
+		} else if image.GetBuild() != nil {
+			verb = "Build image"
 		}
 		if state == StepQueued || state == StepRunning || state == StepDone {
 			return fmt.Sprintf("%s on %s", verb, server)

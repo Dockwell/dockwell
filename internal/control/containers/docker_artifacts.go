@@ -103,8 +103,8 @@ func (h *Handler) BeginDockerArtifactUpload(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, err
 	}
-	if m.GetKind() != artifact.Import {
-		return nil, authapi.Invalid(errors.New("choose a Docker image archive"))
+	if !artifact.UploadKind(m.GetKind()) {
+		return nil, authapi.Invalid(errors.New("choose an image archive, build context or Dockerfile"))
 	}
 	info, err := a.begin(ctx, m.GetKind(), m.GetSizeBytes(), m.GetSha256(), m.GetGzip(), m.GetFileName())
 	if err != nil {
@@ -178,7 +178,7 @@ func (h *Handler) UploadArtifactBytes(ctx context.Context, server, id, prefix st
 	if err != nil {
 		return nil, err
 	}
-	if info.GetKind() != artifact.Import || info.GetState() != artifact.Receiving || offset != info.GetReceivedBytes() ||
+	if !artifact.UploadKind(info.GetKind()) || info.GetState() != artifact.Receiving || offset != info.GetReceivedBytes() ||
 		length == 0 || length > artifact.MaxChunk || length > info.GetSizeBytes()-offset ||
 		(offset != 0 || prefix != "") && prefix != info.GetCommittedPrefixSha256() {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, artifact.ErrOffset)

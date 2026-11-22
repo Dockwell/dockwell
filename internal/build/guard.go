@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -100,6 +101,39 @@ func (b *Builder) checkDisk(root string) error {
 		diskLow{free, least})
 }
 
+// checkPublication checks the additional space the Engine can use while the
+// staged archive is still on disk, then monitors the Engine through the load.
+// The publication context outlives viewer cancellation, so it needs its own watch.
+func (b *Builder) checkPublication(root string, bytes int64) error {
+	free, least, ok := b.diskLeft(root)
+	if !ok {
+		return resource.PlainlyBecause(resource.ReasonDisk, "Dockwell couldn't measure free space on Docker's disk", errors.New("disk space is unavailable"))
+	}
+	// The archive and Engine storage can use different compression. Reserve
+	// room for twice the archive plus working space, and watch the actual floor.
+	needed := least + 2*bytes + (256 << 20)
+	if free < needed {
+		return resource.PlainlyBecause(resource.ReasonDisk,
+			fmt.Sprintf("Adding this image needs %s free on Docker's disk to leave %s for workloads. This server has %s free", human.Size(needed), human.Size(least), human.Size(free)),
+			diskLow{free, needed})
+	}
+	return nil
+}
+
+func (b *Builder) loadPublication(ctx context.Context, root string, archive io.Reader) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	stop := b.watchDisk(root, cancel)
+	defer stop()
+	_, err := b.Client.LoadImage(ctx, archive)
+	var low diskLow
+	if errors.As(context.Cause(ctx), &low) {
+		return resource.PlainlyBecause(resource.ReasonDisk,
+			"Dockwell stopped adding the image when free space on Docker's disk fell below "+human.Size(low.floor), low)
+	}
+	return err
+}
+
 // watchDisk stops the build through stop as soon as the disk falls under its floor,
 // until the returned func is called.
 func (b *Builder) watchDisk(root string, stop context.CancelCauseFunc) func() {
@@ -135,6 +169,10 @@ func (b *Builder) watchEvery() time.Duration {
 // content its cache holds, whatever pulled it, so a private image a login pulled
 // stays where only a build with that same login reads (ADR 0086).
 func cacheVolume(req service.BuildRequest) string {
+	if req.Standalone != nil {
+		return CacheVolume + "-standalone-" + req.Standalone.CacheScope
+	}
+
 	env := strings.ToLower(req.Service.Scope)
 	if env == "" {
 		env = "none"

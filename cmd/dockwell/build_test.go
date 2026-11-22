@@ -103,6 +103,7 @@ var agentPackages = []string{
 var agentModules = []string{
 	"connectrpc.com/connect",                    // the agent's stream to the control plane
 	"github.com/docker/go-units",                // Docker's own parser for log sizes
+	"github.com/moby/patternmatcher",            // Docker's .dockerignore rules for folder build contexts
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
 	"golang.org/x/sys",                          // system calls, for x/term

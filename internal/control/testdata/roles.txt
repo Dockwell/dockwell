@@ -129,6 +129,7 @@ DatabaseService.ListDatabases                  read         viewer     viewer   
 DatabaseService.SetDatabaseExternalAccess      plan         admin      admin      project
 DockerService.AbortDockerArtifact              apply        admin      admin      install  session
 DockerService.BeginDockerArtifactUpload        apply        admin      admin      install  session
+DockerService.CancelDockerImageBuild           apply        admin      admin      install  session
 DockerService.CheckDockerNetwork               read         admin      admin      install
 DockerService.CheckDockerSettings              read         admin      admin      install
 DockerService.DownloadDockerArtifact           read         admin      admin      install  session
@@ -144,6 +145,7 @@ DockerService.PlanDockerMaintenance            plan         admin      admin    
 DockerService.PlanDockerNetworkAttachment      plan         admin      admin      install
 DockerService.PreviewDockerCleanup             read         admin      admin      install
 DockerService.UploadDockerArtifact             apply        admin      admin      install  session
+DockerService.WatchDockerImageBuild            read         admin      admin      install  session
 DockerService.WatchDockerObjects               read         admin      admin      install
 DomainService.CheckDnsProvider                 plan         admin      admin      install  session
 DomainService.CheckDomain                      plan         developer  developer  named

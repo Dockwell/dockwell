@@ -3048,6 +3048,7 @@ message DockerArtifactControlCall {
     DockwellDockerArtifactEmpty seal = 13;
     DockerArtifactStream send = 14;
     DockwellDockerArtifactEmpty abort = 15;
+    DockerArtifactFolder snapshot_folder = 16;
     DockwellDockerArtifactEmpty list = 18;
     DockwellDockerArtifactEmpty discard_export = 19;
     DockerArtifactPin pin = 20;
@@ -3065,6 +3066,13 @@ message BeginDockerArtifactCall {
   string sha256 = 3;
   bool gzip = 4;
   string file_name = 5;
+}
+
+// DockerArtifactFolder selects a folder through the agent's FileService policy.
+message DockerArtifactFolder {
+  string path = 1;
+  string dockerfile_path = 2;
+  string override_artifact_id = 3;
 }
 
 // DockerArtifactStream names the single-use byte stream and its exact extent.

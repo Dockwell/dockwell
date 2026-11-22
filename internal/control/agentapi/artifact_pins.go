@@ -66,7 +66,8 @@ func (h *Handler) CheckDockerArtifactPins(ctx context.Context, req *connect.Requ
 		exact := slices.ContainsFunc(plan.Resources, func(item archiveResource) bool {
 			action := item.DockerMaintenance.GetImageAction()
 			return item.Ref.Kind == host.Kind && item.Ref.Scope == peer.ServerID &&
-				(action.GetLoad() != nil || action.GetExport() != nil) && action.GetStagedSourceId() == pin.GetArtifactId()
+				((action.GetLoad() != nil || action.GetExport() != nil) && action.GetStagedSourceId() == pin.GetArtifactId() ||
+					slices.Contains(resource.DockerBuildLeases(action), pin.GetArtifactId()))
 		})
 		if !exact {
 			out.Absent = append(out.Absent, pin)

@@ -32,6 +32,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/host"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -98,22 +99,31 @@ func New(db *store.DB, agents *agentapi.Agents, services Finder, logger *slog.Lo
 func (h *Handler) record(server string, u *agentv1.BuildUpdate) {
 	ctx := context.Background()
 	ref := resourcepb.FromRef(u.GetResource())
-	if !strings.HasPrefix(u.GetChangeId(), id.Change+"_") || ref.Kind != "service" {
+	standalone := ref == (resource.Ref{Kind: host.Kind, Scope: server, Name: host.Name})
+	if !strings.HasPrefix(u.GetChangeId(), id.Change+"_") || !standalone && ref.Kind != "service" {
 		return
 	}
 	var b store.Build
 	var added []store.BuildLine
 	err := h.db.Update(ctx, func(tx *store.Tx) error {
-		r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
-		if err != nil {
-			return err
-		}
-		b, err = tx.BuildOf(ctx, u.GetChangeId(), r.ID, server)
-		if errors.Is(err, store.ErrNotFound) {
-			if b, err = h.newBuild(ctx, tx, server, u.GetChangeId(), r, ref); err != nil {
+		var err error
+		if standalone {
+			b, err = tx.BuildOf(ctx, u.GetChangeId(), imageResourcePrefix+server, server)
+			if errors.Is(err, store.ErrNotFound) {
+				b, err = h.newImageBuild(ctx, tx, u.GetChangeId(), server)
+			}
+		} else {
+			var r store.Resource
+			r, err = tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name)
+			if err != nil {
 				return err
 			}
-		} else if err != nil {
+			b, err = tx.BuildOf(ctx, u.GetChangeId(), r.ID, server)
+			if errors.Is(err, store.ErrNotFound) {
+				b, err = h.newBuild(ctx, tx, server, u.GetChangeId(), r, ref)
+			}
+		}
+		if err != nil {
 			return err
 		}
 		if b.Ended() {
@@ -408,6 +418,10 @@ func toProto(b store.Build, server string) *dockwellv1.Build {
 		CreateTime: timestamppb.New(b.CreatedAt), Steps: int32(b.Steps), CachedSteps: int32(b.Cached), Step: int32(b.Step), StepName: b.StepName, //nolint:gosec // a build's steps are few
 		Error: b.Error, FailedLine: b.FailedLine, CancelledBy: b.CancelledBy, LogLines: b.Lines, LogLinesLeftOut: b.LeftOut, LogLinesDropped: b.Dropped,
 	}
+	if imageBuild(b) {
+		p.ServiceId = ""
+		p.Resource = resourcepb.Ref(resource.Ref{Kind: host.Kind, Scope: b.ServerID, Name: host.Name})
+	}
 	if b.Detection != "" {
 		var d resource.BuildDetection
 		if json.Unmarshal([]byte(b.Detection), &d) == nil {
@@ -482,6 +496,9 @@ func (h *Handler) get(ctx context.Context, buildID string) (store.Build, *dockwe
 		if b, err = tx.GetBuild(ctx, buildID); err != nil {
 			return err
 		}
+		if imageBuild(b) {
+			return store.ErrNotFound
+		}
 		ps, err := h.protos(ctx, tx, []store.Build{b})
 		if err != nil {
 			return err
@@ -532,9 +549,12 @@ func (h *Handler) WatchBuild(ctx context.Context, req *connect.Request[dockwellv
 	if err != nil {
 		return err
 	}
+	return h.watchBuild(ctx, b, 0, stream.Send)
+}
+
+func (h *Handler) watchBuild(ctx context.Context, b store.Build, sent int64, send func(*dockwellv1.WatchBuildResponse) error) error {
 	updates, stop := h.watch(b.ID)
 	defer stop()
-	var sent int64
 	var last *dockwellv1.Build
 	recheck := time.NewTicker(lostRecheck)
 	defer recheck.Stop()
@@ -577,12 +597,12 @@ func (h *Handler) WatchBuild(ctx context.Context, req *connect.Request[dockwellv
 				sent = kept[n-1].Number
 			}
 			kept, moved, last = kept[n:], false, shown
-			if err := stream.Send(msg); err != nil {
+			if err := send(msg); err != nil {
 				return err
 			}
 		}
 		if ended {
-			return stream.Send(&dockwellv1.WatchBuildResponse{Build: p})
+			return send(&dockwellv1.WatchBuildResponse{Build: p})
 		}
 		select {
 		case <-ctx.Done():
@@ -599,8 +619,16 @@ func (h *Handler) CancelBuild(ctx context.Context, req *connect.Request[dockwell
 	if err != nil {
 		return nil, err
 	}
+	return h.cancelBuild(ctx, b, p)
+}
+
+func (h *Handler) cancelBuild(ctx context.Context, b store.Build, p *dockwellv1.Build) (*connect.Response[dockwellv1.CancelBuildResponse], error) {
+	subject := "the build of " + b.Service
+	if imageBuild(b) {
+		subject = "the image build"
+	}
 	if p.GetState() != dockwellv1.BuildState_BUILD_STATE_QUEUED && p.GetState() != dockwellv1.BuildState_BUILD_STATE_BUILDING {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("the build of %s has ended, so there's nothing to cancel", b.Service), "ended")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s on %s has ended, so there's nothing to cancel", subject, p.GetServerName()), "ended")
 	}
 	who, actor := h.caller(ctx)
 	session, ok := h.agents.SessionPastMove(ctx, b.ServerID, agentapi.MoveGrace)
@@ -610,14 +638,21 @@ func (h *Handler) CancelBuild(ctx context.Context, req *connect.Request[dockwell
 	}
 	stopping, err := session.CancelBuild(ctx, &agentv1.CancelBuildCall{ChangeId: b.ChangeID, Resource: p.GetResource(), By: who})
 	if err != nil {
+		if resource.ReasonOf(err) == resource.ReasonBuildPublishing {
+			plain, _ := resource.Explain(err)
+			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New(plain), resource.ReasonBuildPublishing)
+		}
 		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s didn't stop the build: %w. Try again", p.GetServerName(), err), "server_offline")
 	}
 	if !stopping {
-		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s has no build of %s under way, so it may just have ended. Read it again", p.GetServerName(), b.Service), "ended")
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s just ended or is no longer running on %s", subject, p.GetServerName()), "ended")
 	}
 	client, _ := authapi.ClientFrom(ctx)
 	err = h.db.Update(context.WithoutCancel(ctx), func(tx *store.Tx) error {
 		cur, err := tx.GetBuild(ctx, b.ID)
+		if errors.Is(err, store.ErrNotFound) && imageBuild(b) {
+			cur, err = h.newImageBuild(ctx, tx, b.ChangeID, b.ServerID)
+		}
 		if err != nil {
 			return err
 		}
@@ -627,9 +662,13 @@ func (h *Handler) CancelBuild(ctx context.Context, req *connect.Request[dockwell
 		}
 		p.CancelledBy = who
 		principal, _ := authapi.PrincipalFrom(ctx)
+		auditSubject := subject
+		if imageBuild(b) {
+			auditSubject += " on " + p.GetServerName()
+		}
 		return tx.RecordEvent(ctx, store.Event{
 			ID: id.New(id.Event), At: h.now(), Actor: actor, Action: eventCancel, Subject: b.ID, Target: b.ServerID,
-			Surface: client.Surface(principal), Detail: fmt.Sprintf("cancelled the build of %s for %s", b.Service, b.ChangeID),
+			Surface: client.Surface(principal), Detail: fmt.Sprintf("cancelled %s for %s", auditSubject, b.ChangeID),
 		})
 	})
 	if err != nil {

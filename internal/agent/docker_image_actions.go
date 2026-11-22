@@ -49,7 +49,7 @@ func (c *calls) imageActionScope(ref resource.Ref, plan *v1.DockerMaintenance) e
 		return errors.New("the agent could not verify the image action's server")
 	}
 	a := plan.GetImageAction()
-	if isImageArchive(a) {
+	if isImageArchive(a) || a.GetBuild() != nil {
 		return nil
 	}
 	r, err := imageActionReference(a)
@@ -271,7 +271,17 @@ func (c *calls) planImageAction(ctx context.Context, desired *agentv1.DesiredRes
 	if err := c.imageActionScope(ref, plan); err != nil {
 		return callFailed(err), true
 	}
-	if isImageArchive(plan.GetImageAction()) {
+	if plan.GetImageAction().GetBuild() != nil {
+		if plan.GetChangeId() == "" {
+			desired := proto.CloneOf(desired)
+			desired.DockerMaintenance = plan
+			if err := c.previewImageBuild(ctx, ref, desired); err != nil {
+				return callFailed(err), true
+			}
+		} else if plan.GetImageAction().GetDockerfileSha256() == "" {
+			return callFailed(errImageChanged), true
+		}
+	} else if isImageArchive(plan.GetImageAction()) {
 		if err := c.checkArchiveAction(ctx, ref, plan.GetImageAction(), nil); err != nil {
 			return callFailed(err), true
 		}
@@ -324,9 +334,16 @@ func (c *calls) runImageAction(ctx context.Context, callID uint64, ref resource.
 	}
 	var receipts []*v1.DockerImageReceipt
 	var err error
-	if isImageArchive(plan.GetImageAction()) {
+	switch {
+	case isImageArchive(plan.GetImageAction()):
 		receipts, err = c.applyArchiveAction(ctx, ref, plan, protected)
-	} else {
+	case plan.GetImageAction().GetBuild() != nil:
+		var receipt *v1.DockerImageReceipt
+		receipt, err = c.applyImageBuild(ctx, ref, desired, protected)
+		if receipt != nil {
+			receipts = append(receipts, receipt)
+		}
+	default:
 		var receipt *v1.DockerImageReceipt
 		receipt, err = c.applyImageAction(ctx, ref, plan, desired.GetDockerRegistryAuth(), protected)
 		if receipt != nil {

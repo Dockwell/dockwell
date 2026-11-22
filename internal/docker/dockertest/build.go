@@ -105,11 +105,20 @@ func (e *Engine) fakeBuild(c *container, stdout, stderr io.Writer) (code int) {
 		return 99
 	}
 	envs[gitAuthEnv] = e.gitAuthOf(c)
-	co, code := checkout(envs, stderr)
-	if code != 0 {
-		return code
+	var co checkedOut
+	if staged := e.hostPathOf(c, "/run/dockwell-build-context"); staged != "" {
+		co.context = staged
+	} else {
+		var code int
+		co, code = checkout(envs, stderr)
+		if code != 0 {
+			return code
+		}
+		defer os.RemoveAll(co.src)
 	}
-	defer os.RemoveAll(co.src)
+	if envs["DW_STANDALONE"] != "" {
+		co.dockerfile = e.hostPathOf(c, "/run/dockwell-build-input/Dockerfile")
+	}
 	ctxDir := co.context
 	railpack := envs["DW_BUILDER"] == "railpack"
 	if !railpack && co.dockerfile == "" {

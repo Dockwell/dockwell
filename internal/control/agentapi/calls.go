@@ -85,7 +85,8 @@ type Agents struct {
 	// logins picks the registry login a pull signs in with (ADR 0086).
 	logins Logins
 	// gitAuth asks for what fetches a build's private repository (ADR 0098).
-	gitAuth GitAuth
+	gitAuth            GitAuth
+	dockerBuildGitAuth GitAuth
 	// scopes says what people call an environment, which its services'
 	// containers are named after.
 	scopes ScopeNamer

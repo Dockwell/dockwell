@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { type DockerArtifactInfo, StreamError } from "@dockwell/api";
+
 export const ARTIFACT_CHUNK = 64 << 20;
 export const MAX_ARTIFACT_BYTES = 8 * 2 ** 30;
 
@@ -26,4 +28,20 @@ export function archiveHash(file: File, signal: AbortSignal) {
       }),
     close: () => worker.terminate(),
   };
+}
+
+/** A paused request may commit after the next viewer reads its offset. */
+export async function committedUploadAfterConflict(
+  error: unknown,
+  read: () => Promise<DockerArtifactInfo>,
+  offset: number,
+  file: File,
+  digest: (end: number) => Promise<string>,
+) {
+  if (!(error instanceof StreamError) || error.status !== 412) throw error;
+  const current = await read();
+  const end = Number(current.receivedBytes);
+  if (end <= offset || end > file.size || current.sizeBytes !== BigInt(file.size)) throw error;
+  if ((await digest(end)) !== current.committedPrefixSha256) throw error;
+  return current;
 }

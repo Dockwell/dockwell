@@ -27,6 +27,7 @@ import { splitVersion } from "../../lib/versions";
 import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerArchiveStep } from "./DockerArchiveStep";
+import { DockerBuildStep } from "./DockerBuildStep";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
@@ -65,7 +66,15 @@ function tenseOf(state: StepState | undefined): Tense {
  * apart. A change that rolls out has them wave by wave (ADR 0094), each wave
  * with how it stands, after what the rollout does between them.
  */
-export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress: readonly StepProgress[] }) {
+export function PlanSteps({
+  plan,
+  progress,
+  changeId = "",
+}: {
+  plan: Plan | undefined;
+  progress: readonly StepProgress[];
+  changeId?: string;
+}) {
   const { t } = useLingui();
   const words = useChangeWords();
   const fleet = isFleet(plan);
@@ -89,6 +98,7 @@ export function PlanSteps({ plan, progress }: { plan: Plan | undefined; progress
               key={server.serverId}
               server={server}
               progress={progress}
+              changeId={changeId}
               words={words}
               fleet={fleet}
               intent={intentOf(plan)}
@@ -161,6 +171,7 @@ function WaveHead({ group, progress }: { group: StepGroup; progress: readonly St
 function ServerSteps({
   server,
   progress,
+  changeId,
   words,
   fleet,
   intent,
@@ -170,6 +181,7 @@ function ServerSteps({
 }: {
   server: ServerPlan;
   progress: readonly StepProgress[];
+  changeId: string;
   words: ChangeWords;
   fleet: boolean;
   intent: Intent | undefined;
@@ -216,6 +228,7 @@ function ServerSteps({
               step={step}
               server={server.serverName}
               serverId={server.serverId}
+              changeId={changeId}
               live={progressOf(progress, server.serverId, step.resourceId)}
               words={words}
               fleet={fleet}
@@ -235,6 +248,7 @@ function StepRow({
   step,
   server,
   serverId,
+  changeId,
   live,
   words,
   fleet,
@@ -246,6 +260,7 @@ function StepRow({
   step: PlanStep;
   server: string;
   serverId: string;
+  changeId: string;
   live: StepProgress | undefined;
   words: ChangeWords;
   fleet: boolean;
@@ -341,6 +356,8 @@ function StepRow({
     );
   }
   const imageAction = step.dockerMaintenance?.imageAction;
+  if (imageAction?.build)
+    return <DockerBuildStep action={imageAction} serverId={serverId} changeId={changeId} live={live} />;
   if (imageAction?.load || imageAction?.export)
     return <DockerArchiveStep action={imageAction} server={server} live={live} />;
   if (imageAction) {

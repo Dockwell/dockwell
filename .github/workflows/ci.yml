@@ -178,11 +178,12 @@ jobs:
         run: |
           set -o pipefail
           go test -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
-      - name: Docker network and volume coverage
+      - name: Docker network, volume and build coverage
         if: steps.pick.outputs.run == 'true'
         run: |
           log="$RUNNER_TEMP/docker.out"
           for test in \
+            TestBuildImageFromSealedContextOnRealDocker \
             TestDockerNetworkBridgeIPAMOnRealDocker \
             TestDockerNetworkAttachmentRejectsReplacementOnRealDocker \
             TestDockerNetworkCleanupProtectsDependantsOnRealDocker \
@@ -233,14 +234,17 @@ jobs:
               set -euo pipefail
               state=$(mktemp -d "$RUNNER_TEMP/dw-docker.XXXXXX")
               name="dw-cleanup-${state##*.}"
-              trap 'docker rm -f -v "$name" >/dev/null 2>&1 || true; rm -rf "$state"' EXIT
-              docker run --detach --name "$name" --privileged --network host \
-                --mount "type=bind,src=$state,dst=/socket" \
-                --entrypoint dockerd "docker:${version}-dind" \
+              trap 'docker rm -f -v "$name" >/dev/null 2>&1 || true; sudo rm -rf -- "$state"' EXIT
+              # The dind wrapper delegates the private cgroup v2 subtree before
+              # dockerd starts. Build containers keep their normal limits.
+              docker run --detach --name "$name" --privileged --network host --cgroupns private \
+                --mount "type=bind,src=$state,dst=/socket" --mount "type=bind,src=$state,dst=$state" \
+                --entrypoint /usr/local/bin/dind "docker:${version}-dind" dockerd \
                 --host unix:///socket/docker.sock --group "$(id -g)" \
+                --data-root "$state/data" \
                 --storage-driver vfs --bridge none --iptables=false --ip6tables=false --ip-forward=false \
                 --registry-mirror https://mirror.gcr.io
-              export DOCKWELL_TEST_DOCKER="$state/docker.sock"
+              export DOCKWELL_TEST_DOCKER="$state/docker.sock" TMPDIR="$state"
               for attempt in {1..30}; do
                 if docker --host "unix://$DOCKWELL_TEST_DOCKER" info >/dev/null 2>&1; then
                   break
@@ -251,11 +255,12 @@ jobs:
                 fi
                 sleep 1
               done
-              go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
+              go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
               for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID KeepsAnImageWithTwoTags; do
                 grep -q "^--- PASS: TestCleanup${test}OnRealDocker " "$state/tests.out"
               done
               grep -q '^--- PASS: TestArchiveRoundTripAndResumeOnRealDocker ' "$state/tests.out"
+              grep -q '^--- PASS: TestBuildImageFromSealedContextOnRealDocker ' "$state/tests.out"
               if [[ "$version" == 28.5.2 ]]; then
                 go test -race -v -count=1 -run '^Test(ReviewedImagePull|ReviewedTagMoveKeepsBothImages)OnRealDocker$' ./internal/agent | tee "$state/images.out"
                 grep -q '^--- PASS: TestReviewedImagePullOnRealDocker ' "$state/images.out"
@@ -269,17 +274,18 @@ jobs:
           set -euo pipefail
           state=$(mktemp -d "$RUNNER_TEMP/dw-containerd.XXXXXX")
           name="dw-containerd-${state##*.}"
-          trap 'docker rm -f -v "$name" >/dev/null 2>&1 || true; rm -rf "$state"' EXIT
+          trap 'docker rm -f -v "$name" >/dev/null 2>&1 || true; sudo rm -rf -- "$state"' EXIT
           printf '%s\n' '{"features":{"containerd-snapshotter":true}}' >"$state/daemon.json"
           # The TLS fixture registry binds loopback inside this daemon. Share
           # the host network with it so the Go test can read the same registry.
-          docker run --detach --name "$name" --privileged --network host \
-            --mount "type=bind,src=$state,dst=/socket" \
-            --entrypoint dockerd docker:29.4.1-dind@sha256:c77e5d7912f9b137cc67051fdc2991d8f5ae22c55ddf532bb836dcb693a04940 \
+          docker run --detach --name "$name" --privileged --network host --cgroupns private \
+            --mount "type=bind,src=$state,dst=/socket" --mount "type=bind,src=$state,dst=$state" \
+            --entrypoint /usr/local/bin/dind docker:29.4.1-dind@sha256:c77e5d7912f9b137cc67051fdc2991d8f5ae22c55ddf532bb836dcb693a04940 dockerd \
             --host unix:///socket/docker.sock --group "$(id -g)" \
+            --data-root "$state/data" \
             --config-file /socket/daemon.json --storage-driver overlayfs \
             --bridge none --iptables=false --ip6tables=false --ip-forward=false --registry-mirror https://mirror.gcr.io
-          export DOCKWELL_TEST_DOCKER="$state/docker.sock"
+          export DOCKWELL_TEST_DOCKER="$state/docker.sock" TMPDIR="$state"
           for attempt in {1..30}; do
             if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{json .DriverStatus}}' >"$state/driver" 2>/dev/null; then
               break
@@ -291,8 +297,8 @@ jobs:
             sleep 1
           done
           grep -Fq 'io.containerd.snapshotter.v1' "$state/driver"
-          go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
-          for test in ArchiveRoundTripAndResume ReviewedImagePull ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupKeepsAnImageWithTwoTags CleanupBuildCacheStaysDisabledOnContainerd29; do
+          go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume|BuildImageFromSealedContext)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
+          for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupKeepsAnImageWithTwoTags CleanupBuildCacheStaysDisabledOnContainerd29; do
             grep -q "^--- PASS: Test${test}OnRealDocker " "$state/tests.out"
           done
           grep -q '^--- SKIP: TestCleanupRemovesOneBuildCacheRecordOnRealDocker ' "$state/tests.out"

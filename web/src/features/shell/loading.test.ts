@@ -58,7 +58,7 @@ const IN_FLIGHT: { file: string; says: string; why: string }[] = [
     why: "a deploy's build under its Queued badge: the state of a build, not a read",
   },
   {
-    file: "web/src/features/apps/Build.tsx",
+    file: "web/src/features/apps/BuildLog.tsx",
     says: "Waiting its turn: a server runs one build at a time.",
     why: "a live build log before its first line, and why it waits: the stream's own state",
   },

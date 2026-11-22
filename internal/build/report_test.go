@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -174,5 +175,44 @@ func TestAStatusThatDoesntParseIsDropped(t *testing.T) {
 	lines, _, dropped := fed(t, nil, `{"Logs":[{"Data":"bnBtX3MzY3IzdC12YWx1ZQ==",`+"\n")
 	if len(lines) != 0 || dropped != 1 {
 		t.Errorf("kept %q, dropped %d", lines, dropped)
+	}
+}
+
+func TestStandaloneBuildMasksRegistryAndGitCredentials(t *testing.T) {
+	const secret = `fixture-registry-"password"`
+	const git = "ghs_fixture_token_1234567890"
+	pair := "x-access-token:" + git
+	git64 := base64.StdEncoding.EncodeToString([]byte(pair))
+	registry64 := base64.StdEncoding.EncodeToString([]byte("ci:" + secret))
+	req := service.BuildRequest{
+		Standalone: &service.StandaloneBuild{},
+		Logins:     []registry.Auth{{Username: "ci", Password: secret}},
+		GitAuth:    "Basic " + git64,
+	}
+	var lines []string
+	ctx := resource.WithBuilds(t.Context(), func(u resource.BuildUpdate) {
+		for _, l := range u.Lines {
+			lines = append(lines, l.Text)
+		}
+	})
+	r := newReport(ctx, req, time.Now)
+	stop := r.follow()
+	// Git gets this exact header via its environment. A BuildKit step's output
+	// arrives separately as base64 chunks in rawjson statuses.
+	_, _ = r.Write([]byte("Authorization: " + req.GitAuth + "\n"))
+	_, _ = r.Write([]byte(marker + "phase build\n"))
+	_, _ = r.Write([]byte(statusOf(t, "[1/1] RUN echo", []byte("split "+git[:8]))))
+	_, _ = r.Write([]byte(statusOf(t, "", []byte(git[8:]+"\n"))))
+	_, _ = r.Write([]byte(statusOf(t, "", fmt.Appendf(nil, "registry %s %q %s\ngit %s %s\n", secret, secret, registry64, pair, git64))))
+	stop()
+	want := []string{
+		"Authorization: " + binding.Masked, "split " + binding.Masked,
+		"registry " + binding.Masked + " \"" + binding.Masked + "\" " + binding.Masked,
+		"git " + binding.Masked + " " + binding.Masked,
+	}
+	for _, line := range want {
+		if !slices.Contains(lines, line) {
+			t.Errorf("missing masked line %q in %q", line, lines)
+		}
 	}
 }

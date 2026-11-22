@@ -23,7 +23,7 @@ import { delay } from "../../lib/retry";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { registryOf } from "../registries/registries";
 import { CopyButton } from "../servers/CopyButton";
-import { ARTIFACT_CHUNK, archiveHash, MAX_ARTIFACT_BYTES } from "./archiveTransfer";
+import { ARTIFACT_CHUNK, archiveHash, committedUploadAfterConflict, MAX_ARTIFACT_BYTES } from "./archiveTransfer";
 import { shortImageId } from "./imageIdentity";
 
 type ServerChoice = Pick<Server, "id" | "name">;
@@ -202,8 +202,8 @@ export function DockerImportSheet({
     setWaitingForSlot(false);
     setPhase("upload");
     try {
-      const next = info
-        ? await client.getDockerArtifact({ serverId: server, artifactId: info.artifactId }, { signal: current.signal })
+      const next = leaseId
+        ? await client.getDockerArtifact({ serverId: server, artifactId: leaseId }, { signal: current.signal })
         : await client.beginDockerArtifactUpload(
             {
               serverId: server,
@@ -229,7 +229,7 @@ export function DockerImportSheet({
         if (elapsed > 0.3) setSpeed(Math.max(0, (sent - startOffset) / elapsed));
       };
       while (offset < file.size) {
-        const end = Math.min(file.size, offset + ARTIFACT_CHUNK);
+        let end = Math.min(file.size, offset + ARTIFACT_CHUNK);
         let accepted: DockerArtifactInfo;
         for (;;) {
           try {
@@ -248,7 +248,17 @@ export function DockerImportSheet({
             });
             break;
           } catch (error) {
-            if (!(error instanceof StreamError) || error.reason !== "artifact_transfer_slots") throw error;
+            if (!(error instanceof StreamError) || error.reason !== "artifact_transfer_slots") {
+              accepted = await committedUploadAfterConflict(
+                error,
+                () => client.getDockerArtifact({ serverId: server, artifactId: id }, { signal: current.signal }),
+                offset,
+                file,
+                hash.digest,
+              );
+              end = Number(accepted.receivedBytes);
+              break;
+            }
             setWaitingForSlot(true);
             setProgress(offset);
             await delay(1000, current.signal);

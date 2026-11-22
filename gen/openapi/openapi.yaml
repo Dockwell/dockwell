@@ -906,6 +906,7 @@ paths:
                 CancelBuild stops a build that is waiting or running. Its step fails as
                  cancelled, before anything that runs is touched, so its change's rollback
                  has nothing to do and what ran goes on running.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
             operationId: BuildService_CancelBuild
             parameters:
                 - name: id
@@ -3398,6 +3399,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/DockerArtifactInfo'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/builds/{serverId}/{changeId}/cancel:
+        post:
+            tags:
+                - DockerService
+            description: |-
+                CancelDockerImageBuild asks the builder to stop before publication.
+                 buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+                 buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+            operationId: DockerService_CancelDockerImageBuild
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: changeId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CancelDockerImageBuildRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CancelBuildResponse'
                 default:
                     description: Default error response
                     content:
@@ -11204,7 +11244,9 @@ components:
                     enum:
                         - DOCKER_ARTIFACT_KIND_UNSPECIFIED
                         - DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
+                        - DOCKER_ARTIFACT_KIND_BUILD_CONTEXT
                         - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
+                        - DOCKER_ARTIFACT_KIND_DOCKERFILE
                     type: string
                     format: enum
                 sizeBytes:
@@ -11698,6 +11740,14 @@ components:
                         - $ref: '#/components/schemas/Build'
                     description: The build.
             description: CancelBuildResponse is the build, as it stands once its server was asked.
+        CancelDockerImageBuildRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                changeId:
+                    type: string
+            description: CancelDockerImageBuildRequest identifies the change on one server.
         CancelTotpSetupRequest:
             type: object
             properties: {}
@@ -16079,7 +16129,9 @@ components:
                     enum:
                         - DOCKER_ARTIFACT_KIND_UNSPECIFIED
                         - DOCKER_ARTIFACT_KIND_IMAGE_IMPORT
+                        - DOCKER_ARTIFACT_KIND_BUILD_CONTEXT
                         - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
+                        - DOCKER_ARTIFACT_KIND_DOCKERFILE
                     type: string
                     format: enum
                 state:
@@ -16548,6 +16600,14 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DockerImageLoginRef'
+                baseDescriptors:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerRegistryDescriptor'
+                gitCommit:
+                    type: string
+                dockerfileSha256:
+                    type: string
                 credentialProject:
                     type: string
                 tag:
@@ -16558,6 +16618,8 @@ components:
                          older JSON records, so the persisted action uses ordinary message fields.
                 load:
                     $ref: '#/components/schemas/DockerImageLoad'
+                build:
+                    $ref: '#/components/schemas/DockerImageBuild'
                 export:
                     $ref: '#/components/schemas/DockerImageExport'
                 pull:
@@ -16577,6 +16639,30 @@ components:
                 expectAbsent:
                     type: boolean
             description: DockerImageBinding is the local tag evidence the change reviewed.
+        DockerImageBuild:
+            type: object
+            properties:
+                output:
+                    type: string
+                dockerfilePath:
+                    type: string
+                platform:
+                    type: string
+                registryLoginIds:
+                    type: array
+                    items:
+                        type: string
+                dockerfileOverrideArtifactId:
+                    type: string
+                credentialProject:
+                    type: string
+                folderPath:
+                    type: string
+                git:
+                    $ref: '#/components/schemas/DockerImageGitSource'
+                contextArtifactId:
+                    type: string
+            description: DockerImageBuild selects the native builder and one context.
         DockerImageContainer:
             type: object
             properties:
@@ -16617,6 +16703,20 @@ components:
                     items:
                         type: string
             description: DockerImageExport names an immutable local image and the aliases to include.
+        DockerImageGitSource:
+            type: object
+            properties:
+                repository:
+                    type: string
+                ref:
+                    type: string
+                subdirectory:
+                    type: string
+                gitLogin:
+                    type: string
+                project:
+                    type: string
+            description: DockerImageGitSource selects a repository and the directory to build.
         DockerImageHistory:
             type: object
             properties:
@@ -16690,6 +16790,7 @@ components:
                         - DOCKER_IMAGE_OUTCOME_UNCHANGED
                         - DOCKER_IMAGE_OUTCOME_REFUSED
                         - DOCKER_IMAGE_OUTCOME_FAILED
+                        - DOCKER_IMAGE_OUTCOME_CANCELLED
                         - DOCKER_IMAGE_OUTCOME_UNKNOWN
                     type: string
                     format: enum
@@ -16723,6 +16824,8 @@ components:
                     type: string
                 sha256:
                     type: string
+                buildId:
+                    type: string
                 previousImageId:
                     type: string
             description: DockerImageReceipt records what the selected Engine verified after the action.
@@ -16742,6 +16845,8 @@ components:
                 canPull:
                     type: boolean
                 canTag:
+                    type: boolean
+                canBuild:
                     type: boolean
                 canImport:
                     type: boolean
@@ -25221,6 +25326,8 @@ components:
                     $ref: '#/components/schemas/DockerImageTag'
                 load:
                     $ref: '#/components/schemas/DockerImageLoad'
+                build:
+                    $ref: '#/components/schemas/DockerImageBuild'
                 export:
                     $ref: '#/components/schemas/DockerImageExport'
                 pull:

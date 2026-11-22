@@ -215,9 +215,9 @@ type Config struct {
 
 // Builds stops a build under way, and reads how a commit would build (ADR 0046).
 type Builds interface {
-	// Cancel stops the build of svc for change, if one waits or runs, and says
-	// whether there was one. by is who asked, for its log.
-	Cancel(change string, svc resource.Ref, by string) bool
+	// CancelWithStatus stops a waiting or running build, or explains why it
+	// cannot be stopped. by is who asked, for its log.
+	CancelWithStatus(change string, svc resource.Ref, by string) (bool, error)
 	// Detect reads a commit as a build would, and says how it would build. It
 	// builds nothing.
 	Detect(ctx context.Context, req service.BuildRequest) (*resource.BuildDetection, error)

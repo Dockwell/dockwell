@@ -174,6 +174,9 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Reques
 	if _, ok := m.GetOperation().(*v1.PlanDockerMaintenanceRequest_ResumeCleanupToken); ok {
 		return h.planResumeDockerCleanup(ctx, m)
 	}
+	if m.GetBuild() != nil {
+		return h.planDockerBuild(ctx, m)
+	}
 	if m.GetLoad() != nil || m.GetExport() != nil {
 		return h.planDockerArchive(ctx, m)
 	}

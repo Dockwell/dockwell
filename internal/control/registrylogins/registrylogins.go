@@ -418,3 +418,24 @@ func (l *Logins) DockerImageLogin(ctx context.Context, project, reference, login
 	}
 	return nil, registry.Auth{}, ErrNoLogin
 }
+
+// DockerBuildLogin opens the exact selected login if its project still allows it.
+func (l *Logins) DockerBuildLogin(ctx context.Context, project, loginID string) (*v1.DockerImageLoginRef, registry.Auth, error) {
+	if project != "" {
+		var err error
+		if project, err = l.ProjectFor(ctx, "", project); err != nil {
+			return nil, registry.Auth{}, err
+		}
+	}
+	all, err := l.All(ctx)
+	if err != nil {
+		return nil, registry.Auth{}, err
+	}
+	for _, saved := range all {
+		if saved.ID == loginID && Allows(saved.Spec, project) {
+			auth, err := l.Open(ctx, saved)
+			return &v1.DockerImageLoginRef{Id: saved.ID, Name: saved.Name, Host: auth.Registry, Revision: int64(saved.Revision)}, auth, err
+		}
+	}
+	return nil, registry.Auth{}, ErrNoLogin
+}

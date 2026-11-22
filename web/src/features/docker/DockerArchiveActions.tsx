@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type DockerImageSupport, DockerService, type Server } from "@dockwell/api";
+import { DockerArtifactKind, type DockerImageSupport, DockerService, type Server } from "@dockwell/api";
 import { Button, SelectField, Sheet } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
@@ -9,6 +9,7 @@ import { useMay } from "../auth/may";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { DockerExportSheet, DockerImportSheet } from "./DockerArchiveSheets";
 import { DockerArtifactLeases } from "./DockerArtifactLeases";
+import { DockerBuildSheet } from "./DockerBuildSheet";
 
 type ServerChoice = Pick<Server, "id" | "name">;
 export interface ArchiveImageChoice {
@@ -26,8 +27,10 @@ export function useArchiveActions(
   const { t } = useLingui();
   const may = useMay()(DockerService.method.beginDockerArtifactUpload).allowed;
   const importable = may ? servers.filter((s) => support.get(s.id)?.canImport) : [];
+  const buildable = may ? servers.filter((s) => support.get(s.id)?.canBuild) : [];
   const [editor, setEditor] = useState<
     | { import: true; restore?: { serverId: string; artifactId: string } }
+    | { build: true; restore?: { serverId: string; artifactId: string; kind: DockerArtifactKind } }
     | ArchiveImageChoice
     | { choices: readonly ArchiveImageChoice[] }
   >();
@@ -54,6 +57,13 @@ export function useArchiveActions(
   return {
     header: (images: readonly ArchiveImageChoice[]) => {
       const actions = [...importAction, ...exportAction(images.filter(canExport))];
+      if (buildable.length)
+        actions.unshift({
+          id: "build",
+          label: t`Build image`,
+          icon: "layers",
+          onSelect: () => setEditor({ build: true }),
+        });
       return actions.length ? <ActionMenu label={t`Image actions`} actions={actions} /> : null;
     },
     forImage: (image: ArchiveImageChoice, detail: boolean) => [
@@ -63,12 +73,20 @@ export function useArchiveActions(
     leases: importable.length ? (
       <DockerArtifactLeases
         servers={importable}
-        resume={(serverId, artifactId) => setEditor({ import: true, restore: { serverId, artifactId } })}
+        resume={(serverId, artifactId, kind) =>
+          setEditor(
+            kind === DockerArtifactKind.IMAGE_IMPORT
+              ? { import: true, restore: { serverId, artifactId } }
+              : { build: true, restore: { serverId, artifactId, kind } },
+          )
+        }
       />
     ) : null,
     sheets:
       editor && "import" in editor ? (
         <DockerImportSheet servers={importable} close={close} refresh={refresh} restore={editor.restore} />
+      ) : editor && "build" in editor ? (
+        <DockerBuildSheet servers={buildable} close={close} refresh={refresh} restore={editor.restore} />
       ) : editor && "choices" in editor ? (
         <Sheet
           open
