@@ -20,14 +20,17 @@ func DockerImageAuthRef(ref Ref, plan *v1.DockerMaintenance) Ref {
 	return Ref{Kind: "docker.image", Scope: ref.Scope, Name: fmt.Sprintf("%x", sha256.Sum256(data))}
 }
 
-// DockerImageNeedsPasskey reports a reviewed replacement of an existing alias.
+// DockerImageNeedsPasskey reports a registry push or a local alias replacement.
 func DockerImageNeedsPasskey(action *v1.DockerImageAction) bool {
+	if action.GetPush() != nil {
+		return true
+	}
 	return len(action.GetBindings()) == 1 && action.GetBindings()[0].GetImageId() != "" && DockerImageRetargetsAlias(action)
 }
 
 // DockerImageRetargetsAlias reports whether the plan would assign a different local image ID.
 func DockerImageRetargetsAlias(action *v1.DockerImageAction) bool {
-	if len(action.GetBindings()) != 1 || strings.Contains(action.GetPull().GetReference(), "@") {
+	if action.GetPush() != nil || len(action.GetBindings()) != 1 || strings.Contains(action.GetPull().GetReference(), "@") {
 		return false
 	}
 	binding := action.GetBindings()[0]

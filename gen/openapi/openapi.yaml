@@ -11247,6 +11247,7 @@ components:
                         - DOCKER_ARTIFACT_KIND_BUILD_CONTEXT
                         - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
                         - DOCKER_ARTIFACT_KIND_DOCKERFILE
+                        - DOCKER_ARTIFACT_KIND_PUSH_SOURCE
                     type: string
                     format: enum
                 sizeBytes:
@@ -16132,6 +16133,7 @@ components:
                         - DOCKER_ARTIFACT_KIND_BUILD_CONTEXT
                         - DOCKER_ARTIFACT_KIND_IMAGE_EXPORT
                         - DOCKER_ARTIFACT_KIND_DOCKERFILE
+                        - DOCKER_ARTIFACT_KIND_PUSH_SOURCE
                     type: string
                     format: enum
                 state:
@@ -16620,6 +16622,8 @@ components:
                     $ref: '#/components/schemas/DockerImageLoad'
                 build:
                     $ref: '#/components/schemas/DockerImageBuild'
+                push:
+                    $ref: '#/components/schemas/DockerImagePush'
                 export:
                     $ref: '#/components/schemas/DockerImageExport'
                 pull:
@@ -16780,6 +16784,22 @@ components:
                 credentialProject:
                     type: string
             description: DockerImagePull names the registry reference and the optional expected local binding.
+        DockerImagePush:
+            type: object
+            properties:
+                sourceKey:
+                    $ref: '#/components/schemas/DockerImageSourceKey'
+                destination:
+                    type: string
+                loginId:
+                    type: string
+                digestOnly:
+                    type: boolean
+                credentialProject:
+                    type: string
+            description: |-
+                DockerImagePush selects the exact source and the registry destination.
+                 With no source key it only checks the destination's current digest.
         DockerImageReceipt:
             type: object
             properties:
@@ -16851,6 +16871,8 @@ components:
                 canImport:
                     type: boolean
                 canExport:
+                    type: boolean
+                canPush:
                     type: boolean
             description: DockerImageSupport describes image controls available from the connected Engine and agent.
         DockerImageTag:
@@ -17827,6 +17849,7 @@ components:
                          replaces the whole spec. Unset only with delete. A Container or Service
                          app containing only desired_run_state keeps the current spec and applies
                          that run intent at the supplied base_revision. It takes no placement.
+                         A RegistryLogin with only allow_push set updates that permission alone.
                 delete:
                     type: boolean
                     description: |-
@@ -20447,6 +20470,7 @@ components:
                     enum:
                         - HOST_ACCESS_KIND_UNSPECIFIED
                         - HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS
+                        - HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH
                         - HOST_ACCESS_KIND_SERVER_PATH
                         - HOST_ACCESS_KIND_DOCKER_SOCKET
                         - HOST_ACCESS_KIND_HOST_NETWORK
@@ -25328,6 +25352,8 @@ components:
                     $ref: '#/components/schemas/DockerImageLoad'
                 build:
                     $ref: '#/components/schemas/DockerImageBuild'
+                push:
+                    $ref: '#/components/schemas/DockerImagePush'
                 export:
                     $ref: '#/components/schemas/DockerImageExport'
                 pull:
@@ -26873,6 +26899,9 @@ components:
                     items:
                         type: string
                     description: The projects whose apps may pull with it, by ID. Empty for every project.
+                allowPush:
+                    type: boolean
+                    description: Allows reviewed image pushes. An existing login stays pull-only until enabled.
             description: |-
                 RegistryLogin is what signs in to a container registry, so an app can pull an
                  image the registry keeps private, and its update check and the image field can
@@ -26923,6 +26952,9 @@ components:
                 id:
                     type: string
                     description: Its resource's ID.
+                allowPush:
+                    type: boolean
+                    description: True when this login may authorize reviewed image pushes.
             description: |-
                 RegistryLoginInfo is a registry login as a caller may see it: never what signs
                  in. Below an admin, its name and registry alone.

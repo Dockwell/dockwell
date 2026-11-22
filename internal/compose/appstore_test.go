@@ -329,6 +329,8 @@ func accessClass(a resource.Access) string {
 		return "a server path"
 	case resource.AccessDockerDaemon:
 		return "Docker daemon settings"
+	case resource.AccessDockerImagePush:
+		return "a Docker image sent to a registry"
 	case resource.AccessDocker:
 		return "Docker's socket"
 	case resource.AccessNetwork:

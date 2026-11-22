@@ -50,7 +50,7 @@ func (s *Service) ListRegistryLogins(ctx context.Context, req *connect.Request[d
 		}
 		out.Logins = append(out.Logins, &dockwellv1.RegistryLoginInfo{
 			Id: l.ID, Name: l.Name, Registry: l.Spec.GetRegistry(), Username: l.Spec.GetUsername(),
-			Ecr: l.Spec.GetEcr() != nil, TokenHost: l.Spec.GetTokenHost(), Projects: l.Spec.GetProjects(),
+			Ecr: l.Spec.GetEcr() != nil, TokenHost: l.Spec.GetTokenHost(), Projects: l.Spec.GetProjects(), AllowPush: l.Spec.GetAllowPush(),
 		})
 	}
 	return connect.NewResponse(out), nil

@@ -436,6 +436,10 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, h.rpcError(ctx, err)
 	}
 	fp := req.Msg.GetFingerprint()
+	pushPermission := r.State == store.ChangePlanned && r.Plan.ChangesRegistryPushPermission()
+	if pushPermission && (p.Token != nil || p.Session.ID == "") {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in to change a registry login's push permission"), authapi.ReasonNeedsSession)
+	}
 	if r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && (p.Token != nil || p.Session.ID == "") {
 		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in with an install admin account to apply this image action"), authapi.ReasonNeedsSession)
 	}
@@ -466,6 +470,8 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's plan has fingerprint %s, not %s, so it isn't the plan you reviewed. Review it again, then apply it", r.ID, r.Fingerprint, fp),
 			"plan_changed")
+	case pushPermission && fp == "":
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("review the registry permission change, then apply it with its plan fingerprint"), "needs_confirmation")
 	case r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
 			errors.New("review the image action, then apply it with its plan fingerprint"), "needs_confirmation")
@@ -496,7 +502,7 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	access := r.State == store.ChangePlanned && h.engine.TouchesAccess(r.Plan)
 	client, _ := authapi.ClientFrom(ctx)
 	switch {
-	case r.State == store.ChangePlanned && (r.Plan.HasDockerMaintenance() || slices.ContainsFunc(r.Plan.Resources, func(p revision.ResourcePlan) bool { return p.DockerDaemon != nil })):
+	case r.State == store.ChangePlanned && (pushPermission || r.Plan.HasDockerMaintenance() || slices.ContainsFunc(r.Plan.Resources, func(p revision.ResourcePlan) bool { return p.DockerDaemon != nil })):
 		target := r.ID + ":" + r.Fingerprint
 		if req.Msg.GetProof() == "" {
 			h.auth.AskedForStepUp(p, auth.StepUpApproveChange, target, func() { h.noteUnconfirmed(r.ID, who) })

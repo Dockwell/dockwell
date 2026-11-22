@@ -15,9 +15,10 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { ActionMenu } from "../shell/ActionMenu";
 import { type ArchiveImageChoice, useArchiveActions } from "./DockerArchiveActions";
 import { type ImageServer, useDockerPull } from "./DockerPullFields";
+import { DockerPushSheet } from "./DockerPushSheet";
 
 type Selection = ArchiveImageChoice & { alias: string };
-type Editor = { kind: "pull" } | { kind: "add" | "move"; image: Selection };
+type Editor = { kind: "pull" } | { kind: "add" | "move" | "push"; image: Selection };
 type PlanInput = MessageInitShape<typeof PlanDockerMaintenanceRequestSchema>;
 
 function pullRequest(serverId: string, reference: string, loginId = "", imageId?: string): PlanInput {
@@ -54,7 +55,8 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
   const capabilityPending = mayPlan && servers.length > 0 && !overview.data && overview.isFetching;
   const showRowActions =
     capabilityPending ||
-    (mayPlan && [...support.values()].some((item) => item?.canPull || item?.canTag || item?.canExport));
+    (mayPlan &&
+      [...support.values()].some((item) => item?.canPull || item?.canTag || item?.canExport || item?.canPush));
   const openEditor = (next: Editor) => {
     request.current?.abort();
     setQuick(undefined);
@@ -125,6 +127,16 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
                 },
               ]
             : []),
+          ...(capabilities.canPush
+            ? [
+                {
+                  id: "push",
+                  label: t`Push image`,
+                  icon: "arrow-up" as const,
+                  onSelect: () => openEditor({ kind: "push", image }),
+                },
+              ]
+            : []),
           ...archives.forImage(image, detail),
         ]}
       />
@@ -167,7 +179,9 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
             {failure}
           </Callout>
         ) : null}
-        {editor ? (
+        {editor?.kind === "push" ? (
+          <DockerPushSheet image={editor.image} onReview={openReview} onClose={() => setEditor(undefined)} />
+        ) : editor ? (
           <DockerImageActionSheet
             editor={editor}
             servers={pullServers}

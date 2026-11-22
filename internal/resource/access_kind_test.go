@@ -38,6 +38,7 @@ func TestStoredAccessKindValues(t *testing.T) {
 		AccessCloudflareTakeover: 29,
 		AccessZoneMode:           30,
 		AccessDockerDaemon:       31,
+		AccessDockerImagePush:    32,
 	} {
 		if int(kind) != want {
 			t.Errorf("stored access kind %d was renumbered to %d", want, kind)

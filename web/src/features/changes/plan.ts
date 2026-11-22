@@ -100,6 +100,7 @@ export function dockerImageAction(plan: Plan | undefined) {
 
 export function dockerImagePasskey(plan: Plan | undefined): boolean {
   const action = dockerImageAction(plan);
+  if (action?.push) return true;
   const binding = action?.bindings[0];
   if (!action || !binding?.imageId || action.pull?.reference.includes("@")) return false;
   if (action.tag) return action.tag.sourceKey?.imageId !== binding.imageId;

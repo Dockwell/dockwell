@@ -1398,6 +1398,8 @@ const (
 	AccessZoneMode
 	// AccessDockerDaemon changes how Docker runs on the server, with root access.
 	AccessDockerDaemon
+	// AccessDockerImagePush sends an exact image to an external registry.
+	AccessDockerImagePush
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1641,6 +1643,8 @@ func AccessWords(a Access) string {
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
 	case AccessDockerDaemon:
 		return "the Docker daemon settings on this server"
+	case AccessDockerImagePush:
+		return "the registry destination " + plain(a.Path)
 	case AccessServerShell:
 		return "a shell command on the server, which runs as root"
 	case AccessCertificateKey:

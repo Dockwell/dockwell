@@ -815,7 +815,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			out, err = dockerInventoryList(ctx, c.cfg.Docker, ask)
 			if summary := out.GetOverview(); summary != nil && c.cfg.artifacts != nil && c.cfg.images != nil {
 				_, supported := c.cfg.Builds.(service.Builder)
-				summary.ImageOperations = &dockwellv1.DockerImageSupport{CanBuild: supported}
+				summary.ImageOperations = &dockwellv1.DockerImageSupport{CanBuild: supported, CanPush: true}
 			}
 		}
 		if err != nil {

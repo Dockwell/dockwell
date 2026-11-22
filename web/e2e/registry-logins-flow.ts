@@ -6,6 +6,7 @@
 // the token; New app then finds the private image with it, and its plan says which
 // login it pulls with, and the app runs.
 
+import { dockerPull, dockerRemoveImage } from "./docker-probe.ts";
 import type { Flow } from "./flows.ts";
 import { ownServerPath } from "./own-server.ts";
 import { atWidth, onTop } from "./sheets.ts";
@@ -21,7 +22,7 @@ const IMAGE = "ghcr.io/example/private:1.0";
 
 export const flow: Flow = {
   order: 97,
-  run: async (page, { origin, step, shoot }) => {
+  run: async (page, { origin, socket, step, shoot }) => {
     if (!process.env["DOCKWELL_TEST_REGISTRY"]) {
       step("registry logins: there's no registry stand-in on this engine, so nothing signs in");
       return;
@@ -59,8 +60,60 @@ export const flow: Flow = {
     await card.getByText("ghcr").first().waitFor();
     await shoot(page, "registry-logins-connected");
 
-    step("registry logins: a standalone image pull offers the only eligible login and names it in review");
+    step("registry logins: allow pushes in place with a passkey, then turn them off in Settings");
     const server = await ownServerPath(page, origin);
+    const localImage = "fixture/push-permission:local";
+    await dockerPull(socket, localImage);
+    try {
+      await page.goto(`${origin}${server}/docker/images`);
+      // Earlier flows can leave more images than the first page holds.
+      await page.getByRole("textbox", { name: "Search images" }).fill(localImage);
+      await page.getByRole("button", { name: `Actions for ${localImage}`, exact: true }).click();
+      await page.getByRole("menuitem", { name: "Push image" }).click();
+      const push = onTop(page.getByRole("dialog", { name: "Push image" }));
+      await push.getByRole("textbox", { name: "Tag" }).fill("next");
+      const allow = push.getByRole("button", { name: "Allow pushes with this login" });
+      await allow.waitFor();
+      const reviewPush = push.getByRole("button", { name: "Review push" });
+      if (!(await reviewPush.isDisabled())) fail("a pull-only login can review a push");
+      await shoot(page, "registry-logins-push-permission");
+      await allow.click();
+      const grant = onTop(page.getByRole("dialog", { name: "Review plan" }));
+      await grant.getByText("Applying this asks for your passkey", { exact: true }).waitFor();
+      await shoot(page, "registry-logins-push-review");
+      const approved = page.waitForResponse((response) => response.url().endsWith("/FinishStepUp") && response.ok());
+      await grant.getByRole("button", { name: /Apply plan/ }).click();
+      await approved;
+      const done = page.getByRole("button", { name: "Done", exact: true });
+      await done.click();
+      await reviewPush.waitFor();
+      await page.waitForFunction(() =>
+        [...document.querySelectorAll("button")].some(
+          (button) => button.textContent?.trim() === "Review push" && !button.disabled,
+        ),
+      );
+      if ((await push.getByRole("textbox", { name: "Tag" }).inputValue()) !== "next") {
+        fail("enabling the login discarded the destination");
+      }
+      await push.getByRole("button", { name: "Cancel", exact: true }).click();
+    } finally {
+      await dockerRemoveImage(socket, localImage);
+    }
+    await page.goto(`${origin}/settings/integrations`);
+    const pushPermission = card.getByRole("switch", { name: "Allow pushes" });
+    await pushPermission.waitFor();
+    if (!(await pushPermission.isChecked())) fail("the login's push permission was not saved");
+    await shoot(page, "registry-logins-push-setting");
+    await pushPermission.click();
+    const revoke = onTop(page.getByRole("dialog", { name: "Review plan" }));
+    await revoke.getByText("Applying this asks for your passkey", { exact: true }).waitFor();
+    await revoke.getByRole("button", { name: /Apply plan/ }).click();
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    if (await pushPermission.isChecked()) {
+      await card.getByRole("switch", { name: "Allow pushes", checked: false }).waitFor();
+    }
+
+    step("registry logins: a standalone image pull offers the only eligible login and names it in review");
     await page.goto(`${origin}${server}/docker/images`);
     await page.getByRole("button", { name: "Pull image", exact: true }).click();
     const pull = onTop(page.getByRole("dialog", { name: "Pull image" }));

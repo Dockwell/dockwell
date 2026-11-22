@@ -38,6 +38,8 @@ func (c *calls) dockerArtifact(ctx context.Context, ask *agentv1.DockerArtifactC
 	case err != nil:
 	case spool == nil || owner == "" && ask.GetDiscardExport() == nil && ask.GetReleasePin() == nil:
 		err = artifact.ErrUnavailable
+	case ask.GetPreparePush() != nil:
+		out.Artifact, out.Descriptor_, err = c.prepareImagePush(ctx, owner, ask.GetPreparePush())
 	case ask.GetBeginUpload() != nil:
 		begin := ask.GetBeginUpload()
 		out.Artifact, err = spool.Begin(owner, begin.GetKind(), begin.GetSizeBytes(), begin.GetSha256(), begin.GetGzip(), begin.GetFileName())

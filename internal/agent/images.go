@@ -77,6 +77,8 @@ type ImageReads struct {
 	// Test, in a test, is the registry every read goes to, such as the fake
 	// engine's: nothing else is reached.
 	Test string
+	// Secure supplies the HTTPS transport for isolated registry fixtures.
+	Secure registry.Doer
 	// Off says why images aren't read here, such as a test with no registry of its
 	// own. Empty reads them.
 	Off string
@@ -201,7 +203,7 @@ func (im *images) ready(ctx context.Context) (*registry.Client, registry.Platfor
 		return client, platform
 	}
 	im.mu.Unlock()
-	o := registry.Options{Test: im.o.Test, Now: im.now}
+	o := registry.Options{Test: im.o.Test, Now: im.now, Secure: im.o.Secure}
 	named := map[string]bool{registry.Hub: true}
 	if info, err := im.docker.Info(ctx); err == nil && info.RegistryConfig != nil {
 		o.Mirrors, o.Insecure = info.RegistryConfig.Mirrors, info.RegistryConfig.Insecure

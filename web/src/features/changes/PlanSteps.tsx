@@ -28,6 +28,7 @@ import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerArchiveStep } from "./DockerArchiveStep";
 import { DockerBuildStep } from "./DockerBuildStep";
+import { DockerPushStep } from "./DockerPushStep";
 import { DockerStops } from "./DockerStops";
 import { MachineWords } from "./FailureNotice";
 import { PanelLine, PanelPlan } from "./PanelPlan";
@@ -358,6 +359,7 @@ function StepRow({
   const imageAction = step.dockerMaintenance?.imageAction;
   if (imageAction?.build)
     return <DockerBuildStep action={imageAction} serverId={serverId} changeId={changeId} live={live} />;
+  if (imageAction?.push) return <DockerPushStep action={imageAction} server={server} live={live} />;
   if (imageAction?.load || imageAction?.export)
     return <DockerArchiveStep action={imageAction} server={server} live={live} />;
   if (imageAction) {

@@ -1814,6 +1814,7 @@ func Methods() []*apicli.Method {
 				{Path: "tag"},
 				{Path: "load"},
 				{Path: "build"},
+				{Path: "push"},
 				{Path: "export"},
 				{Path: "pull"},
 			},
@@ -5034,6 +5035,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "ecr.region", Help: "The region the registry is in, such as \"eu-west-1\"."},
 				{Path: "token_host", Help: "The host the registry sent a client to for its token when the login was checked, such as \"auth.docker.io\": the only place beside the registry the login is sent. Empty for a registry that signs in itself."},
 				{Path: "projects", Help: "The projects whose apps may pull with it, by ID. Empty for every project."},
+				{Path: "allow_push", Help: "Allows reviewed image pushes. An existing login stays pull-only until enabled."},
 			},
 		},
 		{

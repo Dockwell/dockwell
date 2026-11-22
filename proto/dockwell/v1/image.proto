@@ -137,6 +137,8 @@ message RegistryLoginInfo {
   repeated string projects = 6;
   // Its resource's ID.
   string id = 7;
+  // True when this login may authorize reviewed image pushes.
+  bool allow_push = 8;
 }
 
 // CheckRegistryLoginRequest is a login to try, as typed or as saved.

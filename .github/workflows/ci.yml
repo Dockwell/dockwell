@@ -178,6 +178,7 @@ jobs:
         run: |
           set -o pipefail
           go test -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
+          grep -q '^--- PASS: TestReviewedImagePushOnRealDocker ' "$RUNNER_TEMP/docker.out"
       - name: Docker network, volume and build coverage
         if: steps.pick.outputs.run == 'true'
         run: |
@@ -255,12 +256,13 @@ jobs:
                 fi
                 sleep 1
               done
-              go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
+              go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
               for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID KeepsAnImageWithTwoTags; do
                 grep -q "^--- PASS: TestCleanup${test}OnRealDocker " "$state/tests.out"
               done
               grep -q '^--- PASS: TestArchiveRoundTripAndResumeOnRealDocker ' "$state/tests.out"
               grep -q '^--- PASS: TestBuildImageFromSealedContextOnRealDocker ' "$state/tests.out"
+              grep -q '^--- PASS: TestReviewedImagePushOnRealDocker ' "$state/tests.out"
               if [[ "$version" == 28.5.2 ]]; then
                 go test -race -v -count=1 -run '^Test(ReviewedImagePull|ReviewedTagMoveKeepsBothImages)OnRealDocker$' ./internal/agent | tee "$state/images.out"
                 grep -q '^--- PASS: TestReviewedImagePullOnRealDocker ' "$state/images.out"
@@ -297,8 +299,8 @@ jobs:
             sleep 1
           done
           grep -Fq 'io.containerd.snapshotter.v1' "$state/driver"
-          go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume|BuildImageFromSealedContext)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
-          for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupKeepsAnImageWithTwoTags CleanupBuildCacheStaysDisabledOnContainerd29; do
+          go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
+          for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedImagePush ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupKeepsAnImageWithTwoTags CleanupBuildCacheStaysDisabledOnContainerd29; do
             grep -q "^--- PASS: Test${test}OnRealDocker " "$state/tests.out"
           done
           grep -q '^--- SKIP: TestCleanupRemovesOneBuildCacheRecordOnRealDocker ' "$state/tests.out"

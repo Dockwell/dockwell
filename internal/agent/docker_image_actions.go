@@ -36,6 +36,9 @@ func imageActionReference(action *v1.DockerImageAction) (registry.Ref, error) {
 }
 
 func imageReference(action *v1.DockerImageAction) string {
+	if push := action.GetPush(); push != nil {
+		return push.GetDestination()
+	}
 	if tag := action.GetTag(); tag != nil {
 		return tag.GetDestination()
 	}
@@ -49,6 +52,16 @@ func (c *calls) imageActionScope(ref resource.Ref, plan *v1.DockerMaintenance) e
 		return errors.New("the agent could not verify the image action's server")
 	}
 	a := plan.GetImageAction()
+	if push := a.GetPush(); push != nil {
+		r, err := imageActionReference(a)
+		key := push.GetSourceKey()
+		if isImageArchive(a) || a.GetBuild() != nil || a.GetTag() != nil || a.GetPull() != nil || err != nil || r.String() != push.GetDestination() ||
+			r.Registry == docker.BuiltRegistry || r.Tag == "" && r.Digest == "" || r.Tag != "" && r.Digest != "" ||
+			len(a.GetApprovedLogins()) != 1 || key != nil && (key.GetServerId() != ref.Scope || !docker.IsImageID(key.GetImageId())) {
+			return errImageChanged
+		}
+		return nil
+	}
 	if isImageArchive(a) || a.GetBuild() != nil {
 		return nil
 	}
@@ -271,7 +284,17 @@ func (c *calls) planImageAction(ctx context.Context, desired *agentv1.DesiredRes
 	if err := c.imageActionScope(ref, plan); err != nil {
 		return callFailed(err), true
 	}
-	if plan.GetImageAction().GetBuild() != nil {
+	if a := plan.GetImageAction(); a.GetPush() != nil {
+		var err error
+		if plan.GetChangeId() == "" && (len(a.GetBindings()) == 0 || len(desired.GetDockerRegistryAuth()) != 0) {
+			err = c.previewImagePush(ctx, ref, plan, desired.GetDockerRegistryAuth())
+		} else {
+			err = c.checkPushSource(a)
+		}
+		if err != nil {
+			return callFailed(err), true
+		}
+	} else if plan.GetImageAction().GetBuild() != nil {
 		if plan.GetChangeId() == "" {
 			desired := proto.CloneOf(desired)
 			desired.DockerMaintenance = plan
@@ -335,6 +358,12 @@ func (c *calls) runImageAction(ctx context.Context, callID uint64, ref resource.
 	var receipts []*v1.DockerImageReceipt
 	var err error
 	switch {
+	case plan.GetImageAction().GetPush() != nil:
+		var receipt *v1.DockerImageReceipt
+		receipt, err = c.applyImagePush(ctx, ref, plan, desired.GetDockerRegistryAuth())
+		if receipt != nil {
+			receipts = append(receipts, receipt)
+		}
 	case isImageArchive(plan.GetImageAction()):
 		receipts, err = c.applyArchiveAction(ctx, ref, plan, protected)
 	case plan.GetImageAction().GetBuild() != nil:

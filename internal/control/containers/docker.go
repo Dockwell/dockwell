@@ -109,7 +109,8 @@ func (h *Handler) GetDockerOverview(ctx context.Context, req *connect.Request[v1
 					if session.DockerImageOperations() {
 						// Engine treats unqualified names as Docker Hub names. Mirrors
 						// are pull-through transport, never the registry in a reference.
-						summary.ImageOperations = &v1.DockerImageSupport{DefaultRegistry: "docker.io", CanPull: true, CanTag: true, CanBuild: summary.GetImageOperations().GetCanBuild(), CanImport: session.ArtifactTransfers(), CanExport: session.ArtifactTransfers()}
+						canPush := session.ArtifactTransfers() && summary.GetImageOperations().GetCanPush()
+						summary.ImageOperations = &v1.DockerImageSupport{DefaultRegistry: "docker.io", CanPull: true, CanTag: true, CanBuild: summary.GetImageOperations().GetCanBuild(), CanImport: session.ArtifactTransfers(), CanExport: session.ArtifactTransfers(), CanPush: canPush}
 					}
 					for _, row := range summary.GetAttention() {
 						row.Key = &v1.DockerObjectKey{ServerId: s.ID, Kind: v1.DockerObjectKind_DOCKER_OBJECT_KIND_CONTAINER, EngineId: row.GetKey().GetEngineId()}

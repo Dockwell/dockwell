@@ -17,6 +17,7 @@ import {
   Connection,
   ConnectionService,
   DatabaseService,
+  DockerImageOutcome,
   DockerService,
   type Domain,
   type DomainRoute,
@@ -1120,6 +1121,14 @@ function landedAt(change: Change | undefined): Date | undefined {
   return newest;
 }
 
+function pushResultUnknown(change: Change | undefined): boolean {
+  return Boolean(
+    change?.steps.some((step) =>
+      step.dockerImageReceipts.some((receipt) => receipt.outcome === DockerImageOutcome.UNKNOWN),
+    ),
+  );
+}
+
 function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefined): string {
   const { t, i18n } = useLingui();
   const words = useChangeWords();
@@ -1134,6 +1143,15 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
       if (phase === "applying") return t`Building image`;
       if (phase === "failed") return t`Image build ended`;
       if (phase === "arrived" || phase === "history") return t`Image built`;
+    }
+    if (imageAction.push) {
+      if (phase === "applying") return t`Pushing image`;
+      if (phase === "arrived" || phase === "history") return t`Image published`;
+      if (phase === "failed") {
+        if (pushResultUnknown(change)) return t`Result unknown`;
+        if (change?.steps.some((step) => step.reason === "docker_push_not_published")) return t`Not published`;
+        return t`Push failed`;
+      }
     }
     if (imageAction.load || imageAction.export) {
       if (phase === "applying") return imageAction.export ? t`Preparing image archive` : t`Importing images`;
@@ -1557,7 +1575,7 @@ function PlanBody({
               <HowItWorks notices={[{ key: "data-left", ...dataLeft }]} />
             </Callout>
           ) : null}
-          {wentOffline(change) ? null : (
+          {wentOffline(change) || (dockerImageAction(plan)?.push && pushResultUnknown(change)) ? null : (
             <>
               <FailureNotice
                 message={change.error || t`A step failed, so the change stopped there.`}

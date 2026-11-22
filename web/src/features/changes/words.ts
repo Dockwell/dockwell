@@ -428,6 +428,8 @@ export function useChangeWords(): ChangeWords {
             );
           case HostAccessKind.BACKUP_OF:
             return t`a backup of a volume that reached ${path}, which can hold what's there, as good as root`;
+          case HostAccessKind.DOCKER_IMAGE_PUSH:
+            return t`the registry destination ${path}`;
           case HostAccessKind.DOCKER_DAEMON_SETTINGS:
             return t`the Docker daemon settings on this server`;
           case HostAccessKind.SERVER_SHELL:

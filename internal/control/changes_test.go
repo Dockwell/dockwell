@@ -84,6 +84,7 @@ func (g *gate) Put(ctx context.Context, name string, rule *resourcev1.FirewallRu
 // testServer is a server with an agent, whose drivers run Docker and a
 // firewall in memory.
 type testServer struct {
+	logger *slog.Logger
 	// system reads its system services, when set.
 	system  *system.Reader
 	id      *enroll.Identity
@@ -227,9 +228,13 @@ func (s *testServer) run(t *testing.T) {
 	// It says nothing of the world, whatever machine the test runs on.
 	collector := collect.New()
 	collector.Metadata, collector.STUN = collect.ClosedMetadata, []string{}
+	logger := s.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
 	cfg := agent.Config{
 		Collector: collector,
-		Logger:    slog.New(slog.DiscardHandler), Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
+		Logger:    logger, Dir: t.TempDir(), Identity: s.id, Build: buildinfo.Read(), Drivers: s.drivers, Logs: s.logs,
 		Docker: s.client, ArtifactClock: s.artifactClock, Hello: s.hello, Health: s.health, Files: s.disk, Updates: s.updates, Probe: s.probe, Probes: s.probes, OnePanel: s.onePanel, Panels: s.panels, Terminals: s.terms, Access: s.access,
 		System: s.system, Certificates: s.certs, Tunnels: s.tunnels,
 	}

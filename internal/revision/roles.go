@@ -582,6 +582,8 @@ func installWide(a resource.Access) string {
 		return "adds a rule to a Cloudflare tunnel it shares with others"
 	case resource.AccessZoneMode:
 		return "sets a zone at Cloudflare to Full (strict)"
+	case resource.AccessDockerImagePush:
+		return "sends a Docker image to a registry"
 	case resource.AccessDocker, resource.AccessNetwork, resource.AccessBackupOf,
 		resource.AccessDomain, resource.AccessPlainForAnyone, resource.AccessHTTPSOff, resource.AccessExternalVolume,
 		resource.AccessDockerDaemon, resource.AccessServerShell, resource.AccessOpened, resource.AccessHostProcesses, resource.AccessRootTogether,

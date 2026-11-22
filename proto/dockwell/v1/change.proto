@@ -400,6 +400,7 @@ message Edit {
   // replaces the whole spec. Unset only with delete. A Container or Service
   // app containing only desired_run_state keeps the current spec and applies
   // that run intent at the supplied base_revision. It takes no placement.
+  // A RegistryLogin with only allow_push set updates that permission alone.
   dockwell.resource.v1alpha1.Spec spec = 2;
   // Deletes the resource. An environment goes only once what lives in it has
   // gone, in this change or an earlier one. A project takes its environments
@@ -1714,6 +1715,7 @@ enum GuessableSecret {
 enum HostAccessKind {
   HOST_ACCESS_KIND_UNSPECIFIED = 0;
   HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS = 400;
+  HOST_ACCESS_KIND_DOCKER_IMAGE_PUSH = 401;
   // A server path, mounted into a container, or by a volume's bind option.
   HOST_ACCESS_KIND_SERVER_PATH = 1;
   // Docker's or containerd's socket, or a path that holds one: control of
@@ -2990,6 +2992,16 @@ message DockerImageExport {
   repeated string tags = 3;
 }
 
+// DockerImagePush selects the exact source and the registry destination.
+// With no source key it only checks the destination's current digest.
+message DockerImagePush {
+  DockerImageSourceKey source_key = 1;
+  string destination = 2;
+  string login_id = 3;
+  bool digest_only = 4;
+  string credential_project = 5;
+}
+
 // DockerImageBinding is the local tag evidence the change reviewed.
 message DockerImageBinding {
   string reference = 1;
@@ -3035,6 +3047,7 @@ message DockerImageAction {
   DockerImageTag tag = 12;
   DockerImageLoad load = 13;
   DockerImageBuild build = 14;
+  DockerImagePush push = 15;
   DockerImageExport export = 17;
   DockerImagePull pull = 18;
 }

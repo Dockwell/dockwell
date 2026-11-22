@@ -9760,6 +9760,9 @@ msgstr "镜像构建已结束"
 msgid "Image built"
 msgstr "镜像已构建"
 
+msgid "Image published"
+msgstr "镜像已发布"
+
 msgid "Image pulled"
 msgstr "镜像已拉取"
 
@@ -9844,6 +9847,9 @@ msgstr "无法撤销"
 msgid "Not every server is connected"
 msgstr "并非所有服务器都已连接"
 
+msgid "Not published"
+msgstr "未发布"
+
 msgid "Nothing outside the server reaches these yet."
 msgstr "服务器之外还无法访问这些应用。"
 
@@ -9864,6 +9870,12 @@ msgstr "正在准备镜像归档"
 
 msgid "Pulling image"
 msgstr "正在拉取镜像"
+
+msgid "Push failed"
+msgstr "推送失败"
+
+msgid "Pushing image"
+msgstr "正在推送镜像"
 
 msgid "Re-enabling Docker cleanup"
 msgstr "正在重新启用 Docker 清理"
@@ -9891,6 +9903,9 @@ msgstr "已在 {server} 上重启 {name}"
 
 msgid "Restarting {name} on {server}"
 msgstr "正在 {server} 上重启 {name}"
+
+msgid "Result unknown"
+msgstr "结果未知"
 
 msgid "Rolling back failed"
 msgstr "回滚失败"
@@ -10275,14 +10290,80 @@ msgstr "正在读取构建日志"
 msgid "Registry logins"
 msgstr "镜像仓库登录"
 
-msgid "Result unknown"
-msgstr "结果未知"
-
 msgid "The result will appear here when it finishes."
 msgstr "完成后，结果会显示在这里。"
 
 msgid "Uploaded context"
 msgstr "已上传的上下文"
+
+msgid "Already published"
+msgstr "已发布"
+
+msgid "Check result"
+msgstr "检查结果"
+
+msgid "Check what the destination serves before reviewing another push."
+msgstr "再次审核推送前，请检查目标当前提供的镜像。"
+
+msgid "Checking the registry"
+msgstr "正在检查镜像仓库"
+
+msgid "Choose another tag"
+msgstr "换用其他标签"
+
+msgid "Destination"
+msgstr "存放位置"
+
+msgid "Manifest digest"
+msgstr "清单摘要"
+
+msgid "Platform"
+msgstr "平台"
+
+msgid "Publish by digest"
+msgstr "按摘要发布"
+
+msgid "Publish from <0>{server}</0>"
+msgstr "从 <0>{server}</0> 发布"
+
+msgid "Publishing image"
+msgstr "正在发布镜像"
+
+msgid "Registry"
+msgstr "镜像仓库"
+
+msgid "Registry confirmation missing"
+msgstr "未收到镜像仓库的确认"
+
+msgid "Registry couldn't be checked"
+msgstr "无法检查镜像仓库"
+
+msgid "Registry login"
+msgstr "仓库登录凭据"
+
+msgid "Registry serves"
+msgstr "镜像仓库当前提供"
+
+msgid "Registry serves the reviewed digest"
+msgstr "镜像仓库提供的摘要与审核一致"
+
+msgid "Review again"
+msgstr "重新审查"
+
+msgid "Tag"
+msgstr "标签"
+
+msgid "The destination is still empty."
+msgstr "目标仍为空。"
+
+msgid "The registry checks write access when the image is published."
+msgstr "镜像仓库会在发布时验证写入权限。"
+
+msgid "Verified"
+msgstr "已验证"
+
+msgid "Waiting for a transfer slot"
+msgstr "正在等待传输名额"
 
 msgctxt "what stops while Docker restarts"
 msgid "App"
@@ -10540,9 +10621,6 @@ msgstr "将开放{opening}"
 msgid "Packages it installs on {server}"
 msgstr "它在 {server} 上安装的软件包"
 
-msgid "Platform"
-msgstr "平台"
-
 msgid "Platform manifest digest"
 msgstr "平台清单摘要"
 
@@ -10567,9 +10645,6 @@ msgstr "重启 <0>{server}</0>"
 
 msgid "Registry index digest"
 msgstr "镜像索引摘要"
-
-msgid "Registry login"
-msgstr "仓库登录凭据"
 
 msgid "Reload Docker on {server}"
 msgstr "重新加载 {server} 上的 Docker"
@@ -11380,6 +11455,9 @@ msgstr "SSH 隧道是更安全的方式"
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "放行本服务器或私有网络的地址限制无法从这里看出。"
 
+msgid "Another writer can claim this tag"
+msgstr "其他发布者可能抢先使用此标签"
+
 msgid "Anyone who can reach this server gets it, around whatever is in front of it."
 msgstr "任何能访问此服务器的人都能访问它，并绕过它前面的任何内容。"
 
@@ -11877,6 +11955,9 @@ msgstr "{name} 备份的一小时时限只是估计"
 
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
+
+msgid "The registry can accept another write between the final check and publication."
+msgstr "从最后检查到发布期间，其他发布者仍可写入此标签。"
 
 msgid "The server keeps that data for 7 days, and undoing this brings it back. After that it is gone."
 msgstr "服务器会将这些数据保留 7 天，撤销可以恢复。此后数据将被删除。"
@@ -12887,6 +12968,9 @@ msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {
 
 msgid "the port {path} on the server itself, past its containers, at {detail} over plain HTTP"
 msgstr "服务器本身的端口 {path}，这越过了容器的边界，位于 {detail}，通过纯 HTTP"
+
+msgid "the registry destination {path}"
+msgstr "镜像仓库目标 {path}"
 
 msgid "the rule {path} in the tunnel {detail}, which it shares with others, sending to {sendsTo}"
 msgstr "与他人共用的隧道 {detail} 中的规则 {path}，转发到 {sendsTo}"
@@ -14217,9 +14301,6 @@ msgstr "同环境服务"
 msgid "Create a database"
 msgstr "创建数据库"
 
-msgid "Destination"
-msgstr "存放位置"
-
 msgid "Dockwell can't read its databases"
 msgstr "Dockwell 无法读取数据库"
 
@@ -14695,9 +14776,6 @@ msgstr "选择 Docker 镜像归档并重新导入。"
 msgid "Choose an archive up to 8 GiB."
 msgstr "请选择不超过 8 GiB 的归档。"
 
-msgid "Choose another tag"
-msgstr "换用其他标签"
-
 msgid "Choose file"
 msgstr "选择文件"
 
@@ -14732,9 +14810,6 @@ msgstr "此标签在这台服务器上指向 <0>{0}</0>。"
 msgid "Resume"
 msgstr "继续"
 
-msgid "Tag"
-msgstr "标签"
-
 msgid "Tag to include"
 msgstr "要包含的标签"
 
@@ -14763,9 +14838,6 @@ msgstr "上传归档"
 
 msgid "Use <0>{suggested}</0>"
 msgstr "使用 <0>{suggested}</0>"
-
-msgid "Waiting for a transfer slot"
-msgstr "正在等待传输名额"
 
 #. placeholder {0}: Math.ceil(remaining / 60)
 msgid "{0} min left"
@@ -14969,9 +15041,6 @@ msgstr "受保护的对象"
 
 msgid "Re-enable cleanup"
 msgstr "重新启用清理"
-
-msgid "Review again"
-msgstr "重新审查"
 
 msgid "Review cleanup"
 msgstr "审查清理"
@@ -15379,6 +15448,9 @@ msgstr "新标签"
 msgid "Pull image"
 msgstr "拉取镜像"
 
+msgid "Push image"
+msgstr "推送镜像"
+
 msgid "Review pull"
 msgstr "查看拉取计划"
 
@@ -15633,9 +15705,6 @@ msgstr "已在此服务器上"
 msgid "Other registry…"
 msgstr "其他镜像仓库…"
 
-msgid "Registry"
-msgstr "镜像仓库"
-
 msgid "Registry address"
 msgstr "镜像仓库地址"
 
@@ -15659,6 +15728,32 @@ msgstr "无法读取标签"
 
 msgid "{fallbackName} if needed"
 msgstr "需要时使用 {fallbackName}"
+
+msgid "Allow pushes with this login"
+msgstr "允许使用此登录凭据推送"
+
+#. placeholder {0}: l.name
+#. placeholder {0}: login.name
+msgid "Allow pushes with {0}"
+msgstr "允许使用 {0} 推送"
+
+msgid "Edit tag"
+msgstr "编辑标签"
+
+msgid "Preparing image and checking destination"
+msgstr "正在准备镜像并检查目标"
+
+msgid "Push couldn't be reviewed"
+msgstr "无法审核推送"
+
+msgid "Registry logins couldn't be loaded"
+msgstr "无法加载仓库登录"
+
+msgid "Review push"
+msgstr "审核推送"
+
+msgid "This destination serves a different digest."
+msgstr "此目标已提供不同的摘要。"
 
 msgid "API version"
 msgstr "API 版本"
@@ -21014,6 +21109,9 @@ msgstr "{when}有一份备份未能送达"
 msgid "Add a provider"
 msgstr "添加提供方"
 
+msgid "Allow pushes"
+msgstr "允许推送"
+
 msgid "Any DNS provider"
 msgstr "任何 DNS 服务商"
 
@@ -21051,6 +21149,10 @@ msgstr "如何在其后设置路由"
 
 msgid "Integrations"
 msgstr "集成"
+
+#. placeholder {0}: l.name
+msgid "Keep {0} pull-only"
+msgstr "将 {0} 设为仅拉取"
 
 #. placeholder {0}: k.record
 msgid "Kept: {name}, {0}"
@@ -21111,6 +21213,9 @@ msgstr "再显示 {hidden} 条"
 
 msgid "Sign-in provider"
 msgstr "登录提供方"
+
+msgid "Use this login to publish reviewed images."
+msgstr "使用此登录凭据发布已审核的镜像。"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "应用使用的值保存在<0>变量</0>中"
