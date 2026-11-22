@@ -277,7 +277,10 @@ async function shoot(page: Page, name: string) {
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       const storage = /^docker-slice[45]-/.test(name);
-      const imageAction = name.startsWith("docker-slice6a-") || name === "registry-logins-docker-pull";
+      const imageAction =
+        name.startsWith("docker-slice6a-") ||
+        name.startsWith("docker-slice6b-") ||
+        name === "registry-logins-docker-pull";
       const artifact = storage || imageAction;
       for (const width of storage ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {
         await atWidth(page, { width, height: width === 1440 ? 900 : 844 });

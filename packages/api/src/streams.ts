@@ -9,6 +9,7 @@
 
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 
+import { type DockerArtifactInfo, DockerArtifactInfoSchema } from "./gen/dockwell/v1/docker_pb";
 import { type UploadFileResponse, UploadFileResponseSchema } from "./gen/dockwell/v1/file_pb";
 import { type StreamRoute, streamRoutes } from "./gen/streams";
 
@@ -84,28 +85,31 @@ export interface UploadPart {
  * Sends one part of an upload, and answers how far the upload got. It uses
  * XMLHttpRequest, as fetch can't say how much of a request has gone.
  */
-export function uploadFilePart(p: UploadPart): Promise<UploadFileResponse> {
-  const route: StreamRoute = streamRoutes.FileService_UploadFile;
+function sendPart<T>(
+  route: StreamRoute,
+  url: string,
+  p: Pick<UploadPart, "part" | "onSent" | "signal">,
+  decode: (value: JsonValue) => T,
+  prefix?: string,
+): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (p.signal?.aborted) {
+      reject(p.signal.reason);
+      return;
+    }
     const xhr = new XMLHttpRequest();
     const stop = () => xhr.abort();
     p.signal?.addEventListener("abort", stop, { once: true });
     const done = () => p.signal?.removeEventListener("abort", stop);
-    xhr.open(
-      route.method,
-      routeURL(route, { serverId: p.serverId, uploadId: p.uploadId }, { offset: p.offset }, p.baseUrl),
-    );
+    xhr.open(route.method, url);
     if (route.requestType) xhr.setRequestHeader("Content-Type", route.requestType);
+    if (prefix !== undefined) xhr.setRequestHeader("Dockwell-Artifact-Prefix-SHA256", prefix);
     xhr.upload.onprogress = (event) => p.onSent?.(event.loaded);
     xhr.onload = () => {
       done();
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          resolve(
-            fromJson(UploadFileResponseSchema, JSON.parse(xhr.responseText || "{}") as JsonValue, {
-              ignoreUnknownFields: true,
-            }),
-          );
+          resolve(decode(JSON.parse(xhr.responseText || "{}") as JsonValue));
         } catch (err) {
           reject(new StreamError(xhr.status, `The answer to an upload can't be read: ${String(err)}`, ""));
         }
@@ -123,6 +127,35 @@ export function uploadFilePart(p: UploadPart): Promise<UploadFileResponse> {
     };
     xhr.send(p.part);
   });
+}
+
+export function uploadFilePart(p: UploadPart): Promise<UploadFileResponse> {
+  const route: StreamRoute = streamRoutes.FileService_UploadFile;
+  const url = routeURL(route, { serverId: p.serverId, uploadId: p.uploadId }, { offset: p.offset }, p.baseUrl);
+  return sendPart(route, url, p, (value) => fromJson(UploadFileResponseSchema, value, { ignoreUnknownFields: true }));
+}
+
+export type ArtifactPart = Omit<UploadPart, "uploadId"> & { artifactId: string; prefixSHA256: string };
+
+export function uploadDockerArtifactPart(p: ArtifactPart): Promise<DockerArtifactInfo> {
+  const route: StreamRoute = streamRoutes.DockerService_UploadDockerArtifact;
+  const url = routeURL(route, { serverId: p.serverId, artifactId: p.artifactId }, { offset: p.offset }, p.baseUrl);
+  return sendPart(
+    route,
+    url,
+    p,
+    (value) => fromJson(DockerArtifactInfoSchema, value, { ignoreUnknownFields: true }),
+    p.prefixSHA256,
+  );
+}
+
+export function downloadDockerArtifactURL(p: { serverId: string; artifactId: string; baseUrl?: string }): string {
+  return routeURL(
+    streamRoutes.DockerService_DownloadDockerArtifact,
+    { serverId: p.serverId, artifactId: p.artifactId },
+    {},
+    p.baseUrl,
+  );
 }
 
 /** Where a file, or a folder as a .zip, downloads from, for a link a browser saves. */

@@ -390,3 +390,187 @@
   font-weight: 400;
   overflow-wrap: anywhere;
 }
+
+.docker-image-fields,
+.docker-artifact-progress,
+.docker-artifact-preview {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.docker-artifact-progress progress {
+  width: 100%;
+  accent-color: var(--cobalt);
+}
+
+.docker-artifact-preview h3 {
+  margin: 0;
+  font-size: var(--type-body-size);
+}
+
+.docker-artifact-image {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow-wrap: anywhere;
+}
+
+.docker-artifact-image .dw-tag {
+  width: fit-content;
+}
+
+.plan-archive-step {
+  overflow-wrap: anywhere;
+}
+
+.plan-archive-download {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.docker-artifact-drop {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.docker-artifact-drop[data-dragging] {
+  border-color: var(--cobalt);
+  background: var(--selection);
+}
+
+.docker-artifact-drop > svg {
+  color: var(--cobalt);
+}
+
+.docker-artifact-drop small,
+.docker-archive-lease-name small {
+  display: block;
+  color: var(--ink-muted);
+}
+
+.docker-artifact-progress {
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.docker-artifact-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docker-artifact-progress-line small {
+  color: var(--ink-muted);
+}
+
+.docker-artifact-tag {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.docker-artifact-tag button {
+  justify-self: start;
+  max-width: 100%;
+  height: auto;
+  min-height: 30px;
+  padding-block: var(--space-1);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docker-archive-leases {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.docker-archive-lease-heading,
+.docker-archive-lease-actions,
+.plan-archive-identity,
+.plan-archive-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.docker-archive-lease-heading {
+  justify-content: space-between;
+}
+
+.docker-archive-lease-heading h3 {
+  font-size: var(--type-body-size);
+  margin: 0;
+}
+
+.docker-archive-leases ul {
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.docker-archive-leases > ul > li {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.docker-archive-leases > ul > li + li {
+  border-top: 1px solid var(--line);
+}
+
+.docker-archive-lease-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.docker-archive-lease-name svg {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.plan-archive-tags .dw-tag {
+  max-width: 100%;
+  height: auto;
+  min-height: 22px;
+  padding-block: 3px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  .docker-archive-leases > ul > li {
+    grid-template-columns: minmax(0, 1fr) max-content;
+  }
+
+  .docker-archive-lease-actions {
+    grid-column: 1 / -1;
+    justify-content: end;
+  }
+}

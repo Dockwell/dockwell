@@ -113,11 +113,14 @@ describe("SystemLogPage", () => {
   });
 
   it("reads a time range back, without following", async () => {
+    const before = Date.now();
     const { read, watch } = renderLog("/servers/srv_1/log?range=24h");
     await screen.findByText("nginx: started");
     const since = read.mock.calls[0]?.[0].since;
     expect(since).toBeDefined();
-    expect(Number(since?.seconds) * 1000).toBeLessThanOrEqual(NOW - 86_400_000 + 5_000);
+    const requested = Number(since?.seconds) * 1000 + (since?.nanos ?? 0) / 1_000_000;
+    expect(requested).toBeGreaterThanOrEqual(before - 86_400_000 - 999);
+    expect(requested).toBeLessThanOrEqual(Date.now() - 86_400_000);
     await new Promise((r) => setTimeout(r, 200));
     expect(watch).not.toHaveBeenCalled();
     expect(screen.getByRole("radio", { name: "24 h" })).toBeChecked();
@@ -166,13 +169,13 @@ describe("SystemLogPage", () => {
   });
 
   it("reads in Chinese", async () => {
-    activateLocale("zh-CN");
+    await activateLocale("zh-CN");
     try {
       renderLog("/servers/srv_1/log");
       expect(await screen.findByText("nginx: started")).toBeVisible();
       expect(screen.getByRole("radio", { name: "全部" })).toBeChecked();
     } finally {
-      activateLocale("en");
+      await activateLocale("en");
     }
   });
 });

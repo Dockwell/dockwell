@@ -9,6 +9,7 @@ import "dockwell/v1/change.proto";
 import "dockwell/v1/container.proto";
 import "dockwell/v1/options.proto";
 import "google/api/annotations.proto";
+import "google/api/httpbody.proto";
 import "google/protobuf/timestamp.proto";
 
 // DockerService reads the Engine inventory on selected servers through their agents.
@@ -112,6 +113,108 @@ service DockerService {
     option (google.api.http) = {
       post: "/v1/docker/networks:planAttachment"
       body: "*"
+    };
+  }
+
+  // BeginDockerArtifactUpload reserves space and returns the new upload lease.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc BeginDockerArtifactUpload(BeginDockerArtifactUploadRequest) returns (DockerArtifactInfo) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/docker/artifacts/{server_id}"
+      body: "*"
+    };
+  }
+
+  // GetDockerArtifact reads the current lease for its creating actor and session.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc GetDockerArtifact(GetDockerArtifactRequest) returns (DockerArtifactInfo) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/docker/artifacts/{server_id}/{artifact_id}"};
+  }
+
+  // ListDockerArtifacts lists live leases created by this actor and session on one server.
+  rpc ListDockerArtifacts(ListDockerArtifactsRequest) returns (ListDockerArtifactsResponse) {
+    option (dockwell.v1.command) = {
+      noun: "docker"
+      verb: "list-artifacts"
+    };
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {get: "/v1/docker/artifacts/{server_id}"};
+  }
+
+  // FinishDockerArtifactUpload queues validation of a completed upload.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc FinishDockerArtifactUpload(FinishDockerArtifactUploadRequest) returns (DockerArtifactInfo) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/docker/artifacts/{server_id}/{artifact_id}/finish"
+      body: "*"
+    };
+  }
+
+  // AbortDockerArtifact discards the staged bytes for the selected lease.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc AbortDockerArtifact(AbortDockerArtifactRequest) returns (DockerArtifactInfo) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      post: "/v1/docker/artifacts/{server_id}/{artifact_id}:abort"
+      body: "*"
+    };
+  }
+
+  // UploadDockerArtifact appends one verified extent to an upload.
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  rpc UploadDockerArtifact(stream UploadDockerArtifactRequest) returns (DockerArtifactInfo) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      put: "/v1/docker/artifacts/{server_id}/{artifact_id}/bytes"
+      body: "content"
+    };
+  }
+
+  // DownloadDockerArtifact streams an exact extent from a sealed export.
+  rpc DownloadDockerArtifact(DownloadDockerArtifactRequest) returns (stream DownloadDockerArtifactResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (google.api.http) = {
+      get: "/v1/docker/artifacts/{server_id}/{artifact_id}/bytes"
+      response_body: "body"
     };
   }
 
@@ -466,6 +569,8 @@ message PlanDockerMaintenanceRequest {
     DockerCleanupSelection cleanup = 10;
     string resume_cleanup_token = 11;
     DockerImageTag tag = 12;
+    DockerImageLoad load = 13;
+    DockerImageExport export = 17;
     DockerImagePull pull = 18;
   }
 }
@@ -487,6 +592,8 @@ message DockerImageSupport {
   string default_registry = 1;
   bool can_pull = 2;
   bool can_tag = 3;
+  bool can_import = 5;
+  bool can_export = 6;
 }
 
 // DockerImageDigestCheck compares a local binding with the native registry manifest.
@@ -610,4 +717,112 @@ message PlanDockerNetworkAttachmentRequest {
 // PlanDockerNetworkAttachmentResponse returns the reviewed change for application.
 message PlanDockerNetworkAttachmentResponse {
   Change change = 1;
+}
+
+// DockerArtifactKind is the operation for which bytes are staged.
+enum DockerArtifactKind {
+  DOCKER_ARTIFACT_KIND_UNSPECIFIED = 0;
+  DOCKER_ARTIFACT_KIND_IMAGE_IMPORT = 1;
+  DOCKER_ARTIFACT_KIND_IMAGE_EXPORT = 3;
+}
+
+// DockerArtifactState is the current stage of a lease.
+enum DockerArtifactState {
+  DOCKER_ARTIFACT_STATE_UNSPECIFIED = 0;
+  DOCKER_ARTIFACT_STATE_RECEIVING = 1;
+  DOCKER_ARTIFACT_STATE_CHECKING = 2;
+  DOCKER_ARTIFACT_STATE_READY = 3;
+  DOCKER_ARTIFACT_STATE_EXPIRED = 4;
+  DOCKER_ARTIFACT_STATE_ABORTED = 5;
+  DOCKER_ARTIFACT_STATE_FAILED = 6;
+}
+
+// DockerArtifactInfo is the common lease state returned by each artifact operation.
+message DockerArtifactInfo {
+  string artifact_id = 1;
+  DockerArtifactKind kind = 2;
+  DockerArtifactState state = 3;
+  uint64 size_bytes = 4;
+  uint64 received_bytes = 5;
+  string sha256 = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  uint64 max_bytes = 8;
+  repeated DockerArchiveImage images = 9;
+  string file_name = 10;
+  string committed_prefix_sha256 = 11;
+  DockerImageReason failure = 12;
+  DockerArtifactSpace failure_space = 13;
+}
+
+// DockerArtifactSpace gives the storage needed and available at a quota refusal.
+message DockerArtifactSpace {
+  uint64 required_bytes = 1;
+  uint64 available_bytes = 2;
+}
+
+// DockerArchiveImage is the safe preview of one verified image in an archive.
+message DockerArchiveImage {
+  string image_id = 1;
+  string platform = 2;
+  repeated string proposed_tags = 3;
+  uint64 size_bytes = 4;
+}
+
+// BeginDockerArtifactUploadRequest declares the kind and size to reserve.
+message BeginDockerArtifactUploadRequest {
+  string server_id = 1;
+  DockerArtifactKind kind = 2;
+  uint64 size_bytes = 3;
+  string sha256 = 4;
+  bool gzip = 5;
+  string file_name = 6;
+}
+
+// ListDockerArtifactsRequest selects one server for the session's transfer list.
+message ListDockerArtifactsRequest {
+  string server_id = 1;
+}
+
+// ListDockerArtifactsResponse returns active leases for the current actor and session.
+message ListDockerArtifactsResponse {
+  repeated DockerArtifactInfo artifacts = 1;
+}
+
+// GetDockerArtifactRequest selects a lease on one server.
+message GetDockerArtifactRequest {
+  string server_id = 1;
+  string artifact_id = 2;
+}
+
+// FinishDockerArtifactUploadRequest seals a complete upload.
+message FinishDockerArtifactUploadRequest {
+  string server_id = 1;
+  string artifact_id = 2;
+}
+
+// AbortDockerArtifactRequest cancels a selected lease.
+message AbortDockerArtifactRequest {
+  string server_id = 1;
+  string artifact_id = 2;
+}
+
+// UploadDockerArtifactRequest supplies an extent followed by its byte frames.
+message UploadDockerArtifactRequest {
+  string server_id = 1;
+  string artifact_id = 2;
+  uint64 offset = 3;
+  google.api.HttpBody content = 4;
+}
+
+// DownloadDockerArtifactRequest selects an export and an optional byte extent.
+message DownloadDockerArtifactRequest {
+  string server_id = 1;
+  string artifact_id = 2;
+  uint64 offset = 3;
+  uint64 length = 4;
+}
+
+// DownloadDockerArtifactResponse carries one frame of the sealed export.
+message DownloadDockerArtifactResponse {
+  google.api.HttpBody body = 1;
 }

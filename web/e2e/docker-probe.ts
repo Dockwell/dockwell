@@ -84,6 +84,20 @@ export function dockerProbe(socket: string) {
 
 export type DockerProbe = ReturnType<typeof dockerProbe>;
 
+/** Seeds and removes image fixtures on this test's Engine. */
+export async function dockerPull(socket: string, ref: string): Promise<void> {
+  const at = ref.lastIndexOf(":");
+  await call(
+    socket,
+    "POST",
+    `/images/create?${new URLSearchParams({ fromImage: ref.slice(0, at), tag: ref.slice(at + 1) })}`,
+  );
+}
+
+export async function dockerRemoveImage(socket: string, ref: string): Promise<void> {
+  await call(socket, "DELETE", `/images/${ref}`);
+}
+
 /** Sets an image alias directly on the Engine. */
 export async function dockerTag(socket: string, id: string, repository: string, tag: string): Promise<void> {
   await call(socket, "POST", `/images/${id}/tag?${new URLSearchParams({ repo: repository, tag })}`);

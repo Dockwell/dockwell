@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"connectrpc.com/connect"
@@ -37,8 +38,9 @@ type transfer struct {
 	// in carries an upload's parts to the agent, and closes when there are no more.
 	in chan []byte
 	// out carries a download's parts from the agent.
-	out  chan *agentv1.SendFileRequest
-	done chan struct{}
+	out      chan *agentv1.SendFileRequest
+	done     chan struct{}
+	artifact *artifactGrant
 }
 
 // openTransfer notes a transfer about to be asked for, by a random token, so one
@@ -46,6 +48,10 @@ type transfer struct {
 func (a *Agents) openTransfer(server string) *transfer {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	return a.transferLocked(server)
+}
+
+func (a *Agents) transferLocked(server string) *transfer {
 	for {
 		var b [8]byte
 		_, _ = rand.Read(b[:])
@@ -66,10 +72,16 @@ func (a *Agents) closeTransfer(t *transfer) {
 	close(t.done)
 }
 
-func (a *Agents) transferFor(server string, token uint64) *transfer {
+func (a *Agents) takeTransfer(peer Peer, token uint64, receive bool) *transfer {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if t := a.transfers[token]; t != nil && t.server == server {
+	if t := a.transfers[token]; t != nil && t.server == peer.ServerID {
+		if grant := t.artifact; grant != nil {
+			if grant.used || grant.receive != receive || grant.session != a.sessions[peer.ServerID] || grant.session.serial != peer.Serial {
+				return nil
+			}
+			grant.used = true
+		}
 		return t
 	}
 	return nil
@@ -84,9 +96,12 @@ func (h *Handler) ReceiveFile(ctx context.Context, req *connect.Request[agentv1.
 	if _, err := h.auth.CheckConnection(ctx, peer.ServerID, peer.Serial); err != nil {
 		return h.refuse(ctx, peer, err)
 	}
-	t := h.agents.transferFor(peer.ServerID, req.Msg.GetStream())
+	t := h.agents.takeTransfer(peer, req.Msg.GetStream(), true)
 	if t == nil {
 		return connect.NewError(connect.CodeNotFound, errors.New("nobody is sending this upload"))
+	}
+	if t.artifact != nil {
+		return h.receiveArtifact(ctx, t, stream)
 	}
 	kicked := h.agents.kickOf(peer.ServerID)
 	for {
@@ -129,12 +144,21 @@ func (h *Handler) SendFile(ctx context.Context, stream *connect.ClientStream[age
 	}
 	err = h.whileIn(ctx, peer, func() error {
 		var t *transfer
+		var sent uint64
 		for stream.Receive() {
 			msg := stream.Msg()
 			if t == nil {
-				if t = h.agents.transferFor(peer.ServerID, msg.GetStream()); t == nil {
+				if t = h.agents.takeTransfer(peer, msg.GetStream(), false); t == nil {
 					return connect.NewError(connect.CodeNotFound, errors.New("nobody is waiting for this download"))
 				}
+			}
+			if g := t.artifact; g != nil {
+				n := uint64(len(msg.GetData()))
+				if !h.agents.artifactCurrent(t) || msg.GetStream() != t.token || n == 0 || n > frameBytes || n > g.length-sent ||
+					msg.GetName() != "" || msg.GetPath() != "" || msg.GetSizeBytes() != 0 || msg.GetArchive() {
+					return connect.NewError(connect.CodeInvalidArgument, errors.New("invalid artifact frame"))
+				}
+				sent += n
 			}
 			select {
 			case t.out <- msg:
@@ -143,6 +167,9 @@ func (h *Handler) SendFile(ctx context.Context, stream *connect.ClientStream[age
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+		}
+		if t != nil && t.artifact != nil && sent != t.artifact.length {
+			return io.ErrUnexpectedEOF
 		}
 		return stream.Err()
 	})

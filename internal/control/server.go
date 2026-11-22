@@ -518,7 +518,7 @@ func New(cfg Config) (*Server, error) {
 		opts := []agentapi.Option{agentapi.WithAgents(cfg.Agents)}
 		if cfg.Store != nil {
 			// What each container uses is placed by its service, for an app's figures (#797).
-			opts = append(opts, agentapi.WithServices((&serviceIDs{db: cfg.Store}).find))
+			opts = append(opts, agentapi.WithServices((&serviceIDs{db: cfg.Store}).find), agentapi.WithArtifactPlans(cfg.Store))
 		}
 		if cfg.Store != nil && cfg.Fleet != nil {
 			s.history = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
@@ -542,6 +542,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	reach := settings.NewReach()
 	guardREST := func(h http.Handler) http.Handler { return h }
 	var filesHandler http.Handler
+	var artifactHandler *containers.Handler
 	var appOpener *opener.Opener
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
@@ -630,6 +631,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		handle(dockwellv1connect.NewChangeServiceHandler(ch, opts...))
 		own := containers.New(cfg.Agents, ch, cfg.Store, cfg.Logger)
+		ch.DiscardDockerArchives = own.DiscardDockerArchives
 		imports := composeapi.New(ch, own, cfg.Changes, cfg.Store, cfg.Secrets, cfg.Logger)
 		handle(dockwellv1connect.NewComposeServiceHandler(imports, opts...))
 		catalogSources := &catalogapi.Sources{Dir: cfg.CatalogSources, Client: cfg.CatalogClient}
@@ -891,6 +893,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewAlertServiceHandler(alerts.New(*alertsOut, cfg.Logger), opts...))
 		handle(dockwellv1connect.NewContainerServiceHandler(own, opts...))
 		handle(dockwellv1connect.NewDockerServiceHandler(own, opts...))
+		artifactHandler = own
 		*backupsOut = backups.New(ch, cfg.Changes, cfg.Agents, cfg.Store, cfg.Secrets, cfg.Logger)
 		// A backup restores into a new database the catalog way (ADR 0106).
 		(*backupsOut).InstallWith(imports.PlanInstall)
@@ -925,6 +928,9 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		return nil, err
 	}
 	mux.Handle(authapi.RESTPrefix, guardREST(restPaths))
+	if artifactHandler != nil {
+		streamArtifacts(mux, artifactHandler, guardREST, authapi.TrackInstallStream(cfg.Auth, cfg.Logger))
+	}
 	if filesHandler != nil {
 		streamTransfers(mux, filesHandler, guardREST, authorize)
 	}

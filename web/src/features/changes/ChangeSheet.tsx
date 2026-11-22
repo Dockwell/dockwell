@@ -997,6 +997,10 @@ function ChangeSheet({
     );
   }
 
+  const exportServer = dockerImageAction(plan)?.export
+    ? plan?.servers.find((server) => server.steps.length > 0)?.serverName
+    : undefined;
+  const headingDetail = exportServer ? [subtitle, exportServer].filter(Boolean).join(" · ") : subtitle;
   return (
     <SheetView
       title={
@@ -1004,7 +1008,7 @@ function ChangeSheet({
           <MachineWords>{title}</MachineWords>
         </TitleWithState>
       }
-      subtitle={subtitle ? <MachineWords names={names}>{subtitle}</MachineWords> : undefined}
+      subtitle={headingDetail ? <MachineWords names={names}>{headingDetail}</MachineWords> : undefined}
       onClose={leave}
       footer={footer}
       headingRef={heading}
@@ -1126,6 +1130,12 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   // A change of labels alone says it of the servers, which take no step (ADR 0091).
   const imageAction = dockerImageAction(plan);
   if (imageAction) {
+    if (imageAction.load || imageAction.export) {
+      if (phase === "applying") return imageAction.export ? t`Preparing image archive` : t`Importing images`;
+      if (phase === "arrived" || phase === "history")
+        return imageAction.export ? t`Image archive ready` : t`Images imported`;
+      if (phase === "failed") return t`Archive action failed`;
+    }
     const pull = imageAction.pull;
     if (phase === "applying") return pull ? t`Pulling image` : t`Setting image tag`;
     if (phase === "failed") return t`Image action failed`;
@@ -2591,7 +2601,7 @@ function TookLine({ change }: { change: Change }) {
           <Trans>
             <code>{name}</code> has stopped on <code>{names}</code>
           </Trans>
-        ) : servers.length === 1 ? (
+        ) : servers.length === 1 && !dockerImageAction(change.plan)?.export ? (
           <Trans>
             Took {took} on <code>{names}</code>
           </Trans>

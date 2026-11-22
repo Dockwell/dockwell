@@ -35,6 +35,7 @@ import (
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/serve"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 type peerKey struct{}
@@ -54,9 +55,10 @@ func PeerFrom(ctx context.Context) (Peer, bool) {
 
 // Handler implements AgentService.
 type Handler struct {
-	auth   *identity.Authority
-	fleet  *fleet.Hub
-	agents *Agents
+	auth          *identity.Authority
+	fleet         *fleet.Hub
+	agents        *Agents
+	artifactPlans *store.DB
 	// history keeps each server's samples a minute at a time (ADR 0065); nil keeps none.
 	history Sampler
 	// services finds a service's ID from its Compose project and name, for the
@@ -94,6 +96,11 @@ func WithStreamTiming(silence, recheck time.Duration) Option {
 // engine's calls. Without it, streams only report.
 func WithAgents(agents *Agents) Option {
 	return func(h *Handler) { h.agents = agents }
+}
+
+// WithArtifactPlans enables reconciliation of durable archive pins.
+func WithArtifactPlans(db *store.DB) Option {
+	return func(h *Handler) { h.artifactPlans = db }
 }
 
 // Sampler keeps a server's history from its samples.
@@ -302,7 +309,7 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 	// The engine reaches the agent's drivers over the stream from now on.
 	// Sends after the welcome go through the session, one at a time.
 	if h.agents != nil {
-		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send)
+		session = h.agents.open(peer.ServerID, srv.Name, hello, stream.Send, peer.Serial)
 		defer session.close()
 		go h.tellPublicAddress(ctx, peer.ServerID, session)
 	}

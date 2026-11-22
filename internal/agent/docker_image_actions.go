@@ -49,6 +49,9 @@ func (c *calls) imageActionScope(ref resource.Ref, plan *v1.DockerMaintenance) e
 		return errors.New("the agent could not verify the image action's server")
 	}
 	a := plan.GetImageAction()
+	if isImageArchive(a) {
+		return nil
+	}
 	r, err := imageActionReference(a)
 	if (a.GetTag() == nil) == (a.GetPull() == nil) || err != nil || (r.Digest != "" && (r.Tag != "" || a.GetTag() != nil)) {
 		return errors.New("enter an image tag or a repository digest")
@@ -268,7 +271,11 @@ func (c *calls) planImageAction(ctx context.Context, desired *agentv1.DesiredRes
 	if err := c.imageActionScope(ref, plan); err != nil {
 		return callFailed(err), true
 	}
-	if plan.GetChangeId() == "" {
+	if isImageArchive(plan.GetImageAction()) {
+		if err := c.checkArchiveAction(ctx, ref, plan.GetImageAction(), nil); err != nil {
+			return callFailed(err), true
+		}
+	} else if plan.GetChangeId() == "" {
 		if err := c.previewDockerImage(ctx, ref, plan, desired.GetDockerRegistryAuth()); err != nil {
 			return callFailed(err), true
 		}
@@ -315,9 +322,19 @@ func (c *calls) runImageAction(ctx context.Context, callID uint64, ref resource.
 	if err := c.imageActionScope(ref, plan); err != nil {
 		return callFailed(err)
 	}
-	receipt, err := c.applyImageAction(ctx, ref, plan, desired.GetDockerRegistryAuth(), protected)
-	if receipt != nil {
-		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: callID, Outcome: &agentv1.StepOutcome{DockerImageReceipt: []*v1.DockerImageReceipt{receipt}}}}})
+	var receipts []*v1.DockerImageReceipt
+	var err error
+	if isImageArchive(plan.GetImageAction()) {
+		receipts, err = c.applyArchiveAction(ctx, ref, plan, protected)
+	} else {
+		var receipt *v1.DockerImageReceipt
+		receipt, err = c.applyImageAction(ctx, ref, plan, desired.GetDockerRegistryAuth(), protected)
+		if receipt != nil {
+			receipts = append(receipts, receipt)
+		}
+	}
+	if len(receipts) != 0 {
+		_ = c.send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_Progress{Progress: &agentv1.CallProgress{Id: callID, Outcome: &agentv1.StepOutcome{DockerImageReceipt: receipts}}}})
 	}
 	if err != nil {
 		return callFailed(err)

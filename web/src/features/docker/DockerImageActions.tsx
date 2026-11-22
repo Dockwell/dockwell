@@ -13,9 +13,10 @@ import { splitTag } from "../apps/ImageField";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { ActionMenu } from "../shell/ActionMenu";
+import { type ArchiveImageChoice, useArchiveActions } from "./DockerArchiveActions";
 import { type ImageServer, useDockerPull } from "./DockerPullFields";
 
-type Selection = { serverId: string; imageId: string; alias: string };
+type Selection = ArchiveImageChoice & { alias: string };
 type Editor = { kind: "pull" } | { kind: "add" | "move"; image: Selection };
 type PlanInput = MessageInitShape<typeof PlanDockerMaintenanceRequestSchema>;
 
@@ -45,13 +46,15 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
   useEffect(() => () => request.current?.abort(), []);
 
   const support = new Map(overview.data?.serverSummaries.map((row) => [row.serverId, row.imageOperations]));
+  const archives = useArchiveActions(servers, support, refresh);
   const pullServers = servers.flatMap((server) => {
     const capabilities = support.get(server.id);
     return capabilities?.canPull ? [{ ...server, registry: capabilities.defaultRegistry }] : [];
   });
   const capabilityPending = mayPlan && servers.length > 0 && !overview.data && overview.isFetching;
   const showRowActions =
-    capabilityPending || (mayPlan && [...support.values()].some((item) => item?.canPull || item?.canTag));
+    capabilityPending ||
+    (mayPlan && [...support.values()].some((item) => item?.canPull || item?.canTag || item?.canExport));
   const openEditor = (next: Editor) => {
     request.current?.abort();
     setQuick(undefined);
@@ -87,7 +90,7 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
     }
   };
 
-  const rowMenu = (image: Selection) => {
+  const rowMenu = (image: Selection, detail = false) => {
     if (capabilityPending) {
       return (
         <Loading label={t`Loading image actions`}>
@@ -122,6 +125,7 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
                 },
               ]
             : []),
+          ...archives.forImage(image, detail),
         ]}
       />
     );
@@ -145,6 +149,8 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
 
   return {
     rowMenu,
+    archiveMenu: archives.header,
+    leases: archives.leases,
     rowResult,
     showRowActions,
     capabilityPending,
@@ -155,6 +161,7 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
     openPull: () => openEditor({ kind: "pull" }),
     sheets: (
       <>
+        {archives.sheets}
         {failure ? (
           <Callout title={t`Image couldn't be checked`} tone="warning">
             {failure}

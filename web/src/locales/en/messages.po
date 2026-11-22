@@ -9670,6 +9670,9 @@ msgstr "Applying this approves {0}'s change, with your passkey"
 msgid "Applying this asks for your passkey"
 msgstr "Applying this asks for your passkey"
 
+msgid "Archive action failed"
+msgstr "Archive action failed"
+
 msgid "Cleaning up Docker"
 msgstr "Cleaning up Docker"
 
@@ -9745,11 +9748,20 @@ msgstr "If you close this without keeping it, the change goes back on its own."
 msgid "Image action failed"
 msgstr "Image action failed"
 
+msgid "Image archive ready"
+msgstr "Image archive ready"
+
 msgid "Image pulled"
 msgstr "Image pulled"
 
 msgid "Image tag set"
 msgstr "Image tag set"
+
+msgid "Images imported"
+msgstr "Images imported"
+
+msgid "Importing images"
+msgstr "Importing images"
 
 msgid "In environment <0>{environment}</0>"
 msgstr "In environment <0>{environment}</0>"
@@ -9837,6 +9849,9 @@ msgstr "Open {domain} in Domains"
 
 msgid "Planning: asking each server what this would take"
 msgstr "Planning: asking each server what this would take"
+
+msgid "Preparing image archive"
+msgstr "Preparing image archive"
 
 msgid "Pulling image"
 msgstr "Pulling image"
@@ -10196,6 +10211,21 @@ msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
+
+msgid "Checking download access"
+msgstr "Checking download access"
+
+msgid "Copy full image ID"
+msgstr "Copy full image ID"
+
+msgid "Image only"
+msgstr "Image only"
+
+msgid "Load the reviewed archive on <0>{server}</0>"
+msgstr "Load the reviewed archive on <0>{server}</0>"
+
+msgid "The archive is available to the session that planned it while its lease is active."
+msgstr "The archive is available to the session that planned it while its lease is active."
 
 msgctxt "what stops while Docker restarts"
 msgid "App"
@@ -14532,6 +14562,170 @@ msgstr "Unavailable"
 msgid "Volumes and their data stay."
 msgstr "Volumes and their data stay."
 
+msgid "Choose an image"
+msgstr "Choose an image"
+
+msgid "Choose image"
+msgstr "Choose image"
+
+msgid "Export image"
+msgstr "Export image"
+
+msgid "Image actions"
+msgstr "Image actions"
+
+msgid "Import image"
+msgstr "Import image"
+
+msgid "{image} on {server}"
+msgstr "{image} on {server}"
+
+msgid ".tar or .tar.gz, up to 8 GiB"
+msgstr ".tar or .tar.gz, up to 8 GiB"
+
+msgid "Change file"
+msgstr "Change file"
+
+msgid "Checking the archive"
+msgstr "Checking the archive"
+
+msgid "Choose a Docker image archive and start a new import."
+msgstr "Choose a Docker image archive and start a new import."
+
+msgid "Choose an archive up to 8 GiB."
+msgstr "Choose an archive up to 8 GiB."
+
+msgid "Choose another tag"
+msgstr "Choose another tag"
+
+msgid "Choose file"
+msgstr "Choose file"
+
+msgid "Choose the same file to resume this upload."
+msgstr "Choose the same file to resume this upload."
+
+msgid "Docker could not list the local tags."
+msgstr "Docker could not list the local tags."
+
+msgid "Docker image archive"
+msgstr "Docker image archive"
+
+msgid "Drop a Docker image archive"
+msgstr "Drop a Docker image archive"
+
+msgid "Estimating time"
+msgstr "Estimating time"
+
+msgid "Image archive"
+msgstr "Image archive"
+
+msgid "Image import needs attention"
+msgstr "Image import needs attention"
+
+msgid "Images in the archive"
+msgstr "Images in the archive"
+
+#. placeholder {0}: shortImageId(holder)
+msgid "On this server, this tag points to <0>{0}</0>."
+msgstr "On this server, this tag points to <0>{0}</0>."
+
+msgid "Resume"
+msgstr "Resume"
+
+msgid "Tag"
+msgstr "Tag"
+
+msgid "Tag to include"
+msgstr "Tag to include"
+
+msgid "The archive could not be reviewed."
+msgstr "The archive could not be reviewed."
+
+#. placeholder {0}: formatBytes(info.failureSpace.requiredBytes, i18n.locale)
+#. placeholder {1}: formatBytes(info.failureSpace.availableBytes, i18n.locale)
+msgid "The archive needs {0}, with {1} available."
+msgstr "The archive needs {0}, with {1} available."
+
+msgid "The image export could not be reviewed."
+msgstr "The image export could not be reviewed."
+
+msgid "The received bytes differ from the selected file."
+msgstr "The received bytes differ from the selected file."
+
+msgid "The upload status couldn't be read"
+msgstr "The upload status couldn't be read"
+
+msgid "This archive couldn't be verified"
+msgstr "This archive couldn't be verified"
+
+msgid "Upload archive"
+msgstr "Upload archive"
+
+msgid "Use <0>{suggested}</0>"
+msgstr "Use <0>{suggested}</0>"
+
+msgid "Waiting for a transfer slot"
+msgstr "Waiting for a transfer slot"
+
+#. placeholder {0}: Math.ceil(remaining / 60)
+msgid "{0} min left"
+msgstr "{0} min left"
+
+#. placeholder {0}: formatBytes(item.receivedBytes, i18n.locale)
+#. placeholder {0}: formatBytes(progress, i18n.locale)
+#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {1}: formatBytes(item.sizeBytes, i18n.locale)
+#. placeholder {1}: formatBytes(size, i18n.locale)
+#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
+msgid "{0} of {1}"
+msgstr "{0} of {1}"
+
+#. placeholder {0}: formatBytes(speed, i18n.locale)
+msgid "{0}/s · {timeLeft}"
+msgstr "{0}/s · {timeLeft}"
+
+msgid "{remaining} s left"
+msgstr "{remaining} s left"
+
+msgid "Abort"
+msgstr "Abort"
+
+msgid "Awaiting export"
+msgstr "Awaiting export"
+
+msgid "Awaiting upload"
+msgstr "Awaiting upload"
+
+msgid "Check failed"
+msgstr "Check failed"
+
+msgid "Image export"
+msgstr "Image export"
+
+msgid "Image transfers"
+msgstr "Image transfers"
+
+msgid "No image transfers on this server."
+msgstr "No image transfers on this server."
+
+msgid "Reading image transfers"
+msgstr "Reading image transfers"
+
+msgid "Ready"
+msgstr "Ready"
+
+msgid "Retry transfers"
+msgstr "Retry transfers"
+
+msgid "Review"
+msgstr "Review"
+
+msgid "Transfer couldn't be aborted"
+msgstr "Transfer couldn't be aborted"
+
+msgid "View"
+msgstr "View"
+
 msgid "Checking Docker artifacts"
 msgstr "Checking Docker artifacts"
 
@@ -14994,9 +15188,6 @@ msgstr "All images"
 
 msgid "Build instructions are redacted"
 msgstr "Build instructions are redacted"
-
-msgid "Copy full image ID"
-msgstr "Copy full image ID"
 
 msgid "Dangling"
 msgstr "Dangling"
@@ -16826,11 +17017,6 @@ msgstr "{0, plural, one {Paused at {at}. {count} line since.} other {Paused at {
 msgid "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
 msgstr "{0, plural, one {{shown} of the {total} lines loaded matches.} other {{shown} of the {total} lines loaded match.}}"
 
-#. placeholder {0}: step.toLocaleString(i18n.locale)
-#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
-msgid "{0} of {1}"
-msgstr "{0} of {1}"
-
 msgid "{down} couldn't be searched, so its lines aren't in this."
 msgstr "{down} couldn't be searched, so its lines aren't in this."
 
@@ -17403,9 +17589,6 @@ msgstr "Nothing has changed yet"
 
 msgid "Recent changes"
 msgstr "Recent changes"
-
-msgid "Review"
-msgstr "Review"
 
 msgid "{plans} plans not applied"
 msgstr "{plans} plans not applied"

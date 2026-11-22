@@ -23,6 +23,23 @@ export interface StreamRoute {
 
 /** The routes, by operation. */
 export const streamRoutes = {
+  DockerService_DownloadDockerArtifact: {
+    operationId: "DockerService_DownloadDockerArtifact",
+    stream: "response",
+    method: "GET",
+    path: "/v1/docker/artifacts/{serverId}/{artifactId}/bytes",
+    query: [],
+    responseTypes: ["application/x-tar"],
+  },
+  DockerService_UploadDockerArtifact: {
+    operationId: "DockerService_UploadDockerArtifact",
+    stream: "request",
+    method: "PUT",
+    path: "/v1/docker/artifacts/{serverId}/{artifactId}/bytes",
+    query: ["offset"],
+    requestType: "application/octet-stream",
+    responseTypes: ["application/json"],
+  },
   FileService_DownloadFile: {
     operationId: "FileService_DownloadFile",
     stream: "response",
