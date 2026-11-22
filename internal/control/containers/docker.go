@@ -223,7 +223,8 @@ func (h *Handler) listDockerContainers(ctx context.Context, servers []Server, m 
 	for visits := 0; len(out.Objects) < page && cursor.Server < len(servers) && visits < 6; visits++ {
 		s := servers[cursor.Server]
 		session, state := h.dockerAgent(s)
-		if session != nil && (m.GetKind() == dockerImageKind && !session.DockerImages() || storageKind(m.GetKind()) && !session.DockerStorage()) {
+		if session != nil && (m.GetKind() == dockerImageKind && !session.DockerImages() ||
+			storageKind(m.GetKind()) && !session.DockerStorage() || filter.GetLogRotation() != 0 && !session.DockerContainerLogging()) {
 			session, state = nil, v1.DockerReadState_DOCKER_READ_STATE_AGENT_OUTDATED
 		}
 		if session == nil {

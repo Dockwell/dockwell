@@ -890,6 +890,11 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return cantApply(ctx, step, err)
 		}
 	}
+	// Activating a reviewed local file verifies the running Engine in the
+	// worker and leaves desired settings ownership alone.
+	if len(step.DockerDaemon.GetFileChanges()) > 0 {
+		return d.Verify(ctx, step.Ref, desired)
+	}
 	actual, err := Observe(ctx, d, step.Ref)
 	if err != nil {
 		return Plainly(fmt.Sprintf("%s changed, but Dockwell can't read it back: %s. Check it on this server, then try again.", step.Ref.Name, clause(err)),

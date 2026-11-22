@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/dockerlog"
 	"github.com/dockwell/dockwell/internal/resource/network"
 )
 
@@ -66,8 +67,7 @@ type Stack struct {
 	Exposed []Exposed
 	// ExposedMore says the file writes more than Exposed lists.
 	ExposedMore bool
-	// Rotations says where the file asks for a log rotation other than the one
-	// Dockwell sets, for a surface to say it won't be used.
+	// Rotations describes the file’s nondefault log limits for the review.
 	Rotations []Rotation
 	// LogDrivers says, of a service on a server whose Docker logs elsewhere by
 	// default, which driver that is: an export leaves its logging to that server,
@@ -75,18 +75,14 @@ type Stack struct {
 	LogDrivers map[string]string
 }
 
-// Rotation is a log rotation a Compose file asks of a service, which Dockwell's
-// own takes the place of.
+// Rotation is a log rotation a Compose file asks of a service.
 type Rotation struct {
 	Service string
 	// Asked is what it asks for, such as "max-size 1g".
 	Asked string
 }
 
-// rotationsAsked finds what a file's services ask of their log rotation that
-// isn't what Dockwell sets. Each container's log stays within one bound that a
-// plan can state, so Dockwell doesn't take another, and a reader who asked for
-// more should know they don't have it.
+// rotationsAsked reports log options that differ from Dockwell’s defaults.
 func rotationsAsked(dict map[string]any) []Rotation {
 	services, _ := dict["services"].(map[string]any)
 	want := docker.Rotation().Config
@@ -97,9 +93,11 @@ func rotationsAsked(dict map[string]any) []Rotation {
 		options, _ := logging["options"].(map[string]any)
 		var asked []string
 		for _, k := range slices.Sorted(maps.Keys(options)) {
-			if value := fmt.Sprint(options[k]); value != want[k] {
-				asked = append(asked, k+" "+value)
+			value := fmt.Sprint(options[k])
+			if value == want[k] || (k == "max-size" && dockerlog.Size(value) == dockerlog.Size(want[k])) {
+				continue
 			}
+			asked = append(asked, k+" "+value)
 		}
 		if len(asked) > 0 {
 			out = append(out, Rotation{Service: name, Asked: strings.Join(asked, ", ")})
@@ -231,10 +229,7 @@ func check(what string, m map[string]any, allowed map[string]bool) error {
 	return nil
 }
 
-// checkLogging takes a service's logging only as json-file with rotation, which
-// Dockwell sets by itself, and an export writes. A file that sends logs anywhere
-// else is asking for what Dockwell can't do yet, and is told so, as logs read
-// from Docker wouldn't be there to read.
+// checkLogging accepts file-based drivers whose rotation Dockwell can manage.
 func checkLogging(what string, svc map[string]any) error {
 	raw, ok := svc["logging"]
 	if !ok {
@@ -247,8 +242,8 @@ func checkLogging(what string, svc map[string]any) error {
 	if err := check(what+"'s logging", m, loggingKeys); err != nil {
 		return err
 	}
-	if d, ok := m["driver"]; ok && d != docker.LogDriverJSONFile {
-		return invalid("%s logs to %v, and Dockwell keeps a container's log with json-file, with rotation, so that it can be read. Remove logging, and set the driver for Docker as a whole if you need it", what, d)
+	if d, ok := m["driver"]; ok && d != docker.LogDriverJSONFile && d != docker.LogDriverLocal {
+		return invalid("%s logs to %v. Compose can set rotation for json-file or local. Remove logging to use the server's log driver", what, d)
 	}
 	if opts, ok := m["options"].(map[string]any); ok {
 		for k := range opts {
@@ -1172,6 +1167,33 @@ func app(name string, s *types.ServiceConfig, uses []resource.Use, p *model) (*r
 	c := &resourcev1.Container{
 		Image: s.Image, Command: s.Command, Entrypoint: s.Entrypoint,
 		User: s.User, WorkingDir: s.WorkingDir, Labels: userLabels(s.Labels),
+	}
+	if l := s.Logging; l != nil {
+		driver := l.Driver
+		if driver == "" {
+			driver = docker.LogDriverJSONFile
+		}
+		defaults := docker.Rotation().Config
+		defaultSize, defaultFiles := dockerlog.Size(defaults["max-size"]), dockerlog.Files(defaults["max-file"])
+		size, files := defaultSize, defaultFiles
+		if value, ok := l.Options["max-size"]; ok {
+			size = dockerlog.Size(value)
+		}
+		if value, ok := l.Options["max-file"]; ok {
+			files = dockerlog.Files(value)
+		}
+		if driver != docker.LogDriverJSONFile || size != defaultSize || files != defaultFiles {
+			if _, ok := l.Options["compress"]; ok {
+				return nil, invalid("%s uses a custom log compression option", what)
+			}
+			c.Logging = &resourcev1.ContainerLogging{
+				Mode:   resourcev1.ContainerLoggingMode_CONTAINER_LOGGING_MODE_LIMITS,
+				Limits: &resourcev1.DockerDaemonLogging{Driver: driver, MaxSizeBytes: size, MaxFiles: files},
+			}
+			if err := dockerlog.ValidateContainerLogging(c.Logging); err != nil {
+				return nil, invalid("%s: %v", what, err)
+			}
+		}
 	}
 	// entrypoint: [] and entrypoint: "" run none, not even the image's;
 	// compose-go reads both as an empty list, and no entrypoint as nil.

@@ -933,6 +933,7 @@ message Call {
     // Read the ports a service's container exposes and listens on, and whether
     // each answers (#791). A service's ports take 390 to 399.
     AppPortsCall app_ports = 390;
+    DockerSettingsCall docker_settings = 407;
     DockerInventoryListCall docker_inventory_list = 400;
     DockerInventoryDetailCall docker_inventory_detail = 401;
     DockerInventoryWatchCall docker_inventory_watch = 402;
@@ -2691,6 +2692,7 @@ message CallResult {
     MakeAppOwnerResult make_app_owner = 381;
     ReadAppOwnerResult read_app_owner = 383;
     AppPortsResult app_ports = 391;
+    DockerSettingsResult docker_settings = 407;
     DockerInventoryListResult docker_inventory_list = 400;
     DockerInventoryDetailResult docker_inventory_detail = 401;
     DockerInventoryWatchResult docker_inventory_watch = 402;
@@ -2943,6 +2945,8 @@ message DockerCapabilities {
   bool compose_members = 8;
   bool image_operations = 9;
   bool artifact_transfers = 10;
+  bool daemon_settings = 11;
+  bool container_logging = 12;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
@@ -3093,4 +3097,21 @@ message CheckDockerArtifactPinsRequest {
 message CheckDockerArtifactPinsResponse {
   repeated DockerArtifactPin ended = 1;
   repeated DockerArtifactPin absent = 2;
+}
+
+// DockerSettingsCall reads or checks one local Engine configuration.
+message DockerSettingsCall {
+  oneof input {
+    bool read = 1;
+    dockwell.resource.v1alpha1.DockerDaemon check = 2;
+  }
+  bool logging_summary = 3;
+}
+
+// DockerSettingsResult carries the typed settings or the validation result.
+message DockerSettingsResult {
+  oneof output {
+    dockwell.v1.DockerSettings settings = 1;
+    dockwell.v1.CheckDockerSettingsResponse checked = 2;
+  }
 }

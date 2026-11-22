@@ -29,6 +29,7 @@ import (
 	"github.com/dockwell/dockwell/internal/registry"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/dockerlog"
 )
 
 // LabelSet lists what a container's spec sets that its image could set
@@ -155,6 +156,8 @@ const (
 	LabelChange   = docker.OwnPrefix + "change"
 	// LabelReconcile identifies the durable local action that created it.
 	LabelReconcile = docker.OwnPrefix + "reconcile"
+	// labelKeptImageRef records the desired reference when creation uses a local ID.
+	labelKeptImageRef = docker.OwnPrefix + "kept-image-ref"
 	// LabelLeads says where the server paths a container mounts led (docker.LabelLeads).
 	LabelLeads = docker.LabelLeads
 )
@@ -690,7 +693,15 @@ func (d *Docker) createRequest(ctx context.Context, t Target, spec *resourcev1.C
 	req.HostConfig.Memory = memoryBytes(spec.GetResources().GetMemory())
 	req.HostConfig.MemoryReservation = memoryBytes(spec.GetResources().GetMemoryReservation())
 	req.HostConfig.ShmSize = memoryBytes(spec.GetShmSize())
-	req.HostConfig.LogConfig = d.logConfig(ctx)
+	switch spec.GetLogging().GetMode() {
+	case resourcev1.ContainerLoggingMode_CONTAINER_LOGGING_MODE_INHERIT:
+		labels[docker.OwnPrefix+"log-policy"] = "inherit"
+	case resourcev1.ContainerLoggingMode_CONTAINER_LOGGING_MODE_LIMITS:
+		labels[docker.OwnPrefix+"log-policy"] = "limits"
+		req.HostConfig.LogConfig = dockerlog.ContainerLogConfig(spec.GetLogging())
+	default:
+		req.HostConfig.LogConfig = d.logConfig(ctx)
+	}
 	for _, p := range spec.GetPorts() {
 		key := fmt.Sprintf("%d/%s", p.GetContainerPort(), protocolName(p.GetProtocol()))
 		if req.HostConfig.PortBindings == nil {
@@ -981,7 +992,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 	}
 	set := setOf(c.Config.Labels)
 	out := &resourcev1.Container{
-		Image:   c.Config.Image,
+		Image:   workloadImageRef(c),
 		Restart: restartPolicy(c.HostConfig.RestartPolicy.Name),
 		//nolint:gosec // a count of restarts is small, and Docker keeps it as an int
 		RestartRetries: uint32(max(c.HostConfig.RestartPolicy.MaximumRetryCount, 0)),
@@ -1004,6 +1015,7 @@ func Project(c *docker.Container, img *docker.Config, t Target) *resourcev1.Cont
 			return ok && on
 		}),
 	}
+	out.Logging = dockerlog.ObservedLogging(c.Config.Labels[docker.OwnPrefix+"log-policy"], c.HostConfig.LogConfig)
 	projectHostAccess(c, out)
 	// Docker names each container for the start of its ID unless asked for another,
 	// and gives one on the server's network the server's name.
@@ -1311,10 +1323,18 @@ func (d *Docker) ImageAt(ctx context.Context, t Target) (resource.Image, error) 
 	case err != nil:
 		return resource.Image{}, err
 	}
-	if digest := img.Digest(c.Config.Image); digest != "" {
-		out.Digest = docker.Repository(c.Config.Image) + "@" + digest
+	ref := workloadImageRef(c)
+	if digest := img.Digest(ref); digest != "" {
+		out.Digest = docker.Repository(ref) + "@" + digest
 	}
 	return out, nil
+}
+
+func workloadImageRef(c *docker.Container) string {
+	if c.Config.Image == c.Image {
+		return cmp.Or(c.Config.Labels[labelKeptImageRef], c.Config.Image)
+	}
+	return c.Config.Image
 }
 
 // RunStateAt is how the container at t stands: whether it runs, why Docker
@@ -1582,7 +1602,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 	}
 	// Only a container of this tag can say what it pointed at. Another image is
 	// there after a failure, and what replaces that isn't a tag that moved.
-	moving := old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref)
+	moving := old != nil && resource.BareImage(workloadImageRef(old)) == resource.BareImage(ref)
 	previous := ""
 	if moving {
 		if img, err := d.Client.InspectImage(ctx, old.Image); err == nil {
@@ -1642,7 +1662,7 @@ func (d *Docker) pullAgain(ctx context.Context, t Target, old *docker.Container,
 	}
 	if docker.NotPullable(err) {
 		if img, have := d.Client.InspectImage(ctx, docker.WithTag(ref)); have == nil && img.Digest(ref) == "" {
-			if old != nil && resource.BareImage(old.Config.Image) == resource.BareImage(ref) && old.Image != img.ID {
+			if old != nil && resource.BareImage(workloadImageRef(old)) == resource.BareImage(ref) && old.Image != img.ID {
 				resource.Report(ctx, resource.Outcome{Untouched: true})
 				return builtOverFailure(t, old, ref, err)
 			}
@@ -1766,7 +1786,7 @@ func notRunning(c *docker.Container) string {
 // not the deploy, so a failure to read it doesn't fail anything.
 func (d *Docker) reportRan(ctx context.Context, c *docker.Container) {
 	if img, err := d.Client.InspectImage(ctx, c.Image); err == nil {
-		resource.Report(ctx, resource.Outcome{Digest: img.Digest(c.Config.Image), LocalImageID: img.ID})
+		resource.Report(ctx, resource.Outcome{Digest: img.Digest(workloadImageRef(c)), LocalImageID: img.ID})
 	}
 }
 
@@ -1862,7 +1882,7 @@ func (d *Docker) Run(ctx context.Context, t Target, spec *resourcev1.Container, 
 }
 
 func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision) error {
-	if err := d.Prepare(ctx, t, spec); err != nil {
+	if err := d.prepare(ctx, t, spec, !dec.KeepWorkloadImage); err != nil {
 		return err
 	}
 	if c, err := d.find(ctx, t.Name); err != nil {
@@ -1884,11 +1904,17 @@ func (d *Docker) run(ctx context.Context, t Target, spec *resourcev1.Container, 
 // the server hasn't it, with room for it, and checks what spec mounts and joins is
 // there. A move does it before it stops anything (ADR 0080).
 func (d *Docker) Prepare(ctx context.Context, t Target, spec *resourcev1.Container) error {
-	if err := d.roomFor(ctx, t, spec.GetImage()); err != nil {
-		return err
-	}
-	if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
-		return err
+	return d.prepare(ctx, t, spec, true)
+}
+
+func (d *Docker) prepare(ctx context.Context, t Target, spec *resourcev1.Container, prepareImage bool) error {
+	if prepareImage {
+		if err := d.roomFor(ctx, t, spec.GetImage()); err != nil {
+			return err
+		}
+		if err := d.ensureImage(ctx, spec.GetImage()); err != nil {
+			return err
+		}
 	}
 	if err := d.CheckHost(ctx, t, spec); err != nil {
 		return err
@@ -2027,7 +2053,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	case resource.ActionCreate, resource.ActionReplace:
 		// A pinned image that is gone says so below, as a rollback has somewhere
 		// else to go.
-		if !strings.Contains(desired.GetImage(), "@") {
+		if !dec.KeepWorkloadImage && !strings.Contains(desired.GetImage(), "@") {
 			if err := d.checkImage(ctx, t, desired.GetImage()); err != nil {
 				return err
 			}
@@ -2049,7 +2075,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 	}
 	// A pinned image that is gone can't run: where a rollback pins one, it says so
 	// and goes back to its tag.
-	if ref := desired.GetImage(); strings.Contains(ref, "@") && (dec.Action == resource.ActionCreate || dec.Action == resource.ActionReplace) {
+	if ref := desired.GetImage(); !dec.KeepWorkloadImage && strings.Contains(ref, "@") && (dec.Action == resource.ActionCreate || dec.Action == resource.ActionReplace) {
 		if _, err := d.Client.InspectImage(ctx, ref); docker.IsNotFound(err) {
 			answer := d.askRegistry(ctx, ref)
 			dec.ImageGone = answer == cantPull
@@ -2077,7 +2103,7 @@ func (d *Docker) Judge(ctx context.Context, t Target, desired *resourcev1.Contai
 		}
 	}
 	if hc := desired.GetHealthcheck(); !IsStopped(desired) && dec.Action == resource.ActionReplace && !complete(hc) {
-		img, err := d.Client.InspectImage(ctx, docker.WithTag(desired.GetImage()))
+		img, err := d.Client.InspectImage(ctx, rolloutImage(desired, dec, c))
 		switch {
 		case err == nil:
 			if b := HealthBound(hc, img.Config.Healthcheck); b > 0 {

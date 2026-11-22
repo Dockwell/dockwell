@@ -4,6 +4,7 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   type BackupFirst,
   BackupMethod,
+  DockerDaemonAction,
   DockerImageOutcome,
   HostAccessKind,
   type HostAgentUpgrade,
@@ -20,6 +21,7 @@ import {
 import { Icon, StatusBadge, Tag } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { Fragment } from "react";
 import { useTimeWords } from "../../lib/time";
 import { splitVersion } from "../../lib/versions";
 import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
@@ -257,6 +259,87 @@ function StepRow({
   const { t } = useLingui();
   const time = useTimeWords();
   const providerLine = useProviderLine();
+  if (step.dockerDaemon?.impact) {
+    const impact = step.dockerDaemon.impact;
+    const willRestart = impact.action === DockerDaemonAction.RESTART;
+    const recoveryRestart = impact.recoveryAction === DockerDaemonAction.RESTART;
+    const status = live ? words.step(live.state) : undefined;
+    return (
+      <li className="plan-step">
+        <span className="plan-step-what">
+          {status ? <StatusBadge label={status.word} status={status.status} /> : null}
+          <span className="plan-step-line">
+            {willRestart
+              ? t`Restart Docker on ${server}`
+              : impact.action === DockerDaemonAction.RELOAD
+                ? t`Reload Docker on ${server}`
+                : t`Save Docker settings on ${server}`}
+          </span>
+        </span>
+        {willRestart && impact.liveRestore ? (
+          <span>
+            <Trans>
+              Live restore is on. Running standalone containers are expected to keep running. Docker commands and log
+              streams pause.
+            </Trans>
+          </span>
+        ) : willRestart ? (
+          <span>
+            <Trans>
+              Live restore is off. Docker stops {impact.runningCount} running containers. {impact.mayStayStoppedCount}{" "}
+              may stay stopped.
+            </Trans>
+          </span>
+        ) : null}
+        {!willRestart && recoveryRestart ? (
+          <span>
+            <Trans>If reload fails, Dockwell restarts Docker with the previous settings.</Trans>{" "}
+            {impact.liveRestore
+              ? t`Live restore is on.`
+              : t`Docker stops ${impact.runningCount} running containers. ${impact.mayStayStoppedCount} may stay stopped.`}
+          </span>
+        ) : null}
+        {step.dockerDaemon.fileChanges.length > 0 ? (
+          <div>
+            <strong>
+              <Trans>Changes in daemon.json</Trans>
+            </strong>
+            <dl>
+              {step.dockerDaemon.fileChanges.map((field) => (
+                <Fragment key={field.path}>
+                  <dt>
+                    <code>{field.path}</code>
+                  </dt>
+                  <dd>
+                    <code>{field.from || t`Not set`}</code>
+                    {" → "}
+                    <code>{field.to || t`Not set`}</code>
+                  </dd>
+                </Fragment>
+              ))}
+            </dl>
+          </div>
+        ) : null}
+        {impact.affectedWorkloads.length > 0 ? (
+          <span>
+            <Trans>Containers affected by a restart</Trans>
+            {" · "}
+            {impact.affectedWorkloads.join(", ")}
+          </span>
+        ) : null}
+        {willRestart ? (
+          <span>
+            <Trans>If Docker fails its health check, Dockwell restarts it again with the previous settings.</Trans>
+          </span>
+        ) : impact.action === DockerDaemonAction.RELOAD && !recoveryRestart ? (
+          <span>
+            <Trans>If Docker fails its health check, Dockwell reloads the previous settings.</Trans>
+          </span>
+        ) : null}
+        {live?.message && live.state === StepState.DONE ? <span>{live.message}</span> : null}
+      </li>
+    );
+  }
   const imageAction = step.dockerMaintenance?.imageAction;
   if (imageAction?.load || imageAction?.export)
     return <DockerArchiveStep action={imageAction} server={server} live={live} />;

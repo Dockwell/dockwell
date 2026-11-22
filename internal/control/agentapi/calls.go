@@ -1433,8 +1433,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	workload := slices.ContainsFunc(desired, func(d resource.Desired) bool {
 		return d.NeedsRunControl || resource.RunIntent(d.Spec) != 0 || d.ExactRestart != ""
 	})
-	if workload || len(logins) > 0 {
+	logging := slices.ContainsFunc(desired, func(d resource.Desired) bool { return resource.Workload(d.Spec).GetLogging() != nil })
+	if workload || logging || len(logins) > 0 {
 		seal = func(on *Session) error {
+			if logging && !on.DockerContainerLogging() {
+				return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
+			}
 			if workload && !on.dockerCapabilities.GetWorkloadControls() {
 				return on.workloadControlsError()
 			}
@@ -1535,6 +1539,13 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		}
 		return s.applyDockerCleanup(ctx, step)
 	}
+	logging := resource.Workload(desired).GetLogging() != nil || slices.ContainsFunc(step.Changes, func(c resource.Change) bool {
+		path := strings.TrimPrefix(c.Path, "app.")
+		return path == "logging" || strings.HasPrefix(path, "logging.")
+	})
+	if logging && !s.DockerContainerLogging() {
+		return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
+	}
 	workload := step.NeedsRunControl || step.ChangesRunIntent() || step.ExactRestart != "" || resource.RunIntent(desired) != 0
 	if workload && !s.DockerWorkloadControls() {
 		return s.workloadControlsError()
@@ -1626,8 +1637,11 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
-	if workload || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
+	if workload || logging || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
 		seal = func(on *Session) error {
+			if logging && !on.DockerContainerLogging() {
+				return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
+			}
 			if workload && !on.dockerCapabilities.GetWorkloadControls() {
 				return on.workloadControlsError()
 			}

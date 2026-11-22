@@ -230,14 +230,11 @@ func TestFilesAreReadAFewAtATime(t *testing.T) {
 	}
 }
 
-// A file may say what Dockwell does anyway, as an export does, and nothing else
-// about where logs go.
-// A file that asks for a rotation of its own is told Dockwell's takes its place, and
-// one that asks for Dockwell's isn't told anything.
-func TestComposeSaysWhichRotationItWontTake(t *testing.T) {
+// A file can set finite rotation while the default shape leaves logging implicit.
+func TestComposeReportsAndKeepsNondefaultRotation(t *testing.T) {
 	stack, err := Parse(t.Context(), []byte(`services:
   web: {image: a, logging: {driver: json-file, options: {max-size: 1g, max-file: "3"}}}
-  same: {image: a, logging: {options: {max-size: 10m, max-file: "5"}}}
+  same: {image: a, logging: {options: {max-size: 10mb, max-file: "5"}}}
   none: {image: a}
 `), nil)
 	if err != nil {
@@ -245,6 +242,40 @@ func TestComposeSaysWhichRotationItWontTake(t *testing.T) {
 	}
 	if len(stack.Rotations) != 1 || stack.Rotations[0].Service != "web" || stack.Rotations[0].Asked != "max-file 3, max-size 1g" {
 		t.Errorf("rotations = %+v", stack.Rotations)
+	}
+	for _, service := range stack.Services {
+		got := service.Spec.GetApp().GetLogging().GetLimits()
+		if service.Name == "web" && (got.GetMaxSizeBytes() != 1_000_000_000 || got.GetMaxFiles() != 3) {
+			t.Fatalf("logging = %v", got)
+		}
+		if service.Name != "web" && got != nil {
+			t.Fatalf("%s gained an override", service.Name)
+		}
+	}
+}
+
+func TestHomebridgeLogRotationSurvivesWorkspaceExport(t *testing.T) {
+	stack, err := Parse(t.Context(), []byte(`services:
+  homebridge: {image: a, logging: {driver: json-file, options: {max-size: "10mb", max-file: "1"}}}
+  local: {image: b, logging: {driver: local, options: {max-file: "1"}}}
+`), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := ExportWorkspace("fixture", stack)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, err := ParseWorkspace(t.Context(), out.File, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, svc := range stack.Services {
+		policy := svc.Spec.GetApp().GetLogging()
+		if policy.GetLimits().GetMaxSizeBytes() != 10_000_000 || policy.GetLimits().GetMaxFiles() != 1 ||
+			!proto.Equal(policy, back.Services[i].Spec.GetApp().GetLogging()) {
+			t.Fatalf("%s log rotation changed on export and import: %v -> %v", svc.Name, policy, back.Services[i].Spec.GetApp().GetLogging())
+		}
 	}
 }
 

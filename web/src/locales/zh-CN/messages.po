@@ -10364,8 +10364,14 @@ msgstr "备份 <0>{name}</0>：停止 {stops} 以获得精确副本，之后重�
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
 
+msgid "Changes in daemon.json"
+msgstr "daemon.json 中的更改"
+
 msgid "Clean up Docker on <0>{server}</0>"
 msgstr "清理 <0>{server}</0> 上的 Docker"
+
+msgid "Containers affected by a restart"
+msgstr "重启影响的容器"
 
 msgid "Current image ID"
 msgstr "当前镜像 ID"
@@ -10388,12 +10394,26 @@ msgstr "Docker 会重启，期间容器保持运行：这是补丁版本，且�
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker 会重启：{server} 上的所有应用和网站都会停止，直到它恢复，Caddy 在那里提供的域名也一样"
 
+#. placeholder {0}: impact.runningCount
+#. placeholder {1}: impact.mayStayStoppedCount
+msgid "Docker stops {0} running containers. {1} may stay stopped."
+msgstr "Docker 将停止 {0} 个正在运行的容器。其中 {1} 个可能不会自动启动。"
+
 #. placeholder {0}: first.databaseName
 msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
 msgstr "从 <1>{name}</1> 单独转储 <0>{0}</0>，不停止任何服务"
 
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "从 <0>{name}</0> 分别单独转储 {databases}，各自作为一份备份，不停止任何服务"
+
+msgid "If Docker fails its health check, Dockwell reloads the previous settings."
+msgstr "如果 Docker 未通过健康检查，Dockwell 会重新加载之前的设置。"
+
+msgid "If Docker fails its health check, Dockwell restarts it again with the previous settings."
+msgstr "如果 Docker 未通过健康检查，Dockwell 会使用之前的设置再次重启 Docker。"
+
+msgid "If reload fails, Dockwell restarts Docker with the previous settings."
+msgstr "如果重新加载失败，Dockwell 会使用之前的设置重启 Docker。"
 
 msgid "Image ID"
 msgstr "镜像 ID"
@@ -10421,6 +10441,17 @@ msgstr "{keysUnder} 下的键会留在服务器上"
 
 msgid "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
 msgstr "{name} 及其数据库 {leftDatabase} 会留在服务器上，它们不是 Dockwell 创建的"
+
+#. placeholder {0}: impact.runningCount
+#. placeholder {1}: impact.mayStayStoppedCount
+msgid "Live restore is off. Docker stops {0} running containers. {1} may stay stopped."
+msgstr "实时恢复已关闭。Docker 将停止 {0} 个正在运行的容器。其中 {1} 个可能不会自动启动。"
+
+msgid "Live restore is on."
+msgstr "实时恢复已开启。"
+
+msgid "Live restore is on. Running standalone containers are expected to keep running. Docker commands and log streams pause."
+msgstr "实时恢复已开启。正在运行的独立容器预计会继续运行。Docker 命令和日志流会暂停。"
 
 msgid "May cut off access to {server}"
 msgstr "可能切断对 {server} 的访问"
@@ -10486,11 +10517,20 @@ msgstr "镜像索引摘要"
 msgid "Registry login"
 msgstr "仓库登录凭据"
 
+msgid "Reload Docker on {server}"
+msgstr "重新加载 {server} 上的 Docker"
+
+msgid "Restart Docker on {server}"
+msgstr "重启 {server} 上的 Docker"
+
 msgid "Result unknown"
 msgstr "结果未知"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "运行控制平面自带的安装脚本（SHA-256 {sha}），它会先校验发布版本的签名再安装"
+
+msgid "Save Docker settings on {server}"
+msgstr "在 {server} 上保存 Docker 设置"
 
 msgctxt "a package update"
 msgid "Security fix"
@@ -11370,6 +11410,9 @@ msgstr "通过 {driver} 驱动，用于 {what}。"
 msgid "By the {driver} driver."
 msgstr "通过 {driver} 驱动。"
 
+msgid "Change Docker daemon settings on {server}"
+msgstr "更改 {server} 上的 Docker 守护进程设置"
+
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
 
@@ -11949,6 +11992,9 @@ msgstr "使用其 Dockerfile。"
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "你选择了不备份。撤销会恢复旧版本，但不会恢复新版本对数据的改动，例如已迁移的数据库。"
+
+msgid "You confirm this change with your passkey."
+msgstr "请使用通行密钥确认此更改。"
 
 msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
 msgstr "fail2ban 会计入本次变更应用前不久的失败，所以变更一应用就可能封禁。"
@@ -12751,6 +12797,9 @@ msgstr "取消登录"
 
 msgid "temporarily"
 msgstr "临时"
+
+msgid "the Docker daemon settings on this server"
+msgstr "此服务器上的 Docker 守护进程设置"
 
 msgid "the Linux capability {path}"
 msgstr "Linux 能力 {path}"
@@ -15455,6 +15504,215 @@ msgstr "无法读取标签"
 msgid "{fallbackName} if needed"
 msgstr "需要时使用 {fallbackName}"
 
+msgid "API version"
+msgstr "API 版本"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "Activate the current Docker settings file"
+msgstr "应用当前 Docker 配置文件"
+
+msgid "Add address pool"
+msgstr "添加地址池"
+
+msgid "Add mirror"
+msgstr "添加镜像源"
+
+msgid "Allocation prefix length"
+msgstr "分配前缀长度"
+
+msgid "Base subnet"
+msgstr "基础子网"
+
+msgid "Change Docker settings"
+msgstr "更改 Docker 设置"
+
+msgid "Change logging defaults"
+msgstr "更改默认日志设置"
+
+msgid "Check more containers"
+msgstr "检查更多容器"
+
+msgid "Checking Docker settings"
+msgstr "正在检查 Docker 设置"
+
+msgid "Checking container log limits"
+msgstr "正在检查容器日志限制"
+
+msgid "Checking logging defaults"
+msgstr "正在检查日志默认设置"
+
+msgid "Configuration source"
+msgstr "配置来源"
+
+msgid "Configured"
+msgstr "已配置"
+
+msgid "Container comparison unavailable"
+msgstr "无法比较容器的日志设置"
+
+msgid "Containers with unbounded logs"
+msgstr "日志大小不受限的容器"
+
+msgid "Data root"
+msgstr "数据根目录"
+
+msgid "Default address pools"
+msgstr "默认地址池"
+
+msgid "Defaults apply when Docker creates a container."
+msgstr "Docker 创建容器时会应用默认设置。"
+
+msgid "Docker has pending edits in daemon.json. Review them before changing settings."
+msgstr "daemon.json 中有尚未应用的更改。请先查看这些更改。"
+
+msgid "Docker is checking running containers"
+msgstr "Docker 正在检查运行中的容器"
+
+msgid "Docker is checking the containers’ log limits"
+msgstr "Docker 正在检查容器的日志限制"
+
+msgid "Docker is checking these defaults"
+msgstr "Docker 正在检查这些默认设置"
+
+msgid "Docker is reading this server's settings"
+msgstr "Docker 正在读取此服务器的设置"
+
+msgid "Docker reports no configured pools"
+msgstr "Docker 未报告已配置的地址池"
+
+msgid "Docker service and logs"
+msgstr "Docker 服务及日志"
+
+msgid "Docker settings"
+msgstr "Docker 设置"
+
+msgid "Docker settings need attention"
+msgstr "Docker 设置需要处理"
+
+msgid "Docker settings unavailable"
+msgstr "Docker 设置不可用"
+
+msgid "Engine version"
+msgstr "引擎版本"
+
+msgid "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
+msgstr "请输入 1 至 1,024 MiB 的大小和 1 至 100 个文件。"
+
+msgid "Enter an HTTPS URL without credentials, a query or a fragment."
+msgstr "请输入不含凭据、查询参数或片段的 HTTPS URL。"
+
+msgid "Enter an address pool with a prefix length from 8 to 30."
+msgstr "请输入地址池，并将前缀长度设为 8 到 30。"
+
+msgid "Hide containers"
+msgstr "隐藏容器"
+
+msgid "Image store"
+msgstr "镜像存储"
+
+msgid "Insecure registries"
+msgstr "不安全的镜像仓库"
+
+msgid "Live restore"
+msgstr "实时恢复"
+
+msgid "Loading Docker settings"
+msgstr "正在加载 Docker 设置"
+
+msgid "Log limits"
+msgstr "日志限制"
+
+msgid "Managed outside Dockwell, with migration for storage changes."
+msgstr "在 Dockwell 外部管理，更改存储需要迁移。"
+
+msgid "Manager"
+msgstr "服务管理器"
+
+msgid "Maximum size per file"
+msgstr "单个文件的最大大小"
+
+msgid "Mode"
+msgstr "权限"
+
+msgid "No Docker restart"
+msgstr "无需重启 Docker"
+
+msgid "No registry mirrors"
+msgstr "没有镜像源"
+
+msgid "No unbounded logs found"
+msgstr "未找到大小不受限的日志"
+
+msgid "None reported"
+msgstr "未上报"
+
+msgid "Open Docker settings again when the server responds."
+msgstr "服务器恢复响应后，请重新打开 Docker 设置。"
+
+msgid "Reachability unverified"
+msgstr "尚未验证连通性"
+
+msgid "Reachable from server"
+msgstr "服务器可访问"
+
+msgid "Read-only settings"
+msgstr "只读设置"
+
+#. placeholder {0}: index + 1
+msgid "Registry mirror URL {0}"
+msgstr "镜像仓库加速地址 {0}"
+
+msgid "Registry mirrors"
+msgstr "镜像加速地址"
+
+msgid "Reload Docker"
+msgstr "重新加载 Docker"
+
+#. placeholder {0}: index + 1
+msgid "Remove mirror {0}"
+msgstr "移除镜像源 {0}"
+
+msgid "Restart Docker"
+msgstr "重启 Docker"
+
+msgid "Review changes"
+msgstr "审核更改"
+
+msgid "Review containers"
+msgstr "检查容器"
+
+msgid "Review log rotation"
+msgstr "审核日志轮转"
+
+msgid "Review the current file"
+msgstr "查看当前文件"
+
+msgid "Server could not reach registry"
+msgstr "服务器无法访问镜像仓库"
+
+msgid "Settings are read-only"
+msgstr "设置为只读"
+
+msgid "Some log limits are unavailable"
+msgstr "有些日志限制不可用"
+
+msgid "The active log driver is managed outside Dockwell."
+msgstr "当前日志驱动由 Dockwell 之外的方式管理。"
+
+msgid "Unbounded"
+msgstr "不受限"
+
+msgid "Unknown driver"
+msgstr "未知驱动"
+
+msgid "View supported configuration"
+msgstr "查看支持的配置"
+
+msgid "{mismatch, plural, one {# running container differs} other {# running containers differ}}"
+msgstr "{mismatch, plural, other {# 个运行中的容器使用不同的日志设置}}"
+
 msgid "All drivers"
 msgstr "所有驱动"
 
@@ -15678,12 +15936,6 @@ msgstr "Docker 视图"
 msgid "Engine inventory"
 msgstr "引擎清单"
 
-msgid "Engine version"
-msgstr "引擎版本"
-
-msgid "Live restore"
-msgstr "实时恢复"
-
 msgid "Loading the Docker overview"
 msgstr "正在加载 Docker 概览"
 
@@ -15698,9 +15950,6 @@ msgstr "打开服务器列表"
 
 msgid "Refresh Docker overview"
 msgstr "刷新 Docker 概览"
-
-msgid "Registry mirrors"
-msgstr "镜像加速地址"
 
 msgid "Server range"
 msgstr "服务器范围"
@@ -16546,9 +16795,6 @@ msgstr "某一步失败"
 
 msgid "Act on a system service"
 msgstr "操作系统服务"
-
-msgid "Action"
-msgstr "操作"
 
 msgid "Add a label to the selector"
 msgstr "向筛选条件添加标签"
@@ -19318,9 +19564,6 @@ msgstr "内核"
 
 msgid "Last heartbeat"
 msgstr "最后心跳"
-
-msgid "None reported"
-msgstr "未上报"
 
 msgid "Not answering since {ago}"
 msgstr "自{ago}起没有响应"
@@ -23638,9 +23881,6 @@ msgstr "它会把请求转发出去。"
 
 msgid "Loading its files"
 msgstr "正在加载文件"
-
-msgid "Mode"
-msgstr "权限"
 
 msgid "No folder of its own"
 msgstr "没有自己的文件夹"

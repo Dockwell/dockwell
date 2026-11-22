@@ -100,6 +100,37 @@ func convertFixture(t *testing.T, c *Converter, id string) Result {
 	return c.Convert(t.Context(), app)
 }
 
+// Runtipi and CasaOS spell Homebridge's log limit as 10mb with one file.
+func TestHomebridgeLogRotationConverts(t *testing.T) {
+	c := converter()
+	c.Overlays["homebridge"] = written("A bridge for home accessories", "utilities")
+	for _, driver := range []string{"json-file", "local"} {
+		t.Run(driver, func(t *testing.T) {
+			app := App{ID: "homebridge", Name: "Homebridge", Version: "1.0.0", Path: "apps/homebridge", Compose: []byte(`services:
+  homebridge:
+    image: example/homebridge:1.0.0
+    logging:
+      driver: ` + driver + `
+      options:
+        max-size: "10mb"
+        max-file: "1"
+`)}
+			result := c.Convert(t.Context(), app)
+			if result.Entry == nil {
+				t.Fatalf("homebridge was left out: %s", result.LeftOut)
+			}
+			stack, err := compose.Parse(t.Context(), []byte(result.Entry.GetCompose()), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			limits := stack.Services[0].Spec.GetApp().GetLogging().GetLimits()
+			if limits.GetDriver() != driver || limits.GetMaxSizeBytes() != 10_000_000 || limits.GetMaxFiles() != 1 {
+				t.Fatalf("homebridge logging = %v, want %s with one 10 MB file", limits, driver)
+			}
+		})
+	}
+}
+
 // 1Panel's store keeps each app's versions side by side; the converter reads the
 // newest, with the one before to fall back to.
 func TestOnePanelReadsEachAppAtItsNewestVersion(t *testing.T) {

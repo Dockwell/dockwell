@@ -178,7 +178,9 @@ export const flow: Flow = {
       await row.waitFor();
       step("docker inventory: a focused row stays in place while a matching filter loads");
       await assertRowRetained(page);
-      await search.fill("");
+      // The full run can put this row beyond the first unfiltered page.
+      // Keep the fixture in the selection while exercising its row menu.
+      await search.fill(name);
       await page.getByRole("radio", { name: "All", exact: true }).click();
       await row.waitFor();
       await shoot(page, "docker-depth-containers");

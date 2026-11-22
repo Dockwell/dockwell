@@ -367,7 +367,7 @@ func TestAComposeFilesRotationIsSaidNotDropped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(check.Msg.GetNotes()) != 1 || !strings.Contains(check.Msg.GetNotes()[0], "max-size 1g") || !strings.Contains(check.Msg.GetNotes()[0], "5 files of 10 MiB") {
+	if len(check.Msg.GetNotes()) != 1 || !strings.Contains(check.Msg.GetNotes()[0], "max-size 1g") || !strings.Contains(check.Msg.GetNotes()[0], "for new containers") {
 		t.Errorf("the check says %v", check.Msg.GetNotes())
 	}
 	imported, err := cc.ImportCompose(t.Context(), connect.NewRequest(&dockwellv1.ImportComposeRequest{Compose: file}))

@@ -28,6 +28,7 @@ import (
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
+	"github.com/dockwell/dockwell/internal/resource/dockerlog"
 )
 
 // Kind is the container kind.
@@ -327,6 +328,9 @@ const bridge = "bridge"
 // service's app is checked with it, as a container whose networks are its
 // environment's.
 func Validate(c *resourcev1.Container) error {
+	if err := dockerlog.ValidateContainerLogging(c.GetLogging()); err != nil {
+		return err
+	}
 	if err := CheckImage(c.GetImage()); err != nil {
 		return err
 	}
@@ -1037,6 +1041,7 @@ func (d *Driver) JudgeAt(ctx context.Context, t Target, actual, desired proto.Me
 		if desired != nil {
 			spec = desired.(*resourcev1.Container)
 		}
+		dec.KeepWorkloadImage = dec.Action == resource.ActionReplace && loggingOnly(changes)
 		if err := j.Judge(ctx, t, spec, &dec); err != nil {
 			return resource.Decision{}, err
 		}
@@ -1073,6 +1078,7 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 	switch step.Action {
 	case resource.ActionCreate, resource.ActionReplace:
 		spec := desired.(*resourcev1.Container)
+		step.KeepWorkloadImage = step.Action == resource.ActionReplace && !step.Pull && loggingOnly(step.Changes)
 		if step.Adopts != "" {
 			a, ok := d.Runtime.(adopter)
 			if !ok {
@@ -1115,6 +1121,12 @@ func (d *Driver) ApplyAt(ctx context.Context, t Target, step resource.Step, desi
 	default:
 		return nil
 	}
+}
+
+func loggingOnly(changes []resource.Change) bool {
+	return len(changes) > 0 && !slices.ContainsFunc(changes, func(c resource.Change) bool {
+		return c.Path != "logging" && !strings.HasPrefix(c.Path, "logging.")
+	})
 }
 
 // puller is a Runtime that can ask for an image again, and tell whether what it

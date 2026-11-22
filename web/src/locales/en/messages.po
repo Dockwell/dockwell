@@ -10364,8 +10364,14 @@ msgstr "Back up <0>{name}</0>, with {stops} stopped for an exact copy and starte
 msgid "Brings back the data the server kept"
 msgstr "Brings back the data the server kept"
 
+msgid "Changes in daemon.json"
+msgstr "Changes in daemon.json"
+
 msgid "Clean up Docker on <0>{server}</0>"
 msgstr "Clean up Docker on <0>{server}</0>"
+
+msgid "Containers affected by a restart"
+msgstr "Containers affected by a restart"
 
 msgid "Current image ID"
 msgstr "Current image ID"
@@ -10388,12 +10394,26 @@ msgstr "Docker restarts, and keeps containers running while it does: it's a patc
 msgid "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 msgstr "Docker restarts: every app and website on {server} stops until it's back, the domains Caddy serves there too"
 
+#. placeholder {0}: impact.runningCount
+#. placeholder {1}: impact.mayStayStoppedCount
+msgid "Docker stops {0} running containers. {1} may stay stopped."
+msgstr "Docker stops {0} running containers. {1} may stay stopped."
+
 #. placeholder {0}: first.databaseName
 msgid "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
 msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
 
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
+
+msgid "If Docker fails its health check, Dockwell reloads the previous settings."
+msgstr "If Docker fails its health check, Dockwell reloads the previous settings."
+
+msgid "If Docker fails its health check, Dockwell restarts it again with the previous settings."
+msgstr "If Docker fails its health check, Dockwell restarts it again with the previous settings."
+
+msgid "If reload fails, Dockwell restarts Docker with the previous settings."
+msgstr "If reload fails, Dockwell restarts Docker with the previous settings."
 
 msgid "Image ID"
 msgstr "Image ID"
@@ -10421,6 +10441,17 @@ msgstr "Leaves the keys under {keysUnder} on the server"
 
 msgid "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
 msgstr "Leaves {name} and its database {leftDatabase} on the server, which Dockwell didn't make"
+
+#. placeholder {0}: impact.runningCount
+#. placeholder {1}: impact.mayStayStoppedCount
+msgid "Live restore is off. Docker stops {0} running containers. {1} may stay stopped."
+msgstr "Live restore is off. Docker stops {0} running containers. {1} may stay stopped."
+
+msgid "Live restore is on."
+msgstr "Live restore is on."
+
+msgid "Live restore is on. Running standalone containers are expected to keep running. Docker commands and log streams pause."
+msgstr "Live restore is on. Running standalone containers are expected to keep running. Docker commands and log streams pause."
 
 msgid "May cut off access to {server}"
 msgstr "May cut off access to {server}"
@@ -10486,11 +10517,20 @@ msgstr "Registry index digest"
 msgid "Registry login"
 msgstr "Registry login"
 
+msgid "Reload Docker on {server}"
+msgstr "Reload Docker on {server}"
+
+msgid "Restart Docker on {server}"
+msgstr "Restart Docker on {server}"
+
 msgid "Result unknown"
 msgstr "Result unknown"
 
 msgid "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
 msgstr "Runs the control plane's install script, SHA-256 {sha}, which checks the release's signature before it installs it"
+
+msgid "Save Docker settings on {server}"
+msgstr "Save Docker settings on {server}"
 
 msgctxt "a package update"
 msgid "Security fix"
@@ -11370,6 +11410,9 @@ msgstr "By the {driver} driver, for {what}."
 msgid "By the {driver} driver."
 msgstr "By the {driver} driver."
 
+msgid "Change Docker daemon settings on {server}"
+msgstr "Change Docker daemon settings on {server}"
+
 msgid "Check it's the commit you mean."
 msgstr "Check it's the commit you mean."
 
@@ -11949,6 +11992,9 @@ msgstr "With its Dockerfile."
 
 msgid "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
 msgstr "You asked for none. Undoing this puts the old version back, but not what the new one changed in its data, such as a database it migrated."
+
+msgid "You confirm this change with your passkey."
+msgstr "You confirm this change with your passkey."
 
 msgid "fail2ban counts the failures from just before this applies, so a ban can land as it does."
 msgstr "fail2ban counts the failures from just before this applies, so a ban can land as it does."
@@ -12751,6 +12797,9 @@ msgstr "takes off signing in"
 
 msgid "temporarily"
 msgstr "temporarily"
+
+msgid "the Docker daemon settings on this server"
+msgstr "the Docker daemon settings on this server"
 
 msgid "the Linux capability {path}"
 msgstr "the Linux capability {path}"
@@ -15455,6 +15504,215 @@ msgstr "Tags unavailable"
 msgid "{fallbackName} if needed"
 msgstr "{fallbackName} if needed"
 
+msgid "API version"
+msgstr "API version"
+
+msgid "Action"
+msgstr "Action"
+
+msgid "Activate the current Docker settings file"
+msgstr "Activate the current Docker settings file"
+
+msgid "Add address pool"
+msgstr "Add address pool"
+
+msgid "Add mirror"
+msgstr "Add mirror"
+
+msgid "Allocation prefix length"
+msgstr "Allocation prefix length"
+
+msgid "Base subnet"
+msgstr "Base subnet"
+
+msgid "Change Docker settings"
+msgstr "Change Docker settings"
+
+msgid "Change logging defaults"
+msgstr "Change logging defaults"
+
+msgid "Check more containers"
+msgstr "Check more containers"
+
+msgid "Checking Docker settings"
+msgstr "Checking Docker settings"
+
+msgid "Checking container log limits"
+msgstr "Checking container log limits"
+
+msgid "Checking logging defaults"
+msgstr "Checking logging defaults"
+
+msgid "Configuration source"
+msgstr "Configuration source"
+
+msgid "Configured"
+msgstr "Configured"
+
+msgid "Container comparison unavailable"
+msgstr "Container comparison unavailable"
+
+msgid "Containers with unbounded logs"
+msgstr "Containers with unbounded logs"
+
+msgid "Data root"
+msgstr "Data root"
+
+msgid "Default address pools"
+msgstr "Default address pools"
+
+msgid "Defaults apply when Docker creates a container."
+msgstr "Defaults apply when Docker creates a container."
+
+msgid "Docker has pending edits in daemon.json. Review them before changing settings."
+msgstr "Docker has pending edits in daemon.json. Review them before changing settings."
+
+msgid "Docker is checking running containers"
+msgstr "Docker is checking running containers"
+
+msgid "Docker is checking the containers’ log limits"
+msgstr "Docker is checking the containers’ log limits"
+
+msgid "Docker is checking these defaults"
+msgstr "Docker is checking these defaults"
+
+msgid "Docker is reading this server's settings"
+msgstr "Docker is reading this server's settings"
+
+msgid "Docker reports no configured pools"
+msgstr "Docker reports no configured pools"
+
+msgid "Docker service and logs"
+msgstr "Docker service and logs"
+
+msgid "Docker settings"
+msgstr "Docker settings"
+
+msgid "Docker settings need attention"
+msgstr "Docker settings need attention"
+
+msgid "Docker settings unavailable"
+msgstr "Docker settings unavailable"
+
+msgid "Engine version"
+msgstr "Engine version"
+
+msgid "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
+msgstr "Enter a size from 1 to 1,024 MiB and 1 to 100 files."
+
+msgid "Enter an HTTPS URL without credentials, a query or a fragment."
+msgstr "Enter an HTTPS URL without credentials, a query or a fragment."
+
+msgid "Enter an address pool with a prefix length from 8 to 30."
+msgstr "Enter an address pool with a prefix length from 8 to 30."
+
+msgid "Hide containers"
+msgstr "Hide containers"
+
+msgid "Image store"
+msgstr "Image store"
+
+msgid "Insecure registries"
+msgstr "Insecure registries"
+
+msgid "Live restore"
+msgstr "Live restore"
+
+msgid "Loading Docker settings"
+msgstr "Loading Docker settings"
+
+msgid "Log limits"
+msgstr "Log limits"
+
+msgid "Managed outside Dockwell, with migration for storage changes."
+msgstr "Managed outside Dockwell, with migration for storage changes."
+
+msgid "Manager"
+msgstr "Manager"
+
+msgid "Maximum size per file"
+msgstr "Maximum size per file"
+
+msgid "Mode"
+msgstr "Mode"
+
+msgid "No Docker restart"
+msgstr "No Docker restart"
+
+msgid "No registry mirrors"
+msgstr "No registry mirrors"
+
+msgid "No unbounded logs found"
+msgstr "No unbounded logs found"
+
+msgid "None reported"
+msgstr "None reported"
+
+msgid "Open Docker settings again when the server responds."
+msgstr "Open Docker settings again when the server responds."
+
+msgid "Reachability unverified"
+msgstr "Reachability unverified"
+
+msgid "Reachable from server"
+msgstr "Reachable from server"
+
+msgid "Read-only settings"
+msgstr "Read-only settings"
+
+#. placeholder {0}: index + 1
+msgid "Registry mirror URL {0}"
+msgstr "Registry mirror URL {0}"
+
+msgid "Registry mirrors"
+msgstr "Registry mirrors"
+
+msgid "Reload Docker"
+msgstr "Reload Docker"
+
+#. placeholder {0}: index + 1
+msgid "Remove mirror {0}"
+msgstr "Remove mirror {0}"
+
+msgid "Restart Docker"
+msgstr "Restart Docker"
+
+msgid "Review changes"
+msgstr "Review changes"
+
+msgid "Review containers"
+msgstr "Review containers"
+
+msgid "Review log rotation"
+msgstr "Review log rotation"
+
+msgid "Review the current file"
+msgstr "Review the current file"
+
+msgid "Server could not reach registry"
+msgstr "Server could not reach registry"
+
+msgid "Settings are read-only"
+msgstr "Settings are read-only"
+
+msgid "Some log limits are unavailable"
+msgstr "Some log limits are unavailable"
+
+msgid "The active log driver is managed outside Dockwell."
+msgstr "The active log driver is managed outside Dockwell."
+
+msgid "Unbounded"
+msgstr "Unbounded"
+
+msgid "Unknown driver"
+msgstr "Unknown driver"
+
+msgid "View supported configuration"
+msgstr "View supported configuration"
+
+msgid "{mismatch, plural, one {# running container differs} other {# running containers differ}}"
+msgstr "{mismatch, plural, one {# running container differs} other {# running containers differ}}"
+
 msgid "All drivers"
 msgstr "All drivers"
 
@@ -15678,12 +15936,6 @@ msgstr "Docker views"
 msgid "Engine inventory"
 msgstr "Engine inventory"
 
-msgid "Engine version"
-msgstr "Engine version"
-
-msgid "Live restore"
-msgstr "Live restore"
-
 msgid "Loading the Docker overview"
 msgstr "Loading the Docker overview"
 
@@ -15698,9 +15950,6 @@ msgstr "Open Servers"
 
 msgid "Refresh Docker overview"
 msgstr "Refresh Docker overview"
-
-msgid "Registry mirrors"
-msgstr "Registry mirrors"
 
 msgid "Server range"
 msgstr "Server range"
@@ -16546,9 +16795,6 @@ msgstr "A step fails"
 
 msgid "Act on a system service"
 msgstr "Act on a system service"
-
-msgid "Action"
-msgstr "Action"
 
 msgid "Add a label to the selector"
 msgstr "Add a label to the selector"
@@ -19318,9 +19564,6 @@ msgstr "Kernel"
 
 msgid "Last heartbeat"
 msgstr "Last heartbeat"
-
-msgid "None reported"
-msgstr "None reported"
 
 msgid "Not answering since {ago}"
 msgstr "Not answering since {ago}"
@@ -23638,9 +23881,6 @@ msgstr "It sends its requests on."
 
 msgid "Loading its files"
 msgstr "Loading its files"
-
-msgid "Mode"
-msgstr "Mode"
 
 msgid "No folder of its own"
 msgstr "No folder of its own"

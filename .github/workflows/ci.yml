@@ -201,6 +201,27 @@ jobs:
             echo "$test must pass against Docker. Read Tests against Docker above."
             exit 1
           done
+      - name: Docker daemon settings on a private Engine
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          state=$(mktemp -d "$RUNNER_TEMP/dw-settings.XXXXXX")
+          trap 'rm -rf "$state"' EXIT
+          CGO_ENABLED=0 go test -c -o "$state/docker-settings.test" ./internal/resource/dockerdaemon
+          docker run --rm --privileged -e DOCKWELL_TEST_DAEMON_DIND=1 \
+            --mount "type=bind,src=$state/docker-settings.test,dst=/docker-settings.test,readonly" \
+            --entrypoint /docker-settings.test docker:28.5.2-dind \
+            -test.v -test.timeout=6m -test.run 'TestDockerDaemon.*OnRealDocker' | tee "$RUNNER_TEMP/docker-settings.out"
+          for test in TestDockerDaemonMirrorsReloadOnRealDocker \
+            TestDockerDaemonInvalidConfigurationRefusedOnRealDocker TestDockerDaemonRollbackOnRealDocker \
+            TestDockerDaemonLoggingAndPoolsOnRealDocker; do
+            grep -q "^--- PASS: $test " "$RUNNER_TEMP/docker-settings.out"
+          done
+          docker run --rm --privileged -e DOCKWELL_TEST_DAEMON_DIND=1 \
+            --mount "type=bind,src=$state/docker-settings.test,dst=/docker-settings.test,readonly" \
+            --entrypoint /docker-settings.test docker:29.4.1-dind \
+            -test.v -test.timeout=3m -test.run '^TestDockerDaemonMirrorsReloadOnRealDocker$' | tee "$RUNNER_TEMP/docker-settings-29.out"
+          grep -q '^--- PASS: TestDockerDaemonMirrorsReloadOnRealDocker ' "$RUNNER_TEMP/docker-settings-29.out"
       # The runner's Docker version changes. Exercise exact cache removal on
       # both releases Dockwell enables it for, using a fresh private daemon.
       - name: Docker cleanup on the supported Engines

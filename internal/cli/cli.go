@@ -19,6 +19,7 @@ import (
 	"github.com/dockwell/dockwell/internal/datadir"
 	"github.com/dockwell/dockwell/internal/logging"
 	"github.com/dockwell/dockwell/internal/probe"
+	"github.com/dockwell/dockwell/internal/resource/dockerdaemon"
 	"github.com/dockwell/dockwell/internal/volumetool"
 )
 
@@ -328,6 +329,11 @@ func agentCommands(stdio IO, g *globalFlags) []*cobra.Command {
 		newJoinCmd(stdio, g),
 		newRoleCmd(stdio, g),
 		newOpenBackupCmd(stdio),
+		{
+			Use: dockerdaemon.WorkerCommand, Hidden: true, Args: cobra.ExactArgs(1),
+			RunE: func(cmd *cobra.Command, args []string) error { return dockerdaemon.Work(cmd.Context(), args[0]) },
+		},
+
 		{
 			// What the agent runs in a throwaway container to read or write a
 			// volume's bytes (ADR 0033).

@@ -177,7 +177,10 @@ type JailPlan struct {
 
 // Decision is a driver's judgement of one step.
 type Decision struct {
+	DockerDaemon      *v1.DockerDaemonPlan  `json:",omitempty"`
 	DockerMaintenance *v1.DockerMaintenance `json:",omitempty"`
+	// KeepWorkloadImage is set locally for a log-policy-only replacement.
+	KeepWorkloadImage bool `json:"-"`
 	// PlannedLeads says where the server paths the resource mounts led when this
 	// was planned, for those that lead elsewhere. What makes a container checks
 	// again, and refuses what leads elsewhere by then.
@@ -1393,6 +1396,8 @@ const (
 	// proxied names a server without a valid certificate behind stops answering, the
 	// panel's first, comma-separated. An admin's to approve (ADR 0104).
 	AccessZoneMode
+	// AccessDockerDaemon changes how Docker runs on the server, with root access.
+	AccessDockerDaemon
 )
 
 // NewAccess lists what to reaches that from doesn't: access it didn't
@@ -1634,6 +1639,8 @@ func AccessWords(a Access) string {
 		return "HTTPS on " + plain(a.Path) + ", which stops: https:// addresses get an error, and browsers that saw HSTS from it refuse plain HTTP until that runs out"
 	case AccessBackupOf:
 		return "a backup of a volume that reached " + plain(a.Path) + ", which can hold what's there, as good as root"
+	case AccessDockerDaemon:
+		return "the Docker daemon settings on this server"
 	case AccessServerShell:
 		return "a shell command on the server, which runs as root"
 	case AccessCertificateKey:

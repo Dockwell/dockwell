@@ -1486,6 +1486,7 @@ function PlanBody({
   const showSteps =
     cleansDocker(plan) ||
     !!dockerImageAction(plan) ||
+    (plan?.resources.some((r) => r.dockerDaemon !== undefined) ?? false) ||
     (phase === "applying" && !phased) ||
     ((fleet || installs) && (ran || phase === "review")) ||
     (phase === "failed" && (steps.length > 1 || fleet) && !phased);

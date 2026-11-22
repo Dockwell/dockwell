@@ -792,6 +792,8 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_LogSources{LogSources: &agentv1.LogSourcesResult{Sources: sources}}}
+	case call.GetDockerSettings() != nil:
+		return c.dockerSettings(ctx, call.GetDockerSettings(), fail)
 	case call.GetDockerInventoryList() != nil:
 		select {
 		case c.inventoryReads <- struct{}{}:

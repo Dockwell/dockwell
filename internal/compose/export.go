@@ -21,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/binding"
 	"github.com/dockwell/dockwell/internal/resource/container"
+	"github.com/dockwell/dockwell/internal/resource/dockerlog"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/variable"
 )
@@ -223,7 +224,9 @@ func export(project string, stack *Stack, comments bool) (*Exported, error) {
 			CapAdd: c.GetCapAdd(), CapDrop: c.GetCapDrop(), GroupAdd: c.GetGroupAdd(), ExtraHosts: c.GetExtraHosts(), Privileged: c.GetPrivileged(),
 			Networks: exportNetworks(c), Deploy: exportResources(c.GetResources()),
 		}
-		if stack.LogDrivers[s.Name] == "" {
+		if logging := dockerlog.ContainerLogConfig(c.GetLogging()); logging != nil {
+			entry.Logging = &loggingEntry{Driver: logging.Type, Options: logging.Config}
+		} else if c.GetLogging() == nil && stack.LogDrivers[s.Name] == "" {
 			entry.Logging = &loggingEntry{Driver: rotation.Type, Options: rotation.Config}
 		}
 		// A network the server has is listed as external, by its name in Docker, so

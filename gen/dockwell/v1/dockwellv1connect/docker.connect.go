@@ -77,6 +77,15 @@ const (
 	// DockerServiceDownloadDockerArtifactProcedure is the fully-qualified name of the DockerService's
 	// DownloadDockerArtifact RPC.
 	DockerServiceDownloadDockerArtifactProcedure = "/dockwell.v1.DockerService/DownloadDockerArtifact"
+	// DockerServiceGetDockerSettingsProcedure is the fully-qualified name of the DockerService's
+	// GetDockerSettings RPC.
+	DockerServiceGetDockerSettingsProcedure = "/dockwell.v1.DockerService/GetDockerSettings"
+	// DockerServiceCheckDockerSettingsProcedure is the fully-qualified name of the DockerService's
+	// CheckDockerSettings RPC.
+	DockerServiceCheckDockerSettingsProcedure = "/dockwell.v1.DockerService/CheckDockerSettings"
+	// DockerServicePlanDockerContainerLoggingProcedure is the fully-qualified name of the
+	// DockerService's PlanDockerContainerLogging RPC.
+	DockerServicePlanDockerContainerLoggingProcedure = "/dockwell.v1.DockerService/PlanDockerContainerLogging"
 	// DockerServiceWatchDockerObjectsProcedure is the fully-qualified name of the DockerService's
 	// WatchDockerObjects RPC.
 	DockerServiceWatchDockerObjectsProcedure = "/dockwell.v1.DockerService/WatchDockerObjects"
@@ -123,6 +132,12 @@ type DockerServiceClient interface {
 	UploadDockerArtifact(context.Context) *connect.ClientStreamForClient[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo]
 	// DownloadDockerArtifact streams an exact extent from a sealed export.
 	DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest]) (*connect.ServerStreamForClient[v1.DownloadDockerArtifactResponse], error)
+	// GetDockerSettings reads the effective Engine settings and known configuration sources.
+	GetDockerSettings(context.Context, *connect.Request[v1.GetDockerSettingsRequest]) (*connect.Response[v1.GetDockerSettingsResponse], error)
+	// CheckDockerSettings validates proposed defaults on one server before review.
+	CheckDockerSettings(context.Context, *connect.Request[v1.CheckDockerSettingsRequest]) (*connect.Response[v1.CheckDockerSettingsResponse], error)
+	// PlanDockerContainerLogging reviews finite logging limits for a managed workload.
+	PlanDockerContainerLogging(context.Context, *connect.Request[v1.PlanDockerContainerLoggingRequest]) (*connect.Response[v1.PlanDockerContainerLoggingResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error)
 }
@@ -229,6 +244,25 @@ func NewDockerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		getDockerSettings: connect.NewClient[v1.GetDockerSettingsRequest, v1.GetDockerSettingsResponse](
+			httpClient,
+			baseURL+DockerServiceGetDockerSettingsProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("GetDockerSettings")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		checkDockerSettings: connect.NewClient[v1.CheckDockerSettingsRequest, v1.CheckDockerSettingsResponse](
+			httpClient,
+			baseURL+DockerServiceCheckDockerSettingsProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("CheckDockerSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		planDockerContainerLogging: connect.NewClient[v1.PlanDockerContainerLoggingRequest, v1.PlanDockerContainerLoggingResponse](
+			httpClient,
+			baseURL+DockerServicePlanDockerContainerLoggingProcedure,
+			connect.WithSchema(dockerServiceMethods.ByName("PlanDockerContainerLogging")),
+			connect.WithClientOptions(opts...),
+		),
 		watchDockerObjects: connect.NewClient[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse](
 			httpClient,
 			baseURL+DockerServiceWatchDockerObjectsProcedure,
@@ -255,6 +289,9 @@ type dockerServiceClient struct {
 	abortDockerArtifact         *connect.Client[v1.AbortDockerArtifactRequest, v1.DockerArtifactInfo]
 	uploadDockerArtifact        *connect.Client[v1.UploadDockerArtifactRequest, v1.DockerArtifactInfo]
 	downloadDockerArtifact      *connect.Client[v1.DownloadDockerArtifactRequest, v1.DownloadDockerArtifactResponse]
+	getDockerSettings           *connect.Client[v1.GetDockerSettingsRequest, v1.GetDockerSettingsResponse]
+	checkDockerSettings         *connect.Client[v1.CheckDockerSettingsRequest, v1.CheckDockerSettingsResponse]
+	planDockerContainerLogging  *connect.Client[v1.PlanDockerContainerLoggingRequest, v1.PlanDockerContainerLoggingResponse]
 	watchDockerObjects          *connect.Client[v1.WatchDockerObjectsRequest, v1.WatchDockerObjectsResponse]
 }
 
@@ -328,6 +365,21 @@ func (c *dockerServiceClient) DownloadDockerArtifact(ctx context.Context, req *c
 	return c.downloadDockerArtifact.CallServerStream(ctx, req)
 }
 
+// GetDockerSettings calls dockwell.v1.DockerService.GetDockerSettings.
+func (c *dockerServiceClient) GetDockerSettings(ctx context.Context, req *connect.Request[v1.GetDockerSettingsRequest]) (*connect.Response[v1.GetDockerSettingsResponse], error) {
+	return c.getDockerSettings.CallUnary(ctx, req)
+}
+
+// CheckDockerSettings calls dockwell.v1.DockerService.CheckDockerSettings.
+func (c *dockerServiceClient) CheckDockerSettings(ctx context.Context, req *connect.Request[v1.CheckDockerSettingsRequest]) (*connect.Response[v1.CheckDockerSettingsResponse], error) {
+	return c.checkDockerSettings.CallUnary(ctx, req)
+}
+
+// PlanDockerContainerLogging calls dockwell.v1.DockerService.PlanDockerContainerLogging.
+func (c *dockerServiceClient) PlanDockerContainerLogging(ctx context.Context, req *connect.Request[v1.PlanDockerContainerLoggingRequest]) (*connect.Response[v1.PlanDockerContainerLoggingResponse], error) {
+	return c.planDockerContainerLogging.CallUnary(ctx, req)
+}
+
 // WatchDockerObjects calls dockwell.v1.DockerService.WatchDockerObjects.
 func (c *dockerServiceClient) WatchDockerObjects(ctx context.Context, req *connect.Request[v1.WatchDockerObjectsRequest]) (*connect.ServerStreamForClient[v1.WatchDockerObjectsResponse], error) {
 	return c.watchDockerObjects.CallServerStream(ctx, req)
@@ -374,6 +426,12 @@ type DockerServiceHandler interface {
 	UploadDockerArtifact(context.Context, *connect.ClientStream[v1.UploadDockerArtifactRequest]) (*connect.Response[v1.DockerArtifactInfo], error)
 	// DownloadDockerArtifact streams an exact extent from a sealed export.
 	DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest], *connect.ServerStream[v1.DownloadDockerArtifactResponse]) error
+	// GetDockerSettings reads the effective Engine settings and known configuration sources.
+	GetDockerSettings(context.Context, *connect.Request[v1.GetDockerSettingsRequest]) (*connect.Response[v1.GetDockerSettingsResponse], error)
+	// CheckDockerSettings validates proposed defaults on one server before review.
+	CheckDockerSettings(context.Context, *connect.Request[v1.CheckDockerSettingsRequest]) (*connect.Response[v1.CheckDockerSettingsResponse], error)
+	// PlanDockerContainerLogging reviews finite logging limits for a managed workload.
+	PlanDockerContainerLogging(context.Context, *connect.Request[v1.PlanDockerContainerLoggingRequest]) (*connect.Response[v1.PlanDockerContainerLoggingResponse], error)
 	// WatchDockerObjects streams invalidations and samples while a view is open.
 	WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error
 }
@@ -476,6 +534,25 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	dockerServiceGetDockerSettingsHandler := connect.NewUnaryHandler(
+		DockerServiceGetDockerSettingsProcedure,
+		svc.GetDockerSettings,
+		connect.WithSchema(dockerServiceMethods.ByName("GetDockerSettings")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServiceCheckDockerSettingsHandler := connect.NewUnaryHandler(
+		DockerServiceCheckDockerSettingsProcedure,
+		svc.CheckDockerSettings,
+		connect.WithSchema(dockerServiceMethods.ByName("CheckDockerSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dockerServicePlanDockerContainerLoggingHandler := connect.NewUnaryHandler(
+		DockerServicePlanDockerContainerLoggingProcedure,
+		svc.PlanDockerContainerLogging,
+		connect.WithSchema(dockerServiceMethods.ByName("PlanDockerContainerLogging")),
+		connect.WithHandlerOptions(opts...),
+	)
 	dockerServiceWatchDockerObjectsHandler := connect.NewServerStreamHandler(
 		DockerServiceWatchDockerObjectsProcedure,
 		svc.WatchDockerObjects,
@@ -513,6 +590,12 @@ func NewDockerServiceHandler(svc DockerServiceHandler, opts ...connect.HandlerOp
 			dockerServiceUploadDockerArtifactHandler.ServeHTTP(w, r)
 		case DockerServiceDownloadDockerArtifactProcedure:
 			dockerServiceDownloadDockerArtifactHandler.ServeHTTP(w, r)
+		case DockerServiceGetDockerSettingsProcedure:
+			dockerServiceGetDockerSettingsHandler.ServeHTTP(w, r)
+		case DockerServiceCheckDockerSettingsProcedure:
+			dockerServiceCheckDockerSettingsHandler.ServeHTTP(w, r)
+		case DockerServicePlanDockerContainerLoggingProcedure:
+			dockerServicePlanDockerContainerLoggingHandler.ServeHTTP(w, r)
 		case DockerServiceWatchDockerObjectsProcedure:
 			dockerServiceWatchDockerObjectsHandler.ServeHTTP(w, r)
 		default:
@@ -578,6 +661,18 @@ func (UnimplementedDockerServiceHandler) UploadDockerArtifact(context.Context, *
 
 func (UnimplementedDockerServiceHandler) DownloadDockerArtifact(context.Context, *connect.Request[v1.DownloadDockerArtifactRequest], *connect.ServerStream[v1.DownloadDockerArtifactResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.DownloadDockerArtifact is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) GetDockerSettings(context.Context, *connect.Request[v1.GetDockerSettingsRequest]) (*connect.Response[v1.GetDockerSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.GetDockerSettings is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) CheckDockerSettings(context.Context, *connect.Request[v1.CheckDockerSettingsRequest]) (*connect.Response[v1.CheckDockerSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.CheckDockerSettings is not implemented"))
+}
+
+func (UnimplementedDockerServiceHandler) PlanDockerContainerLogging(context.Context, *connect.Request[v1.PlanDockerContainerLoggingRequest]) (*connect.Response[v1.PlanDockerContainerLoggingResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DockerService.PlanDockerContainerLogging is not implemented"))
 }
 
 func (UnimplementedDockerServiceHandler) WatchDockerObjects(context.Context, *connect.Request[v1.WatchDockerObjectsRequest], *connect.ServerStream[v1.WatchDockerObjectsResponse]) error {

@@ -1445,7 +1445,7 @@ func rotationNotes(env string, rotations []compose.Rotation) []revision.Note {
 }
 
 func rotationWords(r compose.Rotation) string {
-	return fmt.Sprintf("%s asks for %s in its logging, and Dockwell keeps each container's log in 5 files of 10 MiB instead, so a log can't fill the disk. Older lines go sooner than the file says", r.Service, r.Asked)
+	return fmt.Sprintf("%s sets %s for new containers. Dockwell fills any omitted limits from its defaults", r.Service, r.Asked)
 }
 
 // CheckCompose reads a Compose file as ImportCompose would, and says what

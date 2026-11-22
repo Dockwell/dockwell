@@ -80,6 +80,7 @@ Holding the key in a TPM or the kernel's keyring can come later without changing
 - **What each kind gets.** The agent keeps a record of every kind it applies, so a fill and a forget cover them all, and acts alone on four:
   - **Networks, volumes, services and containers** are looked at as above. A volume is only ever waited for.
   - **Routes** are left to the ingress, which starts with its last config and reconciles it itself.
+  - **Docker daemon settings** are changed only through a reviewed revision. The independent worker can restore the previous file after a failed apply ([ADR 0107](0107-docker-inventory-and-changes-on-a-server.md)).
   - **Scheduled tasks** are left to the agent's own `tasks.json`, which runs them on the server's clock whether or not a stream is up ([ADR 0053](0053-scheduled-tasks.md)). Their records are a second copy that nothing acts on.
   - **Database users** are left alone. A user lives in its database's data, so it comes back with the volume, and making one again means running SQL with a password, which is a change and not a repair. Its record holds the password's value, sealed as any record's values are.
   - **Alert rules and channels, backup policies and destinations, projects, environments, variables and secrets** run on no server, so no agent is sent them and none keeps a record of them. Alerts are judged by the control plane, so none fire while it's away.

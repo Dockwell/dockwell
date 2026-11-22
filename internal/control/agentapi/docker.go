@@ -353,3 +353,30 @@ func (s *Session) checkDockerAttachmentPlan(ctx context.Context, g *dockwellv1.D
 	}
 	return nil
 }
+
+// DockerSettings reads or validates one daemon configuration through its agent.
+func (s *Session) DockerSettings(ctx context.Context, ask *agentv1.DockerSettingsCall) (*agentv1.DockerSettingsResult, error) {
+	if !s.dockerCapabilities.GetDaemonSettings() {
+		return nil, fault.New(ErrOlderAgent, "update the agent to read Docker settings")
+	}
+	res, err := s.callOnceWithin(ctx, &agentv1.Call{Call: &agentv1.Call_DockerSettings{DockerSettings: ask}}, 20*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if res.GetDockerSettings() == nil {
+		return nil, errors.New("the agent did not return Docker settings")
+	}
+	return res.GetDockerSettings(), nil
+}
+
+// DockerContainerLogging reports whether the agent supports typed container log settings.
+func (s *Session) DockerContainerLogging() bool { return s.dockerCapabilities.GetContainerLogging() }
+
+// CheckDockerLoggingTarget checks the reviewed Engine identity before a log policy revision.
+func (s *Session) CheckDockerLoggingTarget(ctx context.Context, id string) (bool, error) {
+	if !s.DockerContainerLogging() {
+		return false, fault.New(ErrOlderAgent, "update the agent to review log rotation")
+	}
+	res, err := s.DockerDetail(ctx, &agentv1.DockerInventoryDetailCall{ContainerId: id})
+	return res.GetObject().GetKey().GetEngineId() == id, err
+}

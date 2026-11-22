@@ -3595,6 +3595,17 @@ paths:
                         - DOCKER_OBJECT_KIND_VOLUME
                     type: string
                     format: enum
+                - name: filter.logRotation
+                  in: query
+                  schema:
+                    enum:
+                        - DOCKER_LOG_ROTATION_STATE_UNSPECIFIED
+                        - DOCKER_LOG_ROTATION_STATE_BOUNDED
+                        - DOCKER_LOG_ROTATION_STATE_UNBOUNDED
+                        - DOCKER_LOG_ROTATION_STATE_DRIVER_MANAGED
+                        - DOCKER_LOG_ROTATION_STATE_UNKNOWN
+                    type: string
+                    format: enum
                 - name: filter.search
                   in: query
                   schema:
@@ -3687,6 +3698,84 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetDockerOverviewResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/settings:
+        get:
+            tags:
+                - DockerService
+            description: GetDockerSettings reads the effective Engine settings and known configuration sources.
+            operationId: DockerService_GetDockerSettings
+            parameters:
+                - name: serverId
+                  in: query
+                  schema:
+                    type: string
+                - name: loggingSummary
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetDockerSettingsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/settings/check:
+        post:
+            tags:
+                - DockerService
+            description: CheckDockerSettings validates proposed defaults on one server before review.
+            operationId: DockerService_CheckDockerSettings
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CheckDockerSettingsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CheckDockerSettingsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/docker/settings/logging/plan:
+        post:
+            tags:
+                - DockerService
+            description: PlanDockerContainerLogging reviews finite logging limits for a managed workload.
+            operationId: DockerService_PlanDockerContainerLogging
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/PlanDockerContainerLoggingRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/PlanDockerContainerLoggingResponse'
                 default:
                     description: Default error response
                     content:
@@ -13049,6 +13138,35 @@ components:
                     items:
                         $ref: '#/components/schemas/DockerUnavailable'
             description: CheckDockerNetworkResponse returns live conflicts and lists Engines that could not answer.
+        CheckDockerSettingsRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                draft:
+                    $ref: '#/components/schemas/DockerDaemon'
+            description: CheckDockerSettingsRequest identifies the server and the candidate overlay.
+        CheckDockerSettingsResponse:
+            type: object
+            properties:
+                findings:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerSettingsFinding'
+                impact:
+                    $ref: '#/components/schemas/DockerDaemonImpact'
+                mirrorReachability:
+                    type: array
+                    items:
+                        enum:
+                            - DOCKER_MIRROR_REACHABILITY_UNSPECIFIED
+                            - DOCKER_MIRROR_REACHABILITY_REACHABLE
+                            - DOCKER_MIRROR_REACHABILITY_UNREACHABLE
+                            - DOCKER_MIRROR_REACHABILITY_NOT_CHECKED
+                        type: string
+                        format: enum
+                    description: In draft order, after validation.
+            description: CheckDockerSettingsResponse reports validation findings or activation impact.
         CheckDomainRequest:
             type: object
             properties:
@@ -14560,10 +14678,27 @@ components:
                     type: string
                     description: The workload's durable run intent. Unspecified preserves legacy behavior.
                     format: enum
+                logging:
+                    allOf:
+                        - $ref: '#/components/schemas/ContainerLogging'
+                    description: Unset preserves Dockwell's existing logging policy.
             description: |-
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
                  out, such as its command or working directory, and that isn't drift.
+        ContainerLogging:
+            type: object
+            properties:
+                mode:
+                    enum:
+                        - CONTAINER_LOGGING_MODE_UNSPECIFIED
+                        - CONTAINER_LOGGING_MODE_INHERIT
+                        - CONTAINER_LOGGING_MODE_LIMITS
+                    type: string
+                    format: enum
+                limits:
+                    $ref: '#/components/schemas/DockerDaemonLogging'
+            description: ContainerLogging is the log policy recorded on a workload revision.
         ContainerMount:
             type: object
             properties:
@@ -15912,6 +16047,15 @@ components:
                     type: string
                     description: 'The account that holds it: one token can reach zones in several.'
             description: DnsZoneCheck is what writing a record in one zone came to.
+        DockerAddressPool:
+            type: object
+            properties:
+                base:
+                    type: string
+                prefixLength:
+                    type: integer
+                    format: uint32
+            description: DockerAddressPool pairs a base CIDR with the prefix length of each allocated network.
         DockerArchiveImage:
             type: object
             properties:
@@ -16189,9 +16333,94 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DockerVolumeMountRef'
+                logRotation:
+                    enum:
+                        - DOCKER_LOG_ROTATION_STATE_UNSPECIFIED
+                        - DOCKER_LOG_ROTATION_STATE_BOUNDED
+                        - DOCKER_LOG_ROTATION_STATE_UNBOUNDED
+                        - DOCKER_LOG_ROTATION_STATE_DRIVER_MANAGED
+                        - DOCKER_LOG_ROTATION_STATE_UNKNOWN
+                    type: string
+                    format: enum
             description: |-
                 DockerContainer is a projection of Engine facts. It omits environment,
                  commands, raw labels, health check output and arbitrary driver options.
+        DockerDaemon:
+            type: object
+            properties:
+                mirrors:
+                    $ref: '#/components/schemas/DockerRegistryMirrors'
+                logging:
+                    $ref: '#/components/schemas/DockerDaemonLogging'
+                addressPools:
+                    $ref: '#/components/schemas/DockerDefaultAddressPools'
+                reviewCurrentFile:
+                    type: boolean
+                    description: Review activation of the current local file without taking ownership of it.
+            description: DockerDaemon is an overlay of approved Docker daemon setting groups.
+        DockerDaemonImpact:
+            type: object
+            properties:
+                action:
+                    enum:
+                        - DOCKER_DAEMON_ACTION_UNSPECIFIED
+                        - DOCKER_DAEMON_ACTION_RELOAD
+                        - DOCKER_DAEMON_ACTION_RESTART
+                    type: string
+                    format: enum
+                liveRestore:
+                    type: boolean
+                runningCount:
+                    type: integer
+                    format: uint32
+                mayStayStoppedCount:
+                    type: integer
+                    format: uint32
+                affectedWorkloads:
+                    type: array
+                    items:
+                        type: string
+                coverageComplete:
+                    type: boolean
+                recoveryAction:
+                    enum:
+                        - DOCKER_DAEMON_ACTION_UNSPECIFIED
+                        - DOCKER_DAEMON_ACTION_RELOAD
+                        - DOCKER_DAEMON_ACTION_RESTART
+                    type: string
+                    format: enum
+            description: DockerDaemonImpact describes activation, recovery and effects on running workloads.
+        DockerDaemonLogging:
+            type: object
+            properties:
+                driver:
+                    type: string
+                maxSizeBytes:
+                    type: string
+                maxFiles:
+                    type: integer
+                    format: uint32
+            description: DockerDaemonLogging gives a supported log driver and its finite rotation limits.
+        DockerDaemonPlan:
+            type: object
+            properties:
+                impact:
+                    $ref: '#/components/schemas/DockerDaemonImpact'
+                evidence:
+                    type: string
+                fileChanges:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/FieldChange'
+            description: DockerDaemonPlan holds the reviewed impact and opaque agent evidence.
+        DockerDefaultAddressPools:
+            type: object
+            properties:
+                pools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerAddressPool'
+            description: DockerDefaultAddressPools lists the IPv4 ranges for future network allocations.
         DockerDiskCategory:
             type: object
             properties:
@@ -16781,6 +17010,14 @@ components:
                     type: string
                     description: Digest of the platform's image config, when known. Engine image IDs are separate.
             description: DockerRegistryDescriptor identifies the resolved native manifest and its image config.
+        DockerRegistryMirrors:
+            type: object
+            properties:
+                urls:
+                    type: array
+                    items:
+                        type: string
+            description: DockerRegistryMirrors lists the ordered Docker Hub mirrors. An empty list clears them.
         DockerRegistryRepository:
             type: object
             properties:
@@ -16837,6 +17074,95 @@ components:
                 imageOperations:
                     $ref: '#/components/schemas/DockerImageSupport'
             description: DockerServerSummary counts the Engine inventory at one point in time.
+        DockerSettingSource:
+            type: object
+            properties:
+                field:
+                    type: string
+                sourceKind:
+                    type: string
+                availability:
+                    type: string
+            description: DockerSettingSource describes where a projected setting came from.
+        DockerSettings:
+            type: object
+            properties:
+                observedAt:
+                    type: string
+                    format: date-time
+                engineVersion:
+                    type: string
+                apiVersion:
+                    type: string
+                endpoint:
+                    type: string
+                mode:
+                    type: string
+                manager:
+                    type: string
+                source:
+                    type: string
+                dataRoot:
+                    type: string
+                liveRestore:
+                    type: boolean
+                ipv6:
+                    type: boolean
+                imageStore:
+                    type: string
+                mirrors:
+                    type: array
+                    items:
+                        type: string
+                insecureEntries:
+                    type: array
+                    items:
+                        type: string
+                logging:
+                    $ref: '#/components/schemas/DockerDaemonLogging'
+                pools:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerAddressPool'
+                knownFeatures:
+                    type: object
+                    additionalProperties:
+                        type: boolean
+                editabilityReason:
+                    type: string
+                managedRevision:
+                    type: string
+                provenance:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerSettingSource'
+                runningLoggingMismatch:
+                    type: integer
+                    description: Present on a separate logging summary read when all running workloads were checked.
+                    format: uint32
+                recoveryAttention:
+                    type: string
+                pendingFileReview:
+                    type: boolean
+            description: DockerSettings is the safe projection of one Engine and the groups Dockwell manages.
+        DockerSettingsFinding:
+            type: object
+            properties:
+                field:
+                    type: string
+                reason:
+                    enum:
+                        - DOCKER_SETTINGS_FINDING_REASON_UNSPECIFIED
+                        - DOCKER_SETTINGS_FINDING_REASON_UNSUPPORTED
+                        - DOCKER_SETTINGS_FINDING_REASON_INVALID
+                        - DOCKER_SETTINGS_FINDING_REASON_CONFLICT
+                    type: string
+                    format: enum
+                detail:
+                    type: string
+                reviewCurrentFile:
+                    type: boolean
+            description: DockerSettingsFinding identifies a setting that needs attention before review.
         DockerStorageCreateGuard:
             type: object
             properties:
@@ -19381,6 +19707,12 @@ components:
                     items:
                         $ref: '#/components/schemas/DockerUnavailable'
             description: GetDockerOverviewResponse lists the servers that answered and those that could not.
+        GetDockerSettingsResponse:
+            type: object
+            properties:
+                settings:
+                    $ref: '#/components/schemas/DockerSettings'
+            description: GetDockerSettingsResponse returns the selected Engine settings.
         GetGitHookResponse:
             type: object
             properties:
@@ -20009,6 +20341,7 @@ components:
                 kind:
                     enum:
                         - HOST_ACCESS_KIND_UNSPECIFIED
+                        - HOST_ACCESS_KIND_DOCKER_DAEMON_SETTINGS
                         - HOST_ACCESS_KIND_SERVER_PATH
                         - HOST_ACCESS_KIND_DOCKER_SOCKET
                         - HOST_ACCESS_KIND_HOST_NETWORK
@@ -24853,6 +25186,22 @@ components:
                         $ref: '#/components/schemas/ComposeWorkspaceRemoval'
                     description: A draft that omits resources must confirm these exact removals.
             description: A reviewed change, a source-line refusal, or removals to confirm.
+        PlanDockerContainerLoggingRequest:
+            type: object
+            properties:
+                container:
+                    $ref: '#/components/schemas/DockerObjectKey'
+                baseRevision:
+                    type: string
+                logging:
+                    $ref: '#/components/schemas/ContainerLogging'
+            description: PlanDockerContainerLoggingRequest identifies the reviewed container, revision and policy.
+        PlanDockerContainerLoggingResponse:
+            type: object
+            properties:
+                change:
+                    $ref: '#/components/schemas/Change'
+            description: PlanDockerContainerLoggingResponse returns a reviewed workload change.
         PlanDockerMaintenanceRequest:
             type: object
             properties:
@@ -25281,6 +25630,8 @@ components:
         PlanStep:
             type: object
             properties:
+                dockerDaemon:
+                    $ref: '#/components/schemas/DockerDaemonPlan'
                 dockerStorageGuard:
                     $ref: '#/components/schemas/DockerStorageGuard'
                 dockerMaintenance:
@@ -25720,6 +26071,8 @@ components:
         PlannedResource:
             type: object
             properties:
+                dockerDaemon:
+                    $ref: '#/components/schemas/DockerDaemonPlan'
                 dockerMaintenance:
                     $ref: '#/components/schemas/DockerMaintenance'
                 id:
@@ -30312,6 +30665,8 @@ components:
         Spec:
             type: object
             properties:
+                dockerDaemon:
+                    $ref: '#/components/schemas/DockerDaemon'
                 project:
                     allOf:
                         - $ref: '#/components/schemas/Project'

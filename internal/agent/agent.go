@@ -52,6 +52,7 @@ import (
 	"github.com/dockwell/dockwell/internal/pki"
 	"github.com/dockwell/dockwell/internal/probe"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/dockerdaemon"
 	networkkind "github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/service"
 )
@@ -130,7 +131,8 @@ type Config struct {
 	// jail's form to put in what it never bans. Nil says none.
 	SSHSessions func(ctx context.Context) []string
 	// Docker lists this server's containers. Nil lists none.
-	Docker *docker.Client
+	Docker         *docker.Client
+	DockerSettings *dockerdaemon.Driver
 	// PruneRunState forgets saved intent for containers Docker has removed.
 	PruneRunState func(context.Context) error
 	// DockerIngressImage is the configured ingress image, including local overrides.
@@ -561,6 +563,16 @@ func Run(ctx context.Context, cfg Config) error {
 	}
 	wg.Go(func() { keepRenewed(ctx, cfg) })
 	wg.Go(func() { keepConnected(ctx, cfg) })
+	if cfg.DockerSettings != nil {
+		opened := cfg.presence.opening()
+		wg.Go(func() {
+			select {
+			case <-ctx.Done():
+			case <-opened:
+				cfg.DockerSettings.Recover(ctx, cfg.Logger)
+			}
+		})
+	}
 	if cfg.Terminals != nil {
 		wg.Go(func() { cfg.Terminals.Run(ctx) })
 	}
@@ -738,7 +750,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ArtifactTransfers: cfg.artifacts != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, DaemonSettings: cfg.DockerSettings != nil || cfg.Docker != nil, ContainerLogging: cfg.Docker != nil, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ArtifactTransfers: cfg.artifacts != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}
