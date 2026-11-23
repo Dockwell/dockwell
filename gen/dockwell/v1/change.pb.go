@@ -1823,6 +1823,11 @@ const (
 	DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES     DockerCleanupReason = 11
 	DockerCleanupReason_DOCKER_CLEANUP_REASON_DISABLED                  DockerCleanupReason = 12
 	DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_TAGS             DockerCleanupReason = 13
+	DockerCleanupReason_DOCKER_CLEANUP_REASON_ANONYMOUS                 DockerCleanupReason = 14
+	DockerCleanupReason_DOCKER_CLEANUP_REASON_BACKUP                    DockerCleanupReason = 15
+	DockerCleanupReason_DOCKER_CLEANUP_REASON_COMPOSE                   DockerCleanupReason = 16
+	DockerCleanupReason_DOCKER_CLEANUP_REASON_SWARM_MANAGER             DockerCleanupReason = 17
+	DockerCleanupReason_DOCKER_CLEANUP_REASON_RECENTLY_CREATED          DockerCleanupReason = 18
 )
 
 // Enum value maps for DockerCleanupReason.
@@ -1842,6 +1847,11 @@ var (
 		11: "DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES",
 		12: "DOCKER_CLEANUP_REASON_DISABLED",
 		13: "DOCKER_CLEANUP_REASON_MULTIPLE_TAGS",
+		14: "DOCKER_CLEANUP_REASON_ANONYMOUS",
+		15: "DOCKER_CLEANUP_REASON_BACKUP",
+		16: "DOCKER_CLEANUP_REASON_COMPOSE",
+		17: "DOCKER_CLEANUP_REASON_SWARM_MANAGER",
+		18: "DOCKER_CLEANUP_REASON_RECENTLY_CREATED",
 	}
 	DockerCleanupReason_value = map[string]int32{
 		"DOCKER_CLEANUP_REASON_UNSPECIFIED":               0,
@@ -1858,6 +1868,11 @@ var (
 		"DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES":     11,
 		"DOCKER_CLEANUP_REASON_DISABLED":                  12,
 		"DOCKER_CLEANUP_REASON_MULTIPLE_TAGS":             13,
+		"DOCKER_CLEANUP_REASON_ANONYMOUS":                 14,
+		"DOCKER_CLEANUP_REASON_BACKUP":                    15,
+		"DOCKER_CLEANUP_REASON_COMPOSE":                   16,
+		"DOCKER_CLEANUP_REASON_SWARM_MANAGER":             17,
+		"DOCKER_CLEANUP_REASON_RECENTLY_CREATED":          18,
 	}
 )
 
@@ -1896,6 +1911,8 @@ const (
 	DockerReceiptReason_DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED    DockerReceiptReason = 1
 	DockerReceiptReason_DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED DockerReceiptReason = 2
 	DockerReceiptReason_DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED    DockerReceiptReason = 3
+	DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED   DockerReceiptReason = 4
+	DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_REPLACED     DockerReceiptReason = 5
 )
 
 // Enum value maps for DockerReceiptReason.
@@ -1905,12 +1922,16 @@ var (
 		1: "DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED",
 		2: "DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED",
 		3: "DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED",
+		4: "DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED",
+		5: "DOCKER_RECEIPT_REASON_VOLUME_REPLACED",
 	}
 	DockerReceiptReason_value = map[string]int32{
 		"DOCKER_RECEIPT_REASON_UNSPECIFIED":         0,
 		"DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED":    1,
 		"DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED": 2,
 		"DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED":    3,
+		"DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED":   4,
+		"DOCKER_RECEIPT_REASON_VOLUME_REPLACED":     5,
 	}
 )
 
@@ -11098,7 +11119,11 @@ type DockerCleanupTarget struct {
 	// Every reviewed tag of the image, in order. Empty for a dangling image.
 	ImageTags []string `protobuf:"bytes,9,rep,name=image_tags,json=imageTags,proto3" json:"image_tags,omitempty"`
 	// Every reviewed repository digest of the image, in order.
-	ImageDigests  []string `protobuf:"bytes,10,rep,name=image_digests,json=imageDigests,proto3" json:"image_digests,omitempty"`
+	ImageDigests []string `protobuf:"bytes,10,rep,name=image_digests,json=imageDigests,proto3" json:"image_digests,omitempty"`
+	// Compose project label when protected by a Compose project.
+	ComposeProject string `protobuf:"bytes,11,opt,name=compose_project,json=composeProject,proto3" json:"compose_project,omitempty"`
+	// Known Compose stack ID on the server when Dockwell can link to it.
+	ComposeId     string `protobuf:"bytes,12,opt,name=compose_id,json=composeId,proto3" json:"compose_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11201,6 +11226,20 @@ func (x *DockerCleanupTarget) GetImageDigests() []string {
 		return x.ImageDigests
 	}
 	return nil
+}
+
+func (x *DockerCleanupTarget) GetComposeProject() string {
+	if x != nil {
+		return x.ComposeProject
+	}
+	return ""
+}
+
+func (x *DockerCleanupTarget) GetComposeId() string {
+	if x != nil {
+		return x.ComposeId
+	}
+	return ""
 }
 
 // DockerMaintenance is the exact scope of an irreversible local cleanup.
@@ -13565,7 +13604,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x0fChangeElsewhere\x12\x14\n" +
 	"\x05items\x18\x01 \x01(\x05R\x05items\x12\x1a\n" +
 	"\brestarts\x18\x02 \x01(\x05R\brestarts\x12'\n" +
-	"\x0fedits_elsewhere\x18\x03 \x01(\bR\x0eeditsElsewhere\"\xb1\x03\n" +
+	"\x0fedits_elsewhere\x18\x03 \x01(\bR\x0eeditsElsewhere\"\xf9\x03\n" +
 	"\x13DockerCleanupTarget\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x122\n" +
 	"\x04kind\x18\x02 \x01(\x0e2\x1e.dockwell.v1.DockerCleanupKindR\x04kind\x12\x1b\n" +
@@ -13579,7 +13618,10 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\n" +
 	"image_tags\x18\t \x03(\tR\timageTags\x12#\n" +
 	"\rimage_digests\x18\n" +
-	" \x03(\tR\fimageDigestsB\x12\n" +
+	" \x03(\tR\fimageDigests\x12'\n" +
+	"\x0fcompose_project\x18\v \x01(\tR\x0ecomposeProject\x12\x1d\n" +
+	"\n" +
+	"compose_id\x18\f \x01(\tR\tcomposeIdB\x12\n" +
 	"\x10_estimated_bytes\"\xe1\x01\n" +
 	"\x11DockerMaintenance\x12:\n" +
 	"\atargets\x18\x01 \x03(\v2 .dockwell.v1.DockerCleanupTargetR\atargets\x12\x1b\n" +
@@ -13938,7 +13980,7 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x1bDOCKER_CLEANUP_KIND_NETWORK\x10\x03\x12!\n" +
 	"\x1dDOCKER_CLEANUP_KIND_CONTAINER\x10\x04\x12\x1e\n" +
 	"\x1aDOCKER_CLEANUP_KIND_VOLUME\x10\x05\x12\x1b\n" +
-	"\x17DOCKER_CLEANUP_KIND_LOG\x10\x06*\xa7\x04\n" +
+	"\x17DOCKER_CLEANUP_KIND_LOG\x10\x06*\xe6\x05\n" +
 	"\x13DockerCleanupReason\x12%\n" +
 	"!DOCKER_CLEANUP_REASON_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eDOCKER_CLEANUP_REASON_DANGLING\x10\x01\x12 \n" +
@@ -13954,12 +13996,19 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\x12/\n" +
 	"+DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES\x10\v\x12\"\n" +
 	"\x1eDOCKER_CLEANUP_REASON_DISABLED\x10\f\x12'\n" +
-	"#DOCKER_CLEANUP_REASON_MULTIPLE_TAGS\x10\r*\xc3\x01\n" +
+	"#DOCKER_CLEANUP_REASON_MULTIPLE_TAGS\x10\r\x12#\n" +
+	"\x1fDOCKER_CLEANUP_REASON_ANONYMOUS\x10\x0e\x12 \n" +
+	"\x1cDOCKER_CLEANUP_REASON_BACKUP\x10\x0f\x12!\n" +
+	"\x1dDOCKER_CLEANUP_REASON_COMPOSE\x10\x10\x12'\n" +
+	"#DOCKER_CLEANUP_REASON_SWARM_MANAGER\x10\x11\x12*\n" +
+	"&DOCKER_CLEANUP_REASON_RECENTLY_CREATED\x10\x12*\x9b\x02\n" +
 	"\x13DockerReceiptReason\x12%\n" +
 	"!DOCKER_RECEIPT_REASON_UNSPECIFIED\x10\x00\x12*\n" +
 	"&DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED\x10\x01\x12-\n" +
 	")DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED\x10\x02\x12*\n" +
-	"&DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED\x10\x03*\xc1\x01\n" +
+	"&DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED\x10\x03\x12+\n" +
+	"'DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED\x10\x04\x12)\n" +
+	"%DOCKER_RECEIPT_REASON_VOLUME_REPLACED\x10\x05*\xc1\x01\n" +
 	"\x12DockerReceiptState\x12$\n" +
 	" DOCKER_RECEIPT_STATE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDOCKER_RECEIPT_STATE_REMOVED\x10\x01\x12 \n" +

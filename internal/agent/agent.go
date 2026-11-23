@@ -750,7 +750,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()
 	}
-	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, DaemonSettings: cfg.DockerSettings != nil || cfg.Docker != nil, ContainerLogging: cfg.Docker != nil, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ArtifactTransfers: cfg.artifacts != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil}
+	hello.DockerCapabilities = &agentv1.DockerCapabilities{Inventory: true, DaemonSettings: cfg.DockerSettings != nil || cfg.Docker != nil, ContainerLogging: cfg.Docker != nil, ComposeMembers: cfg.Docker != nil, WorkloadControls: cfg.Docker != nil, ImageInventory: cfg.Docker != nil, Cleanup: cfg.Docker != nil, ArtifactCleanup: cfg.Docker != nil, NetworkVolumeInventory: cfg.Docker != nil, ImageOperations: cfg.Docker != nil && cfg.images != nil, ArtifactTransfers: cfg.artifacts != nil, ExactTerminal: cfg.Terminals != nil && cfg.Docker != nil, VolumeCleanup: cfg.Docker != nil, ExtendedCleanup: cfg.Docker != nil}
 	if cfg.Hello != nil {
 		cfg.Hello(hello)
 	}

@@ -615,6 +615,10 @@ message DockerImageHistory {
 message DockerCleanupFilters {
   bool tagged_images = 1;
   bool networks = 2;
+  // Include unused local volumes (anonymous and named) with per-volume protection checks.
+  bool volumes = 3;
+  // Optional kind filter. Empty previews every supported kind for the active flags.
+  repeated DockerCleanupKind kinds = 4;
 }
 
 // PreviewDockerCleanupRequest selects the servers and artifact filters to read.
@@ -633,6 +637,15 @@ message PreviewDockerCleanupResponse {
   repeated DockerUnavailable unavailable = 4;
   string next_page_token = 5;
   repeated DockerCleanupPause pauses = 6;
+  repeated DockerCleanupServerLimits server_limits = 20;
+  uint32 max_targets_total = 21;
+}
+
+// DockerCleanupServerLimits reports one server's cleanup capacity and supported kinds.
+message DockerCleanupServerLimits {
+  string server_id = 1;
+  uint32 max_targets = 2;
+  repeated DockerCleanupKind supported_kinds = 3;
 }
 
 // DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.

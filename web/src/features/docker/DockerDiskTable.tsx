@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { DockerCleanupKind, type ServerDiskUse } from "@dockwell/api";
-import { Icon } from "@dockwell/ui";
+import { DockerCleanupKind, DockerService, type ServerDiskUse } from "@dockwell/api";
+import { Button, Icon } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
+import { useState } from "react";
 import { formatBytes, formatDateTime } from "../../lib/format";
+import { useMay } from "../auth/may";
 import { useDockerArtifactWords } from "./artifactWords";
+import { DockerPruneSheet } from "./DockerPruneSheet";
 import "./DockerArtifacts.css";
 
-export function DockerDiskTable({ used, serverId }: { used: ServerDiskUse; serverId: string }) {
+export function DockerDiskTable({
+  used,
+  serverId,
+  serverName,
+}: {
+  used: ServerDiskUse;
+  serverId: string;
+  serverName?: string | undefined;
+}) {
   const { t, i18n } = useLingui();
+  const mayPrune = useMay()(DockerService.method.planDockerMaintenance).allowed;
+  const [pruningCache, setPruningCache] = useState(false);
   return (
     <>
       <table className="docker-disk-table" aria-label={t`Docker disk usage`}>
@@ -46,9 +59,22 @@ export function DockerDiskTable({ used, serverId }: { used: ServerDiskUse; serve
                 ) : null}
               </td>
               <td>
-                <span className="docker-disk-quantity">
-                  {row.reclaimableBytes === undefined ? t`Unknown` : formatBytes(row.reclaimableBytes, i18n.locale)}
-                </span>
+                <div className="docker-disk-reclaimable">
+                  <span className="docker-disk-quantity">
+                    {row.reclaimableBytes === undefined ? t`Unknown` : formatBytes(row.reclaimableBytes, i18n.locale)}
+                  </span>
+                  {row.kind === DockerCleanupKind.BUILD_CACHE && mayPrune ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      icon="trash"
+                      onClick={() => setPruningCache(true)}
+                      aria-label={t`Remove unused build cache`}
+                    >
+                      <Trans>Remove unused</Trans>
+                    </Button>
+                  ) : null}
+                </div>
               </td>
             </tr>
           ))}
@@ -58,6 +84,13 @@ export function DockerDiskTable({ used, serverId }: { used: ServerDiskUse; serve
         <p className="docker-disk-measured">
           <Trans>Measured {formatDateTime(timestampDate(used.time), i18n.locale)}</Trans>
         </p>
+      ) : null}
+      {pruningCache ? (
+        <DockerPruneSheet
+          kind={DockerCleanupKind.BUILD_CACHE}
+          servers={[{ id: serverId, name: serverName ?? serverId }]}
+          onClose={() => setPruningCache(false)}
+        />
       ) : null}
     </>
   );

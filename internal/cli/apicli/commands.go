@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -65,7 +66,25 @@ func Commands(env *Env, methods []*Method, nouns []Noun, kinds []*Kind) ([]*cobr
 			out = append(out, cmd)
 		}
 	}
+	if dockerCmd, ok := parents["docker"]; ok {
+		dockerCmd.AddCommand(dockerCleanupCommand(env, opts["docker"]))
+		oldShort := dockerCmd.Short
+		dockerCmd.Short = bumpNounShort(oldShort)
+		dockerCmd.Long = strings.Replace(dockerCmd.Long, oldShort, dockerCmd.Short, 1)
+	}
 	return out, nil
+}
+
+func bumpNounShort(short string) string {
+	const prefix = ", and "
+	const suffix = " more"
+	if i := strings.LastIndex(short, prefix); i >= 0 && strings.HasSuffix(short, suffix) {
+		num := short[i+len(prefix) : len(short)-len(suffix)]
+		if n, err := strconv.Atoi(num); err == nil {
+			return short[:i+len(prefix)] + strconv.Itoa(n+1) + suffix
+		}
+	}
+	return short + ", and 1 more"
 }
 
 // commandNames replaces the name of each method in a message, such as

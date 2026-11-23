@@ -244,9 +244,23 @@ type Info struct {
 	// Swarm is the swarm it's in, where it's in one: Nodes is how many nodes it
 	// has.
 	Swarm struct {
-		Nodes          int
-		LocalNodeState string
+		Nodes            int
+		LocalNodeState   string
+		ControlAvailable bool
 	}
+}
+
+// SwarmVolumeFallback reports whether this Engine can route a non-forced
+// local volume DELETE to Swarm's cluster volume backend. It requires
+// affirmative evidence of an inactive Swarm ("inactive").
+func (i *Info) SwarmVolumeFallback() bool {
+	if i == nil {
+		return true
+	}
+	if i.Swarm.ControlAvailable || i.Swarm.Nodes > 0 {
+		return true
+	}
+	return i.Swarm.LocalNodeState != "inactive"
 }
 
 // ContainerdImageStore reports whether IDs name OCI targets on this Engine.

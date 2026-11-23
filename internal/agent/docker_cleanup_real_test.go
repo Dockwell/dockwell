@@ -16,6 +16,9 @@ import (
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/docker/dockertest"
+	dwid "github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/host"
 )
 
 func TestCleanupRemovesOneBuildCacheRecordOnRealDocker(t *testing.T) {
@@ -164,6 +167,246 @@ func TestCleanupKeepsAnImageWithTwoTagsOnRealDocker(t *testing.T) {
 		if kept, err := client.InspectImage(t.Context(), tag); err != nil || kept.ID != image {
 			t.Fatalf("test tag %s changed: %v, %v", tag, kept, err)
 		}
+	}
+}
+
+func TestCleanupRemovesUnusedVolumesAndManyImagesOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	ctx := t.Context()
+	c := cleanupCalls(t, client)
+	repo := cleanupRealRepo(t)
+
+	// Create 20 dangling images (well above the old 12-item ceiling) by replacing a single tag.
+	dangling := make([]string, 0, 20)
+	tag := repo + ":batch"
+	for i := range 20 {
+		dangling = append(dangling, importCleanupImage(t, client, tag, strings.Repeat("b", i+1)))
+	}
+	// One final image keeps the tag so all 20 prior images are dangling.
+	replacement := importCleanupImage(t, client, tag, "keep-tag")
+
+	// Create a genuine Moby anonymous volume (empty name -> lowercase 64-hex + anonymous marker)
+	// and a named unused volume.
+	createdAnon, err := client.CreateVolume(ctx, &docker.VolumeCreate{Driver: "local"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	anonVol := createdAnon.Name
+	namedVol := "cleanup-named-" + strings.ToLower(dockertest.Scope(t))
+	t.Cleanup(func() {
+		cleanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.RemoveVolume(cleanCtx, anonVol); err != nil && !docker.IsNotFound(err) {
+			t.Errorf("clean up anonymous volume %s: %v", anonVol, err)
+		}
+	})
+	if _, err := client.CreateVolume(ctx, &docker.VolumeCreate{Name: namedVol, Driver: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.RemoveVolume(cleanCtx, namedVol); err != nil && !docker.IsNotFound(err) {
+			t.Errorf("clean up named volume %s: %v", namedVol, err)
+		}
+	})
+
+	// Freshly created volumes (<60s old) stay protected until minimum age passes.
+	freshPreview, err := c.dockerCleanupPreview(ctx, &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range freshPreview.GetTargets() {
+		if row.GetName() == anonVol || row.GetName() == namedVol {
+			if row.GetEvidence() != "" || row.GetReason() != reasonRecentlyCreated {
+				t.Fatalf("fresh volume %s should be protected as RECENTLY_CREATED, got %v", row.GetName(), row)
+			}
+		}
+	}
+
+	// Advance the cleanup clock past the 60s minimum age to verify eligibility and removal.
+	agedNow := time.Now().Add(2 * time.Minute)
+	c.cfg.disks.now = func() time.Time { return agedNow }
+
+	// Default filter (Volumes=false) keeps named volumes out of candidates.
+	for _, row := range cleanupCandidates(t, c, nil) {
+		if row.GetKind() == cleanupVolume && row.GetName() == namedVol {
+			t.Fatalf("named volume was eligible without volume filter: %v", row)
+		}
+	}
+
+	candidates := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Volumes: true})
+	var selected []*v1.DockerCleanupTarget
+	var sawAnon, sawNamed bool
+	danglingSet := map[string]bool{}
+	for _, id := range dangling {
+		danglingSet[id] = true
+	}
+	for _, row := range candidates {
+		switch {
+		case row.GetKind() == cleanupImage && danglingSet[row.GetEngineId()] && row.GetReason() == reasonDangling:
+			selected = append(selected, row)
+		case row.GetKind() == cleanupVolume && row.GetName() == anonVol:
+			if row.GetReason() != reasonAnonymous {
+				t.Fatalf("anonymous volume reason = %v, want ANONYMOUS", row.GetReason())
+			}
+			sawAnon = true
+			selected = append(selected, row)
+		case row.GetKind() == cleanupVolume && row.GetName() == namedVol:
+			if row.GetReason() != reasonUnused {
+				t.Fatalf("named volume reason = %v, want UNUSED (opt-in, not safe default)", row.GetReason())
+			}
+			sawNamed = true
+			selected = append(selected, row)
+		}
+	}
+	if !sawAnon || !sawNamed || len(selected) != 22 {
+		t.Fatalf("selected %d targets (anon=%t named=%t), want 22", len(selected), sawAnon, sawNamed)
+	}
+
+	for _, target := range selected {
+		target.ServerId = "srv_cleanup"
+	}
+	plan := &v1.DockerMaintenance{ChangeId: dwid.At(dwid.Change, agedNow, "real-docker-cleanup"), Targets: selected}
+	var receipts []*v1.DockerReceipt
+	outCtx := resource.WithOutcome(ctx, func(out resource.Outcome) { receipts = out.DockerReceipts })
+	err = c.applyDockerMaintenance(outCtx, resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, plan, &agentv1.DockerCleanupProtection{})
+	if err != nil || len(receipts) != 22 {
+		t.Fatalf("apply 22 targets: receipts=%d err=%v", len(receipts), err)
+	}
+	for _, r := range receipts {
+		if r.GetState() != receiptRemoved {
+			t.Fatalf("target %s not removed: %v", r.GetTarget().GetEngineId(), r)
+		}
+	}
+	for _, id := range dangling {
+		if _, err := client.InspectImage(ctx, id); !docker.IsNotFound(err) {
+			t.Fatalf("dangling image %s still exists: %v", id, err)
+		}
+	}
+	if kept, err := client.InspectImage(ctx, tag); err != nil || kept.ID != replacement {
+		t.Fatalf("replacement image changed: %v, %v", kept, err)
+	}
+	for _, vol := range []string{anonVol, namedVol} {
+		if _, err := client.InspectVolume(ctx, vol); !docker.IsNotFound(err) {
+			t.Fatalf("volume %s still exists: %v", vol, err)
+		}
+	}
+}
+
+func TestCleanupKeepsStoppedContainerVolumeOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	ctx := t.Context()
+	c := cleanupCalls(t, client)
+	tag := cleanupRealRepo(t) + ":stopped-vol"
+	_ = importCleanupImage(t, client, tag, "stopped-vol")
+
+	volName := "cleanup-stopped-" + strings.ToLower(dockertest.Scope(t))
+	if _, err := client.CreateVolume(ctx, &docker.VolumeCreate{Name: volName, Driver: "local"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.RemoveVolume(cleanCtx, volName); err != nil && !docker.IsNotFound(err) {
+			t.Errorf("clean up volume %s: %v", volName, err)
+		}
+	})
+
+	ctrName := "cleanup-stopped-ctr-" + strings.ToLower(dockertest.Scope(t))
+	ctrID, err := client.CreateContainer(ctx, ctrName, &docker.CreateRequest{
+		Config: docker.Config{
+			Image: tag,
+			Cmd:   []string{"/payload"},
+		},
+		HostConfig: docker.HostConfig{
+			Mounts: []docker.Mount{{Type: "volume", Source: volName, Target: "/data"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.RemoveContainer(cleanCtx, ctrID, false); err != nil && !docker.IsNotFound(err) {
+			t.Errorf("clean up container %s: %v", ctrID, err)
+		}
+	})
+
+	preview, err := c.dockerCleanupPreview(ctx, &agentv1.DockerMaintenancePreviewCall{
+		Fresh:   true,
+		Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found *v1.DockerCleanupTarget
+	for _, row := range preview.GetTargets() {
+		if row.GetKind() == cleanupVolume && row.GetName() == volName {
+			found = row
+		}
+	}
+	if found == nil || found.GetEvidence() != "" || found.GetReason() != reasonInUse {
+		t.Fatalf("stopped container volume = %v, want protected IN_USE", found)
+	}
+	if _, err := client.InspectVolume(ctx, volName); err != nil {
+		t.Fatalf("stopped container volume missing: %v", err)
+	}
+}
+
+func TestCleanupProtectsComposeAndCopiedMarkerVolumesOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	ctx := t.Context()
+	c := cleanupCalls(t, client)
+	scope := strings.ToLower(dockertest.Scope(t))
+	composeProj := "cleanupproj-" + scope
+	defaultComposeVol := composeProj + "_db"
+	customComposeVol := "custom-db-" + scope
+	copiedMarkerVol := "copied-anon-" + scope
+
+	removeVol := func(name string) {
+		t.Cleanup(func() {
+			cleanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := client.RemoveVolume(cleanCtx, name); err != nil && !docker.IsNotFound(err) {
+				t.Errorf("clean up volume %s: %v", name, err)
+			}
+		})
+	}
+	for _, spec := range []docker.VolumeCreate{
+		{Name: defaultComposeVol, Driver: "local", Labels: map[string]string{docker.LabelProject: composeProj, docker.LabelVolume: "db"}},
+		{Name: customComposeVol, Driver: "local", Labels: map[string]string{docker.LabelProject: composeProj, docker.LabelVolume: "db"}},
+		{Name: copiedMarkerVol, Driver: "local", Labels: map[string]string{"com.docker.volume.anonymous": ""}},
+	} {
+		if _, err := client.CreateVolume(ctx, &spec); err != nil {
+			t.Fatal(err)
+		}
+		removeVol(spec.Name)
+	}
+
+	agedNow := time.Now().Add(2 * time.Minute)
+	c.cfg.disks.now = func() time.Time { return agedNow }
+	preview, err := c.dockerCleanupPreview(ctx, &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*v1.DockerCleanupTarget{}
+	for _, row := range preview.GetTargets() {
+		byName[row.GetName()] = row
+	}
+	for _, name := range []string{defaultComposeVol, customComposeVol} {
+		row := byName[name]
+		if row == nil || row.GetEvidence() != "" || row.GetReason() != reasonCompose || row.GetComposeProject() != composeProj {
+			t.Fatalf("Compose volume %s = %v, want protected COMPOSE project=%s", name, row, composeProj)
+		}
+	}
+	if copied := byName[copiedMarkerVol]; copied == nil || copied.GetEvidence() == "" || copied.GetReason() != reasonUnused {
+		t.Fatalf("hand-named volume with copied marker = %v, want opt-in named UNUSED (never ANONYMOUS)", copied)
 	}
 }
 

@@ -119,7 +119,7 @@ func (h *Handler) planDockerImage(ctx context.Context, req *v1.PlanDockerMainten
 		return connect.NewResponse(out), nil
 	}
 	if resource.DockerImageRetargetsAlias(action) {
-		protection, err := revision.DockerCleanupProtection(ctx, h.db, server.ID, time.Now(), false)
+		protection, err := revision.DockerCleanupProtection(ctx, h.db, server.ID, time.Now(), false, false)
 		if err != nil {
 			return nil, h.internal(ctx, err)
 		}

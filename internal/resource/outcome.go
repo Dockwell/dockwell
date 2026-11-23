@@ -146,9 +146,9 @@ func PinnedImage(image, digest string) string {
 	return BareImage(image) + "@" + digest
 }
 
-// DockerProtection names the references kept by desired state and retained deployments.
+// DockerProtection names the references kept by desired state, backups and retained deployments.
 type DockerProtection struct {
-	Images, Networks []string
+	Images, Networks, Volumes, BackupVolumes, RollbackVolumes []string
 }
 
 type dockerProtectionKey struct{}

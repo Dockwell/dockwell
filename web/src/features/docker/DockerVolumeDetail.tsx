@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { useQuery } from "@connectrpc/connect-query";
-import { BackupService, DockerObjectKind, DockerService, FileService, VolumeService } from "@dockwell/api";
+import {
+  BackupService,
+  DockerCleanupKind,
+  DockerObjectKind,
+  DockerOwnership,
+  DockerService,
+  FileService,
+  VolumeService,
+} from "@dockwell/api";
 import { Button, Callout, Loading, Panel, Skeleton, SkeletonCard, SkeletonRows, SlowLine } from "@dockwell/ui";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
@@ -14,6 +22,7 @@ import { BackUpSheet } from "../backups/BackUpSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { askable } from "../files/lookup";
 import { EmptyState } from "../shell/EmptyState";
+import { DockerPruneSheet } from "./DockerPruneSheet";
 import { formatMeasurement } from "./DockerStorage";
 import { useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize } from "./parts";
@@ -55,6 +64,18 @@ function VolumeDetail({ serverId, volumeKey }: { serverId: string; volumeKey: st
   };
   const watch = useDockerWatch(allowed ? [serverId] : [], [], refresh, DockerObjectKind.VOLUME);
   const [taking, setTaking] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const mayPrune = may(DockerService.method.planDockerMaintenance).allowed;
+  const removableVolume = !!(
+    mayPrune &&
+    row &&
+    volume &&
+    !managedId &&
+    row.ownership === DockerOwnership.EXTERNAL &&
+    volume.driver === "local" &&
+    volume.attachmentCount === 0 &&
+    !volume.attachmentsPartial
+  );
   const name = row?.managedResource?.name ?? "";
   const environment = row?.managedResource?.scope ?? "";
   const verified = !!(
@@ -102,6 +123,11 @@ function VolumeDetail({ serverId, volumeKey }: { serverId: string; volumeKey: st
             title={!canList || files.error ? t`Files can't open this mountpoint` : undefined}
           >{t`Open files`}</Button>
         )}
+        {removableVolume ? (
+          <Button size="sm" variant="secondary" icon="trash" onClick={() => setRemoving(true)}>
+            {t`Remove volume`}
+          </Button>
+        ) : null}
         {may(BackupService.method.createBackup, { environment }).allowed ? (
           <Button
             size="sm"
@@ -230,6 +256,15 @@ function VolumeDetail({ serverId, volumeKey }: { serverId: string; volumeKey: st
               environment={environment}
               serverId={serverId}
               onClose={() => setTaking(false)}
+            />
+          ) : null}
+          {removing ? (
+            <DockerPruneSheet
+              kind={DockerCleanupKind.VOLUME}
+              servers={[{ id: serverId, name: serverId }]}
+              focusEngineId={volumeKey}
+              onClose={() => setRemoving(false)}
+              onApplied={refresh}
             />
           ) : null}
         </>

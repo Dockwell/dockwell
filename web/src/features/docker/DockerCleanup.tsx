@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { createClient } from "@connectrpc/connect";
-import { createConnectQueryKey, useTransport } from "@connectrpc/connect-query";
 import {
   DockerCleanupKind,
   type DockerCleanupPause,
@@ -10,152 +8,218 @@ import {
   type DockerCleanupTarget,
   DockerReadState,
   DockerService,
-  type Server,
-  ServerService,
 } from "@dockwell/api";
-import { Button, Callout, Icon, Loading, Panel, Skeleton, SkeletonCard, SkeletonRows } from "@dockwell/ui";
+import { Button, Callout, Icon, Loading, Panel, Skeleton, SkeletonCard, SkeletonRows, Tag } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { CopyButton } from "../servers/CopyButton";
 import { EmptyState } from "../shell/EmptyState";
 import { useDockerArtifactWords } from "./artifactWords";
+import {
+  type CleanupFilterSpec,
+  type CleanupServer,
+  cleanupTargetDisplayName,
+  cleanupTargetFullName,
+  cleanupTargetKey,
+  computeBoundedDefaults,
+  isAnonymousVolumeTarget,
+  isOptInNamedVolume,
+  isOptInTaggedImage,
+  resolveBoundedSelection,
+  useCleanupPreview,
+} from "./cleanupHelpers";
 import { Unread } from "./parts";
 import "./DockerArtifacts.css";
 
-type ServerName = Pick<Server, "id" | "name">;
+const ALL_CLEANUP_FILTERS: CleanupFilterSpec = {
+  taggedImages: true,
+  networks: true,
+  volumes: true,
+  kinds: [],
+};
 
-function keyOf(target: DockerCleanupTarget): string {
-  return `${target.serverId}/${target.kind}/${target.engineId}`;
-}
-
-export function DockerCleanup({ servers, group }: { servers: readonly ServerName[]; group?: string | undefined }) {
-  const { t } = useLingui();
-  const [taggedImages, setTaggedImages] = useState(false);
-  const [networks, setNetworks] = useState(group === "networks");
-  return (
-    <>
-      <div className="docker-section-heading">
-        <h2>
-          <Trans>Review cleanup</Trans>
-        </h2>
-      </div>
-      <details className="docker-cleanup-disclosure" open={group === "networks" || undefined}>
-        <summary>
-          <Trans>Cleanup options</Trans>
-        </summary>
-        <div className="docker-cleanup-filters">
-          <label className="docker-cleanup-choice">
-            <input type="checkbox" checked={taggedImages} onChange={(event) => setTaggedImages(event.target.checked)} />
-            {t`Include unused images with tags or digests`}
-          </label>
-          <label className="docker-cleanup-choice">
-            <input type="checkbox" checked={networks} onChange={(event) => setNetworks(event.target.checked)} />
-            {t`Include unused networks`}
-          </label>
-        </div>
-      </details>
-      <CleanupSelection key={String(taggedImages) + String(networks)} {...{ servers, group, taggedImages, networks }} />
-    </>
-  );
-}
-
-function CleanupSelection({
-  servers,
-  group,
-  taggedImages,
-  networks,
-}: {
-  servers: readonly ServerName[];
-  group?: string | undefined;
-  taggedImages: boolean;
-  networks: boolean;
-}) {
+export function DockerCleanup({ servers, group }: { servers: readonly CleanupServer[]; group?: string | undefined }) {
   const { t, i18n } = useLingui();
   const words = useDockerArtifactWords();
-  const transport = useTransport();
-  const client = createClient(DockerService, transport);
   const sheet = useChangeSheet();
-  const cache = useQueryClient();
   const may = useMay()(DockerService.method.planDockerMaintenance).allowed;
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const serverIds = servers.map((s) => s.id);
-  const filters = { taggedImages, networks };
-  const query = useInfiniteQuery({
-    queryKey: ["docker-cleanup", serverIds, filters],
-    queryFn: ({ pageParam, signal }) =>
-      client.previewDockerCleanup({ serverIds, filters, pageToken: pageParam }, { signal }),
-    initialPageParam: "",
-    getNextPageParam: (last) => last.nextPageToken || undefined,
-    refetchOnWindowFocus: false,
-    refetchInterval: ({ state }) =>
-      state.data?.pages[0]?.unavailable.some((row) => row.state === DockerReadState.UNSPECIFIED) ? 2_000 : false,
-    retry: false,
-  });
-  const pages = query.data?.pages ?? [];
-  const pauses = pages[0]?.pauses ?? [];
-  const unavailable = pages[0]?.unavailable ?? [];
-  const measuring = unavailable.some((row) => row.state === DockerReadState.UNSPECIFIED);
-  const candidates = pages.flatMap((page) => page.candidates);
-  const protectedRows = pages.flatMap((page) => page.exclusions);
-  const selected = candidates.filter((target, index) => overrides.get(keyOf(target)) ?? index < 12);
-  const estimated = formatBytes(
-    selected.reduce((sum, target) => sum + (target.estimatedBytes ?? 0n), 0n),
-    i18n.locale,
+
+  const preview = useCleanupPreview(servers, ALL_CLEANUP_FILTERS, true);
+  const { candidates, protectedRows, pauses, unavailable, measuring, loadingMore, hasAnyData } = preview;
+
+  const bounded = useMemo(
+    () => computeBoundedDefaults(candidates, preview.serverLimits, preview.maxTargetsTotal),
+    [candidates, preview.serverLimits, preview.maxTargetsTotal],
   );
-  const reviewAgain = () => {
-    cache.setQueryData<typeof query.data>(["docker-cleanup", serverIds, filters], (data) =>
-      data ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) } : data,
-    );
-    void query.refetch();
+  const { selected, selectedKeys, deferredCount, canSelectTarget } = useMemo(
+    () => resolveBoundedSelection(candidates, bounded, overrides),
+    [candidates, bounded, overrides],
+  );
+
+  const isChecked = (target: DockerCleanupTarget) => selectedKeys.has(cleanupTargetKey(target));
+  const optInTaggedImages = useMemo(() => candidates.filter(isOptInTaggedImage), [candidates]);
+  const optInNamedVolumes = useMemo(() => candidates.filter(isOptInNamedVolume), [candidates]);
+
+  const allTaggedSelected = optInTaggedImages.length > 0 && optInTaggedImages.every(isChecked);
+  const allNamedVolumesSelected = optInNamedVolumes.length > 0 && optInNamedVolumes.every(isChecked);
+
+  const setOne = (target: DockerCleanupTarget, checked: boolean) => {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(cleanupTargetKey(target), checked);
+      return next;
+    });
   };
+
+  const setGroup = (items: readonly DockerCleanupTarget[], checked: boolean) => {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      for (const row of items) next.set(cleanupTargetKey(row), checked);
+      return next;
+    });
+  };
+
+  const estimatedBytes = selected.reduce((sum, target) => sum + (target.estimatedBytes ?? 0n), 0n);
+  const estimated = formatBytes(estimatedBytes, i18n.locale);
+
+  const initialLoading = preview.query.isPending || ((measuring || loadingMore) && !hasAnyData);
+  const pendingMore = !initialLoading && (measuring || loadingMore);
+
   const review = () => {
-    const expectedSnapshot = pages[0]?.snapshot;
-    if (!expectedSnapshot) return;
+    if (!preview.snapshot || selected.length === 0 || pendingMore) return;
     // Keep the reviewed selection when a regenerated preview drops an object.
-    setOverrides(new Map(candidates.map((target) => [keyOf(target), selected.includes(target)])));
+    setOverrides(new Map(candidates.map((target) => [cleanupTargetKey(target), isChecked(target)])));
     sheet.open({
       kind: "plan",
       retryLabel: t`Review again`,
       make: () =>
-        client.planDockerMaintenance({
-          serverIds,
-          expectedSnapshot,
-          operation: { case: "cleanup", value: { filters, targets: selected } },
+        preview.client.planDockerMaintenance({
+          serverIds: preview.serverIds,
+          expectedSnapshot: preview.snapshot,
+          operation: {
+            case: "cleanup",
+            value: {
+              filters: {
+                taggedImages: ALL_CLEANUP_FILTERS.taggedImages,
+                networks: ALL_CLEANUP_FILTERS.networks,
+                volumes: ALL_CLEANUP_FILTERS.volumes,
+                kinds: [],
+              },
+              targets: selected,
+            },
+          },
         }),
       onClose: () => {
-        reviewAgain();
-        void cache.invalidateQueries({
-          queryKey: createConnectQueryKey({ schema: ServerService.method.getServerDiskUse, cardinality: undefined }),
-        });
+        preview.invalidateAfterCleanup();
       },
     });
   };
+
   const reviewResume = (pause: DockerCleanupPause) => {
     sheet.open({
       kind: "plan",
       make: () =>
-        client.planDockerMaintenance({
+        preview.client.planDockerMaintenance({
           serverIds: [pause.serverId],
           operation: { case: "resumeCleanupToken", value: pause.token },
         }),
-      onClose: reviewAgain,
+      onClose: () => preview.invalidateAfterCleanup(),
     });
   };
+
   const kinds = [...new Set(candidates.map((target) => target.kind))];
   const protectedKinds = [...new Set(protectedRows.map((target) => target.kind))];
   const showProtected = group === "volumes" || group === "logs" || group === "networks";
+  const slowLine =
+    servers.length > 1
+      ? t`Docker is measuring disk use on these servers`
+      : t`Docker is measuring disk use on this server`;
+  const unsupportedVolumeNames = bounded.unsupportedVolumeServers.map(
+    (id) => servers.find((s) => s.id === id)?.name ?? id,
+  );
+  const stale = reasonOf(preview.query.error) === "docker_cleanup_changed";
+
   return (
     <>
+      <div className="docker-section-heading docker-cleanup-heading">
+        <div className="docker-cleanup-heading-top">
+          <h2>
+            <Trans>Cleanup</Trans>
+          </h2>
+          <div className="docker-heading-actions">
+            <Button
+              icon="refresh"
+              size="sm"
+              variant="ghost"
+              onClick={preview.reviewAgain}
+              loading={preview.query.isFetching && !preview.query.isPending}
+              aria-label={t`Refresh cleanup`}
+              title={t`Refresh cleanup`}
+            />
+          </div>
+        </div>
+        <p>
+          <Trans>Dangling images, build cache, unused networks and anonymous volumes are selected by default.</Trans>
+        </p>
+      </div>
+
+      {!initialLoading && (optInTaggedImages.length > 0 || optInNamedVolumes.length > 0) ? (
+        <fieldset className="docker-cleanup-quick-options" aria-label={t`Additional cleanup options`}>
+          {optInTaggedImages.length > 0 ? (
+            <label className="docker-cleanup-choice">
+              <input
+                type="checkbox"
+                checked={allTaggedSelected}
+                onChange={(event) => setGroup(optInTaggedImages, event.target.checked)}
+              />
+              <span>
+                {plural(optInTaggedImages.length, {
+                  one: "Include unused tagged image (#)",
+                  other: "Include unused tagged images (#)",
+                })}
+              </span>
+            </label>
+          ) : null}
+          {optInNamedVolumes.length > 0 ? (
+            <label className="docker-cleanup-choice">
+              <input
+                type="checkbox"
+                checked={allNamedVolumesSelected}
+                onChange={(event) => setGroup(optInNamedVolumes, event.target.checked)}
+              />
+              <span>
+                {plural(optInNamedVolumes.length, {
+                  one: "Include unused named volume (#)",
+                  other: "Include unused named volumes (#)",
+                })}
+                <span className="docker-cleanup-meta">
+                  <Trans>Data is deleted</Trans>
+                </span>
+              </span>
+            </label>
+          ) : null}
+        </fieldset>
+      ) : null}
+
       <Unread
         values={unavailable.filter((row) => row.state !== DockerReadState.UNSPECIFIED)}
         servers={servers}
-        retry={reviewAgain}
+        retry={preview.reviewAgain}
       />
+
+      {!initialLoading && unsupportedVolumeNames.length > 0 ? (
+        <Callout tone="info" title={t`Volume cleanup needs an agent update`}>
+          {t`Update the agent on ${unsupportedVolumeNames.join(", ")} to remove unused Docker volumes.`}
+        </Callout>
+      ) : null}
+
       {pauses.map((pause) => {
         const server = servers.find((s) => s.id === pause.serverId)?.name ?? pause.serverId;
         return (
@@ -167,7 +231,7 @@ function CleanupSelection({
               <Button
                 size="sm"
                 variant="secondary"
-                disabled={!may || query.isFetching}
+                disabled={!may || preview.query.isFetching}
                 onClick={() => reviewResume(pause)}
               >
                 <Trans>Re-enable cleanup</Trans>
@@ -178,73 +242,99 @@ function CleanupSelection({
           </Callout>
         );
       })}
-      {query.isPending || measuring ? (
-        <Loading label={t`Checking Docker artifacts`} slow={t`Docker is measuring disk use on this server`}>
+
+      {initialLoading && !preview.query.error ? (
+        <Loading label={t`Checking Docker artifacts`} slow={slowLine}>
           <SkeletonCard title={<Skeleton text="heading" width={112} />} flush>
             <SkeletonRows rows={4} lines={1} end="value" dense />
           </SkeletonCard>
         </Loading>
       ) : null}
-      {query.error ? (
+
+      {preview.query.error ? (
         <Callout
           tone="warning"
-          title={
-            reasonOf(query.error) === "docker_cleanup_changed"
-              ? t`Cleanup candidates changed`
-              : t`Cleanup couldn't be read`
-          }
+          title={stale ? t`Cleanup candidates changed` : t`Cleanup couldn't be read`}
           actions={
-            <Button size="sm" variant="secondary" onClick={reviewAgain}>
-              <Trans>Review again</Trans>
+            <Button size="sm" variant="secondary" onClick={preview.reviewAgain}>
+              {stale ? <Trans>Refresh</Trans> : <Trans>Review again</Trans>}
             </Button>
           }
         >
-          {reasonOf(query.error) === "docker_cleanup_changed" ? null : sentence(query.error)}
+          {stale ? (
+            <Trans>This preview is out of date and can't be reviewed until you refresh.</Trans>
+          ) : (
+            sentence(preview.query.error)
+          )}
         </Callout>
       ) : null}
-      {!query.isPending &&
-      !query.error &&
+
+      {!initialLoading &&
+      !pendingMore &&
+      !preview.query.error &&
       candidates.length === 0 &&
-      (pages[0]?.unavailable.length ?? 0) + pauses.length < servers.length ? (
+      unavailable.length + pauses.length < servers.length ? (
         <EmptyState icon="archive" title={t`No eligible artifacts`} />
       ) : null}
-      {kinds.map((kind) => (
-        <Panel key={kind} title={words.kind(kind)} actions={<Icon name={words.icon(kind)} />}>
-          <ul className="docker-cleanup-list">
-            {candidates
-              .filter((row) => row.kind === kind)
-              .map((target) => {
-                const checked = selected.includes(target);
-                return (
-                  <li className="docker-cleanup-item" key={keyOf(target)}>
-                    <label className="docker-cleanup-choice">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={!checked && selected.length >= 12}
-                        onChange={(event) => {
-                          const next = event.target.checked;
-                          setOverrides(
-                            new Map(
-                              candidates.map((row) => [keyOf(row), row === target ? next : selected.includes(row)]),
-                            ),
-                          );
-                        }}
-                      />
-                      <span>
-                        <CleanupLabel target={target} servers={servers} />
-                      </span>
-                    </label>
-                    {target.estimatedBytes === undefined ? null : (
-                      <code>{formatBytes(target.estimatedBytes, i18n.locale)}</code>
-                    )}
-                  </li>
-                );
-              })}
-          </ul>
-        </Panel>
-      ))}
-      {protectedRows.length ? (
+
+      {!initialLoading &&
+        kinds.map((kind) => {
+          const rows = candidates.filter((row) => row.kind === kind);
+          const allSelected = rows.length > 0 && rows.every(isChecked);
+          return (
+            <Panel
+              key={kind}
+              title={words.kind(kind)}
+              actions={
+                rows.length > 0 ? (
+                  <Button size="sm" variant="ghost" onClick={() => setGroup(rows, !allSelected)}>
+                    {allSelected ? t`Deselect all` : t`Select all`}
+                  </Button>
+                ) : undefined
+              }
+            >
+              <ul className="docker-cleanup-list">
+                {rows.map((target) => {
+                  const checked = isChecked(target);
+                  const namedVolume = isOptInNamedVolume(target);
+                  const disabled = !checked && !canSelectTarget(target);
+                  return (
+                    <li className="docker-cleanup-item" key={cleanupTargetKey(target)}>
+                      <label className="docker-cleanup-choice">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={disabled}
+                          onChange={(event) => setOne(target, event.target.checked)}
+                        />
+                        <span className="docker-cleanup-row-main">
+                          <CleanupLabel target={target} servers={servers} namedVolume={namedVolume} />
+                        </span>
+                      </label>
+                      <div className="docker-cleanup-item-end">
+                        {target.estimatedBytes !== undefined ? (
+                          <code>{formatBytes(target.estimatedBytes, i18n.locale)}</code>
+                        ) : target.kind === DockerCleanupKind.VOLUME ? (
+                          <span className="docker-cleanup-meta">{t`Size unknown`}</span>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          );
+        })}
+
+      {pendingMore && !preview.query.error ? (
+        <Loading label={t`Checking remaining Docker artifacts`} slow={slowLine}>
+          <SkeletonCard title={<Skeleton text="heading" width={140} />} flush>
+            <SkeletonRows rows={2} lines={1} end="value" dense />
+          </SkeletonCard>
+        </Loading>
+      ) : null}
+
+      {!initialLoading && protectedRows.length > 0 ? (
         <details className="docker-cleanup-disclosure" open={showProtected || undefined}>
           <summary>
             <span className="docker-disclosure-label">
@@ -257,22 +347,32 @@ function CleanupSelection({
                 {protectedRows
                   .filter((target) => target.kind === kind)
                   .map((target) => (
-                    <li className="docker-cleanup-item" key={keyOf(target)}>
-                      <div>
+                    <li className="docker-cleanup-item" key={cleanupTargetKey(target)}>
+                      <div className="docker-cleanup-row-main">
                         <CleanupLabel target={target} servers={servers} />
                       </div>
-                      {kind === DockerCleanupKind.CONTAINER ? (
-                        <Link
-                          className="dw-link docker-row-link"
-                          to="/servers/$serverId/docker/containers/$containerId"
-                          params={{ serverId: target.serverId, containerId: target.engineId }}
-                          search={{ name: target.name }}
-                        >
-                          <Trans>Open container</Trans>
-                        </Link>
-                      ) : target.estimatedBytes !== undefined ? (
-                        <code>{formatBytes(target.estimatedBytes, i18n.locale)}</code>
-                      ) : null}
+                      <div className="docker-cleanup-item-end">
+                        {kind === DockerCleanupKind.CONTAINER ? (
+                          <Link
+                            className="dw-link docker-row-link"
+                            to="/servers/$serverId/docker/containers/$containerId"
+                            params={{ serverId: target.serverId, containerId: target.engineId }}
+                            search={{ name: target.name }}
+                          >
+                            <Trans>Open container</Trans>
+                          </Link>
+                        ) : target.reason === DockerCleanupReason.COMPOSE && target.composeId ? (
+                          <Link
+                            className="dw-link docker-row-link"
+                            to="/servers/$serverId/docker/composes/$composeId"
+                            params={{ serverId: target.serverId, composeId: target.composeId }}
+                          >
+                            <Trans>Open Compose project</Trans>
+                          </Link>
+                        ) : target.estimatedBytes !== undefined ? (
+                          <code>{formatBytes(target.estimatedBytes, i18n.locale)}</code>
+                        ) : null}
+                      </div>
                     </li>
                   ))}
               </ul>
@@ -280,28 +380,29 @@ function CleanupSelection({
           ))}
         </details>
       ) : null}
-      {query.hasNextPage ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          loading={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-        >
-          <Trans>Show more artifacts</Trans>
-        </Button>
-      ) : null}
-      {candidates.length > 0 ? (
+
+      {!initialLoading && candidates.length > 0 ? (
         <div className="docker-cleanup-footer">
-          <span aria-live="polite">
-            <Trans>
-              {selected.length} selected · {estimated} estimated
-            </Trans>
-          </span>
+          <div className="docker-cleanup-footer-meta" aria-live="polite">
+            <span>
+              <Trans>
+                {selected.length} selected · {estimated} estimated
+              </Trans>
+            </span>
+            {deferredCount > 0 ? (
+              <span className="docker-cleanup-meta">{t`${deferredCount} more after this cleanup`}</span>
+            ) : null}
+          </div>
           <Button
             icon="trash"
             variant="primary"
             disabled={
-              !may || measuring || !selected.length || selected.length > 12 || query.isFetching || !!query.error
+              !may ||
+              initialLoading ||
+              pendingMore ||
+              selected.length === 0 ||
+              preview.query.isFetching ||
+              !!preview.query.error
             }
             onClick={review}
           >
@@ -313,27 +414,46 @@ function CleanupSelection({
   );
 }
 
-function CleanupLabel({ target, servers }: { target: DockerCleanupTarget; servers: readonly ServerName[] }) {
+function CleanupLabel({
+  target,
+  servers,
+  namedVolume = false,
+}: {
+  target: DockerCleanupTarget;
+  servers: readonly CleanupServer[];
+  namedVolume?: boolean;
+}) {
   const { t, i18n } = useLingui();
   const words = useDockerArtifactWords();
   const lastUsed = target.lastUsedAt ? formatDateTime(timestampDate(target.lastUsedAt), i18n.locale) : undefined;
-  const reason = words.reason(target.reason, target.kind);
+  const reason = isOptInNamedVolume(target)
+    ? t`Unused named volume`
+    : words.reason(target.reason, target.kind, target.composeProject);
   const eligible = target.evidence !== "";
   const lastUse = eligible && lastUsed ? t`Last used ${lastUsed}` : undefined;
-  const name =
-    target.kind === DockerCleanupKind.IMAGE && target.reason === DockerCleanupReason.DANGLING
-      ? target.engineId.slice(7, 19)
-      : target.name || target.engineId || words.kind(target.kind);
+  const name = cleanupTargetDisplayName(target, words.kind(target.kind));
+  const fullName = cleanupTargetFullName(target, words.kind(target.kind));
+  const anonVol = isAnonymousVolumeTarget(target);
   const server = servers.length > 1 ? servers.find((s) => s.id === target.serverId)?.name : undefined;
   return (
     <>
-      <code>{name}</code>
+      {anonVol ? (
+        <span className="docker-volume-anon-name">
+          <code title={fullName}>{name}</code>
+          <CopyButton text={fullName} label={t`Copy volume name`} />
+        </span>
+      ) : (
+        <code title={fullName !== name ? fullName : undefined}>{name}</code>
+      )}
       {target.imageTags.length > 1 || target.imageDigests.length > 0 ? (
         <div className="docker-cleanup-meta">
           <code>{[...target.imageTags.slice(1), ...target.imageDigests].join(", ")}</code>
         </div>
       ) : null}
-      <span className="docker-cleanup-meta">{[reason, server, lastUse].filter(Boolean).join(" · ")}</span>
+      <span className="docker-cleanup-meta-line">
+        <span className="docker-cleanup-meta">{[reason, server, lastUse].filter(Boolean).join(" · ")}</span>
+        {namedVolume ? <Tag words icon="alert">{t`Data is deleted`}</Tag> : null}
+      </span>
     </>
   );
 }

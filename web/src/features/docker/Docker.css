@@ -28,6 +28,25 @@
   justify-content: space-between;
 }
 
+.docker-card-head {
+  align-items: start;
+}
+
+.docker-card-head > :first-child {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.docker-card-head .dw-tag,
+.docker-card-head > :last-child {
+  flex: none;
+  white-space: nowrap;
+}
+
+.docker-storage-name-cell {
+  min-width: 0;
+}
+
 .docker-navigation,
 .docker-detail-nav {
   border-bottom: 1px solid var(--line);

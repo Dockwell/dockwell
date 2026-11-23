@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,14 +27,30 @@ import (
 	"github.com/dockwell/dockwell/internal/revision"
 )
 
+const (
+	maxCleanupTargetsPerServer = 200
+	maxCleanupTargetsTotal     = 500
+	legacyCleanupTargets       = 12
+	defaultCleanupPageSize     = 200
+	maxCleanupPageSize         = 250
+)
+
 type cleanupRead struct {
-	targets     []*v1.DockerCleanupTarget
-	pause       *v1.DockerCleanupPause
-	unavailable *v1.DockerUnavailable
-	err         error
+	targets         []*v1.DockerCleanupTarget
+	pause           *v1.DockerCleanupPause
+	unavailable     *v1.DockerUnavailable
+	limits          *v1.DockerCleanupServerLimits
+	volumeCleanup   bool
+	extendedCleanup bool
+	err             error
 }
 
-func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filters *v1.DockerCleanupFilters, fresh bool) (*v1.PreviewDockerCleanupResponse, []*v1.DockerCleanupTarget, error) {
+func cleanupFilterWants(filters *v1.DockerCleanupFilters, kind v1.DockerCleanupKind) bool {
+	kinds := filters.GetKinds()
+	return len(kinds) == 0 || slices.Contains(kinds, kind)
+}
+
+func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filters *v1.DockerCleanupFilters, fresh bool) (*v1.PreviewDockerCleanupResponse, []*v1.DockerCleanupTarget, map[string]cleanupRead, error) {
 	reads := make([]cleanupRead, len(servers))
 	var group sync.WaitGroup
 	slots := make(chan struct{}, 4)
@@ -46,15 +63,57 @@ func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filte
 				session, state = nil, v1.DockerReadState_DOCKER_READ_STATE_AGENT_OUTDATED
 			}
 			if session != nil {
-				held, err := revision.DockerCleanupProtection(ctx, h.db, s.ID, time.Now(), filters.GetNetworks())
-				ask := &agentv1.DockerMaintenancePreviewCall{Filters: filters, ProtectedImages: held.Images, ProtectedNetworks: held.Networks}
+				reads[i].volumeCleanup = session.DockerVolumeCleanup()
+				reads[i].extendedCleanup = session.DockerExtendedCleanup()
+				capForServer := uint32(legacyCleanupTargets)
+				if reads[i].extendedCleanup {
+					capForServer = maxCleanupTargetsPerServer
+				}
+				supported := []v1.DockerCleanupKind{v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE}
+				if session.DockerArtifactCleanup() {
+					supported = append(supported,
+						v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE,
+						v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK,
+					)
+				}
+				if reads[i].volumeCleanup {
+					supported = append(supported, v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME)
+				}
+				reads[i].limits = &v1.DockerCleanupServerLimits{
+					ServerId:       s.ID,
+					MaxTargets:     capForServer,
+					SupportedKinds: supported,
+				}
+				wantImages := cleanupFilterWants(filters, v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE)
+				wantNetworks := cleanupFilterWants(filters, v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK) && filters.GetNetworks()
+				wantVolumes := cleanupFilterWants(filters, v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME) && filters.GetVolumes() && reads[i].volumeCleanup
+				held, err := revision.DockerCleanupProtectionKinds(ctx, h.db, s.ID, time.Now(), wantImages, wantNetworks, wantVolumes)
 				if err != nil {
 					reads[i].err = err
 					return
 				}
-				ask.Fresh = fresh
+				callFilters := filters
+				if filters != nil && filters.GetVolumes() && !reads[i].volumeCleanup {
+					callFilters = proto.CloneOf(filters)
+					callFilters.Volumes = false
+				}
+				ask := &agentv1.DockerMaintenancePreviewCall{
+					Filters:           callFilters,
+					ProtectedImages:   held.Images,
+					ProtectedNetworks: held.Networks,
+					ProtectedVolumes:  held.Volumes,
+					BackupVolumes:     held.BackupVolumes,
+					RollbackVolumes:   held.RollbackVolumes,
+					Fresh:             fresh,
+				}
 				if result, err := session.DockerCleanupPreview(ctx, ask); err == nil {
-					reads[i].targets = result.GetTargets()
+					targets := result.GetTargets()
+					if kinds := filters.GetKinds(); len(kinds) > 0 && !reads[i].extendedCleanup {
+						targets = slices.DeleteFunc(slices.Clone(targets), func(t *v1.DockerCleanupTarget) bool {
+							return !slices.Contains(kinds, t.GetKind())
+						})
+					}
+					reads[i].targets = targets
 					reads[i].pause = result.GetPause()
 					return
 				} else if resource.ReasonOf(err) == resource.ReasonDiskMeasuring {
@@ -68,15 +127,23 @@ func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filte
 		})
 	}
 	group.Wait()
-	out := &v1.PreviewDockerCleanupResponse{}
+	out := &v1.PreviewDockerCleanupResponse{
+		MaxTargetsTotal: maxCleanupTargetsTotal,
+	}
 	var all []*v1.DockerCleanupTarget
+	byServerRead := make(map[string]cleanupRead, len(servers))
 	hash := sha256.New()
-	fmt.Fprintln(hash, filters.GetTaggedImages(), filters.GetNetworks())
+	fmt.Fprintln(hash, filters.GetTaggedImages(), filters.GetNetworks(), filters.GetVolumes(), filters.GetKinds())
 	for i, read := range reads {
 		if read.err != nil {
-			return nil, nil, h.internal(ctx, read.err)
+			return nil, nil, nil, h.internal(ctx, read.err)
 		}
+		byServerRead[servers[i].ID] = read
 		fmt.Fprintln(hash, servers[i].ID, read.unavailable.GetState())
+		if read.limits != nil {
+			out.ServerLimits = append(out.ServerLimits, read.limits)
+			fmt.Fprintln(hash, read.limits.GetMaxTargets(), read.limits.GetSupportedKinds())
+		}
 		if read.pause != nil {
 			read.pause.ServerId = servers[i].ID
 			out.Pauses = append(out.Pauses, read.pause)
@@ -111,10 +178,18 @@ func (h *Handler) readDockerCleanup(ctx context.Context, servers []Server, filte
 		return strings.Compare(a.GetName(), b.GetName())
 	})
 	for _, target := range all {
-		fmt.Fprintf(hash, "%q %d %q %q %d %q\n", target.GetServerId(), target.GetKind(), target.GetEngineId(), target.GetName(), target.GetReason(), target.GetEvidence())
+		fmt.Fprintf(hash, "%q %d %q %q %d %q\n", target.GetServerId(), target.GetKind(), target.GetEngineId(), target.GetName(), target.GetReason(), cleanupSnapshotEvidence(target))
 	}
 	out.Snapshot = hex.EncodeToString(hash.Sum(nil))
-	return out, all, nil
+	return out, all, byServerRead, nil
+}
+
+func cleanupSnapshotEvidence(target *v1.DockerCleanupTarget) string {
+	evidence := target.GetEvidence()
+	if target.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME {
+		evidence, _, _ = strings.Cut(evidence, ".")
+	}
+	return evidence
 }
 
 type cleanupPage struct {
@@ -126,13 +201,38 @@ func cleanupStale() error {
 	return authapi.ReasonError(connect.CodeAborted, errors.New("the Docker cleanup candidates changed. Preview cleanup again"), "docker_cleanup_changed")
 }
 
+// sameReviewedCleanupTarget checks that the reviewed target matches the fresh
+// projection. A newly created empty volume can be unmeasured in a cached preview
+// and report 0 bytes once PlanDockerMaintenance refreshes disk usage, and a
+// volume's embedded agent preview timestamp advances between preview and plan.
+func sameReviewedCleanupTarget(reviewed, fresh *v1.DockerCleanupTarget) bool {
+	if proto.Equal(reviewed, fresh) {
+		return true
+	}
+	adjusted := proto.CloneOf(reviewed)
+	if adjusted.EstimatedBytes == nil && fresh.EstimatedBytes != nil && fresh.GetEstimatedBytes() == 0 {
+		adjusted.EstimatedBytes = fresh.EstimatedBytes
+	}
+	if adjusted.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME && adjusted.GetEvidence() != fresh.GetEvidence() {
+		reviewedKey, reviewedTime, _ := strings.Cut(adjusted.GetEvidence(), ".")
+		freshKey, freshTime, _ := strings.Cut(fresh.GetEvidence(), ".")
+		reviewedAt, reviewedErr := strconv.ParseInt(reviewedTime, 10, 64)
+		freshAt, freshErr := strconv.ParseInt(freshTime, 10, 64)
+		if reviewedKey != freshKey || reviewedErr != nil || freshErr != nil || reviewedAt <= 0 || reviewedAt > freshAt {
+			return false
+		}
+		adjusted.Evidence = fresh.GetEvidence()
+	}
+	return proto.Equal(adjusted, fresh)
+}
+
 // PreviewDockerCleanup reports eligible and protected objects in a bounded page.
 func (h *Handler) PreviewDockerCleanup(ctx context.Context, req *connect.Request[v1.PreviewDockerCleanupRequest]) (*connect.Response[v1.PreviewDockerCleanupResponse], error) {
 	servers, err := h.dockerServers(ctx, req.Msg.GetServerIds())
 	if err != nil {
 		return nil, err
 	}
-	out, targets, err := h.readDockerCleanup(ctx, servers, req.Msg.GetFilters(), false)
+	out, targets, _, err := h.readDockerCleanup(ctx, servers, req.Msg.GetFilters(), false)
 	if err != nil {
 		return nil, err
 	}
@@ -146,9 +246,9 @@ func (h *Handler) PreviewDockerCleanup(ctx context.Context, req *connect.Request
 			return nil, cleanupStale()
 		}
 	}
-	size := int(min(req.Msg.GetPageSize(), 48))
+	size := int(min(req.Msg.GetPageSize(), maxCleanupPageSize))
 	if size == 0 {
-		size = 48
+		size = defaultCleanupPageSize
 	}
 	end := min(page.Offset+size, len(targets))
 	for _, target := range targets[page.Offset:end] {
@@ -188,51 +288,94 @@ func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Reques
 	}
 	cleanup := m.GetCleanup()
 	selected := cleanup.GetTargets()
-	if len(m.GetServerIds()) == 0 || len(m.GetExpectedSnapshot()) != 64 || len(selected) == 0 || len(selected) > 12 || len(m.GetSummary()) > 200 {
-		return nil, authapi.Invalid(errors.New("select up to 12 cleanup candidates on explicitly selected servers"))
-	}
-	if slices.ContainsFunc(selected, func(item *v1.DockerCleanupTarget) bool {
-		return item.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME
-	}) {
-		return nil, authapi.Invalid(errors.New("cleanup cannot remove Docker volumes. Review a volume removal through its revision"))
+	if len(m.GetServerIds()) == 0 || len(m.GetExpectedSnapshot()) != 64 || len(selected) == 0 || len(selected) > maxCleanupTargetsTotal || len(m.GetSummary()) > 200 {
+		return nil, authapi.Invalid(fmt.Errorf("select up to %d cleanup candidates on explicitly selected servers", maxCleanupTargetsTotal))
 	}
 	servers, err := h.dockerServers(ctx, m.GetServerIds())
 	if err != nil {
 		return nil, err
 	}
-	preview, all, err := h.readDockerCleanup(ctx, servers, cleanup.GetFilters(), true)
+	preview, all, reads, err := h.readDockerCleanup(ctx, servers, cleanup.GetFilters(), true)
 	if err != nil {
 		return nil, err
 	}
 	if preview.GetSnapshot() != m.GetExpectedSnapshot() {
 		return nil, cleanupStale()
 	}
+	index := make(map[string]*v1.DockerCleanupTarget, len(all))
+	for _, fresh := range all {
+		if fresh.GetEvidence() == "" {
+			continue
+		}
+		key := fmt.Sprintf("%s\x00%d\x00%s", fresh.GetServerId(), fresh.GetKind(), fresh.GetEngineId())
+		index[key] = fresh
+	}
 	byServer := make(map[string]*v1.DockerMaintenance)
-	seen := make(map[*v1.DockerCleanupTarget]bool)
+	seen := make(map[*v1.DockerCleanupTarget]bool, len(selected))
 	for _, reviewed := range selected {
-		i := slices.IndexFunc(all, func(fresh *v1.DockerCleanupTarget) bool {
-			return fresh.GetEvidence() != "" && proto.Equal(reviewed, fresh)
-		})
-		if i < 0 || seen[all[i]] {
+		key := fmt.Sprintf("%s\x00%d\x00%s", reviewed.GetServerId(), reviewed.GetKind(), reviewed.GetEngineId())
+		fresh := index[key]
+		if fresh == nil || seen[fresh] || !sameReviewedCleanupTarget(reviewed, fresh) {
 			return nil, cleanupStale()
 		}
-		fresh := all[i]
 		seen[fresh] = true
 		server := fresh.GetServerId()
+		read := reads[server]
+		if fresh.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME && !read.volumeCleanup {
+			return nil, authapi.Invalid(errors.New("update the agent on this server to remove unused Docker volumes"))
+		}
 		if byServer[server] == nil {
 			byServer[server] = &v1.DockerMaintenance{}
 		}
+		if fresh.GetEvidence() != reviewed.GetEvidence() {
+			// Keep the time from the preview the operator reviewed.
+			fresh = proto.CloneOf(fresh)
+			fresh.Evidence = reviewed.GetEvidence()
+		}
 		byServer[server].Targets = append(byServer[server].Targets, fresh)
+		capForServer := maxCleanupTargetsPerServer
+		if !read.extendedCleanup {
+			capForServer = legacyCleanupTargets
+		}
+		if len(byServer[server].Targets) > capForServer {
+			if !read.extendedCleanup {
+				return nil, authapi.Invalid(errors.New("this agent can remove at most 12 Docker artifacts per plan. Update the agent to remove more at once"))
+			}
+			return nil, authapi.Invalid(fmt.Errorf("select up to %d cleanup candidates per server", maxCleanupTargetsPerServer))
+		}
 	}
 	summary := strings.TrimSpace(m.GetSummary())
 	if summary == "" {
-		summary = "Clean up Docker artifacts"
+		summary = cleanupSummary(selected)
 	}
 	change, err := h.changes.PlanDockerMaintenance(ctx, summary, byServer)
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&v1.PlanDockerMaintenanceResponse{Change: change}), nil
+}
+
+func cleanupSummary(targets []*v1.DockerCleanupTarget) string {
+	var kind v1.DockerCleanupKind
+	for _, t := range targets {
+		if kind == 0 {
+			kind = t.GetKind()
+		} else if kind != t.GetKind() {
+			return "Clean up Docker artifacts"
+		}
+	}
+	switch kind {
+	case v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE:
+		return "Remove unused Docker images"
+	case v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME:
+		return "Remove unused Docker volumes"
+	case v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK:
+		return "Remove unused Docker networks"
+	case v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE:
+		return "Remove Docker build cache"
+	default:
+		return "Clean up Docker artifacts"
+	}
 }
 
 func (h *Handler) planResumeDockerCleanup(ctx context.Context, req *v1.PlanDockerMaintenanceRequest) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {

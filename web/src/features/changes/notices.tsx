@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import {
   BackupMethod,
+  DockerCleanupKind,
   type HostAccess,
   HostAccessKind,
   ImageBuild_Builder,
@@ -830,9 +831,17 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
       : [];
   }
   if (cleansDocker(plan)) {
-    return applied || resumesDockerCleanup(plan)
-      ? []
-      : [{ key: "cleanup", title: t`Docker cleanup permanently removes the selected Docker artifacts` }];
+    if (applied || resumesDockerCleanup(plan)) return [];
+    const removesVolumes = plan.resources.some((resource) =>
+      resource.dockerMaintenance?.targets.some((target) => target.kind === DockerCleanupKind.VOLUME),
+    );
+    return [
+      {
+        key: "cleanup",
+        title: t`Docker cleanup permanently removes the selected Docker artifacts`,
+        ...(removesVolumes ? { detail: t`Volume data is deleted permanently and cannot be undone.` } : {}),
+      },
+    ];
   }
   // What a tool would delete leads, as acting on it there is what loses data, and it
   // can't wait below everything a plan of many services has to say.

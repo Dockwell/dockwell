@@ -2816,9 +2816,13 @@ func (x *DockerImageHistory) GetSizeBytes() uint64 {
 
 // DockerCleanupFilters opts in to artifacts beyond the default review.
 type DockerCleanupFilters struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TaggedImages  bool                   `protobuf:"varint,1,opt,name=tagged_images,json=taggedImages,proto3" json:"tagged_images,omitempty"`
-	Networks      bool                   `protobuf:"varint,2,opt,name=networks,proto3" json:"networks,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	TaggedImages bool                   `protobuf:"varint,1,opt,name=tagged_images,json=taggedImages,proto3" json:"tagged_images,omitempty"`
+	Networks     bool                   `protobuf:"varint,2,opt,name=networks,proto3" json:"networks,omitempty"`
+	// Include unused local volumes (anonymous and named) with per-volume protection checks.
+	Volumes bool `protobuf:"varint,3,opt,name=volumes,proto3" json:"volumes,omitempty"`
+	// Optional kind filter. Empty previews every supported kind for the active flags.
+	Kinds         []DockerCleanupKind `protobuf:"varint,4,rep,packed,name=kinds,proto3,enum=dockwell.v1.DockerCleanupKind" json:"kinds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2865,6 +2869,20 @@ func (x *DockerCleanupFilters) GetNetworks() bool {
 		return x.Networks
 	}
 	return false
+}
+
+func (x *DockerCleanupFilters) GetVolumes() bool {
+	if x != nil {
+		return x.Volumes
+	}
+	return false
+}
+
+func (x *DockerCleanupFilters) GetKinds() []DockerCleanupKind {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
 }
 
 // PreviewDockerCleanupRequest selects the servers and artifact filters to read.
@@ -2938,15 +2956,17 @@ func (x *PreviewDockerCleanupRequest) GetPageToken() string {
 
 // PreviewDockerCleanupResponse reports eligible and protected artifacts on one page.
 type PreviewDockerCleanupResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Candidates    []*DockerCleanupTarget `protobuf:"bytes,1,rep,name=candidates,proto3" json:"candidates,omitempty"`
-	Exclusions    []*DockerCleanupTarget `protobuf:"bytes,2,rep,name=exclusions,proto3" json:"exclusions,omitempty"`
-	Snapshot      string                 `protobuf:"bytes,3,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
-	Unavailable   []*DockerUnavailable   `protobuf:"bytes,4,rep,name=unavailable,proto3" json:"unavailable,omitempty"`
-	NextPageToken string                 `protobuf:"bytes,5,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	Pauses        []*DockerCleanupPause  `protobuf:"bytes,6,rep,name=pauses,proto3" json:"pauses,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState       `protogen:"open.v1"`
+	Candidates      []*DockerCleanupTarget       `protobuf:"bytes,1,rep,name=candidates,proto3" json:"candidates,omitempty"`
+	Exclusions      []*DockerCleanupTarget       `protobuf:"bytes,2,rep,name=exclusions,proto3" json:"exclusions,omitempty"`
+	Snapshot        string                       `protobuf:"bytes,3,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Unavailable     []*DockerUnavailable         `protobuf:"bytes,4,rep,name=unavailable,proto3" json:"unavailable,omitempty"`
+	NextPageToken   string                       `protobuf:"bytes,5,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	Pauses          []*DockerCleanupPause        `protobuf:"bytes,6,rep,name=pauses,proto3" json:"pauses,omitempty"`
+	ServerLimits    []*DockerCleanupServerLimits `protobuf:"bytes,20,rep,name=server_limits,json=serverLimits,proto3" json:"server_limits,omitempty"`
+	MaxTargetsTotal uint32                       `protobuf:"varint,21,opt,name=max_targets_total,json=maxTargetsTotal,proto3" json:"max_targets_total,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *PreviewDockerCleanupResponse) Reset() {
@@ -3021,6 +3041,81 @@ func (x *PreviewDockerCleanupResponse) GetPauses() []*DockerCleanupPause {
 	return nil
 }
 
+func (x *PreviewDockerCleanupResponse) GetServerLimits() []*DockerCleanupServerLimits {
+	if x != nil {
+		return x.ServerLimits
+	}
+	return nil
+}
+
+func (x *PreviewDockerCleanupResponse) GetMaxTargetsTotal() uint32 {
+	if x != nil {
+		return x.MaxTargetsTotal
+	}
+	return 0
+}
+
+// DockerCleanupServerLimits reports one server's cleanup capacity and supported kinds.
+type DockerCleanupServerLimits struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ServerId       string                 `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	MaxTargets     uint32                 `protobuf:"varint,2,opt,name=max_targets,json=maxTargets,proto3" json:"max_targets,omitempty"`
+	SupportedKinds []DockerCleanupKind    `protobuf:"varint,3,rep,packed,name=supported_kinds,json=supportedKinds,proto3,enum=dockwell.v1.DockerCleanupKind" json:"supported_kinds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *DockerCleanupServerLimits) Reset() {
+	*x = DockerCleanupServerLimits{}
+	mi := &file_dockwell_v1_docker_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DockerCleanupServerLimits) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DockerCleanupServerLimits) ProtoMessage() {}
+
+func (x *DockerCleanupServerLimits) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_docker_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DockerCleanupServerLimits.ProtoReflect.Descriptor instead.
+func (*DockerCleanupServerLimits) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *DockerCleanupServerLimits) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *DockerCleanupServerLimits) GetMaxTargets() uint32 {
+	if x != nil {
+		return x.MaxTargets
+	}
+	return 0
+}
+
+func (x *DockerCleanupServerLimits) GetSupportedKinds() []DockerCleanupKind {
+	if x != nil {
+		return x.SupportedKinds
+	}
+	return nil
+}
+
 // DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
 type DockerCleanupPause struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -3033,7 +3128,7 @@ type DockerCleanupPause struct {
 
 func (x *DockerCleanupPause) Reset() {
 	*x = DockerCleanupPause{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[27]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3045,7 +3140,7 @@ func (x *DockerCleanupPause) String() string {
 func (*DockerCleanupPause) ProtoMessage() {}
 
 func (x *DockerCleanupPause) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[27]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3058,7 +3153,7 @@ func (x *DockerCleanupPause) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerCleanupPause.ProtoReflect.Descriptor instead.
 func (*DockerCleanupPause) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{27}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *DockerCleanupPause) GetServerId() string {
@@ -3105,7 +3200,7 @@ type PlanDockerMaintenanceRequest struct {
 
 func (x *PlanDockerMaintenanceRequest) Reset() {
 	*x = PlanDockerMaintenanceRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[28]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3117,7 +3212,7 @@ func (x *PlanDockerMaintenanceRequest) String() string {
 func (*PlanDockerMaintenanceRequest) ProtoMessage() {}
 
 func (x *PlanDockerMaintenanceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[28]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3130,7 +3225,7 @@ func (x *PlanDockerMaintenanceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanDockerMaintenanceRequest.ProtoReflect.Descriptor instead.
 func (*PlanDockerMaintenanceRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{28}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PlanDockerMaintenanceRequest) GetSummary() string {
@@ -3296,7 +3391,7 @@ type DockerCleanupSelection struct {
 
 func (x *DockerCleanupSelection) Reset() {
 	*x = DockerCleanupSelection{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[29]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3308,7 +3403,7 @@ func (x *DockerCleanupSelection) String() string {
 func (*DockerCleanupSelection) ProtoMessage() {}
 
 func (x *DockerCleanupSelection) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[29]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3321,7 +3416,7 @@ func (x *DockerCleanupSelection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerCleanupSelection.ProtoReflect.Descriptor instead.
 func (*DockerCleanupSelection) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{29}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *DockerCleanupSelection) GetFilters() *DockerCleanupFilters {
@@ -3349,7 +3444,7 @@ type PlanDockerMaintenanceResponse struct {
 
 func (x *PlanDockerMaintenanceResponse) Reset() {
 	*x = PlanDockerMaintenanceResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[30]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3361,7 +3456,7 @@ func (x *PlanDockerMaintenanceResponse) String() string {
 func (*PlanDockerMaintenanceResponse) ProtoMessage() {}
 
 func (x *PlanDockerMaintenanceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[30]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3374,7 +3469,7 @@ func (x *PlanDockerMaintenanceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanDockerMaintenanceResponse.ProtoReflect.Descriptor instead.
 func (*PlanDockerMaintenanceResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *PlanDockerMaintenanceResponse) GetChange() *Change {
@@ -3407,7 +3502,7 @@ type DockerImageSupport struct {
 
 func (x *DockerImageSupport) Reset() {
 	*x = DockerImageSupport{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[31]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3419,7 +3514,7 @@ func (x *DockerImageSupport) String() string {
 func (*DockerImageSupport) ProtoMessage() {}
 
 func (x *DockerImageSupport) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[31]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3432,7 +3527,7 @@ func (x *DockerImageSupport) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageSupport.ProtoReflect.Descriptor instead.
 func (*DockerImageSupport) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{31}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *DockerImageSupport) GetDefaultRegistry() string {
@@ -3496,7 +3591,7 @@ type DockerImageDigestCheck struct {
 
 func (x *DockerImageDigestCheck) Reset() {
 	*x = DockerImageDigestCheck{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[32]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3508,7 +3603,7 @@ func (x *DockerImageDigestCheck) String() string {
 func (*DockerImageDigestCheck) ProtoMessage() {}
 
 func (x *DockerImageDigestCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[32]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3521,7 +3616,7 @@ func (x *DockerImageDigestCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerImageDigestCheck.ProtoReflect.Descriptor instead.
 func (*DockerImageDigestCheck) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{32}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *DockerImageDigestCheck) GetCurrent() *DockerRegistryDescriptor {
@@ -3566,7 +3661,7 @@ type DockerNetwork struct {
 
 func (x *DockerNetwork) Reset() {
 	*x = DockerNetwork{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[33]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3578,7 +3673,7 @@ func (x *DockerNetwork) String() string {
 func (*DockerNetwork) ProtoMessage() {}
 
 func (x *DockerNetwork) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[33]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3591,7 +3686,7 @@ func (x *DockerNetwork) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetwork.ProtoReflect.Descriptor instead.
 func (*DockerNetwork) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{33}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *DockerNetwork) GetDriver() string {
@@ -3692,7 +3787,7 @@ type DockerNetworkEndpoint struct {
 
 func (x *DockerNetworkEndpoint) Reset() {
 	*x = DockerNetworkEndpoint{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[34]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3704,7 +3799,7 @@ func (x *DockerNetworkEndpoint) String() string {
 func (*DockerNetworkEndpoint) ProtoMessage() {}
 
 func (x *DockerNetworkEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[34]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3717,7 +3812,7 @@ func (x *DockerNetworkEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetworkEndpoint.ProtoReflect.Descriptor instead.
 func (*DockerNetworkEndpoint) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{34}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *DockerNetworkEndpoint) GetContainerId() string {
@@ -3776,7 +3871,7 @@ type DockerVolume struct {
 
 func (x *DockerVolume) Reset() {
 	*x = DockerVolume{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[35]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3788,7 +3883,7 @@ func (x *DockerVolume) String() string {
 func (*DockerVolume) ProtoMessage() {}
 
 func (x *DockerVolume) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[35]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3801,7 +3896,7 @@ func (x *DockerVolume) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerVolume.ProtoReflect.Descriptor instead.
 func (*DockerVolume) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{35}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *DockerVolume) GetDriver() string {
@@ -3902,7 +3997,7 @@ type DockerVolumeAttachment struct {
 
 func (x *DockerVolumeAttachment) Reset() {
 	*x = DockerVolumeAttachment{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[36]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3914,7 +4009,7 @@ func (x *DockerVolumeAttachment) String() string {
 func (*DockerVolumeAttachment) ProtoMessage() {}
 
 func (x *DockerVolumeAttachment) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[36]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3927,7 +4022,7 @@ func (x *DockerVolumeAttachment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerVolumeAttachment.ProtoReflect.Descriptor instead.
 func (*DockerVolumeAttachment) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{36}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *DockerVolumeAttachment) GetContainerId() string {
@@ -3976,7 +4071,7 @@ type DockerVolumeMountRef struct {
 
 func (x *DockerVolumeMountRef) Reset() {
 	*x = DockerVolumeMountRef{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[37]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3988,7 +4083,7 @@ func (x *DockerVolumeMountRef) String() string {
 func (*DockerVolumeMountRef) ProtoMessage() {}
 
 func (x *DockerVolumeMountRef) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[37]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4001,7 +4096,7 @@ func (x *DockerVolumeMountRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerVolumeMountRef.ProtoReflect.Descriptor instead.
 func (*DockerVolumeMountRef) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{37}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *DockerVolumeMountRef) GetMountTarget() string {
@@ -4030,7 +4125,7 @@ type DockerNetworkCandidate struct {
 
 func (x *DockerNetworkCandidate) Reset() {
 	*x = DockerNetworkCandidate{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[38]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4042,7 +4137,7 @@ func (x *DockerNetworkCandidate) String() string {
 func (*DockerNetworkCandidate) ProtoMessage() {}
 
 func (x *DockerNetworkCandidate) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[38]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4055,7 +4150,7 @@ func (x *DockerNetworkCandidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetworkCandidate.ProtoReflect.Descriptor instead.
 func (*DockerNetworkCandidate) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{38}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *DockerNetworkCandidate) GetEnvironmentId() string {
@@ -4090,7 +4185,7 @@ type CheckDockerNetworkRequest struct {
 
 func (x *CheckDockerNetworkRequest) Reset() {
 	*x = CheckDockerNetworkRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[39]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4102,7 +4197,7 @@ func (x *CheckDockerNetworkRequest) String() string {
 func (*CheckDockerNetworkRequest) ProtoMessage() {}
 
 func (x *CheckDockerNetworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[39]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4115,7 +4210,7 @@ func (x *CheckDockerNetworkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDockerNetworkRequest.ProtoReflect.Descriptor instead.
 func (*CheckDockerNetworkRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{39}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *CheckDockerNetworkRequest) GetServerIds() []string {
@@ -4143,7 +4238,7 @@ type CheckDockerNetworkResponse struct {
 
 func (x *CheckDockerNetworkResponse) Reset() {
 	*x = CheckDockerNetworkResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[40]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4155,7 +4250,7 @@ func (x *CheckDockerNetworkResponse) String() string {
 func (*CheckDockerNetworkResponse) ProtoMessage() {}
 
 func (x *CheckDockerNetworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[40]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4168,7 +4263,7 @@ func (x *CheckDockerNetworkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDockerNetworkResponse.ProtoReflect.Descriptor instead.
 func (*CheckDockerNetworkResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{40}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *CheckDockerNetworkResponse) GetFindings() []*DockerNetworkFinding {
@@ -4199,7 +4294,7 @@ type DockerNetworkFinding struct {
 
 func (x *DockerNetworkFinding) Reset() {
 	*x = DockerNetworkFinding{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[41]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4211,7 +4306,7 @@ func (x *DockerNetworkFinding) String() string {
 func (*DockerNetworkFinding) ProtoMessage() {}
 
 func (x *DockerNetworkFinding) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[41]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4224,7 +4319,7 @@ func (x *DockerNetworkFinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerNetworkFinding.ProtoReflect.Descriptor instead.
 func (*DockerNetworkFinding) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{41}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *DockerNetworkFinding) GetServerId() string {
@@ -4275,7 +4370,7 @@ type PlanDockerNetworkAttachmentRequest struct {
 
 func (x *PlanDockerNetworkAttachmentRequest) Reset() {
 	*x = PlanDockerNetworkAttachmentRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[42]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4287,7 +4382,7 @@ func (x *PlanDockerNetworkAttachmentRequest) String() string {
 func (*PlanDockerNetworkAttachmentRequest) ProtoMessage() {}
 
 func (x *PlanDockerNetworkAttachmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[42]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4300,7 +4395,7 @@ func (x *PlanDockerNetworkAttachmentRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use PlanDockerNetworkAttachmentRequest.ProtoReflect.Descriptor instead.
 func (*PlanDockerNetworkAttachmentRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{42}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *PlanDockerNetworkAttachmentRequest) GetNetwork() *DockerObjectKey {
@@ -4341,7 +4436,7 @@ type PlanDockerNetworkAttachmentResponse struct {
 
 func (x *PlanDockerNetworkAttachmentResponse) Reset() {
 	*x = PlanDockerNetworkAttachmentResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[43]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4353,7 +4448,7 @@ func (x *PlanDockerNetworkAttachmentResponse) String() string {
 func (*PlanDockerNetworkAttachmentResponse) ProtoMessage() {}
 
 func (x *PlanDockerNetworkAttachmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[43]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4366,7 +4461,7 @@ func (x *PlanDockerNetworkAttachmentResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use PlanDockerNetworkAttachmentResponse.ProtoReflect.Descriptor instead.
 func (*PlanDockerNetworkAttachmentResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{43}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *PlanDockerNetworkAttachmentResponse) GetChange() *Change {
@@ -4398,7 +4493,7 @@ type DockerArtifactInfo struct {
 
 func (x *DockerArtifactInfo) Reset() {
 	*x = DockerArtifactInfo{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[44]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4410,7 +4505,7 @@ func (x *DockerArtifactInfo) String() string {
 func (*DockerArtifactInfo) ProtoMessage() {}
 
 func (x *DockerArtifactInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[44]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4423,7 +4518,7 @@ func (x *DockerArtifactInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerArtifactInfo.ProtoReflect.Descriptor instead.
 func (*DockerArtifactInfo) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{44}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *DockerArtifactInfo) GetArtifactId() string {
@@ -4528,7 +4623,7 @@ type DockerArtifactSpace struct {
 
 func (x *DockerArtifactSpace) Reset() {
 	*x = DockerArtifactSpace{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[45]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4540,7 +4635,7 @@ func (x *DockerArtifactSpace) String() string {
 func (*DockerArtifactSpace) ProtoMessage() {}
 
 func (x *DockerArtifactSpace) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[45]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4553,7 +4648,7 @@ func (x *DockerArtifactSpace) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerArtifactSpace.ProtoReflect.Descriptor instead.
 func (*DockerArtifactSpace) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{45}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *DockerArtifactSpace) GetRequiredBytes() uint64 {
@@ -4583,7 +4678,7 @@ type DockerArchiveImage struct {
 
 func (x *DockerArchiveImage) Reset() {
 	*x = DockerArchiveImage{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[46]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4595,7 +4690,7 @@ func (x *DockerArchiveImage) String() string {
 func (*DockerArchiveImage) ProtoMessage() {}
 
 func (x *DockerArchiveImage) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[46]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4608,7 +4703,7 @@ func (x *DockerArchiveImage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerArchiveImage.ProtoReflect.Descriptor instead.
 func (*DockerArchiveImage) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{46}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *DockerArchiveImage) GetImageId() string {
@@ -4654,7 +4749,7 @@ type BeginDockerArtifactUploadRequest struct {
 
 func (x *BeginDockerArtifactUploadRequest) Reset() {
 	*x = BeginDockerArtifactUploadRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[47]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4666,7 +4761,7 @@ func (x *BeginDockerArtifactUploadRequest) String() string {
 func (*BeginDockerArtifactUploadRequest) ProtoMessage() {}
 
 func (x *BeginDockerArtifactUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[47]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4679,7 +4774,7 @@ func (x *BeginDockerArtifactUploadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BeginDockerArtifactUploadRequest.ProtoReflect.Descriptor instead.
 func (*BeginDockerArtifactUploadRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{47}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *BeginDockerArtifactUploadRequest) GetServerId() string {
@@ -4734,7 +4829,7 @@ type ListDockerArtifactsRequest struct {
 
 func (x *ListDockerArtifactsRequest) Reset() {
 	*x = ListDockerArtifactsRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[48]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4746,7 +4841,7 @@ func (x *ListDockerArtifactsRequest) String() string {
 func (*ListDockerArtifactsRequest) ProtoMessage() {}
 
 func (x *ListDockerArtifactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[48]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4759,7 +4854,7 @@ func (x *ListDockerArtifactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDockerArtifactsRequest.ProtoReflect.Descriptor instead.
 func (*ListDockerArtifactsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{48}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *ListDockerArtifactsRequest) GetServerId() string {
@@ -4779,7 +4874,7 @@ type ListDockerArtifactsResponse struct {
 
 func (x *ListDockerArtifactsResponse) Reset() {
 	*x = ListDockerArtifactsResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[49]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4791,7 +4886,7 @@ func (x *ListDockerArtifactsResponse) String() string {
 func (*ListDockerArtifactsResponse) ProtoMessage() {}
 
 func (x *ListDockerArtifactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[49]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4804,7 +4899,7 @@ func (x *ListDockerArtifactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDockerArtifactsResponse.ProtoReflect.Descriptor instead.
 func (*ListDockerArtifactsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{49}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *ListDockerArtifactsResponse) GetArtifacts() []*DockerArtifactInfo {
@@ -4825,7 +4920,7 @@ type GetDockerArtifactRequest struct {
 
 func (x *GetDockerArtifactRequest) Reset() {
 	*x = GetDockerArtifactRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[50]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4837,7 +4932,7 @@ func (x *GetDockerArtifactRequest) String() string {
 func (*GetDockerArtifactRequest) ProtoMessage() {}
 
 func (x *GetDockerArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[50]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4850,7 +4945,7 @@ func (x *GetDockerArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDockerArtifactRequest.ProtoReflect.Descriptor instead.
 func (*GetDockerArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{50}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *GetDockerArtifactRequest) GetServerId() string {
@@ -4878,7 +4973,7 @@ type FinishDockerArtifactUploadRequest struct {
 
 func (x *FinishDockerArtifactUploadRequest) Reset() {
 	*x = FinishDockerArtifactUploadRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[51]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4890,7 +4985,7 @@ func (x *FinishDockerArtifactUploadRequest) String() string {
 func (*FinishDockerArtifactUploadRequest) ProtoMessage() {}
 
 func (x *FinishDockerArtifactUploadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[51]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4903,7 +4998,7 @@ func (x *FinishDockerArtifactUploadRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use FinishDockerArtifactUploadRequest.ProtoReflect.Descriptor instead.
 func (*FinishDockerArtifactUploadRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{51}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *FinishDockerArtifactUploadRequest) GetServerId() string {
@@ -4931,7 +5026,7 @@ type AbortDockerArtifactRequest struct {
 
 func (x *AbortDockerArtifactRequest) Reset() {
 	*x = AbortDockerArtifactRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[52]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4943,7 +5038,7 @@ func (x *AbortDockerArtifactRequest) String() string {
 func (*AbortDockerArtifactRequest) ProtoMessage() {}
 
 func (x *AbortDockerArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[52]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4956,7 +5051,7 @@ func (x *AbortDockerArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AbortDockerArtifactRequest.ProtoReflect.Descriptor instead.
 func (*AbortDockerArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{52}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *AbortDockerArtifactRequest) GetServerId() string {
@@ -4986,7 +5081,7 @@ type UploadDockerArtifactRequest struct {
 
 func (x *UploadDockerArtifactRequest) Reset() {
 	*x = UploadDockerArtifactRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[53]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4998,7 +5093,7 @@ func (x *UploadDockerArtifactRequest) String() string {
 func (*UploadDockerArtifactRequest) ProtoMessage() {}
 
 func (x *UploadDockerArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[53]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5011,7 +5106,7 @@ func (x *UploadDockerArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UploadDockerArtifactRequest.ProtoReflect.Descriptor instead.
 func (*UploadDockerArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{53}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *UploadDockerArtifactRequest) GetServerId() string {
@@ -5055,7 +5150,7 @@ type DownloadDockerArtifactRequest struct {
 
 func (x *DownloadDockerArtifactRequest) Reset() {
 	*x = DownloadDockerArtifactRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[54]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5067,7 +5162,7 @@ func (x *DownloadDockerArtifactRequest) String() string {
 func (*DownloadDockerArtifactRequest) ProtoMessage() {}
 
 func (x *DownloadDockerArtifactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[54]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5080,7 +5175,7 @@ func (x *DownloadDockerArtifactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadDockerArtifactRequest.ProtoReflect.Descriptor instead.
 func (*DownloadDockerArtifactRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{54}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *DownloadDockerArtifactRequest) GetServerId() string {
@@ -5121,7 +5216,7 @@ type DownloadDockerArtifactResponse struct {
 
 func (x *DownloadDockerArtifactResponse) Reset() {
 	*x = DownloadDockerArtifactResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[55]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5133,7 +5228,7 @@ func (x *DownloadDockerArtifactResponse) String() string {
 func (*DownloadDockerArtifactResponse) ProtoMessage() {}
 
 func (x *DownloadDockerArtifactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[55]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5146,7 +5241,7 @@ func (x *DownloadDockerArtifactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DownloadDockerArtifactResponse.ProtoReflect.Descriptor instead.
 func (*DownloadDockerArtifactResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{55}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *DownloadDockerArtifactResponse) GetBody() *httpbody.HttpBody {
@@ -5188,7 +5283,7 @@ type DockerSettings struct {
 
 func (x *DockerSettings) Reset() {
 	*x = DockerSettings{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[56]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5200,7 +5295,7 @@ func (x *DockerSettings) String() string {
 func (*DockerSettings) ProtoMessage() {}
 
 func (x *DockerSettings) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[56]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5213,7 +5308,7 @@ func (x *DockerSettings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerSettings.ProtoReflect.Descriptor instead.
 func (*DockerSettings) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{56}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *DockerSettings) GetObservedAt() *timestamppb.Timestamp {
@@ -5382,7 +5477,7 @@ type DockerSettingSource struct {
 
 func (x *DockerSettingSource) Reset() {
 	*x = DockerSettingSource{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[57]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5394,7 +5489,7 @@ func (x *DockerSettingSource) String() string {
 func (*DockerSettingSource) ProtoMessage() {}
 
 func (x *DockerSettingSource) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[57]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5407,7 +5502,7 @@ func (x *DockerSettingSource) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerSettingSource.ProtoReflect.Descriptor instead.
 func (*DockerSettingSource) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{57}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *DockerSettingSource) GetField() string {
@@ -5444,7 +5539,7 @@ type DockerSettingsFinding struct {
 
 func (x *DockerSettingsFinding) Reset() {
 	*x = DockerSettingsFinding{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[58]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5456,7 +5551,7 @@ func (x *DockerSettingsFinding) String() string {
 func (*DockerSettingsFinding) ProtoMessage() {}
 
 func (x *DockerSettingsFinding) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[58]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5469,7 +5564,7 @@ func (x *DockerSettingsFinding) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockerSettingsFinding.ProtoReflect.Descriptor instead.
 func (*DockerSettingsFinding) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{58}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *DockerSettingsFinding) GetField() string {
@@ -5511,7 +5606,7 @@ type GetDockerSettingsRequest struct {
 
 func (x *GetDockerSettingsRequest) Reset() {
 	*x = GetDockerSettingsRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[59]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5523,7 +5618,7 @@ func (x *GetDockerSettingsRequest) String() string {
 func (*GetDockerSettingsRequest) ProtoMessage() {}
 
 func (x *GetDockerSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[59]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5536,7 +5631,7 @@ func (x *GetDockerSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDockerSettingsRequest.ProtoReflect.Descriptor instead.
 func (*GetDockerSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{59}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *GetDockerSettingsRequest) GetServerId() string {
@@ -5563,7 +5658,7 @@ type GetDockerSettingsResponse struct {
 
 func (x *GetDockerSettingsResponse) Reset() {
 	*x = GetDockerSettingsResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[60]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5575,7 +5670,7 @@ func (x *GetDockerSettingsResponse) String() string {
 func (*GetDockerSettingsResponse) ProtoMessage() {}
 
 func (x *GetDockerSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[60]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5588,7 +5683,7 @@ func (x *GetDockerSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDockerSettingsResponse.ProtoReflect.Descriptor instead.
 func (*GetDockerSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{60}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *GetDockerSettingsResponse) GetSettings() *DockerSettings {
@@ -5609,7 +5704,7 @@ type CheckDockerSettingsRequest struct {
 
 func (x *CheckDockerSettingsRequest) Reset() {
 	*x = CheckDockerSettingsRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[61]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5621,7 +5716,7 @@ func (x *CheckDockerSettingsRequest) String() string {
 func (*CheckDockerSettingsRequest) ProtoMessage() {}
 
 func (x *CheckDockerSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[61]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5634,7 +5729,7 @@ func (x *CheckDockerSettingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDockerSettingsRequest.ProtoReflect.Descriptor instead.
 func (*CheckDockerSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{61}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *CheckDockerSettingsRequest) GetServerId() string {
@@ -5664,7 +5759,7 @@ type CheckDockerSettingsResponse struct {
 
 func (x *CheckDockerSettingsResponse) Reset() {
 	*x = CheckDockerSettingsResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[62]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5676,7 +5771,7 @@ func (x *CheckDockerSettingsResponse) String() string {
 func (*CheckDockerSettingsResponse) ProtoMessage() {}
 
 func (x *CheckDockerSettingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[62]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5689,7 +5784,7 @@ func (x *CheckDockerSettingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CheckDockerSettingsResponse.ProtoReflect.Descriptor instead.
 func (*CheckDockerSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{62}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{63}
 }
 
 func (x *CheckDockerSettingsResponse) GetFindings() []*DockerSettingsFinding {
@@ -5725,7 +5820,7 @@ type PlanDockerContainerLoggingRequest struct {
 
 func (x *PlanDockerContainerLoggingRequest) Reset() {
 	*x = PlanDockerContainerLoggingRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[63]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5737,7 +5832,7 @@ func (x *PlanDockerContainerLoggingRequest) String() string {
 func (*PlanDockerContainerLoggingRequest) ProtoMessage() {}
 
 func (x *PlanDockerContainerLoggingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[63]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5750,7 +5845,7 @@ func (x *PlanDockerContainerLoggingRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use PlanDockerContainerLoggingRequest.ProtoReflect.Descriptor instead.
 func (*PlanDockerContainerLoggingRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{63}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{64}
 }
 
 func (x *PlanDockerContainerLoggingRequest) GetContainer() *DockerObjectKey {
@@ -5784,7 +5879,7 @@ type PlanDockerContainerLoggingResponse struct {
 
 func (x *PlanDockerContainerLoggingResponse) Reset() {
 	*x = PlanDockerContainerLoggingResponse{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[64]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5796,7 +5891,7 @@ func (x *PlanDockerContainerLoggingResponse) String() string {
 func (*PlanDockerContainerLoggingResponse) ProtoMessage() {}
 
 func (x *PlanDockerContainerLoggingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[64]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5809,7 +5904,7 @@ func (x *PlanDockerContainerLoggingResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use PlanDockerContainerLoggingResponse.ProtoReflect.Descriptor instead.
 func (*PlanDockerContainerLoggingResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{64}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *PlanDockerContainerLoggingResponse) GetChange() *Change {
@@ -5831,7 +5926,7 @@ type WatchDockerImageBuildRequest struct {
 
 func (x *WatchDockerImageBuildRequest) Reset() {
 	*x = WatchDockerImageBuildRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[65]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5843,7 +5938,7 @@ func (x *WatchDockerImageBuildRequest) String() string {
 func (*WatchDockerImageBuildRequest) ProtoMessage() {}
 
 func (x *WatchDockerImageBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[65]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5856,7 +5951,7 @@ func (x *WatchDockerImageBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchDockerImageBuildRequest.ProtoReflect.Descriptor instead.
 func (*WatchDockerImageBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{65}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{66}
 }
 
 func (x *WatchDockerImageBuildRequest) GetServerId() string {
@@ -5891,7 +5986,7 @@ type CancelDockerImageBuildRequest struct {
 
 func (x *CancelDockerImageBuildRequest) Reset() {
 	*x = CancelDockerImageBuildRequest{}
-	mi := &file_dockwell_v1_docker_proto_msgTypes[66]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5903,7 +5998,7 @@ func (x *CancelDockerImageBuildRequest) String() string {
 func (*CancelDockerImageBuildRequest) ProtoMessage() {}
 
 func (x *CancelDockerImageBuildRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_docker_proto_msgTypes[66]
+	mi := &file_dockwell_v1_docker_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5916,7 +6011,7 @@ func (x *CancelDockerImageBuildRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelDockerImageBuildRequest.ProtoReflect.Descriptor instead.
 func (*CancelDockerImageBuildRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{66}
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *CancelDockerImageBuildRequest) GetServerId() string {
@@ -6151,17 +6246,19 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"created_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\"\n" +
 	"\n" +
 	"size_bytes\x18\x02 \x01(\x04H\x00R\tsizeBytes\x88\x01\x01B\r\n" +
-	"\v_size_bytes\"W\n" +
+	"\v_size_bytes\"\xa7\x01\n" +
 	"\x14DockerCleanupFilters\x12#\n" +
 	"\rtagged_images\x18\x01 \x01(\bR\ftaggedImages\x12\x1a\n" +
-	"\bnetworks\x18\x02 \x01(\bR\bnetworks\"\xb5\x01\n" +
+	"\bnetworks\x18\x02 \x01(\bR\bnetworks\x12\x18\n" +
+	"\avolumes\x18\x03 \x01(\bR\avolumes\x124\n" +
+	"\x05kinds\x18\x04 \x03(\x0e2\x1e.dockwell.v1.DockerCleanupKindR\x05kinds\"\xb5\x01\n" +
 	"\x1bPreviewDockerCleanupRequest\x12\x1d\n" +
 	"\n" +
 	"server_ids\x18\x01 \x03(\tR\tserverIds\x12;\n" +
 	"\afilters\x18\x02 \x01(\v2!.dockwell.v1.DockerCleanupFiltersR\afilters\x12\x1b\n" +
 	"\tpage_size\x18\x03 \x01(\rR\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x04 \x01(\tR\tpageToken\"\xe1\x02\n" +
+	"page_token\x18\x04 \x01(\tR\tpageToken\"\xda\x03\n" +
 	"\x1cPreviewDockerCleanupResponse\x12@\n" +
 	"\n" +
 	"candidates\x18\x01 \x03(\v2 .dockwell.v1.DockerCleanupTargetR\n" +
@@ -6172,7 +6269,14 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"\bsnapshot\x18\x03 \x01(\tR\bsnapshot\x12@\n" +
 	"\vunavailable\x18\x04 \x03(\v2\x1e.dockwell.v1.DockerUnavailableR\vunavailable\x12&\n" +
 	"\x0fnext_page_token\x18\x05 \x01(\tR\rnextPageToken\x127\n" +
-	"\x06pauses\x18\x06 \x03(\v2\x1f.dockwell.v1.DockerCleanupPauseR\x06pauses\"\x81\x01\n" +
+	"\x06pauses\x18\x06 \x03(\v2\x1f.dockwell.v1.DockerCleanupPauseR\x06pauses\x12K\n" +
+	"\rserver_limits\x18\x14 \x03(\v2&.dockwell.v1.DockerCleanupServerLimitsR\fserverLimits\x12*\n" +
+	"\x11max_targets_total\x18\x15 \x01(\rR\x0fmaxTargetsTotal\"\xa2\x01\n" +
+	"\x19DockerCleanupServerLimits\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
+	"\vmax_targets\x18\x02 \x01(\rR\n" +
+	"maxTargets\x12G\n" +
+	"\x0fsupported_kinds\x18\x03 \x03(\x0e2\x1e.dockwell.v1.DockerCleanupKindR\x0esupportedKinds\"\x81\x01\n" +
 	"\x12DockerCleanupPause\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x128\n" +
@@ -6553,7 +6657,7 @@ func file_dockwell_v1_docker_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_docker_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_dockwell_v1_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_dockwell_v1_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_dockwell_v1_docker_proto_goTypes = []any{
 	(DockerObjectKind)(0),                       // 0: dockwell.v1.DockerObjectKind
 	(DockerOwnership)(0),                        // 1: dockwell.v1.DockerOwnership
@@ -6594,107 +6698,109 @@ var file_dockwell_v1_docker_proto_goTypes = []any{
 	(*DockerCleanupFilters)(nil),                // 36: dockwell.v1.DockerCleanupFilters
 	(*PreviewDockerCleanupRequest)(nil),         // 37: dockwell.v1.PreviewDockerCleanupRequest
 	(*PreviewDockerCleanupResponse)(nil),        // 38: dockwell.v1.PreviewDockerCleanupResponse
-	(*DockerCleanupPause)(nil),                  // 39: dockwell.v1.DockerCleanupPause
-	(*PlanDockerMaintenanceRequest)(nil),        // 40: dockwell.v1.PlanDockerMaintenanceRequest
-	(*DockerCleanupSelection)(nil),              // 41: dockwell.v1.DockerCleanupSelection
-	(*PlanDockerMaintenanceResponse)(nil),       // 42: dockwell.v1.PlanDockerMaintenanceResponse
-	(*DockerImageSupport)(nil),                  // 43: dockwell.v1.DockerImageSupport
-	(*DockerImageDigestCheck)(nil),              // 44: dockwell.v1.DockerImageDigestCheck
-	(*DockerNetwork)(nil),                       // 45: dockwell.v1.DockerNetwork
-	(*DockerNetworkEndpoint)(nil),               // 46: dockwell.v1.DockerNetworkEndpoint
-	(*DockerVolume)(nil),                        // 47: dockwell.v1.DockerVolume
-	(*DockerVolumeAttachment)(nil),              // 48: dockwell.v1.DockerVolumeAttachment
-	(*DockerVolumeMountRef)(nil),                // 49: dockwell.v1.DockerVolumeMountRef
-	(*DockerNetworkCandidate)(nil),              // 50: dockwell.v1.DockerNetworkCandidate
-	(*CheckDockerNetworkRequest)(nil),           // 51: dockwell.v1.CheckDockerNetworkRequest
-	(*CheckDockerNetworkResponse)(nil),          // 52: dockwell.v1.CheckDockerNetworkResponse
-	(*DockerNetworkFinding)(nil),                // 53: dockwell.v1.DockerNetworkFinding
-	(*PlanDockerNetworkAttachmentRequest)(nil),  // 54: dockwell.v1.PlanDockerNetworkAttachmentRequest
-	(*PlanDockerNetworkAttachmentResponse)(nil), // 55: dockwell.v1.PlanDockerNetworkAttachmentResponse
-	(*DockerArtifactInfo)(nil),                  // 56: dockwell.v1.DockerArtifactInfo
-	(*DockerArtifactSpace)(nil),                 // 57: dockwell.v1.DockerArtifactSpace
-	(*DockerArchiveImage)(nil),                  // 58: dockwell.v1.DockerArchiveImage
-	(*BeginDockerArtifactUploadRequest)(nil),    // 59: dockwell.v1.BeginDockerArtifactUploadRequest
-	(*ListDockerArtifactsRequest)(nil),          // 60: dockwell.v1.ListDockerArtifactsRequest
-	(*ListDockerArtifactsResponse)(nil),         // 61: dockwell.v1.ListDockerArtifactsResponse
-	(*GetDockerArtifactRequest)(nil),            // 62: dockwell.v1.GetDockerArtifactRequest
-	(*FinishDockerArtifactUploadRequest)(nil),   // 63: dockwell.v1.FinishDockerArtifactUploadRequest
-	(*AbortDockerArtifactRequest)(nil),          // 64: dockwell.v1.AbortDockerArtifactRequest
-	(*UploadDockerArtifactRequest)(nil),         // 65: dockwell.v1.UploadDockerArtifactRequest
-	(*DownloadDockerArtifactRequest)(nil),       // 66: dockwell.v1.DownloadDockerArtifactRequest
-	(*DownloadDockerArtifactResponse)(nil),      // 67: dockwell.v1.DownloadDockerArtifactResponse
-	(*DockerSettings)(nil),                      // 68: dockwell.v1.DockerSettings
-	(*DockerSettingSource)(nil),                 // 69: dockwell.v1.DockerSettingSource
-	(*DockerSettingsFinding)(nil),               // 70: dockwell.v1.DockerSettingsFinding
-	(*GetDockerSettingsRequest)(nil),            // 71: dockwell.v1.GetDockerSettingsRequest
-	(*GetDockerSettingsResponse)(nil),           // 72: dockwell.v1.GetDockerSettingsResponse
-	(*CheckDockerSettingsRequest)(nil),          // 73: dockwell.v1.CheckDockerSettingsRequest
-	(*CheckDockerSettingsResponse)(nil),         // 74: dockwell.v1.CheckDockerSettingsResponse
-	(*PlanDockerContainerLoggingRequest)(nil),   // 75: dockwell.v1.PlanDockerContainerLoggingRequest
-	(*PlanDockerContainerLoggingResponse)(nil),  // 76: dockwell.v1.PlanDockerContainerLoggingResponse
-	(*WatchDockerImageBuildRequest)(nil),        // 77: dockwell.v1.WatchDockerImageBuildRequest
-	(*CancelDockerImageBuildRequest)(nil),       // 78: dockwell.v1.CancelDockerImageBuildRequest
-	nil,                                         // 79: dockwell.v1.DockerSettings.KnownFeaturesEntry
-	(*timestamppb.Timestamp)(nil),               // 80: google.protobuf.Timestamp
-	(*ResourceRef)(nil),                         // 81: dockwell.v1.ResourceRef
-	(ContainerState)(0),                         // 82: dockwell.v1.ContainerState
-	(*ContainerPort)(nil),                       // 83: dockwell.v1.ContainerPort
-	(*ContainerMount)(nil),                      // 84: dockwell.v1.ContainerMount
-	(*DockerCleanupTarget)(nil),                 // 85: dockwell.v1.DockerCleanupTarget
-	(DockerReceiptReason)(0),                    // 86: dockwell.v1.DockerReceiptReason
-	(*DockerImageTag)(nil),                      // 87: dockwell.v1.DockerImageTag
-	(*DockerImageLoad)(nil),                     // 88: dockwell.v1.DockerImageLoad
-	(*DockerImageBuild)(nil),                    // 89: dockwell.v1.DockerImageBuild
-	(*DockerImagePush)(nil),                     // 90: dockwell.v1.DockerImagePush
-	(*DockerImageExport)(nil),                   // 91: dockwell.v1.DockerImageExport
-	(*DockerImagePull)(nil),                     // 92: dockwell.v1.DockerImagePull
-	(*Change)(nil),                              // 93: dockwell.v1.Change
-	(*DockerRegistryDescriptor)(nil),            // 94: dockwell.v1.DockerRegistryDescriptor
-	(*v1alpha1.NetworkIPAMPool)(nil),            // 95: dockwell.resource.v1alpha1.NetworkIPAMPool
-	(*v1alpha1.Network)(nil),                    // 96: dockwell.resource.v1alpha1.Network
-	(DockerNetworkAttachmentAction)(0),          // 97: dockwell.v1.DockerNetworkAttachmentAction
-	(DockerImageReason)(0),                      // 98: dockwell.v1.DockerImageReason
-	(*httpbody.HttpBody)(nil),                   // 99: google.api.HttpBody
-	(*v1alpha1.DockerDaemonLogging)(nil),        // 100: dockwell.resource.v1alpha1.DockerDaemonLogging
-	(*v1alpha1.DockerAddressPool)(nil),          // 101: dockwell.resource.v1alpha1.DockerAddressPool
-	(*v1alpha1.DockerDaemon)(nil),               // 102: dockwell.resource.v1alpha1.DockerDaemon
-	(*DockerDaemonImpact)(nil),                  // 103: dockwell.v1.DockerDaemonImpact
-	(*v1alpha1.ContainerLogging)(nil),           // 104: dockwell.resource.v1alpha1.ContainerLogging
-	(*WatchBuildResponse)(nil),                  // 105: dockwell.v1.WatchBuildResponse
-	(*CancelBuildResponse)(nil),                 // 106: dockwell.v1.CancelBuildResponse
+	(*DockerCleanupServerLimits)(nil),           // 39: dockwell.v1.DockerCleanupServerLimits
+	(*DockerCleanupPause)(nil),                  // 40: dockwell.v1.DockerCleanupPause
+	(*PlanDockerMaintenanceRequest)(nil),        // 41: dockwell.v1.PlanDockerMaintenanceRequest
+	(*DockerCleanupSelection)(nil),              // 42: dockwell.v1.DockerCleanupSelection
+	(*PlanDockerMaintenanceResponse)(nil),       // 43: dockwell.v1.PlanDockerMaintenanceResponse
+	(*DockerImageSupport)(nil),                  // 44: dockwell.v1.DockerImageSupport
+	(*DockerImageDigestCheck)(nil),              // 45: dockwell.v1.DockerImageDigestCheck
+	(*DockerNetwork)(nil),                       // 46: dockwell.v1.DockerNetwork
+	(*DockerNetworkEndpoint)(nil),               // 47: dockwell.v1.DockerNetworkEndpoint
+	(*DockerVolume)(nil),                        // 48: dockwell.v1.DockerVolume
+	(*DockerVolumeAttachment)(nil),              // 49: dockwell.v1.DockerVolumeAttachment
+	(*DockerVolumeMountRef)(nil),                // 50: dockwell.v1.DockerVolumeMountRef
+	(*DockerNetworkCandidate)(nil),              // 51: dockwell.v1.DockerNetworkCandidate
+	(*CheckDockerNetworkRequest)(nil),           // 52: dockwell.v1.CheckDockerNetworkRequest
+	(*CheckDockerNetworkResponse)(nil),          // 53: dockwell.v1.CheckDockerNetworkResponse
+	(*DockerNetworkFinding)(nil),                // 54: dockwell.v1.DockerNetworkFinding
+	(*PlanDockerNetworkAttachmentRequest)(nil),  // 55: dockwell.v1.PlanDockerNetworkAttachmentRequest
+	(*PlanDockerNetworkAttachmentResponse)(nil), // 56: dockwell.v1.PlanDockerNetworkAttachmentResponse
+	(*DockerArtifactInfo)(nil),                  // 57: dockwell.v1.DockerArtifactInfo
+	(*DockerArtifactSpace)(nil),                 // 58: dockwell.v1.DockerArtifactSpace
+	(*DockerArchiveImage)(nil),                  // 59: dockwell.v1.DockerArchiveImage
+	(*BeginDockerArtifactUploadRequest)(nil),    // 60: dockwell.v1.BeginDockerArtifactUploadRequest
+	(*ListDockerArtifactsRequest)(nil),          // 61: dockwell.v1.ListDockerArtifactsRequest
+	(*ListDockerArtifactsResponse)(nil),         // 62: dockwell.v1.ListDockerArtifactsResponse
+	(*GetDockerArtifactRequest)(nil),            // 63: dockwell.v1.GetDockerArtifactRequest
+	(*FinishDockerArtifactUploadRequest)(nil),   // 64: dockwell.v1.FinishDockerArtifactUploadRequest
+	(*AbortDockerArtifactRequest)(nil),          // 65: dockwell.v1.AbortDockerArtifactRequest
+	(*UploadDockerArtifactRequest)(nil),         // 66: dockwell.v1.UploadDockerArtifactRequest
+	(*DownloadDockerArtifactRequest)(nil),       // 67: dockwell.v1.DownloadDockerArtifactRequest
+	(*DownloadDockerArtifactResponse)(nil),      // 68: dockwell.v1.DownloadDockerArtifactResponse
+	(*DockerSettings)(nil),                      // 69: dockwell.v1.DockerSettings
+	(*DockerSettingSource)(nil),                 // 70: dockwell.v1.DockerSettingSource
+	(*DockerSettingsFinding)(nil),               // 71: dockwell.v1.DockerSettingsFinding
+	(*GetDockerSettingsRequest)(nil),            // 72: dockwell.v1.GetDockerSettingsRequest
+	(*GetDockerSettingsResponse)(nil),           // 73: dockwell.v1.GetDockerSettingsResponse
+	(*CheckDockerSettingsRequest)(nil),          // 74: dockwell.v1.CheckDockerSettingsRequest
+	(*CheckDockerSettingsResponse)(nil),         // 75: dockwell.v1.CheckDockerSettingsResponse
+	(*PlanDockerContainerLoggingRequest)(nil),   // 76: dockwell.v1.PlanDockerContainerLoggingRequest
+	(*PlanDockerContainerLoggingResponse)(nil),  // 77: dockwell.v1.PlanDockerContainerLoggingResponse
+	(*WatchDockerImageBuildRequest)(nil),        // 78: dockwell.v1.WatchDockerImageBuildRequest
+	(*CancelDockerImageBuildRequest)(nil),       // 79: dockwell.v1.CancelDockerImageBuildRequest
+	nil,                                         // 80: dockwell.v1.DockerSettings.KnownFeaturesEntry
+	(*timestamppb.Timestamp)(nil),               // 81: google.protobuf.Timestamp
+	(*ResourceRef)(nil),                         // 82: dockwell.v1.ResourceRef
+	(ContainerState)(0),                         // 83: dockwell.v1.ContainerState
+	(*ContainerPort)(nil),                       // 84: dockwell.v1.ContainerPort
+	(*ContainerMount)(nil),                      // 85: dockwell.v1.ContainerMount
+	(DockerCleanupKind)(0),                      // 86: dockwell.v1.DockerCleanupKind
+	(*DockerCleanupTarget)(nil),                 // 87: dockwell.v1.DockerCleanupTarget
+	(DockerReceiptReason)(0),                    // 88: dockwell.v1.DockerReceiptReason
+	(*DockerImageTag)(nil),                      // 89: dockwell.v1.DockerImageTag
+	(*DockerImageLoad)(nil),                     // 90: dockwell.v1.DockerImageLoad
+	(*DockerImageBuild)(nil),                    // 91: dockwell.v1.DockerImageBuild
+	(*DockerImagePush)(nil),                     // 92: dockwell.v1.DockerImagePush
+	(*DockerImageExport)(nil),                   // 93: dockwell.v1.DockerImageExport
+	(*DockerImagePull)(nil),                     // 94: dockwell.v1.DockerImagePull
+	(*Change)(nil),                              // 95: dockwell.v1.Change
+	(*DockerRegistryDescriptor)(nil),            // 96: dockwell.v1.DockerRegistryDescriptor
+	(*v1alpha1.NetworkIPAMPool)(nil),            // 97: dockwell.resource.v1alpha1.NetworkIPAMPool
+	(*v1alpha1.Network)(nil),                    // 98: dockwell.resource.v1alpha1.Network
+	(DockerNetworkAttachmentAction)(0),          // 99: dockwell.v1.DockerNetworkAttachmentAction
+	(DockerImageReason)(0),                      // 100: dockwell.v1.DockerImageReason
+	(*httpbody.HttpBody)(nil),                   // 101: google.api.HttpBody
+	(*v1alpha1.DockerDaemonLogging)(nil),        // 102: dockwell.resource.v1alpha1.DockerDaemonLogging
+	(*v1alpha1.DockerAddressPool)(nil),          // 103: dockwell.resource.v1alpha1.DockerAddressPool
+	(*v1alpha1.DockerDaemon)(nil),               // 104: dockwell.resource.v1alpha1.DockerDaemon
+	(*DockerDaemonImpact)(nil),                  // 105: dockwell.v1.DockerDaemonImpact
+	(*v1alpha1.ContainerLogging)(nil),           // 106: dockwell.resource.v1alpha1.ContainerLogging
+	(*WatchBuildResponse)(nil),                  // 107: dockwell.v1.WatchBuildResponse
+	(*CancelBuildResponse)(nil),                 // 108: dockwell.v1.CancelBuildResponse
 }
 var file_dockwell_v1_docker_proto_depIdxs = []int32{
 	0,   // 0: dockwell.v1.DockerObjectKey.kind:type_name -> dockwell.v1.DockerObjectKind
 	12,  // 1: dockwell.v1.DockerObject.key:type_name -> dockwell.v1.DockerObjectKey
 	1,   // 2: dockwell.v1.DockerObject.ownership:type_name -> dockwell.v1.DockerOwnership
-	80,  // 3: dockwell.v1.DockerObject.observed_at:type_name -> google.protobuf.Timestamp
-	81,  // 4: dockwell.v1.DockerObject.managed_resource:type_name -> dockwell.v1.ResourceRef
-	82,  // 5: dockwell.v1.DockerObject.state:type_name -> dockwell.v1.ContainerState
+	81,  // 3: dockwell.v1.DockerObject.observed_at:type_name -> google.protobuf.Timestamp
+	82,  // 4: dockwell.v1.DockerObject.managed_resource:type_name -> dockwell.v1.ResourceRef
+	83,  // 5: dockwell.v1.DockerObject.state:type_name -> dockwell.v1.ContainerState
 	14,  // 6: dockwell.v1.DockerObject.container:type_name -> dockwell.v1.DockerContainer
 	16,  // 7: dockwell.v1.DockerObject.compose:type_name -> dockwell.v1.DockerCompose
 	31,  // 8: dockwell.v1.DockerObject.image:type_name -> dockwell.v1.DockerImage
-	45,  // 9: dockwell.v1.DockerObject.network:type_name -> dockwell.v1.DockerNetwork
-	47,  // 10: dockwell.v1.DockerObject.volume:type_name -> dockwell.v1.DockerVolume
-	80,  // 11: dockwell.v1.DockerContainer.created_at:type_name -> google.protobuf.Timestamp
-	80,  // 12: dockwell.v1.DockerContainer.started_at:type_name -> google.protobuf.Timestamp
-	80,  // 13: dockwell.v1.DockerContainer.finished_at:type_name -> google.protobuf.Timestamp
+	46,  // 9: dockwell.v1.DockerObject.network:type_name -> dockwell.v1.DockerNetwork
+	48,  // 10: dockwell.v1.DockerObject.volume:type_name -> dockwell.v1.DockerVolume
+	81,  // 11: dockwell.v1.DockerContainer.created_at:type_name -> google.protobuf.Timestamp
+	81,  // 12: dockwell.v1.DockerContainer.started_at:type_name -> google.protobuf.Timestamp
+	81,  // 13: dockwell.v1.DockerContainer.finished_at:type_name -> google.protobuf.Timestamp
 	2,   // 14: dockwell.v1.DockerContainer.health:type_name -> dockwell.v1.DockerHealth
-	83,  // 15: dockwell.v1.DockerContainer.ports:type_name -> dockwell.v1.ContainerPort
+	84,  // 15: dockwell.v1.DockerContainer.ports:type_name -> dockwell.v1.ContainerPort
 	15,  // 16: dockwell.v1.DockerContainer.endpoints:type_name -> dockwell.v1.DockerEndpoint
-	84,  // 17: dockwell.v1.DockerContainer.mounts:type_name -> dockwell.v1.ContainerMount
-	83,  // 18: dockwell.v1.DockerContainer.configured_ports:type_name -> dockwell.v1.ContainerPort
-	49,  // 19: dockwell.v1.DockerContainer.volume_mounts:type_name -> dockwell.v1.DockerVolumeMountRef
+	85,  // 17: dockwell.v1.DockerContainer.mounts:type_name -> dockwell.v1.ContainerMount
+	84,  // 18: dockwell.v1.DockerContainer.configured_ports:type_name -> dockwell.v1.ContainerPort
+	50,  // 19: dockwell.v1.DockerContainer.volume_mounts:type_name -> dockwell.v1.DockerVolumeMountRef
 	9,   // 20: dockwell.v1.DockerContainer.log_rotation:type_name -> dockwell.v1.DockerLogRotationState
 	12,  // 21: dockwell.v1.DockerSample.key:type_name -> dockwell.v1.DockerObjectKey
-	80,  // 22: dockwell.v1.DockerSample.observed_at:type_name -> google.protobuf.Timestamp
+	81,  // 22: dockwell.v1.DockerSample.observed_at:type_name -> google.protobuf.Timestamp
 	3,   // 23: dockwell.v1.DockerUnavailable.state:type_name -> dockwell.v1.DockerReadState
-	80,  // 24: dockwell.v1.DockerServerSummary.observed_at:type_name -> google.protobuf.Timestamp
+	81,  // 24: dockwell.v1.DockerServerSummary.observed_at:type_name -> google.protobuf.Timestamp
 	13,  // 25: dockwell.v1.DockerServerSummary.attention:type_name -> dockwell.v1.DockerObject
-	43,  // 26: dockwell.v1.DockerServerSummary.image_operations:type_name -> dockwell.v1.DockerImageSupport
+	44,  // 26: dockwell.v1.DockerServerSummary.image_operations:type_name -> dockwell.v1.DockerImageSupport
 	19,  // 27: dockwell.v1.GetDockerOverviewResponse.server_summaries:type_name -> dockwell.v1.DockerServerSummary
 	18,  // 28: dockwell.v1.GetDockerOverviewResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
 	9,   // 29: dockwell.v1.DockerObjectFilter.log_rotation:type_name -> dockwell.v1.DockerLogRotationState
-	82,  // 30: dockwell.v1.DockerObjectFilter.state:type_name -> dockwell.v1.ContainerState
+	83,  // 30: dockwell.v1.DockerObjectFilter.state:type_name -> dockwell.v1.ContainerState
 	1,   // 31: dockwell.v1.DockerObjectFilter.ownership:type_name -> dockwell.v1.DockerOwnership
 	4,   // 32: dockwell.v1.DockerObjectFilter.image_state:type_name -> dockwell.v1.DockerImageState
 	0,   // 33: dockwell.v1.ListDockerObjectsRequest.kind:type_name -> dockwell.v1.DockerObjectKind
@@ -6708,128 +6814,131 @@ var file_dockwell_v1_docker_proto_depIdxs = []int32{
 	12,  // 41: dockwell.v1.WatchDockerObjectsRequest.visible_keys:type_name -> dockwell.v1.DockerObjectKey
 	12,  // 42: dockwell.v1.DockerHealthUpdate.key:type_name -> dockwell.v1.DockerObjectKey
 	2,   // 43: dockwell.v1.DockerHealthUpdate.health:type_name -> dockwell.v1.DockerHealth
-	80,  // 44: dockwell.v1.DockerHealthUpdate.observed_at:type_name -> google.protobuf.Timestamp
+	81,  // 44: dockwell.v1.DockerHealthUpdate.observed_at:type_name -> google.protobuf.Timestamp
 	12,  // 45: dockwell.v1.WatchDockerObjectsResponse.changed_keys:type_name -> dockwell.v1.DockerObjectKey
 	17,  // 46: dockwell.v1.WatchDockerObjectsResponse.samples:type_name -> dockwell.v1.DockerSample
 	18,  // 47: dockwell.v1.WatchDockerObjectsResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
 	28,  // 48: dockwell.v1.WatchDockerObjectsResponse.health_updates:type_name -> dockwell.v1.DockerHealthUpdate
 	29,  // 49: dockwell.v1.WatchDockerObjectsResponse.watch_status:type_name -> dockwell.v1.DockerWatchStatus
-	80,  // 50: dockwell.v1.DockerImage.created_at:type_name -> google.protobuf.Timestamp
+	81,  // 50: dockwell.v1.DockerImage.created_at:type_name -> google.protobuf.Timestamp
 	4,   // 51: dockwell.v1.DockerImage.state:type_name -> dockwell.v1.DockerImageState
 	32,  // 52: dockwell.v1.DockerImage.containers:type_name -> dockwell.v1.DockerImageContainer
 	34,  // 53: dockwell.v1.DockerImage.deployments:type_name -> dockwell.v1.DockerImageDeployment
 	33,  // 54: dockwell.v1.DockerImage.layers:type_name -> dockwell.v1.DockerImageLayer
 	35,  // 55: dockwell.v1.DockerImage.history:type_name -> dockwell.v1.DockerImageHistory
 	12,  // 56: dockwell.v1.DockerImageContainer.key:type_name -> dockwell.v1.DockerObjectKey
-	80,  // 57: dockwell.v1.DockerImageHistory.created_at:type_name -> google.protobuf.Timestamp
-	36,  // 58: dockwell.v1.PreviewDockerCleanupRequest.filters:type_name -> dockwell.v1.DockerCleanupFilters
-	85,  // 59: dockwell.v1.PreviewDockerCleanupResponse.candidates:type_name -> dockwell.v1.DockerCleanupTarget
-	85,  // 60: dockwell.v1.PreviewDockerCleanupResponse.exclusions:type_name -> dockwell.v1.DockerCleanupTarget
-	18,  // 61: dockwell.v1.PreviewDockerCleanupResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
-	39,  // 62: dockwell.v1.PreviewDockerCleanupResponse.pauses:type_name -> dockwell.v1.DockerCleanupPause
-	86,  // 63: dockwell.v1.DockerCleanupPause.reason:type_name -> dockwell.v1.DockerReceiptReason
-	41,  // 64: dockwell.v1.PlanDockerMaintenanceRequest.cleanup:type_name -> dockwell.v1.DockerCleanupSelection
-	87,  // 65: dockwell.v1.PlanDockerMaintenanceRequest.tag:type_name -> dockwell.v1.DockerImageTag
-	88,  // 66: dockwell.v1.PlanDockerMaintenanceRequest.load:type_name -> dockwell.v1.DockerImageLoad
-	89,  // 67: dockwell.v1.PlanDockerMaintenanceRequest.build:type_name -> dockwell.v1.DockerImageBuild
-	90,  // 68: dockwell.v1.PlanDockerMaintenanceRequest.push:type_name -> dockwell.v1.DockerImagePush
-	91,  // 69: dockwell.v1.PlanDockerMaintenanceRequest.export:type_name -> dockwell.v1.DockerImageExport
-	92,  // 70: dockwell.v1.PlanDockerMaintenanceRequest.pull:type_name -> dockwell.v1.DockerImagePull
-	36,  // 71: dockwell.v1.DockerCleanupSelection.filters:type_name -> dockwell.v1.DockerCleanupFilters
-	85,  // 72: dockwell.v1.DockerCleanupSelection.targets:type_name -> dockwell.v1.DockerCleanupTarget
-	93,  // 73: dockwell.v1.PlanDockerMaintenanceResponse.change:type_name -> dockwell.v1.Change
-	44,  // 74: dockwell.v1.PlanDockerMaintenanceResponse.digest_check:type_name -> dockwell.v1.DockerImageDigestCheck
-	94,  // 75: dockwell.v1.DockerImageDigestCheck.current:type_name -> dockwell.v1.DockerRegistryDescriptor
-	94,  // 76: dockwell.v1.DockerImageDigestCheck.candidate:type_name -> dockwell.v1.DockerRegistryDescriptor
-	95,  // 77: dockwell.v1.DockerNetwork.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
-	80,  // 78: dockwell.v1.DockerNetwork.created_at:type_name -> google.protobuf.Timestamp
-	46,  // 79: dockwell.v1.DockerNetwork.attachments:type_name -> dockwell.v1.DockerNetworkEndpoint
-	5,   // 80: dockwell.v1.DockerNetwork.protection:type_name -> dockwell.v1.DockerStorageProtection
-	82,  // 81: dockwell.v1.DockerNetworkEndpoint.state:type_name -> dockwell.v1.ContainerState
-	80,  // 82: dockwell.v1.DockerVolume.size_observed_at:type_name -> google.protobuf.Timestamp
-	80,  // 83: dockwell.v1.DockerVolume.created_at:type_name -> google.protobuf.Timestamp
-	48,  // 84: dockwell.v1.DockerVolume.attachments:type_name -> dockwell.v1.DockerVolumeAttachment
-	5,   // 85: dockwell.v1.DockerVolume.protection:type_name -> dockwell.v1.DockerStorageProtection
-	82,  // 86: dockwell.v1.DockerVolumeAttachment.state:type_name -> dockwell.v1.ContainerState
-	12,  // 87: dockwell.v1.DockerVolumeMountRef.volume_key:type_name -> dockwell.v1.DockerObjectKey
-	96,  // 88: dockwell.v1.DockerNetworkCandidate.spec:type_name -> dockwell.resource.v1alpha1.Network
-	50,  // 89: dockwell.v1.CheckDockerNetworkRequest.candidate:type_name -> dockwell.v1.DockerNetworkCandidate
-	53,  // 90: dockwell.v1.CheckDockerNetworkResponse.findings:type_name -> dockwell.v1.DockerNetworkFinding
-	18,  // 91: dockwell.v1.CheckDockerNetworkResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
-	6,   // 92: dockwell.v1.DockerNetworkFinding.code:type_name -> dockwell.v1.DockerNetworkCheckCode
-	12,  // 93: dockwell.v1.PlanDockerNetworkAttachmentRequest.network:type_name -> dockwell.v1.DockerObjectKey
-	12,  // 94: dockwell.v1.PlanDockerNetworkAttachmentRequest.container:type_name -> dockwell.v1.DockerObjectKey
-	97,  // 95: dockwell.v1.PlanDockerNetworkAttachmentRequest.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
-	93,  // 96: dockwell.v1.PlanDockerNetworkAttachmentResponse.change:type_name -> dockwell.v1.Change
-	7,   // 97: dockwell.v1.DockerArtifactInfo.kind:type_name -> dockwell.v1.DockerArtifactKind
-	8,   // 98: dockwell.v1.DockerArtifactInfo.state:type_name -> dockwell.v1.DockerArtifactState
-	80,  // 99: dockwell.v1.DockerArtifactInfo.expires_at:type_name -> google.protobuf.Timestamp
-	58,  // 100: dockwell.v1.DockerArtifactInfo.images:type_name -> dockwell.v1.DockerArchiveImage
-	98,  // 101: dockwell.v1.DockerArtifactInfo.failure:type_name -> dockwell.v1.DockerImageReason
-	57,  // 102: dockwell.v1.DockerArtifactInfo.failure_space:type_name -> dockwell.v1.DockerArtifactSpace
-	7,   // 103: dockwell.v1.BeginDockerArtifactUploadRequest.kind:type_name -> dockwell.v1.DockerArtifactKind
-	56,  // 104: dockwell.v1.ListDockerArtifactsResponse.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
-	99,  // 105: dockwell.v1.UploadDockerArtifactRequest.content:type_name -> google.api.HttpBody
-	99,  // 106: dockwell.v1.DownloadDockerArtifactResponse.body:type_name -> google.api.HttpBody
-	80,  // 107: dockwell.v1.DockerSettings.observed_at:type_name -> google.protobuf.Timestamp
-	100, // 108: dockwell.v1.DockerSettings.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
-	101, // 109: dockwell.v1.DockerSettings.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
-	79,  // 110: dockwell.v1.DockerSettings.known_features:type_name -> dockwell.v1.DockerSettings.KnownFeaturesEntry
-	69,  // 111: dockwell.v1.DockerSettings.provenance:type_name -> dockwell.v1.DockerSettingSource
-	10,  // 112: dockwell.v1.DockerSettingsFinding.reason:type_name -> dockwell.v1.DockerSettingsFindingReason
-	68,  // 113: dockwell.v1.GetDockerSettingsResponse.settings:type_name -> dockwell.v1.DockerSettings
-	102, // 114: dockwell.v1.CheckDockerSettingsRequest.draft:type_name -> dockwell.resource.v1alpha1.DockerDaemon
-	70,  // 115: dockwell.v1.CheckDockerSettingsResponse.findings:type_name -> dockwell.v1.DockerSettingsFinding
-	103, // 116: dockwell.v1.CheckDockerSettingsResponse.impact:type_name -> dockwell.v1.DockerDaemonImpact
-	11,  // 117: dockwell.v1.CheckDockerSettingsResponse.mirror_reachability:type_name -> dockwell.v1.DockerMirrorReachability
-	12,  // 118: dockwell.v1.PlanDockerContainerLoggingRequest.container:type_name -> dockwell.v1.DockerObjectKey
-	104, // 119: dockwell.v1.PlanDockerContainerLoggingRequest.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
-	93,  // 120: dockwell.v1.PlanDockerContainerLoggingResponse.change:type_name -> dockwell.v1.Change
-	20,  // 121: dockwell.v1.DockerService.GetDockerOverview:input_type -> dockwell.v1.GetDockerOverviewRequest
-	23,  // 122: dockwell.v1.DockerService.ListDockerObjects:input_type -> dockwell.v1.ListDockerObjectsRequest
-	25,  // 123: dockwell.v1.DockerService.GetDockerObject:input_type -> dockwell.v1.GetDockerObjectRequest
-	37,  // 124: dockwell.v1.DockerService.PreviewDockerCleanup:input_type -> dockwell.v1.PreviewDockerCleanupRequest
-	40,  // 125: dockwell.v1.DockerService.PlanDockerMaintenance:input_type -> dockwell.v1.PlanDockerMaintenanceRequest
-	77,  // 126: dockwell.v1.DockerService.WatchDockerImageBuild:input_type -> dockwell.v1.WatchDockerImageBuildRequest
-	78,  // 127: dockwell.v1.DockerService.CancelDockerImageBuild:input_type -> dockwell.v1.CancelDockerImageBuildRequest
-	51,  // 128: dockwell.v1.DockerService.CheckDockerNetwork:input_type -> dockwell.v1.CheckDockerNetworkRequest
-	54,  // 129: dockwell.v1.DockerService.PlanDockerNetworkAttachment:input_type -> dockwell.v1.PlanDockerNetworkAttachmentRequest
-	59,  // 130: dockwell.v1.DockerService.BeginDockerArtifactUpload:input_type -> dockwell.v1.BeginDockerArtifactUploadRequest
-	62,  // 131: dockwell.v1.DockerService.GetDockerArtifact:input_type -> dockwell.v1.GetDockerArtifactRequest
-	60,  // 132: dockwell.v1.DockerService.ListDockerArtifacts:input_type -> dockwell.v1.ListDockerArtifactsRequest
-	63,  // 133: dockwell.v1.DockerService.FinishDockerArtifactUpload:input_type -> dockwell.v1.FinishDockerArtifactUploadRequest
-	64,  // 134: dockwell.v1.DockerService.AbortDockerArtifact:input_type -> dockwell.v1.AbortDockerArtifactRequest
-	65,  // 135: dockwell.v1.DockerService.UploadDockerArtifact:input_type -> dockwell.v1.UploadDockerArtifactRequest
-	66,  // 136: dockwell.v1.DockerService.DownloadDockerArtifact:input_type -> dockwell.v1.DownloadDockerArtifactRequest
-	71,  // 137: dockwell.v1.DockerService.GetDockerSettings:input_type -> dockwell.v1.GetDockerSettingsRequest
-	73,  // 138: dockwell.v1.DockerService.CheckDockerSettings:input_type -> dockwell.v1.CheckDockerSettingsRequest
-	75,  // 139: dockwell.v1.DockerService.PlanDockerContainerLogging:input_type -> dockwell.v1.PlanDockerContainerLoggingRequest
-	27,  // 140: dockwell.v1.DockerService.WatchDockerObjects:input_type -> dockwell.v1.WatchDockerObjectsRequest
-	21,  // 141: dockwell.v1.DockerService.GetDockerOverview:output_type -> dockwell.v1.GetDockerOverviewResponse
-	24,  // 142: dockwell.v1.DockerService.ListDockerObjects:output_type -> dockwell.v1.ListDockerObjectsResponse
-	26,  // 143: dockwell.v1.DockerService.GetDockerObject:output_type -> dockwell.v1.GetDockerObjectResponse
-	38,  // 144: dockwell.v1.DockerService.PreviewDockerCleanup:output_type -> dockwell.v1.PreviewDockerCleanupResponse
-	42,  // 145: dockwell.v1.DockerService.PlanDockerMaintenance:output_type -> dockwell.v1.PlanDockerMaintenanceResponse
-	105, // 146: dockwell.v1.DockerService.WatchDockerImageBuild:output_type -> dockwell.v1.WatchBuildResponse
-	106, // 147: dockwell.v1.DockerService.CancelDockerImageBuild:output_type -> dockwell.v1.CancelBuildResponse
-	52,  // 148: dockwell.v1.DockerService.CheckDockerNetwork:output_type -> dockwell.v1.CheckDockerNetworkResponse
-	55,  // 149: dockwell.v1.DockerService.PlanDockerNetworkAttachment:output_type -> dockwell.v1.PlanDockerNetworkAttachmentResponse
-	56,  // 150: dockwell.v1.DockerService.BeginDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
-	56,  // 151: dockwell.v1.DockerService.GetDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	61,  // 152: dockwell.v1.DockerService.ListDockerArtifacts:output_type -> dockwell.v1.ListDockerArtifactsResponse
-	56,  // 153: dockwell.v1.DockerService.FinishDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
-	56,  // 154: dockwell.v1.DockerService.AbortDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	56,  // 155: dockwell.v1.DockerService.UploadDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	67,  // 156: dockwell.v1.DockerService.DownloadDockerArtifact:output_type -> dockwell.v1.DownloadDockerArtifactResponse
-	72,  // 157: dockwell.v1.DockerService.GetDockerSettings:output_type -> dockwell.v1.GetDockerSettingsResponse
-	74,  // 158: dockwell.v1.DockerService.CheckDockerSettings:output_type -> dockwell.v1.CheckDockerSettingsResponse
-	76,  // 159: dockwell.v1.DockerService.PlanDockerContainerLogging:output_type -> dockwell.v1.PlanDockerContainerLoggingResponse
-	30,  // 160: dockwell.v1.DockerService.WatchDockerObjects:output_type -> dockwell.v1.WatchDockerObjectsResponse
-	141, // [141:161] is the sub-list for method output_type
-	121, // [121:141] is the sub-list for method input_type
-	121, // [121:121] is the sub-list for extension type_name
-	121, // [121:121] is the sub-list for extension extendee
-	0,   // [0:121] is the sub-list for field type_name
+	81,  // 57: dockwell.v1.DockerImageHistory.created_at:type_name -> google.protobuf.Timestamp
+	86,  // 58: dockwell.v1.DockerCleanupFilters.kinds:type_name -> dockwell.v1.DockerCleanupKind
+	36,  // 59: dockwell.v1.PreviewDockerCleanupRequest.filters:type_name -> dockwell.v1.DockerCleanupFilters
+	87,  // 60: dockwell.v1.PreviewDockerCleanupResponse.candidates:type_name -> dockwell.v1.DockerCleanupTarget
+	87,  // 61: dockwell.v1.PreviewDockerCleanupResponse.exclusions:type_name -> dockwell.v1.DockerCleanupTarget
+	18,  // 62: dockwell.v1.PreviewDockerCleanupResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
+	40,  // 63: dockwell.v1.PreviewDockerCleanupResponse.pauses:type_name -> dockwell.v1.DockerCleanupPause
+	39,  // 64: dockwell.v1.PreviewDockerCleanupResponse.server_limits:type_name -> dockwell.v1.DockerCleanupServerLimits
+	86,  // 65: dockwell.v1.DockerCleanupServerLimits.supported_kinds:type_name -> dockwell.v1.DockerCleanupKind
+	88,  // 66: dockwell.v1.DockerCleanupPause.reason:type_name -> dockwell.v1.DockerReceiptReason
+	42,  // 67: dockwell.v1.PlanDockerMaintenanceRequest.cleanup:type_name -> dockwell.v1.DockerCleanupSelection
+	89,  // 68: dockwell.v1.PlanDockerMaintenanceRequest.tag:type_name -> dockwell.v1.DockerImageTag
+	90,  // 69: dockwell.v1.PlanDockerMaintenanceRequest.load:type_name -> dockwell.v1.DockerImageLoad
+	91,  // 70: dockwell.v1.PlanDockerMaintenanceRequest.build:type_name -> dockwell.v1.DockerImageBuild
+	92,  // 71: dockwell.v1.PlanDockerMaintenanceRequest.push:type_name -> dockwell.v1.DockerImagePush
+	93,  // 72: dockwell.v1.PlanDockerMaintenanceRequest.export:type_name -> dockwell.v1.DockerImageExport
+	94,  // 73: dockwell.v1.PlanDockerMaintenanceRequest.pull:type_name -> dockwell.v1.DockerImagePull
+	36,  // 74: dockwell.v1.DockerCleanupSelection.filters:type_name -> dockwell.v1.DockerCleanupFilters
+	87,  // 75: dockwell.v1.DockerCleanupSelection.targets:type_name -> dockwell.v1.DockerCleanupTarget
+	95,  // 76: dockwell.v1.PlanDockerMaintenanceResponse.change:type_name -> dockwell.v1.Change
+	45,  // 77: dockwell.v1.PlanDockerMaintenanceResponse.digest_check:type_name -> dockwell.v1.DockerImageDigestCheck
+	96,  // 78: dockwell.v1.DockerImageDigestCheck.current:type_name -> dockwell.v1.DockerRegistryDescriptor
+	96,  // 79: dockwell.v1.DockerImageDigestCheck.candidate:type_name -> dockwell.v1.DockerRegistryDescriptor
+	97,  // 80: dockwell.v1.DockerNetwork.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
+	81,  // 81: dockwell.v1.DockerNetwork.created_at:type_name -> google.protobuf.Timestamp
+	47,  // 82: dockwell.v1.DockerNetwork.attachments:type_name -> dockwell.v1.DockerNetworkEndpoint
+	5,   // 83: dockwell.v1.DockerNetwork.protection:type_name -> dockwell.v1.DockerStorageProtection
+	83,  // 84: dockwell.v1.DockerNetworkEndpoint.state:type_name -> dockwell.v1.ContainerState
+	81,  // 85: dockwell.v1.DockerVolume.size_observed_at:type_name -> google.protobuf.Timestamp
+	81,  // 86: dockwell.v1.DockerVolume.created_at:type_name -> google.protobuf.Timestamp
+	49,  // 87: dockwell.v1.DockerVolume.attachments:type_name -> dockwell.v1.DockerVolumeAttachment
+	5,   // 88: dockwell.v1.DockerVolume.protection:type_name -> dockwell.v1.DockerStorageProtection
+	83,  // 89: dockwell.v1.DockerVolumeAttachment.state:type_name -> dockwell.v1.ContainerState
+	12,  // 90: dockwell.v1.DockerVolumeMountRef.volume_key:type_name -> dockwell.v1.DockerObjectKey
+	98,  // 91: dockwell.v1.DockerNetworkCandidate.spec:type_name -> dockwell.resource.v1alpha1.Network
+	51,  // 92: dockwell.v1.CheckDockerNetworkRequest.candidate:type_name -> dockwell.v1.DockerNetworkCandidate
+	54,  // 93: dockwell.v1.CheckDockerNetworkResponse.findings:type_name -> dockwell.v1.DockerNetworkFinding
+	18,  // 94: dockwell.v1.CheckDockerNetworkResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
+	6,   // 95: dockwell.v1.DockerNetworkFinding.code:type_name -> dockwell.v1.DockerNetworkCheckCode
+	12,  // 96: dockwell.v1.PlanDockerNetworkAttachmentRequest.network:type_name -> dockwell.v1.DockerObjectKey
+	12,  // 97: dockwell.v1.PlanDockerNetworkAttachmentRequest.container:type_name -> dockwell.v1.DockerObjectKey
+	99,  // 98: dockwell.v1.PlanDockerNetworkAttachmentRequest.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
+	95,  // 99: dockwell.v1.PlanDockerNetworkAttachmentResponse.change:type_name -> dockwell.v1.Change
+	7,   // 100: dockwell.v1.DockerArtifactInfo.kind:type_name -> dockwell.v1.DockerArtifactKind
+	8,   // 101: dockwell.v1.DockerArtifactInfo.state:type_name -> dockwell.v1.DockerArtifactState
+	81,  // 102: dockwell.v1.DockerArtifactInfo.expires_at:type_name -> google.protobuf.Timestamp
+	59,  // 103: dockwell.v1.DockerArtifactInfo.images:type_name -> dockwell.v1.DockerArchiveImage
+	100, // 104: dockwell.v1.DockerArtifactInfo.failure:type_name -> dockwell.v1.DockerImageReason
+	58,  // 105: dockwell.v1.DockerArtifactInfo.failure_space:type_name -> dockwell.v1.DockerArtifactSpace
+	7,   // 106: dockwell.v1.BeginDockerArtifactUploadRequest.kind:type_name -> dockwell.v1.DockerArtifactKind
+	57,  // 107: dockwell.v1.ListDockerArtifactsResponse.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
+	101, // 108: dockwell.v1.UploadDockerArtifactRequest.content:type_name -> google.api.HttpBody
+	101, // 109: dockwell.v1.DownloadDockerArtifactResponse.body:type_name -> google.api.HttpBody
+	81,  // 110: dockwell.v1.DockerSettings.observed_at:type_name -> google.protobuf.Timestamp
+	102, // 111: dockwell.v1.DockerSettings.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
+	103, // 112: dockwell.v1.DockerSettings.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
+	80,  // 113: dockwell.v1.DockerSettings.known_features:type_name -> dockwell.v1.DockerSettings.KnownFeaturesEntry
+	70,  // 114: dockwell.v1.DockerSettings.provenance:type_name -> dockwell.v1.DockerSettingSource
+	10,  // 115: dockwell.v1.DockerSettingsFinding.reason:type_name -> dockwell.v1.DockerSettingsFindingReason
+	69,  // 116: dockwell.v1.GetDockerSettingsResponse.settings:type_name -> dockwell.v1.DockerSettings
+	104, // 117: dockwell.v1.CheckDockerSettingsRequest.draft:type_name -> dockwell.resource.v1alpha1.DockerDaemon
+	71,  // 118: dockwell.v1.CheckDockerSettingsResponse.findings:type_name -> dockwell.v1.DockerSettingsFinding
+	105, // 119: dockwell.v1.CheckDockerSettingsResponse.impact:type_name -> dockwell.v1.DockerDaemonImpact
+	11,  // 120: dockwell.v1.CheckDockerSettingsResponse.mirror_reachability:type_name -> dockwell.v1.DockerMirrorReachability
+	12,  // 121: dockwell.v1.PlanDockerContainerLoggingRequest.container:type_name -> dockwell.v1.DockerObjectKey
+	106, // 122: dockwell.v1.PlanDockerContainerLoggingRequest.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
+	95,  // 123: dockwell.v1.PlanDockerContainerLoggingResponse.change:type_name -> dockwell.v1.Change
+	20,  // 124: dockwell.v1.DockerService.GetDockerOverview:input_type -> dockwell.v1.GetDockerOverviewRequest
+	23,  // 125: dockwell.v1.DockerService.ListDockerObjects:input_type -> dockwell.v1.ListDockerObjectsRequest
+	25,  // 126: dockwell.v1.DockerService.GetDockerObject:input_type -> dockwell.v1.GetDockerObjectRequest
+	37,  // 127: dockwell.v1.DockerService.PreviewDockerCleanup:input_type -> dockwell.v1.PreviewDockerCleanupRequest
+	41,  // 128: dockwell.v1.DockerService.PlanDockerMaintenance:input_type -> dockwell.v1.PlanDockerMaintenanceRequest
+	78,  // 129: dockwell.v1.DockerService.WatchDockerImageBuild:input_type -> dockwell.v1.WatchDockerImageBuildRequest
+	79,  // 130: dockwell.v1.DockerService.CancelDockerImageBuild:input_type -> dockwell.v1.CancelDockerImageBuildRequest
+	52,  // 131: dockwell.v1.DockerService.CheckDockerNetwork:input_type -> dockwell.v1.CheckDockerNetworkRequest
+	55,  // 132: dockwell.v1.DockerService.PlanDockerNetworkAttachment:input_type -> dockwell.v1.PlanDockerNetworkAttachmentRequest
+	60,  // 133: dockwell.v1.DockerService.BeginDockerArtifactUpload:input_type -> dockwell.v1.BeginDockerArtifactUploadRequest
+	63,  // 134: dockwell.v1.DockerService.GetDockerArtifact:input_type -> dockwell.v1.GetDockerArtifactRequest
+	61,  // 135: dockwell.v1.DockerService.ListDockerArtifacts:input_type -> dockwell.v1.ListDockerArtifactsRequest
+	64,  // 136: dockwell.v1.DockerService.FinishDockerArtifactUpload:input_type -> dockwell.v1.FinishDockerArtifactUploadRequest
+	65,  // 137: dockwell.v1.DockerService.AbortDockerArtifact:input_type -> dockwell.v1.AbortDockerArtifactRequest
+	66,  // 138: dockwell.v1.DockerService.UploadDockerArtifact:input_type -> dockwell.v1.UploadDockerArtifactRequest
+	67,  // 139: dockwell.v1.DockerService.DownloadDockerArtifact:input_type -> dockwell.v1.DownloadDockerArtifactRequest
+	72,  // 140: dockwell.v1.DockerService.GetDockerSettings:input_type -> dockwell.v1.GetDockerSettingsRequest
+	74,  // 141: dockwell.v1.DockerService.CheckDockerSettings:input_type -> dockwell.v1.CheckDockerSettingsRequest
+	76,  // 142: dockwell.v1.DockerService.PlanDockerContainerLogging:input_type -> dockwell.v1.PlanDockerContainerLoggingRequest
+	27,  // 143: dockwell.v1.DockerService.WatchDockerObjects:input_type -> dockwell.v1.WatchDockerObjectsRequest
+	21,  // 144: dockwell.v1.DockerService.GetDockerOverview:output_type -> dockwell.v1.GetDockerOverviewResponse
+	24,  // 145: dockwell.v1.DockerService.ListDockerObjects:output_type -> dockwell.v1.ListDockerObjectsResponse
+	26,  // 146: dockwell.v1.DockerService.GetDockerObject:output_type -> dockwell.v1.GetDockerObjectResponse
+	38,  // 147: dockwell.v1.DockerService.PreviewDockerCleanup:output_type -> dockwell.v1.PreviewDockerCleanupResponse
+	43,  // 148: dockwell.v1.DockerService.PlanDockerMaintenance:output_type -> dockwell.v1.PlanDockerMaintenanceResponse
+	107, // 149: dockwell.v1.DockerService.WatchDockerImageBuild:output_type -> dockwell.v1.WatchBuildResponse
+	108, // 150: dockwell.v1.DockerService.CancelDockerImageBuild:output_type -> dockwell.v1.CancelBuildResponse
+	53,  // 151: dockwell.v1.DockerService.CheckDockerNetwork:output_type -> dockwell.v1.CheckDockerNetworkResponse
+	56,  // 152: dockwell.v1.DockerService.PlanDockerNetworkAttachment:output_type -> dockwell.v1.PlanDockerNetworkAttachmentResponse
+	57,  // 153: dockwell.v1.DockerService.BeginDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 154: dockwell.v1.DockerService.GetDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	62,  // 155: dockwell.v1.DockerService.ListDockerArtifacts:output_type -> dockwell.v1.ListDockerArtifactsResponse
+	57,  // 156: dockwell.v1.DockerService.FinishDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 157: dockwell.v1.DockerService.AbortDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 158: dockwell.v1.DockerService.UploadDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	68,  // 159: dockwell.v1.DockerService.DownloadDockerArtifact:output_type -> dockwell.v1.DownloadDockerArtifactResponse
+	73,  // 160: dockwell.v1.DockerService.GetDockerSettings:output_type -> dockwell.v1.GetDockerSettingsResponse
+	75,  // 161: dockwell.v1.DockerService.CheckDockerSettings:output_type -> dockwell.v1.CheckDockerSettingsResponse
+	77,  // 162: dockwell.v1.DockerService.PlanDockerContainerLogging:output_type -> dockwell.v1.PlanDockerContainerLoggingResponse
+	30,  // 163: dockwell.v1.DockerService.WatchDockerObjects:output_type -> dockwell.v1.WatchDockerObjectsResponse
+	144, // [144:164] is the sub-list for method output_type
+	124, // [124:144] is the sub-list for method input_type
+	124, // [124:124] is the sub-list for extension type_name
+	124, // [124:124] is the sub-list for extension extendee
+	0,   // [0:124] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_docker_proto_init() }
@@ -6854,7 +6963,7 @@ func file_dockwell_v1_docker_proto_init() {
 	file_dockwell_v1_docker_proto_msgTypes[19].OneofWrappers = []any{}
 	file_dockwell_v1_docker_proto_msgTypes[21].OneofWrappers = []any{}
 	file_dockwell_v1_docker_proto_msgTypes[23].OneofWrappers = []any{}
-	file_dockwell_v1_docker_proto_msgTypes[28].OneofWrappers = []any{
+	file_dockwell_v1_docker_proto_msgTypes[29].OneofWrappers = []any{
 		(*PlanDockerMaintenanceRequest_Cleanup)(nil),
 		(*PlanDockerMaintenanceRequest_ResumeCleanupToken)(nil),
 		(*PlanDockerMaintenanceRequest_Tag)(nil),
@@ -6864,16 +6973,16 @@ func file_dockwell_v1_docker_proto_init() {
 		(*PlanDockerMaintenanceRequest_Export)(nil),
 		(*PlanDockerMaintenanceRequest_Pull)(nil),
 	}
-	file_dockwell_v1_docker_proto_msgTypes[33].OneofWrappers = []any{}
-	file_dockwell_v1_docker_proto_msgTypes[35].OneofWrappers = []any{}
-	file_dockwell_v1_docker_proto_msgTypes[56].OneofWrappers = []any{}
+	file_dockwell_v1_docker_proto_msgTypes[34].OneofWrappers = []any{}
+	file_dockwell_v1_docker_proto_msgTypes[36].OneofWrappers = []any{}
+	file_dockwell_v1_docker_proto_msgTypes[57].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_docker_proto_rawDesc), len(file_dockwell_v1_docker_proto_rawDesc)),
 			NumEnums:      12,
-			NumMessages:   68,
+			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

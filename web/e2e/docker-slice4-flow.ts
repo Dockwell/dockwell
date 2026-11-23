@@ -12,6 +12,8 @@ const image = "fixture/cleanup-image-with-a-long-repository-name:review";
 const idle = "fixtureidlebuildcache0001";
 const busy = "fixturebusybuildcache0002";
 const network = "fixture-idle-network";
+const anonVolume = "f".repeat(64);
+const namedVolume = "fixture-unused-volume";
 
 async function fits(page: Page, selector: string) {
   const viewport = page.viewportSize();
@@ -124,13 +126,21 @@ export const flow: Flow = {
     if (!(await page.getByRole("checkbox", { name: new RegExp(idle) }).isChecked()))
       throw new Error("idle cache wasn't selected by default");
     const target = (name: string) => page.getByRole("checkbox", { name: new RegExp(name) });
-    if (!(await target(shortId).isChecked()) || (await target(image).count()) || (await target(network).count()))
-      throw new Error("dangling images, tagged images or networks have the wrong defaults");
-    await page.getByText("Cleanup options", { exact: true }).click();
-    await page.getByRole("checkbox", { name: "Include unused images with tags or digests" }).check();
-    await page.getByRole("checkbox", { name: "Include unused networks" }).check();
-    await target(image).waitFor();
-    await target(network).waitFor();
+    const anonShort = anonVolume.slice(0, 12);
+    if (
+      !(await target(shortId).isChecked()) ||
+      !(await target(network).isChecked()) ||
+      !(await target(anonShort).isChecked()) ||
+      (await target(image).isChecked()) ||
+      (await target(namedVolume).isChecked())
+    )
+      throw new Error(
+        "dangling images, networks, anonymous volumes, tagged images or named volumes have the wrong defaults",
+      );
+    await page.getByRole("checkbox", { name: /Include unused tagged image/ }).check();
+    await page.getByRole("checkbox", { name: /Include unused named volume/ }).check();
+    if (!(await target(image).isChecked()) || !(await target(namedVolume).isChecked()))
+      throw new Error("opt-in checkboxes did not select tagged images and named volumes");
     await page.getByText("Protected artifacts", { exact: true }).click();
     await page.getByText(busy, { exact: true }).waitFor();
     await page.getByText("In use by builds", { exact: true }).waitFor();
@@ -139,7 +149,9 @@ export const flow: Flow = {
     await page.getByRole("button", { name: "Review plan", exact: true }).click();
     const review = onTop(page.getByRole("dialog", { name: "Review plan" }));
     await review.getByText(idle, { exact: true }).waitFor();
-    for (const name of [shortId, image, network]) await review.getByText(name, { exact: true }).waitFor();
+    for (const name of [shortId, image, network, anonShort, namedVolume]) {
+      await review.getByText(name, { exact: true }).waitFor();
+    }
     if ((await review.innerText()).includes(busy)) throw new Error("active cache was in the cleanup plan");
     await fits(page, ".dw-sheet-view:not(.is-away) .plan-body");
     await shoot(page, "docker-slice4-plan");
@@ -148,15 +160,10 @@ export const flow: Flow = {
     );
     await review.getByRole("button", { name: /^Apply plan/ }).click();
     await rejected;
-    for (const size of [48, 10, 52]) {
-      await page.getByText(`Before ${size} MB · after 0 B`, { exact: true }).waitFor({ timeout: 30_000 });
-    }
     const finished = onTop(page.getByRole("dialog"));
-    if (
-      (await finished.getByText("Verified ID", { exact: false }).count()) !== 4 ||
-      (await finished.getByText("Removed", { exact: true }).count()) !== 4
-    )
-      throw new Error("cleanup did not receipt each reviewed object and verified identity");
+    await finished.getByText("Freed 158 MB", { exact: true }).waitFor({ timeout: 30_000 });
+    if ((await finished.getByText("Removed", { exact: true }).count()) !== 6)
+      throw new Error("cleanup did not receipt each reviewed object");
     await fits(page, ".dw-sheet-view:not(.is-away) .plan-body");
     await shoot(page, "docker-slice4-receipt");
     await onTop(page.getByRole("dialog")).getByRole("button", { name: "Done", exact: true }).click();

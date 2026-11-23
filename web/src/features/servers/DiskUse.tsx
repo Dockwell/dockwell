@@ -77,7 +77,7 @@ export function DiskUsePanel({ server, dockerWorkspace = false }: { server: Serv
     >
       <div className="disk-use-body" aria-busy={busy}>
         {busy && disks.length === 0 ? <DiskSkeleton /> : null}
-        {breakdown ? <DockerDiskTable used={breakdown} serverId={server.id} /> : null}
+        {breakdown ? <DockerDiskTable used={breakdown} serverId={server.id} serverName={server.name} /> : null}
         {dockerDisk && (!breakdown || !dockerWorkspace) ? <DockerDisk use={dockerDisk} server={server} /> : null}
         {others.map((disk) => (
           <PlainDisk key={disk.mountPoint} disk={disk} server={server} />

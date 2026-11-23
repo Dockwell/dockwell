@@ -3559,6 +3559,27 @@ paths:
                   in: query
                   schema:
                     type: boolean
+                - name: filters.volumes
+                  in: query
+                  description: Include unused local volumes (anonymous and named) with per-volume protection checks.
+                  schema:
+                    type: boolean
+                - name: filters.kinds
+                  in: query
+                  description: Optional kind filter. Empty previews every supported kind for the active flags.
+                  schema:
+                    type: array
+                    items:
+                        enum:
+                            - DOCKER_CLEANUP_KIND_UNSPECIFIED
+                            - DOCKER_CLEANUP_KIND_IMAGE
+                            - DOCKER_CLEANUP_KIND_BUILD_CACHE
+                            - DOCKER_CLEANUP_KIND_NETWORK
+                            - DOCKER_CLEANUP_KIND_CONTAINER
+                            - DOCKER_CLEANUP_KIND_VOLUME
+                            - DOCKER_CLEANUP_KIND_LOG
+                        type: string
+                        format: enum
                 - name: pageSize
                   in: query
                   schema:
@@ -16457,6 +16478,23 @@ components:
                     type: boolean
                 networks:
                     type: boolean
+                volumes:
+                    type: boolean
+                    description: Include unused local volumes (anonymous and named) with per-volume protection checks.
+                kinds:
+                    type: array
+                    items:
+                        enum:
+                            - DOCKER_CLEANUP_KIND_UNSPECIFIED
+                            - DOCKER_CLEANUP_KIND_IMAGE
+                            - DOCKER_CLEANUP_KIND_BUILD_CACHE
+                            - DOCKER_CLEANUP_KIND_NETWORK
+                            - DOCKER_CLEANUP_KIND_CONTAINER
+                            - DOCKER_CLEANUP_KIND_VOLUME
+                            - DOCKER_CLEANUP_KIND_LOG
+                        type: string
+                        format: enum
+                    description: Optional kind filter. Empty previews every supported kind for the active flags.
             description: DockerCleanupFilters opts in to artifacts beyond the default review.
         DockerCleanupPause:
             type: object
@@ -16471,6 +16509,8 @@ components:
                         - DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED
                         - DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED
                         - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
+                        - DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED
+                        - DOCKER_RECEIPT_REASON_VOLUME_REPLACED
                     type: string
                     format: enum
             description: DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
@@ -16484,6 +16524,28 @@ components:
                     items:
                         $ref: '#/components/schemas/DockerCleanupTarget'
             description: DockerCleanupSelection is the user's selection from a cleanup preview.
+        DockerCleanupServerLimits:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                maxTargets:
+                    type: integer
+                    format: uint32
+                supportedKinds:
+                    type: array
+                    items:
+                        enum:
+                            - DOCKER_CLEANUP_KIND_UNSPECIFIED
+                            - DOCKER_CLEANUP_KIND_IMAGE
+                            - DOCKER_CLEANUP_KIND_BUILD_CACHE
+                            - DOCKER_CLEANUP_KIND_NETWORK
+                            - DOCKER_CLEANUP_KIND_CONTAINER
+                            - DOCKER_CLEANUP_KIND_VOLUME
+                            - DOCKER_CLEANUP_KIND_LOG
+                        type: string
+                        format: enum
+            description: DockerCleanupServerLimits reports one server's cleanup capacity and supported kinds.
         DockerCleanupTarget:
             type: object
             properties:
@@ -16520,6 +16582,11 @@ components:
                         - DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
                         - DOCKER_CLEANUP_REASON_DISABLED
                         - DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
+                        - DOCKER_CLEANUP_REASON_ANONYMOUS
+                        - DOCKER_CLEANUP_REASON_BACKUP
+                        - DOCKER_CLEANUP_REASON_COMPOSE
+                        - DOCKER_CLEANUP_REASON_SWARM_MANAGER
+                        - DOCKER_CLEANUP_REASON_RECENTLY_CREATED
                     type: string
                     format: enum
                 lastUsedAt:
@@ -16539,6 +16606,12 @@ components:
                     items:
                         type: string
                     description: Every reviewed repository digest of the image, in order.
+                composeProject:
+                    type: string
+                    description: Compose project label when protected by a Compose project.
+                composeId:
+                    type: string
+                    description: Known Compose stack ID on the server when Dockwell can link to it.
             description: DockerCleanupTarget records the reviewed identity and its eligibility evidence.
         DockerCompose:
             type: object
@@ -16769,6 +16842,11 @@ components:
                             - DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
                             - DOCKER_CLEANUP_REASON_DISABLED
                             - DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
+                            - DOCKER_CLEANUP_REASON_ANONYMOUS
+                            - DOCKER_CLEANUP_REASON_BACKUP
+                            - DOCKER_CLEANUP_REASON_COMPOSE
+                            - DOCKER_CLEANUP_REASON_SWARM_MANAGER
+                            - DOCKER_CLEANUP_REASON_RECENTLY_CREATED
                         type: string
                         format: enum
                 partial:
@@ -17372,6 +17450,8 @@ components:
                         - DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED
                         - DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED
                         - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
+                        - DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED
+                        - DOCKER_RECEIPT_REASON_VOLUME_REPLACED
                     type: string
                     format: enum
             description: DockerReceipt reports one approved target's outcome.
@@ -26761,6 +26841,13 @@ components:
                     type: array
                     items:
                         $ref: '#/components/schemas/DockerCleanupPause'
+                serverLimits:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerCleanupServerLimits'
+                maxTargetsTotal:
+                    type: integer
+                    format: uint32
             description: PreviewDockerCleanupResponse reports eligible and protected artifacts on one page.
         PreviewWebsiteRequest:
             type: object

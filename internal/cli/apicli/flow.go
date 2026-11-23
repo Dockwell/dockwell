@@ -194,6 +194,11 @@ func (r *runner) print(msg proto.Message, lines bool) error {
 	case *dockwellv1.ReadLogsResponse:
 		r.logPrinter().read(m)
 		return nil
+	case *dockwellv1.PlanDockerMaintenanceResponse:
+		if r.opts.planOnly {
+			renderChangeWithOptions(r.env.Out, m.GetChange(), r.env.now(), true)
+			return nil
+		}
 	}
 	Render(r.env.Out, msg, r.env.now())
 	return nil
@@ -403,6 +408,12 @@ func (r *runner) planned(ctx context.Context, res proto.Message, c *dockwellv1.C
 		return nil
 	}
 	if r.opts.planOnly {
+		if needsPerson(c.GetPlan()) {
+			fmt.Fprintf(r.env.Err, "\n%s %s, so it needs a person to approve it with a passkey in the panel. "+
+				"It stays planned: sign in to the panel and apply it at %s, or discard it with dockwell changes discard %s.\n",
+				c.GetId(), whyPerson(c.GetPlan()), r.client.PanelURL("/changes/"+c.GetId()), c.GetId())
+			return nil
+		}
 		fmt.Fprintf(r.env.Err, "\n%s is planned. Apply it with dockwell changes apply %s, or discard it with dockwell changes discard %s.\n",
 			c.GetId(), c.GetId(), c.GetId())
 		return nil
@@ -466,6 +477,14 @@ func (r *runner) needsPerson(c *dockwellv1.Change) error {
 // whyPerson says what about a plan needs a person, from what it does.
 func whyPerson(p *dockwellv1.Plan) string {
 	var why []string
+	for _, r := range p.GetResources() {
+		if m := r.GetDockerMaintenance(); m != nil && m.GetImageAction() == nil {
+			if m.GetResumeCleanupToken() != "" {
+				return "re-enables Docker cleanup after a safety pause"
+			}
+			return "permanently removes the selected Docker artifacts"
+		}
+	}
 	if touchesAccess(p) {
 		why = append(why, "changes who reaches a server")
 	}

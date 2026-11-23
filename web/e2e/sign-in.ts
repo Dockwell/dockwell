@@ -286,12 +286,17 @@ async function shoot(page: Page, name: string) {
         name.startsWith("docker-slice6d-") ||
         name.startsWith("registry-logins-push-") ||
         name.startsWith("docker-slice8-") ||
+        name.startsWith("docker-prune-") ||
         name === "registry-logins-docker-pull";
       const artifact = storage || imageAction;
       for (const width of storage ? [1440, 1024, 390, 320] : imageAction ? [1440, 390] : [1440, 800, 390, 360]) {
         await atWidth(page, { width, height: width === 1440 ? 900 : 844 });
         // A full-page shot of a long page starts at its top, as someone arriving would see it.
-        await page.evaluate(() => window.scrollTo(0, 0));
+        if (name === "docker-prune-cleanup-footer") {
+          await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        } else {
+          await page.evaluate(() => window.scrollTo(0, 0));
+        }
         await page.waitForTimeout(100);
         const privateValues = artifact
           ? [

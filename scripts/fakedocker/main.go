@@ -321,6 +321,22 @@ func main() {
 		})
 		e.AddLocalImage("", dockertest.Image{Size: 10 << 20, Created: used})
 		e.AddNetwork(docker.Network{Name: "fixture-idle-network", Scope: "local", Driver: "bridge"})
+		anonVol := strings.Repeat("f", 64)
+		e.AddVolume(docker.Volume{
+			Name: anonVol, Driver: "local", Scope: "local",
+			Labels:    map[string]string{"com.docker.volume.anonymous": ""},
+			CreatedAt: used.Format(time.RFC3339),
+		})
+		e.AddVolume(docker.Volume{
+			Name: "fixture-unused-volume", Driver: "local", Scope: "local",
+			CreatedAt: used.Format(time.RFC3339),
+		})
+		if e.VolumeSizes == nil {
+			e.VolumeSizes = map[string]int64{}
+		}
+		e.VolumeSizes[anonVol] = 16 << 20
+		e.VolumeSizes["fixture-unused-volume"] = 32 << 20
+		e.VolumeCreatedAt = func() time.Time { return time.Now().UTC().Add(-5 * time.Minute) }
 	}
 	if fixtures := os.Getenv("FAKEDOCKER_STORAGE_FIXTURE"); fixtures != "" {
 		storageFixtures(e, fixtures)

@@ -1354,8 +1354,8 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 			}
 		}
 		if d.DockerMaintenance != nil {
-			if !s.DockerCleanup() {
-				return nil, fault.New(ErrOlderAgent, "update the agent to review Docker cleanup")
+			if err := s.checkDockerMaintenanceSupport(d.DockerMaintenance); err != nil {
+				return nil, err
 			}
 			call.Desired = append(call.Desired, &agentv1.DesiredResource{
 				Resource: resourcepb.Ref(d.Ref), DockerMaintenance: d.DockerMaintenance,
@@ -1435,8 +1435,14 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		return d.NeedsRunControl || resource.RunIntent(d.Spec) != 0 || d.ExactRestart != ""
 	})
 	logging := slices.ContainsFunc(desired, func(d resource.Desired) bool { return resource.Workload(d.Spec).GetLogging() != nil })
-	if workload || logging || len(logins) > 0 {
+	maintenance := slices.ContainsFunc(desired, func(d resource.Desired) bool { return d.DockerMaintenance != nil })
+	if workload || logging || maintenance || len(logins) > 0 {
 		seal = func(on *Session) error {
+			for i := range desired {
+				if err := on.checkDockerMaintenanceSupport(desired[i].DockerMaintenance); err != nil {
+					return err
+				}
+			}
 			if logging && !on.DockerContainerLogging() {
 				return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
 			}

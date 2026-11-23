@@ -158,7 +158,7 @@ func (s *Service) cachedDiskProtection(ctx context.Context, server string) (reso
 	if previous, ok := s.diskProtection[server]; ok && now.Sub(previous.at) < 30*time.Second {
 		return previous.held, nil
 	}
-	held, err := revision.DockerCleanupProtection(ctx, s.db, server, now, false)
+	held, err := revision.DockerCleanupProtection(ctx, s.db, server, now, false, false)
 	if err != nil {
 		return resource.DockerProtection{}, err
 	}

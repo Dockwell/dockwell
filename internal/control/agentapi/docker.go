@@ -40,12 +40,24 @@ func (s *Session) DockerCleanup() bool { return s.dockerCapabilities.GetCleanup(
 // DockerArtifactCleanup reports support for image and network removals.
 func (s *Session) DockerArtifactCleanup() bool { return s.dockerCapabilities.GetArtifactCleanup() }
 
+// DockerVolumeCleanup reports support for reviewed unused volume removals.
+func (s *Session) DockerVolumeCleanup() bool { return s.dockerCapabilities.GetVolumeCleanup() }
+
+// DockerExtendedCleanup reports support for larger cleanup plans and kind filters.
+func (s *Session) DockerExtendedCleanup() bool { return s.dockerCapabilities.GetExtendedCleanup() }
+
 func dockerProtection(ctx context.Context) *agentv1.DockerCleanupProtection {
 	held, ok := resource.DockerProtectionOf(ctx)
 	if !ok {
 		return nil
 	}
-	return &agentv1.DockerCleanupProtection{Images: held.Images, Networks: held.Networks}
+	return &agentv1.DockerCleanupProtection{
+		Images:          held.Images,
+		Networks:        held.Networks,
+		Volumes:         held.Volumes,
+		BackupVolumes:   held.BackupVolumes,
+		RollbackVolumes: held.RollbackVolumes,
+	}
 }
 
 // DockerCleanupPreview reads Engine evidence without changing it.
@@ -199,6 +211,36 @@ func (s *Session) dockerChanged(msg *agentv1.DockerInventoryChanged) {
 	}
 }
 
+// checkDockerMaintenanceSupport verifies that this agent session supports
+// every operation and target count in maintenance. Shared by Plan and Apply
+// so reconnects to an older agent fail with a clear upgrade requirement.
+func (s *Session) checkDockerMaintenanceSupport(m *dockwellv1.DockerMaintenance) error {
+	if m == nil {
+		return nil
+	}
+	if !s.DockerCleanup() {
+		return fault.New(ErrOlderAgent, "update the agent to review Docker cleanup")
+	}
+	if m.GetImageAction() != nil || m.GetResumeCleanupToken() != "" {
+		return nil
+	}
+	targets := m.GetTargets()
+	if !s.DockerArtifactCleanup() && slices.ContainsFunc(targets, func(t *dockwellv1.DockerCleanupTarget) bool {
+		return t.GetKind() != dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE
+	}) {
+		return fault.New(ErrOlderAgent, "update the agent to apply Docker cleanup")
+	}
+	if !s.DockerVolumeCleanup() && slices.ContainsFunc(targets, func(t *dockwellv1.DockerCleanupTarget) bool {
+		return t.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME
+	}) {
+		return fault.New(ErrOlderAgent, "update the agent to remove unused Docker volumes")
+	}
+	if !s.DockerExtendedCleanup() && len(targets) > 12 {
+		return fault.New(ErrOlderAgent, "update the agent to remove more than 12 Docker artifacts in one plan")
+	}
+	return nil
+}
+
 func (s *Session) applyDockerCleanup(ctx context.Context, step resource.Step) error {
 	call := &agentv1.ApplyCall{
 		Step:                    resourcepb.Step(step, ""),
@@ -207,12 +249,7 @@ func (s *Session) applyDockerCleanup(ctx context.Context, step resource.Step) er
 	}
 	_, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_Apply{Apply: call}}, s.agents.applyTimeout,
 		func(session *Session) error {
-			if !session.DockerCleanup() || !session.DockerArtifactCleanup() && slices.ContainsFunc(step.DockerMaintenance.GetTargets(), func(t *dockwellv1.DockerCleanupTarget) bool {
-				return t.GetKind() != dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE
-			}) {
-				return fault.New(ErrOlderAgent, "update the agent to apply Docker cleanup")
-			}
-			return nil
+			return session.checkDockerMaintenanceSupport(step.DockerMaintenance)
 		})
 	return err
 }

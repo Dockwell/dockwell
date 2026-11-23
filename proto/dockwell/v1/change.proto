@@ -2872,6 +2872,11 @@ enum DockerCleanupReason {
   DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES = 11;
   DOCKER_CLEANUP_REASON_DISABLED = 12;
   DOCKER_CLEANUP_REASON_MULTIPLE_TAGS = 13;
+  DOCKER_CLEANUP_REASON_ANONYMOUS = 14;
+  DOCKER_CLEANUP_REASON_BACKUP = 15;
+  DOCKER_CLEANUP_REASON_COMPOSE = 16;
+  DOCKER_CLEANUP_REASON_SWARM_MANAGER = 17;
+  DOCKER_CLEANUP_REASON_RECENTLY_CREATED = 18;
 }
 
 // DockerCleanupTarget records the reviewed identity and its eligibility evidence.
@@ -2888,6 +2893,10 @@ message DockerCleanupTarget {
   repeated string image_tags = 9;
   // Every reviewed repository digest of the image, in order.
   repeated string image_digests = 10;
+  // Compose project label when protected by a Compose project.
+  string compose_project = 11;
+  // Known Compose stack ID on the server when Dockwell can link to it.
+  string compose_id = 12;
 }
 
 // DockerMaintenance is the exact scope of an irreversible local cleanup.
@@ -2918,6 +2927,8 @@ enum DockerReceiptReason {
   DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED = 1;
   DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED = 2;
   DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED = 3;
+  DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED = 4;
+  DOCKER_RECEIPT_REASON_VOLUME_REPLACED = 5;
 }
 
 // DockerReceiptState distinguishes refusals from an interrupted operation.
