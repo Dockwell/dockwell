@@ -611,6 +611,27 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
             : null}
           {notice}
         </div>
+        <div className="terminal-foot">
+          <div className="terminal-foot-copy">
+            <Connection status={status} none={!current} />
+            <span className="terminal-foot-note">
+              <Trans>
+                · no SSH port needed · <Link to="/activity">Activity</Link> records that you opened it, not what you
+                type
+              </Trans>
+            </span>
+            {lost !== undefined ? (
+              <span className="terminal-foot-note">
+                <Trans>· {formatBytes(lost, i18n.locale)} it printed while you were away is gone</Trans>
+              </span>
+            ) : null}
+          </div>
+          {current && size ? (
+            <span className="terminal-size">
+              {size.columns} × {size.rows}
+            </span>
+          ) : null}
+        </div>
         {phone && current && (status?.kind === "attached" || status?.kind === "reconnecting") ? (
           <KeyBar
             ctrl={ctrl}
@@ -624,27 +645,6 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
             onPaste={() => void handle()?.paste()}
           />
         ) : null}
-        {phone ? null : (
-          <div className="terminal-foot">
-            <Connection status={status} none={!current} />
-            <span>
-              <Trans>
-                · no SSH port needed · opening it is on <Link to="/activity">Activity</Link>, what you type isn't
-              </Trans>
-            </span>
-            {lost !== undefined ? (
-              <span>
-                <Trans>· {formatBytes(lost, i18n.locale)} it printed while you were away is gone</Trans>
-              </span>
-            ) : null}
-            <span className="terminal-head-space" />
-            {current && size ? (
-              <span className="terminal-size">
-                {size.columns} × {size.rows}
-              </span>
-            ) : null}
-          </div>
-        )}
       </section>
     </div>
   );

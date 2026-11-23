@@ -469,8 +469,8 @@ export function useChangeWords(): ChangeWords {
               : t`Full (strict) for ${path}, where a name whose server has no valid certificate stops answering: ${detail}`;
           case HostAccessKind.TRUSTED_PROXY:
             return namesARange(access.path)
-              ? t`${path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is`
-              : t`${path} as a proxy it believes on where a request came from`;
+              ? t`${path} as a proxy it trusts to report where requests came from. Whatever else is in that range can reach the route and say who its client is.`
+              : t`${path} as a proxy it trusts to report where requests came from`;
           case HostAccessKind.PLAIN_FOR_ANYONE:
             return t`plain HTTP on ${path} for anyone who can reach this server, around whatever is in front of it`;
           case HostAccessKind.HTTPS_OFF:
@@ -671,7 +671,7 @@ export function useChangeWords(): ChangeWords {
         return "";
       },
       unencrypted(server) {
-        return t`Traffic for this route reaches ${server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it`;
+        return t`Traffic reaches ${server} unencrypted, as TLS ends before it. Fine on a tunnel or a private network.`;
       },
       goes({ where, domain, find }) {
         switch (find) {
@@ -716,18 +716,18 @@ export function useChangeWords(): ChangeWords {
           case RouteReach.THIS_SERVER:
             who = t`what runs on ${server} itself`;
             out.push(
-              t`It answers only what runs on ${server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets`,
+              t`It answers only what runs on ${server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets.`,
             );
             break;
           case RouteReach.PROXIES:
             who = t`whoever comes through ${list}`;
-            out.push(t`It answers only ${list}. Anyone else gets what a name with no route gets`);
+            out.push(t`It answers only ${list}. Anyone else gets what a name with no route gets.`);
             break;
           case RouteReach.ANYONE:
             if (answers.plain) {
               who = t`anyone who can reach ${server}`;
               out.push(
-                t`It answers anyone who can reach ${server} on port 80, over plain HTTP, around whatever is in front of it`,
+                t`It answers anyone who can reach ${server} on port 80, over plain HTTP, around whatever is in front of it.`,
               );
             }
             break;
@@ -735,12 +735,12 @@ export function useChangeWords(): ChangeWords {
         if (!port) return out;
         const number = String(port.port);
         out.push(
-          t`That lets ${who} reach port ${number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe`,
+          t`That lets ${who} reach port ${number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will accept.`,
         );
         const listening = port.listening;
         if (listening !== "") out.push(t`Listening there now: ${listening}`);
         else if (port.nothingListening)
-          out.push(t`Nothing listens on port ${number} yet, so this answers 502 until something does`);
+          out.push(t`Nothing listens on port ${number} yet, so this answers 502 until something does.`);
         return out;
       },
       rollout(plan, span, restart = false, stopped = false, database = false) {
@@ -935,5 +935,5 @@ export function reachLines(words: ChangeWords, step: PlanStep, server: string, t
   return reach === RouteReach.THIS_SERVER || loopback ? answers.slice(1) : answers;
 }
 
-/** A tunnel's own address on the server, as a route through it believes it. */
+/** The host loopback addresses a route through a local tunnel trusts. */
 export const LOOPBACK: ReadonlySet<string> = new Set(["127.0.0.1", "127.0.0.1/32", "::1", "::1/128"]);

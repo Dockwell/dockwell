@@ -163,9 +163,9 @@ export function changeTo(planned: PlannedResource, path: string): string | undef
 }
 
 /** The domain a planned route sends, from what the plan sets, or takes away. */
-export function routeDomain(planned: PlannedResource): string | undefined {
+export function routeDomain(planned: PlannedResource, side: "from" | "to" = "to"): string | undefined {
   const domain = planned.changes.find((c) => c.path === "domain");
-  return domain?.to || domain?.from || undefined;
+  return domain?.[side] || domain?.[side === "to" ? "from" : "to"] || undefined;
 }
 
 /** A planned route's domain and path, as people read them. */
@@ -283,12 +283,17 @@ export function diffResources(
 ): PlanResource[] {
   const intent = intentOf(plan);
   const maybe = ifNewerIn(plan);
+  const routes = new Map(plan?.resources.filter((r) => r.resource?.kind === "route").map((r) => [r.id, r]));
   const shown = changing(plan).map((resource) => {
     const kind = resource.resource?.kind ?? "";
     const steps = (plan?.servers ?? []).flatMap((s) => s.steps).filter((s) => s.resourceId === resource.id);
     const changes = rows({
       kind,
       tunnel: tunnelOf(steps),
+      routeName: (id, side) => {
+        const route = routes.get(id);
+        return route && routeDomain(route, side);
+      },
       changes: resource.changes,
       hostAccess: resource.hostAccess,
       keptPaths: [...new Set(steps.flatMap((s) => s.keptPaths))],

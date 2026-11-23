@@ -2,7 +2,6 @@
 
 /* A control that's off, with why: it keeps its place and its focus, at the disabled opacity. */
 [data-off] {
-  position: relative;
   cursor: not-allowed;
 }
 [data-off] > :not(.dw-off-why) {
@@ -10,14 +9,18 @@
 }
 /* Why, beside it, for a pointer over it or a keyboard on it. */
 .dw-off-why {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  right: 0;
-  z-index: var(--z-sticky);
+  position: fixed;
+  inset: auto;
+  margin: 0;
   display: none;
+  box-sizing: border-box;
   width: max-content;
-  max-width: min(280px, 80vw);
+  max-width: min(280px, var(--dw-off-width, 100vw));
+  max-height: var(--dw-off-height, 100vh);
+  overflow: auto;
+  overflow-wrap: anywhere;
   padding: var(--space-2) var(--space-3);
+  border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   box-shadow: var(--shadow-float);
@@ -30,7 +33,6 @@
   white-space: normal;
   pointer-events: none;
 }
-[data-off]:hover > .dw-off-why,
-[data-off]:focus-visible > .dw-off-why {
+.dw-off-why:popover-open {
   display: block;
 }

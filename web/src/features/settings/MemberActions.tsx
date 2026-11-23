@@ -9,7 +9,7 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { authStateKey } from "../../app/api";
 import { useTimeWords } from "../../lib/time";
 import { PasskeyError } from "../../lib/webauthn";
@@ -18,6 +18,7 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useRoleName } from "../auth/user";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { ReadFailed } from "../shell/ReadFailed";
 
 /** The role's name in a passkey's target, as the control plane writes it. */
@@ -42,20 +43,8 @@ type Action = "role" | "remove" | "transfer";
 export function MemberMenu({ member }: { member: Member }) {
   const { t } = useLingui();
   const may = useMay();
-  const [open, setOpen] = useState(false);
   const [doing, setDoing] = useState<Action>();
-  const root = useRef<HTMLSpanElement>(null);
   const name = member.user?.name ?? "";
-
-  useEffect(() => {
-    if (!open) return;
-    root.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    const away = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", away);
-    return () => document.removeEventListener("pointerdown", away);
-  }, [open]);
 
   // The owner's role moves only by a transfer, and nobody manages themselves.
   if (member.you || installRole(member) === Role.OWNER) return null;
@@ -64,61 +53,20 @@ export function MemberMenu({ member }: { member: Member }) {
   const mayTransfer = may(MemberService.method.transferOwnership);
   if (!mayRole.allowed && !mayRemove.allowed) return null;
 
-  const keys = (e: KeyboardEvent<HTMLDivElement>) => {
-    const items = [...(root.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])];
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === "Escape") {
-      e.preventDefault();
-      setOpen(false);
-      root.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      e.preventDefault();
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      items[(at + step + items.length) % items.length]?.focus();
-    }
-  };
-  const choose = (action: Action) => {
-    setOpen(false);
-    setDoing(action);
-  };
+  const actions: MenuAction[] = [{ id: "role", label: t`Change role`, onSelect: () => setDoing("role") }];
+  if (mayTransfer.allowed) {
+    actions.push({ id: "transfer", label: t`Transfer ownership`, onSelect: () => setDoing("transfer") });
+  }
+  actions.push({ id: "remove", label: t`Remove`, danger: true, onSelect: () => setDoing("remove") });
   return (
-    <span className="members-menu-anchor" ref={root}>
-      <Button
-        variant="ghost"
-        size="sm"
-        icon="more"
-        aria-label={t`Manage ${name}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      />
-      {open ? (
-        <div className="members-menu" role="menu" aria-label={t`Manage ${name}`} onKeyDown={keys}>
-          <button type="button" role="menuitem" className="members-menu-item" onClick={() => choose("role")}>
-            <Trans>Change role</Trans>
-          </button>
-          {/* Only the owner moves ownership, so nobody else is shown the way to (ADR 0059). */}
-          {mayTransfer.allowed ? (
-            <button type="button" role="menuitem" className="members-menu-item" onClick={() => choose("transfer")}>
-              <Trans>Transfer ownership</Trans>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            role="menuitem"
-            className="members-menu-item members-menu-danger"
-            onClick={() => choose("remove")}
-          >
-            <Trans>Remove</Trans>
-          </button>
-        </div>
-      ) : null}
+    <>
+      <ActionMenu label={t`Manage ${name}`} actions={actions} />
       {doing === "role" ? (
         <RoleSheet member={member} onClose={() => setDoing(undefined)} onRemove={() => setDoing("remove")} />
       ) : null}
       {doing === "remove" ? <RemoveSheet member={member} onClose={() => setDoing(undefined)} /> : null}
       {doing === "transfer" ? <TransferSheet member={member} onClose={() => setDoing(undefined)} /> : null}
-    </span>
+    </>
   );
 }
 

@@ -1537,42 +1537,6 @@
   gap: var(--space-2);
 }
 
-/* A person's menu on their row: what an admin or the owner may do about them. */
-.members-menu-anchor {
-  position: relative;
-  display: inline-flex;
-}
-.members-menu {
-  position: absolute;
-  top: calc(100% + var(--space-1));
-  right: 0;
-  z-index: var(--z-sticky);
-  display: grid;
-  min-width: 180px;
-  padding: var(--space-1);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-float);
-}
-.members-menu-item {
-  padding: var(--space-2) var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.members-menu-item:hover,
-.members-menu-item:focus-visible {
-  background: var(--surface-sunken);
-  outline: none;
-}
-.members-menu-item.members-menu-danger {
-  color: var(--critical);
-}
 .members-sheet-fields {
   display: grid;
   gap: var(--space-3);

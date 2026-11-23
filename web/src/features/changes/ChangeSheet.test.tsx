@@ -553,12 +553,13 @@ describe("the plan sheet", () => {
 
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
     expect(sheet).toHaveTextContent("so this route starts it, and it takes ports 80/tcp");
-    const notice = within(sheet).getByText(/Traffic for this route reaches hz-1 unencrypted/);
-    expect(notice).toHaveTextContent("That's fine on a tunnel or a private network, and not on the open internet");
+    const notice = within(sheet).getByText(/Traffic reaches hz-1 unencrypted/);
+    expect(notice).toHaveTextContent("Fine on a tunnel or a private network.");
     expect(notice).toHaveClass("plan-step-notice");
     expect(notice).not.toHaveClass("plan-step-warn");
     const answers = within(sheet).getByText(/It answers only what runs on hz-1 itself/);
     expect(answers).toHaveClass("plan-step-notice");
+    expect(answers).toHaveTextContent("Anyone else gets what a name with no route gets.");
     // It's something to know, and nothing asks for more than any other plan does.
     const apply = await within(sheet).findByRole("button", { name: /Apply plan/ });
     expect(apply).toBeEnabled();
@@ -614,8 +615,8 @@ describe("the plan sheet", () => {
     await waitFor(() => expect(sheet.querySelector(".plan-risk")).toBeTruthy());
     expect(sheet).toHaveTextContent("web reaches the port 127.0.0.1:8080 on hz-1");
     expect(sheet).toHaveTextContent("That is the server itself, past its containers, at app.example.com.");
-    expect(sheet).toHaveTextContent("web believes the proxy cloudflare on hz-1");
-    expect(sheet).toHaveTextContent("It takes that proxy's word for where a request came from.");
+    expect(sheet).toHaveTextContent("web trusts the proxy at cloudflare on hz-1");
+    expect(sheet).toHaveTextContent("It trusts that proxy to report where requests came from.");
     expect(sheet).toHaveTextContent("web answers plain HTTP on lan.example.com on hz-1");
     expect(sheet).toHaveTextContent("Anyone who can reach this server gets it, around whatever is in front of it.");
     expect(sheet).toHaveTextContent("web stops HTTPS on live.example.com on hz-1");
@@ -624,7 +625,7 @@ describe("the plan sheet", () => {
     );
     expect(sheet).toHaveTextContent("It answers anyone who can reach hz-1 on port 80, over plain HTTP");
     expect(sheet).toHaveTextContent("That lets anyone who can reach hz-1 reach port 8080");
-    expect(sheet).toHaveTextContent("which an app that trusts localhost will believe");
+    expect(sheet).toHaveTextContent("which an app that trusts localhost will accept.");
     expect(sheet).toHaveTextContent("Listening there now: nginx, in the container web-1");
     expect(sheet).toHaveTextContent(
       "This is the first route on hz-1 that takes a certificate, so Caddy takes ports 443/tcp, 443/udp too",
@@ -2410,8 +2411,45 @@ describe("the plan sheet, once it runs", () => {
         { changes: { watchChange: feed<WatchChangeResponse>().stream } },
       );
       const review = await screen.findByRole("dialog", { name: "Review plan" });
-      expect(review).toHaveTextContent("app.example.com believes the proxy 127.0.0.1/32");
+      expect(review).toHaveTextContent("app.example.com trusts the proxy at 127.0.0.1/32");
       expect(review).not.toHaveTextContent("app-example-com");
+    });
+
+    it("names the route in its uptime check and says how often it runs in a plan note", async () => {
+      const change = moved(aRoutePlan(PlanAction.CREATE), { state: ChangeState.PLANNED });
+      const plan = change.plan;
+      const route = plan?.resources[0];
+      const step = plan?.servers[0]?.steps[0];
+      if (!plan || !route || !step) throw new Error("the plan needs a route and a step");
+      route.id = step.resourceId = "rte_new";
+      route.changes = [create(FieldChangeSchema, { path: "domain", op: FieldOp.ADDED, to: "app.example.com" })];
+      step.hostAccess = [create(HostAccessSchema, { kind: HostAccessKind.TRUSTED_PROXY, path: "127.0.0.1/32" })];
+      plan.resources.push(
+        create(PlannedResourceSchema, {
+          id: "ach_new",
+          resource: { kind: "alert.check", name: "app-example-com" },
+          action: PlanAction.CREATE,
+          changes: [{ path: "for_route", op: FieldOp.ADDED, to: route.id }],
+        }),
+      );
+      plan.notes = [
+        create(PlanNoteSchema, {
+          reason: "route_check",
+          message: "Watches app.example.com every minute, for its route",
+          names: ["app.example.com"],
+        }),
+      ];
+      renderSheet(
+        { kind: "plan", make: () => Promise.resolve({ change }) },
+        { changes: { watchChange: feed<WatchChangeResponse>().stream } },
+      );
+      const review = await screen.findByRole("dialog", { name: "Review plan" });
+      expect(review).toHaveTextContent("app.example.com trusts the proxy at 127.0.0.1/32 on hz-1");
+      const checkNote = within(review).getByText("Checks app.example.com every minute");
+      expect(checkNote.closest(".plan-note")).not.toBeNull();
+      expect(checkNote.closest(".dw-callout")).toBeNull();
+      expect(within(review).getByText("for route").closest("li")).toHaveTextContent(/for route\s*to app\.example\.com/);
+      expect(review).not.toHaveTextContent("rte_new");
     });
 
     it.each([
@@ -2464,8 +2502,8 @@ describe("the plan sheet, once it runs", () => {
         { changes: { watchChange: feed<WatchChangeResponse>().stream } },
       );
       const review = await screen.findByRole("dialog", { name: "Review plan" });
-      expect(await within(review).findByText(/believes the proxy/)).toBeVisible();
-      const says = "Whatever else is in that range can reach the route, and say who its client is";
+      expect(await within(review).findByText(/trusts the proxy at/)).toBeVisible();
+      const says = "Whatever else is in that range can reach the route and say who its client is";
       if (wide) expect(review).toHaveTextContent(says);
       else expect(review).not.toHaveTextContent(says);
     });
@@ -2479,7 +2517,7 @@ describe("the plan sheet, once it runs", () => {
       // Steps say this for a fleet: with one server, the notice does.
       if (change.plan && first) change.plan.servers = [first, { ...first, serverId: "srv_2", serverName: "hz-2" }];
       renderWithApi(<PlanSteps plan={change.plan} progress={[]} />, {});
-      expect((await screen.findAllByText(/whatever else is in that range can reach the route/)).length).toBe(2);
+      expect((await screen.findAllByText(/Whatever else is in that range can reach the route/)).length).toBe(2);
     });
 
     it("says nothing of what DNS said once the domain serves", async () => {

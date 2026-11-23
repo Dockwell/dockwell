@@ -105,7 +105,9 @@ func TestARoutedDomainIsWatchedAndTheCheckGoesWithIt(t *testing.T) {
 	storetest.Each(t, func(t *testing.T, backend store.Backend) {
 		s := newWatchStand(t, backend)
 		made := propose(t, s.ch, "A domain", s.route("www", web("shop.example.com")))
-		if !slices.ContainsFunc(made.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool { return n.GetReason() == watchroutes.NoteWatches }) {
+		if !slices.ContainsFunc(made.GetPlan().GetNotes(), func(n *dockwellv1.PlanNote) bool {
+			return n.GetReason() == watchroutes.NoteWatches && n.GetMessage() == "Checks shop.example.com every minute"
+		}) {
 			t.Errorf("the plan doesn't say it watches the domain: %v", made.GetPlan().GetNotes())
 		}
 		apply(t, s.ch, made)
