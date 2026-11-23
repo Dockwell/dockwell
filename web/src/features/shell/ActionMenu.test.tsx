@@ -77,6 +77,17 @@ describe("a row's actions in one menu (#795)", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("keeps a menu opened at the left edge of a narrow screen inside the viewport", async () => {
+    vi.stubGlobal("innerWidth", 390);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute("role") === "menu" ? new DOMRect(0, 0, 220, 120) : new DOMRect(20, 200, 44, 44);
+    });
+    const user = userEvent.setup();
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: "Actions for LOG_LEVEL" }));
+    expect(screen.getByRole("menu")).toHaveStyle({ right: "154px" });
+  });
+
   it("is nothing when there's nothing to do", () => {
     const { container } = render(<ActionMenu label="Actions for nothing" actions={[]} />);
     expect(container).toBeEmptyDOMElement();

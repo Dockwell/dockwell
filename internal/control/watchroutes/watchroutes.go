@@ -295,7 +295,7 @@ func (w *Watcher) Hook(ctx context.Context, tx *store.Tx, edits []revision.Edit)
 		out = append(out, revision.Edit{Ref: ref, Spec: c, MustCreate: true, MadeForRoute: true})
 		notes = append(notes, revision.Note{
 			Reason:  NoteWatches,
-			Message: fmt.Sprintf("Watches %s every minute, for its route", spec.GetDomain()),
+			Message: fmt.Sprintf("Checks %s every minute", spec.GetDomain()),
 			Ref:     ref,
 			Names:   []string{spec.GetDomain()},
 		})

@@ -1469,7 +1469,7 @@ describe("a route with no certificate, on a fleet", () => {
     expect(steps).toHaveTextContent("Takes away HTTPS on live.example.com");
     expect(steps).not.toHaveTextContent("Reaches HTTPS");
     expect(steps).toHaveTextContent("Reaches cloudflare as a proxy");
-    const known = within(steps).getByText(/Traffic for this route reaches hz-1 unencrypted/);
+    const known = within(steps).getByText(/Traffic reaches hz-1 unencrypted/);
     expect(known).toHaveClass("plan-step-notice");
     expect(within(steps).getByText(/It answers only what runs on hz-1 itself/)).toHaveClass("plan-step-notice");
   });
@@ -1529,7 +1529,7 @@ describe("a route with no certificate, on a fleet", () => {
     step.unencrypted = true;
     show(change);
     const sheet = await screen.findByRole("dialog", { name: "Review plan" });
-    const known = await within(sheet).findByText(/Traffic for this route reaches hz-1 unencrypted/);
+    const known = await within(sheet).findByText(/Traffic reaches hz-1 unencrypted/);
     expect(known).toHaveClass("plan-note", "plan-step-notice");
     expect(within(sheet).queryByLabelText(/to apply it/)).toBeNull();
   });

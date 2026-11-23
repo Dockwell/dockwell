@@ -27,15 +27,15 @@ export function frontOf(noCertificate: boolean, inFront: InFront, proxies: strin
     case "proxy":
       return { tls: "off", trustedProxies: proxies };
     case "anyone":
-      // Nothing in front, so nothing is believed on who a visitor is.
+      // Nothing in front, so no proxy is trusted to identify visitors.
       return { tls: "off", trustedProxies: [], plainForAnyone: true };
   }
 }
 
 /**
  * Whether a tunnel or a proxy in front of the server handles HTTPS, and if so what it
- * is, as that's who the route answers and who what's behind it believes on who a
- * visitor is. The domain form and New website ask it alike.
+ * is. The route answers those peers and trusts them to identify visitors.
+ * The domain form and New website ask it alike.
  */
 export function FrontFields({
   noCertificate,

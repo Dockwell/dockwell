@@ -24,6 +24,8 @@ export interface FieldSource {
   kind: string;
   /** The tunnel a route is published through, by name, as the plan's steps at Cloudflare say it (ADR 0104). */
   tunnel?: string;
+  /** Domains of the route resources this plan describes. */
+  routeName?: (id: string, side: "from" | "to") => string | undefined;
   changes: readonly FieldChange[];
   /** What the change lets it reach on its servers, which reads as a risk. */
   hostAccess?: readonly HostAccess[];
@@ -146,6 +148,7 @@ export function useFieldRows(): FieldRows {
       domain: t`domain`,
       path: t`path`,
       service: t`app`,
+      for_route: t`for route`,
       port: t`port`,
       action: t`action`,
       protocol: t`protocol`,
@@ -199,7 +202,12 @@ export function useFieldRows(): FieldRows {
     const protocol = (value: string) => value.toUpperCase();
 
     /** A field on its own: its value before and after, in words if it can be. */
-    const plain = (path: string, change: FieldChange, label: ReactNode, read = yesNo): PlanChange => {
+    const plain = (
+      path: string,
+      change: FieldChange,
+      label: ReactNode,
+      read: (value: string, side: "from" | "to") => string = yesNo,
+    ): PlanChange => {
       const row: PlanChange = { path, label };
       if (change.sensitive) {
         if (change.op === FieldOp.MODIFIED) return { ...row, to: SECRET, tone: "change" };
@@ -207,8 +215,8 @@ export function useFieldRows(): FieldRows {
         else row.from = SECRET;
         return row;
       }
-      if (change.op !== FieldOp.ADDED) row.from = read(change.from);
-      if (change.op !== FieldOp.REMOVED) row.to = read(change.to);
+      if (change.op !== FieldOp.ADDED) row.from = read(change.from, "from");
+      if (change.op !== FieldOp.REMOVED) row.to = read(change.to, "to");
       return row;
     };
 
@@ -586,6 +594,7 @@ export function useFieldRows(): FieldRows {
       needs,
       needsBefore,
       tunnel,
+      routeName,
     }: FieldSource): PlanChange[] => {
       // What a route that signs people in has of its provider is the provider's, as
       // saved, which its own plan says: one row says the route takes it (ADR 0087).
@@ -696,6 +705,13 @@ export function useFieldRows(): FieldRows {
         }
       }
       const done = new Set<string>();
+      const checkAddress = kind === "alert.check" ? changes.find((change) => change.path === "address") : undefined;
+      const checkedDomain = (id: string, side: "from" | "to") => {
+        const name = routeName?.(id, side);
+        if (name) return name;
+        const address = checkAddress?.[side];
+        return address && URL.canParse(address) ? new URL(address).hostname : t`Unknown domain`;
+      };
       for (const { path, change } of fields) {
         const item = ITEM.exec(path);
         if (item) {
@@ -724,7 +740,12 @@ export function useFieldRows(): FieldRows {
           ? keyed(path, entry[1] ?? "", entry[2] ?? "", change, kind)
           : used
             ? uses(path, used[1] ?? "", used[2] ?? "", change)
-            : plain(path, change, labels[path] ?? signInLabels[path] ?? humanize(path), readers[path] ?? yesNo);
+            : plain(
+                path,
+                change,
+                labels[path] ?? signInLabels[path] ?? humanize(path),
+                path === "for_route" ? checkedDomain : (readers[path] ?? yesNo),
+              );
         const tone = change.op === FieldOp.REMOVED ? undefined : reaching(path, hostAccess);
         rows.push(tone ? { ...row, tone } : row);
       }

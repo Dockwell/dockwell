@@ -539,13 +539,13 @@ function useReaches(plan: Plan | undefined): { root: Notice[]; rest: Notice[] } 
       case HostAccessKind.TRUSTED_PROXY:
         return {
           key,
-          title: t`${name} believes the proxy ${path} on ${server}`,
+          title: t`${name} trusts the proxy at ${path} on ${server}`,
           ...(namesARange(access.path)
             ? {
                 detail: t`Name a network the proxy has to itself.`,
-                more: t`It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is.`,
+                more: t`It trusts that proxy to report where requests came from. Whatever else is in that range can reach the route and say who its client is.`,
               }
-            : { more: t`It takes that proxy's word for where a request came from.` }),
+            : { more: t`It trusts that proxy to report where requests came from.` }),
         };
       case HostAccessKind.PUBLIC_PORT:
         return {
@@ -1050,8 +1050,8 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
   const rollingBack = plan?.intent?.kind === IntentKind.ROLL_BACK;
   // One a tool still manages leads the plan, as a person acts on it first.
   const worthWarning = (plan?.notes ?? [])
-    // A redirect sent back is said in the cache line, once.
-    .filter((note) => note.reason !== "redirect_reversed")
+    // A redirect sent back is said in the cache line, and new checks in the asides.
+    .filter((note) => note.reason !== "redirect_reversed" && note.reason !== "route_check")
     .filter((note) => (note.reason !== "volumes_stay" || rollingBack) && !namesItsManager(note))
     .sort((a, b) => Number(b.reason === "managed_elsewhere") - Number(a.reason === "managed_elsewhere"));
   const notes = worthWarning.map((note, i): Notice => {
@@ -1531,6 +1531,13 @@ export function useAsides(plan: Plan | undefined): Notice[] {
   const image = plan?.intent?.image ?? "";
   for (const [i, note] of (plan?.notes ?? []).entries()) {
     const name = note.resource?.name ?? "";
+    if (note.reason === "route_check") {
+      const domain = note.names[0];
+      out.push({
+        key: `route-check-${i}`,
+        title: domain ? t`Checks ${domain} every minute` : note.message,
+      });
+    }
     if (note.reason === "leaves_pin") {
       out.push({
         key: "leaves-pin",

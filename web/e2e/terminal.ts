@@ -394,6 +394,21 @@ async function main() {
     () => document.querySelector(".terminal-keybar")?.getBoundingClientRect().bottom ?? 0,
   );
   if (Math.abs(bottom - 844) > 1) fail(`the keys end at ${bottom} px, not at the bottom of the screen`);
+  const foot = page.locator(".terminal-foot");
+  await foot.getByRole("link", { name: "Activity" }).waitFor();
+  await foot.locator(".terminal-size").waitFor();
+  const fits = await foot.evaluate((el) => {
+    const note = el.querySelector<HTMLElement>(".terminal-foot-note");
+    const dimensions = el.querySelector(".terminal-size")?.getBoundingClientRect();
+    return (
+      note &&
+      dimensions &&
+      note.scrollWidth > note.clientWidth &&
+      note.getBoundingClientRect().right <= dimensions.left &&
+      el.getBoundingClientRect().right - dimensions.right <= 16.5
+    );
+  });
+  if (!fits) fail("the activity note and terminal size don't fit side by side on a phone");
   await typeLine(page, "echo phone-$((2+2))");
   await shows(page, "phone-4");
   // Up brings the line back, as a shell's history does, and Enter runs it again.

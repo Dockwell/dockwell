@@ -99,9 +99,9 @@ describe("New app, from Git", () => {
     expect(within(sheet).getByRole("radio", { name: "Git" })).toBeChecked();
     expect(within(sheet).getByLabelText("Repository")).toHaveFocus();
     expect(within(sheet).getByLabelText("Branch")).toHaveValue("");
-    expect(within(sheet).getByRole("status", { name: "Build" })).toHaveTextContent(
-      "Dockerfile or Railpackread from the repository once you name it",
-    );
+    const build = within(sheet).getByRole("status", { name: "Build" });
+    expect(within(build).getByText("Dockerfile or Railpack", { exact: true })).toBeVisible();
+    expect(within(build).getByText("detected from the repository", { exact: true })).toBeVisible();
     expect(within(sheet).queryByLabelText("Build arguments")).not.toBeInTheDocument();
     await user.click(within(sheet).getByRole("button", { name: "Change" }));
     expect(within(sheet).getByRole("radio", { name: "Auto" })).toBeChecked();
@@ -824,6 +824,7 @@ describe("New app, from Git", () => {
     const runsOn = await within(sheet).findByRole("group", { name: "Runs on" });
     await user.click(within(runsOn).getByRole("button", { name: "Change where it runs" }));
     await user.click(within(runsOn).getByRole("checkbox", { name: "hz-1" }));
+    expect(within(status).getByText("detected once you choose a server", { exact: true })).toBeVisible();
     await user.click(within(runsOn).getByRole("checkbox", { name: "hz-2" }));
     await waitFor(() => expect(read).toContain("srv_2"), { timeout: 3000 });
   });

@@ -136,7 +136,7 @@ function serverOf(fleet: FleetState, id: string): Server | undefined {
  * which says what a server's first route does to its ports 80 and 443. How the
  * domain gets its certificate is the server's to work out, unless a tunnel or a
  * proxy in front handles HTTPS, when there's none to get, and you say what's in front,
- * as that's who the route answers and who the app believes on who a visitor is. An app
+ * as that's who the route answers and who the app trusts to identify visitors. An app
  * on the server's own network can't be dialled by name, so the route names it and dials
  * its port on the server. The plan says what each of those means. Opened from the app
  * it's for, or from a list of domains, which isn't about any one app: then the form
@@ -1012,7 +1012,7 @@ export function AddDomainSheet({
           </Advanced>
         ) : null}
         {/* Something else in front: what it is, one step away, as the way says there's no certificate. */}
-        {/* What the way sets, one step away: the path, and who the route believes (the review's B-L5). */}
+        {/* What the way sets, one step away: the path and who the route trusts (the review's B-L5). */}
         {publishes ? (
           <Advanced
             label={t`Advanced`}

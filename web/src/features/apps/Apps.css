@@ -2592,9 +2592,10 @@
   border-radius: 2px;
 }
 
-/* How it builds, on one line, with the way to change it. */
+/* How it builds, with the hint under the headline when space runs out. */
 .git-build {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 32px;
@@ -2607,24 +2608,32 @@
 }
 
 .git-build-check {
-  flex: none;
   color: var(--healthy);
 }
 
 .git-build-muted {
-  flex: none;
   color: var(--ink-muted);
 }
 
 .git-build-alert {
-  flex: none;
   color: var(--critical);
 }
 
-.git-build-headline {
+.git-build-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding-block: var(--space-1);
+}
+
+.git-build-headline {
+  overflow-wrap: anywhere;
+}
+
+.git-build-hint {
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -2647,7 +2656,6 @@
   gap: var(--space-3);
 }
 
-.git-build-spacer,
 .build-spacer {
   flex: 1 1 auto;
 }

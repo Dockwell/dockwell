@@ -5652,6 +5652,12 @@ msgstr "命令"
 msgid "detected"
 msgstr "已识别"
 
+msgid "detected from the repository"
+msgstr "从仓库检测"
+
+msgid "detected once you choose a server"
+msgstr "选择服务器后检测"
+
 msgid "driver options"
 msgstr "驱动选项"
 
@@ -5666,12 +5672,6 @@ msgstr "标签"
 
 msgid "most free memory"
 msgstr "可用内存最多"
-
-msgid "read from the repository once you choose a server"
-msgstr "选择服务器后从仓库中读取"
-
-msgid "read from the repository once you name it"
-msgstr "填写仓库后从中读取"
 
 msgid "the network {owner}"
 msgstr "网络 {owner}"
@@ -11101,6 +11101,9 @@ msgstr "在 Cloudflare 终止"
 msgid "SELinux label"
 msgstr "SELinux 标签"
 
+msgid "Unknown domain"
+msgstr "域名未知"
+
 msgid "a sign-in lasts, in hours"
 msgstr "登录持续时间（小时）"
 
@@ -11157,6 +11160,9 @@ msgstr "驱动"
 
 msgid "external access"
 msgstr "外部访问"
+
+msgid "for route"
+msgstr "关联域名"
 
 msgid "from the backup"
 msgstr "来自备份"
@@ -11575,6 +11581,9 @@ msgstr "请检查应用能否读取数据。"
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "应用前，请确认你还有其他登录途径，例如服务商的控制台。"
 
+msgid "Checks {domain} every minute"
+msgstr "每分钟检查一次 {domain}"
+
 #. placeholder {0}: server.serverName
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
@@ -11748,14 +11757,14 @@ msgstr "它以 <0>{path}</0> 运行，这等同于 root。"
 msgid "It sees and signals every process on the server."
 msgstr "它能看到并向服务器上的每个进程发送信号。"
 
-msgid "It takes that proxy's word for where a request came from."
-msgstr "它会相信该代理所说的请求来源。"
-
-msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is."
-msgstr "它会相信该代理所说的请求来源。该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁。"
-
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "测量耗时过长。如果一小时不够，操作会在此停止，其他内容都不会改动。"
+
+msgid "It trusts that proxy to report where requests came from."
+msgstr "它信任该代理报告的请求来源。"
+
+msgid "It trusts that proxy to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
+msgstr "它信任该代理报告的请求来源。该范围内的其他客户端也能访问此路由并声明请求来源。"
 
 msgid "It uses the device <0>{path}</0>, which is the same as root."
 msgstr "它使用设备 <0>{path}</0>，这等同于 root。"
@@ -12240,9 +12249,6 @@ msgstr "{name} 在 {server} 的每个地址上通过端口 {path} 应答"
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} 在 {server} 上以明文 HTTP 响应 {path}"
 
-msgid "{name} believes the proxy {path} on {server}"
-msgstr "{name} 在 {server} 上信任代理 {path}"
-
 msgid "{name} can move what {held} leads to on {server}"
 msgstr "{name} 可以改变 {server} 上 {held} 指向的位置"
 
@@ -12339,6 +12345,9 @@ msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} 在 {server} 上接管容器 {path}"
+
+msgid "{name} trusts the proxy at {path} on {server}"
+msgstr "{name} 信任 {server} 上地址为 {path} 的代理"
 
 msgid "{name} uses all the GPUs on {server}"
 msgstr "{name} 使用 {server} 上的所有 GPU"
@@ -12588,14 +12597,14 @@ msgstr "在控制服务器的 shell 中"
 msgid "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
 msgstr "它还会移除此服务的另外 {extra} 个容器，它们是中途停止的发布或 docker compose up --scale 留下的"
 
-msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
-msgstr "它通过纯 HTTP 响应任何能访问 {server} 80 端口的人，绕过它前面的任何东西"
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it."
+msgstr "能访问 {server} 的 80 端口的任何人，都能绕过前置代理，通过明文 HTTP 访问此路由。"
 
-msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
-msgstr "它只响应在 {server} 本机上运行的程序，例如使用其自身网络的隧道。其他人得到的结果和访问没有路由的域名一样"
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets."
+msgstr "它只响应 {server} 本机上的请求，例如使用主机网络的隧道。其他请求会收到与未配置路由的域名相同的响应。"
 
-msgid "It answers only {list}. Anyone else gets what a name with no route gets"
-msgstr "它只响应 {list}。其他人得到的结果和访问没有路由的域名一样"
+msgid "It answers only {list}. Anyone else gets what a name with no route gets."
+msgstr "它只响应来自 {list} 的请求。其他请求会收到与未配置路由的域名相同的响应。"
 
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
 msgstr "它必须保持健康 {soak}。如果在 {healthyWithin} 内未恢复健康，Dockwell 会回滚此更改"
@@ -12657,8 +12666,8 @@ msgstr "没有任何检查，因此它只需启动。如果它没有启动，新
 msgid "Nothing it serves stops"
 msgstr "它所服务的内容都不会停止"
 
-msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
-msgstr "端口 {number} 上还没有任何程序在监听，所以在有程序监听之前它会返回 502"
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does."
+msgstr "端口 {number} 还没有服务监听，在有服务监听前会返回 502。"
 
 msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "在 {networks} 上，新容器通过检查之前，其他服务就可以通过其服务名称和 {names} 与旧容器一样访问到它，因为 Docker 无法在之后为容器添加名称"
@@ -12762,8 +12771,8 @@ msgstr "占用 {ports}"
 msgid "Taking on"
 msgstr "正在接管"
 
-msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
-msgstr "这让{who}能访问端口 {number}，而那里的程序会把每个调用者都看作此服务器本身（127.0.0.1），信任 localhost 的应用会相信这一点"
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will accept."
+msgstr "这样 {who} 就能访问端口 {number}。端口上的服务会将每个请求视为来自本机（127.0.0.1），信任本机的应用会接受这些请求。"
 
 msgid "The API"
 msgstr "API"
@@ -12810,8 +12819,8 @@ msgstr "此服务器位于运营商级 NAT 之后（{here}），DNS 记录和端
 msgid "Took on"
 msgstr "已接管"
 
-msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
-msgstr "此路由的流量以未加密的方式到达 {server}，因为 TLS 在到达它之前就已终止。在隧道或私有网络上这没有问题；在开放的互联网上则不行，沿途的任何人都能读取这些流量"
+msgid "Traffic reaches {server} unencrypted, as TLS ends before it. Fine on a tunnel or a private network."
+msgstr "TLS 在流量到达 {server} 前终止，因此到达时流量未加密。适用于隧道或专用网络。"
 
 msgid "Two containers can't publish {ports} at once, so the old one stops first"
 msgstr "两个容器不能同时发布 {ports}，因此旧容器会先停止"
@@ -13068,11 +13077,11 @@ msgstr "{out}，可绕过服务器的防火墙"
 msgid "{out}, with {detail}"
 msgstr "{out}，选项为 {detail}"
 
-msgid "{path} as a proxy it believes on where a request came from"
-msgstr "{path}，作为它信任的代理，相信它所说的请求来源"
+msgid "{path} as a proxy it trusts to report where requests came from"
+msgstr "信任 {path} 作为代理报告请求来源"
 
-msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
-msgstr "{path}，作为它信任的代理，相信它所说的请求来源：该范围内的其他任何东西都能访问这条路由，并声称其客户端是谁"
+msgid "{path} as a proxy it trusts to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
+msgstr "信任 {path} 作为代理报告请求来源。该范围内的其他客户端也能访问此路由并声明请求来源。"
 
 msgid "{path} to someone it kept out: it {how}"
 msgstr "{path}，让原本被挡住的人进入：它会{how}"
@@ -23360,8 +23369,8 @@ msgstr "{0} 的输出"
 msgid "{title} · through the agent"
 msgstr "{title} · 通过代理"
 
-msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
-msgstr "· 无需 SSH 端口 · 打开它会记入<0>动态</0>，你输入的内容不会"
+msgid "· no SSH port needed · <0>Activity</0> records that you opened it, not what you type"
+msgstr "· 无需 SSH 端口 · <0>活动</0>只记录终端开启，不记录你的输入"
 
 #. placeholder {0}: formatBytes(lost, i18n.locale)
 msgid "· {0} it printed while you were away is gone"

@@ -5652,6 +5652,12 @@ msgstr "command"
 msgid "detected"
 msgstr "detected"
 
+msgid "detected from the repository"
+msgstr "detected from the repository"
+
+msgid "detected once you choose a server"
+msgstr "detected once you choose a server"
+
 msgid "driver options"
 msgstr "driver options"
 
@@ -5666,12 +5672,6 @@ msgstr "labels"
 
 msgid "most free memory"
 msgstr "most free memory"
-
-msgid "read from the repository once you choose a server"
-msgstr "read from the repository once you choose a server"
-
-msgid "read from the repository once you name it"
-msgstr "read from the repository once you name it"
 
 msgid "the network {owner}"
 msgstr "the network {owner}"
@@ -11101,6 +11101,9 @@ msgstr "Ends at Cloudflare"
 msgid "SELinux label"
 msgstr "SELinux label"
 
+msgid "Unknown domain"
+msgstr "Unknown domain"
+
 msgid "a sign-in lasts, in hours"
 msgstr "a sign-in lasts, in hours"
 
@@ -11157,6 +11160,9 @@ msgstr "driver"
 
 msgid "external access"
 msgstr "external access"
+
+msgid "for route"
+msgstr "for route"
 
 msgid "from the backup"
 msgstr "from the backup"
@@ -11575,6 +11581,9 @@ msgstr "Check that the app reads its data."
 msgid "Check that you have another way in, such as your provider's console, before you apply it."
 msgstr "Check that you have another way in, such as your provider's console, before you apply it."
 
+msgid "Checks {domain} every minute"
+msgstr "Checks {domain} every minute"
+
 #. placeholder {0}: server.serverName
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "Deny everything else closes what no rule lets in on {0}"
@@ -11748,14 +11757,14 @@ msgstr "It runs with <0>{path}</0>, which is the same as root."
 msgid "It sees and signals every process on the server."
 msgstr "It sees and signals every process on the server."
 
-msgid "It takes that proxy's word for where a request came from."
-msgstr "It takes that proxy's word for where a request came from."
-
-msgid "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is."
-msgstr "It takes that proxy's word for where a request came from. Whatever else is in that range can reach the route, and say who its client is."
-
 msgid "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
 msgstr "It took too long to measure. If an hour is too short, this stops there, with nothing else done."
+
+msgid "It trusts that proxy to report where requests came from."
+msgstr "It trusts that proxy to report where requests came from."
+
+msgid "It trusts that proxy to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
+msgstr "It trusts that proxy to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
 
 msgid "It uses the device <0>{path}</0>, which is the same as root."
 msgstr "It uses the device <0>{path}</0>, which is the same as root."
@@ -12240,9 +12249,6 @@ msgstr "{name} answers on port {path} on every address of {server}"
 msgid "{name} answers plain HTTP on {path} on {server}"
 msgstr "{name} answers plain HTTP on {path} on {server}"
 
-msgid "{name} believes the proxy {path} on {server}"
-msgstr "{name} believes the proxy {path} on {server}"
-
 msgid "{name} can move what {held} leads to on {server}"
 msgstr "{name} can move what {held} leads to on {server}"
 
@@ -12339,6 +12345,9 @@ msgstr "{name} stops HTTPS on {path} on {server}"
 
 msgid "{name} takes on the container {path} on {server}"
 msgstr "{name} takes on the container {path} on {server}"
+
+msgid "{name} trusts the proxy at {path} on {server}"
+msgstr "{name} trusts the proxy at {path} on {server}"
 
 msgid "{name} uses all the GPUs on {server}"
 msgstr "{name} uses all the GPUs on {server}"
@@ -12588,14 +12597,14 @@ msgstr "In a shell on the control server"
 msgid "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
 msgstr "It also removes {extra} more containers of this service, which a rollout that stopped partway or docker compose up --scale left"
 
-msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
-msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it"
+msgid "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it."
+msgstr "It answers anyone who can reach {server} on port 80, over plain HTTP, around whatever is in front of it."
 
-msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
-msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets"
+msgid "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets."
+msgstr "It answers only what runs on {server} itself, such as a tunnel on its own network. Anyone else gets what a name with no route gets."
 
-msgid "It answers only {list}. Anyone else gets what a name with no route gets"
-msgstr "It answers only {list}. Anyone else gets what a name with no route gets"
+msgid "It answers only {list}. Anyone else gets what a name with no route gets."
+msgstr "It answers only {list}. Anyone else gets what a name with no route gets."
 
 msgid "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
 msgstr "It has to stay healthy for {soak}. If it isn't healthy within {healthyWithin}, Dockwell rolls this back"
@@ -12657,8 +12666,8 @@ msgstr "Nothing checks it, so it only has to start. If it doesn't, the new one g
 msgid "Nothing it serves stops"
 msgstr "Nothing it serves stops"
 
-msgid "Nothing listens on port {number} yet, so this answers 502 until something does"
-msgstr "Nothing listens on port {number} yet, so this answers 502 until something does"
+msgid "Nothing listens on port {number} yet, so this answers 502 until something does."
+msgstr "Nothing listens on port {number} yet, so this answers 502 until something does."
 
 msgid "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
 msgstr "On {networks}, other services can reach the new container by its service's name and by {names} before it has passed its check, beside the old one, as Docker can't add a name to a container later"
@@ -12762,8 +12771,8 @@ msgstr "Takes {ports}"
 msgid "Taking on"
 msgstr "Taking on"
 
-msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
-msgstr "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will believe"
+msgid "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will accept."
+msgstr "That lets {who} reach port {number}, and what's there sees each caller as this server, 127.0.0.1, which an app that trusts localhost will accept."
 
 msgid "The API"
 msgstr "The API"
@@ -12810,8 +12819,8 @@ msgstr "This server is behind carrier NAT ({here}), so a DNS record can't reach 
 msgid "Took on"
 msgstr "Took on"
 
-msgid "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
-msgstr "Traffic for this route reaches {server} unencrypted, as TLS ends before it. That's fine on a tunnel or a private network, and not on the open internet, where anyone on the way can read it"
+msgid "Traffic reaches {server} unencrypted, as TLS ends before it. Fine on a tunnel or a private network."
+msgstr "Traffic reaches {server} unencrypted, as TLS ends before it. Fine on a tunnel or a private network."
 
 msgid "Two containers can't publish {ports} at once, so the old one stops first"
 msgstr "Two containers can't publish {ports} at once, so the old one stops first"
@@ -13068,11 +13077,11 @@ msgstr "{out}, which reaches past the server's firewall"
 msgid "{out}, with {detail}"
 msgstr "{out}, with {detail}"
 
-msgid "{path} as a proxy it believes on where a request came from"
-msgstr "{path} as a proxy it believes on where a request came from"
+msgid "{path} as a proxy it trusts to report where requests came from"
+msgstr "{path} as a proxy it trusts to report where requests came from"
 
-msgid "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
-msgstr "{path} as a proxy it believes on where a request came from: whatever else is in that range can reach the route, and say who its client is"
+msgid "{path} as a proxy it trusts to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
+msgstr "{path} as a proxy it trusts to report where requests came from. Whatever else is in that range can reach the route and say who its client is."
 
 msgid "{path} to someone it kept out: it {how}"
 msgstr "{path} to someone it kept out: it {how}"
@@ -23360,8 +23369,8 @@ msgstr "{0} output"
 msgid "{title} · through the agent"
 msgstr "{title} · through the agent"
 
-msgid "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
-msgstr "· no SSH port needed · opening it is on <0>Activity</0>, what you type isn't"
+msgid "· no SSH port needed · <0>Activity</0> records that you opened it, not what you type"
+msgstr "· no SSH port needed · <0>Activity</0> records that you opened it, not what you type"
 
 #. placeholder {0}: formatBytes(lost, i18n.locale)
 msgid "· {0} it printed while you were away is gone"

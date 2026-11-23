@@ -61,10 +61,11 @@ export function ActionMenu({
       return;
     }
     const button = root.current?.querySelector("button")?.getBoundingClientRect();
-    const height = menu.current?.getBoundingClientRect().height ?? 0;
-    if (!button) return;
-    const right = Math.max(window.innerWidth - button.right, 16);
-    const below = button.bottom + 4 + height <= window.innerHeight || button.top - 4 - height < 0;
+    const box = menu.current?.getBoundingClientRect();
+    if (!button || !box) return;
+    const gutter = 16;
+    const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
+    const below = button.bottom + 4 + box.height <= window.innerHeight || button.top - 4 - box.height < 0;
     setAt(below ? { top: button.bottom + 4, right } : { bottom: window.innerHeight - button.top + 4, right });
   }, [open]);
   useEffect(() => {

@@ -1584,8 +1584,9 @@ function BuildRow({
     { enabled: ready, retry: false, staleTime: 5 * 60_000, refetchOnWindowFocus: false },
   );
   const reading = looksLikeRepository(git.url) && !waitForServer && checked && (settled !== wanted || read.isFetching);
-  const d = ready && !reading ? read.data?.detection : undefined;
-  const failed = ready && !reading && read.error ? sentence(read.error) : undefined;
+  const answered = ready && !waitForServer && !reading;
+  const d = answered ? read.data?.detection : undefined;
+  const failed = answered && read.error ? sentence(read.error) : undefined;
   // Only a reading that answered says what it exposes: none while one is under way.
   const exposed = d ? d.exposedPorts.join(",") : undefined;
   const heard = useRef(onExposed);
@@ -1619,7 +1620,7 @@ function BuildRow({
     icon = <Icon name="check" size={16} className="git-build-check" />;
     headline = words.headline(d);
     after = (
-      <span className="app-muted">
+      <span className="app-muted git-build-hint">
         <Trans>detected</Trans>
       </span>
     );
@@ -1643,11 +1644,11 @@ function BuildRow({
         <Trans>Dockerfile or Railpack</Trans>
       );
     after = (
-      <span className="app-muted">
+      <span className="app-muted git-build-hint">
         {waitForServer && looksLikeRepository(git.url) ? (
-          <Trans>read from the repository once you choose a server</Trans>
+          <Trans>detected once you choose a server</Trans>
         ) : (
-          <Trans>read from the repository once you name it</Trans>
+          <Trans>detected from the repository</Trans>
         )}
       </span>
     );
@@ -1659,9 +1660,10 @@ function BuildRow({
       </span>
       <div className="git-build" role="status" aria-labelledby="build-label" aria-live="polite">
         {icon}
-        <span className="git-build-headline">{headline}</span>
-        {after}
-        <span className="git-build-spacer" />
+        <span className="git-build-copy">
+          <span className="git-build-headline">{headline}</span>
+          {after}
+        </span>
         <Button variant="ghost" size="sm" aria-expanded={showBuild} onClick={() => onShowBuild(!showBuild)}>
           {showBuild ? <Trans>Done</Trans> : <Trans>Change</Trans>}
         </Button>

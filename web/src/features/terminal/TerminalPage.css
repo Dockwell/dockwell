@@ -188,14 +188,31 @@
 
 .terminal-foot {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) var(--space-2);
+  gap: var(--space-2);
   padding: 9px var(--space-4);
   border-top: 1px solid var(--line);
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
+}
+
+.terminal-foot-copy {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.terminal-foot-copy > .dw-status {
+  flex: none;
+}
+
+.terminal-foot-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .terminal-foot a {
@@ -207,7 +224,17 @@
 }
 
 .terminal-size {
+  flex: none;
+  white-space: nowrap;
   font: 400 12px / 18px var(--font-mono);
+}
+
+@media (max-width: 639.98px) {
+  .terminal-foot-copy {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
 }
 
 .terminal-menu-anchor {

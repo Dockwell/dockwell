@@ -142,7 +142,7 @@ export function routeOfWay(
   switch (way) {
     case RouteWay.SERVER_TUNNEL:
     case RouteWay.OWN_TUNNEL:
-      // The tunnel ends HTTPS, and Caddy believes what comes from it.
+      // The tunnel ends HTTPS, and Caddy trusts what comes from it.
       return { tls: "off", trustedProxies: ["127.0.0.1"], plainForAnyone: false };
     case RouteWay.PROXY:
       // On Flexible, Cloudflare reaches the server over HTTP, which a certificate would loop.
