@@ -908,17 +908,20 @@ func (d *Docker) keptVolumes(ctx context.Context, t Target) (map[string]string, 
 	return byPath, nil
 }
 
-// keep lists the volumes of the container at t's image as kept, which a
-// change took out of use. They stay on the server whatever happens: one
-// the list can't take is logged, and stays until a docker volume prune.
-func (d *Docker) keep(t Target, byPath map[string]string) {
+// keep lists the volumes of the container at t's image as kept before the
+// container is removed. If the retention write fails, removal fails so those
+// volumes stay attached and protected from cleanup during the undo window.
+func (d *Docker) keep(ctx context.Context, t Target, byPath map[string]string) error {
 	if d.Deleted == nil || len(byPath) == 0 {
-		return
+		return nil
 	}
 	if err := d.Deleted.KeepImageVolumes(t.keptKey(), byPath); err != nil {
-		d.logger().Warn("can't list the volumes a container's image kept data in, so they stay on the server until docker volume prune removes them",
+		resource.Report(ctx, resource.Outcome{Untouched: true})
+		d.logger().Warn("can't record image-volume retention, so container removal stopped",
 			slog.String("container", t.Name), slog.Any("volumes", byPath), slog.String("error", err.Error()))
+		return fmt.Errorf("can't record %s's image volumes in the retention ledger (%w). Free disk space or restore write access to the agent state directory, then try again", t.Name, err)
 	}
+	return nil
 }
 
 // relabels are Docker's options for relabelling a server path.
@@ -2245,6 +2248,13 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 	if err != nil {
 		return err
 	}
+	// Persist image-volume retention before stopping any container so a write
+	// failure (such as a full disk or read-only directory) leaves the workload running.
+	for _, i := range all {
+		if err := d.keep(ctx, t, imageVolumes(i.Container)); err != nil {
+			return err
+		}
+	}
 	for _, i := range all {
 		keep := d.beginKeepingLogs(ctx, i.Container)
 		if err := d.Client.StopContainer(ctx, i.ID, stopGrace(i.Container)); err != nil && !docker.IsNotFound(err) {
@@ -2255,7 +2265,6 @@ func (d *Docker) Remove(ctx context.Context, t Target) error {
 			return err
 		}
 		d.forgetRun(i.ID)
-		d.keep(t, imageVolumes(i.Container))
 	}
 	return nil
 }

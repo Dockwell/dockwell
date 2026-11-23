@@ -2,7 +2,14 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
-import { type DockerImage, DockerImageState, DockerObjectKind, DockerService, type Server } from "@dockwell/api";
+import {
+  DockerCleanupKind,
+  type DockerImage,
+  DockerImageState,
+  DockerObjectKind,
+  DockerService,
+  type Server,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -35,6 +42,7 @@ import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
 import { useImageActions } from "./DockerImageActions";
+import { DockerPruneSheet } from "./DockerPruneSheet";
 import { shortImageId } from "./imageIdentity";
 import { useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
@@ -86,6 +94,8 @@ function selection(row: ImageRow) {
 export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server, "id" | "name">[]; fleet: boolean }) {
   const { t, i18n } = useLingui();
   const compact = useMediaQuery(fleet ? "(max-width: 1120px)" : "(max-width: 1000px)");
+  const mayPrune = useMay()(DockerService.method.planDockerMaintenance).allowed;
+  const [pruning, setPruning] = useState(false);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<ImageFilter>("all");
@@ -303,10 +313,29 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
           placeholder={t`Tag, digest or ID`}
           aria-label={t`Search images`}
         />
+        {mayPrune ? (
+          <Button
+            className="docker-filters-action"
+            icon="trash"
+            size="sm"
+            variant="secondary"
+            onClick={() => setPruning(true)}
+          >
+            <Trans>Remove unused</Trans>
+          </Button>
+        ) : null}
       </div>
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
       {actions.leases}
       {actions.sheets}
+      {pruning ? (
+        <DockerPruneSheet
+          kind={DockerCleanupKind.IMAGE}
+          servers={servers}
+          onClose={() => setPruning(false)}
+          onApplied={refresh}
+        />
+      ) : null}
       <Unread values={query.data?.unavailable ?? []} servers={servers} retry={refresh} />
       {query.error ? (
         <Callout tone="warning" title={t`Images couldn't be read`}>

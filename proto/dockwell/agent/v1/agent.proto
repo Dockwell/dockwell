@@ -2947,6 +2947,8 @@ message DockerCapabilities {
   bool artifact_transfers = 10;
   bool daemon_settings = 11;
   bool container_logging = 12;
+  bool volume_cleanup = 13;
+  bool extended_cleanup = 14;
 }
 
 // DockerInventoryListCall reads counters or a bounded page from the local Engine.
@@ -3012,6 +3014,9 @@ message DockerMaintenancePreviewCall {
   repeated string protected_images = 2;
   repeated string protected_networks = 3;
   bool fresh = 4;
+  repeated string protected_volumes = 5;
+  repeated string backup_volumes = 6;
+  repeated string rollback_volumes = 7;
 }
 
 // DockerMaintenancePreviewResult contains the bounded Engine projection.
@@ -3024,6 +3029,9 @@ message DockerMaintenancePreviewResult {
 message DockerCleanupProtection {
   repeated string images = 1;
   repeated string networks = 2;
+  repeated string volumes = 3;
+  repeated string backup_volumes = 4;
+  repeated string rollback_volumes = 5;
 }
 
 // CheckDockerNetworkCall asks the selected Engine about a proposed network.

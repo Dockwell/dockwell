@@ -64,6 +64,11 @@ func (c *Client) Changes() dockwellv1connect.ChangeServiceClient {
 	return dockwellv1connect.NewChangeServiceClient(c.HTTP, c.URL, c.options()...)
 }
 
+// Docker returns a client of DockerService, for Docker cleanup flows.
+func (c *Client) Docker() dockwellv1connect.DockerServiceClient {
+	return dockwellv1connect.NewDockerServiceClient(c.HTTP, c.URL, c.options()...)
+}
+
 // Services returns a client of ServiceService, to read a service an update keeps
 // values of.
 func (c *Client) Services() dockwellv1connect.ServiceServiceClient {

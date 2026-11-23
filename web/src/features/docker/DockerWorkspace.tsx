@@ -195,6 +195,9 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
               <RouterTabLink to="/servers/$serverId/docker/volumes" params={{ serverId: server.id }}>
                 <Trans>Volumes</Trans>
               </RouterTabLink>
+              <RouterTabLink to="/servers/$serverId/docker/cleanup" params={{ serverId: server.id }}>
+                <Trans>Cleanup</Trans>
+              </RouterTabLink>
               {canReadSettings ? (
                 <RouterTabLink to="/servers/$serverId/docker/settings" params={{ serverId: server.id }}>
                   <Trans>Settings</Trans>
@@ -240,6 +243,13 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
                 activeOptions={{ exact: true, includeSearch: true }}
               >
                 <Trans>Volumes</Trans>
+              </RouterTabLink>
+              <RouterTabLink
+                to="/servers/docker"
+                search={{ view: "cleanup" }}
+                activeOptions={{ exact: true, includeSearch: true }}
+              >
+                <Trans>Cleanup</Trans>
               </RouterTabLink>
             </>
           )}

@@ -3,6 +3,7 @@
 import { useQuery } from "@connectrpc/connect-query";
 import {
   ChangeService,
+  DockerCleanupKind,
   type DockerObject,
   DockerObjectKind,
   DockerOwnership,
@@ -32,7 +33,10 @@ import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useHeldRows } from "../../lib/loading";
 import { useMay } from "../auth/may";
+import { CopyButton } from "../servers/CopyButton";
 import { EmptyState } from "../shell/EmptyState";
+import { isHex64VolumeName, shortAnonymousVolumeName } from "./cleanupHelpers";
+import { DockerPruneSheet } from "./DockerPruneSheet";
 import { DockerStorageCreate } from "./DockerStorageCreate";
 import { useDockerWatch } from "./live";
 import { LiveUpdates, MeasuringSize, Unread } from "./parts";
@@ -95,7 +99,10 @@ export function DockerStorage({
   const { t, i18n } = useLingui();
   const compact = useMediaQuery("(max-width: 1150px)");
   const kind = volumes ? DockerObjectKind.VOLUME : DockerObjectKind.NETWORK;
-  const mayCreate = useMay()(ChangeService.method.proposeChange).allowed;
+  const may = useMay();
+  const mayCreate = may(ChangeService.method.proposeChange).allowed;
+  const mayPrune = may(DockerService.method.planDockerMaintenance).allowed;
+  const [pruning, setPruning] = useState(false);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
   useEffect(() => {
@@ -173,31 +180,38 @@ export function DockerStorage({
   const nameOf = (row: StorageRow) => {
     const serverId = row.key?.serverId ?? "";
     const engineId = row.key?.engineId ?? "";
+    const isAnonVol =
+      volumes && row.detail.case === "volume" && (row.detail.value.anonymous || isHex64VolumeName(row.name));
+    const displayName = isAnonVol ? shortAnonymousVolumeName(row.name) : row.name;
     const content = (
       <>
         <Icon name={volumes ? "archive" : "network"} size={16} />
-        <span>{row.name}</span>
+        {isAnonVol ? <code title={row.name}>{displayName}</code> : <span>{displayName}</span>}
       </>
     );
     return (
-      <div>
-        {volumes ? (
-          <Link
-            className="dw-link docker-row-link docker-storage-name"
-            to="/servers/$serverId/docker/volumes/$volumeKey"
-            params={{ serverId, volumeKey: engineId }}
-          >
-            {content}
-          </Link>
-        ) : (
-          <Link
-            className="dw-link docker-row-link docker-storage-name"
-            to="/servers/$serverId/docker/networks/$networkId"
-            params={{ serverId, networkId: engineId }}
-          >
-            {content}
-          </Link>
-        )}
+      <div className="docker-storage-name-cell">
+        <div className="docker-volume-anon-name">
+          {volumes ? (
+            <Link
+              className="dw-link docker-row-link docker-storage-name"
+              to="/servers/$serverId/docker/volumes/$volumeKey"
+              params={{ serverId, volumeKey: engineId }}
+              title={isAnonVol ? row.name : undefined}
+            >
+              {content}
+            </Link>
+          ) : (
+            <Link
+              className="dw-link docker-row-link docker-storage-name"
+              to="/servers/$serverId/docker/networks/$networkId"
+              params={{ serverId, networkId: engineId }}
+            >
+              {content}
+            </Link>
+          )}
+          {isAnonVol ? <CopyButton text={row.name} label={t`Copy volume name`} /> : null}
+        </div>
         {row.detail.case === "volume" && row.detail.value.anonymous ? (
           <span className="docker-storage-muted">{t`Anonymous`}</span>
         ) : null}
@@ -297,6 +311,17 @@ export function DockerStorage({
           maxLength={255}
           onChange={(event) => setInput(event.target.value)}
         />
+        {mayPrune ? (
+          <Button
+            className="docker-filters-action"
+            icon="trash"
+            size="sm"
+            variant="secondary"
+            onClick={() => setPruning(true)}
+          >
+            <Trans>Remove unused</Trans>
+          </Button>
+        ) : null}
       </div>
       <LiveUpdates paused={watch.paused} retry={watch.retry} />
       <Unread values={unavailable} servers={servers} retry={refresh} />
@@ -392,6 +417,14 @@ export function DockerStorage({
       </div>
       {creating ? (
         <DockerStorageCreate volumes={volumes} servers={servers} onClose={() => setCreating(false)} refresh={refresh} />
+      ) : null}
+      {pruning ? (
+        <DockerPruneSheet
+          kind={volumes ? DockerCleanupKind.VOLUME : DockerCleanupKind.NETWORK}
+          servers={servers}
+          onClose={() => setPruning(false)}
+          onApplied={refresh}
+        />
       ) : null}
     </>
   );

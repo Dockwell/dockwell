@@ -3,11 +3,14 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -62,9 +65,16 @@ func TestDockerCleanupRecoversWithoutRepeatingPendingRemoval(t *testing.T) {
 	if err := os.MkdirAll(receiptDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	file := filepath.Join(receiptDir, cleanupEvidence(plan.GetChangeId())+".json")
+	file := filepath.Join(receiptDir, cleanupEvidence(plan.GetChangeId())+".ndjson")
 	pending := &v1.DockerReceipt{Target: target, State: receiptUnknown}
-	if err := saveDockerReceipts(file, []*v1.DockerReceipt{pending}); err != nil {
+	j, err := openDockerReceiptJournal(file, "", nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.append(0, pending); err != nil {
+		t.Fatal(err)
+	}
+	if err := j.close(); err != nil {
 		t.Fatal(err)
 	}
 	// The target was already removed, but no response reached the agent.
@@ -83,6 +93,107 @@ func TestDockerCleanupRecoversWithoutRepeatingPendingRemoval(t *testing.T) {
 		if strings.HasSuffix(request, "/build/prune") {
 			t.Fatalf("uncertain removal was retried: %s", request)
 		}
+	}
+}
+
+func TestDockerCleanupReceiptJournalRepairsTornTail(t *testing.T) {
+	targets := []*v1.DockerCleanupTarget{{Name: "one"}, {Name: "two"}}
+	removed := &v1.DockerReceipt{Target: targets[0], State: receiptRemoved}
+	pending := &v1.DockerReceipt{Target: targets[1], State: receiptUnknown}
+	for _, tc := range []struct {
+		name   string
+		prefix []*v1.DockerReceipt
+		next   *v1.DockerReceipt
+	}{
+		{name: "after valid record", prefix: []*v1.DockerReceipt{removed}, next: pending},
+		{name: "first record", next: removed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path, legacy := filepath.Join(dir, "change.ndjson"), filepath.Join(dir, "change.json")
+			var data bytes.Buffer
+			for i, receipt := range tc.prefix {
+				if err := json.NewEncoder(&data).Encode(dockerReceiptRecord{Index: i, Receipt: receipt}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			validSize := data.Len()
+			data.WriteString(`{"index":`)
+			if err := os.WriteFile(path, data.Bytes(), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			existing, restore, err := readDockerReceipts(path, legacy, targets)
+			if err != nil || restore || len(existing) != len(tc.prefix) {
+				t.Fatalf("read torn journal = %v, %t, %v", existing, restore, err)
+			}
+			journal, err := openDockerReceiptJournal(path, "", existing, restore)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stat, err := os.Stat(path); err != nil || stat.Size() != int64(validSize) {
+				t.Fatalf("journal size before append = %v, %v, want %d", stat, err, validSize)
+			}
+			if err := journal.append(len(existing), tc.next); err != nil {
+				t.Fatal(err)
+			}
+			if err := journal.close(); err != nil {
+				t.Fatal(err)
+			}
+			got, _, err := readDockerReceipts(path, legacy, targets)
+			if err != nil || len(got) != len(existing)+1 || !proto.Equal(got[len(existing)], tc.next) {
+				t.Fatalf("read repaired journal = %v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestDockerCleanupReceiptJournalReadsLegacyAndKeepsRollbackCheckpoint(t *testing.T) {
+	dir := t.TempDir()
+	path, legacy := filepath.Join(dir, "change.ndjson"), filepath.Join(dir, "change.json")
+	targets := []*v1.DockerCleanupTarget{{Name: "one"}, {Name: "two"}, {Name: "three"}}
+	first := &v1.DockerReceipt{Target: targets[0], State: receiptRemoved}
+	second := &v1.DockerReceipt{Target: targets[1], State: receiptRemoved}
+	third := &v1.DockerReceipt{Target: targets[2], State: receiptUnknown}
+	writeLegacy := func(receipts []*v1.DockerReceipt) {
+		t.Helper()
+		data, err := json.Marshal(receipts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(legacy, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeLegacy([]*v1.DockerReceipt{first})
+	got, restore, err := readDockerReceipts(path, legacy, targets)
+	if err != nil || !restore || len(got) != 1 || !proto.Equal(got[0], first) {
+		t.Fatalf("read legacy receipts = %v, %t, %v", got, restore, err)
+	}
+	journal, err := openDockerReceiptJournal(path, legacy, got, restore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.append(1, second); err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.close(); err != nil {
+		t.Fatal(err)
+	}
+	got, restore, err = readDockerReceipts(path, legacy, targets)
+	if err != nil || restore || len(got) != 2 || !proto.Equal(got[1], second) {
+		t.Fatalf("read NDJSON receipts = %v, %t, %v", got, restore, err)
+	}
+	data, err := os.ReadFile(legacy)
+	var checkpoint []*v1.DockerReceipt
+	if err != nil || json.Unmarshal(data, &checkpoint) != nil || len(checkpoint) != 2 || !proto.Equal(checkpoint[1], second) {
+		t.Fatalf("legacy rollback checkpoint = %s, %v", data, err)
+	}
+	// The old agent handles the next target after rollback, then the new
+	// agent resumes from that checkpoint without retrying the pending target.
+	writeLegacy(append(checkpoint, third))
+	got, restore, err = readDockerReceipts(path, legacy, targets)
+	if err != nil || !restore || len(got) != 3 || !proto.Equal(got[2], third) {
+		t.Fatalf("read checkpoint after rollback = %v, %t, %v", got, restore, err)
 	}
 }
 
@@ -670,4 +781,604 @@ func assertCleanupMultiTagProtected(t *testing.T, c *calls, imageID string) {
 		}
 	}
 	t.Fatal("multi-tag image missing from preview")
+}
+
+func TestDockerCleanupRemovesUnusedVolumesAndProtectsUsedOrHeld(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	ctx, client := t.Context(), engine.Client()
+	anonName := strings.Repeat("a", 64)
+	oldCreated := "2026-10-01T00:00:00Z"
+	engine.AddVolume(docker.Volume{
+		Name: anonName, Driver: "local", Scope: "local", CreatedAt: oldCreated,
+		Labels: map[string]string{"com.docker.volume.anonymous": ""},
+	})
+	engine.AddVolume(docker.Volume{Name: "unused-named", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "stopped-mounted", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "managed-vol", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "backed-up-vol", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "rollback-vol", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "kept-vol", Driver: "local", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "remote-vol", Driver: "nfs", Scope: "local", CreatedAt: oldCreated})
+	engine.AddVolume(docker.Volume{Name: "labeled-vol", Driver: "local", Scope: "local", CreatedAt: oldCreated, Labels: map[string]string{docker.OwnPrefix + "volume": "vol_1"}})
+	scopedManaged := docker.ScopedName("env_1", "data")
+	engine.AddVolume(docker.Volume{Name: scopedManaged, Driver: "local", Scope: "local", CreatedAt: oldCreated, Labels: map[string]string{docker.LabelProject: "env_1", docker.LabelVolume: "data"}})
+	engine.VolumeSizes = map[string]int64{
+		anonName:       4 << 20,
+		"unused-named": 8 << 20,
+	}
+	engine.AddContainer(docker.Container{
+		Name:   "/stopped-user",
+		State:  docker.State{Status: "exited"},
+		Mounts: []docker.MountPoint{{Type: "volume", Name: "stopped-mounted", Destination: "/data"}},
+	})
+	c.cfg.DockerVolumeKept = func(name string) (bool, error) { return name == "kept-vol", nil }
+
+	preview, err := c.dockerCleanupPreview(ctx, &agentv1.DockerMaintenancePreviewCall{
+		Fresh:            true,
+		Filters:          &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+		ProtectedVolumes: []string{"managed-vol"},
+		BackupVolumes:    []string{"backed-up-vol"},
+		RollbackVolumes:  []string{"rollback-vol"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*v1.DockerCleanupTarget{}
+	for _, row := range preview.GetTargets() {
+		if row.GetKind() != cleanupVolume {
+			t.Fatalf("unexpected non-volume target in kind-filtered preview: %v", row)
+		}
+		byName[row.GetName()] = row
+	}
+	if row := byName[anonName]; row == nil || row.GetEvidence() == "" || row.GetReason() != reasonAnonymous || row.GetEstimatedBytes() != 4<<20 {
+		t.Fatalf("anonymous volume target: %v", row)
+	}
+	if row := byName["unused-named"]; row == nil || row.GetEvidence() == "" || row.GetReason() != reasonUnused || row.GetEstimatedBytes() != 8<<20 {
+		t.Fatalf("named unused volume target: %v", row)
+	}
+	wantProtected := map[string]v1.DockerCleanupReason{
+		"stopped-mounted": reasonInUse,
+		"managed-vol":     reasonDesired,
+		"labeled-vol":     reasonDesired,
+		scopedManaged:     reasonDesired,
+		"backed-up-vol":   reasonBackup,
+		"rollback-vol":    reasonRollback,
+		"kept-vol":        reasonRetained,
+		"remote-vol":      v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_EXACT_REMOVAL_UNAVAILABLE,
+	}
+	for name, want := range wantProtected {
+		row := byName[name]
+		if row == nil || row.GetEvidence() != "" || row.GetReason() != want {
+			t.Errorf("volume %s: got %v, want protected reason %v", name, row, want)
+		}
+	}
+
+	targets := []*v1.DockerCleanupTarget{byName[anonName], byName["unused-named"]}
+	for _, target := range targets {
+		target.ServerId = "srv_cleanup"
+	}
+	before := len(engine.Seen())
+	receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{
+		Volumes: []string{"managed-vol"}, BackupVolumes: []string{"backed-up-vol"}, RollbackVolumes: []string{"rollback-vol"},
+	})
+	if err != nil || len(receipts) != 2 {
+		t.Fatalf("apply volume cleanup: %v, %v", receipts, err)
+	}
+	for _, r := range receipts {
+		if r.GetState() != receiptRemoved || r.GetRecheckedEngineId() != r.GetTarget().GetEngineId() || r.AfterBytes == nil || r.GetAfterBytes() != 0 {
+			t.Fatalf("volume receipt: %v", r)
+		}
+	}
+	for _, gone := range []string{anonName, "unused-named"} {
+		if _, err := client.InspectVolume(ctx, gone); !docker.IsNotFound(err) {
+			t.Fatalf("volume %s still exists: %v", gone, err)
+		}
+	}
+	for name := range wantProtected {
+		if _, err := client.InspectVolume(ctx, name); err != nil {
+			t.Fatalf("protected volume %s was removed: %v", name, err)
+		}
+	}
+	for _, req := range engine.Seen()[before:] {
+		if strings.Contains(req, "force=1") || strings.Contains(req, "force=true") || strings.Contains(req, "/volumes/prune") {
+			t.Fatalf("forbidden force or daemon-wide volume prune: %s", req)
+		}
+	}
+}
+
+func TestDockerCleanupRefusesChangedVolumes(t *testing.T) {
+	for _, scenario := range []string{"stopped container mounted", "recreated volume", "new backup protection", "new desired volume", "retained for recovery"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, engine := cleanupFixture(t)
+			ctx := t.Context()
+			engine.AddVolume(docker.Volume{Name: "candidate-vol", Driver: "local", Scope: "local", CreatedAt: "2026-10-01T00:00:00Z"})
+			targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}})
+			if len(targets) != 1 {
+				t.Fatalf("volume candidates: %v", targets)
+			}
+			target := targets[0]
+			protection := &agentv1.DockerCleanupProtection{}
+			switch scenario {
+			case "stopped container mounted":
+				engine.AddContainer(docker.Container{
+					Name:   "/late-user",
+					State:  docker.State{Status: "exited"},
+					Mounts: []docker.MountPoint{{Type: "volume", Name: "candidate-vol", Destination: "/data"}},
+				})
+			case "recreated volume":
+				if err := engine.Client().RemoveVolume(ctx, "candidate-vol"); err != nil {
+					t.Fatal(err)
+				}
+				engine.AddVolume(docker.Volume{Name: "candidate-vol", Driver: "local", Scope: "local", CreatedAt: "2026-10-02T00:00:00Z"})
+			case "new backup protection":
+				protection.BackupVolumes = []string{"candidate-vol"}
+			case "new desired volume":
+				protection.Volumes = []string{"candidate-vol"}
+			case "retained for recovery":
+				c.cfg.DockerVolumeKept = func(name string) (bool, error) { return name == "candidate-vol", nil }
+			}
+			before := len(engine.Seen())
+			receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{target}, protection)
+			if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+				t.Fatalf("changed volume %s: %v, %v", scenario, receipts, err)
+			}
+			for _, req := range engine.Seen()[before:] {
+				if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
+					t.Fatalf("changed volume dispatched DELETE: %s", req)
+				}
+			}
+		})
+	}
+}
+
+func TestDockerCleanupVolumeMinAgeUsesAgentPreview(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	previewAt := time.Date(2026, 11, 22, 12, 0, 0, 0, time.UTC)
+	now := previewAt
+	c.cfg.disks.now = func() time.Time { return now }
+
+	recent := docker.Volume{
+		Name: "fresh-vol", Driver: "local", Scope: "local",
+		CreatedAt: previewAt.Add(-30 * time.Second).Format(time.RFC3339),
+		Labels:    map[string]string{"owner": "test"},
+	}
+	aged := docker.Volume{
+		Name: "aged-vol", Driver: "local", Scope: "local",
+		CreatedAt: previewAt.Add(-70 * time.Second).Format(time.RFC3339),
+	}
+	engine.AddVolume(recent)
+	engine.AddVolume(aged)
+	engine.VolumeSizes = map[string]int64{recent.Name: 1}
+	preview, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*v1.DockerCleanupTarget{}
+	for _, row := range preview.GetTargets() {
+		row.ServerId = "srv_cleanup"
+		byName[row.GetName()] = row
+	}
+	fresh := byName[recent.Name]
+	if fresh.GetEvidence() != "" || fresh.GetReason() != reasonRecentlyCreated {
+		t.Fatalf("fresh volume should be protected as RECENTLY_CREATED, got %v", fresh)
+	}
+	valid := byName[aged.Name]
+	if valid.GetEvidence() == "" || valid.GetReason() != reasonUnused {
+		t.Fatalf("aged volume should be eligible, got %v", valid)
+	}
+
+	// The control plane clock is 20s behind. Its ULID makes aged-vol appear
+	// 50s old even though it was old enough when the agent reviewed it.
+	controlTime := previewAt.Add(-20 * time.Second)
+	var receipts []*v1.DockerReceipt
+	ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { receipts = out.DockerReceipts })
+	apply := func(target *v1.DockerCleanupTarget, seed string) error {
+		receipts = nil
+		plan := &v1.DockerMaintenance{ChangeId: dwid.At(dwid.Change, controlTime, seed), Targets: []*v1.DockerCleanupTarget{target}}
+		return c.applyDockerMaintenance(ctx, resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, plan, &agentv1.DockerCleanupProtection{})
+	}
+	if err := apply(valid, "h1-skew"); err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptRemoved {
+		t.Fatalf("volume reviewed before a skewed plan ULID = %v, %v", receipts, err)
+	}
+
+	// Recreate the volume with exactly the same metadata. Only its contents
+	// differ, so the inventory key still matches. Simulate a submitted target
+	// that bypassed the preview exclusion and wait until it would pass a floor
+	// calculated at apply time.
+	if err := engine.Client().RemoveVolume(t.Context(), recent.Name); err != nil {
+		t.Fatal(err)
+	}
+	engine.AddVolume(recent)
+	engine.VolumeSizes = map[string]int64{recent.Name: 99}
+	now = previewAt.Add(2 * time.Minute)
+	replacement := engine.Volume(recent.Name)
+	if key := docker.VolumeInventoryKey(replacement); key != fresh.GetEngineId() {
+		t.Fatalf("replacement key = %q, want reviewed key %q", key, fresh.GetEngineId())
+	}
+	fresh.Reason = reasonUnused
+	fresh.Evidence = volumeCleanupEvidence(fresh.GetEngineId(), fresh.GetName(), fresh.GetReason(), previewAt)
+	before := len(engine.Seen())
+	if err := apply(fresh, "h1-same-key-replacement"); err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+		t.Fatalf("same-key volume below the preview age floor = %v, %v", receipts, err)
+	}
+	if receipts[0].GetRecheckedEngineId() != fresh.GetEngineId() || receipts[0].GetBeforeBytes() != 99 {
+		t.Fatalf("recheck did not see the same identity with different contents: %v", receipts[0])
+	}
+	for _, req := range engine.Seen()[before:] {
+		if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
+			t.Fatalf("same-key replacement reached DELETE: %s", req)
+		}
+	}
+}
+
+func TestDockerCleanupStrictAnonymousClassification(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	old := "2026-10-01T00:00:00Z"
+	realAnon := strings.Repeat("a", 64)
+	upperHex := strings.Repeat("A", 64)
+	swarmHex := strings.Repeat("b", 64)
+
+	engine.AddVolume(docker.Volume{Name: realAnon, Driver: "local", Scope: "local", CreatedAt: old, Labels: map[string]string{"com.docker.volume.anonymous": ""}})
+	engine.AddVolume(docker.Volume{Name: "db-restored", Driver: "local", Scope: "local", CreatedAt: old, Labels: map[string]string{"com.docker.volume.anonymous": ""}})
+	engine.AddVolume(docker.Volume{Name: upperHex, Driver: "local", Scope: "local", CreatedAt: old, Labels: map[string]string{"com.docker.volume.anonymous": ""}})
+	engine.AddVolume(docker.Volume{Name: swarmHex, Driver: "local", Scope: "local", CreatedAt: old, Labels: map[string]string{"com.docker.volume.anonymous": "", "com.docker.stack.namespace": "prod"}})
+
+	preview, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*v1.DockerCleanupTarget{}
+	for _, row := range preview.GetTargets() {
+		byName[row.GetName()] = row
+	}
+	if got := byName[realAnon]; got == nil || got.GetReason() != reasonAnonymous || got.GetEvidence() == "" {
+		t.Fatalf("real anonymous volume = %v, want ANONYMOUS", got)
+	}
+	for _, named := range []string{"db-restored", upperHex, swarmHex} {
+		got := byName[named]
+		if got == nil || got.GetReason() != reasonUnused || got.GetEvidence() == "" {
+			t.Fatalf("volume %s = %v, want opt-in named UNUSED (never ANONYMOUS)", named, got)
+		}
+	}
+}
+
+func TestDockerCleanupProtectsComposeVolumes(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	old := "2026-10-01T00:00:00Z"
+	// Both default-named and custom-named Compose volumes with project down (0 containers).
+	engine.AddVolume(docker.Volume{
+		Name: "shop_db", Driver: "local", Scope: "local", CreatedAt: old,
+		Labels: map[string]string{docker.LabelProject: "shop", docker.LabelVolume: "db"},
+	})
+	engine.AddVolume(docker.Volume{
+		Name: "shop-db", Driver: "local", Scope: "local", CreatedAt: old,
+		Labels: map[string]string{docker.LabelProject: "shop", docker.LabelVolume: "db"},
+	})
+	// Another Compose project with an exited container so Dockwell knows the stack ID.
+	engine.AddVolume(docker.Volume{
+		Name: "blog-data", Driver: "local", Scope: "local", CreatedAt: old,
+		Labels: map[string]string{docker.LabelProject: "blog", docker.LabelVolume: "data"},
+	})
+	engine.AddContainer(docker.Container{
+		Name:   "/blog-web-1",
+		State:  docker.State{Status: "exited"},
+		Config: docker.Config{Labels: map[string]string{docker.LabelProject: "blog", docker.LabelService: "web"}},
+	})
+
+	preview, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]*v1.DockerCleanupTarget{}
+	for _, row := range preview.GetTargets() {
+		byName[row.GetName()] = row
+	}
+	for _, name := range []string{"shop_db", "shop-db"} {
+		row := byName[name]
+		if row == nil || row.GetEvidence() != "" || row.GetReason() != reasonCompose || row.GetComposeProject() != "shop" || row.GetComposeId() != "" {
+			t.Fatalf("down Compose volume %s = %v, want protected COMPOSE project=shop compose_id=''", name, row)
+		}
+		// Even a forged apply target for a Compose volume must be refused at apply.
+		forged := &v1.DockerCleanupTarget{
+			ServerId: "srv_cleanup", Kind: cleanupVolume, EngineId: row.GetEngineId(), Name: name,
+			Reason: reasonUnused, Evidence: volumeCleanupEvidence(row.GetEngineId(), name, reasonUnused, c.cleanupNow()),
+		}
+		receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{forged}, &agentv1.DockerCleanupProtection{})
+		if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+			t.Fatalf("forged Compose volume %s apply: receipts=%v err=%v", name, receipts, err)
+		}
+	}
+	blog := byName["blog-data"]
+	if blog == nil || blog.GetReason() != reasonCompose || blog.GetComposeProject() != "blog" || blog.GetComposeId() != "outside:blog" {
+		t.Fatalf("known Compose volume = %v, want COMPOSE project=blog compose_id=outside:blog", blog)
+	}
+}
+
+func TestDockerCleanupSwarmManagerBlocksVolumeRemoval(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	engine.SwarmNodes = 1
+	engine.SwarmControlAvailable = true
+	old := "2026-10-01T00:00:00Z"
+	engine.AddVolume(docker.Volume{Name: "shared-local-swarm-vol", Driver: "local", Scope: "local", CreatedAt: old})
+	engine.AddLocalImage("", dockertest.Image{Size: 1024})
+	engine.AddNetwork(docker.Network{Name: "idle-net", Driver: "bridge", Scope: "local"})
+
+	preview, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{
+		Fresh: true, Filters: &v1.DockerCleanupFilters{Volumes: true, Networks: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var volRow, imgRow, netRow *v1.DockerCleanupTarget
+	for _, row := range preview.GetTargets() {
+		switch row.GetKind() {
+		case cleanupVolume:
+			if row.GetName() == "shared-local-swarm-vol" {
+				volRow = row
+			}
+		case cleanupImage:
+			imgRow = row
+		case cleanupNetwork:
+			if row.GetName() == "idle-net" {
+				netRow = row
+			}
+		default:
+		}
+	}
+	if volRow == nil || volRow.GetEvidence() != "" || volRow.GetReason() != reasonSwarmManager {
+		t.Fatalf("Swarm manager volume = %v, want protected SWARM_MANAGER", volRow)
+	}
+	if imgRow == nil || imgRow.GetEvidence() == "" || netRow == nil || netRow.GetEvidence() == "" {
+		t.Fatalf("images and networks should remain eligible on Swarm manager: img=%v net=%v", imgRow, netRow)
+	}
+	// Images and networks still clean up on a Swarm manager.
+	imgRow.ServerId, netRow.ServerId = "srv_cleanup", "srv_cleanup"
+	if receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{imgRow, netRow}, &agentv1.DockerCleanupProtection{}); err != nil || len(receipts) != 2 {
+		t.Fatalf("non-volume cleanup on Swarm manager failed: %v, %v", receipts, err)
+	}
+	// Forged volume apply is refused and never dispatches DELETE /volumes/...
+	forged := &v1.DockerCleanupTarget{
+		ServerId: "srv_cleanup", Kind: cleanupVolume, EngineId: volRow.GetEngineId(), Name: "shared-local-swarm-vol",
+		Reason: reasonUnused, Evidence: volumeCleanupEvidence(volRow.GetEngineId(), "shared-local-swarm-vol", reasonUnused, c.cleanupNow()),
+	}
+	before := len(engine.Seen())
+	receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{forged}, &agentv1.DockerCleanupProtection{})
+	if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+		t.Fatalf("Swarm manager forged volume apply = %v, %v", receipts, err)
+	}
+	for _, req := range engine.Seen()[before:] {
+		if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
+			t.Fatalf("Swarm manager dispatched volume DELETE: %s", req)
+		}
+	}
+}
+
+func TestDockerCleanupRequiresInactiveSwarmState(t *testing.T) {
+	for _, info := range []string{`{}`, `{"Swarm":{}}`} {
+		t.Run(info, func(t *testing.T) {
+			c, engine := cleanupFixture(t)
+			engine.AddVolume(docker.Volume{Name: "local-vol", Driver: "local", Scope: "local", CreatedAt: "2026-10-01T00:00:00Z"})
+			filters := &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}}
+			targets := cleanupCandidates(t, c, filters)
+			if len(targets) != 1 {
+				t.Fatalf("expected volume candidate on an inactive Swarm, got %v", targets)
+			}
+			engine.RawInfo = info
+			preview, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{Fresh: true, Filters: filters})
+			if err != nil || len(preview.GetTargets()) != 1 || preview.GetTargets()[0].GetReason() != reasonSwarmManager || preview.GetTargets()[0].GetEvidence() != "" {
+				t.Fatalf("preview with incomplete Engine info = %v, %v", preview, err)
+			}
+			before := len(engine.Seen())
+			receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{})
+			if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+				t.Fatalf("apply with incomplete Engine info = %v, %v", receipts, err)
+			}
+			for _, req := range engine.Seen()[before:] {
+				if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
+					t.Fatalf("Engine without inactive state received %s", req)
+				}
+			}
+		})
+	}
+}
+
+func TestDockerCleanupRechecksImageMountsWithFullList(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	engine.AddLocalImage("", dockertest.Image{Size: 1024})
+	targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Kinds: []v1.DockerCleanupKind{cleanupImage}})
+	if len(targets) != 1 {
+		t.Fatalf("expected an image candidate, got %v", targets)
+	}
+	otherImageID := "sha256:" + strings.Repeat("f", 64)
+	engine.AddLocalImage("worker:1", dockertest.Image{})
+	engine.AddContainer(docker.Container{
+		Name:   "/uses-image-mount",
+		Config: docker.Config{Image: "worker:1"},
+		Mounts: []docker.MountPoint{{Type: "image", Source: otherImageID}},
+	})
+	var lists atomic.Int32
+	engine.Intercept(func(r *http.Request) error {
+		if strings.HasSuffix(r.URL.Path, "/containers/json") && r.URL.Query().Get("filters") == "" && lists.Add(1) == 2 {
+			return errors.New("final container scan unavailable")
+		}
+		return nil
+	})
+	receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{})
+	if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptFailed || lists.Load() != 2 {
+		t.Fatalf("final recheck with image mounts = %v, %v (%d full lists)", receipts, err, lists.Load())
+	}
+	for _, req := range engine.Seen() {
+		if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/images/") {
+			t.Fatalf("failed image occupancy check allowed %s", req)
+		}
+	}
+}
+
+func TestDockerCleanupUnknownVolumePausesAndDistinguishesReplacement(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	old := "2026-10-01T00:00:00Z"
+	engine.AddVolume(docker.Volume{Name: "vol-one", Driver: "local", Scope: "local", CreatedAt: old})
+	engine.AddVolume(docker.Volume{Name: "vol-two", Driver: "local", Scope: "local", CreatedAt: old})
+	targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Volumes: true, Kinds: []v1.DockerCleanupKind{cleanupVolume}})
+	if len(targets) != 2 {
+		t.Fatalf("got %d targets, want 2", len(targets))
+	}
+	// Ensure vol-one is first.
+	slices.SortFunc(targets, func(a, b *v1.DockerCleanupTarget) int { return strings.Compare(a.GetName(), b.GetName()) })
+
+	// Simulate an ambiguous lost reply on vol-one's DELETE.
+	engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/volumes/vol-one") {
+			return errors.New("connection reset by peer")
+		}
+		return nil
+	})
+	plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+	var receipts []*v1.DockerReceipt
+	ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { receipts = out.DockerReceipts })
+	err := c.applyDockerMaintenance(ctx, resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, plan, &agentv1.DockerCleanupProtection{})
+	if !errors.Is(err, errCleanupDisabled) {
+		t.Fatalf("expected errCleanupDisabled on unknown volume receipt, got %v", err)
+	}
+	// Dispatch must have stopped after vol-one; vol-two must stay untouched.
+	if len(receipts) != 1 || receipts[0].GetState() != receiptUnknown ||
+		receipts[0].GetReason() != v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED {
+		t.Fatalf("unknown volume receipt = %v", receipts)
+	}
+	if engine.Volume("vol-two") == nil {
+		t.Fatal("second queued volume was removed after unknown volume outcome")
+	}
+	// Replace vol-one with a new volume of the same name and replay the plan:
+	// reconciliation must distinguish the replacement from the reviewed volume
+	// and never attribute the replacement's bytes to the reviewed receipt.
+	engine.Intercept(nil)
+	if err := engine.Client().RemoveVolume(t.Context(), "vol-one"); err != nil {
+		t.Fatal(err)
+	}
+	engine.AddVolume(docker.Volume{Name: "vol-one", Driver: "local", Scope: "local", CreatedAt: "2026-11-22T12:00:00Z"})
+	engine.VolumeSizes = map[string]int64{"vol-one": 99 << 20}
+	receipts = nil
+	err = c.applyDockerMaintenance(ctx, resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, plan, &agentv1.DockerCleanupProtection{})
+	if !errors.Is(err, errCleanupDisabled) {
+		t.Fatalf("replay while paused = %v, want errCleanupDisabled", err)
+	}
+	if len(receipts) != 1 || receipts[0].GetState() != receiptUnknown ||
+		receipts[0].GetReason() != v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_REPLACED ||
+		receipts[0].AfterBytes != nil {
+		t.Fatalf("replayed unknown volume receipt with replacement = %v", receipts)
+	}
+	// Subsequent preview reports pause, and a new cleanup plan is refused while paused.
+	paused, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{Fresh: true})
+	if err != nil || paused.GetPause() == nil {
+		t.Fatalf("paused preview = %v, %v", paused, err)
+	}
+	if _, err := applyCleanupFixture(t, c, targets[1:], &agentv1.DockerCleanupProtection{}); !errors.Is(err, errCleanupDisabled) {
+		t.Fatalf("subsequent apply while paused = %v, want errCleanupDisabled", err)
+	}
+	// Resume clears the pause cleanly.
+	resumePlan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), ResumeCleanupToken: paused.GetPause().GetToken()}
+	if err := c.applyDockerMaintenance(t.Context(), resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, resumePlan, nil); err != nil {
+		t.Fatalf("resume pause: %v", err)
+	}
+	afterResume, err := c.dockerCleanupPreview(t.Context(), &agentv1.DockerMaintenancePreviewCall{Fresh: true})
+	if err != nil || afterResume.GetPause() != nil {
+		t.Fatalf("after resume still paused: %v, %v", afterResume, err)
+	}
+	// The original replay still reports Unknown, with no new record, pause,
+	// or delete after the acknowledgment has survived a reload from disk.
+	journal := filepath.Join(c.cfg.Dir, "docker-cleanup", cleanupEvidence(plan.GetChangeId())+".ndjson")
+	saved, err := os.ReadFile(journal)
+	if err != nil || !bytes.Contains(saved, []byte(`"reason":5`)) {
+		t.Fatalf("replacement reconciliation was not persisted: %s, %v", saved, err)
+	}
+	before := len(engine.Seen())
+	receipts = nil
+	err = c.applyDockerMaintenance(ctx, resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}, plan, &agentv1.DockerCleanupProtection{})
+	if err == nil || errors.Is(err, errCleanupDisabled) || c.cleanupDisabled() || len(receipts) != 1 || receipts[0].GetState() != receiptUnknown {
+		t.Fatalf("replay after acknowledgment = %v, %v, paused=%t", receipts, err, c.cleanupDisabled())
+	}
+	for _, req := range engine.Seen()[before:] {
+		if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
+			t.Fatalf("acknowledged replay dispatched %s", req)
+		}
+	}
+	if data, err := os.ReadFile(journal); err != nil || !bytes.Equal(data, saved) {
+		t.Fatalf("replay changed the journal without a new observation: %v", err)
+	}
+}
+
+func TestDockerCleanupLargeBatchMeasurements(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	old := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	// Seed 250 busy containers on the Engine to simulate a dense host.
+	for i := range 250 {
+		engine.AddContainer(docker.Container{
+			Name:  "/busy-workload-" + strconv.Itoa(i),
+			State: docker.State{Status: "running", Running: true},
+		})
+	}
+	// Mixed batch at the 200-target per-server cap: 100 images, 60 volumes, 20 networks, 20 build cache records.
+	for i := range 100 {
+		engine.AddLocalImage("", dockertest.Image{Size: int64(4096 + i)})
+	}
+	for i := range 60 {
+		engine.AddVolume(docker.Volume{
+			Name: "batch-vol-" + strconv.Itoa(i), Driver: "local", Scope: "local",
+			CreatedAt: old.Format(time.RFC3339),
+		})
+	}
+	for i := range 20 {
+		engine.AddNetwork(docker.Network{Name: "batch-net-" + strconv.Itoa(i), Driver: "bridge", Scope: "local"})
+	}
+	cacheRecords := make([]docker.DiskUsageCache, 0, 20)
+	for i := range 20 {
+		cacheRecords = append(cacheRecords, docker.DiskUsageCache{
+			ID: "batchcacheid0000000000" + strconv.Itoa(100+i), Size: int64(8192 + i), CreatedAt: old, LastUsedAt: &old,
+		})
+	}
+	engine.SetBuildCache(cacheRecords...)
+
+	var unfilteredLists, filteredLists int
+	engine.Intercept(func(r *http.Request) error {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/containers/json") {
+			if r.URL.Query().Get("filters") == "" {
+				unfilteredLists++
+				time.Sleep(15 * time.Millisecond) // slow full container scan
+			} else {
+				filteredLists++
+			}
+		}
+		return nil
+	})
+
+	t0 := time.Now()
+	targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Volumes: true, Networks: true})
+	previewDur := time.Since(t0)
+	if len(targets) != 200 {
+		t.Fatalf("mixed preview returned %d candidates, want 200", len(targets))
+	}
+	plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+	protoBytes, err := proto.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unfilteredBeforeApply := unfilteredLists
+	t1 := time.Now()
+	receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{})
+	applyDur := time.Since(t1)
+	if err != nil || len(receipts) != 200 {
+		t.Fatalf("apply 200 mixed targets: %v (receipts=%d)", err, len(receipts))
+	}
+	unfilteredDuringApply := unfilteredLists - unfilteredBeforeApply
+	if unfilteredDuringApply > 1 {
+		t.Fatalf("expected at most 1 unfiltered /containers/json scan during apply, got %d (filtered=%d)", unfilteredDuringApply, filteredLists)
+	}
+	t.Logf("mixed cleanup scale n=200 (250 containers): plan_proto_bytes=%d preview=%s apply=%s unfiltered_apply=%d filtered_apply=%d",
+		len(protoBytes), previewDur.Round(time.Millisecond), applyDur.Round(time.Millisecond), unfilteredDuringApply, filteredLists)
 }

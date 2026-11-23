@@ -532,7 +532,7 @@ func TestDockerDisconnectReviewSurvivesRestart(t *testing.T) {
 	})
 }
 
-func TestDockerMaintenanceRejectsVolumeSelections(t *testing.T) {
+func TestDockerMaintenanceRejectsUnreviewedVolumeSelections(t *testing.T) {
 	s := storageControl(t, store.SQLite, nil, "")
 	id := s.server.id.ServerID
 	_, err := s.api.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{
@@ -540,7 +540,7 @@ func TestDockerMaintenanceRejectsVolumeSelections(t *testing.T) {
 			Targets: []*v1.DockerCleanupTarget{{ServerId: id, Kind: v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME, EngineId: "fixture-data"}},
 		}},
 	}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "volume removal through its revision") {
-		t.Fatalf("volume submitted to Docker cleanup: %v", err)
+	if connect.CodeOf(err) != connect.CodeAborted {
+		t.Fatalf("unreviewed volume submitted to Docker cleanup: %v", err)
 	}
 }

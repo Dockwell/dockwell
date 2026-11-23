@@ -108,6 +108,12 @@ type Engine struct {
 	TaskShutdown time.Duration
 	// SwarmNodes is how many nodes /info says the swarm has.
 	SwarmNodes int
+	// SwarmControlAvailable reports whether /info advertises Swarm manager control.
+	SwarmControlAvailable bool
+	// SwarmLocalNodeState overrides /info Swarm.LocalNodeState when set.
+	SwarmLocalNodeState string
+	// RawInfo, when non-empty, is returned verbatim as the JSON body of GET /info.
+	RawInfo string
 	// Tasks are tasks of Swarm services beside those of the containers labelled
 	// as one's, by service name, such as one starting on another node.
 	Tasks map[string][]docker.Task
@@ -225,7 +231,10 @@ type Engine struct {
 	// unless set. ContainerSizes is what each container wrote to its own layer,
 	// by name without the slash.
 	VolumeSizes, ContainerSizes map[string]int64
-	cacheRecords                []docker.DiskUsageCache
+	// VolumeCreatedAt overrides the CreatedAt timestamp assigned to newly
+	// created volumes when set.
+	VolumeCreatedAt func() time.Time
+	cacheRecords    []docker.DiskUsageCache
 }
 
 type image struct {
@@ -526,7 +535,21 @@ func (e *Engine) serve(w http.ResponseWriter, r *http.Request) {
 		if e.ContainerdImageStore {
 			driverStatus = [][]string{{"driver-type", "io.containerd.snapshotter.v1"}}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"Images": len(e.distinctImages()), "DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "DriverStatus": driverStatus, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes}})
+		if e.RawInfo != "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, e.RawInfo)
+			return
+		}
+		swarmState := e.SwarmLocalNodeState
+		if swarmState == "" {
+			if e.SwarmNodes > 0 || e.SwarmControlAvailable {
+				swarmState = "active"
+			} else {
+				swarmState = "inactive"
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"Images": len(e.distinctImages()), "DockerRootDir": root, "SecurityOptions": options, "NCPU": e.ncpu(), "LoggingDriver": driver, "LiveRestoreEnabled": e.LiveRestore, "DriverStatus": driverStatus, "RegistryConfig": map[string]any{"IndexConfigs": index, "Mirrors": e.Mirrors}, "Swarm": map[string]any{"Nodes": e.SwarmNodes, "ControlAvailable": e.SwarmControlAvailable || e.SwarmNodes > 0, "LocalNodeState": swarmState}})
 	case path == "/services" && r.Method == http.MethodGet:
 		// An engine that isn't a swarm's manager says so, as Docker does.
 		if e.Services == nil {
@@ -1355,6 +1378,8 @@ func (c *container) matches(f map[string][]string) bool {
 		return err == nil && re.MatchString(c.ID)
 	}) && passes("volume", func(v string) bool {
 		return slices.ContainsFunc(c.Mounts, func(m docker.MountPoint) bool { return m.Name == v || m.Source == v || m.Destination == v })
+	}) && passes("ancestor", func(v string) bool {
+		return (c.img != nil && (c.img.id == v || c.img.repo == v || c.img.digest == v)) || c.Config.Image == v
 	}) && passes("network", func(v string) bool {
 		if _, on := c.NetworkSettings.Networks[v]; on {
 			return true
@@ -1846,7 +1871,11 @@ func (e *Engine) ensureVolume(name string, labels map[string]string) *docker.Vol
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	v := &docker.Volume{Name: name, Driver: "local", Scope: "local", Options: map[string]string{}, Labels: labels, CreatedAt: e.wall().UTC().Format(time.RFC3339Nano)}
+	createdAt := e.wall()
+	if e.VolumeCreatedAt != nil {
+		createdAt = e.VolumeCreatedAt()
+	}
+	v := &docker.Volume{Name: name, Driver: "local", Scope: "local", Options: map[string]string{}, Labels: labels, CreatedAt: createdAt.UTC().Format(time.RFC3339Nano)}
 	e.volumes[name] = v
 	return v
 }

@@ -20,7 +20,7 @@ const dockerVolumeKind = v1.DockerObjectKind_DOCKER_OBJECT_KIND_VOLUME
 
 func (c *calls) projectedVolume(v *docker.Volume, at *timestamppb.Timestamp) *v1.DockerObject {
 	created, _ := time.Parse(time.RFC3339Nano, v.CreatedAt)
-	_, anonymous := v.Labels["com.docker.volume.anonymous"]
+	anonymous := isAnonymousVolume(v)
 	facts := &v1.DockerVolume{
 		Driver: bounded(v.Driver, 80), CreatedAt: inventoryTime(created), Anonymous: anonymous,
 		LabelKeys:  storageKeys(v.Labels, docker.LabelProject, docker.LabelVolume, "com.docker.volume.anonymous"),

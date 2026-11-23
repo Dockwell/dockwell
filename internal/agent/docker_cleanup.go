@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
+	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	v1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -18,25 +20,49 @@ import (
 )
 
 const (
-	reasonDangling = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_DANGLING
-	reasonUnused   = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED
-	reasonIdle     = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_IDLE
-	reasonDesired  = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_DESIRED
-	reasonTakeOn   = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_TAKE_ON
+	reasonDangling        = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_DANGLING
+	reasonUnused          = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED
+	reasonIdle            = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_IDLE
+	reasonDesired         = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_DESIRED
+	reasonTakeOn          = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_TAKE_ON
+	reasonAnonymous       = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_ANONYMOUS
+	reasonBackup          = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_BACKUP
+	reasonCompose         = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_COMPOSE
+	reasonSwarmManager    = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_SWARM_MANAGER
+	reasonRecentlyCreated = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_RECENTLY_CREATED
 )
 
-const maxCleanupRows = 1200
+const (
+	maxCleanupRows      = 1200
+	minVolumeCleanupAge = 60 * time.Second
+)
 
 var errCleanupSize = errors.New("there are too many Docker objects to review in one snapshot")
 
 type dockerOccupancy struct {
-	images   map[string]bool
-	networks map[string]bool
-	stopped  []*v1.DockerCleanupTarget
+	images            map[string]bool
+	networks          map[string]bool
+	volumes           map[string]bool
+	composeProjects   map[string]bool
+	hasImageMounts    bool
+	unknownImageMount bool
+	stopped           []*v1.DockerCleanupTarget
+}
+
+func (c *calls) cleanupNow() time.Time {
+	if c.cfg.disks != nil && c.cfg.disks.now != nil {
+		return c.cfg.disks.now()
+	}
+	return time.Now()
 }
 
 func (c *calls) dockerOccupancy(ctx context.Context) (dockerOccupancy, error) {
-	held := dockerOccupancy{images: map[string]bool{}, networks: map[string]bool{}}
+	held := dockerOccupancy{
+		images:          map[string]bool{},
+		networks:        map[string]bool{},
+		volumes:         map[string]bool{},
+		composeProjects: map[string]bool{},
+	}
 	var count int
 	err := c.cfg.Docker.EachCleanupContainer(ctx, func(row *docker.ContainerSummary) error {
 		count++
@@ -45,6 +71,9 @@ func (c *calls) dockerOccupancy(ctx context.Context) (dockerOccupancy, error) {
 		}
 		held.images[row.ImageID] = true
 		held.images[row.Image] = true
+		if project := composeIdentity(row.Labels[docker.LabelProject]); project != "" && composeIdentity(row.Labels[docker.LabelService]) != "" && !strings.EqualFold(row.Labels[docker.LabelOneoff], "true") {
+			held.composeProjects[project] = true
+		}
 		for name, endpoint := range row.NetworkSettings.Networks {
 			held.networks[name] = true
 			if endpoint != nil {
@@ -53,7 +82,16 @@ func (c *calls) dockerOccupancy(ctx context.Context) (dockerOccupancy, error) {
 		}
 		for _, mount := range row.Mounts {
 			if mount.Type == "image" {
-				held.images[mount.Source] = true
+				held.hasImageMounts = true
+				// Engine can report a snapshot path here instead of the mounted image ID.
+				if docker.IsImageID(mount.Source) {
+					held.images[mount.Source] = true
+				} else {
+					held.unknownImageMount = true
+				}
+			}
+			if mount.Type == "volume" && mount.Name != "" {
+				held.volumes[mount.Name] = true
 			}
 		}
 		if (row.State == "exited" || row.State == "dead" || row.State == "created") && !inventoryHelper(row.Labels) && !strings.HasPrefix(row.Labels[docker.LabelProject], "env_") {
@@ -130,6 +168,177 @@ func protectedNetwork(network *docker.Network, protected []string) bool {
 	return false
 }
 
+func protectedVolume(v *docker.Volume, protected []string) bool {
+	if slices.Contains(protected, v.Name) || strings.HasPrefix(v.Name, "dockwell") {
+		return true
+	}
+	if strings.HasPrefix(v.Labels[docker.LabelProject], "env_") && storageLabelMatches(v.Name, v.Labels, docker.LabelVolume) {
+		return true
+	}
+	for label := range v.Labels {
+		if strings.Contains(label, "dockwell") {
+			return true
+		}
+	}
+	return false
+}
+
+func composeVolumeProject(v *docker.Volume) (string, bool) {
+	if project := strings.TrimSpace(v.Labels[docker.LabelProject]); project != "" {
+		return project, true
+	}
+	if strings.TrimSpace(v.Labels[docker.LabelVolume]) != "" {
+		return "", true
+	}
+	for label := range v.Labels {
+		if strings.HasPrefix(label, docker.ComposePrefix) {
+			return "", true
+		}
+	}
+	return "", false
+}
+
+func isLowerHex64(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for i := range len(s) {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func hasOrchestratorLabel(labels map[string]string) bool {
+	for label := range labels {
+		lower := strings.ToLower(label)
+		if strings.Contains(lower, "dockwell") ||
+			strings.HasPrefix(lower, "com.docker.compose.") ||
+			strings.HasPrefix(lower, "com.docker.stack.") ||
+			strings.HasPrefix(lower, "com.docker.swarm.") ||
+			strings.HasPrefix(lower, "com.docker.ucp.") ||
+			strings.HasPrefix(lower, "io.kubernetes.") ||
+			strings.HasPrefix(lower, "app.kubernetes.io/") ||
+			strings.HasPrefix(lower, "io.rancher.") ||
+			strings.HasPrefix(lower, "com.hashicorp.nomad.") {
+			return true
+		}
+	}
+	return false
+}
+
+func isAnonymousVolume(v *docker.Volume) bool {
+	if v == nil {
+		return false
+	}
+	val, ok := v.Labels["com.docker.volume.anonymous"]
+	return ok && val == "" && isLowerHex64(v.Name) && !hasOrchestratorLabel(v.Labels)
+}
+
+func parseVolumeCreatedAt(raw string) (time.Time, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil || t.IsZero() {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+func (c *calls) volumeKept(name string) bool {
+	if c.cfg.DockerVolumeKept == nil {
+		return false
+	}
+	kept, err := c.cfg.DockerVolumeKept(name)
+	return kept || err != nil
+}
+
+func volumeCleanupEvidence(key, name string, reason v1.DockerCleanupReason, previewAt time.Time) string {
+	return cleanupEvidence(key, name, int32(reason)) + "." + strconv.FormatInt(previewAt.UnixNano(), 10)
+}
+
+func parseVolumeCleanupEvidence(ev, key, name string, reason v1.DockerCleanupReason) (time.Time, bool) {
+	hash, unixStr, ok := strings.Cut(ev, ".")
+	if !ok || hash != cleanupEvidence(key, name, int32(reason)) {
+		return time.Time{}, false
+	}
+	unixNano, err := strconv.ParseInt(unixStr, 10, 64)
+	if err != nil || unixNano <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(0, unixNano).UTC(), true
+}
+
+func (c *calls) swarmBlocksVolumeCleanup(ctx context.Context) bool {
+	info, err := c.cfg.Docker.Info(ctx)
+	return err != nil || info.SwarmVolumeFallback()
+}
+
+func (c *calls) volumeTarget(v *docker.Volume, measured *docker.DiskUsageVolume, held dockerOccupancy, protected, backups, rollback []string, refTime time.Time, swarmBlocked bool) *v1.DockerCleanupTarget {
+	key := docker.VolumeInventoryKey(v)
+	_, validKey := docker.VolumeInventoryName(key)
+	var size *uint64
+	var refCount int64
+	if measured != nil && measured.UsageData != nil &&
+		(measured.Mountpoint == "" || v.Mountpoint == "" || measured.Mountpoint == v.Mountpoint) &&
+		(measured.CreatedAt == "" || v.CreatedAt == "" || measured.CreatedAt == v.CreatedAt) {
+		size = measuredBytes(measured.UsageData.Size)
+		refCount = measured.UsageData.RefCount
+	}
+	t := &v1.DockerCleanupTarget{
+		Kind:           cleanupVolume,
+		EngineId:       key,
+		Name:           bounded(v.Name, 255),
+		EstimatedBytes: size,
+	}
+	composeProject, isCompose := composeVolumeProject(v)
+	createdAt, validCreatedAt := parseVolumeCreatedAt(v.CreatedAt)
+	switch {
+	case c.volumeKept(v.Name):
+		t.Reason = reasonRetained
+	case protectedVolume(v, protected):
+		t.Reason = reasonDesired
+	case isCompose:
+		t.Reason = reasonCompose
+		t.ComposeProject = bounded(composeProject, 255)
+		if composeProject != "" && held.composeProjects[composeProject] {
+			if strings.HasPrefix(composeProject, "env_") {
+				t.ComposeId = composeProject
+			} else {
+				t.ComposeId = "outside:" + bounded(composeProject, 255)
+			}
+		}
+	case slices.Contains(backups, v.Name):
+		t.Reason = reasonBackup
+	case slices.Contains(rollback, v.Name):
+		t.Reason = reasonRollback
+	case held.volumes[v.Name] || refCount > 0:
+		t.Reason = reasonInUse
+	case swarmBlocked:
+		t.Reason = reasonSwarmManager
+	case v.Driver != "local" || v.Scope != "local" || !validKey || !validCreatedAt || t.Name != v.Name:
+		t.Reason = reasonUnavailable
+	case refTime.Sub(createdAt) < minVolumeCleanupAge:
+		t.Reason = reasonRecentlyCreated
+	default:
+		if isAnonymousVolume(v) {
+			t.Reason = reasonAnonymous
+		} else {
+			t.Reason = reasonUnused
+		}
+		t.Evidence = volumeCleanupEvidence(key, v.Name, t.Reason, refTime)
+	}
+	return t
+}
+
+func wantsCleanupKind(filters *v1.DockerCleanupFilters, kind v1.DockerCleanupKind) bool {
+	kinds := filters.GetKinds()
+	return len(kinds) == 0 || slices.Contains(kinds, kind)
+}
+
 func cleanupEvidence(fields ...any) string {
 	data, _ := json.Marshal(fields)
 	hash := sha256.Sum256(data)
@@ -162,36 +371,65 @@ func (c *calls) dockerCleanupPreview(ctx context.Context, ask *agentv1.DockerMai
 	if err != nil {
 		return nil, err
 	}
-	targets := held.stopped
+	filters := ask.GetFilters()
+	var targets []*v1.DockerCleanupTarget
+	if wantsCleanupKind(filters, cleanupContainer) {
+		targets = append(targets, held.stopped...)
+	}
 	if len(df.Images)+len(df.Volumes)+len(df.BuildCache)+len(targets) > maxCleanupRows {
 		return nil, errCleanupSize
 	}
-	for _, raw := range df.Images {
-		if !docker.IsImageID(raw.ID) {
-			continue
-		}
-		target := c.imageCleanupTarget(raw, held, ask.GetProtectedImages())
-		if target.GetReason() == reasonUnused && target.GetEvidence() != "" && !ask.GetFilters().GetTaggedImages() {
-			continue
-		}
-		targets = append(targets, target)
-	}
-	for _, record := range df.BuildCache {
-		targets = append(targets, cacheTarget(record, c.cfg.Docker.ExactCacheRemoval()))
-	}
-	for _, volume := range df.Volumes {
-		target := &v1.DockerCleanupTarget{Kind: cleanupVolume, EngineId: bounded(volume.Name, 255), Name: bounded(volume.Name, 255), Reason: reasonRetained}
-		if volume.UsageData != nil {
-			target.EstimatedBytes = measuredBytes(volume.UsageData.Size)
-		}
-		if target.EstimatedBytes == nil || target.GetEstimatedBytes() > 0 {
+	if wantsCleanupKind(filters, cleanupImage) {
+		for _, raw := range df.Images {
+			if !docker.IsImageID(raw.ID) {
+				continue
+			}
+			target := c.imageCleanupTarget(raw, held, ask.GetProtectedImages())
+			if target.GetReason() == reasonUnused && target.GetEvidence() != "" && !filters.GetTaggedImages() {
+				continue
+			}
 			targets = append(targets, target)
 		}
 	}
-	if use.GetLogsBytes() > 0 {
+	if wantsCleanupKind(filters, cleanupCache) {
+		for _, record := range df.BuildCache {
+			targets = append(targets, cacheTarget(record, c.cfg.Docker.ExactCacheRemoval()))
+		}
+	}
+	if wantsCleanupKind(filters, cleanupVolume) {
+		if filters.GetVolumes() {
+			live, err := c.cfg.Docker.InventoryVolumes(ctx, maxCleanupRows)
+			if err != nil || len(live)+len(targets) > maxCleanupRows {
+				return nil, errCleanupSize
+			}
+			swarmBlocked := c.swarmBlocksVolumeCleanup(ctx)
+			previewAt := c.cleanupNow()
+			measured := make(map[string]*docker.DiskUsageVolume, len(df.Volumes))
+			for i := range df.Volumes {
+				v := &df.Volumes[i]
+				measured[v.Name] = v
+			}
+			for i := range live {
+				v := &live[i]
+				targets = append(targets, c.volumeTarget(v, measured[v.Name], held,
+					ask.GetProtectedVolumes(), ask.GetBackupVolumes(), ask.GetRollbackVolumes(), previewAt, swarmBlocked))
+			}
+		} else {
+			for _, volume := range df.Volumes {
+				target := &v1.DockerCleanupTarget{Kind: cleanupVolume, EngineId: bounded(volume.Name, 255), Name: bounded(volume.Name, 255), Reason: reasonRetained}
+				if volume.UsageData != nil {
+					target.EstimatedBytes = measuredBytes(volume.UsageData.Size)
+				}
+				if target.EstimatedBytes == nil || target.GetEstimatedBytes() > 0 {
+					targets = append(targets, target)
+				}
+			}
+		}
+	}
+	if wantsCleanupKind(filters, cleanupLog) && use.GetLogsBytes() > 0 {
 		targets = append(targets, &v1.DockerCleanupTarget{Kind: cleanupLog, Reason: reasonRetained, EstimatedBytes: &use.LogsBytes})
 	}
-	if ask.GetFilters().GetNetworks() {
+	if wantsCleanupKind(filters, cleanupNetwork) && filters.GetNetworks() {
 		list, err := c.cfg.Docker.ListCleanupNetworks(ctx, maxCleanupRows-len(targets))
 		if err != nil || len(list)+len(targets) > maxCleanupRows {
 			return nil, errDockerInventory
@@ -200,9 +438,12 @@ func (c *calls) dockerCleanupPreview(ctx context.Context, ask *agentv1.DockerMai
 			targets = append(targets, networkTarget(&list[i], held, ask.GetProtectedNetworks()))
 		}
 	}
+	if len(targets) > maxCleanupRows {
+		return nil, errCleanupSize
+	}
 
 	targets = slices.DeleteFunc(targets, func(t *v1.DockerCleanupTarget) bool {
-		return t.GetEvidence() == "" && t.EstimatedBytes != nil && t.GetEstimatedBytes() == 0
+		return t.GetKind() != cleanupVolume && t.GetEvidence() == "" && t.EstimatedBytes != nil && t.GetEstimatedBytes() == 0
 	})
 	return &agentv1.DockerMaintenancePreviewResult{Targets: targets}, nil
 }
@@ -259,6 +500,8 @@ func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupan
 	case held.images[raw.ID] || raw.Containers > 0 || slices.ContainsFunc(tags, func(tag string) bool { return held.images[tag] }) ||
 		slices.ContainsFunc(raw.RepoDigests, func(digest string) bool { return held.images[digest] }):
 		t.Reason = reasonInUse
+	case held.unknownImageMount:
+		t.Reason = reasonUnavailable
 	case !oneImageRepository(tags, digests):
 		t.Reason = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
 	case len(tags) > 1:

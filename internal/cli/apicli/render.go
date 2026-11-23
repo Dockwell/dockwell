@@ -508,6 +508,10 @@ var surfaces = map[dockwellv1.Surface]string{
 // ChangeView writes a change: what it is, who proposed and applied it,
 // its plan, and how its steps went.
 func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
+	renderChangeWithOptions(w, c, now, false)
+}
+
+func renderChangeWithOptions(w io.Writer, c *dockwellv1.Change, now time.Time, fullMaintenance bool) {
 	fmt.Fprintf(w, "%s  %s\n", c.GetId(), c.GetSummary())
 	proposed := fmt.Sprintf("%s by %s %s", when(c.GetCreateTime(), now), actor(c.GetProposedBy()), surfaces[c.GetProposedVia()])
 	applied := fmt.Sprintf("%s by %s %s", when(c.GetApplyTime(), now), actor(c.GetAppliedBy()), surfaces[c.GetAppliedVia()])
@@ -548,7 +552,7 @@ func ChangeView(w io.Writer, c *dockwellv1.Change, now time.Time) {
 		fmt.Fprintln(w, "What it was to do, as planned. It failed partway, so not all of this happened: its steps, below, say what did.")
 		fmt.Fprintln(w)
 	}
-	PlanView(w, c.GetPlan())
+	planView(w, c.GetPlan(), fullMaintenance)
 	if len(c.GetSteps()) > 0 {
 		fmt.Fprintln(w, "\nSteps:")
 		tw := newTable(w)
@@ -713,6 +717,10 @@ func placeWords(p *dockwellv1.PlanPlace) string {
 // to each resource that runs on no server, then each server's steps with
 // their downtime, data loss and warnings, then the counts.
 func PlanView(w io.Writer, p *dockwellv1.Plan) {
+	planView(w, p, false)
+}
+
+func planView(w io.Writer, p *dockwellv1.Plan, fullMaintenance bool) {
 	if p == nil {
 		return
 	}
@@ -800,6 +808,11 @@ func PlanView(w io.Writer, p *dockwellv1.Plan) {
 				details = append(details, what)
 			}
 			row(tw, "  "+a.symbol+" "+ref(st.GetResource()), strings.Join(details, " · "))
+			if m := st.GetDockerMaintenance(); m != nil && m.GetImageAction() == nil {
+				for _, line := range dockerMaintenanceWords(m, s.GetServerName(), fullMaintenance) {
+					fmt.Fprintln(tw, "      "+line)
+				}
+			}
 			changes := st.GetChanges()
 			if len(changes) == 0 {
 				changes = byID[st.GetResourceId()].GetChanges()

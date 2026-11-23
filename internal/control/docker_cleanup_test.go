@@ -210,3 +210,119 @@ func TestDockerCleanupResumesAfterPasskeyAndKeepsCatalogPin(t *testing.T) {
 		}
 	})
 }
+
+func TestDockerCleanupVolumesAndLargeBatchEndToEnd(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		engine := f.addDockerServer(t)
+		server := f.lastDocker.id.ServerID
+		anonVol := strings.Repeat("b", 64)
+		old := time.Now().UTC().Add(-5 * time.Minute).Format(time.RFC3339)
+		engine.AddVolume(docker.Volume{
+			Name: anonVol, Driver: "local", Scope: "local", CreatedAt: old,
+			Labels: map[string]string{"com.docker.volume.anonymous": ""},
+		})
+		engine.AddVolume(docker.Volume{Name: "named-unused", Driver: "local", Scope: "local", CreatedAt: old})
+		engine.AddVolume(docker.Volume{Name: "stopped-vol", Driver: "local", Scope: "local", CreatedAt: old})
+		engine.VolumeSizes = map[string]int64{anonVol: 2 << 20, "named-unused": 5 << 20}
+		engine.AddContainer(docker.Container{
+			Name:   "/exited-vol-holder",
+			State:  docker.State{Status: "exited"},
+			Mounts: []docker.MountPoint{{Type: "volume", Name: "stopped-vol", Destination: "/data"}},
+		})
+		// Add 25 dangling images to verify removing more than the old 12-item cap in one plan.
+		for i := range 25 {
+			engine.AddLocalImage("", dockertest.Image{Size: int64(4096 + i)})
+		}
+
+		dockerRPC := dockwellv1connect.NewDockerServiceClient(b, b.origin, connect.WithProtoJSON())
+		changeRPC := changeClient(b, b.origin)
+		filters := &v1.DockerCleanupFilters{Volumes: true}
+		p := dockerCleanupMeasured(t, dockerRPC, &v1.PreviewDockerCleanupRequest{
+			ServerIds: []string{server}, Filters: filters, PageSize: 200,
+		})
+		if p.GetMaxTargetsTotal() != 500 || len(p.GetServerLimits()) != 1 || p.GetServerLimits()[0].GetMaxTargets() != 200 {
+			t.Fatalf("unexpected server limits: total=%d limits=%v", p.GetMaxTargetsTotal(), p.GetServerLimits())
+		}
+		if !slices.Contains(p.GetServerLimits()[0].GetSupportedKinds(), v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME) {
+			t.Fatalf("supported kinds missing VOLUME: %v", p.GetServerLimits()[0].GetSupportedKinds())
+		}
+		if len(p.GetCandidates()) != 27 {
+			t.Fatalf("candidates = %d, want 27 (25 dangling images + 2 unused volumes)", len(p.GetCandidates()))
+		}
+		if !slices.ContainsFunc(p.GetExclusions(), func(row *v1.DockerCleanupTarget) bool {
+			return row.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME &&
+				row.GetName() == "stopped-vol" &&
+				row.GetReason() == v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_IN_USE
+		}) {
+			t.Fatalf("stopped container volume was not protected: %v", p.GetExclusions())
+		}
+		var sawAnon, sawNamed bool
+		for _, c := range p.GetCandidates() {
+			if c.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME {
+				if c.GetName() == anonVol && c.GetReason() == v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_ANONYMOUS {
+					sawAnon = true
+				}
+				if c.GetName() == "named-unused" && c.GetReason() == v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED {
+					sawNamed = true
+				}
+			}
+		}
+		if !sawAnon || !sawNamed {
+			t.Fatalf("missing volume candidates anon=%t named=%t", sawAnon, sawNamed)
+		}
+
+		res, err := dockerRPC.PlanDockerMaintenance(t.Context(), connect.NewRequest(&v1.PlanDockerMaintenanceRequest{
+			ServerIds: []string{server}, ExpectedSnapshot: p.GetSnapshot(),
+			Operation: &v1.PlanDockerMaintenanceRequest_Cleanup{Cleanup: &v1.DockerCleanupSelection{
+				Filters: filters, Targets: p.GetCandidates(),
+			}},
+		}))
+		if err != nil {
+			t.Fatalf("plan 27 targets (25 images + 2 volumes): %v", err)
+		}
+		ch := res.Msg.GetChange()
+		reviewedEvidence := make(map[string]string)
+		for _, target := range p.GetCandidates() {
+			if target.GetKind() == v1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME {
+				reviewedEvidence[target.GetEngineId()] = target.GetEvidence()
+			}
+		}
+		for _, step := range ch.GetPlan().GetServers()[0].GetSteps() {
+			for _, target := range step.GetDockerMaintenance().GetTargets() {
+				if evidence, ok := reviewedEvidence[target.GetEngineId()]; ok && target.GetEvidence() != evidence {
+					t.Fatalf("plan replaced reviewed agent timestamp for %s: %q != %q", target.GetName(), target.GetEvidence(), evidence)
+				}
+			}
+		}
+		watch := watchWithin(t, changeRPC, ch.GetId(), 20*time.Second)
+		req := &v1.ApplyChangeRequest{
+			Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint(),
+			Proof: stepUpFor(t, b, v1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, ch.GetId()+":"+ch.GetPlan().GetFingerprint()),
+		}
+		if _, err := changeRPC.ApplyChange(t.Context(), connect.NewRequest(req)); err != nil {
+			t.Fatal(err)
+		}
+		finished := waitWatchWithin(t, watch, 20*time.Second).last()
+		if finished.GetState() != v1.ChangeState_CHANGE_STATE_APPLIED {
+			t.Fatalf("cleanup change state = %v, err = %s", finished.GetState(), finished.GetError())
+		}
+		receipts := finished.GetSteps()[0].GetDockerReceipts()
+		if len(receipts) != 27 {
+			t.Fatalf("receipts = %d, want 27", len(receipts))
+		}
+		for _, r := range receipts {
+			if r.GetState() != v1.DockerReceiptState_DOCKER_RECEIPT_STATE_REMOVED {
+				t.Fatalf("non-removed receipt: %v", r)
+			}
+		}
+		if engine.Volume(anonVol) != nil || engine.Volume("named-unused") != nil {
+			t.Fatal("unused volumes were not removed")
+		}
+		if engine.Volume("stopped-vol") == nil {
+			t.Fatal("volume mounted by stopped container was removed")
+		}
+	})
+}

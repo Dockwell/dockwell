@@ -44,7 +44,11 @@ export function CopyButton({ text, label }: { text: string; label: string }) {
         className="copy-button"
         icon={copied ? "check" : "copy"}
         aria-label={copied ? t`Copied ${text}` : label}
-        onClick={copy}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          copy();
+        }}
       />
       <span className="dw-sr" aria-live="polite">
         {copied ? t`Copied ${text}` : ""}

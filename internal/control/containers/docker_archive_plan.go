@@ -46,7 +46,7 @@ func (h *Handler) planDockerArchive(ctx context.Context, m *v1.PlanDockerMainten
 			return nil, authapi.Invalid(artifact.ErrArchive)
 		}
 		load = proto.CloneOf(load)
-		protection, err := revision.DockerCleanupProtection(ctx, h.db, server, time.Now(), false)
+		protection, err := revision.DockerCleanupProtection(ctx, h.db, server, time.Now(), false, false)
 		if err != nil {
 			return nil, h.internal(ctx, err)
 		}

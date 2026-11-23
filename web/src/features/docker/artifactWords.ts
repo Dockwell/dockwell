@@ -51,34 +51,49 @@ export function useDockerArtifactWords() {
           return t`Docker removed other build cache records`;
         case DockerReceiptReason.CACHE_UNVERIFIED:
           return t`The build cache removal could not be verified`;
+        case DockerReceiptReason.VOLUME_UNVERIFIED:
+          return t`The volume removal could not be verified`;
+        case DockerReceiptReason.VOLUME_REPLACED:
+          return t`A different volume now uses this name`;
         default:
           return "";
       }
     },
-    reason(reason: DockerCleanupReason, kind: DockerCleanupKind): string {
+    reason(reason: DockerCleanupReason, kind: DockerCleanupKind, composeProject?: string): string {
       switch (reason) {
         case DockerCleanupReason.DANGLING:
           return t`Dangling`;
+        case DockerCleanupReason.ANONYMOUS:
+          return t`Anonymous volume`;
         case DockerCleanupReason.UNUSED:
-          return t`Unused`;
+          return kind === DockerCleanupKind.VOLUME ? t`Data is deleted` : t`Unused`;
         case DockerCleanupReason.IDLE:
           return t`Idle build cache`;
         case DockerCleanupReason.IN_USE:
-          return kind === DockerCleanupKind.BUILD_CACHE ? t`In use by builds` : t`In use`;
+          if (kind === DockerCleanupKind.BUILD_CACHE) return t`In use by builds`;
+          if (kind === DockerCleanupKind.VOLUME) return t`Mounted by a container`;
+          return t`In use`;
         case DockerCleanupReason.ROLLBACK:
           return t`Needed for rollback or deployment`;
+        case DockerCleanupReason.BACKUP:
+          return t`Held by a backup or backup schedule`;
+        case DockerCleanupReason.COMPOSE:
+          return composeProject ? t`Belongs to Compose project ${composeProject}` : t`Belongs to a Compose project`;
+        case DockerCleanupReason.SWARM_MANAGER:
+          return t`Swarm manager: remove volumes with docker volume rm`;
+        case DockerCleanupReason.RECENTLY_CREATED:
+          return t`Created less than a minute ago`;
         case DockerCleanupReason.DESIRED:
-          return t`Managed or built-in`;
+          return kind === DockerCleanupKind.VOLUME ? t`Managed by Dockwell` : t`Managed or built-in`;
         case DockerCleanupReason.TAKE_ON:
           return t`Take on before deletion`;
         case DockerCleanupReason.RETAINED:
-          return kind === DockerCleanupKind.LOG
-            ? t`Logs are never removed here`
-            : t`Volumes require take-on before deletion`;
+          return kind === DockerCleanupKind.LOG ? t`Logs are never removed here` : t`Retained for recovery`;
         case DockerCleanupReason.EXACT_REMOVAL_UNAVAILABLE:
           if (kind === DockerCleanupKind.BUILD_CACHE)
             return t`This Docker version can't remove one cache record at a time`;
           if (kind === DockerCleanupKind.NETWORK) return t`Only local networks can be removed here`;
+          if (kind === DockerCleanupKind.VOLUME) return t`Only local volumes can be removed here`;
           return t`This image has tags that could not all be reviewed`;
         case DockerCleanupReason.MULTIPLE_REPOSITORIES:
           return t`Tagged in more than one repository`;

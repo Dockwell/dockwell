@@ -16131,6 +16131,8 @@ type DockerCapabilities struct {
 	ArtifactTransfers      bool `protobuf:"varint,10,opt,name=artifact_transfers,json=artifactTransfers,proto3" json:"artifact_transfers,omitempty"`
 	DaemonSettings         bool `protobuf:"varint,11,opt,name=daemon_settings,json=daemonSettings,proto3" json:"daemon_settings,omitempty"`
 	ContainerLogging       bool `protobuf:"varint,12,opt,name=container_logging,json=containerLogging,proto3" json:"container_logging,omitempty"`
+	VolumeCleanup          bool `protobuf:"varint,13,opt,name=volume_cleanup,json=volumeCleanup,proto3" json:"volume_cleanup,omitempty"`
+	ExtendedCleanup        bool `protobuf:"varint,14,opt,name=extended_cleanup,json=extendedCleanup,proto3" json:"extended_cleanup,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
@@ -16245,6 +16247,20 @@ func (x *DockerCapabilities) GetDaemonSettings() bool {
 func (x *DockerCapabilities) GetContainerLogging() bool {
 	if x != nil {
 		return x.ContainerLogging
+	}
+	return false
+}
+
+func (x *DockerCapabilities) GetVolumeCleanup() bool {
+	if x != nil {
+		return x.VolumeCleanup
+	}
+	return false
+}
+
+func (x *DockerCapabilities) GetExtendedCleanup() bool {
+	if x != nil {
+		return x.ExtendedCleanup
 	}
 	return false
 }
@@ -16748,6 +16764,9 @@ type DockerMaintenancePreviewCall struct {
 	ProtectedImages   []string                 `protobuf:"bytes,2,rep,name=protected_images,json=protectedImages,proto3" json:"protected_images,omitempty"`
 	ProtectedNetworks []string                 `protobuf:"bytes,3,rep,name=protected_networks,json=protectedNetworks,proto3" json:"protected_networks,omitempty"`
 	Fresh             bool                     `protobuf:"varint,4,opt,name=fresh,proto3" json:"fresh,omitempty"`
+	ProtectedVolumes  []string                 `protobuf:"bytes,5,rep,name=protected_volumes,json=protectedVolumes,proto3" json:"protected_volumes,omitempty"`
+	BackupVolumes     []string                 `protobuf:"bytes,6,rep,name=backup_volumes,json=backupVolumes,proto3" json:"backup_volumes,omitempty"`
+	RollbackVolumes   []string                 `protobuf:"bytes,7,rep,name=rollback_volumes,json=rollbackVolumes,proto3" json:"rollback_volumes,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -16810,6 +16829,27 @@ func (x *DockerMaintenancePreviewCall) GetFresh() bool {
 	return false
 }
 
+func (x *DockerMaintenancePreviewCall) GetProtectedVolumes() []string {
+	if x != nil {
+		return x.ProtectedVolumes
+	}
+	return nil
+}
+
+func (x *DockerMaintenancePreviewCall) GetBackupVolumes() []string {
+	if x != nil {
+		return x.BackupVolumes
+	}
+	return nil
+}
+
+func (x *DockerMaintenancePreviewCall) GetRollbackVolumes() []string {
+	if x != nil {
+		return x.RollbackVolumes
+	}
+	return nil
+}
+
 // DockerMaintenancePreviewResult contains the bounded Engine projection.
 type DockerMaintenancePreviewResult struct {
 	state         protoimpl.MessageState    `protogen:"open.v1"`
@@ -16865,11 +16905,14 @@ func (x *DockerMaintenancePreviewResult) GetPause() *v1.DockerCleanupPause {
 
 // DockerCleanupProtection holds the current control-plane dependencies for a server.
 type DockerCleanupProtection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Images        []string               `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"`
-	Networks      []string               `protobuf:"bytes,2,rep,name=networks,proto3" json:"networks,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Images          []string               `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"`
+	Networks        []string               `protobuf:"bytes,2,rep,name=networks,proto3" json:"networks,omitempty"`
+	Volumes         []string               `protobuf:"bytes,3,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	BackupVolumes   []string               `protobuf:"bytes,4,rep,name=backup_volumes,json=backupVolumes,proto3" json:"backup_volumes,omitempty"`
+	RollbackVolumes []string               `protobuf:"bytes,5,rep,name=rollback_volumes,json=rollbackVolumes,proto3" json:"rollback_volumes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *DockerCleanupProtection) Reset() {
@@ -16912,6 +16955,27 @@ func (x *DockerCleanupProtection) GetImages() []string {
 func (x *DockerCleanupProtection) GetNetworks() []string {
 	if x != nil {
 		return x.Networks
+	}
+	return nil
+}
+
+func (x *DockerCleanupProtection) GetVolumes() []string {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+func (x *DockerCleanupProtection) GetBackupVolumes() []string {
+	if x != nil {
+		return x.BackupVolumes
+	}
+	return nil
+}
+
+func (x *DockerCleanupProtection) GetRollbackVolumes() []string {
+	if x != nil {
+		return x.RollbackVolumes
 	}
 	return nil
 }
@@ -18987,7 +19051,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\tresources\x18\x01 \x03(\v2#.dockwell.agent.v1.ObservedResourceR\tresources\"4\n" +
 	"\x10ObservedResource\x12\x17\n" +
 	"\x04spec\x18\x01 \x01(\fH\x00R\x04spec\x88\x01\x01B\a\n" +
-	"\x05_spec\"\x87\x04\n" +
+	"\x05_spec\"\xd9\x04\n" +
 	"\x12DockerCapabilities\x12\x1c\n" +
 	"\tinventory\x18\x01 \x01(\bR\tinventory\x12%\n" +
 	"\x0eexact_terminal\x18\x02 \x01(\bR\rexactTerminal\x12+\n" +
@@ -19001,7 +19065,9 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x12artifact_transfers\x18\n" +
 	" \x01(\bR\x11artifactTransfers\x12'\n" +
 	"\x0fdaemon_settings\x18\v \x01(\bR\x0edaemonSettings\x12+\n" +
-	"\x11container_logging\x18\f \x01(\bR\x10containerLogging\"\x9e\x02\n" +
+	"\x11container_logging\x18\f \x01(\bR\x10containerLogging\x12%\n" +
+	"\x0evolume_cleanup\x18\r \x01(\bR\rvolumeCleanup\x12)\n" +
+	"\x10extended_cleanup\x18\x0e \x01(\bR\x0fextendedCleanup\"\x9e\x02\n" +
 	"\x17DockerInventoryListCall\x127\n" +
 	"\x06filter\x18\x01 \x01(\v2\x1f.dockwell.v1.DockerObjectFilterR\x06filter\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\rR\bpageSize\x12\x19\n" +
@@ -19041,18 +19107,24 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06resync\x18\x04 \x01(\bR\x06resync\x12F\n" +
 	"\x0ehealth_updates\x18\x05 \x03(\v2\x1f.dockwell.v1.DockerHealthUpdateR\rhealthUpdates\x121\n" +
 	"\x12event_stream_ready\x18\x06 \x01(\bH\x00R\x10eventStreamReady\x88\x01\x01B\x15\n" +
-	"\x13_event_stream_ready\"\xcb\x01\n" +
+	"\x13_event_stream_ready\"\xca\x02\n" +
 	"\x1cDockerMaintenancePreviewCall\x12;\n" +
 	"\afilters\x18\x01 \x01(\v2!.dockwell.v1.DockerCleanupFiltersR\afilters\x12)\n" +
 	"\x10protected_images\x18\x02 \x03(\tR\x0fprotectedImages\x12-\n" +
 	"\x12protected_networks\x18\x03 \x03(\tR\x11protectedNetworks\x12\x14\n" +
-	"\x05fresh\x18\x04 \x01(\bR\x05fresh\"\x93\x01\n" +
+	"\x05fresh\x18\x04 \x01(\bR\x05fresh\x12+\n" +
+	"\x11protected_volumes\x18\x05 \x03(\tR\x10protectedVolumes\x12%\n" +
+	"\x0ebackup_volumes\x18\x06 \x03(\tR\rbackupVolumes\x12)\n" +
+	"\x10rollback_volumes\x18\a \x03(\tR\x0frollbackVolumes\"\x93\x01\n" +
 	"\x1eDockerMaintenancePreviewResult\x12:\n" +
 	"\atargets\x18\x01 \x03(\v2 .dockwell.v1.DockerCleanupTargetR\atargets\x125\n" +
-	"\x05pause\x18\x02 \x01(\v2\x1f.dockwell.v1.DockerCleanupPauseR\x05pause\"M\n" +
+	"\x05pause\x18\x02 \x01(\v2\x1f.dockwell.v1.DockerCleanupPauseR\x05pause\"\xb9\x01\n" +
 	"\x17DockerCleanupProtection\x12\x16\n" +
 	"\x06images\x18\x01 \x03(\tR\x06images\x12\x1a\n" +
-	"\bnetworks\x18\x02 \x03(\tR\bnetworks\"r\n" +
+	"\bnetworks\x18\x02 \x03(\tR\bnetworks\x12\x18\n" +
+	"\avolumes\x18\x03 \x03(\tR\avolumes\x12%\n" +
+	"\x0ebackup_volumes\x18\x04 \x03(\tR\rbackupVolumes\x12)\n" +
+	"\x10rollback_volumes\x18\x05 \x03(\tR\x0frollbackVolumes\"r\n" +
 	"\x16CheckDockerNetworkCall\x12\x1f\n" +
 	"\vengine_name\x18\x01 \x01(\tR\n" +
 	"engineName\x127\n" +

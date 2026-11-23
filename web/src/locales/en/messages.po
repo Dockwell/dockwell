@@ -12081,6 +12081,9 @@ msgstr "Upgrade each by running the install script on it once."
 msgid "Upgrade it by running the install script on it once."
 msgstr "Upgrade it by running the install script on it once."
 
+msgid "Volume data is deleted permanently and cannot be undone."
+msgstr "Volume data is deleted permanently and cannot be undone."
+
 msgid "What asks for {shared} there can reach either."
 msgstr "What asks for {shared} there can reach either."
 
@@ -15223,8 +15226,17 @@ msgstr "Uploading build input"
 msgid "Use source Dockerfile"
 msgstr "Use source Dockerfile"
 
+msgid "Additional cleanup options"
+msgstr "Additional cleanup options"
+
 msgid "Checking Docker artifacts"
 msgstr "Checking Docker artifacts"
+
+msgid "Checking remaining Docker artifacts"
+msgstr "Checking remaining Docker artifacts"
+
+msgid "Cleanup"
+msgstr "Cleanup"
 
 msgid "Cleanup candidates changed"
 msgstr "Cleanup candidates changed"
@@ -15232,26 +15244,35 @@ msgstr "Cleanup candidates changed"
 msgid "Cleanup couldn't be read"
 msgstr "Cleanup couldn't be read"
 
-msgid "Cleanup options"
-msgstr "Cleanup options"
-
 msgid "Cleanup paused on {server}"
 msgstr "Cleanup paused on {server}"
 
+msgid "Copy volume name"
+msgstr "Copy volume name"
+
+msgid "Dangling images, build cache, unused networks and anonymous volumes are selected by default."
+msgstr "Dangling images, build cache, unused networks and anonymous volumes are selected by default."
+
+msgid "Data is deleted"
+msgstr "Data is deleted"
+
+msgid "Deselect all"
+msgstr "Deselect all"
+
+msgid "Docker is measuring disk use on these servers"
+msgstr "Docker is measuring disk use on these servers"
+
 msgid "Docker is measuring disk use on this server"
 msgstr "Docker is measuring disk use on this server"
-
-msgid "Include unused images with tags or digests"
-msgstr "Include unused images with tags or digests"
-
-msgid "Include unused networks"
-msgstr "Include unused networks"
 
 msgid "Last used {lastUsed}"
 msgstr "Last used {lastUsed}"
 
 msgid "No eligible artifacts"
 msgstr "No eligible artifacts"
+
+msgid "Open Compose project"
+msgstr "Open Compose project"
 
 msgid "Open container"
 msgstr "Open container"
@@ -15262,28 +15283,70 @@ msgstr "Protected artifacts"
 msgid "Re-enable cleanup"
 msgstr "Re-enable cleanup"
 
-msgid "Review cleanup"
-msgstr "Review cleanup"
+msgid "Refresh"
+msgstr "Refresh"
 
-msgid "Show more artifacts"
-msgstr "Show more artifacts"
+msgid "Refresh cleanup"
+msgstr "Refresh cleanup"
+
+msgid "Select all"
+msgstr "Select all"
+
+msgid "Size unknown"
+msgstr "Size unknown"
+
+msgid "This preview is out of date and can't be reviewed until you refresh."
+msgstr "This preview is out of date and can't be reviewed until you refresh."
+
+msgid "Unused named volume"
+msgstr "Unused named volume"
+
+#. placeholder {0}: unsupportedVolumeNames.join(", ")
+msgid "Update the agent on {0} to remove unused Docker volumes."
+msgstr "Update the agent on {0} to remove unused Docker volumes."
+
+msgid "Volume cleanup needs an agent update"
+msgstr "Volume cleanup needs an agent update"
+
+#. placeholder {0}: optInNamedVolumes.length
+msgid "{0, plural, one {Include unused named volume (#)} other {Include unused named volumes (#)}}"
+msgstr "{0, plural, one {Include unused named volume (#)} other {Include unused named volumes (#)}}"
+
+#. placeholder {0}: optInTaggedImages.length
+msgid "{0, plural, one {Include unused tagged image (#)} other {Include unused tagged images (#)}}"
+msgstr "{0, plural, one {Include unused tagged image (#)} other {Include unused tagged images (#)}}"
 
 #. placeholder {0}: selected.length
 msgid "{0} selected · {estimated} estimated"
 msgstr "{0} selected · {estimated} estimated"
 
-msgid "Before {before} · after {after}"
-msgstr "Before {before} · after {after}"
+msgid "{deferredCount} more after this cleanup"
+msgstr "{deferredCount} more after this cleanup"
+
+#. placeholder {0}: formatBytes(totalFreedBytes, i18n.locale)
+msgid "Freed {0}"
+msgstr "Freed {0}"
 
 msgid "Outcome unknown"
 msgstr "Outcome unknown"
 
-#. placeholder {0}: receipt.recheckedEngineId
-msgid "Verified ID <0>{0}</0>"
-msgstr "Verified ID <0>{0}</0>"
+msgid "{changedCount} changed"
+msgstr "{changedCount} changed"
 
 msgid "{display} estimated"
 msgstr "{display} estimated"
+
+msgid "{failedCount} failed"
+msgstr "{failedCount} failed"
+
+msgid "{hiddenCount, plural, one {Show # more artifact} other {Show # more artifacts}}"
+msgstr "{hiddenCount, plural, one {Show # more artifact} other {Show # more artifacts}}"
+
+msgid "{removedCount} removed"
+msgstr "{removedCount} removed"
+
+msgid "{unknownCount} outcome unknown"
+msgstr "{unknownCount} outcome unknown"
 
 msgid "Can't read Compose projects"
 msgstr "Can't read Compose projects"
@@ -15332,9 +15395,6 @@ msgstr "Ownership"
 
 msgid "Partly running"
 msgstr "Partly running"
-
-msgid "Refresh"
-msgstr "Refresh"
 
 msgid "Show all projects"
 msgstr "Show all projects"
@@ -15625,6 +15685,12 @@ msgstr "Partial count"
 msgid "Reclaimable"
 msgstr "Reclaimable"
 
+msgid "Remove unused"
+msgstr "Remove unused"
+
+msgid "Remove unused build cache"
+msgstr "Remove unused build cache"
+
 msgid "Used"
 msgstr "Used"
 
@@ -15871,6 +15937,9 @@ msgstr "No matching choices"
 msgid "Only local networks can be removed here"
 msgstr "Only local networks can be removed here"
 
+msgid "Review cleanup"
+msgstr "Review cleanup"
+
 msgid "Search networks"
 msgstr "Search networks"
 
@@ -15882,6 +15951,60 @@ msgstr "This network is a shared link"
 
 msgid "This network is gone"
 msgstr "This network is gone"
+
+msgid "Anonymous volumes"
+msgstr "Anonymous volumes"
+
+msgid "Dangling images"
+msgstr "Dangling images"
+
+#. placeholder {0}: optInCandidates.length
+msgid "Include all ({0})"
+msgstr "Include all ({0})"
+
+msgid "Named volumes"
+msgstr "Named volumes"
+
+msgid "No build cache to remove"
+msgstr "No build cache to remove"
+
+msgid "No unused images to remove"
+msgstr "No unused images to remove"
+
+msgid "No unused networks to remove"
+msgstr "No unused networks to remove"
+
+msgid "No unused volumes to remove"
+msgstr "No unused volumes to remove"
+
+msgid "Remove build cache"
+msgstr "Remove build cache"
+
+msgid "Remove unused images"
+msgstr "Remove unused images"
+
+msgid "Remove unused networks"
+msgstr "Remove unused networks"
+
+msgid "Remove unused volume"
+msgstr "Remove unused volume"
+
+msgid "Remove unused volumes"
+msgstr "Remove unused volumes"
+
+msgid "This volume can't be removed here"
+msgstr "This volume can't be removed here"
+
+msgid "Unused tagged images"
+msgstr "Unused tagged images"
+
+#. placeholder {0}: protectedRows.length
+msgid "{0, plural, one {Protected (# item)} other {Protected (# items)}}"
+msgstr "{0, plural, one {Protected (# item)} other {Protected (# items)}}"
+
+#. placeholder {0}: selected.length
+msgid "{0} selected"
+msgstr "{0} selected"
 
 msgid "Browse registry"
 msgstr "Browse registry"
@@ -16187,9 +16310,6 @@ msgstr "All drivers"
 msgid "Anonymous"
 msgstr "Anonymous"
 
-msgid "Docker is measuring disk use on these servers"
-msgstr "Docker is measuring disk use on these servers"
-
 msgid "Docker networks"
 msgstr "Docker networks"
 
@@ -16241,9 +16361,6 @@ msgstr "No pools reported"
 
 msgid "No volumes"
 msgstr "No volumes"
-
-msgid "Size unknown"
-msgstr "Size unknown"
 
 msgid "Volumes couldn't be read"
 msgstr "Volumes couldn't be read"
@@ -16365,6 +16482,9 @@ msgstr "Open current volume"
 msgid "Open files"
 msgstr "Open files"
 
+msgid "Remove volume"
+msgstr "Remove volume"
+
 msgid "The server is slow to check Files access"
 msgstr "The server is slow to check Files access"
 
@@ -16436,11 +16556,26 @@ msgstr "{0} of {1} selected servers answered"
 msgid "{0} running"
 msgstr "{0} running"
 
+msgid "A different volume now uses this name"
+msgstr "A different volume now uses this name"
+
+msgid "Anonymous volume"
+msgstr "Anonymous volume"
+
+msgid "Belongs to Compose project {composeProject}"
+msgstr "Belongs to Compose project {composeProject}"
+
+msgid "Belongs to a Compose project"
+msgstr "Belongs to a Compose project"
+
 msgid "Build cache"
 msgstr "Build cache"
 
 msgid "Cleanup disabled after a build cache removal"
 msgstr "Cleanup disabled after a build cache removal"
+
+msgid "Created less than a minute ago"
+msgstr "Created less than a minute ago"
 
 msgid "Docker artifacts"
 msgstr "Docker artifacts"
@@ -16453,6 +16588,9 @@ msgstr "Docker removed other build cache records"
 
 msgid "Has more than one tag"
 msgstr "Has more than one tag"
+
+msgid "Held by a backup or backup schedule"
+msgstr "Held by a backup or backup schedule"
 
 msgid "Idle build cache"
 msgstr "Idle build cache"
@@ -16469,11 +16607,23 @@ msgstr "Logs are never removed here"
 msgid "Managed or built-in"
 msgstr "Managed or built-in"
 
+msgid "Mounted by a container"
+msgstr "Mounted by a container"
+
 msgid "Needed for rollback or deployment"
 msgstr "Needed for rollback or deployment"
 
+msgid "Only local volumes can be removed here"
+msgstr "Only local volumes can be removed here"
+
+msgid "Retained for recovery"
+msgstr "Retained for recovery"
+
 msgid "Shared storage"
 msgstr "Shared storage"
+
+msgid "Swarm manager: remove volumes with docker volume rm"
+msgstr "Swarm manager: remove volumes with docker volume rm"
 
 msgid "Tagged in more than one repository"
 msgstr "Tagged in more than one repository"
@@ -16484,6 +16634,9 @@ msgstr "Take on before deletion"
 msgid "The build cache removal could not be verified"
 msgstr "The build cache removal could not be verified"
 
+msgid "The volume removal could not be verified"
+msgstr "The volume removal could not be verified"
+
 msgid "This Docker version can't remove one cache record at a time"
 msgstr "This Docker version can't remove one cache record at a time"
 
@@ -16492,9 +16645,6 @@ msgstr "This image has tags that could not all be reviewed"
 
 msgid "Unknown eligibility"
 msgstr "Unknown eligibility"
-
-msgid "Volumes require take-on before deletion"
-msgstr "Volumes require take-on before deletion"
 
 msgid "Writable layers"
 msgstr "Writable layers"
@@ -16525,9 +16675,6 @@ msgstr "Loading the volume"
 
 msgid "Mount target"
 msgstr "Mount target"
-
-msgid "Retained for recovery"
-msgstr "Retained for recovery"
 
 msgid "Some attachments couldn't be listed"
 msgstr "Some attachments couldn't be listed"

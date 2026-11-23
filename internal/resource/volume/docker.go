@@ -82,7 +82,7 @@ func (k *Kept) load() (map[string]kept, error) {
 	return out, nil
 }
 
-// save writes m to the file, then keeps it as the list. If it can't be
+// save writes m to the file durably, then keeps it as the list. If it can't be
 // written, the list stays as it was. Call with mu held.
 func (k *Kept) save(m map[string]kept) error {
 	if k.Path != "" {
@@ -90,14 +90,33 @@ func (k *Kept) save(m map[string]kept) error {
 		if err != nil {
 			return err
 		}
-		tmp := k.Path + ".new"
-		if err := os.MkdirAll(filepath.Dir(k.Path), 0o700); err != nil {
+		dir := filepath.Dir(k.Path)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
 		}
-		if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		tmp := k.Path + ".new"
+		f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // local agent retention state file
+		if err != nil {
+			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+		}
+		_, writeErr := f.Write(b)
+		syncErr := f.Sync()
+		closeErr := f.Close()
+		if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
+			_ = os.Remove(tmp)
 			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
 		}
 		if err := os.Rename(tmp, k.Path); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+		}
+		if parent, err := os.Open(dir); err == nil { //nolint:gosec // local agent retention state directory
+			syncDirErr := parent.Sync()
+			closeDirErr := parent.Close()
+			if err := errors.Join(syncDirErr, closeDirErr); err != nil {
+				return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
+			}
+		} else {
 			return fmt.Errorf("can't keep the list of deleted volumes: %w", err)
 		}
 	}

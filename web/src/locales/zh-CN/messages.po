@@ -12081,6 +12081,9 @@ msgstr "请在每台服务器上运行一次安装脚本来升级。"
 msgid "Upgrade it by running the install script on it once."
 msgstr "请在其上运行一次安装脚本来升级。"
 
+msgid "Volume data is deleted permanently and cannot be undone."
+msgstr "卷数据将被永久删除且无法撤销。"
+
 msgid "What asks for {shared} there can reach either."
 msgstr "在那里请求 {shared} 可能会到达其中任何一个。"
 
@@ -15223,8 +15226,17 @@ msgstr "正在上传构建输入"
 msgid "Use source Dockerfile"
 msgstr "使用源 Dockerfile"
 
+msgid "Additional cleanup options"
+msgstr "其他清理选项"
+
 msgid "Checking Docker artifacts"
 msgstr "正在检查 Docker 对象"
+
+msgid "Checking remaining Docker artifacts"
+msgstr "正在检查其余 Docker 制品"
+
+msgid "Cleanup"
+msgstr "清理"
 
 msgid "Cleanup candidates changed"
 msgstr "可清理对象已变更"
@@ -15232,26 +15244,35 @@ msgstr "可清理对象已变更"
 msgid "Cleanup couldn't be read"
 msgstr "无法读取清理信息"
 
-msgid "Cleanup options"
-msgstr "清理选项"
-
 msgid "Cleanup paused on {server}"
 msgstr "{server} 上的清理已暂停"
 
+msgid "Copy volume name"
+msgstr "复制卷名称"
+
+msgid "Dangling images, build cache, unused networks and anonymous volumes are selected by default."
+msgstr "默认已勾选悬空镜像、构建缓存、未使用的网络和匿名卷。"
+
+msgid "Data is deleted"
+msgstr "数据会被删除"
+
+msgid "Deselect all"
+msgstr "取消全选"
+
+msgid "Docker is measuring disk use on these servers"
+msgstr "Docker 正在测量这些服务器的磁盘用量"
+
 msgid "Docker is measuring disk use on this server"
 msgstr "Docker 正在统计这台服务器的磁盘占用"
-
-msgid "Include unused images with tags or digests"
-msgstr "包括带标签或摘要的未使用镜像"
-
-msgid "Include unused networks"
-msgstr "包含未使用的网络"
 
 msgid "Last used {lastUsed}"
 msgstr "上次使用于 {lastUsed}"
 
 msgid "No eligible artifacts"
 msgstr "没有可清理的对象"
+
+msgid "Open Compose project"
+msgstr "打开 Compose 项目"
 
 msgid "Open container"
 msgstr "打开容器"
@@ -15262,28 +15283,70 @@ msgstr "受保护的对象"
 msgid "Re-enable cleanup"
 msgstr "重新启用清理"
 
-msgid "Review cleanup"
-msgstr "审查清理"
+msgid "Refresh"
+msgstr "刷新"
 
-msgid "Show more artifacts"
-msgstr "显示更多对象"
+msgid "Refresh cleanup"
+msgstr "刷新清理列表"
+
+msgid "Select all"
+msgstr "全选"
+
+msgid "Size unknown"
+msgstr "大小未知"
+
+msgid "This preview is out of date and can't be reviewed until you refresh."
+msgstr "此预览已过期，刷新后才能审查。"
+
+msgid "Unused named volume"
+msgstr "未使用的命名卷"
+
+#. placeholder {0}: unsupportedVolumeNames.join(", ")
+msgid "Update the agent on {0} to remove unused Docker volumes."
+msgstr "更新 {0} 上的代理以移除未使用的 Docker 卷。"
+
+msgid "Volume cleanup needs an agent update"
+msgstr "卷清理需要更新代理"
+
+#. placeholder {0}: optInNamedVolumes.length
+msgid "{0, plural, one {Include unused named volume (#)} other {Include unused named volumes (#)}}"
+msgstr "{0, plural, other {包含未使用的命名卷 (#)}}"
+
+#. placeholder {0}: optInTaggedImages.length
+msgid "{0, plural, one {Include unused tagged image (#)} other {Include unused tagged images (#)}}"
+msgstr "{0, plural, other {包含未使用的带标签镜像 (#)}}"
 
 #. placeholder {0}: selected.length
 msgid "{0} selected · {estimated} estimated"
 msgstr "已选择 {0} 项 · 预计可回收 {estimated}"
 
-msgid "Before {before} · after {after}"
-msgstr "清理前 {before} · 清理后 {after}"
+msgid "{deferredCount} more after this cleanup"
+msgstr "本次清理后还剩 {deferredCount} 项"
+
+#. placeholder {0}: formatBytes(totalFreedBytes, i18n.locale)
+msgid "Freed {0}"
+msgstr "已释放 {0}"
 
 msgid "Outcome unknown"
 msgstr "结果未知"
 
-#. placeholder {0}: receipt.recheckedEngineId
-msgid "Verified ID <0>{0}</0>"
-msgstr "已核对 ID <0>{0}</0>"
+msgid "{changedCount} changed"
+msgstr "{changedCount} 项已变化"
 
 msgid "{display} estimated"
 msgstr "预计可回收 {display}"
+
+msgid "{failedCount} failed"
+msgstr "{failedCount} 项失败"
+
+msgid "{hiddenCount, plural, one {Show # more artifact} other {Show # more artifacts}}"
+msgstr "{hiddenCount, plural, other {再显示 # 项资源}}"
+
+msgid "{removedCount} removed"
+msgstr "{removedCount} 项已移除"
+
+msgid "{unknownCount} outcome unknown"
+msgstr "{unknownCount} 项结果未知"
 
 msgid "Can't read Compose projects"
 msgstr "无法读取 Compose 项目"
@@ -15332,9 +15395,6 @@ msgstr "管理归属"
 
 msgid "Partly running"
 msgstr "部分运行"
-
-msgid "Refresh"
-msgstr "刷新"
 
 msgid "Show all projects"
 msgstr "显示所有项目"
@@ -15625,6 +15685,12 @@ msgstr "部分数据"
 msgid "Reclaimable"
 msgstr "可回收"
 
+msgid "Remove unused"
+msgstr "清理未使用项"
+
+msgid "Remove unused build cache"
+msgstr "清理未使用的构建缓存"
+
 msgid "Used"
 msgstr "已用"
 
@@ -15871,6 +15937,9 @@ msgstr "没有匹配的选项"
 msgid "Only local networks can be removed here"
 msgstr "此处仅可删除本地网络"
 
+msgid "Review cleanup"
+msgstr "审查清理"
+
 msgid "Search networks"
 msgstr "搜索网络"
 
@@ -15882,6 +15951,60 @@ msgstr "此网络是共享链接"
 
 msgid "This network is gone"
 msgstr "此网络已不存在"
+
+msgid "Anonymous volumes"
+msgstr "匿名卷"
+
+msgid "Dangling images"
+msgstr "悬空镜像"
+
+#. placeholder {0}: optInCandidates.length
+msgid "Include all ({0})"
+msgstr "全部包含 ({0})"
+
+msgid "Named volumes"
+msgstr "命名卷"
+
+msgid "No build cache to remove"
+msgstr "没有可移除的构建缓存"
+
+msgid "No unused images to remove"
+msgstr "没有可移除的未使用镜像"
+
+msgid "No unused networks to remove"
+msgstr "没有可移除的未使用网络"
+
+msgid "No unused volumes to remove"
+msgstr "没有可移除的未使用卷"
+
+msgid "Remove build cache"
+msgstr "清理构建缓存"
+
+msgid "Remove unused images"
+msgstr "清理未使用的镜像"
+
+msgid "Remove unused networks"
+msgstr "清理未使用的网络"
+
+msgid "Remove unused volume"
+msgstr "移除未使用的卷"
+
+msgid "Remove unused volumes"
+msgstr "清理未使用的卷"
+
+msgid "This volume can't be removed here"
+msgstr "无法在此处移除该卷"
+
+msgid "Unused tagged images"
+msgstr "未使用的带标签镜像"
+
+#. placeholder {0}: protectedRows.length
+msgid "{0, plural, one {Protected (# item)} other {Protected (# items)}}"
+msgstr "{0, plural, other {受保护 (# 项)}}"
+
+#. placeholder {0}: selected.length
+msgid "{0} selected"
+msgstr "已选择 {0} 项"
 
 msgid "Browse registry"
 msgstr "浏览镜像仓库"
@@ -16187,9 +16310,6 @@ msgstr "所有驱动"
 msgid "Anonymous"
 msgstr "匿名"
 
-msgid "Docker is measuring disk use on these servers"
-msgstr "Docker 正在测量这些服务器的磁盘用量"
-
 msgid "Docker networks"
 msgstr "Docker 网络"
 
@@ -16241,9 +16361,6 @@ msgstr "未报告地址池"
 
 msgid "No volumes"
 msgstr "没有卷"
-
-msgid "Size unknown"
-msgstr "大小未知"
 
 msgid "Volumes couldn't be read"
 msgstr "无法读取卷"
@@ -16365,6 +16482,9 @@ msgstr "打开当前卷"
 msgid "Open files"
 msgstr "打开文件"
 
+msgid "Remove volume"
+msgstr "移除卷"
+
 msgid "The server is slow to check Files access"
 msgstr "服务器检查文件访问权限的速度较慢"
 
@@ -16436,11 +16556,26 @@ msgstr "所选 {1} 台服务器中有 {0} 台已响应"
 msgid "{0} running"
 msgstr "{0} 个正在运行"
 
+msgid "A different volume now uses this name"
+msgstr "已有另一个卷使用此名称"
+
+msgid "Anonymous volume"
+msgstr "匿名卷"
+
+msgid "Belongs to Compose project {composeProject}"
+msgstr "属于 Compose 项目 {composeProject}"
+
+msgid "Belongs to a Compose project"
+msgstr "属于 Compose 项目"
+
 msgid "Build cache"
 msgstr "构建缓存"
 
 msgid "Cleanup disabled after a build cache removal"
 msgstr "删除构建缓存后已停用清理"
+
+msgid "Created less than a minute ago"
+msgstr "创建不足一分钟"
 
 msgid "Docker artifacts"
 msgstr "Docker 对象"
@@ -16453,6 +16588,9 @@ msgstr "Docker 删除了其他构建缓存记录"
 
 msgid "Has more than one tag"
 msgstr "有多个标签"
+
+msgid "Held by a backup or backup schedule"
+msgstr "正由备份或备份计划保留"
 
 msgid "Idle build cache"
 msgstr "闲置的构建缓存"
@@ -16469,11 +16607,23 @@ msgstr "此处不会删除日志"
 msgid "Managed or built-in"
 msgstr "受管理或内置"
 
+msgid "Mounted by a container"
+msgstr "已挂载到容器"
+
 msgid "Needed for rollback or deployment"
 msgstr "回滚或部署所需"
 
+msgid "Only local volumes can be removed here"
+msgstr "此处仅支持移除本地卷"
+
+msgid "Retained for recovery"
+msgstr "保留以供恢复"
+
 msgid "Shared storage"
 msgstr "共享存储"
+
+msgid "Swarm manager: remove volumes with docker volume rm"
+msgstr "Swarm 管理节点：请使用 docker volume rm 移除卷"
 
 msgid "Tagged in more than one repository"
 msgstr "在多个仓库中带有标签"
@@ -16484,6 +16634,9 @@ msgstr "删除前先接管"
 msgid "The build cache removal could not be verified"
 msgstr "无法验证构建缓存的删除结果"
 
+msgid "The volume removal could not be verified"
+msgstr "无法验证卷移除结果"
+
 msgid "This Docker version can't remove one cache record at a time"
 msgstr "此 Docker 版本无法单独删除一条缓存记录"
 
@@ -16492,9 +16645,6 @@ msgstr "无法审查此镜像的全部标签"
 
 msgid "Unknown eligibility"
 msgstr "清理状态未知"
-
-msgid "Volumes require take-on before deletion"
-msgstr "请先接管卷，再删除"
 
 msgid "Writable layers"
 msgstr "可写层"
@@ -16525,9 +16675,6 @@ msgstr "正在加载卷"
 
 msgid "Mount target"
 msgstr "挂载目标"
-
-msgid "Retained for recovery"
-msgstr "保留以供恢复"
 
 msgid "Some attachments couldn't be listed"
 msgstr "部分连接无法列出"

@@ -787,15 +787,19 @@ func (d *Docker) nextNumber(ctx context.Context, t Target, all []*instance) (int
 func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Container, dec resource.Decision, keep *instance, others []*instance, plan *resource.RolloutPlan) error {
 	// One that a stop-first step left under its swap name can't take the name
 	// of its number while the one it was to replace has it: make another.
-	if keep != nil && keep.temp {
-		if slices.ContainsFunc(others, func(o *instance) bool { return o.number == keep.number }) {
-			others, keep = append(others, keep), nil
-		} else {
-			if err := d.Client.RenameContainer(ctx, keep.ID, instanceName(t, keep.number)); err != nil {
-				return fmt.Errorf("can't give the new %s its name: %w", t.Service, err)
-			}
-			keep.temp, keep.Name = false, "/"+instanceName(t, keep.number)
+	if keep != nil && keep.temp && slices.ContainsFunc(others, func(o *instance) bool { return o.number == keep.number }) {
+		others, keep = append(others, keep), nil
+	}
+	for _, old := range others {
+		if err := d.keep(ctx, t, covered(old.Container, spec)); err != nil {
+			return err
 		}
+	}
+	if keep != nil && keep.temp {
+		if err := d.Client.RenameContainer(ctx, keep.ID, instanceName(t, keep.number)); err != nil {
+			return fmt.Errorf("can't give the new %s its name: %w", t.Service, err)
+		}
+		keep.temp, keep.Name = false, "/"+instanceName(t, keep.number)
 	}
 	// What a rollout that stopped partway was stopping is what this one wants: it
 	// has to finish stopping before it can start, or it could stop under what
@@ -873,7 +877,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 	}
 	d.Points.Reach(PointUpstream)
 	for _, o := range others {
-		if err := d.retire(ctx, t, spec, o, plan.Drain); err != nil {
+		if err := d.retire(ctx, t, o, plan.Drain); err != nil {
 			return err
 		}
 	}
@@ -882,7 +886,7 @@ func (d *Docker) startFirst(ctx context.Context, t Target, spec *resourcev1.Cont
 
 // retire takes an old instance out of service: no new requests, what is in
 // flight gets to finish, then it stops and goes.
-func (d *Docker) retire(ctx context.Context, t Target, spec *resourcev1.Container, o *instance, drain time.Duration) error {
+func (d *Docker) retire(ctx context.Context, t Target, o *instance, drain time.Duration) error {
 	if d.Ingress != nil && o.State.Running {
 		resource.Progress(ctx, fmt.Sprintf("Letting what is in flight to the old %s finish, for up to %s", t.Service, human.Duration(drain)))
 		wait, cancel := context.WithTimeout(ctx, drain)
@@ -909,7 +913,6 @@ func (d *Docker) retire(ctx context.Context, t Target, spec *resourcev1.Containe
 	if err := d.Client.RemoveContainer(ctx, o.ID, true); err != nil && !docker.IsNotFound(err) {
 		return fmt.Errorf("can't remove the old %s: %w", t.Service, err)
 	}
-	d.keep(t, covered(o.Container, spec))
 	d.Points.Reach(PointRemoved)
 	if d.Ingress != nil && !o.temp {
 		if err := d.Ingress.RemoveUpstream(ctx, t.instance(o.number)); err != nil {
@@ -1051,6 +1054,14 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 			return owned(Target{Name: final, Project: t.Project, Service: t.Service}, c)
 		}
 	}
+	for _, old := range others {
+		if keep != nil && old.ID == keep.ID {
+			continue
+		}
+		if err := d.keep(ctx, t, covered(old.Container, spec)); err != nil {
+			return err
+		}
+	}
 	name := final
 	id := ""
 	discard := func(err error) error { return err }
@@ -1074,6 +1085,9 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 				return err
 			}
 			if left != nil {
+				if err := d.keep(ctx, t, imageVolumes(left)); err != nil {
+					return err
+				}
 				if err := d.Client.RemoveContainer(ctx, left.ID, true); err != nil && !docker.IsNotFound(err) {
 					return err
 				}
@@ -1123,7 +1137,6 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		}
 		canGoBack = canGoBack && !ran
 		d.forgetRun(o.ID)
-		d.keep(t, covered(o.Container, spec))
 	}
 	d.Points.Reach(PointSwapGone)
 	// The old one is gone: finish the swap even if the caller stops waiting. If
