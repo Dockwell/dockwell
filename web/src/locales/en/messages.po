@@ -2765,8 +2765,8 @@ msgstr "Send {wanted} to {name}"
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "Send {wanted} to {name}, and point {followsApp} at it"
 
-msgid "Set {zone} to Full (strict)"
-msgstr "Set {zone} to Full (strict)"
+msgid "Set {checkedZone} to Full (strict)"
+msgstr "Set {checkedZone} to Full (strict)"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
@@ -4718,6 +4718,12 @@ msgstr "Cloudflare asked Dockwell to wait"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare asked Dockwell to wait. It checks again at {at}"
 
+msgid "Cloudflare doesn't serve this project"
+msgstr "Cloudflare doesn't serve this project"
+
+msgid "Cloudflare doesn't serve this project. An admin can give it access"
+msgstr "Cloudflare doesn't serve this project. An admin can give it access"
+
 msgid "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
 msgstr "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
 
@@ -4798,6 +4804,9 @@ msgstr "Use Full (strict)"
 
 msgid "Use {next}"
 msgstr "Use {next}"
+
+msgid "Use {provider} here"
+msgstr "Use {provider} here"
 
 msgid "Use {under}"
 msgstr "Use {under}"
@@ -8569,6 +8578,9 @@ msgstr "Only on the server instead"
 msgid "Only on the server, at its port"
 msgstr "Only on the server, at its port"
 
+msgid "Set {zone} to Full (strict)"
+msgstr "Set {zone} to Full (strict)"
+
 msgid "Type the app's domain, or install it on the server alone."
 msgstr "Type the app's domain, or install it on the server alone."
 
@@ -11604,6 +11616,9 @@ msgstr "Check that you have another way in, such as your provider's console, bef
 msgid "Checks {domain} every minute"
 msgstr "Checks {domain} every minute"
 
+msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
+msgstr "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
+
 #. placeholder {0}: server.serverName
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "Deny everything else closes what no rule lets in on {0}"
@@ -11616,6 +11631,9 @@ msgstr "Dependency links"
 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
+
+msgid "Developers can publish names in {zones} and prove the names they publish there by DNS."
+msgstr "Developers can publish names in {zones} and prove the names they publish there by DNS."
 
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker cleanup permanently removes the selected Docker artifacts"
@@ -11848,6 +11866,9 @@ msgstr "Moves {names} on, which an install of each can upgrade to."
 
 msgid "Name a network the proxy has to itself."
 msgstr "Name a network the proxy has to itself."
+
+msgid "New projects need an admin to add them before they can publish names through it."
+msgstr "New projects need an admin to add them before they can publish names through it."
 
 msgid "No backup is taken first"
 msgstr "No backup is taken first"
@@ -12324,6 +12345,12 @@ msgstr "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgid "{name} moves back to {to} only if its data allows"
 msgstr "{name} moves back to {to} only if its data allows"
 
+msgid "{name} no longer serves every project"
+msgstr "{name} no longer serves every project"
+
+msgid "{name} no longer serves {project}"
+msgstr "{name} no longer serves {project}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -12356,6 +12383,9 @@ msgstr "{name} sends a certificate's key for {path} to {server} for the first ti
 
 msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
 msgstr "{name} sends the key of the shared certificate for {names} to {server} for the first time"
+
+msgid "{name} serves every project, including new ones"
+msgstr "{name} serves every project, including new ones"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
@@ -14540,6 +14570,9 @@ msgstr "Kept unless you paste one"
 msgid "Make a token at Cloudflare"
 msgstr "Make a token at Cloudflare"
 
+msgid "Pick a project, or serve every project."
+msgstr "Pick a project, or serve every project."
+
 msgid "Prove names by DNS through Cloudflare"
 msgstr "Prove names by DNS through Cloudflare"
 
@@ -14564,6 +14597,9 @@ msgstr "Wrong token"
 
 msgid "Zones"
 msgstr "Zones"
+
+msgid "Use {name} in this project"
+msgstr "Use {name} in this project"
 
 msgid "Both versions are below."
 msgstr "Both versions are below."
@@ -21636,14 +21672,30 @@ msgstr "S3-compatible storage"
 msgid "Says which record to make, then gets the certificate"
 msgstr "Says which record to make, then gets the certificate"
 
+msgid "Serves every project"
+msgstr "Serves every project"
+
+msgid "Serves no project"
+msgstr "Serves no project"
+
+msgid "Serves selected projects"
+msgstr "Serves selected projects"
+
 msgid "Show {hidden} more"
 msgstr "Show {hidden} more"
 
 msgid "Sign-in provider"
 msgstr "Sign-in provider"
 
+msgid "Use it for every project"
+msgstr "Use it for every project"
+
 msgid "Use this login to publish reviewed images."
 msgstr "Use this login to publish reviewed images."
+
+#. placeholder {0}: p.name
+msgid "Use {0} for every project"
+msgstr "Use {0} for every project"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "Values your apps use live in <0>Variables</0>"

@@ -143,6 +143,37 @@ func ZoneOf(zones []string, name string) string {
 	return best
 }
 
+// RoutePublisher is the provider a route asks to write its DNS record, where
+// its way in points that record at its server or that server's tunnel.
+func RoutePublisher(r *resourcev1.Route) string {
+	p := r.GetPublish()
+	switch p.GetWay() {
+	case resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS, resourcev1.RouteWay_ROUTE_WAY_PROXY, resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL:
+		return p.GetProvider()
+	case resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED, resourcev1.RouteWay_ROUTE_WAY_FRONT, resourcev1.RouteWay_ROUTE_WAY_OWN_TUNNEL:
+	}
+	return ""
+}
+
+// ProvingProvider picks the provider that can prove the route's name. A provider
+// may prove any name it covers for a project it names. Every-project reach alone
+// permits proof only through the provider publishing this route's name.
+func ProvingProvider(providers map[string]*resourcev1.DnsProvider, domain, project, publisher string) string {
+	if project == "" {
+		return ""
+	}
+	if p := providers[publisher]; publisher != "" && dnsprovider.Serves(p, project) && ZoneOf(p.GetZones(), domain) != "" {
+		return publisher
+	}
+	best := ""
+	for name, p := range providers {
+		if (best == "" || name < best) && slices.Contains(p.GetProjects(), project) && ZoneOf(p.GetZones(), domain) != "" {
+			best = name
+		}
+	}
+	return best
+}
+
 // Serves says whether a certificate serves project's routes: one that names no
 // project serves none.
 func Serves(c *resourcev1.DnsCertificate, project string) bool {

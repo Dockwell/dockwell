@@ -254,7 +254,7 @@ func TestAReplaceRunAgainKeepsTheBackup(t *testing.T) {
 			Provider: "cloudflare", Action: resource.ProviderReplaceRecord, Target: "example.com", Name: "vpn.example.com", ZoneID: cftest.ZoneID("example.com"),
 			Record: &resource.ProviderRecord{ID: id, Type: "CNAME", Name: "vpn.example.com", Content: recs[0].Content, Proxied: true, TTL: 1, Comment: pub.Comment(routeID)},
 		}
-		if _, err := pub.Apply(t.Context(), "chg_again", revision.PublishRoute{ID: routeID}, again); err != nil {
+		if _, err := pub.Apply(t.Context(), "chg_again", revision.PublishRoute{ID: routeID, Environment: s.env, After: s.published("vpn", "vpn.example.com").GetSpec().GetRoute()}, again); err != nil {
 			t.Fatal(err)
 		}
 		if inRow, _ := s.backupHeld(t, routeID, byHandCNAME.Content); !inRow {

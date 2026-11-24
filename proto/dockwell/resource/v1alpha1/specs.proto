@@ -1894,8 +1894,8 @@ message DnsProvider {
   // DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
   // update to keep it.
   string api_token = 3 [(sensitive) = true];
-  // The projects whose routes' names it proves, by ID. Empty is none: proving a
-  // name by DNS works wherever it points, so an admin says which projects may.
+  // The projects whose routes it proves and publishes names for, by ID. Empty
+  // reaches none unless every_project is set.
   repeated string projects = 4;
   // A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel
   // Edit, and API Tokens Read to check its own rights. Empty, the API token does
@@ -1918,6 +1918,10 @@ message DnsProvider {
   // replaced. It takes an admin, as it writes someone's record, and it's never
   // stored (ADR 0104).
   repeated string put_back = 8;
+  // Publishes for every project, including future projects. For unlisted
+  // projects, DNS-01 proof is limited to names their own routes publish here;
+  // the projects listed beside it may still prove any name in its zones.
+  bool every_project = 9;
 }
 
 // ConnectionSpec is one set of values of one kind that something uses, kind

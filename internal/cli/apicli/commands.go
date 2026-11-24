@@ -451,6 +451,10 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 			cmd.Flags().StringArrayVar(&removeEnv, "remove-env", nil,
 				"one of its own environment variables to take out; repeat it for each. Every other one it has and this doesn't set stays as it is")
 		}
+		keepsReach := v.verb == "update" && kind == "dns.provider"
+		if keepsReach {
+			cmd.Long += " It keeps every-project reach unless you pass --every-project=false."
+		}
 		verb := v.verb
 		cmd.RunE = func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -473,6 +477,11 @@ func kindCommand(env *Env, k *Kind, parent *cobra.Command, o *options) (*cobra.C
 			r := &runner{env: env, opts: o, command: cmd.CommandPath(), choiceFlag: where.flagFor}
 			if keepsEnv {
 				if err := r.keepOwnEnv(cmd.Context(), edit, removeEnv); err != nil {
+					return err
+				}
+			}
+			if keepsReach && !cmd.Flags().Changed("every-project") {
+				if err := r.keepEveryProject(cmd.Context(), edit); err != nil {
 					return err
 				}
 			}

@@ -5,7 +5,9 @@ package publish
 import (
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -134,39 +136,44 @@ func readFor[T any](p *Publisher, t *target, key string, read func() (T, error))
 	return v.(T), nil //nolint:forcetypeassert // only read puts a value under key
 }
 
-// providerFor is the connected provider that serves project and holds name in a
-// zone, or "". No project, for an admin's new website, takes any provider's zone, as
-// its plan adds the project to the provider (ADR 0104, the lead's decision on websites).
-func (p *Publisher) providerFor(ctx context.Context, project, name string) (string, error) {
+// providerFor finds the most specific connected zone that covers the name.
+// Providers that hold that same zone are ranked by whether they serve the project.
+// With no project, an admin's new website can use any provider's zone and add
+// its project in the website's plan.
+func (p *Publisher) providerFor(ctx context.Context, project, name string) (provider, zone string, outside bool, err error) {
 	all, err := p.Providers.All(ctx)
 	if err != nil {
-		return "", err
+		return "", "", false, err
 	}
-	for i := range all {
-		spec := all[i].Spec
-		if project != "" && !dnsprovider.Serves(spec, project) {
-			continue
-		}
-		for _, z := range spec.GetZones() {
-			if dnsprovider.Covers(z, name) {
-				return all[i].Name, nil
+	for _, saved := range all {
+		unreached := project != "" && !dnsprovider.Serves(saved.Spec, project)
+		for _, z := range saved.Spec.GetZones() {
+			if dnsprovider.Covers(z, name) && (len(z) > len(zone) || z == zone && outside && !unreached) {
+				provider, zone, outside = saved.Name, z, unreached
 			}
 		}
 	}
-	return "", nil
+	return provider, zone, outside, nil
 }
 
 // Check says what a connected Cloudflare zone and the server's tunnels say of a name,
-// and each way in, with the one the check would take: nil where no connected
-// provider serving the project holds the name (ADR 0104, section 1).
+// and each way in, with the one the check would take. For zones outside the project
+// it reads nothing at Cloudflare and returns only the reach state below an admin.
 func (p *Publisher) Check(ctx context.Context, a CheckAsk) (out *dockwellv1.CloudflareCheck, err error) {
 	name := strings.ToLower(a.Name)
 	if a.Project == "" && !a.Admin {
 		return nil, nil
 	}
-	provider, err := p.providerFor(ctx, a.Project, name)
+	provider, zone, outside, err := p.providerFor(ctx, a.Project, name)
 	if err != nil || provider == "" {
 		return nil, err
+	}
+	if outside {
+		out := &dockwellv1.CloudflareCheck{State: dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT}
+		if a.Admin {
+			out.Provider, out.Zone = provider, zone
+		}
+		return out, nil
 	}
 	if w := p.waiting(provider); w != nil {
 		return w, nil
@@ -368,7 +375,7 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		if _, err := p.proveTunnel(ctx, a.Server, t, f.GetTunnelId(), facts); err != nil {
 			opt.Off = off(err)
 			if denied(err) && a.Admin {
-				opt.Action, opt.ActionUrl = "Add it to this token", dnsproviders.TokenPage(t.zone.Account)
+				needTunnelEdit(opt, p.tunnelCapabilities(ctx, t, account, a.Fresh).FixURL)
 			}
 			continue
 		}
@@ -381,6 +388,9 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		})
 		if err != nil {
 			opt.Off = off(err)
+			if denied(err) && a.Admin {
+				needTunnelEdit(opt, p.tunnelCapabilities(ctx, t, account, a.Fresh).FixURL)
+			}
 			continue
 		}
 		d, _ := doc.(*Document)
@@ -409,6 +419,13 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		case need.Refused != nil:
 			opt.Off = need.Refused.Error()
 		case !need.Nothing:
+			if a.Admin {
+				caps := p.tunnelCapabilities(ctx, t, account, a.Fresh)
+				if caps.Tunnels == dnsproviders.Lacks {
+					needTunnelEdit(opt, caps.FixURL)
+					continue
+				}
+			}
 			opt.AddsRule = need.Rule.Hostname
 		}
 		if opt.Off == "" && pick == resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED {
@@ -448,6 +465,24 @@ func (p *Publisher) ways(ctx context.Context, a CheckAsk, t *target, name string
 		pick = a.Way
 	}
 	return out, pick, hand
+}
+
+// tunnelCapabilities checks a write right only when a new rule needs it. A token
+// that can't read its own rights can still prove the tunnel and offer a plan.
+func (p *Publisher) tunnelCapabilities(ctx context.Context, t *target, account string, fresh bool) dnsproviders.Capabilities {
+	key := fmt.Sprintf("tunnel-rights:%s:%x", account, sha256.Sum256([]byte(t.tunnels.Token)))
+	if fresh {
+		p.cache.forget(key)
+	}
+	caps, _ := readFor(p, t, key, func() (dnsproviders.Capabilities, error) {
+		return t.tunnels.CheckCapabilities(ctx, []string{account}, false), nil
+	})
+	return caps
+}
+
+func needTunnelEdit(opt *dockwellv1.WayOption, url string) {
+	opt.Off = "The token lacks Cloudflare Tunnel edit"
+	opt.Action, opt.ActionUrl = "Add it to this token", url
 }
 
 // handRuleAt is the rule made by hand in a tunnel's document at name, where one is

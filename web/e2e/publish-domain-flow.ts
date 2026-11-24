@@ -31,7 +31,7 @@ const PID = "4242";
  * Puts a cloudflared run of web-1 in the stand-in /proc, on the server's own network,
  * whose /ready names the stand-in's connector. Its token is made up, with a made-up secret.
  */
-function runCloudflared(proc: string): void {
+export function runCloudflared(proc: string): void {
   mkdirSync(join(proc, "self", "ns"), { recursive: true });
   mkdirSync(join(proc, PID, "ns"), { recursive: true });
   const net = "net:[4026531840]";
@@ -226,6 +226,7 @@ export const flow: Flow = {
           "example.com",
           "--zones",
           "example.org",
+          "--every-project=false",
           "--projects",
           project,
           "--strict-zones",

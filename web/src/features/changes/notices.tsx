@@ -1060,6 +1060,33 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
     switch (note.reason) {
       case "managed_elsewhere":
         return managed(note, key);
+      case "provider_serves_every_project": {
+        const zones = list(note.names.slice(1));
+        return {
+          key,
+          title: t`${name} serves every project, including new ones`,
+          detail: t`Developers can publish names in ${zones} and prove the names they publish there by DNS.`,
+        };
+      }
+      case "provider_serves_selected_projects":
+        return {
+          key,
+          title: t`${name} no longer serves every project`,
+          detail: t`New projects need an admin to add them before they can publish names through it.`,
+        };
+      case "provider_stops_serving": {
+        const project = note.names[1] ?? "";
+        const domains = list(note.names.slice(2));
+        return {
+          key,
+          title: t`${name} no longer serves ${project}`,
+          ...(domains
+            ? {
+                detail: t`DNS records for ${domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing.`,
+              }
+            : {}),
+        };
+      }
       case "workload_stops":
         return {
           key,

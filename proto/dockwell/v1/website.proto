@@ -273,6 +273,24 @@ message UpdateWebsiteRequest {
   // provider doesn't serve the website's project, the same change adds it, which
   // takes an admin.
   dockwell.resource.v1alpha1.RoutePublish publish = 5;
+  // Sets the way in for one of the website's domains. The other domains keep
+  // their own settings. Use either this or publish.
+  WebsiteDomainFront domain_front = 6;
+}
+
+// WebsiteDomainFront is how traffic reaches one of a website's domains.
+message WebsiteDomainFront {
+  // The website's main domain or a name in redirect_from.
+  string domain = 1;
+  // Empty gives this server its own certificate, "off" lets a proxy end HTTPS.
+  string tls = 2;
+  // The proxies the route trusts to tell it where a visitor came from.
+  repeated string trusted_proxies = 3;
+  // How Dockwell publishes the name. Unset leaves publishing to what's in front.
+  dockwell.resource.v1alpha1.RoutePublish publish = 4;
+  // Whether the route answers anyone over plain HTTP. Unset keeps the choice for
+  // a route with TLS off. A route that takes a certificate does not use it.
+  optional bool plain_for_anyone = 5;
 }
 
 // UpdateWebsiteResponse carries the planned change.

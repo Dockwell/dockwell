@@ -179,10 +179,9 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// Serves says whether a provider proves names for project's routes: one that names
-// no project proves none.
+// Serves says whether a provider publishes names for the project.
 func Serves(p *resourcev1.DnsProvider, project string) bool {
-	return slices.Contains(p.GetProjects(), project)
+	return project != "" && (p.GetEveryProject() || slices.Contains(p.GetProjects(), project))
 }
 
 // Serving is p as the edit that has it serve project too, or nil where it serves it

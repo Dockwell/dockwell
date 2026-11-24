@@ -14,6 +14,7 @@ import (
 
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -74,6 +75,28 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	if s.Skip {
 		return "", letGo{s.Routing}
 	}
+	// Revising a route and taking its steps are separate. Read reach again at
+	// the publishing step, before any Cloudflare call. Cleanup and restores can
+	// still give back what Dockwell managed before the project lost access.
+	switch s.Action {
+	case resource.ProviderCreateRecord, resource.ProviderReplaceRecord, resource.ProviderTakeOnRecord,
+		resource.ProviderAddRule, resource.ProviderTakeOnRule, resource.ProviderMoveRule:
+		if s.HandOverTo == "" {
+			if err := p.checkReach(ctx, route, s.Provider); err != nil {
+				return "", err
+			}
+		}
+	case resource.ProviderRestoreRule:
+		// Putting a hand rule back while a route publishes again holds it for the
+		// route, which is publishing, so it needs reach as any write does.
+		if s.Mode == backHold {
+			if err := p.checkReach(ctx, route, s.Provider); err != nil {
+				return "", err
+			}
+		}
+	case resource.ProviderDeleteRecord, resource.ProviderRestoreRecord, resource.ProviderRemoveRule,
+		resource.ProviderKeepRule, resource.ProviderSetZoneMode:
+	}
 	switch s.Action {
 	case resource.ProviderCreateRecord, resource.ProviderRestoreRecord:
 		return p.createRecord(ctx, changeID, route, s, "")
@@ -110,6 +133,25 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 	return "", fmt.Errorf("a step of kind %d at Cloudflare isn't one this control plane takes yet. Upgrade it, then try again", s.Action)
 }
 
+func (p *Publisher) checkReach(ctx context.Context, route revision.PublishRoute, provider string) error {
+	project := route.Project
+	if project == "" {
+		var err error
+		if project, err = p.ProjectOf(ctx, route.Environment); err != nil {
+			return err
+		}
+	}
+	name := route.After.GetDomain()
+	saved, err := p.Providers.Named(ctx, provider)
+	if err != nil {
+		return Unreadable{fmt.Errorf("%s names the DNS provider %s, which isn't connected. Ask an admin to connect it again", name, provider)}
+	}
+	if !dnsprovider.Serves(saved.Spec, project) {
+		return outsideProject(provider, name)
+	}
+	return nil
+}
+
 // zoneOf reaches the zone a step names, with its provider's token.
 func (p *Publisher) zoneOf(ctx context.Context, s resource.ProviderStep) (*target, error) {
 	t, err := p.target(ctx, s.Provider, s.Name)
@@ -142,7 +184,7 @@ func (p *Publisher) createRecord(ctx context.Context, changeID string, route rev
 	atNow := map[string]bool{}
 	for _, x := range there {
 		atNow[x.ID] = true
-		if x.Type == want.Type && x.Content == want.Content && x.Comment == want.Comment {
+		if x.Type == want.Type && x.Content == want.Content && x.Proxied == want.Proxied && x.Comment == want.Comment {
 			got = x
 		}
 	}
@@ -403,6 +445,9 @@ func (p *Publisher) takeOnRecord(ctx context.Context, changeID string, route rev
 	there, err := t.cf.RecordByID(ctx, t.zone, s.Record.ID)
 	if err != nil {
 		return "", fmt.Errorf("can't read the record at %s to take it on: %w", s.Name, err)
+	}
+	if !strings.EqualFold(there.Name, s.Name) || there.Type != s.Record.Type || there.Content != s.Record.Content || there.Proxied != s.Record.Proxied {
+		return "", fmt.Errorf("%s changed at Cloudflare after this change was planned. Plan it again", s.Name)
 	}
 	now := p.now()
 	return "", p.DB.Update(ctx, func(tx *store.Tx) error {

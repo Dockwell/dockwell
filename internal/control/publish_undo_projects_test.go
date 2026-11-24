@@ -4,10 +4,12 @@ package control
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/store"
@@ -88,6 +90,93 @@ func TestUndoingOneOfTwoPublishedWebsitesTakesOutOnlyItsProject(t *testing.T) {
 		undo(second)
 		if got := providerProjects(t, s); !slices.Equal(got, []string{s.project}) {
 			t.Fatalf("after undoing both, the provider serves %v, want only %s", got, s.project)
+		}
+	})
+}
+
+// An existing website can publish a new alias without changing how its main name
+// or its other aliases are reached. Later website edits keep the alias published.
+func TestAWebsiteAliasHasItsOwnWayIn(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	s.applied(t, propose(t, s.person, "Use Cloudflare for every project", s.provider(func(p *resourcev1.DnsProvider) {
+		p.EveryProject, p.Projects = true, nil
+	})))
+	wc := websiteClient(s.b, s.b.origin)
+	spec := onPort3000()
+	spec.RedirectFrom = []string{"old.example.org"}
+	made, err := wc.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+		Domain: "site.example.org", Website: spec,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.applied(t, made.Msg.GetChange())
+	site := ""
+	for _, r := range made.Msg.GetChange().GetPlan().GetResources() {
+		if r.GetResource().GetKind() == "project" {
+			site = r.GetId()
+		}
+	}
+	if site == "" {
+		t.Fatal("the website has no project")
+	}
+	spec.RedirectFrom = append(spec.RedirectFrom, "site.example.com")
+	update := func(front *dockwellv1.WebsiteDomainFront) {
+		t.Helper()
+		changed, err := wc.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{
+			Id: site, Website: spec, DomainFront: front,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.applied(t, changed.Msg.GetChange())
+		if got := recordNames(s); !slices.Equal(got, []string{"site.example.com"}) {
+			t.Fatalf("the alias should be the only published record: %v", got)
+		}
+	}
+	update(&dockwellv1.WebsiteDomainFront{
+		Domain: "site.example.com", Tls: "off", TrustedProxies: []string{"127.0.0.1"}, Publish: throughWebOne(),
+	})
+	spec.GetProxy().Port = 3001
+	update(nil)
+}
+
+func TestWebsiteDomainFrontRefusesAProviderOutsideItsProject(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		wc := websiteClient(s.b, s.b.origin)
+		spec := onPort3000()
+		made, err := wc.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+			Domain: "site.example.org", Website: spec,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := made.Msg.GetChange()
+		s.applied(t, ch)
+		var site string
+		for _, r := range ch.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "project" {
+				site = r.GetId()
+			}
+		}
+		if site == "" {
+			t.Fatal("the website has no project")
+		}
+		spec.RedirectFrom = []string{"site.example.com"}
+		before := len(s.cf.Calls())
+		_, err = wc.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{
+			Id: site, Website: spec, DomainFront: &dockwellv1.WebsiteDomainFront{
+				Domain: "site.example.com", Tls: "off", TrustedProxies: []string{"127.0.0.1"}, Publish: throughWebOne(),
+			},
+		}))
+		if err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+			t.Fatalf("domainFront should be outside the provider's reach: %v", err)
+		}
+		if len(s.cf.Calls()) != before {
+			t.Fatalf("the website plan contacted Cloudflare: %v", s.cf.Calls()[before:])
 		}
 	})
 }

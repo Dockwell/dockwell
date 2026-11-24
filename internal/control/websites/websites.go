@@ -472,6 +472,50 @@ func publishedFront(front website.Front, publish *resourcev1.RoutePublish) websi
 	return front
 }
 
+// domainFront changes the way in and keeps the settings it can still use.
+func domainFront(was website.Front, asked *dockwellv1.WebsiteDomainFront) website.Front {
+	sameWay := was.TLS == asked.GetTls() && was.Publish.GetWay() == asked.GetPublish().GetWay()
+	was.TLS, was.TrustedProxies = asked.GetTls(), asked.GetTrustedProxies()
+	was.Publish = nil
+	if was.TLS == ingress.TLSOff {
+		was.Proof = ""
+		switch {
+		case asked.PlainForAnyone != nil:
+			was.PlainForAnyone = asked.GetPlainForAnyone()
+		case asked.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED && asked.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT:
+			// Behind a tunnel or Cloudflare's proxy, plain HTTP stays closed to anyone
+			// at the server unless the person asks for it again.
+			was.PlainForAnyone = false
+		}
+	} else {
+		was.PlainForAnyone = false
+	}
+	front := publishedFront(was, asked.GetPublish())
+	if sameWay {
+		front.Proof = was.Proof
+	}
+	return front
+}
+
+// keepRedirectFronts preserves the way in for each existing alias as the site is
+// edited, including the old main domain when it becomes a redirect.
+func keepRedirectFronts(serving website.Serving, s *site) {
+	for domain, r := range serving.Redirects {
+		was := s.specs[s.redirects[domain]]
+		if domain == s.rt.GetDomain() {
+			was = s.rt
+		}
+		if was != nil {
+			setRedirectFront(r, website.FrontOf(was))
+		}
+	}
+}
+
+func setRedirectFront(r *resourcev1.Route, front website.Front) {
+	r.Tls, r.TrustedProxies, r.PlainForAnyone = front.TLS, front.TrustedProxies, front.PlainForAnyone
+	r.Publish, r.Proof = front.Publish, front.Proof
+}
+
 // servedBy is the edit that has publish's DNS provider serve project, where it
 // doesn't yet: an admin's, as a provider is, so the plan shows it as its own step.
 func (h *Handler) servedBy(ctx context.Context, publish *resourcev1.RoutePublish, project string) ([]*dockwellv1.Edit, error) {
@@ -574,7 +618,26 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := overlaps(all, s.project.ID, root, php, s.placed); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	serving := website.Resources(spec, domain, publishedFront(website.FrontOf(s.rt), m.GetPublish()))
+	requested := m.GetDomainFront()
+	if requested != nil && m.GetPublish() != nil {
+		return nil, authapi.Invalid(errors.New("choose publishing for the whole website or give one domain its own way in"))
+	}
+	asked := strings.ToLower(strings.TrimSpace(requested.GetDomain()))
+	if requested != nil && asked != domain && !slices.Contains(spec.GetRedirectFrom(), asked) {
+		return nil, authapi.Invalid(errors.New("the domain with its own way in needs to be the website's main domain or one of its redirects"))
+	}
+	front := publishedFront(website.FrontOf(s.rt), m.GetPublish())
+	if requested != nil && asked == domain {
+		front = domainFront(front, requested)
+	}
+	serving := website.Resources(spec, domain, front)
+	if m.GetPublish() == nil {
+		keepRedirectFronts(serving, s)
+	}
+	if requested != nil && asked != domain {
+		redirect := serving.Redirects[asked]
+		setRedirectFront(redirect, domainFront(website.FrontOf(redirect), requested))
+	}
 	keepEdits(serving, s)
 	served, err := h.servedBy(ctx, m.GetPublish(), s.project.ID)
 	if err != nil {

@@ -209,9 +209,13 @@ func (m *Manager) wants(ctx context.Context) (map[Holder]*want, map[string][]str
 			if err != nil {
 				return err
 			}
+			published, err := publishedBy(ctx, tx, providers, r.ID, rt)
+			if err != nil {
+				return err
+			}
 			for _, server := range placed {
 				if _, ok := live[server]; ok {
-					m.place(out, shared, providers, rt.GetDomain(), project, server, panels)
+					m.place(out, shared, providers, rt.GetDomain(), project, server, panels, published)
 				}
 			}
 		}
@@ -290,11 +294,40 @@ func (m *Manager) providerSpecs(ctx context.Context, tx *store.Tx) (map[string]*
 	return out, nil
 }
 
+// publishedBy checks the receipt of the route's publishing step before
+// every-project reach can be used for an order. Revisions are committed before
+// that step runs, so the route's spec alone cannot authorize an order.
+func publishedBy(ctx context.Context, tx *store.Tx, providers map[string]*resourcev1.DnsProvider, id string, rt *resourcev1.Route) (string, error) {
+	name := certificate.RoutePublisher(rt)
+	if name == "" || !providers[name].GetEveryProject() {
+		return name, nil
+	}
+	records, err := tx.CloudflareRecordsOf(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	for i := range records {
+		r := &records[i]
+		if r.Provider != name || r.Name != rt.GetDomain() || r.State != store.CloudflarePublished {
+			continue
+		}
+		p := rt.GetPublish()
+		if p.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL {
+			if r.Type == "CNAME" && r.Content == p.GetTunnel()+".cfargotunnel.com" {
+				return name, nil
+			}
+		} else if (r.Type == "A" || r.Type == "AAAA") && r.Proxied == (p.GetWay() == resourcev1.RouteWay_ROUTE_WAY_PROXY) {
+			return name, nil
+		}
+	}
+	return "", nil
+}
+
 // place puts a route's domain on server under the certificate that serves it there:
 // a shared one that covers it and serves its project, as certificate.Serving picks,
 // whose names its provider's zones hold, and otherwise the server's own, through a
 // provider that holds its zone and proves its project's names.
-func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs map[string]*resourcev1.DnsProvider, domain, project, server string, panels []string) {
+func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs map[string]*resourcev1.DnsProvider, domain, project, server string, panels []string, published string) {
 	if c, ok := certificate.Serving(shared, domain, project, server, m.controlServer(), panels); ok {
 		p := specs[c.Spec.GetDnsProvider()]
 		if p == nil || certificate.Outside(c.Spec.GetDomains(), p.GetZones()) != "" {
@@ -313,19 +346,7 @@ func (m *Manager) place(out map[Holder]*want, shared []certificate.Shared, specs
 		w.Serves[server] = append(w.Serves[server], domain)
 		return
 	}
-	provider := ""
-	names := make([]string, 0, len(specs))
-	for name := range specs {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		spec := specs[name]
-		if dnsprovider.Serves(spec, project) && certificate.ZoneOf(spec.GetZones(), domain) != "" {
-			provider = name
-			break
-		}
-	}
+	provider := certificate.ProvingProvider(specs, domain, project, published)
 	if provider == "" {
 		return
 	}

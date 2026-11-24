@@ -93,7 +93,6 @@ func (p *Publisher) Comment(routeID string) string {
 // target is where a route publishes: its provider, its token's API, and its zone.
 type target struct {
 	provider string
-	spec     *resourcev1.DnsProvider
 	cf       *dnsproviders.Cloudflare
 	tunnels  *dnsproviders.Cloudflare
 	zone     dnsproviders.Zone
@@ -106,6 +105,11 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	if err != nil {
 		return nil, Unreadable{fmt.Errorf("%s names the DNS provider %s, which isn't connected", name, provider)}
 	}
+	return p.targetFrom(ctx, saved, name)
+}
+
+func (p *Publisher) targetFrom(ctx context.Context, saved dnsproviders.Saved, name string) (*target, error) {
+	provider := saved.Name
 	api, err := p.Providers.APIFor(saved.Spec.GetProvider(), saved.Spec.GetApiToken())
 	if err != nil {
 		return nil, err
@@ -114,7 +118,7 @@ func (p *Publisher) target(ctx context.Context, provider, name string) (*target,
 	if !ok {
 		return nil, errors.New("only a Cloudflare provider publishes domains")
 	}
-	t := &target{provider: provider, spec: saved.Spec, cf: cf, tunnels: cf}
+	t := &target{provider: provider, cf: cf, tunnels: cf}
 	if second := saved.Spec.GetTunnelApiToken(); second != "" {
 		if api, err := p.Providers.APIFor(saved.Spec.GetProvider(), second); err == nil {
 			if c, ok := api.(*dnsproviders.Cloudflare); ok {
@@ -284,9 +288,7 @@ func (p *Publisher) Plan(ctx context.Context, changeID string, routes []revision
 	// What the change's own providers serve after it, by name.
 	serving := map[string]*resourcev1.DnsProvider{}
 	for _, pp := range providers {
-		if pp.After != nil {
-			serving[pp.Ref.Name] = pp.After
-		}
+		serving[pp.Ref.Name] = pp.After
 	}
 	for i := range routes {
 		steps, err := p.planRoute(ctx, routes[i], rules, inChange, serving)
@@ -438,6 +440,10 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	return append(steps, removal...), nil
 }
 
+func outsideProject(provider, name string) error {
+	return fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. Ask an admin to add the project to the provider", provider, name)
+}
+
 // planWrites plans what a route publishes: its records, and its tunnel's rule.
 func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, map[string]bool, error) {
 	name := strings.ToLower(r.After.GetDomain())
@@ -448,14 +454,23 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			return nil, nil, err
 		}
 	}
-	t, err := p.target(ctx, pub.GetProvider(), name)
+	provider := pub.GetProvider()
+	saved, err := p.Providers.Named(ctx, provider)
+	if err != nil {
+		return nil, nil, Unreadable{fmt.Errorf("%s names the DNS provider %s, which isn't connected", name, provider)}
+	}
+	// The change's proposed reach takes precedence over what is saved (ADR 0104).
+	spec := saved.Spec
+	if edited, ok := serving[provider]; ok {
+		spec = edited
+	}
+	if !dnsprovider.Serves(spec, project) {
+		return nil, nil, outsideProject(provider, name)
+	}
+	saved.Spec = spec
+	t, err := p.targetFrom(ctx, saved, name)
 	if err != nil {
 		return nil, nil, err
-	}
-	// Writing at Cloudflare follows the provider's reach (ADR 0104, section 5).
-	// A provider this change has serve the project counts, as a new website's does.
-	if !dnsprovider.Serves(t.spec, project) && !dnsprovider.Serves(serving[t.provider], project) {
-		return nil, nil, fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. An admin adds the project to the provider", t.provider, name)
 	}
 	way := pub.GetWay()
 	if pastCertificate(t.zone.Name, name) && way != resourcev1.RouteWay_ROUTE_WAY_OWN_HTTPS {
@@ -524,7 +539,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			continue
 		}
 		switch {
-		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content:
+		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content && conflict.Proxied == d.Proxied:
 			// Free, or written for this route by a step a crash cut short, which
 			// writing finds and keeps. A record of Dockwell's of this type that's gone
 			// from there is written again, so it isn't removed as well.
@@ -547,7 +562,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			base.Record.ID = conflict.ID
 			keep[conflict.ID] = true
 			steps = append(steps, step(r, resource.ActionUpdate, base))
-		case conflict.Type == d.Type && conflict.Content == d.Content:
+		case conflict.Type == d.Type && conflict.Content == d.Content && conflict.Proxied == d.Proxied:
 			// Made by hand, and pointing where Dockwell would: taken on, writing
 			// nothing, with consent.
 			if !consented(conflict.ID) {

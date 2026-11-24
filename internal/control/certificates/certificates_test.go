@@ -58,9 +58,9 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	panel := []string{"panel.example.com"}
 
 	out := map[Holder]*want{}
-	m.place(out, []certificate.Shared{nobody}, providers, "a.example.com", "prj_shop", "srv_1", panel)
-	m.place(out, []certificate.Shared{nobody}, providers, "b.example.com", "prj_shop", "srv_1", panel)
-	m.place(out, []certificate.Shared{nobody}, providers, "c.example.com", "prj_shop", "srv_2", panel)
+	m.place(out, []certificate.Shared{nobody}, providers, "a.example.com", "prj_shop", "srv_1", panel, "")
+	m.place(out, []certificate.Shared{nobody}, providers, "b.example.com", "prj_shop", "srv_1", panel, "")
+	m.place(out, []certificate.Shared{nobody}, providers, "c.example.com", "prj_shop", "srv_2", panel, "")
 	if w := out["srv_1"]; w == nil || strings.Join(w.Names, ",") != "a.example.com,b.example.com" || strings.Join(w.Serves["srv_1"], ",") != "a.example.com,b.example.com" || out["crt_nobody"] != nil {
 		t.Errorf("a shared certificate that names no project, or a server's own: %+v", out)
 	}
@@ -69,8 +69,8 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	}
 
 	out = map[Holder]*want{}
-	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_control", panel)
-	m.place(out, []certificate.Shared{wild}, providers, "b.example.com", "prj_shop", "srv_1", panel)
+	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_control", panel, "")
+	m.place(out, []certificate.Shared{wild}, providers, "b.example.com", "prj_shop", "srv_1", panel, "")
 	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_control"}) || !slices.Equal(w.Serves["srv_control"], []string{"a.example.com"}) {
 		t.Errorf("a wildcard over the panel's domain went beyond the control server: %+v", w)
 	}
@@ -82,25 +82,25 @@ func TestWhichCertificateServesARoute(t *testing.T) {
 	// does a name under it.
 	for _, c := range []certificate.Shared{wild, shared("crt_under", []string{"prj_shop"}, "a.example.com", "shop.panel.example.com")} {
 		out = map[Holder]*want{}
-		m.place(out, []certificate.Shared{c}, providers, "a.example.com", "prj_shop", "srv_1", []string{"", "panel.example.com"})
+		m.place(out, []certificate.Shared{c}, providers, "a.example.com", "prj_shop", "srv_1", []string{"", "panel.example.com"}, "")
 		if out[c.ID] != nil || out["srv_1"] == nil {
 			t.Errorf("%s, by the panel's saved domain, went to another server: %+v", c.ID, out)
 		}
 	}
 
 	out = map[Holder]*want{}
-	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_1", []string{"panel.example.org"})
+	m.place(out, []certificate.Shared{wild}, providers, "a.example.com", "prj_shop", "srv_1", []string{"panel.example.org"}, "")
 	if w := out["crt_wild"]; w == nil || !slices.Equal(w.Servers, []string{"srv_1"}) {
 		t.Errorf("a shared wildcard doesn't serve its project: %+v", out)
 	}
 	out = map[Holder]*want{}
-	m.place(out, nil, providers, "a.example.com", "prj_blog", "srv_1", panel)
+	m.place(out, nil, providers, "a.example.com", "prj_blog", "srv_1", panel, "")
 	if len(out) != 0 {
 		t.Errorf("a provider proved a name for a project it doesn't name: %+v", out)
 	}
 	// A shared certificate with a name outside its provider's zones isn't ordered.
 	out = map[Holder]*want{}
-	m.place(out, []certificate.Shared{shared("crt_wide", []string{"prj_shop"}, "*.example.com", "example.net")}, providers, "a.example.com", "prj_shop", "srv_1", panel)
+	m.place(out, []certificate.Shared{shared("crt_wide", []string{"prj_shop"}, "*.example.com", "example.net")}, providers, "a.example.com", "prj_shop", "srv_1", panel, "")
 	if out["crt_wide"] != nil {
 		t.Errorf("a certificate with a name outside its provider's zones: %+v", out)
 	}
