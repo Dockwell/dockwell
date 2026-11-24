@@ -460,7 +460,7 @@ func needsPerson(p *dockwellv1.Plan) bool {
 // gets onto it, which take a person's passkey whatever they do (ADR 0052). The
 // server refuses a token any plan with one, so the CLI says so before asking
 // (#850's review, L2). A test in internal/cli holds it to the control plane's.
-var AccessKinds = []string{"firewall.rule", "firewall.policy", "fail2ban.jail"}
+var AccessKinds = []string{"firewall.rule", "firewall.policy", "fail2ban.jail", "ssh.config"}
 
 // touchesAccess reports a plan with a step of one of AccessKinds.
 func touchesAccess(p *dockwellv1.Plan) bool {

@@ -1795,6 +1795,7 @@ message Spec {
     FirewallPolicy firewall_policy = 40;
     // One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
     // apart, as open work adds to this message.
+    SshConfig ssh_config = 42;
     Jail fail2ban_jail = 41;
     // A volume in an environment, kind "volume".
     Volume volume = 6;
@@ -1859,6 +1860,19 @@ message Spec {
     // block Git providers hold, 130 to 139.
     GitHubApp github_app = 130;
   }
+}
+
+// SshConfig is Dockwell's SSH daemon drop-in. Unset fields follow the server.
+message SshConfig {
+  optional bool password_login = 1;
+  optional bool key_login = 2;
+  // OpenSSH PermitRootLogin, as yes, prohibit-password, or no.
+  string root_login = 3;
+  uint32 port = 4;
+  // Numeric IP addresses, with no ports. Empty follows the server.
+  repeated string listen_addresses = 5;
+  // Local administrator whose new SSH connection proves access.
+  string account = 6;
 }
 
 // DnsCertificate is a certificate the control plane proves by DNS-01 through a DNS

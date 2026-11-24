@@ -584,6 +584,7 @@ message ChangeConfirmation {
   google.protobuf.Timestamp deadline = 2;
   // The ports the server's SSH listens on now, for the test the person runs
   // before confirming: a new SSH session, from where they are, with their key.
+  string ssh_account = 4;
   repeated uint32 ssh_ports = 3;
 }
 

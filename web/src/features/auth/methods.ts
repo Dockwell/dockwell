@@ -223,6 +223,12 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   // The SSH and fail2ban cards are on the Firewall tab, offered where its read is.
   "FirewallService.getServerFail2ban": { within: "FirewallService.getServerFirewall" },
   "FirewallService.getServerSsh": { within: "FirewallService.getServerFirewall" },
+  "FirewallService.listServerSshKeys": "may",
+  "FirewallService.editServerSshKey": "may",
+  "FirewallService.listServerSshSessions": "may",
+  "FirewallService.disconnectServerSshSession": "may",
+  "FirewallService.listServerSshLogins": "may",
+  "FirewallService.banServerSshAddress": "may",
 
   "GitHookService.createGitHook": "may",
   "GitHookService.deleteGitHook": "may",

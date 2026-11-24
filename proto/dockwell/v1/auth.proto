@@ -1153,6 +1153,9 @@ enum StepUpAction {
   STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD = 262;
   // Keeping the current password and forgetting a rotation's new one, by the
   // install's project ID (ADR 0105).
+  STEP_UP_ACTION_EDIT_SSH_KEY = 264;
+  STEP_UP_ACTION_DISCONNECT_SSH_SESSION = 265;
+  STEP_UP_ACTION_BAN_SSH_ADDRESS = 266;
   STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD = 263;
   // Reveals one of a service's own environment variables that reads hidden.
   // Its target is the service's ID and the name, as "svc_…:NAME". Numbered

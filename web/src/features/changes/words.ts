@@ -170,6 +170,8 @@ export function useChangeWords(): ChangeWords {
             return t`network`;
           case "route":
             return t`route`;
+          case "ssh.config":
+            return t`SSH settings`;
           case "firewall.rule":
             return t`firewall rule`;
           case "variable":

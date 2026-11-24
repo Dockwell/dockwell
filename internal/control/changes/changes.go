@@ -520,6 +520,16 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
 		}
 		giveBack = back
+	case r.State == store.ChangePlanned && slices.ContainsFunc(r.Plan.Resources, func(r revision.ResourcePlan) bool { return r.Ref.Kind == "ssh.config" }):
+		target := r.ID + ":" + r.Fingerprint
+		if req.Msg.GetProof() == "" {
+			return nil, stepUpNeeded(auth.ErrNeedsStepUp, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
+		}
+		back, err := h.auth.HoldStepUp(ctx, client, p, req.Msg.GetProof(), auth.StepUpApproveChange, target)
+		if err != nil {
+			return nil, stepUpNeeded(err, dockwellv1.StepUpAction_STEP_UP_ACTION_APPROVE_CHANGE, target)
+		}
+		giveBack = back
 	case approve.Protected && approve.Theirs:
 		// One passkey approves the plan, root's included: it's bound to its fingerprint.
 		target := r.ID + ":" + r.Fingerprint
@@ -631,6 +641,8 @@ func verdictError(changeID string, v resource.AccessVerdict) error {
 		// A change to several servers waits on each in turn, so the session stays
 		// the one to confirm it until it's over.
 		return nil
+	case resource.AccessNotProved:
+		return authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("open a fresh SSH connection on the new settings before keeping this change"), "ssh_not_proved")
 	case resource.AccessRolledBack:
 		return authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("the server's time for %s ran out before the confirmation reached it, so it put back its firewall as it was, and the change rolls back", changeID), "rolled_back")
@@ -1723,7 +1735,7 @@ func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {
 	}
 	p.Did = resourcepb.Did(s.Did)
 	if w := s.Confirm; w != nil {
-		p.Confirmation = &dockwellv1.ChangeConfirmation{ServerId: s.Server, Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts}
+		p.Confirmation = &dockwellv1.ChangeConfirmation{ServerId: s.Server, Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts, SshAccount: w.SSHAccount}
 	}
 	return p
 }

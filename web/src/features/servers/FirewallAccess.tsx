@@ -40,6 +40,7 @@ import { type Offer, useMay } from "../auth/may";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
 import { CopyButton } from "./CopyButton";
+import { SshActions } from "./SshTools";
 import { useControlPlaneNow } from "./useFleet";
 
 /** How often the tab reads SSH again while it's open. */
@@ -101,8 +102,7 @@ function SetIn({ source, known = true }: { source: SshSource | undefined; known?
 }
 
 /**
- * SSH on a server, as Server-Firewall.dc.html's SSH card has it, read-only for
- * now: whether a password and root sign in, its port and how far it reaches,
+ * SSH on a server, as Server-Firewall.dc.html's SSH card has it: whether a password and root sign in, its port and how far it reaches,
  * as sshd's files say, with the file that sets each, a warning when the sshd
  * that listens may not have read them, and what may set them otherwise. With
  * nothing to warn of it says only that, never that sshd has read them (ADR 0052).
@@ -147,7 +147,12 @@ export function SshPanel({
   } else if (ssh.unreadable) {
     body = <p className="firewall-note">{ssh.unreadable}</p>;
   } else {
-    body = <SshValues ssh={ssh} listening={listening} />;
+    body = (
+      <>
+        <SshValues ssh={ssh} listening={listening} />
+        <SshActions server={server} ssh={ssh} onChanged={() => void read.refetch()} />
+      </>
+    );
   }
   return (
     <Panel
@@ -216,6 +221,28 @@ function SshValues({ ssh, listening }: { ssh: ServerSsh; listening: readonly Hos
             <SetIn source={portSources[0]} known={ssh.ports.length > 0} />
           </dd>
         </div>
+        {ssh.listenAddresses.length ? (
+          <div>
+            <dt>
+              <Trans>Listen addresses</Trans>
+            </dt>
+            <dd className="is-mono">{ssh.listenAddresses.join(", ")}</dd>
+            <dd>
+              <SetIn source={source("ListenAddress")} />
+            </dd>
+          </div>
+        ) : null}
+        {ssh.keyLogin !== SshAnswer.UNSPECIFIED ? (
+          <div>
+            <dt>
+              <Trans>Key login</Trans>
+            </dt>
+            <dd>{ssh.keyLogin === SshAnswer.YES ? t`On` : t`Off`}</dd>
+            <dd>
+              <SetIn source={source("PubkeyAuthentication")} />
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>
             <Trans>Reachable from</Trans>
@@ -242,7 +269,7 @@ function SshValues({ ssh, listening }: { ssh: ServerSsh; listening: readonly Hos
 function SshLoadedNote({ ssh }: { ssh: ServerSsh }) {
   const { t } = useLingui();
   const files = changedNames(ssh.changedFiles);
-  const command = ssh.reloadCommand;
+  const command = ssh.adminAccounts.length > 0 && !ssh.editRefusal ? "" : ssh.reloadCommand;
   return (
     <>
       <p className="firewall-note">

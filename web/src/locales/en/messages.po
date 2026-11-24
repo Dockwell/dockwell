@@ -733,6 +733,9 @@ msgstr "Added a passkey after signing in with a recovery code"
 msgid "Added a passkey after signing in with an authenticator code"
 msgstr "Added a passkey after signing in with an authenticator code"
 
+msgid "Added an SSH key on {server}"
+msgstr "Added an SSH key on {server}"
+
 msgid "Added an installation of a GitHub App"
 msgstr "Added an installation of a GitHub App"
 
@@ -801,6 +804,9 @@ msgstr "Asked to run {task}"
 
 msgid "Backed up {volume}"
 msgstr "Backed up {volume}"
+
+msgid "Banned an SSH address on {server}"
+msgstr "Banned an SSH address on {server}"
 
 msgid "Changed their email"
 msgstr "Changed their email"
@@ -959,6 +965,9 @@ msgstr "Deleted {path} on {server} for good"
 
 msgid "Deleted {path} on {server}, which can let someone back in"
 msgstr "Deleted {path} on {server}, which can let someone back in"
+
+msgid "Disconnected an SSH session on {server}"
+msgstr "Disconnected an SSH session on {server}"
 
 msgid "Downloaded {path} from {server}"
 msgstr "Downloaded {path} from {server}"
@@ -1160,6 +1169,9 @@ msgstr "Removed a backup of {volume} from its server, and kept it on {destinatio
 
 msgid "Removed a passkey"
 msgstr "Removed a passkey"
+
+msgid "Removed an SSH key on {server}"
+msgstr "Removed an SSH key on {server}"
 
 msgid "Removed the GitHub App {name}"
 msgstr "Removed the GitHub App {name}"
@@ -9996,6 +10008,9 @@ msgstr "Rolling back failed"
 msgid "Rolls back to <0>{back}</0> if it fails"
 msgstr "Rolls back to <0>{back}</0> if it fails"
 
+msgid "SSH settings updated"
+msgstr "SSH settings updated"
+
 msgid "See the guide"
 msgstr "See the guide"
 
@@ -10283,6 +10298,9 @@ msgstr "{where} denies everything else"
 msgid "{where} lets in what no rule drops"
 msgstr "{where} lets in what no rule drops"
 
+msgid "A fresh SSH connection verified these settings."
+msgstr "A fresh SSH connection verified these settings."
+
 msgid "Check you can still reach {name}"
 msgstr "Check you can still reach {name}"
 
@@ -10294,6 +10312,13 @@ msgstr "Once kept, SSH stays open only from {from}."
 
 msgid "Only the person who applied this change can keep it, from where they applied it."
 msgstr "Only the person who applied this change can keep it, from where they applied it."
+
+msgid "Open a fresh SSH connection before keeping these settings."
+msgstr "Open a fresh SSH connection before keeping these settings."
+
+#. placeholder {0}: wait.sshAccount
+msgid "Open a new SSH connection as {0} on port {port} from the same address."
+msgstr "Open a new SSH connection as {0} on port {port} from the same address."
 
 msgid "Open a new SSH session from here with your key, and keep the change if it works."
 msgstr "Open a new SSH session from here with your key, and keep the change if it works."
@@ -10319,8 +10344,14 @@ msgstr "or"
 msgid "{name} is putting back its firewall as it was."
 msgstr "{name} is putting back its firewall as it was."
 
+msgid "{name} is restoring its SSH settings."
+msgstr "{name} is restoring its SSH settings."
+
 msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgstr "{name} puts back its firewall as it was in {left} s unless you keep it."
+
+msgid "{name} restores its SSH settings in {left} s unless you keep them."
+msgstr "{name} restores its SSH settings in {left} s unless you keep them."
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
@@ -12859,6 +12890,9 @@ msgstr "Rolling, with nothing stopped"
 
 msgid "Routes without a certificate go on answering"
 msgstr "Routes without a certificate go on answering"
+
+msgid "SSH settings"
+msgstr "SSH settings"
 
 msgid "Skipped"
 msgstr "Skipped"
@@ -19631,8 +19665,14 @@ msgstr "Forced commands only"
 msgid "Jails"
 msgstr "Jails"
 
+msgid "Key login"
+msgstr "Key login"
+
 msgid "Keys only"
 msgstr "Keys only"
+
+msgid "Listen addresses"
+msgstr "Listen addresses"
 
 msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
 msgstr "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
@@ -20826,6 +20866,101 @@ msgstr "The address your provider's console shows. Every word about DNS uses it 
 msgid "What the internet knows this server by"
 msgstr "What the internet knows this server by"
 
+msgid "Accepted"
+msgstr "Accepted"
+
+msgid "Add key"
+msgstr "Add key"
+
+msgid "Administrator to test with"
+msgstr "Administrator to test with"
+
+msgid "All interfaces"
+msgstr "All interfaces"
+
+msgid "Ban in Fail2ban"
+msgstr "Ban in Fail2ban"
+
+msgid "Banned"
+msgstr "Banned"
+
+msgid "Choose a port from 1 to 65535."
+msgstr "Choose a port from 1 to 65535."
+
+msgid "Choose an account"
+msgstr "Choose an account"
+
+msgid "Edit settings"
+msgstr "Edit settings"
+
+msgid "Enter a listen address. Use 0.0.0.0 and :: for all interfaces."
+msgstr "Enter a listen address. Use 0.0.0.0 and :: for all interfaces."
+
+msgid "Failures by address"
+msgstr "Failures by address"
+
+msgid "Keep current setting"
+msgstr "Keep current setting"
+
+msgid "Last 24 hours"
+msgstr "Last 24 hours"
+
+msgid "Last 7 days"
+msgstr "Last 7 days"
+
+msgid "Last hour"
+msgstr "Last hour"
+
+msgid "Login log"
+msgstr "Login log"
+
+msgid "No SSH logins match these filters."
+msgstr "No SSH logins match these filters."
+
+msgid "No active SSH sessions."
+msgstr "No active SSH sessions."
+
+msgid "No authorized keys for this account."
+msgstr "No authorized keys for this account."
+
+msgid "OpenSSH public key"
+msgstr "OpenSSH public key"
+
+msgid "Remove key"
+msgstr "Remove key"
+
+#. placeholder {0}: server.name
+msgid "SSH keys on {0}"
+msgstr "SSH keys on {0}"
+
+#. placeholder {0}: server.name
+msgid "SSH login log on {0}"
+msgstr "SSH login log on {0}"
+
+#. placeholder {0}: server.name
+msgid "SSH sessions on {0}"
+msgstr "SSH sessions on {0}"
+
+#. placeholder {0}: server.name
+msgid "SSH settings on {0}"
+msgstr "SSH settings on {0}"
+
+msgid "Showing recent matches within the log limit."
+msgstr "Showing recent matches within the log limit."
+
+msgid "The systemd socket sets the port and addresses."
+msgstr "The systemd socket sets the port and addresses."
+
+msgid "This is a private key. Paste the public key instead."
+msgstr "This is a private key. Paste the public key instead."
+
+#. placeholder {0}: server.name
+msgid "Update SSH settings on {0}"
+msgstr "Update SSH settings on {0}"
+
+msgid "{count} failed"
+msgstr "{count} failed"
+
 msgctxt "system log level"
 msgid "Errors"
 msgstr "Errors"
@@ -21334,14 +21469,8 @@ msgstr "Hide details for {0} at {time}"
 msgid "JSON lines"
 msgstr "JSON lines"
 
-msgid "Last 24 hours"
-msgstr "Last 24 hours"
-
 msgid "Last 30 days"
 msgstr "Last 30 days"
-
-msgid "Last 7 days"
-msgstr "Last 7 days"
 
 msgid "Loading the audit log"
 msgstr "Loading the audit log"

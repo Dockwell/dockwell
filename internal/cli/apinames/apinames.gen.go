@@ -84,6 +84,7 @@ func Commands() []string {
 		"settings",
 		"signin-providers",
 		"ssh",
+		"ssh-configs",
 		"step-up-policy",
 		"system",
 		"system-logs",

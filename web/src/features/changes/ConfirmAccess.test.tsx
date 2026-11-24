@@ -159,6 +159,37 @@ it("keeps a wait the watch said, when the apply's own answer comes after it with
   expect(screen.getByRole("button", { name: "Keep the change" })).toBeVisible();
 });
 
+it("offers Keep for SSH settings only after a fresh connection proves this change", async () => {
+  const change = webPlanned();
+  const watch = feed<WatchChangeResponse>();
+  let proved = "chg_other";
+  renderWithApi(
+    <FleetProvider>
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) }} />
+      </ChangeSheetProvider>
+    </FleetProvider>,
+    {
+      changes: {
+        watchChange: watch.stream,
+        applyChange: () => ({ change: moved(change, { state: ChangeState.APPLYING }) }),
+      },
+      firewall: { getServerSsh: () => ({ ssh: { provedChange: proved } }) },
+    },
+  );
+  const next = waiting(change, 45, [2222]);
+  const confirmation = next.steps[0]?.confirmation;
+  if (!confirmation) throw new Error("expected SSH confirmation");
+  confirmation.sshAccount = "deploy";
+  await applyAndWait(change, watch, next);
+  expect(
+    await screen.findByText("Open a new SSH connection as deploy on port 2222 from the same address."),
+  ).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Keep the change" })).toBeNull();
+  proved = change.id;
+  expect(await screen.findByRole("button", { name: "Keep the change" }, { timeout: 4000 })).toBeEnabled();
+});
+
 describe("a change that waits for its confirmation", () => {
   it("says what to test and how long is left, and keeps the change when asked", async () => {
     const user = userEvent.setup();

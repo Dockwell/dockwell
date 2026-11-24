@@ -105,6 +105,8 @@ type socket struct {
 	daemon bool
 	// signedIn is a connection someone has signed in on.
 	signedIn bool
+	inode    string
+	holders  []holder
 }
 
 // held is who holds a socket.
@@ -116,6 +118,7 @@ type held struct {
 // holder is one of sshd's processes, as far as it says whether anyone has
 // signed in on the connection it holds.
 type holder struct {
+	pid  string
 	name string
 	// uid is the user it runs as, -1 when /proc didn't say.
 	uid int
@@ -280,7 +283,7 @@ func (r *PinReader) scan(file string, holders map[string]*held, out *[]socket, l
 		case "0A": // listening
 			*out = append(*out, socket{local: local, peer: peer, listening: true, daemon: daemon})
 		case "01": // a connection
-			*out = append(*out, socket{local: local, peer: peer, daemon: daemon, signedIn: !daemon && signedIn(h.holders, r.privsepUID())})
+			*out = append(*out, socket{local: local, peer: peer, daemon: daemon, inode: fields[9], holders: h.holders, signedIn: !daemon && signedIn(h.holders, r.privsepUID())})
 		}
 	}
 	return sc.Err()
@@ -316,7 +319,7 @@ func (r *PinReader) sshSockets() (map[string]*held, error) {
 				}
 				out[inode].daemon = out[inode].daemon || daemon
 				if !daemon {
-					out[inode].holders = append(out[inode].holders, holder{name: name, uid: r.uid(e.Name()), title: r.title(e.Name())})
+					out[inode].holders = append(out[inode].holders, holder{pid: e.Name(), name: name, uid: r.uid(e.Name()), title: r.title(e.Name())})
 				}
 			}
 		}

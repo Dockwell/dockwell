@@ -3137,6 +3137,7 @@ type ChangeConfirmation struct {
 	Deadline *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deadline,proto3" json:"deadline,omitempty"`
 	// The ports the server's SSH listens on now, for the test the person runs
 	// before confirming: a new SSH session, from where they are, with their key.
+	SshAccount    string   `protobuf:"bytes,4,opt,name=ssh_account,json=sshAccount,proto3" json:"ssh_account,omitempty"`
 	SshPorts      []uint32 `protobuf:"varint,3,rep,packed,name=ssh_ports,json=sshPorts,proto3" json:"ssh_ports,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3184,6 +3185,13 @@ func (x *ChangeConfirmation) GetDeadline() *timestamppb.Timestamp {
 		return x.Deadline
 	}
 	return nil
+}
+
+func (x *ChangeConfirmation) GetSshAccount() string {
+	if x != nil {
+		return x.SshAccount
+	}
+	return ""
 }
 
 func (x *ChangeConfirmation) GetSshPorts() []uint32 {
@@ -12997,10 +13005,12 @@ const file_dockwell_v1_change_proto_rawDesc = "" +
 	"\tserver_id\x18\x02 \x01(\tR\bserverId\x126\n" +
 	"\bdeadline\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\"D\n" +
 	"\x15ConfirmChangeResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x86\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xa7\x01\n" +
 	"\x12ChangeConfirmation\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x126\n" +
-	"\bdeadline\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\x12\x1b\n" +
+	"\bdeadline\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bdeadline\x12\x1f\n" +
+	"\vssh_account\x18\x04 \x01(\tR\n" +
+	"sshAccount\x12\x1b\n" +
 	"\tssh_ports\x18\x03 \x03(\rR\bsshPorts\"B\n" +
 	"\x13ApplyChangeResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"$\n" +

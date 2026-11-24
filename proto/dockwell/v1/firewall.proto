@@ -10,8 +10,8 @@ import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-// FirewallService says what filters a server's inbound traffic. Reading it
-// changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+// FirewallService reads a server's inbound filters and manages SSH access.
+// See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
 service FirewallService {
   option (dockwell.v1.nouns) = {
     name: "firewall"
@@ -65,6 +65,102 @@ service FirewallService {
       verb: "get"
     };
     option (google.api.http) = {get: "/v1/servers/{server_id}/ssh"};
+  }
+
+  // ListServerSshKeys lists local accounts and a selected account's authorized SSH keys.
+  rpc ListServerSshKeys(ListServerSshKeysRequest) returns (ListServerSshKeysResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "keys"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/ssh/keys"};
+  }
+
+  // EditServerSshKey adds one public key or removes a key by its fingerprint. It requires a fresh passkey.
+  rpc EditServerSshKey(EditServerSshKeyRequest) returns (EditServerSshKeyResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "edit-key"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/ssh/keys"
+      body: "*"
+    };
+  }
+
+  // ListServerSshSessions lists authenticated SSH connections and whether the agent can disconnect each one.
+  rpc ListServerSshSessions(ListServerSshSessionsRequest) returns (ListServerSshSessionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "sessions"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/ssh/sessions"};
+  }
+
+  // DisconnectServerSshSession ends a specific SSH connection after a passkey check.
+  rpc DisconnectServerSshSession(DisconnectServerSshSessionRequest) returns (DisconnectServerSshSessionResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "disconnect"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/ssh/sessions:disconnect"
+      body: "*"
+    };
+  }
+
+  // ListServerSshLogins reads a bounded window of SSH login results and counts failures by address.
+  rpc ListServerSshLogins(ListServerSshLoginsRequest) returns (ListServerSshLoginsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "logins"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/ssh/logins"};
+  }
+
+  // BanServerSshAddress bans a failed SSH peer in the active fail2ban sshd jail after a passkey check.
+  rpc BanServerSshAddress(BanServerSshAddressRequest) returns (BanServerSshAddressResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "ssh"
+      verb: "ban"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/ssh/bans"
+      body: "*"
+    };
   }
 
   // GetServerFail2ban reads, through the server's agent, what fail2ban does:
@@ -421,6 +517,11 @@ message ServerSsh {
   // systemctl restart ssh.socket", as a reload doesn't move them; empty where
   // the unit sets its ports itself.
   string reload_command = 19;
+  repeated string listen_addresses = 20;
+  dockwell.resource.v1alpha1.SshConfig managed = 21;
+  string edit_refusal = 22;
+  string proved_change = 23;
+  repeated string admin_accounts = 24;
 }
 
 // SshAnswer is yes or no, or neither when Dockwell can't tell.
@@ -609,3 +710,112 @@ message Fail2banBan {
   // When it ends. Unset when it lasts for good, or fail2ban didn't say.
   google.protobuf.Timestamp until = 3;
 }
+
+// SshKey describes a public key without disclosing its material.
+message SshKey {
+  string type = 1;
+  string comment = 2;
+  string fingerprint = 3;
+  google.protobuf.Timestamp added = 4;
+}
+
+// ListServerSshKeysRequest selects a server and optionally one local account.
+message ListServerSshKeysRequest {
+  string server_id = 1;
+  string account = 2;
+}
+
+// ListServerSshKeysResponse lists accounts and the selected account's key metadata.
+message ListServerSshKeysResponse {
+  repeated string accounts = 1;
+  repeated SshKey keys = 2;
+  string account = 3;
+}
+
+// EditServerSshKeyRequest selects an account and a single add or remove operation.
+message EditServerSshKeyRequest {
+  string server_id = 1;
+  string account = 2;
+  oneof edit {
+    string public_key = 3;
+    string remove_fingerprint = 4;
+  }
+  string proof = 5;
+}
+
+// EditServerSshKeyResponse describes the affected public key.
+message EditServerSshKeyResponse {
+  SshKey key = 1;
+}
+
+// SshSession is an authenticated SSH connection.
+message SshSession {
+  string id = 1;
+  string user = 2;
+  string address = 3;
+  google.protobuf.Timestamp since = 4;
+  string tty = 5;
+  bool can_disconnect = 6;
+}
+
+// ListServerSshSessionsRequest selects a server.
+message ListServerSshSessionsRequest {
+  string server_id = 1;
+}
+
+// ListServerSshSessionsResponse lists the server's authenticated SSH connections.
+message ListServerSshSessionsResponse {
+  repeated SshSession sessions = 1;
+}
+
+// DisconnectServerSshSessionRequest identifies a connection from the session list.
+message DisconnectServerSshSessionRequest {
+  string server_id = 1;
+  string session_id = 2;
+  string proof = 3;
+}
+
+// DisconnectServerSshSessionResponse confirms the signal went to the identified session.
+message DisconnectServerSshSessionResponse {}
+
+// SshLogin is an authentication result reported by the SSH daemon.
+message SshLogin {
+  google.protobuf.Timestamp time = 1;
+  string user = 2;
+  string address = 3;
+  string method = 4;
+  bool accepted = 5;
+}
+
+// SshLoginFailures summarizes failed SSH authentication for one address.
+message SshLoginFailures {
+  string address = 1;
+  uint32 count = 2;
+}
+
+// ListServerSshLoginsRequest filters a bounded window of SSH login results.
+message ListServerSshLoginsRequest {
+  string server_id = 1;
+  uint32 hours = 2;
+  string user = 3;
+  string address = 4;
+  optional bool accepted = 5;
+}
+
+// ListServerSshLoginsResponse holds the matching logins and the failures by address.
+message ListServerSshLoginsResponse {
+  repeated SshLogin logins = 1;
+  repeated SshLoginFailures failures = 2;
+  bool bounded = 3;
+  bool ban_available = 4;
+}
+
+// BanServerSshAddressRequest identifies an address with recent SSH authentication failures.
+message BanServerSshAddressRequest {
+  string server_id = 1;
+  string address = 2;
+  string proof = 3;
+}
+
+// BanServerSshAddressResponse confirms fail2ban accepted the ban.
+message BanServerSshAddressResponse {}

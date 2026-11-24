@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 
@@ -16,16 +17,21 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Handler implements FirewallService.
 type Handler struct {
 	fleet  *fleet.Hub
 	agents *agentapi.Agents
+	auth   *auth.Service
+	db     *store.DB
+	logger *slog.Logger
 }
 
 var _ dockwellv1connect.FirewallServiceHandler = (*Handler)(nil)

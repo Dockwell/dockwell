@@ -95,7 +95,10 @@ const (
 	StepUpRemoveGitHubApp StepUpAction = "github_app.remove"
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
-	StepUpEndProcess StepUpAction = "process.end"
+	StepUpEndProcess           StepUpAction = "process.end"
+	StepUpEditSSHKey           StepUpAction = "ssh.edit_key"
+	StepUpDisconnectSSHSession StepUpAction = "ssh.disconnect"
+	StepUpBanSSHAddress        StepUpAction = "ssh.ban"
 	// StepUpOpenTerminal opens a root shell on a server. Its target is the
 	// server's ID. A proof opens one terminal (ADR 0037).
 	StepUpOpenTerminal StepUpAction = "terminal.open"
@@ -187,24 +190,27 @@ var stepUpActions = map[StepUpAction]struct {
 	doing    string
 	targeted bool
 }{
-	StepUpRevealSecret:     {"revealing", true},
-	StepUpAddPasskey:       {"adding a passkey", false},
-	StepUpRemovePasskey:    {"removing passkey", true},
-	StepUpSetUpCodes:       {"setting up code sign-in", false},
-	StepUpDisableCodes:     {"turning code sign-in off", false},
-	StepUpRecoveryCodes:    {"making new recovery codes", false},
-	StepUpCreateToken:      {"creating an API token", false},
-	StepUpApplyRootChange:  {"applying", true},
-	StepUpSaveWayBackIn:    {"saving", true},
-	StepUpCreateGitHook:    {"turning deploy on push on for", true},
-	StepUpRotateGitHook:    {"making a new hook secret for", true},
-	StepUpWidenGitHook:     {"letting deploy on push go without waiting for", true},
-	StepUpConnectGitHubApp: {"connecting GitHub", false},
-	StepUpRotateGitHubApp:  {"giving a new secret or key to", true},
-	StepUpRemoveGitHubApp:  {"removing", true},
-	StepUpEndProcess:       {"ending process", true},
-	StepUpOpenTerminal:     {"opening a terminal on", true},
-	StepUpApproveChange:    {"approving", true},
+	StepUpRevealSecret:         {"revealing", true},
+	StepUpAddPasskey:           {"adding a passkey", false},
+	StepUpRemovePasskey:        {"removing passkey", true},
+	StepUpSetUpCodes:           {"setting up code sign-in", false},
+	StepUpDisableCodes:         {"turning code sign-in off", false},
+	StepUpRecoveryCodes:        {"making new recovery codes", false},
+	StepUpCreateToken:          {"creating an API token", false},
+	StepUpApplyRootChange:      {"applying", true},
+	StepUpSaveWayBackIn:        {"saving", true},
+	StepUpCreateGitHook:        {"turning deploy on push on for", true},
+	StepUpRotateGitHook:        {"making a new hook secret for", true},
+	StepUpWidenGitHook:         {"letting deploy on push go without waiting for", true},
+	StepUpConnectGitHubApp:     {"connecting GitHub", false},
+	StepUpRotateGitHubApp:      {"giving a new secret or key to", true},
+	StepUpRemoveGitHubApp:      {"removing", true},
+	StepUpEditSSHKey:           {"changing SSH keys", false},
+	StepUpDisconnectSSHSession: {"disconnecting an SSH session", false},
+	StepUpBanSSHAddress:        {"banning an SSH address", false},
+	StepUpEndProcess:           {"ending process", true},
+	StepUpOpenTerminal:         {"opening a terminal on", true},
+	StepUpApproveChange:        {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
 	StepUpMakeWayBackIn:                     {"making", true},
 	StepUpMoveWayBackIn:                     {"moving", true},

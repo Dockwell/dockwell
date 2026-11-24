@@ -352,6 +352,7 @@ message AccessWait {
   repeated uint32 ssh_ports = 2;
   // How long there was until the deadline when the agent said it, so the
   // control plane counts down by its own clock, whatever the agent's.
+  string ssh_account = 4;
   google.protobuf.Duration left = 3;
 }
 
@@ -636,6 +637,7 @@ message Hello {
   DockerCapabilities docker_capabilities = 400;
   // True when the agent compresses and extracts archives on disk, and
   // downloads several paths as one zip. Files handy uses 420 to 429.
+  bool manages_ssh = 446;
   bool archives_files = 420;
 }
 
@@ -960,6 +962,12 @@ message Call {
     CompressFilesCall compress_files = 420;
     ExtractArchiveCall extract_archive = 421;
     GetArchiveJobCall get_archive_job = 422;
+    dockwell.v1.ListServerSshKeysRequest list_ssh_keys = 440;
+    dockwell.v1.EditServerSshKeyRequest edit_ssh_key = 441;
+    dockwell.v1.ListServerSshSessionsRequest list_ssh_sessions = 442;
+    dockwell.v1.DisconnectServerSshSessionRequest disconnect_ssh_session = 443;
+    dockwell.v1.ListServerSshLoginsRequest list_ssh_logins = 444;
+    dockwell.v1.BanServerSshAddressRequest ban_ssh_address = 445;
     ListArchiveJobsCall list_archive_jobs = 423;
   }
 }
@@ -1145,6 +1153,7 @@ enum AccessVerdict {
   // write what its revert would load once kept. Its timer goes on, and the
   // confirmation may be sent again.
   ACCESS_VERDICT_NOT_KEPT = 4;
+  ACCESS_VERDICT_NOT_PROVED = 5;
 }
 
 // ProcessesCall asks what runs on the server. CPU covers the time since the last
@@ -2816,6 +2825,12 @@ message CallResult {
     CompressFilesResult compress_files = 420;
     ExtractArchiveResult extract_archive = 421;
     GetArchiveJobResult get_archive_job = 422;
+    dockwell.v1.ListServerSshKeysResponse list_ssh_keys = 440;
+    dockwell.v1.EditServerSshKeyResponse edit_ssh_key = 441;
+    dockwell.v1.ListServerSshSessionsResponse list_ssh_sessions = 442;
+    dockwell.v1.DisconnectServerSshSessionResponse disconnect_ssh_session = 443;
+    dockwell.v1.ListServerSshLoginsResponse list_ssh_logins = 444;
+    dockwell.v1.BanServerSshAddressResponse ban_ssh_address = 445;
     ListArchiveJobsResult list_archive_jobs = 423;
   }
 }

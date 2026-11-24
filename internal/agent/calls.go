@@ -938,12 +938,54 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_EndProcess{EndProcess: &agentv1.EndProcessResult{Killed: killed, Process: was}}}
+	case call.GetListSshKeys() != nil:
+		result, err := c.cfg.ssh.listSSHKeys(ctx, call.GetListSshKeys())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListSshKeys{ListSshKeys: result}}
+	case call.GetEditSshKey() != nil:
+		result, err := c.cfg.ssh.editSSHKey(ctx, call.GetEditSshKey())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_EditSshKey{EditSshKey: result}}
+	case call.GetListSshSessions() != nil:
+		result, err := c.cfg.ssh.listSSHSessions(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListSshSessions{ListSshSessions: result}}
+	case call.GetDisconnectSshSession() != nil:
+		err := c.cfg.ssh.disconnectSSH(ctx, call.GetDisconnectSshSession().GetSessionId())
+		result := &dockwellv1.DisconnectServerSshSessionResponse{}
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DisconnectSshSession{DisconnectSshSession: result}}
+	case call.GetListSshLogins() != nil:
+		result, err := c.cfg.ssh.loginLog(ctx, call.GetListSshLogins())
+		if result != nil && !c.cfg.ssh.panelOverSSH {
+			_, banErr := c.cfg.fail2ban.client(ctx, "status", "sshd")
+			result.BanAvailable = banErr == nil
+		}
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListSshLogins{ListSshLogins: result}}
+	case call.GetBanSshAddress() != nil:
+		err := c.cfg.ssh.banSSH(ctx, c.cfg.fail2ban, call.GetBanSshAddress().GetAddress())
+		result := &dockwellv1.BanServerSshAddressResponse{}
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_BanSshAddress{BanSshAddress: result}}
 	case call.GetSsh() != nil:
 		read, err := c.cfg.ssh.read(ctx)
 		if err != nil {
 			return fail(err)
 		}
-		return &agentv1.CallResult{Result: &agentv1.CallResult_Ssh{Ssh: read}}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Ssh{Ssh: c.cfg.ssh.editDetails(ctx, read)}}
 	case call.GetFail2Ban() != nil:
 		read, err := c.cfg.fail2ban.read(ctx)
 		if err != nil {
@@ -1712,6 +1754,7 @@ var accessVerdicts = map[resource.AccessVerdict]agentv1.AccessVerdict{
 	resource.AccessRolledBack: agentv1.AccessVerdict_ACCESS_VERDICT_ROLLED_BACK,
 	resource.AccessNotWaiting: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING,
 	resource.AccessNotKept:    agentv1.AccessVerdict_ACCESS_VERDICT_NOT_KEPT,
+	resource.AccessNotProved:  agentv1.AccessVerdict_ACCESS_VERDICT_NOT_PROVED,
 }
 
 // accessWait is what a step waits for, as the agent protocol says it.
@@ -1719,7 +1762,7 @@ func accessWait(w *resource.AccessWait) *agentv1.AccessWait {
 	if w == nil {
 		return nil
 	}
-	return &agentv1.AccessWait{Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts, Left: durationpb.New(w.Left)}
+	return &agentv1.AccessWait{Deadline: timestamppb.New(w.Deadline), SshPorts: w.SSHPorts, SshAccount: w.SSHAccount, Left: durationpb.New(w.Left)}
 }
 
 // guardsAccess says whether a kind applies under the firewall's timer.

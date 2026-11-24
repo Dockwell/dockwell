@@ -6,7 +6,7 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { FirewallPolicy, FirewallRule, Jail } from "../resource/v1alpha1/specs_pb";
+import type { FirewallPolicy, FirewallRule, Jail, SshConfig } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_v1_options } from "./options_pb";
 import { file_google_api_annotations } from "../../google/api/annotations_pb";
@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/firewall.proto.
  */
 export const file_dockwell_v1_firewall: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJWChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGxKBAgCEANKBAgDEAQiXAoURG9ja3dlbGxGaXJld2FsbFJ1bGUSDAoEbmFtZRgBIAEoCRI2CgRydWxlGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlIqgCCg5TZXJ2ZXJGaXJld2FsbBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgV0b29scxgCIAMoCzIZLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbBItCglwdWJsaXNoZWQYAyADKAsyGi5kb2Nrd2VsbC52MS5QdWJsaXNoZWRQb3J0EiwKCWxpc3RlbmluZxgEIAMoCzIZLmRvY2t3ZWxsLnYxLkhvc3RMaXN0ZW5lchIcChRwdWJsaXNoZWRfdW5yZWFkYWJsZRgFIAEoCRIZChFkb2NrZXJfdXNlcl9ydWxlcxgGIAEoDRIsCghkb2Nrd2VsbBgHIAEoCzIaLmRvY2t3ZWxsLnYxLkRvY2t3ZWxsVGFibGUipQIKDURvY2t3ZWxsVGFibGUSEAoIdW51c2FibGUYASABKAkSMAoFcnVsZXMYAiADKAsyIS5kb2Nrd2VsbC52MS5Eb2Nrd2VsbEZpcmV3YWxsUnVsZRI6CgZwb2xpY3kYAyABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeRIWCg53YWl0aW5nX2NoYW5nZRgEIAEoCRI4Cg13YWl0aW5nX3J1bGVzGAUgAygLMiEuZG9ja3dlbGwudjEuRG9ja3dlbGxGaXJld2FsbFJ1bGUSQgoOd2FpdGluZ19wb2xpY3kYBiABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeSLoAQoMSG9zdExpc3RlbmVyEg8KB2FkZHJlc3MYASABKAkSDAoEcG9ydBgCIAEoDRIQCghwcm90b2NvbBgDIAEoCRIpCgVyZWFjaBgEIAEoDjIaLmRvY2t3ZWxsLnYxLkxpc3RlbmVyUmVhY2gSEgoKZGVjaWRlZF9ieRgFIAEoCRIPCgdzb3VyY2VzGAYgAygJEhIKCmludGVyZmFjZXMYByADKAkSMAoGcmVhc29uGAggASgOMiAuZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaFJlYXNvbhIRCglpcHY2X29ubHkYCSABKAgi+QIKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCRISCgppbnRlcmZhY2VzGAkgAygJEg8KB3NvdXJjZXMYCiADKAkSFAoMZGVmYXVsdF96b25lGAsgASgIEjIKDGlucHV0X3BvbGljeRgMIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBITCgtpbnB1dF9ydWxlcxgNIAEoDSKzAQoQRmlyZXdhbGxTZWVuUnVsZRItCgd2ZXJkaWN0GAEgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EgwKBHBvcnQYAiABKAkSDgoGc291cmNlGAMgASgJEgwKBGlwdjYYBCABKAgSDwoHY29tbWVudBgFIAEoCRILCgNhcHAYBiABKAkSEQoJaW50ZXJmYWNlGAcgASgJEhMKC2Rlc3RpbmF0aW9uGAggASgJIoEBCg1QdWJsaXNoZWRQb3J0EhEKCWNvbnRhaW5lchgBIAEoCRIPCgdob3N0X2lwGAIgASgJEhEKCWhvc3RfcG9ydBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCRIWCg5jb250YWluZXJfcG9ydBgFIAEoDRIPCgdwcm94aWVkGAYgASgIIigKE0dldFNlcnZlclNzaFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIjsKFEdldFNlcnZlclNzaFJlc3BvbnNlEiMKA3NzaBgBIAEoCzIWLmRvY2t3ZWxsLnYxLlNlcnZlclNzaCLPBAoJU2VydmVyU3NoEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCnVucmVhZGFibGUYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRIuCg5wYXNzd29yZF9sb2dpbhgEIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchItCgpyb290X2xvZ2luGAUgASgOMhkuZG9ja3dlbGwudjEuU3NoUm9vdExvZ2luEg0KBXBvcnRzGAYgAygNEikKCWtleV9sb2dpbhgHIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchImCgZzZXRfaW4YCCADKAsyFi5kb2Nrd2VsbC52MS5Tc2hTb3VyY2USJgoHbWF0Y2hlcxgJIAMoCzIVLmRvY2t3ZWxsLnYxLlNzaE1hdGNoEhYKDmRyb3BfaW5fZm9sZGVyGAogASgJEhgKEGRvY2t3ZWxsX2Ryb3BfaW4YCyABKAgSEwoLc29ja2V0X3VuaXQYDCABKAkSFAoMYWNjZXNzX2xpc3RzGA0gAygJEhEKCXVuY2hlY2tlZBgOIAMoCRImCgZsb2FkZWQYDyABKA4yFi5kb2Nrd2VsbC52MS5Tc2hMb2FkZWQSEgoKbG9hZGVkX3doeRgQIAEoCRIVCg1jaGFuZ2VkX2ZpbGVzGBEgAygJEi8KC2xvYWRlZF90aW1lGBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5yZWxvYWRfY29tbWFuZBgTIAEoCSJYCglTc2hTb3VyY2USDwoHa2V5d29yZBgBIAEoCRIMCgRmaWxlGAIgASgJEgwKBGxpbmUYAyABKA0SDQoFdmFsdWUYBCABKAkSDwoHY2hhbmdlZBgFIAEoCCJGCghTc2hNYXRjaBIMCgRmaWxlGAEgASgJEgwKBGxpbmUYAiABKA0SEAoIY3JpdGVyaWEYAyABKAkSDAoEc2V0cxgEIAMoCSItChhHZXRTZXJ2ZXJGYWlsMmJhblJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJImAKGUdldFNlcnZlckZhaWwyYmFuUmVzcG9uc2USLQoIZmFpbDJiYW4YASABKAsyGy5kb2Nrd2VsbC52MS5TZXJ2ZXJGYWlsMmJhbhIUCgx5b3VyX2FkZHJlc3MYAiABKAkixQEKDlNlcnZlckZhaWwyYmFuEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBXN0YXRlGAIgASgOMhouZG9ja3dlbGwudjEuRmFpbDJiYW5TdGF0ZRILCgN3aHkYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIoCgVqYWlscxgFIAMoCzIZLmRvY2t3ZWxsLnYxLkZhaWwyYmFuSmFpbBIWCg5zaWduZWRfaW5fZnJvbRgGIAMoCSKrAwoMRmFpbDJiYW5KYWlsEgwKBG5hbWUYASABKAkSEQoJbWF4X3JldHJ5GAIgASgNEiwKCWZpbmRfdGltZRgDIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIrCghiYW5fdGltZRgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbhIVCg1iYW5zX2Zvcl9nb29kGAUgASgIEhIKCmZhaWxlZF9ub3cYBiABKA0SFAoMZmFpbGVkX3RvdGFsGAcgASgNEhIKCmJhbm5lZF9ub3cYCCABKA0SFAoMYmFubmVkX3RvdGFsGAkgASgNEg0KBWZpbGVzGAogAygJEhcKD2pvdXJuYWxfbWF0Y2hlcxgLIAMoCRImCgRiYW5zGAwgAygLMhguZG9ja3dlbGwudjEuRmFpbDJiYW5CYW4SEgoKdW5yZWFkYWJsZRgNIAEoCRIQCghkb2Nrd2VsbBgOIAEoCBIOCgZpZ25vcmUYDyADKAkSLgoEc3BlYxgQIAEoCzIgLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLkphaWwidAoLRmFpbDJiYW5CYW4SDwoHYWRkcmVzcxgBIAEoCRIpCgVzaW5jZRgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASKQoFdW50aWwYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wKrMDChNMaXN0ZW5lclJlYWNoUmVhc29uEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9VTlNQRUNJRklFRBAAEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9BUFBfUFJPRklMRRABEiEKHUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9TRVJWSUNFEAISIwofTElTVEVORVJfUkVBQ0hfUkVBU09OX1JJQ0hfUlVMRRADEiMKH0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9JTlRFUkZBQ0UQBBIlCiFMSVNURU5FUl9SRUFDSF9SRUFTT05fREVTVElOQVRJT04QBRIfChtMSVNURU5FUl9SRUFDSF9SRUFTT05fWk9ORVMQBhIkCiBMSVNURU5FUl9SRUFDSF9SRUFTT05fVU5SRUFEQUJMRRAHEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9PVEhFUl9SVUxFUxAIEigKJExJU1RFTkVSX1JFQUNIX1JFQVNPTl9ET0NLRVJfVU5LTk9XThAJEiIKHkxJU1RFTkVSX1JFQUNIX1JFQVNPTl9CVUlMVF9JThAKKpgBCg1MaXN0ZW5lclJlYWNoEh4KGkxJU1RFTkVSX1JFQUNIX1VOU1BFQ0lGSUVEEAASFwoTTElTVEVORVJfUkVBQ0hfT1BFThABEhcKE0xJU1RFTkVSX1JFQUNIX1NPTUUQAhIZChVMSVNURU5FUl9SRUFDSF9DTE9TRUQQAxIaChZMSVNURU5FUl9SRUFDSF9VTktOT1dOEAQq3gEKEEZpcmV3YWxsVG9vbEtpbmQSIgoeRklSRVdBTExfVE9PTF9LSU5EX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVE9PTF9LSU5EX1VGVxABEiAKHEZJUkVXQUxMX1RPT0xfS0lORF9GSVJFV0FMTEQQAhIfChtGSVJFV0FMTF9UT09MX0tJTkRfTkZUQUJMRVMQAxImCiJGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVNfTEVHQUNZEAQSHwobRklSRVdBTExfVE9PTF9LSU5EX0lQVEFCTEVTEAUqowEKD0ZpcmV3YWxsVmVyZGljdBIgChxGSVJFV0FMTF9WRVJESUNUX1VOU1BFQ0lGSUVEEAASGgoWRklSRVdBTExfVkVSRElDVF9BTExPVxABEhkKFUZJUkVXQUxMX1ZFUkRJQ1RfREVOWRACEhsKF0ZJUkVXQUxMX1ZFUkRJQ1RfUkVKRUNUEAMSGgoWRklSRVdBTExfVkVSRElDVF9MSU1JVBAEKk4KCVNzaEFuc3dlchIaChZTU0hfQU5TV0VSX1VOU1BFQ0lGSUVEEAASEgoOU1NIX0FOU1dFUl9ZRVMQARIRCg1TU0hfQU5TV0VSX05PEAIqsAEKCVNzaExvYWRlZBIaChZTU0hfTE9BREVEX1VOU1BFQ0lGSUVEEAASFAoQU1NIX0xPQURFRF9TVEFMRRACEhQKEFNTSF9MT0FERURfQVBBUlQQBBIhCh1TU0hfTE9BREVEX05PVEhJTkdfVE9fV0FSTl9PRhAFIgQIARABIgQIAxADKhJTU0hfTE9BREVEX0NVUlJFTlQqGFNTSF9MT0FERURfQVRfRUFDSF9TVEFSVCqkAQoMU3NoUm9vdExvZ2luEh4KGlNTSF9ST09UX0xPR0lOX1VOU1BFQ0lGSUVEEAASFgoSU1NIX1JPT1RfTE9HSU5fWUVTEAESHAoYU1NIX1JPT1RfTE9HSU5fS0VZU19PTkxZEAISJwojU1NIX1JPT1RfTE9HSU5fRk9SQ0VEX0NPTU1BTkRTX09OTFkQAxIVChFTU0hfUk9PVF9MT0dJTl9OTxAEKqgBCg1GYWlsMmJhblN0YXRlEh4KGkZBSUwyQkFOX1NUQVRFX1VOU1BFQ0lGSUVEEAASIAocRkFJTDJCQU5fU1RBVEVfTk9UX0lOU1RBTExFRBABEhoKFkZBSUwyQkFOX1NUQVRFX1NUT1BQRUQQAhIaChZGQUlMMkJBTl9TVEFURV9SVU5OSU5HEAMSHQoZRkFJTDJCQU5fU1RBVEVfVU5SRUFEQUJMRRAEMqAKCg9GaXJld2FsbFNlcnZpY2USsgEKEUdldFNlcnZlckZpcmV3YWxsEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmlyZXdhbGxSZXNwb25zZSJOkAIBoLsYAaq7GA8KCGZpcmV3YWxsEgNnZXTAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpcmV3YWxsEpkBCgxHZXRTZXJ2ZXJTc2gSIC5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJTc2hSZXF1ZXN0GiEuZG9ja3dlbGwudjEuR2V0U2VydmVyU3NoUmVzcG9uc2UiRJACAaC7GAGquxgKCgNzc2gSA2dldMC7GATIuxgE0LsYBoLT5JMCHRIbL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vc3NoErIBChFHZXRTZXJ2ZXJGYWlsMmJhbhIlLmRvY2t3ZWxsLnYxLkdldFNlcnZlckZhaWwyYmFuUmVxdWVzdBomLmRvY2t3ZWxsLnYxLkdldFNlcnZlckZhaWwyYmFuUmVzcG9uc2UiTpACAaC7GAGquxgPCghmYWlsMmJhbhIDZ2V0wLsYBMi7GATQuxgGgtPkkwIiEiAvdjEvc2VydmVycy97c2VydmVyX2lkfS9mYWlsMmJhbhqGBqK7GMQCCghmaXJld2FsbBK3AldoYXQgZmlsdGVycyBhIHNlcnZlcidzIGluYm91bmQgdHJhZmZpYzogdGhlIGZpcmV3YWxscyBhbHJlYWR5IHRoZXJlLCB1ZncsIGZpcmV3YWxsZCBhbmQgbmZ0YWJsZXMsIGVhY2ggcmVhZCB3aXRoIGl0cyBvd24gdG9vbCwgaG93IGZhciB3aGF0IGxpc3RlbnMgcmVhY2hlcyBwYXN0IHRoZW0sIGFuZCB0aGUgcG9ydHMgRG9ja2VyIHB1Ymxpc2hlcywgd2hpY2ggcmVhY2ggdGhlaXIgY29udGFpbmVycyBwYXN0IHRoZW0uIERvY2t3ZWxsJ3Mgb3duIHJ1bGVzIGFyZSBmaXJld2FsbC5ydWxlIHJlc291cmNlcywgd2hpY2ggYSBjaGFuZ2UgZWRpdHMuorsYmAIKA3NzaBKQAkhvdyBTU0ggbGV0cyBwZW9wbGUgaW4gb24gYSBzZXJ2ZXI6IHBhc3N3b3JkIGFuZCByb290IGxvZ2luLCBpdHMgcG9ydHMsIGFzIHNzaGQncyBmaWxlcyBzYXksIHRoZSBmaWxlIHRoYXQgc2V0cyBlYWNoLCBhbmQgYSB3YXJuaW5nIHdoZW4gdGhlIHNzaGQgdGhhdCBsaXN0ZW5zIG1heSBub3QgaGF2ZSByZWFkIHRoZW0sIG9yIHRoYXQgdGhlcmUncyBub3RoaW5nIHRvIHdhcm4gb2YsIHdoaWNoIGRvZXNuJ3Qgc2F5IGl0IGhhcy4gUmVhZGluZyBpdCBjaGFuZ2VzIG5vdGhpbmcuorsYmwEKCGZhaWwyYmFuEo4BV2hhdCBmYWlsMmJhbiBkb2VzIG9uIGEgc2VydmVyOiB3aGV0aGVyIGl0IHJ1bnMsIGl0cyBqYWlscyBhcyBpdCBydW5zIHRoZW0sIGFuZCB0aGUgYWRkcmVzc2VzIGVhY2ggaGFzIGJhbm5lZCBub3cuIFJlYWRpbmcgaXQgY2hhbmdlcyBub3RoaW5nLkKmAQoPY29tLmRvY2t3ZWxsLnYxQg1GaXJld2FsbFByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS9maXJld2FsbC5wcm90bxILZG9ja3dlbGwudjEiLQoYR2V0U2VydmVyRmlyZXdhbGxSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJWChlHZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlEi0KCGZpcmV3YWxsGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmlyZXdhbGxKBAgCEANKBAgDEAQiXAoURG9ja3dlbGxGaXJld2FsbFJ1bGUSDAoEbmFtZRgBIAEoCRI2CgRydWxlGAIgASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuRmlyZXdhbGxSdWxlIqgCCg5TZXJ2ZXJGaXJld2FsbBIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIoCgV0b29scxgCIAMoCzIZLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVG9vbBItCglwdWJsaXNoZWQYAyADKAsyGi5kb2Nrd2VsbC52MS5QdWJsaXNoZWRQb3J0EiwKCWxpc3RlbmluZxgEIAMoCzIZLmRvY2t3ZWxsLnYxLkhvc3RMaXN0ZW5lchIcChRwdWJsaXNoZWRfdW5yZWFkYWJsZRgFIAEoCRIZChFkb2NrZXJfdXNlcl9ydWxlcxgGIAEoDRIsCghkb2Nrd2VsbBgHIAEoCzIaLmRvY2t3ZWxsLnYxLkRvY2t3ZWxsVGFibGUipQIKDURvY2t3ZWxsVGFibGUSEAoIdW51c2FibGUYASABKAkSMAoFcnVsZXMYAiADKAsyIS5kb2Nrd2VsbC52MS5Eb2Nrd2VsbEZpcmV3YWxsUnVsZRI6CgZwb2xpY3kYAyABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeRIWCg53YWl0aW5nX2NoYW5nZRgEIAEoCRI4Cg13YWl0aW5nX3J1bGVzGAUgAygLMiEuZG9ja3dlbGwudjEuRG9ja3dlbGxGaXJld2FsbFJ1bGUSQgoOd2FpdGluZ19wb2xpY3kYBiABKAsyKi5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5GaXJld2FsbFBvbGljeSLoAQoMSG9zdExpc3RlbmVyEg8KB2FkZHJlc3MYASABKAkSDAoEcG9ydBgCIAEoDRIQCghwcm90b2NvbBgDIAEoCRIpCgVyZWFjaBgEIAEoDjIaLmRvY2t3ZWxsLnYxLkxpc3RlbmVyUmVhY2gSEgoKZGVjaWRlZF9ieRgFIAEoCRIPCgdzb3VyY2VzGAYgAygJEhIKCmludGVyZmFjZXMYByADKAkSMAoGcmVhc29uGAggASgOMiAuZG9ja3dlbGwudjEuTGlzdGVuZXJSZWFjaFJlYXNvbhIRCglpcHY2X29ubHkYCSABKAgi+QIKDEZpcmV3YWxsVG9vbBIrCgRraW5kGAEgASgOMh0uZG9ja3dlbGwudjEuRmlyZXdhbGxUb29sS2luZBIMCgRuYW1lGAIgASgJEg4KBmFjdGl2ZRgDIAEoCBI1Cg9kZWZhdWx0X2luYm91bmQYBCABKA4yHC5kb2Nrd2VsbC52MS5GaXJld2FsbFZlcmRpY3QSLAoFcnVsZXMYBSADKAsyHS5kb2Nrd2VsbC52MS5GaXJld2FsbFNlZW5SdWxlEg0KBW90aGVyGAYgAygJEhIKCnJ1bGVfY291bnQYByABKA0SEgoKdW5yZWFkYWJsZRgIIAEoCRISCgppbnRlcmZhY2VzGAkgAygJEg8KB3NvdXJjZXMYCiADKAkSFAoMZGVmYXVsdF96b25lGAsgASgIEjIKDGlucHV0X3BvbGljeRgMIAEoDjIcLmRvY2t3ZWxsLnYxLkZpcmV3YWxsVmVyZGljdBITCgtpbnB1dF9ydWxlcxgNIAEoDSKzAQoQRmlyZXdhbGxTZWVuUnVsZRItCgd2ZXJkaWN0GAEgASgOMhwuZG9ja3dlbGwudjEuRmlyZXdhbGxWZXJkaWN0EgwKBHBvcnQYAiABKAkSDgoGc291cmNlGAMgASgJEgwKBGlwdjYYBCABKAgSDwoHY29tbWVudBgFIAEoCRILCgNhcHAYBiABKAkSEQoJaW50ZXJmYWNlGAcgASgJEhMKC2Rlc3RpbmF0aW9uGAggASgJIoEBCg1QdWJsaXNoZWRQb3J0EhEKCWNvbnRhaW5lchgBIAEoCRIPCgdob3N0X2lwGAIgASgJEhEKCWhvc3RfcG9ydBgDIAEoDRIQCghwcm90b2NvbBgEIAEoCRIWCg5jb250YWluZXJfcG9ydBgFIAEoDRIPCgdwcm94aWVkGAYgASgIIigKE0dldFNlcnZlclNzaFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIjsKFEdldFNlcnZlclNzaFJlc3BvbnNlEiMKA3NzaBgBIAEoCzIWLmRvY2t3ZWxsLnYxLlNlcnZlclNzaCLmBQoJU2VydmVyU3NoEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCnVucmVhZGFibGUYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRIuCg5wYXNzd29yZF9sb2dpbhgEIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchItCgpyb290X2xvZ2luGAUgASgOMhkuZG9ja3dlbGwudjEuU3NoUm9vdExvZ2luEg0KBXBvcnRzGAYgAygNEikKCWtleV9sb2dpbhgHIAEoDjIWLmRvY2t3ZWxsLnYxLlNzaEFuc3dlchImCgZzZXRfaW4YCCADKAsyFi5kb2Nrd2VsbC52MS5Tc2hTb3VyY2USJgoHbWF0Y2hlcxgJIAMoCzIVLmRvY2t3ZWxsLnYxLlNzaE1hdGNoEhYKDmRyb3BfaW5fZm9sZGVyGAogASgJEhgKEGRvY2t3ZWxsX2Ryb3BfaW4YCyABKAgSEwoLc29ja2V0X3VuaXQYDCABKAkSFAoMYWNjZXNzX2xpc3RzGA0gAygJEhEKCXVuY2hlY2tlZBgOIAMoCRImCgZsb2FkZWQYDyABKA4yFi5kb2Nrd2VsbC52MS5Tc2hMb2FkZWQSEgoKbG9hZGVkX3doeRgQIAEoCRIVCg1jaGFuZ2VkX2ZpbGVzGBEgAygJEi8KC2xvYWRlZF90aW1lGBIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIWCg5yZWxvYWRfY29tbWFuZBgTIAEoCRIYChBsaXN0ZW5fYWRkcmVzc2VzGBQgAygJEjYKB21hbmFnZWQYFSABKAsyJS5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Tc2hDb25maWcSFAoMZWRpdF9yZWZ1c2FsGBYgASgJEhUKDXByb3ZlZF9jaGFuZ2UYFyABKAkSFgoOYWRtaW5fYWNjb3VudHMYGCADKAkiWAoJU3NoU291cmNlEg8KB2tleXdvcmQYASABKAkSDAoEZmlsZRgCIAEoCRIMCgRsaW5lGAMgASgNEg0KBXZhbHVlGAQgASgJEg8KB2NoYW5nZWQYBSABKAgiRgoIU3NoTWF0Y2gSDAoEZmlsZRgBIAEoCRIMCgRsaW5lGAIgASgNEhAKCGNyaXRlcmlhGAMgASgJEgwKBHNldHMYBCADKAkiLQoYR2V0U2VydmVyRmFpbDJiYW5SZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJgChlHZXRTZXJ2ZXJGYWlsMmJhblJlc3BvbnNlEi0KCGZhaWwyYmFuGAEgASgLMhsuZG9ja3dlbGwudjEuU2VydmVyRmFpbDJiYW4SFAoMeW91cl9hZGRyZXNzGAIgASgJIsUBCg5TZXJ2ZXJGYWlsMmJhbhIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIpCgVzdGF0ZRgCIAEoDjIaLmRvY2t3ZWxsLnYxLkZhaWwyYmFuU3RhdGUSCwoDd2h5GAMgASgJEg8KB3ZlcnNpb24YBCABKAkSKAoFamFpbHMYBSADKAsyGS5kb2Nrd2VsbC52MS5GYWlsMmJhbkphaWwSFgoOc2lnbmVkX2luX2Zyb20YBiADKAkiqwMKDEZhaWwyYmFuSmFpbBIMCgRuYW1lGAEgASgJEhEKCW1heF9yZXRyeRgCIAEoDRIsCglmaW5kX3RpbWUYAyABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SKwoIYmFuX3RpbWUYBCABKAsyGS5nb29nbGUucHJvdG9idWYuRHVyYXRpb24SFQoNYmFuc19mb3JfZ29vZBgFIAEoCBISCgpmYWlsZWRfbm93GAYgASgNEhQKDGZhaWxlZF90b3RhbBgHIAEoDRISCgpiYW5uZWRfbm93GAggASgNEhQKDGJhbm5lZF90b3RhbBgJIAEoDRINCgVmaWxlcxgKIAMoCRIXCg9qb3VybmFsX21hdGNoZXMYCyADKAkSJgoEYmFucxgMIAMoCzIYLmRvY2t3ZWxsLnYxLkZhaWwyYmFuQmFuEhIKCnVucmVhZGFibGUYDSABKAkSEAoIZG9ja3dlbGwYDiABKAgSDgoGaWdub3JlGA8gAygJEi4KBHNwZWMYECABKAsyIC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5KYWlsInQKC0ZhaWwyYmFuQmFuEg8KB2FkZHJlc3MYASABKAkSKQoFc2luY2UYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEikKBXVudGlsGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJnCgZTc2hLZXkSDAoEdHlwZRgBIAEoCRIPCgdjb21tZW50GAIgASgJEhMKC2ZpbmdlcnByaW50GAMgASgJEikKBWFkZGVkGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCI+ChhMaXN0U2VydmVyU3NoS2V5c1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg8KB2FjY291bnQYAiABKAkiYQoZTGlzdFNlcnZlclNzaEtleXNSZXNwb25zZRIQCghhY2NvdW50cxgBIAMoCRIhCgRrZXlzGAIgAygLMhMuZG9ja3dlbGwudjEuU3NoS2V5Eg8KB2FjY291bnQYAyABKAkiiAEKF0VkaXRTZXJ2ZXJTc2hLZXlSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIPCgdhY2NvdW50GAIgASgJEhQKCnB1YmxpY19rZXkYAyABKAlIABIcChJyZW1vdmVfZmluZ2VycHJpbnQYBCABKAlIABINCgVwcm9vZhgFIAEoCUIGCgRlZGl0IjwKGEVkaXRTZXJ2ZXJTc2hLZXlSZXNwb25zZRIgCgNrZXkYASABKAsyEy5kb2Nrd2VsbC52MS5Tc2hLZXkihwEKClNzaFNlc3Npb24SCgoCaWQYASABKAkSDAoEdXNlchgCIAEoCRIPCgdhZGRyZXNzGAMgASgJEikKBXNpbmNlGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgN0dHkYBSABKAkSFgoOY2FuX2Rpc2Nvbm5lY3QYBiABKAgiMQocTGlzdFNlcnZlclNzaFNlc3Npb25zUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiSgodTGlzdFNlcnZlclNzaFNlc3Npb25zUmVzcG9uc2USKQoIc2Vzc2lvbnMYASADKAsyFy5kb2Nrd2VsbC52MS5Tc2hTZXNzaW9uIlkKIURpc2Nvbm5lY3RTZXJ2ZXJTc2hTZXNzaW9uUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEgoKc2Vzc2lvbl9pZBgCIAEoCRINCgVwcm9vZhgDIAEoCSIkCiJEaXNjb25uZWN0U2VydmVyU3NoU2Vzc2lvblJlc3BvbnNlInUKCFNzaExvZ2luEigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBHVzZXIYAiABKAkSDwoHYWRkcmVzcxgDIAEoCRIOCgZtZXRob2QYBCABKAkSEAoIYWNjZXB0ZWQYBSABKAgiMgoQU3NoTG9naW5GYWlsdXJlcxIPCgdhZGRyZXNzGAEgASgJEg0KBWNvdW50GAIgASgNIoEBChpMaXN0U2VydmVyU3NoTG9naW5zUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDQoFaG91cnMYAiABKA0SDAoEdXNlchgDIAEoCRIPCgdhZGRyZXNzGAQgASgJEhUKCGFjY2VwdGVkGAUgASgISACIAQFCCwoJX2FjY2VwdGVkIp0BChtMaXN0U2VydmVyU3NoTG9naW5zUmVzcG9uc2USJQoGbG9naW5zGAEgAygLMhUuZG9ja3dlbGwudjEuU3NoTG9naW4SLwoIZmFpbHVyZXMYAiADKAsyHS5kb2Nrd2VsbC52MS5Tc2hMb2dpbkZhaWx1cmVzEg8KB2JvdW5kZWQYAyABKAgSFQoNYmFuX2F2YWlsYWJsZRgEIAEoCCJPChpCYW5TZXJ2ZXJTc2hBZGRyZXNzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDwoHYWRkcmVzcxgCIAEoCRINCgVwcm9vZhgDIAEoCSIdChtCYW5TZXJ2ZXJTc2hBZGRyZXNzUmVzcG9uc2UqswMKE0xpc3RlbmVyUmVhY2hSZWFzb24SJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX1VOU1BFQ0lGSUVEEAASJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX0FQUF9QUk9GSUxFEAESIQodTElTVEVORVJfUkVBQ0hfUkVBU09OX1NFUlZJQ0UQAhIjCh9MSVNURU5FUl9SRUFDSF9SRUFTT05fUklDSF9SVUxFEAMSIwofTElTVEVORVJfUkVBQ0hfUkVBU09OX0lOVEVSRkFDRRAEEiUKIUxJU1RFTkVSX1JFQUNIX1JFQVNPTl9ERVNUSU5BVElPThAFEh8KG0xJU1RFTkVSX1JFQUNIX1JFQVNPTl9aT05FUxAGEiQKIExJU1RFTkVSX1JFQUNIX1JFQVNPTl9VTlJFQURBQkxFEAcSJQohTElTVEVORVJfUkVBQ0hfUkVBU09OX09USEVSX1JVTEVTEAgSKAokTElTVEVORVJfUkVBQ0hfUkVBU09OX0RPQ0tFUl9VTktOT1dOEAkSIgoeTElTVEVORVJfUkVBQ0hfUkVBU09OX0JVSUxUX0lOEAoqmAEKDUxpc3RlbmVyUmVhY2gSHgoaTElTVEVORVJfUkVBQ0hfVU5TUEVDSUZJRUQQABIXChNMSVNURU5FUl9SRUFDSF9PUEVOEAESFwoTTElTVEVORVJfUkVBQ0hfU09NRRACEhkKFUxJU1RFTkVSX1JFQUNIX0NMT1NFRBADEhoKFkxJU1RFTkVSX1JFQUNIX1VOS05PV04QBCreAQoQRmlyZXdhbGxUb29sS2luZBIiCh5GSVJFV0FMTF9UT09MX0tJTkRfVU5TUEVDSUZJRUQQABIaChZGSVJFV0FMTF9UT09MX0tJTkRfVUZXEAESIAocRklSRVdBTExfVE9PTF9LSU5EX0ZJUkVXQUxMRBACEh8KG0ZJUkVXQUxMX1RPT0xfS0lORF9ORlRBQkxFUxADEiYKIkZJUkVXQUxMX1RPT0xfS0lORF9JUFRBQkxFU19MRUdBQ1kQBBIfChtGSVJFV0FMTF9UT09MX0tJTkRfSVBUQUJMRVMQBSqjAQoPRmlyZXdhbGxWZXJkaWN0EiAKHEZJUkVXQUxMX1ZFUkRJQ1RfVU5TUEVDSUZJRUQQABIaChZGSVJFV0FMTF9WRVJESUNUX0FMTE9XEAESGQoVRklSRVdBTExfVkVSRElDVF9ERU5ZEAISGwoXRklSRVdBTExfVkVSRElDVF9SRUpFQ1QQAxIaChZGSVJFV0FMTF9WRVJESUNUX0xJTUlUEAQqTgoJU3NoQW5zd2VyEhoKFlNTSF9BTlNXRVJfVU5TUEVDSUZJRUQQABISCg5TU0hfQU5TV0VSX1lFUxABEhEKDVNTSF9BTlNXRVJfTk8QAiqwAQoJU3NoTG9hZGVkEhoKFlNTSF9MT0FERURfVU5TUEVDSUZJRUQQABIUChBTU0hfTE9BREVEX1NUQUxFEAISFAoQU1NIX0xPQURFRF9BUEFSVBAEEiEKHVNTSF9MT0FERURfTk9USElOR19UT19XQVJOX09GEAUiBAgBEAEiBAgDEAMqElNTSF9MT0FERURfQ1VSUkVOVCoYU1NIX0xPQURFRF9BVF9FQUNIX1NUQVJUKqQBCgxTc2hSb290TG9naW4SHgoaU1NIX1JPT1RfTE9HSU5fVU5TUEVDSUZJRUQQABIWChJTU0hfUk9PVF9MT0dJTl9ZRVMQARIcChhTU0hfUk9PVF9MT0dJTl9LRVlTX09OTFkQAhInCiNTU0hfUk9PVF9MT0dJTl9GT1JDRURfQ09NTUFORFNfT05MWRADEhUKEVNTSF9ST09UX0xPR0lOX05PEAQqqAEKDUZhaWwyYmFuU3RhdGUSHgoaRkFJTDJCQU5fU1RBVEVfVU5TUEVDSUZJRUQQABIgChxGQUlMMkJBTl9TVEFURV9OT1RfSU5TVEFMTEVEEAESGgoWRkFJTDJCQU5fU1RBVEVfU1RPUFBFRBACEhoKFkZBSUwyQkFOX1NUQVRFX1JVTk5JTkcQAxIdChlGQUlMMkJBTl9TVEFURV9VTlJFQURBQkxFEAQyshMKD0ZpcmV3YWxsU2VydmljZRKyAQoRR2V0U2VydmVyRmlyZXdhbGwSJS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlcXVlc3QaJi5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJGaXJld2FsbFJlc3BvbnNlIk6QAgGguxgBqrsYDwoIZmlyZXdhbGwSA2dldMC7GATIuxgE0LsYBoLT5JMCIhIgL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlyZXdhbGwSmQEKDEdldFNlcnZlclNzaBIgLmRvY2t3ZWxsLnYxLkdldFNlcnZlclNzaFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5HZXRTZXJ2ZXJTc2hSZXNwb25zZSJEkAIBoLsYAaq7GAoKA3NzaBIDZ2V0wLsYBMi7GATQuxgGgtPkkwIdEhsvdjEvc2VydmVycy97c2VydmVyX2lkfS9zc2gSsgEKEUxpc3RTZXJ2ZXJTc2hLZXlzEiUuZG9ja3dlbGwudjEuTGlzdFNlcnZlclNzaEtleXNSZXF1ZXN0GiYuZG9ja3dlbGwudjEuTGlzdFNlcnZlclNzaEtleXNSZXNwb25zZSJOkAIBoLsYAaq7GAsKA3NzaBIEa2V5c7C7GAHAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3NzaC9rZXlzErMBChBFZGl0U2VydmVyU3NoS2V5EiQuZG9ja3dlbGwudjEuRWRpdFNlcnZlclNzaEtleVJlcXVlc3QaJS5kb2Nrd2VsbC52MS5FZGl0U2VydmVyU3NoS2V5UmVzcG9uc2UiUqC7GASquxgPCgNzc2gSCGVkaXQta2V5sLsYAcC7GATIuxgE0LsYBoLT5JMCJToBKiIgL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vc3NoL2tleXMSxgEKFUxpc3RTZXJ2ZXJTc2hTZXNzaW9ucxIpLmRvY2t3ZWxsLnYxLkxpc3RTZXJ2ZXJTc2hTZXNzaW9uc1JlcXVlc3QaKi5kb2Nrd2VsbC52MS5MaXN0U2VydmVyU3NoU2Vzc2lvbnNSZXNwb25zZSJWkAIBoLsYAaq7GA8KA3NzaBIIc2Vzc2lvbnOwuxgBwLsYBMi7GATQuxgGgtPkkwImEiQvdjEvc2VydmVycy97c2VydmVyX2lkfS9zc2gvc2Vzc2lvbnMS4gEKGkRpc2Nvbm5lY3RTZXJ2ZXJTc2hTZXNzaW9uEi4uZG9ja3dlbGwudjEuRGlzY29ubmVjdFNlcnZlclNzaFNlc3Npb25SZXF1ZXN0Gi8uZG9ja3dlbGwudjEuRGlzY29ubmVjdFNlcnZlclNzaFNlc3Npb25SZXNwb25zZSJjoLsYBKq7GBEKA3NzaBIKZGlzY29ubmVjdLC7GAHAuxgEyLsYBNC7GAaC0+STAjQ6ASoiLy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3NzaC9zZXNzaW9uczpkaXNjb25uZWN0ErwBChNMaXN0U2VydmVyU3NoTG9naW5zEicuZG9ja3dlbGwudjEuTGlzdFNlcnZlclNzaExvZ2luc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0U2VydmVyU3NoTG9naW5zUmVzcG9uc2UiUpACAaC7GAGquxgNCgNzc2gSBmxvZ2luc7C7GAHAuxgEyLsYBNC7GAaC0+STAiQSIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3NzaC9sb2dpbnMStwEKE0JhblNlcnZlclNzaEFkZHJlc3MSJy5kb2Nrd2VsbC52MS5CYW5TZXJ2ZXJTc2hBZGRyZXNzUmVxdWVzdBooLmRvY2t3ZWxsLnYxLkJhblNlcnZlclNzaEFkZHJlc3NSZXNwb25zZSJNoLsYBKq7GAoKA3NzaBIDYmFusLsYAcC7GATIuxgE0LsYBoLT5JMCJToBKiIgL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vc3NoL2JhbnMSsgEKEUdldFNlcnZlckZhaWwyYmFuEiUuZG9ja3dlbGwudjEuR2V0U2VydmVyRmFpbDJiYW5SZXF1ZXN0GiYuZG9ja3dlbGwudjEuR2V0U2VydmVyRmFpbDJiYW5SZXNwb25zZSJOkAIBoLsYAaq7GA8KCGZhaWwyYmFuEgNnZXTAuxgEyLsYBNC7GAaC0+STAiISIC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZhaWwyYmFuGoYGorsYxAIKCGZpcmV3YWxsErcCV2hhdCBmaWx0ZXJzIGEgc2VydmVyJ3MgaW5ib3VuZCB0cmFmZmljOiB0aGUgZmlyZXdhbGxzIGFscmVhZHkgdGhlcmUsIHVmdywgZmlyZXdhbGxkIGFuZCBuZnRhYmxlcywgZWFjaCByZWFkIHdpdGggaXRzIG93biB0b29sLCBob3cgZmFyIHdoYXQgbGlzdGVucyByZWFjaGVzIHBhc3QgdGhlbSwgYW5kIHRoZSBwb3J0cyBEb2NrZXIgcHVibGlzaGVzLCB3aGljaCByZWFjaCB0aGVpciBjb250YWluZXJzIHBhc3QgdGhlbS4gRG9ja3dlbGwncyBvd24gcnVsZXMgYXJlIGZpcmV3YWxsLnJ1bGUgcmVzb3VyY2VzLCB3aGljaCBhIGNoYW5nZSBlZGl0cy6iuxiYAgoDc3NoEpACSG93IFNTSCBsZXRzIHBlb3BsZSBpbiBvbiBhIHNlcnZlcjogcGFzc3dvcmQgYW5kIHJvb3QgbG9naW4sIGl0cyBwb3J0cywgYXMgc3NoZCdzIGZpbGVzIHNheSwgdGhlIGZpbGUgdGhhdCBzZXRzIGVhY2gsIGFuZCBhIHdhcm5pbmcgd2hlbiB0aGUgc3NoZCB0aGF0IGxpc3RlbnMgbWF5IG5vdCBoYXZlIHJlYWQgdGhlbSwgb3IgdGhhdCB0aGVyZSdzIG5vdGhpbmcgdG8gd2FybiBvZiwgd2hpY2ggZG9lc24ndCBzYXkgaXQgaGFzLiBSZWFkaW5nIGl0IGNoYW5nZXMgbm90aGluZy6iuxibAQoIZmFpbDJiYW4SjgFXaGF0IGZhaWwyYmFuIGRvZXMgb24gYSBzZXJ2ZXI6IHdoZXRoZXIgaXQgcnVucywgaXRzIGphaWxzIGFzIGl0IHJ1bnMgdGhlbSwgYW5kIHRoZSBhZGRyZXNzZXMgZWFjaCBoYXMgYmFubmVkIG5vdy4gUmVhZGluZyBpdCBjaGFuZ2VzIG5vdGhpbmcuQqYBCg9jb20uZG9ja3dlbGwudjFCDUZpcmV3YWxsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * GetServerFirewallRequest names a server.
@@ -763,6 +763,31 @@ export type ServerSsh = Message<"dockwell.v1.ServerSsh"> & {
    * @generated from field: string reload_command = 19;
    */
   reloadCommand: string;
+
+  /**
+   * @generated from field: repeated string listen_addresses = 20;
+   */
+  listenAddresses: string[];
+
+  /**
+   * @generated from field: dockwell.resource.v1alpha1.SshConfig managed = 21;
+   */
+  managed?: SshConfig | undefined;
+
+  /**
+   * @generated from field: string edit_refusal = 22;
+   */
+  editRefusal: string;
+
+  /**
+   * @generated from field: string proved_change = 23;
+   */
+  provedChange: string;
+
+  /**
+   * @generated from field: repeated string admin_accounts = 24;
+   */
+  adminAccounts: string[];
 };
 
 /**
@@ -1146,6 +1171,464 @@ export type Fail2banBan = Message<"dockwell.v1.Fail2banBan"> & {
  */
 export const Fail2banBanSchema: GenMessage<Fail2banBan> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_firewall, 18);
+
+/**
+ * SshKey describes a public key without disclosing its material.
+ *
+ * @generated from message dockwell.v1.SshKey
+ */
+export type SshKey = Message<"dockwell.v1.SshKey"> & {
+  /**
+   * @generated from field: string type = 1;
+   */
+  type: string;
+
+  /**
+   * @generated from field: string comment = 2;
+   */
+  comment: string;
+
+  /**
+   * @generated from field: string fingerprint = 3;
+   */
+  fingerprint: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp added = 4;
+   */
+  added?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SshKey.
+ * Use `create(SshKeySchema)` to create a new message.
+ */
+export const SshKeySchema: GenMessage<SshKey> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 19);
+
+/**
+ * ListServerSshKeysRequest selects a server and optionally one local account.
+ *
+ * @generated from message dockwell.v1.ListServerSshKeysRequest
+ */
+export type ListServerSshKeysRequest = Message<"dockwell.v1.ListServerSshKeysRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string account = 2;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshKeysRequest.
+ * Use `create(ListServerSshKeysRequestSchema)` to create a new message.
+ */
+export const ListServerSshKeysRequestSchema: GenMessage<ListServerSshKeysRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 20);
+
+/**
+ * ListServerSshKeysResponse lists accounts and the selected account's key metadata.
+ *
+ * @generated from message dockwell.v1.ListServerSshKeysResponse
+ */
+export type ListServerSshKeysResponse = Message<"dockwell.v1.ListServerSshKeysResponse"> & {
+  /**
+   * @generated from field: repeated string accounts = 1;
+   */
+  accounts: string[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.SshKey keys = 2;
+   */
+  keys: SshKey[];
+
+  /**
+   * @generated from field: string account = 3;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshKeysResponse.
+ * Use `create(ListServerSshKeysResponseSchema)` to create a new message.
+ */
+export const ListServerSshKeysResponseSchema: GenMessage<ListServerSshKeysResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 21);
+
+/**
+ * EditServerSshKeyRequest selects an account and a single add or remove operation.
+ *
+ * @generated from message dockwell.v1.EditServerSshKeyRequest
+ */
+export type EditServerSshKeyRequest = Message<"dockwell.v1.EditServerSshKeyRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string account = 2;
+   */
+  account: string;
+
+  /**
+   * @generated from oneof dockwell.v1.EditServerSshKeyRequest.edit
+   */
+  edit: {
+    /**
+     * @generated from field: string public_key = 3;
+     */
+    value: string;
+    case: "publicKey";
+  } | {
+    /**
+     * @generated from field: string remove_fingerprint = 4;
+     */
+    value: string;
+    case: "removeFingerprint";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * @generated from field: string proof = 5;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.EditServerSshKeyRequest.
+ * Use `create(EditServerSshKeyRequestSchema)` to create a new message.
+ */
+export const EditServerSshKeyRequestSchema: GenMessage<EditServerSshKeyRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 22);
+
+/**
+ * EditServerSshKeyResponse describes the affected public key.
+ *
+ * @generated from message dockwell.v1.EditServerSshKeyResponse
+ */
+export type EditServerSshKeyResponse = Message<"dockwell.v1.EditServerSshKeyResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.SshKey key = 1;
+   */
+  key?: SshKey | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.EditServerSshKeyResponse.
+ * Use `create(EditServerSshKeyResponseSchema)` to create a new message.
+ */
+export const EditServerSshKeyResponseSchema: GenMessage<EditServerSshKeyResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 23);
+
+/**
+ * SshSession is an authenticated SSH connection.
+ *
+ * @generated from message dockwell.v1.SshSession
+ */
+export type SshSession = Message<"dockwell.v1.SshSession"> & {
+  /**
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * @generated from field: string user = 2;
+   */
+  user: string;
+
+  /**
+   * @generated from field: string address = 3;
+   */
+  address: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp since = 4;
+   */
+  since?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string tty = 5;
+   */
+  tty: string;
+
+  /**
+   * @generated from field: bool can_disconnect = 6;
+   */
+  canDisconnect: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SshSession.
+ * Use `create(SshSessionSchema)` to create a new message.
+ */
+export const SshSessionSchema: GenMessage<SshSession> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 24);
+
+/**
+ * ListServerSshSessionsRequest selects a server.
+ *
+ * @generated from message dockwell.v1.ListServerSshSessionsRequest
+ */
+export type ListServerSshSessionsRequest = Message<"dockwell.v1.ListServerSshSessionsRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshSessionsRequest.
+ * Use `create(ListServerSshSessionsRequestSchema)` to create a new message.
+ */
+export const ListServerSshSessionsRequestSchema: GenMessage<ListServerSshSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 25);
+
+/**
+ * ListServerSshSessionsResponse lists the server's authenticated SSH connections.
+ *
+ * @generated from message dockwell.v1.ListServerSshSessionsResponse
+ */
+export type ListServerSshSessionsResponse = Message<"dockwell.v1.ListServerSshSessionsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.SshSession sessions = 1;
+   */
+  sessions: SshSession[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshSessionsResponse.
+ * Use `create(ListServerSshSessionsResponseSchema)` to create a new message.
+ */
+export const ListServerSshSessionsResponseSchema: GenMessage<ListServerSshSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 26);
+
+/**
+ * DisconnectServerSshSessionRequest identifies a connection from the session list.
+ *
+ * @generated from message dockwell.v1.DisconnectServerSshSessionRequest
+ */
+export type DisconnectServerSshSessionRequest = Message<"dockwell.v1.DisconnectServerSshSessionRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string session_id = 2;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string proof = 3;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DisconnectServerSshSessionRequest.
+ * Use `create(DisconnectServerSshSessionRequestSchema)` to create a new message.
+ */
+export const DisconnectServerSshSessionRequestSchema: GenMessage<DisconnectServerSshSessionRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 27);
+
+/**
+ * DisconnectServerSshSessionResponse confirms the signal went to the identified session.
+ *
+ * @generated from message dockwell.v1.DisconnectServerSshSessionResponse
+ */
+export type DisconnectServerSshSessionResponse = Message<"dockwell.v1.DisconnectServerSshSessionResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.DisconnectServerSshSessionResponse.
+ * Use `create(DisconnectServerSshSessionResponseSchema)` to create a new message.
+ */
+export const DisconnectServerSshSessionResponseSchema: GenMessage<DisconnectServerSshSessionResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 28);
+
+/**
+ * SshLogin is an authentication result reported by the SSH daemon.
+ *
+ * @generated from message dockwell.v1.SshLogin
+ */
+export type SshLogin = Message<"dockwell.v1.SshLogin"> & {
+  /**
+   * @generated from field: google.protobuf.Timestamp time = 1;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string user = 2;
+   */
+  user: string;
+
+  /**
+   * @generated from field: string address = 3;
+   */
+  address: string;
+
+  /**
+   * @generated from field: string method = 4;
+   */
+  method: string;
+
+  /**
+   * @generated from field: bool accepted = 5;
+   */
+  accepted: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SshLogin.
+ * Use `create(SshLoginSchema)` to create a new message.
+ */
+export const SshLoginSchema: GenMessage<SshLogin> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 29);
+
+/**
+ * SshLoginFailures summarizes failed SSH authentication for one address.
+ *
+ * @generated from message dockwell.v1.SshLoginFailures
+ */
+export type SshLoginFailures = Message<"dockwell.v1.SshLoginFailures"> & {
+  /**
+   * @generated from field: string address = 1;
+   */
+  address: string;
+
+  /**
+   * @generated from field: uint32 count = 2;
+   */
+  count: number;
+};
+
+/**
+ * Describes the message dockwell.v1.SshLoginFailures.
+ * Use `create(SshLoginFailuresSchema)` to create a new message.
+ */
+export const SshLoginFailuresSchema: GenMessage<SshLoginFailures> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 30);
+
+/**
+ * ListServerSshLoginsRequest filters a bounded window of SSH login results.
+ *
+ * @generated from message dockwell.v1.ListServerSshLoginsRequest
+ */
+export type ListServerSshLoginsRequest = Message<"dockwell.v1.ListServerSshLoginsRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: uint32 hours = 2;
+   */
+  hours: number;
+
+  /**
+   * @generated from field: string user = 3;
+   */
+  user: string;
+
+  /**
+   * @generated from field: string address = 4;
+   */
+  address: string;
+
+  /**
+   * @generated from field: optional bool accepted = 5;
+   */
+  accepted?: boolean | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshLoginsRequest.
+ * Use `create(ListServerSshLoginsRequestSchema)` to create a new message.
+ */
+export const ListServerSshLoginsRequestSchema: GenMessage<ListServerSshLoginsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 31);
+
+/**
+ * ListServerSshLoginsResponse holds the matching logins and the failures by address.
+ *
+ * @generated from message dockwell.v1.ListServerSshLoginsResponse
+ */
+export type ListServerSshLoginsResponse = Message<"dockwell.v1.ListServerSshLoginsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.SshLogin logins = 1;
+   */
+  logins: SshLogin[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.SshLoginFailures failures = 2;
+   */
+  failures: SshLoginFailures[];
+
+  /**
+   * @generated from field: bool bounded = 3;
+   */
+  bounded: boolean;
+
+  /**
+   * @generated from field: bool ban_available = 4;
+   */
+  banAvailable: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ListServerSshLoginsResponse.
+ * Use `create(ListServerSshLoginsResponseSchema)` to create a new message.
+ */
+export const ListServerSshLoginsResponseSchema: GenMessage<ListServerSshLoginsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 32);
+
+/**
+ * BanServerSshAddressRequest identifies an address with recent SSH authentication failures.
+ *
+ * @generated from message dockwell.v1.BanServerSshAddressRequest
+ */
+export type BanServerSshAddressRequest = Message<"dockwell.v1.BanServerSshAddressRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string address = 2;
+   */
+  address: string;
+
+  /**
+   * @generated from field: string proof = 3;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BanServerSshAddressRequest.
+ * Use `create(BanServerSshAddressRequestSchema)` to create a new message.
+ */
+export const BanServerSshAddressRequestSchema: GenMessage<BanServerSshAddressRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 33);
+
+/**
+ * BanServerSshAddressResponse confirms fail2ban accepted the ban.
+ *
+ * @generated from message dockwell.v1.BanServerSshAddressResponse
+ */
+export type BanServerSshAddressResponse = Message<"dockwell.v1.BanServerSshAddressResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.BanServerSshAddressResponse.
+ * Use `create(BanServerSshAddressResponseSchema)` to create a new message.
+ */
+export const BanServerSshAddressResponseSchema: GenMessage<BanServerSshAddressResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_firewall, 34);
 
 /**
  * ListenerReachReason is why a listener reaches as far as it does.
@@ -1567,8 +2050,8 @@ export const Fail2banStateSchema: GenEnum<Fail2banState> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_firewall, 7);
 
 /**
- * FirewallService says what filters a server's inbound traffic. Reading it
- * changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+ * FirewallService reads a server's inbound filters and manages SSH access.
+ * See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
  *
  * @generated from service dockwell.v1.FirewallService
  */
@@ -1605,6 +2088,66 @@ export const FirewallService: GenService<{
     methodKind: "unary";
     input: typeof GetServerSshRequestSchema;
     output: typeof GetServerSshResponseSchema;
+  },
+  /**
+   * ListServerSshKeys lists local accounts and a selected account's authorized SSH keys.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.ListServerSshKeys
+   */
+  listServerSshKeys: {
+    methodKind: "unary";
+    input: typeof ListServerSshKeysRequestSchema;
+    output: typeof ListServerSshKeysResponseSchema;
+  },
+  /**
+   * EditServerSshKey adds one public key or removes a key by its fingerprint. It requires a fresh passkey.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.EditServerSshKey
+   */
+  editServerSshKey: {
+    methodKind: "unary";
+    input: typeof EditServerSshKeyRequestSchema;
+    output: typeof EditServerSshKeyResponseSchema;
+  },
+  /**
+   * ListServerSshSessions lists authenticated SSH connections and whether the agent can disconnect each one.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.ListServerSshSessions
+   */
+  listServerSshSessions: {
+    methodKind: "unary";
+    input: typeof ListServerSshSessionsRequestSchema;
+    output: typeof ListServerSshSessionsResponseSchema;
+  },
+  /**
+   * DisconnectServerSshSession ends a specific SSH connection after a passkey check.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.DisconnectServerSshSession
+   */
+  disconnectServerSshSession: {
+    methodKind: "unary";
+    input: typeof DisconnectServerSshSessionRequestSchema;
+    output: typeof DisconnectServerSshSessionResponseSchema;
+  },
+  /**
+   * ListServerSshLogins reads a bounded window of SSH login results and counts failures by address.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.ListServerSshLogins
+   */
+  listServerSshLogins: {
+    methodKind: "unary";
+    input: typeof ListServerSshLoginsRequestSchema;
+    output: typeof ListServerSshLoginsResponseSchema;
+  },
+  /**
+   * BanServerSshAddress bans a failed SSH peer in the active fail2ban sshd jail after a passkey check.
+   *
+   * @generated from rpc dockwell.v1.FirewallService.BanServerSshAddress
+   */
+  banServerSshAddress: {
+    methodKind: "unary";
+    input: typeof BanServerSshAddressRequestSchema;
+    output: typeof BanServerSshAddressResponseSchema;
   },
   /**
    * GetServerFail2ban reads, through the server's agent, what fail2ban does:
