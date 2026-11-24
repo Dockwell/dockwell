@@ -6580,6 +6580,12 @@ msgstr "其服务器的代理版本过旧，无法检查；请更新代理"
 msgid "New build"
 msgstr "新构建"
 
+msgid "New build of <0>{version}</0>"
+msgstr "<0>{version}</0> 的新构建"
+
+msgid "New build of {version}"
+msgstr "{version} 的新构建"
+
 msgid "New release"
 msgstr "新的发布"
 
@@ -6618,8 +6624,15 @@ msgid "Show again"
 msgstr "重新显示"
 
 #. placeholder {0}: a.toVersion
+msgid "Show the new build of {0} again"
+msgstr "重新显示 {0} 的新构建"
+
+#. placeholder {0}: a.toVersion
 msgid "Show {0} again"
 msgstr "重新显示 {0}"
+
+msgid "Skip this build"
+msgstr "跳过这个构建"
 
 #. placeholder {0}: first.toVersion
 msgid "Skip {0}"
@@ -6647,9 +6660,8 @@ msgstr "已是最新"
 msgid "Update available"
 msgstr "有可用更新"
 
-#. placeholder {0}: step(a)
-msgid "Update available: {0}, {kind}"
-msgstr "有可用更新：{0}，{kind}"
+msgid "Update available: {change}, {kind}"
+msgstr "有可用更新：{change}，{kind}"
 
 msgid "Updates snoozed"
 msgstr "更新已推迟"
@@ -6671,10 +6683,6 @@ msgid "minor"
 msgstr "次要版本"
 
 msgctxt "update kind"
-msgid "new build"
-msgstr "新构建"
-
-msgctxt "update kind"
 msgid "new commits"
 msgstr "新提交"
 
@@ -6694,12 +6702,6 @@ msgstr "在任何改动之前备份 {names}"
 
 msgid "Undo won't bring back what it changes in {names}"
 msgstr "撤销不会还原它在 {names} 中改动的内容"
-
-msgid "Updated to {to}"
-msgstr "已更新到 {to}"
-
-msgid "Updating to {to}"
-msgstr "正在更新到 {to}"
 
 msgid "Always"
 msgstr "始终"
@@ -11061,12 +11063,21 @@ msgstr "待进行"
 msgid "Under way"
 msgstr "进行中"
 
-msgid "its newest image"
-msgstr "它的最新镜像"
+msgid "built {day}"
+msgstr "构建于{day}"
+
+msgid "its newest build"
+msgstr "该标签的最新构建"
+
+msgid "published {day}"
+msgstr "发布于{day}"
 
 msgctxt "update"
 msgid "to"
 msgstr "更新到"
+
+msgid "today"
+msgstr "今天"
 
 #. placeholder {0}: bytes[0]
 #. placeholder {1}: bytes[1]
@@ -12513,6 +12524,9 @@ msgstr "无法接管"
 msgid "Couldn't update"
 msgstr "无法更新"
 
+msgid "Couldn't update to a newer build of {to}"
+msgstr "无法更新到 {to} 的新构建"
+
 msgid "Couldn't update to {to}"
 msgstr "无法更新到 {to}"
 
@@ -12834,11 +12848,26 @@ msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停�
 msgid "Update"
 msgstr "更新"
 
+msgid "Update to a newer build of {to}"
+msgstr "更新到 {to} 的新构建"
+
 msgid "Update to {to}"
 msgstr "更新到 {to}"
 
+msgid "Updated to a newer build of {to}"
+msgstr "已更新到 {to} 的新构建"
+
+msgid "Updated to {to}"
+msgstr "已更新到 {to}"
+
 msgid "Updating"
 msgstr "正在更新"
+
+msgid "Updating to a newer build of {to}"
+msgstr "正在更新到 {to} 的新构建"
+
+msgid "Updating to {to}"
+msgstr "正在更新到 {to}"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "正在处理的请求最多有 {drain} 的时间完成。超过此时间的连接（如长连接）会随旧容器一起结束"

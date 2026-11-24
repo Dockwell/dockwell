@@ -252,8 +252,11 @@ jobs:
                 --config-file /socket/daemon.json --storage-driver vfs --bridge none --iptables=false --ip6tables=false --ip-forward=false \
                 --registry-mirror https://mirror.gcr.io
               export DOCKWELL_TEST_DOCKER="$state/docker.sock" TMPDIR="$state"
+              # The daemon is ready once it names its storage driver: docker info
+              # can succeed with an empty driver while dockerd is still starting.
               for attempt in {1..30}; do
-                if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{.Driver}}' >"$state/driver" 2>/dev/null; then
+                if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{.Driver}}' >"$state/driver" 2>/dev/null &&
+                  [[ -n "$(tr -d '[:space:]' <"$state/driver")" ]]; then
                   break
                 fi
                 if [[ "$attempt" == 30 ]]; then
@@ -262,7 +265,10 @@ jobs:
                 fi
                 sleep 1
               done
-              grep -Fxq vfs "$state/driver"
+              if ! grep -Fxq vfs "$state/driver"; then
+                echo "Docker $version runs the $(cat "$state/driver") storage driver, not vfs" >&2
+                exit 1
+              fi
               go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
               for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID KeepsAnImageWithTwoTags RemovesUnusedVolumesAndManyImages KeepsStoppedContainerVolume ProtectsComposeAndCopiedMarkerVolumes; do
                 grep -q "^--- PASS: TestCleanup${test}OnRealDocker " "$state/tests.out"
@@ -723,9 +729,9 @@ jobs:
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04
-    # About 14 minutes on 2026-11-07, and it grows with each flow, so this leaves room for a slow runner rather than
-    # cutting off a run that's still going.
-    timeout-minutes: 30
+    # About 14 minutes on 2026-11-07 and 28 to 30 on 2026-11-23, as it grows with each flow, so this leaves room for a
+    # slow runner rather than cutting off a run that's still going.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The steps after this one run only when this change needs this job,

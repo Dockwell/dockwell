@@ -57,6 +57,19 @@ export function upgradeFrom(intent: Intent): string {
   return intent.fromRelease || tagOf(intent.fromImage);
 }
 
+/** An image tag or catalog release that keeps its version and takes a new build. */
+export function isBuildUpgrade(intent: Intent): boolean {
+  if (intent.release) {
+    return (
+      intent.catalogRelease > 0 &&
+      intent.catalogRelease === intent.fromCatalogRelease &&
+      intent.release === intent.fromRelease
+    );
+  }
+  const [image, pinned] = intent.image.split("@");
+  return !!intent.fromImage && (!pinned || !!intent.toDigest) && intent.fromImage.split("@")[0] === image;
+}
+
 /** A digest as a person reads it: its first 12 hex digits. */
 export function shortDigest(digest: string): string {
   return digest.replace(/^sha256:/, "").slice(0, 12);

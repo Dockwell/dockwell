@@ -1654,6 +1654,11 @@ message ImageUpdatesResult {
   string source = 6;
   // The registry's own words when it didn't answer as it should, in a line.
   string detail = 7;
+  // The running image's digest and creation time, from the server's own copy.
+  string running_digest = 8;
+  google.protobuf.Timestamp running_build_time = 9;
+  // The creation time of the digest the tag points at, if the server has it.
+  google.protobuf.Timestamp build_time = 10;
 }
 
 // NewerTag is a tag newer than the one a service runs.

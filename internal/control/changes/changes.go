@@ -1689,12 +1689,23 @@ func intentProto(i *revision.Intent) *dockwellv1.Intent {
 	if i == nil {
 		return nil
 	}
-	return &dockwellv1.Intent{
+	out := &dockwellv1.Intent{
 		Kind: intentKinds[i.Kind], ResourceId: i.Resource, Image: i.Image, Commit: i.Commit, Ref: i.Ref,
 		FromImage: i.FromImage, FromDigest: i.FromDigest, FromRelease: i.FromRelease, Release: i.Release,
 		FromCatalogRelease: i.FromCatalogRelease, CatalogRelease: i.CatalogRelease,
-		Port: int32(min(i.Port, math.MaxInt32)), Revision: int64(i.Revision), //nolint:gosec // bounded just here
+		ToDigest: i.ToDigest,
+		Port:     int32(min(i.Port, math.MaxInt32)), Revision: int64(i.Revision), //nolint:gosec // bounded just here
 	}
+	if !i.FromBuildTime.IsZero() {
+		out.FromBuildTime = timestamppb.New(i.FromBuildTime)
+	}
+	if !i.ToBuildTime.IsZero() {
+		out.ToBuildTime = timestamppb.New(i.ToBuildTime)
+	}
+	if !i.ToPushTime.IsZero() {
+		out.ToPushTime = timestamppb.New(i.ToPushTime)
+	}
+	return out
 }
 
 func stepProto(s *revision.StepProgress) *dockwellv1.StepProgress {

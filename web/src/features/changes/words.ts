@@ -33,7 +33,7 @@ import { useCallback, useMemo } from "react";
 
 import { isPrivateAddress } from "../servers/server";
 import { type Fold, kindWord } from "./plan";
-import { upgradeTo } from "./upgrade";
+import { isBuildUpgrade, upgradeTo } from "./upgrade";
 
 /** Things as a list, "a, b and c", as the CLI writes it. British English leaves out the serial comma, as these words do. */
 function listWords(locale: string, items: readonly string[], type: Intl.ListFormatType = "conjunction"): string {
@@ -245,6 +245,14 @@ export function useChangeWords(): ChangeWords {
           case IntentKind.UPGRADE: {
             // What a person names a version by: a catalog install's release, or the image's tag (ADR 0080).
             const to = upgradeTo(intent);
+            if (isBuildUpgrade(intent)) {
+              return {
+                plan: t`Update to a newer build of ${to}`,
+                doing: t`Updating to a newer build of ${to}`,
+                done: t`Updated to a newer build of ${to}`,
+                failed: t`Couldn't update to a newer build of ${to}`,
+              }[tense];
+            }
             return {
               plan: t`Update to ${to}`,
               doing: t`Updating to ${to}`,

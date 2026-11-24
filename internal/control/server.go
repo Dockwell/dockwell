@@ -1447,7 +1447,8 @@ func appUpdates(keeper *serviceupdates.Keeper) func(ctx context.Context) ([]aler
 			o := c.Offer
 			out = append(out, alerts.AppUpdate{
 				ServiceID: c.ServiceID, Name: c.Name, ServerID: c.ServerID, From: o.GetFromVersion(), To: o.GetToVersion(),
-				Major: o.GetKind() == dockwellv1.UpdateKind_UPDATE_KIND_MAJOR, Kind: updateWords[o.GetKind()],
+				Major: o.GetKind() == dockwellv1.UpdateKind_UPDATE_KIND_MAJOR,
+				Build: o.GetKind() == dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, Kind: updateWords[o.GetKind()],
 			})
 		}
 		return out, nil

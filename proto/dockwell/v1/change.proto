@@ -1542,6 +1542,14 @@ message Intent {
   // release are the same.
   uint32 from_catalog_release = 264;
   uint32 catalog_release = 265;
+  // The target digest from a detected same-tag update. It describes what the
+  // check found, since the tag can move again before the update pulls it.
+  string to_digest = 266;
+  // The creation times of those builds, when known.
+  google.protobuf.Timestamp from_build_time = 267;
+  google.protobuf.Timestamp to_build_time = 268;
+  // When the target build was pushed, when the registry says.
+  google.protobuf.Timestamp to_push_time = 269;
 }
 
 // IntentKind is what a change is for.

@@ -1043,7 +1043,10 @@ type AvailableUpdate struct {
 	// alone, and web runs on pi-1, which is arm64", so it's shown with no update
 	// action and an automatic update leaves it. Empty when it can. See
 	// docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
-	Unavailable   string `protobuf:"bytes,14,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
+	Unavailable string `protobuf:"bytes,14,opt,name=unavailable,proto3" json:"unavailable,omitempty"`
+	// When the images of a same-tag update were built, where the server knows.
+	FromBuildTime *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=from_build_time,json=fromBuildTime,proto3" json:"from_build_time,omitempty"`
+	ToBuildTime   *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=to_build_time,json=toBuildTime,proto3" json:"to_build_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1183,6 +1186,20 @@ func (x *AvailableUpdate) GetUnavailable() string {
 	return ""
 }
 
+func (x *AvailableUpdate) GetFromBuildTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FromBuildTime
+	}
+	return nil
+}
+
+func (x *AvailableUpdate) GetToBuildTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ToBuildTime
+	}
+	return nil
+}
+
 var File_dockwell_v1_service_update_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_service_update_proto_rawDesc = "" +
@@ -1232,7 +1249,7 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\x06source\x18\a \x01(\x0e2\x19.dockwell.v1.UpdateSourceR\x06source\x12;\n" +
 	"\vsnooze_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"snoozeTime\x12+\n" +
-	"\x11withdrawn_version\x18\t \x01(\tR\x10withdrawnVersion\"\xaa\x04\n" +
+	"\x11withdrawn_version\x18\t \x01(\tR\x10withdrawnVersion\"\xae\x05\n" +
 	"\x0fAvailableUpdate\x12+\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x17.dockwell.v1.UpdateKindR\x04kind\x12!\n" +
 	"\ffrom_version\x18\x02 \x01(\tR\vfromVersion\x12\x1d\n" +
@@ -1253,7 +1270,9 @@ const file_dockwell_v1_service_update_proto_rawDesc = "" +
 	"\tto_commit\x18\f \x01(\tR\btoCommit\x12\x18\n" +
 	"\askipped\x18\r \x01(\bR\askipped\x12\x17\n" +
 	"\askip_as\x18Z \x01(\tR\x06skipAs\x12 \n" +
-	"\vunavailable\x18\x0e \x01(\tR\vunavailable*\x80\x02\n" +
+	"\vunavailable\x18\x0e \x01(\tR\vunavailable\x12B\n" +
+	"\x0ffrom_build_time\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\rfromBuildTime\x12>\n" +
+	"\rto_build_time\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\vtoBuildTime*\x80\x02\n" +
 	"\n" +
 	"UpdateKind\x12\x1b\n" +
 	"\x17UPDATE_KIND_UNSPECIFIED\x10\x00\x12 \n" +
@@ -1350,19 +1369,21 @@ var file_dockwell_v1_service_update_proto_depIdxs = []int32{
 	0,  // 13: dockwell.v1.AvailableUpdate.kind:type_name -> dockwell.v1.UpdateKind
 	16, // 14: dockwell.v1.AvailableUpdate.release_time:type_name -> google.protobuf.Timestamp
 	16, // 15: dockwell.v1.AvailableUpdate.found_time:type_name -> google.protobuf.Timestamp
-	4,  // 16: dockwell.v1.ServiceUpdateService.ListServiceUpdates:input_type -> dockwell.v1.ListServiceUpdatesRequest
-	7,  // 17: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:input_type -> dockwell.v1.CheckServiceUpdatesRequest
-	9,  // 18: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:input_type -> dockwell.v1.SkipServiceUpdateRequest
-	11, // 19: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:input_type -> dockwell.v1.SnoozeServiceUpdatesRequest
-	5,  // 20: dockwell.v1.ServiceUpdateService.ListServiceUpdates:output_type -> dockwell.v1.ListServiceUpdatesResponse
-	8,  // 21: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:output_type -> dockwell.v1.CheckServiceUpdatesResponse
-	10, // 22: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:output_type -> dockwell.v1.SkipServiceUpdateResponse
-	12, // 23: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:output_type -> dockwell.v1.SnoozeServiceUpdatesResponse
-	20, // [20:24] is the sub-list for method output_type
-	16, // [16:20] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	16, // 16: dockwell.v1.AvailableUpdate.from_build_time:type_name -> google.protobuf.Timestamp
+	16, // 17: dockwell.v1.AvailableUpdate.to_build_time:type_name -> google.protobuf.Timestamp
+	4,  // 18: dockwell.v1.ServiceUpdateService.ListServiceUpdates:input_type -> dockwell.v1.ListServiceUpdatesRequest
+	7,  // 19: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:input_type -> dockwell.v1.CheckServiceUpdatesRequest
+	9,  // 20: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:input_type -> dockwell.v1.SkipServiceUpdateRequest
+	11, // 21: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:input_type -> dockwell.v1.SnoozeServiceUpdatesRequest
+	5,  // 22: dockwell.v1.ServiceUpdateService.ListServiceUpdates:output_type -> dockwell.v1.ListServiceUpdatesResponse
+	8,  // 23: dockwell.v1.ServiceUpdateService.CheckServiceUpdates:output_type -> dockwell.v1.CheckServiceUpdatesResponse
+	10, // 24: dockwell.v1.ServiceUpdateService.SkipServiceUpdate:output_type -> dockwell.v1.SkipServiceUpdateResponse
+	12, // 25: dockwell.v1.ServiceUpdateService.SnoozeServiceUpdates:output_type -> dockwell.v1.SnoozeServiceUpdatesResponse
+	22, // [22:26] is the sub-list for method output_type
+	18, // [18:22] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_service_update_proto_init() }

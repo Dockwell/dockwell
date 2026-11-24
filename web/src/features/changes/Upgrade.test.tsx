@@ -251,6 +251,46 @@ describe("an update's phases", () => {
 });
 
 describe("the plan sheet, for an update", () => {
+  it.each([true, false])("describes a same-tag rebuild, with a detected digest: %s", async (known) => {
+    const planned = updatePlanned();
+    const intent = planned.plan?.intent;
+    const step = planned.plan?.servers[0]?.steps[1];
+    if (!intent || !step) throw new Error("missing the update plan");
+    planned.summary = "Update web to the newest build of ghcr.io/acme/shop:1.4";
+    intent.image = intent.fromImage;
+    step.pull = true;
+    if (known) {
+      intent.toDigest = `sha256:${"b".repeat(64)}`;
+      intent.fromBuildTime = timestampFromDate(new Date(2025, 10, 12));
+      intent.toBuildTime = timestampFromDate(new Date());
+    }
+    const watch = feed<WatchChangeResponse>();
+    renderSheet(
+      { kind: "plan", make: () => Promise.resolve({ change: planned }) },
+      {
+        changes: {
+          watchChange: watch.stream,
+          discardChange: () => ({}),
+          applyChange: () => ({ change: moved(planned, { state: ChangeState.APPLYING }) }),
+        },
+      },
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Update to a newer build of 1.4" });
+    const line = sheet.querySelector(".upgrade-line");
+    expect(line?.querySelectorAll('code[title="ghcr.io/acme/shop:1.4"]')).toHaveLength(1);
+    expect(sheet).toHaveTextContent("about 2 s down");
+    if (known) {
+      expect(line).toHaveTextContent("aaaaaaaaaaaa, built 12 Nov");
+      expect(line).toHaveTextContent("bbbbbbbbbbbb, built today");
+      expect(sheet).not.toHaveTextContent("if there is a newer image");
+    } else {
+      expect(line).toHaveTextContent("its newest build");
+      expect(sheet).toHaveTextContent("if there is a newer image");
+    }
+    await userEvent.click(within(sheet).getByRole("button", { name: /Apply plan/ }));
+    expect(await screen.findByRole("dialog", { name: "Updating to a newer build of 1.4" })).toBeVisible();
+  });
+
   it("says a catalog release that keeps the app's version as a release, never a step to the same version", async () => {
     const planned = updatePlanned();
     if (planned.plan) {

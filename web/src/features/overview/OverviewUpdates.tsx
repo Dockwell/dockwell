@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { type ServiceInfo, UpdateKind } from "@dockwell/api";
-import { cx, Panel, Tag } from "@dockwell/ui";
+import type { ServiceInfo } from "@dockwell/api";
+import { Panel } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 
 import { environmentOf, nameOf } from "../apps/app";
 import { PickBox, SelectPatches, UpdatePicksBar, useUpdatePicks } from "../apps/UpdateSeveral";
-import { installOffer, offered, ofInstall, oneForEachUpdate, useKindWord, useStep } from "../apps/updates";
+import { installOffer, offered, ofInstall, oneForEachUpdate, UpdateStep } from "../apps/updates";
 import { usePlaces } from "../apps/useServices";
 
 /** How many apps with an update the Overview lists; the rest are a link away, on Apps. */
@@ -21,8 +21,6 @@ const SHOWN = 6;
  */
 export function OverviewUpdates({ services, now }: { services: readonly ServiceInfo[]; now: number }) {
   const { t } = useLingui();
-  const kindWord = useKindWord();
-  const step = useStep();
   const places = usePlaces();
   const picks = useUpdatePicks(services, now);
   // A catalog install's update is one, the install's, listed once under its name.
@@ -59,8 +57,7 @@ export function OverviewUpdates({ services, now }: { services: readonly ServiceI
               <Link to="/apps/$serviceId" params={{ serviceId: service.id }} className="overview-update-name">
                 {name}
               </Link>
-              <code className="update-step">{step(a)}</code>
-              <Tag className={cx("update-kind", a.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(a.kind)}</Tag>
+              <UpdateStep offer={a} />
             </li>
           );
         })}

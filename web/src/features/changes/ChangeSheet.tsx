@@ -152,7 +152,7 @@ import {
 } from "./plan";
 import { RollbackLine, rollbackSubject } from "./RollbackLine";
 import { UpgradeLine, UpgradePhases } from "./UpgradeLead";
-import { upgradeOf, upgradePhases } from "./upgrade";
+import { isBuildUpgrade, upgradeOf, upgradePhases } from "./upgrade";
 import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
 import { localHost, useActorWords } from "../activity/actor";
@@ -1243,7 +1243,9 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     case "nothing":
       return t`Nothing to change`;
     case "review":
-      return t`Review plan`;
+      return intent?.kind === IntentKind.UPGRADE && isBuildUpgrade(intent)
+        ? words.intent(intent, "plan")
+        : t`Review plan`;
     case "applying":
       return intent ? words.intent(intent, "doing") : t`Applying`;
     case "failed": {
@@ -1919,7 +1921,7 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const ifNewer = servers
     .flatMap((s) => s.steps)
     .filter((s) => s.downtime)
-    .every(replacesIfNewer);
+    .every((step) => replacesIfNewer(step, plan?.intent));
   const going = servers.flatMap((s) => s.steps).flatMap((s) => (s.goes ? [s.goes] : []));
   const lost = going[0]?.where ?? "";
   const rolling = servers.flatMap((s) => s.steps).some((s) => s.rollout?.rolling && !startsStopped(s));

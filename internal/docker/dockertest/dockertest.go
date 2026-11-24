@@ -896,7 +896,7 @@ func (e *Engine) serveImages(w http.ResponseWriter, r *http.Request, path string
 		if imageID == "" {
 			imageID = "sha256:" + newID()
 		}
-		img := &image{id: imageID, digest: digest, repo: repoOf(repo), Image: src}
+		img := &image{id: imageID, digest: digest, repo: repoOf(repo), created: src.Created, Image: src}
 		e.images[ref], e.images[img.id], e.images[img.repo+"@"+digest] = img, img, img
 		e.published[digest] = src
 		_ = enc.Encode(map[string]string{"status": "Status: Downloaded newer image for " + ref})

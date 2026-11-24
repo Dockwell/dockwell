@@ -925,6 +925,8 @@ type AppUpdate struct {
 	From, To string
 	// Major says the step moves the version's first number.
 	Major bool
+	// Build says the same tag points at a newer image.
+	Build bool
 	// Kind is the step as a message says it, such as "a patch" or "a major
 	// update".
 	Kind string
@@ -959,6 +961,10 @@ func (s *signals) updates(ctx context.Context, r rule) []finding {
 			path: "/apps/" + u.ServiceID, facts: Facts{Variant: variant, Where: u.To},
 			title:  fmt.Sprintf("%s can move to %s", u.Name, u.To),
 			detail: fmt.Sprintf("%s runs %s, and %s is out, %s. Review it on the app's page, then update it, or skip that version.", u.Name, u.From, u.To, u.Kind),
+		}
+		if u.Build {
+			f.title = fmt.Sprintf("%s has a newer build of %s", u.Name, u.To)
+			f.detail = "Review this build on the app's page, where you can update or skip it."
 		}
 		out = append(out, f)
 	}

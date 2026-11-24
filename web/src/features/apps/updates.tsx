@@ -108,7 +108,7 @@ export function installOffer(
 }
 
 /** The words for a kind of update, as the API says them. */
-export function useKindWord(): (kind: UpdateKind) => string {
+function useKindWord(): (kind: UpdateKind) => string {
   const { t } = useLingui();
   return (kind) => {
     switch (kind) {
@@ -118,8 +118,6 @@ export function useKindWord(): (kind: UpdateKind) => string {
         return t({ message: "minor", context: "update kind" });
       case UpdateKind.MAJOR:
         return t({ message: "major", context: "update kind" });
-      case UpdateKind.DIGEST:
-        return t({ message: "new build", context: "update kind" });
       case UpdateKind.RELEASE:
         return t({ message: "catalog release", context: "update kind" });
       case UpdateKind.COMMIT:
@@ -130,26 +128,42 @@ export function useKindWord(): (kind: UpdateKind) => string {
   };
 }
 
-/** The step an update takes, as a person reads it: 16.3 → 16.4, or new commits. */
-export function stepOf(a: AvailableUpdate): string {
-  if (a.kind === UpdateKind.DIGEST) return a.toVersion;
-  return `${a.fromVersion} → ${a.toVersion}`;
-}
-
 /**
- * The step an update takes, in words: a catalog release that keeps the app's version
- * is a new release of it, "Release 5 · same 6.72.0", never a step from a version to
- * itself; anything else is as stepOf says.
+ * The step an update takes, in words, including a new build or a catalog release
+ * that keeps the app's version.
  */
-export function useStep(): (a: AvailableUpdate) => string {
+function useStep(): (a: AvailableUpdate) => string {
   const { t } = useLingui();
   return (a) => {
-    if (a.kind !== UpdateKind.RELEASE) return stepOf(a);
-    const release = a.catalogRelease;
     const version = a.toVersion;
+    if (a.kind === UpdateKind.DIGEST) return t`New build of ${version}`;
+    if (a.kind !== UpdateKind.RELEASE) return `${a.fromVersion} → ${version}`;
+    const release = a.catalogRelease;
     if (release > 0) return version ? t`Release ${release} · same ${version}` : t`Release ${release}`;
     return version ? t`New release · same ${version}` : t`New release`;
   };
+}
+
+/** The update and its kind, for rows and cards with room for both. */
+export function UpdateStep({ offer, targetOnly = false }: { offer: AvailableUpdate; targetOnly?: boolean }) {
+  const step = useStep();
+  const kindWord = useKindWord();
+  const version = offer.toVersion;
+  if (offer.kind === UpdateKind.DIGEST) {
+    return (
+      <span className="update-step">
+        <Trans>
+          New build of <code>{version}</code>
+        </Trans>
+      </span>
+    );
+  }
+  return (
+    <>
+      <code className="update-step">{targetOnly ? version : step(offer)}</code>
+      <Tag className={cx("update-kind", offer.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(offer.kind)}</Tag>
+    </>
+  );
 }
 
 /**
@@ -167,12 +181,18 @@ function OfferMark({ offer: a, className }: { offer: AvailableUpdate; className?
   const { t } = useLingui();
   const kindWord = useKindWord();
   const step = useStep();
+  const change = step(a);
   const label = a.kind === UpdateKind.DIGEST ? t`New build` : a.kind === UpdateKind.RELEASE ? step(a) : a.toVersion;
   const kind = kindWord(a.kind);
   return (
     <span
-      className={cx("update-mark", a.kind === UpdateKind.MAJOR && "is-major", className)}
-      title={t`Update available: ${step(a)}, ${kind}`}
+      className={cx(
+        "update-mark",
+        a.kind === UpdateKind.MAJOR && "is-major",
+        a.kind === UpdateKind.DIGEST && "is-build",
+        className,
+      )}
+      title={a.kind === UpdateKind.DIGEST ? change : t`Update available: ${change}, ${kind}`}
     >
       <Icon name="arrow-up" size={12} />
       <span className="update-mark-to">{label}</span>
@@ -245,8 +265,6 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
   const { t, i18n } = useLingui();
   const update = service.update;
   const time = useTimeWords();
-  const kindWord = useKindWord();
-  const step = useStep();
   const checked = update?.checkTime ? timestampDate(update.checkTime) : undefined;
   const now = useAgoNow(checked);
   const calls = useUpdateCalls(service);
@@ -314,8 +332,7 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
     >
       <div className="update-offer">
         <div className="update-offer-line">
-          <code className="update-step">{step(first)}</code>
-          <Tag className={cx("update-kind", first.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(first.kind)}</Tag>
+          <UpdateStep offer={first} />
           {when ? <span className="update-when">{when}</span> : null}
           {first.notesUrl ? (
             <a className="update-notes" href={first.notesUrl} target="_blank" rel="noreferrer">
@@ -348,8 +365,7 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
             <span className="update-also">
               <Trans>Also</Trans>
             </span>
-            <code className="update-step">{a.toVersion}</code>
-            <Tag className={cx("update-kind", a.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(a.kind)}</Tag>
+            <UpdateStep offer={a} targetOnly />
           </div>
           {until ? null : (
             <Button size="sm" variant="ghost" onClick={() => act.run(a)} {...act.offer.off}>
@@ -369,7 +385,7 @@ export function UpdateCard({ service }: { service: ServiceInfo }) {
             loading={calls.busy === "skip"}
             {...maySet.off}
           >
-            <Trans>Skip {first.toVersion}</Trans>
+            {first.kind === UpdateKind.DIGEST ? <Trans>Skip this build</Trans> : <Trans>Skip {first.toVersion}</Trans>}
           </Button>
           {until ? null : (
             <>
@@ -410,7 +426,11 @@ function SkippedLine({
       <Trans>Skipped:</Trans>{" "}
       {skipped.map((a) => (
         <Button key={`${a.kind}:${targetOf(a)}`} size="sm" variant="ghost" onClick={() => onUnskip(a)} {...off}>
-          <Trans>Show {a.toVersion} again</Trans>
+          {a.kind === UpdateKind.DIGEST ? (
+            <Trans>Show the new build of {a.toVersion} again</Trans>
+          ) : (
+            <Trans>Show {a.toVersion} again</Trans>
+          )}
         </Button>
       ))}
     </p>

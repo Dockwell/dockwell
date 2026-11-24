@@ -3,10 +3,10 @@
 package services
 
 import (
-	"cmp"
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"connectrpc.com/connect"
@@ -45,6 +45,9 @@ type Newer struct {
 	// Kind is how far it moves: "patch", "minor", "major", "digest" for a new image
 	// of the tag it runs, or "release" for a catalog release of the same version.
 	Kind string
+	// The identities and dates found for a new build of the same tag.
+	FromDigest, ToDigest                   string
+	FromBuildTime, ToBuildTime, ToPushTime time.Time
 	// Catalog says it's a catalog install's newer release, which upgrades the
 	// install and takes no image.
 	Catalog bool
@@ -122,13 +125,17 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 	}
 	from := app.GetImage()
 	to := m.GetImage()
-	if to == "" && h.Updates != nil {
+	var detected Newer
+	if h.Updates != nil && (to == "" || resource.BareImage(from) == resource.BareImage(to)) {
 		newer, ok, err := h.Updates.Of(ctx, r.ID)
-		if err != nil {
+		if err != nil && to == "" {
 			return nil, h.internal(ctx, "reading what newer versions there are", err)
 		}
-		if ok && !newer.Catalog {
-			to = newer.Image
+		if err == nil && ok && !newer.Catalog {
+			detected = newer
+			if to == "" {
+				to = newer.Image
+			}
 		}
 	}
 	if to == "" {
@@ -137,11 +144,22 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 	}
 	// A tag can move, so updating to the one it runs pulls it again, and replaces
 	// it only if that's a newer image. A digest can't.
-	again := resource.BareImage(from) == to && resource.BareImage(to) == to
+	sameTag := resource.BareImage(from) == resource.BareImage(to)
+	again := sameTag && resource.BareImage(to) == to
+	if digest == "" {
+		_, digest, _ = strings.Cut(from, "@")
+	}
+	knownBuild := sameTag && detected.Kind == "digest" && detected.Image == to &&
+		digest != "" && detected.FromDigest == digest && detected.ToDigest != "" && detected.ToDigest != digest
+	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: r.ID, Image: to, FromImage: from, FromDigest: digest}
+	if knownBuild {
+		intent.ToDigest = detected.ToDigest
+		intent.FromBuildTime, intent.ToBuildTime, intent.ToPushTime = detected.FromBuildTime, detected.ToBuildTime, detected.ToPushTime
+	}
 	app.Image = to
 	ref := resource.Ref{Kind: resource.Kind(r.Kind), Scope: r.Scope, Name: r.Name}
 	backUp, unbacked := toBackUp(r.Scope, app)
-	notes := upgradeNotes(ref, from, backUp, unbacked, m.GetSkipBackup(), again)
+	notes := upgradeNotes(ref, from, backUp, unbacked, m.GetSkipBackup(), again && !knownBuild)
 	if len(ones) > 0 {
 		dbs := make([]string, 0, len(ones))
 		for _, o := range ones {
@@ -155,11 +173,14 @@ func (h *Handler) UpgradeService(ctx context.Context, req *connect.Request[dockw
 	if m.GetSkipBackup() {
 		backUp = nil
 	}
-	summary := cmp.Or(m.GetSummary(), fmt.Sprintf("Update %s to %s", r.Name, to))
-	if again {
-		summary = cmp.Or(m.GetSummary(), fmt.Sprintf("Update %s to the newest %s", r.Name, to))
+	summary := m.GetSummary()
+	if summary == "" {
+		if again || knownBuild {
+			summary = fmt.Sprintf("Update %s to the newest build of %s", r.Name, resource.BareImage(to))
+		} else {
+			summary = fmt.Sprintf("Update %s to %s", r.Name, to)
+		}
 	}
-	intent := &revision.Intent{Kind: revision.IntentUpgrade, Resource: r.ID, Image: to, FromImage: from, FromDigest: digest}
 	c, err := h.changes.Propose(ctx, summary, []*dockwellv1.Edit{{
 		Resource: resourcepb.Ref(ref),
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Service{Service: spec}},

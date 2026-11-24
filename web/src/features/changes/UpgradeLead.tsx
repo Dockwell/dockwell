@@ -1,12 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { type Timestamp, timestampDate } from "@bufbuild/protobuf/wkt";
 import type { Intent } from "@dockwell/api";
 import { Glyph, Icon } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { formatBytesOf } from "../../lib/format";
+import { formatBytesOf, formatDay, sameDay } from "../../lib/format";
 import { MachineWords } from "./FailureNotice";
-import { shortDigest, type UpgradePhase, type UpgradePhaseKey, upgradeFrom, upgradeTo } from "./upgrade";
+import {
+  isBuildUpgrade,
+  shortDigest,
+  type UpgradePhase,
+  type UpgradePhaseKey,
+  upgradeFrom,
+  upgradeTo,
+} from "./upgrade";
 import "./Upgrade.css";
 
 /**
@@ -21,11 +29,39 @@ export function UpgradeLine({ intent }: { intent: Intent }) {
   // A catalog release that keeps the app's version changes how it runs, never the version.
   const fromRelease = intent.fromCatalogRelease;
   const toRelease = intent.catalogRelease;
-  const sameVersion = catalog && toRelease > 0 && intent.fromRelease === intent.release;
+  const build = isBuildUpgrade(intent);
+  const sameVersion = catalog && toRelease > 0 && intent.fromRelease === intent.release && !build;
+  const image = intent.fromImage.split("@")[0] ?? intent.fromImage;
+  const arrow = (
+    <>
+      <span aria-hidden="true">→</span>
+      <span className="dw-sr">{t({ message: "to", context: "update" })}</span>
+    </>
+  );
   return (
     <p className="upgrade-line">
       <Icon name="deploy" size={16} />
-      {sameVersion ? (
+      {build ? (
+        <span className="upgrade-images">
+          {catalog ? <strong>{to}</strong> : <code title={image}>{image}</code>}
+          {intent.fromDigest ? (
+            <>
+              <span className="upgrade-digest" aria-hidden="true">
+                ·
+              </span>
+              <BuildDigest digest={intent.fromDigest} built={intent.fromBuildTime} />
+            </>
+          ) : null}
+          {arrow}
+          {intent.toDigest ? (
+            <BuildDigest digest={intent.toDigest} built={intent.toBuildTime} pushed={intent.toPushTime} />
+          ) : (
+            <span className="upgrade-newest">
+              <Trans>its newest build</Trans>
+            </span>
+          )}
+        </span>
+      ) : sameVersion ? (
         <span>
           <Trans>
             From release <strong>{fromRelease}</strong> to release <strong>{toRelease}</strong>, the same {to}
@@ -45,17 +81,39 @@ export function UpgradeLine({ intent }: { intent: Intent }) {
               {shortDigest(intent.fromDigest)}
             </code>
           ) : null}
-          <span aria-hidden="true">→</span>
-          <span className="dw-sr">{t({ message: "to", context: "update" })}</span>
+          {arrow}
           <code title={intent.image}>{intent.image}</code>
-          {from === to ? (
-            <span className="upgrade-newest">
-              <Trans>its newest image</Trans>
-            </span>
-          ) : null}
         </span>
       )}
     </p>
+  );
+}
+
+function BuildDigest({
+  digest,
+  built,
+  pushed,
+}: {
+  digest: string;
+  built?: Timestamp | undefined;
+  pushed?: Timestamp | undefined;
+}) {
+  const { i18n, t } = useLingui();
+  const at = built ?? pushed;
+  const date = at ? timestampDate(at) : undefined;
+  const day = date && (sameDay(date, new Date()) ? t`today` : formatDay(date, i18n.locale));
+  return (
+    <span className="upgrade-build">
+      <code className="upgrade-digest" title={digest}>
+        {shortDigest(digest)}
+      </code>
+      {day ? (
+        <span className="upgrade-newest">
+          {", "}
+          {built ? <Trans>built {day}</Trans> : <Trans>published {day}</Trans>}
+        </span>
+      ) : null}
+    </span>
   );
 }
 

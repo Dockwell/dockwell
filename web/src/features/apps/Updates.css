@@ -13,7 +13,8 @@
 }
 
 /* A count is words, not a version. */
-.update-mark.is-count {
+.update-mark.is-count,
+.update-mark.is-build {
   font-family: inherit;
 }
 
@@ -70,10 +71,14 @@
 }
 
 .update-step {
-  font-family: var(--font-mono);
   font-size: 14px;
   color: var(--ink);
   overflow-wrap: anywhere;
+}
+
+code.update-step,
+.update-step code {
+  font-family: var(--font-mono);
 }
 
 .update-offer.is-also .update-step {

@@ -562,6 +562,11 @@ type Intent struct {
 	// install's update leaves and goes to, which can keep the app's version.
 	FromCatalogRelease uint32 `json:",omitempty"`
 	CatalogRelease     uint32 `json:",omitempty"`
+	// ToDigest is the build a registry check found for a same-tag update.
+	ToDigest      string    `json:",omitempty"`
+	FromBuildTime time.Time `json:",omitzero"`
+	ToBuildTime   time.Time `json:",omitzero"`
+	ToPushTime    time.Time `json:",omitzero"`
 }
 
 // Plan is what applying a change would do.
