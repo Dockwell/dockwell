@@ -4,9 +4,8 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
-
-	"github.com/mattn/go-shellwords"
 )
 
 type inputRule struct {
@@ -177,7 +176,7 @@ func nftPortMatch(raw json.RawMessage, op string, port uint16) (bool, bool) {
 }
 
 func iptablesSSHPorts(line string, from, to uint16) (old, next bool, target string, known bool) {
-	args, err := shellwords.Parse(line)
+	args, err := iptablesWords(line)
 	if err != nil || len(args) < 3 {
 		return true, true, "", false
 	}
@@ -252,4 +251,39 @@ func seenSSHRule(rule interface {
 		}
 	}
 	return detail.String()
+}
+
+// iptablesWords splits a line of iptables-save into its words: iptables quotes
+// a word with spaces in double quotes and escapes a quote or backslash inside
+// it. The agent build links no shell parser for this (ADR 0023).
+func iptablesWords(line string) ([]string, error) {
+	var words []string
+	var word strings.Builder
+	inWord, quoted := false, false
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case quoted && c == '\\' && i+1 < len(line):
+			i++
+			word.WriteByte(line[i])
+		case c == '"':
+			quoted, inWord = !quoted, true
+		case !quoted && (c == ' ' || c == '\t'):
+			if inWord {
+				words = append(words, word.String())
+				word.Reset()
+				inWord = false
+			}
+		default:
+			word.WriteByte(c)
+			inWord = true
+		}
+	}
+	if quoted {
+		return nil, errors.New("an iptables rule ends inside a quoted word")
+	}
+	if inWord {
+		words = append(words, word.String())
+	}
+	return words, nil
 }

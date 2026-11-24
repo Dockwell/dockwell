@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -449,5 +450,17 @@ func TestSSHKeepRemovesTheBootHelper(t *testing.T) {
 	}
 	if err := s.checkSSHRestoreDir(dir); err == nil {
 		t.Fatal("the root helper accepted a group-writable ancestor")
+	}
+}
+
+func TestIptablesWordsReadsQuotedComments(t *testing.T) {
+	t.Parallel()
+	got, err := iptablesWords(`-A INPUT -p tcp -m comment --comment "ssh from \"office\"" --dport 22 -j ACCEPT`)
+	want := []string{"-A", "INPUT", "-p", "tcp", "-m", "comment", "--comment", `ssh from "office"`, "--dport", "22", "-j", "ACCEPT"}
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("iptablesWords = %q, %v; want %q", got, err, want)
+	}
+	if _, err := iptablesWords(`-A INPUT --comment "open`); err == nil {
+		t.Fatal("a rule ending inside quotes should be refused")
 	}
 }
