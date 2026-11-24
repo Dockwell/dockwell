@@ -526,6 +526,11 @@ message ServerSsh {
   string test_change = 25;
   string test_command = 26;
   SshProof proof = 27;
+  string test_address = 28;
+  // Address seen when the test command reached sshd from a different peer.
+  string unexpected_test_address = 29;
+  // Address of the panel request, when available.
+  string your_address = 30;
 }
 
 // SshProof identifies the accepted login that verified an SSH trial.

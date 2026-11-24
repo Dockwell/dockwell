@@ -2515,6 +2515,9 @@ func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.
 	if err != nil {
 		return 0, err
 	}
+	if failure := r.GetConfirmAccess().GetSshFailure(); failure != "" {
+		return 0, &resource.SSHKeepError{Message: failure}
+	}
 	switch r.GetConfirmAccess().GetVerdict() {
 	case agentv1.AccessVerdict_ACCESS_VERDICT_KEPT:
 		return resource.AccessKept, nil

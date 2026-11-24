@@ -169,8 +169,28 @@ func TestSSHKeyRemovalRefusesKeyOnlyAccounts(t *testing.T) {
 		{"passwordauthentication yes\nauthenticationmethods publickey,password\n", false, false},
 		{"passwordauthentication yes\nauthenticationmethods any\npermitrootlogin without-password\n", true, false},
 	} {
-		if err := checkKeyRemovalAuth(tc.values, tc.root); (err == nil) != tc.want {
+		if err := checkKeyRemovalAuth(tc.values, tc.root, true); (err == nil) != tc.want {
 			t.Errorf("check(%q, root %t) returned %v", tc.values, tc.root, err)
+		}
+	}
+	root := t.TempDir()
+	shadow := filepath.Join(root, "etc", "shadow")
+	if err := os.Mkdir(filepath.Dir(shadow), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	r := newSSHReader(Config{Tools: &hosttool.Runner{Root: root}})
+	for _, tc := range []struct {
+		hash string
+		want bool
+	}{
+		{"", false}, {"!", false}, {"!!", false}, {"!$6$locked", false}, {"*", false}, {"*LK*", false}, {"$6$test$fixture", true},
+	} {
+		if err := os.WriteFile(shadow, []byte("alice:"+tc.hash+":20000:0:99999:7:::\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		err := checkKeyRemovalAuth("passwordauthentication yes\nauthenticationmethods any\n", false, r.hasSSHPassword("alice"))
+		if (err == nil) != tc.want || r.hasSSHPassword("missing") {
+			t.Fatalf("password check for %q returned %v", tc.hash, err)
 		}
 	}
 }
@@ -233,11 +253,20 @@ func TestSSHBootRestoreWorksWithoutTheAgentAndHonorsKeep(t *testing.T) {
 		t.Run(strconv.FormatBool(kept), func(t *testing.T) {
 			dir := t.TempDir()
 			sshFile, jailFile := filepath.Join(dir, "live-ssh"), filepath.Join(dir, "live-jail")
+			for _, unit := range []string{"ssh.service", "sshd.service", "fail2ban.service"} {
+				if err := os.Mkdir(filepath.Join(dir, unit+".d"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			}
 			files := map[string]string{
 				"ssh-revert.sh": sshRevertScript, "ssh-boot-id": "previous-boot",
 				"ssh-wait-id": "chg_fixture@10", "waiting.json": "{ \"wait\": \"chg_fixture@10\" }",
 				"ssh-previous": "original", "ssh-jail-previous": "",
 				"live-ssh": "candidate", "live-jail": "trial ports",
+				"systemctl":                              "#!/bin/sh\n[ \"$1\" = daemon-reload ]\n",
+				sshRestoreUnit:                           "fixture unit",
+				"ssh.service.d/" + sshRestoreDropIn:      "fixture drop-in",
+				"fail2ban.service.d/" + sshRestoreDropIn: "fixture drop-in",
 			}
 			if kept {
 				files["confirmed.json"] = files["waiting.json"]
@@ -247,7 +276,11 @@ func TestSSHBootRestoreWorksWithoutTheAgentAndHonorsKeep(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			cmd := exec.CommandContext(t.Context(), "/bin/sh", filepath.Join(dir, "ssh-revert.sh"), dir, "boot", "", sshFile, "ssh.service", jailFile, "")
+			if err := os.Chmod(filepath.Join(dir, "systemctl"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.CommandContext(t.Context(), "/bin/sh", filepath.Join(dir, "ssh-revert.sh"), dir, "boot", "", sshFile, "ssh.service", jailFile, "", dir)
+			cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("boot helper: %v, %s", err, out)
 			}
@@ -260,6 +293,11 @@ func TestSSHBootRestoreWorksWithoutTheAgentAndHonorsKeep(t *testing.T) {
 			}
 			if _, err := os.Stat(jailFile); (err == nil) != kept {
 				t.Errorf("jail after boot = %v", err)
+			}
+			for _, file := range []string{"ssh-revert.sh", "ssh-wait-id", sshRestoreUnit, "ssh.service.d/" + sshRestoreDropIn, "fail2ban.service.d/" + sshRestoreDropIn} {
+				if _, err := os.Stat(filepath.Join(dir, file)); !os.IsNotExist(err) {
+					t.Errorf("%s was left behind: %v", file, err)
+				}
 			}
 		})
 	}
@@ -322,5 +360,94 @@ esac
 	}
 	if err := f.sshJailCovers(t.Context(), []uint16{22, 2223}); err == nil {
 		t.Fatal("Ban was offered when the jail missed a listener")
+	}
+}
+
+func TestSSHForeignInputNamesTheMatchingRule(t *testing.T) {
+	header := "*filter\n:INPUT ACCEPT [0:0]\n:ts-input - [0:0]\n-A INPUT -j ts-input\n"
+	common := "-A ts-input -i tailscale0 -j ACCEPT\n-A ts-input -m mark --mark 0x40000/0xff0000 -j ACCEPT\n"
+	for _, tc := range []struct {
+		add, want string
+	}{
+		{add: "-A ts-input -p udp -m udp --dport 41641 -j ACCEPT\n"},
+		{add: "-A ts-input -p tcp -m multiport --dports 22,2222 -j ACCEPT\n"},
+		{add: "-A ts-input -p tcp --dport 22 -j ACCEPT\n", want: "filter/ts-input -A ts-input -p tcp --dport 22 -j ACCEPT"},
+		{add: "-A ts-input -m mystery --selector 1 -j DROP\n", want: "filter/ts-input -A ts-input -m mystery --selector 1 -j DROP"},
+	} {
+		rules := parseIptablesSave([]byte(header+common+tc.add+"COMMIT\n"), "IPv4", 4)
+		if got := rules.sshPortConflict(22, 2222, false); got != tc.want {
+			t.Errorf("%q: got %q, want %q", tc.add, got, tc.want)
+		}
+	}
+
+	const nftPrefix = `{"nftables":[
+		{"table":{"family":"inet","name":"external"}},
+		{"chain":{"family":"inet","table":"external","name":"input","type":"filter","hook":"input","policy":"drop"}},
+		{"chain":{"family":"inet","table":"external","name":"ssh_access"}},
+		{"rule":{"family":"inet","table":"external","chain":"input","expr":[{"jump":{"target":"ssh_access"}}]}},
+		{"rule":{"family":"inet","table":"external","chain":"ssh_access","expr":[
+			{"match":{"op":"==","left":{"payload":{"protocol":"tcp","field":"dport"}},"right":`
+	const nftSuffix = `}},{"accept":null}]}}]}`
+	for _, right := range []string{`{"set":[22,2222]}`, "22", `"@allowed"`} {
+		rules, err := parseNftables([]byte(nftPrefix + right + nftSuffix))
+		if err != nil {
+			t.Fatal(err)
+		}
+		conflict := rules[0].sshPortConflict(22, 2222, false)
+		if right == `{"set":[22,2222]}` {
+			if conflict != "" {
+				t.Fatalf("matching nftables rule blocked the move: %s", conflict)
+			}
+		} else if !strings.Contains(conflict, "ssh_access") || !strings.Contains(conflict, right) {
+			t.Fatalf("nftables refusal did not identify the rule: %q", conflict)
+		}
+	}
+}
+
+func TestSSHKeepRemovesTheBootHelper(t *testing.T) {
+	root := t.TempDir()
+	system := filepath.Join(root, "etc", "systemd", "system")
+	dir := filepath.Join(root, "agent", "access")
+	systemctl := filepath.Join(root, "usr", "bin", "systemctl")
+	for _, folder := range []string{dir, system, filepath.Dir(systemctl)} {
+		if err := os.MkdirAll(folder, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(systemctl, []byte("#!/bin/sh\n[ \"$1\" = daemon-reload ]\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s := &sshSettings{reader: newSSHReader(Config{Tools: &hosttool.Runner{Root: root}})}
+	if err := s.checkSSHRestoreDir(dir); err != nil {
+		t.Fatal(err)
+	}
+	paths := []string{filepath.Join(dir, "ssh-wait-id"), filepath.Join(dir, "ssh-revert.sh")}
+	for _, path := range paths {
+		if err := os.WriteFile(path, []byte("trial"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.armSSHBootRestore(t.Context(), dir, &access.SSHChange{Unit: "ssh.service", Jail: &access.SSHJail{}}); err != nil {
+		t.Fatal(err)
+	}
+	unitPath := filepath.Join(system, sshRestoreUnit)
+	unit, err := os.ReadFile(unitPath)
+	if err != nil || !strings.Contains(string(unit), "\nConditionPathExists="+paths[0]+"\n") {
+		t.Fatalf("boot helper does not require a pending trial: %v, %s", err, unit)
+	}
+	if err := s.Disarm(t.Context(), dir); err != nil {
+		t.Fatal(err)
+	}
+	paths = append(paths, unitPath, filepath.Join(system, "ssh.service.d", sshRestoreDropIn), filepath.Join(system, "fail2ban.service.d", sshRestoreDropIn))
+	for _, path := range paths {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("Keep left %s behind: %v", path, err)
+		}
+	}
+	if err := os.Chmod(filepath.Dir(dir), 0o770); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.checkSSHRestoreDir(dir); err == nil {
+		t.Fatal("the root helper accepted a group-writable ancestor")
 	}
 }

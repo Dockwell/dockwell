@@ -232,7 +232,11 @@ func (r *sshReader) sshJailCanBan(ctx context.Context, f *fail2banReader) error 
 func (r *sshReader) checkForeignSSHPort(ctx context.Context, from, to uint16, jail *access.SSHJail) error {
 	f := &firewallReader{tools: r.tools}
 	ufw := f.installed("ufw")
-	tools, _ := f.kernelRules(ctx, ufw, jail != nil && jail.Active)
+	movingJail := jail != nil && jail.Active
+	kernel := map[*dockwellv1.FirewallTool]string{}
+	tools, _ := f.kernelRules(ctx, ufw, func(tool *dockwellv1.FirewallTool, rules *ruleSet) {
+		kernel[tool] = rules.sshPortConflict(from, to, movingJail)
+	})
 	if ufw {
 		tools = append(tools, f.ufw(ctx))
 	}
@@ -250,7 +254,11 @@ func (r *sshReader) checkForeignSSHPort(ctx context.Context, from, to uint16, ja
 		if jail != nil && jail.Active && strings.HasSuffix(tool.GetName(), " f2b-table") {
 			continue
 		}
-		if detail := foreignSSHPortConflict(tool, from, to); detail != "" {
+		detail, inspected := kernel[tool]
+		if !inspected {
+			detail = foreignSSHPortConflict(tool, from, to)
+		}
+		if detail != "" {
 			return fmt.Errorf("%s rule %q may change who can reach SSH on TCP port %d. Update the server's firewall before moving SSH", toolName(tool), detail, to)
 		}
 	}
@@ -258,9 +266,6 @@ func (r *sshReader) checkForeignSSHPort(ctx context.Context, from, to uint16, ja
 }
 
 func foreignSSHPortConflict(tool *dockwellv1.FirewallTool, from, to uint16) string {
-	if tool.GetInputRules() > 0 || tool.GetInputPolicy() == dockwellv1.FirewallVerdict_FIREWALL_VERDICT_DENY {
-		return "input chain"
-	}
 	for _, rule := range tool.GetOther() {
 		return rule
 	}
@@ -273,7 +278,7 @@ func foreignSSHPortConflict(tool *dockwellv1.FirewallTool, from, to uint16) stri
 		old, oldKnown := coversSpec(spec, &dockwellv1.HostListener{Port: uint32(from), Protocol: "tcp"}, ":-")
 		next, nextKnown := coversSpec(spec, &dockwellv1.HostListener{Port: uint32(to), Protocol: "tcp"}, ":-")
 		if !oldKnown || !nextKnown {
-			return rule.GetPort()
+			return seenSSHRule(rule)
 		}
 		if old {
 			oldRules = append(oldRules, rule)
@@ -286,14 +291,14 @@ func foreignSSHPortConflict(tool *dockwellv1.FirewallTool, from, to uint16) stri
 		a, b := oldRules[i], nextRules[i]
 		if a.GetVerdict() != b.GetVerdict() || a.GetSource() != b.GetSource() || a.GetIpv6() != b.GetIpv6() ||
 			a.GetInterface() != b.GetInterface() || a.GetDestination() != b.GetDestination() {
-			return a.GetPort()
+			return seenSSHRule(a)
 		}
 	}
 	if len(oldRules) > len(nextRules) {
-		return oldRules[len(nextRules)].GetPort()
+		return seenSSHRule(oldRules[len(nextRules)])
 	}
 	if len(nextRules) > len(oldRules) {
-		return nextRules[len(oldRules)].GetPort()
+		return seenSSHRule(nextRules[len(oldRules)])
 	}
 	return ""
 }

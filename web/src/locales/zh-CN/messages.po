@@ -10319,9 +10319,6 @@ msgstr "保留后，SSH 只对 {from} 开放。"
 msgid "Only the person who applied this change can keep it, from where they applied it."
 msgstr "只有应用这项更改的人，在应用它的会话中，才能保留它。"
 
-msgid "Open a fresh SSH connection before keeping these settings."
-msgstr "请先建立新的 SSH 连接，再保留这些设置。"
-
 msgid "Open a new SSH session from here with your key, and keep the change if it works."
 msgstr "从这里用你的密钥打开一个新的 SSH 会话，能连上就保留此更改。"
 
@@ -10331,14 +10328,23 @@ msgstr "从这里用你的密钥向端口 {portList} 打开一个新的 SSH 会�
 msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话，能连上就保留此更改。"
 
-msgid "Run this command from your original SSH client."
-msgstr "在原来的 SSH 客户端运行此命令。"
+msgid "Run the test command from the expected address and wait for verification before choosing Keep again."
+msgstr "从指定地址运行测试命令，等待验证通过后再次选择保留。"
+
+msgid "Run this command from the SSH client you used to sign in."
+msgstr "请在刚才登录时使用的 SSH 客户端上运行此命令。"
+
+msgid "Run this command from {testAddress}."
+msgstr "请从 {testAddress} 运行此命令。"
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
 
 msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 msgstr "服务器还没能保留此更改，所以它仍在等待。请先释放服务器磁盘空间，再点击保留。"
+
+msgid "The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and use the new address in a new plan."
+msgstr "服务器看到的测试登录地址是 {unexpected}。请从 {testAddress} 重新连接，或等待此次试用回退，再用新地址制定计划。"
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "然后在新标签页中用面板自己的地址打开面板。"
@@ -11691,6 +11697,9 @@ msgstr "通过 {driver} 驱动。"
 msgid "Change Docker daemon settings on {server}"
 msgstr "更改 {server} 上的 Docker 守护进程设置"
 
+msgid "Change TCP port {fromPort} to {toPort} in firewall rules {rules}."
+msgstr "将防火墙规则 {rules} 的 TCP 端口从 {fromPort} 改为 {toPort}。"
+
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
 
@@ -11968,9 +11977,6 @@ msgstr "将 SSH 从端口 {fromPort} 移至 {toPort}"
 
 msgid "Move the fail2ban sshd jail with the listener."
 msgstr "同时迁移 fail2ban 的 sshd 防护规则。"
-
-msgid "Move these firewall rules with the listener: {rules}"
-msgstr "同时迁移这些防火墙规则：{rules}"
 
 msgid "Moves {names} on, which an install of each can upgrade to."
 msgstr "更新 {names}，已安装的实例可以升级到新版本。"
@@ -20916,6 +20922,9 @@ msgstr "已封禁"
 msgid "Choose a port from 1 to 65535."
 msgstr "请选择 1 到 65535 之间的端口。"
 
+msgid "Choose an SSH session address or enter the IP address the server will see."
+msgstr "请选择一个 SSH 会话地址，或输入服务器将看到的 IP 地址。"
+
 msgid "Choose an account"
 msgstr "选择账户"
 
@@ -20976,6 +20985,9 @@ msgstr "{0} 上的 SSH 会话"
 #. placeholder {0}: server.name
 msgid "SSH settings on {0}"
 msgstr "{0} 上的 SSH 设置"
+
+msgid "SSH test client address"
+msgstr "SSH 测试客户端地址"
 
 msgid "Showing recent matches within the log limit."
 msgstr "仅显示日志上限内最近的匹配记录。"

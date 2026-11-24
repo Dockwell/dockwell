@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -20,7 +22,10 @@ import (
 type sshFixture struct {
 	file            string
 	proof           atomic.Bool
+	unexpected      netip.Addr
+	finalError      error
 	armed, restored int
+	disarmed        int
 }
 
 func (s *sshFixture) Plan(context.Context, *resourcev1.SshConfig, *resourcev1.SshConfig) (*SSHChange, error) {
@@ -47,6 +52,9 @@ func (s *sshFixture) Install(_ context.Context, _ *SSHChange, file string) error
 	if s.armed == 0 {
 		return errors.New("installed before arming revert")
 	}
+	if file == "new listener" && s.finalError != nil {
+		return s.finalError
+	}
 	s.file = file
 	return nil
 }
@@ -59,16 +67,24 @@ func (s *sshFixture) Restore(_ context.Context, ch *SSHChange) error {
 
 func (*sshFixture) Started() (uint64, error) { return 1234, nil }
 
-func (s *sshFixture) Proved(_ context.Context, ch *SSHChange) *SSHProof {
+func (s *sshFixture) CandidateLive(ch *SSHChange) bool { return s.file == ch.Candidate }
+
+func (s *sshFixture) Proved(_ context.Context, ch *SSHChange) (*SSHProof, netip.Addr) {
 	if s.proof.Load() && ch.Started == 1234 {
-		return &SSHProof{Address: ch.ProofPeer.String(), Method: "publickey"}
+		return &SSHProof{Address: ch.ProofPeer.String(), Method: "publickey"}, netip.Addr{}
 	}
+	return nil, s.unexpected
+}
+
+func (s *sshFixture) Disarm(context.Context, string) error {
+	s.disarmed++
 	return nil
 }
 
 func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
-	m, tbl := manager(t, t.TempDir(), time.Minute)
-	ssh := &sshFixture{file: "original"}
+	dir := t.TempDir()
+	m, tbl := manager(t, dir, time.Minute)
+	ssh := &sshFixture{file: "original", unexpected: netip.MustParseAddr("203.0.113.25")}
 	m.SSH = ssh
 	done := make(chan error, 1)
 	reported := make(chan *resource.AccessWait, 1)
@@ -99,10 +115,14 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 	if got := m.Confirm(t.Context(), "chg_ssh"); got != resource.AccessNotProved {
 		t.Fatalf("unproved trial returned %v", got)
 	}
+	if _, _, proof, peer := m.SSHTestDetails(t.Context()); proof != nil || peer != ssh.unexpected {
+		t.Fatalf("unexpected test address was not reported: %v, %v", proof, peer)
+	}
 	ssh.proof.Store(true)
-	if id, _, proof := m.SSHTest(t.Context()); id != "chg_ssh" || proof == nil {
+	if id, _, proof, _ := m.SSHTestDetails(t.Context()); id != "chg_ssh" || proof == nil {
 		t.Fatal("fresh SSH proof was not reported")
 	}
+	ssh.proof.Store(false)
 	if got := m.Confirm(t.Context(), "chg_ssh"); got != resource.AccessKept {
 		t.Fatalf("proved trial returned %v", got)
 	}
@@ -114,7 +134,7 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 		t.Fatal(err)
 	}
 	release()
-	if ssh.file != "new listener" || m.SSHConfig(t.Context()).GetPort() != 2222 {
+	if ssh.file != "new listener" || ssh.disarmed != 1 || m.SSHConfig(t.Context()).GetPort() != 2222 {
 		t.Fatal("fresh SSH settings weren't kept")
 	}
 	for _, pin := range tbl.current().Pins {
@@ -131,6 +151,29 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 	}
 	if rules := m.Applied().Rules; rules["ssh-anywhere"].GetPort() != 2222 || rules["dns-local"].GetPort() != 22 {
 		t.Fatalf("firewall read didn't show the ports it applies: %v", rules)
+	}
+	confirmed, err := os.ReadFile(filepath.Join(dir, "confirmed.json"))
+	if err != nil || strings.Contains(string(confirmed), "ssh_rule_ports") {
+		t.Fatalf("kept SSH port was still stored as a binding: %s, %v", confirmed, err)
+	}
+	rule, err := m.Rule(t.Context(), "ssh-anywhere")
+	if err != nil || rule.GetPort() != 2222 {
+		t.Fatalf("stored rule = %v, %v", rule, err)
+	}
+	rule.Sources = []string{"198.51.100.128/25"}
+	go func() {
+		edit := resource.WithOutcome(step("chg_source", true), func(o resource.Outcome) { reported <- o.Waits })
+		done <- m.Put(edit, "ssh-anywhere", rule)
+	}()
+	sshAnnounced(t, reported, done)
+	if got := m.Confirm(t.Context(), "chg_source"); got != resource.AccessKept {
+		t.Fatalf("source edit returned %v", got)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if r := m.Applied().Rules["ssh-anywhere"]; r.GetPort() != 2222 || !slices.Equal(r.GetSources(), rule.Sources) {
+		t.Fatalf("source edit changed the SSH port: %v", r)
 	}
 }
 
@@ -169,13 +212,34 @@ func TestSSHTrialRevertsOnTimeoutAndOnRestart(t *testing.T) {
 					t.Fatal("unconfirmed SSH returned success")
 				}
 			}
-			if ssh.file != "original" || ssh.restored == 0 {
+			if ssh.file != "original" || ssh.restored == 0 || ssh.disarmed == 0 {
 				t.Fatal("original SSH settings were not restored")
 			}
 			if tbl.rules() != "(no table)" {
 				t.Fatal("trial firewall table was not removed")
 			}
 		})
+	}
+}
+
+func TestSSHKeepFailureSaysHowToRecover(t *testing.T) {
+	m, _ := manager(t, t.TempDir(), time.Minute)
+	ssh := &sshFixture{file: "original", finalError: errors.New("fixture reload failed")}
+	ssh.proof.Store(true)
+	m.SSH = ssh
+	reported := make(chan *resource.AccessWait, 1)
+	done := make(chan error, 1)
+	ctx := resource.WithOutcome(step("chg_ssh", true), func(o resource.Outcome) { reported <- o.Waits })
+	go func() {
+		done <- m.PutSSH(ctx, &resourcev1.SshConfig{Port: 2222}, &dockwellv1.SshPortMove{FromPort: 22, ToPort: 2222})
+	}()
+	sshAnnounced(t, reported, done)
+	got, failure := m.ConfirmDetails(t.Context(), "chg_ssh")
+	if got != resource.AccessRolledBack || !strings.Contains(failure, "Check their service logs") {
+		t.Fatalf("Keep = %v, %q", got, failure)
+	}
+	if err := <-done; err == nil || err.Error() != failure || ssh.file != "original" || ssh.disarmed != 1 {
+		t.Fatalf("reverted SSH file %q, helper removed %d times, apply error %v", ssh.file, ssh.disarmed, err)
 	}
 }
 

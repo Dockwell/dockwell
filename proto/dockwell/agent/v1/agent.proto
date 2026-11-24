@@ -1136,6 +1136,8 @@ message ConfirmAccessCall {
 message ConfirmAccessResult {
   // What the agent did.
   AccessVerdict verdict = 1;
+  // Why the SSH trial could not be kept, and what to do next.
+  string ssh_failure = 2;
 }
 
 // AccessVerdict is what came of a change to the firewall under its timer.

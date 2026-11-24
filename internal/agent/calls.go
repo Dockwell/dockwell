@@ -24,6 +24,7 @@ import (
 	"github.com/dockwell/dockwell/gen/dockwell/agent/v1/agentv1connect"
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/desired"
 	"github.com/dockwell/dockwell/internal/agent/files"
 	"github.com/dockwell/dockwell/internal/agent/system"
@@ -1134,8 +1135,14 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Access == nil {
 			return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: agentv1.AccessVerdict_ACCESS_VERDICT_NOT_WAITING}}}
 		}
-		v := c.cfg.Access.Confirm(ctx, confirm.GetChangeId())
-		return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: accessVerdicts[v]}}}
+		var v resource.AccessVerdict
+		var failure string
+		if ssh, ok := c.cfg.Access.(*access.Manager); ok {
+			v, failure = ssh.ConfirmDetails(ctx, confirm.GetChangeId())
+		} else {
+			v = c.cfg.Access.Confirm(ctx, confirm.GetChangeId())
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ConfirmAccess{ConfirmAccess: &agentv1.ConfirmAccessResult{Verdict: accessVerdicts[v], SshFailure: failure}}}
 	}
 	if save := call.GetSaveFile(); save != nil {
 		if c.cfg.Files == nil {

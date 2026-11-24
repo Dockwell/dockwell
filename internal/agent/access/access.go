@@ -133,12 +133,11 @@ var (
 
 // state is the rules and policy, by name, and the SSH pins they keep.
 type state struct {
-	SSH          *resourcev1.SshConfig
-	SSHOpen      []netip.Prefix
-	SSHRulePorts map[string]uint16
-	Rules        map[string]*resourcev1.FirewallRule
-	Policy       *resourcev1.FirewallPolicy
-	Pinned       Pinned
+	SSH     *resourcev1.SshConfig
+	SSHOpen []netip.Prefix
+	Rules   map[string]*resourcev1.FirewallRule
+	Policy  *resourcev1.FirewallPolicy
+	Pinned  Pinned
 }
 
 // Pinned are the SSH ports and addresses a state keeps reaching SSH: those of
@@ -152,7 +151,7 @@ type Pinned struct {
 }
 
 func (s state) clone() state {
-	out := state{SSH: proto.CloneOf(s.SSH), SSHOpen: slices.Clone(s.SSHOpen), SSHRulePorts: maps.Clone(s.SSHRulePorts), Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
+	out := state{SSH: proto.CloneOf(s.SSH), SSHOpen: slices.Clone(s.SSHOpen), Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
 	for name, r := range s.Rules {
 		out.Rules[name] = proto.CloneOf(r)
 	}
@@ -180,9 +179,11 @@ type confirmedState struct {
 
 // pending is the change that waits for its confirmation.
 type pending struct {
-	ssh      *SSHChange
-	sshFinal nftables.Table
-	change   string
+	ssh           *SSHChange
+	sshProof      *SSHProof
+	sshUnexpected netip.Addr
+	sshFinal      nftables.Table
+	change        string
 	// wait names this wait, on disk too.
 	wait     string
 	state    state
@@ -200,8 +201,9 @@ type pending struct {
 type stopper interface{ Stop() bool }
 
 type verdict struct {
-	Change  string                 `json:"change"`
-	Verdict resource.AccessVerdict `json:"verdict"`
+	Change     string                 `json:"change"`
+	Verdict    resource.AccessVerdict `json:"verdict"`
+	SSHFailure string                 `json:"ssh_failure,omitempty"`
 }
 
 func (m *Manager) clock() time.Time {
@@ -344,12 +346,12 @@ func (m *Manager) Applied() Applied {
 		return out
 	}
 	c := m.confirmed.clone()
-	out.Rules, out.Policy = c.liveRules(), c.Policy
+	out.Rules, out.Policy = c.Rules, c.Policy
 	switch {
 	case m.waiting != nil:
 		t := m.waiting.table
 		w := m.waiting.state.clone()
-		out.Live, out.Waiting, out.WaitingRules, out.WaitingPolicy = &t, m.waiting.change, w.liveRules(), w.Policy
+		out.Live, out.Waiting, out.WaitingRules, out.WaitingPolicy = &t, m.waiting.change, w.Rules, w.Policy
 	case m.unrestored == nil && !m.confirmed.empty():
 		t := m.confirmed.table
 		out.Live = &t
@@ -394,7 +396,7 @@ func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
 		if e.Protocol == "tcp" && (slices.Contains(pins.Own, e.Port) || slices.Contains(pins.SSHPorts, e.Port)) {
 			continue
 		}
-		if slices.ContainsFunc(slices.Collect(maps.Values(s.liveRules())), func(r *resourcev1.FirewallRule) bool {
+		if slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
 			return !isDeny(r) && protocolOf(r) == e.Protocol && portOf(r) == e.Port && len(r.GetSources()) == 0
 		}) {
 			continue
@@ -532,9 +534,6 @@ func (m *Manager) Rule(ctx context.Context, name string) (*resourcev1.FirewallRu
 func (m *Manager) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
 	rule = proto.CloneOf(rule)
 	return m.edit(ctx, func(s *state) {
-		if !proto.Equal(s.Rules[name], rule) {
-			delete(s.SSHRulePorts, name)
-		}
 		s.Rules[name] = rule
 	})
 }
@@ -543,7 +542,6 @@ func (m *Manager) Put(ctx context.Context, name string, rule *resourcev1.Firewal
 func (m *Manager) Delete(ctx context.Context, name string) error {
 	return m.edit(ctx, func(s *state) {
 		delete(s.Rules, name)
-		delete(s.SSHRulePorts, name)
 	})
 }
 
@@ -659,6 +657,9 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, mov
 	if err == nil {
 		err = check(next, pins, m.PanelOverSSH)
 	}
+	if err == nil && trial != nil && trial.ProofPeer.IsValid() && !sshPeerReachable(tbl, trial) {
+		err = fmt.Errorf("the kept firewall would block SSH from %s on port %d. Choose a client address that will stay allowed", trial.ProofPeer, trial.Port)
+	}
 	if err != nil {
 		// Nothing loaded, but a change whose earlier steps did has them live.
 		if !first {
@@ -690,6 +691,10 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, mov
 		// and can't start again doesn't leave the change's table for good. With
 		// no net, nothing loads.
 		if err := m.armAccessLocked(ctx, d.Change, wait, trial); err != nil {
+			if trial != nil {
+				m.disarmSSH(ctx)
+				m.disarmDeadManLocked(ctx)
+			}
 			if rerr := m.removeWaiting(); rerr != nil {
 				m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load", slog.String("error", rerr.Error()))
 			}
@@ -708,7 +713,7 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, mov
 		}
 		tbl.Allows = slices.Clone(tbl.Allows)
 		for _, name := range slices.Sorted(maps.Keys(base.Rules)) {
-			rule := base.liveRule(name)
+			rule := base.Rules[name]
 			if protocolOf(rule) == "tcp" && portOf(rule) == trial.OldPort {
 				old := nftablesRule(name, rule)
 				old.Name = "ssh trial old " + name
@@ -956,9 +961,13 @@ func (m *Manager) await(ctx context.Context, change string, done <-chan struct{}
 	}
 	m.mu.Lock()
 	v := m.verdictOf(change)
+	failure := m.sshFailure(change)
 	m.mu.Unlock()
 	if v == resource.AccessKept {
 		return nil
+	}
+	if failure != "" {
+		return resource.Plainly(failure, errors.New(failure))
 	}
 	return resource.Plainly(
 		fmt.Sprintf("Nobody confirmed the change within %s, so the server put back its firewall as it was.", wording(m.timer())),
@@ -1001,49 +1010,67 @@ var closed = func() chan struct{} { c := make(chan struct{}); close(c); return c
 // kept it. What it records is the table as it loaded, so a confirmation reads
 // nothing of the server and can't fail on it.
 func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVerdict {
+	verdict, _ := m.ConfirmDetails(ctx, change)
+	return verdict
+}
+
+// ConfirmDetails returns any SSH-specific failure alongside the verdict.
+func (m *Manager) ConfirmDetails(ctx context.Context, change string) (resource.AccessVerdict, string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	w := m.waiting
 	if w == nil || w.change != change {
 		if v := m.verdictOf(change); v != 0 {
-			return v
+			return v, m.sshFailure(change)
 		}
-		return resource.AccessNotWaiting
+		return resource.AccessNotWaiting, ""
 	}
 	if !m.clock().Before(w.deadline) {
 		// The timer is about to put it back, if it hasn't yet: running out wins.
+		if w.ssh != nil {
+			return m.sshKeepFailed(ctx, change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		}
 		m.rollBackLocked(ctx, change)
-		return resource.AccessRolledBack
+		return resource.AccessRolledBack, ""
 	}
 	if !w.announced {
 		// Its last step here hasn't loaded yet: keeping it now would keep part of it.
-		return resource.AccessNotWaiting
+		return resource.AccessNotWaiting, ""
 	}
 	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
 	var unlockSSH func()
 	if w.ssh != nil {
 		unlock, err := m.lockSSH()
 		if err != nil {
-			return resource.AccessNotKept
+			return resource.AccessNotKept, "The agent couldn't lock the SSH rollback files. Try Keep again while time remains."
 		}
 		unlockSSH = unlock
 		defer unlockSSH()
-		if m.SSH.Proved(ctx, w.ssh) == nil || !m.clock().Before(w.deadline) {
-			return resource.AccessNotProved
+		if !m.SSH.CandidateLive(w.ssh) {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The SSH trial settings are no longer on disk. Check the SSH settings on the server, then review a new plan.", nil)
+		}
+		if w.sshProof == nil {
+			w.sshProof, _ = m.SSH.Proved(ctx, w.ssh)
+		}
+		if !m.clock().Before(w.deadline) {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		}
+		if w.sshProof == nil {
+			return resource.AccessNotProved, ""
 		}
 		c.table = w.sshFinal
 		if w.ssh.Final != w.ssh.Candidate {
 			if err := m.SSH.Install(context.WithoutCancel(ctx), w.ssh, w.ssh.Final); err != nil {
 				unlockSSH()
-				m.rollBackLocked(ctx, change)
-				return resource.AccessRolledBack
+				return m.sshKeepFailed(ctx, change, "OpenSSH or fail2ban couldn't load the final settings. Check their service logs on the server before trying again.", err)
 			}
 			loaded, err := m.Table.Load(context.WithoutCancel(ctx), c.table)
 			m.skipped(ctx, loaded)
 			if err != nil {
 				unlockSSH()
-				m.rollBackLocked(ctx, change)
-				return resource.AccessRolledBack
+				return m.sshKeepFailed(ctx, change, "The server couldn't load the final firewall rules. Check the agent's firewall logs before trying again.", err)
 			}
 		}
 	}
@@ -1057,10 +1084,9 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 			slog.String("change", change), slog.String("error", err.Error()))
 		if unlockSSH != nil {
 			unlockSSH()
-			m.rollBackLocked(ctx, change)
-			return resource.AccessRolledBack
+			return m.sshKeepFailed(ctx, change, "The server couldn't save the SSH rollback files. Check disk space and the agent's data directory before trying again.", err)
 		}
-		return resource.AccessNotKept
+		return resource.AccessNotKept, ""
 	}
 	if err := m.saveConfirmed(c); err != nil {
 		m.logger().ErrorContext(ctx, "can't record a confirmed change to the firewall, so the agent puts back what was confirmed before",
@@ -1070,21 +1096,34 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 		}
 		if unlockSSH != nil {
 			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The server couldn't save the kept SSH settings. Check disk space and the agent's data directory before trying again.", err)
 		}
 		m.rollBackLocked(ctx, change)
-		return resource.AccessRolledBack
+		return resource.AccessRolledBack, ""
 	}
 	m.confirmed = c
 	w.timer.Stop()
 	m.waiting = nil
 	m.settleDeadManLocked(ctx, staged)
 	m.record(change, resource.AccessKept)
+	if w.ssh != nil {
+		m.disarmSSH(ctx)
+	}
 	if err := m.removeWaiting(); err != nil {
 		// confirmed.json names this wait, so a start reads it as kept.
 		m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that waited", slog.String("error", err.Error()))
 	}
 	close(w.done)
-	return resource.AccessKept
+	return resource.AccessKept, ""
+}
+
+func (m *Manager) sshKeepFailed(ctx context.Context, change, message string, err error) (resource.AccessVerdict, string) {
+	if err != nil {
+		m.logger().WarnContext(ctx, "couldn't keep the SSH trial", slog.String("change", change), slog.String("error", err.Error()))
+	}
+	m.recordVerdict(verdict{Change: change, Verdict: resource.AccessRolledBack, SSHFailure: message})
+	m.rollBackLocked(ctx, change)
+	return resource.AccessRolledBack, message
 }
 
 // expire is a change's timer running out.
@@ -1095,6 +1134,10 @@ func (m *Manager) expire(change string) {
 		return
 	}
 	m.logger().Warn("nobody confirmed a change to the firewall in time, so the agent puts back what was confirmed", slog.String("change", change))
+	if m.waiting.ssh != nil {
+		m.sshKeepFailed(context.Background(), change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		return
+	}
 	m.rollBackLocked(context.Background(), change)
 }
 
@@ -1171,16 +1214,29 @@ func (m *Manager) skipped(ctx context.Context, loaded nftables.Loaded) {
 
 // record keeps a change's verdict, once.
 func (m *Manager) record(change string, v resource.AccessVerdict) {
-	if m.verdictOf(change) == v {
+	m.recordVerdict(verdict{Change: change, Verdict: v})
+}
+
+func (m *Manager) recordVerdict(v verdict) {
+	if m.verdictOf(v.Change) == v.Verdict {
 		return
 	}
-	m.verdicts = append(m.verdicts, verdict{Change: change, Verdict: v})
+	m.verdicts = append(m.verdicts, v)
 	if len(m.verdicts) > keptVerdicts {
 		m.verdicts = m.verdicts[len(m.verdicts)-keptVerdicts:]
 	}
 	if err := writeJSON(filepath.Join(m.Dir, "verdicts.json"), m.verdicts); err != nil {
-		m.logger().Error("can't record what came of a change to the firewall", slog.String("change", change), slog.String("error", err.Error()))
+		m.logger().Error("can't record what came of a change to the firewall", slog.String("change", v.Change), slog.String("error", err.Error()))
 	}
+}
+
+func (m *Manager) sshFailure(change string) string {
+	for i := len(m.verdicts) - 1; i >= 0; i-- {
+		if m.verdicts[i].Change == change {
+			return m.verdicts[i].SSHFailure
+		}
+	}
+	return ""
 }
 
 func (m *Manager) verdictOf(change string) resource.AccessVerdict {
@@ -1306,7 +1362,7 @@ func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
 		t.DockerInterfaces = slices.Clone(nets.Interfaces)
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
-		r := s.liveRule(name)
+		r := s.Rules[name]
 		rule := nftablesRule(name, r)
 		if r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
 			t.Denies = append(t.Denies, rule)
@@ -1520,7 +1576,7 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 			out.Pinned = append(out.Pinned, from.String())
 		}
 		for _, name := range slices.Sorted(maps.Keys(next.Rules)) {
-			r := next.liveRule(name)
+			r := next.Rules[name]
 			if isDeny(r) || protocolOf(r) != "tcp" || !slices.Contains(sshPortsOr22(pins.SSHPorts), portOf(r)) {
 				continue
 			}
@@ -1593,7 +1649,7 @@ func sshPortsOr22(ports []uint16) []uint16 {
 
 // allowsFromAnywhere reports a rule that lets a TCP port in from anywhere.
 func allowsFromAnywhere(s state, port uint16) bool {
-	for _, r := range s.liveRules() {
+	for _, r := range s.Rules {
 		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0 {
 			return true
 		}
@@ -1603,7 +1659,7 @@ func allowsFromAnywhere(s state, port uint16) bool {
 
 // allows reports a rule that lets a TCP port in, from anywhere or from some.
 func allows(s state, port uint16) bool {
-	for _, r := range s.liveRules() {
+	for _, r := range s.Rules {
 		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port {
 			return true
 		}
@@ -1616,7 +1672,7 @@ func allows(s state, port uint16) bool {
 // from anywhere. Only then does who is pinned decide who gets in.
 func narrowsSSH(s state, ports []uint16) bool {
 	ports = sshPortsOr22(ports)
-	for _, r := range s.liveRules() {
+	for _, r := range s.Rules {
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
 			return true
 		}
@@ -1651,7 +1707,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 		}
 	}
 	for _, name := range names {
-		r := s.liveRule(name)
+		r := s.Rules[name]
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(p.Own, portOf(r)) {
 			return fmt.Errorf("this would deny port %d, which the control plane on this server listens on, for the panel or its agents. Leave that port out", portOf(r))
 		}
@@ -1664,7 +1720,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 		ports, refuse = []uint16{22}, errNoSSH
 	}
 	for _, name := range names {
-		r := s.liveRule(name)
+		r := s.Rules[name]
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
 			return refuse
 		}
@@ -1672,7 +1728,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 	if s.Policy.GetDenyEverythingElse() {
 		for _, port := range ports {
 			open := slices.ContainsFunc(names, func(name string) bool {
-				r := s.liveRule(name)
+				r := s.Rules[name]
 				return !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0
 			})
 			if !open {
@@ -1770,7 +1826,7 @@ type stored struct {
 }
 
 func encodeConfirmed(c confirmedState) stored {
-	out := stored{Wait: c.wait, SSHOpen: c.SSHOpen, SSHRulePorts: c.SSHRulePorts, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
+	out := stored{Wait: c.wait, SSHOpen: c.SSHOpen, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
 	for name, r := range c.Rules {
 		b, _ := protojson.Marshal(r)
 		out.Rules[name] = b
@@ -1790,7 +1846,7 @@ func decodeConfirmed(b []byte, v any) error {
 		return err
 	}
 	c := v.(*confirmedState)
-	c.wait, c.Pinned, c.SSHOpen, c.SSHRulePorts = in.Wait, in.Pinned, in.SSHOpen, in.SSHRulePorts
+	c.wait, c.Pinned, c.SSHOpen = in.Wait, in.Pinned, in.SSHOpen
 	if len(in.SSH) != 0 {
 		c.SSH = &resourcev1.SshConfig{}
 		if err := protojson.Unmarshal(in.SSH, c.SSH); err != nil {
@@ -1802,6 +1858,10 @@ func decodeConfirmed(b []byte, v any) error {
 		r := &resourcev1.FirewallRule{}
 		if err := protojson.Unmarshal(raw, r); err != nil {
 			return fmt.Errorf("rule %s: %w", name, err)
+		}
+		// Older agents stored a kept SSH port separately from the rule.
+		if port := in.SSHRulePorts[name]; port != 0 {
+			r.Port = uint32(port)
 		}
 		c.Rules[name] = r
 	}

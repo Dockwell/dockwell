@@ -317,6 +317,17 @@ func (s *sshSettings) Plan(ctx context.Context, before, next *resourcev1.SshConf
 	if len(change.From) == 0 {
 		return nil, fmt.Errorf("open an SSH session as %s from the address you'll test from, then plan again", account)
 	}
+	if asked, err := netip.ParseAddr(next.GetTestAddress()); err == nil {
+		change.ProofPeer = asked.Unmap()
+		for i := range sessions {
+			session := &sessions[i]
+			if local := session.Local.Addr().Unmap(); session.User == account &&
+				session.Peer.Addr().Unmap() == change.ProofPeer && matchingSSHAddress(local, change.Addresses) {
+				change.ProofHost = local
+				break
+			}
+		}
+	}
 	rootNarrows := next.GetRootLogin() == "no" && effectiveNow.GetRootLogin() != dockwellv1.SshRootLogin_SSH_ROOT_LOGIN_NO ||
 		next.GetRootLogin() == "prohibit-password" && effectiveNow.GetRootLogin() == dockwellv1.SshRootLogin_SSH_ROOT_LOGIN_YES
 	passwordNarrows := passwordOff && effectiveNow.GetPasswordLogin() != dockwellv1.SshAnswer_SSH_ANSWER_NO
@@ -601,10 +612,14 @@ func (r *sshReader) editDetails(ctx context.Context, read *dockwellv1.ServerSsh)
 		return out
 	}
 	out.Managed = r.access.SSHConfig(ctx)
-	change, trial, proof := r.access.SSHTest(ctx)
+	change, trial, proof, unexpected := r.access.SSHTestDetails(ctx)
 	out.TestChange = change
 	if change != "" {
 		out.TestCommand = sshTestCommand(&trial)
+		out.TestAddress = trial.ProofPeer.String()
+		if unexpected.IsValid() {
+			out.UnexpectedTestAddress = unexpected.String()
+		}
 	}
 	if proof != nil {
 		out.ProvedChange = change

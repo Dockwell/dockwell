@@ -59,7 +59,9 @@ type SSHBackend interface {
 	Install(context.Context, *SSHChange, string) error
 	Restore(context.Context, *SSHChange) error
 	Started() (uint64, error)
-	Proved(context.Context, *SSHChange) *SSHProof
+	CandidateLive(*SSHChange) bool
+	Proved(context.Context, *SSHChange) (*SSHProof, netip.Addr)
+	Disarm(context.Context, string) error
 }
 
 // SSHConfig returns the settings last kept by the access manager.
@@ -101,13 +103,12 @@ func (s *state) planSSHMove(trial *SSHChange) (*dockwellv1.SshPortMove, error) {
 	return &dockwellv1.SshPortMove{FromPort: uint32(trial.OldPort), ToPort: uint32(trial.Port), FirewallRules: names, Fail2Ban: trial.Jail != nil}, nil
 }
 
-// The SSH revision owns these port bindings. The independent firewall rule
-// revisions still own their specs, including all sources, and an explicit edit
-// to one detaches it from the previous SSH move.
+// Move the ports in the candidate rule specs. Keep persists these specs with
+// the tested table; the control plane records the matching rule revisions.
 func (s *state) moveSSHRules(from, to uint16) ([]string, error) {
 	var moved []string
 	for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
-		rule := s.liveRule(name)
+		rule := s.Rules[name]
 		if protocolOf(rule) != "tcp" || (portOf(rule) != from && portOf(rule) != to) {
 			continue
 		}
@@ -117,34 +118,9 @@ func (s *state) moveSSHRules(from, to uint16) ([]string, error) {
 		moved = append(moved, name)
 	}
 	for _, name := range moved {
-		rule := s.Rules[name]
-		if portOf(rule) == to {
-			delete(s.SSHRulePorts, name)
-			continue
-		}
-		if s.SSHRulePorts == nil {
-			s.SSHRulePorts = map[string]uint16{}
-		}
-		s.SSHRulePorts[name] = to
+		s.Rules[name].Port = uint32(to)
 	}
 	return moved, nil
-}
-
-func (s state) liveRule(name string) *resourcev1.FirewallRule {
-	rule := s.Rules[name]
-	if port := s.SSHRulePorts[name]; rule != nil && port != 0 {
-		rule = proto.CloneOf(rule)
-		rule.Port = uint32(port)
-	}
-	return rule
-}
-
-func (s state) liveRules() map[string]*resourcev1.FirewallRule {
-	rules := make(map[string]*resourcev1.FirewallRule, len(s.Rules))
-	for name := range s.Rules {
-		rules[name] = s.liveRule(name)
-	}
-	return rules
 }
 
 // PutSSH applies SSH settings under the server's shared access timer.
@@ -163,23 +139,41 @@ func (m *Manager) HoldSSHKeys() (func(), error) {
 	return m.mu.Unlock, nil
 }
 
-// SSHTest describes the waiting trial and the login that proved it, if any.
-// Confirm independently enforces the same test.
-func (m *Manager) SSHTest(ctx context.Context) (string, SSHChange, *SSHProof) {
+// SSHTestDetails reports the waiting trial, the accepted login, and any test
+// that authenticated with the right command from a different client address.
+func (m *Manager) SSHTestDetails(ctx context.Context) (string, SSHChange, *SSHProof, netip.Addr) {
 	m.mu.Lock()
 	w := m.waiting
 	if w == nil || w.ssh == nil || !w.announced || !m.clock().Before(w.deadline) {
 		m.mu.Unlock()
-		return "", SSHChange{}, nil
+		return "", SSHChange{}, nil, netip.Addr{}
 	}
-	change, test := w.change, *w.ssh
+	test, proof := *w.ssh, w.sshProof
 	m.mu.Unlock()
-	proof := m.SSH.Proved(ctx, &test)
-	return change, test, proof
+	var unexpected netip.Addr
+	live := m.SSH.CandidateLive(&test)
+	if live && proof == nil {
+		proof, unexpected = m.SSH.Proved(ctx, &test)
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if w != m.waiting || !m.clock().Before(w.deadline) {
+		return "", SSHChange{}, nil, netip.Addr{}
+	}
+	if !live {
+		return w.change, test, nil, netip.Addr{}
+	}
+	if w.sshProof == nil && proof != nil {
+		w.sshProof = proof
+	}
+	if unexpected.IsValid() {
+		w.sshUnexpected = unexpected
+	}
+	return w.change, test, w.sshProof, w.sshUnexpected
 }
 
 func (m *Manager) startSSHLocked(ctx context.Context, w waitingFile) error {
-	if w.SSH == nil || w.Wait == m.confirmed.wait {
+	if w.SSH == nil {
 		return nil
 	}
 	if m.SSH == nil {
@@ -190,7 +184,13 @@ func (m *Manager) startSSHLocked(ctx context.Context, w waitingFile) error {
 		return err
 	}
 	defer unlock()
-	return m.SSH.Restore(context.WithoutCancel(ctx), w.SSH)
+	if w.Wait != m.confirmed.wait {
+		if err := m.SSH.Restore(context.WithoutCancel(ctx), w.SSH); err != nil {
+			return err
+		}
+	}
+	m.disarmSSH(ctx)
+	return nil
 }
 
 func (m *Manager) recoverSSHBeforeProbe(ctx context.Context) error {
@@ -198,8 +198,12 @@ func (m *Manager) recoverSSHBeforeProbe(ctx context.Context) error {
 		return nil
 	}
 	var w waitingFile
-	if err := readJSON(filepath.Join(m.Dir, "waiting.json"), &w, json.Unmarshal); err != nil || w.SSH == nil {
+	if err := readJSON(filepath.Join(m.Dir, "waiting.json"), &w, json.Unmarshal); err != nil {
 		return err
+	}
+	if w.SSH == nil {
+		m.disarmSSH(ctx)
+		return nil
 	}
 	var c confirmedState
 	if err := readJSON(filepath.Join(m.Dir, "confirmed.json"), &c, decodeConfirmed); err != nil {
@@ -207,6 +211,12 @@ func (m *Manager) recoverSSHBeforeProbe(ctx context.Context) error {
 	}
 	m.confirmed = c
 	return m.startSSHLocked(ctx, w)
+}
+
+func (m *Manager) disarmSSH(ctx context.Context) {
+	if err := m.SSH.Disarm(context.WithoutCancel(ctx), m.Dir); err != nil {
+		m.logger().WarnContext(ctx, "can't remove the SSH rollback helper", "error", err)
+	}
 }
 
 func (m *Manager) restoreSSHLocked(ctx context.Context) error {
@@ -219,6 +229,19 @@ func (m *Manager) restoreSSHLocked(ctx context.Context) error {
 
 func sshPortPin(name string, port uint16, peers []netip.Prefix) nftables.Rule {
 	return nftables.Rule{Name: name, Protocol: "tcp", Ports: []uint16{port}, Sources: slices.Clone(peers)}
+}
+
+func sshPeerReachable(table nftables.Table, trial *SSHChange) bool {
+	matches := func(rule nftables.Rule) bool {
+		return rule.Protocol == "tcp" && slices.Contains(rule.Ports, trial.Port) &&
+			(len(rule.Sources) == 0 || slices.ContainsFunc(rule.Sources, func(p netip.Prefix) bool {
+				return p.Contains(trial.ProofPeer)
+			}))
+	}
+	if slices.ContainsFunc(table.Pins, matches) || slices.ContainsFunc(table.Allows, matches) {
+		return true
+	}
+	return !table.DenyRest && !slices.ContainsFunc(table.Denies, matches)
 }
 
 func (m *Manager) armAccessLocked(ctx context.Context, change, wait string, ssh *SSHChange) error {

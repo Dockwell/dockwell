@@ -5849,7 +5849,9 @@ func (x *ConfirmAccessCall) GetChangeId() string {
 type ConfirmAccessResult struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What the agent did.
-	Verdict       AccessVerdict `protobuf:"varint,1,opt,name=verdict,proto3,enum=dockwell.agent.v1.AccessVerdict" json:"verdict,omitempty"`
+	Verdict AccessVerdict `protobuf:"varint,1,opt,name=verdict,proto3,enum=dockwell.agent.v1.AccessVerdict" json:"verdict,omitempty"`
+	// Why the SSH trial could not be kept, and what to do next.
+	SshFailure    string `protobuf:"bytes,2,opt,name=ssh_failure,json=sshFailure,proto3" json:"ssh_failure,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -5889,6 +5891,13 @@ func (x *ConfirmAccessResult) GetVerdict() AccessVerdict {
 		return x.Verdict
 	}
 	return AccessVerdict_ACCESS_VERDICT_UNSPECIFIED
+}
+
+func (x *ConfirmAccessResult) GetSshFailure() string {
+	if x != nil {
+		return x.SshFailure
+	}
+	return ""
 }
 
 // ProcessesCall asks what runs on the server. CPU covers the time since the last
@@ -19344,9 +19353,11 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\aSshCall\"\x0e\n" +
 	"\fFail2banCall\"0\n" +
 	"\x11ConfirmAccessCall\x12\x1b\n" +
-	"\tchange_id\x18\x01 \x01(\tR\bchangeId\"Q\n" +
+	"\tchange_id\x18\x01 \x01(\tR\bchangeId\"r\n" +
 	"\x13ConfirmAccessResult\x12:\n" +
-	"\averdict\x18\x01 \x01(\x0e2 .dockwell.agent.v1.AccessVerdictR\averdict\"\x0f\n" +
+	"\averdict\x18\x01 \x01(\x0e2 .dockwell.agent.v1.AccessVerdictR\averdict\x12\x1f\n" +
+	"\vssh_failure\x18\x02 \x01(\tR\n" +
+	"sshFailure\"\x0f\n" +
 	"\rProcessesCall\"?\n" +
 	"\x0fProcessesResult\x12,\n" +
 	"\x04list\x18\x01 \x01(\v2\x18.dockwell.v1.ProcessListR\x04list\"t\n" +

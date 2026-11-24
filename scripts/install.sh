@@ -973,6 +973,41 @@ owner_state() {
 	fi
 }
 
+# Restore a live SSH trial before taking away its independent rollback.
+# An old helper left on disk after a completed trial can be removed directly.
+uninstall_ssh_restore() {
+	ssh_system=${UNIT%/*}
+	ssh_access=$DATA/agent/access
+	ssh_restore=$ssh_system/dockwell-ssh-restore.service
+	ssh_wait=$(cat "$ssh_access/ssh-wait-id" 2>/dev/null) || ssh_wait=
+	ssh_match='"wait": "'"$ssh_wait"'"'
+	if [ -n "$booted" ] && [ "$init" = systemd ] && [ -f "$ssh_restore" ] && [ -n "$ssh_wait" ] &&
+		grep -Fq -- "$ssh_match" "$ssh_access/waiting.json" 2>/dev/null &&
+		! grep -Fq -- "$ssh_match" "$ssh_access/confirmed.json" 2>/dev/null; then
+		ssh_reload=
+		for ssh_unit in ssh.service sshd.service fail2ban.service; do
+			[ ! -f "$ssh_system/$ssh_unit.d/dockwell-access-restore.conf" ] || ssh_reload="$ssh_reload $ssh_unit"
+		done
+		rm -f "$ssh_access/ssh-boot-id"
+		systemctl daemon-reload
+		systemctl start dockwell-ssh-restore.service ||
+			fail "Dockwell couldn't restore a pending SSH change. Check dockwell-ssh-restore.service before uninstalling."
+		for ssh_unit in $ssh_reload; do
+			systemctl try-reload-or-restart "$ssh_unit"
+		done
+	fi
+	ssh_reload=
+	for ssh_path in "$ssh_restore" "$ssh_system/ssh.service.d/dockwell-access-restore.conf" \
+		"$ssh_system/sshd.service.d/dockwell-access-restore.conf" "$ssh_system/fail2ban.service.d/dockwell-access-restore.conf"; do
+		[ ! -e "$ssh_path" ] || ssh_reload=1
+		rm -f "$ssh_path"
+	done
+	rm -f "$ssh_access/ssh-wait-id" "$ssh_access/ssh-revert.sh"
+	if [ -n "$ssh_reload" ] && [ -n "$booted" ] && [ "$init" = systemd ]; then
+		systemctl daemon-reload
+	fi
+}
+
 uninstall() {
 	found=
 	if [ -f "$UNIT" ]; then
@@ -993,6 +1028,7 @@ uninstall() {
 		rc-update del dockwell default >/dev/null 2>&1 || true
 		rm -f "$INITD"
 	fi
+	uninstall_ssh_restore
 	if [ -e "$BIN" ]; then
 		found=1
 		rm -f "$BIN"

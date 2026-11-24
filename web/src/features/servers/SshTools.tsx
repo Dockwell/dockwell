@@ -14,7 +14,7 @@ import {
 } from "@dockwell/api";
 import { Button, Callout, SelectField, Sheet, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
@@ -108,6 +108,16 @@ function SshSettings({
   const [port, setPort] = useState(String(portNow));
   const [addresses, setAddresses] = useState(original.listenAddresses.join(", "));
   const [account, setAccount] = useState(original.account);
+  const [testAddress, setTestAddress] = useState<string>();
+  const testAddressesId = useId();
+  const sessions = useQuery(FirewallService.method.listServerSshSessions, { serverId: server.id }, { retry: false });
+  const peers = (sessions.data?.sessions ?? []).filter((session) => session.user === account && session.address);
+  const suggested =
+    peers.find(({ address }) => address === ssh.yourAddress)?.address ??
+    peers.find(({ tty }) => tty)?.address ??
+    peers[0]?.address ??
+    "";
+  const peer = (testAddress ?? suggested).trim();
   const [error, setError] = useState("");
   const addressesChanged = addresses !== original.listenAddresses.join(", ");
   const changed =
@@ -119,7 +129,7 @@ function SshSettings({
       setError(t`Choose a port from 1 to 65535.`);
       return;
     }
-    if (!account || !changed) return;
+    if (!account || !peer || !changed) return;
     const editedAddresses = addresses.split(/[\s,]+/).filter(Boolean);
     if (addressesChanged && editedAddresses.length === 0) {
       setError(t`Enter a listen address. Use 0.0.0.0 and :: for all interfaces.`);
@@ -127,6 +137,7 @@ function SshSettings({
     }
     const spec = {
       account,
+      testAddress: peer,
       rootLogin: root === rootNow ? original.rootLogin : root,
       passwordLogin: password === passwordNow ? original.passwordLogin : password,
       keyLogin: keys === keyNow ? original.keyLogin : keys,
@@ -157,7 +168,7 @@ function SshSettings({
           <Button variant="ghost" onClick={close}>
             <Trans>Cancel</Trans>
           </Button>
-          <Button variant="primary" icon="commit" disabled={!account || !changed} onClick={() => submit()}>
+          <Button variant="primary" icon="commit" disabled={!account || !peer || !changed} onClick={() => submit()}>
             <Trans>Review plan</Trans>
           </Button>
         </>
@@ -202,12 +213,32 @@ function SshSettings({
         <SelectField
           label={t`Administrator to test with`}
           value={account}
-          onChange={(event) => setAccount(event.target.value)}
+          onChange={(event) => {
+            setAccount(event.target.value);
+            setTestAddress(undefined);
+          }}
           options={[
             { value: "", label: t`Choose an account` },
             ...ssh.adminAccounts.map((name) => ({ value: name, label: name })),
           ]}
         />
+        {account ? (
+          <>
+            <TextField
+              mono
+              label={t`SSH test client address`}
+              hint={t`Choose an SSH session address or enter the IP address the server will see.`}
+              list={testAddressesId}
+              value={testAddress ?? suggested}
+              onChange={(event) => setTestAddress(event.target.value)}
+            />
+            <datalist id={testAddressesId}>
+              {[...new Set(peers.map(({ address }) => address))].map((address) => (
+                <option key={address} value={address} />
+              ))}
+            </datalist>
+          </>
+        ) : null}
       </form>
     </Sheet>
   );

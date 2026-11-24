@@ -942,7 +942,7 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
           amber: false,
           title: t`Move SSH from port ${fromPort} to ${toPort}`,
           detail: fail2ban ? t`Move the fail2ban sshd jail with the listener.` : "",
-          more: rules ? t`Move these firewall rules with the listener: ${rules}` : undefined,
+          more: rules ? t`Change TCP port ${fromPort} to ${toPort} in firewall rules ${rules}.` : undefined,
         });
       }
       if (step.resource?.kind === "fail2ban.jail" && step.action !== PlanAction.DELETE && !applied) {

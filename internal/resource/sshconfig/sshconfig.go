@@ -66,6 +66,12 @@ func (*Driver) Validate(spec proto.Message) error {
 	if s.GetPort() > 65535 {
 		return errors.New("choose a port between 1 and 65535")
 	}
+	if address := s.GetTestAddress(); address != "" {
+		addr, err := netip.ParseAddr(address)
+		if err != nil || !addr.Unmap().IsGlobalUnicast() || addr.Zone() != "" {
+			return errors.New("enter the numeric client IP address the server sees for SSH")
+		}
+	}
 	if len(s.GetListenAddresses()) > 16 {
 		return errors.New("choose at most 16 SSH listen addresses")
 	}

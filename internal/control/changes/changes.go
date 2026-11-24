@@ -617,6 +617,10 @@ func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwe
 		deadline = d.AsTime()
 	}
 	verdict, err := h.engine.ConfirmAccess(ctx, changeID, server, deadline)
+	var keepError *resource.SSHKeepError
+	if errors.As(err, &keepError) {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, keepError, "ssh_keep_failed")
+	}
 	if err != nil {
 		return nil, h.rpcError(ctx, err)
 	}

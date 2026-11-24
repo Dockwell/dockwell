@@ -71,6 +71,8 @@ export function ConfirmAccess({
   const proved = !wait.sshAccount || proof.data?.ssh?.provedChange === changeId;
   const ssh = proof.data?.ssh;
   const command = open && ssh?.testChange === changeId ? ssh.testCommand : "";
+  const testAddress = command ? ssh?.testAddress : "";
+  const unexpected = command ? ssh?.unexpectedTestAddress : "";
   const login = proved ? ssh?.proof : undefined;
   const identity = login?.fingerprint ? `${login.method} · ${login.fingerprint}` : login?.method;
   const ports = wait.sshPorts;
@@ -116,8 +118,10 @@ export function ConfirmAccess({
             )
           ) : proved ? (
             <Trans>A fresh SSH connection verified these settings.</Trans>
+          ) : testAddress ? (
+            <Trans>Run this command from {testAddress}.</Trans>
           ) : command ? (
-            <Trans>Run this command from your original SSH client.</Trans>
+            <Trans>Run this command from the SSH client you used to sign in.</Trans>
           ) : (
             <Trans>
               Waiting for the test command for {wait.sshAccount} on port {port}.
@@ -133,6 +137,14 @@ export function ConfirmAccess({
           </Trans>
         )}
       </p>
+      {!theirs && !proved && unexpected ? (
+        <p role="status">
+          <Trans>
+            The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and
+            use the new address in a new plan.
+          </Trans>
+        </p>
+      ) : null}
       {!theirs && !proved && command ? (
         <p className="plan-ssh-command">
           <code>{command}</code>
@@ -180,7 +192,7 @@ export function ConfirmAccess({
               : reasonOf(error) === "not_waiting"
                 ? t`That wait is over: this sheet shows whether the server kept the change.`
                 : reasonOf(error) === "ssh_not_proved"
-                  ? t`Open a fresh SSH connection before keeping these settings.`
+                  ? t`Run the test command from the expected address and wait for verification before choosing Keep again.`
                   : sentence(error)}
         </p>
       ) : null}

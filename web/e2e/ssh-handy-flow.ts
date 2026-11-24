@@ -101,6 +101,7 @@ export const flow: Flow = {
               number(7, 1),
               bytes(10, "/etc/ssh/sshd_config.d"),
               bytes(24, "deploy"),
+              bytes(30, "192.0.2.44"),
             ),
           ),
         ),
@@ -181,6 +182,8 @@ export const flow: Flow = {
         await fitsHeading(settings);
         await settings.getByRole("switch", { name: "Password login" }).click();
         await settings.getByRole("combobox", { name: "Administrator to test with" }).selectOption("deploy");
+        await settings.locator('input[value="192.0.2.44"]').waitFor();
+        await settings.getByRole("combobox", { name: "SSH test client address" }).fill("192.0.2.72");
         await settings.getByRole("button", { name: "Review plan" }).waitFor();
         await shoot(page, `ssh-handy-settings-${name}`);
         await settings.getByRole("button", { name: "Cancel" }).click();

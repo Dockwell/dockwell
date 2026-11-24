@@ -20372,7 +20372,7 @@ components:
                     format: enum
                 port:
                     type: integer
-                    description: The port the rule covers.
+                    description: The port the rule covers. Omit on an existing rule to keep its port.
                     format: uint32
                 sources:
                     type: array
@@ -30406,6 +30406,14 @@ components:
                     type: string
                 proof:
                     $ref: '#/components/schemas/SshProof'
+                testAddress:
+                    type: string
+                unexpectedTestAddress:
+                    type: string
+                    description: Address seen when the test command reached sshd from a different peer.
+                yourAddress:
+                    type: string
+                    description: Address of the panel request, when available.
             description: |-
                 ServerSsh is how SSH lets people in on a server, as its agent read it: the
                  values sshd's files say, read with sshd -T, which may not be what any one file writes,
@@ -32092,6 +32100,9 @@ components:
                 account:
                     type: string
                     description: Local administrator whose new SSH connection proves access.
+                testAddress:
+                    type: string
+                    description: Numeric client IP address as seen by this server for the test login.
             description: SshConfig is Dockwell's SSH daemon drop-in. Unset fields follow the server.
         SshKey:
             type: object

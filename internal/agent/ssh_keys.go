@@ -407,12 +407,29 @@ func (r *sshReader) checkKeyRemoval(ctx context.Context, a sshAccount) error {
 	if err != nil {
 		return err
 	}
-	return checkKeyRemovalAuth(string(values), a.uid == 0)
+	return checkKeyRemovalAuth(string(values), a.uid == 0, r.hasSSHPassword(a.name))
 }
 
-func checkKeyRemovalAuth(values string, root bool) error {
+func (r *sshReader) hasSSHPassword(account string) bool {
+	data, err := readSSHFile(r.rootPath("/etc/shadow"), maxSSHKeysFile)
+	if err != nil {
+		return false
+	}
+	defer clear(data)
+	for line := range bytes.SplitSeq(data, []byte("\n")) {
+		name, fields, ok := bytes.Cut(line, []byte(":"))
+		if !ok || string(name) != account {
+			continue
+		}
+		hash, _, ok := bytes.Cut(fields, []byte(":"))
+		return ok && len(hash) > 0 && hash[0] != '!' && hash[0] != '*'
+	}
+	return false
+}
+
+func checkKeyRemovalAuth(values string, root, hasPassword bool) error {
 	methods := strings.Fields(sshValue(values, "authenticationmethods"))
-	passwordRoute := sshValue(values, "passwordauthentication") == "yes" &&
+	passwordRoute := hasPassword && sshValue(values, "passwordauthentication") == "yes" &&
 		(!root || sshValue(values, "permitrootlogin") == "yes") &&
 		(slices.Contains(methods, "any") || slices.Contains(methods, "password"))
 	if !passwordRoute {

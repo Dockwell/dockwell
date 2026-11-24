@@ -4943,7 +4943,7 @@ func Kinds() []*apicli.Kind {
 			Fields: []apicli.Field{
 				{Path: "action", Help: "Allow or block."},
 				{Path: "protocol", Help: "TCP unless set."},
-				{Path: "port", Help: "The port the rule covers."},
+				{Path: "port", Help: "The port the rule covers. Omit on an existing rule to keep its port."},
 				{Path: "sources", Help: "Source addresses in CIDR form, such as \"203.0.113.0/24\". Empty means anywhere."},
 				{Path: "comment", Help: "Why the rule exists, shown next to it."},
 			},
@@ -4969,6 +4969,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "port"},
 				{Path: "listen_addresses", Help: "Numeric IP addresses, with no ports. Empty follows the server."},
 				{Path: "account", Help: "Local administrator whose new SSH connection proves access."},
+				{Path: "test_address", Help: "Numeric client IP address as seen by this server for the test login."},
 			},
 		},
 		{

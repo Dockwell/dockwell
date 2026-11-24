@@ -76,8 +76,10 @@ func (h *Handler) GetServerSsh(ctx context.Context, req *connect.Request[dockwel
 		p, ok := authapi.PrincipalFrom(ctx)
 		if !ok || h.appliedFrom == nil || !h.appliedFrom(change, p) {
 			read.TestChange, read.TestCommand, read.ProvedChange, read.Proof = "", "", "", nil
+			read.TestAddress, read.UnexpectedTestAddress = "", ""
 		}
 	}
+	read.YourAddress = callersAddress(ctx)
 	return connect.NewResponse(&dockwellv1.GetServerSshResponse{Ssh: read}), nil
 }
 

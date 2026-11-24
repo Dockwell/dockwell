@@ -29,41 +29,46 @@ func sshTestCommand(trial *access.SSHChange) string {
 		auth, trial.Port, trial.Account, trial.ProofHost, sshProofScript, trial.Challenge)
 }
 
-func (s *sshSettings) Proved(ctx context.Context, trial *access.SSHChange) *access.SSHProof {
-	// The independent revert can have run even though the in-process wait
-	// still exists. The candidate must be live when the login is checked.
+// The independent revert can have run even though the wait still exists.
+func (s *sshSettings) CandidateLive(trial *access.SSHChange) bool {
 	body, err := s.readDropIn()
-	if err != nil || body != trial.Candidate || trial.Challenge == "" {
-		return nil
-	}
+	return err == nil && body == trial.Candidate && trial.Challenge != ""
+}
+
+func (s *sshSettings) Proved(ctx context.Context, trial *access.SSHChange) (*access.SSHProof, netip.Addr) {
+	var unexpected netip.Addr
 	sessions, err := s.reader.sessions(ctx, []uint16{trial.Port})
 	if err != nil {
-		return nil
+		return nil, unexpected
 	}
 	for i := range sessions {
 		session := &sessions[i]
 		if session.StartTicks <= trial.Started || session.User != trial.Account ||
-			session.Peer.Addr().Unmap() != trial.ProofPeer ||
 			!matchingSSHAddress(session.Local.Addr(), trial.Addresses) ||
 			!sshChallengeRunning(s.reader.proc(), strconv.Itoa(session.PID), trial.Challenge) {
 			continue
 		}
-		proof := &access.SSHProof{Address: session.Peer.Addr().Unmap().String()}
+		peer := session.Peer.Addr().Unmap()
+		if peer != trial.ProofPeer {
+			unexpected = peer
+			continue
+		}
+		proof := &access.SSHProof{Address: peer.String()}
 		logins, _, err := s.reader.sshJournalLog(ctx, trial.StartedAt, true)
 		if err == nil {
 			for _, entry := range logins {
 				if checkSSHAuthentication(trial, session.Peer, entry, proof) {
-					return proof
+					return proof, unexpected
 				}
 			}
 		}
 		// Where a journal isn't available, the challenge proves this live
 		// session, but can't attest to the method or key the client used.
 		if len(trial.ProofKeys) == 0 {
-			return proof
+			return proof, unexpected
 		}
 	}
-	return nil
+	return nil, unexpected
 }
 
 func checkSSHAuthentication(trial *access.SSHChange, peer netip.AddrPort, entry sshJournalEntry, proof *access.SSHProof) bool {

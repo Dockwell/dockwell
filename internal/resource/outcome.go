@@ -54,6 +54,11 @@ type Outcome struct {
 // its confirmation.
 type AccessVerdict int
 
+// SSHKeepError explains an agent's refusal to keep an SSH trial.
+type SSHKeepError struct{ Message string }
+
+func (e *SSHKeepError) Error() string { return e.Message }
+
 // Verdicts.
 const (
 	// AccessKept is a change confirmed in time, which the server keeps.

@@ -10319,9 +10319,6 @@ msgstr "Once kept, SSH stays open only from {from}."
 msgid "Only the person who applied this change can keep it, from where they applied it."
 msgstr "Only the person who applied this change can keep it, from where they applied it."
 
-msgid "Open a fresh SSH connection before keeping these settings."
-msgstr "Open a fresh SSH connection before keeping these settings."
-
 msgid "Open a new SSH session from here with your key, and keep the change if it works."
 msgstr "Open a new SSH session from here with your key, and keep the change if it works."
 
@@ -10331,14 +10328,23 @@ msgstr "Open a new SSH session to port {portList} from here with your key, and k
 msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 msgstr "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 
-msgid "Run this command from your original SSH client."
-msgstr "Run this command from your original SSH client."
+msgid "Run the test command from the expected address and wait for verification before choosing Keep again."
+msgstr "Run the test command from the expected address and wait for verification before choosing Keep again."
+
+msgid "Run this command from the SSH client you used to sign in."
+msgstr "Run this command from the SSH client you used to sign in."
+
+msgid "Run this command from {testAddress}."
+msgstr "Run this command from {testAddress}."
 
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
 
 msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 msgstr "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
+
+msgid "The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and use the new address in a new plan."
+msgstr "The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and use the new address in a new plan."
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "Then open the panel at its own address in a new tab."
@@ -11691,6 +11697,9 @@ msgstr "By the {driver} driver."
 msgid "Change Docker daemon settings on {server}"
 msgstr "Change Docker daemon settings on {server}"
 
+msgid "Change TCP port {fromPort} to {toPort} in firewall rules {rules}."
+msgstr "Change TCP port {fromPort} to {toPort} in firewall rules {rules}."
+
 msgid "Check it's the commit you mean."
 msgstr "Check it's the commit you mean."
 
@@ -11968,9 +11977,6 @@ msgstr "Move SSH from port {fromPort} to {toPort}"
 
 msgid "Move the fail2ban sshd jail with the listener."
 msgstr "Move the fail2ban sshd jail with the listener."
-
-msgid "Move these firewall rules with the listener: {rules}"
-msgstr "Move these firewall rules with the listener: {rules}"
 
 msgid "Moves {names} on, which an install of each can upgrade to."
 msgstr "Moves {names} on, which an install of each can upgrade to."
@@ -20916,6 +20922,9 @@ msgstr "Banned"
 msgid "Choose a port from 1 to 65535."
 msgstr "Choose a port from 1 to 65535."
 
+msgid "Choose an SSH session address or enter the IP address the server will see."
+msgstr "Choose an SSH session address or enter the IP address the server will see."
+
 msgid "Choose an account"
 msgstr "Choose an account"
 
@@ -20976,6 +20985,9 @@ msgstr "SSH sessions on {0}"
 #. placeholder {0}: server.name
 msgid "SSH settings on {0}"
 msgstr "SSH settings on {0}"
+
+msgid "SSH test client address"
+msgstr "SSH test client address"
 
 msgid "Showing recent matches within the log limit."
 msgstr "Showing recent matches within the log limit."

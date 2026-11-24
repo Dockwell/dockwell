@@ -3065,7 +3065,7 @@ type FirewallRule struct {
 	Action FirewallAction `protobuf:"varint,1,opt,name=action,proto3,enum=dockwell.resource.v1alpha1.FirewallAction" json:"action,omitempty"`
 	// TCP unless set.
 	Protocol Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=dockwell.resource.v1alpha1.Protocol" json:"protocol,omitempty"`
-	// The port the rule covers.
+	// The port the rule covers. Omit on an existing rule to keep its port.
 	Port uint32 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
 	// Source addresses in CIDR form, such as "203.0.113.0/24". Empty means
 	// anywhere.
@@ -8700,7 +8700,9 @@ type SshConfig struct {
 	// Numeric IP addresses, with no ports. Empty follows the server.
 	ListenAddresses []string `protobuf:"bytes,5,rep,name=listen_addresses,json=listenAddresses,proto3" json:"listen_addresses,omitempty"`
 	// Local administrator whose new SSH connection proves access.
-	Account       string `protobuf:"bytes,6,opt,name=account,proto3" json:"account,omitempty"`
+	Account string `protobuf:"bytes,6,opt,name=account,proto3" json:"account,omitempty"`
+	// Numeric client IP address as seen by this server for the test login.
+	TestAddress   string `protobuf:"bytes,7,opt,name=test_address,json=testAddress,proto3" json:"test_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8773,6 +8775,13 @@ func (x *SshConfig) GetListenAddresses() []string {
 func (x *SshConfig) GetAccount() string {
 	if x != nil {
 		return x.Account
+	}
+	return ""
+}
+
+func (x *SshConfig) GetTestAddress() string {
+	if x != nil {
+		return x.TestAddress
 	}
 	return ""
 }
@@ -12431,7 +12440,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0fsignin_provider\x18r \x01(\v2*.dockwell.resource.v1alpha1.SigninProviderH\x00R\x0esigninProvider\x12G\n" +
 	"\n" +
 	"github_app\x18\x82\x01 \x01(\v2%.dockwell.resource.v1alpha1.GitHubAppH\x00R\tgithubAppB\x06\n" +
-	"\x04kind\"\xf2\x01\n" +
+	"\x04kind\"\x95\x02\n" +
 	"\tSshConfig\x12*\n" +
 	"\x0epassword_login\x18\x01 \x01(\bH\x00R\rpasswordLogin\x88\x01\x01\x12 \n" +
 	"\tkey_login\x18\x02 \x01(\bH\x01R\bkeyLogin\x88\x01\x01\x12\x1d\n" +
@@ -12439,7 +12448,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"root_login\x18\x03 \x01(\tR\trootLogin\x12\x12\n" +
 	"\x04port\x18\x04 \x01(\rR\x04port\x12)\n" +
 	"\x10listen_addresses\x18\x05 \x03(\tR\x0flistenAddresses\x12\x18\n" +
-	"\aaccount\x18\x06 \x01(\tR\aaccountB\x11\n" +
+	"\aaccount\x18\x06 \x01(\tR\aaccount\x12!\n" +
+	"\ftest_address\x18\a \x01(\tR\vtestAddressB\x11\n" +
 	"\x0f_password_loginB\f\n" +
 	"\n" +
 	"_key_login\"i\n" +

@@ -1561,9 +1561,14 @@ type ServerSsh struct {
 	ProvedChange    string              `protobuf:"bytes,23,opt,name=proved_change,json=provedChange,proto3" json:"proved_change,omitempty"`
 	AdminAccounts   []string            `protobuf:"bytes,24,rep,name=admin_accounts,json=adminAccounts,proto3" json:"admin_accounts,omitempty"`
 	// The command for the current trial and its verified authentication.
-	TestChange    string    `protobuf:"bytes,25,opt,name=test_change,json=testChange,proto3" json:"test_change,omitempty"`
-	TestCommand   string    `protobuf:"bytes,26,opt,name=test_command,json=testCommand,proto3" json:"test_command,omitempty"`
-	Proof         *SshProof `protobuf:"bytes,27,opt,name=proof,proto3" json:"proof,omitempty"`
+	TestChange  string    `protobuf:"bytes,25,opt,name=test_change,json=testChange,proto3" json:"test_change,omitempty"`
+	TestCommand string    `protobuf:"bytes,26,opt,name=test_command,json=testCommand,proto3" json:"test_command,omitempty"`
+	Proof       *SshProof `protobuf:"bytes,27,opt,name=proof,proto3" json:"proof,omitempty"`
+	TestAddress string    `protobuf:"bytes,28,opt,name=test_address,json=testAddress,proto3" json:"test_address,omitempty"`
+	// Address seen when the test command reached sshd from a different peer.
+	UnexpectedTestAddress string `protobuf:"bytes,29,opt,name=unexpected_test_address,json=unexpectedTestAddress,proto3" json:"unexpected_test_address,omitempty"`
+	// Address of the panel request, when available.
+	YourAddress   string `protobuf:"bytes,30,opt,name=your_address,json=yourAddress,proto3" json:"your_address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1785,6 +1790,27 @@ func (x *ServerSsh) GetProof() *SshProof {
 		return x.Proof
 	}
 	return nil
+}
+
+func (x *ServerSsh) GetTestAddress() string {
+	if x != nil {
+		return x.TestAddress
+	}
+	return ""
+}
+
+func (x *ServerSsh) GetUnexpectedTestAddress() string {
+	if x != nil {
+		return x.UnexpectedTestAddress
+	}
+	return ""
+}
+
+func (x *ServerSsh) GetYourAddress() string {
+	if x != nil {
+		return x.YourAddress
+	}
+	return ""
 }
 
 // SshProof identifies the accepted login that verified an SSH trial.
@@ -3537,7 +3563,7 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\x13GetServerSshRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"@\n" +
 	"\x14GetServerSshResponse\x12(\n" +
-	"\x03ssh\x18\x01 \x01(\v2\x16.dockwell.v1.ServerSshR\x03ssh\"\xef\b\n" +
+	"\x03ssh\x18\x01 \x01(\v2\x16.dockwell.v1.ServerSshR\x03ssh\"\xed\t\n" +
 	"\tServerSsh\x12.\n" +
 	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12\x1e\n" +
 	"\n" +
@@ -3573,7 +3599,10 @@ const file_dockwell_v1_firewall_proto_rawDesc = "" +
 	"\vtest_change\x18\x19 \x01(\tR\n" +
 	"testChange\x12!\n" +
 	"\ftest_command\x18\x1a \x01(\tR\vtestCommand\x12+\n" +
-	"\x05proof\x18\x1b \x01(\v2\x15.dockwell.v1.SshProofR\x05proof\"^\n" +
+	"\x05proof\x18\x1b \x01(\v2\x15.dockwell.v1.SshProofR\x05proof\x12!\n" +
+	"\ftest_address\x18\x1c \x01(\tR\vtestAddress\x126\n" +
+	"\x17unexpected_test_address\x18\x1d \x01(\tR\x15unexpectedTestAddress\x12!\n" +
+	"\fyour_address\x18\x1e \x01(\tR\vyourAddress\"^\n" +
 	"\bSshProof\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12 \n" +
