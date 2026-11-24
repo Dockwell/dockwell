@@ -425,7 +425,7 @@ message ReadFileRequest {
   // The file's absolute path, without . or .. in it, such as
   // "/etc/nginx/nginx.conf".
   string path = 2;
-  // True to also return binary bytes (up to the preview cap of 5 MiB) in
+  // True to also return binary bytes (up to the preview cap of 1 MiB) in
   // raw_content, for image previews through the read path instead of a
   // download.
   bool allow_binary = 3;
@@ -442,8 +442,8 @@ message ReadFileResponse {
   // True when the file isn't UTF-8 text, so its contents aren't sent in
   // content (and are in raw_content only when allow_binary was set).
   bool binary = 4;
-  // True when the file is longer than 1 MiB (or 5 MiB when allow_binary is
-  // set), so content is its beginning or raw_content is omitted.
+  // True when the file is longer than 1 MiB, so content is its beginning or
+  // raw_content is omitted.
   bool truncated = 5;
   // What SaveFile takes to save over this text: a digest of where the path led,
   // which file that was, and what it held, which tells whether any of it changed

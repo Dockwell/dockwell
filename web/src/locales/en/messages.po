@@ -1330,6 +1330,24 @@ msgstr "Signed out other sessions"
 msgid "Something Dockwell published at Cloudflare is gone"
 msgstr "Something Dockwell published at Cloudflare is gone"
 
+msgid "Started compressing {path} on {server}"
+msgstr "Started compressing {path} on {server}"
+
+msgid "Started compressing {path} on {server}, which can let someone back in"
+msgstr "Started compressing {path} on {server}, which can let someone back in"
+
+msgid "Started extracting {path} into {to} on {server}"
+msgstr "Started extracting {path} into {to} on {server}"
+
+msgid "Started extracting {path} into {to} on {server}, which can let someone back in"
+msgstr "Started extracting {path} into {to} on {server}, which can let someone back in"
+
+msgid "Started extracting {path} on {server}"
+msgstr "Started extracting {path} on {server}"
+
+msgid "Started extracting {path} on {server}, which can let someone back in"
+msgstr "Started extracting {path} on {server}, which can let someone back in"
+
 msgid "Stopped serving the panel on {previous}"
 msgstr "Stopped serving the panel on {previous}"
 
@@ -1528,6 +1546,9 @@ msgstr "{pathCount, plural, one {Downloaded # item from {server}, {size}} other 
 
 msgid "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
 msgstr "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
+
+msgid "{pathCount, plural, one {Started compressing # item into {path} on {server}} other {Started compressing # items into {path} on {server}}}"
+msgstr "{pathCount, plural, one {Started compressing # item into {path} on {server}} other {Started compressing # items into {path} on {server}}}"
 
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
@@ -17094,8 +17115,8 @@ msgstr "Full window"
 msgid "Full window preview"
 msgstr "Full window preview"
 
-msgid "Images over 5 MB aren't previewed here. Download it to open it on your computer."
-msgstr "Images over 5 MB aren't previewed here. Download it to open it on your computer."
+msgid "Images over 1 MB aren't previewed here. Download it to open it on your computer."
+msgstr "Images over 1 MB aren't previewed here. Download it to open it on your computer."
 
 msgid "Link to folder"
 msgstr "Link to folder"
@@ -17339,6 +17360,9 @@ msgstr "Compressed {archiveName}"
 msgid "Compressing {0}"
 msgstr "Compressing {0}"
 
+msgid "Compressing {label} stopped before it finished. Start it again."
+msgstr "Compressing {label} stopped before it finished. Start it again."
+
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
 
@@ -17375,6 +17399,10 @@ msgstr "Extracted {0}"
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracting {0}"
 msgstr "Extracting {0}"
+
+#. placeholder {0}: nameOf(lost.unpackedTo || lost.path)
+msgid "Extracting {label} stopped before it finished. Part of it may already be in {0}."
+msgstr "Extracting {label} stopped before it finished. Part of it may already be in {0}."
 
 msgid "Files in {shown}"
 msgstr "Files in {shown}"
@@ -17470,6 +17498,9 @@ msgstr "Something called {nextName} is here already."
 
 msgid "Something went wrong on the server."
 msgstr "Something went wrong on the server."
+
+msgid "Stopped when the agent restarted"
+msgstr "Stopped when the agent restarted"
 
 msgid "They're in Recently deleted for 7 days, where you can put them back."
 msgstr "They're in Recently deleted for 7 days, where you can put them back."

@@ -601,6 +601,7 @@ func (s *Server) KeepDeleted(ctx context.Context) {
 	for {
 		s.prune(ctx)
 		s.pruneUploads(ctx)
+		s.SweepArchiveStaging(ctx)
 		select {
 		case <-ctx.Done():
 			return

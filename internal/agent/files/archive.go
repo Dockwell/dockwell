@@ -7,12 +7,15 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -42,6 +45,7 @@ const maxJobSourcePaths = 10
 // archiveJob is one running or recently finished background compress/extract job.
 type archiveJob struct {
 	id           string
+	record       string
 	owner        string
 	kind         dockwellv1.ArchiveJobKind
 	state        dockwellv1.ArchiveJobState
@@ -214,13 +218,119 @@ func (s *Server) finishArchiveJob(j *archiveJob, mutate func()) {
 	mutate()
 	j.finishTime = s.now().UTC()
 	snap := j.proto()
-	s.archiveEnded = append(s.archiveEnded, &agentv1.ArchiveJobEnded{Job: snap})
+	s.archiveEnded = append(s.archiveEnded, &agentv1.ArchiveJobEnded{Job: snap, Record: j.record})
 	close(j.done)
 	s.mu.Unlock()
 	select {
 	case s.archiveEndedCh <- struct{}{}:
 	default:
 	}
+}
+
+// archiveStage records a compress job's staging file so an agent restart can
+// remove the hidden .dockwell-upload-<id> file left behind by a crashed or
+// abandoned compress job.
+type archiveStage struct {
+	ID   string `json:"id"`
+	Path string `json:"path"`
+	Name string `json:"name"`
+	Dev  uint64 `json:"dev"`
+	Ino  uint64 `json:"ino"`
+}
+
+func (s *Server) archiveStagingDir() string {
+	if s.dataDir == "" {
+		return ""
+	}
+	return filepath.Join(s.dataDir, "agent", "archive-staging")
+}
+
+func (s *Server) saveArchiveStage(st *archiveStage) error {
+	dir := s.archiveStagingDir()
+	if dir == "" {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	text, err := json.Marshal(st)
+	if err != nil {
+		return err
+	}
+	next := filepath.Join(dir, st.ID+".json.next")
+	if err := os.WriteFile(next, text, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(next, filepath.Join(dir, st.ID+".json"))
+}
+
+func (s *Server) dropArchiveStage(id string) {
+	if dir := s.archiveStagingDir(); dir != "" {
+		_ = os.Remove(filepath.Join(dir, id+".json"))
+	}
+}
+
+func (s *Server) archiveJobRunning(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j, ok := s.archiveJobs[id]
+	return ok && j.state == dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING
+}
+
+// SweepArchiveStaging removes stray compress staging files left behind when
+// the agent restarted or a compress job was abandoned.
+func (s *Server) SweepArchiveStaging(ctx context.Context) {
+	dir := s.archiveStagingDir()
+	if dir != "" {
+		if entries, err := os.ReadDir(dir); err == nil {
+			for _, e := range entries {
+				id, ok := strings.CutSuffix(e.Name(), ".json")
+				if !ok || ctx.Err() != nil || !deletedID().MatchString(id) {
+					continue
+				}
+				if s.archiveJobRunning(id) || !s.claim("archive-stage:"+id) {
+					continue
+				}
+				s.sweepOneArchiveStage(ctx, dir, id)
+				s.unclaim("archive-stage:" + id)
+			}
+		}
+	}
+	if tmp := s.tmpDir(); tmp != "" {
+		if entries, err := os.ReadDir(tmp); err == nil {
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), "dockwell-zipcd-") {
+					_ = os.Remove(filepath.Join(tmp, e.Name()))
+				}
+			}
+		}
+	}
+}
+
+func (s *Server) sweepOneArchiveStage(ctx context.Context, dir, id string) {
+	if s.archiveJobRunning(id) {
+		return
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, id+".json")) //nolint:gosec // id matched deletedID, inside agent data dir
+	if err != nil {
+		return
+	}
+	var st archiveStage
+	if err := json.Unmarshal(raw, &st); err != nil || st.ID != id || !arriving(st.Name) {
+		s.dropArchiveStage(id)
+		return
+	}
+	w, refusal := s.guard(ctx).walk(&trail{s: s}, path.Dir(st.Path))
+	switch {
+	case refusal.GetKind() == agentv1.FileRefusal_KIND_NOT_ANSWERING:
+		return
+	case refusal == nil:
+		if rerr := removeAll(w.last().fd, st.Name, st.Dev, st.Ino, 0); rerr != nil {
+			s.logger.Warn("can't remove a stray archive staging file", slog.String("path", st.Path), slog.String("error", rerr.Error()))
+		}
+		w.close()
+	}
+	s.dropArchiveStage(id)
 }
 
 func (s *Server) updateArchiveJob(mutate func()) {
@@ -290,6 +400,12 @@ func (s *Server) WaitArchiveJob(ctx context.Context, id string) (*dockwellv1.Arc
 // confirmedArchive and confirmedDst are the archive and destination folder paths
 // a passkey confirmed, where extracting there is a way back in.
 func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst, owner string) (*agentv1.ExtractArchiveResult, error) {
+	return s.ExtractWithRecord(ctx, p, confirmedArchive, confirmedDst, owner, "", "")
+}
+
+// ExtractWithRecord starts a background extract job using a caller-supplied
+// jobID (when valid) and audit record ID echoed back on ArchiveJobEnded.
+func (s *Server) ExtractWithRecord(ctx context.Context, p, confirmedArchive, confirmedDst, owner, jobID, record string) (*agentv1.ExtractArchiveResult, error) {
 	if owner == "" {
 		return nil, errNoOwner
 	}
@@ -302,6 +418,9 @@ func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst,
 	as := ArchiveKind(path.Base(strings.TrimRight(p, "/")))
 	if as == dockwellv1.Unpack_UNPACK_UNSPECIFIED {
 		return nil, errors.New("only .zip, .tar.gz and .tgz archives can be extracted")
+	}
+	if !deletedID().MatchString(jobID) {
+		jobID = rand.Text()
 	}
 	release, busyRefusal := s.tryTakeArchive()
 	if busyRefusal != nil {
@@ -402,8 +521,8 @@ func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst,
 			}, nil
 		}
 		mask := archiveMask(st.Mode)
-		dirMode := extractMode(madeDirMode, true, mask)
-		if merr := unix.Mkdirat(src.dir(), dst.name, dirMode); merr != nil {
+		dirMode := extractDirMode(madeDirMode, false, mask, &src.w.st)
+		if merr := unix.Mkdirat(src.dir(), dst.name, dirMode&0o777); merr != nil {
 			_ = archive.Close()
 			where := dst.where
 			src.w.close()
@@ -450,7 +569,8 @@ func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst,
 	}
 
 	job := &archiveJob{
-		id:         rand.Text(),
+		id:         jobID,
+		record:     record,
 		owner:      owner,
 		kind:       dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_EXTRACT,
 		state:      dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING,
@@ -469,10 +589,11 @@ func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst,
 		defer prep.archive.Close()
 		defer unix.Close(prep.dfd)
 
+		ways := s.waysIn()
 		u := &unpacker{
 			s: s, ctx: context.Background(), root: prep.dfd, where: prep.dst.where,
 			folder: &prep.src.w.st, dev: prep.dst0.Dev,
-			ways: s.waysIn(), dstWayIn: prep.wayIn, mask: archiveMask(prep.ast.Mode),
+			ways: ways, dstWayIn: prep.wayIn, dstWritten: ways.asWritten(prep.dst.w.steps, "/"+prep.dst.name), mask: archiveMask(prep.ast.Mode),
 			buf: make([]byte, FrameBytes), limit: cmp.Or(s.unpackLimit, maxUnpacked),
 			statfs: s.statfs,
 			onTotal: func(total uint64) {
@@ -538,6 +659,12 @@ func extractRefused(archive, why string) *agentv1.FileRefusal {
 // archivePath, never over what's there. confirmed is the archivePath a passkey
 // confirmed, where making it is a way back in.
 func (s *Server) Compress(ctx context.Context, paths []string, archivePath, confirmed, owner string) (*agentv1.CompressFilesResult, error) {
+	return s.CompressWithRecord(ctx, paths, archivePath, confirmed, owner, "", "")
+}
+
+// CompressWithRecord starts a background compress job using a caller-supplied
+// jobID (when valid) and audit record ID echoed back on ArchiveJobEnded.
+func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archivePath, confirmed, owner, jobID, record string) (*agentv1.CompressFilesResult, error) {
 	if owner == "" {
 		return nil, errNoOwner
 	}
@@ -546,6 +673,9 @@ func (s *Server) Compress(ctx context.Context, paths []string, archivePath, conf
 	}
 	if err := CheckZipArchivePath(archivePath); err != nil {
 		return nil, err
+	}
+	if !deletedID().MatchString(jobID) {
+		jobID = rand.Text()
 	}
 	release, busyRefusal := s.tryTakeArchive()
 	if busyRefusal != nil {
@@ -684,6 +814,16 @@ func (s *Server) Compress(ctx context.Context, paths []string, archivePath, conf
 				Message: rerr.Error() + ". Free some space first",
 			}, nil
 		}
+		if serr := s.saveArchiveStage(&archiveStage{ID: jobID, Path: dst.where, Name: tmpName, Dev: tmpSt.Dev, Ino: tmpSt.Ino}); serr != nil {
+			_ = tmpFile.Close()
+			_ = removeAll(dst.dir(), tmpName, tmpSt.Dev, tmpSt.Ino, 0)
+			where := dst.where
+			dst.w.close()
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_DENIED, Path: where,
+				Message: fmt.Sprintf("the agent can't note the archive staging file: %v. Check the free space on Dockwell's data directory", serr),
+			}, nil
+		}
 		prep = &prepared{
 			dst: dst, tmpName: tmpName, tmpFd: tmpFd, tmpSt: tmpSt, tmpFile: tmpFile,
 			bw: bw, archiveMode: archiveMode, wayIn: wayIn,
@@ -705,7 +845,8 @@ func (s *Server) Compress(ctx context.Context, paths []string, archivePath, conf
 
 	pathsCopy := slices.Clone(paths)
 	job := &archiveJob{
-		id:          rand.Text(),
+		id:          jobID,
+		record:      record,
 		owner:       owner,
 		kind:        dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS,
 		state:       dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING,
@@ -728,6 +869,7 @@ func (s *Server) Compress(ctx context.Context, paths []string, archivePath, conf
 			if !placed {
 				_ = removeAll(prep.dst.dir(), prep.tmpName, prep.tmpSt.Dev, prep.tmpSt.Ino, 0)
 			}
+			s.dropArchiveStage(job.id)
 		}()
 
 		failJob := func(r *agentv1.FileRefusal) {

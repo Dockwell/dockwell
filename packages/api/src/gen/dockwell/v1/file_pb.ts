@@ -158,7 +158,7 @@ export type ReadFileRequest = Message<"dockwell.v1.ReadFileRequest"> & {
   path: string;
 
   /**
-   * True to also return binary bytes (up to the preview cap of 5 MiB) in
+   * True to also return binary bytes (up to the preview cap of 1 MiB) in
    * raw_content, for image previews through the read path instead of a
    * download.
    *
@@ -210,8 +210,8 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
   binary: boolean;
 
   /**
-   * True when the file is longer than 1 MiB (or 5 MiB when allow_binary is
-   * set), so content is its beginning or raw_content is omitted.
+   * True when the file is longer than 1 MiB, so content is its beginning or
+   * raw_content is omitted.
    *
    * @generated from field: bool truncated = 5;
    */

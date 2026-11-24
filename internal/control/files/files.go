@@ -63,7 +63,9 @@ type Handler struct {
 	logger          *slog.Logger
 	now             func() time.Time
 	archiveMu       sync.Mutex
-	pendingArchives map[string]*writing
+	pendingArchives map[string]*pendingArchive
+	endedEarly      map[string]*agentv1.ArchiveJobEnded
+	settledArchives map[string]time.Time
 }
 
 var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
@@ -73,10 +75,13 @@ var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
 func New(hub *fleet.Hub, agents *agentapi.Agents, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
 	h := &Handler{
 		fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now,
-		pendingArchives: map[string]*writing{},
+		pendingArchives: map[string]*pendingArchive{},
+		endedEarly:      map[string]*agentv1.ArchiveJobEnded{},
+		settledArchives: map[string]time.Time{},
 	}
 	agents.OnSaveEnded(h.saveEnded)
 	agents.OnArchiveJobEnded(h.archiveJobEnded)
+	agents.OnConnect(h.reconcileArchiveJobs)
 	return h
 }
 
@@ -390,9 +395,14 @@ func (h *Handler) recorder(ctx context.Context, p auth.Principal, srv *dockwellv
 // anything but a slash, and says what it's called.
 func (r *recorder) record(action, path, detail string) (string, error) {
 	event := id.New(id.Event)
-	return event, r.h.db.Update(r.ctx, func(tx *store.Tx) error {
+	return event, r.recordWithID(event, action, path, detail)
+}
+
+// recordWithID writes one event with a pre-minted ID.
+func (r *recorder) recordWithID(eventID, action, path, detail string) error {
+	return r.h.db.Update(r.ctx, func(tx *store.Tx) error {
 		return tx.RecordEvent(r.ctx, store.Event{
-			ID: event, At: r.h.now(), Actor: r.p.Actor(), Action: action, Subject: files.Printable(path), Target: r.srv.GetId(),
+			ID: eventID, At: r.h.now(), Actor: r.p.Actor(), Action: action, Subject: files.Printable(path), Target: r.srv.GetId(),
 			Surface: r.client.Surface(r.p), Detail: files.Printable(detail),
 		})
 	})

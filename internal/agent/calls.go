@@ -219,8 +219,11 @@ func (c *calls) start(call *agentv1.Call) {
 		// A file call keeps its place until its result has gone, so what waits
 		// for a slow stream is bounded, and a call whose caller left drops out.
 		take := (*files.Server).Take
-		if call.GetWriteUpload() != nil || call.GetDownloadFile() != nil {
+		switch {
+		case call.GetWriteUpload() != nil || call.GetDownloadFile() != nil:
 			take = (*files.Server).TakeTransfer
+		case call.GetReadFile().GetAllowBinary():
+			take = (*files.Server).TakePreview
 		}
 		if c.cfg.Files != nil && (isFileCall(call) || call.GetWriteUpload() != nil || call.GetDownloadFile() != nil) {
 			release, err := take(c.cfg.Files, ctx)
@@ -1585,11 +1588,11 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 		return &agentv1.CallResult{Result: &agentv1.CallResult_FinishUpload{FinishUpload: out}}, err
 	case call.GetCompressFiles() != nil:
 		cf := call.GetCompressFiles()
-		out, err := f.Compress(ctx, cf.GetPaths(), cf.GetArchivePath(), cf.GetConfirmedPath(), cf.GetOwner())
+		out, err := f.CompressWithRecord(ctx, cf.GetPaths(), cf.GetArchivePath(), cf.GetConfirmedPath(), cf.GetOwner(), cf.GetJobId(), cf.GetRecord())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CompressFiles{CompressFiles: out}}, err
 	case call.GetExtractArchive() != nil:
 		ex := call.GetExtractArchive()
-		out, err := f.Extract(ctx, ex.GetPath(), ex.GetConfirmedArchive(), ex.GetConfirmedPath(), ex.GetOwner())
+		out, err := f.ExtractWithRecord(ctx, ex.GetPath(), ex.GetConfirmedArchive(), ex.GetConfirmedPath(), ex.GetOwner(), ex.GetJobId(), ex.GetRecord())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ExtractArchive{ExtractArchive: out}}, err
 	case call.GetGetArchiveJob() != nil:
 		gj := call.GetGetArchiveJob()

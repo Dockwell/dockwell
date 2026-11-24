@@ -88,10 +88,11 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 		return "", 0, unpackRefused(src.where, dst.where+" changed as the agent made it")
 	}
 	mask := archiveMask(ast.Mode)
-	ownWithMode(dfd, &src.w.st, extractMode(madeDirMode, true, mask))
+	ownWithMode(dfd, &src.w.st, extractDirMode(madeDirMode, false, mask, &src.w.st))
+	ways := s.waysIn()
 	u := &unpacker{
 		s: s, ctx: ctx, root: dfd, where: dst.where, folder: &src.w.st, dev: dst0.Dev,
-		ways: s.waysIn(), mask: mask, buf: make([]byte, FrameBytes),
+		ways: ways, dstWritten: ways.asWritten(dst.w.steps, "/"+dst.name), mask: mask, buf: make([]byte, FrameBytes),
 		limit: cmp.Or(s.unpackLimit, maxUnpacked), statfs: s.statfs,
 	}
 	if u.statfs == nil {
@@ -131,10 +132,11 @@ func archiveMask(archiveMode uint32) uint32 {
 
 // extractMode computes a safe mode for an extracted file or directory: never
 // widens beyond perm, drops setuid/setgid/sticky and group/other write, and
-// stays within the archive's own visibility mask.
-func extractMode(perm uint32, dir bool, mask uint32) uint32 {
+// stays within the archive's own visibility mask. When hasMode is true, an
+// explicit 0000 file mode stays 0000 rather than widening to madeFileMode.
+func extractMode(perm uint32, hasMode, dir bool, mask uint32) uint32 {
 	base := perm & 0o777
-	if base == 0 {
+	if !hasMode {
 		if dir {
 			base = madeDirMode
 		} else {
@@ -149,6 +151,13 @@ func extractMode(perm uint32, dir bool, mask uint32) uint32 {
 	return m
 }
 
+// extractDirMode computes a safe mode for an extracted directory, preserving
+// the parent folder's setgid bit (as ownLike does) while never taking setgid
+// from the archive itself.
+func extractDirMode(perm uint32, hasMode bool, mask uint32, parent *unix.Stat_t) uint32 {
+	return extractMode(perm, hasMode, true, mask) | parent.Mode&unix.S_ISGID
+}
+
 // unpacker makes an archive's entries in a folder.
 type unpacker struct {
 	s            *Server
@@ -159,6 +168,7 @@ type unpacker struct {
 	dev          uint64
 	ways         *waysIn
 	dstWayIn     bool
+	dstWritten   []string
 	mask         uint32
 	buf          []byte
 	count        uint64
@@ -232,13 +242,13 @@ func (u *unpacker) zip(f *os.File, size int64) error {
 	return d.each(func(e *zipEntry) error {
 		switch {
 		case e.mode.IsDir():
-			return u.entry(e.name, true, uint32(e.mode.Perm()), nil)
+			return u.entry(e.name, true, uint32(e.mode.Perm()), e.hasMode, nil)
 		case e.mode.IsRegular():
 			r, err := d.open(e)
 			if err != nil {
 				return err
 			}
-			return u.entry(e.name, false, uint32(e.mode.Perm()), r)
+			return u.entry(e.name, false, uint32(e.mode.Perm()), e.hasMode, r)
 		default:
 			// Symlinks, devices, FIFOs and sockets are never made, and are counted.
 			u.skippedLinks++
@@ -265,9 +275,9 @@ func (u *unpacker) tarGz(f *os.File) error {
 		}
 		switch h.Typeflag {
 		case tar.TypeDir:
-			err = u.entry(h.Name, true, uint32(h.Mode)&0o777, nil) //nolint:gosec // a mode's low bits
+			err = u.entry(h.Name, true, uint32(h.Mode)&0o777, true, nil) //nolint:gosec // a mode's low bits
 		case tar.TypeReg:
-			err = u.entry(h.Name, false, uint32(h.Mode)&0o777, r) //nolint:gosec // a mode's low bits
+			err = u.entry(h.Name, false, uint32(h.Mode)&0o777, true, r) //nolint:gosec // a mode's low bits
 		case tar.TypeSymlink, tar.TypeLink, tar.TypeChar, tar.TypeBlock, tar.TypeFifo:
 			u.skippedLinks++
 			u.reportProgress()
@@ -308,8 +318,20 @@ func (u *unpacker) parts(name string) ([]string, error) {
 	return slices.DeleteFunc(parts, func(p string) bool { return p == "" || p == "." }), nil
 }
 
+func (u *unpacker) entryAliases(parts []string) []string {
+	if len(u.dstWritten) == 0 {
+		return nil
+	}
+	tail := "/" + strings.Join(parts, "/")
+	out := make([]string, len(u.dstWritten))
+	for i, base := range u.dstWritten {
+		out[i] = base + tail
+	}
+	return out
+}
+
 // entry makes one entry of an archive, a folder or a file holding what r gives.
-func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error {
+func (u *unpacker) entry(name string, dir bool, perm uint32, hasMode bool, r io.Reader) error {
 	if err := u.ctx.Err(); err != nil {
 		return err
 	}
@@ -324,9 +346,10 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 	where := u.where + "/" + strings.Join(parts, "/")
 	if u.dstWayIn {
 		// Even when a passkey confirmed extracting into a way-in destination folder,
-		// way-in entries inside the archive (keys, sudoers, shell start files, user
-		// systemd units, .ssh, or Dockwell's data dir) are never unpacked.
-		if u.ways.listedEntry(parts, where, u.s.dataDir) {
+		// entries whose full resolved path hits keys, sudoers/sudoers.d, shell start
+		// files, systemd unit or drop-in folders, .ssh, cron/pam/profile.d, runtime
+		// sockets, or Dockwell's data dir are never unpacked.
+		if u.ways.listedEntry(where, u.s.dataDir, u.entryAliases(parts)...) {
 			return fmt.Errorf("it holds %s, which can let someone back onto this server", Printable(strings.Join(parts, "/")))
 		}
 	} else if u.ways.listed(where, u.s.dataDir, false) {
@@ -344,7 +367,7 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 		if err != nil {
 			return err
 		}
-		ownWithMode(fd, u.folder, extractMode(perm, true, mask))
+		ownWithMode(fd, u.folder, extractDirMode(perm, hasMode, mask, u.folder))
 		u.reportProgress()
 		return unix.Close(fd)
 	}
@@ -377,7 +400,7 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 	case n > left:
 		return fmt.Errorf("it holds more than the %s an upload can be", sizeOf(MaxUploadBytes))
 	}
-	ownWithMode(fd, u.folder, extractMode(perm, false, mask))
+	ownWithMode(fd, u.folder, extractMode(perm, hasMode, false, mask))
 	u.reportProgress()
 	return nil
 }
@@ -393,7 +416,7 @@ func (u *unpacker) folderAt(parts []string) (int, error) {
 	if mask == 0 {
 		mask = 0o755
 	}
-	dirMode := extractMode(madeDirMode, true, mask)
+	dirMode := extractDirMode(madeDirMode, false, mask, u.folder)
 	for i, part := range parts {
 		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if errors.Is(err, unix.ENOENT) {

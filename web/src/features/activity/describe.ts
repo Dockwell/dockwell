@@ -674,6 +674,27 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Downloaded ${path} from ${server}, ${size}`, icon: "download" }
             : { title: t`Downloaded ${path} from ${server}`, icon: "download" };
         }
+        case "file.compress_started": {
+          const path = event.subject?.path ?? "";
+          const pathCount = event.subject?.pathCount || event.subject?.paths.length || 0;
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Started compressing ${path} on ${server}, which can let someone back in`,
+              icon: "archive",
+              tone: "warning",
+            };
+          }
+          if (pathCount > 1) {
+            return {
+              title: plural(pathCount, {
+                one: `Started compressing # item into ${path} on ${server}`,
+                other: `Started compressing # items into ${path} on ${server}`,
+              }),
+              icon: "archive",
+            };
+          }
+          return { title: t`Started compressing ${path} on ${server}`, icon: "archive" };
+        }
         case "file.compress": {
           const path = event.subject?.path ?? "";
           const pathCount = event.subject?.pathCount || event.subject?.paths.length || 0;
@@ -706,6 +727,25 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             title: t`Asked for a passkey to compress ${path} on ${server}, and none came`,
             icon: "archive",
             tone: "warning",
+          };
+        }
+        case "file.extract_started": {
+          const path = event.subject?.path ?? "";
+          const to = event.subject?.toPath ?? "";
+          if (event.subject?.wayBackIn) {
+            return {
+              title: to
+                ? t`Started extracting ${path} into ${to} on ${server}, which can let someone back in`
+                : t`Started extracting ${path} on ${server}, which can let someone back in`,
+              icon: "archive",
+              tone: "warning",
+            };
+          }
+          return {
+            title: to
+              ? t`Started extracting ${path} into ${to} on ${server}`
+              : t`Started extracting ${path} on ${server}`,
+            icon: "archive",
           };
         }
         case "file.extract": {

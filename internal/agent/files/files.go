@@ -47,7 +47,9 @@ const (
 	// MaxFileBytes is the most of a file that a text read returns.
 	MaxFileBytes = 1 << 20
 	// MaxPreviewBytes is the most of a file that a binary preview read returns.
-	MaxPreviewBytes = 5 << 20
+	// Kept at 1 MiB (same as text reads) and serialized through TakePreview with
+	// transfer GC tuning so image previews never push the agent past its 40 MB budget.
+	MaxPreviewBytes = MaxFileBytes
 	// MaxEntries is the most entries a listing returns.
 	MaxEntries = 5000
 	// listChunk is how many names a listing reads from a directory at a time.
@@ -109,6 +111,7 @@ type Server struct {
 	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
+	previews   chan struct{}
 	transfers  chan struct{}
 	archives   chan struct{}
 	// settle hands back what transfers used, once none has run for settleAfter,
@@ -168,7 +171,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), transfers: make(chan struct{}, transfers), archives: make(chan struct{}, maxArchiveJobs),
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), previews: make(chan struct{}, 1), transfers: make(chan struct{}, transfers), archives: make(chan struct{}, maxArchiveJobs),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
 		archiveJobs: map[string]*archiveJob{}, archiveEndedCh: make(chan struct{}, 1),
 		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
@@ -187,6 +190,25 @@ func (s *Server) Take(ctx context.Context) (func(), error) {
 		return func() { <-s.slots }, nil
 	case <-ctx.Done():
 		return nil, fmt.Errorf("the agent is busy reading other files: %w", ctx.Err())
+	}
+}
+
+// TakePreview waits for the single binary-preview place and enables transfer GC
+// tuning until the reply is sent, so concurrent image previews never stack
+// multiple raw and wire copies in agent memory at once.
+func (s *Server) TakePreview(ctx context.Context) (func(), error) {
+	select {
+	case s.previews <- struct{}{}:
+		releaseMem := s.holdTransferMemory()
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-s.previews
+				releaseMem()
+			})
+		}, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("the agent is busy previewing another file: %w", ctx.Err())
 	}
 }
 
@@ -570,6 +592,10 @@ func (s *Server) ReadWithOptions(ctx context.Context, p string, allowBinary bool
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
+	if allowBinary {
+		releaseMem := s.holdTransferMemory()
+		defer releaseMem()
+	}
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ReadFileResult, error) {
 		return s.read(ctx, t, p, allowBinary), nil
 	}, func(r *agentv1.FileRefusal) *agentv1.ReadFileResult { return &agentv1.ReadFileResult{Refusal: r} })
@@ -683,14 +709,35 @@ func readBytes(t *trail, w *walked, limit int) ([]byte, bool, *agentv1.FileRefus
 		return nil, false, refused(where, hardLinkedFile)
 	}
 	w.st = st
-	data, err := io.ReadAll(io.LimitReader(f, int64(limit)+1))
-	if err != nil {
+	// Size the buffer from fstat to avoid io.ReadAll's doubling allocations.
+	want := limit + 1
+	if st.Size >= 0 && st.Size < int64(limit) {
+		want = int(st.Size) + 1
+	}
+	buf := make([]byte, want)
+	n, err := io.ReadFull(f, buf)
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return buf[:n], false, nil
+	case err != nil:
 		return nil, false, denied(where, err)
+	case n > limit:
+		return buf[:limit], true, nil
 	}
-	if len(data) > limit {
-		return data[:limit], true, nil
+	// The file grew past its fstat size while reading; read up to limit+1 once.
+	full := make([]byte, limit+1)
+	copy(full, buf[:n])
+	m, err := io.ReadFull(f, full[n:])
+	total := n + m
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return full[:total], false, nil
+	case err != nil:
+		return nil, false, denied(where, err)
+	case total > limit:
+		return full[:limit], true, nil
 	}
-	return data, false, nil
+	return full[:total], false, nil
 }
 
 // readText reads up to MaxFileBytes and trims an incomplete trailing UTF-8 rune

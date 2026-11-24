@@ -439,7 +439,7 @@ type ReadFileRequest struct {
 	// The file's absolute path, without . or .. in it, such as
 	// "/etc/nginx/nginx.conf".
 	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	// True to also return binary bytes (up to the preview cap of 5 MiB) in
+	// True to also return binary bytes (up to the preview cap of 1 MiB) in
 	// raw_content, for image previews through the read path instead of a
 	// download.
 	AllowBinary   bool `protobuf:"varint,3,opt,name=allow_binary,json=allowBinary,proto3" json:"allow_binary,omitempty"`
@@ -510,8 +510,8 @@ type ReadFileResponse struct {
 	// True when the file isn't UTF-8 text, so its contents aren't sent in
 	// content (and are in raw_content only when allow_binary was set).
 	Binary bool `protobuf:"varint,4,opt,name=binary,proto3" json:"binary,omitempty"`
-	// True when the file is longer than 1 MiB (or 5 MiB when allow_binary is
-	// set), so content is its beginning or raw_content is omitted.
+	// True when the file is longer than 1 MiB, so content is its beginning or
+	// raw_content is omitted.
 	Truncated bool `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
 	// What SaveFile takes to save over this text: a digest of where the path led,
 	// which file that was, and what it held, which tells whether any of it changed

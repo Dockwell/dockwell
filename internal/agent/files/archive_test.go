@@ -10,10 +10,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -621,5 +626,415 @@ func TestDownloadManyStreamsSelectionAsZip(t *testing.T) {
 	})
 	if err != nil || ref.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || sent {
 		t.Fatalf("DownloadMany with key = %v, %v, sent=%v", ref, err, sent)
+	}
+}
+
+// N1: binary preview reads cap at MaxPreviewBytes (1 MiB), pre-size the read
+// buffer without io.ReadAll doubling, and serialize through TakePreview so even
+// four concurrent max-size previews stay within a tight heap delta.
+func TestPreviewReadHeapAtCap(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payload := make([]byte, MaxPreviewBytes)
+	copy(payload, []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'})
+	for i := 8; i < len(payload); i++ {
+		payload[i] = byte((i*31 + 7) & 0xff)
+		if payload[i] == ':' {
+			payload[i] = '_'
+		}
+	}
+	imgPath := filepath.Join(site, "max.png")
+	if err := os.WriteFile(imgPath, payload, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	overPath := filepath.Join(site, "over.png")
+	if err := os.WriteFile(overPath, append(bytes.Clone(payload), 0x42), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Over-cap image is truncated with empty RawContent.
+	over, err := d.server.ReadWithOptions(t.Context(), overPath, true)
+	if err != nil || !over.GetFile().GetBinary() || !over.GetFile().GetTruncated() || len(over.GetFile().GetRawContent()) != 0 {
+		t.Fatalf("over-cap preview = %v, %v", over, err)
+	}
+
+	readHeap := func() uint64 {
+		runtime.GC()
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		return m.HeapAlloc
+	}
+	// Warm up one call and protobuf's one-time descriptor tables.
+	warm, err := d.server.ReadWithOptions(t.Context(), imgPath, true)
+	if err != nil || len(warm.GetFile().GetRawContent()) != MaxPreviewBytes {
+		t.Fatalf("warm preview = %d bytes, %v", len(warm.GetFile().GetRawContent()), err)
+	}
+	if _, err := proto.Marshal(&agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: warm}}); err != nil {
+		t.Fatalf("warm marshal = %v", err)
+	}
+	warm = nil
+	before := readHeap()
+
+	// Single max-size preview + wire marshal.
+	one, err := d.server.ReadWithOptions(t.Context(), imgPath, true)
+	if err != nil || len(one.GetFile().GetRawContent()) != MaxPreviewBytes {
+		t.Fatalf("single preview = %d bytes, %v", len(one.GetFile().GetRawContent()), err)
+	}
+	wire, err := proto.Marshal(&agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: one}})
+	if err != nil || len(wire) < MaxPreviewBytes {
+		t.Fatalf("marshal single preview = %d, %v", len(wire), err)
+	}
+	singlePeak := readHeap()
+	runtime.KeepAlive(one)
+	runtime.KeepAlive(wire)
+	singleDelta := int64(singlePeak) - int64(before)
+	t.Logf("single %d KiB preview + marshal: baseline=%d KiB peak=%d KiB delta=%d KiB",
+		MaxPreviewBytes/1024, before/1024, singlePeak/1024, singleDelta/1024)
+	if singleDelta > 4<<20 {
+		t.Errorf("single preview grew live heap by %d bytes (> 4 MiB)", singleDelta)
+	}
+
+	// Four concurrent previews serialized through TakePreview.
+	before4 := readHeap()
+	var peak4 uint64
+	var peakMu sync.Mutex
+	var wg sync.WaitGroup
+	errs := make(chan error, 4)
+	for range 4 {
+		wg.Go(func() {
+			rel, err := d.server.TakePreview(t.Context())
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer rel()
+			res, err := d.server.ReadWithOptions(t.Context(), imgPath, true)
+			if err != nil {
+				errs <- err
+				return
+			}
+			w, err := proto.Marshal(&agentv1.CallResult{Result: &agentv1.CallResult_ReadFile{ReadFile: res}})
+			if err != nil {
+				errs <- err
+				return
+			}
+			h := readHeap()
+			runtime.KeepAlive(res)
+			runtime.KeepAlive(w)
+			peakMu.Lock()
+			peak4 = max(peak4, h)
+			peakMu.Unlock()
+			if len(w) < MaxPreviewBytes {
+				errs <- fs.ErrInvalid
+			}
+		})
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent preview error: %v", err)
+	}
+	delta4 := int64(peak4) - int64(before4)
+	t.Logf("4 concurrent %d KiB previews through TakePreview: baseline=%d KiB peak=%d KiB delta=%d KiB",
+		MaxPreviewBytes/1024, before4/1024, peak4/1024, delta4/1024)
+	if delta4 > 4<<20 {
+		t.Errorf("4 concurrent previews grew live heap by %d bytes (> 4 MiB)", delta4)
+	}
+}
+
+// N3: when the extract destination itself is a way in (~/.ssh, sudoers.d,
+// systemd unit or drop-in folders, root's user units), each entry is checked
+// by its full resolved path and a passkey never lets a held-back entry through.
+func TestExtractWayInDestinationChecksFullPath(t *testing.T) {
+	d := newDisk(t)
+	adminHome := filepath.Join(d.root, "home", "admin")
+	sysEtc := filepath.Join(d.root, "etc")
+	d.server.accounts = func() (string, string) {
+		return "root:x:0:0::" + filepath.Join(d.root, "root") + ":/bin/sh\nadmin:x:1000:1000::" + adminHome + ":/bin/sh\n", "sudo:x:27:admin\n"
+	}
+	d.server.systemPlaces = func() []string { return []string{sysEtc, filepath.Join(d.root, "root")} }
+
+	cases := []struct {
+		name        string
+		archivePath string
+		entryName   string
+		entryBody   string
+	}{
+		{
+			name:        "ssh rc when destination is ~/.ssh",
+			archivePath: filepath.Join(adminHome, ".ssh.zip"),
+			entryName:   "rc",
+			entryBody:   "#!/bin/sh\nid\n",
+		},
+		{
+			name:        "sudoers drop-in when destination is sudoers.d",
+			archivePath: filepath.Join(sysEtc, "sudoers.d.zip"),
+			entryName:   "90-all",
+			entryBody:   "admin ALL=(ALL) NOPASSWD: ALL\n",
+		},
+		{
+			name:        "systemd user unit when destination is root's user units",
+			archivePath: filepath.Join(d.root, "root", ".config", "systemd", "user.zip"),
+			entryName:   "x.service",
+			entryBody:   "[Service]\nExecStart=/bin/sh\n",
+		},
+		{
+			name:        "systemd system unit when destination is /etc/systemd/system",
+			archivePath: filepath.Join(sysEtc, "systemd", "system.zip"),
+			entryName:   "backdoor.service",
+			entryBody:   "[Service]\nExecStart=/bin/sh\n",
+		},
+		{
+			name:        "systemd drop-in override.conf when destination is ssh.service.d",
+			archivePath: filepath.Join(sysEtc, "systemd", "system", "ssh.service.d.zip"),
+			entryName:   "override.conf",
+			entryBody:   "[Service]\nExecStartPre=/bin/sh\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := os.MkdirAll(filepath.Dir(tc.archivePath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(tc.archivePath, makeTestZip(t, map[string]string{tc.entryName: tc.entryBody}), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			dst := filepath.Join(filepath.Dir(tc.archivePath), UnpackedName(filepath.Base(tc.archivePath)))
+			// Without a passkey, preflight asks for step-up.
+			noProof, err := d.server.Extract(t.Context(), tc.archivePath, "", "", testArchiveOwner)
+			if err != nil || noProof.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_NEEDS_STEP_UP {
+				t.Fatalf("Extract without passkey = %v, %v; want KIND_NEEDS_STEP_UP", noProof, err)
+			}
+			// Even WITH a passkey confirming both archive and destination, the entry must be refused!
+			withProof, err := d.server.Extract(t.Context(), tc.archivePath, tc.archivePath, dst, testArchiveOwner)
+			if err != nil || withProof.GetRefusal() != nil {
+				t.Fatalf("Extract with passkey preflight = %v, %v", withProof, err)
+			}
+			done := waitJob(t, d.server, withProof.GetJob().GetJobId())
+			if done.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED || done.GetErrorReason() != "unpack_refused" {
+				t.Fatalf("Extract with passkey job = %v, want FAILED/unpack_refused", done)
+			}
+			if there(dst) {
+				t.Errorf("refused extract left destination %s behind", dst)
+			}
+		})
+	}
+}
+
+// N5 + N6: mode 0000 extracts as 0000 (not 0644), and unpacked folders inherit
+// the parent directory's setgid bit while files never take setgid from the archive.
+func TestExtractZeroModeAndParentSetgid(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	shared := filepath.Join(d.root, "shared")
+	if err := os.MkdirAll(shared, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(shared, os.ModeSetgid|0o755); err != nil {
+		t.Fatal(err)
+	}
+	sharedInfo, err := os.Stat(shared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parentHasSetgid := sharedInfo.Mode()&fs.ModeSetgid != 0
+
+	// Build a .tar.gz with a 0000 file, a 02755 setgid file, an explicit dir, and an implicit nested dir.
+	var tgz bytes.Buffer
+	gw := gzip.NewWriter(&tgz)
+	tw := tar.NewWriter(gw)
+	addTar := func(name string, mode int64, body string, dir bool) {
+		hdr := &tar.Header{Name: name, Mode: mode, Size: int64(len(body)), Typeflag: tar.TypeReg}
+		if dir {
+			hdr.Typeflag = tar.TypeDir
+			hdr.Size = 0
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if !dir {
+			if _, err := tw.Write([]byte(body)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	addTar("zero.txt", 0o000, "secret", false)
+	addTar("sgid-file", 0o2755, "bin", false)
+	addTar("explicit/", 0o755, "", true)
+	addTar("implicit/nested/f.txt", 0o644, "ok", false)
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	tgzPath := filepath.Join(shared, "bundle.tar.gz")
+	if err := os.WriteFile(tgzPath, tgz.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ext, err := d.server.Extract(t.Context(), tgzPath, "", "", testArchiveOwner)
+	if err != nil || ext.GetRefusal() != nil {
+		t.Fatalf("Extract tgz = %v, %v", ext, err)
+	}
+	if j := waitJob(t, d.server, ext.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
+		t.Fatalf("tgz extract job = %v", j)
+	}
+	zeroInfo, err := os.Stat(filepath.Join(shared, "bundle", "zero.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zeroInfo.Mode().Perm() != 0o000 {
+		t.Errorf("0000 tar entry perm = %04o, want 0000", zeroInfo.Mode().Perm())
+	}
+	// Restore readable mode for TempDir cleanup.
+	_ = os.Chmod(filepath.Join(shared, "bundle", "zero.txt"), 0o600)
+
+	sgidFileInfo, err := os.Stat(filepath.Join(shared, "bundle", "sgid-file"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sgidFileInfo.Mode()&fs.ModeSetgid != 0 {
+		t.Errorf("extracted file kept setgid bit: %v", sgidFileInfo.Mode())
+	}
+	if parentHasSetgid {
+		for _, rel := range []string{"", "explicit", "implicit", "implicit/nested"} {
+			info, err := os.Stat(filepath.Join(shared, "bundle", rel))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode()&fs.ModeSetgid == 0 {
+				t.Errorf("extracted folder %q lost parent setgid bit: %v", rel, info.Mode())
+			}
+		}
+	}
+
+	// Build a zip with a Unix 0000 file entry and verify it also extracts as 0000 and inherits folder setgid.
+	var zbuf bytes.Buffer
+	zw := zip.NewWriter(&zbuf)
+	hdr := &zip.FileHeader{Name: "sub/zero-zip.txt", Method: zip.Deflate}
+	hdr.SetMode(0o000)
+	w, err := zw.CreateHeader(hdr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write([]byte("zipzero")); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zipPath := filepath.Join(shared, "zbundle.zip")
+	if err := os.WriteFile(zipPath, zbuf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	zext, err := d.server.Extract(t.Context(), zipPath, "", "", testArchiveOwner)
+	if err != nil || zext.GetRefusal() != nil {
+		t.Fatalf("Extract zip = %v, %v", zext, err)
+	}
+	if j := waitJob(t, d.server, zext.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
+		t.Fatalf("zip extract job = %v", j)
+	}
+	zzInfo, err := os.Stat(filepath.Join(shared, "zbundle", "sub", "zero-zip.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zzInfo.Mode().Perm() != 0o000 {
+		t.Errorf("0000 zip entry perm = %04o, want 0000", zzInfo.Mode().Perm())
+	}
+	_ = os.Chmod(filepath.Join(shared, "zbundle", "sub", "zero-zip.txt"), 0o600)
+	if parentHasSetgid {
+		for _, rel := range []string{"", "sub"} {
+			info, err := os.Stat(filepath.Join(shared, "zbundle", rel))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode()&fs.ModeSetgid == 0 {
+				t.Errorf("zip extracted folder %q lost parent setgid bit: %v", rel, info.Mode())
+			}
+		}
+	}
+}
+
+// N7: stray compress staging files left behind by an agent restart are swept
+// on agent start, while unrelated files and actively-running jobs' staging files stay.
+func TestSweepArchiveStagingOnAgentStart(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	site := filepath.Join(d.root, "site")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(site, "keep.txt")
+	write(t, keep, "safe")
+
+	// Simulate an abandoned compress staging file left behind before a restart.
+	abandonedID := "AAAAAAAAAAAAAAAAAAAAAAAAAA"
+	strayName := uploadPrefix + "BBBBBBBBBBBBBBBBBBBBBBBBBB"
+	strayPath := filepath.Join(site, strayName)
+	if err := os.WriteFile(strayPath, []byte("partial-zip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var st unix.Stat_t
+	if err := unix.Stat(strayPath, &st); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.server.saveArchiveStage(&archiveStage{
+		ID:   abandonedID,
+		Path: filepath.Join(site, "out.zip"),
+		Name: strayName,
+		Dev:  st.Dev,
+		Ino:  st.Ino,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate an actively running job whose staging file must NOT be swept.
+	activeID := "CCCCCCCCCCCCCCCCCCCCCCCCCC"
+	activeName := uploadPrefix + "DDDDDDDDDDDDDDDDDDDDDDDDDD"
+	activePath := filepath.Join(site, activeName)
+	if err := os.WriteFile(activePath, []byte("active-zip"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var activeSt unix.Stat_t
+	if err := unix.Stat(activePath, &activeSt); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.server.saveArchiveStage(&archiveStage{
+		ID:   activeID,
+		Path: filepath.Join(site, "active.zip"),
+		Name: activeName,
+		Dev:  activeSt.Dev,
+		Ino:  activeSt.Ino,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	d.server.registerArchiveJob(&archiveJob{
+		id:        activeID,
+		owner:     testArchiveOwner,
+		kind:      dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS,
+		state:     dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING,
+		path:      filepath.Join(site, "active.zip"),
+		startTime: time.Now(),
+		done:      make(chan struct{}),
+	})
+
+	d.server.SweepArchiveStaging(t.Context())
+
+	if there(strayPath) {
+		t.Error("abandoned compress staging file was not removed on agent start sweep")
+	}
+	if there(filepath.Join(d.server.archiveStagingDir(), abandonedID+".json")) {
+		t.Error("abandoned archive staging note was not dropped")
+	}
+	if !there(activePath) {
+		t.Error("actively running job's staging file was wrongly removed")
+	}
+	if !there(keep) {
+		t.Error("unrelated file was removed")
 	}
 }

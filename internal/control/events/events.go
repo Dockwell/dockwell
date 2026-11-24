@@ -94,8 +94,8 @@ var fileWrites = []string{
 	"file.delete", "file.delete_failed", "file.delete_unconfirmed",
 	"file.restore", "file.restore_failed", "file.restore_unconfirmed",
 	"file.upload", "file.upload_failed", "file.upload_unconfirmed",
-	"file.compress", "file.compress_failed", "file.compress_unconfirmed",
-	"file.extract", "file.extract_failed", "file.extract_unconfirmed",
+	"file.compress", "file.compress_started", "file.compress_failed", "file.compress_unconfirmed",
+	"file.extract", "file.extract_started", "file.extract_failed", "file.extract_unconfirmed",
 	"file.change_unknown",
 }
 

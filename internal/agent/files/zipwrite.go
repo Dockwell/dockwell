@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"time"
+	"unicode/utf8"
 )
 
 // A streaming zip archive writer whose memory stays flat whatever the entry
@@ -23,11 +24,12 @@ import (
 // one CRC-32 hasher across entries, and streams the central directory out on
 // Close.
 //
-// Every entry uses UTF-8 names (bit 11) and, for files, a data descriptor
-// (bit 3) so sizes and CRC-32 are written after the payload without seeking on
-// the output stream. Zip64 records are written whenever an entry size, local
-// offset, directory size, directory offset or entry count reaches the 32-bit or
-// 16-bit limit.
+// Entries set the UTF-8 flag (bit 11) only when their name is valid non-ASCII
+// UTF-8, matching Go's archive/zip so raw non-UTF-8 Linux names remain readable
+// by Python and Java zip readers. Files use a data descriptor (bit 3) so sizes
+// and CRC-32 are written after the payload without seeking on the output stream.
+// Zip64 records are written whenever an entry size, local offset, directory size,
+// directory offset or entry count reaches the 32-bit or 16-bit limit.
 
 const (
 	zipDataDescSig = 0x08074b50
@@ -62,6 +64,7 @@ type zipWriter struct {
 type zipEntryWriter struct {
 	zw          *zipWriter
 	name        string
+	flags       uint16
 	method      uint16
 	dosTime     uint16
 	dosDate     uint16
@@ -127,10 +130,7 @@ func (z *zipWriter) Create(name string, modTime time.Time, mode fs.FileMode, met
 		method = zipStored
 	}
 	dosTime, dosDate := timeToDOS(modTime)
-	flags := uint16(zipFlagUTF8)
-	if !isDir {
-		flags |= zipFlagDataDes
-	}
+	flags := zipEntryFlags(name, isDir)
 	localOffset := z.written
 
 	var local [zipLocalLen]byte
@@ -157,6 +157,7 @@ func (z *zipWriter) Create(name string, modTime time.Time, mode fs.FileMode, met
 	ew := &zipEntryWriter{
 		zw:          z,
 		name:        name,
+		flags:       flags,
 		method:      method,
 		dosTime:     dosTime,
 		dosDate:     dosDate,
@@ -271,10 +272,7 @@ func (e *zipEntryWriter) finish() error {
 	if extraLen > 0 {
 		ver = zipVer45
 	}
-	flags := uint16(zipFlagUTF8)
-	if !e.isDir {
-		flags |= zipFlagDataDes
-	}
+	flags := e.flags
 
 	cdComp := uint32(min(compSize, zip32))
 	cdUncomp := uint32(min(e.uncompSize, zip32))
@@ -396,6 +394,33 @@ func (z *zipWriter) closeCD() {
 		_ = z.cdFile.Close()
 		z.cdFile = nil
 	}
+}
+
+// detectUTF8 reports whether s is valid UTF-8 and requires the UTF-8 flag
+// (bit 11), matching Go's archive/zip.Writer.
+func detectUTF8(s string) (valid, require bool) {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		i += size
+		if r < 0x20 || r > 0x7d || r == 0x5c {
+			if !utf8.ValidRune(r) || (r == utf8.RuneError && size == 1) {
+				return false, false
+			}
+			require = true
+		}
+	}
+	return true, require
+}
+
+func zipEntryFlags(name string, isDir bool) uint16 {
+	var flags uint16
+	if valid, require := detectUTF8(name); valid && require {
+		flags |= zipFlagUTF8
+	}
+	if !isDir {
+		flags |= zipFlagDataDes
+	}
+	return flags
 }
 
 // unixExternalAttrs encodes mode as archive/zip.FileHeader.SetMode does.

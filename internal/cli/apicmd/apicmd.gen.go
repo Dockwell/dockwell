@@ -2335,7 +2335,7 @@ func Methods() []*apicli.Method {
 			Fields: []apicli.Field{
 				{Path: "server_id", Help: "The server's ID, such as \"srv_01JD6Z3R8M9QF2K7T4XW5BNC0V\"."},
 				{Path: "path", Help: "The file's absolute path, without . or .. in it, such as \"/etc/nginx/nginx.conf\"."},
-				{Path: "allow_binary", Help: "True to also return binary bytes (up to the preview cap of 5 MiB) in raw_content, for image previews through the read path instead of a download."},
+				{Path: "allow_binary", Help: "True to also return binary bytes (up to the preview cap of 1 MiB) in raw_content, for image previews through the read path instead of a download."},
 			},
 			Call: apicli.Unary[v1.ReadFileRequest, v1.ReadFileResponse](dockwellv1connect.FileServiceReadFileProcedure),
 		},

@@ -278,29 +278,83 @@ func (ways *waysIn) listed(where, dataDir string, inVolume bool) bool {
 	return false
 }
 
-// listedEntry reports an archive entry whose own name or relative path can let
-// someone back onto the server (keys, sudoers, shell start files, user systemd
-// units, .ssh, runtime sockets, or Dockwell's data dir). Even when extracting
-// into a way-in destination folder confirmed with a passkey, these entries are
-// never unpacked.
-func (ways *waysIn) listedEntry(parts []string, where, dataDir string) bool {
-	if len(parts) == 0 {
-		return false
+// heldBackDirPaths are path segments inside which an archive may never unpack
+// entries, even when a passkey confirmed the destination folder.
+var heldBackDirPaths = []string{
+	".config/systemd/user",
+	".local/share/systemd/user",
+	"systemd/system",
+	"systemd/user",
+	"etc/systemd",
+	"lib/systemd",
+	"usr/lib/systemd",
+	"var/lib/systemd",
+	"etc/ssh",
+	"etc/cron.d",
+	"etc/cron.daily",
+	"etc/cron.hourly",
+	"etc/cron.weekly",
+	"etc/cron.monthly",
+	"var/spool/cron",
+	"var/spool/anacron",
+	"var/spool/at",
+	"etc/pam.d",
+	"etc/profile.d",
+	"etc/init.d",
+	"etc/ld.so.conf.d",
+}
+
+// heldBackSockets are runtime socket names that an archive may never unpack
+// into a way-in destination.
+var heldBackSockets = []string{"cri-dockerd.sock", "crio.sock", "libvirt-sock", "podman.sock", "snapd.socket", "docker.sock", "containerd.sock"}
+
+// listedEntry reports an archive entry whose full resolved path (or any bind-mounted
+// or homeRoot-mapped spelling of it) can let someone back onto the server: keys,
+// sudoers and sudoers.d, shell start files, .ssh, systemd unit and drop-in folders
+// (system and user), cron/at/pam/profile.d/init.d/ld.so.conf.d, listed system
+// credential/login files, runtime sockets, or Dockwell's data dir. Even when
+// extracting into a way-in destination folder confirmed with a passkey, these
+// entries are never unpacked.
+func (ways *waysIn) listedEntry(where, dataDir string, aliases ...string) bool {
+	if ways.listedEntryPath(where, dataDir) {
+		return true
 	}
-	base := parts[len(parts)-1]
-	rel := "/" + strings.Join(parts, "/") + "/"
+	if root := ways.homeRoot; root != "" && mounts.Holds(root, where) {
+		if ways.listedEntryPath(path.Join("/home", strings.TrimPrefix(where, root)), dataDir) {
+			return true
+		}
+	}
+	for _, as := range aliases {
+		if ways.listedEntryPath(as, dataDir) {
+			return true
+		}
+	}
+	return false
+}
+
+func (ways *waysIn) listedEntryPath(where, dataDir string) bool {
+	clean := path.Clean(where)
+	base := path.Base(clean)
+	segs := strings.Split(strings.Trim(clean, "/"), "/")
+	withSlashes := "/" + strings.Join(segs, "/") + "/"
 	switch {
 	case slices.Contains(wayInNames, base), strings.HasPrefix(base, "sudoers"):
 		return true
 	case slices.Contains(startFiles, base):
 		return true
-	case slices.Contains(parts, ".ssh"):
+	case slices.Contains(listedFiles, clean):
 		return true
-	case slices.ContainsFunc(parts, func(p string) bool { return strings.HasPrefix(p, "sudoers") }):
+	case resource.ControlsDocker(clean), slices.Contains(heldBackSockets, base):
 		return true
-	case slices.ContainsFunc(wayInDirs, func(d string) bool { return strings.Contains(rel, "/"+d+"/") }):
+	case slices.Contains(segs, ".ssh"):
 		return true
-	case dataDir != "" && mounts.Holds(dataDir, where):
+	case slices.ContainsFunc(segs, func(p string) bool { return strings.HasPrefix(p, "sudoers") }):
+		return true
+	case slices.ContainsFunc(heldBackDirPaths, func(d string) bool { return strings.Contains(withSlashes, "/"+d+"/") }):
+		return true
+	case slices.ContainsFunc(ways.adminDirs, func(d string) bool { return mounts.Holds(d, clean) }):
+		return true
+	case dataDir != "" && mounts.Holds(dataDir, clean):
 		return true
 	}
 	return false

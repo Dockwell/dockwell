@@ -366,7 +366,7 @@ export function FileDetailsPane({
               </Loading>
             ) : imageState.kind === "tooLarge" ? (
               <p className="files-details-note">
-                <Trans>Images over 5 MB aren't previewed here. Download it to open it on your computer.</Trans>
+                <Trans>Images over 1 MB aren't previewed here. Download it to open it on your computer.</Trans>
               </p>
             ) : imageState.kind === "error" || imageBroken ? (
               <p className="files-details-note">

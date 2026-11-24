@@ -81,11 +81,25 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	if compJob.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE || compJob.GetPath() != archive || compJob.GetEntries() != 3 {
 		t.Fatalf("compress job = %v", compJob)
 	}
-	// L5: compress Activity event records source paths.
+	// L5 + N2: compress Activity writes both started and done rows with source paths.
+	waitForFileEvent(t, b, id, "file.compress_started", archive)
 	ce := waitForFileEvent(t, b, id, "file.compress", archive)
 	if ce.GetSubject().GetPathCount() != 2 || len(ce.GetSubject().GetPaths()) != 2 {
 		t.Errorf("file.compress paths = %v (count %d), want 2", ce.GetSubject().GetPaths(), ce.GetSubject().GetPathCount())
 	}
+
+	// N2: a tiny compress job started without ever polling GetArchiveJob or
+	// ListArchiveJobs (CLI/API/closed tab) still lands both started and done rows.
+	unpolled := filepath.Join(site, "unpolled.zip")
+	if up, err := c.CompressFiles(t.Context(), connect.NewRequest(&dockwellv1.CompressFilesRequest{
+		ServerId:    id,
+		Paths:       []string{filepath.Join(site, "index.html")},
+		ArchivePath: unpolled,
+	})); err != nil || up.Msg.GetJob().GetJobId() == "" {
+		t.Fatalf("unpolled CompressFiles = %v, %v", up, err)
+	}
+	waitForFileEvent(t, b, id, "file.compress_started", unpolled)
+	waitForFileEvent(t, b, id, "file.compress", unpolled)
 
 	// ListArchiveJobs includes the finished job.
 	listed, err := c.ListArchiveJobs(t.Context(), connect.NewRequest(&dockwellv1.ListArchiveJobsRequest{ServerId: id}))
@@ -105,6 +119,7 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	if extJob.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE || extJob.GetUnpackedTo() != filepath.Join(site, "release") || extJob.GetEntries() != 3 {
 		t.Fatalf("extract job = %v", extJob)
 	}
+	waitForFileEvent(t, b, id, "file.extract_started", archive)
 	e := waitForFileEvent(t, b, id, "file.extract", archive)
 	if e.GetSubject().GetToPath() != filepath.Join(site, "release") {
 		t.Errorf("file.extract to_path = %q", e.GetSubject().GetToPath())
@@ -237,6 +252,14 @@ func TestArchiveWayBackInTakesDedicatedStepUp(t *testing.T) {
 		t.Fatalf("extract into .ssh with no proof = %v", err)
 	}
 	dst := filepath.Join(sshDir, "bundle")
+	wrongExtProof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN, id+":"+archive+"\n"+dst)
+	if _, err := c.ExtractArchive(t.Context(), connect.NewRequest(&dockwellv1.ExtractArchiveRequest{
+		ServerId: id, Path: archive, Proof: wrongExtProof,
+	})); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("extract with MAKE_WAY_BACK_IN proof = %v, want needs_step_up", err)
+	}
+	// N3: even with the dedicated EXTRACT_WAY_BACK_IN passkey, entries whose full
+	// resolved path sits inside .ssh are still refused during unpack.
 	eProof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_EXTRACT_WAY_BACK_IN, id+":"+archive+"\n"+dst)
 	ext, err := c.ExtractArchive(t.Context(), connect.NewRequest(&dockwellv1.ExtractArchiveRequest{
 		ServerId: id, Path: archive, Proof: eProof,
@@ -244,8 +267,11 @@ func TestArchiveWayBackInTakesDedicatedStepUp(t *testing.T) {
 	if err != nil || !ext.Msg.GetJob().GetWayBackIn() || ext.Msg.GetJob().GetUnpackedTo() != dst {
 		t.Fatalf("extract into .ssh with proof = %v, %v", ext, err)
 	}
-	if j := waitArchiveJob(t, c, id, ext.Msg.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
-		t.Fatalf("extract job = %v", j)
+	if j := waitArchiveJob(t, c, id, ext.Msg.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED || j.GetErrorReason() != "unpack_refused" {
+		t.Fatalf("extract into .ssh job = %v, want FAILED/unpack_refused", j)
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Errorf("refused extract into .ssh left %s behind", dst)
 	}
 }
 

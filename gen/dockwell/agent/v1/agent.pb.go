@@ -641,8 +641,11 @@ func (*ConnectRequest_ArchiveJobEnded) isConnectRequest_Message() {}
 // the agent, so the control plane records its final Activity event even if the
 // browser left or a proxy cut the request.
 type ArchiveJobEnded struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Job           *v1.ArchiveJob         `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Job   *v1.ArchiveJob         `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	// The audit event ID recorded when the job started, so the control plane can
+	// still record the job's outcome after a control-plane restart.
+	Record        string `protobuf:"bytes,2,opt,name=record,proto3" json:"record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -682,6 +685,13 @@ func (x *ArchiveJobEnded) GetJob() *v1.ArchiveJob {
 		return x.Job
 	}
 	return nil
+}
+
+func (x *ArchiveJobEnded) GetRecord() string {
+	if x != nil {
+		return x.Record
+	}
+	return ""
 }
 
 // BuildUpdate is how a build on the server is going, sent as it moves on, and
@@ -11154,7 +11164,12 @@ type CompressFilesCall struct {
 	// back in.
 	ConfirmedPath string `protobuf:"bytes,3,opt,name=confirmed_path,json=confirmedPath,proto3" json:"confirmed_path,omitempty"`
 	// Who started the job (user ID), so only they can query its status.
-	Owner         string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
+	Owner string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Optional job ID minted by the control plane before the call, so early
+	// completions can be matched even before the call reply arrives.
+	JobId string `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// The audit event ID recorded when the job starts, echoed in ArchiveJobEnded.
+	Record        string `protobuf:"bytes,6,opt,name=record,proto3" json:"record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11213,6 +11228,20 @@ func (x *CompressFilesCall) GetConfirmedPath() string {
 func (x *CompressFilesCall) GetOwner() string {
 	if x != nil {
 		return x.Owner
+	}
+	return ""
+}
+
+func (x *CompressFilesCall) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *CompressFilesCall) GetRecord() string {
+	if x != nil {
+		return x.Record
 	}
 	return ""
 }
@@ -11284,7 +11313,12 @@ type ExtractArchiveCall struct {
 	// The archive path confirmed with the same passkey.
 	ConfirmedArchive string `protobuf:"bytes,3,opt,name=confirmed_archive,json=confirmedArchive,proto3" json:"confirmed_archive,omitempty"`
 	// Who started the job (user ID), so only they can query its status.
-	Owner         string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
+	Owner string `protobuf:"bytes,4,opt,name=owner,proto3" json:"owner,omitempty"`
+	// Optional job ID minted by the control plane before the call, so early
+	// completions can be matched even before the call reply arrives.
+	JobId string `protobuf:"bytes,5,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// The audit event ID recorded when the job starts, echoed in ArchiveJobEnded.
+	Record        string `protobuf:"bytes,6,opt,name=record,proto3" json:"record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -11343,6 +11377,20 @@ func (x *ExtractArchiveCall) GetConfirmedArchive() string {
 func (x *ExtractArchiveCall) GetOwner() string {
 	if x != nil {
 		return x.Owner
+	}
+	return ""
+}
+
+func (x *ExtractArchiveCall) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ExtractArchiveCall) GetRecord() string {
+	if x != nil {
+		return x.Record
 	}
 	return ""
 }
@@ -18728,9 +18776,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"reconciled\x12f\n" +
 	"\x18docker_inventory_changed\x18\x93\x03 \x01(\v2).dockwell.agent.v1.DockerInventoryChangedH\x00R\x16dockerInventoryChanged\x12Q\n" +
 	"\x11archive_job_ended\x18\xa4\x03 \x01(\v2\".dockwell.agent.v1.ArchiveJobEndedH\x00R\x0farchiveJobEndedB\t\n" +
-	"\amessage\"<\n" +
+	"\amessage\"T\n" +
 	"\x0fArchiveJobEnded\x12)\n" +
-	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"\x87\x05\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x12\x16\n" +
+	"\x06record\x18\x02 \x01(\tR\x06record\"\x87\x05\n" +
 	"\vBuildUpdate\x12\x1b\n" +
 	"\tchange_id\x18\x01 \x01(\tR\bchangeId\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12-\n" +
@@ -19422,20 +19471,24 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x10DownloadFileCall\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x15\n" +
-	"\x05paths\x18\xa4\x03 \x03(\tR\x05paths\"\x89\x01\n" +
+	"\x05paths\x18\xa4\x03 \x03(\tR\x05paths\"\xb8\x01\n" +
 	"\x11CompressFilesCall\x12\x14\n" +
 	"\x05paths\x18\x01 \x03(\tR\x05paths\x12!\n" +
 	"\farchive_path\x18\x02 \x01(\tR\varchivePath\x12%\n" +
 	"\x0econfirmed_path\x18\x03 \x01(\tR\rconfirmedPath\x12\x14\n" +
-	"\x05owner\x18\x04 \x01(\tR\x05owner\"z\n" +
+	"\x05owner\x18\x04 \x01(\tR\x05owner\x12\x15\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06record\x18\x06 \x01(\tR\x06record\"z\n" +
 	"\x13CompressFilesResult\x12)\n" +
 	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x128\n" +
-	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"\x92\x01\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"\xc1\x01\n" +
 	"\x12ExtractArchiveCall\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12%\n" +
 	"\x0econfirmed_path\x18\x02 \x01(\tR\rconfirmedPath\x12+\n" +
 	"\x11confirmed_archive\x18\x03 \x01(\tR\x10confirmedArchive\x12\x14\n" +
-	"\x05owner\x18\x04 \x01(\tR\x05owner\"{\n" +
+	"\x05owner\x18\x04 \x01(\tR\x05owner\x12\x15\n" +
+	"\x06job_id\x18\x05 \x01(\tR\x05jobId\x12\x16\n" +
+	"\x06record\x18\x06 \x01(\tR\x06record\"{\n" +
 	"\x14ExtractArchiveResult\x12)\n" +
 	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x128\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"@\n" +

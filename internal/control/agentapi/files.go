@@ -185,8 +185,8 @@ func (s *Session) PurgeDeleted(ctx context.Context, id string) (*agentv1.PurgeDe
 // CompressFiles asks the agent to start a background compress job packing paths
 // into a new .zip file at archivePath. confirmed is the archivePath a passkey
 // confirmed, if any.
-func (s *Session) CompressFiles(ctx context.Context, paths []string, archivePath, confirmed, owner string) (*agentv1.CompressFilesResult, error) {
-	call := &agentv1.CompressFilesCall{Paths: paths, ArchivePath: archivePath, ConfirmedPath: confirmed, Owner: owner}
+func (s *Session) CompressFiles(ctx context.Context, paths []string, archivePath, confirmed, owner, jobID, record string) (*agentv1.CompressFilesResult, error) {
+	call := &agentv1.CompressFilesCall{Paths: paths, ArchivePath: archivePath, ConfirmedPath: confirmed, Owner: owner, JobId: jobID, Record: record}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CompressFiles{CompressFiles: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err
@@ -200,8 +200,8 @@ func (s *Session) CompressFiles(ctx context.Context, paths []string, archivePath
 // ExtractArchive asks the agent to start a background extract job unpacking an
 // existing archive at path into a new folder beside it. confirmedArchive and
 // confirmedDst are the archive and destination folder paths a passkey confirmed.
-func (s *Session) ExtractArchive(ctx context.Context, path, confirmedArchive, confirmedDst, owner string) (*agentv1.ExtractArchiveResult, error) {
-	call := &agentv1.ExtractArchiveCall{Path: path, ConfirmedArchive: confirmedArchive, ConfirmedPath: confirmedDst, Owner: owner}
+func (s *Session) ExtractArchive(ctx context.Context, path, confirmedArchive, confirmedDst, owner, jobID, record string) (*agentv1.ExtractArchiveResult, error) {
+	call := &agentv1.ExtractArchiveCall{Path: path, ConfirmedArchive: confirmedArchive, ConfirmedPath: confirmedDst, Owner: owner, JobId: jobID, Record: record}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ExtractArchive{ExtractArchive: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err

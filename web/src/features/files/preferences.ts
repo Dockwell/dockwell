@@ -12,7 +12,7 @@ export const MAX_TREE_WIDTH = 460;
 export type ResizableColumn = "name" | "size" | "modified" | "mode" | "owner";
 export type ColumnWidths = Partial<Record<ResizableColumn, number>>;
 
-export const IMAGE_PREVIEW_MAX_BYTES = 5 * 1024 * 1024;
+export const IMAGE_PREVIEW_MAX_BYTES = 1024 * 1024;
 export const TEXT_PREVIEW_MAX_BYTES = 1024 * 1024;
 export const TEXT_PREVIEW_LINES = 24;
 

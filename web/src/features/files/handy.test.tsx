@@ -3,7 +3,7 @@
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { EditorView } from "@codemirror/view";
-import type { HandlerContext } from "@connectrpc/connect";
+import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   ArchiveJobKind,
   ArchiveJobSchema,
@@ -379,5 +379,42 @@ describe("File manager UX", () => {
     expect(
       EditorView.findFromDOM(screen.getByRole("textbox", { name: "Contents of alpha.txt" }))?.state.doc.toString(),
     ).toBe("alpha changed\n");
+  });
+
+  it("says when a tracked archive job stopped because the agent restarted (N7)", async () => {
+    const getArchiveJob = vi.fn(() => {
+      throw new ConnectError("there's no archive job job_lost_1 on this server", Code.NotFound);
+    });
+    await renderFiles({
+      listFiles: () => site,
+      listArchiveJobs: () =>
+        create(ListArchiveJobsResponseSchema, {
+          jobs: [
+            create(ArchiveJobSchema, {
+              jobId: "job_lost_1",
+              kind: ArchiveJobKind.COMPRESS,
+              state: ArchiveJobState.RUNNING,
+              path: "/var/www/site.zip",
+            }),
+          ],
+        }),
+      getArchiveJob: getArchiveJob as never,
+    });
+    expect(await screen.findByText("Compressing site.zip")).toBeVisible();
+    expect(await screen.findByText("Stopped when the agent restarted", {}, { timeout: 3000 })).toBeVisible();
+    expect(screen.getByText(/Compressing site\.zip stopped before it finished\./)).toBeVisible();
+  });
+
+  it("refuses to preview images over 1 MB without calling readFile (N1)", async () => {
+    const readFile = vi.fn();
+    const withBigPhoto = create(ListFilesResponseSchema, {
+      path: "/var/www",
+      directory: entry("www", { type: FileType.DIRECTORY }),
+      entries: [entry("huge.png", { sizeBytes: BigInt(1024 * 1024 + 1) })],
+    });
+    await renderFiles({ listFiles: () => withBigPhoto, readFile: readFile as never });
+    await userEvent.click(screen.getByText("huge.png"));
+    expect(await screen.findByText(/Images over 1 MB aren't previewed here\./)).toBeVisible();
+    expect(readFile).not.toHaveBeenCalled();
   });
 });

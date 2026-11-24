@@ -5,12 +5,14 @@ package files
 import (
 	"cmp"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	posixpath "path"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 
@@ -20,6 +22,8 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
+	ids "github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // What a person makes, moves, deletes and puts back on a server, and what's in its
@@ -65,6 +69,19 @@ func (o op) actions() (done, failed, unconfirmed string) {
 	}
 }
 
+// startedAction names the Activity action written when a background archive job
+// begins, kept explicit for the audit inventory.
+func (o op) startedAction() string {
+	switch o.verb {
+	case "compress":
+		return "file.compress_started"
+	case "extract":
+		return "file.extract_started"
+	default:
+		panic("file operation has no started audit action")
+	}
+}
+
 // eventMayHave is a write whose call ended as it acted, so it may yet happen.
 const eventMayHave = "file.change_unknown"
 
@@ -80,6 +97,9 @@ type Told struct {
 	// compress or multi-path download event, and PathCount holds the full count.
 	Paths     []string `json:"paths,omitempty"`
 	PathCount int      `json:"path_count,omitempty"`
+	// JobID ties a background archive job's start event to its outcome across
+	// control-plane restarts.
+	JobID string `json:"job_id,omitempty"`
 }
 
 // ReadTold reads what a write's event says, if it's one.
@@ -433,43 +453,180 @@ func jobOwner(p auth.Principal) string { return p.User.ID }
 
 func archiveJobKey(serverID, jobID string) string { return serverID + ":" + jobID }
 
-func (h *Handler) trackArchiveJob(serverID string, job *dockwellv1.ArchiveJob, w *writing) {
+// pendingArchive tracks a background compress or extract job from before the
+// agent call is sent until its final Activity outcome is recorded.
+type pendingArchive struct {
+	w        *writing
+	serverID string
+	jobID    string
+	owner    string
+	recordID string
+	path     string
+	started  bool
+}
+
+const keepSettledArchives = 2 * time.Hour
+
+func (h *Handler) pruneSettledArchivesLocked() {
+	cutoff := h.now().Add(-keepSettledArchives)
+	for k, at := range h.settledArchives {
+		if at.Before(cutoff) {
+			delete(h.settledArchives, k)
+		}
+	}
+}
+
+func (h *Handler) beginArchiveTracking(serverID, jobID, owner, recordID, at string, w *writing) {
+	key := archiveJobKey(serverID, jobID)
+	h.archiveMu.Lock()
+	h.pendingArchives[key] = &pendingArchive{
+		w:        w,
+		serverID: serverID,
+		jobID:    jobID,
+		owner:    owner,
+		recordID: recordID,
+		path:     at,
+	}
+	h.archiveMu.Unlock()
+}
+
+func (h *Handler) cancelArchiveTracking(serverID, jobID string) {
+	key := archiveJobKey(serverID, jobID)
+	h.archiveMu.Lock()
+	delete(h.pendingArchives, key)
+	delete(h.endedEarly, key)
+	h.archiveMu.Unlock()
+}
+
+// markArchiveUncertain leaves a job tracked after a lost stream so a later
+// ArchiveJobEnded still lands on Activity if the job actually started.
+func (h *Handler) markArchiveUncertain(serverID, jobID string) {
+	key := archiveJobKey(serverID, jobID)
+	h.archiveMu.Lock()
+	if p, ok := h.pendingArchives[key]; ok {
+		p.started = true
+	}
+	early := h.endedEarly[key]
+	if early != nil {
+		delete(h.endedEarly, key)
+	}
+	h.archiveMu.Unlock()
+	if early != nil {
+		h.settleArchiveJob(serverID, early.GetJob(), early.GetRecord())
+	}
+}
+
+// finishArchiveStart records the job's started Activity row, marks it tracked,
+// and immediately settles it if ArchiveJobEnded arrived before the call reply.
+func (h *Handler) finishArchiveStart(ctx context.Context, serverID, mintedJobID, recordID string, job *dockwellv1.ArchiveJob, w *writing) {
 	if job == nil || job.GetJobId() == "" {
+		h.cancelArchiveTracking(serverID, mintedJobID)
 		return
 	}
-	key := archiveJobKey(serverID, job.GetJobId())
+	told := Told{
+		JobID:     job.GetJobId(),
+		WayBackIn: job.GetWayBackIn(),
+		To:        job.GetUnpackedTo(),
+		Paths:     job.GetSourcePaths(),
+		PathCount: int(job.GetSourceCount()),
+	}
+	detail, err := json.Marshal(told)
+	if err == nil {
+		err = w.record.recordWithID(recordID, w.op.startedAction(), job.GetPath(), string(detail))
+	}
+	if err != nil {
+		h.logger.ErrorContext(ctx, "an archive job started, and can't go on record", slog.String("server", serverID), slog.String("error", err.Error()))
+	}
+
+	mintedKey := archiveJobKey(serverID, mintedJobID)
+	actualKey := archiveJobKey(serverID, job.GetJobId())
 	h.archiveMu.Lock()
-	h.pendingArchives[key] = w
+	p := h.pendingArchives[mintedKey]
+	if actualKey != mintedKey {
+		delete(h.pendingArchives, mintedKey)
+	}
+	if p == nil {
+		p = &pendingArchive{
+			w:        w,
+			serverID: serverID,
+			jobID:    job.GetJobId(),
+			owner:    jobOwner(w.p),
+			recordID: recordID,
+		}
+	}
+	p.jobID = job.GetJobId()
+	p.path = job.GetPath()
+	p.started = true
+	h.pendingArchives[actualKey] = p
+	early := h.endedEarly[actualKey]
+	if early != nil {
+		delete(h.endedEarly, actualKey)
+	}
 	h.archiveMu.Unlock()
+
+	if early != nil {
+		h.settleArchiveJob(serverID, early.GetJob(), cmp.Or(early.GetRecord(), recordID))
+		return
+	}
 	if job.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
-		h.settleArchiveJob(serverID, job)
+		h.settleArchiveJob(serverID, job, recordID)
 	}
 }
 
 func (h *Handler) archiveJobEnded(server string, ended *agentv1.ArchiveJobEnded) {
-	if ended.GetJob() == nil {
-		return
-	}
-	h.settleArchiveJob(server, ended.GetJob())
-}
-
-// settleArchiveJob records the final Activity event for a completed or failed
-// background archive job once and only once, only for jobs started on server.
-func (h *Handler) settleArchiveJob(server string, job *dockwellv1.ArchiveJob) {
+	job := ended.GetJob()
 	if job == nil || job.GetJobId() == "" || job.GetState() == dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
 		return
 	}
 	key := archiveJobKey(server, job.GetJobId())
 	h.archiveMu.Lock()
-	w, ok := h.pendingArchives[key]
-	if ok {
-		delete(h.pendingArchives, key)
-	}
-	h.archiveMu.Unlock()
-	if !ok {
+	if p, ok := h.pendingArchives[key]; ok && !p.started {
+		// The job finished before the start call returned and wrote its started row.
+		// Buffer it so finishArchiveStart writes started first, then settles immediately.
+		h.endedEarly[key] = ended
+		h.archiveMu.Unlock()
 		return
 	}
+	h.archiveMu.Unlock()
+	h.settleArchiveJob(server, job, ended.GetRecord())
+}
+
+// settleArchiveJob records the final Activity event for a completed or failed
+// background archive job once and only once, including after a control-plane
+// restart by reading the persisted started event from the store.
+func (h *Handler) settleArchiveJob(server string, job *dockwellv1.ArchiveJob, recordID string) {
+	if job == nil || job.GetJobId() == "" || job.GetState() == dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+		return
+	}
+	key := archiveJobKey(server, job.GetJobId())
+	h.archiveMu.Lock()
+	h.pruneSettledArchivesLocked()
+	if _, already := h.settledArchives[key]; already {
+		h.archiveMu.Unlock()
+		return
+	}
+	p, inMem := h.pendingArchives[key]
+	if inMem {
+		if !p.started {
+			h.endedEarly[key] = &agentv1.ArchiveJobEnded{Job: job, Record: cmp.Or(recordID, p.recordID)}
+			h.archiveMu.Unlock()
+			return
+		}
+		delete(h.pendingArchives, key)
+		delete(h.endedEarly, key)
+		h.settledArchives[key] = h.now()
+	}
+	h.archiveMu.Unlock()
+
 	ctx := context.Background()
+	if inMem {
+		h.recordArchiveOutcomeWithWriting(ctx, p.w, job)
+		return
+	}
+	h.settleArchiveJobFromStore(ctx, server, key, job, recordID)
+}
+
+func (h *Handler) recordArchiveOutcomeWithWriting(ctx context.Context, w *writing, job *dockwellv1.ArchiveJob) {
 	switch job.GetState() {
 	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE:
 		if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS {
@@ -478,11 +635,13 @@ func (h *Handler) settleArchiveJob(server string, job *dockwellv1.ArchiveJob) {
 				Size:      cmp.Or(job.GetFile().GetSizeBytes(), job.GetBytes()),
 				Paths:     job.GetSourcePaths(),
 				PathCount: int(job.GetSourceCount()),
+				JobID:     job.GetJobId(),
 			})
 		} else {
 			w.done(ctx, job.GetPath(), Told{
 				To:        job.GetUnpackedTo(),
 				WayBackIn: job.GetWayBackIn(),
+				JobID:     job.GetJobId(),
 			})
 		}
 	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED:
@@ -490,6 +649,163 @@ func (h *Handler) settleArchiveJob(server string, job *dockwellv1.ArchiveJob) {
 		_ = w.failedAt(ctx, job.GetPath(), errors.New(msg))
 	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_UNSPECIFIED,
 		dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING:
+	}
+}
+
+func (h *Handler) settleArchiveJobFromStore(ctx context.Context, server, key string, job *dockwellv1.ArchiveJob, recordID string) {
+	wantStarted := "file.extract_started"
+	o := opExtract
+	if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS {
+		wantStarted = "file.compress_started"
+		o = opCompress
+	}
+	doneAction, failedAction, _ := o.actions()
+
+	var started store.Event
+	var found bool
+	var alreadyRecorded bool
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		if recordID != "" {
+			if ev, err := tx.GetEvent(ctx, recordID); err == nil {
+				if ev.Target == server && ev.Action == wantStarted {
+					if told, ok := ReadTold(ev.Detail); ok && told.JobID == job.GetJobId() {
+						started, found = ev, true
+					}
+				}
+			}
+		}
+		recent, err := tx.ListEvents(ctx, 200)
+		if err != nil {
+			return err
+		}
+		for i := range recent {
+			ev := &recent[i]
+			if ev.Target != server {
+				continue
+			}
+			if ev.Action == doneAction || ev.Action == failedAction {
+				if told, ok := ReadTold(ev.Detail); ok && told.JobID == job.GetJobId() {
+					alreadyRecorded = true
+					return nil
+				}
+			}
+			if !found && ev.Action == wantStarted {
+				if told, ok := ReadTold(ev.Detail); ok && told.JobID == job.GetJobId() {
+					started, found = *ev, true
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil || !found || alreadyRecorded {
+		return
+	}
+
+	h.archiveMu.Lock()
+	if _, already := h.settledArchives[key]; already {
+		h.archiveMu.Unlock()
+		return
+	}
+	h.settledArchives[key] = h.now()
+	h.archiveMu.Unlock()
+
+	srvName := server
+	if srv, err := h.fleet.Get(server); err == nil {
+		srvName = srv.GetName()
+	}
+
+	var action, detail string
+	switch job.GetState() {
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE:
+		action = doneAction
+		told := Told{
+			WayBackIn: job.GetWayBackIn(),
+			JobID:     job.GetJobId(),
+		}
+		if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS {
+			told.Size = cmp.Or(job.GetFile().GetSizeBytes(), job.GetBytes())
+			told.Paths = job.GetSourcePaths()
+			told.PathCount = int(job.GetSourceCount())
+		} else {
+			told.To = job.GetUnpackedTo()
+		}
+		raw, merr := json.Marshal(told)
+		if merr != nil {
+			return
+		}
+		detail = string(raw)
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED:
+		action = failedAction
+		msg := cmp.Or(job.GetError(), "the archive job failed")
+		detail = fmt.Sprintf("couldn't %s %s on %s: %s", o.verb, job.GetPath(), srvName, msg)
+	default:
+		return
+	}
+	if err := h.db.Update(ctx, func(tx *store.Tx) error {
+		return tx.RecordEvent(ctx, store.Event{
+			ID:      ids.New(ids.Event),
+			At:      h.now(),
+			Actor:   started.Actor,
+			Action:  action,
+			Subject: files.Printable(job.GetPath()),
+			Target:  server,
+			Surface: started.Surface,
+			Detail:  files.Printable(detail),
+		})
+	}); err != nil {
+		h.logger.ErrorContext(ctx, "can't record how an archive job ended", slog.String("server", server), slog.String("error", err.Error()))
+	}
+}
+
+// failLostArchiveJob records failure for a pending archive job that disappeared
+// because its agent restarted.
+func (h *Handler) failLostArchiveJob(server, jobID string) {
+	key := archiveJobKey(server, jobID)
+	h.archiveMu.Lock()
+	p, ok := h.pendingArchives[key]
+	if !ok || !p.started {
+		h.archiveMu.Unlock()
+		return
+	}
+	delete(h.pendingArchives, key)
+	delete(h.endedEarly, key)
+	h.settledArchives[key] = h.now()
+	h.archiveMu.Unlock()
+	_ = p.w.failedAt(context.Background(), p.path, errors.New("stopped when the agent restarted; it may be partly done"))
+}
+
+// reconcileArchiveJobs checks pending archive jobs when a server's agent
+// connects: jobs the restarted agent no longer knows are settled as failed,
+// while jobs that finished on the same agent before reconnecting settle cleanly.
+func (h *Handler) reconcileArchiveJobs(server string) {
+	h.archiveMu.Lock()
+	var pending []*pendingArchive
+	for _, p := range h.pendingArchives {
+		if p.serverID == server && p.started {
+			pending = append(pending, p)
+		}
+	}
+	h.archiveMu.Unlock()
+	if len(pending) == 0 {
+		return
+	}
+	session, ok := h.agents.Session(server)
+	if !ok || !session.ArchivesFiles() {
+		return
+	}
+	ctx := context.Background()
+	for _, p := range pending {
+		out, err := session.GetArchiveJob(ctx, p.jobID, p.owner)
+		if err != nil {
+			continue
+		}
+		if out.GetRefusal().GetKind() == agentv1.FileRefusal_KIND_NOT_FOUND {
+			h.failLostArchiveJob(server, p.jobID)
+			continue
+		}
+		if job := out.GetJob(); job != nil && job.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+			h.settleArchiveJob(server, job, p.recordID)
+		}
 	}
 }
 
@@ -518,18 +834,27 @@ func (h *Handler) CompressFiles(ctx context.Context, req *connect.Request[dockwe
 		confirmed = archivePath
 	}
 	owner := jobOwner(w.p)
-	out, err := w.session.CompressFiles(ctx, paths, archivePath, confirmed, owner)
+	jobID := rand.Text()
+	recordID := ids.New(ids.Event)
+	h.beginArchiveTracking(w.srv.GetId(), jobID, owner, recordID, archivePath, w)
+	out, err := w.session.CompressFiles(ctx, paths, archivePath, confirmed, owner, jobID, recordID)
 	if err == nil && w.covered(ctx, proof, archivePath, out.GetRefusal()) {
-		out, err = w.session.CompressFiles(ctx, paths, archivePath, archivePath, owner)
+		out, err = w.session.CompressFiles(ctx, paths, archivePath, archivePath, owner, jobID, recordID)
 	}
 	if err != nil {
+		if errors.Is(err, agentapi.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
+			h.markArchiveUncertain(w.srv.GetId(), jobID)
+		} else {
+			h.cancelArchiveTracking(w.srv.GetId(), jobID)
+		}
 		return nil, w.called(ctx, archivePath, err)
 	}
 	if r := out.GetRefusal(); r != nil {
+		h.cancelArchiveTracking(w.srv.GetId(), jobID)
 		return nil, w.refused(ctx, archivePath, cmp.Or(r.GetPath(), archivePath), r)
 	}
 	job := out.GetJob()
-	h.trackArchiveJob(w.srv.GetId(), job, w)
+	h.finishArchiveStart(ctx, w.srv.GetId(), jobID, recordID, job, w)
 	return connect.NewResponse(&dockwellv1.CompressFilesResponse{Job: job}), nil
 }
 
@@ -564,18 +889,27 @@ func (h *Handler) ExtractArchive(ctx context.Context, req *connect.Request[dockw
 		confirmedArchive, confirmedDst = archivePath, dstPath
 	}
 	owner := jobOwner(w.p)
-	out, err := w.session.ExtractArchive(ctx, archivePath, confirmedArchive, confirmedDst, owner)
+	jobID := rand.Text()
+	recordID := ids.New(ids.Event)
+	h.beginArchiveTracking(w.srv.GetId(), jobID, owner, recordID, archivePath, w)
+	out, err := w.session.ExtractArchive(ctx, archivePath, confirmedArchive, confirmedDst, owner, jobID, recordID)
 	if r := out.GetRefusal(); err == nil && w.covered(ctx, proof, archivePath+"\n"+cmp.Or(r.GetPath(), dstPath), r) {
-		out, err = w.session.ExtractArchive(ctx, archivePath, archivePath, cmp.Or(r.GetPath(), dstPath), owner)
+		out, err = w.session.ExtractArchive(ctx, archivePath, archivePath, cmp.Or(r.GetPath(), dstPath), owner, jobID, recordID)
 	}
 	if err != nil {
+		if errors.Is(err, agentapi.ErrLost) || errors.Is(err, context.DeadlineExceeded) {
+			h.markArchiveUncertain(w.srv.GetId(), jobID)
+		} else {
+			h.cancelArchiveTracking(w.srv.GetId(), jobID)
+		}
 		return nil, w.called(ctx, archivePath, err)
 	}
 	if r := out.GetRefusal(); r != nil {
+		h.cancelArchiveTracking(w.srv.GetId(), jobID)
 		return nil, w.refused(ctx, archivePath, archivePath+"\n"+cmp.Or(r.GetPath(), dstPath), r)
 	}
 	job := out.GetJob()
-	h.trackArchiveJob(w.srv.GetId(), job, w)
+	h.finishArchiveStart(ctx, w.srv.GetId(), jobID, recordID, job, w)
 	return connect.NewResponse(&dockwellv1.ExtractArchiveResponse{Job: job}), nil
 }
 
@@ -606,10 +940,13 @@ func (h *Handler) GetArchiveJob(ctx context.Context, req *connect.Request[dockwe
 		return nil, h.rpcError(ctx, err)
 	}
 	if r := out.GetRefusal(); r != nil {
+		if r.GetKind() == agentv1.FileRefusal_KIND_NOT_FOUND {
+			h.failLostArchiveJob(srv.GetId(), jobID)
+		}
 		return nil, refusal(r)
 	}
 	job := out.GetJob()
-	h.settleArchiveJob(srv.GetId(), job)
+	h.settleArchiveJob(srv.GetId(), job, "")
 	return connect.NewResponse(&dockwellv1.GetArchiveJobResponse{Job: job}), nil
 }
 
@@ -635,7 +972,7 @@ func (h *Handler) ListArchiveJobs(ctx context.Context, req *connect.Request[dock
 		return nil, h.rpcError(ctx, err)
 	}
 	for _, job := range out.GetJobs() {
-		h.settleArchiveJob(srv.GetId(), job)
+		h.settleArchiveJob(srv.GetId(), job, "")
 	}
 	return connect.NewResponse(&dockwellv1.ListArchiveJobsResponse{Jobs: out.GetJobs()}), nil
 }

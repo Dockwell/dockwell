@@ -5,6 +5,7 @@ package files
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"io/fs"
@@ -187,5 +188,89 @@ func TestZipWriterHeapFlatAtCap(t *testing.T) {
 	}
 	if d.count != maxArchived {
 		t.Fatalf("zip64 entry count = %d, want %d", d.count, maxArchived)
+	}
+}
+
+// N4: general-purpose bit 11 (UTF-8) must be set only for valid non-ASCII UTF-8
+// names, never for raw non-UTF-8 bytes (such as Latin-1 caf\xe9.txt), in both
+// the local header and the central directory record.
+func TestZipWriterUTF8FlagOnlyForValidUTF8(t *testing.T) {
+	var buf bytes.Buffer
+	zw, err := newZipWriter(&buf, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zw.Abort()
+
+	mod := time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC)
+	latin1 := "site/caf\xe9.txt"
+	cases := []struct {
+		name     string
+		body     string
+		wantUTF8 bool
+	}{
+		{"site/plain.txt", "ascii", false},
+		{"site/中文.txt", "utf8", true},
+		{latin1, "latin1", false},
+	}
+	for _, tc := range cases {
+		w, err := zw.Create(tc.name, mod, 0o644, zipDeflated)
+		if err != nil {
+			t.Fatalf("Create(%q): %v", tc.name, err)
+		}
+		if _, err := io.WriteString(w, tc.body); err != nil {
+			t.Fatalf("Write(%q): %v", tc.name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	raw := buf.Bytes()
+	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+	d, err := readZipDir(bytes.NewReader(raw), int64(len(raw)))
+	if err != nil {
+		t.Fatalf("readZipDir: %v", err)
+	}
+	localFlags := map[string]uint16{}
+	cdFlags := map[string]uint16{}
+	if err := d.each(func(e *zipEntry) error {
+		cdFlags[e.name] = e.flags
+		localFlags[e.name] = binary.LittleEndian.Uint16(raw[e.local+6 : e.local+8])
+		return nil
+	}); err != nil {
+		t.Fatalf("zipDir.each: %v", err)
+	}
+
+	byName := map[string]*zip.File{}
+	for _, f := range zr.File {
+		byName[f.Name] = f
+	}
+	for _, tc := range cases {
+		f, ok := byName[tc.name]
+		if !ok {
+			t.Fatalf("missing entry %q in archive/zip", tc.name)
+		}
+		if got := (f.Flags & zipFlagUTF8) != 0; got != tc.wantUTF8 {
+			t.Errorf("%q archive/zip UTF-8 flag = %v, want %v", tc.name, got, tc.wantUTF8)
+		}
+		if got := (cdFlags[tc.name] & zipFlagUTF8) != 0; got != tc.wantUTF8 {
+			t.Errorf("%q central dir UTF-8 flag = %v, want %v", tc.name, got, tc.wantUTF8)
+		}
+		if got := (localFlags[tc.name] & zipFlagUTF8) != 0; got != tc.wantUTF8 {
+			t.Errorf("%q local header UTF-8 flag = %v, want %v", tc.name, got, tc.wantUTF8)
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %q: %v", tc.name, err)
+		}
+		gotBody, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil || string(gotBody) != tc.body {
+			t.Errorf("%q body = %q, %v; want %q", tc.name, gotBody, err, tc.body)
+		}
 	}
 }

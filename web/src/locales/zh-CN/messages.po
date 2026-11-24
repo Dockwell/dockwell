@@ -1330,6 +1330,24 @@ msgstr "退出了其他会话"
 msgid "Something Dockwell published at Cloudflare is gone"
 msgstr "Dockwell 在 Cloudflare 发布的内容已不在了"
 
+msgid "Started compressing {path} on {server}"
+msgstr "开始在 {server} 上压缩 {path}"
+
+msgid "Started compressing {path} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上压缩 {path}（可能让人重新进入服务器）"
+
+msgid "Started extracting {path} into {to} on {server}"
+msgstr "开始在 {server} 上将 {path} 解压到 {to}"
+
+msgid "Started extracting {path} into {to} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上将 {path} 解压到 {to}（可能让人重新进入服务器）"
+
+msgid "Started extracting {path} on {server}"
+msgstr "开始在 {server} 上解压 {path}"
+
+msgid "Started extracting {path} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上解压 {path}（可能让人重新进入服务器）"
+
 msgid "Stopped serving the panel on {previous}"
 msgstr "不再在 {previous} 上提供面板"
 
@@ -1528,6 +1546,9 @@ msgstr "{pathCount, plural, other {从 {server} 下载了 # 项，{size}}}"
 
 msgid "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
 msgstr "{pathCount, plural, other {从 {server} 下载了 # 项}}"
+
+msgid "{pathCount, plural, one {Started compressing # item into {path} on {server}} other {Started compressing # items into {path} on {server}}}"
+msgstr "{pathCount, plural, other {开始在 {server} 上将 # 项压缩为 {path}}}"
 
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
@@ -17094,8 +17115,8 @@ msgstr "全窗口"
 msgid "Full window preview"
 msgstr "全窗口预览"
 
-msgid "Images over 5 MB aren't previewed here. Download it to open it on your computer."
-msgstr "超过 5 MB 的图片不在此预览。请下载后在电脑上打开。"
+msgid "Images over 1 MB aren't previewed here. Download it to open it on your computer."
+msgstr "超过 1 MB 的图片不在此预览。请下载后在电脑上打开。"
 
 msgid "Link to folder"
 msgstr "指向文件夹的链接"
@@ -17339,6 +17360,9 @@ msgstr "已压缩 {archiveName}"
 msgid "Compressing {0}"
 msgstr "正在压缩 {0}"
 
+msgid "Compressing {label} stopped before it finished. Start it again."
+msgstr "压缩 {label} 在完成前停止了。请重新开始。"
+
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
 
@@ -17375,6 +17399,10 @@ msgstr "已解压 {0}"
 #. placeholder {0}: nameOf(job.path)
 msgid "Extracting {0}"
 msgstr "正在解压 {0}"
+
+#. placeholder {0}: nameOf(lost.unpackedTo || lost.path)
+msgid "Extracting {label} stopped before it finished. Part of it may already be in {0}."
+msgstr "解压 {label} 在完成前停止了。部分内容可能已在 {0} 中。"
 
 msgid "Files in {shown}"
 msgstr "{shown} 中的文件"
@@ -17470,6 +17498,9 @@ msgstr "这里已存在名为 {nextName} 的项目。"
 
 msgid "Something went wrong on the server."
 msgstr "服务器发生错误。"
+
+msgid "Stopped when the agent restarted"
+msgstr "代理重启时已停止"
 
 msgid "They're in Recently deleted for 7 days, where you can put them back."
 msgstr "它们会保留在“最近删除”中 7 天，期间可以恢复。"

@@ -165,6 +165,9 @@ message ConnectRequest {
 // browser left or a proxy cut the request.
 message ArchiveJobEnded {
   dockwell.v1.ArchiveJob job = 1;
+  // The audit event ID recorded when the job started, so the control plane can
+  // still record the job's outcome after a control-plane restart.
+  string record = 2;
 }
 
 // BuildUpdate is how a build on the server is going, sent as it moves on, and
@@ -2095,6 +2098,11 @@ message CompressFilesCall {
   string confirmed_path = 3;
   // Who started the job (user ID), so only they can query its status.
   string owner = 4;
+  // Optional job ID minted by the control plane before the call, so early
+  // completions can be matched even before the call reply arrives.
+  string job_id = 5;
+  // The audit event ID recorded when the job starts, echoed in ArchiveJobEnded.
+  string record = 6;
 }
 
 // CompressFilesResult answers a CompressFilesCall.
@@ -2117,6 +2125,11 @@ message ExtractArchiveCall {
   string confirmed_archive = 3;
   // Who started the job (user ID), so only they can query its status.
   string owner = 4;
+  // Optional job ID minted by the control plane before the call, so early
+  // completions can be matched even before the call reply arrives.
+  string job_id = 5;
+  // The audit event ID recorded when the job starts, echoed in ArchiveJobEnded.
+  string record = 6;
 }
 
 // ExtractArchiveResult answers an ExtractArchiveCall.

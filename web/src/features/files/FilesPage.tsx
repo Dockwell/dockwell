@@ -475,6 +475,9 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     return () => abort.abort();
   }, [client, serverId]);
 
+  const archiveJobsRef = useRef(archiveJobs);
+  archiveJobsRef.current = archiveJobs;
+
   const runningJobIds = useMemo(
     () =>
       archiveJobs
@@ -484,7 +487,7 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     [archiveJobs],
   );
 
-  // Poll running archive jobs; transient proxy cuts or 504s never abort tracking or falsely claim failure.
+  // Poll running archive jobs one pass at a time; transient proxy cuts or 504s never abort tracking or falsely claim failure.
   useEffect(() => {
     if (!runningJobIds) {
       setArchiveReconnecting(false);
@@ -493,6 +496,7 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     const ids = runningJobIds.split(",");
     let cancelled = false;
     let consecutiveErrors = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
       let sawError = false;
       for (const jobId of ids) {
@@ -506,7 +510,20 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         } catch (err) {
           if (cancelled) return;
           if (reasonOf(err) === "not_found" || ConnectError.from(err).code === Code.NotFound) {
+            const lost = archiveJobsRef.current.find((j) => j.jobId === jobId);
             setArchiveJobs((was) => was.filter((j) => j.jobId !== jobId));
+            void changed();
+            if (lost) {
+              const label = nameOf(lost.path);
+              setNotice({
+                tone: "warning",
+                title: t`Stopped when the agent restarted`,
+                body:
+                  lost.kind === ArchiveJobKind.COMPRESS
+                    ? t`Compressing ${label} stopped before it finished. Start it again.`
+                    : t`Extracting ${label} stopped before it finished. Part of it may already be in ${nameOf(lost.unpackedTo || lost.path)}.`,
+              });
+            }
           } else {
             sawError = true;
           }
@@ -517,12 +534,18 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         if (consecutiveErrors >= 2) setArchiveReconnecting(true);
       }
     };
-    const timer = setInterval(() => void poll(), 500);
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void poll().finally(schedule);
+      }, 500);
+    };
+    schedule();
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer !== undefined) clearTimeout(timer);
     };
-  }, [client, serverId, runningJobIds, trackArchiveJob]);
+  }, [client, serverId, runningJobIds, trackArchiveJob, changed, t]);
 
   // Clear selection, inline rename, and preview expansion when changing folders.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset per-folder transient state whenever the folder changes
