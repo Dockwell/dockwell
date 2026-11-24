@@ -21,6 +21,7 @@ export {
   type ConnectionSecret,
   type ConnectionString,
 } from "./components/ConnectionCard/ConnectionCard";
+export { ContextMenu, type ContextMenuItem, type ContextMenuProps } from "./components/ContextMenu/ContextMenu";
 export { CopyButton, type CopyButtonProps } from "./components/CopyButton/CopyButton";
 export { DnsRecord, type DnsRecordProps } from "./components/DnsRecord/DnsRecord";
 export { FleetGrid, type FleetGridProps, type FleetGroup, type FleetServer } from "./components/FleetGrid/FleetGrid";

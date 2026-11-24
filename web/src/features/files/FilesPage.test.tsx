@@ -228,16 +228,16 @@ describe("FilesPage", () => {
     const listFiles = vi.fn(() => site);
     const { router } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
     const list = () => screen.findByRole("table");
-    await userEvent.click(await within(await list()).findByText("wp-admin"));
+    await userEvent.dblClick(await within(await list()).findByText("wp-admin"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/wp-admin" }));
-    await userEvent.click(await within(await list()).findByText("current"));
+    await userEvent.dblClick(await within(await list()).findByText("current"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/current" }));
   });
 
   it("reads a file once, as a read goes on record, with its lines numbered", async () => {
     const readFile = vi.fn(() => text("; PHP settings\nmemory_limit = 256M\n"));
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site, readFile });
-    await userEvent.click(await screen.findByText(".user.ini"));
+    await userEvent.dblClick(await screen.findByText(".user.ini"));
     const code = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
     expect(code).toHaveValue("; PHP settings\nmemory_limit = 256M\n");
     expect(document.querySelector(".dw-code-numbers")?.textContent).toBe("1\n2\n3");
@@ -1088,7 +1088,7 @@ describe("FilesPage on a phone", () => {
     onPhone();
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByText("wp-admin");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size", "Actions"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["", "Name", "Size", "Actions"]);
     expect(screen.getByRole("navigation", { name: "Places" })).toBeVisible();
   });
 

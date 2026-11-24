@@ -2,56 +2,78 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
-import { skipToken, useQuery, useTransport } from "@connectrpc/connect-query";
+import { skipToken, useQuery } from "@connectrpc/connect-query";
 import {
-  type DeletedFile,
   downloadFileURL,
   type FileEntry,
   FileService,
   FileType,
   type ListFilesResponse,
+  type ReadFileResponse,
   type Server,
+  StepUpAction,
 } from "@dockwell/api";
 import {
   Button,
+  ButtonLink,
   Callout,
+  ContextMenu,
+  type ContextMenuItem,
   Icon,
   type IconName,
   Panel,
   PHONE_QUERY,
-  Table,
-  type TableColumn,
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type PointerEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { isTransient } from "../../app/api";
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
-import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
-import { useTimeWords } from "../../lib/time";
+import { withStepUpIfAsked } from "../auth/stepUp";
+import { useSignedInUser } from "../auth/useAuthState";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
-import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { FileDetailsPane } from "./FileDetailsPane";
+import { type FileRow, FileTable, type MenuTrigger, type SortDir, type SortField } from "./FileTable";
 import { FileViewer } from "./FileViewer";
-import { FolderTree } from "./FolderTree";
+import { FolderTree, type TreeFolderTarget } from "./FolderTree";
 import {
-  ActionsSheet,
+  CompressSheet,
+  type DeletedResult,
   DeletedSheet,
   DeleteSheet,
+  type FileTarget,
   MoveSheet,
   NameSheet,
   type Naming,
-  RowActions,
+  targetOf,
+  useExtract,
+  useFiles,
+  useNameProblem,
   useRestore,
   useRestoreProblem,
 } from "./manage";
 import { crumbs, join, nameOf, parentOf } from "./paths";
+import {
+  type ColumnWidths,
+  DEFAULT_TREE_WIDTH,
+  imageMimeOf,
+  MAX_TREE_WIDTH,
+  MIN_TREE_WIDTH,
+  type ResizableColumn,
+  readColumnWidths,
+  readTreeWidth,
+  writeColumnWidths,
+  writeTreeWidth,
+} from "./preferences";
+import { archiveKind } from "./transfer";
 import { type Chosen, carriesFiles, chosenFrom, UploadSheet } from "./upload";
 import "./FilesPage.css";
 
@@ -65,8 +87,6 @@ export interface FilesSearch {
   line?: number;
 }
 
-/** A path that isn't answering won't by the next try, and each try costs someone the wait. */
-/** value once it has stayed the same for ms: what a search asks the server for, not each key typed. */
 function useSettled<T>(value: T, ms: number): T {
   const [settled, setSettled] = useState(value);
   useEffect(() => {
@@ -86,11 +106,6 @@ interface Place {
   icon: IconName;
 }
 
-/**
- * Places worth a click on most servers, as the mock has them, then the server's
- * own root. They're the same on every server, and one may not be there; pinning
- * your own is the file manager's to come (#243).
- */
 function usePlaces(): { common: Place[]; server: Place[] } {
   const { t } = useLingui();
   return {
@@ -103,7 +118,6 @@ function usePlaces(): { common: Place[]; server: Place[] } {
   };
 }
 
-/** The place a folder is in: the deepest one whose path holds it, the root when none does. */
 function placeOf(folder: string, places: readonly Place[]): string | undefined {
   let best: Place | undefined;
   for (const place of places) {
@@ -113,7 +127,6 @@ function placeOf(folder: string, places: readonly Place[]): string | undefined {
   return best?.path;
 }
 
-/** One group of places, named by its heading, with the one you're in marked. */
 function PlaceGroup({
   title,
   places,
@@ -143,7 +156,6 @@ function PlaceGroup({
           search={{ path: place.path }}
           title={place.path}
           className={place.path === current ? "is-current" : undefined}
-          // Inside a place it's where you are; on the place itself the router says it's the page.
           aria-current={place.path === current ? "location" : undefined}
         >
           {place.label}
@@ -158,7 +170,6 @@ export function FilesPage({ serverId, search }: { serverId: string; search: File
   const phone = useMediaQuery(PHONE_QUERY);
   const file = search.file;
   const folder = search.path ?? (file ? parentOf(file) : "/");
-  // On a phone an open file takes the whole screen, under a header of its own.
   const reading = phone && file !== undefined;
   const { t } = useLingui();
   return (
@@ -191,95 +202,132 @@ export function FilesPage({ serverId, search }: { serverId: string; search: File
   );
 }
 
-interface Row {
-  name: string;
-  entry: FileEntry;
-  folder: boolean;
-}
-
-/** Whether an entry opens as a folder, itself or through a link. */
 function opensAsFolder(entry: FileEntry): boolean {
   return (
     entry.type === FileType.DIRECTORY || (entry.type === FileType.SYMLINK && entry.linkType === FileType.DIRECTORY)
   );
 }
 
-/** Folders first, then by name, as the mock has them. */
-/** The rows of a listing: folders first, then by name; or by name alone, for a folder read a page at a time. */
-function rowsOf(entries: readonly FileEntry[], byNameAlone = false): Row[] {
-  return entries
-    .map((entry) => ({ name: entry.name, entry, folder: opensAsFolder(entry) }))
-    .sort(
-      (a, b) =>
-        (byNameAlone ? 0 : Number(b.folder) - Number(a.folder)) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-    );
+function compareRows(a: FileRow, b: FileRow, field: SortField, dir: SortDir, byNameAlone: boolean): number {
+  if (byNameAlone) return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  // Keep folders grouped ahead of files so browsing feels familiar.
+  const folderDiff = Number(b.folder) - Number(a.folder);
+  if (folderDiff !== 0) return folderDiff;
+  let cmp = 0;
+  switch (field) {
+    case "name":
+      cmp = a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+      break;
+    case "size":
+      cmp = a.entry.sizeBytes < b.entry.sizeBytes ? -1 : a.entry.sizeBytes > b.entry.sizeBytes ? 1 : 0;
+      break;
+    case "modified": {
+      const ta = a.entry.modifyTime ? timestampDate(a.entry.modifyTime).getTime() : 0;
+      const tb = b.entry.modifyTime ? timestampDate(b.entry.modifyTime).getTime() : 0;
+      cmp = ta - tb;
+      break;
+    }
+    case "mode":
+      cmp = a.entry.mode.localeCompare(b.entry.mode);
+      break;
+    case "owner":
+      cmp = a.entry.owner.localeCompare(b.entry.owner);
+      break;
+  }
+  if (cmp === 0) cmp = a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  return dir === "asc" ? cmp : -cmp;
 }
 
-/** What's open over the listing, if anything. */
-type Open =
-  | { kind: "actions"; entry: FileEntry }
-  | { kind: "name"; naming: Naming }
-  | { kind: "move"; entry: FileEntry }
-  | { kind: "delete"; entry: FileEntry }
+function changeableEntry(entry: FileEntry): boolean {
+  return !entry.refused && !entry.unreadableName;
+}
+
+function downloadableEntry(entry: FileEntry): boolean {
+  return changeableEntry(entry) && (entry.type === FileType.FILE || entry.type === FileType.DIRECTORY);
+}
+
+/** What sheet is open over the listing, if anything. */
+type OpenSheet =
+  | { kind: "name"; folder: string; naming: Naming }
+  | { kind: "move"; folder: string; targets: readonly FileTarget[] }
+  | { kind: "compress"; folder: string; targets: readonly FileTarget[] }
+  | { kind: "delete"; targets: readonly FileTarget[] }
   | { kind: "deleted" }
-  | { kind: "upload"; chosen?: Chosen };
+  | { kind: "upload"; folder: string; chosen?: Chosen };
 
-/** What a delete left to say, with a way to put it back. */
-interface Deleted {
-  path: string;
-  kept?: DeletedFile;
-}
+/** Active floating context menu state. */
+type OpenMenu =
+  | { kind: "row"; row: FileRow; trigger: MenuTrigger }
+  | { kind: "empty"; position: { x: number; y: number } }
+  | { kind: "tree"; target: TreeFolderTarget; position: { x: number; y: number } };
 
-/** Whether a row can be renamed, moved or deleted: not what's refused, nor a name that isn't text. */
-function changeable(row: Row): boolean {
-  return !row.entry.refused && !row.entry.unreadableName;
-}
-
-/** Whether a row downloads: a file, or a folder as a .zip. A link is neither. */
-function downloads(row: Row): boolean {
-  return changeable(row) && (row.entry.type === FileType.FILE || row.entry.type === FileType.DIRECTORY);
-}
-
-function iconOf(row: Row): IconName {
-  if (row.entry.type === FileType.SYMLINK) return "link";
-  return row.folder ? "folder" : "file";
+interface BannerNotice {
+  tone: "info" | "critical";
+  title: string;
+  body: string;
 }
 
 interface FilesProps {
   server: Server;
   folder: string;
   file: string | undefined;
-  /** The line of the open file to bring into view, as an error that names it links here. */
   line: number | undefined;
-  /** An open file has the screen to itself. It stays where it is in the tree, so turning a phone keeps what you typed. */
   reading: boolean;
 }
 
-/** Where the folders sit beside the list, and the panes fill the window (FilesPage.css). */
 const BESIDE_FOLDERS = "(min-width: 860px)";
+
+function copyToClipboard(text: string): void {
+  void navigator.clipboard?.writeText(text).catch(() => {});
+}
 
 function Files({ server, folder, file, line, reading }: FilesProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const besideFolders = useMediaQuery(BESIDE_FOLDERS);
   const navigate = useNavigate();
-  const now = useControlPlaneNow();
-  const words = useTimeWords();
+  const viewerId = useSignedInUser()?.id ?? "";
   const places = usePlaces();
   const treeHead = useId();
   const current = placeOf(folder, [...places.common, ...places.server]);
+
   const [filter, setFilter] = useState("");
-  const [sheet, setSheet] = useState<Open>();
-  const [deleted, setDeleted] = useState<Deleted>();
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [treeWidth, setTreeWidth] = useState<number>(() => readTreeWidth(viewerId));
+  const [columnWidths, setColumnWidths] = useState<ColumnWidths>(() => readColumnWidths(viewerId));
+  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  const [anchor, setAnchor] = useState<string>();
+  const [sheet, setSheet] = useState<OpenSheet>();
+  const [menu, setMenu] = useState<OpenMenu>();
+  const [deleted, setDeleted] = useState<readonly DeletedResult[]>();
   const [restoring, setRestoring] = useState(false);
   const [restoreFailure, setRestoreFailure] = useState<string>();
-  // Files dragged over the listing, which a drop uploads here.
+  const [notice, setNotice] = useState<BannerNotice>();
   const [dragging, setDragging] = useState(false);
+  const [previewFullWindow, setPreviewFullWindow] = useState(false);
+  const [renaming, setRenaming] = useState<string>();
+  const [renameError, setRenameError] = useState<string>();
+  const [renameBusy, setRenameBusy] = useState(false);
+
+  // Cache of previewed text reads so opening the editor right after preview doesn't double-read.
+  const previewReads = useRef(new Map<string, ReadFileResponse>());
+  const onPreviewRead = useCallback((path: string, response: ReadFileResponse) => {
+    previewReads.current.set(path, response);
+  }, []);
+
+  useEffect(() => {
+    setTreeWidth(readTreeWidth(viewerId));
+    setColumnWidths(readColumnWidths(viewerId));
+  }, [viewerId]);
+
   const serverId = server.id;
+  const { transport, client, changed, problem } = useFiles(serverId);
+  const nameProblem = useNameProblem();
   const putBack = useRestore(serverId);
   const restoreProblem = useRestoreProblem(serverId);
-  // A refused listing is on record, so it isn't asked again each time the window takes focus; nor is a
-  // folder larger than a page, as its agent reads every name of it for each page.
+  const { extract } = useExtract(serverId);
+
   const query = useQuery(
     FileService.method.listFiles,
     { serverId, path: folder },
@@ -290,8 +338,17 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   );
   const listing = query.data;
   const shown = listing?.path ?? folder;
-  // A folder that holds more than a listing carries is searched by its agent, through every name; a smaller
-  // one, here, as you type.
+
+  // Clear selection, inline rename, and preview expansion when changing folders.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset per-folder transient state whenever the folder changes
+  useEffect(() => {
+    setSelected(new Set());
+    setAnchor(undefined);
+    setRenaming(undefined);
+    setRenameError(undefined);
+    setPreviewFullWindow(false);
+  }, [shown]);
+
   const big = Boolean(listing?.nextPage);
   const wanted = useSettled(filter.trim(), 300);
   const searching = big && wanted !== "";
@@ -301,19 +358,15 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     { retry: retryListing, refetchOnWindowFocus: false },
   );
   const first = searching ? search.data : listing;
-  // The pages after the first, in name order, as Show more brings them. They belong to the folder, the search
-  // and where the first page ended, so a first page read again that ends where it did keeps them, and another
-  // folder or search starts over.
   const pagesOf = `${folder}\0${searching ? wanted : ""}\0${first?.nextPage ?? ""}`;
   const [after, setAfter] = useState<{ of?: string; pages: ListFilesResponse[]; problem?: string }>({ pages: [] });
   const more = after.of === pagesOf ? after.pages : [];
   const moreProblem = after.of === pagesOf ? after.problem : undefined;
   const [loadingMore, setLoadingMore] = useState(false);
   const nextPage = (more.at(-1) ?? first)?.nextPage ?? "";
-  const transport = useTransport();
-  // A page asked for as the person leaves isn't read to its end for nobody.
   const asking = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => asking.current?.abort(), []);
+
   const showMore = async () => {
     const of = pagesOf;
     asking.current?.abort();
@@ -334,132 +387,162 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     }
   };
 
-  const rows = useMemo(() => {
+  const rows = useMemo<FileRow[]>(() => {
     const typed = filter.trim().toLowerCase();
-    // A folder read a page at a time lists by name alone, so a page brought later goes below what's shown.
-    const all = rowsOf(
-      [first, ...more].flatMap((page) => page?.entries ?? []),
-      big,
-    );
+    const all: FileRow[] = [first, ...more]
+      .flatMap((page) => page?.entries ?? [])
+      .map((entry) => ({ name: entry.name, entry, folder: opensAsFolder(entry) }))
+      .sort((a, b) => compareRows(a, b, sortField, sortDir, big));
     return typed ? all.filter((row) => row.name.toLowerCase().includes(typed)) : all;
-  }, [first, more, filter, big]);
+  }, [first, more, filter, sortField, sortDir, big]);
 
-  const open = (row: Row) => {
-    if (row.entry.unreadableName) return;
-    const path = join(shown, row.name);
-    void navigate({
-      to: "/servers/$serverId/files",
-      params: { serverId },
-      search: row.folder ? { path } : { path: shown, file: path },
-    });
-  };
+  const selectedRows = useMemo(() => rows.filter((r) => selected.has(r.name)), [rows, selected]);
+  const singleSelected = selectedRows.length === 1 ? selectedRows[0] : undefined;
 
-  // Beside an open file, as on a phone, a row's actions are behind one button, so
-  // its name keeps its room.
-  const oneButton = phone || file !== undefined;
-  // Beside an open file the list is about 530 px wide at 1440, so the columns of facts close up to what they
-  // hold, as Server-Files draws them, and a name keeps twice the room.
-  const tight = file !== undefined;
-  const columns = useMemo<TableColumn<Row>[]>(() => {
-    const name: TableColumn<Row> = {
-      key: "name",
-      header: t`Name`,
-      render: (row) => (
-        <span className="files-name">
-          <span className="files-icon">
-            <Icon name={iconOf(row)} size={15} />
-          </span>
-          <span className="files-entry-name" title={row.name}>
-            {row.name}
-          </span>
-          {row.entry.linkTarget ? <span className="files-link-target">→ {row.entry.linkTarget}</span> : null}
-          {row.entry.refused ? (
-            <span className="files-icon" title={t`Dockwell doesn't open this`}>
-              <Icon name="lock" size={13} />
-              <span className="dw-sr">
-                <Trans>Dockwell doesn't open this</Trans>
-              </span>
-            </span>
-          ) : null}
-        </span>
-      ),
-    };
-    const size: TableColumn<Row> = {
-      key: "size",
-      header: t`Size`,
-      width: tight ? 68 : 84,
-      align: "right",
-      muted: true,
-      // What a link's own size says is how long its target is, which no one asks.
-      render: (row) =>
-        row.folder || row.entry.type === FileType.SYMLINK ? "—" : formatBytes(row.entry.sizeBytes, i18n.locale),
-    };
-    const actions: TableColumn<Row> = {
-      key: "actions",
-      header: (
-        <span className="dw-sr">
-          <Trans>Actions</Trans>
-        </span>
-      ),
-      width: oneButton ? 44 : 140,
-      align: "right",
-      render: (row) =>
-        !changeable(row) ? null : oneButton ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            icon="more"
-            aria-label={t`Actions for ${row.name}`}
-            onClick={() => setSheet({ kind: "actions", entry: row.entry })}
-          />
-        ) : (
-          <RowActions
-            entry={row.entry}
-            download={downloads(row) ? downloadFileURL({ serverId, path: join(shown, row.name) }) : undefined}
-            onRename={() => setSheet({ kind: "name", naming: { kind: "rename", entry: row.entry } })}
-            onMove={() => setSheet({ kind: "move", entry: row.entry })}
-            onDelete={() => setSheet({ kind: "delete", entry: row.entry })}
-          />
-        ),
-    };
-    if (phone) return [name, size, actions];
-    return [
-      name,
-      size,
-      {
-        key: "modified",
-        header: t`Modified`,
-        width: tight ? 78 : 92,
-        muted: true,
-        render: (row) => (row.entry.modifyTime ? words.ago(timestampDate(row.entry.modifyTime), now) : "—"),
-      },
-      {
-        key: "mode",
-        header: t`Permissions`,
-        width: tight ? 100 : 116,
-        mono: true,
-        muted: true,
-        render: (row) => row.entry.mode,
-      },
-      {
-        key: "owner",
-        header: t`Owner`,
-        width: tight ? 80 : 96,
-        mono: true,
-        muted: true,
-        render: (row) => row.entry.owner,
-      },
-      actions,
-    ];
-  }, [phone, oneButton, tight, t, i18n.locale, words, now, serverId, shown]);
+  const go = (next: FilesSearch) =>
+    void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: next });
 
-  const go = (search: FilesSearch) => void navigate({ to: "/servers/$serverId/files", params: { serverId }, search });
-  /** Where an open file went, as a move or a delete took it. */
   const away = (from: string, to?: string) => {
     if (file !== from) return;
     go(to ? { path: parentOf(to), file: to } : { path: shown });
   };
-  const restore = async (d: Deleted) => {
+
+  const openRow = (row: FileRow) => {
+    if (row.entry.unreadableName) return;
+    const path = join(shown, row.name);
+    if (row.folder) {
+      go({ path });
+      return;
+    }
+    // Image files open in the preview pane (and full-window if already selected in preview on desktop).
+    if (!phone && imageMimeOf(row.name) && row.entry.type === FileType.FILE && !row.entry.refused) {
+      setSelected(new Set([row.name]));
+      setAnchor(row.name);
+      if (file) go({ path: shown });
+      else setPreviewFullWindow(true);
+      return;
+    }
+    go({ path: shown, file: path });
+  };
+
+  const handleSort = (field: SortField) => {
+    if (big) return;
+    if (sortField === field) {
+      setSortDir((was) => (was === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const handleColumnWidthChange = (column: ResizableColumn, width: number) => {
+    setColumnWidths((was) => {
+      const next = { ...was, [column]: width };
+      writeColumnWidths(viewerId, next);
+      return next;
+    });
+  };
+
+  const startTreeResize = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startW = treeWidth;
+    const handle = event.currentTarget;
+    handle.setPointerCapture?.(event.pointerId);
+    const onMove = (moveEvent: globalThis.PointerEvent) => {
+      const next = Math.max(
+        MIN_TREE_WIDTH,
+        Math.min(MAX_TREE_WIDTH, Math.round(startW + (moveEvent.clientX - startX))),
+      );
+      setTreeWidth(next);
+      writeTreeWidth(viewerId, next);
+    };
+    const onUp = () => {
+      handle.releasePointerCapture?.(event.pointerId);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  };
+
+  const onTreeSplitterKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    let next: number | undefined;
+    if (event.key === "ArrowLeft") next = Math.max(MIN_TREE_WIDTH, treeWidth - 16);
+    else if (event.key === "ArrowRight") next = Math.min(MAX_TREE_WIDTH, treeWidth + 16);
+    else if (event.key === "Home") next = MIN_TREE_WIDTH;
+    else if (event.key === "End") next = MAX_TREE_WIDTH;
+    if (next !== undefined) {
+      event.preventDefault();
+      setTreeWidth(next);
+      writeTreeWidth(viewerId, next);
+    }
+  };
+
+  const commitInlineRename = async (row: FileRow, nextName: string) => {
+    const wrong = nameProblem(nextName);
+    if (wrong) {
+      setRenameError(wrong);
+      return;
+    }
+    if (nextName === row.name) {
+      setRenaming(undefined);
+      setRenameError(undefined);
+      return;
+    }
+    const from = join(shown, row.name);
+    const to = join(shown, nextName);
+    setRenameBusy(true);
+    setRenameError(undefined);
+    try {
+      const moved = await withStepUpIfAsked(
+        transport,
+        StepUpAction.MOVE_WAY_BACK_IN,
+        `${serverId}:${from}\n${to}`,
+        (proof) => client.moveFile({ serverId, from, to, proof }),
+      );
+      await changed();
+      setRenaming(undefined);
+      setRenameError(undefined);
+      setSelected(new Set([nextName]));
+      setAnchor(nextName);
+      away(from, moved.to);
+    } catch (err) {
+      if (reasonOf(err) === "file_exists") {
+        setRenameError(t`Something called ${nextName} is here already.`);
+      } else {
+        setRenameError(problem(err, to));
+      }
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  const runExtract = async (archivePath: string) => {
+    setNotice(undefined);
+    try {
+      const res = await extract(archivePath);
+      const into = nameOf(res.unpackedTo);
+      setNotice({
+        tone: "info",
+        title: t`Extracted ${nameOf(archivePath)}`,
+        body: plural(res.entries, {
+          one: `Unpacked # item into ${into}.`,
+          other: `Unpacked # items into ${into}.`,
+        }),
+      });
+    } catch (err) {
+      setNotice({
+        tone: "critical",
+        title: t`Couldn't extract ${nameOf(archivePath)}`,
+        body: problem(err, archivePath),
+      });
+    }
+  };
+
+  const restoreSingle = async (d: DeletedResult) => {
     if (!d.kept) return;
     setRestoring(true);
     setRestoreFailure(undefined);
@@ -473,15 +556,346 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     }
   };
 
+  // Multi-selection actions
+  const multiDownloadPaths = useMemo(
+    () => selectedRows.filter((r) => downloadableEntry(r.entry)).map((r) => join(shown, r.name)),
+    [selectedRows, shown],
+  );
+  const multiChangeableTargets = useMemo(
+    () => selectedRows.filter((r) => changeableEntry(r.entry)).map((r) => targetOf(shown, r.entry)),
+    [selectedRows, shown],
+  );
+  const multiCompressPaths = useMemo(
+    () => selectedRows.filter((r) => downloadableEntry(r.entry)).map((r) => targetOf(shown, r.entry)),
+    [selectedRows, shown],
+  );
+
+  // Build context menu items for the active menu target.
+  const menuItems: ContextMenuItem[] = (() => {
+    if (!menu) return [];
+    if (menu.kind === "empty") {
+      return [
+        {
+          id: "new-folder",
+          label: t`New folder`,
+          icon: "folder",
+          disabled: !listing,
+          onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "folder" } }),
+        },
+        {
+          id: "new-file",
+          label: t`New file`,
+          icon: "file",
+          disabled: !listing,
+          onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "file" } }),
+        },
+        {
+          id: "upload",
+          label: t`Upload`,
+          icon: "upload",
+          disabled: !listing,
+          onSelect: () => setSheet({ kind: "upload", folder: shown }),
+        },
+        { kind: "separator", id: "sep-1" },
+        {
+          id: "copy-path",
+          label: t`Copy path`,
+          icon: "copy",
+          onSelect: () => copyToClipboard(shown),
+        },
+        {
+          id: "refresh",
+          label: t`Refresh`,
+          icon: "refresh",
+          onSelect: () => void query.refetch(),
+        },
+      ];
+    }
+    if (menu.kind === "tree") {
+      const target = menu.target;
+      const isRoot = target.path === "/";
+      const items: ContextMenuItem[] = [
+        {
+          id: "open",
+          label: t`Open`,
+          icon: "folder",
+          onSelect: () => go({ path: target.path }),
+        },
+      ];
+      if (!target.refused) {
+        items.push({
+          id: "download",
+          label: t`Download as a .zip`,
+          icon: "download",
+          href: downloadFileURL({ serverId, path: target.path }),
+          download: true,
+        });
+      }
+      items.push(
+        { kind: "separator", id: "sep-tree-1" },
+        {
+          id: "new-folder",
+          label: t`New folder`,
+          icon: "folder",
+          disabled: target.refused,
+          onSelect: () => setSheet({ kind: "name", folder: target.path, naming: { kind: "folder" } }),
+        },
+        {
+          id: "new-file",
+          label: t`New file`,
+          icon: "file",
+          disabled: target.refused,
+          onSelect: () => setSheet({ kind: "name", folder: target.path, naming: { kind: "file" } }),
+        },
+        {
+          id: "copy-path",
+          label: t`Copy path`,
+          icon: "copy",
+          onSelect: () => copyToClipboard(target.path),
+        },
+      );
+      if (!isRoot && !target.refused) {
+        const folderTarget: FileTarget = { path: target.path, name: target.name, type: FileType.DIRECTORY };
+        items.push(
+          { kind: "separator", id: "sep-tree-2" },
+          {
+            id: "rename",
+            label: t`Rename`,
+            icon: "edit",
+            onSelect: () =>
+              setSheet({
+                kind: "name",
+                folder: parentOf(target.path),
+                naming: { kind: "rename", target: folderTarget },
+              }),
+          },
+          {
+            id: "move",
+            label: t`Move`,
+            icon: "arrow-right",
+            onSelect: () => setSheet({ kind: "move", folder: parentOf(target.path), targets: [folderTarget] }),
+          },
+          {
+            id: "compress",
+            label: t`Compress`,
+            icon: "archive",
+            onSelect: () => setSheet({ kind: "compress", folder: parentOf(target.path), targets: [folderTarget] }),
+          },
+          { kind: "separator", id: "sep-tree-3" },
+          {
+            id: "delete",
+            label: t`Delete`,
+            icon: "trash",
+            danger: true,
+            onSelect: () => setSheet({ kind: "delete", targets: [folderTarget] }),
+          },
+        );
+      }
+      return items;
+    }
+
+    // Row context menu (applies to multi-selection if the clicked row is part of a multi-selection).
+    const row = menu.row;
+    const isMulti = selected.has(row.name) && selectedRows.length > 1;
+    if (isMulti) {
+      const count = selectedRows.length;
+      const items: ContextMenuItem[] = [];
+      if (multiDownloadPaths.length > 0) {
+        items.push({
+          id: "download",
+          label: t`Download ${count} items as a .zip`,
+          icon: "download",
+          href: downloadFileURL({ serverId, paths: multiDownloadPaths }),
+          download: true,
+        });
+      }
+      if (multiCompressPaths.length > 0) {
+        items.push({
+          id: "compress",
+          label: t`Compress`,
+          icon: "archive",
+          onSelect: () => setSheet({ kind: "compress", folder: shown, targets: multiCompressPaths }),
+        });
+      }
+      if (multiChangeableTargets.length > 0) {
+        items.push({
+          id: "move",
+          label: t`Move`,
+          icon: "arrow-right",
+          onSelect: () => setSheet({ kind: "move", folder: shown, targets: multiChangeableTargets }),
+        });
+      }
+      items.push({
+        id: "copy-paths",
+        label: t`Copy paths`,
+        icon: "copy",
+        onSelect: () => copyToClipboard(selectedRows.map((r) => join(shown, r.name)).join("\n")),
+      });
+      if (multiChangeableTargets.length > 0) {
+        items.push(
+          { kind: "separator", id: "sep-multi-del" },
+          {
+            id: "delete",
+            label: t`Delete`,
+            icon: "trash",
+            danger: true,
+            onSelect: () => setSheet({ kind: "delete", targets: multiChangeableTargets }),
+          },
+        );
+      }
+      return items;
+    }
+
+    const path = join(shown, row.name);
+    const canChange = changeableEntry(row.entry);
+    const canDownload = downloadableEntry(row.entry);
+    const isArchive = canChange && row.entry.type === FileType.FILE && archiveKind(row.name) !== undefined;
+    const items: ContextMenuItem[] = [
+      {
+        id: "open",
+        label: t`Open`,
+        icon: row.folder ? "folder" : "file",
+        disabled: row.entry.unreadableName,
+        onSelect: () => openRow(row),
+      },
+    ];
+    if (canDownload) {
+      items.push({
+        id: "download",
+        label: row.entry.type === FileType.DIRECTORY ? t`Download as a .zip` : t`Download`,
+        icon: "download",
+        href: downloadFileURL({ serverId, path }),
+        download: true,
+      });
+    }
+    if (canChange) {
+      const target = targetOf(shown, row.entry);
+      items.push(
+        { kind: "separator", id: "sep-row-1" },
+        {
+          id: "rename",
+          label: t`Rename`,
+          icon: "edit",
+          shortcut: phone ? undefined : "F2",
+          onSelect: () => {
+            setRenaming(row.name);
+            setRenameError(undefined);
+          },
+        },
+        {
+          id: "move",
+          label: t`Move`,
+          icon: "arrow-right",
+          onSelect: () => setSheet({ kind: "move", folder: shown, targets: [target] }),
+        },
+        {
+          id: "copy-path",
+          label: t`Copy path`,
+          icon: "copy",
+          onSelect: () => copyToClipboard(path),
+        },
+      );
+      if (isArchive) {
+        items.push({
+          id: "extract",
+          label: t`Extract`,
+          icon: "archive",
+          onSelect: () => void runExtract(path),
+        });
+      } else if (canDownload) {
+        items.push({
+          id: "compress",
+          label: t`Compress`,
+          icon: "archive",
+          onSelect: () => setSheet({ kind: "compress", folder: shown, targets: [target] }),
+        });
+      }
+      items.push(
+        { kind: "separator", id: "sep-row-2" },
+        {
+          id: "delete",
+          label: t`Delete`,
+          icon: "trash",
+          danger: true,
+          onSelect: () => setSheet({ kind: "delete", targets: [target] }),
+        },
+      );
+    } else {
+      items.push({
+        id: "copy-path",
+        label: t`Copy path`,
+        icon: "copy",
+        onSelect: () => copyToClipboard(path),
+      });
+    }
+    return items;
+  })();
+
+  const newMenuActions = useMemo<MenuAction[]>(
+    () => [
+      {
+        id: "new-folder",
+        label: t`New folder`,
+        icon: "folder",
+        disabled: !listing,
+        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "folder" } }),
+      },
+      {
+        id: "new-file",
+        label: t`New file`,
+        icon: "file",
+        disabled: !listing,
+        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "file" } }),
+      },
+    ],
+    [listing, shown, t],
+  );
+
+  const phoneFolderActions = useMemo<MenuAction[]>(
+    () => [
+      {
+        id: "upload",
+        label: t`Upload`,
+        icon: "upload",
+        disabled: !listing,
+        onSelect: () => setSheet({ kind: "upload", folder: shown }),
+      },
+      {
+        id: "new-folder",
+        label: t`New folder`,
+        icon: "folder",
+        disabled: !listing,
+        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "folder" } }),
+      },
+      {
+        id: "new-file",
+        label: t`New file`,
+        icon: "file",
+        disabled: !listing,
+        onSelect: () => setSheet({ kind: "name", folder: shown, naming: { kind: "file" } }),
+      },
+      {
+        id: "deleted",
+        label: t`Recently deleted`,
+        icon: "trash",
+        onSelect: () => setSheet({ kind: "deleted" }),
+      },
+    ],
+    [listing, shown, t],
+  );
+
   const count = listing?.entries.length ?? 0;
   const many = (n: number) => n.toLocaleString(i18n.locale);
   const countWords = many(count);
   const shownWords = many(rows.length);
   const owner = listing?.directory?.owner;
+  const hasRightPane = file !== undefined || (!phone && singleSelected !== undefined);
+  const singleDeleted = deleted?.length === 1 ? deleted[0] : undefined;
+
   return (
     <div className="files">
       {reading ? null : (
-        <div className="files-bar">
+        <div className="files-header">
           <div className="files-where">
             <nav aria-label={t`Path`} className="files-crumbs">
               {crumbs(shown).map((crumb, i, all) =>
@@ -520,7 +934,7 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
               </span>
             ) : null}
           </div>
-          <div className="files-tools">
+          <div className="files-toolbar">
             <div className="files-filter">
               <TextField
                 size="sm"
@@ -531,40 +945,72 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                 onChange={(event) => setFilter(event.target.value)}
               />
             </div>
-            <Button
-              size="sm"
-              icon="folder"
-              disabled={!listing}
-              onClick={() => setSheet({ kind: "name", naming: { kind: "folder" } })}
-            >
-              <Trans>New folder</Trans>
-            </Button>
-            <Button
-              size="sm"
-              icon="file"
-              disabled={!listing}
-              onClick={() => setSheet({ kind: "name", naming: { kind: "file" } })}
-            >
-              <Trans>New file</Trans>
-            </Button>
-            <Button size="sm" icon="upload" disabled={!listing} onClick={() => setSheet({ kind: "upload" })}>
-              <Trans>Upload</Trans>
-            </Button>
-            <Button size="sm" variant="ghost" icon="trash" onClick={() => setSheet({ kind: "deleted" })}>
-              <Trans>Recently deleted</Trans>
-            </Button>
+            {phone ? (
+              <ActionMenu label={t`Folder actions`} actions={phoneFolderActions} />
+            ) : (
+              <div className="files-tools">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon="upload"
+                  disabled={!listing}
+                  onClick={() => setSheet({ kind: "upload", folder: shown })}
+                >
+                  <Trans>Upload</Trans>
+                </Button>
+                <ActionMenu
+                  label={t`New file or folder`}
+                  text={<Trans>New</Trans>}
+                  icon="plus"
+                  actions={newMenuActions}
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon="trash"
+                  aria-label={t`Recently deleted`}
+                  title={t`Recently deleted`}
+                  onClick={() => setSheet({ kind: "deleted" })}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
-      {!reading && deleted ? (
+
+      {!reading && notice ? (
+        <Callout
+          tone={notice.tone}
+          title={notice.title}
+          actions={
+            <Button size="sm" variant="ghost" onClick={() => setNotice(undefined)}>
+              <Trans>Dismiss</Trans>
+            </Button>
+          }
+        >
+          {notice.body}
+        </Callout>
+      ) : null}
+
+      {!reading && deleted && deleted.length > 0 ? (
         <Callout
           tone={restoreFailure ? "critical" : "info"}
-          title={deleted.kept ? t`Deleted ${nameOf(deleted.path)}` : t`Deleted ${nameOf(deleted.path)} for good`}
+          title={
+            singleDeleted
+              ? singleDeleted.kept
+                ? t`Deleted ${nameOf(singleDeleted.path)}`
+                : t`Deleted ${nameOf(singleDeleted.path)} for good`
+              : plural(deleted.length, { one: "Deleted # item", other: "Deleted # items" })
+          }
           actions={
             <>
-              {deleted.kept ? (
-                <Button size="sm" icon="undo" loading={restoring} onClick={() => void restore(deleted)}>
+              {singleDeleted?.kept ? (
+                <Button size="sm" icon="undo" loading={restoring} onClick={() => void restoreSingle(singleDeleted)}>
                   <Trans context="what was deleted">Put back</Trans>
+                </Button>
+              ) : deleted.some((d) => d.kept) ? (
+                <Button size="sm" icon="trash" onClick={() => setSheet({ kind: "deleted" })}>
+                  <Trans>Recently deleted</Trans>
                 </Button>
               ) : null}
               <Button
@@ -581,35 +1027,67 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
           }
         >
           {restoreFailure ??
-            (deleted.kept ? (
-              <Trans>It's in Recently deleted for 7 days, where you can put it back.</Trans>
+            (singleDeleted ? (
+              singleDeleted.kept ? (
+                <Trans>It's in Recently deleted for 7 days, where you can put it back.</Trans>
+              ) : (
+                <Trans>Nothing brings it back.</Trans>
+              )
+            ) : deleted.some((d) => d.kept) ? (
+              <Trans>They're in Recently deleted for 7 days, where you can put them back.</Trans>
             ) : (
-              <Trans>Nothing brings it back.</Trans>
+              <Trans>Nothing brings them back.</Trans>
             ))}
         </Callout>
       ) : null}
+
       <div className="files-panes">
         {reading ? null : (
-          <Panel flush className="files-places">
-            <nav aria-label={t`Places`}>
-              {/* As Server-Files groups them: the places worth a click, then the server's own root. */}
-              <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
-              <div className="files-places-rule" aria-hidden="true" />
-              {phone ? (
-                <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
-              ) : (
-                // As Server-Files has it: the server's folders as a tree, open down to where you are.
-                // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
-                <div role="group" aria-labelledby={treeHead} className="files-places-group">
-                  <div id={treeHead} className="files-places-head">
-                    {t`Server`}
+          <div className="files-sidebar-wrap" style={besideFolders ? { flexBasis: treeWidth } : undefined}>
+            <Panel flush className="files-places">
+              <nav aria-label={t`Places`}>
+                <PlaceGroup title={t`Common places`} places={places.common} current={current} serverId={serverId} />
+                <div className="files-places-rule" aria-hidden="true" />
+                {phone ? (
+                  <PlaceGroup title={t`Server`} places={places.server} current={current} serverId={serverId} />
+                ) : (
+                  // biome-ignore lint/a11y/useSemanticElements: a fieldset is for a form's fields, and these are links
+                  <div role="group" aria-labelledby={treeHead} className="files-places-group">
+                    <div id={treeHead} className="files-places-head">
+                      {t`Server`}
+                    </div>
+                    <FolderTree
+                      serverId={serverId}
+                      current={shown}
+                      retry={retryListing}
+                      onFolderContextMenu={(target, position) => setMenu({ kind: "tree", target, position })}
+                    />
                   </div>
-                  <FolderTree serverId={serverId} current={shown} retry={retryListing} />
-                </div>
-              )}
-            </nav>
-          </Panel>
+                )}
+              </nav>
+            </Panel>
+            {besideFolders ? (
+              // biome-ignore lint/a11y/useSemanticElements: interactive resize handle between tree and list
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={t`Resize folder tree`}
+                aria-valuemin={MIN_TREE_WIDTH}
+                aria-valuemax={MAX_TREE_WIDTH}
+                aria-valuenow={treeWidth}
+                tabIndex={0}
+                className="files-tree-splitter"
+                onPointerDown={startTreeResize}
+                onKeyDown={onTreeSplitterKeyDown}
+                onDoubleClick={() => {
+                  setTreeWidth(DEFAULT_TREE_WIDTH);
+                  writeTreeWidth(viewerId, DEFAULT_TREE_WIDTH);
+                }}
+              />
+            ) : null}
+          </div>
         )}
+
         {reading ? null : (
           // biome-ignore lint/a11y/noStaticElementInteractions: a drop target; Upload does the same from the keyboard
           <div
@@ -627,7 +1105,7 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
               if (!listing || !carriesFiles(event)) return;
               event.preventDefault();
               setDragging(false);
-              setSheet({ kind: "upload", chosen: chosenFrom(event.dataTransfer) });
+              setSheet({ kind: "upload", folder: shown, chosen: chosenFrom(event.dataTransfer) });
             }}
           >
             {query.error ? (
@@ -642,21 +1120,106 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                     </Trans>
                   </Callout>
                 ) : null}
-                <Table
-                  columns={columns}
+                {selectedRows.length > 1 ? (
+                  <div className="files-selection-bar" role="toolbar" aria-label={t`Selection actions`}>
+                    <span className="files-selection-count">
+                      {plural(selectedRows.length, { one: "# selected", other: "# selected" })}
+                    </span>
+                    <div className="files-selection-actions">
+                      {multiDownloadPaths.length > 0 ? (
+                        <ButtonLink
+                          size="sm"
+                          variant="secondary"
+                          icon="download"
+                          href={downloadFileURL({ serverId, paths: multiDownloadPaths })}
+                          download
+                        >
+                          <Trans>Download</Trans>
+                        </ButtonLink>
+                      ) : null}
+                      {multiCompressPaths.length > 0 ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon="archive"
+                          onClick={() => setSheet({ kind: "compress", folder: shown, targets: multiCompressPaths })}
+                        >
+                          <Trans>Compress</Trans>
+                        </Button>
+                      ) : null}
+                      {multiChangeableTargets.length > 0 ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon="arrow-right"
+                            onClick={() => setSheet({ kind: "move", folder: shown, targets: multiChangeableTargets })}
+                          >
+                            <Trans>Move</Trans>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            icon="trash"
+                            className="files-details-danger"
+                            onClick={() => setSheet({ kind: "delete", targets: multiChangeableTargets })}
+                          >
+                            <Trans>Delete</Trans>
+                          </Button>
+                        </>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setSelected(new Set());
+                          setAnchor(undefined);
+                        }}
+                      >
+                        <Trans>Clear</Trans>
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+                <FileTable
                   rows={rows}
-                  rowKey="name"
-                  density="compact"
-                  // Beside the folders it fills its pane, which fills the window (FilesPage.css); stacked, it stops at 640.
-                  maxHeight={phone || besideFolders ? undefined : 640}
-                  selectedKey={file ? nameOf(file) : null}
                   caption={t`Files in ${shown}`}
-                  onRowClick={open}
+                  phone={phone}
+                  tight={hasRightPane}
+                  sortable={!big}
+                  sortField={sortField}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                  columnWidths={columnWidths}
+                  onColumnWidthChange={handleColumnWidthChange}
+                  selected={selected}
+                  activeFileName={file ? nameOf(file) : undefined}
+                  onSelectChange={(next, nextAnchor) => {
+                    setSelected(next);
+                    setAnchor(nextAnchor);
+                    if (next.size !== 1) setPreviewFullWindow(false);
+                  }}
+                  anchor={anchor}
+                  onOpen={openRow}
+                  onRowContextMenu={(row, trigger) => setMenu({ kind: "row", row, trigger })}
+                  onEmptyContextMenu={(position) => setMenu({ kind: "empty", position })}
+                  renaming={renaming}
+                  renameError={renameError}
+                  renameBusy={renameBusy}
+                  onStartRename={(row) => {
+                    setRenaming(row.name);
+                    setRenameError(undefined);
+                  }}
+                  onCommitRename={(row, nextName) => void commitInlineRename(row, nextName)}
+                  onCancelRename={() => {
+                    setRenaming(undefined);
+                    setRenameError(undefined);
+                  }}
                   loading={query.isPending || (searching && search.isPending)}
-                  loadingRows={6}
                   loadingLabel={
                     searching && search.isPending ? t`Searching every name in this folder` : t`Reading this folder`
                   }
+                  maxHeight={phone || besideFolders ? undefined : 640}
                   empty={
                     searching && search.error ? (
                       sentence(search.error)
@@ -688,77 +1251,153 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
             )}
           </div>
         )}
+
         {file ? (
           <FileViewer serverId={serverId} path={file} folder={shown} line={line} key={file} />
+        ) : !phone && singleSelected ? (
+          <FileDetailsPane
+            key={join(shown, singleSelected.name)}
+            serverId={serverId}
+            entry={singleSelected.entry}
+            path={join(shown, singleSelected.name)}
+            isFolder={singleSelected.folder}
+            downloadUrl={
+              downloadableEntry(singleSelected.entry)
+                ? downloadFileURL({ serverId, path: join(shown, singleSelected.name) })
+                : undefined
+            }
+            fullWindow={previewFullWindow}
+            onToggleFullWindow={() => setPreviewFullWindow((was) => !was)}
+            onOpen={() => openRow(singleSelected)}
+            onRename={() => {
+              setRenaming(singleSelected.name);
+              setRenameError(undefined);
+            }}
+            onMove={() => setSheet({ kind: "move", folder: shown, targets: [targetOf(shown, singleSelected.entry)] })}
+            onCompress={() =>
+              setSheet({ kind: "compress", folder: shown, targets: [targetOf(shown, singleSelected.entry)] })
+            }
+            onExtract={
+              archiveKind(singleSelected.name) ? () => void runExtract(join(shown, singleSelected.name)) : undefined
+            }
+            onDelete={() => setSheet({ kind: "delete", targets: [targetOf(shown, singleSelected.entry)] })}
+            onClose={() => {
+              setSelected(new Set());
+              setAnchor(undefined);
+              setPreviewFullWindow(false);
+            }}
+            onPreviewRead={onPreviewRead}
+            cachedRead={previewReads.current.get(join(shown, singleSelected.name))}
+          />
         ) : (
-          // On a wide screen the viewer's place stays, so the list keeps the width it has with a file open and a
-          // name doesn't sit far from its size. Below 1600px the stylesheet hides it, as the list needs the room.
           <div className="files-idle">
-            <EmptyState icon="file" title={<Trans>No file open</Trans>}>
+            <EmptyState icon="file" title={<Trans>No file selected</Trans>}>
               <p>
-                <Trans>Choose a file in the list to read or edit it here.</Trans>
+                <Trans>Select a file to inspect it, or double-click to open it.</Trans>
               </p>
             </EmptyState>
           </div>
         )}
       </div>
-      {sheet?.kind === "actions" ? (
-        <ActionsSheet
-          folder={shown}
-          entry={sheet.entry}
-          download={
-            sheet.entry.type === FileType.FILE || sheet.entry.type === FileType.DIRECTORY
-              ? downloadFileURL({ serverId, path: join(shown, sheet.entry.name) })
-              : undefined
-          }
-          onClose={() => setSheet(undefined)}
-          onRename={() => setSheet({ kind: "name", naming: { kind: "rename", entry: sheet.entry } })}
-          onMove={() => setSheet({ kind: "move", entry: sheet.entry })}
-          onDelete={() => setSheet({ kind: "delete", entry: sheet.entry })}
-        />
-      ) : null}
+
+      <ContextMenu
+        open={menu !== undefined}
+        label={
+          menu?.kind === "row"
+            ? t`Actions for ${menu.row.name}`
+            : menu?.kind === "tree"
+              ? t`Actions for ${menu.target.name}`
+              : t`Folder actions`
+        }
+        items={menuItems}
+        position={menu?.kind === "row" ? menu.trigger.position : menu?.position}
+        anchor={menu?.kind === "row" ? menu.trigger.anchor : undefined}
+        onClose={() => setMenu(undefined)}
+      />
+
       {sheet?.kind === "name" ? (
         <NameSheet
           serverId={serverId}
-          folder={shown}
+          folder={sheet.folder}
           naming={sheet.naming}
           onClose={() => setSheet(undefined)}
           onDone={(path, kind) => {
             setSheet(undefined);
-            if (sheet.naming.kind === "rename") away(join(shown, sheet.naming.entry.name), path);
-            else if (kind === FileType.FILE) go({ path: shown, file: path });
+            if (sheet.naming.kind === "rename") {
+              away(sheet.naming.target.path, path);
+              if (shown === sheet.naming.target.path) go({ path });
+            } else if (kind === FileType.FILE) {
+              go({ path: sheet.folder, file: path });
+            }
           }}
         />
       ) : null}
+
       {sheet?.kind === "move" ? (
         <MoveSheet
           serverId={serverId}
-          folder={shown}
-          entry={sheet.entry}
+          folder={sheet.folder}
+          targets={sheet.targets}
           onClose={() => setSheet(undefined)}
-          onDone={(to) => {
+          onDone={(moved) => {
             setSheet(undefined);
-            away(join(shown, sheet.entry.name), to);
+            setSelected(new Set());
+            setAnchor(undefined);
+            for (const item of moved) away(item.from, item.to);
           }}
         />
       ) : null}
+
+      {sheet?.kind === "compress" ? (
+        <CompressSheet
+          serverId={serverId}
+          folder={sheet.folder}
+          targets={sheet.targets}
+          onClose={() => setSheet(undefined)}
+          onDone={(archivePath, entries) => {
+            setSheet(undefined);
+            setSelected(new Set([nameOf(archivePath)]));
+            setAnchor(nameOf(archivePath));
+            setNotice({
+              tone: "info",
+              title: t`Compressed ${nameOf(archivePath)}`,
+              body: plural(entries, {
+                one: "Packed # item into the archive.",
+                other: "Packed # items into the archive.",
+              }),
+            });
+          }}
+        />
+      ) : null}
+
       {sheet?.kind === "delete" ? (
         <DeleteSheet
           serverId={serverId}
-          folder={shown}
-          entry={sheet.entry}
+          targets={sheet.targets}
           onClose={() => setSheet(undefined)}
-          onDone={(path, kept) => {
+          onDone={(results) => {
             setSheet(undefined);
             setRestoreFailure(undefined);
-            setDeleted({ path, kept });
-            away(join(shown, sheet.entry.name));
+            setDeleted(results);
+            setSelected(new Set());
+            setAnchor(undefined);
+            for (const item of results) {
+              away(item.path);
+              if (shown === item.path) go({ path: parentOf(item.path) });
+            }
           }}
         />
       ) : null}
+
       {sheet?.kind === "upload" ? (
-        <UploadSheet serverId={serverId} folder={shown} chosen={sheet.chosen} onClose={() => setSheet(undefined)} />
+        <UploadSheet
+          serverId={serverId}
+          folder={sheet.folder}
+          chosen={sheet.chosen}
+          onClose={() => setSheet(undefined)}
+        />
       ) : null}
+
       {sheet?.kind === "deleted" ? (
         <DeletedSheet
           serverId={serverId}

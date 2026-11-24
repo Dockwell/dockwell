@@ -160,7 +160,8 @@ describe("Uploading and downloading", () => {
   it("asks a phone only to choose files, as it drops none (#802)", async () => {
     onPhone();
     await renderFiles({ listFiles: vi.fn(() => site) });
-    await userEvent.click(screen.getAllByRole("button", { name: "Upload" })[0] as HTMLElement);
+    await userEvent.click(screen.getByRole("button", { name: "Folder actions" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Upload" }));
     const sheet = await screen.findByRole("dialog", { name: "Upload to www" });
     expect(within(sheet).queryByText("Drop files here, or choose them.")).toBeNull();
     expect(within(sheet).getByRole("button", { name: "Choose files" })).toBeTruthy();
@@ -341,17 +342,28 @@ describe("Uploading and downloading", () => {
     await renderFiles({ listFiles: () => site });
     const table = screen.getByRole("table", { name: "Files in /var/www" });
     await within(table).findByText("index.php");
-    const file = within(table).getByRole("link", { name: "Download index.php" });
+
+    await userEvent.click(within(table).getByRole("button", { name: "Actions for index.php" }));
+    const fileMenu = await screen.findByRole("menu", { name: "Actions for index.php" });
+    const file = within(fileMenu).getByRole("menuitem", { name: "Download" });
     expect(file.getAttribute("href")).toBe("/v1/servers/srv_1/files:download?path=%2Fvar%2Fwww%2Findex.php");
     expect(file.hasAttribute("download")).toBe(true);
-    expect(within(table).getByRole("link", { name: "Download assets as a .zip" }).getAttribute("href")).toBe(
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(within(table).getByRole("button", { name: "Actions for assets" }));
+    const folderMenu = await screen.findByRole("menu", { name: "Actions for assets" });
+    expect(within(folderMenu).getByRole("menuitem", { name: "Download as a .zip" }).getAttribute("href")).toBe(
       "/v1/servers/srv_1/files:download?path=%2Fvar%2Fwww%2Fassets",
     );
-    expect(within(table).queryByRole("link", { name: /Download cache/ })).toBeNull();
-    expect(within(table).queryByRole("link", { name: /Download current/ })).toBeNull();
+    await userEvent.keyboard("{Escape}");
+
+    expect(within(table).queryByRole("button", { name: "Actions for cache" })).toBeNull();
+    await userEvent.click(within(table).getByRole("button", { name: "Actions for current" }));
+    const linkMenu = await screen.findByRole("menu", { name: "Actions for current" });
+    expect(within(linkMenu).queryByRole("menuitem", { name: /Download/ })).toBeNull();
   });
 
-  it("puts a row's actions behind one button beside an open file, so its name has room", async () => {
+  it("opens a row's context menu beside an open file, so its name has room", async () => {
     async function* watchServers(_req: unknown, ctx: HandlerContext) {
       yield changed(hz1);
       yield snapshotComplete;
@@ -364,11 +376,10 @@ describe("Uploading and downloading", () => {
     const table = await screen.findByRole("table", { name: "Files in /var/www" });
     await within(table).findByText("assets");
     await userEvent.click(within(table).getByRole("button", { name: "Actions for assets" }));
-    const sheet = await screen.findByRole("dialog", { name: "assets" });
-    expect(within(sheet).getByRole("link", { name: "Download as a .zip" }).getAttribute("href")).toBe(
+    const menu = await screen.findByRole("menu", { name: "Actions for assets" });
+    expect(within(menu).getByRole("menuitem", { name: "Download as a .zip" }).getAttribute("href")).toBe(
       "/v1/servers/srv_1/files:download?path=%2Fvar%2Fwww%2Fassets",
     );
-    expect(within(table).queryByRole("button", { name: "Rename assets" })).toBeNull();
     expect(screen.getByRole("link", { name: "Download index.php" })).toBeTruthy();
   });
 });

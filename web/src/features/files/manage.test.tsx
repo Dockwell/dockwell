@@ -74,6 +74,17 @@ async function renderFiles(files: NonNullable<Api["files"]>, auth?: Api["auth"])
   return rendered;
 }
 
+async function openNewMenu(item: "New folder" | "New file") {
+  await userEvent.click(screen.getByRole("button", { name: "New file or folder" }));
+  await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+}
+
+async function openRowMenu(rowName: string, action: string | RegExp) {
+  await userEvent.click(screen.getByRole("button", { name: `Actions for ${rowName}` }));
+  const menu = await screen.findByRole("menu", { name: `Actions for ${rowName}` });
+  await userEvent.click(within(menu).getByRole("menuitem", { name: action }));
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -92,7 +103,7 @@ describe("Managing files", () => {
       makeFile: makeFile as never,
       readFile: () => ({ path: "/var/www/new.php" }),
     });
-    await userEvent.click(screen.getByRole("button", { name: "New folder" }));
+    await openNewMenu("New folder");
     const sheet = await screen.findByRole("dialog", { name: "New folder in www" });
     await expectAccessible(sheet);
     await userEvent.type(within(sheet).getByRole("textbox", { name: "Name" }), "uploads");
@@ -107,7 +118,7 @@ describe("Managing files", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(listFiles.mock.calls.length).toBeGreaterThan(1);
 
-    await userEvent.click(screen.getByRole("button", { name: "New file" }));
+    await openNewMenu("New file");
     const named = await screen.findByRole("dialog", { name: "New file in www" });
     await userEvent.type(within(named).getByRole("textbox", { name: "Name" }), "new.php{Enter}");
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www", file: "/var/www/new.php" }));
@@ -119,7 +130,7 @@ describe("Managing files", () => {
       throw refused("file_exists", "/var/www/assets is there already", Code.AlreadyExists);
     });
     await renderFiles({ listFiles: () => site, makeFile });
-    await userEvent.click(screen.getByRole("button", { name: "New folder" }));
+    await openNewMenu("New folder");
     const sheet = await screen.findByRole("dialog");
     const name = within(sheet).getByRole("textbox", { name: "Name" });
     await userEvent.type(name, "a/b{Enter}");
@@ -132,7 +143,7 @@ describe("Managing files", () => {
     ).toBeVisible();
   });
 
-  it("renames and moves from a row, to where a folder resolves", async () => {
+  it("renames inline and moves from a row's menu, to where a folder resolves", async () => {
     const moveFile = vi.fn((req: { from: string; to: string }) =>
       create(MoveFileResponseSchema, { from: req.from, to: req.to, file: entry("x") }),
     );
@@ -140,18 +151,17 @@ describe("Managing files", () => {
       req.path === "/srv/archive" ? create(ListFilesResponseSchema, { path: "/mnt/archive" }) : site,
     );
     await renderFiles({ listFiles: listFiles as never, moveFile: moveFile as never });
-    // What Dockwell doesn't open has nothing to do on its row.
-    expect(screen.queryByRole("button", { name: "Delete cache" })).toBeNull();
+    // What Dockwell doesn't open has no row action menu button.
+    expect(screen.queryByRole("button", { name: "Actions for cache" })).toBeNull();
 
-    await userEvent.click(screen.getByRole("button", { name: "Rename index.php" }));
-    const rename = await screen.findByRole("dialog", { name: "Rename index.php" });
-    const name = within(rename).getByRole("textbox", { name: "Name" });
+    await openRowMenu("index.php", /Rename/);
+    const name = await screen.findByRole("textbox", { name: "New name for index.php" });
     await userEvent.clear(name);
     await userEvent.type(name, "home.php{Enter}");
     await waitFor(() => expect(moveFile).toHaveBeenCalledTimes(1));
     expect(moveFile.mock.lastCall?.[0]).toMatchObject({ from: "/var/www/index.php", to: "/var/www/home.php" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Move assets" }));
+    await openRowMenu("assets", "Move");
     const move = await screen.findByRole("dialog", { name: "Move assets" });
     const to = within(move).getByRole("textbox", { name: "To the folder" });
     expect(to).toHaveValue("/var/www");
@@ -172,8 +182,8 @@ describe("Managing files", () => {
       { listFiles: () => site, moveFile: moveFile as never },
       { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
     );
-    await userEvent.click(screen.getByRole("button", { name: "Rename index.php" }));
-    const name = within(await screen.findByRole("dialog")).getByRole("textbox", { name: "Name" });
+    await openRowMenu("index.php", /Rename/);
+    const name = await screen.findByRole("textbox", { name: "New name for index.php" });
     await userEvent.clear(name);
     await userEvent.type(name, "authorized_keys{Enter}");
     await waitFor(() => expect(moveFile).toHaveBeenCalledTimes(2));
@@ -195,7 +205,7 @@ describe("Managing files", () => {
       create(RestoreFileResponseSchema, { path: "/var/www/index.php", file: entry("index.php") }),
     );
     await renderFiles({ listFiles: () => site, deleteFile: deleteFile as never, restoreFile: restoreFile as never });
-    await userEvent.click(screen.getByRole("button", { name: "Delete index.php" }));
+    await openRowMenu("index.php", "Delete");
     const sheet = await screen.findByRole("dialog", { name: "Delete index.php" });
     expect(within(sheet).getByText("index.php goes to Recently deleted", { exact: false })).toBeVisible();
     await expectAccessible(sheet);
@@ -221,7 +231,7 @@ describe("Managing files", () => {
       return create(DeleteFileResponseSchema, { path: req.path });
     });
     await renderFiles({ listFiles: () => site, deleteFile: deleteFile as never });
-    await userEvent.click(screen.getByRole("button", { name: "Delete index.php" }));
+    await openRowMenu("index.php", "Delete");
     const sheet = await screen.findByRole("dialog");
     await userEvent.click(within(sheet).getByRole("button", { name: "Delete" }));
     expect(await within(sheet).findByText("This can't be put back")).toBeVisible();
@@ -298,7 +308,7 @@ describe("Putting back and deleting for good", () => {
       { listFiles: () => site, deleteFile: deleteFile as never },
       { getAuthState: () => authState(), beginStepUp, finishStepUp: () => ({ proof: "proof_1" }) },
     );
-    await userEvent.click(screen.getByRole("button", { name: "Delete index.php" }));
+    await openRowMenu("index.php", "Delete");
     const sheet = await screen.findByRole("dialog");
     await userEvent.click(within(sheet).getByRole("button", { name: "Delete" }));
     expect(await within(sheet).findByText("This can't be put back")).toBeVisible();
@@ -310,17 +320,16 @@ describe("Putting back and deleting for good", () => {
 });
 
 describe("Managing files on a phone", () => {
-  it("keeps a row's actions behind one button", async () => {
+  it("opens the row's context menu behind one button", async () => {
     onPhone();
     const deleteFile = vi.fn((req: { path: string }) =>
       create(DeleteFileResponseSchema, { path: req.path, deleted: kept(req.path) }),
     );
     await renderFiles({ listFiles: () => site, deleteFile: deleteFile as never });
-    expect(screen.queryByRole("button", { name: "Rename index.php" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Actions for index.php" }));
-    const actions = await screen.findByRole("dialog", { name: "index.php" });
+    const actions = await screen.findByRole("menu", { name: "Actions for index.php" });
     await expectAccessible(actions);
-    await userEvent.click(within(actions).getByRole("button", { name: "Delete" }));
+    await userEvent.click(within(actions).getByRole("menuitem", { name: "Delete" }));
     const sheet = await screen.findByRole("dialog", { name: "Delete index.php" });
     await userEvent.click(within(sheet).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteFile).toHaveBeenCalledTimes(1));

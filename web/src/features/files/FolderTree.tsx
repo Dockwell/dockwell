@@ -13,6 +13,9 @@ import { join } from "./paths";
 /** How many folders one folder shows in the tree before it says how many more the list has. */
 export const TREE_PAGE = 60;
 
+/** Compact indent per tree depth level in pixels so deep trees stay legible. */
+const TREE_INDENT_PX = 10;
+
 /** Whether an entry opens as a folder, itself or through a link. */
 function opensAsFolder(entry: FileEntry): boolean {
   return (
@@ -25,6 +28,12 @@ function leadsTo(path: string, current: string): boolean {
   return path === "/" || current === path || current.startsWith(`${path}/`);
 }
 
+export interface TreeFolderTarget {
+  path: string;
+  name: string;
+  refused: boolean;
+}
+
 interface TreeState {
   serverId: string;
   /** The folder the list shows. */
@@ -35,26 +44,45 @@ interface TreeState {
   toggle: (path: string, open: boolean) => void;
   /** Whether a listing that failed is worth another try, as the page decides it for its own. */
   retry: (failures: number, error: unknown) => boolean;
+  onContextMenu?: ((target: TreeFolderTarget, position: { x: number; y: number }) => void) | undefined;
 }
 
 /**
- * The server's folders as a tree, as Server-Files has it under the places: the way to
- * the folder you're in stands open, and any folder opens in place. It lists a folder
- * only once it's open. The folder you're in is the page's own listing. The others are
- * lookups, as a form's are: the tree opened them, not a person, so one the server
- * refuses, such as Docker's data above a volume, goes on no Activity.
+ * The server's folders as a tree under Common places: the way to the folder
+ * you're in opens automatically, deep levels scroll horizontally instead of
+ * clipping every level with ellipses, and right-clicking a folder opens its
+ * context menu.
  */
 export function FolderTree({
   serverId,
   current,
   retry,
+  onFolderContextMenu,
 }: {
   serverId: string;
   current: string;
   retry: TreeState["retry"];
+  onFolderContextMenu?: (target: TreeFolderTarget, position: { x: number; y: number }) => void;
 }) {
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set());
   const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+
+  // Navigating to a folder reveals it in the tree even if an ancestor was previously closed.
+  useEffect(() => {
+    setClosed((was) => {
+      if (was.size === 0) return was;
+      let changed = false;
+      const next = new Set(was);
+      for (const p of was) {
+        if (leadsTo(p, current)) {
+          next.delete(p);
+          changed = true;
+        }
+      }
+      return changed ? next : was;
+    });
+  }, [current]);
+
   const toggle = (path: string, open: boolean) => {
     const set = (from: ReadonlySet<string>, has: boolean) => {
       const next = new Set(from);
@@ -65,7 +93,16 @@ export function FolderTree({
     setOpened((was) => set(was, open));
     setClosed((was) => set(was, !open));
   };
-  const state: TreeState = { serverId, current, opened, closed, toggle, retry };
+
+  const state: TreeState = {
+    serverId,
+    current,
+    opened,
+    closed,
+    toggle,
+    retry,
+    onContextMenu: onFolderContextMenu,
+  };
   return (
     <ul className="files-tree">
       <Folder path="/" name="/" depth={0} state={state} />
@@ -87,26 +124,34 @@ function Folder({
   state: TreeState;
 }) {
   const { t } = useLingui();
-  const { serverId, current, opened, closed, toggle } = state;
+  const { serverId, current, opened, closed, toggle, onContextMenu } = state;
   const open = !refused && (opened.has(path) || (leadsTo(path, current) && !closed.has(path)));
   const here = path === current;
   const row = useRef<HTMLDivElement>(null);
-  // The folder you're in is brought into the tree's own view, without moving the page under you.
+
+  // Bring the current folder into view inside the tree (both vertically and horizontally).
   useEffect(() => {
     const el = row.current;
     const tree = el?.closest<HTMLElement>(".files-tree");
     if (!here || !el || !tree) return;
-    const top = el.getBoundingClientRect().top - tree.getBoundingClientRect().top + tree.scrollTop;
+    const elRect = el.getBoundingClientRect();
+    const treeRect = tree.getBoundingClientRect();
+    const top = elRect.top - treeRect.top + tree.scrollTop;
     if (top < tree.scrollTop || top + el.offsetHeight > tree.scrollTop + tree.clientHeight) {
       tree.scrollTop = Math.max(0, top - (tree.clientHeight - el.offsetHeight) / 2);
     }
-  }, [here]);
+    const left = depth * TREE_INDENT_PX;
+    if (left < tree.scrollLeft || left + 120 > tree.scrollLeft + tree.clientWidth) {
+      tree.scrollLeft = Math.max(0, left - 16);
+    }
+  }, [here, depth]);
+
   return (
     <li>
       <div
         ref={row}
         className={cx("files-tree-row", here && "is-current")}
-        style={{ paddingInlineStart: `calc(${depth} * var(--space-3))` }}
+        style={{ paddingInlineStart: `${depth * TREE_INDENT_PX}px` }}
       >
         {refused ? (
           <span className="files-tree-toggle" aria-hidden="true" />
@@ -129,9 +174,17 @@ function Folder({
           title={path}
           // The router marks the folder's own page; this says where you are while a file is open in it.
           aria-current={here ? "location" : undefined}
+          onContextMenu={(event) => {
+            if (!onContextMenu) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onContextMenu({ path, name, refused }, { x: event.clientX, y: event.clientY });
+          }}
         >
           <Icon name={refused ? "lock" : "folder"} size={14} />
-          <span className="files-tree-name">{name}</span>
+          <span className="files-tree-name" title={name}>
+            {name}
+          </span>
         </Link>
       </div>
       {open ? <Children path={path} depth={depth + 1} state={state} /> : null}
@@ -142,20 +195,16 @@ function Folder({
 /** A folder's own folders, read once it's open. */
 function Children({ path, depth, state }: { path: string; depth: number; state: TreeState }) {
   const { t } = useLingui();
-  // For the folder the page shows, the page's own query, so the two share one answer.
-  // What failed isn't asked again each time the window takes focus, nor a folder larger than a page, which
-  // its agent reads every name of to answer.
   const query = useQuery(
     FileService.method.listFiles,
     path === state.current ? { serverId: state.serverId, path } : { serverId: state.serverId, path, lookup: true },
-    // The page's listing is as new as the tree needs, so a folder opening here doesn't ask for it again.
     {
       retry: state.retry,
       refetchOnMount: false,
       refetchOnWindowFocus: (q) => q.state.status !== "error" && !q.state.data?.nextPage,
     },
   );
-  const indent = { paddingInlineStart: `calc(${depth} * var(--space-3) + 22px)` };
+  const indent = { paddingInlineStart: `${depth * TREE_INDENT_PX + 22}px` };
   if (query.error) {
     return (
       <p className="files-tree-note" style={indent}>
@@ -164,7 +213,6 @@ function Children({ path, depth, state }: { path: string; depth: number; state: 
     );
   }
   if (!query.data) {
-    // Its folders on their way, under it, as its list will set them.
     return (
       <ul aria-busy="true" aria-label={t`Reading this folder`}>
         {[88, 64].map((width) => (
@@ -180,7 +228,6 @@ function Children({ path, depth, state }: { path: string; depth: number; state: 
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   if (folders.length === 0) return null;
   const shown = folders.slice(0, TREE_PAGE);
-  // The way to where you are is always there, however far down its folder's list it comes.
   const onTheWay = folders.slice(TREE_PAGE).find((entry) => leadsTo(join(path, entry.name), state.current));
   if (onTheWay) shown.push(onTheWay);
   const more = folders.length - shown.length;

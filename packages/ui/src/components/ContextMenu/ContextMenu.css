@@ -1,0 +1,110 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.dw-context-menu {
+  position: fixed;
+  z-index: var(--z-command);
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+  min-width: 196px;
+  max-width: min(300px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.dw-context-menu-sep {
+  height: 1px;
+  margin: var(--space-1) var(--space-2);
+  border: 0;
+  background: var(--line);
+}
+
+.dw-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 450;
+  line-height: 18px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dw-context-menu-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--ink-muted);
+}
+
+.dw-context-menu-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dw-context-menu-shortcut {
+  flex: none;
+  margin-left: var(--space-3);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.dw-context-menu-item:hover,
+.dw-context-menu-item:focus-visible {
+  outline: none;
+  background: var(--surface-sunken);
+}
+
+.dw-context-menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--cobalt);
+}
+
+.dw-context-menu-item.is-danger,
+.dw-context-menu-item.is-danger .dw-context-menu-icon {
+  color: var(--critical);
+}
+
+.dw-context-menu-item.is-danger:hover,
+.dw-context-menu-item.is-danger:focus-visible {
+  background: var(--critical-soft);
+}
+
+.dw-context-menu-item.is-disabled {
+  color: var(--ink-faint);
+  cursor: not-allowed;
+}
+
+.dw-context-menu-item.is-disabled .dw-context-menu-icon {
+  color: var(--ink-faint);
+}
+
+.dw-context-menu-item.is-disabled:hover {
+  background: none;
+}
+
+@media (max-width: 639.98px) {
+  .dw-context-menu-item {
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    font-size: 14px;
+  }
+}
