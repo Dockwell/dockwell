@@ -274,12 +274,12 @@ service FileService {
     option (google.api.http) = {delete: "/v1/servers/{server_id}/uploads/{upload_id}"};
   }
 
-  // DownloadFile sends a file as it is, or a folder as a zip archive, as it
-  // reads it. Over REST it's a GET whose body is the file, written as it's
-  // read, for a browser to save; one that stops partway cuts the connection,
-  // so it can't pass for the whole. What a read refuses, a download does, and
-  // one stops at a private key in what it sends. No API token can call it.
-  // Each one is on the timeline, before anything goes out.
+  // DownloadFile sends a file as it is, or a folder (or several selected paths)
+  // as a zip archive, as it reads it. Over REST it's a GET whose body is the
+  // file, written as it's read, for a browser to save; one that stops partway
+  // cuts the connection, so it can't pass for the whole. What a read refuses, a
+  // download does, and one stops at a private key in what it sends. No API
+  // token can call it. Each one is on the timeline, before anything goes out.
   rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
     option (dockwell.v1.effect) = EFFECT_READ;
@@ -295,6 +295,85 @@ service FileService {
       get: "/v1/servers/{server_id}/files:download"
       response_body: "body"
     };
+  }
+
+  // CompressFiles starts a job that packs one or more files or folders into a
+  // new zip archive on the server, never over what's there. Preflight checks
+  // run first, then the job runs on the agent so it outlives proxy request
+  // timeouts. Poll GetArchiveJob or ListArchiveJobs for progress and outcome.
+  // What a read refuses is left out and counted, and any private key or
+  // password hash stops it. No API token can call it. Each one is on the
+  // timeline.
+  rpc CompressFiles(CompressFilesRequest) returns (CompressFilesResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "compress"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:compress"
+      body: "*"
+    };
+  }
+
+  // ExtractArchive starts a job that unpacks an existing .zip, .tar.gz or .tgz
+  // archive on the server into a new folder beside it, never over what's
+  // there. Preflight checks run first, then the job runs on the agent so it
+  // outlives proxy request timeouts. Poll GetArchiveJob or ListArchiveJobs for
+  // progress and outcome. Symlinks and special files are skipped and counted;
+  // unsafe paths and way-in entries stop it all-or-nothing. No API token can
+  // call it. Each one is on the timeline.
+  rpc ExtractArchive(ExtractArchiveRequest) returns (ExtractArchiveResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "extract"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:extract"
+      body: "*"
+    };
+  }
+
+  // GetArchiveJob returns the current state, progress and outcome of a
+  // compress or extract job started by the caller on a server. No API token
+  // can call it.
+  rpc GetArchiveJob(GetArchiveJobRequest) returns (GetArchiveJobResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "archive-job"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/archive-jobs/{job_id}"};
+  }
+
+  // ListArchiveJobs returns active and recently finished compress and extract
+  // jobs started by the caller on a server. No API token can call it.
+  rpc ListArchiveJobs(ListArchiveJobsRequest) returns (ListArchiveJobsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "archive-jobs"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/archive-jobs"};
   }
 }
 
@@ -346,6 +425,10 @@ message ReadFileRequest {
   // The file's absolute path, without . or .. in it, such as
   // "/etc/nginx/nginx.conf".
   string path = 2;
+  // True to also return binary bytes (up to the preview cap of 1 MiB) in
+  // raw_content, for image previews through the read path instead of a
+  // download.
+  bool allow_binary = 3;
 }
 
 // ReadFileResponse is a file on a server.
@@ -356,9 +439,11 @@ message ReadFileResponse {
   FileEntry file = 2;
   // Its text. Empty for a binary file.
   string content = 3;
-  // True when the file isn't UTF-8 text, so its contents aren't sent.
+  // True when the file isn't UTF-8 text, so its contents aren't sent in
+  // content (and are in raw_content only when allow_binary was set).
   bool binary = 4;
-  // True when the file is longer than 1 MiB, so content is its beginning.
+  // True when the file is longer than 1 MiB, so content is its beginning or
+  // raw_content is omitted.
   bool truncated = 5;
   // What SaveFile takes to save over this text: a digest of where the path led,
   // which file that was, and what it held, which tells whether any of it changed
@@ -368,6 +453,9 @@ message ReadFileResponse {
   // True when saving this file takes a passkey, as it's a way back onto the
   // server, such as authorized_keys, a cron job or a systemd unit.
   bool way_back_in = 7;
+  // Binary file bytes when allow_binary was set on ReadFileRequest and the
+  // file is binary and within the preview cap. Empty otherwise.
+  bytes raw_content = 8;
 }
 
 // SaveFileRequest replaces a file's text.
@@ -663,6 +751,138 @@ message DownloadFileRequest {
   string server_id = 1;
   // The absolute path of a file or a folder, without . or .. in it.
   string path = 2;
+  // Several absolute paths to download together as one zip archive, without .
+  // or .. in them. When set, path is left out.
+  repeated string paths = 3;
+}
+
+// CompressFilesRequest packs one or more files or folders into a new zip
+// archive on the server.
+message CompressFilesRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // Absolute paths of files or folders to pack, without . or .. in them.
+  repeated string paths = 2;
+  // The absolute path of the new .zip file to create, without . or .. in it.
+  // Nothing may be at it.
+  string archive_path = 3;
+  // The proof from FinishStepUp, with STEP_UP_ACTION_COMPRESS_WAY_BACK_IN for
+  // archive_path on this server, where creating it is a way back onto it.
+  string proof = 4;
+}
+
+// CompressFilesResponse returns the archive job started for the request.
+message CompressFilesResponse {
+  // The running or finished compress job.
+  ArchiveJob job = 1;
+}
+
+// ExtractArchiveRequest unpacks an existing archive on the server.
+message ExtractArchiveRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The absolute path of the .zip, .tar.gz or .tgz file, without . or .. in it.
+  string path = 2;
+  // The proof from FinishStepUp, with STEP_UP_ACTION_EXTRACT_WAY_BACK_IN for
+  // the archive and destination folder on this server, where extracting there
+  // is a way back onto it.
+  string proof = 3;
+}
+
+// ExtractArchiveResponse returns the archive job started for the request.
+message ExtractArchiveResponse {
+  // The running or finished extract job.
+  ArchiveJob job = 1;
+}
+
+// GetArchiveJobRequest names one archive job on a server.
+message GetArchiveJobRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+  // The job's ID, from CompressFiles or ExtractArchive.
+  string job_id = 2;
+}
+
+// GetArchiveJobResponse is the job's current state.
+message GetArchiveJobResponse {
+  // The job.
+  ArchiveJob job = 1;
+}
+
+// ListArchiveJobsRequest names a server.
+message ListArchiveJobsRequest {
+  // The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+  string server_id = 1;
+}
+
+// ListArchiveJobsResponse lists active and recently finished archive jobs for
+// the caller on that server, newest first.
+message ListArchiveJobsResponse {
+  // The jobs.
+  repeated ArchiveJob jobs = 1;
+}
+
+// ArchiveJobKind says whether a job compresses or extracts an archive.
+enum ArchiveJobKind {
+  ARCHIVE_JOB_KIND_UNSPECIFIED = 0;
+  // Packing selected paths into a new .zip archive.
+  ARCHIVE_JOB_KIND_COMPRESS = 1;
+  // Extracting an existing .zip, .tar.gz or .tgz archive.
+  ARCHIVE_JOB_KIND_EXTRACT = 2;
+}
+
+// ArchiveJobState is where an archive job stands.
+enum ArchiveJobState {
+  ARCHIVE_JOB_STATE_UNSPECIFIED = 0;
+  // Running on the agent.
+  ARCHIVE_JOB_STATE_RUNNING = 1;
+  // Finished and in place on disk.
+  ARCHIVE_JOB_STATE_DONE = 2;
+  // Stopped with an error; nothing partial was left behind.
+  ARCHIVE_JOB_STATE_FAILED = 3;
+}
+
+// ArchiveJob is one server-side compress or extract job, which outlives the
+// request that started it so long archives survive proxy request timeouts.
+message ArchiveJob {
+  // Its ID, which GetArchiveJob takes.
+  string job_id = 1;
+  // Whether it compresses or extracts.
+  ArchiveJobKind kind = 2;
+  // Running, done or failed.
+  ArchiveJobState state = 3;
+  // The archive's path on the server, with every symlink in its folder's path
+  // followed.
+  string path = 4;
+  // For extract, the new folder the archive unpacks into. Empty for compress.
+  string unpacked_to = 5;
+  // For compress, the resolved source paths being packed (first 10 when many).
+  repeated string source_paths = 6;
+  // Total number of top-level source paths for compress.
+  uint32 source_count = 7;
+  // Files and folders processed so far (or final count when done).
+  uint64 entries = 8;
+  // Total entries known ahead of time (for zip extract), or zero when unknown.
+  uint64 total_entries = 9;
+  // Bytes written so far (or final archive / unpacked bytes when done).
+  uint64 bytes = 10;
+  // For extract: symlinks, hard links, devices and FIFOs skipped in the archive.
+  uint64 skipped_links = 11;
+  // For compress: entries left out (refused paths, other filesystems, links,
+  // or deeper than the depth limit).
+  uint64 left_out = 12;
+  // For compress when done: the created archive file entry.
+  FileEntry file = 13;
+  // True when starting the job took a passkey for a way back in.
+  bool way_back_in = 14;
+  // When failed: the reason for people.
+  string error = 15;
+  // When failed: the API error reason, such as "unpack_refused" or "disk_full".
+  string error_reason = 16;
+  // When the job started on the agent.
+  google.protobuf.Timestamp start_time = 17;
+  // When the job finished or failed. Unset while running.
+  google.protobuf.Timestamp finish_time = 18;
 }
 
 // FileType says what an entry in a directory is.

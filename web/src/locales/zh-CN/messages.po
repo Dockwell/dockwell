@@ -760,8 +760,14 @@ msgstr "{subject} 有可用更新：{where}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to compress {path} on {server}, and none came"
+msgstr "压缩 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to delete {path} on {server}, and none came"
 msgstr "删除 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to extract {path} on {server}, and none came"
+msgstr "解压 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
 msgid "Asked for a passkey to make {path} on {server}, and none came"
 msgstr "创建 {server} 上的 {path} 时要求验证通行密钥，但未收到"
@@ -871,6 +877,12 @@ msgstr "关闭了 {server} 上的终端"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "关闭了 {server} 上的终端，共打开 {open}"
 
+msgid "Compressed {path} on {server}, which can let someone back in"
+msgstr "压缩了 {server} 上的 {path}，该路径可用于重新进入服务器"
+
+msgid "Compressed {path} on {server}, {size}"
+msgstr "压缩了 {server} 上的 {path}，{size}"
+
 msgid "Confirmed which environments are protected"
 msgstr "确认了哪些环境受保护"
 
@@ -880,8 +892,14 @@ msgstr "已将一个密钥复制到新数据库"
 msgid "Copied the secret {name} into a new database"
 msgstr "已将密钥 {name} 复制到新数据库"
 
+msgid "Couldn't compress {path} on {server}"
+msgstr "无法压缩 {server} 上的 {path}"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "无法删除 {server} 上的 {path}"
+
+msgid "Couldn't extract {path} on {server}"
+msgstr "无法解压 {server} 上的 {path}"
 
 msgid "Couldn't make {app}'s owner"
 msgstr "无法创建 {app} 的所有者"
@@ -959,6 +977,12 @@ msgstr "结束了 {server} 告警的静音"
 
 msgid "Ended the sessions of a sign-in provider that stopped"
 msgstr "结束了已失效登录提供方的会话"
+
+msgid "Extracted {path} into {to} on {server}"
+msgstr "已将 {server} 上的 {path} 解压到 {to}"
+
+msgid "Extracted {path} into {to} on {server}, which can let someone back in"
+msgstr "已将 {server} 上的 {path} 解压到 {to}，该路径可用于重新进入服务器"
 
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"
@@ -1306,6 +1330,24 @@ msgstr "退出了其他会话"
 msgid "Something Dockwell published at Cloudflare is gone"
 msgstr "Dockwell 在 Cloudflare 发布的内容已不在了"
 
+msgid "Started compressing {path} on {server}"
+msgstr "开始在 {server} 上压缩 {path}"
+
+msgid "Started compressing {path} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上压缩 {path}（可能让人重新进入服务器）"
+
+msgid "Started extracting {path} into {to} on {server}"
+msgstr "开始在 {server} 上将 {path} 解压到 {to}"
+
+msgid "Started extracting {path} into {to} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上将 {path} 解压到 {to}（可能让人重新进入服务器）"
+
+msgid "Started extracting {path} on {server}"
+msgstr "开始在 {server} 上解压 {path}"
+
+msgid "Started extracting {path} on {server}, which can let someone back in"
+msgstr "开始在 {server} 上解压 {path}（可能让人重新进入服务器）"
+
 msgid "Stopped serving the panel on {previous}"
 msgstr "不再在 {previous} 上提供面板"
 
@@ -1495,6 +1537,18 @@ msgstr "{name} 在 {server} 上变为不健康"
 
 msgid "{name} was paused on {server}"
 msgstr "{name} 在 {server} 上被暂停"
+
+msgid "{pathCount, plural, one {Compressed # item into {path} on {server}, {size}} other {Compressed # items into {path} on {server}, {size}}}"
+msgstr "{pathCount, plural, other {在 {server} 上将 # 项压缩为 {path}，{size}}}"
+
+msgid "{pathCount, plural, one {Downloaded # item from {server}, {size}} other {Downloaded # items from {server}, {size}}}"
+msgstr "{pathCount, plural, other {从 {server} 下载了 # 项，{size}}}"
+
+msgid "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
+msgstr "{pathCount, plural, other {从 {server} 下载了 # 项}}"
+
+msgid "{pathCount, plural, one {Started compressing # item into {path} on {server}} other {Started compressing # items into {path} on {server}}}"
+msgstr "{pathCount, plural, other {开始在 {server} 上将 # 项压缩为 {path}}}"
 
 msgid "{server} can't be reached"
 msgstr "无法连接到 {server}"
@@ -15657,7 +15711,9 @@ msgstr "{0} 个 CPU"
 msgid "+{0} more"
 msgstr "另有 {0} 项"
 
-#. placeholder {0}: row.name
+#. placeholder {0}: entry.name
+#. placeholder {0}: menu.row.name
+#. placeholder {0}: menu.target.name
 msgid "Actions for {0}"
 msgstr "{0} 的操作"
 
@@ -17000,6 +17056,158 @@ msgstr "还没有记录"
 msgid "Proxied by Cloudflare"
 msgstr "由 Cloudflare 代理"
 
+msgid "$ of $"
+msgstr "第 $ 项，共 $ 项"
+
+msgid "Close find bar"
+msgstr "关闭查找栏"
+
+msgid "Find"
+msgstr "查找"
+
+msgid "Find and replace"
+msgstr "查找和替换"
+
+msgid "Invalid regular expression"
+msgstr "正则表达式无效"
+
+msgid "Match case"
+msgstr "区分大小写"
+
+msgid "Next match"
+msgstr "下一个匹配项"
+
+msgid "No matches"
+msgstr "无匹配项"
+
+msgid "Previous match"
+msgstr "上一个匹配项"
+
+msgid "Regular expression"
+msgstr "正则表达式"
+
+msgid "Replace all"
+msgstr "全部替换"
+
+msgid "Replace with"
+msgstr "替换为"
+
+msgid "Whole word"
+msgstr "全字匹配"
+
+msgid "(Empty file)"
+msgstr "（空文件）"
+
+msgid "Archive"
+msgstr "压缩包"
+
+msgid "Can't preview this image here. Download it to open it on your computer."
+msgstr "无法在此预览此图片。请下载后在电脑上打开。"
+
+msgid "Compress"
+msgstr "压缩"
+
+#. placeholder {0}: entry.name
+#. placeholder {0}: single.name
+msgid "Compress {0}"
+msgstr "压缩 {0}"
+
+msgid "Copy path"
+msgstr "复制路径"
+
+msgid "Copy path {path}"
+msgstr "复制路径 {path}"
+
+msgid "Dockwell doesn't open this"
+msgstr "Dockwell 不打开这一项"
+
+msgid "Download as a .zip"
+msgstr "下载为 .zip"
+
+#. placeholder {0}: entry.name
+msgid "Download {0}"
+msgstr "下载 {0}"
+
+#. placeholder {0}: entry.name
+msgid "Download {0} as a .zip"
+msgstr "以 .zip 下载 {0}"
+
+msgid "Exit full window"
+msgstr "退出全窗口"
+
+msgid "Extract"
+msgstr "解压"
+
+#. placeholder {0}: entry.name
+msgid "Extract {0}"
+msgstr "解压 {0}"
+
+msgid "File"
+msgstr "文件"
+
+msgid "Full window"
+msgstr "全窗口"
+
+msgid "Full window preview"
+msgstr "全窗口预览"
+
+msgid "Images over 1 MB aren't previewed here. Download it to open it on your computer."
+msgstr "超过 1 MB 的图片不在此预览。请下载后在电脑上打开。"
+
+msgid "Link to folder"
+msgstr "指向文件夹的链接"
+
+#. placeholder {0}: entry.name
+msgid "Loading preview of {0}"
+msgstr "正在加载 {0} 的预览"
+
+msgid "Modified"
+msgstr "修改时间"
+
+#. placeholder {0}: entry.name
+msgid "More options for {0}"
+msgstr "{0} 的更多选项"
+
+msgid "Move"
+msgstr "移动"
+
+msgid "Permissions"
+msgstr "权限"
+
+#. placeholder {0}: entry.name
+msgid "Previewing {0}"
+msgstr "正在预览 {0}"
+
+msgid "Rename"
+msgstr "重命名"
+
+#. placeholder {0}: entry.name
+msgid "Rename {0}"
+msgstr "重命名 {0}"
+
+#. placeholder {0}: snippet.totalLines
+msgid "Showing first {TEXT_PREVIEW_LINES} of {0} lines"
+msgstr "显示前 {TEXT_PREVIEW_LINES} 行，共 {0} 行"
+
+msgid "This isn't a text file. Download it to open it on your computer."
+msgstr "这不是文本文件。请下载后在电脑上打开。"
+
+msgid "This path is protected on the server, so Dockwell doesn't preview or change it."
+msgstr "此路径在服务器上受保护，Dockwell 不会预览或更改它。"
+
+msgid "Cancel rename"
+msgstr "取消重命名"
+
+msgid "New name for {initial}"
+msgstr "{initial} 的新名称"
+
+msgid "Save name"
+msgstr "保存名称"
+
+#. placeholder {0}: row.name
+msgid "Select {0}"
+msgstr "选择 {0}"
+
 msgid "Bring them back"
 msgstr "恢复这些更改"
 
@@ -17009,11 +17217,17 @@ msgstr "无法读取这个文件"
 msgid "Can't save this file"
 msgstr "无法保存这个文件"
 
-msgid "Close {name}"
-msgstr "关闭 {name}"
+msgid "Close tab {tabName}"
+msgstr "关闭标签页 {tabName}"
+
+msgid "Close {activeName}"
+msgstr "关闭 {activeName}"
 
 msgid "Contents of {name}"
 msgstr "{name} 的内容"
+
+msgid "Disable word wrap"
+msgstr "关闭自动换行"
 
 msgid "Discard them"
 msgstr "丢弃这些更改"
@@ -17021,11 +17235,17 @@ msgstr "丢弃这些更改"
 msgid "Dockwell doesn't open this file"
 msgstr "Dockwell 不打开这个文件"
 
-msgid "Download {name}"
-msgstr "下载 {name}"
+msgid "Download {activeName}"
+msgstr "下载 {activeName}"
 
 msgid "Edited"
 msgstr "已编辑"
+
+msgid "Enable word wrap"
+msgstr "开启自动换行"
+
+msgid "Full window editor"
+msgstr "全窗口编辑器"
 
 msgid "It asks for your passkey, as this file can let someone back in."
 msgstr "保存时会要求验证你的通行密钥，因为这个文件可能让他人重新进入服务器。"
@@ -17037,11 +17257,22 @@ msgstr "它的大小为 {size}，且不是 UTF-8 文本，因此这里无法显�
 msgid "Leads to <0>{0}</0>"
 msgstr "指向 <0>{0}</0>"
 
+#. placeholder {0}: names.length
+msgid "Leave {0} unsaved files? What you typed goes."
+msgstr "离开 {0} 个未保存的文件？你输入的内容将会丢失。"
+
+#. placeholder {0}: names[0]
+msgid "Leave {0} without saving? What you typed goes."
+msgstr "不保存就离开 {0}？你输入的内容将会丢失。"
+
 msgid "Leave {name} without saving? What you typed goes."
 msgstr "不保存就离开 {name} 吗？你输入的内容会丢失。"
 
 msgid "Load the server's version"
 msgstr "加载服务器上的版本"
+
+msgid "Loading editor for {name}"
+msgstr "正在加载 {name} 的编辑器"
 
 msgid "Mixed line endings"
 msgstr "混合换行符"
@@ -17100,11 +17331,17 @@ msgstr "这次保存可能仍会写入"
 msgid "This server's agent can't save files"
 msgstr "这台服务器的 agent 无法保存文件"
 
+msgid "Unsaved changes"
+msgstr "未保存的更改"
+
 msgid "Update the agent on this server to edit {name} here. You can still read it."
 msgstr "更新这台服务器上的 agent，才能在这里编辑 {name}。你仍然可以查看它。"
 
 msgid "What you typed is still here."
 msgstr "你输入的内容还在这里。"
+
+msgid "Word wrap"
+msgstr "自动换行"
 
 msgid "You have unsaved changes to {name}"
 msgstr "{name} 有未保存的更改"
@@ -17149,31 +17386,65 @@ msgstr "无法连接这台服务器"
 msgid "Can't read this folder"
 msgstr "无法读取这个文件夹"
 
-msgid "Choose a file in the list to read or edit it here."
-msgstr "在列表中选择一个文件，即可在这里查看或编辑。"
-
 msgid "Common places"
 msgstr "常用位置"
+
+msgid "Compressed {archiveName}"
+msgstr "已压缩 {archiveName}"
+
+#. placeholder {0}: nameOf(job.path)
+msgid "Compressing {0}"
+msgstr "正在压缩 {0}"
+
+msgid "Compressing {label} stopped before it finished. Start it again."
+msgstr "压缩 {label} 在完成前停止了。请重新开始。"
 
 msgid "Copy path {shown}"
 msgstr "复制路径 {shown}"
 
-#. placeholder {0}: nameOf(deleted.path)
+msgid "Copy paths"
+msgstr "复制路径"
+
+#. placeholder {0}: nameOf(job.path)
+msgid "Couldn't compress {0}"
+msgstr "无法压缩 {0}"
+
+#. placeholder {0}: nameOf(archivePath)
+#. placeholder {0}: nameOf(job.path)
+msgid "Couldn't extract {0}"
+msgstr "无法解压 {0}"
+
+#. placeholder {0}: nameOf(singleDeleted.path)
 msgid "Deleted {0}"
 msgstr "已删除 {0}"
 
-#. placeholder {0}: nameOf(deleted.path)
+#. placeholder {0}: nameOf(singleDeleted.path)
 msgid "Deleted {0} for good"
 msgstr "已永久删除 {0}"
-
-msgid "Dockwell doesn't open this"
-msgstr "Dockwell 不打开这一项"
 
 msgid "Dockwell doesn't open this folder"
 msgstr "Dockwell 不打开这个文件夹"
 
+msgid "Download {count} items as a .zip"
+msgstr "以 .zip 下载 {count} 项"
+
+#. placeholder {0}: nameOf(job.path)
+msgid "Extracted {0}"
+msgstr "已解压 {0}"
+
+#. placeholder {0}: nameOf(job.path)
+msgid "Extracting {0}"
+msgstr "正在解压 {0}"
+
+#. placeholder {0}: nameOf(lost.unpackedTo || lost.path)
+msgid "Extracting {label} stopped before it finished. Part of it may already be in {0}."
+msgstr "解压 {label} 在完成前停止了。部分内容可能已在 {0} 中。"
+
 msgid "Files in {shown}"
 msgstr "{shown} 中的文件"
+
+msgid "Folder actions"
+msgstr "文件夹操作"
 
 #. placeholder {0}: parentOf(folder)
 msgid "Go up to {0}"
@@ -17182,20 +17453,23 @@ msgstr "返回上级 {0}"
 msgid "It's in Recently deleted for 7 days, where you can put it back."
 msgstr "它会在“最近删除”中保留 7 天，期间可以放回原处。"
 
-msgid "Modified"
-msgstr "修改时间"
-
 msgid "More than {countWords} items"
 msgstr "超过 {countWords} 项"
+
+msgid "New"
+msgstr "新建"
 
 msgid "New file"
 msgstr "新建文件"
 
+msgid "New file or folder"
+msgstr "新建文件或文件夹"
+
 msgid "New folder"
 msgstr "新建文件夹"
 
-msgid "No file open"
-msgstr "没有打开的文件"
+msgid "No file selected"
+msgstr "未选择文件"
 
 msgid "Nothing at this path"
 msgstr "这个路径下什么都没有"
@@ -17203,15 +17477,15 @@ msgstr "这个路径下什么都没有"
 msgid "Nothing brings it back."
 msgstr "无法恢复。"
 
+msgid "Nothing brings them back."
+msgstr "删除后无法恢复。"
+
 msgid "Nothing here matches your search."
 msgstr "这里没有符合搜索条件的内容。"
 
 #. placeholder {0}: server.name
 msgid "Only {count} of its items are here. Update the agent on {0} to search and page through them all."
 msgstr "这里只列出了其中 {count} 项。更新 {0} 上的代理后，即可搜索并分页查看全部。"
-
-msgid "Permissions"
-msgstr "权限"
 
 msgid "Places"
 msgstr "常用位置"
@@ -17226,12 +17500,27 @@ msgstr "正在读取这个文件夹"
 msgid "Recently deleted"
 msgstr "最近删除"
 
+msgid "Reconnecting to check progress"
+msgstr "正在重新连接以查看进度"
+
+msgid "Resize folder tree"
+msgstr "调整文件夹树宽度"
+
 #. placeholder {0}: nameOf(shown)
 msgid "Search in {0}"
 msgstr "在 {0} 中搜索"
 
 msgid "Searching every name in this folder"
 msgstr "正在搜索此文件夹中的所有名称"
+
+msgid "Select a file to inspect it, or double-click to open it."
+msgstr "选择文件以查看详情，或双击打开。"
+
+msgid "Selecting this many items makes the download link too long. Compress them into a .zip on the server, then download that archive."
+msgstr "所选项目过多，下载链接会过长。请先在服务器上将它们压缩为 .zip，再下载该压缩包。"
+
+msgid "Selection actions"
+msgstr "所选项目操作"
 
 msgid "Server root"
 msgstr "服务器根目录"
@@ -17240,11 +17529,26 @@ msgctxt "the next page of a long list"
 msgid "Show more"
 msgstr "加载更多"
 
+msgid "Something called {nextName} is here already."
+msgstr "这里已存在名为 {nextName} 的项目。"
+
+msgid "Something went wrong on the server."
+msgstr "服务器发生错误。"
+
+msgid "Stopped when the agent restarted"
+msgstr "代理重启时已停止"
+
+msgid "They're in Recently deleted for 7 days, where you can put them back."
+msgstr "它们会保留在“最近删除”中 7 天，期间可以恢复。"
+
 msgid "This folder holds more than a listing shows"
 msgstr "这个文件夹的内容超出了列表能显示的数量"
 
 msgid "This folder is empty."
 msgstr "这个文件夹是空的。"
+
+msgid "Too many items to download at once"
+msgstr "一次下载的项目过多"
 
 msgid "Upload"
 msgstr "上传"
@@ -17255,8 +17559,40 @@ msgstr "网站"
 msgid "owned by <0>{owner}</0>"
 msgstr "所有者 <0>{owner}</0>"
 
+#. placeholder {0}: Number(job.leftOut)
+msgid "{0, plural, one {# item was left out.} other {# items were left out.}}"
+msgstr "{0, plural, other {已略过 # 项。}}"
+
+#. placeholder {0}: Number(job.skippedLinks)
+msgid "{0, plural, one {# link wasn't made.} other {# links weren't made.}}"
+msgstr "{0, plural, other {未创建 # 个链接。}}"
+
+#. placeholder {0}: selectedRows.length
+msgid "{0, plural, one {# selected} other {# selected}}"
+msgstr "{0, plural, other {已选择 # 项}}"
+
+#. placeholder {0}: deleted.length
+msgid "{0, plural, one {Deleted # item} other {Deleted # items}}"
+msgstr "{0, plural, other {已删除 # 项}}"
+
+#. placeholder {0}: Number(job.entries)
+msgid "{0, plural, one {Packed # item into the archive.} other {Packed # items into the archive.}}"
+msgstr "{0, plural, other {已将 # 项打包到压缩包中。}}"
+
+#. placeholder {0}: Number(job.entries)
+msgid "{0, plural, one {Unpacked # item into {into}.} other {Unpacked # items into {into}.}}"
+msgstr "{0, plural, other {已将 # 项解压到 {into}。}}"
+
+#. placeholder {0}: many(entries)
+#. placeholder {1}: many(total)
+msgid "{0} of {1} items · {bytes}"
+msgstr "{0} / {1} 项 · {bytes}"
+
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, other {# 项}}"
+
+msgid "{entries, plural, one {# item · {bytes}} other {# items · {bytes}}}"
+msgstr "{entries, plural, other {# 项 · {bytes}}}"
 
 msgid "{shownWords} found so far, by name"
 msgstr "已按名称找到 {shownWords} 项"
@@ -17270,14 +17606,24 @@ msgstr "收起 {name} 中的文件夹"
 msgid "Show the folders in {name}"
 msgstr "展开 {name} 中的文件夹"
 
-msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
-msgstr "{more, plural, other {还有 # 个，见其列表}}"
+msgid "{more, plural, one {# more folder} other {# more folders}}"
+msgstr "{more, plural, other {还有 # 个文件夹}}"
 
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "名称中不能有 /。请先创建文件夹，再在其中创建它。"
 
+msgid "Archive name"
+msgstr "压缩包名称"
+
+msgid "Creates a new .zip archive in this folder. Never replaces a file that's already there."
+msgstr "在此文件夹中创建新的 .zip 压缩包。不会覆盖已有文件。"
+
 msgid "Delete for good"
 msgstr "永久删除"
+
+#. placeholder {0}: single.name
+msgid "Delete {0}"
+msgstr "删除 {0}"
 
 msgid "Delete {name} for good"
 msgstr "永久删除 {name}"
@@ -17285,17 +17631,14 @@ msgstr "永久删除 {name}"
 msgid "Deleted {when}, goes in {left}"
 msgstr "{when}删除，{left}后永久删除"
 
-msgid "Download as a .zip"
-msgstr "下载为 .zip"
-
-msgid "Download {name} as a .zip"
-msgstr "将 {name} 下载为 .zip"
-
 msgid "Free its space now. Nothing brings it back."
 msgstr "立即释放空间，无法恢复。"
 
 msgid "Give it a name."
 msgstr "请输入名称。"
+
+msgid "Give the archive a name before .zip."
+msgstr "请在 .zip 前填写压缩包名称。"
 
 msgid "It starts empty, and opens to edit. Everyone can read it, and this folder's owner can change it."
 msgstr "新文件为空，创建后会打开以便编辑。所有人都可以读取，这个文件夹的所有者可以修改。"
@@ -17315,10 +17658,7 @@ msgstr "创建文件"
 msgid "Make folder"
 msgstr "创建文件夹"
 
-msgid "Move"
-msgstr "移动"
-
-#. placeholder {0}: entry.name
+#. placeholder {0}: single.name
 msgid "Move {0}"
 msgstr "移动 {0}"
 
@@ -17339,30 +17679,33 @@ msgstr "“最近删除”中没有任何内容。"
 msgid "Nothing moved"
 msgstr "没有移动任何内容"
 
+msgid "Nothing was compressed"
+msgstr "未进行压缩"
+
 msgid "Nothing was deleted"
 msgstr "没有删除任何内容"
 
 msgid "On this server, and on the same disk. It keeps its name, and never replaces what's there."
 msgstr "须在这台服务器的同一块磁盘上。名称保持不变，也不会替换那里已有的内容。"
 
+msgid "On this server, and on the same disk. Items keep their names, and never replace what's there."
+msgstr "仅限此服务器的同一磁盘内。项目会保留原名，不会覆盖已有项目。"
+
 msgid "Reading what was deleted"
 msgstr "正在读取已删除的内容"
-
-msgid "Rename"
-msgstr "重命名"
-
-msgid "Rename {name}"
-msgstr "重命名 {name}"
 
 msgid "Rename {was}"
 msgstr "重命名 {was}"
 
-#. placeholder {0}: entry.name
+#. placeholder {0}: target.name
 msgid "Something called {0} is in that folder already. Rename one of them first."
 msgstr "那个文件夹中已经有名为 {0} 的内容。请先重命名其中一个。"
 
 msgid "Something called {name} is here already. Choose another name."
 msgstr "这里已经有名为 {name} 的内容。请换一个名称。"
+
+msgid "Something called {withZip} is here already. Choose another name."
+msgstr "这里已存在名为 {withZip} 的项目。请换一个名称。"
 
 msgid "Something is at {path} now, so it wasn't put back. Move or rename that first."
 msgstr "{path} 现在已有内容，所以没有放回。请先移动或重命名那里的内容。"
@@ -17382,8 +17725,20 @@ msgstr "文件夹 {folder} 已不存在，所以 {name} 没有放回原处，仍
 msgid "The passkey prompt closed, so nothing changed. Try again when you're ready."
 msgstr "通行密钥提示已关闭，所以没有做任何更改。准备好后请重试。"
 
+msgid "The server didn't start the archive job. Try again."
+msgstr "服务器未启动压缩包任务。请重试。"
+
 msgid "There's no folder at {wanted}."
 msgstr "{wanted} 处没有文件夹。"
+
+msgid "These {count} items and everything in any folders go at once, and nothing brings them back. Their space is free straight away."
+msgstr "这 {count} 项及文件夹中的所有内容会立即删除且无法恢复。其占用空间会立即释放。"
+
+msgid "These {count} items go at once, and nothing brings them back. Their space is free straight away."
+msgstr "这 {count} 项会立即删除且无法恢复。其占用空间会立即释放。"
+
+msgid "These {count} items go to Recently deleted, where you can put them back for 7 days. They take their space until then."
+msgstr "这 {count} 项会移至“最近删除”，7 天内可以恢复。在此之前仍占用磁盘空间。"
 
 msgid "This can't be put back"
 msgstr "无法放回原处"
@@ -17400,17 +17755,33 @@ msgstr "目标文件夹"
 msgid "Write the whole path, starting with /, such as /var/www."
 msgstr "请写出以 / 开头的完整路径，例如 /var/www。"
 
-msgid "{name} and everything in it go at once, and nothing brings them back. Its space is free straight away."
-msgstr "{name} 及其中的一切会立即删除，无法恢复。占用的空间会马上释放。"
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Compress # item} other {Compress # items}}"
+msgstr "{0, plural, other {压缩 # 项}}"
 
-msgid "{name} and everything in it go to Recently deleted, where you can put them back for 7 days. They take their space until then."
-msgstr "{name} 及其中的一切会移到“最近删除”，7 天内可以放回原处。在此之前仍占用空间。"
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Delete # item} other {Delete # items}}"
+msgstr "{0, plural, other {删除 # 项}}"
 
-msgid "{name} goes at once, and nothing brings it back. Its space is free straight away."
-msgstr "{name} 会立即删除，无法恢复。占用的空间会马上释放。"
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Move # item} other {Move # items}}"
+msgstr "{0, plural, other {移动 # 项}}"
 
-msgid "{name} goes to Recently deleted, where you can put it back for 7 days. It takes its space until then."
-msgstr "{name} 会移到“最近删除”，7 天内可以放回原处。在此之前仍占用空间。"
+#. placeholder {0}: single.name
+msgid "{0} and everything in it go at once, and nothing brings them back. Its space is free straight away."
+msgstr "{0} 及其中的所有内容会立即删除且无法恢复。其占用空间会立即释放。"
+
+#. placeholder {0}: single.name
+msgid "{0} and everything in it go to Recently deleted, where you can put them back for 7 days. They take their space until then."
+msgstr "{0} 及其中的所有内容会移至“最近删除”，7 天内可以恢复。在此之前仍占用磁盘空间。"
+
+#. placeholder {0}: single.name
+msgid "{0} goes at once, and nothing brings it back. Its space is free straight away."
+msgstr "{0} 会立即删除且无法恢复。其占用空间会立即释放。"
+
+#. placeholder {0}: single.name
+msgid "{0} goes to Recently deleted, where you can put it back for 7 days. It takes its space until then."
+msgstr "{0} 会移至“最近删除”，7 天内可以恢复。在此之前仍占用磁盘空间。"
 
 msgid "A folder doesn't upload as it is. Make a .zip of it, then upload that with Unpack archives on."
 msgstr "文件夹无法直接上传。请先将其打包为 .zip，再开启“解压归档”后上传。"
@@ -20205,6 +20576,9 @@ msgstr "系统日志"
 msgid "System services"
 msgstr "系统服务"
 
+msgid "Close {name}"
+msgstr "关闭 {name}"
+
 msgid "Control server"
 msgstr "控制服务器"
 
@@ -22326,9 +22700,6 @@ msgstr "为每个脚本或集成各创建一个，这样撤销其中一个时不
 msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
-
-msgid "New"
-msgstr "新"
 
 msgid "No tokens yet"
 msgstr "还没有令牌"

@@ -7,12 +7,11 @@
   min-width: 0;
 }
 
-.files-bar {
+.files-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .files-where {
@@ -58,9 +57,26 @@
   font-size: 12px;
 }
 
+/* Single toolbar row: search on the left, actions grouped on the right. */
+.files-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .files-filter {
-  width: 240px;
-  max-width: 100%;
+  flex: 1 1 240px;
+  max-width: 320px;
+  min-width: 0;
+}
+
+.files-tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .files-panes {
@@ -68,27 +84,67 @@
   flex-wrap: wrap;
   align-items: stretch;
   gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Tree sidebar + drag-resize splitter. */
+.files-sidebar-wrap {
+  display: flex;
+  flex: 0 0 220px;
+  align-self: stretch;
+  min-width: 0;
 }
 
 .files-places {
-  flex: 0 0 208px;
+  flex: 1 1 auto;
   align-self: flex-start;
   min-width: 0;
   box-sizing: border-box;
+}
+
+.files-tree-splitter {
+  position: relative;
+  flex: none;
+  width: 10px;
+  margin-inline: -4px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.files-tree-splitter::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 4px;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.files-tree-splitter:hover::after,
+.files-tree-splitter:focus-visible::after {
+  background: var(--cobalt);
+}
+
+.files-tree-splitter:focus-visible {
+  outline: none;
 }
 
 .files-places nav {
   display: flex;
   flex-direction: column;
   padding: var(--space-2);
+  min-width: 0;
 }
 
 .files-places-group {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
-/* As the mock has them: 13 px in ink, with only the icon muted. */
 .files-places .dw-btn {
   justify-content: flex-start;
   width: 100%;
@@ -97,11 +153,12 @@
   font-weight: 400;
 }
 
-.files-places .dw-btn .dw-icon {
+.files-places .dw-btn .files-place-icon,
+.files-tree-link > .dw-icon {
+  flex: none;
   color: var(--ink-muted);
 }
 
-/* The place you're in, as a selected row is. */
 .files-places .dw-btn.is-current {
   background: var(--selection);
 }
@@ -119,7 +176,7 @@
   background: var(--line);
 }
 
-/* The server's folders as a tree: a row a folder, indented by how deep it is, with the one you're in marked. */
+/* Deep folder trees scroll horizontally instead of truncating every level with ellipses. */
 .files-tree,
 .files-tree ul {
   display: flex;
@@ -129,43 +186,40 @@
   list-style: none;
 }
 
-/*
- * The panel is as tall as the list beside it, as Server-Files draws them, and the tree scrolls in what's left
- * of it. So a deep tree never makes the page taller than its panes: it has a floor, and no height of its own.
- */
 .files-places:has(.files-tree) {
   display: flex;
   flex-direction: column;
   align-self: stretch;
 }
 
-.files-places:has(.files-tree) > .dw-panel-body {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-}
-
 .files-places:has(.files-tree) nav,
 .files-places-group:has(.files-tree) {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
 }
 
 .files-tree {
   position: relative;
   flex: 1 1 0;
   min-height: 200px;
-  overflow-y: auto;
+  overflow: auto;
+}
+
+.files-tree li {
+  width: max-content;
+  min-width: 100%;
 }
 
 .files-tree-row {
   display: flex;
   align-items: center;
   gap: 2px;
-  min-width: 0;
+  width: max-content;
+  min-width: 100%;
   height: var(--control-sm);
   border-radius: var(--radius-sm);
+  box-sizing: border-box;
 }
 
 .files-tree-row:hover {
@@ -200,16 +254,10 @@ button.files-tree-toggle:hover {
   align-items: center;
   gap: 6px;
   align-self: stretch;
-  min-width: 0;
   padding-inline-end: var(--space-2);
   border-radius: var(--radius-sm);
   color: var(--ink);
   text-decoration: none;
-}
-
-.files-tree-link .dw-icon {
-  flex: none;
-  color: var(--ink-muted);
 }
 
 .files-tree-toggle:focus-visible,
@@ -219,10 +267,8 @@ button.files-tree-toggle:hover {
 }
 
 .files-tree-name {
-  overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -232,17 +278,166 @@ button.files-tree-toggle:hover {
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 16px;
+  white-space: nowrap;
+}
+
+.files-tree-more {
+  margin: 0;
+  padding-block: 2px;
+  white-space: nowrap;
+}
+
+.files-tree-more-link {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding-inline: 2px;
+  border-radius: var(--radius-xs);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: none;
+}
+
+.files-tree-more-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.files-tree-more-link:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
 }
 
 .files-list {
-  flex: 1 1 520px;
+  flex: 1 1 480px;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   min-width: 0;
 }
 
-/* Under a folder that holds more than a page: how many are shown, and Show more. */
+/* Multi-selection action bar. */
+.files-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--cobalt-soft);
+}
+
+.files-selection-count {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.files-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Table headers: sortable button + right-edge column resize handle. */
+.files-list .dw-table {
+  table-layout: fixed;
+}
+
+.files-table th.files-th {
+  position: sticky;
+  padding-inline: var(--space-2);
+}
+
+.files-table th.files-col-select,
+.files-table td.files-col-select {
+  width: 36px;
+  padding-inline: var(--space-2) 4px;
+  text-align: center;
+}
+
+.files-checkbox {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--cobalt);
+  cursor: pointer;
+}
+
+/* Checkboxes stay quiet until a row is hovered/focused, and stay visible while anything is selected. */
+@media (hover: hover) {
+  .files-table-wrap:not(.has-selection) .files-table tbody tr:not(:hover, :focus-within) .files-checkbox {
+    opacity: 0;
+  }
+
+  .files-table-wrap:not(.has-selection) .files-table thead .files-checkbox:not(:hover, :focus-visible) {
+    opacity: 0.45;
+  }
+}
+
+.files-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.files-sort-btn.is-right {
+  flex-direction: row-reverse;
+}
+
+.files-sort-btn:hover {
+  color: var(--ink);
+}
+
+.files-sort-btn:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
+.files-sort-icon {
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.files-col-resize {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  bottom: 4px;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.files-col-resize::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 2px;
+  width: 1px;
+  background: transparent;
+}
+
+.files-th:hover .files-col-resize::after,
+.files-col-resize:hover::after {
+  background: var(--line-strong);
+}
+
 .files-more {
   display: flex;
   flex-wrap: wrap;
@@ -254,11 +449,6 @@ button.files-tree-toggle:hover {
 
 .files-more-problem {
   color: var(--critical);
-}
-
-/* Columns keep their widths, so a long name or link gives way, not the Size column. */
-.files-list .dw-table {
-  table-layout: fixed;
 }
 
 .files-name {
@@ -274,7 +464,6 @@ button.files-tree-toggle:hover {
   color: var(--ink-muted);
 }
 
-/* A name stays whole before a link's target does. */
 .files-entry-name {
   flex: 0 0 auto;
   max-width: 100%;
@@ -296,10 +485,49 @@ button.files-tree-toggle:hover {
   color: var(--ink-muted);
 }
 
-/* Where an open file shows, kept on a wide screen with nothing open, so the list beside it reads as it does with one. */
+/* Inline rename inside a row's Name cell. */
+.files-inline-rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.files-inline-rename-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--cobalt);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.files-inline-rename-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cobalt-soft);
+}
+
+.files-inline-rename-input.is-invalid {
+  border-color: var(--critical);
+}
+
+.files-inline-rename-error {
+  flex: 1 1 100%;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--critical);
+  white-space: normal;
+}
+
+/* Right pane: idle state, details/preview pane, and editor viewer. */
 .files-idle {
   display: none;
-  flex: 1 1 380px;
+  flex: 1 1 360px;
   flex-direction: column;
   min-width: 0;
 }
@@ -315,19 +543,396 @@ button.files-tree-toggle:hover {
   }
 }
 
+.files-details {
+  flex: 0 1 380px;
+  display: flex;
+  flex-direction: column;
+  min-width: 300px;
+  overflow: hidden;
+}
+
+.files-details.is-fullwindow {
+  position: fixed;
+  inset: var(--space-4);
+  z-index: var(--z-sheet);
+  flex: none;
+  width: auto;
+  max-width: none;
+  box-shadow: var(--shadow-sheet);
+}
+
+.files-details > .dw-panel-body,
+.files-viewer > .dw-panel-body,
+.files-places:has(.files-tree) > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.files-details-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.files-details-more {
+  margin-inline-start: auto;
+}
+
+.files-archive-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.files-archive-job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.files-archive-job-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+
+.files-archive-job-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.files-archive-job-title > .dw-icon {
+  color: var(--cobalt);
+}
+
+.files-archive-job-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.files-archive-progress {
+  margin-top: 0;
+}
+
+.files-archive-progress:indeterminate {
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 0%,
+    var(--cobalt) 35%,
+    var(--cobalt) 65%,
+    var(--surface-sunken) 100%
+  );
+  background-size: 200% 100%;
+  animation: files-archive-indeterminate 1.4s ease-in-out infinite;
+}
+
+.files-archive-progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+@keyframes files-archive-indeterminate {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.files-details-danger,
+.files-details-danger > .dw-icon {
+  color: var(--critical);
+}
+
+.files-details-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.files-details-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.files-details-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.files-details-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.files-details-stage {
+  display: grid;
+  place-items: center;
+  min-height: 140px;
+  max-height: 300px;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.files-details.is-fullwindow .files-details-stage {
+  max-height: 62vh;
+}
+
+.files-details-image {
+  display: block;
+  max-width: 100%;
+  max-height: 276px;
+  object-fit: contain;
+}
+
+.files-details.is-fullwindow .files-details-image {
+  max-height: 58vh;
+}
+
+.files-details-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.files-details-snippet {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+}
+
+.files-details-caption,
+.files-details-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-muted);
+}
+
+.files-details-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.files-details-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.files-details-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.files-details-row dt {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.files-details-row dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.files-details-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.files-details-path {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.files-details-target {
+  color: var(--ink-muted);
+}
+
+/* File viewer & editor panel. */
 .files-viewer {
-  flex: 1 1 380px;
+  flex: 1 1 420px;
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
 }
 
-.files-viewer .dw-panel-body {
-  flex: 1 1 auto;
+.files-viewer.is-fullwindow {
+  position: fixed;
+  inset: var(--space-4);
+  z-index: var(--z-sheet);
+  flex: none;
+  box-shadow: var(--shadow-sheet);
+}
+
+.files-fullwindow-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-sheet) - 1);
+  background: var(--scrim);
+}
+
+.files-editor-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.files-editor-tools .dw-btn.is-active {
+  background: var(--selection);
+  color: var(--cobalt);
+}
+
+.files-tabs {
   display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-sunken);
+}
+
+.files-tab {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 220px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-sunken);
+  color: var(--ink-muted);
+}
+
+.files-tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--cobalt);
+}
+
+.files-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.files-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-tab-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--cobalt);
+}
+
+.files-tab-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.files-tab-close:hover {
+  background: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.files-tab-btn:focus-visible,
+.files-tab-close:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: -2px;
+}
+
+.files-tab-panel {
+  display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
+}
+
+.files-tab-panel[hidden] {
+  display: none;
+}
+
+.files-cm-host {
+  flex: 1 1 auto;
+  min-height: 320px;
+  max-height: 640px;
+  overflow: hidden;
+}
+
+.files-viewer.is-fullwindow .files-cm-host {
+  min-height: 0;
+  max-height: none;
 }
 
 .files-viewer .dw-panel-head {
@@ -368,7 +973,6 @@ button.files-tree-toggle:hover {
   font-size: 11.5px;
 }
 
-/* A file on its way: lines of its text, as the editor sets them. */
 .files-reading {
   display: flex;
   flex-direction: column;
@@ -380,7 +984,6 @@ button.files-tree-toggle:hover {
   padding: var(--space-3);
 }
 
-/* The editor runs to the panel's edges, and takes what height the panel has. */
 .files-code {
   flex: 1 1 auto;
   display: flex;
@@ -469,10 +1072,8 @@ button.files-tree-toggle:hover {
 }
 
 /*
- * With the folders beside the list, the panes fill the window under the page's head and tabs, as a file manager does,
- * however tall it is: the page grows to the window from the shell down, and the panes take what is left of it. The
- * tree, the list and an open file each scroll in their own pane, so moving between folders moves nothing, and a short
- * window keeps a floor and scrolls the page. Narrower, the panes stack and the page scrolls as any does.
+ * With the folders beside the list, the panes fill the window under the page's head and tabs,
+ * however tall it is: the tree, the list and an open file or preview pane each scroll in their own pane.
  */
 @media (min-width: 860px) {
   .shell-main:has(.files-panes) {
@@ -490,6 +1091,7 @@ button.files-tree-toggle:hover {
 
   .files-panes {
     flex: 1 1 0;
+    flex-wrap: nowrap;
     min-height: 26rem;
   }
 
@@ -502,15 +1104,19 @@ button.files-tree-toggle:hover {
     min-height: 0;
   }
 
-  .files-code .dw-code-input {
+  .files-code .dw-code-input,
+  .files-cm-host {
     flex-basis: 0;
     min-height: 0;
     max-height: none;
   }
 }
 
-/* Where the list wouldn't fit beside them, places go across, above it. */
 @media (max-width: 859.98px) {
+  .files-sidebar-wrap {
+    flex: 1 1 100%;
+  }
+
   .files-places {
     flex: 1 1 100%;
   }
@@ -522,6 +1128,7 @@ button.files-tree-toggle:hover {
   }
 
   .files-places-group {
+    flex: none;
     flex-direction: row;
   }
 
@@ -536,23 +1143,24 @@ button.files-tree-toggle:hover {
   }
 
   .files-list,
-  .files-viewer {
+  .files-viewer,
+  .files-details {
     flex-basis: 100%;
+    min-width: 0;
   }
 }
 
 @media (max-width: 639.98px) {
   .files-filter {
-    width: 100%;
+    max-width: none;
   }
 
-  /* An open file takes the phone's screen, as the mock has it. */
-  .files-code .dw-code-input {
+  .files-code .dw-code-input,
+  .files-cm-host {
     min-height: calc(100dvh - 300px);
     max-height: none;
   }
 
-  /* Save stays in reach above the tab bar, however long the file. */
   .files-save {
     position: sticky;
     bottom: var(--tabbar-height);
@@ -570,19 +1178,10 @@ button.files-tree-toggle:hover {
   }
 }
 
-/* Search and what makes something new, as the mock's toolbar has them. */
-.files-tools {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-/* Each row's own actions, quiet until the row is in reach. */
+/* Each row's More button, quiet until the row is hovered or focused. */
 .files-row-actions {
   display: inline-flex;
   justify-content: flex-end;
-  gap: 2px;
 }
 
 .files-row-actions .dw-btn {
@@ -590,7 +1189,7 @@ button.files-tree-toggle:hover {
 }
 
 @media (hover: hover) {
-  .files-list tr:not(:hover, :focus-within) .files-row-actions .dw-btn {
+  .files-list tr:not(:hover, :focus-within, .is-selected) .files-row-actions .dw-btn {
     opacity: 0;
   }
 }
@@ -635,7 +1234,6 @@ button.files-tree-toggle:hover {
   min-width: 0;
 }
 
-/* What a row says wraps, so a narrow screen shows all of when it goes, and where from. */
 .files-deleted-meta {
   overflow-wrap: anywhere;
   font-size: 12px;
@@ -648,22 +1246,11 @@ button.files-tree-toggle:hover {
   gap: var(--space-1);
 }
 
-.files-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.files-actions .dw-btn {
-  justify-content: flex-start;
-}
-
 .files-deleted-from {
   font-family: var(--font-mono);
   font-size: 11.5px;
 }
 
-/* Files dragged over the listing go into this folder when dropped. */
 .files-list[data-dropping] {
   border-radius: var(--radius-md);
   outline: 2px dashed var(--cobalt);

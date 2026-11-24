@@ -94,6 +94,8 @@ var fileWrites = []string{
 	"file.delete", "file.delete_failed", "file.delete_unconfirmed",
 	"file.restore", "file.restore_failed", "file.restore_unconfirmed",
 	"file.upload", "file.upload_failed", "file.upload_unconfirmed",
+	"file.compress", "file.compress_started", "file.compress_failed", "file.compress_unconfirmed",
+	"file.extract", "file.extract_started", "file.extract_failed", "file.extract_unconfirmed",
 	"file.change_unknown",
 }
 
@@ -916,6 +918,10 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 		// A write's detail leaves the store too: where it went, and what it took.
 		if told, ok := controlfiles.ReadTold(a.Detail); ok && (slices.Contains(fileWrites, a.Action) || a.Action == fileDownload) {
 			e.Subject.ToPath, e.Subject.WayBackIn, e.Subject.ForGood, e.Subject.SizeBytes = told.To, told.WayBackIn, told.ForGood, told.Size
+			if len(told.Paths) > 0 {
+				e.Subject.Paths = told.Paths
+				e.Subject.PathCount = uint32(max(told.PathCount, len(told.Paths))) //nolint:gosec // bounded count of paths
+			}
 		}
 	}
 	return e

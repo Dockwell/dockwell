@@ -79,6 +79,114 @@ func (Unpack) EnumDescriptor() ([]byte, []int) {
 	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{0}
 }
 
+// ArchiveJobKind says whether a job compresses or extracts an archive.
+type ArchiveJobKind int32
+
+const (
+	ArchiveJobKind_ARCHIVE_JOB_KIND_UNSPECIFIED ArchiveJobKind = 0
+	// Packing selected paths into a new .zip archive.
+	ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS ArchiveJobKind = 1
+	// Extracting an existing .zip, .tar.gz or .tgz archive.
+	ArchiveJobKind_ARCHIVE_JOB_KIND_EXTRACT ArchiveJobKind = 2
+)
+
+// Enum value maps for ArchiveJobKind.
+var (
+	ArchiveJobKind_name = map[int32]string{
+		0: "ARCHIVE_JOB_KIND_UNSPECIFIED",
+		1: "ARCHIVE_JOB_KIND_COMPRESS",
+		2: "ARCHIVE_JOB_KIND_EXTRACT",
+	}
+	ArchiveJobKind_value = map[string]int32{
+		"ARCHIVE_JOB_KIND_UNSPECIFIED": 0,
+		"ARCHIVE_JOB_KIND_COMPRESS":    1,
+		"ARCHIVE_JOB_KIND_EXTRACT":     2,
+	}
+)
+
+func (x ArchiveJobKind) Enum() *ArchiveJobKind {
+	p := new(ArchiveJobKind)
+	*p = x
+	return p
+}
+
+func (x ArchiveJobKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArchiveJobKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_file_proto_enumTypes[1].Descriptor()
+}
+
+func (ArchiveJobKind) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_file_proto_enumTypes[1]
+}
+
+func (x ArchiveJobKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArchiveJobKind.Descriptor instead.
+func (ArchiveJobKind) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{1}
+}
+
+// ArchiveJobState is where an archive job stands.
+type ArchiveJobState int32
+
+const (
+	ArchiveJobState_ARCHIVE_JOB_STATE_UNSPECIFIED ArchiveJobState = 0
+	// Running on the agent.
+	ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING ArchiveJobState = 1
+	// Finished and in place on disk.
+	ArchiveJobState_ARCHIVE_JOB_STATE_DONE ArchiveJobState = 2
+	// Stopped with an error; nothing partial was left behind.
+	ArchiveJobState_ARCHIVE_JOB_STATE_FAILED ArchiveJobState = 3
+)
+
+// Enum value maps for ArchiveJobState.
+var (
+	ArchiveJobState_name = map[int32]string{
+		0: "ARCHIVE_JOB_STATE_UNSPECIFIED",
+		1: "ARCHIVE_JOB_STATE_RUNNING",
+		2: "ARCHIVE_JOB_STATE_DONE",
+		3: "ARCHIVE_JOB_STATE_FAILED",
+	}
+	ArchiveJobState_value = map[string]int32{
+		"ARCHIVE_JOB_STATE_UNSPECIFIED": 0,
+		"ARCHIVE_JOB_STATE_RUNNING":     1,
+		"ARCHIVE_JOB_STATE_DONE":        2,
+		"ARCHIVE_JOB_STATE_FAILED":      3,
+	}
+)
+
+func (x ArchiveJobState) Enum() *ArchiveJobState {
+	p := new(ArchiveJobState)
+	*p = x
+	return p
+}
+
+func (x ArchiveJobState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ArchiveJobState) Descriptor() protoreflect.EnumDescriptor {
+	return file_dockwell_v1_file_proto_enumTypes[2].Descriptor()
+}
+
+func (ArchiveJobState) Type() protoreflect.EnumType {
+	return &file_dockwell_v1_file_proto_enumTypes[2]
+}
+
+func (x ArchiveJobState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ArchiveJobState.Descriptor instead.
+func (ArchiveJobState) EnumDescriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{2}
+}
+
 // FileType says what an entry in a directory is.
 type FileType int32
 
@@ -123,11 +231,11 @@ func (x FileType) String() string {
 }
 
 func (FileType) Descriptor() protoreflect.EnumDescriptor {
-	return file_dockwell_v1_file_proto_enumTypes[1].Descriptor()
+	return file_dockwell_v1_file_proto_enumTypes[3].Descriptor()
 }
 
 func (FileType) Type() protoreflect.EnumType {
-	return &file_dockwell_v1_file_proto_enumTypes[1]
+	return &file_dockwell_v1_file_proto_enumTypes[3]
 }
 
 func (x FileType) Number() protoreflect.EnumNumber {
@@ -136,7 +244,7 @@ func (x FileType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FileType.Descriptor instead.
 func (FileType) EnumDescriptor() ([]byte, []int) {
-	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{1}
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{3}
 }
 
 // ListFilesRequest names a directory on a server.
@@ -330,7 +438,11 @@ type ReadFileRequest struct {
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The file's absolute path, without . or .. in it, such as
 	// "/etc/nginx/nginx.conf".
-	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// True to also return binary bytes (up to the preview cap of 1 MiB) in
+	// raw_content, for image previews through the read path instead of a
+	// download.
+	AllowBinary   bool `protobuf:"varint,3,opt,name=allow_binary,json=allowBinary,proto3" json:"allow_binary,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -379,6 +491,13 @@ func (x *ReadFileRequest) GetPath() string {
 	return ""
 }
 
+func (x *ReadFileRequest) GetAllowBinary() bool {
+	if x != nil {
+		return x.AllowBinary
+	}
+	return false
+}
+
 // ReadFileResponse is a file on a server.
 type ReadFileResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -388,9 +507,11 @@ type ReadFileResponse struct {
 	File *FileEntry `protobuf:"bytes,2,opt,name=file,proto3" json:"file,omitempty"`
 	// Its text. Empty for a binary file.
 	Content string `protobuf:"bytes,3,opt,name=content,proto3" json:"content,omitempty"`
-	// True when the file isn't UTF-8 text, so its contents aren't sent.
+	// True when the file isn't UTF-8 text, so its contents aren't sent in
+	// content (and are in raw_content only when allow_binary was set).
 	Binary bool `protobuf:"varint,4,opt,name=binary,proto3" json:"binary,omitempty"`
-	// True when the file is longer than 1 MiB, so content is its beginning.
+	// True when the file is longer than 1 MiB, so content is its beginning or
+	// raw_content is omitted.
 	Truncated bool `protobuf:"varint,5,opt,name=truncated,proto3" json:"truncated,omitempty"`
 	// What SaveFile takes to save over this text: a digest of where the path led,
 	// which file that was, and what it held, which tells whether any of it changed
@@ -399,7 +520,10 @@ type ReadFileResponse struct {
 	Version string `protobuf:"bytes,6,opt,name=version,proto3" json:"version,omitempty"`
 	// True when saving this file takes a passkey, as it's a way back onto the
 	// server, such as authorized_keys, a cron job or a systemd unit.
-	WayBackIn     bool `protobuf:"varint,7,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	WayBackIn bool `protobuf:"varint,7,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	// Binary file bytes when allow_binary was set on ReadFileRequest and the
+	// file is binary and within the preview cap. Empty otherwise.
+	RawContent    []byte `protobuf:"bytes,8,opt,name=raw_content,json=rawContent,proto3" json:"raw_content,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -481,6 +605,13 @@ func (x *ReadFileResponse) GetWayBackIn() bool {
 		return x.WayBackIn
 	}
 	return false
+}
+
+func (x *ReadFileResponse) GetRawContent() []byte {
+	if x != nil {
+		return x.RawContent
+	}
+	return nil
 }
 
 // SaveFileRequest replaces a file's text.
@@ -2138,7 +2269,10 @@ type DownloadFileRequest struct {
 	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
 	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	// The absolute path of a file or a folder, without . or .. in it.
-	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// Several absolute paths to download together as one zip archive, without .
+	// or .. in them. When set, path is left out.
+	Paths         []string `protobuf:"bytes,3,rep,name=paths,proto3" json:"paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2187,6 +2321,643 @@ func (x *DownloadFileRequest) GetPath() string {
 	return ""
 }
 
+func (x *DownloadFileRequest) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+// CompressFilesRequest packs one or more files or folders into a new zip
+// archive on the server.
+type CompressFilesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Absolute paths of files or folders to pack, without . or .. in them.
+	Paths []string `protobuf:"bytes,2,rep,name=paths,proto3" json:"paths,omitempty"`
+	// The absolute path of the new .zip file to create, without . or .. in it.
+	// Nothing may be at it.
+	ArchivePath string `protobuf:"bytes,3,opt,name=archive_path,json=archivePath,proto3" json:"archive_path,omitempty"`
+	// The proof from FinishStepUp, with STEP_UP_ACTION_COMPRESS_WAY_BACK_IN for
+	// archive_path on this server, where creating it is a way back onto it.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompressFilesRequest) Reset() {
+	*x = CompressFilesRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompressFilesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompressFilesRequest) ProtoMessage() {}
+
+func (x *CompressFilesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompressFilesRequest.ProtoReflect.Descriptor instead.
+func (*CompressFilesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *CompressFilesRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *CompressFilesRequest) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *CompressFilesRequest) GetArchivePath() string {
+	if x != nil {
+		return x.ArchivePath
+	}
+	return ""
+}
+
+func (x *CompressFilesRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// CompressFilesResponse returns the archive job started for the request.
+type CompressFilesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The running or finished compress job.
+	Job           *ArchiveJob `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CompressFilesResponse) Reset() {
+	*x = CompressFilesResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompressFilesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompressFilesResponse) ProtoMessage() {}
+
+func (x *CompressFilesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CompressFilesResponse.ProtoReflect.Descriptor instead.
+func (*CompressFilesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *CompressFilesResponse) GetJob() *ArchiveJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+// ExtractArchiveRequest unpacks an existing archive on the server.
+type ExtractArchiveRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The absolute path of the .zip, .tar.gz or .tgz file, without . or .. in it.
+	Path string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	// The proof from FinishStepUp, with STEP_UP_ACTION_EXTRACT_WAY_BACK_IN for
+	// the archive and destination folder on this server, where extracting there
+	// is a way back onto it.
+	Proof         string `protobuf:"bytes,3,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtractArchiveRequest) Reset() {
+	*x = ExtractArchiveRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractArchiveRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractArchiveRequest) ProtoMessage() {}
+
+func (x *ExtractArchiveRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractArchiveRequest.ProtoReflect.Descriptor instead.
+func (*ExtractArchiveRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *ExtractArchiveRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *ExtractArchiveRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ExtractArchiveRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// ExtractArchiveResponse returns the archive job started for the request.
+type ExtractArchiveResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The running or finished extract job.
+	Job           *ArchiveJob `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExtractArchiveResponse) Reset() {
+	*x = ExtractArchiveResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExtractArchiveResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExtractArchiveResponse) ProtoMessage() {}
+
+func (x *ExtractArchiveResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExtractArchiveResponse.ProtoReflect.Descriptor instead.
+func (*ExtractArchiveResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ExtractArchiveResponse) GetJob() *ArchiveJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+// GetArchiveJobRequest names one archive job on a server.
+type GetArchiveJobRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The job's ID, from CompressFiles or ExtractArchive.
+	JobId         string `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArchiveJobRequest) Reset() {
+	*x = GetArchiveJobRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArchiveJobRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArchiveJobRequest) ProtoMessage() {}
+
+func (x *GetArchiveJobRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArchiveJobRequest.ProtoReflect.Descriptor instead.
+func (*GetArchiveJobRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetArchiveJobRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *GetArchiveJobRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+// GetArchiveJobResponse is the job's current state.
+type GetArchiveJobResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The job.
+	Job           *ArchiveJob `protobuf:"bytes,1,opt,name=job,proto3" json:"job,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetArchiveJobResponse) Reset() {
+	*x = GetArchiveJobResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetArchiveJobResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetArchiveJobResponse) ProtoMessage() {}
+
+func (x *GetArchiveJobResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetArchiveJobResponse.ProtoReflect.Descriptor instead.
+func (*GetArchiveJobResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetArchiveJobResponse) GetJob() *ArchiveJob {
+	if x != nil {
+		return x.Job
+	}
+	return nil
+}
+
+// ListArchiveJobsRequest names a server.
+type ListArchiveJobsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArchiveJobsRequest) Reset() {
+	*x = ListArchiveJobsRequest{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArchiveJobsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArchiveJobsRequest) ProtoMessage() {}
+
+func (x *ListArchiveJobsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArchiveJobsRequest.ProtoReflect.Descriptor instead.
+func (*ListArchiveJobsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *ListArchiveJobsRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ListArchiveJobsResponse lists active and recently finished archive jobs for
+// the caller on that server, newest first.
+type ListArchiveJobsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The jobs.
+	Jobs          []*ArchiveJob `protobuf:"bytes,1,rep,name=jobs,proto3" json:"jobs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListArchiveJobsResponse) Reset() {
+	*x = ListArchiveJobsResponse{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListArchiveJobsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListArchiveJobsResponse) ProtoMessage() {}
+
+func (x *ListArchiveJobsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListArchiveJobsResponse.ProtoReflect.Descriptor instead.
+func (*ListArchiveJobsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListArchiveJobsResponse) GetJobs() []*ArchiveJob {
+	if x != nil {
+		return x.Jobs
+	}
+	return nil
+}
+
+// ArchiveJob is one server-side compress or extract job, which outlives the
+// request that started it so long archives survive proxy request timeouts.
+type ArchiveJob struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Its ID, which GetArchiveJob takes.
+	JobId string `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	// Whether it compresses or extracts.
+	Kind ArchiveJobKind `protobuf:"varint,2,opt,name=kind,proto3,enum=dockwell.v1.ArchiveJobKind" json:"kind,omitempty"`
+	// Running, done or failed.
+	State ArchiveJobState `protobuf:"varint,3,opt,name=state,proto3,enum=dockwell.v1.ArchiveJobState" json:"state,omitempty"`
+	// The archive's path on the server, with every symlink in its folder's path
+	// followed.
+	Path string `protobuf:"bytes,4,opt,name=path,proto3" json:"path,omitempty"`
+	// For extract, the new folder the archive unpacks into. Empty for compress.
+	UnpackedTo string `protobuf:"bytes,5,opt,name=unpacked_to,json=unpackedTo,proto3" json:"unpacked_to,omitempty"`
+	// For compress, the resolved source paths being packed (first 10 when many).
+	SourcePaths []string `protobuf:"bytes,6,rep,name=source_paths,json=sourcePaths,proto3" json:"source_paths,omitempty"`
+	// Total number of top-level source paths for compress.
+	SourceCount uint32 `protobuf:"varint,7,opt,name=source_count,json=sourceCount,proto3" json:"source_count,omitempty"`
+	// Files and folders processed so far (or final count when done).
+	Entries uint64 `protobuf:"varint,8,opt,name=entries,proto3" json:"entries,omitempty"`
+	// Total entries known ahead of time (for zip extract), or zero when unknown.
+	TotalEntries uint64 `protobuf:"varint,9,opt,name=total_entries,json=totalEntries,proto3" json:"total_entries,omitempty"`
+	// Bytes written so far (or final archive / unpacked bytes when done).
+	Bytes uint64 `protobuf:"varint,10,opt,name=bytes,proto3" json:"bytes,omitempty"`
+	// For extract: symlinks, hard links, devices and FIFOs skipped in the archive.
+	SkippedLinks uint64 `protobuf:"varint,11,opt,name=skipped_links,json=skippedLinks,proto3" json:"skipped_links,omitempty"`
+	// For compress: entries left out (refused paths, other filesystems, links,
+	// or deeper than the depth limit).
+	LeftOut uint64 `protobuf:"varint,12,opt,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
+	// For compress when done: the created archive file entry.
+	File *FileEntry `protobuf:"bytes,13,opt,name=file,proto3" json:"file,omitempty"`
+	// True when starting the job took a passkey for a way back in.
+	WayBackIn bool `protobuf:"varint,14,opt,name=way_back_in,json=wayBackIn,proto3" json:"way_back_in,omitempty"`
+	// When failed: the reason for people.
+	Error string `protobuf:"bytes,15,opt,name=error,proto3" json:"error,omitempty"`
+	// When failed: the API error reason, such as "unpack_refused" or "disk_full".
+	ErrorReason string `protobuf:"bytes,16,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
+	// When the job started on the agent.
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,17,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// When the job finished or failed. Unset while running.
+	FinishTime    *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArchiveJob) Reset() {
+	*x = ArchiveJob{}
+	mi := &file_dockwell_v1_file_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveJob) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveJob) ProtoMessage() {}
+
+func (x *ArchiveJob) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_file_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveJob.ProtoReflect.Descriptor instead.
+func (*ArchiveJob) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ArchiveJob) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *ArchiveJob) GetKind() ArchiveJobKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ArchiveJobKind_ARCHIVE_JOB_KIND_UNSPECIFIED
+}
+
+func (x *ArchiveJob) GetState() ArchiveJobState {
+	if x != nil {
+		return x.State
+	}
+	return ArchiveJobState_ARCHIVE_JOB_STATE_UNSPECIFIED
+}
+
+func (x *ArchiveJob) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ArchiveJob) GetUnpackedTo() string {
+	if x != nil {
+		return x.UnpackedTo
+	}
+	return ""
+}
+
+func (x *ArchiveJob) GetSourcePaths() []string {
+	if x != nil {
+		return x.SourcePaths
+	}
+	return nil
+}
+
+func (x *ArchiveJob) GetSourceCount() uint32 {
+	if x != nil {
+		return x.SourceCount
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetEntries() uint64 {
+	if x != nil {
+		return x.Entries
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetTotalEntries() uint64 {
+	if x != nil {
+		return x.TotalEntries
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetBytes() uint64 {
+	if x != nil {
+		return x.Bytes
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetSkippedLinks() uint64 {
+	if x != nil {
+		return x.SkippedLinks
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetLeftOut() uint64 {
+	if x != nil {
+		return x.LeftOut
+	}
+	return 0
+}
+
+func (x *ArchiveJob) GetFile() *FileEntry {
+	if x != nil {
+		return x.File
+	}
+	return nil
+}
+
+func (x *ArchiveJob) GetWayBackIn() bool {
+	if x != nil {
+		return x.WayBackIn
+	}
+	return false
+}
+
+func (x *ArchiveJob) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *ArchiveJob) GetErrorReason() string {
+	if x != nil {
+		return x.ErrorReason
+	}
+	return ""
+}
+
+func (x *ArchiveJob) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *ArchiveJob) GetFinishTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishTime
+	}
+	return nil
+}
+
 // FileEntry is one file or directory on a server.
 type FileEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2226,7 +2997,7 @@ type FileEntry struct {
 
 func (x *FileEntry) Reset() {
 	*x = FileEntry{}
-	mi := &file_dockwell_v1_file_proto_msgTypes[30]
+	mi := &file_dockwell_v1_file_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2238,7 +3009,7 @@ func (x *FileEntry) String() string {
 func (*FileEntry) ProtoMessage() {}
 
 func (x *FileEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_file_proto_msgTypes[30]
+	mi := &file_dockwell_v1_file_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2251,7 +3022,7 @@ func (x *FileEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileEntry.ProtoReflect.Descriptor instead.
 func (*FileEntry) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{30}
+	return file_dockwell_v1_file_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *FileEntry) GetName() string {
@@ -2362,10 +3133,11 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\aentries\x18\x03 \x03(\v2\x16.dockwell.v1.FileEntryR\aentries\x12\x1c\n" +
 	"\ttruncated\x18\x04 \x01(\bR\ttruncated\x12\x1c\n" +
 	"\tnext_page\x18\xe6\x01 \x01(\tR\bnextPage\x12\x14\n" +
-	"\x05total\x18< \x01(\rR\x05total\"B\n" +
+	"\x05total\x18< \x01(\rR\x05total\"e\n" +
 	"\x0fReadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xdc\x01\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12!\n" +
+	"\fallow_binary\x18\x03 \x01(\bR\vallowBinary\"\xfd\x01\n" +
 	"\x10ReadFileResponse\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12*\n" +
 	"\x04file\x18\x02 \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x18\n" +
@@ -2373,7 +3145,9 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x06binary\x18\x04 \x01(\bR\x06binary\x12\x1c\n" +
 	"\ttruncated\x18\x05 \x01(\bR\ttruncated\x12\x18\n" +
 	"\aversion\x18\x06 \x01(\tR\aversion\x12\x1e\n" +
-	"\vway_back_in\x18\a \x01(\bR\twayBackIn\"\xb3\x01\n" +
+	"\vway_back_in\x18\a \x01(\bR\twayBackIn\x12\x1f\n" +
+	"\vraw_content\x18\b \x01(\fR\n" +
+	"rawContent\"\xb3\x01\n" +
 	"\x0fSaveFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x18\n" +
@@ -2482,10 +3256,57 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\vway_back_in\x18\x03 \x01(\bR\twayBackIn\x12\x1f\n" +
 	"\vunpacked_to\x18\x04 \x01(\tR\n" +
 	"unpackedTo\x12)\n" +
-	"\x10unpacked_entries\x18\x05 \x01(\x04R\x0funpackedEntries\"F\n" +
+	"\x10unpacked_entries\x18\x05 \x01(\x04R\x0funpackedEntries\"\\\n" +
 	"\x13DownloadFileRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\"\xa2\x03\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x14\n" +
+	"\x05paths\x18\x03 \x03(\tR\x05paths\"\x82\x01\n" +
+	"\x14CompressFilesRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x14\n" +
+	"\x05paths\x18\x02 \x03(\tR\x05paths\x12!\n" +
+	"\farchive_path\x18\x03 \x01(\tR\varchivePath\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"B\n" +
+	"\x15CompressFilesResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"^\n" +
+	"\x15ExtractArchiveRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\x12\x14\n" +
+	"\x05proof\x18\x03 \x01(\tR\x05proof\"C\n" +
+	"\x16ExtractArchiveResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"J\n" +
+	"\x14GetArchiveJobRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x15\n" +
+	"\x06job_id\x18\x02 \x01(\tR\x05jobId\"B\n" +
+	"\x15GetArchiveJobResponse\x12)\n" +
+	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\"5\n" +
+	"\x16ListArchiveJobsRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"F\n" +
+	"\x17ListArchiveJobsResponse\x12+\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\x95\x05\n" +
+	"\n" +
+	"ArchiveJob\x12\x15\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12/\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x1b.dockwell.v1.ArchiveJobKindR\x04kind\x122\n" +
+	"\x05state\x18\x03 \x01(\x0e2\x1c.dockwell.v1.ArchiveJobStateR\x05state\x12\x12\n" +
+	"\x04path\x18\x04 \x01(\tR\x04path\x12\x1f\n" +
+	"\vunpacked_to\x18\x05 \x01(\tR\n" +
+	"unpackedTo\x12!\n" +
+	"\fsource_paths\x18\x06 \x03(\tR\vsourcePaths\x12!\n" +
+	"\fsource_count\x18\a \x01(\rR\vsourceCount\x12\x18\n" +
+	"\aentries\x18\b \x01(\x04R\aentries\x12#\n" +
+	"\rtotal_entries\x18\t \x01(\x04R\ftotalEntries\x12\x14\n" +
+	"\x05bytes\x18\n" +
+	" \x01(\x04R\x05bytes\x12#\n" +
+	"\rskipped_links\x18\v \x01(\x04R\fskippedLinks\x12\x19\n" +
+	"\bleft_out\x18\f \x01(\x04R\aleftOut\x12*\n" +
+	"\x04file\x18\r \x01(\v2\x16.dockwell.v1.FileEntryR\x04file\x12\x1e\n" +
+	"\vway_back_in\x18\x0e \x01(\bR\twayBackIn\x12\x14\n" +
+	"\x05error\x18\x0f \x01(\tR\x05error\x12!\n" +
+	"\ferror_reason\x18\x10 \x01(\tR\verrorReason\x129\n" +
+	"\n" +
+	"start_time\x18\x11 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x12;\n" +
+	"\vfinish_time\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishTime\"\xa2\x03\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +
@@ -2508,13 +3329,22 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x12UNPACK_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"UNPACK_ZIP\x10\x01\x12\x11\n" +
-	"\rUNPACK_TAR_GZ\x10\x02*~\n" +
+	"\rUNPACK_TAR_GZ\x10\x02*o\n" +
+	"\x0eArchiveJobKind\x12 \n" +
+	"\x1cARCHIVE_JOB_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19ARCHIVE_JOB_KIND_COMPRESS\x10\x01\x12\x1c\n" +
+	"\x18ARCHIVE_JOB_KIND_EXTRACT\x10\x02*\x8d\x01\n" +
+	"\x0fArchiveJobState\x12!\n" +
+	"\x1dARCHIVE_JOB_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19ARCHIVE_JOB_STATE_RUNNING\x10\x01\x12\x1a\n" +
+	"\x16ARCHIVE_JOB_STATE_DONE\x10\x02\x12\x1c\n" +
+	"\x18ARCHIVE_JOB_STATE_FAILED\x10\x03*~\n" +
 	"\bFileType\x12\x19\n" +
 	"\x15FILE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eFILE_TYPE_FILE\x10\x01\x12\x17\n" +
 	"\x13FILE_TYPE_DIRECTORY\x10\x02\x12\x15\n" +
 	"\x11FILE_TYPE_SYMLINK\x10\x03\x12\x13\n" +
-	"\x0fFILE_TYPE_OTHER\x10\x042\x99\x13\n" +
+	"\x0fFILE_TYPE_OTHER\x10\x042\x80\x19\n" +
 	"\vFileService\x12\x99\x01\n" +
 	"\tListFiles\x12\x1d.dockwell.v1.ListFilesRequest\x1a\x1e.dockwell.v1.ListFilesResponse\"M\xa0\xbb\x18\x01\xaa\xbb\x18\r\n" +
 	"\x05files\x12\x04list\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1f\x12\x1d/v1/servers/{server_id}/files\x90\x02\x01\x12\x9b\x01\n" +
@@ -2545,7 +3375,15 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\fCancelUpload\x12 .dockwell.v1.CancelUploadRequest\x1a!.dockwell.v1.CancelUploadResponse\"a\xa0\xbb\x18\x04\xaa\xbb\x18\x16\n" +
 	"\x05files\x12\rcancel-upload\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02-*+/v1/servers/{server_id}/uploads/{upload_id}\x12\xb7\x01\n" +
 	"\fDownloadFile\x12 .dockwell.v1.DownloadFileRequest\x1a!.dockwell.v1.DownloadFileResponse\"`\xa0\xbb\x18\x01\xaa\xbb\x18\x11\n" +
-	"\x05files\x12\bdownload\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02.b\x04body\x12&/v1/servers/{server_id}/files:download\x90\x02\x010\x01B\xa2\x01\n" +
+	"\x05files\x12\bdownload\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02.b\x04body\x12&/v1/servers/{server_id}/files:download\x90\x02\x010\x01\x12\xb2\x01\n" +
+	"\rCompressFiles\x12!.dockwell.v1.CompressFilesRequest\x1a\".dockwell.v1.CompressFilesResponse\"Z\xa0\xbb\x18\x03\xaa\xbb\x18\x11\n" +
+	"\x05files\x12\bcompress\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02+:\x01*\"&/v1/servers/{server_id}/files:compress\x12\xb3\x01\n" +
+	"\x0eExtractArchive\x12\".dockwell.v1.ExtractArchiveRequest\x1a#.dockwell.v1.ExtractArchiveResponse\"X\xa0\xbb\x18\x03\xaa\xbb\x18\x10\n" +
+	"\x05files\x12\aextract\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02*:\x01*\"%/v1/servers/{server_id}/files:extract\x12\xbc\x01\n" +
+	"\rGetArchiveJob\x12!.dockwell.v1.GetArchiveJobRequest\x1a\".dockwell.v1.GetArchiveJobResponse\"d\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
+	"\x05files\x12\varchive-job\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02/\x12-/v1/servers/{server_id}/archive-jobs/{job_id}\x90\x02\x01\x12\xba\x01\n" +
+	"\x0fListArchiveJobs\x12#.dockwell.v1.ListArchiveJobsRequest\x1a$.dockwell.v1.ListArchiveJobsResponse\"\\\xa0\xbb\x18\x01\xaa\xbb\x18\x15\n" +
+	"\x05files\x12\farchive-jobs\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02&\x12$/v1/servers/{server_id}/archive-jobs\x90\x02\x01B\xa2\x01\n" +
 	"\x0fcom.dockwell.v1B\tFileProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -2560,103 +3398,131 @@ func file_dockwell_v1_file_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_file_proto_rawDescData
 }
 
-var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_dockwell_v1_file_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_dockwell_v1_file_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_dockwell_v1_file_proto_goTypes = []any{
 	(Unpack)(0),                      // 0: dockwell.v1.Unpack
-	(FileType)(0),                    // 1: dockwell.v1.FileType
-	(*ListFilesRequest)(nil),         // 2: dockwell.v1.ListFilesRequest
-	(*ListFilesResponse)(nil),        // 3: dockwell.v1.ListFilesResponse
-	(*ReadFileRequest)(nil),          // 4: dockwell.v1.ReadFileRequest
-	(*ReadFileResponse)(nil),         // 5: dockwell.v1.ReadFileResponse
-	(*SaveFileRequest)(nil),          // 6: dockwell.v1.SaveFileRequest
-	(*SaveFileResponse)(nil),         // 7: dockwell.v1.SaveFileResponse
-	(*MakeFileRequest)(nil),          // 8: dockwell.v1.MakeFileRequest
-	(*MakeFileResponse)(nil),         // 9: dockwell.v1.MakeFileResponse
-	(*MoveFileRequest)(nil),          // 10: dockwell.v1.MoveFileRequest
-	(*MoveFileResponse)(nil),         // 11: dockwell.v1.MoveFileResponse
-	(*DeleteFileRequest)(nil),        // 12: dockwell.v1.DeleteFileRequest
-	(*DeleteFileResponse)(nil),       // 13: dockwell.v1.DeleteFileResponse
-	(*ListDeletedFilesRequest)(nil),  // 14: dockwell.v1.ListDeletedFilesRequest
-	(*ListDeletedFilesResponse)(nil), // 15: dockwell.v1.ListDeletedFilesResponse
-	(*DeletedFile)(nil),              // 16: dockwell.v1.DeletedFile
-	(*RestoreFileRequest)(nil),       // 17: dockwell.v1.RestoreFileRequest
-	(*RestoreFileResponse)(nil),      // 18: dockwell.v1.RestoreFileResponse
-	(*PurgeDeletedFileRequest)(nil),  // 19: dockwell.v1.PurgeDeletedFileRequest
-	(*PurgeDeletedFileResponse)(nil), // 20: dockwell.v1.PurgeDeletedFileResponse
-	(*BeginUploadRequest)(nil),       // 21: dockwell.v1.BeginUploadRequest
-	(*BeginUploadResponse)(nil),      // 22: dockwell.v1.BeginUploadResponse
-	(*UploadFileResponse)(nil),       // 23: dockwell.v1.UploadFileResponse
-	(*DownloadFileResponse)(nil),     // 24: dockwell.v1.DownloadFileResponse
-	(*Upload)(nil),                   // 25: dockwell.v1.Upload
-	(*UploadFileRequest)(nil),        // 26: dockwell.v1.UploadFileRequest
-	(*FinishUploadRequest)(nil),      // 27: dockwell.v1.FinishUploadRequest
-	(*CancelUploadRequest)(nil),      // 28: dockwell.v1.CancelUploadRequest
-	(*CancelUploadResponse)(nil),     // 29: dockwell.v1.CancelUploadResponse
-	(*FinishUploadResponse)(nil),     // 30: dockwell.v1.FinishUploadResponse
-	(*DownloadFileRequest)(nil),      // 31: dockwell.v1.DownloadFileRequest
-	(*FileEntry)(nil),                // 32: dockwell.v1.FileEntry
-	(*timestamppb.Timestamp)(nil),    // 33: google.protobuf.Timestamp
-	(*httpbody.HttpBody)(nil),        // 34: google.api.HttpBody
+	(ArchiveJobKind)(0),              // 1: dockwell.v1.ArchiveJobKind
+	(ArchiveJobState)(0),             // 2: dockwell.v1.ArchiveJobState
+	(FileType)(0),                    // 3: dockwell.v1.FileType
+	(*ListFilesRequest)(nil),         // 4: dockwell.v1.ListFilesRequest
+	(*ListFilesResponse)(nil),        // 5: dockwell.v1.ListFilesResponse
+	(*ReadFileRequest)(nil),          // 6: dockwell.v1.ReadFileRequest
+	(*ReadFileResponse)(nil),         // 7: dockwell.v1.ReadFileResponse
+	(*SaveFileRequest)(nil),          // 8: dockwell.v1.SaveFileRequest
+	(*SaveFileResponse)(nil),         // 9: dockwell.v1.SaveFileResponse
+	(*MakeFileRequest)(nil),          // 10: dockwell.v1.MakeFileRequest
+	(*MakeFileResponse)(nil),         // 11: dockwell.v1.MakeFileResponse
+	(*MoveFileRequest)(nil),          // 12: dockwell.v1.MoveFileRequest
+	(*MoveFileResponse)(nil),         // 13: dockwell.v1.MoveFileResponse
+	(*DeleteFileRequest)(nil),        // 14: dockwell.v1.DeleteFileRequest
+	(*DeleteFileResponse)(nil),       // 15: dockwell.v1.DeleteFileResponse
+	(*ListDeletedFilesRequest)(nil),  // 16: dockwell.v1.ListDeletedFilesRequest
+	(*ListDeletedFilesResponse)(nil), // 17: dockwell.v1.ListDeletedFilesResponse
+	(*DeletedFile)(nil),              // 18: dockwell.v1.DeletedFile
+	(*RestoreFileRequest)(nil),       // 19: dockwell.v1.RestoreFileRequest
+	(*RestoreFileResponse)(nil),      // 20: dockwell.v1.RestoreFileResponse
+	(*PurgeDeletedFileRequest)(nil),  // 21: dockwell.v1.PurgeDeletedFileRequest
+	(*PurgeDeletedFileResponse)(nil), // 22: dockwell.v1.PurgeDeletedFileResponse
+	(*BeginUploadRequest)(nil),       // 23: dockwell.v1.BeginUploadRequest
+	(*BeginUploadResponse)(nil),      // 24: dockwell.v1.BeginUploadResponse
+	(*UploadFileResponse)(nil),       // 25: dockwell.v1.UploadFileResponse
+	(*DownloadFileResponse)(nil),     // 26: dockwell.v1.DownloadFileResponse
+	(*Upload)(nil),                   // 27: dockwell.v1.Upload
+	(*UploadFileRequest)(nil),        // 28: dockwell.v1.UploadFileRequest
+	(*FinishUploadRequest)(nil),      // 29: dockwell.v1.FinishUploadRequest
+	(*CancelUploadRequest)(nil),      // 30: dockwell.v1.CancelUploadRequest
+	(*CancelUploadResponse)(nil),     // 31: dockwell.v1.CancelUploadResponse
+	(*FinishUploadResponse)(nil),     // 32: dockwell.v1.FinishUploadResponse
+	(*DownloadFileRequest)(nil),      // 33: dockwell.v1.DownloadFileRequest
+	(*CompressFilesRequest)(nil),     // 34: dockwell.v1.CompressFilesRequest
+	(*CompressFilesResponse)(nil),    // 35: dockwell.v1.CompressFilesResponse
+	(*ExtractArchiveRequest)(nil),    // 36: dockwell.v1.ExtractArchiveRequest
+	(*ExtractArchiveResponse)(nil),   // 37: dockwell.v1.ExtractArchiveResponse
+	(*GetArchiveJobRequest)(nil),     // 38: dockwell.v1.GetArchiveJobRequest
+	(*GetArchiveJobResponse)(nil),    // 39: dockwell.v1.GetArchiveJobResponse
+	(*ListArchiveJobsRequest)(nil),   // 40: dockwell.v1.ListArchiveJobsRequest
+	(*ListArchiveJobsResponse)(nil),  // 41: dockwell.v1.ListArchiveJobsResponse
+	(*ArchiveJob)(nil),               // 42: dockwell.v1.ArchiveJob
+	(*FileEntry)(nil),                // 43: dockwell.v1.FileEntry
+	(*timestamppb.Timestamp)(nil),    // 44: google.protobuf.Timestamp
+	(*httpbody.HttpBody)(nil),        // 45: google.api.HttpBody
 }
 var file_dockwell_v1_file_proto_depIdxs = []int32{
-	32, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
-	32, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
-	32, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
-	32, // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
-	1,  // 4: dockwell.v1.MakeFileRequest.type:type_name -> dockwell.v1.FileType
-	32, // 5: dockwell.v1.MakeFileResponse.file:type_name -> dockwell.v1.FileEntry
-	32, // 6: dockwell.v1.MoveFileResponse.file:type_name -> dockwell.v1.FileEntry
-	16, // 7: dockwell.v1.DeleteFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
-	16, // 8: dockwell.v1.ListDeletedFilesResponse.deleted:type_name -> dockwell.v1.DeletedFile
-	1,  // 9: dockwell.v1.DeletedFile.type:type_name -> dockwell.v1.FileType
-	33, // 10: dockwell.v1.DeletedFile.delete_time:type_name -> google.protobuf.Timestamp
-	33, // 11: dockwell.v1.DeletedFile.purge_time:type_name -> google.protobuf.Timestamp
-	32, // 12: dockwell.v1.RestoreFileResponse.file:type_name -> dockwell.v1.FileEntry
-	16, // 13: dockwell.v1.PurgeDeletedFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	43, // 0: dockwell.v1.ListFilesResponse.directory:type_name -> dockwell.v1.FileEntry
+	43, // 1: dockwell.v1.ListFilesResponse.entries:type_name -> dockwell.v1.FileEntry
+	43, // 2: dockwell.v1.ReadFileResponse.file:type_name -> dockwell.v1.FileEntry
+	43, // 3: dockwell.v1.SaveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	3,  // 4: dockwell.v1.MakeFileRequest.type:type_name -> dockwell.v1.FileType
+	43, // 5: dockwell.v1.MakeFileResponse.file:type_name -> dockwell.v1.FileEntry
+	43, // 6: dockwell.v1.MoveFileResponse.file:type_name -> dockwell.v1.FileEntry
+	18, // 7: dockwell.v1.DeleteFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	18, // 8: dockwell.v1.ListDeletedFilesResponse.deleted:type_name -> dockwell.v1.DeletedFile
+	3,  // 9: dockwell.v1.DeletedFile.type:type_name -> dockwell.v1.FileType
+	44, // 10: dockwell.v1.DeletedFile.delete_time:type_name -> google.protobuf.Timestamp
+	44, // 11: dockwell.v1.DeletedFile.purge_time:type_name -> google.protobuf.Timestamp
+	43, // 12: dockwell.v1.RestoreFileResponse.file:type_name -> dockwell.v1.FileEntry
+	18, // 13: dockwell.v1.PurgeDeletedFileResponse.deleted:type_name -> dockwell.v1.DeletedFile
 	0,  // 14: dockwell.v1.BeginUploadRequest.unpack:type_name -> dockwell.v1.Unpack
-	25, // 15: dockwell.v1.BeginUploadResponse.upload:type_name -> dockwell.v1.Upload
-	25, // 16: dockwell.v1.UploadFileResponse.upload:type_name -> dockwell.v1.Upload
-	34, // 17: dockwell.v1.DownloadFileResponse.body:type_name -> google.api.HttpBody
+	27, // 15: dockwell.v1.BeginUploadResponse.upload:type_name -> dockwell.v1.Upload
+	27, // 16: dockwell.v1.UploadFileResponse.upload:type_name -> dockwell.v1.Upload
+	45, // 17: dockwell.v1.DownloadFileResponse.body:type_name -> google.api.HttpBody
 	0,  // 18: dockwell.v1.Upload.unpack:type_name -> dockwell.v1.Unpack
-	34, // 19: dockwell.v1.UploadFileRequest.content:type_name -> google.api.HttpBody
-	32, // 20: dockwell.v1.FinishUploadResponse.file:type_name -> dockwell.v1.FileEntry
-	1,  // 21: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
-	33, // 22: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
-	1,  // 23: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
-	2,  // 24: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
-	4,  // 25: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
-	6,  // 26: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
-	8,  // 27: dockwell.v1.FileService.MakeFile:input_type -> dockwell.v1.MakeFileRequest
-	10, // 28: dockwell.v1.FileService.MoveFile:input_type -> dockwell.v1.MoveFileRequest
-	12, // 29: dockwell.v1.FileService.DeleteFile:input_type -> dockwell.v1.DeleteFileRequest
-	14, // 30: dockwell.v1.FileService.ListDeletedFiles:input_type -> dockwell.v1.ListDeletedFilesRequest
-	17, // 31: dockwell.v1.FileService.RestoreFile:input_type -> dockwell.v1.RestoreFileRequest
-	19, // 32: dockwell.v1.FileService.PurgeDeletedFile:input_type -> dockwell.v1.PurgeDeletedFileRequest
-	21, // 33: dockwell.v1.FileService.BeginUpload:input_type -> dockwell.v1.BeginUploadRequest
-	26, // 34: dockwell.v1.FileService.UploadFile:input_type -> dockwell.v1.UploadFileRequest
-	27, // 35: dockwell.v1.FileService.FinishUpload:input_type -> dockwell.v1.FinishUploadRequest
-	28, // 36: dockwell.v1.FileService.CancelUpload:input_type -> dockwell.v1.CancelUploadRequest
-	31, // 37: dockwell.v1.FileService.DownloadFile:input_type -> dockwell.v1.DownloadFileRequest
-	3,  // 38: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
-	5,  // 39: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
-	7,  // 40: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
-	9,  // 41: dockwell.v1.FileService.MakeFile:output_type -> dockwell.v1.MakeFileResponse
-	11, // 42: dockwell.v1.FileService.MoveFile:output_type -> dockwell.v1.MoveFileResponse
-	13, // 43: dockwell.v1.FileService.DeleteFile:output_type -> dockwell.v1.DeleteFileResponse
-	15, // 44: dockwell.v1.FileService.ListDeletedFiles:output_type -> dockwell.v1.ListDeletedFilesResponse
-	18, // 45: dockwell.v1.FileService.RestoreFile:output_type -> dockwell.v1.RestoreFileResponse
-	20, // 46: dockwell.v1.FileService.PurgeDeletedFile:output_type -> dockwell.v1.PurgeDeletedFileResponse
-	22, // 47: dockwell.v1.FileService.BeginUpload:output_type -> dockwell.v1.BeginUploadResponse
-	23, // 48: dockwell.v1.FileService.UploadFile:output_type -> dockwell.v1.UploadFileResponse
-	30, // 49: dockwell.v1.FileService.FinishUpload:output_type -> dockwell.v1.FinishUploadResponse
-	29, // 50: dockwell.v1.FileService.CancelUpload:output_type -> dockwell.v1.CancelUploadResponse
-	24, // 51: dockwell.v1.FileService.DownloadFile:output_type -> dockwell.v1.DownloadFileResponse
-	38, // [38:52] is the sub-list for method output_type
-	24, // [24:38] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	45, // 19: dockwell.v1.UploadFileRequest.content:type_name -> google.api.HttpBody
+	43, // 20: dockwell.v1.FinishUploadResponse.file:type_name -> dockwell.v1.FileEntry
+	42, // 21: dockwell.v1.CompressFilesResponse.job:type_name -> dockwell.v1.ArchiveJob
+	42, // 22: dockwell.v1.ExtractArchiveResponse.job:type_name -> dockwell.v1.ArchiveJob
+	42, // 23: dockwell.v1.GetArchiveJobResponse.job:type_name -> dockwell.v1.ArchiveJob
+	42, // 24: dockwell.v1.ListArchiveJobsResponse.jobs:type_name -> dockwell.v1.ArchiveJob
+	1,  // 25: dockwell.v1.ArchiveJob.kind:type_name -> dockwell.v1.ArchiveJobKind
+	2,  // 26: dockwell.v1.ArchiveJob.state:type_name -> dockwell.v1.ArchiveJobState
+	43, // 27: dockwell.v1.ArchiveJob.file:type_name -> dockwell.v1.FileEntry
+	44, // 28: dockwell.v1.ArchiveJob.start_time:type_name -> google.protobuf.Timestamp
+	44, // 29: dockwell.v1.ArchiveJob.finish_time:type_name -> google.protobuf.Timestamp
+	3,  // 30: dockwell.v1.FileEntry.type:type_name -> dockwell.v1.FileType
+	44, // 31: dockwell.v1.FileEntry.modify_time:type_name -> google.protobuf.Timestamp
+	3,  // 32: dockwell.v1.FileEntry.link_type:type_name -> dockwell.v1.FileType
+	4,  // 33: dockwell.v1.FileService.ListFiles:input_type -> dockwell.v1.ListFilesRequest
+	6,  // 34: dockwell.v1.FileService.ReadFile:input_type -> dockwell.v1.ReadFileRequest
+	8,  // 35: dockwell.v1.FileService.SaveFile:input_type -> dockwell.v1.SaveFileRequest
+	10, // 36: dockwell.v1.FileService.MakeFile:input_type -> dockwell.v1.MakeFileRequest
+	12, // 37: dockwell.v1.FileService.MoveFile:input_type -> dockwell.v1.MoveFileRequest
+	14, // 38: dockwell.v1.FileService.DeleteFile:input_type -> dockwell.v1.DeleteFileRequest
+	16, // 39: dockwell.v1.FileService.ListDeletedFiles:input_type -> dockwell.v1.ListDeletedFilesRequest
+	19, // 40: dockwell.v1.FileService.RestoreFile:input_type -> dockwell.v1.RestoreFileRequest
+	21, // 41: dockwell.v1.FileService.PurgeDeletedFile:input_type -> dockwell.v1.PurgeDeletedFileRequest
+	23, // 42: dockwell.v1.FileService.BeginUpload:input_type -> dockwell.v1.BeginUploadRequest
+	28, // 43: dockwell.v1.FileService.UploadFile:input_type -> dockwell.v1.UploadFileRequest
+	29, // 44: dockwell.v1.FileService.FinishUpload:input_type -> dockwell.v1.FinishUploadRequest
+	30, // 45: dockwell.v1.FileService.CancelUpload:input_type -> dockwell.v1.CancelUploadRequest
+	33, // 46: dockwell.v1.FileService.DownloadFile:input_type -> dockwell.v1.DownloadFileRequest
+	34, // 47: dockwell.v1.FileService.CompressFiles:input_type -> dockwell.v1.CompressFilesRequest
+	36, // 48: dockwell.v1.FileService.ExtractArchive:input_type -> dockwell.v1.ExtractArchiveRequest
+	38, // 49: dockwell.v1.FileService.GetArchiveJob:input_type -> dockwell.v1.GetArchiveJobRequest
+	40, // 50: dockwell.v1.FileService.ListArchiveJobs:input_type -> dockwell.v1.ListArchiveJobsRequest
+	5,  // 51: dockwell.v1.FileService.ListFiles:output_type -> dockwell.v1.ListFilesResponse
+	7,  // 52: dockwell.v1.FileService.ReadFile:output_type -> dockwell.v1.ReadFileResponse
+	9,  // 53: dockwell.v1.FileService.SaveFile:output_type -> dockwell.v1.SaveFileResponse
+	11, // 54: dockwell.v1.FileService.MakeFile:output_type -> dockwell.v1.MakeFileResponse
+	13, // 55: dockwell.v1.FileService.MoveFile:output_type -> dockwell.v1.MoveFileResponse
+	15, // 56: dockwell.v1.FileService.DeleteFile:output_type -> dockwell.v1.DeleteFileResponse
+	17, // 57: dockwell.v1.FileService.ListDeletedFiles:output_type -> dockwell.v1.ListDeletedFilesResponse
+	20, // 58: dockwell.v1.FileService.RestoreFile:output_type -> dockwell.v1.RestoreFileResponse
+	22, // 59: dockwell.v1.FileService.PurgeDeletedFile:output_type -> dockwell.v1.PurgeDeletedFileResponse
+	24, // 60: dockwell.v1.FileService.BeginUpload:output_type -> dockwell.v1.BeginUploadResponse
+	25, // 61: dockwell.v1.FileService.UploadFile:output_type -> dockwell.v1.UploadFileResponse
+	32, // 62: dockwell.v1.FileService.FinishUpload:output_type -> dockwell.v1.FinishUploadResponse
+	31, // 63: dockwell.v1.FileService.CancelUpload:output_type -> dockwell.v1.CancelUploadResponse
+	26, // 64: dockwell.v1.FileService.DownloadFile:output_type -> dockwell.v1.DownloadFileResponse
+	35, // 65: dockwell.v1.FileService.CompressFiles:output_type -> dockwell.v1.CompressFilesResponse
+	37, // 66: dockwell.v1.FileService.ExtractArchive:output_type -> dockwell.v1.ExtractArchiveResponse
+	39, // 67: dockwell.v1.FileService.GetArchiveJob:output_type -> dockwell.v1.GetArchiveJobResponse
+	41, // 68: dockwell.v1.FileService.ListArchiveJobs:output_type -> dockwell.v1.ListArchiveJobsResponse
+	51, // [51:69] is the sub-list for method output_type
+	33, // [33:51] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_file_proto_init() }
@@ -2670,8 +3536,8 @@ func file_dockwell_v1_file_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_file_proto_rawDesc), len(file_dockwell_v1_file_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   31,
+			NumEnums:      4,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

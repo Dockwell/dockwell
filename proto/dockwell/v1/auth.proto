@@ -1087,6 +1087,15 @@ enum StepUpAction {
   // with FileService.RestoreFile. The target is "srv_…:/path", the path it
   // goes back to.
   STEP_UP_ACTION_RESTORE_WAY_BACK_IN = 93;
+  // Compressing files into an archive where the archive path is a way back
+  // onto a server, with FileService.CompressFiles. The target is the server's
+  // ID and the archive path, as "srv_…:/archive.zip".
+  STEP_UP_ACTION_COMPRESS_WAY_BACK_IN = 94;
+  // Extracting an archive into a folder that's a way back onto a server, with
+  // FileService.ExtractArchive. The target is the server's ID, the archive
+  // path and the destination folder on two lines, as
+  // "srv_…:/archive.zip\n/dest".
+  STEP_UP_ACTION_EXTRACT_WAY_BACK_IN = 95;
   // Approving someone else's change in a protected environment, as an admin
   // or the owner, by applying it with ChangeService.ApplyChange. The target is
   // the change's ID and the fingerprint of the plan reviewed, as

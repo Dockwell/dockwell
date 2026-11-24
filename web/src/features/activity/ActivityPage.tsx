@@ -849,7 +849,9 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
     event.action === "file.make" ||
     event.action === "file.move" ||
     event.action === "file.restore" ||
-    event.action === "file.upload"
+    event.action === "file.upload" ||
+    event.action === "file.compress" ||
+    event.action === "file.extract"
       ? event.subject
       : undefined;
   const placedAt = placed ? placed.toPath || placed.path : "";

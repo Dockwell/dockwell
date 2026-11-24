@@ -187,6 +187,27 @@ done
 most=$(peak "$agent_pid")
 echo "four downloads of $mib MiB at once, in $((SECONDS - went)) s: agent at most $most MB, budget $max_mb MB"
 awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory came to $most MB, past its budget of $max_mb"
+
+# Measure four concurrent max-size (1 MiB) binary image preview reads (N1).
+preview_file="$work/dest/preview-1m.png"
+{ printf '\x89PNG\r\n\x1a\n'; head -c $((1048576 - 8)) /dev/urandom | LC_ALL=C tr ':' '_'; } >"$preview_file"
+preview_b64_len=$(base64 -w0 "$preview_file" | wc -c)
+went=$SECONDS
+each=()
+for i in 1 2 3 4; do
+  api POST "/v1/servers/$id/files:read" -H "Content-Type: application/json" \
+    -d "{\"path\":\"$preview_file\",\"allowBinary\":true}" >"$work/preview-$i.json" &
+  each+=($!)
+done
+for job in "${each[@]}"; do wait "$job" || fail "a preview read failed"; done
+for i in 1 2 3 4; do
+  got_len=$(jq -r '.rawContent | length' "$work/preview-$i.json")
+  [[ "$got_len" == "$preview_b64_len" ]] || fail "preview $i returned $got_len base64 bytes, want $preview_b64_len"
+done
+most=$(peak "$agent_pid")
+echo "four 1 MiB binary previews at once, in $((SECONDS - went)) s: agent at most $most MB, budget $max_mb MB"
+awk -v v="$most" -v l="$max_mb" 'BEGIN { exit !(v < l) }' || fail "the agent's memory after previews came to $most MB, past its budget of $max_mb"
+rm -f "$preview_file" "$work"/preview-*.json
 DOCKWELL_LOAD_COOKIE="$cookie" python3 "$root/scripts/artifact-load.py" run "$work" "$origin" "$id" "$agent_pid" "$max_mb" ||
   fail "the artifact transfer run failed"
 own_id=$(api GET /v1/servers | jq -r '.servers[] | select(.controlServer) | .id')

@@ -219,8 +219,11 @@ func (c *calls) start(call *agentv1.Call) {
 		// A file call keeps its place until its result has gone, so what waits
 		// for a slow stream is bounded, and a call whose caller left drops out.
 		take := (*files.Server).Take
-		if call.GetWriteUpload() != nil || call.GetDownloadFile() != nil {
+		switch {
+		case call.GetWriteUpload() != nil || call.GetDownloadFile() != nil:
 			take = (*files.Server).TakeTransfer
+		case call.GetReadFile().GetAllowBinary():
+			take = (*files.Server).TakePreview
 		}
 		if c.cfg.Files != nil && (isFileCall(call) || call.GetWriteUpload() != nil || call.GetDownloadFile() != nil) {
 			release, err := take(c.cfg.Files, ctx)
@@ -1049,7 +1052,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
-		file, err := c.cfg.Files.Read(ctx, read.GetPath())
+		file, err := c.cfg.Files.ReadWithOptions(ctx, read.GetPath(), read.GetAllowBinary())
 		if err != nil {
 			return fail(err)
 		}
@@ -1243,7 +1246,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		return c.download(ctx, d)
 	}
-	if isFileCall(call) {
+	if isFileCall(call) || isArchiveJobCall(call) {
 		if c.cfg.Files == nil {
 			return fail(errNoFiles)
 		}
@@ -1531,10 +1534,18 @@ func busy(call *agentv1.Call) *agentv1.CallResult {
 }
 
 // isFileCall reports a call about the server's files, which takes one of their places.
+// CompressFiles and ExtractArchive use their own dedicated archive job pool so
+// long archive jobs never occupy the 4 listing and read slots.
 func isFileCall(call *agentv1.Call) bool {
 	return call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil || call.GetMakeFile() != nil ||
 		call.GetMoveFile() != nil || call.GetDeleteFile() != nil || call.GetListDeleted() != nil || call.GetRestoreFile() != nil ||
 		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil
+}
+
+// isArchiveJobCall reports a call that starts or queries a background archive job.
+func isArchiveJobCall(call *agentv1.Call) bool {
+	return call.GetCompressFiles() != nil || call.GetExtractArchive() != nil ||
+		call.GetGetArchiveJob() != nil || call.GetListArchiveJobs() != nil
 }
 
 // manageFiles makes, moves, deletes and puts back files, and says what's in Recently
@@ -1575,6 +1586,22 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 		}
 		out, err := finish(ctx, fin.GetUploadId(), fin.GetOwner())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_FinishUpload{FinishUpload: out}}, err
+	case call.GetCompressFiles() != nil:
+		cf := call.GetCompressFiles()
+		out, err := f.CompressWithRecord(ctx, cf.GetPaths(), cf.GetArchivePath(), cf.GetConfirmedPath(), cf.GetOwner(), cf.GetJobId(), cf.GetRecord())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CompressFiles{CompressFiles: out}}, err
+	case call.GetExtractArchive() != nil:
+		ex := call.GetExtractArchive()
+		out, err := f.ExtractWithRecord(ctx, ex.GetPath(), ex.GetConfirmedArchive(), ex.GetConfirmedPath(), ex.GetOwner(), ex.GetJobId(), ex.GetRecord())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ExtractArchive{ExtractArchive: out}}, err
+	case call.GetGetArchiveJob() != nil:
+		gj := call.GetGetArchiveJob()
+		out, err := f.GetArchiveJob(gj.GetJobId(), gj.GetOwner())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_GetArchiveJob{GetArchiveJob: out}}, err
+	case call.GetListArchiveJobs() != nil:
+		lj := call.GetListArchiveJobs()
+		out, err := f.ListArchiveJobs(lj.GetOwner())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListArchiveJobs{ListArchiveJobs: out}}, err
 	}
 	return nil, errors.New("this isn't a call about files")
 }
@@ -1657,10 +1684,16 @@ func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *a
 	sendCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream := client.SendFile(sendCtx)
-	out, err := c.cfg.Files.Download(ctx, call.GetPath(), func(m *agentv1.SendFileRequest) error {
+	send := func(m *agentv1.SendFileRequest) error {
 		m.Stream = call.GetStream()
 		return stream.Send(m)
-	})
+	}
+	var out *agentv1.DownloadFileResult
+	if len(call.GetPaths()) > 0 {
+		out, err = c.cfg.Files.DownloadMany(ctx, call.GetPaths(), send)
+	} else {
+		out, err = c.cfg.Files.Download(ctx, call.GetPath(), send)
+	}
 	if err != nil {
 		cancel()
 		return fail(err)

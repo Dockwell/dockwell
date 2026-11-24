@@ -2,6 +2,7 @@
 
 import { create, fromBinary, type MessageInitShape, toBinary } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { EditorView } from "@codemirror/view";
 import { Code, ConnectError, type HandlerContext } from "@connectrpc/connect";
 import {
   FileEntrySchema,
@@ -93,6 +94,31 @@ const rowNames = () =>
     .getAllByRole("row")
     .slice(1)
     .map((row) => row.querySelector(".files-entry-name")?.textContent);
+
+function editorValue(el: HTMLElement): string {
+  const view = EditorView.findFromDOM(el);
+  if (!view) throw new Error("expected a CodeMirror editor");
+  return view.state.doc.toString();
+}
+
+function setEditorValue(el: HTMLElement, next: string) {
+  const view = EditorView.findFromDOM(el);
+  if (!view) throw new Error("expected a CodeMirror editor");
+  if (view.state.readOnly) return;
+  act(() => {
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: next } });
+  });
+}
+
+function appendEditor(el: HTMLElement, more: string) {
+  const view = EditorView.findFromDOM(el);
+  if (!view) throw new Error("expected a CodeMirror editor");
+  if (view.state.readOnly) return;
+  act(() => {
+    const end = view.state.doc.length;
+    view.dispatch({ changes: { from: end, to: end, insert: more } });
+  });
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -197,7 +223,9 @@ describe("FilesPage", () => {
     });
     expect(await within(server).findByRole("link", { name: "pkg-68" })).toHaveAttribute("aria-current", "page");
     expect(within(server).queryByRole("link", { name: "pkg-69" })).toBeNull();
-    expect(within(server).getByText("and 9 more, in its list")).toBeVisible();
+    const moreLink = within(server).getByRole("link", { name: "9 more folders" });
+    expect(moreLink).toBeVisible();
+    expect(moreLink).toHaveAttribute("href", "/servers/srv_1/files?path=%2F");
   });
 
   it("marks the place you're on as yours, and only it", async () => {
@@ -228,19 +256,23 @@ describe("FilesPage", () => {
     const listFiles = vi.fn(() => site);
     const { router } = await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles });
     const list = () => screen.findByRole("table");
-    await userEvent.click(await within(await list()).findByText("wp-admin"));
+    await userEvent.dblClick(await within(await list()).findByText("wp-admin"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/wp-admin" }));
-    await userEvent.click(await within(await list()).findByText("current"));
+    await userEvent.dblClick(await within(await list()).findByText("current"));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www/current" }));
   });
 
   it("reads a file once, as a read goes on record, with its lines numbered", async () => {
     const readFile = vi.fn(() => text("; PHP settings\nmemory_limit = 256M\n"));
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site, readFile });
-    await userEvent.click(await screen.findByText(".user.ini"));
+    await userEvent.dblClick(await screen.findByText(".user.ini"));
     const code = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(code).toHaveValue("; PHP settings\nmemory_limit = 256M\n");
-    expect(document.querySelector(".dw-code-numbers")?.textContent).toBe("1\n2\n3");
+    expect(editorValue(code)).toBe("; PHP settings\nmemory_limit = 256M\n");
+    const nums = [...document.querySelectorAll<HTMLElement>(".cm-lineNumbers .cm-gutterElement")]
+      .filter((el) => el.style.visibility !== "hidden")
+      .map((el) => el.textContent?.trim())
+      .filter(Boolean);
+    expect(nums).toEqual(["1", "2", "3"]);
     expect(screen.getByText("2 lines")).toBeVisible();
     expect(screen.getByText("LF")).toBeVisible();
     expect(readFile).toHaveBeenCalledTimes(1);
@@ -260,7 +292,7 @@ describe("FilesPage", () => {
       readFile: () => text(markup),
     });
     const code = await screen.findByRole("textbox", { name: "Contents of index.html" });
-    expect(code).toHaveValue(markup);
+    expect(editorValue(code)).toBe(markup);
     expect(document.querySelector(".files-viewer script, .files-viewer img")).toBeNull();
   });
 
@@ -291,8 +323,8 @@ describe("FilesPage", () => {
     });
     expect(await screen.findByText("Showing the first 1 MB")).toBeVisible();
     expect(screen.getByText("This file is 2 GB", { exact: false })).toBeVisible();
-    const code = screen.getByRole("textbox", { name: "Contents of huge.log" });
-    expect(code).toHaveAttribute("readonly");
+    const code = await screen.findByRole("textbox", { name: "Contents of huge.log" });
+    expect(code).toHaveAttribute("aria-readonly", "true");
     expect(screen.getByText("it can't be edited here", { exact: false })).toBeVisible();
     expect(screen.getByRole("link", { name: "Download huge.log" })).toBeVisible();
   });
@@ -369,7 +401,7 @@ describe("FilesPage", () => {
   it("searches what the folder holds, and says when nothing matches", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     const search = await screen.findByRole("textbox", { name: "Search in www" });
-    await screen.findByText("wp-admin");
+    await within(screen.getByRole("table")).findByText("wp-admin");
     await userEvent.type(search, "INDEX");
     expect(rowNames()).toEqual(["index.php"]);
     await userEvent.clear(search);
@@ -498,8 +530,7 @@ describe("editing a file", () => {
   async function edited(files: NonNullable<Api["files"]>, auth?: Api["auth"]) {
     const rendered = await open(files, auth);
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    await userEvent.clear(field);
-    await userEvent.type(field, "memory_limit = 512M");
+    setEditorValue(field, "memory_limit = 512M");
     return { ...rendered, field };
   }
 
@@ -509,7 +540,7 @@ describe("editing a file", () => {
     await open({ readFile: () => text("a\nb\n") });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    await userEvent.type(field, "c");
+    appendEditor(field, "c");
     expect(screen.getByText("1 line changed")).toBeVisible();
     expect(screen.getByText("Saving replaces the file at once, and can't be undone.")).toBeVisible();
     expect(screen.getByText("Edited")).toBeVisible();
@@ -532,7 +563,7 @@ describe("editing a file", () => {
     ]);
     expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    await userEvent.type(field, "!");
+    appendEditor(field, "!");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ version: "v2" }), expect.anything()]);
@@ -540,8 +571,9 @@ describe("editing a file", () => {
 
   it("saves with the keyboard", async () => {
     const saveFile = vi.fn(() => saved());
-    await edited({ readFile: () => text("old\n"), saveFile });
-    await userEvent.keyboard("{Control>}s{/Control}");
+    const { field } = await edited({ readFile: () => text("old\n"), saveFile });
+    field.focus();
+    fireEvent.keyDown(field, { key: "s", ctrlKey: true });
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
   });
 
@@ -551,7 +583,7 @@ describe("editing a file", () => {
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
     expect(screen.getByText("CRLF")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    await userEvent.type(field, "c");
+    appendEditor(field, "c");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalled());
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\r\nc" }), expect.anything()]);
@@ -562,8 +594,7 @@ describe("editing a file", () => {
     const saveFile = vi.fn(() => saved(`v${++version}`));
     await open({ readFile: () => text("\rx\r\nx\n\n\n"), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    // A line inserted at the top, saved; then the third line retyped, saved again.
-    fireEvent.change(field, { target: { value: "x\n\nx\nx\n\n\n" } });
+    setEditorValue(field, "x\n\nx\nx\n\n\n");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
     expect(saveFile.mock.lastCall).toEqual([
@@ -571,7 +602,7 @@ describe("editing a file", () => {
       expect.anything(),
     ]);
     await waitFor(() => expect(screen.getAllByText("Saved .user.ini").length).toBeGreaterThan(0));
-    fireEvent.change(field, { target: { value: "x\n\nEDITED\nx\n\n\n" } });
+    setEditorValue(field, "x\n\nEDITED\nx\n\n\n");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
     expect(saveFile.mock.lastCall).toEqual([
@@ -588,7 +619,7 @@ describe("editing a file", () => {
     const lines = alternating.replace(/\r\n/g, "\n").split("\n");
     lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
     lines[lines.length - 2] = "the last line, edited";
-    fireEvent.change(field, { target: { value: lines.join("\n") } });
+    setEditorValue(field, lines.join("\n"));
     await userEvent.click(saveButton());
     expect(await screen.findByText("This edit moves too much to keep each line's ending")).toBeVisible();
     expect(saveFile).not.toHaveBeenCalled();
@@ -616,8 +647,7 @@ describe("editing a file", () => {
     const lines = alternating.replace(/\r\n/g, "\n").split("\n");
     lines.splice(3, 0, ...Array.from({ length: 501 }, (_, i) => `pasted ${i}`));
     lines[lines.length - 2] = "the last line, edited";
-    fireEvent.change(field, { target: { value: lines.join("\n") } });
-    // Someone else saves the file meanwhile.
+    setEditorValue(field, lines.join("\n"));
     server = "v3";
     await userEvent.click(saveButton());
     await userEvent.click(await screen.findByRole("button", { name: "Save with CRLF" }));
@@ -641,9 +671,9 @@ describe("editing a file", () => {
     const saveFile = vi.fn(() => saved());
     await open({ readFile: () => text(content), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(field).not.toHaveAttribute("readonly");
+    expect(field).not.toHaveAttribute("aria-readonly", "true");
     expect(screen.getByText("Mixed line endings")).toBeVisible();
-    await userEvent.type(field, "x");
+    appendEditor(field, "x");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalled());
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: sent }), expect.anything()]);
@@ -663,9 +693,9 @@ describe("editing a file", () => {
     const { field } = await edited({ readFile, saveFile });
     await userEvent.click(saveButton());
     await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
-    await waitFor(() => expect(field).toHaveValue("a\nb\n"));
+    await waitFor(() => expect(editorValue(field)).toBe("a\nb\n"));
     expect(screen.getByText("Mixed line endings")).toBeVisible();
-    await userEvent.type(field, "c");
+    appendEditor(field, "c");
     await userEvent.click(saveButton());
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
     expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ content: "a\r\nb\nc" }), expect.anything()]);
@@ -675,10 +705,10 @@ describe("editing a file", () => {
     const saveFile = vi.fn(() => saved());
     await open({ readFile: () => text("old\n", { version: "" }), saveFile });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    expect(field).toHaveAttribute("readonly");
+    expect(field).toHaveAttribute("aria-readonly", "true");
     expect(screen.getByText("This server's agent can't save files")).toBeVisible();
     expect(screen.getByText("Update the agent on this server", { exact: false })).toBeVisible();
-    await userEvent.type(field, "x");
+    appendEditor(field, "x");
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
@@ -694,7 +724,7 @@ describe("editing a file", () => {
     await userEvent.click(saveButton());
     expect(await screen.findByText("This save may still land")).toBeVisible();
     expect(screen.queryByText("Can't save this file")).toBeNull();
-    expect(field).toHaveValue("memory_limit = 512M");
+    expect(editorValue(field)).toBe("memory_limit = 512M");
   });
 
   it("says which file a path leads to, as that's where a save goes", async () => {
@@ -715,7 +745,7 @@ describe("editing a file", () => {
   it("discards what you typed on your word", async () => {
     const { field } = await edited({ readFile: () => text("old\n") });
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-    expect(field).toHaveValue("old\n");
+    expect(editorValue(field)).toBe("old\n");
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
   });
 
@@ -729,7 +759,7 @@ describe("editing a file", () => {
       await userEvent.click(saveButton());
       expect(await screen.findByText("This file changed on the server")).toBeVisible();
       expect(screen.getByText("What you typed is still here", { exact: false })).toBeVisible();
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
       expect(saveButton()).toBeDisabled();
     });
 
@@ -749,7 +779,7 @@ describe("editing a file", () => {
       ]);
       expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
       expect(screen.queryByText("This file changed on the server")).toBeNull();
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
     });
 
     it("loads the server's version in place of yours, once you say so", async () => {
@@ -761,9 +791,9 @@ describe("editing a file", () => {
       const { field } = await edited({ readFile, saveFile });
       await userEvent.click(saveButton());
       await userEvent.click(await screen.findByRole("button", { name: "Load the server's version" }));
-      await waitFor(() => expect(field).toHaveValue("theirs\n"));
+      await waitFor(() => expect(editorValue(field)).toBe("theirs\n"));
       expect(screen.queryByText("This file changed on the server")).toBeNull();
-      await userEvent.type(field, "x");
+      appendEditor(field, "x");
       await userEvent.click(saveButton());
       await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
       expect(saveFile.mock.lastCall).toEqual([expect.objectContaining({ version: "v3" }), expect.anything()]);
@@ -774,7 +804,7 @@ describe("editing a file", () => {
       await userEvent.click(saveButton());
       await screen.findByText("This file changed on the server");
       await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-      expect(field).toHaveValue("old\n");
+      expect(editorValue(field)).toBe("old\n");
       expect(screen.queryByText("This file changed on the server")).toBeNull();
     });
 
@@ -791,15 +821,15 @@ describe("editing a file", () => {
       expect(await screen.findByText("This isn't the file you opened")).toBeVisible();
       expect(screen.getByText(keys)).toBeVisible();
       expect(saveFile).toHaveBeenCalledTimes(1);
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
       expect(screen.queryByRole("button", { name: "Save over it" })).toBeNull();
       expect(saveButton()).toBeDisabled();
       field.focus();
-      await userEvent.keyboard("{Control>}s{/Control}");
+      fireEvent.keyDown(field, { key: "s", ctrlKey: true });
       expect(saveFile).toHaveBeenCalledTimes(1);
       // With it in front of you, you can go on.
       await userEvent.click(screen.getByRole("button", { name: "Load the server's version" }));
-      await waitFor(() => expect(field).toHaveValue("ssh-ed25519 AAAA admin\n"));
+      await waitFor(() => expect(editorValue(field)).toBe("ssh-ed25519 AAAA admin\n"));
       expect(screen.queryByText("This isn't the file you opened")).toBeNull();
       expect(screen.getByText(keys)).toBeVisible();
     });
@@ -815,7 +845,7 @@ describe("editing a file", () => {
       await userEvent.click(await screen.findByRole("button", { name: "Save over it" }));
       expect(await screen.findByText("Can't save this file")).toBeVisible();
       expect(saveFile).toHaveBeenCalledTimes(1);
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
     });
   });
 
@@ -834,7 +864,7 @@ describe("editing a file", () => {
     await userEvent.click(saveButton());
     expect(await screen.findByText("Can't save this file")).toBeVisible();
     expect(screen.getByText("hz-1's agent isn't connected", { exact: false })).toBeVisible();
-    expect(field).toHaveValue("memory_limit = 512M");
+    expect(editorValue(field)).toBe("memory_limit = 512M");
     await userEvent.click(saveButton());
     expect(await screen.findByText("Saved .user.ini", { selector: "p" })).toBeVisible();
   });
@@ -884,7 +914,7 @@ describe("editing a file", () => {
       ).toBeVisible();
       expect(screen.getByRole("button", { name: "Add a passkey for this address" })).toBeEnabled();
       expect(screen.queryByText(/over SSH/)).toBeNull();
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
     });
 
     it("says so in words if you close the passkey prompt, and keeps what you typed", async () => {
@@ -902,7 +932,7 @@ describe("editing a file", () => {
           exact: false,
         }),
       ).toBeVisible();
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
     });
 
     it("says nothing of a passkey for any other file", async () => {
@@ -945,10 +975,10 @@ describe("editing a file", () => {
       refocus();
       expect(await screen.findByText("You have unsaved changes to .user.ini")).toBeVisible();
       const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-      expect(field).toHaveValue("old\n");
-      expect(field).toHaveAttribute("readonly");
+      expect(editorValue(field)).toBe("old\n");
+      expect(field).toHaveAttribute("aria-readonly", "true");
       await userEvent.click(screen.getByRole("button", { name: "Bring them back" }));
-      expect(field).toHaveValue("memory_limit = 512M");
+      expect(editorValue(field)).toBe("memory_limit = 512M");
       expect(screen.getByText("Edited")).toBeVisible();
       await userEvent.click(saveButton());
       await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(2));
@@ -969,8 +999,8 @@ describe("editing a file", () => {
       expect(await screen.findByText("You have unsaved changes to .user.ini")).toBeVisible();
       await userEvent.click(screen.getByRole("button", { name: "Discard them" }));
       const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-      expect(field).toHaveValue("old\n");
-      expect(field).not.toHaveAttribute("readonly");
+      expect(editorValue(field)).toBe("old\n");
+      expect(field).not.toHaveAttribute("aria-readonly", "true");
       expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
     });
 
@@ -1006,7 +1036,7 @@ describe("editing a file", () => {
       session.set(create(UserSchema, { id: "usr_someone_else", name: "Sam Okoye", role: Role.OWNER }));
       refocus();
       const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-      expect(field).toHaveValue("old\n");
+      expect(editorValue(field)).toBe("old\n");
       expect(screen.queryByText("You have unsaved changes to .user.ini")).toBeNull();
     });
   });
@@ -1054,7 +1084,7 @@ describe("editing a file", () => {
     await userEvent.click(screen.getByRole("button", { name: "Close .user.ini" }));
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
     expect(router.state.location.search).toMatchObject({ file: "/var/www/.user.ini" });
-    expect(field).toHaveValue("memory_limit = 512M");
+    expect(editorValue(field)).toBe("memory_limit = 512M");
     confirm.mockReturnValue(true);
     await userEvent.click(screen.getByRole("button", { name: "Close .user.ini" }));
     await waitFor(() => expect(router.state.location.search).toEqual({ path: "/var/www" }));
@@ -1088,7 +1118,7 @@ describe("FilesPage on a phone", () => {
     onPhone();
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     await screen.findByText("wp-admin");
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["Name", "Size", "Actions"]);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(["", "Name", "Size", "Actions"]);
     expect(screen.getByRole("navigation", { name: "Places" })).toBeVisible();
   });
 
@@ -1118,7 +1148,9 @@ describe("FilesPage on a phone", () => {
         return query === PHONE_QUERY && matches;
       },
       media: query,
-      addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+      addEventListener: (_: string, fn: () => void) => {
+        if (query === PHONE_QUERY) listeners.add(fn);
+      },
       removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
     }));
     await renderFiles("/servers/srv_1/files?path=/var/www&file=/var/www/.user.ini", {
@@ -1126,12 +1158,12 @@ describe("FilesPage on a phone", () => {
       readFile: () => text("old\n"),
     });
     const field = await screen.findByRole("textbox", { name: "Contents of .user.ini" });
-    await userEvent.type(field, "typed");
+    appendEditor(field, "typed");
     matches = false;
     act(() => {
       for (const fn of listeners) fn();
     });
     expect(await screen.findByRole("table")).toBeVisible();
-    expect(screen.getByRole("textbox", { name: "Contents of .user.ini" })).toHaveValue("old\ntyped");
+    expect(editorValue(screen.getByRole("textbox", { name: "Contents of .user.ini" }))).toBe("old\ntyped");
   });
 });

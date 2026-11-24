@@ -20,7 +20,7 @@ const reasonHeader = "Dockwell-Error";
 function routeURL(
   route: StreamRoute,
   path: Record<string, string>,
-  query: Record<string, string | number>,
+  query: Record<string, string | number | readonly string[] | undefined>,
   baseUrl = "",
 ): string {
   const filled = route.path.replace(/\{(\w+)\}/g, (_, name: string) => {
@@ -31,7 +31,12 @@ function routeURL(
   const params = new URLSearchParams();
   for (const name of route.query) {
     const value = query[name];
-    if (value !== undefined) params.set(name, String(value));
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) params.append(name, item);
+    } else {
+      params.set(name, String(value));
+    }
   }
   const search = params.toString();
   return baseUrl + filled + (search ? `?${search}` : "");
@@ -158,7 +163,16 @@ export function downloadDockerArtifactURL(p: { serverId: string; artifactId: str
   );
 }
 
-/** Where a file, or a folder as a .zip, downloads from, for a link a browser saves. */
-export function downloadFileURL(p: { serverId: string; path: string; baseUrl?: string }): string {
-  return routeURL(streamRoutes.FileService_DownloadFile, { serverId: p.serverId }, { path: p.path }, p.baseUrl);
+/** Where a file, a folder, or several selected paths as a .zip download from, for a link a browser saves. */
+export function downloadFileURL(
+  p:
+    | { serverId: string; path: string; paths?: undefined; baseUrl?: string }
+    | { serverId: string; path?: undefined; paths: readonly string[]; baseUrl?: string },
+): string {
+  return routeURL(
+    streamRoutes.FileService_DownloadFile,
+    { serverId: p.serverId },
+    p.paths ? { paths: p.paths } : { path: p.path },
+    p.baseUrl,
+  );
 }

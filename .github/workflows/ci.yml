@@ -126,8 +126,10 @@ jobs:
     name: Go on Docker
     runs-on: ubuntu-24.04
     # 9 minutes at most since the owner proof on real Docker (#812) and #815's
-    # setup-link tests joined it, and half a minute for nftables.
-    timeout-minutes: 18
+    # setup-link tests joined it, and half a minute for nftables. Tests that pull
+    # app images swing with the registry: internal/agent took 274 s on one run and
+    # passed Go's 600 s default on the next (2026-11-24), hence -timeout 20m below.
+    timeout-minutes: 25
     # The drivers' tests against the runner's Docker Engine, beside docker compose
     # (ADR 0021).
     env:
@@ -177,7 +179,7 @@ jobs:
           DOCKWELL_TEST_SMALL_DISK: /mnt/dockwell-small
         run: |
           set -o pipefail
-          go test -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
+          go test -timeout 20m -race -run 'OnRealDocker' -v ./internal/... | tee "$RUNNER_TEMP/docker.out"
           grep -q '^--- PASS: TestReviewedImagePushOnRealDocker ' "$RUNNER_TEMP/docker.out"
       - name: Docker network, volume and build coverage
         if: steps.pick.outputs.run == 'true'

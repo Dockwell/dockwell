@@ -3,8 +3,9 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type DeletedFile, type FileEntry, FileService, FileType, StepUpAction } from "@dockwell/api";
-import { Button, ButtonLink, Callout, Icon, Loading, Sheet, SkeletonRows, Switch, TextField } from "@dockwell/ui";
+import { type ArchiveJob, type DeletedFile, type FileEntry, FileService, FileType, StepUpAction } from "@dockwell/api";
+import { Button, Callout, Icon, Loading, Sheet, SkeletonRows, Switch, TextField } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useRef, useState } from "react";
@@ -18,14 +19,25 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { join, nameOf, parentOf } from "./paths";
+import { unpackedName } from "./transfer";
 
 /*
- * Making, renaming, moving and deleting on a server, and putting back what was deleted
- * (docs/adr/0045-a-file-manager-on-a-server.md). Each is one request through the public
- * API. Where it can let someone back onto the server, the agent asks for a passkey, for
- * the paths it resolved, which are the ones a listing gives: a folder's path has every
- * link in it followed, and its entries' names are what's acted on.
+ * Making, renaming, moving, compressing, extracting and deleting on a server,
+ * and putting back what was deleted (docs/adr/0045-a-file-manager-on-a-server.md).
+ * Each is one request through the public API. Where it can let someone back onto
+ * the server, the agent asks for a passkey for the paths it resolved.
  */
+
+/** A path and its entry metadata for operations that work on one or many items. */
+export interface FileTarget {
+  path: string;
+  name: string;
+  type: FileType;
+}
+
+export function targetOf(folder: string, entry: FileEntry): FileTarget {
+  return { path: join(folder, entry.name), name: entry.name, type: entry.type };
+}
 
 /** The client for files, and what refreshes once something changed. */
 export function useFiles(serverId: string) {
@@ -47,10 +59,7 @@ export function useFiles(serverId: string) {
         }),
       }),
     ]);
-  // What a change that took a passkey says where there's none for this address: Refused shows it as the state
-  // beside Add a passkey here.
   const noPasskey = t`That takes a passkey, and there's none for this address yet.`;
-  /** What a write that didn't happen says, in words that say what to do. */
   const problem = (err: unknown, _where: string): string => {
     if (reasonOf(err) === "no_passkey_here") return noPasskey;
     if (err instanceof PasskeyError && err.problem === "cancelled") {
@@ -61,10 +70,7 @@ export function useFiles(serverId: string) {
   return { transport, client, changed, problem, noPasskey };
 }
 
-/**
- * Why a change to the server's files didn't happen. Where it took a passkey and there's
- * none for this address, the way to add one here, after which the person tries again.
- */
+/** Why a change didn't happen, offering to add a passkey if none exists for this address. */
 function Refused({
   failure,
   noPasskey,
@@ -85,7 +91,7 @@ function Refused({
 }
 
 /** Why a name can't be one, or nothing. */
-function useNameProblem(): (name: string) => string | undefined {
+export function useNameProblem(): (name: string) => string | undefined {
   const { t } = useLingui();
   return (name) => {
     if (name.trim() === "") return t`Give it a name.`;
@@ -98,9 +104,9 @@ function useNameProblem(): (name: string) => string | undefined {
 }
 
 /** What a sheet that names something makes of it. */
-export type Naming = { kind: "folder" } | { kind: "file" } | { kind: "rename"; entry: FileEntry };
+export type Naming = { kind: "folder" } | { kind: "file" } | { kind: "rename"; target: FileTarget };
 
-/** Names a new file or folder in folder, or a new name for an entry in it. */
+/** Names a new file or folder in folder, or renames a target (such as from the folder tree). */
 export function NameSheet({
   serverId,
   folder,
@@ -109,18 +115,16 @@ export function NameSheet({
   onDone,
 }: {
   serverId: string;
-  /** Where it is, with every link followed, as the listing gave it. */
   folder: string;
   naming: Naming;
   onClose: () => void;
-  /** What's there now, by its path. */
   onDone: (path: string, kind: FileType) => void;
 }) {
   const { t } = useLingui();
   const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
   const nameProblem = useNameProblem();
   const field = useRef<HTMLInputElement>(null);
-  const was = naming.kind === "rename" ? naming.entry.name : "";
+  const was = naming.kind === "rename" ? naming.target.name : "";
   const [name, setName] = useState(was);
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
@@ -139,13 +143,14 @@ export function NameSheet({
       onClose();
       return;
     }
-    const path = join(folder, name);
+    const baseDir = naming.kind === "rename" ? parentOf(naming.target.path) : folder;
+    const path = join(baseDir, name);
     setBusy(true);
     setError(undefined);
     setFailure(undefined);
     try {
       if (naming.kind === "rename") {
-        const from = join(folder, was);
+        const from = naming.target.path;
         const moved = await withStepUpIfAsked(
           transport,
           StepUpAction.MOVE_WAY_BACK_IN,
@@ -153,7 +158,7 @@ export function NameSheet({
           (proof) => client.moveFile({ serverId, from, to: path, proof }),
         );
         await changed();
-        onDone(moved.to, naming.entry.type);
+        onDone(moved.to, naming.target.type);
       } else {
         const type = naming.kind === "folder" ? FileType.DIRECTORY : FileType.FILE;
         const made = await withStepUpIfAsked(transport, StepUpAction.MAKE_WAY_BACK_IN, `${serverId}:${path}`, (proof) =>
@@ -192,7 +197,7 @@ export function NameSheet({
       open
       initialFocusRef={field}
       title={title}
-      subtitle={folder}
+      subtitle={naming.kind === "rename" ? parentOf(naming.target.path) : folder}
       onClose={onClose}
       footer={
         <>
@@ -243,19 +248,19 @@ export function NameSheet({
   );
 }
 
-/** Moves an entry of folder to another folder on the same server. */
+/** Moves one or more files or folders to another folder on the same server. */
 export function MoveSheet({
   serverId,
   folder,
-  entry,
+  targets,
   onClose,
   onDone,
 }: {
   serverId: string;
   folder: string;
-  entry: FileEntry;
+  targets: readonly FileTarget[];
   onClose: () => void;
-  onDone: (path: string) => void;
+  onDone: (moved: readonly { from: string; to: string }[]) => void;
 }) {
   const { t } = useLingui();
   const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
@@ -264,11 +269,11 @@ export function MoveSheet({
   const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const from = join(folder, entry.name);
+  const single = targets.length === 1 ? targets[0] : undefined;
 
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    if (busy || targets.length === 0) return;
     const wanted = dest.trim().replace(/(.)\/+$/, "$1");
     if (!wanted.startsWith("/")) {
       setError(t`Write the whole path, starting with /, such as /var/www.`);
@@ -278,8 +283,8 @@ export function MoveSheet({
     setBusy(true);
     setError(undefined);
     setFailure(undefined);
+    const results: { from: string; to: string }[] = [];
     try {
-      // Where it goes, with every link followed, as a passkey confirms what the server resolves.
       let there: string;
       try {
         there = (await client.listFiles({ serverId, path: wanted })).path;
@@ -289,36 +294,50 @@ export function MoveSheet({
         field.current?.focus();
         return;
       }
-      const to = join(there, entry.name);
-      if (to === from) {
-        setError(t`It's in that folder already.`);
-        setBusy(false);
-        return;
+      for (const target of targets) {
+        const to = join(there, target.name);
+        if (to === target.path) {
+          if (single) {
+            setError(t`It's in that folder already.`);
+            setBusy(false);
+            return;
+          }
+          continue;
+        }
+        try {
+          const moved = await withStepUpIfAsked(
+            transport,
+            StepUpAction.MOVE_WAY_BACK_IN,
+            `${serverId}:${target.path}\n${to}`,
+            (proof) => client.moveFile({ serverId, from: target.path, to, proof }),
+          );
+          results.push({ from: target.path, to: moved.to });
+        } catch (err) {
+          if (results.length > 0) await changed();
+          if (reasonOf(err) === "file_exists") {
+            setError(t`Something called ${target.name} is in that folder already. Rename one of them first.`);
+          } else {
+            setFailure(problem(err, target.path));
+          }
+          setBusy(false);
+          return;
+        }
       }
-      const moved = await withStepUpIfAsked(
-        transport,
-        StepUpAction.MOVE_WAY_BACK_IN,
-        `${serverId}:${from}\n${to}`,
-        (proof) => client.moveFile({ serverId, from, to, proof }),
-      );
       await changed();
-      onDone(moved.to);
+      onDone(results);
     } catch (err) {
-      if (reasonOf(err) === "file_exists") {
-        setError(t`Something called ${entry.name} is in that folder already. Rename one of them first.`);
-      } else {
-        setFailure(problem(err, from));
-      }
+      setFailure(problem(err, folder));
       setBusy(false);
     }
   };
 
+  const title = single ? t`Move ${single.name}` : plural(targets.length, { one: "Move # item", other: "Move # items" });
   return (
     <Sheet
       open
       initialFocusRef={field}
-      title={t`Move ${entry.name}`}
-      subtitle={from}
+      title={title}
+      subtitle={single ? single.path : folder}
       onClose={onClose}
       footer={
         <>
@@ -352,7 +371,11 @@ export function MoveSheet({
           spellCheck={false}
           value={dest}
           error={error}
-          hint={t`On this server, and on the same disk. It keeps its name, and never replaces what's there.`}
+          hint={
+            single
+              ? t`On this server, and on the same disk. It keeps its name, and never replaces what's there.`
+              : t`On this server, and on the same disk. Items keep their names, and never replace what's there.`
+          }
           onChange={(event) => {
             setDest(event.target.value);
             setError(undefined);
@@ -363,73 +386,239 @@ export function MoveSheet({
   );
 }
 
-/** Deletes an entry of folder: to Recently deleted, or for good. */
-export function DeleteSheet({
+/** Packs one or more selected items into a new .zip archive in folder. */
+export function CompressSheet({
   serverId,
   folder,
-  entry,
+  targets,
   onClose,
   onDone,
 }: {
   serverId: string;
   folder: string;
-  entry: FileEntry;
+  targets: readonly FileTarget[];
   onClose: () => void;
-  /** What's in Recently deleted now, or nothing where it went for good. */
-  onDone: (path: string, kept: DeletedFile | undefined) => void;
+  onDone: (job: ArchiveJob) => void;
 }) {
   const { t } = useLingui();
-  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
-  const [forGood, setForGood] = useState(false);
-  // The server said it can't be put back, so the only delete there is is for good.
-  const [onlyForGood, setOnlyForGood] = useState<string>();
+  const { transport, client, problem, noPasskey } = useFiles(serverId);
+  const nameProblem = useNameProblem();
+  const field = useRef<HTMLInputElement>(null);
+  const single = targets.length === 1 ? targets[0] : undefined;
+  const defaultBase = single ? single.name : nameOf(folder) === "/" ? "archive" : nameOf(folder);
+  const [name, setName] = useState(`${defaultBase}.zip`);
+  const [error, setError] = useState<string>();
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
-  // A proof that came back unspent, as the delete couldn't be put back, which the
-  // delete for good that follows uses, so one delete takes one passkey.
-  const unspent = useRef("");
-  const path = join(folder, entry.name);
-  const name = entry.name;
-  const isFolder = entry.type === FileType.DIRECTORY;
-  const goesForGood = forGood || onlyForGood !== undefined;
 
-  const remove = async () => {
-    if (busy) return;
+  const submit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (busy || targets.length === 0) return;
+    const trimmed = name.trim();
+    const withZip = trimmed.toLowerCase().endsWith(".zip") ? trimmed : `${trimmed}.zip`;
+    const wrong = nameProblem(withZip);
+    if (wrong) {
+      setError(wrong);
+      field.current?.focus();
+      return;
+    }
+    if (withZip.toLowerCase() === ".zip") {
+      setError(t`Give the archive a name before .zip.`);
+      field.current?.focus();
+      return;
+    }
+    const archivePath = join(folder, withZip);
     setBusy(true);
+    setError(undefined);
     setFailure(undefined);
-    const call = (proof: string) => {
-      unspent.current = proof;
-      return client.deleteFile({ serverId, path, forGood: goesForGood, proof });
-    };
     try {
-      let deleted: Awaited<ReturnType<typeof call>> | undefined;
-      if (unspent.current) {
-        try {
-          deleted = await call(unspent.current);
-        } catch (err) {
-          // Spent or past its minute: ask again, as anything else would.
-          if (reasonOf(err) !== "needs_step_up") throw err;
-        }
+      const res = await withStepUpIfAsked(
+        transport,
+        StepUpAction.COMPRESS_WAY_BACK_IN,
+        `${serverId}:${archivePath}`,
+        (proof) =>
+          client.compressFiles({
+            serverId,
+            paths: targets.map((item) => item.path),
+            archivePath,
+            proof,
+          }),
+      );
+      if (!res.job) {
+        setFailure(t`The server didn't start the archive job. Try again.`);
+        setBusy(false);
+        return;
       }
-      deleted ??= await withStepUpIfAsked(transport, StepUpAction.DELETE_WAY_BACK_IN, `${serverId}:${path}`, call);
-      await changed();
-      onDone(deleted.path, deleted.deleted);
+      onDone(res.job);
     } catch (err) {
-      if (reasonOf(err) === "delete_for_good") {
-        setOnlyForGood(sentence(err));
+      if (reasonOf(err) === "file_exists") {
+        setError(t`Something called ${withZip} is here already. Choose another name.`);
+        field.current?.focus();
       } else {
-        unspent.current = "";
-        setFailure(problem(err, path));
+        setFailure(problem(err, archivePath));
       }
       setBusy(false);
     }
   };
 
+  const title = single
+    ? t`Compress ${single.name}`
+    : plural(targets.length, { one: "Compress # item", other: "Compress # items" });
+
   return (
     <Sheet
       open
-      title={t`Delete ${name}`}
-      subtitle={path}
+      initialFocusRef={field}
+      title={title}
+      subtitle={folder}
+      onClose={onClose}
+      footer={
+        <>
+          <span className="dw-sheet-note">
+            <Trans>This goes in the activity log</Trans>
+          </span>
+          <Button variant="ghost" onClick={onClose}>
+            <Trans>Cancel</Trans>
+          </Button>
+          <Button variant="primary" icon="archive" loading={busy} onClick={() => void submit()}>
+            <Trans>Compress</Trans>
+          </Button>
+        </>
+      }
+    >
+      <form className="files-sheet" onSubmit={(event) => void submit(event)}>
+        {failure ? (
+          <Refused
+            failure={failure}
+            noPasskey={noPasskey}
+            title={t`Nothing was compressed`}
+            onAdded={() => setFailure(undefined)}
+          />
+        ) : null}
+        <TextField
+          ref={field}
+          label={t`Archive name`}
+          mono
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          value={name}
+          error={error}
+          hint={t`Creates a new .zip archive in this folder. Never replaces a file that's already there.`}
+          onChange={(event) => {
+            setName(event.target.value);
+            setError(undefined);
+          }}
+        />
+      </form>
+    </Sheet>
+  );
+}
+
+/** Extracts an existing .zip, .tar.gz or .tgz archive into a new folder beside it. */
+export function useExtract(serverId: string) {
+  const { transport, client, problem } = useFiles(serverId);
+  const { t } = useLingui();
+  const [extracting, setExtracting] = useState(false);
+  const extract = async (archivePath: string): Promise<ArchiveJob> => {
+    setExtracting(true);
+    try {
+      const dstPath = join(parentOf(archivePath), unpackedName(nameOf(archivePath)));
+      const res = await withStepUpIfAsked(
+        transport,
+        StepUpAction.EXTRACT_WAY_BACK_IN,
+        `${serverId}:${archivePath}\n${dstPath}`,
+        (proof) => client.extractArchive({ serverId, path: archivePath, proof }),
+      );
+      if (!res.job) {
+        throw new Error(t`The server didn't start the archive job. Try again.`);
+      }
+      return res.job;
+    } finally {
+      setExtracting(false);
+    }
+  };
+  return { extract, extracting, problem };
+}
+
+export interface DeletedResult {
+  path: string;
+  kept?: DeletedFile;
+}
+
+/** Deletes one or more items: to Recently deleted, or for good. */
+export function DeleteSheet({
+  serverId,
+  targets,
+  onClose,
+  onDone,
+}: {
+  serverId: string;
+  targets: readonly FileTarget[];
+  onClose: () => void;
+  onDone: (results: readonly DeletedResult[]) => void;
+}) {
+  const { t } = useLingui();
+  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
+  const [forGood, setForGood] = useState(false);
+  const [onlyForGood, setOnlyForGood] = useState<string>();
+  const [failure, setFailure] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const unspent = useRef("");
+  const single = targets.length === 1 ? targets[0] : undefined;
+  const isFolder = single?.type === FileType.DIRECTORY;
+  const hasFolders = targets.some((item) => item.type === FileType.DIRECTORY);
+  const goesForGood = forGood || onlyForGood !== undefined;
+
+  const remove = async () => {
+    if (busy || targets.length === 0) return;
+    setBusy(true);
+    setFailure(undefined);
+    const results: DeletedResult[] = [];
+    for (const target of targets) {
+      const path = target.path;
+      const call = (proof: string) => {
+        unspent.current = proof;
+        return client.deleteFile({ serverId, path, forGood: goesForGood, proof });
+      };
+      try {
+        let deleted: Awaited<ReturnType<typeof call>> | undefined;
+        if (unspent.current && single) {
+          try {
+            deleted = await call(unspent.current);
+          } catch (err) {
+            if (reasonOf(err) !== "needs_step_up") throw err;
+          }
+        }
+        deleted ??= await withStepUpIfAsked(transport, StepUpAction.DELETE_WAY_BACK_IN, `${serverId}:${path}`, call);
+        unspent.current = "";
+        results.push({ path: deleted.path, kept: deleted.deleted });
+      } catch (err) {
+        if (results.length > 0) await changed();
+        if (reasonOf(err) === "delete_for_good") {
+          setOnlyForGood(sentence(err));
+        } else {
+          unspent.current = "";
+          setFailure(problem(err, path));
+        }
+        setBusy(false);
+        return;
+      }
+    }
+    await changed();
+    onDone(results);
+  };
+
+  const title = single
+    ? t`Delete ${single.name}`
+    : plural(targets.length, { one: "Delete # item", other: "Delete # items" });
+  const count = targets.length;
+
+  return (
+    <Sheet
+      open
+      title={title}
+      subtitle={single ? single.path : parentOf(targets[0]?.path ?? "/")}
       onClose={onClose}
       footer={
         <>
@@ -461,23 +650,44 @@ export function DeleteSheet({
         ) : (
           <>
             <p className="files-sheet-line">
-              {goesForGood ? (
-                isFolder ? (
+              {single ? (
+                goesForGood ? (
+                  isFolder ? (
+                    <Trans>
+                      {single.name} and everything in it go at once, and nothing brings them back. Its space is free
+                      straight away.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      {single.name} goes at once, and nothing brings it back. Its space is free straight away.
+                    </Trans>
+                  )
+                ) : isFolder ? (
                   <Trans>
-                    {name} and everything in it go at once, and nothing brings them back. Its space is free straight
-                    away.
+                    {single.name} and everything in it go to Recently deleted, where you can put them back for 7 days.
+                    They take their space until then.
                   </Trans>
                 ) : (
-                  <Trans>{name} goes at once, and nothing brings it back. Its space is free straight away.</Trans>
+                  <Trans>
+                    {single.name} goes to Recently deleted, where you can put it back for 7 days. It takes its space
+                    until then.
+                  </Trans>
                 )
-              ) : isFolder ? (
-                <Trans>
-                  {name} and everything in it go to Recently deleted, where you can put them back for 7 days. They take
-                  their space until then.
-                </Trans>
+              ) : goesForGood ? (
+                hasFolders ? (
+                  <Trans>
+                    These {count} items and everything in any folders go at once, and nothing brings them back. Their
+                    space is free straight away.
+                  </Trans>
+                ) : (
+                  <Trans>
+                    These {count} items go at once, and nothing brings them back. Their space is free straight away.
+                  </Trans>
+                )
               ) : (
                 <Trans>
-                  {name} goes to Recently deleted, where you can put it back for 7 days. It takes its space until then.
+                  These {count} items go to Recently deleted, where you can put them back for 7 days. They take their
+                  space until then.
                 </Trans>
               )}
             </p>
@@ -489,7 +699,7 @@ export function DeleteSheet({
             />
           </>
         )}
-        {entry.type === FileType.SYMLINK ? (
+        {single?.type === FileType.SYMLINK ? (
           <p className="files-sheet-line">
             <Trans>This deletes the link. What it leads to stays where it is.</Trans>
           </p>
@@ -666,106 +876,6 @@ export function DeletedSheet({
             })}
           </ul>
         ) : null}
-      </div>
-    </Sheet>
-  );
-}
-
-/** What can be done to an entry from its row. */
-export function RowActions({
-  entry,
-  download,
-  onRename,
-  onMove,
-  onDelete,
-}: {
-  entry: FileEntry;
-  /** Where it downloads from, if it's a file or a folder. */
-  download?: string;
-  onRename: () => void;
-  onMove: () => void;
-  onDelete: () => void;
-}) {
-  const { t } = useLingui();
-  const name = entry.name;
-  const folder = entry.type === FileType.DIRECTORY;
-  // The table leaves a click on these to them, rather than opening the row.
-  return (
-    <span className="files-row-actions">
-      {download ? (
-        <ButtonLink
-          size="sm"
-          variant="ghost"
-          icon="download"
-          href={download}
-          download
-          aria-label={folder ? t`Download ${name} as a .zip` : t`Download ${name}`}
-          title={folder ? t`Download as a .zip` : t`Download`}
-        />
-      ) : null}
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="edit"
-        aria-label={t`Rename ${name}`}
-        title={t`Rename`}
-        onClick={onRename}
-      />
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="arrow-right"
-        aria-label={t`Move ${name}`}
-        title={t`Move`}
-        onClick={onMove}
-      />
-      <Button
-        size="sm"
-        variant="ghost"
-        icon="trash"
-        aria-label={t`Delete ${name}`}
-        title={t`Delete`}
-        onClick={onDelete}
-      />
-    </span>
-  );
-}
-
-/** On a phone, or beside an open file, a row's actions in a sheet of their own, as four icons a row is too many there. */
-export function ActionsSheet({
-  folder,
-  entry,
-  download,
-  onClose,
-  onRename,
-  onMove,
-  onDelete,
-}: {
-  folder: string;
-  entry: FileEntry;
-  download?: string;
-  onClose: () => void;
-  onRename: () => void;
-  onMove: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <Sheet open title={entry.name} subtitle={join(folder, entry.name)} onClose={onClose}>
-      <div className="files-actions">
-        {download ? (
-          <ButtonLink icon="download" href={download} download onClick={onClose}>
-            {entry.type === FileType.DIRECTORY ? <Trans>Download as a .zip</Trans> : <Trans>Download</Trans>}
-          </ButtonLink>
-        ) : null}
-        <Button icon="edit" onClick={onRename}>
-          <Trans>Rename</Trans>
-        </Button>
-        <Button icon="arrow-right" onClick={onMove}>
-          <Trans>Move</Trans>
-        </Button>
-        <Button icon="trash" variant="danger" onClick={onDelete}>
-          <Trans>Delete</Trans>
-        </Button>
       </div>
     </Sheet>
   );

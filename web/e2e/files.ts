@@ -109,11 +109,41 @@ async function start(): Promise<void> {
   await until("its agent to connect", () => serverLog.join("").includes("connected to the control plane"));
 }
 
+/** Read the full document text of a CodeMirror 6 textbox. */
+async function readCode(code: ReturnType<Page["getByRole"]>): Promise<string> {
+  return code.evaluate((el) => [...el.querySelectorAll(".cm-line")].map((line) => line.textContent ?? "").join("\n"));
+}
+
+/** Replace the full document text of a CodeMirror 6 textbox without triggering auto-indent. */
+async function writeCode(page: Page, code: ReturnType<Page["getByRole"]>, value: string): Promise<void> {
+  await code.click();
+  await until("editor to clear", async () => {
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Backspace");
+    return (await readCode(code)) === "";
+  });
+  if (!value) return;
+  // Dispatch a paste event so CodeMirror inserts the exact string verbatim (including newlines).
+  await code.evaluate((el, text) => {
+    const dt = new DataTransfer();
+    dt.setData("text/plain", text);
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, value);
+  await until("editor to accept pasted text", async () => (await readCode(code)) === value);
+}
+
+/** A valid 1x1 blue PNG for real image preview tests. */
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+  "base64",
+);
+
 /** A site, with what a person finds on one, and what an app could leave in it. */
 function makeSite() {
   writeFileSync(join(site, "nginx.conf"), "server {\n  listen 80;\n  root /var/www;\n}\n");
   writeFileSync(join(site, "说明.txt"), "你好\n");
-  writeFileSync(join(site, "logo.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]));
+  writeFileSync(join(site, "logo.png"), PNG_1X1);
+  writeFileSync(join(site, "blob.bin"), Buffer.from([0x00, 0x01, 0x02, 0x03, 0xff, 0xfe]));
   writeFileSync(join(site, "huge.log"), "a line of a log\n".repeat(100_000));
   writeFileSync(join(site, "server.key"), "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----\n");
   mkdirSync(join(site, "conf.d"));
@@ -209,7 +239,7 @@ async function main() {
   await page.getByRole("table", { name: `Files in ${site}` }).waitFor();
   await page.getByText("nginx.conf").waitFor();
   await page.getByText("说明.txt").waitFor();
-  await page.getByText("→ conf.d").click();
+  await page.getByText("→ conf.d").dblclick();
   await page.getByText("default.conf").waitFor();
   await page.getByRole("navigation", { name: "Path" }).getByText("conf.d").waitFor();
   await page.goto(at({ path: site }));
@@ -262,17 +292,17 @@ async function main() {
   await page.getByText("nginx.conf").waitFor();
 
   step("open a file");
-  await page.getByText("nginx.conf").click();
+  await page.getByText("nginx.conf").dblclick();
   const code = page.getByRole("textbox", { name: "Contents of nginx.conf" });
   await code.waitFor();
-  if (!(await code.inputValue()).includes("listen 80;")) fail("the file reads as something else");
+  if (!(await readCode(code)).includes("listen 80;")) fail("the file reads as something else");
   await page.getByText("4 lines").waitFor();
   await shoot(page, "file");
 
   step("edit a file and save it, in place");
   const conf = join(site, "nginx.conf");
   const inode = statSync(conf).ino;
-  await code.fill("server {\n  listen 8080;\n}\n");
+  await writeCode(page, code, "server {\n  listen 8080;\n}\n");
   await page.getByText("Edited").waitFor();
   await shoot(page, "edited");
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -281,34 +311,35 @@ async function main() {
   if (statSync(conf).ino !== inode) fail("the save replaced the file, so a container that mounts it keeps the old one");
 
   step("a file that changed since is noticed, and what you typed stays");
-  await code.fill("mine\n");
+  await writeCode(page, code, "mine\n");
   writeFileSync(conf, "theirs\n");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("This file changed on the server").waitFor();
-  if ((await code.inputValue()) !== "mine\n") fail("a refused save lost what was typed");
+  if ((await readCode(code)) !== "mine\n") fail("a refused save lost what was typed");
   if (readFileSync(conf, "utf8") !== "theirs\n") fail("a refused save wrote the file");
   await shoot(page, "conflict");
   await page.getByRole("button", { name: "Save over it" }).click();
   await page.getByText("Saved nginx.conf").first().waitFor();
   if (readFileSync(conf, "utf8") !== "mine\n") fail("saving over it didn't write the file");
 
+  const listed = page.getByRole("table", { name: `Files in ${site}` });
   step("leaving what you typed asks first");
-  await code.fill("unsaved\n");
+  await writeCode(page, code, "unsaved\n");
   page.once("dialog", (dialog) => void dialog.dismiss());
   await page.getByRole("button", { name: "Close nginx.conf" }).click();
   await sleep(200);
-  if ((await code.inputValue()) !== "unsaved\n") fail("leaving took what was typed without asking");
+  if ((await readCode(code)) !== "unsaved\n") fail("leaving took what was typed without asking");
   await page.getByRole("button", { name: "Discard", exact: true }).click();
   await page.getByRole("button", { name: "Close nginx.conf" }).click();
   await code.waitFor({ state: "detached" });
-  await page.getByText("nginx.conf").click();
+  await listed.getByText("nginx.conf", { exact: true }).dblclick();
   await code.waitFor();
 
   step("a byte order mark stays through a save, on the format the panel runs on");
-  await page.getByText("app.ini").click();
+  await listed.getByText("app.ini", { exact: true }).dblclick();
   const ini = page.getByRole("textbox", { name: "Contents of app.ini" });
   await ini.waitFor();
-  await ini.fill("name = changed\n");
+  await writeCode(page, ini, "name = changed\n");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("Saved app.ini").first().waitFor();
   if (!readFileSync(join(site, "app.ini")).equals(Buffer.from("\uFEFFname = changed\n"))) {
@@ -316,11 +347,11 @@ async function main() {
   }
 
   step("a file with more than one kind of line ending edits, and a save keeps each line's");
-  await page.getByText("mixed.sh").click();
+  await listed.getByText("mixed.sh", { exact: true }).dblclick();
   const mixed = page.getByRole("textbox", { name: "Contents of mixed.sh" });
   await mixed.waitFor();
   await page.getByText("Mixed line endings").waitFor();
-  await mixed.fill("#!/bin/sh\necho a\necho c\n");
+  await writeCode(page, mixed, "#!/bin/sh\necho a\necho c\n");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByText("Saved mixed.sh").first().waitFor();
   const kept = readFileSync(join(site, "mixed.sh"), "utf8");
@@ -331,10 +362,10 @@ async function main() {
   step("a link swapped in under what you typed isn't saved through, whatever its text");
   const swapped = join(site, "config.yml");
   const keys = join(site, "authorized_keys");
-  await page.getByText("config.yml").click();
+  await listed.getByText("config.yml", { exact: true }).dblclick();
   const yml = page.getByRole("textbox", { name: "Contents of config.yml" });
   await yml.waitFor();
-  await yml.fill("deploy_key: what a person typed\n");
+  await writeCode(page, yml, "deploy_key: what a person typed\n");
   rmSync(swapped);
   symlinkSync(keys, swapped);
   await page.getByRole("button", { name: "Save", exact: true }).click();
@@ -349,10 +380,10 @@ async function main() {
   await yml.waitFor({ state: "detached" });
 
   step("a file that's a way back in asks for a passkey, and saves nothing without one");
-  await page.getByRole("row", { name: /authorized_keys/ }).click();
+  await page.getByRole("row", { name: /authorized_keys/ }).dblclick();
   const authorized = page.getByRole("textbox", { name: "Contents of authorized_keys" });
   await authorized.waitFor();
-  await authorized.fill("ssh-ed25519 a key typed here\n");
+  await writeCode(page, authorized, "ssh-ed25519 a key typed here\n");
   await page.getByText("It asks for your passkey", { exact: false }).waitFor();
   // This browser has no authenticator, so the prompt closes, as a person can close it.
   await page.evaluate(() => {
@@ -366,23 +397,23 @@ async function main() {
   await page.getByRole("button", { name: "Close authorized_keys" }).click();
   await authorized.waitFor({ state: "detached" });
 
-  step("what isn't text, and what's too large");
-  await page.getByText("logo.png").click();
+  step("what isn't text, image preview, and what's too large");
+  await listed.getByText("blob.bin", { exact: true }).dblclick();
   await page.getByText("This isn't a text file").waitFor();
-  await page.getByText("huge.log").click();
+  await listed.getByText("huge.log", { exact: true }).dblclick();
   await page.getByText("Showing the first 1 MB").waitFor();
   await page.getByRole("textbox", { name: "Contents of huge.log" }).waitFor();
   await page.getByText("it can't be edited here", { exact: false }).waitFor();
   await shoot(page, "large-file");
 
   step("what's refused, and what leads nowhere");
-  await page.getByText("server.key").click();
+  await listed.getByText("server.key", { exact: true }).dblclick();
   await page.getByText("Dockwell doesn't open this file").waitFor();
   await page.getByText("a private key", { exact: false }).waitFor();
-  await page.getByRole("row", { name: /planted/ }).click();
+  await page.getByRole("row", { name: /planted/ }).dblclick();
   await page.getByText("Dockwell's own data", { exact: false }).waitFor();
   await shoot(page, "refused-file");
-  await page.getByRole("row", { name: /broken/ }).click();
+  await page.getByRole("row", { name: /broken/ }).dblclick();
   await page.getByText("There's nothing at", { exact: false }).waitFor();
   await page.goto(at({ path: "/proc" }));
   await page.getByText("Dockwell doesn't open this folder").waitFor();
@@ -390,13 +421,13 @@ async function main() {
   await page.goto(at({ path: join(site, "nothing") }));
   await page.getByText("Nothing at this path").waitFor();
   await page.getByRole("link", { name: "Go up to" }).click();
-  await page.getByText("nginx.conf").waitFor();
+  await listed.getByText("nginx.conf", { exact: true }).waitFor();
 
-  step("make a folder, rename it, delete it, and put it back");
+  step("make a folder, rename it inline, delete it, and put it back");
   await page.goto(at({ path: site }));
-  await page.getByRole("button", { name: "New folder" }).click();
+  await page.getByRole("button", { name: "New file or folder" }).click();
+  await page.getByRole("menuitem", { name: "New folder" }).click();
   // In the list: the tree beside it names the same folders.
-  const listed = page.getByRole("table", { name: `Files in ${site}` });
   const naming = page.getByRole("dialog", { name: /^New folder in/ });
   await naming.getByRole("textbox", { name: "Name" }).fill("uploads");
   await naming.getByRole("button", { name: "Make folder" }).click();
@@ -404,14 +435,16 @@ async function main() {
   await listed.getByText("uploads", { exact: true }).waitFor();
   if (!statSync(join(site, "uploads")).isDirectory()) fail("the new folder isn't on the disk");
   await listed.getByText("uploads", { exact: true }).hover();
-  await page.getByRole("button", { name: "Rename uploads" }).click();
-  const renaming = page.getByRole("dialog", { name: "Rename uploads" });
-  await renaming.getByRole("textbox", { name: "Name" }).fill("media");
-  await renaming.getByRole("button", { name: "Rename" }).click();
+  await page.getByRole("button", { name: "Actions for uploads" }).click();
+  await page.getByRole("menuitem", { name: /Rename/ }).click();
+  const inlineRename = page.getByRole("textbox", { name: "New name for uploads" });
+  await inlineRename.fill("media");
+  await inlineRename.press("Enter");
   await listed.getByText("media", { exact: true }).waitFor();
   if (existsSync(join(site, "uploads")) || !existsSync(join(site, "media"))) fail("the rename isn't on the disk");
   await listed.getByText("media", { exact: true }).hover();
-  await page.getByRole("button", { name: "Delete media" }).click();
+  await page.getByRole("button", { name: "Actions for media" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   const deleting = page.getByRole("dialog", { name: "Delete media" });
   await deleting.getByText("and everything in it go to Recently deleted", { exact: false }).waitFor();
   await deleting.getByRole("button", { name: "Delete", exact: true }).click();
@@ -448,17 +481,19 @@ async function main() {
   await uploading.getByRole("button", { name: "Done" }).click();
   await uploading.waitFor({ state: "detached" });
   await page.getByRole("row", { name: /backup\.sql/ }).hover();
+  await page.getByRole("button", { name: "Actions for backup.sql" }).click();
   const [file] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("link", { name: "Download backup.sql" }).click(),
+    page.getByRole("menuitem", { name: "Download" }).click(),
   ]);
   if (file.suggestedFilename() !== "backup.sql" || !readFileSync(await file.path()).equals(backup)) {
     fail(`a download saved as ${file.suggestedFilename()} isn't what's on the server`);
   }
-  await page.getByRole("row", { name: /^conf\.d/ }).hover();
+  await listed.locator('tr[data-file-row="conf.d"]').hover();
+  await page.getByRole("button", { name: "Actions for conf.d" }).click();
   const [folder] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByRole("link", { name: "Download conf.d as a .zip" }).click(),
+    page.getByRole("menuitem", { name: "Download as a .zip" }).click(),
   ]);
   if (
     folder.suggestedFilename() !== "conf.d.zip" ||
@@ -472,11 +507,11 @@ async function main() {
   step("a file on a phone takes the screen, and its header goes back");
   await atWidth(page, { width: 390, height: 844 });
   await page.goto(at({ path: site }));
-  await page.getByText("nginx.conf").click();
+  await listed.getByText("nginx.conf", { exact: true }).click();
   await page.getByRole("heading", { level: 1, name: "nginx.conf" }).waitFor();
   await noSidewaysScroll(page, "an open file");
   await atWidth(page, { width: 390, height: 844 });
-  await code.fill("edited on a phone\n");
+  await writeCode(page, code, "edited on a phone\n");
   const save = page.getByRole("button", { name: "Save", exact: true });
   await save.click();
   await page.getByText("Saved nginx.conf").first().waitFor();

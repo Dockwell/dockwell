@@ -30,8 +30,8 @@ import (
 // so does more than an upload may be, or more entries than maxUnpacked. What it
 // made by then goes again, so it's all or nothing.
 
-// unpackedName is the folder an archive called name unpacks into.
-func unpackedName(name string) string {
+// UnpackedName is the folder an archive called name unpacks into.
+func UnpackedName(name string) string {
 	for _, ext := range []string{".tar.gz", ".tgz", ".zip"} {
 		if base, ok := strings.CutSuffix(strings.ToLower(name), ext); ok && base != "" {
 			return name[:len(base)]
@@ -68,7 +68,7 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 	if err := unix.Fstat(afd, &ast); err != nil || ast.Mode&unix.S_IFMT != unix.S_IFREG {
 		return "", 0, unpackRefused(src.where, "it isn't a file")
 	}
-	dst := &target{w: src.w, name: unpackedName(src.name), where: joined(src.w.path(), unpackedName(src.name))}
+	dst := &target{w: src.w, name: UnpackedName(src.name), where: joined(src.w.path(), UnpackedName(src.name))}
 	if _, err := dst.stat(); err == nil {
 		return "", 0, unpackRefused(src.where, dst.where+" is there already")
 	}
@@ -87,8 +87,14 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 	if err := unix.Fstat(dfd, &dst0); err != nil || dst0.Uid != uint32(unix.Geteuid()) || !emptyDir(dfd) { //nolint:gosec // a user ID fits
 		return "", 0, unpackRefused(src.where, dst.where+" changed as the agent made it")
 	}
-	ownLike(dfd, &src.w.st, dockwellv1.FileType_FILE_TYPE_DIRECTORY)
-	u := &unpacker{s: s, ctx: ctx, root: dfd, where: dst.where, folder: &src.w.st, dev: dst0.Dev, ways: s.waysIn(), buf: make([]byte, FrameBytes), limit: cmp.Or(s.unpackLimit, maxUnpacked), statfs: s.statfs}
+	mask := archiveMask(ast.Mode)
+	ownWithMode(dfd, &src.w.st, extractDirMode(madeDirMode, false, mask, &src.w.st))
+	ways := s.waysIn()
+	u := &unpacker{
+		s: s, ctx: ctx, root: dfd, where: dst.where, folder: &src.w.st, dev: dst0.Dev,
+		ways: ways, dstWritten: ways.asWritten(dst.w.steps, "/"+dst.name), mask: mask, buf: make([]byte, FrameBytes),
+		limit: cmp.Or(s.unpackLimit, maxUnpacked), statfs: s.statfs,
+	}
 	if u.statfs == nil {
 		u.statfs = unix.Fstatfs
 	}
@@ -110,25 +116,74 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 	return dst.where, u.count, nil
 }
 
+// archiveMask bounds extracted permissions to at most 0755 (dropping setuid,
+// setgid, sticky, and group/other write) and drops group or other permissions
+// whenever the archive file itself isn't readable by group or other.
+func archiveMask(archiveMode uint32) uint32 {
+	mask := uint32(0o755)
+	if archiveMode&0o040 == 0 {
+		mask &^= 0o070
+	}
+	if archiveMode&0o004 == 0 {
+		mask &^= 0o007
+	}
+	return mask
+}
+
+// extractMode computes a safe mode for an extracted file or directory: never
+// widens beyond perm, drops setuid/setgid/sticky and group/other write, and
+// stays within the archive's own visibility mask. When hasMode is true, an
+// explicit 0000 file mode stays 0000 rather than widening to madeFileMode.
+func extractMode(perm uint32, hasMode, dir bool, mask uint32) uint32 {
+	base := perm & 0o777
+	if !hasMode {
+		if dir {
+			base = madeDirMode
+		} else {
+			base = madeFileMode
+		}
+	}
+	m := base & mask
+	if dir {
+		// Keep owner rwx on created folders so subsequent entries can unpack into them.
+		m |= 0o700
+	}
+	return m
+}
+
+// extractDirMode computes a safe mode for an extracted directory, preserving
+// the parent folder's setgid bit (as ownLike does) while never taking setgid
+// from the archive itself.
+func extractDirMode(perm uint32, hasMode bool, mask uint32, parent *unix.Stat_t) uint32 {
+	return extractMode(perm, hasMode, true, mask) | parent.Mode&unix.S_ISGID
+}
+
 // unpacker makes an archive's entries in a folder.
 type unpacker struct {
-	s       *Server
-	ctx     context.Context //nolint:containedctx // it lives as long as one unpack
-	root    int
-	where   string
-	folder  *unix.Stat_t
-	dev     uint64
-	ways    *waysIn
-	buf     []byte
-	count   uint64
-	limit   uint64
-	written uint64
+	s            *Server
+	ctx          context.Context //nolint:containedctx // it lives as long as one unpack
+	root         int
+	where        string
+	folder       *unix.Stat_t
+	dev          uint64
+	ways         *waysIn
+	dstWayIn     bool
+	dstWritten   []string
+	mask         uint32
+	buf          []byte
+	count        uint64
+	skippedLinks uint64
+	limit        uint64
+	written      uint64
 	// checked is how much was written when the free space was last looked at,
 	// and full why it stopped, if it did for that.
 	checked uint64
 	full    error
 	// statfs reads the free space under root.
 	statfs func(fd int, st *unix.Statfs_t) error
+	// Optional progress hooks for background extract jobs.
+	onTotal    func(total uint64)
+	onProgress func(entries, bytes, skipped uint64)
 }
 
 // roomEvery is how much an unpack writes, and roomEntries how many entries it
@@ -181,18 +236,25 @@ func (u *unpacker) zip(f *os.File, size int64) error {
 	if d.count > u.limit {
 		return fmt.Errorf("it holds %d entries, more than the %d an archive unpacks to here", d.count, u.limit)
 	}
+	if u.onTotal != nil {
+		u.onTotal(d.count)
+	}
 	return d.each(func(e *zipEntry) error {
 		switch {
 		case e.mode.IsDir():
-			return u.entry(e.name, true, 0, nil)
+			return u.entry(e.name, true, uint32(e.mode.Perm()), e.hasMode, nil)
 		case e.mode.IsRegular():
 			r, err := d.open(e)
 			if err != nil {
 				return err
 			}
-			return u.entry(e.name, false, uint32(e.mode.Perm()), r)
+			return u.entry(e.name, false, uint32(e.mode.Perm()), e.hasMode, r)
+		default:
+			// Symlinks, devices, FIFOs and sockets are never made, and are counted.
+			u.skippedLinks++
+			u.reportProgress()
+			return nil
 		}
-		return nil
 	})
 }
 
@@ -213,13 +275,22 @@ func (u *unpacker) tarGz(f *os.File) error {
 		}
 		switch h.Typeflag {
 		case tar.TypeDir:
-			err = u.entry(h.Name, true, 0, nil)
+			err = u.entry(h.Name, true, uint32(h.Mode)&0o777, true, nil) //nolint:gosec // a mode's low bits
 		case tar.TypeReg:
-			err = u.entry(h.Name, false, uint32(h.Mode)&0o777, r) //nolint:gosec // a mode's low bits
+			err = u.entry(h.Name, false, uint32(h.Mode)&0o777, true, r) //nolint:gosec // a mode's low bits
+		case tar.TypeSymlink, tar.TypeLink, tar.TypeChar, tar.TypeBlock, tar.TypeFifo:
+			u.skippedLinks++
+			u.reportProgress()
 		}
 		if err != nil {
 			return err
 		}
+	}
+}
+
+func (u *unpacker) reportProgress() {
+	if u.onProgress != nil {
+		u.onProgress(u.count, u.written, u.skippedLinks)
 	}
 }
 
@@ -247,8 +318,20 @@ func (u *unpacker) parts(name string) ([]string, error) {
 	return slices.DeleteFunc(parts, func(p string) bool { return p == "" || p == "." }), nil
 }
 
+func (u *unpacker) entryAliases(parts []string) []string {
+	if len(u.dstWritten) == 0 {
+		return nil
+	}
+	tail := "/" + strings.Join(parts, "/")
+	out := make([]string, len(u.dstWritten))
+	for i, base := range u.dstWritten {
+		out[i] = base + tail
+	}
+	return out
+}
+
 // entry makes one entry of an archive, a folder or a file holding what r gives.
-func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error {
+func (u *unpacker) entry(name string, dir bool, perm uint32, hasMode bool, r io.Reader) error {
 	if err := u.ctx.Err(); err != nil {
 		return err
 	}
@@ -261,17 +344,31 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 		return fmt.Errorf("it holds more than %d entries", u.limit)
 	}
 	where := u.where + "/" + strings.Join(parts, "/")
-	if u.ways.listed(where, u.s.dataDir, false) {
+	if u.dstWayIn {
+		// Even when a passkey confirmed extracting into a way-in destination folder,
+		// entries whose full resolved path hits keys, sudoers/sudoers.d, shell start
+		// files, systemd unit or drop-in folders, .ssh, cron/pam/profile.d, runtime
+		// sockets, or Dockwell's data dir are never unpacked.
+		if u.ways.listedEntry(where, u.s.dataDir, u.entryAliases(parts)...) {
+			return fmt.Errorf("it holds %s, which can let someone back onto this server", Printable(strings.Join(parts, "/")))
+		}
+	} else if u.ways.listed(where, u.s.dataDir, false) {
 		return fmt.Errorf("it holds %s, which can let someone back onto this server", Printable(strings.Join(parts, "/")))
 	}
-	if why := credentials(where); why != "" {
+	if why := checkCredentials(where); why != "" {
 		return fmt.Errorf("it holds %s, which is %s", Printable(strings.Join(parts, "/")), why)
+	}
+	mask := u.mask
+	if mask == 0 {
+		mask = 0o755
 	}
 	if dir {
 		fd, err := u.folderAt(parts)
 		if err != nil {
 			return err
 		}
+		ownWithMode(fd, u.folder, extractDirMode(perm, hasMode, mask, u.folder))
+		u.reportProgress()
 		return unix.Close(fd)
 	}
 	if u.count%roomEntries == 1 {
@@ -303,10 +400,8 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 	case n > left:
 		return fmt.Errorf("it holds more than the %s an upload can be", sizeOf(MaxUploadBytes))
 	}
-	ownLike(fd, u.folder, dockwellv1.FileType_FILE_TYPE_FILE)
-	if perm&0o111 != 0 {
-		_ = unix.Fchmod(fd, madeFileMode|0o111)
-	}
+	ownWithMode(fd, u.folder, extractMode(perm, hasMode, false, mask))
+	u.reportProgress()
 	return nil
 }
 
@@ -317,13 +412,18 @@ func (u *unpacker) folderAt(parts []string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
+	mask := u.mask
+	if mask == 0 {
+		mask = 0o755
+	}
+	dirMode := extractDirMode(madeDirMode, false, mask, u.folder)
 	for i, part := range parts {
 		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if errors.Is(err, unix.ENOENT) {
-			if err = unix.Mkdirat(fd, part, madeDirMode); err == nil || errors.Is(err, unix.EEXIST) {
+			if err = unix.Mkdirat(fd, part, dirMode); err == nil || errors.Is(err, unix.EEXIST) {
 				next, err = unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 				if err == nil {
-					ownLike(next, u.folder, dockwellv1.FileType_FILE_TYPE_DIRECTORY)
+					ownWithMode(next, u.folder, dirMode)
 				}
 			}
 		}

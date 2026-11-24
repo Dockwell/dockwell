@@ -61,14 +61,15 @@ type zipDir struct {
 
 // zipEntry is one record of the directory.
 type zipEntry struct {
-	name   string
-	mode   fs.FileMode
-	flags  uint16
-	method uint16
-	crc    uint32
-	packed uint64
-	size   uint64
-	local  uint64
+	name    string
+	mode    fs.FileMode
+	hasMode bool
+	flags   uint16
+	method  uint16
+	crc     uint32
+	packed  uint64
+	size    uint64
+	local   uint64
 }
 
 func notZip(why string) error { return fmt.Errorf("%s: %s", zipNotReadable, why) }
@@ -193,6 +194,8 @@ func (d *zipDir) each(fn func(*zipEntry) error) error {
 		// archive/zip knows how each system that makes zips writes a mode.
 		h := zip.FileHeader{Name: e.name, CreatorVersion: binary.LittleEndian.Uint16(fixed[4:]), ExternalAttrs: binary.LittleEndian.Uint32(fixed[38:])}
 		e.mode = h.Mode()
+		creator := h.CreatorVersion >> 8
+		e.hasMode = (creator == 3 || creator == 19) && (h.ExternalAttrs>>16) != 0 || e.mode.Perm() != 0
 		if err := fn(e); err != nil {
 			return err
 		}

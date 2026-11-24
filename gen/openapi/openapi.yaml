@@ -5892,6 +5892,69 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/archive-jobs:
+        get:
+            tags:
+                - FileService
+            description: |-
+                ListArchiveJobs returns active and recently finished compress and extract
+                 jobs started by the caller on a server. No API token can call it.
+            operationId: FileService_ListArchiveJobs
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListArchiveJobsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/archive-jobs/{jobId}:
+        get:
+            tags:
+                - FileService
+            description: |-
+                GetArchiveJob returns the current state, progress and outcome of a
+                 compress or extract job started by the caller on a server. No API token
+                 can call it.
+            operationId: FileService_GetArchiveJob
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+                - name: jobId
+                  in: path
+                  description: The job's ID, from CompressFiles or ExtractArchive.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetArchiveJobResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/deleted-files:
         get:
             tags:
@@ -6084,6 +6147,45 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:compress:
+        post:
+            tags:
+                - FileService
+            description: |-
+                CompressFiles starts a job that packs one or more files or folders into a
+                 new zip archive on the server, never over what's there. Preflight checks
+                 run first, then the job runs on the agent so it outlives proxy request
+                 timeouts. Poll GetArchiveJob or ListArchiveJobs for progress and outcome.
+                 What a read refuses is left out and counted, and any private key or
+                 password hash stops it. No API token can call it. Each one is on the
+                 timeline.
+            operationId: FileService_CompressFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CompressFilesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CompressFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:delete:
         post:
             tags:
@@ -6126,12 +6228,12 @@ paths:
             tags:
                 - FileService
             description: |-
-                DownloadFile sends a file as it is, or a folder as a zip archive, as it
-                 reads it. Over REST it's a GET whose body is the file, written as it's
-                 read, for a browser to save; one that stops partway cuts the connection,
-                 so it can't pass for the whole. What a read refuses, a download does, and
-                 one stops at a private key in what it sends. No API token can call it.
-                 Each one is on the timeline, before anything goes out.
+                DownloadFile sends a file as it is, or a folder (or several selected paths)
+                 as a zip archive, as it reads it. Over REST it's a GET whose body is the
+                 file, written as it's read, for a browser to save; one that stops partway
+                 cuts the connection, so it can't pass for the whole. What a read refuses, a
+                 download does, and one stops at a private key in what it sends. No API
+                 token can call it. Each one is on the timeline, before anything goes out.
             operationId: FileService_DownloadFile
             parameters:
                 - name: serverId
@@ -6145,6 +6247,15 @@ paths:
                   description: The absolute path of a file or a folder, without . or .. in it.
                   schema:
                     type: string
+                - name: paths
+                  in: query
+                  description: |-
+                    Several absolute paths to download together as one zip archive, without .
+                     or .. in them. When set, path is left out.
+                  schema:
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: 'The bytes, as they''re read: a file as it is, or a folder as a zip archive made as it goes. One that stops partway cuts the connection, so it can''t pass for the whole.'
@@ -6173,6 +6284,45 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
             x-dockwell-stream: response
+    /v1/servers/{serverId}/files:extract:
+        post:
+            tags:
+                - FileService
+            description: |-
+                ExtractArchive starts a job that unpacks an existing .zip, .tar.gz or .tgz
+                 archive on the server into a new folder beside it, never over what's
+                 there. Preflight checks run first, then the job runs on the agent so it
+                 outlives proxy request timeouts. Poll GetArchiveJob or ListArchiveJobs for
+                 progress and outcome. Symlinks and special files are skipped and counted;
+                 unsafe paths and way-in entries stop it all-or-nothing. No API token can
+                 call it. Each one is on the timeline.
+            operationId: FileService_ExtractArchive
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ExtractArchiveRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ExtractArchiveResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:make:
         post:
             tags:
@@ -10698,6 +10848,87 @@ components:
                         The change: applying, with its steps queued; or applied, when it had
                          no steps to run.
             description: ApplyChangeResponse carries the change as it starts applying.
+        ArchiveJob:
+            type: object
+            properties:
+                jobId:
+                    type: string
+                    description: Its ID, which GetArchiveJob takes.
+                kind:
+                    enum:
+                        - ARCHIVE_JOB_KIND_UNSPECIFIED
+                        - ARCHIVE_JOB_KIND_COMPRESS
+                        - ARCHIVE_JOB_KIND_EXTRACT
+                    type: string
+                    description: Whether it compresses or extracts.
+                    format: enum
+                state:
+                    enum:
+                        - ARCHIVE_JOB_STATE_UNSPECIFIED
+                        - ARCHIVE_JOB_STATE_RUNNING
+                        - ARCHIVE_JOB_STATE_DONE
+                        - ARCHIVE_JOB_STATE_FAILED
+                    type: string
+                    description: Running, done or failed.
+                    format: enum
+                path:
+                    type: string
+                    description: |-
+                        The archive's path on the server, with every symlink in its folder's path
+                         followed.
+                unpackedTo:
+                    type: string
+                    description: For extract, the new folder the archive unpacks into. Empty for compress.
+                sourcePaths:
+                    type: array
+                    items:
+                        type: string
+                    description: For compress, the resolved source paths being packed (first 10 when many).
+                sourceCount:
+                    type: integer
+                    description: Total number of top-level source paths for compress.
+                    format: uint32
+                entries:
+                    type: string
+                    description: Files and folders processed so far (or final count when done).
+                totalEntries:
+                    type: string
+                    description: Total entries known ahead of time (for zip extract), or zero when unknown.
+                bytes:
+                    type: string
+                    description: Bytes written so far (or final archive / unpacked bytes when done).
+                skippedLinks:
+                    type: string
+                    description: 'For extract: symlinks, hard links, devices and FIFOs skipped in the archive.'
+                leftOut:
+                    type: string
+                    description: |-
+                        For compress: entries left out (refused paths, other filesystems, links,
+                         or deeper than the depth limit).
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: 'For compress when done: the created archive file entry.'
+                wayBackIn:
+                    type: boolean
+                    description: True when starting the job took a passkey for a way back in.
+                error:
+                    type: string
+                    description: 'When failed: the reason for people.'
+                errorReason:
+                    type: string
+                    description: 'When failed: the API error reason, such as "unpack_refused" or "disk_full".'
+                startTime:
+                    type: string
+                    description: When the job started on the agent.
+                    format: date-time
+                finishTime:
+                    type: string
+                    description: When the job finished or failed. Unset while running.
+                    format: date-time
+            description: |-
+                ArchiveJob is one server-side compress or extract job, which outlives the
+                 request that started it so long archives survive proxy request timeouts.
         AuditEvent:
             type: object
             properties:
@@ -11504,6 +11735,8 @@ components:
                         - STEP_UP_ACTION_MOVE_WAY_BACK_IN
                         - STEP_UP_ACTION_DELETE_WAY_BACK_IN
                         - STEP_UP_ACTION_RESTORE_WAY_BACK_IN
+                        - STEP_UP_ACTION_COMPRESS_WAY_BACK_IN
+                        - STEP_UP_ACTION_EXTRACT_WAY_BACK_IN
                         - STEP_UP_ACTION_APPROVE_CHANGE
                         - STEP_UP_ACTION_CHANGE_EMAIL
                         - STEP_UP_ACTION_INVITE
@@ -14124,6 +14357,38 @@ components:
                     items:
                         type: string
             description: A managed resource and the servers it is placed on.
+        CompressFilesRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                paths:
+                    type: array
+                    items:
+                        type: string
+                    description: Absolute paths of files or folders to pack, without . or .. in them.
+                archivePath:
+                    type: string
+                    description: |-
+                        The absolute path of the new .zip file to create, without . or .. in it.
+                         Nothing may be at it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with STEP_UP_ACTION_COMPRESS_WAY_BACK_IN for
+                         archive_path on this server, where creating it is a way back onto it.
+            description: |-
+                CompressFilesRequest packs one or more files or folders into a new zip
+                 archive on the server.
+        CompressFilesResponse:
+            type: object
+            properties:
+                job:
+                    allOf:
+                        - $ref: '#/components/schemas/ArchiveJob'
+                    description: The running or finished compress job.
+            description: CompressFilesResponse returns the archive job started for the request.
         ConfirmChangeRequest:
             type: object
             properties:
@@ -19285,6 +19550,17 @@ components:
                 sizeBytes:
                     type: string
                     description: How many bytes, for a file uploaded or downloaded.
+                paths:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Source or selected paths, for a multi-path download or a compress event
+                         (up to the first 10 paths; path_count holds the full count).
+                pathCount:
+                    type: integer
+                    description: How many paths were downloaded or compressed when paths is populated.
+                    format: uint32
                 valueName:
                     type: string
                     description: |-
@@ -19415,6 +19691,30 @@ components:
                  as seeing it is useful and it rarely holds a secret. What runs keeps a value by
                  name, but for one of several words in a command written as one string. A name,
                  a number or a path doesn't count, as docs/security/compose-variables.md lists.
+        ExtractArchiveRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: The absolute path of the .zip, .tar.gz or .tgz file, without . or .. in it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with STEP_UP_ACTION_EXTRACT_WAY_BACK_IN for
+                         the archive and destination folder on this server, where extracting there
+                         is a way back onto it.
+            description: ExtractArchiveRequest unpacks an existing archive on the server.
+        ExtractArchiveResponse:
+            type: object
+            properties:
+                job:
+                    allOf:
+                        - $ref: '#/components/schemas/ArchiveJob'
+                    description: The running or finished extract job.
+            description: ExtractArchiveResponse returns the archive job started for the request.
         Fail2banBan:
             type: object
             properties:
@@ -20001,6 +20301,14 @@ components:
                 FleetRollout says how a change runs over several servers (ADR 0094). Left unset,
                  one server goes first on its own, then the rest in waves of a quarter of the
                  servers each, with no pause, and the first step that fails stops the change.
+        GetArchiveJobResponse:
+            type: object
+            properties:
+                job:
+                    allOf:
+                        - $ref: '#/components/schemas/ArchiveJob'
+                    description: The job.
+            description: GetArchiveJobResponse is the job's current state.
         GetAuthStateResponse:
             type: object
             properties:
@@ -22697,6 +23005,17 @@ components:
                     description: How many are firing now, on every page.
                     format: int32
             description: ListAlertsResponse is a page of alerts.
+        ListArchiveJobsResponse:
+            type: object
+            properties:
+                jobs:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ArchiveJob'
+                    description: The jobs.
+            description: |-
+                ListArchiveJobsResponse lists active and recently finished archive jobs for
+                 the caller on that server, newest first.
         ListAuditEventsResponse:
             type: object
             properties:
@@ -27204,6 +27523,12 @@ components:
                     description: |-
                         The file's absolute path, without . or .. in it, such as
                          "/etc/nginx/nginx.conf".
+                allowBinary:
+                    type: boolean
+                    description: |-
+                        True to also return binary bytes (up to the preview cap of 1 MiB) in
+                         raw_content, for image previews through the read path instead of a
+                         download.
             description: ReadFileRequest names a file on a server.
         ReadFileResponse:
             type: object
@@ -27220,10 +27545,14 @@ components:
                     description: Its text. Empty for a binary file.
                 binary:
                     type: boolean
-                    description: True when the file isn't UTF-8 text, so its contents aren't sent.
+                    description: |-
+                        True when the file isn't UTF-8 text, so its contents aren't sent in
+                         content (and are in raw_content only when allow_binary was set).
                 truncated:
                     type: boolean
-                    description: True when the file is longer than 1 MiB, so content is its beginning.
+                    description: |-
+                        True when the file is longer than 1 MiB, so content is its beginning or
+                         raw_content is omitted.
                 version:
                     type: string
                     description: |-
@@ -27236,6 +27565,12 @@ components:
                     description: |-
                         True when saving this file takes a passkey, as it's a way back onto the
                          server, such as authorized_keys, a cron job or a systemd unit.
+                rawContent:
+                    type: string
+                    description: |-
+                        Binary file bytes when allow_binary was set on ReadFileRequest and the
+                         file is binary and within the preview cap. Empty otherwise.
+                    format: bytes
             description: ReadFileResponse is a file on a server.
         ReadLogsResponse:
             type: object

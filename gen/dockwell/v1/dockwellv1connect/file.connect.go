@@ -68,6 +68,18 @@ const (
 	// FileServiceDownloadFileProcedure is the fully-qualified name of the FileService's DownloadFile
 	// RPC.
 	FileServiceDownloadFileProcedure = "/dockwell.v1.FileService/DownloadFile"
+	// FileServiceCompressFilesProcedure is the fully-qualified name of the FileService's CompressFiles
+	// RPC.
+	FileServiceCompressFilesProcedure = "/dockwell.v1.FileService/CompressFiles"
+	// FileServiceExtractArchiveProcedure is the fully-qualified name of the FileService's
+	// ExtractArchive RPC.
+	FileServiceExtractArchiveProcedure = "/dockwell.v1.FileService/ExtractArchive"
+	// FileServiceGetArchiveJobProcedure is the fully-qualified name of the FileService's GetArchiveJob
+	// RPC.
+	FileServiceGetArchiveJobProcedure = "/dockwell.v1.FileService/GetArchiveJob"
+	// FileServiceListArchiveJobsProcedure is the fully-qualified name of the FileService's
+	// ListArchiveJobs RPC.
+	FileServiceListArchiveJobsProcedure = "/dockwell.v1.FileService/ListArchiveJobs"
 )
 
 // FileServiceClient is a client for the dockwell.v1.FileService service.
@@ -140,13 +152,36 @@ type FileServiceClient interface {
 	// session that began it. An upload left alone goes after a day anyway. No API
 	// token can call it.
 	CancelUpload(context.Context, *connect.Request[v1.CancelUploadRequest]) (*connect.Response[v1.CancelUploadResponse], error)
-	// DownloadFile sends a file as it is, or a folder as a zip archive, as it
-	// reads it. Over REST it's a GET whose body is the file, written as it's
-	// read, for a browser to save; one that stops partway cuts the connection,
-	// so it can't pass for the whole. What a read refuses, a download does, and
-	// one stops at a private key in what it sends. No API token can call it.
-	// Each one is on the timeline, before anything goes out.
+	// DownloadFile sends a file as it is, or a folder (or several selected paths)
+	// as a zip archive, as it reads it. Over REST it's a GET whose body is the
+	// file, written as it's read, for a browser to save; one that stops partway
+	// cuts the connection, so it can't pass for the whole. What a read refuses, a
+	// download does, and one stops at a private key in what it sends. No API
+	// token can call it. Each one is on the timeline, before anything goes out.
 	DownloadFile(context.Context, *connect.Request[v1.DownloadFileRequest]) (*connect.ServerStreamForClient[v1.DownloadFileResponse], error)
+	// CompressFiles starts a job that packs one or more files or folders into a
+	// new zip archive on the server, never over what's there. Preflight checks
+	// run first, then the job runs on the agent so it outlives proxy request
+	// timeouts. Poll GetArchiveJob or ListArchiveJobs for progress and outcome.
+	// What a read refuses is left out and counted, and any private key or
+	// password hash stops it. No API token can call it. Each one is on the
+	// timeline.
+	CompressFiles(context.Context, *connect.Request[v1.CompressFilesRequest]) (*connect.Response[v1.CompressFilesResponse], error)
+	// ExtractArchive starts a job that unpacks an existing .zip, .tar.gz or .tgz
+	// archive on the server into a new folder beside it, never over what's
+	// there. Preflight checks run first, then the job runs on the agent so it
+	// outlives proxy request timeouts. Poll GetArchiveJob or ListArchiveJobs for
+	// progress and outcome. Symlinks and special files are skipped and counted;
+	// unsafe paths and way-in entries stop it all-or-nothing. No API token can
+	// call it. Each one is on the timeline.
+	ExtractArchive(context.Context, *connect.Request[v1.ExtractArchiveRequest]) (*connect.Response[v1.ExtractArchiveResponse], error)
+	// GetArchiveJob returns the current state, progress and outcome of a
+	// compress or extract job started by the caller on a server. No API token
+	// can call it.
+	GetArchiveJob(context.Context, *connect.Request[v1.GetArchiveJobRequest]) (*connect.Response[v1.GetArchiveJobResponse], error)
+	// ListArchiveJobs returns active and recently finished compress and extract
+	// jobs started by the caller on a server. No API token can call it.
+	ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error)
 }
 
 // NewFileServiceClient constructs a client for the dockwell.v1.FileService service. By default, it
@@ -247,6 +282,32 @@ func NewFileServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		compressFiles: connect.NewClient[v1.CompressFilesRequest, v1.CompressFilesResponse](
+			httpClient,
+			baseURL+FileServiceCompressFilesProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("CompressFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		extractArchive: connect.NewClient[v1.ExtractArchiveRequest, v1.ExtractArchiveResponse](
+			httpClient,
+			baseURL+FileServiceExtractArchiveProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ExtractArchive")),
+			connect.WithClientOptions(opts...),
+		),
+		getArchiveJob: connect.NewClient[v1.GetArchiveJobRequest, v1.GetArchiveJobResponse](
+			httpClient,
+			baseURL+FileServiceGetArchiveJobProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("GetArchiveJob")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		listArchiveJobs: connect.NewClient[v1.ListArchiveJobsRequest, v1.ListArchiveJobsResponse](
+			httpClient,
+			baseURL+FileServiceListArchiveJobsProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ListArchiveJobs")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -266,6 +327,10 @@ type fileServiceClient struct {
 	finishUpload     *connect.Client[v1.FinishUploadRequest, v1.FinishUploadResponse]
 	cancelUpload     *connect.Client[v1.CancelUploadRequest, v1.CancelUploadResponse]
 	downloadFile     *connect.Client[v1.DownloadFileRequest, v1.DownloadFileResponse]
+	compressFiles    *connect.Client[v1.CompressFilesRequest, v1.CompressFilesResponse]
+	extractArchive   *connect.Client[v1.ExtractArchiveRequest, v1.ExtractArchiveResponse]
+	getArchiveJob    *connect.Client[v1.GetArchiveJobRequest, v1.GetArchiveJobResponse]
+	listArchiveJobs  *connect.Client[v1.ListArchiveJobsRequest, v1.ListArchiveJobsResponse]
 }
 
 // ListFiles calls dockwell.v1.FileService.ListFiles.
@@ -338,6 +403,26 @@ func (c *fileServiceClient) DownloadFile(ctx context.Context, req *connect.Reque
 	return c.downloadFile.CallServerStream(ctx, req)
 }
 
+// CompressFiles calls dockwell.v1.FileService.CompressFiles.
+func (c *fileServiceClient) CompressFiles(ctx context.Context, req *connect.Request[v1.CompressFilesRequest]) (*connect.Response[v1.CompressFilesResponse], error) {
+	return c.compressFiles.CallUnary(ctx, req)
+}
+
+// ExtractArchive calls dockwell.v1.FileService.ExtractArchive.
+func (c *fileServiceClient) ExtractArchive(ctx context.Context, req *connect.Request[v1.ExtractArchiveRequest]) (*connect.Response[v1.ExtractArchiveResponse], error) {
+	return c.extractArchive.CallUnary(ctx, req)
+}
+
+// GetArchiveJob calls dockwell.v1.FileService.GetArchiveJob.
+func (c *fileServiceClient) GetArchiveJob(ctx context.Context, req *connect.Request[v1.GetArchiveJobRequest]) (*connect.Response[v1.GetArchiveJobResponse], error) {
+	return c.getArchiveJob.CallUnary(ctx, req)
+}
+
+// ListArchiveJobs calls dockwell.v1.FileService.ListArchiveJobs.
+func (c *fileServiceClient) ListArchiveJobs(ctx context.Context, req *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error) {
+	return c.listArchiveJobs.CallUnary(ctx, req)
+}
+
 // FileServiceHandler is an implementation of the dockwell.v1.FileService service.
 type FileServiceHandler interface {
 	// ListFiles returns what a directory on a server holds, by name. It follows
@@ -408,13 +493,36 @@ type FileServiceHandler interface {
 	// session that began it. An upload left alone goes after a day anyway. No API
 	// token can call it.
 	CancelUpload(context.Context, *connect.Request[v1.CancelUploadRequest]) (*connect.Response[v1.CancelUploadResponse], error)
-	// DownloadFile sends a file as it is, or a folder as a zip archive, as it
-	// reads it. Over REST it's a GET whose body is the file, written as it's
-	// read, for a browser to save; one that stops partway cuts the connection,
-	// so it can't pass for the whole. What a read refuses, a download does, and
-	// one stops at a private key in what it sends. No API token can call it.
-	// Each one is on the timeline, before anything goes out.
+	// DownloadFile sends a file as it is, or a folder (or several selected paths)
+	// as a zip archive, as it reads it. Over REST it's a GET whose body is the
+	// file, written as it's read, for a browser to save; one that stops partway
+	// cuts the connection, so it can't pass for the whole. What a read refuses, a
+	// download does, and one stops at a private key in what it sends. No API
+	// token can call it. Each one is on the timeline, before anything goes out.
 	DownloadFile(context.Context, *connect.Request[v1.DownloadFileRequest], *connect.ServerStream[v1.DownloadFileResponse]) error
+	// CompressFiles starts a job that packs one or more files or folders into a
+	// new zip archive on the server, never over what's there. Preflight checks
+	// run first, then the job runs on the agent so it outlives proxy request
+	// timeouts. Poll GetArchiveJob or ListArchiveJobs for progress and outcome.
+	// What a read refuses is left out and counted, and any private key or
+	// password hash stops it. No API token can call it. Each one is on the
+	// timeline.
+	CompressFiles(context.Context, *connect.Request[v1.CompressFilesRequest]) (*connect.Response[v1.CompressFilesResponse], error)
+	// ExtractArchive starts a job that unpacks an existing .zip, .tar.gz or .tgz
+	// archive on the server into a new folder beside it, never over what's
+	// there. Preflight checks run first, then the job runs on the agent so it
+	// outlives proxy request timeouts. Poll GetArchiveJob or ListArchiveJobs for
+	// progress and outcome. Symlinks and special files are skipped and counted;
+	// unsafe paths and way-in entries stop it all-or-nothing. No API token can
+	// call it. Each one is on the timeline.
+	ExtractArchive(context.Context, *connect.Request[v1.ExtractArchiveRequest]) (*connect.Response[v1.ExtractArchiveResponse], error)
+	// GetArchiveJob returns the current state, progress and outcome of a
+	// compress or extract job started by the caller on a server. No API token
+	// can call it.
+	GetArchiveJob(context.Context, *connect.Request[v1.GetArchiveJobRequest]) (*connect.Response[v1.GetArchiveJobResponse], error)
+	// ListArchiveJobs returns active and recently finished compress and extract
+	// jobs started by the caller on a server. No API token can call it.
+	ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error)
 }
 
 // NewFileServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -511,6 +619,32 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	fileServiceCompressFilesHandler := connect.NewUnaryHandler(
+		FileServiceCompressFilesProcedure,
+		svc.CompressFiles,
+		connect.WithSchema(fileServiceMethods.ByName("CompressFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceExtractArchiveHandler := connect.NewUnaryHandler(
+		FileServiceExtractArchiveProcedure,
+		svc.ExtractArchive,
+		connect.WithSchema(fileServiceMethods.ByName("ExtractArchive")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceGetArchiveJobHandler := connect.NewUnaryHandler(
+		FileServiceGetArchiveJobProcedure,
+		svc.GetArchiveJob,
+		connect.WithSchema(fileServiceMethods.ByName("GetArchiveJob")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceListArchiveJobsHandler := connect.NewUnaryHandler(
+		FileServiceListArchiveJobsProcedure,
+		svc.ListArchiveJobs,
+		connect.WithSchema(fileServiceMethods.ByName("ListArchiveJobs")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FileServiceListFilesProcedure:
@@ -541,6 +675,14 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 			fileServiceCancelUploadHandler.ServeHTTP(w, r)
 		case FileServiceDownloadFileProcedure:
 			fileServiceDownloadFileHandler.ServeHTTP(w, r)
+		case FileServiceCompressFilesProcedure:
+			fileServiceCompressFilesHandler.ServeHTTP(w, r)
+		case FileServiceExtractArchiveProcedure:
+			fileServiceExtractArchiveHandler.ServeHTTP(w, r)
+		case FileServiceGetArchiveJobProcedure:
+			fileServiceGetArchiveJobHandler.ServeHTTP(w, r)
+		case FileServiceListArchiveJobsProcedure:
+			fileServiceListArchiveJobsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -604,4 +746,20 @@ func (UnimplementedFileServiceHandler) CancelUpload(context.Context, *connect.Re
 
 func (UnimplementedFileServiceHandler) DownloadFile(context.Context, *connect.Request[v1.DownloadFileRequest], *connect.ServerStream[v1.DownloadFileResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.DownloadFile is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) CompressFiles(context.Context, *connect.Request[v1.CompressFilesRequest]) (*connect.Response[v1.CompressFilesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.CompressFiles is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ExtractArchive(context.Context, *connect.Request[v1.ExtractArchiveRequest]) (*connect.Response[v1.ExtractArchiveResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ExtractArchive is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) GetArchiveJob(context.Context, *connect.Request[v1.GetArchiveJobRequest]) (*connect.Response[v1.GetArchiveJobResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.GetArchiveJob is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ListArchiveJobs is not implemented"))
 }

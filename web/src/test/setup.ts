@@ -14,6 +14,13 @@ import { settleRouters } from "./routers";
 // taken over 2 s. A test that fails waits this long, and one that passes doesn't.
 configure({ asyncUtilTimeout: 4_000 });
 
+// jsdom doesn't implement Range geometry methods that CodeMirror 6 calls when measuring lines.
+if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
+  Range.prototype.getClientRects = () =>
+    ({ length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator] }) as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
+}
+
 beforeEach(async () => {
   // jsdom has no scrolling; the router's scroll restoration calls it.
   vi.stubGlobal("scrollTo", () => {});

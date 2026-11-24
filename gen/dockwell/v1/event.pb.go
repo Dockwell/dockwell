@@ -2258,6 +2258,11 @@ type EventSubject struct {
 	ForGood bool `protobuf:"varint,102,opt,name=for_good,json=forGood,proto3" json:"for_good,omitempty"`
 	// How many bytes, for a file uploaded or downloaded.
 	SizeBytes uint64 `protobuf:"varint,103,opt,name=size_bytes,json=sizeBytes,proto3" json:"size_bytes,omitempty"`
+	// Source or selected paths, for a multi-path download or a compress event
+	// (up to the first 10 paths; path_count holds the full count).
+	Paths []string `protobuf:"bytes,104,rep,name=paths,proto3" json:"paths,omitempty"`
+	// How many paths were downloaded or compressed when paths is populated.
+	PathCount uint32 `protobuf:"varint,105,opt,name=path_count,json=pathCount,proto3" json:"path_count,omitempty"`
 	// For service.value_reveal, which of the service's own environment variables
 	// was revealed, by name; never its value. Numbered apart, as open work adds to
 	// this message.
@@ -2348,6 +2353,20 @@ func (x *EventSubject) GetForGood() bool {
 func (x *EventSubject) GetSizeBytes() uint64 {
 	if x != nil {
 		return x.SizeBytes
+	}
+	return 0
+}
+
+func (x *EventSubject) GetPaths() []string {
+	if x != nil {
+		return x.Paths
+	}
+	return nil
+}
+
+func (x *EventSubject) GetPathCount() uint32 {
+	if x != nil {
+		return x.PathCount
 	}
 	return 0
 }
@@ -2690,7 +2709,7 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\bprevious\x18\x04 \x01(\x0e2\x18.dockwell.v1.HealthStateR\bprevious\x12\x16\n" +
 	"\x06output\x18\x05 \x01(\tR\x06output\x12\x14\n" +
 	"\x05flips\x18\x06 \x01(\x05R\x05flips\x120\n" +
-	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xee\x01\n" +
+	"\x05since\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xa3\x02\n" +
 	"\fEventSubject\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -2700,7 +2719,10 @@ const file_dockwell_v1_event_proto_rawDesc = "" +
 	"\vway_back_in\x18e \x01(\bR\twayBackIn\x12\x19\n" +
 	"\bfor_good\x18f \x01(\bR\aforGood\x12\x1d\n" +
 	"\n" +
-	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x1d\n" +
+	"size_bytes\x18g \x01(\x04R\tsizeBytes\x12\x14\n" +
+	"\x05paths\x18h \x03(\tR\x05paths\x12\x1d\n" +
+	"\n" +
+	"path_count\x18i \x01(\rR\tpathCount\x12\x1d\n" +
 	"\n" +
 	"value_name\x18< \x01(\tR\tvalueName\"\xf0\x02\n" +
 	"\vEventMember\x12\x14\n" +

@@ -31,7 +31,14 @@ func (s *Session) ListFiles(ctx context.Context, path, match, page string) (*age
 
 // ReadFile asks the agent for a file's text.
 func (s *Session) ReadFile(ctx context.Context, path string) (*agentv1.ReadFileResult, error) {
-	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ReadFile{ReadFile: &agentv1.ReadFileCall{Path: path}}}, FileTimeout, nil)
+	return s.ReadFileWithOptions(ctx, path, false)
+}
+
+// ReadFileWithOptions asks the agent for a file's text, or capped binary bytes
+// when allowBinary is set (for image previews without a download).
+func (s *Session) ReadFileWithOptions(ctx context.Context, path string, allowBinary bool) (*agentv1.ReadFileResult, error) {
+	call := &agentv1.ReadFileCall{Path: path, AllowBinary: allowBinary}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ReadFile{ReadFile: call}}, FileTimeout, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +76,10 @@ func (s *Session) PagesListings() bool { return s.pagesListings }
 // ManagesFiles reports an agent that makes, moves, deletes and puts back files, each
 // with the care ADR 0045 says, a passkey for a way in among it.
 func (s *Session) ManagesFiles() bool { return s.managesFiles }
+
+// ArchivesFiles reports an agent that compresses and extracts archives on disk,
+// and downloads several selected paths as one zip archive.
+func (s *Session) ArchivesFiles() bool { return s.archivesFiles }
 
 // FirstPasswords reports an agent that changes a database's first user's password in
 // the database as its service restarts with a new one (ADR 0038).
@@ -169,4 +180,60 @@ func (s *Session) PurgeDeleted(ctx context.Context, id string) (*agentv1.PurgeDe
 		return out, nil
 	}
 	return nil, fmt.Errorf("%s's agent answered a delete from Recently deleted with neither what went nor a refusal", s.name)
+}
+
+// CompressFiles asks the agent to start a background compress job packing paths
+// into a new .zip file at archivePath. confirmed is the archivePath a passkey
+// confirmed, if any.
+func (s *Session) CompressFiles(ctx context.Context, paths []string, archivePath, confirmed, owner, jobID, record string) (*agentv1.CompressFilesResult, error) {
+	call := &agentv1.CompressFilesCall{Paths: paths, ArchivePath: archivePath, ConfirmedPath: confirmed, Owner: owner, JobId: jobID, Record: record}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CompressFiles{CompressFiles: call}}, FileTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetCompressFiles(); out.GetJob() != nil || out.GetRefusal() != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered compressing files with neither a job nor a refusal", s.name)
+}
+
+// ExtractArchive asks the agent to start a background extract job unpacking an
+// existing archive at path into a new folder beside it. confirmedArchive and
+// confirmedDst are the archive and destination folder paths a passkey confirmed.
+func (s *Session) ExtractArchive(ctx context.Context, path, confirmedArchive, confirmedDst, owner, jobID, record string) (*agentv1.ExtractArchiveResult, error) {
+	call := &agentv1.ExtractArchiveCall{Path: path, ConfirmedArchive: confirmedArchive, ConfirmedPath: confirmedDst, Owner: owner, JobId: jobID, Record: record}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ExtractArchive{ExtractArchive: call}}, FileTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetExtractArchive(); out.GetJob() != nil || out.GetRefusal() != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered extracting an archive with neither a job nor a refusal", s.name)
+}
+
+// GetArchiveJob asks the agent for the current state of one archive job.
+func (s *Session) GetArchiveJob(ctx context.Context, jobID, owner string) (*agentv1.GetArchiveJobResult, error) {
+	call := &agentv1.GetArchiveJobCall{JobId: jobID, Owner: owner}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_GetArchiveJob{GetArchiveJob: call}}, FileTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetGetArchiveJob(); out.GetJob() != nil || out.GetRefusal() != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered an archive job check with nothing", s.name)
+}
+
+// ListArchiveJobs asks the agent for active and recent archive jobs for owner.
+func (s *Session) ListArchiveJobs(ctx context.Context, owner string) (*agentv1.ListArchiveJobsResult, error) {
+	call := &agentv1.ListArchiveJobsCall{Owner: owner}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ListArchiveJobs{ListArchiveJobs: call}}, FileTimeout, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetListArchiveJobs(); out != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered listing archive jobs with nothing", s.name)
 }

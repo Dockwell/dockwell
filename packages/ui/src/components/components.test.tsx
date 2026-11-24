@@ -21,7 +21,7 @@ import { Tag } from "./Tag/Tag";
 
 describe("Icon", () => {
   it("draws every icon on the 24-unit grid", () => {
-    expect(iconNames).toHaveLength(67);
+    expect(iconNames).toHaveLength(69);
     for (const name of iconNames) {
       const { container, unmount } = render(<Icon name={name} />);
       const svg = container.querySelector("svg");

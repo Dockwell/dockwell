@@ -964,6 +964,54 @@ describe("Activity", () => {
           subject: { ...on, path: "/var/log/syslog", sizeBytes: 1536n },
         }),
         auditEvent({ id: "evt_down_dir", action: "file.download", time: at(7), subject: { ...on, path: "/srv/site" } }),
+        auditEvent({
+          id: "evt_comp_start",
+          action: "file.compress_started",
+          time: at(8),
+          subject: { ...on, path: "/var/www/site.zip" },
+        }),
+        auditEvent({
+          id: "evt_comp",
+          action: "file.compress",
+          time: at(9),
+          subject: { ...on, path: "/var/www/site.zip", sizeBytes: 4096n },
+        }),
+        auditEvent({
+          id: "evt_comp_multi",
+          action: "file.compress",
+          time: at(10),
+          subject: {
+            ...on,
+            path: "/var/www/bundle.zip",
+            sizeBytes: 2048n,
+            paths: ["/var/www/a.txt", "/var/www/b.txt"],
+            pathCount: 2,
+          },
+        }),
+        auditEvent({
+          id: "evt_down_multi",
+          action: "file.download",
+          time: at(11),
+          subject: {
+            ...on,
+            path: "/var/www/a.txt",
+            sizeBytes: 1024n,
+            paths: ["/var/www/a.txt", "/var/www/b.txt"],
+            pathCount: 2,
+          },
+        }),
+        auditEvent({
+          id: "evt_ext_start",
+          action: "file.extract_started",
+          time: at(12),
+          subject: { ...on, path: "/var/www/site.zip", toPath: "/var/www/site" },
+        }),
+        auditEvent({
+          id: "evt_ext",
+          action: "file.extract",
+          time: at(13),
+          subject: { ...on, path: "/var/www/site.zip", toPath: "/var/www/site" },
+        }),
       ]),
     );
     const { router } = renderActivity(watch);
@@ -978,6 +1026,12 @@ describe("Activity", () => {
     });
     await screen.findByRole("row", { name: /Couldn't upload \/x to hz-1/ });
     await screen.findByRole("row", { name: /Downloaded \/var\/log\/syslog from hz-1, 1\.5 KB/ });
+    await screen.findByRole("row", { name: /Started compressing \/var\/www\/site\.zip on hz-1/ });
+    await screen.findByRole("row", { name: /Compressed \/var\/www\/site\.zip on hz-1, 4 KB/ });
+    await screen.findByRole("row", { name: /Compressed 2 items into \/var\/www\/bundle\.zip on hz-1, 2 KB/ });
+    await screen.findByRole("row", { name: /Downloaded 2 items from hz-1, 1 KB/ });
+    await screen.findByRole("row", { name: /Started extracting \/var\/www\/site\.zip into \/var\/www\/site on hz-1/ });
+    await screen.findByRole("row", { name: /Extracted \/var\/www\/site\.zip into \/var\/www\/site on hz-1/ });
     await screen.findByRole("row", { name: /Downloaded \/srv\/site from hz-1(?!,)/ });
     await user.click(await screen.findByRole("row", { name: /Uploaded \/var\/www\/backup\.sql to hz-1, 3 MB/ }));
     await user.click(await screen.findByRole("link", { name: "Open the folder" }));

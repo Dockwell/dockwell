@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strconv"
@@ -43,8 +44,12 @@ import (
 )
 
 const (
-	// MaxFileBytes is the most of a file that a read returns.
+	// MaxFileBytes is the most of a file that a text read returns.
 	MaxFileBytes = 1 << 20
+	// MaxPreviewBytes is the most of a file that a binary preview read returns.
+	// Kept at 1 MiB (same as text reads) and serialized through TakePreview with
+	// transfer GC tuning so image previews never push the agent past its 40 MB budget.
+	MaxPreviewBytes = MaxFileBytes
 	// MaxEntries is the most entries a listing returns.
 	MaxEntries = 5000
 	// listChunk is how many names a listing reads from a directory at a time.
@@ -60,6 +65,13 @@ const (
 	// transfers is how many uploads and downloads run at once, each on a
 	// connection of its own, and each holding a part or two at a time.
 	transfers = 3
+	// maxArchiveJobs is how many background compress/extract jobs run at once on
+	// an agent, in their own pool so they never hold listing or read slots.
+	maxArchiveJobs = 2
+	// maxKeptArchiveJobs bounds finished job records kept in memory.
+	maxKeptArchiveJobs = 64
+	// keepArchiveJobs is how long a finished archive job stays queryable.
+	keepArchiveJobs = time.Hour
 	// transferWait is how long an upload or a download waits for one of those
 	// places before the agent says it's busy, rather than leave a person looking
 	// at nothing moving.
@@ -99,7 +111,9 @@ type Server struct {
 	logger     *slog.Logger
 	dockerRoot func(context.Context) (string, error)
 	slots      chan struct{}
+	previews   chan struct{}
 	transfers  chan struct{}
+	archives   chan struct{}
 	// settle hands back what transfers used, once none has run for settleAfter,
 	// and gcWas is the collector's target from before they started, when gcSet.
 	// It's mu that guards them.
@@ -115,6 +129,10 @@ type Server struct {
 	stuck map[*trail]string
 	// savesEnded holds saves that ended once nobody was waiting for them.
 	savesEnded chan *agentv1.SaveEnded
+	// archiveJobs holds active and recent background compress/extract jobs.
+	archiveJobs    map[string]*archiveJob
+	archiveEnded   []*agentv1.ArchiveJobEnded
+	archiveEndedCh chan struct{}
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
 	mounts func() string
 	// systemPlaces, listedFiles and accounts are what a way in goes by: see wayin.go.
@@ -153,8 +171,9 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Server{
-		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), transfers: make(chan struct{}, transfers),
+		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), previews: make(chan struct{}, 1), transfers: make(chan struct{}, transfers), archives: make(chan struct{}, maxArchiveJobs),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
+		archiveJobs: map[string]*archiveJob{}, archiveEndedCh: make(chan struct{}, 1),
 		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
 		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
@@ -174,6 +193,25 @@ func (s *Server) Take(ctx context.Context) (func(), error) {
 	}
 }
 
+// TakePreview waits for the single binary-preview place and enables transfer GC
+// tuning until the reply is sent, so concurrent image previews never stack
+// multiple raw and wire copies in agent memory at once.
+func (s *Server) TakePreview(ctx context.Context) (func(), error) {
+	select {
+	case s.previews <- struct{}{}:
+		releaseMem := s.holdTransferMemory()
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-s.previews
+				releaseMem()
+			})
+		}, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("the agent is busy previewing another file: %w", ctx.Err())
+	}
+}
+
 // ErrBusy is a transfer that waited transferWait for a place, and got none.
 var ErrBusy = errors.New("every upload and download the server runs at once is under way")
 
@@ -182,6 +220,68 @@ func Busy() *agentv1.FileRefusal {
 	return &agentv1.FileRefusal{
 		Kind:    agentv1.FileRefusal_KIND_BUSY,
 		Message: fmt.Sprintf("the server is busy with %d other uploads and downloads, so this one didn't start. Try again once one of them ends", transfers),
+	}
+}
+
+// ArchiveBusy is what a compress or extract job says when every archive slot is full.
+func ArchiveBusy() *agentv1.FileRefusal {
+	return &agentv1.FileRefusal{
+		Kind:    agentv1.FileRefusal_KIND_BUSY,
+		Message: fmt.Sprintf("the server is busy with %d other archive jobs, so this one didn't start. Try again once one of them ends", maxArchiveJobs),
+	}
+}
+
+// tryTakeArchive acquires one of the dedicated archive job slots along with
+// transfer GC tuning, or returns ArchiveBusy immediately when full.
+func (s *Server) tryTakeArchive() (func(), *agentv1.FileRefusal) {
+	select {
+	case s.archives <- struct{}{}:
+		releaseMem := s.holdTransferMemory()
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-s.archives
+				releaseMem()
+			})
+		}, nil
+	default:
+		return nil, ArchiveBusy()
+	}
+}
+
+// tmpDir is where temporary files such as streaming zip central directories live.
+func (s *Server) tmpDir() string {
+	if s.dataDir == "" {
+		return ""
+	}
+	return filepath.Join(s.dataDir, "agent", "tmp")
+}
+
+// ArchiveJobsEnded signals when background archive jobs have finished and need
+// to be reported on the agent stream.
+func (s *Server) ArchiveJobsEnded() <-chan struct{} { return s.archiveEndedCh }
+
+// TakeArchiveEnded returns and clears pending ArchiveJobEnded reports.
+func (s *Server) TakeArchiveEnded() []*agentv1.ArchiveJobEnded {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := s.archiveEnded
+	s.archiveEnded = nil
+	return out
+}
+
+// UntoldArchiveEnded puts back ArchiveJobEnded reports that couldn't be sent on
+// a closing stream so the next stream delivers them.
+func (s *Server) UntoldArchiveEnded(items []*agentv1.ArchiveJobEnded) {
+	if len(items) == 0 {
+		return
+	}
+	s.mu.Lock()
+	s.archiveEnded = append(items, s.archiveEnded...)
+	s.mu.Unlock()
+	select {
+	case s.archiveEndedCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -482,15 +582,26 @@ func (s *Server) list(ctx context.Context, t *trail, p, match, after string) (*a
 
 // Read returns the file at p, as text up to MaxFileBytes.
 func (s *Server) Read(ctx context.Context, p string) (*agentv1.ReadFileResult, error) {
+	return s.ReadWithOptions(ctx, p, false)
+}
+
+// ReadWithOptions returns the file at p. When allowBinary is true, binary files
+// up to MaxPreviewBytes are returned in RawContent (still checked by credentials
+// and keyScan), so image previews go through the read path instead of DownloadFile.
+func (s *Server) ReadWithOptions(ctx context.Context, p string, allowBinary bool) (*agentv1.ReadFileResult, error) {
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
+	if allowBinary {
+		releaseMem := s.holdTransferMemory()
+		defer releaseMem()
+	}
 	return attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.ReadFileResult, error) {
-		return s.read(ctx, t, p), nil
+		return s.read(ctx, t, p, allowBinary), nil
 	}, func(r *agentv1.FileRefusal) *agentv1.ReadFileResult { return &agentv1.ReadFileResult{Refusal: r} })
 }
 
-func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFileResult {
+func (s *Server) read(ctx context.Context, t *trail, p string, allowBinary bool) *agentv1.ReadFileResult {
 	w, refusal := s.guard(ctx).walk(t, p)
 	if refusal != nil {
 		return &agentv1.ReadFileResult{Refusal: refusal}
@@ -503,24 +614,53 @@ func (s *Server) read(ctx context.Context, t *trail, p string) *agentv1.ReadFile
 			Message: fmt.Sprintf("%s is %s, not a file, so there's nothing to read", where, kindOf(&w.st)),
 		}}
 	}
-	if why := credentials(where); why != "" {
+	if why := checkCredentials(where); why != "" {
 		return &agentv1.ReadFileResult{Refusal: refused(where, why)}
 	}
-	text, truncated, refusal := readText(t, w)
+	limit := MaxFileBytes
+	if allowBinary {
+		limit = MaxPreviewBytes
+	}
+	data, truncated, refusal := readBytes(t, w, limit)
 	if refusal != nil {
 		return &agentv1.ReadFileResult{Refusal: refusal}
 	}
+	textData := data
+	if truncated {
+		textData = trimRune(data)
+	}
 	out := &dockwellv1.ReadFileResponse{Path: where, File: entry(w.last().name, &w.st, owners{}), Truncated: truncated, WayBackIn: s.wayIn(w)}
-	if isBinary(text) {
-		out.Binary, out.Truncated = true, false
+	if isBinary(textData) {
+		out.Binary = true
+		if !allowBinary {
+			out.Truncated = false
+			return &agentv1.ReadFileResult{File: out}
+		}
+		if truncated {
+			return &agentv1.ReadFileResult{File: out}
+		}
+		if r := (&keyScan{}).check(where, data); r != nil {
+			r.Message = where + " holds sensitive key material, so Dockwell doesn't open it. Connect to the server over SSH to work with it"
+			return &agentv1.ReadFileResult{Refusal: r}
+		}
+		out.RawContent = data
 		return &agentv1.ReadFileResult{File: out}
 	}
-	if why := whatItHolds(text); why != "" {
+	if why := whatItHolds(textData); why != "" {
 		return &agentv1.ReadFileResult{Refusal: refused(where, why)}
 	}
-	out.Content = string(text)
+	if allowBinary && len(textData) > MaxFileBytes {
+		// Text files larger than 1 MiB (such as a 2 MiB SVG) can still preview
+		// via RawContent when within MaxPreviewBytes, while staying non-editable
+		// (empty Version).
+		if !truncated {
+			out.RawContent = data
+		}
+		return &agentv1.ReadFileResult{File: out}
+	}
+	out.Content = string(textData)
 	if !truncated {
-		out.Version = version(where, &w.st, text)
+		out.Version = version(where, &w.st, textData)
 	}
 	return &agentv1.ReadFileResult{File: out}
 }
@@ -540,11 +680,11 @@ func version(where string, st *unix.Stat_t, text []byte) string {
 // Files can't tell whether its other name is protected, as image builds can't.
 const hardLinkedFile = "a hard link, a file with another name"
 
-// readText opens the walk's last part for reading, through the descriptor of the
-// directory that holds it, and reads its first MaxFileBytes. A file only
+// readBytes opens the walk's last part for reading, through the descriptor of
+// the directory that holds it, and reads its first limit bytes. A file only
 // opens as what the walk checked: a FIFO swapped in would hang a read, and
 // O_NONBLOCK and the check below keep it from being read at all.
-func readText(t *trail, w *walked) ([]byte, bool, *agentv1.FileRefusal) {
+func readBytes(t *trail, w *walked, limit int) ([]byte, bool, *agentv1.FileRefusal) {
 	where, parent, name := w.path(), w.steps[len(w.steps)-2].fd, w.last().name
 	if refusal := t.touch(where); refusal != nil {
 		return nil, false, refusal
@@ -569,15 +709,53 @@ func readText(t *trail, w *walked) ([]byte, bool, *agentv1.FileRefusal) {
 		return nil, false, refused(where, hardLinkedFile)
 	}
 	w.st = st
-	text, err := io.ReadAll(io.LimitReader(f, MaxFileBytes+1))
-	if err != nil {
+	// Size the buffer from fstat to avoid io.ReadAll's doubling allocations.
+	want := limit + 1
+	if st.Size >= 0 && st.Size < int64(limit) {
+		want = int(st.Size) + 1
+	}
+	buf := make([]byte, want)
+	n, err := io.ReadFull(f, buf)
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return buf[:n], false, nil
+	case err != nil:
 		return nil, false, denied(where, err)
+	case n > limit:
+		return buf[:limit], true, nil
 	}
-	if len(text) > MaxFileBytes {
-		return trimRune(text[:MaxFileBytes]), true, nil
+	// The file grew past its fstat size while reading; read up to limit+1 once.
+	full := make([]byte, limit+1)
+	copy(full, buf[:n])
+	m, err := io.ReadFull(f, full[n:])
+	total := n + m
+	switch {
+	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return full[:total], false, nil
+	case err != nil:
+		return nil, false, denied(where, err)
+	case total > limit:
+		return full[:limit], true, nil
 	}
-	return text, false, nil
+	return full[:total], false, nil
 }
+
+// readText reads up to MaxFileBytes and trims an incomplete trailing UTF-8 rune
+// when truncated.
+func readText(t *trail, w *walked) ([]byte, bool, *agentv1.FileRefusal) {
+	data, truncated, refusal := readBytes(t, w, MaxFileBytes)
+	if refusal != nil {
+		return nil, false, refusal
+	}
+	if truncated {
+		return trimRune(data), true, nil
+	}
+	return data, false, nil
+}
+
+// checkCredentials wraps credentials so tests can verify exact path matching
+// without writing into /etc.
+var checkCredentials = credentials
 
 // trimRune cuts off a character the read limit split, so the rest is still text.
 func trimRune(b []byte) []byte {

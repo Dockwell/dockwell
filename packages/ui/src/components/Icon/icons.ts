@@ -255,6 +255,8 @@ export const icons = {
     ["circle", { cx: 12, cy: 10, r: 2.2 }],
   ],
   moon: [["path", { d: "M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z" }]],
+  maximize: [["path", { d: "M15 4.5h4.5V9M9 19.5H4.5V15M19.5 4.5L14 10M4.5 19.5L10 14" }]],
+  minimize: [["path", { d: "M14 10h4.5M14 10V5.5M10 14H5.5M10 14v4.5M14 10l5.5-5.5M10 14l-5.5 5.5" }]],
 } as const satisfies Record<string, readonly IconPart[]>;
 
 export type IconName = keyof typeof icons;

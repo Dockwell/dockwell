@@ -47,11 +47,12 @@ const (
 	// uploadPrefix names an upload's file while it arrives.
 	uploadPrefix = ".dockwell-upload-"
 	// maxUnpacked is the most entries an archive unpacks to, and maxUnpackDepth how
-	// deep its folders go.
+	// deep its folders go. maxArchived shares the same cap so Dockwell never creates
+	// an archive it refuses to extract.
 	maxUnpacked    = 100_000
 	maxUnpackDepth = 64
-	// maxArchived is the most entries a folder's download holds.
-	maxArchived = 200_000
+	// maxArchived is the most entries a folder download or compress holds.
+	maxArchived = maxUnpacked
 )
 
 // upload is what the agent keeps of an upload, in the data directory.
