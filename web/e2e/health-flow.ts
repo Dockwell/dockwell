@@ -84,7 +84,7 @@ export async function healthFlow(page: Page, options: HealthFlowOptions) {
     const all = (await docker()).filter((c) => c.service === service);
     return all[0] ?? fail(`Docker has no ${service}: ${JSON.stringify(await docker())}`);
   };
-  const row = (name: string) => page.getByRole("row", { name: new RegExp(`\\b${name}\\b`) });
+  const row = (name: string) => page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
   /** The list says word of an app, in its status column, on its own. */
   const listSays = async (name: string, word: string) => {
     await row(name).locator(".apps-status").getByText(word, { exact: true }).waitFor({ timeout: SEEN_WITHIN });

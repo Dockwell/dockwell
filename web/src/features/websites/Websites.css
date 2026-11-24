@@ -50,6 +50,18 @@
   line-height: 20px;
 }
 
+/* A phone row: its link, and its menu beside it, as a link holds nothing else that acts. */
+.websites-phone-row {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-2);
+}
+
+.websites-phone-row > .apps-phone-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* A website's page: its settings on the left, what they come to on the right, as Website-Detail lays them out. */
 .website-columns {
   display: flex;

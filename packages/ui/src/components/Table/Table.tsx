@@ -74,6 +74,15 @@ export interface TableProps<Row extends object = Record<string, unknown>> {
   density?: "comfortable" | "compact";
   /** Makes rows clickable and reachable by keyboard, for rows that open details. */
   onRowClick?: (row: Row) => void;
+  /**
+   * A row's own menu, asked for by a right-click on the row or by Shift+F10 (or the
+   * Menu key) on a focused row: where it was asked for, on the viewport, and the row
+   * itself, to give focus back to. A right-click on a control in the row is the
+   * control's, as a click is. Rows with one are a keyboard stop even when they don't open.
+   */
+  onRowContextMenu?: (row: Row, at: { x: number; y: number }, rowElement: HTMLElement) => void;
+  /** Which rows have a context menu. Defaults to the same rows that can open. */
+  rowHasContextMenu?: (row: Row) => boolean;
   /** Which rows onRowClick is for, where some have nothing to open. The rest are neither clickable nor a keyboard stop. */
   rowClickable?: (row: Row) => boolean;
   /** The key of the row whose details are open. */
@@ -178,6 +187,8 @@ export function Table<Row extends object = Record<string, unknown>>({
   rowKey,
   density = "comfortable",
   onRowClick,
+  onRowContextMenu,
+  rowHasContextMenu,
   rowClickable,
   selectedKey,
   rowClassName,
@@ -240,13 +251,16 @@ export function Table<Row extends object = Record<string, unknown>>({
                 const key = typeof id === "string" || typeof id === "number" ? id : index;
                 const selected = selectedKey != null && selectedKey === id;
                 const opens = clickable && (rowClickable?.(row) ?? true);
+                const hasMenu =
+                  onRowContextMenu !== undefined && (rowHasContextMenu?.(row) ?? rowClickable?.(row) ?? true);
+                const stop = opens || hasMenu;
                 return (
                   <tr
                     key={key}
                     className={cx(opens && "is-clickable", selected && "is-selected", rowClassName?.(row))}
                     aria-current={selected ? "true" : undefined}
                     aria-selected={opens ? selected : undefined}
-                    tabIndex={opens ? 0 : undefined}
+                    tabIndex={stop ? 0 : undefined}
                     onClick={
                       opens
                         ? (event) => {
@@ -254,11 +268,24 @@ export function Table<Row extends object = Record<string, unknown>>({
                           }
                         : undefined
                     }
+                    onContextMenu={
+                      hasMenu
+                        ? (event) => {
+                            if (fromControl(event)) return;
+                            event.preventDefault();
+                            onRowContextMenu(row, { x: event.clientX, y: event.clientY }, event.currentTarget);
+                          }
+                        : undefined
+                    }
                     onKeyDown={
-                      opens
+                      stop
                         ? (event) => {
                             if (event.target !== event.currentTarget) return;
-                            if (event.key === "Enter" || event.key === " ") {
+                            if (hasMenu && ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) {
+                              event.preventDefault();
+                              const box = event.currentTarget.getBoundingClientRect();
+                              onRowContextMenu(row, { x: box.right - 8, y: box.bottom }, event.currentTarget);
+                            } else if (opens && (event.key === "Enter" || event.key === " ")) {
                               event.preventDefault();
                               onRowClick(row);
                             }

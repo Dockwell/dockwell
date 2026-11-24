@@ -15,6 +15,55 @@ import {
 
 import "./ActionMenu.css";
 
+/** One menu item, as ActionMenu and a row's right-click menu both draw it. */
+export function menuItem(action: MenuAction, onDone: () => void) {
+  const off = action.off || action.disabled;
+  const body = (
+    <>
+      {action.icon ? <Icon name={action.icon} size={16} /> : null}
+      <span className="action-menu-words">
+        <span>{action.label}</span>
+        {action.off ? <span className="action-menu-why">{action.off}</span> : null}
+      </span>
+    </>
+  );
+  const classes = cx("action-menu-item", action.danger && "is-danger", off && "is-off");
+  if (off)
+    return (
+      <span key={action.id} role="menuitem" tabIndex={-1} aria-disabled="true" className={classes}>
+        {body}
+      </span>
+    );
+  if (action.href)
+    return (
+      <a
+        key={action.id}
+        role="menuitem"
+        className={classes}
+        href={action.href}
+        target="_blank"
+        rel="noreferrer"
+        onClick={onDone}
+      >
+        {body}
+      </a>
+    );
+  return (
+    <button
+      key={action.id}
+      type="button"
+      role="menuitem"
+      className={classes}
+      onClick={() => {
+        onDone();
+        action.onSelect?.();
+      }}
+    >
+      {body}
+    </button>
+  );
+}
+
 /** One thing a menu does: a step on this page, or a link out. */
 export type MenuAction = {
   id: string;
@@ -119,53 +168,7 @@ export function ActionMenu({
   const left = (e: FocusEvent<HTMLDivElement>) => {
     if (!root.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
   };
-  const item = (action: MenuAction) => {
-    const off = action.off || action.disabled;
-    const body = (
-      <>
-        {action.icon ? <Icon name={action.icon} size={16} /> : null}
-        <span className="action-menu-words">
-          <span>{action.label}</span>
-          {action.off ? <span className="action-menu-why">{action.off}</span> : null}
-        </span>
-      </>
-    );
-    const classes = cx("action-menu-item", action.danger && "is-danger", off && "is-off");
-    if (off)
-      return (
-        <span key={action.id} role="menuitem" tabIndex={-1} aria-disabled="true" className={classes}>
-          {body}
-        </span>
-      );
-    if (action.href)
-      return (
-        <a
-          key={action.id}
-          role="menuitem"
-          className={classes}
-          href={action.href}
-          target="_blank"
-          rel="noreferrer"
-          onClick={() => setOpen(false)}
-        >
-          {body}
-        </a>
-      );
-    return (
-      <button
-        key={action.id}
-        type="button"
-        role="menuitem"
-        className={classes}
-        onClick={() => {
-          setOpen(false);
-          action.onSelect?.();
-        }}
-      >
-        {body}
-      </button>
-    );
-  };
+  const item = (action: MenuAction) => menuItem(action, () => setOpen(false));
   return (
     <span className={cx("action-menu-anchor", className)} ref={root}>
       <Button

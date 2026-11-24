@@ -195,6 +195,21 @@ a.connections-name:hover {
   border-top: 1px solid var(--line);
 }
 
+/* A phone row: its link, and its menu beside it, as a link holds nothing else that acts. */
+.connections-phone-item {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-2);
+}
+
+/* A row's own steps at its end: Use as a connection on a destination, and the menu with the rest. */
+.connections-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
 .connections-phone-row {
   display: flex;
   align-items: center;
@@ -203,6 +218,11 @@ a.connections-name:hover {
   padding: var(--space-3) var(--space-4);
   color: inherit;
   text-decoration: none;
+}
+
+.connections-phone-item > .connections-phone-row {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .connections-phone-dest {

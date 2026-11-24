@@ -46,10 +46,14 @@ import { useSignedIn } from "../auth/useAuthState";
 import { initials, useRoleName } from "../auth/user";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu } from "../shell/ActionMenu";
+import { EmptyState } from "../shell/EmptyState";
+import { ListPager, type ListPlace, ListToolbar, sortableColumns, useListPlace, useRowMenu } from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
 import { CopyButton } from "../system/CopyCommand";
-import { MemberMenu } from "./MemberActions";
+import { MemberMenu, useMemberActions } from "./MemberActions";
 import "./Settings.css";
 
 /**
@@ -58,12 +62,35 @@ import "./Settings.css";
  * (ADR 0048, ADR 0049). With one person and no invite, the invite form waits
  * behind a button.
  */
-export function MembersPage() {
+export function MembersPage({ search, onSearch }: { search: MembersSearch; onSearch: (next: MembersSearch) => void }) {
   const { t } = useLingui();
   const list = useQuery(MemberService.method.listMembers, {});
   const phone = useMediaQuery(PHONE_QUERY);
   const members = list.data?.members ?? [];
   const invites = list.data?.invites ?? [];
+  const place = useListPlace(search, onSearch, MEMBER_SORT_KEYS);
+  const rows: Row[] = [
+    ...members.map((member) => ({ id: member.user?.id ?? "", member })),
+    ...invites.map((invite) => ({ id: invite.id, invite })),
+  ];
+  const listed = sortedRows(
+    rows.filter(
+      (row) =>
+        (!search.role || rowRole(row) === search.role) &&
+        `${row.member?.user?.name ?? ""} ${row.member?.user?.email ?? row.invite?.email ?? ""}`
+          .toLowerCase()
+          .includes(place.query),
+    ),
+    place.sort,
+    (row, key) => {
+      if (key === "role") return rowRole(row);
+      if (key === "active")
+        return row.member?.lastActiveTime ? timestampDate(row.member.lastActiveTime).getTime() : undefined;
+      return row.member?.user?.name || row.invite?.email;
+    },
+  );
+  const page = pagedRows(listed, place.page);
+  const roles = useRoleOptions();
   const count = members.length;
   const withPasskeys = members.filter((m) => m.signIn.includes(SignInKind.PASSKEY)).length;
   const solo = count <= 1 && invites.length === 0;
@@ -107,23 +134,35 @@ export function MembersPage() {
         loadingLabel={t`Loading who signs in`}
       />
     );
+  } else if (rows.length > 0 && listed.length === 0) {
+    people = (
+      <EmptyState
+        icon="search"
+        title={t`Nothing matches`}
+        action={
+          <Button
+            onClick={() => {
+              place.clearQuery();
+              onSearch({ ...search, q: undefined, role: undefined, page: undefined });
+            }}
+          >
+            <Trans>Clear the filter</Trans>
+          </Button>
+        }
+      />
+    );
   } else if (phone) {
     people = (
       <ul className="dw-panel tokens-list" aria-label={t`Who signs in`}>
-        {members.map((m) => (
-          <li key={m.user?.id} className="tokens-item">
-            <MemberFacts member={m} />
-          </li>
-        ))}
-        {invites.map((i) => (
-          <li key={i.id} className="tokens-item">
-            <InviteFacts invite={i} />
+        {page.rows.map((row) => (
+          <li key={row.id} className="tokens-item">
+            {row.member ? <MemberFacts member={row.member} /> : <InviteFacts invite={row.invite} />}
           </li>
         ))}
       </ul>
     );
   } else {
-    people = <MembersTable members={members} invites={invites} places={!solo} />;
+    people = <MembersTable rows={page.rows} place={place} places={!solo} />;
   }
 
   const invitesWord =
@@ -190,7 +229,27 @@ export function MembersPage() {
             <Skeleton text="caption" width={160} />
           ) : null}
         </div>
+        {rows.length > 1 || place.query || search.role ? (
+          <ListToolbar place={place} label={t`Filter members`}>
+            {search.role || new Set(rows.map(rowRole)).size > 1 ? (
+              <SelectField
+                size="sm"
+                aria-label={t`Role`}
+                value={String(search.role ?? "")}
+                options={[{ value: "", label: t`Every role` }, ...roles]}
+                onChange={(event) =>
+                  onSearch({
+                    ...search,
+                    role: (Number(event.target.value) || undefined) as Role | undefined,
+                    page: undefined,
+                  })
+                }
+              />
+            ) : null}
+          </ListToolbar>
+        ) : null}
         {people}
+        <ListPager page={page} onPage={place.setPage} />
       </section>
       {/* What each role can, the whole width, so its labels stay on a line; how you sign
           in is yours, on Profile and security (#801). */}
@@ -618,6 +677,29 @@ function RoleTag({ role }: { role: Role }) {
 }
 
 /** A row of the table: a member by their user's ID, or an open invite by its ID. */
+export interface MembersSearch extends ListSearch {
+  role?: Role;
+}
+
+const MEMBER_SORT_KEYS = ["who", "role", "active"] as const;
+
+function useRoleOptions() {
+  const owner = useRoleName(Role.OWNER);
+  const admin = useRoleName(Role.ADMIN);
+  const developer = useRoleName(Role.DEVELOPER);
+  const viewer = useRoleName(Role.VIEWER);
+  return [
+    { value: String(Role.OWNER), label: owner },
+    { value: String(Role.ADMIN), label: admin },
+    { value: String(Role.DEVELOPER), label: developer },
+    { value: String(Role.VIEWER), label: viewer },
+  ];
+}
+
+function rowRole(row: Row): Role {
+  return row.member ? roleOf(row.member) : row.invite.role;
+}
+
 type Row = { id: string; member: Member; invite?: undefined } | { id: string; invite: Invite; member?: undefined };
 
 /** Where an invite gives its role: the whole install, which has no project ID, or its project by name. */
@@ -738,12 +820,12 @@ function RevokeInvite({ invite }: { invite: Invite }) {
 }
 
 function MembersTable({
-  members,
-  invites,
+  rows,
+  place,
   places,
 }: {
-  members: readonly Member[];
-  invites: readonly Invite[];
+  rows: readonly Row[];
+  place: ListPlace;
   /** Whether to show where each holds their role: not while one person signs in, alone (ADR 0049). */
   places: boolean;
 }) {
@@ -753,10 +835,8 @@ function MembersTable({
   const placesOf = usePlacesOf();
   const invitePlace = useInvitePlace();
   const expires = useExpires();
-  const rows: Row[] = [
-    ...members.map((member) => ({ id: member.user?.id ?? "", member })),
-    ...invites.map((invite) => ({ id: invite.id, invite })),
-  ];
+  const { menuFor, sheet } = useMemberActions();
+  const menu = useRowMenu<Row>();
   const columns: TableColumn<Row>[] = [
     {
       key: "who",
@@ -815,11 +895,25 @@ function MembersTable({
             </span>
           </Link>
         ) : (
-          <MemberMenu member={r.member} />
+          <ActionMenu {...menuFor(r.member)} />
         ),
     },
   ];
-  return <Table columns={columns} rows={rows} caption={t`Who signs in to this install`} />;
+  return (
+    <>
+      <Table
+        columns={sortableColumns(columns, place, MEMBER_SORT_KEYS)}
+        rows={rows}
+        rowHasContextMenu={(row) => !!row.member && menuFor(row.member).actions.length > 0}
+        onRowContextMenu={(row, at, el) => {
+          if (row.member) menu.open(row, at, el, menuFor(row.member));
+        }}
+        caption={t`Who signs in to this install`}
+      />
+      {menu.element}
+      {sheet}
+    </>
+  );
 }
 
 /** A person as a phone shows them: a stacked row. */

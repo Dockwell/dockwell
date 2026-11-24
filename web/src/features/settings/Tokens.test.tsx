@@ -353,10 +353,12 @@ describe("API tokens", () => {
   it("asks before revoking a token, and can keep it after all", async () => {
     const revokeToken = vi.fn(() => ({}));
     renderAt("/settings/api-tokens", api({ revokeToken }));
-    await userEvent.click(await screen.findByRole("button", { name: "Revoke GitHub Actions deploy" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for GitHub Actions deploy" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Revoke" }));
     await userEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(revokeToken).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Revoke GitHub Actions deploy" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for GitHub Actions deploy" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Revoke" }));
     await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
     await waitFor(() =>
       expect(revokeToken).toHaveBeenCalledWith(expect.objectContaining({ id: "tok_1" }), expect.anything()),
@@ -388,7 +390,9 @@ describe("API tokens", () => {
     const [first] = within(list).getAllByRole("listitem");
     expect(first).toHaveTextContent("GitHub Actions deploy");
     expect(first).toHaveTextContent("Last used8 min ago");
-    expect(within(first as HTMLElement).getByRole("button", { name: "Revoke GitHub Actions deploy" })).toBeVisible();
+    expect(
+      within(first as HTMLElement).getByRole("button", { name: "Actions for GitHub Actions deploy" }),
+    ).toBeVisible();
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/settings");
     expect(screen.queryByRole("table")).toBeNull();
   });

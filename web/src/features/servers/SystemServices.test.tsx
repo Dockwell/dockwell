@@ -121,11 +121,11 @@ describe("SystemServicesPage", () => {
     await user.click(within(show).getByRole("radio", { name: /Running/ }));
     expect(rows().map((r) => r.textContent?.split(".service")[0])).toEqual(["docker", "cron"]);
     await user.click(within(show).getByRole("radio", { name: /All/ }));
-    await user.type(screen.getByRole("textbox", { name: "Filter system services" }), "key-value");
+    await user.type(screen.getByRole("searchbox", { name: "Filter system services" }), "key-value");
     await waitFor(() => expect(rows()).toHaveLength(1));
     expect(rows()[0]).toHaveTextContent("redis-server.service");
-    await user.clear(screen.getByRole("textbox", { name: "Filter system services" }));
-    await user.type(screen.getByRole("textbox", { name: "Filter system services" }), "nothing like it");
+    await user.clear(screen.getByRole("searchbox", { name: "Filter system services" }));
+    await user.type(screen.getByRole("searchbox", { name: "Filter system services" }), "nothing like it");
     expect(await screen.findByText("No system service matches.")).toBeVisible();
   });
 
@@ -217,18 +217,18 @@ describe("SystemServicesPage", () => {
     });
     const alert = await screen.findByText(/hz-1 can't list its system services now/);
     expect(alert.closest(".dw-callout")).not.toBeNull();
-    expect(screen.queryByRole("textbox", { name: "Filter system services" })).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: "Filter system services" })).toBeNull();
     expect(screen.queryByRole("radiogroup", { name: "Show" })).toBeNull();
   });
 
   it("takes focus to the section's heading when the filter it was in goes with a failed read", async () => {
     const user = userEvent.setup();
     const { system } = await renderServices();
-    const filter = await screen.findByRole("textbox", { name: "Filter system services" });
+    const filter = await screen.findByRole("searchbox", { name: "Filter system services" });
     await user.click(filter);
     system.fail(new ConnectError("hz-1 can't list its system services now: its agent went away", Code.Unavailable));
     await screen.findByText(/its agent went away/);
-    expect(screen.queryByRole("textbox", { name: "Filter system services" })).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: "Filter system services" })).toBeNull();
     await waitFor(() => expect(screen.getByRole("heading", { name: "System services", level: 2 })).toHaveFocus());
   });
 

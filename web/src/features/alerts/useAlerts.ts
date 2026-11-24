@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { create } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
 import {
@@ -7,13 +8,16 @@ import {
   type AlertDelivery,
   type AlertRuleInfo,
   AlertService,
+  ListAlertsResponseSchema,
   AlertRule_Severity as Severity,
 } from "@dockwell/api";
 import type { BrandId, IconName, Status } from "@dockwell/ui";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+
+import { readListPages } from "../shell/list";
 
 /** The channels, by name. */
 export function useChannels(enabled = true) {
@@ -28,6 +32,32 @@ export function useRules() {
 /** What's firing now, and what fired and resolved after it. */
 export function useAlerts() {
   return useQuery(AlertService.method.listAlerts, {});
+}
+
+/** Full history for the alert list. Other surfaces only need the newest snapshot. */
+export function useAlertHistory() {
+  const transport = useTransport();
+  const input = { pageSize: 200 };
+  return useTanstackQuery({
+    queryKey: createConnectQueryKey({
+      schema: AlertService.method.listAlerts,
+      input,
+      transport,
+      cardinality: "finite",
+    }),
+    queryFn: async ({ signal }) => {
+      const client = createClient(AlertService, transport);
+      const all = create(ListAlertsResponseSchema);
+      await readListPages(
+        (pageToken) => client.listAlerts({ ...input, pageToken }, { signal }),
+        (page) => {
+          all.alerts.push(...page.alerts);
+          all.firing = page.firing;
+        },
+      );
+      return all;
+    },
+  });
 }
 
 /** The newest messages to every channel. */

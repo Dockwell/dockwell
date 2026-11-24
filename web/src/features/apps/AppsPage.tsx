@@ -17,20 +17,30 @@ import {
   StatusBadge,
   Table,
   type TableColumn,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
 import { StartChoices } from "../overview/StartChoices";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { useRuntimes } from "../websites/website";
 import {
@@ -57,7 +67,9 @@ import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { WhatRuns } from "./ImageName";
+import { MoveSheet } from "./MoveSheet";
 import { runtimeOf, runtimeWords } from "./runtime";
+import { PrepareServiceDelete, useServiceRowActions } from "./ServiceRowActions";
 import { PickBox, SelectPatches, type UpdatePicks, UpdatePicksBar, useUpdatePicks } from "./UpdateSeveral";
 import { counts, ofInstall, StackUpdates, UpdateMark, updateCount } from "./updates";
 import { useApps, usePlaces } from "./useServices";
@@ -68,14 +80,16 @@ import { ReadFailed } from "../shell/ReadFailed";
 import { RefLink } from "../shell/RefLink";
 import { useServicesWatch } from "./ServicesLive";
 
-/** The list's place, in its URL: its filters. */
-export interface AppsSearch {
-  q?: string;
+/** The list's place, in its URL: its filters, its sort and its page. */
+export interface AppsSearch extends ListSearch {
   environment?: string;
   server?: string;
   /** "updates" shows only the apps with an update that counts (ADR 0079). */
   show?: string;
 }
+
+/** The columns the list sorts by when asked, as its address names them. */
+const SORT_KEYS = ["app", "deployed"] as const;
 
 /** A filter earns its place once there are more apps than fit on a screen at a glance. */
 const FILTER_FROM = 6;
@@ -181,16 +195,8 @@ export function AppsPage({
   const navigate = useNavigate();
   const [exporting, setExporting] = useState(false);
   const [collapsed, toggle] = useFolded();
-  const [typed, setTyped] = useState(search.q ?? "");
-  const query = useDeferredValue(typed);
-
-  // The filter goes in the address a moment after you stop typing, so a link
-  // to the list keeps it, without a navigation for each key.
-  useEffect(() => {
-    if (query === (search.q ?? "")) return;
-    const timer = setTimeout(() => onSearch?.({ ...search, q: query || undefined }), 300);
-    return () => clearTimeout(timer);
-  }, [query, search, onSearch]);
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const query = place.query;
 
   // A website's own services are its to show, on Websites (ADR 0039), as everywhere apps are counted.
   const all = apps.data;
@@ -264,40 +270,65 @@ export function AppsPage({
   }, [groups, servers, health]);
   const bringUp = () => setEpoch((n) => n + 1);
   const filtering = query.trim() !== "";
+  // Sorted by a head where one was asked for, over the whole list: what needs a look
+  // first is the list's order until then, and the reader's sort replaces it.
+  const sortState = place.sort;
+  const orderedGroups = useMemo(
+    () =>
+      sortedRows(groups, sortState, (g, key) =>
+        key === "deployed" ? groupDeployedAt(g).getTime() : g.name || (g.services[0] ? nameOf(g.services[0]) : ""),
+      ),
+    [groups, sortState],
+  );
   // Where an app answers finds it too, as the filter's words say.
   const domainNames = useDomainNames();
-  const rows = useMemo(() => {
+  // Match an entire group by its name, or show the individual apps that match.
+  const matching = useMemo(() => {
     const q = query.trim().toLowerCase();
     const answers = (s: ServiceInfo) =>
       q !== "" && (domainNames(environmentOf(s), [s]) ?? []).some((d) => d.toLowerCase().includes(q));
-    const out: Row[] = [];
-    for (const group of groups) {
+    const out: { group: AppGroup; members: ServiceInfo[] }[] = [];
+    for (const group of orderedGroups) {
       // A project's name finds all of it; otherwise what matches is what shows.
-      const whole = group.name !== "" && group.name.toLowerCase().includes(query.trim().toLowerCase());
+      const whole = group.name !== "" && group.name.toLowerCase().includes(q);
       const members = whole ? group.services : group.services.filter((s) => matches(s, query) || answers(s));
-      if (members.length === 0) continue;
-      const [first] = group.services;
-      if (!group.stack && first) {
-        out.push({ id: first.id, kind: "app", group, service: first, last: true });
-        continue;
-      }
-      out.push({ id: `stack:${group.key}`, kind: "stack", group, last: false });
-      // A filter shows what it finds, whatever was folded away.
-      if (collapsed.has(group.key) && !filtering) continue;
-      members.forEach((service, i) => {
-        out.push({ id: service.id, kind: "member", group, service, last: i === members.length - 1 });
-      });
+      if (members.length > 0) out.push({ group, members });
     }
     return out;
-  }, [groups, query, collapsed, filtering, domainNames]);
+  }, [orderedGroups, query, domainNames]);
+  const appsInOrder = useMemo(
+    () => matching.flatMap(({ group, members }) => members.map((service) => ({ group, service }))),
+    [matching],
+  );
+  const listPage = pagedRows(appsInOrder, place.page);
+  const rows: Row[] = [];
+  let previous: AppGroup | undefined;
+  for (const { group, service } of listPage.rows) {
+    if (!group.stack) {
+      rows.push({ id: service.id, kind: "app", group, service, last: true });
+      continue;
+    }
+    if (previous !== group) {
+      rows.push({ id: `stack:${group.key}`, kind: "stack", group, last: false });
+      previous = group;
+    }
+    if (!collapsed.has(group.key) || filtering)
+      rows.push({ id: service.id, kind: "member", group, service, last: false });
+  }
+  rows.forEach((row, index) => {
+    if (row.kind === "member") row.last = rows[index + 1]?.group !== row.group;
+  });
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
+  const manage = useServiceRowActions(environmentOf);
+  const actionsFor = (service: ServiceInfo): MenuAction[] => [
+    { id: "open", icon: "service", label: t`Open`, onSelect: () => open(service.id) },
+    ...manage.actionsFor(service),
+  ];
   // The filter's words, or what the list is narrowed to: each clears what kept everything out.
   const clearFilters = (what: "q" | "rest") => {
-    if (what === "q") {
-      setTyped("");
-      onSearch?.({ ...search, q: undefined });
-    } else onSearch?.({ ...search, environment: undefined, server: undefined, show: undefined });
+    if (what === "q") place.clearQuery();
+    else onSearch?.({ ...search, environment: undefined, server: undefined, show: undefined, page: undefined });
   };
 
   const pending = apps.isPending || places.isPending || (!ordered && (all?.length ?? 0) > 0);
@@ -307,7 +338,7 @@ export function AppsPage({
   useEffect(() => {
     if (all) remember(COUNT_KEY, String(all.length));
   }, [all]);
-  const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM;
+  const filters = pending ? Number(remembered(COUNT_KEY) ?? 0) >= FILTER_FROM : count >= FILTER_FROM || filtering;
   const elsewhere = count - shown.length;
   const { lead, total, going, trouble, needing } = useAppsLead(
     shown,
@@ -315,11 +346,13 @@ export function AppsPage({
     health,
   );
   const later = useLaterTrouble(needing, trouble, settled);
-  const showFirst = outOfPlace ? (
-    <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
-      <Trans>Show them first</Trans>
-    </Button>
-  ) : null;
+  // A list sorted by its head is in the reader's order, not the list's, so nothing is out of place in it.
+  const showFirst =
+    outOfPlace && !sortState ? (
+      <Button variant="ghost" size="sm" className="apps-show-first" onClick={bringUp}>
+        <Trans>Show them first</Trans>
+      </Button>
+    ) : null;
   const newApp = (
     <RouterButtonLink to="/apps/new" variant="primary" icon="plus" className="apps-new">
       <Trans>New app</Trans>
@@ -366,21 +399,38 @@ export function AppsPage({
       </EmptyState>
     );
   } else if (rows.length === 0) {
-    body = <NothingHere query={filtering ? query.trim() : ""} search={search} onClear={clearFilters} />;
+    body = <NothingHere query={filtering ? place.typed.trim() : ""} search={search} onClear={clearFilters} />;
   } else if (phone) {
-    body = <PhoneList rows={rows} collapsed={collapsed} onToggle={toggle} health={health} picks={picks} />;
+    body = (
+      <>
+        <PhoneList
+          rows={rows}
+          collapsed={collapsed}
+          onToggle={toggle}
+          health={health}
+          picks={picks}
+          actionsFor={actionsFor}
+        />
+        <ListPager page={listPage} onPage={place.setPage} />
+      </>
+    );
   } else {
     body = (
-      <AppsTable
-        rows={rows}
-        fleet={fleet}
-        caption={t`Apps`}
-        collapsed={collapsed}
-        onToggle={toggle}
-        onOpen={open}
-        health={health}
-        picks={picks}
-      />
+      <>
+        <AppsTable
+          rows={rows}
+          fleet={fleet}
+          caption={t`Apps`}
+          collapsed={collapsed}
+          onToggle={toggle}
+          onOpen={open}
+          health={health}
+          picks={picks}
+          place={place}
+          actionsFor={actionsFor}
+        />
+        <ListPager page={listPage} onPage={place.setPage} />
+      </>
     );
   }
 
@@ -414,20 +464,21 @@ export function AppsPage({
       }
     >
       <section className={cx("apps-section", filters && "has-filters")} aria-label={t`Apps`}>
-        {choosing || fleet || filters || updates > 0 ? (
+        {choosing || fleet || filters || updates > 0 || (phone && count > 0) ? (
           <div className="apps-filters">
             {filters ? (
-              <TextField
+              <ListSearchField
                 className="apps-filter"
                 size={phone ? "lg" : "sm"}
-                icon="search"
-                type="search"
                 placeholder={t`Filter by name, image or domain`}
-                aria-label={t`Filter apps`}
-                value={typed}
+                label={t`Filter apps`}
+                value={place.typed}
                 disabled={pending}
-                onChange={(event) => setTyped(event.target.value)}
+                onChange={place.setTyped}
               />
+            ) : null}
+            {phone && count > 0 ? (
+              <ListSortField place={place} columns={{ app: t`App`, deployed: t`Deployed` }} />
             ) : null}
             {choosing && envOptions.length <= SEGMENTS ? (
               <SegmentedControl
@@ -435,7 +486,7 @@ export function AppsPage({
                 value={environment}
                 label={t`Environment`}
                 size="sm"
-                onChange={(value) => onSearch?.({ ...search, environment: value || undefined })}
+                onChange={(value) => onSearch?.({ ...search, environment: value || undefined, page: undefined })}
               />
             ) : null}
             {choosing && envOptions.length > SEGMENTS ? (
@@ -447,7 +498,9 @@ export function AppsPage({
                   { value: "", label: t`All environments` },
                   ...envOptions.map((e) => ({ value: e.value, label: `${e.label} (${e.count})` })),
                 ]}
-                onChange={(event) => onSearch?.({ ...search, environment: event.target.value || undefined })}
+                onChange={(event) =>
+                  onSearch?.({ ...search, environment: event.target.value || undefined, page: undefined })
+                }
               />
             ) : null}
             {updates > 0 ? (
@@ -457,7 +510,7 @@ export function AppsPage({
                 icon="arrow-up"
                 className="apps-updates-filter"
                 aria-pressed={updating}
-                onClick={() => onSearch?.({ ...search, show: updating ? undefined : "updates" })}
+                onClick={() => onSearch?.({ ...search, show: updating ? undefined : "updates", page: undefined })}
               >
                 {plural(updates, { one: "# update available", other: "# updates available" })}
               </Button>
@@ -473,7 +526,9 @@ export function AppsPage({
                   { value: "", label: t`All servers` },
                   ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
                 ]}
-                onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
+                onChange={(event) =>
+                  onSearch?.({ ...search, server: event.target.value || undefined, page: undefined })
+                }
               />
             ) : null}
           </div>
@@ -518,6 +573,12 @@ export function AppsPage({
           environment={environment || (all?.[0] ? environmentOf(all[0]) : "")}
           onClose={() => setExporting(false)}
         />
+      ) : null}
+      {manage.selected?.action === "move" ? (
+        <MoveSheet service={manage.selected.service} onClose={manage.close} />
+      ) : null}
+      {manage.selected?.action === "delete" ? (
+        <PrepareServiceDelete service={manage.selected.service} onClose={manage.close} />
       ) : null}
     </Page>
   );
@@ -642,7 +703,7 @@ export function useLaterTrouble(needing: number, trouble: string, settled: boole
 function useColumnHeads(fleet: boolean, wide: boolean) {
   const { t } = useLingui();
   return useMemo(() => {
-    const heads: { key: string; header: string; width?: number | string; align?: "right"; muted?: boolean }[] = [
+    const heads: { key: string; header: ReactNode; width?: number | string; align?: "right"; muted?: boolean }[] = [
       { key: "app", header: t`App` },
     ];
     heads.push(
@@ -651,8 +712,9 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
     );
     if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
     // A fixed width on a fleet, where Runs on takes room too: a share of the row left a name 27 px at 1280.
-    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 176 : "24%", muted: true });
-    heads.push({ key: "deployed", header: t`Deployed`, width: 104, align: "right" });
+    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 144 : "24%", muted: true });
+    heads.push({ key: "deployed", header: t`Deployed`, width: 116, align: "right" });
+    heads.push({ key: "actions", header: <span className="dw-sr">{t`Actions`}</span>, width: 40, align: "right" });
     return heads;
   }, [t, fleet, wide]);
 }
@@ -666,6 +728,8 @@ interface TableProps {
   onOpen: (id: string) => void;
   health: HealthView;
   picks: UpdatePicks;
+  place: ListPlace;
+  actionsFor: (service: ServiceInfo) => MenuAction[];
 }
 
 /**
@@ -725,7 +789,18 @@ function useRowTitle() {
   };
 }
 
-function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, picks }: TableProps) {
+function AppsTable({
+  rows,
+  fleet,
+  caption,
+  collapsed,
+  onToggle,
+  onOpen,
+  health,
+  picks,
+  place,
+  actionsFor,
+}: TableProps) {
   const { t, i18n } = useLingui();
   const { servers } = useFleetView();
   const words = useAppWords();
@@ -744,6 +819,7 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
     return out;
   }, [rows]);
   const now = useAgoNow(newest);
+  const menu = useRowMenu<Row>();
   const columns = useMemo<TableColumn<Row>[]>(() => {
     const render: Record<string, (row: Row) => ReactNode> = {
       app: (row) => {
@@ -852,14 +928,40 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
           </time>
         );
       },
+      actions: (row) =>
+        row.service ? (
+          <ActionMenu label={t`Actions for ${nameOf(row.service)}`} actions={actionsFor(row.service)} />
+        ) : null,
     };
     return heads.map((head) => ({
       ...head,
+      ...(head.key === "app" || head.key === "deployed"
+        ? {
+            header: <SortHeader label={head.header as string} sortKey={head.key} place={place} />,
+            sort: place.sortOf(head.key),
+          }
+        : {}),
       ...(head.key === "revision" ? { mono: true } : {}),
       ...(head.key === "servers" || head.key === "deployed" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [t, i18n, words, servers, time, now, collapsed, onToggle, heads, health, titleOf, domainNames, databases]);
+  }, [
+    t,
+    i18n,
+    words,
+    servers,
+    time,
+    now,
+    collapsed,
+    onToggle,
+    actionsFor,
+    heads,
+    health,
+    titleOf,
+    domainNames,
+    databases,
+    place,
+  ]);
   // A column to pick rows by, while any row has an update to pick (ADR 0080).
   const order = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   const shownPicks = [...new Set(rows.flatMap((r) => picksOf(r, picks)))];
@@ -885,19 +987,27 @@ function AppsTable({ rows, fleet, caption, collapsed, onToggle, onOpen, health, 
         ];
 
   return (
-    <Table<Row>
-      className={cx("apps-table", shownPicks.length > 0 && "has-picks")}
-      columns={withPicks}
-      rows={rows}
-      caption={caption}
-      rowClassName={(row) =>
-        cx(row.kind === "stack" && "is-stack", row.kind === "member" && "is-member", row.last && "is-last")
-      }
-      onRowClick={(row) => {
-        if (row.kind === "stack") onToggle(row.group.key);
-        else if (row.service) onOpen(row.service.id);
-      }}
-    />
+    <>
+      <Table<Row>
+        className={cx("apps-table", shownPicks.length > 0 && "has-picks")}
+        columns={withPicks}
+        rows={rows}
+        caption={caption}
+        rowClassName={(row) =>
+          cx(row.kind === "stack" && "is-stack", row.kind === "member" && "is-member", row.last && "is-last")
+        }
+        onRowClick={(row) => {
+          if (row.kind === "stack") onToggle(row.group.key);
+          else if (row.service) onOpen(row.service.id);
+        }}
+        rowHasContextMenu={(row) => row.service !== undefined}
+        onRowContextMenu={(row, at, el) => {
+          if (row.service)
+            menu.open(row, at, el, { label: t`Actions for ${nameOf(row.service)}`, actions: actionsFor(row.service) });
+        }}
+      />
+      {menu.element}
+    </>
   );
 }
 
@@ -945,13 +1055,16 @@ function PhoneList({
   onToggle,
   health,
   picks,
+  actionsFor,
 }: {
   rows: readonly Row[];
   collapsed: ReadonlySet<string>;
   onToggle: (key: string) => void;
   health: HealthView;
   picks: UpdatePicks;
+  actionsFor: (service: ServiceInfo) => MenuAction[];
 }) {
+  const { t } = useLingui();
   const { servers, fleet } = useFleetView();
   const words = useAppWords();
   const healthWords = useHealthWords();
@@ -1048,12 +1161,20 @@ function PhoneList({
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
           </Link>
         );
-        // A box to pick its update by sits beside the row, as a link holds nothing else that acts.
-        if (!picks.can(service.id) || picksOf(row, picks).length === 0) return link;
+        // A box to pick its update by, and its menu, sit beside the row, as a link holds nothing else that acts.
+        const menu = <ActionMenu label={t`Actions for ${nameOf(service)}`} actions={actionsFor(service)} />;
+        if (!picks.can(service.id) || picksOf(row, picks).length === 0)
+          return (
+            <div key={row.id} className="apps-phone-menurow">
+              {link}
+              {menu}
+            </div>
+          );
         return (
-          <div key={row.id} className="apps-phone-pickrow">
+          <div key={row.id} className="apps-phone-pickrow apps-phone-menurow">
             <RowPick row={row} picks={picks} order={phoneOrder} />
             {link}
+            {menu}
           </div>
         );
       })}

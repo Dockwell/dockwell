@@ -21,7 +21,19 @@ import { useState } from "react";
 
 import { formatDateTime, formatMoment } from "../../lib/format";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListNoMatch,
+  ListPager,
+  type ListRouteProps,
+  ListToolbar,
+  sortableColumns,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { pagedRows, sortedRows } from "../shell/list";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { CheckNow } from "./CheckNow";
@@ -92,7 +104,9 @@ function CheckTags({ check }: { check: AlertCheckInfo }) {
 }
 
 /** The Checks tab: every address Dockwell asks, how it stands, and its last answers. */
-export function ChecksTab() {
+const SORT_KEYS = ["check", "state", "how"] as const;
+
+export function ChecksTab({ search, onSearch }: ListRouteProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const checks = useChecks();
@@ -100,6 +114,36 @@ export function ChecksTab() {
   const [editing, setEditing] = useState<AlertCheckInfo>();
   const [making, setMaking] = useState(false);
   const list = checks.data?.checks ?? [];
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const context = useRowMenu<AlertCheckInfo>();
+  const sheet = useChangeSheet();
+  const page = pagedRows(
+    sortedRows(
+      list.filter((check) =>
+        `${check.name} ${check.spec?.address ?? ""} ${check.from}`.toLowerCase().includes(place.query),
+      ),
+      place.sort,
+      (check, key) =>
+        key === "state" ? check.state : key === "how" ? check.from : (check.spec?.address ?? check.name),
+    ),
+    place.page,
+  );
+  const actionsFor = (check: AlertCheckInfo): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => setEditing(check) },
+    {
+      id: "remove",
+      label: t`Remove`,
+      icon: "trash" as const,
+      danger: true,
+      ...mayPlan.off,
+      onSelect: () =>
+        sheet.open({
+          kind: "propose",
+          summary: t`Stop watching ${hostOf(check.spec?.address ?? check.name)}`,
+          edits: [{ resource: { kind: "alert.check", name: check.name }, delete: true }],
+        }),
+    },
+  ];
   const every = (c: AlertCheckInfo) => {
     switch (c.spec?.every) {
       case "30s":
@@ -157,7 +201,12 @@ export function ChecksTab() {
       key: "actions",
       header: <span className="dw-sr">{t`Actions`}</span>,
       width: 140,
-      render: (c) => (c.spec && !c.problem ? <CheckNow name={c.name} compact /> : null),
+      render: (c) => (
+        <span className="list-row-actions">
+          {c.spec && !c.problem ? <CheckNow name={c.name} compact /> : null}
+          <ActionMenu label={t`Actions for ${c.name}`} actions={actionsFor(c)} />
+        </span>
+      ),
     },
   ];
   const add = (
@@ -182,6 +231,7 @@ export function ChecksTab() {
       }
     >
       {checks.data ? <WatchRouted checks={list} /> : null}
+      {list.length > 0 ? <ListToolbar place={place} label={t`Filter uptime checks`} /> : null}
       {checks.error ? (
         <ReadFailed error={checks.error} title={t`Can't load the checks`} />
       ) : !checks.data ? (
@@ -198,9 +248,11 @@ export function ChecksTab() {
         <EmptyState icon="eye" title={t`No address is watched yet`} action={add}>
           {t`Watch one from its app's or website's domain, and Dockwell alerts when it stops answering.`}
         </EmptyState>
+      ) : page.total === 0 ? (
+        <ListNoMatch clear={place.clearQuery} />
       ) : phone ? (
         <ul className="alerts-phone-list" aria-label={t`Uptime checks`}>
-          {list.map((c) => (
+          {page.rows.map((c) => (
             <li key={c.id} className="alerts-phone-row">
               <button type="button" className="alerts-phone-item alerts-phone-button" onClick={() => setEditing(c)}>
                 <span className="alerts-phone-title">
@@ -213,12 +265,26 @@ export function ChecksTab() {
                   <LastAnswers check={c} />
                 </span>
               </button>
+              <ActionMenu label={t`Actions for ${c.name}`} actions={actionsFor(c)} />
             </li>
           ))}
         </ul>
       ) : (
-        <Table columns={columns} rows={list} caption={t`Uptime checks`} onRowClick={(c) => setEditing(c)} />
+        <Table
+          columns={sortableColumns(columns, place, SORT_KEYS)}
+          rows={page.rows}
+          caption={t`Uptime checks`}
+          onRowClick={setEditing}
+          onRowContextMenu={(check, at, row) =>
+            context.open(check, at, row, {
+              label: t`Actions for ${check.name}`,
+              actions: actionsFor(check),
+            })
+          }
+        />
       )}
+      <ListPager page={page} onPage={place.setPage} />
+      {context.element}
       {editing ? <WatchSheet check={editing} onClose={() => setEditing(undefined)} /> : null}
       {making ? <WatchSheet onClose={() => setMaking(false)} /> : null}
     </AlertsPage>

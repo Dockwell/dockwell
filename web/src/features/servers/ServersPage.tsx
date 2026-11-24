@@ -12,17 +12,22 @@ import {
   STATUS,
   StatusBadge,
   Table,
+  type TableColumn,
   useMediaQuery,
   useUIStrings,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { RouterButtonLink } from "../../lib/links";
 import { useApps } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { ListPager, type ListPlace, ListToolbar, sortableColumns, useListPlace, useRowMenu } from "../shell/ListTools";
+import { type ListPage, type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { AddServerSheet, dropHandedJoinTicket, useJoinStart } from "./AddServerSheet";
 import { Connecting, FleetUnreadNote, usePageReconnecting } from "./FleetNotes";
@@ -51,7 +56,7 @@ import { WaitingJoinTickets } from "./WaitingJoinTickets";
 import "./ServersPage.css";
 
 /** Which server Servers inspects, or that none is, and which servers it lists, as its URL says. */
-export interface ServersSearch {
+export interface ServersSearch extends ListSearch {
   server?: string;
   /** The inspector was closed, so none opens on its own, a reload and Back included. */
   closed?: boolean;
@@ -66,8 +71,9 @@ export interface ServersSearch {
 /** What Group by says for no groups, in the URL: "-", which no label's key can be. */
 export const NO_GROUPS = "-";
 
-/** How many rows the table shows before "Show all", as Servers-List pages them. */
+/** The number of rows on each page of the fleet table. */
 export const TABLE_PAGE = 20;
+const SORT_KEYS = ["name", "status", "cpu", "memory"] as const;
 
 /**
  * Whether a server needs a look: it isn't reporting, hasn't connected, can't read Docker, or is strained,
@@ -96,6 +102,8 @@ export function ServersPage({
   const unread = useFleetUnread();
   const status = usePageReconnecting(fleet.status);
   const phone = useMediaQuery(PHONE_QUERY);
+  const replaceSearch = useCallback((next: ServersSearch) => onSearch(next, { replace: true }), [onSearch]);
+  const place = useListPlace(search, replaceSearch, SORT_KEYS);
   const [adding, setAddingHere] = useState(false);
   const join = useJoinStart();
   // The address opens it, whenever it comes to ask, as from the command bar while this page is open: the sheet
@@ -122,21 +130,35 @@ export function ServersPage({
   // A term the selector can't read matches no server, so the list never widens past what was asked.
   const selector = useMemo(() => parseSelector(search.selector ?? ""), [search.selector]);
   const terms = selector.terms;
-  const servers = useMemo(
-    () => fleetServers.filter((s) => matchesSelector(selector, s.labels)),
-    [fleetServers, selector],
-  );
+  const tiles = useServerTiles(fleetServers, unread !== undefined);
+  const servers = useMemo(() => {
+    const byId = new Map(tiles.map((tile) => [tile.id, tile]));
+    return sortedRows(
+      fleetServers.filter(
+        (s) =>
+          matchesSelector(selector, s.labels) &&
+          (s.name.toLowerCase().includes(place.query) || byId.get(s.id)?.ip?.includes(place.query)),
+      ),
+      place.sort,
+      (server, key) => {
+        const tile = byId.get(server.id);
+        if (key === "status") return tile?.status;
+        if (key === "cpu") return tile?.cpu;
+        if (key === "memory") return tile?.mem;
+        return server.name;
+      },
+    );
+  }, [fleetServers, selector, tiles, place.query, place.sort]);
+  const page = pagedRows(servers, place.page, TABLE_PAGE);
   const used = useMemo(() => fleetLabels(fleetServers), [fleetServers]);
   const groupKey = search.group === NO_GROUPS ? undefined : (search.group ?? defaultGroupKey(used));
-  // What a choice keeps of the URL: which servers it lists, and how.
-  const kept = { selector: search.selector, group: search.group };
   // Without a server in the URL, the one that needs a look first opens, by the ranking the Overview
   // names one by, once: it goes into the URL, so it stays as others come and go, and a reload or Back keeps it.
   const firstLook = byNeed(servers, serverStatus).find(needsLook)?.id;
   const pick = search.server === undefined && !search.closed ? firstLook : undefined;
   useEffect(() => {
-    if (pick) onSearch({ server: pick, selector: search.selector, group: search.group }, { replace: true });
-  }, [pick, onSearch, search.selector, search.group]);
+    if (pick) replaceSearch({ ...search, server: pick });
+  }, [pick, replaceSearch, search]);
 
   if (fleet.status === "connecting") {
     return (
@@ -152,18 +174,24 @@ export function ServersPage({
   const chosenId = search.server ?? pick;
   const chosen = chosenId ? servers.find((s) => s.id === chosenId) : undefined;
   // Each choice is a step Back goes through; closing is one too.
-  const select = (id: string | undefined) => onSearch(id ? { ...kept, server: id } : { ...kept, closed: true });
-  const listing = { server: search.server, closed: search.closed };
+  const select = (id: string | undefined) => {
+    const nextPage = id ? Math.floor(servers.findIndex((server) => server.id === id) / TABLE_PAGE) : page.page;
+    onSearch({
+      ...search,
+      q: place.typed || undefined,
+      server: id,
+      closed: id ? undefined : true,
+      page: nextPage > 0 ? nextPage + 1 : undefined,
+    });
+  };
   const setSelector = (next: Selector) => {
     const text = selectorText(next.terms, next.bad);
-    onSearch({ ...listing, group: search.group, selector: text !== "" ? text : undefined });
+    onSearch({ ...search, page: undefined, selector: text !== "" ? text : undefined });
   };
   const setGroup = (key: string | undefined) =>
-    onSearch(
-      { ...listing, selector: search.selector, group: key === defaultGroupKey(used) ? undefined : (key ?? NO_GROUPS) },
-      { replace: true },
-    );
-  const groups = groupKey ? groupBy(servers, groupKey) : undefined;
+    onSearch({ ...search, group: key === defaultGroupKey(used) ? undefined : (key ?? NO_GROUPS) }, { replace: true });
+  const mapServers = servers.length > 100 ? page.rows : servers;
+  const groups = groupKey ? groupBy(phone ? page.rows : mapServers, groupKey) : undefined;
   const regions = used.get("region")?.length ?? 0;
   const regionWords = plural(regions, { one: "# region", other: "# regions" });
   // The servers without a region are said apart, so the lead never puts them in one.
@@ -206,6 +234,7 @@ export function ServersPage({
     >
       {unread ? <FleetUnreadNote why={unread.why} heard={unread.heard} /> : null}
       <WaitingJoinTickets />
+      {fleetServers.length > 0 ? <ListToolbar place={place} label={t`Filter servers`} /> : null}
       {used.size > 0 || terms.length > 0 || selector.bad.length > 0 ? (
         <ServersSelector
           selector={selector}
@@ -221,8 +250,15 @@ export function ServersPage({
           <span>
             <Trans>No server matches</Trans>
           </span>
-          <Button variant="ghost" size="sm" onClick={() => setSelector({ terms: [], bad: [] })}>
-            <Trans>Clear the selector</Trans>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              place.clearQuery();
+              onSearch({ ...search, q: undefined, page: undefined, selector: undefined });
+            }}
+          >
+            <Trans>Clear the filter</Trans>
           </Button>
         </section>
       ) : servers.length === 0 ? (
@@ -236,15 +272,17 @@ export function ServersPage({
           }
         />
       ) : phone ? (
-        <PhoneServers
-          servers={servers}
-          chosen={chosen}
-          select={select}
-          unknown={unread !== undefined}
-          groups={groups}
-          groupKey={groupKey}
-          selector={terms}
-        />
+        <>
+          <PhoneServers
+            servers={page.rows}
+            chosen={chosen}
+            select={select}
+            unknown={unread !== undefined}
+            groups={groups}
+            groupKey={groupKey}
+          />
+          <ListPager page={page} onPage={place.setPage} />
+        </>
       ) : (
         <WideServers
           servers={servers}
@@ -254,6 +292,9 @@ export function ServersPage({
           groups={groups}
           groupKey={groupKey}
           selector={terms}
+          place={place}
+          page={page}
+          mapServers={mapServers}
         />
       )}
       {/* ?add opens it only for someone who may add a server (ADR 0059). */}
@@ -361,22 +402,29 @@ function ServersSelector({
  * stays in view as the page scrolls; where it wraps below the table, a choice brings it
  * into view, and closing it puts the keyboard back on the row it was about.
  */
-function WideServers({ servers, chosen, select, unknown, groups, groupKey, selector }: ListProps) {
+function WideServers({
+  servers,
+  chosen,
+  select,
+  unknown,
+  groups,
+  groupKey,
+  selector,
+  place,
+  page,
+  mapServers,
+}: ListProps & { place: ListPlace; page: ListPage<Server>; mapServers: readonly Server[] }) {
   const { t } = useLingui();
   // Picking servers is for a fleet action, so it's there for whoever may plan one (ADR 0094).
   const mayAct = useMay()(ChangeService.method.planReboot, { install: true }).allowed;
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   // What the selector leaves out isn't picked any more.
   const shownPicked = servers.filter((s) => picked.has(s.id));
-  const tiles = useServerTiles(servers, unknown);
+  const tiles = useServerTiles(mapServers, unknown);
   const tileGroups = useTileGroups(tiles, groups, groupKey);
-  const [all, setAll] = useState(false);
-  const beyond = chosen ? servers.findIndex((s) => s.id === chosen.id) >= TABLE_PAGE : false;
   const layout = useRef<HTMLDivElement>(null);
   const after = useRef<{ reveal?: boolean; focus?: string }>({});
   const choose = (id: string | undefined) => {
-    // Keep a revealed row mounted when its inspector closes, so focus can return to it.
-    if (beyond || (id !== undefined && servers.findIndex((s) => s.id === id) >= TABLE_PAGE)) setAll(true);
     after.current = id ? { reveal: true } : { focus: chosen?.id };
     select(id);
   };
@@ -410,14 +458,14 @@ function WideServers({ servers, chosen, select, unknown, groups, groupKey, selec
         ) : null}
         {shownPicked.length > 0 ? <PickedBar picked={shownPicked} onClear={() => setPicked(new Set())} /> : null}
         <ServersTable
-          servers={servers}
+          servers={page.rows}
           tiles={tiles}
           chosen={chosen}
           select={choose}
           unknown={unknown}
           selector={selector}
-          all={all || beyond}
-          onShowAll={() => setAll(true)}
+          place={place}
+          page={page}
           picked={mayAct ? picked : undefined}
           onPick={setPicked}
         />
@@ -436,137 +484,151 @@ function ServersTable({
   chosen,
   select,
   selector,
-  all,
-  onShowAll,
+  place,
+  page,
   picked,
   onPick,
 }: ListProps & {
   tiles: readonly FleetServer[];
-  all: boolean;
-  onShowAll: () => void;
+  place: ListPlace;
+  page: ListPage<Server>;
   /** The servers picked for a fleet action; undefined offers no checkboxes. */
   picked?: ReadonlySet<string> | undefined;
   onPick?: (next: ReadonlySet<string>) => void;
 }) {
   const { t } = useLingui();
-  const strings = useUIStrings();
+  const navigate = useNavigate();
+  const context = useRowMenu<Server>();
   const runs = useRunsByServer();
   const byId = new Map(tiles.map((tile) => [tile.id, tile]));
-  const rows = all ? servers : servers.slice(0, TABLE_PAGE);
+  const rows = servers;
   const matching = selectorText(selector ?? []);
-  const count = servers.length;
-  const shown = rows.length;
+  const actionsFor = (server: Server): MenuAction[] => [
+    { id: "inspect", label: t`Inspect`, onSelect: () => select(server.id) },
+    {
+      id: "open",
+      label: t`Open server`,
+      icon: "server",
+      onSelect: () => void navigate({ to: "/servers/$serverId", params: { serverId: server.id } }),
+    },
+  ];
   return (
     <section className="servers-table" aria-label={t`Server list`}>
       <Table<Server>
         density="compact"
-        caption={matching ? t`Servers matching ${matching}, sorted by name` : t`Servers, sorted by name`}
+        caption={
+          place.sort
+            ? t`Servers`
+            : matching
+              ? t`Servers matching ${matching}, sorted by name`
+              : t`Servers, sorted by name`
+        }
         rows={rows}
         rowKey="id"
         rowClassName={(s) => `servers-row-${s.id}`}
         selectedKey={chosen?.id ?? null}
         onRowClick={(s) => select(s.id)}
-        columns={[
-          ...(picked && onPick
-            ? [
-                {
-                  key: "pick",
-                  header: <PickAll rows={rows} picked={picked} onPick={onPick} />,
-                  width: 40,
-                  // Named by the server's name in its row, so the row is named as it was, by the server first.
-                  render: (s: Server) => {
-                    return (
-                      <input
-                        type="checkbox"
-                        className="servers-pick"
-                        aria-labelledby={`servers-name-${s.id}`}
-                        checked={picked.has(s.id)}
-                        onChange={(e) => {
-                          const next = new Set(picked);
-                          if (e.target.checked) next.add(s.id);
-                          else next.delete(s.id);
-                          onPick(next);
-                        }}
-                      />
-                    );
+        onRowContextMenu={(server, at, element) =>
+          context.open(server, at, element, {
+            label: t`Actions for ${server.name}`,
+            actions: actionsFor(server),
+          })
+        }
+        columns={sortableColumns<Server>(
+          [
+            ...(picked && onPick
+              ? [
+                  {
+                    key: "pick",
+                    header: <PickAll rows={rows} picked={picked} onPick={onPick} />,
+                    width: 40,
+                    // Named by the server's name in its row, so the row is named as it was, by the server first.
+                    render: (s: Server) => {
+                      return (
+                        <input
+                          type="checkbox"
+                          className="servers-pick"
+                          aria-labelledby={`servers-name-${s.id}`}
+                          checked={picked.has(s.id)}
+                          onChange={(e) => {
+                            const next = new Set(picked);
+                            if (e.target.checked) next.add(s.id);
+                            else next.delete(s.id);
+                            onPick(next);
+                          }}
+                        />
+                      );
+                    },
                   },
-                },
-              ]
-            : []),
-          {
-            key: "name",
-            header: t`Server`,
-            width: 200,
-            render: (s) => (
-              <span className="dw-cell">
-                <span className="dw-cell-title servers-table-name" id={`servers-name-${s.id}`}>
-                  {s.name}
+                ]
+              : []),
+            {
+              key: "name",
+              header: t`Server`,
+              width: 200,
+              render: (s) => (
+                <span className="dw-cell">
+                  <span className="dw-cell-title servers-table-name" id={`servers-name-${s.id}`}>
+                    {s.name}
+                  </span>
+                  {byId.get(s.id)?.ip ? <code className="dw-cell-sub">{byId.get(s.id)?.ip}</code> : null}
                 </span>
-                {byId.get(s.id)?.ip ? <code className="dw-cell-sub">{byId.get(s.id)?.ip}</code> : null}
-              </span>
-            ),
-          },
-          {
-            key: "status",
-            header: t`Status`,
-            width: 160,
-            render: (s) => {
-              // Why it isn't well, as the old list said it, then what it is.
-              const meta = [byId.get(s.id)?.note ?? "", s.controlServer ? t`Control server` : ""]
-                .filter(Boolean)
-                .join(" · ");
-              return <StatusBadge status={byId.get(s.id)?.status ?? serverStatus(s)} meta={meta || undefined} />;
+              ),
             },
-          },
-          {
-            key: "cpu",
-            header: t`CPU`,
-            width: 72,
-            align: "right",
-            render: (s) => percent(byId.get(s.id)?.cpu),
-          },
-          {
-            key: "memory",
-            header: t`Memory`,
-            width: 84,
-            align: "right",
-            render: (s) => percent(byId.get(s.id)?.mem),
-          },
-          {
-            key: "runs",
-            header: t`Runs`,
-            muted: true,
-            render: (s) => {
-              const said = runs.get(s.id) ?? "";
-              return said ? (
-                <span className="servers-table-runs" title={said}>
-                  {said}
-                </span>
-              ) : (
-                <span aria-hidden="true">—</span>
-              );
+            {
+              key: "status",
+              header: t`Status`,
+              width: 160,
+              render: (s) => {
+                // Why it isn't well, as the old list said it, then what it is.
+                const meta = [byId.get(s.id)?.note ?? "", s.controlServer ? t`Control server` : ""]
+                  .filter(Boolean)
+                  .join(" · ");
+                return <StatusBadge status={byId.get(s.id)?.status ?? serverStatus(s)} meta={meta || undefined} />;
+              },
             },
-          },
-        ]}
-      />
-      <div className="servers-table-foot">
-        {rows.length < count ? (
-          <>
-            <span>
-              <Trans>
-                Showing {shown} of {count} · sorted by name
-              </Trans>
-            </span>
-            <Button variant="ghost" size="sm" onClick={onShowAll}>
-              <Trans>Show all {count}</Trans>
-            </Button>
-          </>
-        ) : (
-          <span>
-            {strings.fleetGrid.servers(count)} · <Trans>sorted by name</Trans>
-          </span>
+            {
+              key: "cpu",
+              header: t`CPU`,
+              width: 72,
+              align: "right",
+              render: (s) => percent(byId.get(s.id)?.cpu),
+            },
+            {
+              key: "memory",
+              header: t`Memory`,
+              width: 84,
+              align: "right",
+              render: (s) => percent(byId.get(s.id)?.mem),
+            },
+            {
+              key: "runs",
+              header: t`Runs`,
+              muted: true,
+              render: (s) => {
+                const said = runs.get(s.id) ?? "";
+                return said ? (
+                  <span className="servers-table-runs" title={said}>
+                    {said}
+                  </span>
+                ) : (
+                  <span aria-hidden="true">—</span>
+                );
+              },
+            },
+            {
+              key: "actions",
+              header: <span className="dw-sr">{t`Actions`}</span>,
+              width: 48,
+              render: (server) => <ActionMenu label={t`Actions for ${server.name}`} actions={actionsFor(server)} />,
+            },
+          ] satisfies TableColumn<Server>[],
+          place,
+          SORT_KEYS,
         )}
-      </div>
+      />
+      <ListPager page={page} onPage={place.setPage} />
+      {context.element}
     </section>
   );
 }
@@ -593,7 +655,14 @@ function PickAll({
       ref={(el) => {
         if (el) el.indeterminate = shown > 0 && !every;
       }}
-      onChange={() => onPick(every ? new Set() : new Set([...picked, ...rows.map((s) => s.id)]))}
+      onChange={() => {
+        const next = new Set(picked);
+        for (const row of rows) {
+          if (every) next.delete(row.id);
+          else next.add(row.id);
+        }
+        onPick(next);
+      }}
     />
   );
 }

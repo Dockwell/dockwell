@@ -32,7 +32,6 @@ import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
@@ -41,6 +40,7 @@ import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
 import { EmptyState } from "../shell/EmptyState";
+import { useListSearchShortcut } from "../shell/ListTools";
 import { useImageActions } from "./DockerImageActions";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { shortImageId } from "./imageIdentity";
@@ -93,6 +93,7 @@ function selection(row: ImageRow) {
 
 export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server, "id" | "name">[]; fleet: boolean }) {
   const { t, i18n } = useLingui();
+  const searchInput = useListSearchShortcut();
   const compact = useMediaQuery(fleet ? "(max-width: 1120px)" : "(max-width: 1000px)");
   const mayPrune = useMay()(DockerService.method.planDockerMaintenance).allowed;
   const [pruning, setPruning] = useState(false);
@@ -306,6 +307,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
           onChange={selectFilter}
         />
         <TextField
+          ref={searchInput}
           icon="search"
           value={input}
           maxLength={255}

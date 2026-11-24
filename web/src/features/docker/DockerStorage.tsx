@@ -35,6 +35,7 @@ import { useHeldRows } from "../../lib/loading";
 import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { EmptyState } from "../shell/EmptyState";
+import { useListSearchShortcut } from "../shell/ListTools";
 import { isHex64VolumeName, shortAnonymousVolumeName } from "./cleanupHelpers";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { DockerStorageCreate } from "./DockerStorageCreate";
@@ -97,6 +98,7 @@ export function DockerStorage({
   volumes?: boolean;
 }) {
   const { t, i18n } = useLingui();
+  const searchInput = useListSearchShortcut();
   const compact = useMediaQuery("(max-width: 1150px)");
   const kind = volumes ? DockerObjectKind.VOLUME : DockerObjectKind.NETWORK;
   const may = useMay();
@@ -303,6 +305,7 @@ export function DockerStorage({
           }}
         />
         <TextField
+          ref={searchInput}
           icon="search"
           aria-label={find}
           placeholder={find}

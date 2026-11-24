@@ -156,11 +156,81 @@ describe("the backups page", () => {
     await expectAccessible(container);
   });
 
-  it("says the runs are the newest, when there are more than a page holds", async () => {
-    const page = Array.from({ length: 3 }, (_, i) => aBackup({ id: `bkp_${i}` }));
-    renderAt("/backups", api([], { backups: { listBackups: () => ({ backups: page, nextPageToken: "more" }) } }));
+  it("fetches the next cursor on demand and includes older backups in search", async () => {
+    const user = userEvent.setup();
+    const newest = Array.from({ length: 50 }, (_, i) => aBackup({ id: `bkp_${i}` }));
+    const older = aBackup({
+      id: "bkp_older",
+      volume: "older-orders",
+      startedAt: timestampFromDate(new Date("2026-11-05T03:00:00Z")),
+    });
+    const listBackups = vi.fn(({ pageToken }: { pageToken: string }) =>
+      pageToken === "older" ? { backups: [older], nextPageToken: "" } : { backups: newest, nextPageToken: "older" },
+    );
+    renderAt("/backups", api([], { backups: { listBackups } }));
     const runs = await screen.findByRole("region", { name: "Recent runs" });
-    expect(within(runs).getByText("3 newest")).toBeVisible();
+    expect(within(runs).getByText("1-50 of 50+")).toBeVisible();
+    expect(listBackups).toHaveBeenCalledTimes(1);
+    await user.click(within(runs).getByRole("button", { name: "Next" }));
+    expect(await within(runs).findByText("51-51 of 51")).toBeVisible();
+    expect(listBackups).toHaveBeenLastCalledWith(
+      expect.objectContaining({ pageSize: 50, pageToken: "older" }),
+      expect.anything(),
+    );
+    await user.click(within(runs).getByRole("button", { name: "Previous" }));
+    await user.type(within(runs).getByRole("searchbox", { name: "Filter backups" }), "older-orders");
+    expect(await within(runs).findByText("older-orders")).toBeVisible();
+  });
+
+  it("shows matches immediately and reads beyond the loaded backups only on request", async () => {
+    const user = userEvent.setup();
+    const loaded = aBackup({ volume: "orders", destination: "archive" });
+    const older = aBackup({
+      id: "bkp_older",
+      volume: "orders-previous",
+      destination: "archive",
+      startedAt: timestampFromDate(new Date("2026-11-05T03:00:00Z")),
+    });
+    const listBackups = vi.fn(({ pageToken }: { pageToken: string }) =>
+      pageToken ? { backups: [older] } : { backups: [loaded], nextPageToken: "older" },
+    );
+    renderAt("/backups", api([], { backups: { listBackups } }));
+    const runs = await screen.findByRole("region", { name: "Recent runs" });
+    const search = within(runs).getByRole("searchbox", { name: "Filter backups" });
+    await user.type(search, "archive");
+    const all = await within(runs).findByRole("button", { name: "Search all backups" });
+    expect(within(runs).getByText("orders", { exact: true })).toBeVisible();
+    expect(listBackups).toHaveBeenCalledTimes(1);
+    await user.click(all);
+    expect(await within(runs).findByText("orders-previous")).toBeVisible();
+    expect(listBackups).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls the first cursor only while a backup is running", async () => {
+    const user = userEvent.setup();
+    const newest = Array.from({ length: 50 }, (_, i) =>
+      aBackup({
+        id: `bkp_${i}`,
+        state: i === 0 ? BackupState.RUNNING : BackupState.DONE,
+      }),
+    );
+    const older = aBackup({
+      id: "bkp_older",
+      volume: "older-orders",
+      startedAt: timestampFromDate(new Date("2026-11-05T03:00:00Z")),
+    });
+    const listBackups = vi.fn(({ pageToken }: { pageToken: string }) =>
+      pageToken ? { backups: [older] } : { backups: newest, nextPageToken: "older" },
+    );
+    renderAt("/backups", api([], { backups: { listBackups } }));
+    const runs = await screen.findByRole("region", { name: "Recent runs" });
+    await user.click(within(runs).getByRole("button", { name: "Next" }));
+    expect(await within(runs).findByText("older-orders")).toBeVisible();
+    const newestCalls = () => listBackups.mock.calls.filter(([req]) => !req.pageToken).length;
+    const before = newestCalls();
+    await waitFor(() => expect(newestCalls()).toBeGreaterThan(before), { timeout: 4000 });
+    expect(listBackups.mock.calls.filter(([req]) => req.pageToken)).toHaveLength(1);
+    expect(within(runs).getByText("older-orders")).toBeVisible();
   });
 
   it("stacks on a phone", async () => {

@@ -34,7 +34,8 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
@@ -50,24 +51,112 @@ import { DestinationsPanel, useDestinations } from "./DestinationsPanel";
 import { PoliciesPanel, usePolicies } from "./PoliciesPanel";
 import { PolicySheet } from "./PolicySheet";
 import { useRestoreWhole } from "./RestoreWhole";
-import { useBackups, useVolumes } from "./useBackups";
+import { useBackupPages, useRefreshOlderBackup, useVolumes } from "./useBackups";
 import { backupStatus, useMethodWord, useStateWord, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { LIST_PAGE_SIZE, type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { RefLink } from "../shell/RefLink";
+
+/** The list's place, in its URL: its filter, its sort, its page, and the state it shows. */
+export interface BackupsSearch extends ListSearch {
+  state?: string;
+}
+
+/** The columns the list sorts by, as its address names them. */
+const SORT_KEYS = ["started", "volume", "size"] as const;
+
+/** A backup's state as the address holds it. */
+function stateKey(state: BackupState): string {
+  return state === BackupState.DONE ? "done" : state === BackupState.FAILED ? "failed" : "running";
+}
 
 /**
  * Every backup, newest first: back one up, restore one through a plan, or delete
  * one. A server is a field here, as it is everywhere: with one, it's left out.
  */
-export function BackupsPage() {
+export function BackupsPage({
+  search = {},
+  onSearch,
+}: {
+  search?: BackupsSearch;
+  onSearch?: (next: BackupsSearch) => void;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const volumes = useVolumes();
-  const query = useBackups();
+  const query = useBackupPages();
   const [taking, setTaking] = useState(false);
   const [scheduling, setScheduling] = useState<{ editing?: BackupPolicyInfo }>();
-  const backups = query.data?.backups ?? [];
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const { backups, fetchNextPage, hasNextPage, isFetching, isFetchNextPageError } = query;
+  const [searchingAll, setSearchingAll] = useState(false);
+  const [nextPage, setNextPage] = useState<number>();
+  const filtered = !!(place.query || place.sort || search.state);
+  const states = hasNextPage ? ["done", "failed", "running"] : [...new Set(backups.map((b) => stateKey(b.state)))];
+  const listed = useMemo(() => {
+    const q = place.query;
+    const filtered = backups.filter(
+      (b) =>
+        (!search.state || stateKey(b.state) === search.state) &&
+        (q === "" ||
+          b.volume.toLowerCase().includes(q) ||
+          b.destination.toLowerCase().includes(q) ||
+          b.serverName.toLowerCase().includes(q)),
+    );
+    return sortedRows(filtered, place.sort, (b, key) =>
+      key === "started"
+        ? b.startedAt
+          ? timestampMs(b.startedAt)
+          : null
+        : key === "size"
+          ? b.sizeBytes > 0n
+            ? Number(b.sizeBytes)
+            : null
+          : b.volume,
+    );
+  }, [backups, search.state, place.query, place.sort]);
+  const requested = nextPage ?? place.page;
+  const needsMore =
+    hasNextPage &&
+    (searchingAll || backups.length === 0 || (requested > 0 && listed.length <= requested * LIST_PAGE_SIZE));
+  useEffect(() => {
+    if (needsMore && !isFetching && !isFetchNextPageError) void fetchNextPage();
+  }, [needsMore, isFetching, isFetchNextPageError, fetchNextPage]);
+  const page = pagedRows(listed, place.page);
+  const waitingForPage = hasNextPage && place.page > page.page;
+  const changePage = (target: number) => {
+    if (target >= page.pages) {
+      if (hasNextPage) setNextPage(target);
+    } else {
+      setNextPage(undefined);
+      place.setPage(target);
+    }
+  };
+  useEffect(() => {
+    if (nextPage === undefined) return;
+    if (listed.length > nextPage * LIST_PAGE_SIZE) {
+      setNextPage(undefined);
+      place.setPage(nextPage);
+    } else if (!hasNextPage) {
+      setNextPage(undefined);
+    }
+  }, [listed.length, nextPage, hasNextPage, place.setPage]);
+  const loadingList = query.isPending || (needsMore && query.isFetchingNextPage && (waitingForPage || !backups.length));
+  const cancelHistory = () => {
+    setSearchingAll(false);
+    setNextPage(undefined);
+  };
   const policies = usePolicies().data?.policies ?? [];
   const destinationsRead = useDestinations();
   const destinations = destinationsRead.data?.destinations ?? [];
@@ -79,10 +168,9 @@ export function BackupsPage() {
     ) : null;
 
   const failed = backups.filter((b) => b.state === BackupState.FAILED).length;
-  // The list is one page, the newest: with more beyond it, the count says so rather than claim them all.
   const shown = backups.length;
   const runs = [
-    query.data?.nextPageToken ? t`${shown} newest` : plural(shown, { one: "# backup", other: "# backups" }),
+    hasNextPage ? t`${shown} newest` : plural(shown, { one: "# backup", other: "# backups" }),
     failed > 0 ? plural(failed, { one: "# failed", other: "# failed" }) : "",
   ]
     .filter(Boolean)
@@ -100,13 +188,108 @@ export function BackupsPage() {
         <span className="backups-runs-lead">{runs}</span>
         {phone ? action : null}
       </div>
-      <BackupRows backups={backups} />
+      {backups.length > 0 ? (
+        <div className="list-bar">
+          <ListSearchField
+            label={t`Filter backups`}
+            placeholder={t`Filter by volume, destination or server`}
+            size={phone ? "lg" : "sm"}
+            value={place.typed}
+            onChange={(value) => {
+              cancelHistory();
+              place.setTyped(value);
+            }}
+          />
+          {phone ? (
+            <ListSortField place={place} columns={{ started: t`Started`, volume: t`Volume`, size: t`Size` }} />
+          ) : null}
+          {states.length > 1 || search.state ? (
+            <SelectField
+              aria-label={t`Status`}
+              size="sm"
+              value={search.state ?? ""}
+              options={[
+                { value: "", label: t`Every state` },
+                ...states.map((state) => ({
+                  value: state,
+                  label: state === "done" ? t`Done` : state === "failed" ? t`Failed` : t`Running`,
+                })),
+              ]}
+              onChange={(event) => {
+                cancelHistory();
+                onSearch?.({ ...search, page: undefined, state: event.target.value || undefined });
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
+      {filtered && hasNextPage ? (
+        <div className="list-bar">
+          <span className="backups-runs-lead">
+            <Trans>Filter and sort use loaded backups.</Trans>
+          </span>
+          <Button
+            size="sm"
+            onClick={() => {
+              setSearchingAll(true);
+              if (isFetchNextPageError) void fetchNextPage();
+            }}
+            loading={searchingAll && !isFetchNextPageError}
+          >
+            <Trans>Search all backups</Trans>
+          </Button>
+        </div>
+      ) : null}
+      {waitingForPage ? (
+        query.isFetchingNextPage ? (
+          <Loading label={t`Loading backups`}>
+            <Panel flush>
+              <SkeletonRows rows={4} lead="icon" end="pill" />
+            </Panel>
+          </Loading>
+        ) : null
+      ) : listed.length === 0 ? (
+        <EmptyState
+          icon="search"
+          title={t`Nothing matches`}
+          action={
+            <Button
+              size="lg"
+              onClick={() => {
+                cancelHistory();
+                place.clearQuery();
+                onSearch?.({ ...search, q: undefined, page: undefined, state: undefined });
+              }}
+            >
+              <Trans>Clear the filter</Trans>
+            </Button>
+          }
+        ></EmptyState>
+      ) : (
+        <>
+          <BackupRows backups={page.rows} place={place} />
+          <ListPager
+            page={page}
+            onPage={changePage}
+            more={hasNextPage}
+            busy={nextPage !== undefined && query.isFetchingNextPage}
+          />
+        </>
+      )}
     </section>
   );
   return (
     <Page title={t`Backups`} lead={where} phoneSub={where} back="/more" actions={backups.length > 0 ? action : null}>
       {query.error ? (
-        <Callout tone="critical" title={t`Dockwell can't read its backups`}>
+        <Callout
+          tone="critical"
+          title={t`Dockwell can't read its backups`}
+          actions={
+            <Button onClick={() => void (isFetchNextPageError ? fetchNextPage() : query.refetch())}>
+              <Trans>Try again</Trans>
+            </Button>
+          }
+        >
           {sentence(query.error)}
         </Callout>
       ) : null}
@@ -120,7 +303,7 @@ export function BackupsPage() {
               onEdit={(policy) => setScheduling({ editing: policy })}
             />
           ) : null}
-          {query.isPending ? (
+          {loadingList ? (
             <section className="backups-runs">
               <div className="backups-runs-head">
                 <h2 className="dw-text-heading">
@@ -133,7 +316,7 @@ export function BackupsPage() {
                 </Panel>
               </Loading>
             </section>
-          ) : backups.length === 0 ? (
+          ) : backups.length === 0 && !hasNextPage && !query.error ? (
             volumes.length > 0 ? (
               <EmptyState icon="archive" title={t`No backups yet`} action={action}>
                 <Trans>Back up a volume before you change what's in it. A database's backup stops nothing.</Trans>
@@ -157,7 +340,7 @@ export function BackupsPage() {
                 <Trans>A backup is of a volume, and no app keeps one yet.</Trans>
               </EmptyState>
             )
-          ) : phone ? (
+          ) : phone && backups.length > 0 ? (
             recent
           ) : null}
         </div>
@@ -168,7 +351,7 @@ export function BackupsPage() {
         </div>
       </div>
       {/* Under both columns on a wide screen, so each run's volume, state and reason have the page's width. */}
-      {!phone && !query.isPending && backups.length > 0 ? recent : null}
+      {!phone && !loadingList && backups.length > 0 ? recent : null}
       {taking ? <BackUpSheet volumes={volumes} destinations={destinations} onClose={() => setTaking(false)} /> : null}
       {scheduling ? (
         <PolicySheet
@@ -198,10 +381,12 @@ export function useBackupActions() {
   // A check in flight, and why one was refused, each on its own backup.
   const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
   const [refused, setRefused] = useState<ReadonlyMap<string, string>>(new Map());
-  const listed = () =>
+  const refreshOlder = useRefreshOlderBackup();
+  const listed = (id: string) =>
     Promise.all([
+      refreshOlder(id),
       queries.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: undefined }),
       }),
       queries.invalidateQueries({
         queryKey: createConnectQueryKey({ schema: BackupService.method.getBackup, cardinality: "finite" }),
@@ -218,7 +403,7 @@ export function useBackupActions() {
     });
     try {
       await client.drillBackup({ id: backup.id });
-      await listed();
+      await listed(backup.id);
     } catch (error) {
       setRefused((was) => new Map(was).set(backup.id, sentence(error)));
     } finally {
@@ -236,7 +421,7 @@ export function useBackupActions() {
     setBringBackFailure(undefined);
     try {
       await client.fetchBackup({ id: backup.id, server });
-      await listed();
+      await listed(backup.id);
     } catch (error) {
       setBringBackFailure(sentence(error));
     }
@@ -268,7 +453,16 @@ export function useBackupActions() {
  * back from a destination, or is deleted, with the sheets that do it. The Backups
  * page shows every volume's; a database's page and a volume's show their own.
  */
-export function BackupRows({ backups, caption }: { backups: readonly Backup[]; caption?: string }) {
+export function BackupRows({
+  backups,
+  caption,
+  place,
+}: {
+  backups: readonly Backup[];
+  caption?: string;
+  /** Where the Backups page's list is, for its sortable heads; a volume's own list has none. */
+  place?: ListPlace;
+}) {
   const { t } = useLingui();
   const actions = useBackupActions();
   return (
@@ -282,6 +476,7 @@ export function BackupRows({ backups, caption }: { backups: readonly Backup[]; c
         onCheck={actions.check}
         checking={actions.checking}
         refused={actions.refused}
+        place={place}
       />
       {actions.view}
     </>
@@ -297,6 +492,7 @@ function BackupsList({
   onCheck,
   checking,
   refused,
+  place,
 }: {
   backups: readonly Backup[];
   caption: string;
@@ -306,6 +502,7 @@ function BackupsList({
   onCheck: (backup: Backup) => void;
   checking: ReadonlySet<string>;
   refused: ReadonlyMap<string, string>;
+  place?: ListPlace | undefined;
 }) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -385,6 +582,43 @@ function BackupsList({
   );
   // An action on what you can see stays where it is, off, with why (ADR 0059).
   const may = useMay();
+  const navigate = useNavigate();
+  const rowMenu = useRowMenu<Backup>();
+  // A backup's menu: the same steps its row's buttons take, in one place, each as the reader may.
+  const menuFor = (b: Backup): MenuAction[] => {
+    if (b.state === BackupState.RUNNING) return [];
+    const restore = may(BackupService.method.restoreBackup, { environment: b.environmentId });
+    const fetch = may(BackupService.method.fetchBackup, { environment: b.environmentId });
+    const remove = may(BackupService.method.deleteBackup, { environment: b.environmentId });
+    const off = (offer: typeof restore) =>
+      offer.allowed ? {} : { off: offer.reason || undefined, disabled: !offer.reason };
+    return [
+      {
+        id: "open",
+        icon: "archive",
+        label: t`Open`,
+        onSelect: () => void navigate({ to: "/backups/$backupId", params: { backupId: b.id } }),
+      },
+      ...(b.onServer
+        ? [{ id: "restore", icon: "undo" as const, label: t`Restore`, ...off(restore), onSelect: () => onRestore(b) }]
+        : []),
+      ...(b.copy === BackupCopy.STORED && !b.onServer && b.fetchOnto.length > 0
+        ? [{ id: "fetch", icon: "download" as const, label: t`Fetch`, ...off(fetch), onSelect: () => onFetch(b) }]
+        : []),
+      ...(b.onServer && b.state === BackupState.DONE
+        ? [
+            {
+              id: "check",
+              icon: "check" as const,
+              label: t`Check it now`,
+              ...(checking.has(b.id) ? { disabled: true } : {}),
+              onSelect: () => onCheck(b),
+            },
+          ]
+        : []),
+      { id: "delete", icon: "trash", label: t`Delete`, danger: true, ...off(remove), onSelect: () => onDelete(b) },
+    ];
+  };
   const actions = (b: Backup) =>
     b.state === BackupState.RUNNING ? null : (
       <span className="backup-actions">
@@ -416,14 +650,22 @@ function BackupsList({
           onClick={() => onDelete(b)}
           {...may(BackupService.method.deleteBackup, { environment: b.environmentId }).off}
         />
+        <ActionMenu label={t`Actions for this backup of ${b.volume}`} actions={menuFor(b)} />
       </span>
     );
   const columns: TableColumn<Backup>[] = [
-    { key: "started", header: t`Started`, width: 136, render: when },
+    {
+      key: "started",
+      header: place ? <SortHeader label={t`Started`} sortKey="started" place={place} /> : t`Started`,
+      sort: place?.sortOf("started"),
+      width: 148,
+      render: when,
+    },
     {
       // How it was taken under its volume, with where, as a phone's line has them, so the status has the room.
       key: "volume",
-      header: t`Volume`,
+      header: place ? <SortHeader label={t`Volume`} sortKey="volume" place={place} /> : t`Volume`,
+      sort: place?.sortOf("volume"),
       render: (b) => {
         const under = [method(b.method, b.database), where(b)].filter(Boolean).join(" · ");
         return (
@@ -439,16 +681,17 @@ function BackupsList({
     { key: "state", header: t`Status`, render: state },
     {
       key: "size",
-      header: t`Size`,
+      header: place ? <SortHeader label={t`Size`} sortKey="size" place={place} /> : t`Size`,
+      sort: place?.sortOf("size"),
       align: "right",
-      width: 80,
+      width: 92,
       render: (b) => (b.sizeBytes > 0n ? formatBytes(b.sizeBytes, i18n.locale) : ""),
     },
     { key: "took", header: t`Took`, align: "right", width: 72, muted: true, render: took },
     {
       key: "actions",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 128,
+      width: 168,
       align: "right",
       render: actions,
     },
@@ -480,7 +723,21 @@ function BackupsList({
       </ul>
     );
   }
-  return <Table<Backup> className="backup-table" columns={columns} rows={backups} caption={caption} />;
+  return (
+    <>
+      <Table<Backup>
+        className="backup-table"
+        columns={columns}
+        rows={backups}
+        caption={caption}
+        onRowClick={(b) => void navigate({ to: "/backups/$backupId", params: { backupId: b.id } })}
+        onRowContextMenu={(b, at, el) =>
+          rowMenu.open(b, at, el, { label: t`Actions for this backup of ${b.volume}`, actions: menuFor(b) })
+        }
+      />
+      {rowMenu.element}
+    </>
+  );
 }
 
 /** A backup's volume, as a link to its page. */
@@ -546,6 +803,7 @@ function DeleteSheet({
 }) {
   const { t } = useLingui();
   const queries = useQueryClient();
+  const refreshOlder = useRefreshOlderBackup();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
   const failed = backup.state === BackupState.FAILED;
@@ -558,8 +816,9 @@ function DeleteSheet({
     setFailure(undefined);
     try {
       await client.deleteBackup({ id: backup.id, serverOnly });
+      await refreshOlder(backup.id, !serverOnly);
       await queries.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: undefined }),
       });
       onClose();
     } catch (error) {

@@ -4,11 +4,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { DOMAIN_GROUPS, type DomainGroup } from "../../features/apps/domains";
 import { DomainsPage, type DomainsSearch } from "../../features/domains/DomainsPage";
+import { readListSearch } from "../../features/shell/list";
 
-/** Reads the list's filters from its URL, leaving out what isn't one. */
+/** Reads the list's filters and where it is in them from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): DomainsSearch {
-  const out: DomainsSearch = {};
-  for (const key of ["q", "server", "private"] as const) {
+  const out: DomainsSearch = { ...readListSearch(search) };
+  for (const key of ["server", "private"] as const) {
     const value = search[key];
     if (typeof value === "string" && value !== "") out[key] = value;
   }

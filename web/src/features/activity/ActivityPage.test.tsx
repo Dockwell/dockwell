@@ -118,7 +118,7 @@ describe("Activity", () => {
     const today = await screen.findByRole("region", { name: "Today" });
     const rows = within(within(today).getByRole("table")).getAllByRole("row");
     expect(rows.map((r) => r.textContent)).toEqual([
-      "EventByWhen",
+      "EventByWhenActions",
       expect.stringMatching(/^Create the project shop2 to createMCMira Chen2 min ago/),
       expect.stringMatching(/^Signed inFrom the panelMCMira Chen1 h ago/),
     ]);

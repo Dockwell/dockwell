@@ -50,11 +50,11 @@ export async function systemServicesFlow(page: Page, { origin, step, shoot }: Sy
     .waitFor({ state: "detached" })
     .catch(() => fail("Running shows a failed unit"));
   await page.getByRole("radio", { name: /^All/ }).click();
-  await page.getByRole("textbox", { name: "Filter system services" }).fill("key-value");
+  await page.getByRole("searchbox", { name: "Filter system services" }).fill("key-value");
   await table.getByText("nginx.service").waitFor({ state: "detached" });
   await table.getByText("redis-server.service").waitFor();
   if ((await table.locator("tbody tr").count()) !== 1) fail("the search for key-value found more than the one unit");
-  await page.getByRole("textbox", { name: "Filter system services" }).fill("");
+  await page.getByRole("searchbox", { name: "Filter system services" }).fill("");
 
   // A failed unit says why in its row, from what its own process wrote (ADR 0082).
   await first.getByText(/unknown directive in \/etc\/nginx/).waitFor();

@@ -55,6 +55,7 @@ const { values, positionals } = parseArgs({
 });
 const bin = resolve(positionals[0] ?? "bin/dockwell");
 const shots = values.shots ? resolve(values.shots) : undefined;
+const shotPrefix = process.env["DOCKWELL_E2E_SHOT_PREFIX"] ?? (values.flow ? `${values.flow}-` : "");
 const port = 7650 + Math.floor(Math.random() * 300);
 const origin = `http://localhost:${port}`;
 const data = mkdtempSync(join(tmpdir(), "dockwell-e2e-"));
@@ -270,7 +271,7 @@ async function withAuthenticator(context: BrowserContext, page: Page) {
 }
 
 async function shoot(page: Page, name: string) {
-  if (!shots || (values.flow && !name.startsWith(`${values.flow}-`))) return;
+  if (!shots || !name.startsWith(shotPrefix)) return;
   const viewport = page.viewportSize();
   const colorScheme = await page.evaluate(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
@@ -737,7 +738,8 @@ async function main() {
   const row = page.getByRole("table", { name: "Your API tokens" }).getByRole("row").filter({ hasText: "e2e script" });
   await row.filter({ hasText: /from\s*127\.0\.0\.1/ }).waitFor();
   await shoot(page, "tokens");
-  await row.getByRole("button", { name: "Revoke e2e script" }).click();
+  await row.getByRole("button", { name: "Actions for e2e script" }).click();
+  await row.getByRole("menuitem", { name: "Revoke", exact: true }).click();
   await row.getByRole("button", { name: "Revoke", exact: true }).click();
   await row.waitFor({ state: "detached" });
   for (const [protocol, after] of [

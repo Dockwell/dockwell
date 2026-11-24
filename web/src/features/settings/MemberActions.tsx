@@ -41,33 +41,46 @@ type Action = "role" | "remove" | "transfer";
  * owner, so those rows have no menu.
  */
 export function MemberMenu({ member }: { member: Member }) {
-  const { t } = useLingui();
-  const may = useMay();
-  const [doing, setDoing] = useState<Action>();
-  const name = member.user?.name ?? "";
-
-  // The owner's role moves only by a transfer, and nobody manages themselves.
-  if (member.you || installRole(member) === Role.OWNER) return null;
-  const mayRole = may(MemberService.method.setMemberRole);
-  const mayRemove = may(MemberService.method.removeMember);
-  const mayTransfer = may(MemberService.method.transferOwnership);
-  if (!mayRole.allowed && !mayRemove.allowed) return null;
-
-  const actions: MenuAction[] = [{ id: "role", label: t`Change role`, onSelect: () => setDoing("role") }];
-  if (mayTransfer.allowed) {
-    actions.push({ id: "transfer", label: t`Transfer ownership`, onSelect: () => setDoing("transfer") });
-  }
-  actions.push({ id: "remove", label: t`Remove`, danger: true, onSelect: () => setDoing("remove") });
+  const { menuFor, sheet } = useMemberActions();
+  const { label, actions } = menuFor(member);
   return (
     <>
-      <ActionMenu label={t`Manage ${name}`} actions={actions} />
-      {doing === "role" ? (
-        <RoleSheet member={member} onClose={() => setDoing(undefined)} onRemove={() => setDoing("remove")} />
-      ) : null}
-      {doing === "remove" ? <RemoveSheet member={member} onClose={() => setDoing(undefined)} /> : null}
-      {doing === "transfer" ? <TransferSheet member={member} onClose={() => setDoing(undefined)} /> : null}
+      <ActionMenu label={label} actions={actions} />
+      {sheet}
     </>
   );
+}
+
+export function useMemberActions() {
+  const { t } = useLingui();
+  const may = useMay();
+  const [doing, setDoing] = useState<{ member: Member; action: Action }>();
+  const mayRole = may(MemberService.method.setMemberRole).allowed;
+  const mayRemove = may(MemberService.method.removeMember).allowed;
+  const mayTransfer = may(MemberService.method.transferOwnership).allowed;
+  const close = () => setDoing(undefined);
+  const select = (member: Member, action: Action) => setDoing({ member, action });
+  const menuFor = (member: Member) => {
+    const name = member.user?.name ?? "";
+    const label = t`Manage ${name}`;
+    const actions: MenuAction[] = [];
+    if (member.you || installRole(member) === Role.OWNER) return { label, actions };
+    if (mayRole) actions.push({ id: "role", label: t`Change role`, onSelect: () => select(member, "role") });
+    if (mayTransfer)
+      actions.push({ id: "transfer", label: t`Transfer ownership`, onSelect: () => select(member, "transfer") });
+    if (mayRemove)
+      actions.push({ id: "remove", label: t`Remove`, danger: true, onSelect: () => select(member, "remove") });
+    return { label, actions };
+  };
+  const sheet =
+    doing?.action === "role" ? (
+      <RoleSheet member={doing.member} onClose={close} onRemove={() => select(doing.member, "remove")} />
+    ) : doing?.action === "remove" ? (
+      <RemoveSheet member={doing.member} onClose={close} />
+    ) : doing?.action === "transfer" ? (
+      <TransferSheet member={doing.member} onClose={close} />
+    ) : null;
+  return { menuFor, sheet };
 }
 
 /** Reads Members again, and for a transfer, who is signed in as what. */

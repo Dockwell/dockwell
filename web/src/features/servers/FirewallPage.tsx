@@ -23,7 +23,6 @@ import {
   PHONE_QUERY,
   SkeletonCard,
   SkeletonRows,
-  Table,
   type TableColumn,
   useMediaQuery,
 } from "@dockwell/ui";
@@ -32,6 +31,7 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
+import { type ListRouteProps, ListSectionTable, ListToolbar, useListPlace } from "../shell/ListTools";
 import { ReadFailed } from "../shell/ReadFailed";
 import { Fail2banPanel, SshPanel } from "./FirewallAccess";
 import { DockwellRules, usePortUser } from "./FirewallRules";
@@ -49,8 +49,10 @@ const READ_EVERY_MS = 30_000;
  * doesn't weigh one by one. Changing them comes with Dockwell's own rules
  * (ADR 0052).
  */
-export function FirewallPage({ id }: { id: string }) {
-  return <ServerFrame id={id}>{(server) => <Firewall server={server} />}</ServerFrame>;
+export function FirewallPage({ id, search, onSearch }: { id: string } & ListRouteProps) {
+  return (
+    <ServerFrame id={id}>{(server) => <Firewall server={server} search={search} onSearch={onSearch} />}</ServerFrame>
+  );
 }
 
 /** ufw and firewalld, which the tab reads rule by rule. */
@@ -67,7 +69,7 @@ function useFirewallRead(server: Server, connected: boolean) {
   );
 }
 
-function Firewall({ server }: { server: Server }) {
+function Firewall({ server, search, onSearch }: { server: Server } & ListRouteProps) {
   const { t } = useLingui();
   const connected = server.connection === Connection.CONNECTED;
   const read = useFirewallRead(server, connected);
@@ -83,6 +85,8 @@ function Firewall({ server }: { server: Server }) {
         <FirewallRead
           server={server}
           read={read}
+          search={search}
+          onSearch={onSearch}
           ssh={<SshPanel key="ssh" server={server} connected={connected} listening={fw?.listening} />}
         />
       </div>
@@ -103,12 +107,15 @@ function FirewallRead({
   server,
   read,
   ssh,
-}: {
+  search,
+  onSearch,
+}: ListRouteProps & {
   server: Server;
   read: ReturnType<typeof useFirewallRead>;
   ssh: ReactNode;
 }) {
   const { t } = useLingui();
+  const place = useListPlace(search, onSearch, ["action", "port", "from", "note", "rule"]);
   if (read.error) {
     if (reasonOf(read.error) === "agent_outdated") {
       return (
@@ -164,7 +171,8 @@ function FirewallRead({
     (dockwell?.waitingChange ?? "") !== "";
   return (
     <>
-      <DockwellRules server={server} fw={fw} onChanged={() => void read.refetch()} />
+      <ListToolbar place={place} label={t`Filter firewall rules and ports`} />
+      <DockwellRules server={server} fw={fw} place={place} onChanged={() => void read.refetch()} />
       {there.length === 0 ? (
         <Panel title={t`Inbound traffic`}>
           <p className="firewall-note">
@@ -182,12 +190,19 @@ function FirewallRead({
           </p>
         </Panel>
       ) : (
-        primary.map((tool) => <ToolPanel key={`${tool.kind}-${tool.name}`} server={server} fw={fw} tool={tool} />)
+        primary.map((tool) => (
+          <ToolPanel key={`${tool.kind}-${tool.name}`} server={server} fw={fw} tool={tool} query={place.query} />
+        ))
       )}
       {ssh}
-      <ListeningPanel server={server} listening={fw.listening} />
-      <PublishedPanel fw={fw} filtered={filtered} dockwellDenies={dockwell?.policy?.denyEverythingElse ?? false} />
-      {others.length > 0 ? <OtherRulesPanel tools={others} /> : null}
+      <ListeningPanel server={server} listening={fw.listening} query={place.query} />
+      <PublishedPanel
+        fw={fw}
+        filtered={filtered}
+        dockwellDenies={dockwell?.policy?.denyEverythingElse ?? false}
+        query={place.query}
+      />
+      {others.length > 0 ? <OtherRulesPanel tools={others} query={place.query} /> : null}
     </>
   );
 }
@@ -235,7 +250,17 @@ export function portsOf(rule: string): { port: number; protocol?: string }[] {
 }
 
 /** One firewall Dockwell didn't make: what it is, its default, and its rules, read-only, with what uses each. */
-function ToolPanel({ server, fw, tool }: { server: Server; fw: ServerFirewall; tool: FirewallTool }) {
+function ToolPanel({
+  server,
+  fw,
+  tool,
+  query,
+}: {
+  server: Server;
+  fw: ServerFirewall;
+  tool: FirewallTool;
+  query: string;
+}) {
   const { t } = useLingui();
   const words = useVerdictWords();
   const ruleTo = useRuleTo();
@@ -290,7 +315,21 @@ function ToolPanel({ server, fw, tool }: { server: Server; fw: ServerFirewall; t
             <ZoneWords tool={tool} /> <DefaultWords tool={tool} />
           </p>
           {tool.rules.length > 0 ? (
-            <Table columns={columns} rows={rows} rowKey="id" caption={t`Rules of ${title}`} density="compact" />
+            <ListSectionTable
+              query={query}
+              values={{
+                verdict: ({ rule }) => words[rule.verdict],
+                port: ({ rule }) => ruleTo(rule),
+                source: ({ rule }) => rule.source,
+                used: ({ rule }) => user(portsOf(rule.port)),
+                note: ({ rule }) => rule.comment,
+              }}
+              columns={columns}
+              rows={rows}
+              rowKey="id"
+              caption={t`Rules of ${title}`}
+              density="compact"
+            />
           ) : null}
           {tool.other.length > 0 ? (
             <div className="firewall-other">
@@ -422,7 +461,15 @@ interface ListenerRow {
  * that cover it. What reaches out comes first; what a firewall closes is a step
  * away, as it's what needs no look.
  */
-function ListeningPanel({ server, listening }: { server: Server; listening: readonly HostListener[] }) {
+function ListeningPanel({
+  server,
+  listening,
+  query,
+}: {
+  server: Server;
+  listening: readonly HostListener[];
+  query: string;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const reach = useReachWords();
@@ -468,7 +515,14 @@ function ListeningPanel({ server, listening }: { server: Server; listening: read
       flush
     >
       {rows.length > 0 ? (
-        <Table
+        <ListSectionTable
+          query={query}
+          values={{
+            port: ({ listener }) => listener.port,
+            address: ({ listener }) => listener.address,
+            reach: ({ listener }) => reach(listener),
+            protocol: ({ listener }) => listener.protocol,
+          }}
           columns={columns}
           rows={rows}
           rowKey="id"
@@ -508,11 +562,13 @@ function PublishedPanel({
   fw,
   filtered,
   dockwellDenies,
+  query,
 }: {
   fw: ServerFirewall;
   filtered: boolean;
   /** Dockwell denies everything else, which covers what Docker publishes too. */
   dockwellDenies: boolean;
+  query: string;
 }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
@@ -611,7 +667,21 @@ function PublishedPanel({
           })}
         </p>
       ) : null}
-      <Table columns={columns} rows={rows} rowKey="id" caption={t`Ports Docker publishes`} density="compact" />
+      <ListSectionTable
+        query={query}
+        values={{
+          port: ({ port }) => port.hostPort,
+          address: ({ port }) => port.hostIp,
+          container: ({ port }) => port.container,
+          to: ({ port }) => port.containerPort,
+          protocol: ({ port }) => port.protocol,
+        }}
+        columns={columns}
+        rows={rows}
+        rowKey="id"
+        caption={t`Ports Docker publishes`}
+        density="compact"
+      />
     </Panel>
   );
 }
@@ -622,7 +692,7 @@ interface OtherRow {
 }
 
 /** The kernel's other rules, which Dockwell doesn't weigh one by one, in one panel below the rest. */
-function OtherRulesPanel({ tools }: { tools: readonly FirewallTool[] }) {
+function OtherRulesPanel({ tools, query }: { tools: readonly FirewallTool[]; query: string }) {
   const { t } = useLingui();
   const name = (tool: FirewallTool) => {
     switch (tool.kind) {
@@ -663,7 +733,15 @@ function OtherRulesPanel({ tools }: { tools: readonly FirewallTool[] }) {
           by one, so where they may drop what listens above, it says it can't tell.
         </Trans>
       </p>
-      <Table columns={columns} rows={rows} rowKey="id" caption={t`The kernel's other rules`} density="compact" />
+      <ListSectionTable
+        query={query}
+        values={{ name: ({ tool }) => name(tool), what: ({ tool }) => what(tool) }}
+        columns={columns}
+        rows={rows}
+        rowKey="id"
+        caption={t`The kernel's other rules`}
+        density="compact"
+      />
     </Panel>
   );
 }

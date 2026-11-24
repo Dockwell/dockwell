@@ -3,6 +3,7 @@
 import { equals, type MessageInitShape } from "@bufbuild/protobuf";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   Connection,
   type DockwellFirewallRule,
   type DockwellTable,
@@ -31,10 +32,13 @@ import {
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type FormEvent, useRef, useState } from "react";
-
 import { useOwnAddress } from "../apps/PrivateSheet";
+import { useMay } from "../auth/may";
 import { type Opening, useChangeSheet } from "../changes/ChangeSheet";
 import { useReadAgainOnceOver } from "../changes/follow";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import { ListPager, type ListPlace, sortableColumns, useRowMenu } from "../shell/ListTools";
+import { pagedRows, sortedRows } from "../shell/list";
 
 type Edit = MessageInitShape<typeof EditSchema>;
 
@@ -119,8 +123,10 @@ export function DockwellRules({
   server,
   fw,
   onChanged,
+  place,
 }: {
   server: Server;
+  place: ListPlace;
   /** The firewall as the agent read it, with Dockwell's own table. */
   fw: ServerFirewall | undefined;
   /** Reads the firewall again, once a change it opened is over. */
@@ -140,6 +146,8 @@ export function DockwellRules({
   const waiting = table?.waitingChange ?? "";
   const policyWaits = waiting !== "" && (table?.waitingPolicy?.denyEverythingElse ?? false) !== denies;
   const rows = rowsOf(table);
+  const context = useRowMenu<RuleRow>();
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { install: true });
   if (table?.unusable) {
     const why = table.unusable;
     return (
@@ -181,11 +189,44 @@ export function DockwellRules({
   const portOf = (r: DockwellFirewallRule) => `${r.rule?.port}/${r.rule?.protocol === Protocol.UDP ? "udp" : "tcp"}`;
   const from = (r: DockwellFirewallRule) =>
     r.rule?.sources.length ? <code>{r.rule.sources.join(", ")}</code> : t`Anywhere`;
+  const keys = ["action", "port", "from", "note", "rule"];
+  const page = pagedRows(
+    sortedRows(
+      rows.filter(({ rule }) =>
+        `${rule.name} ${action(rule)} ${portOf(rule)} ${rule.rule?.sources.join(" ") ?? ""} ${rule.rule?.comment ?? ""}`
+          .toLowerCase()
+          .includes(place.query),
+      ),
+      place.sort,
+      ({ rule }, key) => {
+        if (key === "action") return action(rule);
+        if (key === "port") return rule.rule?.port;
+        if (key === "from") return rule.rule?.sources.join(", ");
+        if (key === "note") return rule.rule?.comment;
+        return rule.name;
+      },
+    ),
+    place.page,
+  );
+  const hasMenu = (row: RuleRow) => row.state === "kept" && !waiting && mayPlan.allowed;
+  const menuLabel = (row: RuleRow) => t`Actions for ${row.id}`;
+  const actionsFor = (row: RuleRow): MenuAction[] => [
+    { id: "remove", label: t`Remove`, icon: "trash", danger: true, onSelect: () => remove(row.rule) },
+  ];
   const removeCell = (row: RuleRow) =>
     row.state === "kept" && !waiting ? (
-      <Button variant="ghost" size="sm" onClick={() => remove(row.rule)} aria-label={t`Remove the rule ${row.id}`}>
-        <Trans>Remove</Trans>
-      </Button>
+      <span className="list-row-actions">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => remove(row.rule)}
+          aria-label={t`Remove the rule ${row.id}`}
+          {...mayPlan.off}
+        >
+          <Trans>Remove</Trans>
+        </Button>
+        {hasMenu(row) ? <ActionMenu label={menuLabel(row)} actions={actionsFor(row)} /> : null}
+      </span>
     ) : row.state !== "kept" ? (
       <Tag tone="cobalt" words>
         {stateWords[row.state]}
@@ -226,7 +267,14 @@ export function DockwellRules({
     <Panel
       title={t`Dockwell's rules`}
       actions={
-        <Button variant="secondary" size="sm" icon="plus" onClick={() => setAdding(true)} disabled={waiting !== ""}>
+        <Button
+          variant="secondary"
+          size="sm"
+          icon="plus"
+          onClick={() => setAdding(true)}
+          disabled={waiting !== ""}
+          {...mayPlan.off}
+        >
           <Trans>Add a rule</Trans>
         </Button>
       }
@@ -251,7 +299,21 @@ export function DockwellRules({
         </p>
       ) : null}
       {rows.length > 0 ? (
-        <Table columns={columns} rows={rows} rowKey="id" caption={t`Dockwell's rules`} density="compact" />
+        <>
+          <Table
+            columns={sortableColumns(columns, place, keys)}
+            rows={page.rows}
+            rowKey="id"
+            caption={t`Dockwell's rules`}
+            density="compact"
+            rowHasContextMenu={hasMenu}
+            onRowContextMenu={(rule, at, row) =>
+              context.open(rule, at, row, { label: menuLabel(rule), actions: actionsFor(rule) })
+            }
+          />
+          <ListPager page={page} onPage={place.setPage} />
+          {context.element}
+        </>
       ) : denies ? (
         <p className="firewall-note">
           <Trans>

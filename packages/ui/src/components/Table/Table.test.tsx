@@ -156,6 +156,34 @@ describe("Table", () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
+  it("asks for a row's menu on right-click and on Shift+F10, but not from a control in the row", async () => {
+    const user = userEvent.setup();
+    const onRowContextMenu = vi.fn();
+    const withAction: TableColumn<App>[] = [
+      ...columns,
+      { key: "actions", header: "Actions", render: () => <Button onClick={() => {}}>Restart</Button> },
+    ];
+    const { container } = render(
+      <Table caption="Apps" columns={withAction} rows={rows} onRowContextMenu={onRowContextMenu} />,
+    );
+    const [, apiRow] = screen.getAllByRole("row");
+    // A row with a menu is a keyboard stop even with nothing to open, so Shift+F10 can reach it.
+    expect(apiRow).toHaveAttribute("tabindex", "0");
+    await user.pointer({ keys: "[MouseRight]", target: apiRow as HTMLElement });
+    expect(onRowContextMenu).toHaveBeenCalledTimes(1);
+    expect(onRowContextMenu.mock.calls[0]?.[0]).toBe(rows[0]);
+    expect(onRowContextMenu.mock.calls[0]?.[2]).toBe(apiRow);
+    await user.pointer({
+      keys: "[MouseRight]",
+      target: screen.getAllByRole("button", { name: "Restart" })[0] as HTMLElement,
+    });
+    expect(onRowContextMenu).toHaveBeenCalledTimes(1);
+    (apiRow as HTMLElement).focus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(onRowContextMenu).toHaveBeenCalledTimes(2);
+    await expectAccessible(container);
+  });
+
   it("leaves a row with nothing to open out of clicks and the tab order", async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();

@@ -98,6 +98,22 @@
   white-space: nowrap;
 }
 
+/* A row's own steps at its end: Delete on a leftover, and the menu with the rest. */
+.projects-row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* On a phone, the count and New project above the list, as Apps has them. */
+.projects-phone-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 /* On a phone: a row each, the link and Delete side by side. */
 .projects-phone .dw-panel-body {
   display: flex;

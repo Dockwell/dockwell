@@ -188,9 +188,15 @@ export async function domainsFlow(page: Page, { origin, step, shoot }: DomainsFl
   ) {
     fail("a domain whose certificate has run out offers to open as if it serves");
   }
-  if ((await row("nowhere.example.com").getAttribute("tabindex")) !== null) {
-    fail("a row that leads nowhere is a keyboard stop");
-  }
+  const noApp = row("nowhere.example.com");
+  if ((await noApp.getAttribute("tabindex")) !== "0") fail("the domain's actions are unreachable from the keyboard");
+  await noApp.scrollIntoViewIfNeeded();
+  await noApp.focus();
+  await page.keyboard.press("Shift+F10");
+  const menu = page.getByRole("menu", { name: "Actions for nowhere.example.com" });
+  await menu.getByRole("menuitem", { name: "Open nowhere.example.com" }).waitFor();
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "hidden" });
   const visit = await row("tunnel.example.com")
     .getByRole("link", { name: "Open tunnel.example.com" })
     .getAttribute("href");

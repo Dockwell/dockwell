@@ -17,6 +17,7 @@ import { type QueryClient, type QueryKey, useQuery, useQueryClient } from "@tans
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 
 import { useEventsHub } from "../activity/EventsHub";
+import { readListPages } from "../shell/list";
 import { useWebsites } from "../websites/website";
 import { readHealthSoon } from "./health";
 
@@ -41,12 +42,12 @@ export function useServices() {
     queryFn: async ({ signal }) => {
       const client = createClient(ServiceService, transport);
       const all = create(ListServicesResponseSchema);
-      let pageToken = "";
-      do {
-        const page = await client.listServices({ pageSize: PAGE_SIZE, pageToken }, { signal });
-        all.services.push(...page.services);
-        pageToken = page.nextPageToken;
-      } while (pageToken !== "");
+      await readListPages(
+        (pageToken) => client.listServices({ pageSize: PAGE_SIZE, pageToken }, { signal }),
+        (page) => {
+          all.services.push(...page.services);
+        },
+      );
       return all;
     },
     select: selectServices,

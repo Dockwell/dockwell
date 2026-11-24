@@ -455,6 +455,13 @@ a.databases-engine:hover .databases-engine-plus {
   border-top: 1px solid var(--line);
 }
 
+/* A phone row: its link, and its menu beside it, as a link holds nothing else that acts. */
+.databases-phone-item {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-2);
+}
+
 .databases-phone-row {
   display: grid;
   grid-template-columns: 10px minmax(0, 1fr) 16px;
@@ -464,6 +471,11 @@ a.databases-engine:hover .databases-engine-plus {
   padding: var(--space-2) var(--space-4);
   color: var(--ink);
   text-decoration: none;
+}
+
+.databases-phone-item > .databases-phone-row {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .databases-phone-row.is-static {

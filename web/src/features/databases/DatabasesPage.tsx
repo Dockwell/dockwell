@@ -11,6 +11,7 @@ import {
   type Event,
   EventKind,
   EventService,
+  type ServiceInfo,
 } from "@dockwell/api";
 import {
   Button,
@@ -21,6 +22,7 @@ import {
   Loading,
   Panel,
   PHONE_QUERY,
+  SelectField,
   Skeleton,
   SkeletonRows,
   STATUS,
@@ -45,8 +47,10 @@ import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe } from "../activity/describe";
 import { HealthBadge, useHealthWords } from "../apps/Health";
 import { type HealthView, useHealth } from "../apps/health";
+import { MoveSheet } from "../apps/MoveSheet";
 import { useShownName } from "../apps/names";
-import { usePlaces, useServicesNamed } from "../apps/useServices";
+import { PrepareServiceDelete, PreparingServiceAction, useServiceRowActions } from "../apps/ServiceRowActions";
+import { usePlaces, useServices, useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
 import { useDestinations } from "../backups/DestinationsPanel";
@@ -60,7 +64,18 @@ import { InstallSheet } from "../catalog/InstallSheet";
 import { AppIcon } from "../catalog/media";
 import { ConnectionSheet } from "../connections/ConnectionSheet";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { Meter } from "./Meter";
@@ -71,6 +86,7 @@ import {
   policiesOf,
   readOf,
   type Stranger,
+  useDatabaseDeleteUsers,
   useDatabases,
   useStrangers,
   useUnreadWord,
@@ -81,10 +97,14 @@ import "./Databases.css";
 /** How many events the recent activity shows. */
 const RECENT = 4;
 
-/** What the Databases page's URL holds: the engine a new database is being made from. */
-export interface DatabasesSearch {
+/** What the Databases page's URL holds: where its list is, and the engine a new database is being made from. */
+export interface DatabasesSearch extends ListSearch {
   new?: string;
+  engine?: string;
 }
+
+/** The columns the list sorts by, as its address names them. */
+const SORT_KEYS = ["name", "size"] as const;
 
 /**
  * Every database Dockwell runs or has taken on, with how each is and what it holds,
@@ -106,6 +126,32 @@ export function DatabasesPage({
   const strangers = useStrangers();
   const databases = query.data?.databases ?? [];
   const count = databases.length;
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const manage = useServiceRowActions((db: Database) => db.resource?.scope ?? "");
+  const actionsFor = useDatabaseActions(manage.actionsFor);
+  const shownName = useShownName();
+  const engineKinds = useMemo(
+    () => [...new Map(databases.map((db) => [engineName(db.engine), db.engine])).entries()],
+    [databases],
+  );
+  const shown = useMemo(() => {
+    const q = place.query;
+    const filtered = databases.filter(
+      (db) =>
+        (!search.engine || engineName(db.engine) === search.engine) &&
+        (q === "" ||
+          shownName(db, "database").title.toLowerCase().includes(q) ||
+          engineAndVersion(db).toLowerCase().includes(q)),
+    );
+    return sortedRows(filtered, place.sort, (db, key) =>
+      key === "size"
+        ? readOf(firstReading(db))
+          ? Number(readOf(firstReading(db))?.sizeBytes ?? 0n)
+          : null
+        : shownName(db, "database").title,
+    );
+  }, [databases, search.engine, place.query, place.sort, shownName]);
+  const page = pagedRows(shown, place.page);
   const where = view.fleet
     ? plural(view.servers?.length ?? 0, { one: "# server", other: "# servers" })
     : (view.only?.name ?? "");
@@ -114,7 +160,7 @@ export function DatabasesPage({
   // PostgreSQL first, where the catalog makes it, as the database most apps take.
   const firstEngine = (engines.groups.find((g) => g.engine === Engine.POSTGRESQL) ?? engines.groups[0])?.entries[0]?.id;
   const newDatabase = firstEngine ? (
-    <RouterButtonLink to="/databases" search={{ new: firstEngine }} variant="primary" icon="plus">
+    <RouterButtonLink to="/databases" search={{ ...search, new: firstEngine }} variant="primary" icon="plus">
       <Trans>New database</Trans>
     </RouterButtonLink>
   ) : null;
@@ -133,6 +179,30 @@ export function DatabasesPage({
         </Callout>
       ) : null}
       <Strangers strangers={strangers} />
+      {count > 0 ? (
+        <div className="list-bar">
+          <ListSearchField
+            label={t`Filter databases`}
+            placeholder={t`Filter by name or engine`}
+            size={phone ? "lg" : "sm"}
+            value={place.typed}
+            onChange={place.setTyped}
+          />
+          {phone ? <ListSortField place={place} columns={{ name: t`Database`, size: t`Size` }} /> : null}
+          {engineKinds.length > 1 ? (
+            <SelectField
+              aria-label={t`Engine`}
+              size="sm"
+              value={search.engine ?? ""}
+              options={[
+                { value: "", label: t`Every engine` },
+                ...engineKinds.map(([name]) => ({ value: name, label: name })),
+              ]}
+              onChange={(event) => onSearch({ ...search, page: undefined, engine: event.target.value || undefined })}
+            />
+          ) : null}
+        </div>
+      ) : null}
       {query.isPending ? (
         <DatabasesSkeleton fleet={view.fleet} />
       ) : count === 0 && !query.error ? (
@@ -154,17 +224,49 @@ export function DatabasesPage({
         >
           <Trans>From the catalog, with its password kept as a secret</Trans>
         </EmptyState>
+      ) : shown.length === 0 && !query.error ? (
+        <EmptyState
+          icon="search"
+          title={t`Nothing matches`}
+          action={
+            <Button
+              size="lg"
+              onClick={() => {
+                place.clearQuery();
+                onSearch({ ...search, q: undefined, page: undefined, engine: undefined });
+              }}
+            >
+              <Trans>Clear the filter</Trans>
+            </Button>
+          }
+        >
+          <p>
+            {place.query ? (
+              <Trans>
+                No database here has <code>{place.typed.trim()}</code> in its name or engine.
+              </Trans>
+            ) : (
+              <Trans>No database of this engine here.</Trans>
+            )}
+          </p>
+        </EmptyState>
       ) : phone ? (
-        <PhoneList databases={databases} fleet={view.fleet} />
+        <>
+          <PhoneList databases={page.rows} fleet={view.fleet} actionsFor={actionsFor} />
+          <ListPager page={page} onPage={place.setPage} />
+        </>
       ) : count > 0 ? (
-        <DatabasesTable databases={databases} fleet={view.fleet} />
+        <>
+          <DatabasesTable databases={page.rows} fleet={view.fleet} place={place} actionsFor={actionsFor} />
+          <ListPager page={page} onPage={place.setPage} />
+        </>
       ) : null}
       {count > 0 ? <Engines groups={engines.groups} pending={engines.pending} /> : null}
       {search.new ? (
         <InstallSheet
           id={search.new}
-          engines={{ groups: engines.groups, onPick: (id) => onSearch({ new: id }) }}
-          onClose={() => onSearch({})}
+          engines={{ groups: engines.groups, onPick: (id) => onSearch({ ...search, new: id }) }}
+          onClose={() => onSearch({ ...search, new: undefined })}
         />
       ) : null}
       {count > 0 ? (
@@ -172,6 +274,9 @@ export function DatabasesPage({
           <BackupsPanel databases={databases} />
           <RecentActivity databases={databases} />
         </div>
+      ) : null}
+      {manage.selected ? (
+        <DatabaseRowPlan db={manage.selected.service} action={manage.selected.action} onClose={manage.close} />
       ) : null}
     </Page>
   );
@@ -263,7 +368,85 @@ function useColumnHeads(fleet: boolean) {
   }, [t, fleet]);
 }
 
-function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; fleet: boolean }) {
+/**
+ * A database's menu: its page, its users and its backups. Deleting one stays on its
+ * page, where the users Dockwell made in it go with it in the same plan.
+ */
+function useDatabaseActions(manage: (db: Database) => MenuAction[]): (db: Database) => MenuAction[] {
+  const { t } = useLingui();
+  const navigate = useNavigate();
+  return (db) => [
+    {
+      id: "open",
+      icon: "database",
+      label: t`Open`,
+      onSelect: () => void navigate({ to: "/databases/$serviceId", params: { serviceId: db.id } }),
+    },
+    {
+      id: "users",
+      icon: "user",
+      label: t`Users`,
+      onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
+    },
+    {
+      id: "backups",
+      icon: "archive",
+      label: t`Backups`,
+      onSelect: () => void navigate({ to: "/databases/$serviceId/backups", params: { serviceId: db.id } }),
+    },
+    ...manage(db),
+  ];
+}
+
+function DatabaseRowPlan({ db, action, onClose }: { db: Database; action: "move" | "delete"; onClose: () => void }) {
+  const { t } = useLingui();
+  const services = useServices();
+  const service = services.data?.find((s) => s.id === db.id);
+  if (!service) {
+    const error = services.error ?? (services.data ? new Error(t`This database has no service to manage`) : undefined);
+    return (
+      <PreparingServiceAction
+        title={t`Read the database service`}
+        error={error}
+        retry={() => void services.refetch()}
+        onClose={onClose}
+      />
+    );
+  }
+  return action === "move" ? (
+    <MoveSheet service={service} onClose={onClose} />
+  ) : (
+    <PrepareDatabaseDelete db={db} service={service} onClose={onClose} />
+  );
+}
+
+function PrepareDatabaseDelete({ db, service, onClose }: { db: Database; service: ServiceInfo; onClose: () => void }) {
+  const { t } = useLingui();
+  const users = useDatabaseDeleteUsers(db);
+  if (users.pending || users.error) {
+    return (
+      <PreparingServiceAction
+        title={t`Read the database users`}
+        error={users.error}
+        retry={users.retry}
+        onClose={onClose}
+      />
+    );
+  }
+  return <PrepareServiceDelete service={service} alongside={users.alongside} after="/databases" onClose={onClose} />;
+}
+
+function DatabasesTable({
+  databases,
+  fleet,
+  place,
+  actionsFor,
+}: {
+  databases: readonly Database[];
+  fleet: boolean;
+  place: ListPlace;
+  actionsFor: (db: Database) => MenuAction[];
+}) {
   const { t, i18n } = useLingui();
   const navigate = useNavigate();
   const health = useHealth();
@@ -358,19 +541,40 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
     ),
     beside: (db) => <Beside names={db.beside} environment={db.resource?.scope} />,
   };
-  const columns: TableColumn<Database>[] = heads.map((head) => ({
-    ...head,
-    ...(head.key === "size" ? { muted: false } : {}),
-    render: cells[head.key] ?? (() => null),
-  }));
+  const menu = useRowMenu<Database>();
+  const columns: TableColumn<Database>[] = [
+    ...heads.map((head) => ({
+      ...head,
+      ...(head.key === "name" || head.key === "size"
+        ? { header: <SortHeader label={head.header} sortKey={head.key} place={place} />, sort: place.sortOf(head.key) }
+        : {}),
+      ...(head.key === "size" ? { muted: false } : {}),
+      render: cells[head.key] ?? (() => null),
+    })),
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 48,
+      align: "right",
+      render: (db: Database) => (
+        <ActionMenu label={t`Actions for ${shownName(db, "database").title}`} actions={actionsFor(db)} />
+      ),
+    },
+  ];
   return (
-    <Table<Database>
-      className="databases-table"
-      columns={columns}
-      rows={databases}
-      caption={t`Databases`}
-      onRowClick={(db) => void navigate({ to: "/databases/$serviceId", params: { serviceId: db.id } })}
-    />
+    <>
+      <Table<Database>
+        className="databases-table"
+        columns={columns}
+        rows={databases}
+        caption={t`Databases`}
+        onRowClick={(db) => void navigate({ to: "/databases/$serviceId", params: { serviceId: db.id } })}
+        onRowContextMenu={(db, at, el) =>
+          menu.open(db, at, el, { label: t`Actions for ${shownName(db, "database").title}`, actions: actionsFor(db) })
+        }
+      />
+      {menu.element}
+    </>
   );
 }
 
@@ -422,8 +626,16 @@ function Beside({ names, environment }: { names: readonly string[]; environment:
 }
 
 /** The list on a phone: stacked rows of a name and a line of what it is, as M-Apps draws them. */
-function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet: boolean }) {
-  const { i18n } = useLingui();
+function PhoneList({
+  databases,
+  fleet,
+  actionsFor,
+}: {
+  databases: readonly Database[];
+  fleet: boolean;
+  actionsFor: (db: Database) => MenuAction[];
+}) {
+  const { t, i18n } = useLingui();
   const health = useHealth();
   const words = useHealthWords();
   // Where each is, as the table says it, where they're in more than one place.
@@ -438,38 +650,41 @@ function PhoneList({ databases, fleet }: { databases: readonly Database[]; fleet
         const read = readOf(firstReading(db));
         const tone = `dw-tone-${STATUS[runs.status].tone}`;
         return (
-          <Link key={db.id} to="/databases/$serviceId" params={{ serviceId: db.id }} className="databases-phone-row">
-            <span className={cx("databases-phone-glyph", tone)}>
-              <Glyph shape={STATUS[runs.status].shape} size={10} />
-            </span>
-            <span className="databases-phone-text">
-              <span className="databases-phone-name">{shownName(db, "database").title}</span>
-              <span className="databases-phone-sub">
-                <span className={cx("databases-phone-word", tone)}>{words.word(runs)}</span>
-                <span aria-hidden="true">·</span>
-                <span>{engineAndVersion(db)}</span>
-                {shownName(db, "database").app || several ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{shownName(db, "database").app || places.label(db.resource?.scope ?? "")}</span>
-                  </>
-                ) : null}
-                {read ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span>{formatBytes(read.sizeBytes, i18n.locale)}</span>
-                  </>
-                ) : null}
-                {fleet ? (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <code>{db.readings.map((r) => r.serverName).join(", ")}</code>
-                  </>
-                ) : null}
+          <div key={db.id} className="databases-phone-item">
+            <Link to="/databases/$serviceId" params={{ serviceId: db.id }} className="databases-phone-row">
+              <span className={cx("databases-phone-glyph", tone)}>
+                <Glyph shape={STATUS[runs.status].shape} size={10} />
               </span>
-            </span>
-            <Icon name="chevron-right" size={16} className="databases-phone-chevron" />
-          </Link>
+              <span className="databases-phone-text">
+                <span className="databases-phone-name">{shownName(db, "database").title}</span>
+                <span className="databases-phone-sub">
+                  <span className={cx("databases-phone-word", tone)}>{words.word(runs)}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{engineAndVersion(db)}</span>
+                  {shownName(db, "database").app || several ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{shownName(db, "database").app || places.label(db.resource?.scope ?? "")}</span>
+                    </>
+                  ) : null}
+                  {read ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatBytes(read.sizeBytes, i18n.locale)}</span>
+                    </>
+                  ) : null}
+                  {fleet ? (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <code>{db.readings.map((r) => r.serverName).join(", ")}</code>
+                    </>
+                  ) : null}
+                </span>
+              </span>
+              <Icon name="chevron-right" size={16} className="databases-phone-chevron" />
+            </Link>
+            <ActionMenu label={t`Actions for ${shownName(db, "database").title}`} actions={actionsFor(db)} />
+          </div>
         );
       })}
     </Panel>

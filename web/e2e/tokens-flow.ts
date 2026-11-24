@@ -71,7 +71,8 @@ export async function tokensFlow(page: Page, { origin, step, shoot }: TokensFlow
   if (services.status !== 200) fail(`listing services with the narrowed token: ${JSON.stringify(services)}, want 200`);
 
   step("tokens: revoking it stops it at once");
-  await row.getByRole("button", { name: "Revoke e2e narrowed" }).click();
+  await row.getByRole("button", { name: "Actions for e2e narrowed" }).click();
+  await row.getByRole("menuitem", { name: "Revoke", exact: true }).click();
   await row.getByRole("button", { name: "Revoke", exact: true }).click();
   await row.waitFor({ state: "detached" });
   const after = await call("/v1/services");

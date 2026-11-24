@@ -1,0 +1,80 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A list's bar: its search and its filters, above the rows they narrow. */
+.list-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.list-search {
+  width: min(320px, 100%);
+}
+
+/* A column's head that sorts by it: the head's own words, with a chevron at their end. */
+.list-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.list-sort > .dw-icon {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.list-sort:hover > .dw-icon,
+.list-sort.is-sorted > .dw-icon {
+  color: var(--ink-muted);
+}
+
+.list-sort:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-xs);
+}
+
+/* Where you are in a long list, and the way along it. */
+.list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.list-pager-count {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.list-pager-buttons {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+
+/* Placed by its point, on the left, where ActionMenu's is placed by its button's right. */
+.action-menu.list-context-menu {
+  right: auto;
+}
+
+@media (max-width: 639.98px) {
+  .list-search {
+    flex: 1 1 100%;
+    width: auto;
+  }
+}
+
+.list-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}

@@ -119,7 +119,7 @@ export function BackUpSheet({
         destination: destinationName,
       });
       await queries.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: "finite" }),
+        queryKey: createConnectQueryKey({ schema: BackupService.method.listBackups, cardinality: undefined }),
       });
       onClose();
     } catch (error) {

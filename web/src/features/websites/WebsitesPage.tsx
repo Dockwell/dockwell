@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import type { WebsiteInfo } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { type WebsiteInfo, WebsiteService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -11,6 +13,7 @@ import {
   Loading,
   Panel,
   PHONE_QUERY,
+  SelectField,
   Skeleton,
   SkeletonRows,
   STATUS,
@@ -28,8 +31,21 @@ import { formatDateTime, formatDay } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import type { DomainRead } from "../apps/domains";
 import type { HealthView } from "../apps/health";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { Runtimes } from "./Runtimes";
@@ -38,6 +54,20 @@ import { kindOf, targetOf } from "./website";
 import "../apps/Apps.css";
 import "./Websites.css";
 
+/** The list's place, in its URL: its filter, its sort, its page, and the kind it shows. */
+export interface WebsitesSearch extends ListSearch {
+  kind?: string;
+}
+
+/** The columns the list sorts by, as its address names them. */
+const SORT_KEYS = ["website", "changed"] as const;
+
+/** What a website is, as the list filters by it: a reverse proxy sends to a URL or a port alike. */
+function kindKey(site: WebsiteInfo): string {
+  const kind = kindOf(site.spec);
+  return kind === "port" || kind === "url" ? "proxy" : kind;
+}
+
 /**
  * Every website, as Websites-List draws it: its domain and what it sends to, what it
  * is, how it serves now, its certificate and when it last changed. How it serves is its
@@ -45,15 +75,46 @@ import "./Websites.css";
  * on the server, which has nothing of its own to check. A screen of its own, so a
  * website's services stay out of Apps.
  */
-export function WebsitesPage({ children }: { children?: ReactNode }) {
+export function WebsitesPage({
+  children,
+  search = {},
+  onSearch,
+}: {
+  children?: ReactNode;
+  search?: WebsitesSearch;
+  onSearch?: (next: WebsitesSearch) => void;
+}) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const { websites, rows, read, health } = useWebsiteRows();
   const { servers, fleet } = useFleetView();
   const navigate = useNavigate();
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const actionsFor = useWebsiteActions();
+  const target = useTargetWords();
 
   const only = !fleet && servers?.length === 1 ? servers[0] : undefined;
   const count = websites.data?.length ?? 0;
+  const kinds = useMemo(() => [...new Set(rows.map((r) => kindKey(r.site)))], [rows]);
+  const shown = useMemo(() => {
+    const q = place.query;
+    const filtered = rows.filter(
+      (r) =>
+        (!search.kind || kindKey(r.site) === search.kind) &&
+        (q === "" ||
+          r.site.domain.toLowerCase().includes(q) ||
+          r.site.name.toLowerCase().includes(q) ||
+          target(r.site).toLowerCase().includes(q)),
+    );
+    return sortedRows(filtered, place.sort, (r, key) =>
+      key === "changed"
+        ? r.site.updateTime
+          ? timestampDate(r.site.updateTime).getTime()
+          : null
+        : r.site.domain || r.site.name,
+    );
+  }, [rows, search.kind, place.query, place.sort, target]);
+  const page = pagedRows(shown, place.page);
   const lead = only
     ? plural(count, { one: `# site on ${only.name}`, other: `# sites on ${only.name}` })
     : plural(count, { one: "# site", other: "# sites" });
@@ -97,18 +158,56 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
         </p>
       </EmptyState>
     );
+  } else if (shown.length === 0) {
+    body = (
+      <EmptyState
+        icon="search"
+        title={t`Nothing matches`}
+        action={
+          <Button
+            size="lg"
+            onClick={() => {
+              place.clearQuery();
+              onSearch?.({ ...search, q: undefined, page: undefined, kind: undefined });
+            }}
+          >
+            <Trans>Clear the filter</Trans>
+          </Button>
+        }
+      >
+        <p>
+          {place.query ? (
+            <Trans>
+              No website here has <code>{place.typed.trim()}</code> in its domain or what it sends to.
+            </Trans>
+          ) : (
+            <Trans>No website of this kind here.</Trans>
+          )}
+        </p>
+      </EmptyState>
+    );
   } else if (phone) {
-    body = <PhoneList rows={rows} health={health} read={read} />;
+    body = (
+      <>
+        <PhoneList rows={page.rows} health={health} read={read} actionsFor={actionsFor} />
+        <ListPager page={page} onPage={place.setPage} />
+      </>
+    );
   } else {
     body = (
-      <WebsitesTable
-        rows={rows}
-        caption={only ? t`Websites on ${only.name}` : t`Websites`}
-        fleet={fleet}
-        health={health}
-        read={read}
-        onOpen={(id) => void navigate({ to: "/websites/$websiteId", params: { websiteId: id } })}
-      />
+      <>
+        <WebsitesTable
+          rows={page.rows}
+          caption={only ? t`Websites on ${only.name}` : t`Websites`}
+          fleet={fleet}
+          health={health}
+          read={read}
+          place={place}
+          actionsFor={actionsFor}
+          onOpen={(id) => void navigate({ to: "/websites/$websiteId", params: { websiteId: id } })}
+        />
+        <ListPager page={page} onPage={place.setPage} />
+      </>
     );
   }
 
@@ -138,6 +237,30 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
             {newWebsite()}
           </div>
         ) : null}
+        {count > 0 ? (
+          <div className="list-bar">
+            <ListSearchField
+              label={t`Filter websites`}
+              placeholder={t`Filter by domain`}
+              size={phone ? "lg" : "sm"}
+              value={place.typed}
+              onChange={place.setTyped}
+            />
+            {phone ? <ListSortField place={place} columns={{ website: t`Website`, changed: t`Changed` }} /> : null}
+            {kinds.length > 1 ? (
+              <SelectField
+                aria-label={t`Type`}
+                size="sm"
+                value={search.kind ?? ""}
+                options={[
+                  { value: "", label: t`Every type` },
+                  ...kinds.map((kind) => ({ value: kind, label: kindWord(kind, t) })),
+                ]}
+                onChange={(event) => onSearch?.({ ...search, page: undefined, kind: event.target.value || undefined })}
+              />
+            ) : null}
+          </div>
+        ) : null}
         {body}
       </section>
       {/* What code runs on, once there are websites or apps from folders, as the empty state has its own next step. */}
@@ -145,6 +268,57 @@ export function WebsitesPage({ children }: { children?: ReactNode }) {
       {children}
     </Page>
   );
+}
+
+/** A kind of website in a word or two, as the list's filter names it. */
+function kindWord(kind: string, t: ReturnType<typeof useLingui>["t"]): string {
+  switch (kind) {
+    case "folder":
+      return t`Static files`;
+    case "php":
+      return t`PHP`;
+    case "proxy":
+      return t`Reverse proxy`;
+    default:
+      return t`Unknown`;
+  }
+}
+
+/** A website's menu: open it here, open the site itself, or delete it as the plan its page opens. */
+function useWebsiteActions(): (row: Row) => MenuAction[] {
+  const { t } = useLingui();
+  const navigate = useNavigate();
+  const may = useMay();
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  return (row) => {
+    // Deleting a website deletes its project, which is an admin's (ADR 0049), as its page says.
+    const mayDelete = may(WebsiteService.method.deleteWebsite, { project: row.site.id });
+    const domain = row.site.domain;
+    return [
+      {
+        id: "open",
+        icon: "browser",
+        label: t`Open`,
+        onSelect: () => void navigate({ to: "/websites/$websiteId", params: { websiteId: row.id } }),
+      },
+      ...(domain
+        ? [{ id: "visit", icon: "external" as const, label: t`Open ${domain}`, href: `https://${domain}` }]
+        : []),
+      {
+        id: "delete",
+        icon: "trash",
+        label: t`Delete website`,
+        danger: true,
+        ...(mayDelete.allowed ? {} : { off: mayDelete.reason || undefined, disabled: !mayDelete.reason }),
+        onSelect: () =>
+          sheet.open({
+            kind: "plan",
+            make: () => createClient(WebsiteService, transport).deleteWebsite({ id: row.site.id }),
+          }),
+      },
+    ];
+  };
 }
 
 /** What a website is, in a word or two, as the list's Type column has it. */
@@ -184,6 +358,8 @@ interface TableProps {
   fleet: boolean;
   health: HealthView;
   read: DomainRead;
+  place: ListPlace;
+  actionsFor: (row: Row) => MenuAction[];
   onOpen: (id: string) => void;
 }
 
@@ -216,10 +392,11 @@ function useColumnHeads(fleet: boolean) {
   }, [t, typed, placed]);
 }
 
-function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProps) {
-  const { i18n } = useLingui();
+function WebsitesTable({ rows, caption, fleet, health, read, place, actionsFor, onOpen }: TableProps) {
+  const { t, i18n } = useLingui();
   const typeWord = useTypeWord();
   const target = useTargetWords();
+  const menu = useRowMenu<Row>();
   const { heads, placed } = useColumnHeads(fleet);
   const columns = useMemo<TableColumn<Row>[]>(() => {
     // Where it runs goes under its domain, on a fleet, when it has no column of its own.
@@ -263,20 +440,47 @@ function WebsitesTable({ rows, caption, fleet, health, read, onOpen }: TableProp
         );
       },
     };
-    return heads.map((head) => ({
+    const byHead = heads.map((head) => ({
       ...head,
+      ...(head.key === "website" || head.key === "changed"
+        ? {
+            header: <SortHeader label={head.header} sortKey={head.key} place={place} />,
+            sort: place.sortOf(head.key),
+          }
+        : {}),
       ...(head.key === "changed" || head.key === "server" ? { muted: true } : {}),
       render: render[head.key] as (row: Row) => ReactNode,
     }));
-  }, [heads, placed, fleet, health, read, i18n, typeWord, target]);
+    return [
+      ...byHead,
+      {
+        key: "actions",
+        header: <span className="dw-sr">{t`Actions`}</span>,
+        width: 48,
+        align: "right" as const,
+        render: (row: Row) => (
+          <ActionMenu label={t`Actions for ${row.site.domain || row.site.name}`} actions={actionsFor(row)} />
+        ),
+      },
+    ];
+  }, [heads, placed, fleet, health, read, i18n, typeWord, target, place, actionsFor, t]);
   return (
-    <Table<Row>
-      className="websites-table"
-      columns={columns}
-      rows={rows}
-      caption={caption}
-      onRowClick={(row) => onOpen(row.id)}
-    />
+    <>
+      <Table<Row>
+        className="websites-table"
+        columns={columns}
+        rows={rows}
+        caption={caption}
+        onRowClick={(row) => onOpen(row.id)}
+        onRowContextMenu={(row, at, el) =>
+          menu.open(row, at, el, {
+            label: t`Actions for ${row.site.domain || row.site.name}`,
+            actions: actionsFor(row),
+          })
+        }
+      />
+      {menu.element}
+    </>
   );
 }
 
@@ -297,37 +501,53 @@ function WebsitesSkeleton({ label }: { label: string }) {
 }
 
 /** The list on a phone: a website's domain and a line of how it stands, as M-Apps draws apps. */
-function PhoneList({ rows, health, read }: { rows: readonly Row[]; health: HealthView; read: DomainRead }) {
+function PhoneList({
+  rows,
+  health,
+  read,
+  actionsFor,
+}: {
+  rows: readonly Row[];
+  health: HealthView;
+  read: DomainRead;
+  actionsFor: (row: Row) => MenuAction[];
+}) {
+  const { t } = useLingui();
   const typeWord = useTypeWord();
   return (
     <Panel flush className="apps-phone websites-phone">
       {rows.map((row) => (
-        <Link key={row.id} to="/websites/$websiteId" params={{ websiteId: row.id }} className="apps-phone-row">
-          <SiteStanding row={row} health={health} read={read}>
-            {({ status }) => (
-              <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[status].tone}`)}>
-                <Glyph shape={STATUS[status].shape} size={10} />
+        <div key={row.id} className="websites-phone-row">
+          <Link to="/websites/$websiteId" params={{ websiteId: row.id }} className="apps-phone-row">
+            <SiteStanding row={row} health={health} read={read}>
+              {({ status }) => (
+                <span className={cx("apps-phone-glyph", `dw-tone-${STATUS[status].tone}`)}>
+                  <Glyph shape={STATUS[status].shape} size={10} />
+                </span>
+              )}
+            </SiteStanding>
+            <span className="apps-phone-text">
+              <span className="apps-phone-name websites-domain">{row.site.domain || row.site.name}</span>
+              <span className="apps-phone-sub">
+                <SiteStanding row={row} health={health} read={read}>
+                  {({ status, word }) => (
+                    <span className={`apps-phone-word dw-tone-${STATUS[status].tone}`}>{word}</span>
+                  )}
+                </SiteStanding>
+                <span aria-hidden="true">·</span>
+                <span>{typeWord(row.site)}</span>
+                {row.domain && row.look ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <Certificate domain={row.domain} look={row.look} read={read} />
+                  </>
+                ) : null}
               </span>
-            )}
-          </SiteStanding>
-          <span className="apps-phone-text">
-            <span className="apps-phone-name websites-domain">{row.site.domain || row.site.name}</span>
-            <span className="apps-phone-sub">
-              <SiteStanding row={row} health={health} read={read}>
-                {({ status, word }) => <span className={`apps-phone-word dw-tone-${STATUS[status].tone}`}>{word}</span>}
-              </SiteStanding>
-              <span aria-hidden="true">·</span>
-              <span>{typeWord(row.site)}</span>
-              {row.domain && row.look ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <Certificate domain={row.domain} look={row.look} read={read} />
-                </>
-              ) : null}
             </span>
-          </span>
-          <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
-        </Link>
+            <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
+          </Link>
+          <ActionMenu label={t`Actions for ${row.site.domain || row.site.name}`} actions={actionsFor(row)} />
+        </div>
       ))}
     </Panel>
   );

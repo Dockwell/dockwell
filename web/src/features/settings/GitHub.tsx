@@ -7,11 +7,11 @@ import { BrandMark, Button, ButtonLink, Callout, SegmentedControl, Sheet, Status
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { useAuthError } from "../auth/messages";
 import { StepUpDeclined, withStepUpIfAsked } from "../auth/stepUp";
+import { ListPager, useListSection } from "../shell/ListTools";
 import { ReadFailed } from "../shell/ReadFailed";
 import { CardsLoading } from "./CardsLoading";
 import { GitHubManageSheet, type Removed } from "./GitHubManage";
@@ -24,7 +24,7 @@ import "./GitHub.css";
  * on push with nothing to paste (ADR 0098). Its state is one line, and its actions
  * are Connect, then Manage.
  */
-export function GitHubSection() {
+export function GitHubSection({ query }: { query: string }) {
   const { t } = useLingui();
   const may = useMay();
   const apps = useGitHubApps();
@@ -34,6 +34,11 @@ export function GitHubSection() {
   // What removing an App left to do on GitHub, which keeps it until it's deleted there.
   const [removed, setRemoved] = useState<Removed>();
   const list = apps.data?.apps ?? [];
+  const pagination = useListSection(
+    list,
+    query,
+    (app) => `${app.name} ${app.owner} ${app.installations.map((install) => install.account).join(" ")}`,
+  );
   const managed = list.find((a) => a.id === managing);
   // As many of the page's columns as its cards, as the page lays out each section (IntegrationsPage, #786).
   const cards = String(Math.min(4, Math.max(1, list.length)));
@@ -60,7 +65,7 @@ export function GitHubSection() {
         <CardsLoading label={t`Loading GitHub Apps`} cards={1} />
       ) : (
         <div className="integrations-grid">
-          {list.map((app) => (
+          {pagination.page.rows.map((app) => (
             <GitHubCard
               key={app.id}
               app={app}
@@ -88,6 +93,7 @@ export function GitHubSection() {
           )}
         </div>
       )}
+      <ListPager {...pagination} />
       {removed ? (
         <Callout
           tone="warning"

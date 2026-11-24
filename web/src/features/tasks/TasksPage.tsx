@@ -10,6 +10,7 @@ import {
   Loading,
   Panel,
   PHONE_QUERY,
+  SelectField,
   SkeletonRows,
   StatusBadge,
   Table,
@@ -18,12 +19,15 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+
 import { useEffect, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { dateLocale } from "../../lib/format";
 import { useNow, useTimeWords } from "../../lib/time";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { ListPager, ListToolbar, sortableColumns, useListPlace, useRowMenu } from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { TaskPanel } from "./TaskPanel";
 import { TaskSheet } from "./TaskSheet";
@@ -32,6 +36,13 @@ import "./Tasks.css";
 import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
 import { RefLink } from "../shell/RefLink";
+
+export interface TasksSearch extends ListSearch {
+  task?: string;
+  kind?: TaskKind;
+}
+
+const SORT_KEYS = ["name", "schedule", "target", "last", "next"] as const;
 
 const ICONS: Readonly<Record<number, IconName>> = {
   [TaskKind.SHELL]: "server",
@@ -44,22 +55,58 @@ const ICONS: Readonly<Record<number, IconName>> = {
  * cron, where it runs, and how its last run went; the next 24 hours as a timeline;
  * and the chosen task's command, last runs and what it printed (ADR 0053).
  */
-export function TasksPage() {
+export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch: (next: TasksSearch) => void }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const query = useTasks();
   const words = useTaskWords();
   const time = useTimeWords();
   const now = useNow(30_000);
-  const search = useSearch({ strict: false }) as { task?: string };
-  const navigate = useNavigate();
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const context = useRowMenu<TaskInfo>();
+  const [editing, setEditing] = useState<TaskInfo>();
+  const choose = (task: TaskInfo) => onSearch({ ...search, task: task.id });
+  const actionsFor = (task: TaskInfo): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => choose(task) },
+    {
+      id: "edit",
+      label: t`Edit`,
+      icon: "edit",
+      ...(!mayPlan.allowed && { disabled: true, off: mayPlan.reason }),
+      onSelect: () => setEditing(task),
+    },
+  ];
   const [making, setMaking] = useState(false);
   // A task is a plan, which is a developer's: off, with why, for a viewer (ADR 0059).
   const mayPlan = useMay()(ChangeService.method.proposeChange);
   // A task just made, to open once the list has it, where Run now is.
   const [made, setMade] = useState<{ name: string; scope: string }>();
   const tasks = query.data?.tasks ?? [];
-  const chosen = tasks.find((task) => task.id === search.task) ?? tasks[0];
+  const listed = sortedRows(
+    tasks.filter(
+      (task) =>
+        (!search.kind || task.kind === search.kind) &&
+        `${nameOf(task)} ${targetOf(task)} ${words.kind(task)}`.toLowerCase().includes(place.query),
+    ),
+    place.sort,
+    (task, key) => {
+      switch (key) {
+        case "schedule":
+          return task.spec?.schedule;
+        case "target":
+          return targetOf(task);
+        case "last":
+          return lastRunOf(task)?.startTime ? Number(lastRunOf(task)?.startTime?.seconds) : undefined;
+        case "next":
+          return nextRunOf(task)?.getTime();
+        default:
+          return nameOf(task);
+      }
+    },
+  );
+  const page = pagedRows(listed, place.page);
+  const chosen = tasks.find((task) => task.id === search.task) ?? page.rows[0];
+  const kinds = [...new Map(tasks.map((task) => [task.kind, words.kind(task)])).entries()];
   const servers = [...new Set(tasks.flatMap((task) => task.servers.map((s) => s.serverName)))];
   const failedLately = tasks.filter((task) => {
     const last = lastRunOf(task);
@@ -155,18 +202,22 @@ export function TasksPage() {
         );
       },
     },
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 48,
+      render: (task) => <ActionMenu label={t`Actions for ${nameOf(task)}`} actions={actionsFor(task)} />,
+    },
   ];
 
-  const choose = (task: TaskInfo) =>
-    void navigate({ to: "/scheduled-tasks", search: { task: task.id }, replace: true });
   const madeId = made
     ? tasks.find((task) => task.resource?.name === made.name && task.resource?.scope === made.scope)?.id
     : undefined;
   useEffect(() => {
     if (!madeId) return;
     setMade(undefined);
-    void navigate({ to: "/scheduled-tasks", search: { task: madeId }, replace: true });
-  }, [madeId, navigate]);
+    onSearch({ ...search, task: madeId });
+  }, [madeId, onSearch, search]);
   const action = (
     <Button variant="primary" icon="plus" onClick={() => setMaking(true)} {...mayPlan.off}>
       <Trans>New task</Trans>
@@ -253,9 +304,44 @@ export function TasksPage() {
                   <span className="tasks-sub">{t`Next: ${nameOf(next.task)} ${words.until(next.at, now)}`}</span>
                 ) : null}
               </div>
-              {phone ? (
+              <ListToolbar place={place} label={t`Filter tasks`}>
+                {kinds.length > 1 || search.kind ? (
+                  <SelectField
+                    aria-label={t`Task type`}
+                    size="sm"
+                    value={String(search.kind ?? "")}
+                    options={[
+                      { value: "", label: t`Every type` },
+                      ...kinds.map(([kind, label]) => ({ value: String(kind), label })),
+                    ]}
+                    onChange={(event) =>
+                      onSearch({
+                        ...search,
+                        page: undefined,
+                        kind: (Number(event.target.value) || undefined) as TaskKind | undefined,
+                      })
+                    }
+                  />
+                ) : null}
+              </ListToolbar>
+              {listed.length === 0 ? (
+                <EmptyState
+                  icon="search"
+                  title={t`Nothing matches`}
+                  action={
+                    <Button
+                      onClick={() => {
+                        place.clearQuery();
+                        onSearch({ ...search, q: undefined, kind: undefined, page: undefined });
+                      }}
+                    >
+                      <Trans>Clear the filter</Trans>
+                    </Button>
+                  }
+                />
+              ) : phone ? (
                 <ul className="tasks-phone">
-                  {tasks.map((task) => {
+                  {page.rows.map((task) => {
                     const last = lastRunOf(task);
                     const at = nextRunOf(task);
                     return (
@@ -274,26 +360,36 @@ export function TasksPage() {
                           </span>
                           {last ? <StatusBadge status={runStatus(last.state)} label={words.state(last.state)} /> : null}
                         </button>
+                        <ActionMenu label={t`Actions for ${nameOf(task)}`} actions={actionsFor(task)} />
                       </li>
                     );
                   })}
                 </ul>
               ) : (
                 <Table<TaskInfo>
-                  columns={columns}
-                  rows={tasks}
+                  columns={sortableColumns(columns, place, SORT_KEYS)}
+                  rows={page.rows}
                   rowKey="id"
                   selectedKey={chosen?.id}
                   onRowClick={choose}
+                  onRowContextMenu={(task, at, row) =>
+                    context.open(task, at, row, {
+                      label: t`Actions for ${nameOf(task)}`,
+                      actions: actionsFor(task),
+                    })
+                  }
                   caption={t`Scheduled tasks`}
                 />
               )}
+              <ListPager page={page} onPage={place.setPage} />
+              {context.element}
             </section>
-            <NextDay tasks={tasks} chosen={chosen} now={now} />
+            <NextDay tasks={page.rows} chosen={chosen} now={now} />
           </div>
           {chosen ? <TaskPanel task={chosen} /> : null}
         </div>
       )}
+      {editing ? <TaskSheet task={editing} onClose={() => setEditing(undefined)} /> : null}
       {making ? (
         <TaskSheet onClose={() => setMaking(false)} onMade={(name, scope) => setMade({ name, scope })} />
       ) : null}

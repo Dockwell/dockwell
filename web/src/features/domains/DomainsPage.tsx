@@ -16,23 +16,12 @@ import {
   StatusBadge,
   Table,
   type TableColumn,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import {
-  type ReactNode,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { isRoleRefusal, sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -61,9 +50,21 @@ import {
 import { type OpenWay, openWaysOf, PrivateButton, PrivateFact, PrivateSheet } from "../apps/PrivateSheet";
 import { usePlaces, useServices } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { ReadFailed } from "../shell/ReadFailed";
 import { useWebsiteOfEnvironment } from "../websites/website";
@@ -78,9 +79,8 @@ import { CloudflarePanels } from "./CloudflarePanel";
 import { DnsReadsContext, useDnsOf, useDnsReads, useDnsReadsHere, useDnsWord } from "./dns";
 import { ManageNameContext, PublishedCell, PublishedNote, ZonesContext } from "./Published";
 
-/** The list's place, in its URL: its filters. */
-export interface DomainsSearch {
-  q?: string;
+/** The list's place, in its URL: its filters, its sort and its page. */
+export interface DomainsSearch extends ListSearch {
   state?: DomainGroup;
   server?: string;
   /** The route whose sheet of who gets in is open, by ID (ADR 0087). */
@@ -88,6 +88,9 @@ export interface DomainsSearch {
   /** Add a domain opens with the page, as the top bar's New offers it (#617). */
   add?: boolean;
 }
+
+/** The columns the list sorts by when asked, as its address names them. */
+const SORT_KEYS = ["domain"] as const;
 
 /** How often how long a server has said nothing, and what a certificate has left, are looked at again. */
 const NOW_EVERY_MS = 5_000;
@@ -184,7 +187,9 @@ export function DomainsPage({
   const { servers, fleet } = useFleetView();
   const places = usePlaces();
   const navigate = useNavigate();
-  const mayAdd = useMay()(ChangeService.method.proposeChange);
+  const may = useMay();
+  const mayAdd = may(ChangeService.method.proposeChange);
+  const sheet = useChangeSheet();
   const [adding, setAddingHere] = useState(search.add === true);
   // Closing the sheet takes its word out of the address, so a reload doesn't open it again.
   const setAdding = (open: boolean) => {
@@ -200,16 +205,7 @@ export function DomainsPage({
   const privateId = search.private ?? privateHere;
   const choosePrivate = (id: string | undefined) =>
     onSearch ? onSearch({ ...search, private: id }) : setPrivateHere(id);
-  const [typed, setTyped] = useState(search.q ?? "");
-  const query = useDeferredValue(typed);
-
-  // The filter goes in the address a moment after you stop typing, so a link
-  // to the list keeps it, without a navigation for each key.
-  useEffect(() => {
-    if (query === (search.q ?? "")) return;
-    const timer = setTimeout(() => onSearch?.({ ...search, q: query || undefined }), 300);
-    return () => clearTimeout(timer);
-  }, [query, search, onSearch]);
+  const place = useListPlace(search, onSearch, SORT_KEYS);
 
   const read = readOf(domains);
   // DNS no server has read yet is read as the page opens, and any row's on Check now (#791).
@@ -260,7 +256,7 @@ export function DomainsPage({
     read === "read" &&
     ordered.some((one, i) => groupNeedsALook(one.group) && ordered.slice(0, i).some((o) => !groupNeedsALook(o.group)));
   const byName = new Map((services.data ?? []).map((s) => [appKey(environmentOf(s), nameOf(s)), s]));
-  const wanted = query.trim().toLowerCase();
+  const wanted = place.query;
   const rows: Row[] = [];
   // Where nobody can say how it stands, nobody can say it's in the state you asked for.
   // The moment a read back takes is no reason to move the list.
@@ -320,6 +316,12 @@ export function DomainsPage({
     }
   }
 
+  // Sorted by name where its head was asked to, over every row the filters keep;
+  // what needs a look first is the list's order until then. A page of them shows.
+  const sortState = place.sort;
+  const listed = sortedRows(rows, sortState, (r) => routeWhere(r.domain, r.route));
+  const listPage = pagedRows(listed, place.page);
+
   const privateAt = privateId
     ? (all ?? [])
         .flatMap((domain) => domain.routes.map((route) => ({ domain, route })))
@@ -331,8 +333,45 @@ export function DomainsPage({
     if (row.website) void navigate({ to: "/websites/$websiteId", params: { websiteId: row.website } });
     else if (row.service) void navigate({ to: "/apps/$serviceId", params: { serviceId: row.service.id } });
   };
+  const actionsFor = (row: Row): MenuAction[] => {
+    const address = routeWhere(row.domain, row.route);
+    const service = row.service;
+    const scope = row.domain.environmentId;
+    return [
+      ...(service || row.website
+        ? [{ id: "open", icon: "link" as const, label: t`Open`, onSelect: () => open(row) }]
+        : []),
+      ...(read === "read" && row.look.state === "serving"
+        ? [
+            {
+              id: "visit",
+              icon: "external" as const,
+              label: t`Open ${address}`,
+              href: visitorUrl(row.domain, row.route),
+            },
+          ]
+        : []),
+      ...(service && !row.website && scope
+        ? [
+            {
+              id: "remove",
+              icon: "trash" as const,
+              label: t`Remove`,
+              danger: true,
+              ...may(ChangeService.method.proposeChange, { environment: scope }).off,
+              onSelect: () =>
+                sheet.open({
+                  kind: "propose",
+                  summary: t`Remove ${address} from ${nameOf(service)}`,
+                  edits: [{ resource: { kind: "route", scope, name: row.route.name }, delete: true }],
+                }),
+            },
+          ]
+        : []),
+    ];
+  };
   const clear = () => {
-    setTyped("");
+    place.clearQuery();
     onSearch?.({});
   };
 
@@ -350,11 +389,13 @@ export function DomainsPage({
     "no-report": t`No report`,
     "not-connected": t`Not connected`,
   };
-  const showFirst = outOfPlace ? (
-    <Button variant="ghost" size="sm" className="apps-show-first" onClick={() => setEpoch((n) => n + 1)}>
-      <Trans>Show them first</Trans>
-    </Button>
-  ) : null;
+  // A list sorted by name is in the reader's order, not the list's, so nothing is out of place in it.
+  const showFirst =
+    outOfPlace && !sortState ? (
+      <Button variant="ghost" size="sm" className="apps-show-first" onClick={() => setEpoch((n) => n + 1)}>
+        <Trans>Show them first</Trans>
+      </Button>
+    ) : null;
 
   const add = (size?: "lg") => (
     <Button
@@ -433,26 +474,35 @@ export function DomainsPage({
     );
   } else if (phone) {
     body = (
-      <PhoneRows
-        rows={rows}
-        read={read}
-        fleet={fleet}
-        environment={sayWhere ? places.label : undefined}
-        onMoveBehind={setMoving}
-        onPrivate={onPrivate}
-      />
+      <>
+        <PhoneRows
+          rows={listPage.rows}
+          read={read}
+          fleet={fleet}
+          environment={sayWhere ? places.label : undefined}
+          onMoveBehind={setMoving}
+          onPrivate={onPrivate}
+          actionsFor={actionsFor}
+        />
+        <ListPager page={listPage} onPage={place.setPage} />
+      </>
     );
   } else {
     body = (
-      <DomainsTable
-        rows={rows}
-        read={read}
-        fleet={fleet}
-        environment={sayWhere ? places.label : undefined}
-        onMoveBehind={setMoving}
-        onPrivate={onPrivate}
-        onOpen={open}
-      />
+      <>
+        <DomainsTable
+          rows={listPage.rows}
+          read={read}
+          fleet={fleet}
+          environment={sayWhere ? places.label : undefined}
+          onMoveBehind={setMoving}
+          onPrivate={onPrivate}
+          onOpen={open}
+          place={place}
+          actionsFor={actionsFor}
+        />
+        <ListPager page={listPage} onPage={place.setPage} />
+      </>
     );
   }
 
@@ -492,16 +542,15 @@ export function DomainsPage({
             <section className={cx("apps-section", count > 0 && "has-filters")} aria-label={t`Domains`}>
               {count > 0 ? (
                 <div className="apps-filters">
-                  <TextField
+                  <ListSearchField
                     className="apps-filter"
                     size={phone ? "lg" : "sm"}
-                    icon="search"
-                    type="search"
                     placeholder={t`Filter domains`}
-                    aria-label={t`Filter domains`}
-                    value={typed}
-                    onChange={(event) => setTyped(event.target.value)}
+                    label={t`Filter domains`}
+                    value={place.typed}
+                    onChange={place.setTyped}
                   />
+                  {phone ? <ListSortField place={place} columns={{ domain: t`Domain` }} /> : null}
                   <SelectField
                     aria-label={t`State`}
                     size="sm"
@@ -514,7 +563,11 @@ export function DomainsPage({
                       ...DOMAIN_GROUPS.map((group) => ({ value: group, label: states[group] })),
                     ]}
                     onChange={(event) =>
-                      onSearch?.({ ...search, state: (event.target.value as DomainGroup) || undefined })
+                      onSearch?.({
+                        ...search,
+                        state: (event.target.value as DomainGroup) || undefined,
+                        page: undefined,
+                      })
                     }
                   />
                   {fleet ? (
@@ -527,7 +580,9 @@ export function DomainsPage({
                         { value: "", label: t`All servers` },
                         ...(servers ?? []).map((s) => ({ value: s.id, label: s.name })),
                       ]}
-                      onChange={(event) => onSearch?.({ ...search, server: event.target.value || undefined })}
+                      onChange={(event) =>
+                        onSearch?.({ ...search, server: event.target.value || undefined, page: undefined })
+                      }
                     />
                   ) : null}
                 </div>
@@ -967,6 +1022,8 @@ function DomainsTable({
   onMoveBehind,
   onPrivate,
   onOpen,
+  place,
+  actionsFor,
 }: {
   rows: readonly Row[];
   read: DomainRead;
@@ -975,76 +1032,96 @@ function DomainsTable({
   onMoveBehind: (row: Row) => void;
   onPrivate: (row: Row) => void;
   onOpen: (row: Row) => void;
+  place: ListPlace;
+  actionsFor: (row: Row) => MenuAction[];
 }) {
   const { t } = useLingui();
+  const menu = useRowMenu<Row>();
   const redirects = rows.some((row) => row.sources.length > 0);
   const atCloudflare = rows.some((row) => row.domain.published.length > 0);
-  const columns = useMemo<TableColumn<Row>[]>(
-    () => [
-      {
-        key: "domain",
-        header: t`Domain`,
-        render: (row) => (
-          <div className="dw-cell">
-            <span className="domains-name">
-              <code className="domains-at">{routeWhere(row.domain, row.route)}</code>
-              <Visit row={row} read={read} />
-              <Private row={row} onPrivate={onPrivate} />
-            </span>
-            <PrivateFact domain={row.domain} route={row.route} open={row.open} />
-            <Unserved row={row} />
-            <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
-          </div>
-        ),
-      },
-      {
-        key: "reaches",
-        header: t`Routes to`,
-        // Narrower than it was alone, as the DNS column and the panel beside the list take room the name needs,
-        // and narrower again beside Cloudflare's columns (#820).
-        width: atCloudflare ? "17%" : "22%",
-        render: (row) => <Reaches row={row} fleet={fleet} environment={environment} />,
-      },
-      {
-        key: "dns",
-        header: t`DNS`,
-        width: atCloudflare ? 140 : 184,
-        render: (row) => <DnsCell domain={row.domain} read={read} />,
-      },
-      {
-        key: "status",
-        header: t`Status`,
-        width: 168,
-        render: (row) => <RowBadge row={row} read={read} />,
-      },
-      // Each only where a row has something for it, so a list with none draws no empty column (#820).
-      ...(redirects
-        ? [{ key: "redirects", header: t`Redirects`, width: 128, render: (row: Row) => <Sources row={row} /> }]
-        : []),
-      ...(atCloudflare
-        ? [
-            {
-              key: "cloudflare",
-              header: t`At Cloudflare`,
-              width: 248,
-              render: (row: Row) => (row.first ? <PublishedCell domain={row.domain} /> : null),
-            },
-          ]
-        : []),
-    ],
-    [t, read, fleet, environment, onMoveBehind, onPrivate, redirects, atCloudflare],
-  );
+  const columns: TableColumn<Row>[] = [
+    {
+      key: "domain",
+      header: <SortHeader label={t`Domain`} sortKey="domain" place={place} />,
+      sort: place.sortOf("domain"),
+      render: (row) => (
+        <div className="dw-cell">
+          <span className="domains-name">
+            <code className="domains-at">{routeWhere(row.domain, row.route)}</code>
+            <Visit row={row} read={read} />
+            <Private row={row} onPrivate={onPrivate} />
+          </span>
+          <PrivateFact domain={row.domain} route={row.route} open={row.open} />
+          <Unserved row={row} />
+          <RowNote row={row} read={read} onMoveBehind={onMoveBehind} />
+        </div>
+      ),
+    },
+    {
+      key: "reaches",
+      header: t`Routes to`,
+      // Narrower than it was alone, as the DNS column and the panel beside the list take room the name needs,
+      // and narrower again beside Cloudflare's columns (#820).
+      width: atCloudflare ? "17%" : "22%",
+      render: (row) => <Reaches row={row} fleet={fleet} environment={environment} />,
+    },
+    {
+      key: "dns",
+      header: t`DNS`,
+      width: atCloudflare ? 140 : 184,
+      render: (row) => <DnsCell domain={row.domain} read={read} />,
+    },
+    {
+      key: "status",
+      header: t`Status`,
+      width: 168,
+      render: (row) => <RowBadge row={row} read={read} />,
+    },
+    // Each only where a row has something for it, so a list with none draws no empty column (#820).
+    ...(redirects
+      ? [{ key: "redirects", header: t`Redirects`, width: 128, render: (row: Row) => <Sources row={row} /> }]
+      : []),
+    ...(atCloudflare
+      ? [
+          {
+            key: "cloudflare",
+            header: t`At Cloudflare`,
+            width: 248,
+            render: (row: Row) => (row.first ? <PublishedCell domain={row.domain} /> : null),
+          },
+        ]
+      : []),
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 48,
+      align: "right",
+      render: (row: Row) => (
+        <ActionMenu label={t`Actions for ${routeWhere(row.domain, row.route)}`} actions={actionsFor(row)} />
+      ),
+    },
+  ];
   return (
-    <Table<Row>
-      className="apps-table domains-table"
-      columns={columns}
-      rows={rows}
-      caption={t`Domains`}
-      rowClickable={(row) => row.service !== undefined || row.website !== undefined}
-      onRowClick={(row) => {
-        if (row.service || row.website) onOpen(row);
-      }}
-    />
+    <>
+      <Table<Row>
+        className="apps-table domains-table"
+        columns={columns}
+        rows={rows}
+        caption={t`Domains`}
+        rowClickable={(row) => row.service !== undefined || row.website !== undefined}
+        onRowClick={(row) => {
+          if (row.service || row.website) onOpen(row);
+        }}
+        rowHasContextMenu={(row) => actionsFor(row).length > 0}
+        onRowContextMenu={(row, at, el) =>
+          menu.open(row, at, el, {
+            label: t`Actions for ${routeWhere(row.domain, row.route)}`,
+            actions: actionsFor(row),
+          })
+        }
+      />
+      {menu.element}
+    </>
   );
 }
 
@@ -1056,6 +1133,7 @@ function PhoneRows({
   environment,
   onMoveBehind,
   onPrivate,
+  actionsFor,
 }: {
   rows: readonly Row[];
   read: DomainRead;
@@ -1063,6 +1141,7 @@ function PhoneRows({
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
   onPrivate: (row: Row) => void;
+  actionsFor: (row: Row) => MenuAction[];
 }) {
   return (
     <Panel flush className="apps-phone domains-phone">
@@ -1075,6 +1154,7 @@ function PhoneRows({
           environment={environment}
           onMoveBehind={onMoveBehind}
           onPrivate={onPrivate}
+          actionsFor={actionsFor}
         />
       ))}
     </Panel>
@@ -1088,6 +1168,7 @@ function PhoneRow({
   environment,
   onMoveBehind,
   onPrivate,
+  actionsFor,
 }: {
   row: Row;
   read: DomainRead;
@@ -1095,7 +1176,9 @@ function PhoneRow({
   environment: ((id: string) => string) | undefined;
   onMoveBehind: (row: Row) => void;
   onPrivate: (row: Row) => void;
+  actionsFor: (row: Row) => MenuAction[];
 }) {
+  const { t } = useLingui();
   const [status, word] = useDomainState(row.domain, row.look, row.silent, read);
   const target = useTargetWords()(row.route);
   // Where its DNS leads, as the wide list's column says it, once a server has read it and the list can be believed.
@@ -1150,6 +1233,7 @@ function PhoneRow({
         )}
         <Visit row={row} read={read} />
         <Private row={row} onPrivate={onPrivate} />
+        <ActionMenu label={t`Actions for ${routeWhere(row.domain, row.route)}`} actions={actionsFor(row)} />
       </div>
       <PrivateFact domain={row.domain} route={row.route} open={row.open} />
       <Folded row={row} />

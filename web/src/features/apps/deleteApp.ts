@@ -6,6 +6,7 @@ import {
   type Change,
   ChangeService,
   ChangeState,
+  type Domain,
   type Resource,
   ResourceService,
   type ServiceInfo,
@@ -45,18 +46,28 @@ export interface AppProject {
  * (ADR 0074): the default project, where the next app goes, is never offered. Once it applies, the
  * app's pages have nothing to show, so the list comes next.
  */
-export function useDeleteApp(
+export function useDeleteApp(service: ServiceInfo, options?: DeleteAppOptions) {
+  return useDeleteAppPlan(service, useAppDomains(service).domains, options);
+}
+
+interface DeleteAppOptions {
+  /** Where to go once it's deleted: the list it was on. */
+  after?: "/apps" | "/databases";
+  /** What goes with it, as a database's users go with its service. */
+  alongside?: readonly Resource[];
+}
+
+export function useDeleteAppPlan(
   service: ServiceInfo,
-  options: {
-    /** Where to go once it's deleted: the list it was on. */
-    after?: "/apps" | "/databases";
-    /** What goes with it, as a database's users go with its service. */
-    alongside?: readonly Resource[];
-  } = {},
+  domains: readonly Domain[],
+  options: DeleteAppOptions = {},
 ): {
   routes: number;
   open: () => void;
   project: AppProject | undefined;
+  pending: boolean;
+  error: Error | null;
+  retry: () => void;
 } {
   const after = options.after ?? "/apps";
   const alongside = options.alongside ?? [];
@@ -70,14 +81,13 @@ export function useDeleteApp(
   const name = nameOf(service);
   const resource = service.resource;
   const place = places.place(environmentOf(service));
-  const projects = useQuery(ResourceService.method.listResources, { kind: "project" }).data?.resources;
-  const installs = useQuery(CatalogService.method.listCatalogInstalls, {}).data?.installs;
-  const project = place && !place.isDefault ? projects?.find((p) => p.id === place.scope) : undefined;
+  const projects = useQuery(ResourceService.method.listResources, { kind: "project" });
+  const installs = useQuery(CatalogService.method.listCatalogInstalls, {});
+  const project = place && !place.isDefault ? projects.data?.resources.find((p) => p.id === place.scope) : undefined;
   const environments = project ? places.environments.filter((e) => e.scope === project.id).map((e) => e.id) : [];
-  const inside = useResourcesIn(environments, project !== undefined).data;
-  const routes = useAppDomains(service).domains.flatMap((domain) =>
-    domain.routes.filter((route) => route.service === name),
-  );
+  const contents = useResourcesIn(environments, project !== undefined);
+  const inside = contents.data;
+  const routes = domains.flatMap((domain) => domain.routes.filter((route) => route.service === name));
   const mine = new Set(routes.map((route) => route.name));
   const isMine = (r: Resource) =>
     (r.resource?.kind === "service" && r.resource.name === name) ||
@@ -93,7 +103,9 @@ export function useDeleteApp(
   const refused = mayProject.allowed ? undefined : mayProject.reason || undefined;
   // As Projects names it: an install by the name it was given, never its app's (#796).
   const label = project
-    ? (installs?.some((i) => i.projectId === project.id) ? project.resource?.name : project.displayName) ||
+    ? (installs.data?.installs.some((i) => i.projectId === project.id)
+        ? project.resource?.name
+        : project.displayName) ||
       project.resource?.name ||
       project.id
     : "";
@@ -154,6 +166,12 @@ export function useDeleteApp(
   return {
     routes: routes.length,
     open,
+    pending: places.isPending || (project !== undefined && environments.length > 0 && contents.isPending),
+    error: projects.error ?? contents.error,
+    retry: () => {
+      if (projects.error) void projects.refetch();
+      if (contents.error) void contents.refetch();
+    },
     project: project
       ? {
           project,

@@ -367,6 +367,12 @@ code.tasks-sub,
   list-style: none;
 }
 
+.tasks-phone > li {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--space-3);
+}
+
 .tasks-phone li + li {
   border-top: 1px solid var(--line);
 }
@@ -376,7 +382,8 @@ code.tasks-sub,
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 2px var(--space-3);
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 56px;
   padding: var(--space-2) var(--space-4);
   border: 0;

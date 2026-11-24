@@ -50,6 +50,14 @@ import {
   useRegistryLogins,
 } from "../registries/registries";
 import { useControlPlaneNow } from "../servers/useFleet";
+import {
+  ListNoMatch,
+  ListPager,
+  type ListRouteProps,
+  ListToolbar,
+  useListPlace,
+  useListSection,
+} from "../shell/ListTools";
 import { Page } from "../shell/Page";
 import { issuerHost, useSigninProviders } from "../signin/providers";
 import { SigninProviderSheet } from "../signin/SigninProviderSheet";
@@ -71,7 +79,7 @@ const CLOUDFLARE =
  * here as a plan, and Cloudflare in front of routes. What comes later is a line,
  * never drawn as a card to connect.
  */
-export function IntegrationsPage() {
+export function IntegrationsPage({ search, onSearch }: ListRouteProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const storage = useStorage();
@@ -96,6 +104,23 @@ export function IntegrationsPage() {
   const mayUseAsConnection = may(BackupService.method.useDestinationAsConnection);
   const read = storage.ready;
   const list = storage.items;
+  const place = useListPlace(search, onSearch, []);
+  const storagePages = useListSection(
+    list,
+    place.query,
+    (item) => `${item.name} ${item.label} ${item.host} ${item.bucket}`,
+  );
+  const registryPages = useListSection(loginList, place.query, (item) => `${item.name} ${item.registry}`);
+  const dnsPages = useListSection(
+    dnsList,
+    place.query,
+    (item) => `${item.name} ${item.provider} ${item.zones.join(" ")}`,
+  );
+  const signinPages = useListSection(
+    signinList,
+    place.query,
+    (item) => `${item.name} ${item.displayName} ${item.issuer}`,
+  );
   const connected = list.length;
   // Every integration connected, as the page lists them: GitHub, storage, registry
   // logins, DNS providers and sign-in providers. A list the caller may not read
@@ -148,9 +173,10 @@ export function IntegrationsPage() {
   const zoneCount = dnsList.reduce((n, p) => n + p.zones.length, 0);
   return (
     <Page width="narrow" title={t`Integrations`} lead={lead} phoneSub={lead} back="/settings" actions={variables}>
+      {all || place.query ? <ListToolbar place={place} label={t`Filter integrations`} /> : null}
       <div className="integrations-sections">
         <div className="integrations-board">
-          <GitHubSection />
+          <GitHubSection query={place.query} />
 
           <section className="integrations-section" aria-labelledby="integrations-storage" {...cards(storageCards)}>
             <div className="integrations-head">
@@ -189,7 +215,7 @@ export function IntegrationsPage() {
               <CardsLoading label={t`Loading where backups go`} />
             ) : (
               <div className="integrations-grid">
-                {list.map((item) => (
+                {storagePages.page.rows.map((item) => (
                   <StorageCard key={item.key} item={item} useAsConnectionOff={mayUseAsConnection.off} />
                 ))}
                 {connected === 0 ? (
@@ -203,6 +229,10 @@ export function IntegrationsPage() {
                 ) : null}
               </div>
             )}
+            {place.query && list.length > 0 && !storagePages.page.total ? (
+              <ListNoMatch clear={place.clearQuery} />
+            ) : null}
+            <ListPager {...storagePages} />
           </section>
 
           <section className="integrations-section" aria-labelledby="integrations-registries" {...cards(registryCards)}>
@@ -239,7 +269,7 @@ export function IntegrationsPage() {
               <CardsLoading label={t`Loading registry logins`} />
             ) : (
               <div className="integrations-grid">
-                {loginList.map((l) => (
+                {registryPages.page.rows.map((l) => (
                   <LoginCard
                     key={l.id}
                     onChanged={() => void logins.refetch()}
@@ -279,6 +309,10 @@ export function IntegrationsPage() {
                 )}
               </div>
             )}
+            {place.query && loginList.length > 0 && !registryPages.page.total ? (
+              <ListNoMatch clear={place.clearQuery} />
+            ) : null}
+            <ListPager {...registryPages} />
           </section>
 
           <section className="integrations-section" aria-labelledby="integrations-dns" {...cards(dnsCards)}>
@@ -291,7 +325,7 @@ export function IntegrationsPage() {
               ) : null}
             </div>
             <div className="integrations-grid">
-              {dnsList.map((p) => (
+              {dnsPages.page.rows.map((p) => (
                 <ProviderCard
                   key={p.id}
                   provider={p}
@@ -336,6 +370,10 @@ export function IntegrationsPage() {
                 }
               />
             </div>
+            {place.query && dnsList.length > 0 && !dnsPages.page.total ? (
+              <ListNoMatch clear={place.clearQuery} />
+            ) : null}
+            <ListPager {...dnsPages} />
           </section>
 
           <section className="integrations-section" aria-labelledby="integrations-signin" {...cards(signinCards)}>
@@ -376,7 +414,7 @@ export function IntegrationsPage() {
               <CardsLoading label={t`Loading sign-in providers`} />
             ) : (
               <div className="integrations-grid">
-                {signinList.map((p) => (
+                {signinPages.page.rows.map((p) => (
                   <SigninCard key={p.id} provider={p} onManage={() => setSignin({ editing: p })} manage={mayPlan.off} />
                 ))}
                 {signinList.length > 0 ? null : (
@@ -394,6 +432,10 @@ export function IntegrationsPage() {
                 )}
               </div>
             )}
+            {place.query && signinList.length > 0 && !signinPages.page.total ? (
+              <ListNoMatch clear={place.clearQuery} />
+            ) : null}
+            <ListPager {...signinPages} />
           </section>
         </div>
       </div>

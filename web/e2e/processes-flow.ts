@@ -51,7 +51,7 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
     }
     await shoot(page, "server-processes");
 
-    await page.getByRole("textbox", { name: "Filter processes" }).fill(String(pid));
+    await page.getByRole("searchbox", { name: "Filter processes" }).fill(String(pid));
     // The summary uses the deferred filter, so it waits for the results to settle.
     await page.getByText(/^\d+ (?:process matches|processes match)\./).waitFor();
     const row = table.getByRole("row", { name: new RegExp(`\\bsleep\\b.*\\b${pid}\\b`) });
@@ -84,6 +84,10 @@ export async function processesFlow(page: Page, { origin, step, shoot }: Process
 
     step("the processes fit the narrowest phone");
     await page.goBack();
+    const filter = page.getByRole("searchbox", { name: "Filter processes" });
+    if ((await filter.inputValue()) !== String(pid)) fail("Back lost the PID filter");
+    await filter.fill("");
+    await page.waitForURL((url) => !url.searchParams.has("q"));
     await atWidth(page, { width: 360, height: 780 });
     await page.getByRole("list", { name: "Processes" }).waitFor({ timeout: 15_000 });
     const wide = await page.evaluate(() => document.documentElement.scrollWidth);
