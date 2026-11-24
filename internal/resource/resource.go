@@ -177,6 +177,7 @@ type JailPlan struct {
 
 // Decision is a driver's judgement of one step.
 type Decision struct {
+	SSHPortMove       *v1.SshPortMove       `json:",omitempty"`
 	DockerDaemon      *v1.DockerDaemonPlan  `json:",omitempty"`
 	DockerMaintenance *v1.DockerMaintenance `json:",omitempty"`
 	// KeepWorkloadImage is set locally for a log-policy-only replacement.

@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -132,11 +133,12 @@ var (
 
 // state is the rules and policy, by name, and the SSH pins they keep.
 type state struct {
-	SSH     *resourcev1.SshConfig
-	SSHOpen []netip.Prefix
-	Rules   map[string]*resourcev1.FirewallRule
-	Policy  *resourcev1.FirewallPolicy
-	Pinned  Pinned
+	SSH          *resourcev1.SshConfig
+	SSHOpen      []netip.Prefix
+	SSHRulePorts map[string]uint16
+	Rules        map[string]*resourcev1.FirewallRule
+	Policy       *resourcev1.FirewallPolicy
+	Pinned       Pinned
 }
 
 // Pinned are the SSH ports and addresses a state keeps reaching SSH: those of
@@ -150,7 +152,7 @@ type Pinned struct {
 }
 
 func (s state) clone() state {
-	out := state{SSH: proto.CloneOf(s.SSH), SSHOpen: slices.Clone(s.SSHOpen), Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
+	out := state{SSH: proto.CloneOf(s.SSH), SSHOpen: slices.Clone(s.SSHOpen), SSHRulePorts: maps.Clone(s.SSHRulePorts), Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
 	for name, r := range s.Rules {
 		out.Rules[name] = proto.CloneOf(r)
 	}
@@ -342,12 +344,12 @@ func (m *Manager) Applied() Applied {
 		return out
 	}
 	c := m.confirmed.clone()
-	out.Rules, out.Policy = c.Rules, c.Policy
+	out.Rules, out.Policy = c.liveRules(), c.Policy
 	switch {
 	case m.waiting != nil:
 		t := m.waiting.table
 		w := m.waiting.state.clone()
-		out.Live, out.Waiting, out.WaitingRules, out.WaitingPolicy = &t, m.waiting.change, w.Rules, w.Policy
+		out.Live, out.Waiting, out.WaitingRules, out.WaitingPolicy = &t, m.waiting.change, w.liveRules(), w.Policy
 	case m.unrestored == nil && !m.confirmed.empty():
 		t := m.confirmed.table
 		out.Live = &t
@@ -392,7 +394,7 @@ func (m *Manager) Closes(desired *resourcev1.FirewallPolicy) []string {
 		if e.Protocol == "tcp" && (slices.Contains(pins.Own, e.Port) || slices.Contains(pins.SSHPorts, e.Port)) {
 			continue
 		}
-		if slices.ContainsFunc(slices.Collect(maps.Values(s.Rules)), func(r *resourcev1.FirewallRule) bool {
+		if slices.ContainsFunc(slices.Collect(maps.Values(s.liveRules())), func(r *resourcev1.FirewallRule) bool {
 			return !isDeny(r) && protocolOf(r) == e.Protocol && portOf(r) == e.Port && len(r.GetSources()) == 0
 		}) {
 			continue
@@ -529,12 +531,20 @@ func (m *Manager) Rule(ctx context.Context, name string) (*resourcev1.FirewallRu
 // Put adds or replaces the named rule.
 func (m *Manager) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
 	rule = proto.CloneOf(rule)
-	return m.edit(ctx, func(s *state) { s.Rules[name] = rule })
+	return m.edit(ctx, func(s *state) {
+		if !proto.Equal(s.Rules[name], rule) {
+			delete(s.SSHRulePorts, name)
+		}
+		s.Rules[name] = rule
+	})
 }
 
 // Delete removes the named rule.
 func (m *Manager) Delete(ctx context.Context, name string) error {
-	return m.edit(ctx, func(s *state) { delete(s.Rules, name) })
+	return m.edit(ctx, func(s *state) {
+		delete(s.Rules, name)
+		delete(s.SSHRulePorts, name)
+	})
 }
 
 // Policy returns the server's policy, or nil.
@@ -568,10 +578,10 @@ var ErrBusy = errors.New("another change to this server's firewall waits for its
 // again and waits for the verdict. A step of a change the server already put
 // back fails, so the change rolls back rather than end with part of it here.
 func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
-	return m.editAccess(ctx, fn, false)
+	return m.editAccess(ctx, fn, false, nil)
 }
 
-func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool) error {
+func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, move *dockwellv1.SshPortMove) error {
 	d := resource.DeployOf(ctx)
 	if d.Change == "" {
 		return errors.New("a change to the firewall comes through a change, which names it")
@@ -624,22 +634,25 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool) err
 		if err == nil {
 			err = m.checkPanelSSH(trial)
 		}
+		if err == nil {
+			var now *dockwellv1.SshPortMove
+			now, err = next.planSSHMove(trial)
+			if err == nil && !proto.Equal(now, move) {
+				err = errors.New("the SSH port move differs from the plan. Review the updated plan")
+			}
+		}
 		if err != nil {
 			m.mu.Unlock()
 			return err
 		}
-		if next.SSH.GetPort() != base.SSH.GetPort() {
-			next.SSHOpen = nil
-			if trial.Port != trial.OldPort {
-				next.Pinned.SSHPorts = slices.DeleteFunc(next.Pinned.SSHPorts, func(p uint16) bool { return p == trial.OldPort })
-				if next.SSH.GetPort() != 0 {
-					for _, from := range trial.From {
-						next.SSHOpen = append(next.SSHOpen, netip.PrefixFrom(from, from.BitLen()))
-					}
-					host.pins.SSHPorts = slices.DeleteFunc(slices.Clone(host.pins.SSHPorts), func(p uint16) bool { return p == trial.OldPort })
-					host.pins.SSHPorts = append(host.pins.SSHPorts, trial.Port)
-				}
+		if trial.Port != trial.OldPort {
+			for _, from := range next.SSHOpen {
+				next.Pinned.SSHFrom = appendNew(next.Pinned.SSHFrom, from)
 			}
+			next.SSHOpen = nil
+			next.Pinned.SSHPorts = slices.DeleteFunc(next.Pinned.SSHPorts, func(p uint16) bool { return p == trial.OldPort })
+			host.pins.SSHPorts = slices.DeleteFunc(slices.Clone(host.pins.SSHPorts), func(p uint16) bool { return p == trial.OldPort })
+			host.pins.SSHPorts = append(host.pins.SSHPorts, trial.Port)
 		}
 	}
 	next, tbl, pins, err := m.prepareLocked(ctx, next, host, false)
@@ -686,7 +699,22 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool) err
 	}
 	final := tbl
 	if trial != nil && trial.Port != trial.OldPort {
-		tbl.Pins = append(slices.Clone(tbl.Pins), sshPortPin(trial.OldPort, trial.From))
+		tbl.Pins = slices.Clone(tbl.Pins)
+		if len(pins.SSHFrom) > 0 {
+			tbl.Pins = append(tbl.Pins, sshPortPin("ssh old listener", trial.OldPort, pins.SSHFrom))
+		}
+		if trial.ProofPeer.IsValid() {
+			tbl.Pins = append(tbl.Pins, sshPortPin("ssh trial listener", trial.Port, []netip.Prefix{netip.PrefixFrom(trial.ProofPeer, trial.ProofPeer.BitLen())}))
+		}
+		tbl.Allows = slices.Clone(tbl.Allows)
+		for _, name := range slices.Sorted(maps.Keys(base.Rules)) {
+			rule := base.liveRule(name)
+			if protocolOf(rule) == "tcp" && portOf(rule) == trial.OldPort {
+				old := nftablesRule(name, rule)
+				old.Name = "ssh trial old " + name
+				tbl.Allows = append(tbl.Allows, old)
+			}
+		}
 	}
 	loaded, err := m.Table.Load(ctx, tbl)
 	m.skipped(ctx, loaded)
@@ -717,7 +745,14 @@ func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool) err
 			m.mu.Unlock()
 			return err
 		}
+		if err := m.SSH.Rearm(context.WithoutCancel(ctx), m.Dir, wait, m.timer()+30*time.Second, trial); err != nil {
+			unlockSSH()
+			m.rollBackLocked(ctx, d.Change)
+			m.mu.Unlock()
+			return err
+		}
 		trial.Started, err = m.SSH.Started()
+		trial.StartedAt = m.clock()
 		if err != nil {
 			unlockSSH()
 			m.rollBackLocked(ctx, d.Change)
@@ -987,15 +1022,15 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
 	var unlockSSH func()
 	if w.ssh != nil {
-		if !m.SSH.Proved(ctx, w.ssh) {
-			return resource.AccessNotProved
-		}
 		unlock, err := m.lockSSH()
 		if err != nil {
 			return resource.AccessNotKept
 		}
 		unlockSSH = unlock
 		defer unlockSSH()
+		if m.SSH.Proved(ctx, w.ssh) == nil || !m.clock().Before(w.deadline) {
+			return resource.AccessNotProved
+		}
 		c.table = w.sshFinal
 		if w.ssh.Final != w.ssh.Candidate {
 			if err := m.SSH.Install(context.WithoutCancel(ctx), w.ssh, w.ssh.Final); err != nil {
@@ -1005,7 +1040,7 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 			}
 			loaded, err := m.Table.Load(context.WithoutCancel(ctx), c.table)
 			m.skipped(ctx, loaded)
-			if err != nil || !m.clock().Before(w.deadline) {
+			if err != nil {
 				unlockSSH()
 				m.rollBackLocked(ctx, change)
 				return resource.AccessRolledBack
@@ -1271,7 +1306,7 @@ func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
 		t.DockerInterfaces = slices.Clone(nets.Interfaces)
 	}
 	for _, name := range slices.Sorted(maps.Keys(s.Rules)) {
-		r := s.Rules[name]
+		r := s.liveRule(name)
 		rule := nftablesRule(name, r)
 		if r.GetAction() == resourcev1.FirewallAction_FIREWALL_ACTION_DENY {
 			t.Denies = append(t.Denies, rule)
@@ -1485,7 +1520,7 @@ func (m *Manager) stays(ctx context.Context, fn func(*state), turnsOn bool) *res
 			out.Pinned = append(out.Pinned, from.String())
 		}
 		for _, name := range slices.Sorted(maps.Keys(next.Rules)) {
-			r := next.Rules[name]
+			r := next.liveRule(name)
 			if isDeny(r) || protocolOf(r) != "tcp" || !slices.Contains(sshPortsOr22(pins.SSHPorts), portOf(r)) {
 				continue
 			}
@@ -1558,7 +1593,7 @@ func sshPortsOr22(ports []uint16) []uint16 {
 
 // allowsFromAnywhere reports a rule that lets a TCP port in from anywhere.
 func allowsFromAnywhere(s state, port uint16) bool {
-	for _, r := range s.Rules {
+	for _, r := range s.liveRules() {
 		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0 {
 			return true
 		}
@@ -1568,7 +1603,7 @@ func allowsFromAnywhere(s state, port uint16) bool {
 
 // allows reports a rule that lets a TCP port in, from anywhere or from some.
 func allows(s state, port uint16) bool {
-	for _, r := range s.Rules {
+	for _, r := range s.liveRules() {
 		if !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port {
 			return true
 		}
@@ -1581,7 +1616,7 @@ func allows(s state, port uint16) bool {
 // from anywhere. Only then does who is pinned decide who gets in.
 func narrowsSSH(s state, ports []uint16) bool {
 	ports = sshPortsOr22(ports)
-	for _, r := range s.Rules {
+	for _, r := range s.liveRules() {
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
 			return true
 		}
@@ -1616,7 +1651,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 		}
 	}
 	for _, name := range names {
-		r := s.Rules[name]
+		r := s.liveRule(name)
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(p.Own, portOf(r)) {
 			return fmt.Errorf("this would deny port %d, which the control plane on this server listens on, for the panel or its agents. Leave that port out", portOf(r))
 		}
@@ -1629,7 +1664,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 		ports, refuse = []uint16{22}, errNoSSH
 	}
 	for _, name := range names {
-		r := s.Rules[name]
+		r := s.liveRule(name)
 		if isDeny(r) && protocolOf(r) == "tcp" && slices.Contains(ports, portOf(r)) {
 			return refuse
 		}
@@ -1637,7 +1672,7 @@ func check(s state, p Pins, panelOverSSH bool) error {
 	if s.Policy.GetDenyEverythingElse() {
 		for _, port := range ports {
 			open := slices.ContainsFunc(names, func(name string) bool {
-				r := s.Rules[name]
+				r := s.liveRule(name)
 				return !isDeny(r) && protocolOf(r) == "tcp" && portOf(r) == port && len(r.GetSources()) == 0
 			})
 			if !open {
@@ -1724,17 +1759,18 @@ func (m *Manager) removeWaiting() error {
 // stored is what was confirmed as it's kept on disk: each spec as protojson,
 // the pins it keeps, and the table it loaded as.
 type stored struct {
-	SSH     json.RawMessage            `json:"ssh,omitempty"`
-	SSHOpen []netip.Prefix             `json:"ssh_open,omitempty"`
-	Wait    string                     `json:"wait,omitempty"`
-	Rules   map[string]json.RawMessage `json:"rules,omitempty"`
-	Policy  json.RawMessage            `json:"policy,omitempty"`
-	Pinned  Pinned                     `json:"pinned,omitzero"`
-	Table   *nftables.Table            `json:"table,omitempty"`
+	SSH          json.RawMessage            `json:"ssh,omitempty"`
+	SSHOpen      []netip.Prefix             `json:"ssh_open,omitempty"`
+	SSHRulePorts map[string]uint16          `json:"ssh_rule_ports,omitempty"`
+	Wait         string                     `json:"wait,omitempty"`
+	Rules        map[string]json.RawMessage `json:"rules,omitempty"`
+	Policy       json.RawMessage            `json:"policy,omitempty"`
+	Pinned       Pinned                     `json:"pinned,omitzero"`
+	Table        *nftables.Table            `json:"table,omitempty"`
 }
 
 func encodeConfirmed(c confirmedState) stored {
-	out := stored{Wait: c.wait, SSHOpen: c.SSHOpen, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
+	out := stored{Wait: c.wait, SSHOpen: c.SSHOpen, SSHRulePorts: c.SSHRulePorts, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
 	for name, r := range c.Rules {
 		b, _ := protojson.Marshal(r)
 		out.Rules[name] = b
@@ -1754,7 +1790,7 @@ func decodeConfirmed(b []byte, v any) error {
 		return err
 	}
 	c := v.(*confirmedState)
-	c.wait, c.Pinned, c.SSHOpen = in.Wait, in.Pinned, in.SSHOpen
+	c.wait, c.Pinned, c.SSHOpen, c.SSHRulePorts = in.Wait, in.Pinned, in.SSHOpen, in.SSHRulePorts
 	if len(in.SSH) != 0 {
 		c.SSH = &resourcev1.SshConfig{}
 		if err := protojson.Unmarshal(in.SSH, c.SSH); err != nil {

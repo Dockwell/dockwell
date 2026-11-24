@@ -3027,6 +3027,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	// A server a removal takes steps on for some items, and lets go of others, is one
 	// with steps (ADR 0090).
 	removed = slices.DeleteFunc(removed, func(s string) bool { return slices.Contains(servers, s) })
+	for _, server := range servers {
+		var ssh, otherAccess bool
+		for _, it := range byServer[server] {
+			ssh = ssh || it.ref.Kind == "ssh.config"
+			otherAccess = otherAccess || it.ref.Kind == "fail2ban.jail" || (it.ref.Kind != "ssh.config" && e.guardsAccess(it.ref.Kind))
+		}
+		if ssh && otherAccess {
+			return nil, fault.New(ErrInvalid, "plan SSH settings separately from other access edits on the same server")
+		}
+	}
 	// The server leaving is on the plan as one, steps or not, as one with nothing on it has none.
 	if removal != nil && !slices.Contains(servers, removal.Server) && !slices.Contains(removed, removal.Server) {
 		removed = append(removed, removal.Server)
@@ -3447,6 +3457,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			if s.Proof != "" {
 				fmt.Fprintf(fp, "proof %s|%s|%s\n", server, ref(s.Ref), s.Proof)
+			}
+			if move := s.SSHPortMove; move != nil {
+				fmt.Fprintf(fp, "ssh port move %s|%d|%d|%q|%t\n", server, move.GetFromPort(), move.GetToPort(), move.GetFirewallRules(), move.GetFail2Ban())
 			}
 			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)

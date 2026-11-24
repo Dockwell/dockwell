@@ -1255,6 +1255,9 @@ msgstr "回滚：{reverted}"
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
 
+msgid "SSH operation unconfirmed on {server}"
+msgstr "{server} 上的 SSH 操作结果尚未确认"
+
 msgid "Saved {path} on {server}"
 msgstr "已保存 {server} 上的 {path}"
 
@@ -10304,6 +10307,9 @@ msgstr "新的 SSH 连接已验证这些设置。"
 msgid "Check you can still reach {name}"
 msgstr "确认你仍能访问 {name}"
 
+msgid "Copy SSH test command"
+msgstr "复制 SSH 测试命令"
+
 msgid "Keep the change"
 msgstr "保留更改"
 
@@ -10316,10 +10322,6 @@ msgstr "只有应用这项更改的人，在应用它的会话中，才能保留
 msgid "Open a fresh SSH connection before keeping these settings."
 msgstr "请先建立新的 SSH 连接，再保留这些设置。"
 
-#. placeholder {0}: wait.sshAccount
-msgid "Open a new SSH connection as {0} on port {port} from the same address."
-msgstr "从同一地址以 {0} 身份连接 SSH 端口 {port}。"
-
 msgid "Open a new SSH session from here with your key, and keep the change if it works."
 msgstr "从这里用你的密钥打开一个新的 SSH 会话，能连上就保留此更改。"
 
@@ -10329,6 +10331,9 @@ msgstr "从这里用你的密钥向端口 {portList} 打开一个新的 SSH 会�
 msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话，能连上就保留此更改。"
 
+msgid "Run this command from your original SSH client."
+msgstr "在原来的 SSH 客户端运行此命令。"
+
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
 
@@ -10337,6 +10342,18 @@ msgstr "服务器还没能保留此更改，所以它仍在等待。请先释放
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "然后在新标签页中用面板自己的地址打开面板。"
+
+#. placeholder {0}: login.address
+msgid "Verified from {0} with {identity}."
+msgstr "已验证来自 {0} 的登录，认证方式为 {identity}。"
+
+#. placeholder {0}: login.address
+msgid "Verified from {0}."
+msgstr "已验证来自 {0} 的登录。"
+
+#. placeholder {0}: wait.sshAccount
+msgid "Waiting for the test command for {0} on port {port}."
+msgstr "正在等待 {0} 在端口 {port} 上的测试命令。"
 
 msgid "or"
 msgstr "或"
@@ -11945,6 +11962,15 @@ msgstr "MongoDB 只能从与当前版本一致的数据迁移，因此它的功�
 
 msgid "More than one container answers to {shared} on {network}"
 msgstr "在 {network} 上有多个容器响应 {shared}"
+
+msgid "Move SSH from port {fromPort} to {toPort}"
+msgstr "将 SSH 从端口 {fromPort} 移至 {toPort}"
+
+msgid "Move the fail2ban sshd jail with the listener."
+msgstr "同时迁移 fail2ban 的 sshd 防护规则。"
+
+msgid "Move these firewall rules with the listener: {rules}"
+msgstr "同时迁移这些防火墙规则：{rules}"
 
 msgid "Moves {names} on, which an install of each can upgrade to."
 msgstr "更新 {names}，已安装的实例可以升级到新版本。"
@@ -20878,6 +20904,9 @@ msgstr "用于测试的管理员"
 msgid "All interfaces"
 msgstr "所有网络接口"
 
+msgid "Authentication log entries are unverified."
+msgstr "认证日志中的记录未经验证。"
+
 msgid "Ban in Fail2ban"
 msgstr "通过 Fail2ban 封禁"
 
@@ -20929,6 +20958,9 @@ msgstr "OpenSSH 公钥"
 msgid "Remove key"
 msgstr "移除密钥"
 
+msgid "Runs a command"
+msgstr "运行命令"
+
 #. placeholder {0}: server.name
 msgid "SSH keys on {0}"
 msgstr "{0} 上的 SSH 密钥"
@@ -20953,6 +20985,9 @@ msgstr "端口和地址由 systemd 套接字设置。"
 
 msgid "This is a private key. Paste the public key instead."
 msgstr "这是私钥。请改为粘贴公钥。"
+
+msgid "Trusts a certificate authority"
+msgstr "信任证书颁发机构"
 
 #. placeholder {0}: server.name
 msgid "Update SSH settings on {0}"

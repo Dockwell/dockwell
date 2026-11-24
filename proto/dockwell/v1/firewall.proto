@@ -522,6 +522,17 @@ message ServerSsh {
   string edit_refusal = 22;
   string proved_change = 23;
   repeated string admin_accounts = 24;
+  // The command for the current trial and its verified authentication.
+  string test_change = 25;
+  string test_command = 26;
+  SshProof proof = 27;
+}
+
+// SshProof identifies the accepted login that verified an SSH trial.
+message SshProof {
+  string address = 1;
+  string method = 2;
+  string fingerprint = 3;
 }
 
 // SshAnswer is yes or no, or neither when Dockwell can't tell.
@@ -717,6 +728,7 @@ message SshKey {
   string comment = 2;
   string fingerprint = 3;
   google.protobuf.Timestamp added = 4;
+  repeated string options = 5;
 }
 
 // ListServerSshKeysRequest selects a server and optionally one local account.
@@ -808,6 +820,8 @@ message ListServerSshLoginsResponse {
   repeated SshLoginFailures failures = 2;
   bool bounded = 3;
   bool ban_available = 4;
+  // Text syslog records lack a verified credential for the sender.
+  bool unverified = 5;
 }
 
 // BanServerSshAddressRequest identifies an address with recent SSH authentication failures.

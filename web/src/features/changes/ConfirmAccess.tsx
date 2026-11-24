@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
+import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 
 /**
@@ -68,6 +69,10 @@ export function ConfirmAccess({
     },
   );
   const proved = !wait.sshAccount || proof.data?.ssh?.provedChange === changeId;
+  const ssh = proof.data?.ssh;
+  const command = open && ssh?.testChange === changeId ? ssh.testCommand : "";
+  const login = proved ? ssh?.proof : undefined;
+  const identity = login?.fingerprint ? `${login.method} · ${login.fingerprint}` : login?.method;
   const ports = wait.sshPorts;
   const port = ports[0] ?? 0;
   const portList = ports.join(` ${t`or`} `);
@@ -101,11 +106,21 @@ export function ConfirmAccess({
     >
       <p>
         {wait.sshAccount ? (
-          proved ? (
+          proved && login ? (
+            identity ? (
+              <Trans>
+                Verified from {login.address} with {identity}.
+              </Trans>
+            ) : (
+              <Trans>Verified from {login.address}.</Trans>
+            )
+          ) : proved ? (
             <Trans>A fresh SSH connection verified these settings.</Trans>
+          ) : command ? (
+            <Trans>Run this command from your original SSH client.</Trans>
           ) : (
             <Trans>
-              Open a new SSH connection as {wait.sshAccount} on port {port} from the same address.
+              Waiting for the test command for {wait.sshAccount} on port {port}.
             </Trans>
           )
         ) : ports.length === 0 ? (
@@ -118,6 +133,12 @@ export function ConfirmAccess({
           </Trans>
         )}
       </p>
+      {!theirs && !proved && command ? (
+        <p className="plan-ssh-command">
+          <code>{command}</code>
+          <CopyButton text={command} label={t`Copy SSH test command`} />
+        </p>
+      ) : null}
       {panelPorts ? (
         <p>
           <Trans>Then open the panel at its own address in a new tab.</Trans>

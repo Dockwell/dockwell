@@ -516,6 +516,8 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           return { title: t`Removed an SSH key on ${server}`, icon: "lock" };
         case "ssh.disconnect":
           return { title: t`Disconnected an SSH session on ${server}`, icon: "lock" };
+        case "ssh.unconfirmed":
+          return { title: t`SSH operation unconfirmed on ${server}`, icon: "lock" };
         case "ssh.ban":
           return { title: t`Banned an SSH address on ${server}`, icon: "lock" };
         case "process.end": {

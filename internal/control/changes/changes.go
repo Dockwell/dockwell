@@ -595,10 +595,7 @@ func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	changeID, server := req.Msg.GetId(), req.Msg.GetServerId()
-	h.mu.Lock()
-	session, known := h.appliedIn[changeID]
-	h.mu.Unlock()
-	if p.Token != nil || !known || session != p.Session.ID {
+	if !h.AppliedFrom(changeID, p) {
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("only the person who applied %s may confirm it, in the session they applied it from, as they check they can still reach the server", changeID), "not_yours")
 	}
@@ -631,6 +628,14 @@ func (h *Handler) ConfirmChange(ctx context.Context, req *connect.Request[dockwe
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.ConfirmChangeResponse{Change: c}), nil
+}
+
+// AppliedFrom reports whether p is in the session that applied this change.
+func (h *Handler) AppliedFrom(changeID string, p auth.Principal) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	session, known := h.appliedIn[changeID]
+	return p.Token == nil && known && session == p.Session.ID
 }
 
 // verdictError is what a confirmation answers for what the server did with it:

@@ -6,16 +6,23 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"fmt"
+	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
+	"github.com/dockwell/dockwell/internal/agent/jails"
 )
 
 func TestSSHKeyKeepsMetadataAndRejectsPrivateMaterial(t *testing.T) {
@@ -36,6 +43,10 @@ func TestSSHKeyKeepsMetadataAndRejectsPrivateMaterial(t *testing.T) {
 	}
 	if _, _, err := parsePastedSSHKey("-----BEGIN OPENSSH PRIVATE KEY-----"); err == nil || !strings.Contains(err.Error(), "private key") {
 		t.Fatalf("private material: %v", err)
+	}
+	restricted := parseSSHKeys([]byte(`cert-authority,command="false",from="192.0.2.0/24" ` + line))
+	if len(restricted) != 1 || len(restricted[0].key.GetOptions()) != 3 || restricted[0].unrestricted() {
+		t.Fatalf("authorized_keys options were hidden or counted as unrestricted: %+v", restricted)
 	}
 	if _, _, err := parsePastedSSHKey("command=\"false\" " + line); err == nil {
 		t.Fatal("accepted key with an option")
@@ -92,5 +103,224 @@ func TestSSHLoginParserKeepsOnlyMetadata(t *testing.T) {
 	}
 	if parseSSHLogin(now, "Failed password for deploy from hostname port 49152") != nil {
 		t.Fatal("accepted an unverified address")
+	}
+}
+
+func TestSSHChallengeRejectsAnOrdinaryReconnect(t *testing.T) {
+	proc := fstest.MapFS{
+		"100/task/100/children": {Data: []byte("101")},
+		"101/stat":              {Data: []byte("101 (sshd-session) S 100")},
+		"101/task/101/children": {Data: []byte("102")},
+		"102/stat":              {Data: []byte("102 (sh) S 101")},
+		"102/cmdline":           {Data: []byte("/bin/sh\x00-c\x00ci-runner\x00")},
+	}
+	if sshChallengeRunning(proc, "100", "challenge") {
+		t.Fatal("an automation reconnect carried no challenge")
+	}
+	proc["102/cmdline"].Data = []byte("/bin/sh\x00-c\x00" + sshProofScript + "\x00challenge\x00")
+	if !sshChallengeRunning(proc, "100", "challenge") {
+		t.Fatal("one-time command attached to the session was missed")
+	}
+	if sshChallengeRunning(proc, "100", "another-challenge") {
+		t.Fatal("another trial's command proved this trial")
+	}
+	proc["102/stat"].Data = []byte("102 (sh) S 999")
+	if sshChallengeRunning(proc, "100", "challenge") {
+		t.Fatal("a process in another session proved the trial")
+	}
+}
+
+func TestSSHProofRequiresTheAcceptedKeyAndSocket(t *testing.T) {
+	now := time.Now()
+	trial := &access.SSHChange{Account: "deploy", StartedAt: now, ProofKeys: []string{"SHA256:owner"}}
+	peer := netip.MustParseAddrPort("192.0.2.5:42000")
+	for _, tc := range []struct {
+		title, message string
+		at             time.Time
+		want           bool
+	}{
+		{"owner", "Accepted publickey for deploy from 192.0.2.5 port 42000 ssh2: ED25519 SHA256:owner", now, true},
+		{"old", "Accepted publickey for deploy from 192.0.2.5 port 42000 ssh2: ED25519 SHA256:owner", now.Add(-time.Second), false},
+		{"other socket", "Accepted publickey for deploy from 192.0.2.5 port 42001 ssh2: ED25519 SHA256:owner", now, false},
+		{"other key", "Accepted publickey for deploy from 192.0.2.5 port 42000 ssh2: ED25519 SHA256:automation", now, false},
+		{"password", "Accepted password for deploy from 192.0.2.5 port 42000 ssh2", now, false},
+	} {
+		t.Run(tc.title, func(t *testing.T) {
+			proof := &access.SSHProof{}
+			entry := sshJournalEntry{At: strconv.FormatInt(tc.at.UnixMicro(), 10), Message: tc.message, UID: "0"}
+			if got := checkSSHAuthentication(trial, peer, entry, proof); got != tc.want {
+				t.Fatalf("accepted = %t, want %t", got, tc.want)
+			}
+			if tc.want && (proof.Method != "publickey" || proof.Fingerprint != "SHA256:owner") {
+				t.Fatalf("unidentified proof %+v", proof)
+			}
+		})
+	}
+}
+
+func TestSSHKeyRemovalRefusesKeyOnlyAccounts(t *testing.T) {
+	for _, tc := range []struct {
+		values string
+		root   bool
+		want   bool
+	}{
+		{"passwordauthentication yes\nauthenticationmethods any\n", false, true},
+		{"passwordauthentication no\nauthenticationmethods any\n", false, false},
+		{"passwordauthentication yes\nauthenticationmethods publickey,password\n", false, false},
+		{"passwordauthentication yes\nauthenticationmethods any\npermitrootlogin without-password\n", true, false},
+	} {
+		if err := checkKeyRemovalAuth(tc.values, tc.root); (err == nil) != tc.want {
+			t.Errorf("check(%q, root %t) returned %v", tc.values, tc.root, err)
+		}
+	}
+}
+
+func TestSSHJailMovesStockAndDockwellPortsButRefusesAnOverride(t *testing.T) {
+	root := t.TempDir()
+	put := func(name, body string, mode os.FileMode) {
+		t.Helper()
+		name = filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte(body), mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	put("/usr/bin/fail2ban-client", "#!/bin/sh\nexit 0\n", 0o755)
+	put("/etc/fail2ban/jail.conf", "[sshd]\nport = ssh\n", 0o600)
+	put("/etc/fail2ban/jail.d/defaults-debian.conf", "[sshd]\nenabled = true\n", 0o600)
+	s := &sshSettings{reader: newSSHReader(Config{Tools: &hosttool.Runner{Root: root}})}
+	trial, err := s.planSSHJail(t.Context(), 22, 2222)
+	if err != nil || trial == nil || trial.Old != "" || trial.Candidate != sshJailBody([]uint16{2222, 22}) || trial.Final != sshJailBody([]uint16{2222}) {
+		t.Fatalf("stock jail %+v, error %v", trial, err)
+	}
+	put(jails.File, jails.Render(map[string]*resourcev1.Jail{"sshd": {Filter: "sshd", Ports: []uint32{22, 2200}}}, nil), 0o600)
+	trial, err = s.planSSHJail(t.Context(), 22, 2222)
+	if err != nil || trial == nil || trial.Final != sshJailBody([]uint16{2200, 2222}) {
+		t.Fatalf("managed jail %+v, error %v", trial, err)
+	}
+	put("/etc/fail2ban/jail.local", "[sshd]\nport = 22\n", 0o600)
+	if _, err := s.planSSHJail(t.Context(), 22, 2222); err == nil || !strings.Contains(err.Error(), "/etc/fail2ban/jail.local") {
+		t.Fatalf("unmanaged jail returned %v", err)
+	}
+}
+
+func TestSSHStagedConfigReplacesOnlyTheOwnedDropIn(t *testing.T) {
+	root := t.TempDir()
+	r := newSSHReader(Config{Tools: &hosttool.Runner{Root: root}})
+	dir := r.rootPath("/etc/ssh/sshd_config.d")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	site := filepath.Join(dir, "10-site.conf")
+	if err := os.WriteFile(site, []byte("UsePAM yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	main := []byte("Include sshd_config.d/*.conf\nPermitRootLogin no\n")
+	staged, err := r.stagedSSHMain(main, "/tmp/fixture-candidate", true)
+	if err != nil || !strings.HasPrefix(string(staged), "Include \"/tmp/fixture-candidate\"\nInclude \""+site+"\"\n") {
+		t.Fatalf("staged config %q, error %v", staged, err)
+	}
+	staged, err = r.stagedSSHMain(main, "/tmp/fixture-candidate", false)
+	if err != nil || !strings.HasPrefix(string(staged), "Include \""+site+"\"\n") || strings.Contains(string(staged), "fixture-candidate") {
+		t.Fatalf("staged removal %q, error %v", staged, err)
+	}
+}
+
+func TestSSHBootRestoreWorksWithoutTheAgentAndHonorsKeep(t *testing.T) {
+	for _, kept := range []bool{false, true} {
+		t.Run(strconv.FormatBool(kept), func(t *testing.T) {
+			dir := t.TempDir()
+			sshFile, jailFile := filepath.Join(dir, "live-ssh"), filepath.Join(dir, "live-jail")
+			files := map[string]string{
+				"ssh-revert.sh": sshRevertScript, "ssh-boot-id": "previous-boot",
+				"ssh-wait-id": "chg_fixture@10", "waiting.json": "{ \"wait\": \"chg_fixture@10\" }",
+				"ssh-previous": "original", "ssh-jail-previous": "",
+				"live-ssh": "candidate", "live-jail": "trial ports",
+			}
+			if kept {
+				files["confirmed.json"] = files["waiting.json"]
+			}
+			for name, body := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			cmd := exec.CommandContext(t.Context(), "/bin/sh", filepath.Join(dir, "ssh-revert.sh"), dir, "boot", "", sshFile, "ssh.service", jailFile, "")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("boot helper: %v, %s", err, out)
+			}
+			want := "original"
+			if kept {
+				want = "candidate"
+			}
+			if content, err := os.ReadFile(sshFile); err != nil || string(content) != want {
+				t.Errorf("SSH after boot = %q, %v", content, err)
+			}
+			if _, err := os.Stat(jailFile); (err == nil) != kept {
+				t.Errorf("jail after boot = %v", err)
+			}
+		})
+	}
+}
+
+func TestSSHForeignRulesNeedEquivalentAccessOnTheNewPort(t *testing.T) {
+	tool := &dockwellv1.FirewallTool{Rules: []*dockwellv1.FirewallSeenRule{
+		{Port: "ssh", Verdict: dockwellv1.FirewallVerdict_FIREWALL_VERDICT_ALLOW},
+	}}
+	if conflict := foreignSSHPortConflict(tool, 22, 2222); conflict != "ssh" {
+		t.Fatalf("old external allow returned %q", conflict)
+	}
+	tool.Rules = append(tool.Rules, &dockwellv1.FirewallSeenRule{Port: "2222/tcp", Verdict: dockwellv1.FirewallVerdict_FIREWALL_VERDICT_ALLOW})
+	if conflict := foreignSSHPortConflict(tool, 22, 2222); conflict != "" {
+		t.Fatalf("equivalent external access returned %q", conflict)
+	}
+	tool.Rules[1].Source = "192.0.2.0/24"
+	if conflict := foreignSSHPortConflict(tool, 22, 2222); conflict != "ssh" {
+		t.Fatalf("narrower external allow returned %q", conflict)
+	}
+}
+
+func TestSSHTextLogFallbackIsUnverified(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "var", "log")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	line := time.Now().UTC().Format(time.RFC3339) + " fixture sshd[42]: Failed password for deploy from 192.0.2.4 port 12345 ssh2\n"
+	if err := os.WriteFile(filepath.Join(dir, "auth.log"), []byte(line), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := newSSHReader(Config{Tools: &hosttool.Runner{Root: root}})
+	out, err := r.loginLog(t.Context(), &dockwellv1.ListServerSshLoginsRequest{})
+	if err != nil || !out.GetUnverified() || out.GetBanAvailable() || len(out.GetFailures()) != 1 {
+		t.Fatalf("text log output = %v, error %v", out, err)
+	}
+}
+
+func TestSSHBanChecksActiveJailTCPPorts(t *testing.T) {
+	root := t.TempDir()
+	tool := filepath.Join(root, "usr", "bin", "fail2ban-client")
+	if err := os.MkdirAll(filepath.Dir(tool), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/bin/sh
+case "$*" in
+  "get sshd actions") printf 'The jail sshd has the following actions:\niptables-multiport\n';;
+  "get sshd action iptables-multiport protocol") printf 'tcp\n';;
+  "get sshd action iptables-multiport port") printf 'ssh,2222\n';;
+  *) exit 1;;
+esac
+`
+	if err := os.WriteFile(tool, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	f := &fail2banReader{tools: &hosttool.Runner{Root: root}}
+	if err := f.sshJailCovers(t.Context(), []uint16{22, 2222}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.sshJailCovers(t.Context(), []uint16{22, 2223}); err == nil {
+		t.Fatal("Ban was offered when the jail missed a listener")
 	}
 }

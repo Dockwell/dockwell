@@ -16,6 +16,7 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/access"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 func (r *sshReader) proc() fs.FS { return os.DirFS(r.rootPath("/proc")) }
@@ -24,10 +25,13 @@ func (r *sshReader) sessions(ctx context.Context, ports []uint16) ([]access.SSHS
 	if r.tools.Off {
 		return nil, nil
 	}
-	pins := access.PinReader{Proc: r.proc(), Tools: r.tools, Passwd: func() ([]byte, error) {
+	return r.sshPins().SSHConnections(ctx, ports)
+}
+
+func (r *sshReader) sshPins() *access.PinReader {
+	return &access.PinReader{Proc: r.proc(), Tools: r.tools, Passwd: func() ([]byte, error) {
 		return readSSHFile(r.rootPath("/etc/passwd"), maxSSHKeysFile)
 	}}
-	return pins.SSHConnections(ctx, ports)
 }
 
 func sshSessionID(s *access.SSHSession) string {
@@ -81,18 +85,18 @@ func (r *sshReader) disconnectSSH(ctx context.Context, id string) error {
 			continue
 		}
 		if !r.sessionCanDisconnect(s) {
-			return errors.New("this SSH connection may carry Dockwell access. Close it from its SSH client")
+			return sshDisconnectRefusal("this SSH connection may carry Dockwell access. Close it from its SSH client")
 		}
 		return r.disconnectSSHProcess(ctx, s.PID, id)
 	}
 
-	return errors.New("the SSH connection has already ended. Refresh the session list")
+	return sshDisconnectRefusal("the SSH connection has already ended. Refresh the session list")
 }
 
 func (r *sshReader) disconnectSSHProcess(ctx context.Context, pid int, id string) error {
 	fd, err := unix.PidfdOpen(pid, 0)
 	if err != nil {
-		return fmt.Errorf("can't identify the SSH session safely: %w", err)
+		return sshDisconnectRefusal(fmt.Sprintf("can't identify the SSH session safely: %v", err))
 	}
 	defer func() { _ = unix.Close(fd) }()
 	after, err := r.sessions(ctx, nil)
@@ -104,5 +108,9 @@ func (r *sshReader) disconnectSSHProcess(ctx context.Context, pid int, id string
 			return unix.PidfdSendSignal(fd, unix.SIGTERM, nil, 0)
 		}
 	}
-	return errors.New("the SSH connection has already ended. Refresh the session list")
+	return sshDisconnectRefusal("the SSH connection has already ended. Refresh the session list")
+}
+
+func sshDisconnectRefusal(message string) error {
+	return resource.PlainlyBecause(resource.ReasonSSHRefused, message, errors.New(message))
 }

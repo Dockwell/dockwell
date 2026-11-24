@@ -46,6 +46,8 @@ const (
 	// ReasonDatabaseRelease is a database whose new image runs a release its data
 	// can't move to in place, as PostgreSQL 16's to 17 (ADR 0080).
 	ReasonDatabaseRelease = "database_release"
+	// ReasonSSHRefused means an SSH operation was refused before it could act.
+	ReasonSSHRefused = "ssh_refused"
 )
 
 func (f *Failure) Error() string { return f.Err.Error() }

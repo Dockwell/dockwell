@@ -205,9 +205,9 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpConnectGitHubApp:     {"connecting GitHub", false},
 	StepUpRotateGitHubApp:      {"giving a new secret or key to", true},
 	StepUpRemoveGitHubApp:      {"removing", true},
-	StepUpEditSSHKey:           {"changing SSH keys", false},
-	StepUpDisconnectSSHSession: {"disconnecting an SSH session", false},
-	StepUpBanSSHAddress:        {"banning an SSH address", false},
+	StepUpEditSSHKey:           {"changing SSH keys for", true},
+	StepUpDisconnectSSHSession: {"disconnecting SSH session", true},
+	StepUpBanSSHAddress:        {"banning SSH address", true},
 	StepUpEndProcess:           {"ending process", true},
 	StepUpOpenTerminal:         {"opening a terminal on", true},
 	StepUpApproveChange:        {"approving", true},
@@ -241,6 +241,25 @@ var stepUpActions = map[StepUpAction]struct {
 // doing says what a step-up confirms, such as "revealing sec_…".
 func doing(action StepUpAction, target string) string {
 	a := stepUpActions[action]
+	server, subject, found := strings.Cut(target, ":")
+	if found {
+		switch action {
+		case StepUpEditSSHKey:
+			account, edit, ok := strings.Cut(subject, ":")
+			if operation, key, hasKey := strings.Cut(edit, ":"); ok && hasKey {
+				switch operation {
+				case "add":
+					fingerprint, _, _ := strings.Cut(key, "|")
+					return "adding SSH key " + fingerprint + " for " + account + " on " + server
+				case "remove":
+					return "removing SSH key " + key + " for " + account + " on " + server
+				}
+			}
+		case StepUpDisconnectSSHSession, StepUpBanSSHAddress:
+			return a.doing + " " + subject + " on " + server
+		default:
+		}
+	}
 	if a.targeted {
 		sep := " to "
 		if action == StepUpExtractWayBackIn {

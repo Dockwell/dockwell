@@ -22,6 +22,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/lazyre"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 const (
@@ -33,9 +34,36 @@ const (
 
 var (
 	sshJournal  = hosttool.Tool{Name: "journalctl", Paths: []string{"/usr/bin/journalctl", "/bin/journalctl"}}
-	sshLoginRE  = lazyre.Regexp(`^(Accepted|Failed) ([a-zA-Z0-9/_-]+) for (?:invalid user )?([^ ]+) from ([^ ]+) port [0-9]+(?: |$)`)
+	sshLoginRE  = lazyre.Regexp(`^(Accepted|Failed) ([a-zA-Z0-9/_-]+) for (?:invalid user )?([^ ]+) from ([^ ]+) port ([0-9]+)(?: (.*)|$)`)
 	sshSyslogRE = lazyre.Regexp(`^(.+?) [^ ]+ sshd(?:-session|-auth)?\[[0-9]+\]: (.+)$`)
 )
+
+func (r *sshReader) sshJournalLog(ctx context.Context, since time.Time, thisBoot bool) ([]sshJournalEntry, bool, error) {
+	args := []string{
+		"--quiet", "--no-pager", "--reverse", "--output=json", "--output-fields=MESSAGE,_UID",
+		"--since=@" + strconv.FormatInt(since.Unix(), 10), "-n", strconv.Itoa(maxSSHLogScan),
+	}
+	if thisBoot {
+		args = append(args, "-b")
+	}
+	args = append(args, "_UID=0", "SYSLOG_IDENTIFIER=sshd", "SYSLOG_IDENTIFIER=sshd-session", "SYSLOG_IDENTIFIER=sshd-auth")
+	raw, err := r.sshTool(ctx, sshJournal, args...)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil, false, nil
+	}
+	lines := bytes.Split(bytes.TrimSpace(raw), []byte{'\n'})
+	var entries []sshJournalEntry
+	for _, line := range lines {
+		var entry sshJournalEntry
+		if json.Unmarshal(line, &entry) == nil && entry.UID == "0" {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, len(lines) >= maxSSHLogScan, nil
+}
 
 func parseSSHLogin(at time.Time, message string) *dockwellv1.SshLogin {
 	m := sshLoginRE().FindStringSubmatch(message)
@@ -95,22 +123,11 @@ func (r *sshReader) loginLog(ctx context.Context, req *dockwellv1.ListServerSshL
 			out.Bounded = true
 		}
 	}
-	res, err := r.tools.Run(ctx, sshJournal, sshWait, nil, "--quiet", "--no-pager", "--reverse", "--output=json", "--output-fields=MESSAGE,_UID", "--since=@"+strconv.FormatInt(since.Unix(), 10), "-n", strconv.Itoa(maxSSHLogScan), "SYSLOG_IDENTIFIER=sshd", "SYSLOG_IDENTIFIER=sshd-session", "SYSLOG_IDENTIFIER=sshd-auth")
-	if err == nil && res.Code == 0 && len(bytes.TrimSpace(res.Out)) != 0 {
-		lines := bytes.Split(bytes.TrimSpace(res.Out), []byte{'\n'})
-		out.Bounded = len(lines) >= maxSSHLogScan
-		for _, line := range lines {
-			var entry struct {
-				At      string `json:"__REALTIME_TIMESTAMP"`
-				Message string `json:"MESSAGE"`
-				UID     string `json:"_UID"`
-			}
-			if json.Unmarshal(line, &entry) != nil || entry.UID != "0" {
-				continue
-			}
-			if us, err := strconv.ParseInt(entry.At, 10, 64); err == nil {
-				take(parseSSHLogin(time.UnixMicro(us), entry.Message))
-			}
+	entries, bounded, err := r.sshJournalLog(ctx, since, false)
+	if err == nil && len(entries) > 0 {
+		out.Bounded = bounded
+		for _, entry := range entries {
+			take(parseSSHLogin(entry.when(), entry.Message))
 		}
 	} else {
 		found := false
@@ -123,6 +140,7 @@ func (r *sshReader) loginLog(ctx context.Context, req *dockwellv1.ListServerSshL
 				return nil, err
 			}
 			found = true
+			out.Unverified = true
 			out.Bounded = clipped
 			lines := bytes.Split(bytes.TrimSpace(data), []byte{'\n'})
 			out.Bounded = out.Bounded || len(lines) > maxSSHLogScan
@@ -133,7 +151,7 @@ func (r *sshReader) loginLog(ctx context.Context, req *dockwellv1.ListServerSshL
 			}
 			break
 		}
-		if !found && (err != nil || res.Code != 0) {
+		if !found && err != nil {
 			return nil, errors.New("no readable SSH journal or authentication log. Check the server's logging service")
 		}
 	}
@@ -175,7 +193,13 @@ func sshLogTail(path, root string) ([]byte, bool, error) {
 	return data, offset > 0, err
 }
 
-func (r *sshReader) banSSH(ctx context.Context, f *fail2banReader, text string) error {
+func (r *sshReader) banSSH(ctx context.Context, f *fail2banReader, text string) (retErr error) {
+	attempted := false
+	defer func() {
+		if retErr != nil && !attempted {
+			retErr = resource.PlainlyBecause(resource.ReasonSSHRefused, retErr.Error(), retErr)
+		}
+	}()
 	addr, err := netip.ParseAddr(text)
 	if err != nil || addr.Zone() != "" || !addr.IsGlobalUnicast() || r.panelOverSSH {
 		return errors.New("choose a failed remote SSH address on a server where the panel doesn't depend on SSH")
@@ -196,12 +220,13 @@ func (r *sshReader) banSSH(ctx context.Context, f *fail2banReader, text string) 
 	if err != nil {
 		return err
 	}
-	if len(log.Failures) == 0 {
-		return errors.New("this address has no recent failed logins in the SSH log. Refresh the log")
+	if len(log.Failures) == 0 || log.Unverified {
+		return errors.New("this address has no verified recent failed logins in the SSH journal. Refresh the log")
 	}
-	if _, err := f.client(ctx, "status", "sshd"); err != nil {
-		return errors.New("the fail2ban sshd jail is unavailable. Check fail2ban on this server")
+	if err := r.sshJailCanBan(ctx, f); err != nil {
+		return err
 	}
+	attempted = true
 	_, err = f.client(ctx, "set", "sshd", "banip", address)
 	return err
 }

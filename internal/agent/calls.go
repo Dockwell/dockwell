@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/fail2ban"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/sshconfig"
 	volumekind "github.com/dockwell/dockwell/internal/resource/volume"
 )
 
@@ -653,6 +654,16 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		// sheet closes, and would otherwise show the jail as it was for a minute.
 		if ref.Kind == fail2ban.Kind {
 			defer c.cfg.fail2ban.forget()
+			if c.cfg.ssh != nil && c.cfg.ssh.access != nil {
+				release, err := c.cfg.ssh.access.HoldSSHKeys()
+				if err != nil {
+					return fail(err)
+				}
+				defer release()
+			}
+		}
+		if ref.Kind == sshconfig.Kind {
+			defer c.cfg.fail2ban.forget()
 		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
 		// A restore into a new database reads its backup from the volume the call
@@ -965,9 +976,8 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		return &agentv1.CallResult{Result: &agentv1.CallResult_DisconnectSshSession{DisconnectSshSession: result}}
 	case call.GetListSshLogins() != nil:
 		result, err := c.cfg.ssh.loginLog(ctx, call.GetListSshLogins())
-		if result != nil && !c.cfg.ssh.panelOverSSH {
-			_, banErr := c.cfg.fail2ban.client(ctx, "status", "sshd")
-			result.BanAvailable = banErr == nil
+		if result != nil && !result.Unverified && len(result.Failures) > 0 && !c.cfg.ssh.panelOverSSH {
+			result.BanAvailable = c.cfg.ssh.sshJailCanBan(ctx, c.cfg.fail2ban) == nil
 		}
 		if err != nil {
 			return fail(err)

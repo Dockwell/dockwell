@@ -55,6 +55,8 @@ var sshKeywords = map[string]string{
 	"challengeresponseauthentication": "ChallengeResponseAuthentication",
 	"permitrootlogin":                 "PermitRootLogin",
 	"pubkeyauthentication":            "PubkeyAuthentication",
+	"authenticationmethods":           "AuthenticationMethods",
+	"authorizedkeysfile":              "AuthorizedKeysFile",
 	"listenaddress":                   "ListenAddress",
 	"port":                            "Port",
 }

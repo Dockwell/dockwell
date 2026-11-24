@@ -623,7 +623,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		DeadMan:      access.NewDeadMan(tools, filepath.Join(dir.Agent(), "access")),
 		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}
-	agent.SetUpSSH(m, tools, len(ownPorts) > 0)
+	agent.SetUpSSH(m, tools)
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))
 	}

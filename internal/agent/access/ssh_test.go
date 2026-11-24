@@ -13,6 +13,7 @@ import (
 	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -25,8 +26,16 @@ type sshFixture struct {
 func (s *sshFixture) Plan(context.Context, *resourcev1.SshConfig, *resourcev1.SshConfig) (*SSHChange, error) {
 	return &SSHChange{
 		Account: "admin", OldPort: 22, Port: 2222, OldFile: s.file, Candidate: "two listeners", Final: "new listener",
-		From: []netip.Addr{netip.MustParseAddr("203.0.113.7")},
+		From: []netip.Addr{netip.MustParseAddr("203.0.113.7")}, ProofPeer: netip.MustParseAddr("203.0.113.7"),
 	}, nil
+}
+
+func (s *sshFixture) Rearm(_ context.Context, _, _ string, _ time.Duration, _ *SSHChange) error {
+	if s.file != "two listeners" {
+		return errors.New("rearmed before installing the candidate")
+	}
+	s.armed++
+	return nil
 }
 
 func (s *sshFixture) Arm(context.Context, string, string, time.Duration, *SSHChange) error {
@@ -50,8 +59,11 @@ func (s *sshFixture) Restore(_ context.Context, ch *SSHChange) error {
 
 func (*sshFixture) Started() (uint64, error) { return 1234, nil }
 
-func (s *sshFixture) Proved(_ context.Context, ch *SSHChange) bool {
-	return s.proof.Load() && ch.Started == 1234
+func (s *sshFixture) Proved(_ context.Context, ch *SSHChange) *SSHProof {
+	if s.proof.Load() && ch.Started == 1234 {
+		return &SSHProof{Address: ch.ProofPeer.String(), Method: "publickey"}
+	}
+	return nil
 }
 
 func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
@@ -61,12 +73,23 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 	done := make(chan error, 1)
 	reported := make(chan *resource.AccessWait, 1)
 	ctx := resource.WithOutcome(step("chg_ssh", true), func(o resource.Outcome) { reported <- o.Waits })
-	go func() { done <- m.PutSSH(ctx, &resourcev1.SshConfig{Port: 2222, Account: "admin"}) }()
+	m.confirmed.Policy = &resourcev1.FirewallPolicy{DenyEverythingElse: true}
+	m.confirmed.Rules = map[string]*resourcev1.FirewallRule{
+		"ssh-anywhere": {Port: 22},
+		"ssh-subnet":   {Port: 22, Sources: []string{"198.51.100.0/24"}},
+		"dns-local":    {Port: 22, Protocol: resourcev1.Protocol_PROTOCOL_UDP},
+	}
+	spec := &resourcev1.SshConfig{Port: 2222, Account: "admin"}
+	move, err := m.CheckSSH(t.Context(), spec)
+	if err != nil || !slices.Equal(move.GetFirewallRules(), []string{"ssh-anywhere", "ssh-subnet"}) {
+		t.Fatalf("plan %v, error %v", move, err)
+	}
+	go func() { done <- m.PutSSH(ctx, spec, move) }()
 	wait := sshAnnounced(t, reported, done)
 	if wait.SSHAccount != "admin" || !slices.Equal(wait.SSHPorts, []uint32{2222}) {
 		t.Fatalf("waiting for %+v", wait)
 	}
-	if ssh.file != "two listeners" || ssh.armed != 1 {
+	if ssh.file != "two listeners" || ssh.armed != 2 {
 		t.Fatalf("trial has file %q and %d independent timers", ssh.file, ssh.armed)
 	}
 	if release, err := m.HoldSSHKeys(); err == nil {
@@ -77,7 +100,7 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 		t.Fatalf("unproved trial returned %v", got)
 	}
 	ssh.proof.Store(true)
-	if m.ProvedSSH(t.Context()) != "chg_ssh" {
+	if id, _, proof := m.SSHTest(t.Context()); id != "chg_ssh" || proof == nil {
 		t.Fatal("fresh SSH proof was not reported")
 	}
 	if got := m.Confirm(t.Context(), "chg_ssh"); got != resource.AccessKept {
@@ -95,9 +118,19 @@ func TestSSHTrialNeedsProofAndKeepsOnlyTheNewPort(t *testing.T) {
 		t.Fatal("fresh SSH settings weren't kept")
 	}
 	for _, pin := range tbl.current().Pins {
-		if slices.Contains(pin.Ports, uint16(22)) {
+		if slices.Contains(pin.Ports, uint16(22)) || pin.Name == "ssh trial listener" {
 			t.Fatalf("old port still pinned in %v", pin.Ports)
 		}
+	}
+	final := tbl.current()
+	if !final.DenyRest || len(final.Allows) != 3 ||
+		!slices.Equal(final.Allows[1].Ports, []uint16{2222}) || len(final.Allows[1].Sources) != 0 ||
+		!slices.Equal(final.Allows[2].Ports, []uint16{2222}) ||
+		!slices.Equal(final.Allows[2].Sources, []netip.Prefix{netip.MustParsePrefix("198.51.100.0/24")}) {
+		t.Fatalf("kept table didn't preserve the old SSH access: %+v", final.Allows)
+	}
+	if rules := m.Applied().Rules; rules["ssh-anywhere"].GetPort() != 2222 || rules["dns-local"].GetPort() != 22 {
+		t.Fatalf("firewall read didn't show the ports it applies: %v", rules)
 	}
 }
 
@@ -114,7 +147,8 @@ func TestSSHTrialRevertsOnTimeoutAndOnRestart(t *testing.T) {
 			done := make(chan error, 1)
 			reported := make(chan *resource.AccessWait, 1)
 			go func() {
-				done <- m.PutSSH(resource.WithOutcome(ctx, func(o resource.Outcome) { reported <- o.Waits }), &resourcev1.SshConfig{Port: 2222, Account: "admin"})
+				move := &dockwellv1.SshPortMove{FromPort: 22, ToPort: 2222}
+				done <- m.PutSSH(resource.WithOutcome(ctx, func(o resource.Outcome) { reported <- o.Waits }), &resourcev1.SshConfig{Port: 2222, Account: "admin"}, move)
 			}()
 			sshAnnounced(t, reported, done)
 			if restart {
@@ -182,5 +216,14 @@ func TestSSHConnectionsRequireAnAuthenticatedRootMonitor(t *testing.T) {
 	got := &connections[0]
 	if got.PID != 101 || got.StartTicks != 1234 || got.TTY != "pts/3" || got.User != "deploy" || got.Peer.Addr().String() != "203.0.113.7" {
 		t.Fatalf("connection identity differs: %+v", got)
+	}
+}
+
+func TestSSHPortPlanNamesARuleItCannotMove(t *testing.T) {
+	m, _ := manager(t, t.TempDir(), time.Minute)
+	m.SSH = &sshFixture{}
+	m.confirmed.Rules["blocked"] = &resourcev1.FirewallRule{Port: 22, Action: resourcev1.FirewallAction_FIREWALL_ACTION_DENY}
+	if _, err := m.CheckSSH(t.Context(), &resourcev1.SshConfig{Port: 2222, Account: "admin"}); err == nil || !strings.Contains(err.Error(), "blocked") {
+		t.Fatalf("plan with a deny rule returned %v", err)
 	}
 }

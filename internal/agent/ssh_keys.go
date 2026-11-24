@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/resource"
 )
 
 const maxSSHKeysFile = 1 << 20
@@ -183,6 +184,10 @@ type authorizedKey struct {
 	key     *dockwellv1.SshKey
 }
 
+func (k authorizedKey) unrestricted() bool {
+	return k.key != nil && len(k.options) == 0 && !strings.Contains(k.key.GetType(), "-cert-")
+}
+
 func parseSSHKeys(data []byte) []authorizedKey {
 	lines := bytes.SplitAfter(data, []byte{'\n'})
 	keys := make([]authorizedKey, 0, len(lines))
@@ -202,6 +207,9 @@ func parseSSHKeys(data []byte) []authorizedKey {
 			continue
 		}
 		entry := &dockwellv1.SshKey{Type: key.Type(), Comment: strings.ToValidUTF8(comment, "\uFFFD"), Fingerprint: ssh.FingerprintSHA256(key)}
+		for _, option := range options {
+			entry.Options = append(entry.Options, strings.ToValidUTF8(option, "\uFFFD"))
+		}
 		if entry.Fingerprint == fingerprint {
 			entry.Added = added
 		}
@@ -291,7 +299,13 @@ func (r *sshReader) checkAuthorizedPath(ctx context.Context, account sshAccount)
 	return nil
 }
 
-func (r *sshReader) editSSHKey(ctx context.Context, req *dockwellv1.EditServerSshKeyRequest) (*dockwellv1.EditServerSshKeyResponse, error) {
+func (r *sshReader) editSSHKey(ctx context.Context, req *dockwellv1.EditServerSshKeyRequest) (_ *dockwellv1.EditServerSshKeyResponse, retErr error) {
+	attempted := false
+	defer func() {
+		if retErr != nil && !attempted {
+			retErr = resource.PlainlyBecause(resource.ReasonSSHRefused, retErr.Error(), retErr)
+		}
+	}()
 	if r.access != nil {
 		release, err := r.access.HoldSSHKeys()
 		if err != nil {
@@ -355,23 +369,56 @@ func (r *sshReader) editSSHKey(ctx context.Context, req *dockwellv1.EditServerSs
 			if k.key == nil && i+1 < len(keys) && keys[i+1].key.GetFingerprint() == req.GetRemoveFingerprint() && bytes.HasPrefix(k.raw, []byte("# dockwell-added ")) {
 				continue
 			}
-			remaining = remaining || (k.key != nil && len(k.options) == 0)
+			remaining = remaining || k.unrestricted()
 			data = append(data, k.raw...)
 		}
 		if result == nil {
 			return nil, errors.New("the key is no longer in authorized_keys. Read the keys again")
 		}
-		if !remaining && a.admin {
-			return nil, errors.New("removing this key could leave the administrator without key access. Add a replacement key first")
+		if !remaining {
+			return nil, errors.New("the account would have no unrestricted SSH keys. Add a replacement key first")
+		}
+		if err := r.checkKeyRemoval(ctx, a); err != nil {
+			return nil, err
 		}
 	}
 	if len(data) > maxSSHKeysFile {
 		return nil, errors.New("authorized_keys would exceed the size limit")
 	}
+	attempted = true
 	if err := replaceAuthorized(dir, a, original, data); err != nil {
 		return nil, err
 	}
 	return &dockwellv1.EditServerSshKeyResponse{Key: result}, nil
+}
+
+// An unrestricted line doesn't establish that the owner still has its private
+// key. A direct removal needs a password route as well as a remaining key.
+func (r *sshReader) checkKeyRemoval(ctx context.Context, a sshAccount) error {
+	files := readSSHDConfig(r.root, r.changed)
+	for _, match := range files.writeMatches {
+		for _, key := range []string{"PasswordAuthentication", "PermitRootLogin", "AuthenticationMethods", "AuthorizedKeysFile"} {
+			if slices.Contains(match.Sets, key) {
+				return fmt.Errorf("%s at line %d changes SSH authentication for some connections. Review and rotate this key on the server while an existing connection stays open", match.File, match.Line)
+			}
+		}
+	}
+	values, err := r.sshd(ctx, "-T", "-C", "user="+a.name+",host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22")
+	if err != nil {
+		return err
+	}
+	return checkKeyRemovalAuth(string(values), a.uid == 0)
+}
+
+func checkKeyRemovalAuth(values string, root bool) error {
+	methods := strings.Fields(sshValue(values, "authenticationmethods"))
+	passwordRoute := sshValue(values, "passwordauthentication") == "yes" &&
+		(!root || sshValue(values, "permitrootlogin") == "yes") &&
+		(slices.Contains(methods, "any") || slices.Contains(methods, "password"))
+	if !passwordRoute {
+		return errors.New("this account has no SSH password-only sign-in, so removing this key could cut off access. Verify a replacement key in a new connection, then remove the old key on the server")
+	}
+	return nil
 }
 
 func replaceAuthorized(dir *os.File, a sshAccount, original, data []byte) error {

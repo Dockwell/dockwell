@@ -39,6 +39,12 @@ import (
 // otherwise.
 const File = "/etc/fail2ban/jail.d/dockwell.conf"
 
+// SSHPortFile holds the sshd port list owned by a guarded SSH settings change.
+const SSHPortFile = "/etc/fail2ban/jail.d/zz-dockwell-ssh-port.local"
+
+// SSHPortHeader identifies the dedicated override when an explicit jail edit replaces it.
+const SSHPortHeader = "# Managed by Dockwell\n[sshd]\nport = "
+
 // clientWait bounds each fail2ban-client the agent runs.
 const clientWait = 30 * time.Second
 
@@ -170,6 +176,14 @@ func (m *Manager) change(ctx context.Context, fn func(map[string]*resourcev1.Jai
 	if err != nil && len(next) > 0 {
 		return err
 	}
+	sshPortFile := filepath.Join(filepath.Dir(path), filepath.Base(SSHPortFile))
+	var sshPortBefore []byte
+	if sshd := next["sshd"]; sshd != nil && !slices.Equal(m.jails["sshd"].GetPorts(), sshd.GetPorts()) {
+		sshPortBefore, err = sshPortOverride(sshPortFile)
+		if err != nil {
+			return err
+		}
+	}
 	putBack := func() {
 		var err error
 		if had {
@@ -180,6 +194,11 @@ func (m *Manager) change(ctx context.Context, fn func(map[string]*resourcev1.Jai
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			m.logger().ErrorContext(ctx, "can't put back fail2ban's jails as they were", slog.String("file", File), slog.String("error", err.Error()))
 		}
+		if sshPortBefore != nil {
+			if err := writeFile(sshPortFile, sshPortBefore); err != nil {
+				m.logger().ErrorContext(ctx, "can't put back the SSH jail's port override", slog.String("file", SSHPortFile), slog.String("error", err.Error()))
+			}
+		}
 	}
 	if len(next) == 0 {
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -188,6 +207,20 @@ func (m *Manager) change(ctx context.Context, fn func(map[string]*resourcev1.Jai
 	} else if err := writeFile(path, []byte(Render(next, control))); err != nil {
 		return fmt.Errorf("can't write %s, so fail2ban stays as it was: %w", File, err)
 	}
+	reload := []string{"reload"}
+	if sshPortBefore != nil {
+		if err := os.Remove(sshPortFile); err != nil {
+			putBack()
+			return fmt.Errorf("can't replace the managed SSH jail port override: %w", err)
+		}
+		reload = append(reload, "--restart", "sshd")
+	}
+	restoreLive := func() {
+		putBack()
+		if res, err := m.run(context.WithoutCancel(ctx), reload...); err != nil || res.Code != 0 {
+			m.logger().ErrorContext(ctx, "can't reload fail2ban with its jails as they were", slog.String("error", why(res, err)))
+		}
+	}
 	if res, err := m.run(ctx, "-t"); err != nil || res.Code != 0 {
 		putBack()
 		return fmt.Errorf("fail2ban-client -t refused the jails, so fail2ban stays as it was: %s", why(res, err))
@@ -195,18 +228,47 @@ func (m *Manager) change(ctx context.Context, fn func(map[string]*resourcev1.Jai
 	if res, err := m.run(ctx, "ping"); err == nil && res.Code != 0 {
 		// Its server isn't running: it reads the file as it starts.
 		resource.Report(ctx, resource.Outcome{Note: "fail2ban isn't running, so the jail loads as it starts."})
-	} else if res, err := m.run(ctx, "reload"); err != nil || res.Code != 0 {
-		putBack()
-		if res, err := m.run(ctx, "reload"); err != nil || res.Code != 0 {
-			m.logger().ErrorContext(ctx, "can't reload fail2ban with its jails as they were", slog.String("error", why(res, err)))
-		}
+	} else if res, err := m.run(ctx, reload...); err != nil || res.Code != 0 {
+		restoreLive()
 		return fmt.Errorf("fail2ban didn't reload with the jails, so it stays as it was: %s", why(res, err))
 	}
 	if err := m.saveLocked(next); err != nil {
+		if sshPortBefore != nil {
+			restoreLive()
+		}
 		return err
 	}
 	m.jails = next
 	return nil
+}
+
+func sshPortOverride(path string) ([]byte, error) {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > 4096 {
+		return nil, fmt.Errorf("%s isn't a Dockwell SSH port override. Review it before editing the jail's ports", SSHPortFile)
+	}
+	body, err := os.ReadFile(path) //nolint:gosec // fail2ban's own directory and a fixed filename
+	if err != nil {
+		return nil, err
+	}
+	ports, ok := strings.CutPrefix(string(body), SSHPortHeader)
+	if ok && strings.HasSuffix(ports, "\n") {
+		valid := true
+		for item := range strings.SplitSeq(strings.TrimSuffix(ports, "\n"), ",") {
+			p, err := strconv.ParseUint(item, 10, 16)
+			valid = valid && err == nil && p != 0
+		}
+		if valid {
+			return body, nil
+		}
+	}
+	return nil, fmt.Errorf("%s isn't a Dockwell SSH port override. Review it before editing the jail's ports", SSHPortFile)
 }
 
 func (m *Manager) run(ctx context.Context, args ...string) (hosttool.Result, error) {

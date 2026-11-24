@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -23,10 +24,11 @@ type ruleSet struct {
 	rules  uint32
 	// filters says whether it has a chain that filters, on any hook; a table of
 	// nat chains alone filters nothing.
-	filters    bool
-	inputDrops bool
-	input      bool
-	inputRules uint32
+	filters      bool
+	inputDrops   bool
+	input        bool
+	inputRules   uint32
+	sshJailJumps uint32
 	// dockerUser is how many rules DOCKER-USER holds beyond a return.
 	dockerUser uint32
 }
@@ -79,13 +81,16 @@ func (r *ruleSet) tool(kind dockwellv1.FirewallToolKind, ufwThere bool) *dockwel
 // nftables table, and iptables-legacy's, whose drops win beside nftables's; or,
 // on a server without nft, iptables-save's. It returns the tables that may
 // filter what comes in, and how many rules Docker's DOCKER-USER chains hold.
-func (f *firewallReader) kernelRules(ctx context.Context, ufwThere bool) ([]*dockwellv1.FirewallTool, uint32) {
+func (f *firewallReader) kernelRules(ctx context.Context, ufwThere, movingSSHJail bool) ([]*dockwellv1.FirewallTool, uint32) {
 	var tools []*dockwellv1.FirewallTool
 	var dockerUser uint32
 	add := func(kind dockwellv1.FirewallToolKind, sets []*ruleSet) {
 		for _, s := range sets {
 			dockerUser += s.dockerUser
 			if t := s.tool(kind, ufwThere); t != nil {
+				if movingSSHJail {
+					t.InputRules -= s.sshJailJumps
+				}
 				tools = append(tools, t)
 			}
 		}
@@ -194,6 +199,9 @@ func parseNftables(out []byte) ([]*ruleSet, error) {
 			s.rules++
 			if inputs[s.name+" "+item.Rule.Chain] {
 				s.inputRules++
+				if slices.ContainsFunc(item.Rule.Expr, sshJailJump) {
+					s.sshJailJumps++
+				}
 			}
 			if item.Rule.Chain == "DOCKER-USER" && !onlyReturns(item.Rule.Expr) {
 				s.dockerUser++
@@ -201,6 +209,13 @@ func parseNftables(out []byte) ([]*ruleSet, error) {
 		}
 	}
 	return sets, nil
+}
+
+func sshJailJump(raw json.RawMessage) bool {
+	var statement struct {
+		Jump struct{ Target string } `json:"jump"`
+	}
+	return json.Unmarshal(raw, &statement) == nil && statement.Jump.Target == "f2b-sshd"
 }
 
 // onlyReturns says whether a rule does nothing but return, maybe counting, as
@@ -270,6 +285,9 @@ func parseIptablesSave(out []byte, name string, family int) *ruleSet {
 			switch chain {
 			case "INPUT":
 				s.inputRules++
+				if strings.HasSuffix(line, " -j f2b-sshd") {
+					s.sshJailJumps++
+				}
 			case "DOCKER-USER":
 				if line != "-A DOCKER-USER -j RETURN" {
 					s.dockerUser++

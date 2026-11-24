@@ -1255,6 +1255,9 @@ msgstr "Roll back: {reverted}"
 msgid "Rotated the key that wraps every secret"
 msgstr "Rotated the key that wraps every secret"
 
+msgid "SSH operation unconfirmed on {server}"
+msgstr "SSH operation unconfirmed on {server}"
+
 msgid "Saved {path} on {server}"
 msgstr "Saved {path} on {server}"
 
@@ -10304,6 +10307,9 @@ msgstr "A fresh SSH connection verified these settings."
 msgid "Check you can still reach {name}"
 msgstr "Check you can still reach {name}"
 
+msgid "Copy SSH test command"
+msgstr "Copy SSH test command"
+
 msgid "Keep the change"
 msgstr "Keep the change"
 
@@ -10316,10 +10322,6 @@ msgstr "Only the person who applied this change can keep it, from where they app
 msgid "Open a fresh SSH connection before keeping these settings."
 msgstr "Open a fresh SSH connection before keeping these settings."
 
-#. placeholder {0}: wait.sshAccount
-msgid "Open a new SSH connection as {0} on port {port} from the same address."
-msgstr "Open a new SSH connection as {0} on port {port} from the same address."
-
 msgid "Open a new SSH session from here with your key, and keep the change if it works."
 msgstr "Open a new SSH session from here with your key, and keep the change if it works."
 
@@ -10329,6 +10331,9 @@ msgstr "Open a new SSH session to port {portList} from here with your key, and k
 msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 msgstr "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 
+msgid "Run this command from your original SSH client."
+msgstr "Run this command from your original SSH client."
+
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "That wait is over: this sheet shows whether the server kept the change."
 
@@ -10337,6 +10342,18 @@ msgstr "The server couldn't keep it yet, so it still waits. Free space on its di
 
 msgid "Then open the panel at its own address in a new tab."
 msgstr "Then open the panel at its own address in a new tab."
+
+#. placeholder {0}: login.address
+msgid "Verified from {0} with {identity}."
+msgstr "Verified from {0} with {identity}."
+
+#. placeholder {0}: login.address
+msgid "Verified from {0}."
+msgstr "Verified from {0}."
+
+#. placeholder {0}: wait.sshAccount
+msgid "Waiting for the test command for {0} on port {port}."
+msgstr "Waiting for the test command for {0} on port {port}."
 
 msgid "or"
 msgstr "or"
@@ -11945,6 +11962,15 @@ msgstr "MongoDB moves only from data at the release it leaves, so its feature co
 
 msgid "More than one container answers to {shared} on {network}"
 msgstr "More than one container answers to {shared} on {network}"
+
+msgid "Move SSH from port {fromPort} to {toPort}"
+msgstr "Move SSH from port {fromPort} to {toPort}"
+
+msgid "Move the fail2ban sshd jail with the listener."
+msgstr "Move the fail2ban sshd jail with the listener."
+
+msgid "Move these firewall rules with the listener: {rules}"
+msgstr "Move these firewall rules with the listener: {rules}"
 
 msgid "Moves {names} on, which an install of each can upgrade to."
 msgstr "Moves {names} on, which an install of each can upgrade to."
@@ -20878,6 +20904,9 @@ msgstr "Administrator to test with"
 msgid "All interfaces"
 msgstr "All interfaces"
 
+msgid "Authentication log entries are unverified."
+msgstr "Authentication log entries are unverified."
+
 msgid "Ban in Fail2ban"
 msgstr "Ban in Fail2ban"
 
@@ -20929,6 +20958,9 @@ msgstr "OpenSSH public key"
 msgid "Remove key"
 msgstr "Remove key"
 
+msgid "Runs a command"
+msgstr "Runs a command"
+
 #. placeholder {0}: server.name
 msgid "SSH keys on {0}"
 msgstr "SSH keys on {0}"
@@ -20953,6 +20985,9 @@ msgstr "The systemd socket sets the port and addresses."
 
 msgid "This is a private key. Paste the public key instead."
 msgstr "This is a private key. Paste the public key instead."
+
+msgid "Trusts a certificate authority"
+msgstr "Trusts a certificate authority"
 
 #. placeholder {0}: server.name
 msgid "Update SSH settings on {0}"

@@ -163,6 +163,7 @@ it("offers Keep for SSH settings only after a fresh connection proves this chang
   const change = webPlanned();
   const watch = feed<WatchChangeResponse>();
   let proved = "chg_other";
+  const command = "ssh -p 2222 deploy@192.0.2.10 test-fixture";
   renderWithApi(
     <FleetProvider>
       <ChangeSheetProvider>
@@ -174,7 +175,16 @@ it("offers Keep for SSH settings only after a fresh connection proves this chang
         watchChange: watch.stream,
         applyChange: () => ({ change: moved(change, { state: ChangeState.APPLYING }) }),
       },
-      firewall: { getServerSsh: () => ({ ssh: { provedChange: proved } }) },
+      firewall: {
+        getServerSsh: () => ({
+          ssh: {
+            provedChange: proved,
+            testChange: change.id,
+            testCommand: command,
+            proof: { address: "192.0.2.5", method: "publickey", fingerprint: "SHA256:fixture" },
+          },
+        }),
+      },
     },
   );
   const next = waiting(change, 45, [2222]);
@@ -182,12 +192,12 @@ it("offers Keep for SSH settings only after a fresh connection proves this chang
   if (!confirmation) throw new Error("expected SSH confirmation");
   confirmation.sshAccount = "deploy";
   await applyAndWait(change, watch, next);
-  expect(
-    await screen.findByText("Open a new SSH connection as deploy on port 2222 from the same address."),
-  ).toBeVisible();
+  expect(await screen.findByText(command)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Copy SSH test command" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Keep the change" })).toBeNull();
   proved = change.id;
   expect(await screen.findByRole("button", { name: "Keep the change" }, { timeout: 4000 })).toBeEnabled();
+  expect(screen.getByText("Verified from 192.0.2.5 with publickey · SHA256:fixture.")).toBeVisible();
 });
 
 describe("a change that waits for its confirmation", () => {

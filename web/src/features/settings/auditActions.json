@@ -150,6 +150,7 @@
   "ssh.disconnect",
   "ssh.key_add",
   "ssh.key_remove",
+  "ssh.unconfirmed",
   "task.failed",
   "task.recovered",
   "task.run",

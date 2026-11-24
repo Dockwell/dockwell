@@ -314,6 +314,19 @@ function SshKeys({ serverId, title, close }: { serverId: string; title: string; 
                     {key.comment ? key.type : null}
                     {key.added ? ` · ${i18n.date(timestampDate(key.added), { dateStyle: "medium" })}` : null}
                   </small>
+                  {key.options.some((option) => option.toLowerCase().startsWith("command=")) ? (
+                    <small>
+                      <Trans>Runs a command</Trans>
+                    </small>
+                  ) : null}
+                  {key.options.some((option) => option.toLowerCase() === "cert-authority") ? (
+                    <small>
+                      <Trans>Trusts a certificate authority</Trans>
+                    </small>
+                  ) : null}
+                  {key.options.map((option) => (
+                    <code key={option}>{option}</code>
+                  ))}
                 </div>
                 <Button
                   size="sm"
@@ -472,6 +485,11 @@ function SshLogins({ serverId, title, close }: { serverId: string; title: string
       {read.data?.bounded ? (
         <p className="firewall-note">
           <Trans>Showing recent matches within the log limit.</Trans>
+        </p>
+      ) : null}
+      {read.data?.unverified ? (
+        <p className="firewall-note">
+          <Trans>Authentication log entries are unverified.</Trans>
         </p>
       ) : null}
       {read.data?.logins.length === 0 ? (

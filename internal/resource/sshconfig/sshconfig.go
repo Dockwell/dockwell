@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -23,8 +24,8 @@ const Kind resource.Kind = "ssh.config"
 type Backend interface {
 	Ready(context.Context) error
 	SSHConfig(context.Context) *resourcev1.SshConfig
-	CheckSSH(context.Context, *resourcev1.SshConfig) error
-	PutSSH(context.Context, *resourcev1.SshConfig) error
+	CheckSSH(context.Context, *resourcev1.SshConfig) (*dockwellv1.SshPortMove, error)
+	PutSSH(context.Context, *resourcev1.SshConfig, *dockwellv1.SshPortMove) error
 	Wait(context.Context) error
 }
 
@@ -107,17 +108,19 @@ func (d *Driver) Judge(ctx context.Context, _ resource.Ref, actual, desired prot
 		decision.Action = resource.ActionDelete
 	}
 	if d.Backend != nil {
-		if err := d.Backend.CheckSSH(ctx, next); err != nil {
+		move, err := d.Backend.CheckSSH(ctx, next)
+		if err != nil {
 			return decision, err
 		}
+		decision.SSHPortMove = move
 	}
 	return decision, nil
 }
 
 // Apply submits a trial to the server's access manager.
-func (d *Driver) Apply(ctx context.Context, _ resource.Step, desired proto.Message) error {
+func (d *Driver) Apply(ctx context.Context, step resource.Step, desired proto.Message) error {
 	next, _ := desired.(*resourcev1.SshConfig)
-	return d.Backend.PutSSH(ctx, next)
+	return d.Backend.PutSSH(ctx, next, step.SSHPortMove)
 }
 
 // Verify waits for a resumed trial to finish.

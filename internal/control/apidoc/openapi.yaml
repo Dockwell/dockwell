@@ -23841,6 +23841,9 @@ components:
                     type: boolean
                 banAvailable:
                     type: boolean
+                unverified:
+                    type: boolean
+                    description: Text syslog records lack a verified credential for the sender.
             description: ListServerSshLoginsResponse holds the matching logins and the failures by address.
         ListServerSshSessionsResponse:
             type: object
@@ -27047,6 +27050,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/HostReboot'
                     description: What rebooting does, for a step that reboots its server.
+                sshPortMove:
+                    allOf:
+                        - $ref: '#/components/schemas/SshPortMove'
+                    description: The rules and jail that move with a guarded SSH listener change.
                 unit:
                     allOf:
                         - $ref: '#/components/schemas/HostUnit'
@@ -30392,6 +30399,13 @@ components:
                     type: array
                     items:
                         type: string
+                testChange:
+                    type: string
+                    description: The command for the current trial and its verified authentication.
+                testCommand:
+                    type: string
+                proof:
+                    $ref: '#/components/schemas/SshProof'
             description: |-
                 ServerSsh is how SSH lets people in on a server, as its agent read it: the
                  values sshd's files say, read with sshd -T, which may not be what any one file writes,
@@ -32091,6 +32105,10 @@ components:
                 added:
                     type: string
                     format: date-time
+                options:
+                    type: array
+                    items:
+                        type: string
             description: SshKey describes a public key without disclosing its material.
         SshLogin:
             type: object
@@ -32140,6 +32158,32 @@ components:
             description: |-
                 SshMatch is a Match block that sets one of the values ServerSsh says, for
                  some people or addresses.
+        SshPortMove:
+            type: object
+            properties:
+                fromPort:
+                    type: integer
+                    format: uint32
+                toPort:
+                    type: integer
+                    format: uint32
+                firewallRules:
+                    type: array
+                    items:
+                        type: string
+                fail2ban:
+                    type: boolean
+            description: SshPortMove describes the firewall rules and jail that follow a new listener.
+        SshProof:
+            type: object
+            properties:
+                address:
+                    type: string
+                method:
+                    type: string
+                fingerprint:
+                    type: string
+            description: SshProof identifies the accepted login that verified an SSH trial.
         SshSession:
             type: object
             properties:

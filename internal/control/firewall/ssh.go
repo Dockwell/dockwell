@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/id"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/store"
 )
 
@@ -29,6 +31,7 @@ const (
 	EventSSHKeyRemoved    = "ssh.key_remove"
 	EventSSHDisconnected  = "ssh.disconnect"
 	EventSSHAddressBanned = "ssh.ban"
+	EventSSHUnconfirmed   = "ssh.unconfirmed"
 )
 
 // WithSSHChanges enables passkey-protected SSH operations and their audit log.
@@ -63,6 +66,20 @@ func (h *Handler) sshRecord(ctx context.Context, p auth.Principal, server, actio
 	if err != nil && h.logger != nil {
 		h.logger.ErrorContext(ctx, "can't record an SSH access operation", slog.String("action", action), slog.String("server", server), slog.String("error", err.Error()))
 	}
+}
+
+func (h *Handler) sshWriteError(ctx context.Context, p auth.Principal, srv *dockwellv1.Server, action, subject, thing, what string, err error) error {
+	if resource.ReasonOf(err) == resource.ReasonSSHRefused {
+		var serverError *resource.ServerError
+		if errors.As(err, &serverError) {
+			err = serverError.Err
+		}
+		return connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	if !errors.Is(err, agentapi.ErrAgentOutdated) {
+		h.sshRecord(ctx, p, srv.GetId(), EventSSHUnconfirmed, subject, action)
+	}
+	return readError(srv, thing, what, err)
 }
 
 // ListServerSshKeys reads SSH from the server's agent.
@@ -111,7 +128,11 @@ func (h *Handler) EditServerSshKey(ctx context.Context, req *connect.Request[doc
 		if len(public) > 16<<10 {
 			return nil, authapi.Invalid(errors.New("paste one OpenSSH public key under 16 KiB"))
 		}
-		action, target = EventSSHKeyAdded, fmt.Sprintf("add:%x", sha256.Sum256([]byte(public)))
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(public))
+		if err != nil {
+			return nil, authapi.Invalid(errors.New("paste one public key in OpenSSH format"))
+		}
+		action, target = EventSSHKeyAdded, fmt.Sprintf("add:%s|%x", ssh.FingerprintSHA256(key), sha256.Sum256([]byte(public)))
 	} else if fp := m.GetRemoveFingerprint(); len(fp) != 50 || !strings.HasPrefix(fp, "SHA256:") {
 		return nil, authapi.Invalid(errors.New("choose a key by its SHA256 fingerprint"))
 	}
@@ -131,7 +152,7 @@ func (h *Handler) EditServerSshKey(ctx context.Context, req *connect.Request[doc
 	edit.Proof = ""
 	out, err := session.EditSSHKey(ctx, edit)
 	if err != nil {
-		return nil, readError(srv, "SSH keys", "change an authorized key", err)
+		return nil, h.sshWriteError(ctx, p, srv, action, m.GetAccount(), "SSH keys", "change an authorized key", err)
 	}
 	h.sshRecord(ctx, p, srv.GetId(), action, m.GetAccount(), out.GetKey().GetFingerprint())
 	return connect.NewResponse(out), nil
@@ -156,7 +177,7 @@ func (h *Handler) DisconnectServerSshSession(ctx context.Context, req *connect.R
 	ctx = context.WithoutCancel(ctx)
 	out, err := session.DisconnectSSHSession(ctx, &dockwellv1.DisconnectServerSshSessionRequest{SessionId: m.GetSessionId()})
 	if err != nil {
-		return nil, readError(srv, "SSH sessions", "disconnect an SSH session", err)
+		return nil, h.sshWriteError(ctx, p, srv, EventSSHDisconnected, m.GetSessionId(), "SSH sessions", "disconnect an SSH session", err)
 	}
 	h.sshRecord(ctx, p, srv.GetId(), EventSSHDisconnected, m.GetSessionId(), "")
 	return connect.NewResponse(out), nil
@@ -183,7 +204,7 @@ func (h *Handler) BanServerSshAddress(ctx context.Context, req *connect.Request[
 	ctx = context.WithoutCancel(ctx)
 	out, err := session.BanSSHAddress(ctx, &dockwellv1.BanServerSshAddressRequest{Address: address})
 	if err != nil {
-		return nil, readError(srv, "fail2ban", "ban this SSH address", err)
+		return nil, h.sshWriteError(ctx, p, srv, EventSSHAddressBanned, address, "fail2ban", "ban this SSH address", err)
 	}
 	h.sshRecord(ctx, p, srv.GetId(), EventSSHAddressBanned, address, "")
 	return connect.NewResponse(out), nil

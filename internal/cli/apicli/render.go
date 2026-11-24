@@ -894,6 +894,14 @@ func planView(w io.Writer, p *dockwellv1.Plan, fullMaintenance bool) {
 			for _, line := range staysWords(st.GetStays(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
+			if move := st.GetSshPortMove(); move != nil {
+				for _, name := range move.GetFirewallRules() {
+					fmt.Fprintf(tw, "      Move firewall rule %s from TCP port %d to %d.\n", name, move.GetFromPort(), move.GetToPort())
+				}
+				if move.GetFail2Ban() {
+					fmt.Fprintf(tw, "      Move the fail2ban sshd jail from port %d to %d.\n", move.GetFromPort(), move.GetToPort())
+				}
+			}
 			for _, line := range panelWords(st.GetPanel(), s.GetServerName()) {
 				fmt.Fprintln(tw, "      "+line)
 			}
