@@ -77,7 +77,8 @@ func testAppsLearnWhatsNewer(t *testing.T, backend store.Backend) {
 	srv.run(t)
 	waitConnected(t, f, srv.id.ServerID, true)
 	e.Registry["postgres:16.3"] = dockertest.Image{Digest: pg163, Config: docker.Config{Labels: map[string]string{"org.opencontainers.image.source": "https://github.com/docker-library/postgres"}}}
-	e.Registry["nginx:latest"] = dockertest.Image{Digest: nginxV1}
+	built := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
+	e.Registry["nginx:latest"] = dockertest.Image{Digest: nginxV1, Created: built}
 
 	c := changeClient(b, b.origin)
 	made, err := c.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
@@ -115,6 +116,25 @@ func testAppsLearnWhatsNewer(t *testing.T, backend store.Backend) {
 	site := byName["site"]
 	if got := said(site); got != "new build latest→latest nginx" || site.GetAvailable()[0].GetToDigest() != nginxV2 {
 		t.Errorf("site can move to %q: %v", got, site)
+	}
+	for _, image := range []string{"nginx", ""} {
+		up, err := dockwellv1connect.NewServiceServiceClient(b, b.origin).UpgradeService(t.Context(), connect.NewRequest(
+			&dockwellv1.UpgradeServiceRequest{Id: ids["site"], Image: image}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		change := up.Msg.GetChange()
+		intent := change.GetPlan().GetIntent()
+		if change.GetSummary() != "Update site to the newest build of nginx" ||
+			intent.GetFromDigest() != nginxV1 || intent.GetToDigest() != nginxV2 || !intent.GetFromBuildTime().AsTime().Equal(built) {
+			t.Errorf("the summary and intent of the detected rebuild = %q, %v", change.GetSummary(), intent)
+		}
+		if note := noteOf(change, "pulls_again"); note != nil {
+			t.Errorf("a known rebuild has an exploratory pull note: %v", note)
+		}
+		if _, err := c.DiscardChange(t.Context(), connect.NewRequest(&dockwellv1.DiscardChangeRequest{Id: change.GetId()})); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// Skipping 17.2 leaves 16.4; skipping it too leaves nothing that counts.
@@ -308,6 +328,19 @@ func TestAnUpdateIsSentOnceItsRuleIsOn(t *testing.T) {
 	ticks(12)
 	if got := h.of("update-available"); len(got) != 2 || !strings.HasPrefix(got[1], "resolved:") {
 		t.Errorf("sent %q, want firing then resolved", got)
+	}
+
+	turnOn(0)
+	found = []alerts.AppUpdate{{ServiceID: "svc_db", Name: "db", From: "9.7.4", To: "9.7.4", Build: true}}
+	ticks(12)
+	if err := f.store.View(t.Context(), func(tx *store.Tx) error {
+		alerted, err := tx.OpenAlerts(t.Context())
+		if len(alerted) != 1 || alerted[0].Title != "db has a newer build of 9.7.4" {
+			t.Errorf("the rebuild's alert = %v", alerted)
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
 	}
 }
 

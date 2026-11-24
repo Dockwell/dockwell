@@ -10913,6 +10913,13 @@ components:
                          alone, and web runs on pi-1, which is arm64", so it's shown with no update
                          action and an automatic update leaves it. Empty when it can. See
                          docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
+                fromBuildTime:
+                    type: string
+                    description: When the images of a same-tag update were built, where the server knows.
+                    format: date-time
+                toBuildTime:
+                    type: string
+                    format: date-time
             description: AvailableUpdate is one newer version a service can move to.
         BackUpCatalogNeedRequest:
             type: object
@@ -22182,6 +22189,22 @@ components:
                 catalogRelease:
                     type: integer
                     format: uint32
+                toDigest:
+                    type: string
+                    description: |-
+                        The target digest from a detected same-tag update. It describes what the
+                         check found, since the tag can move again before the update pulls it.
+                fromBuildTime:
+                    type: string
+                    description: The creation times of those builds, when known.
+                    format: date-time
+                toBuildTime:
+                    type: string
+                    format: date-time
+                toPushTime:
+                    type: string
+                    description: When the target build was pushed, when the registry says.
+                    format: date-time
             description: |-
                 Intent is what a change is for, in a person's terms. A plan says what happens
                  to resources, which for a deploy or a new port is that a container is made

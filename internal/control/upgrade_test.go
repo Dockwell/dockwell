@@ -169,7 +169,7 @@ func TestAnUpdateCanSkipItsBackupAndNamesWhatItCantBackUp(t *testing.T) {
 		if note := noteOf(again, "pulls_again"); note == nil {
 			t.Errorf("the plan's notes = %v", again.GetPlan().GetNotes())
 		}
-		if again.GetSummary() != "Update web to the newest "+latest {
+		if again.GetSummary() != "Update web to the newest build of "+latest {
 			t.Errorf("the summary = %q", again.GetSummary())
 		}
 		before := b.e.Serving(name).ID

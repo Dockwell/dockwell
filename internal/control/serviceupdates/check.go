@@ -499,10 +499,17 @@ func Offers(image string, res *agentv1.ImageUpdatesResult, digest string) []*doc
 		if ref.Digest != "" {
 			to = retag(image, tag) + "@" + now
 		}
-		out = append(out, &dockwellv1.AvailableUpdate{
+		update := &dockwellv1.AvailableUpdate{
 			Kind: dockwellv1.UpdateKind_UPDATE_KIND_DIGEST, FromVersion: tag, ToVersion: tag, FromImage: image, ToImage: to,
 			FromDigest: from, ToDigest: now, ReleaseTime: res.GetPushTime(), NotesUrl: notes,
-		})
+		}
+		if at := res.GetRunningBuildTime(); res.GetRunningDigest() == from && at.IsValid() {
+			update.FromBuildTime = at
+		}
+		if at := res.GetBuildTime(); at.IsValid() {
+			update.ToBuildTime = at
+		}
+		out = append(out, update)
 	}
 	for _, n := range res.GetNewer() {
 		switch n.GetKind() {

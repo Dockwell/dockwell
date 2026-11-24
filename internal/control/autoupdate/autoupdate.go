@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/services"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/service"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -287,8 +288,11 @@ func (r *Runner) update(ctx context.Context, d *due) error {
 	image, summary := newer.Image, fmt.Sprintf("Update %s to %s on its own, in its window", d.name, newer.Image)
 	rebuild := false
 	switch {
-	case newer.Catalog && newer.Kind == "digest":
-		image, rebuild, summary = "", true, fmt.Sprintf("Update %s to the newest build of %s on its own, in its window", d.name, newer.Image)
+	case newer.Kind == "digest":
+		summary = fmt.Sprintf("Update %s to the newest build of %s on its own, in its window", d.name, resource.BareImage(newer.Image))
+		if newer.Catalog {
+			image, rebuild = "", true
+		}
 	case newer.Catalog:
 		image, summary = "", fmt.Sprintf("Update %s to its catalog's newer release on its own, in its window", d.name)
 	}

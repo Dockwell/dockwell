@@ -12,8 +12,10 @@ import { type Offer, useMay } from "../auth/may";
 import { installIn, useInstalls } from "../catalog/useCatalog";
 import { type Opening, type PlanChoice, useChangeSheet } from "../changes/ChangeSheet";
 import { followChange } from "../changes/follow";
+import { foundNothingNewer } from "../changes/plan";
 import { UpgradeLine, UpgradePhases } from "../changes/UpgradeLead";
-import { movesDatabase, upgradeOf, upgradePhases, upgradeTo } from "../changes/upgrade";
+import { movesDatabase, upgradeOf, upgradePhases } from "../changes/upgrade";
+import { useChangeWords } from "../changes/words";
 import { environmentOf } from "./app";
 import { useServices } from "./useServices";
 import "../changes/Upgrade.css";
@@ -102,7 +104,7 @@ export function UpgradeProgress({
   fallback?: ReactNode;
   elsewhere?: boolean;
 }) {
-  const { t } = useLingui();
+  const words = useChangeWords();
   const transport = useTransport();
   const sheet = useChangeSheet();
   const [change, setChange] = useState<Change>();
@@ -120,11 +122,10 @@ export function UpgradeProgress({
   }, [transport, id]);
   const intent = change?.id === id ? upgradeOf(change?.plan) : undefined;
   if (!change || !intent) return fallback;
-  const to = upgradeTo(intent);
   if (change.state === ChangeState.APPLYING) {
     if (elsewhere) return null;
     return (
-      <Panel title={t`Updating to ${to}`} className="upgrade-card">
+      <Panel title={words.intent(intent, "doing")} className="upgrade-card">
         <UpgradeLine intent={intent} />
         <UpgradePhases phases={upgradePhases(change.plan, change)} />
       </Panel>
@@ -135,11 +136,17 @@ export function UpgradeProgress({
     change.applyTime ? timestampMs(change.applyTime) : 0,
     ...change.steps.map((s) => (s.finishTime ? timestampMs(s.finishTime) : 0)),
   );
-  if (change.state !== ChangeState.APPLIED || change.undoneBy || Date.now() - ended > SAID_FOR_MS) return fallback;
+  if (
+    change.state !== ChangeState.APPLIED ||
+    change.undoneBy ||
+    foundNothingNewer(change) ||
+    Date.now() - ended > SAID_FOR_MS
+  )
+    return fallback;
   if (elsewhere) return null;
   return (
     <Panel
-      title={t`Updated to ${to}`}
+      title={words.intent(intent, "done")}
       className="upgrade-card"
       actions={
         change.undoDeadline ? (

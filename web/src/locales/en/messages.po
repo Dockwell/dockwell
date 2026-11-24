@@ -6580,6 +6580,12 @@ msgstr "Its server's agent is too old to check; update the agent"
 msgid "New build"
 msgstr "New build"
 
+msgid "New build of <0>{version}</0>"
+msgstr "New build of <0>{version}</0>"
+
+msgid "New build of {version}"
+msgstr "New build of {version}"
+
 msgid "New release"
 msgstr "New release"
 
@@ -6618,8 +6624,15 @@ msgid "Show again"
 msgstr "Show again"
 
 #. placeholder {0}: a.toVersion
+msgid "Show the new build of {0} again"
+msgstr "Show the new build of {0} again"
+
+#. placeholder {0}: a.toVersion
 msgid "Show {0} again"
 msgstr "Show {0} again"
+
+msgid "Skip this build"
+msgstr "Skip this build"
 
 #. placeholder {0}: first.toVersion
 msgid "Skip {0}"
@@ -6647,9 +6660,8 @@ msgstr "Up to date"
 msgid "Update available"
 msgstr "Update available"
 
-#. placeholder {0}: step(a)
-msgid "Update available: {0}, {kind}"
-msgstr "Update available: {0}, {kind}"
+msgid "Update available: {change}, {kind}"
+msgstr "Update available: {change}, {kind}"
 
 msgid "Updates snoozed"
 msgstr "Updates snoozed"
@@ -6671,10 +6683,6 @@ msgid "minor"
 msgstr "minor"
 
 msgctxt "update kind"
-msgid "new build"
-msgstr "new build"
-
-msgctxt "update kind"
 msgid "new commits"
 msgstr "new commits"
 
@@ -6694,12 +6702,6 @@ msgstr "Backs up {names} before anything changes"
 
 msgid "Undo won't bring back what it changes in {names}"
 msgstr "Undo won't bring back what it changes in {names}"
-
-msgid "Updated to {to}"
-msgstr "Updated to {to}"
-
-msgid "Updating to {to}"
-msgstr "Updating to {to}"
 
 msgid "Always"
 msgstr "Always"
@@ -11061,12 +11063,21 @@ msgstr "To come"
 msgid "Under way"
 msgstr "Under way"
 
-msgid "its newest image"
-msgstr "its newest image"
+msgid "built {day}"
+msgstr "built {day}"
+
+msgid "its newest build"
+msgstr "its newest build"
+
+msgid "published {day}"
+msgstr "published {day}"
 
 msgctxt "update"
 msgid "to"
 msgstr "to"
+
+msgid "today"
+msgstr "today"
 
 #. placeholder {0}: bytes[0]
 #. placeholder {1}: bytes[1]
@@ -12513,6 +12524,9 @@ msgstr "Couldn't take on"
 msgid "Couldn't update"
 msgstr "Couldn't update"
 
+msgid "Couldn't update to a newer build of {to}"
+msgstr "Couldn't update to a newer build of {to}"
+
 msgid "Couldn't update to {to}"
 msgstr "Couldn't update to {to}"
 
@@ -12834,11 +12848,26 @@ msgstr "Two containers mustn't write to the volume {volumes} at once, so the old
 msgid "Update"
 msgstr "Update"
 
+msgid "Update to a newer build of {to}"
+msgstr "Update to a newer build of {to}"
+
 msgid "Update to {to}"
 msgstr "Update to {to}"
 
+msgid "Updated to a newer build of {to}"
+msgstr "Updated to a newer build of {to}"
+
+msgid "Updated to {to}"
+msgstr "Updated to {to}"
+
 msgid "Updating"
 msgstr "Updating"
+
+msgid "Updating to a newer build of {to}"
+msgstr "Updating to a newer build of {to}"
+
+msgid "Updating to {to}"
+msgstr "Updating to {to}"
 
 msgid "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"
 msgstr "What is in flight gets up to {drain} to finish. What outlasts that, such as a long connection, ends with the old container"

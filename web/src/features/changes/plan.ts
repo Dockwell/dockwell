@@ -504,10 +504,12 @@ export function foundNothingNewer(change: Change | undefined): string {
  * Whether a step replaces what runs only if its pull finds a newer image: it has
  * nothing to change that a container can't change in place. Anything else it
  * changes, such as a container that has stopped or a limit it no longer has, it
- * changes whatever the pull finds. The CLI's replacesIfNewer is the same rule.
+ * changes whatever the pull finds. An update's detected digest already tells the
+ * plan that there is a different build to pull.
  */
-export function replacesIfNewer(step: PlanStep): boolean {
+export function replacesIfNewer(step: PlanStep, intent?: Intent): boolean {
   if (!step.pull || step.action !== PlanAction.REPLACE) return false;
+  if (intent?.kind === IntentKind.UPGRADE && intent.toDigest && step.resourceId === intent.resourceId) return false;
   return step.changes.every((c) => {
     const path = c.path.replace(/^app\./, "");
     if (path === "restart" || path === "restart_retries") return true;
@@ -518,10 +520,11 @@ export function replacesIfNewer(step: PlanStep): boolean {
 /** The resources a plan replaces only if a pull finds a newer image, on every server it replaces them. */
 function ifNewerIn(plan: Plan | undefined): ReadonlySet<string> {
   const steps = (plan?.servers ?? []).flatMap((s) => s.steps);
+  const conditional = (step: PlanStep) => replacesIfNewer(step, plan?.intent);
   const certain = new Set(
-    steps.filter((s) => s.action === PlanAction.REPLACE && !replacesIfNewer(s)).map((s) => s.resourceId),
+    steps.filter((s) => s.action === PlanAction.REPLACE && !conditional(s)).map((s) => s.resourceId),
   );
-  return new Set(steps.filter((s) => replacesIfNewer(s) && !certain.has(s.resourceId)).map((s) => s.resourceId));
+  return new Set(steps.filter((s) => conditional(s) && !certain.has(s.resourceId)).map((s) => s.resourceId));
 }
 
 /** Whether all a plan changes depends on its pull finding a newer image, so it may change nothing. */

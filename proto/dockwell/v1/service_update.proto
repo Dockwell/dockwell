@@ -267,6 +267,9 @@ message AvailableUpdate {
   // action and an automatic update leaves it. Empty when it can. See
   // docs/adr/0102-an-app-that-runs-on-one-architecture-goes-only-where-it-runs.md.
   string unavailable = 14;
+  // When the images of a same-tag update were built, where the server knows.
+  google.protobuf.Timestamp from_build_time = 15;
+  google.protobuf.Timestamp to_build_time = 16;
 }
 
 // UpdateKind is the size of a step from what runs to a newer version.

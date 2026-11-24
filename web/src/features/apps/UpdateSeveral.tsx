@@ -12,7 +12,7 @@ import {
   UpdateKind,
   UpdateSource,
 } from "@dockwell/api";
-import { Button, cx, Glyph, Icon, Sheet, Tag } from "@dockwell/ui";
+import { Button, cx, Glyph, Icon, Sheet } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ import { needsConfirming } from "../changes/notices";
 import { isEmpty, isFinal, longestDowntime, withoutIds } from "../changes/plan";
 import { upgradePhases } from "../changes/upgrade";
 import { environmentOf, nameOf } from "./app";
-import { counts, offered, ofInstall, planUpdate, updateKey, useKindWord, useMayUpdate, useStep } from "./updates";
+import { counts, offered, ofInstall, planUpdate, UpdateStep, updateKey, useMayUpdate } from "./updates";
 import { readServicesAgain, usePlaces } from "./useServices";
 import "./Updates.css";
 
@@ -403,8 +403,6 @@ function messageOf(err: unknown): string {
 /** One app's update in the sheet: what it goes to, and where it is. */
 function SeveralRow({ row }: { row: Row }) {
   const { t } = useLingui();
-  const kindWord = useKindWord();
-  const step = useStep();
   const places = usePlaces();
   const time = useTimeWords();
   const { service, offer, state } = row;
@@ -414,8 +412,7 @@ function SeveralRow({ row }: { row: Row }) {
     <li className={cx("update-several-row", `is-${rowLook(state)}`)}>
       <span className="update-several-what">
         <span className="update-several-name">{name}</span>
-        <code className="update-step">{step(offer)}</code>
-        <Tag className={cx("update-kind", offer.kind === UpdateKind.MAJOR && "is-major")}>{kindWord(offer.kind)}</Tag>
+        <UpdateStep offer={offer} />
       </span>
       <span className="update-several-state">
         <RowWords state={state} spanOf={time.span} />

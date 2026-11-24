@@ -47,5 +47,17 @@ func (x nexter) Of(ctx context.Context, serviceID string) (Newer, bool, error) {
 	if a.GetFoundTime() != nil {
 		out.Found = a.GetFoundTime().AsTime()
 	}
+	if out.Kind == "digest" {
+		out.FromDigest, out.ToDigest = a.GetFromDigest(), a.GetToDigest()
+		if at := a.GetFromBuildTime(); at.IsValid() {
+			out.FromBuildTime = at.AsTime()
+		}
+		if at := a.GetToBuildTime(); at.IsValid() {
+			out.ToBuildTime = at.AsTime()
+		}
+		if at := a.GetReleaseTime(); at.IsValid() {
+			out.ToPushTime = at.AsTime()
+		}
+	}
 	return out, out.Catalog || out.Image != "", nil
 }

@@ -51,7 +51,13 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 	defer cancel()
 	res := &agentv1.ImageUpdatesResult{}
 	if running := call.GetRunning(); running != "" {
-		res.Source = im.sourceOf(ctx, running)
+		_, res.RunningDigest, _ = strings.Cut(running, "@")
+		if img, err := im.docker.InspectImage(ctx, running); err == nil {
+			res.Source = httpsOnly(img.Config.Labels[sourceLabel])
+			if !img.Created.IsZero() {
+				res.RunningBuildTime = timestamppb.New(img.Created)
+			}
+		}
 	}
 	client, _ := im.ready(ctx)
 	if im.isSilent(ref.Registry) {
@@ -77,6 +83,13 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 		im.mu.Lock()
 		im.digests.put(ref.String()+signedInAs(ctx), digest, im.now())
 		im.mu.Unlock()
+		if res.RunningDigest != "" && res.RunningDigest != digest {
+			// If another workload already has this build, Docker can date it
+			// without a manifest GET that the registry would count as a pull.
+			if img, err := im.docker.InspectImage(ctx, ref.Name()+"@"+digest); err == nil && !img.Created.IsZero() {
+				res.BuildTime = timestamppb.New(img.Created)
+			}
+		}
 	}
 	if !call.GetTags() || !registry.IsVersion(ref.Tag) {
 		return res, nil
@@ -104,7 +117,7 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 		byName[t.Name] = t
 		names = append(names, t.Name)
 	}
-	if t, ok := byName[ref.Tag]; ok && !t.Pushed.IsZero() {
+	if t, ok := byName[ref.Tag]; ok && t.Digest == digest && !t.Pushed.IsZero() {
 		res.PushTime = timestamppb.New(t.Pushed)
 	}
 	for _, n := range registry.NewerTags(ref.Tag, names) {
@@ -122,16 +135,6 @@ func (im *images) imageUpdates(ctx context.Context, call *agentv1.ImageUpdatesCa
 		res.Newer = append(res.Newer, newer)
 	}
 	return res, nil
-}
-
-// sourceOf is where the image that runs says its source is, from the server's
-// own copy, with no network: an https address, or nothing.
-func (im *images) sourceOf(ctx context.Context, running string) string {
-	img, err := im.docker.InspectImage(ctx, running)
-	if err != nil || img.Config == nil {
-		return ""
-	}
-	return httpsOnly(img.Config.Labels[sourceLabel])
 }
 
 // httpsOnly is an address an image names, kept only when it's https with a
