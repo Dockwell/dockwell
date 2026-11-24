@@ -621,6 +621,9 @@ message Hello {
   bool reads_app_ports = 392;
   // Docker inventory and maintenance use 400 to 419 (ADR 0107).
   DockerCapabilities docker_capabilities = 400;
+  // True when the agent compresses and extracts archives on disk, and
+  // downloads several paths as one zip. Files handy uses 420 to 429.
+  bool archives_files = 420;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -940,6 +943,9 @@ message Call {
     DockerMaintenancePreviewCall docker_maintenance_preview = 404;
     CheckDockerNetworkCall check_docker_network = 405;
     DockerArtifactControlCall docker_artifact_control = 406;
+    // Files handy archive calls use 420 to 429.
+    CompressFilesCall compress_files = 420;
+    ExtractArchiveCall extract_archive = 421;
   }
 }
 
@@ -2049,13 +2055,53 @@ message FinishUploadResult {
   FileRefusal refusal = 2;
 }
 
-// DownloadFileCall sends what's at path over SendFile: a file as it is, or a
-// folder as a zip archive.
+// DownloadFileCall sends what's at path (or paths as one zip) over SendFile:
+// a file as it is, or a folder or selection as a zip archive.
 message DownloadFileCall {
   // The SendFile stream to send it on.
   uint64 stream = 1;
   // The absolute path.
   string path = 2;
+  // Several absolute paths to download together as one zip archive. When set,
+  // path is left out. Files handy uses 420 to 429.
+  repeated string paths = 420;
+}
+
+// CompressFilesCall packs paths into a new .zip file at archive_path.
+message CompressFilesCall {
+  // Absolute paths of files or folders to pack.
+  repeated string paths = 1;
+  // Absolute path of the new .zip file to create.
+  string archive_path = 2;
+  // The path a person confirmed with a passkey, where creating it is a way
+  // back in.
+  string confirmed_path = 3;
+}
+
+// CompressFilesResult answers a CompressFilesCall.
+message CompressFilesResult {
+  // What was created. Unset when the agent refused.
+  dockwell.v1.CompressFilesResponse compressed = 1;
+  // Why nothing was created.
+  FileRefusal refusal = 2;
+}
+
+// ExtractArchiveCall unpacks an existing archive at path into a new folder
+// beside it.
+message ExtractArchiveCall {
+  // Absolute path of the archive to unpack.
+  string path = 1;
+  // The destination folder path a person confirmed with a passkey, where
+  // extracting there is a way back in.
+  string confirmed_path = 2;
+}
+
+// ExtractArchiveResult answers an ExtractArchiveCall.
+message ExtractArchiveResult {
+  // What was unpacked. Unset when the agent refused.
+  dockwell.v1.ExtractArchiveResponse extracted = 1;
+  // Why nothing was unpacked.
+  FileRefusal refusal = 2;
 }
 
 // DownloadFileResult answers a DownloadFileCall, once it's all sent.
@@ -2704,6 +2750,8 @@ message CallResult {
     DockerMaintenancePreviewResult docker_maintenance_preview = 404;
     CheckDockerNetworkResult check_docker_network = 405;
     DockerArtifactControlResult docker_artifact_control = 406;
+    CompressFilesResult compress_files = 420;
+    ExtractArchiveResult extract_archive = 421;
   }
 }
 

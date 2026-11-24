@@ -265,8 +265,19 @@ func (s *Session) CancelUpload(ctx context.Context, id, owner string) (*agentv1.
 // each, the first saying what it is, until it has sent it all, or each fails, or
 // ctx ends, which stops the agent at once.
 func (s *Session) Download(ctx context.Context, path string, each func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
+	return s.downloadCall(ctx, &agentv1.DownloadFileCall{Path: path}, each)
+}
+
+// DownloadMany asks the agent for several paths packed into one zip archive,
+// streaming each part to each as it comes.
+func (s *Session) DownloadMany(ctx context.Context, paths []string, each func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
+	return s.downloadCall(ctx, &agentv1.DownloadFileCall{Paths: paths}, each)
+}
+
+func (s *Session) downloadCall(ctx context.Context, call *agentv1.DownloadFileCall, each func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
 	t := s.agents.openTransfer(s.server)
 	defer s.agents.closeTransfer(t)
+	call.Stream = t.token
 	ctx, cancel := context.WithTimeout(ctx, TransferTimeout)
 	defer cancel()
 	type answer struct {
@@ -275,7 +286,7 @@ func (s *Session) Download(ctx context.Context, path string, each func(*agentv1.
 	}
 	answered := make(chan answer, 1)
 	go func() {
-		r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DownloadFile{DownloadFile: &agentv1.DownloadFileCall{Stream: t.token, Path: path}}}, TransferTimeout, nil)
+		r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DownloadFile{DownloadFile: call}}, TransferTimeout, nil)
 		answered <- answer{r, err}
 	}()
 	for {

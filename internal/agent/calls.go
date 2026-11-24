@@ -1534,7 +1534,8 @@ func busy(call *agentv1.Call) *agentv1.CallResult {
 func isFileCall(call *agentv1.Call) bool {
 	return call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil || call.GetMakeFile() != nil ||
 		call.GetMoveFile() != nil || call.GetDeleteFile() != nil || call.GetListDeleted() != nil || call.GetRestoreFile() != nil ||
-		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil
+		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil ||
+		call.GetCompressFiles() != nil || call.GetExtractArchive() != nil
 }
 
 // manageFiles makes, moves, deletes and puts back files, and says what's in Recently
@@ -1575,6 +1576,14 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 		}
 		out, err := finish(ctx, fin.GetUploadId(), fin.GetOwner())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_FinishUpload{FinishUpload: out}}, err
+	case call.GetCompressFiles() != nil:
+		cf := call.GetCompressFiles()
+		out, err := f.Compress(ctx, cf.GetPaths(), cf.GetArchivePath(), cf.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CompressFiles{CompressFiles: out}}, err
+	case call.GetExtractArchive() != nil:
+		ex := call.GetExtractArchive()
+		out, err := f.Extract(ctx, ex.GetPath(), ex.GetConfirmedPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ExtractArchive{ExtractArchive: out}}, err
 	}
 	return nil, errors.New("this isn't a call about files")
 }
@@ -1657,10 +1666,16 @@ func (c *calls) download(ctx context.Context, call *agentv1.DownloadFileCall) *a
 	sendCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	stream := client.SendFile(sendCtx)
-	out, err := c.cfg.Files.Download(ctx, call.GetPath(), func(m *agentv1.SendFileRequest) error {
+	send := func(m *agentv1.SendFileRequest) error {
 		m.Stream = call.GetStream()
 		return stream.Send(m)
-	})
+	}
+	var out *agentv1.DownloadFileResult
+	if len(call.GetPaths()) > 0 {
+		out, err = c.cfg.Files.DownloadMany(ctx, call.GetPaths(), send)
+	} else {
+		out, err = c.cfg.Files.Download(ctx, call.GetPath(), send)
+	}
 	if err != nil {
 		cancel()
 		return fail(err)

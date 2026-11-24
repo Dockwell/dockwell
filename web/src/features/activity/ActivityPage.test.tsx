@@ -964,6 +964,18 @@ describe("Activity", () => {
           subject: { ...on, path: "/var/log/syslog", sizeBytes: 1536n },
         }),
         auditEvent({ id: "evt_down_dir", action: "file.download", time: at(7), subject: { ...on, path: "/srv/site" } }),
+        auditEvent({
+          id: "evt_comp",
+          action: "file.compress",
+          time: at(8),
+          subject: { ...on, path: "/var/www/site.zip", sizeBytes: 4096n },
+        }),
+        auditEvent({
+          id: "evt_ext",
+          action: "file.extract",
+          time: at(9),
+          subject: { ...on, path: "/var/www/site.zip", toPath: "/var/www/site" },
+        }),
       ]),
     );
     const { router } = renderActivity(watch);
@@ -978,6 +990,8 @@ describe("Activity", () => {
     });
     await screen.findByRole("row", { name: /Couldn't upload \/x to hz-1/ });
     await screen.findByRole("row", { name: /Downloaded \/var\/log\/syslog from hz-1, 1\.5 KB/ });
+    await screen.findByRole("row", { name: /Compressed \/var\/www\/site\.zip on hz-1, 4 KB/ });
+    await screen.findByRole("row", { name: /Extracted \/var\/www\/site\.zip into \/var\/www\/site on hz-1/ });
     await screen.findByRole("row", { name: /Downloaded \/srv\/site from hz-1(?!,)/ });
     await user.click(await screen.findByRole("row", { name: /Uploaded \/var\/www\/backup\.sql to hz-1, 3 MB/ }));
     await user.click(await screen.findByRole("link", { name: "Open the folder" }));

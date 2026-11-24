@@ -427,7 +427,7 @@ func TestUnpackingAnArchive(t *testing.T) {
 		"deep.zip": {strings.Repeat("d/", maxUnpackDepth) + "f": "x"},
 	} {
 		got := d.upload(t, filepath.Join(site, name), zipOf(t, entries), dockwellv1.Unpack_UNPACK_ZIP)
-		if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_UNPACK_REFUSED || there(filepath.Join(site, unpackedName(name))) {
+		if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_UNPACK_REFUSED || there(filepath.Join(site, UnpackedName(name))) {
 			t.Errorf("%s: %v", name, got)
 		}
 	}
@@ -443,8 +443,8 @@ func TestUnpackingAnArchive(t *testing.T) {
 		if got.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_UNPACK_REFUSED || got.GetFinished() == nil {
 			t.Errorf("%s: %v", name, got)
 		}
-		if there(filepath.Join(site, unpackedName(name))) {
-			t.Errorf("%s left %s", name, unpackedName(name))
+		if there(filepath.Join(site, UnpackedName(name))) {
+			t.Errorf("%s left %s", name, UnpackedName(name))
 		}
 	}
 	if there(filepath.Join(d.root, "escaped.txt")) || there(filepath.Join(site, "escaped.txt")) {

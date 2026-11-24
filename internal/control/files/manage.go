@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	posixpath "path"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -33,10 +34,12 @@ type op struct {
 }
 
 var (
-	opMake    = op{"make", auth.StepUpMakeWayBackIn}
-	opMove    = op{"move", auth.StepUpMoveWayBackIn}
-	opDelete  = op{"delete", auth.StepUpDeleteWayBackIn}
-	opRestore = op{"put back", auth.StepUpRestoreWayBackIn}
+	opMake     = op{"make", auth.StepUpMakeWayBackIn}
+	opMove     = op{"move", auth.StepUpMoveWayBackIn}
+	opDelete   = op{"delete", auth.StepUpDeleteWayBackIn}
+	opRestore  = op{"put back", auth.StepUpRestoreWayBackIn}
+	opCompress = op{"compress", auth.StepUpMakeWayBackIn}
+	opExtract  = op{"extract", auth.StepUpMakeWayBackIn}
 )
 
 // actions names each outcome explicitly, so the audit inventory can follow every
@@ -53,6 +56,10 @@ func (o op) actions() (done, failed, unconfirmed string) {
 		return "file.restore", "file.restore_failed", "file.restore_unconfirmed"
 	case "upload":
 		return "file.upload", "file.upload_failed", "file.upload_unconfirmed"
+	case "compress":
+		return "file.compress", "file.compress_failed", "file.compress_unconfirmed"
+	case "extract":
+		return "file.extract", "file.extract_failed", "file.extract_unconfirmed"
 	default:
 		panic("file operation has no audit actions")
 	}
@@ -404,6 +411,98 @@ func (h *Handler) PurgeDeletedFile(ctx context.Context, req *connect.Request[doc
 	purged := out.GetPurged()
 	w.done(ctx, purged.GetPath(), Told{ForGood: true})
 	return connect.NewResponse(&dockwellv1.PurgeDeletedFileResponse{Deleted: purged}), nil
+}
+
+// archives checks that the agent supports CompressFiles, ExtractArchive and
+// multi-path downloads.
+func (w *writing) archives(ctx context.Context, at string) error {
+	if w.session.ArchivesFiles() {
+		return nil
+	}
+	return w.failedAt(ctx, at, authapi.ReasonError(connect.CodeFailedPrecondition,
+		fmt.Errorf("%s's agent is too old to %s archives on the server, so it can't here. Update the agent on %s, then try again", w.srv.GetName(), w.op.verb, w.srv.GetName()), "agent_outdated"))
+}
+
+// CompressFiles packs one or more files or folders into a new .zip archive on a server.
+func (h *Handler) CompressFiles(ctx context.Context, req *connect.Request[dockwellv1.CompressFilesRequest]) (*connect.Response[dockwellv1.CompressFilesResponse], error) {
+	paths, archivePath, proof := req.Msg.GetPaths(), req.Msg.GetArchivePath(), req.Msg.GetProof()
+	w, err := h.start(ctx, req.Msg.GetServerId(), opCompress, archivePath, func() error {
+		if err := files.CheckPaths(paths); err != nil {
+			return err
+		}
+		return files.CheckZipArchivePath(archivePath)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := w.archives(ctx, archivePath); err != nil {
+		return nil, err
+	}
+	if err := w.hold(ctx, archivePath, proof, archivePath); err != nil {
+		return nil, err
+	}
+	ctx = context.WithoutCancel(ctx)
+	confirmed := ""
+	if proof != "" {
+		confirmed = archivePath
+	}
+	out, err := w.session.CompressFiles(ctx, paths, archivePath, confirmed)
+	if err == nil && w.covered(ctx, proof, archivePath, out.GetRefusal()) {
+		out, err = w.session.CompressFiles(ctx, paths, archivePath, archivePath)
+	}
+	if err != nil {
+		return nil, w.called(ctx, archivePath, err)
+	}
+	if r := out.GetRefusal(); r != nil {
+		return nil, w.refused(ctx, archivePath, cmp.Or(r.GetPath(), archivePath), r)
+	}
+	compressed := out.GetCompressed()
+	w.done(ctx, compressed.GetPath(), Told{WayBackIn: compressed.GetWayBackIn(), Size: compressed.GetFile().GetSizeBytes()})
+	return connect.NewResponse(compressed), nil
+}
+
+// ExtractArchive unpacks an existing .zip, .tar.gz or .tgz archive on a server
+// into a new folder beside it.
+func (h *Handler) ExtractArchive(ctx context.Context, req *connect.Request[dockwellv1.ExtractArchiveRequest]) (*connect.Response[dockwellv1.ExtractArchiveResponse], error) {
+	archivePath, proof := req.Msg.GetPath(), req.Msg.GetProof()
+	w, err := h.start(ctx, req.Msg.GetServerId(), opExtract, archivePath, func() error {
+		if err := checkWrite(archivePath); err != nil {
+			return err
+		}
+		if files.ArchiveKind(posixpath.Base(strings.TrimRight(archivePath, "/"))) == dockwellv1.Unpack_UNPACK_UNSPECIFIED {
+			return errors.New("only .zip, .tar.gz and .tgz archives can be extracted")
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := w.archives(ctx, archivePath); err != nil {
+		return nil, err
+	}
+	trimmed := strings.TrimRight(archivePath, "/")
+	dstPath := posixpath.Join(posixpath.Dir(trimmed), files.UnpackedName(posixpath.Base(trimmed)))
+	if err := w.hold(ctx, archivePath, proof, dstPath); err != nil {
+		return nil, err
+	}
+	ctx = context.WithoutCancel(ctx)
+	confirmed := ""
+	if proof != "" {
+		confirmed = dstPath
+	}
+	out, err := w.session.ExtractArchive(ctx, archivePath, confirmed)
+	if r := out.GetRefusal(); err == nil && w.covered(ctx, proof, cmp.Or(r.GetPath(), dstPath), r) {
+		out, err = w.session.ExtractArchive(ctx, archivePath, cmp.Or(r.GetPath(), dstPath))
+	}
+	if err != nil {
+		return nil, w.called(ctx, archivePath, err)
+	}
+	if r := out.GetRefusal(); r != nil {
+		return nil, w.refused(ctx, archivePath, cmp.Or(r.GetPath(), dstPath), r)
+	}
+	extracted := out.GetExtracted()
+	w.done(ctx, extracted.GetPath(), Told{To: extracted.GetUnpackedTo(), WayBackIn: extracted.GetWayBackIn()})
+	return connect.NewResponse(extracted), nil
 }
 
 // deletedPath is where what's in Recently deleted as id was deleted from, or nothing

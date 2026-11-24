@@ -228,25 +228,41 @@ func (h *Handler) CancelUpload(ctx context.Context, req *connect.Request[dockwel
 	return connect.NewResponse(&dockwellv1.CancelUploadResponse{}), nil
 }
 
-// DownloadFile sends a file, or a folder as a zip archive, as the agent reads it.
-// It's on record before any of it goes out, and what can't go on record doesn't go.
+// DownloadFile sends a file, a folder as a zip archive, or several selected
+// paths as one zip archive, as the agent reads them. It's on record before any
+// of it goes out, and what can't go on record doesn't go.
 func (h *Handler) DownloadFile(ctx context.Context, req *connect.Request[dockwellv1.DownloadFileRequest], stream *connect.ServerStream[dockwellv1.DownloadFileResponse]) error {
 	p, err := person(ctx)
 	if err != nil {
 		return err
 	}
 	path := req.Msg.GetPath()
+	paths := req.Msg.GetPaths()
+	multi := len(paths) > 0
+	at := path
+	if multi {
+		at = paths[0]
+	}
 	srv, err := h.server(ctx, req.Msg.GetServerId())
 	if err != nil {
 		return err
 	}
 	record := h.recorder(ctx, p, srv)
 	failed := func(err error) error {
-		h.note(ctx, record, eventRefuse, "download", path, srv, err)
+		h.note(ctx, record, eventRefuse, "download", at, srv, err)
 		return err
 	}
-	if err := files.CheckPath(path); err != nil {
-		return failed(authapi.Invalid(err))
+	if multi {
+		if path != "" {
+			return failed(authapi.Invalid(errors.New("name either path or paths, not both")))
+		}
+		if err := files.CheckPaths(paths); err != nil {
+			return failed(authapi.Invalid(err))
+		}
+	} else {
+		if err := files.CheckPath(path); err != nil {
+			return failed(authapi.Invalid(err))
+		}
 	}
 	session, err := h.session(ctx, srv)
 	if err != nil {
@@ -256,14 +272,26 @@ func (h *Handler) DownloadFile(ctx context.Context, req *connect.Request[dockwel
 		return failed(authapi.ReasonError(connect.CodeFailedPrecondition,
 			fmt.Errorf("%s's agent is too old to download files, so it can't here. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated"))
 	}
+	if multi && !session.ArchivesFiles() {
+		return failed(authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to download a selection as one zip, so it can't here. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated"))
+	}
 	contentType, started := "application/octet-stream", false
 	each := func(m *agentv1.SendFileRequest) error {
 		if !started {
 			started = true
-			path = cmp.Or(m.GetPath(), path)
-			detail := fmt.Sprintf(`{"size":%d}`, m.GetSizeBytes())
-			if _, err := record.record(eventDownload, path, detail); err != nil {
-				return h.rpcError(ctx, err)
+			if multi {
+				for _, item := range paths {
+					if _, err := record.record(eventDownload, item, `{"size":0}`); err != nil {
+						return h.rpcError(ctx, err)
+					}
+				}
+			} else {
+				path = cmp.Or(m.GetPath(), path)
+				detail := fmt.Sprintf(`{"size":%d}`, m.GetSizeBytes())
+				if _, err := record.record(eventDownload, path, detail); err != nil {
+					return h.rpcError(ctx, err)
+				}
 			}
 			if m.GetArchive() {
 				contentType = "application/zip"
@@ -280,7 +308,12 @@ func (h *Handler) DownloadFile(ctx context.Context, req *connect.Request[dockwel
 		}
 		return stream.Send(&dockwellv1.DownloadFileResponse{Body: &httpbody.HttpBody{ContentType: contentType, Data: m.GetData()}})
 	}
-	out, err := session.Download(ctx, path, each)
+	var out *agentv1.DownloadFileResult
+	if multi {
+		out, err = session.DownloadMany(ctx, paths, each)
+	} else {
+		out, err = session.Download(ctx, path, each)
+	}
 	if err != nil {
 		return failed(h.rpcError(ctx, err))
 	}

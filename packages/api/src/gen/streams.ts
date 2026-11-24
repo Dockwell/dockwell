@@ -45,7 +45,7 @@ export const streamRoutes = {
     stream: "response",
     method: "GET",
     path: "/v1/servers/{serverId}/files:download",
-    query: ["path"],
+    query: ["path", "paths"],
     responseTypes: ["application/octet-stream", "application/zip"],
   },
   FileService_UploadFile: {

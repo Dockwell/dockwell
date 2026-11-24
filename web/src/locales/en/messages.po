@@ -760,8 +760,14 @@ msgstr "An update of {subject} is out: {where}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "Asked for a passkey to apply {change}, and none came"
 
+msgid "Asked for a passkey to compress {path} on {server}, and none came"
+msgstr "Asked for a passkey to compress {path} on {server}, and none came"
+
 msgid "Asked for a passkey to delete {path} on {server}, and none came"
 msgstr "Asked for a passkey to delete {path} on {server}, and none came"
+
+msgid "Asked for a passkey to extract {path} on {server}, and none came"
+msgstr "Asked for a passkey to extract {path} on {server}, and none came"
 
 msgid "Asked for a passkey to make {path} on {server}, and none came"
 msgstr "Asked for a passkey to make {path} on {server}, and none came"
@@ -871,6 +877,12 @@ msgstr "Closed a terminal on {server}"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "Closed a terminal on {server}, open {open}"
 
+msgid "Compressed {path} on {server}, which can let someone back in"
+msgstr "Compressed {path} on {server}, which can let someone back in"
+
+msgid "Compressed {path} on {server}, {size}"
+msgstr "Compressed {path} on {server}, {size}"
+
 msgid "Confirmed which environments are protected"
 msgstr "Confirmed which environments are protected"
 
@@ -880,8 +892,14 @@ msgstr "Copied a secret into a new database"
 msgid "Copied the secret {name} into a new database"
 msgstr "Copied the secret {name} into a new database"
 
+msgid "Couldn't compress {path} on {server}"
+msgstr "Couldn't compress {path} on {server}"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "Couldn't delete {path} on {server}"
+
+msgid "Couldn't extract {path} on {server}"
+msgstr "Couldn't extract {path} on {server}"
 
 msgid "Couldn't make {app}'s owner"
 msgstr "Couldn't make {app}'s owner"
@@ -959,6 +977,12 @@ msgstr "Ended the mute of {server}'s alerts"
 
 msgid "Ended the sessions of a sign-in provider that stopped"
 msgstr "Ended the sessions of a sign-in provider that stopped"
+
+msgid "Extracted {path} into {to} on {server}"
+msgstr "Extracted {path} into {to} on {server}"
+
+msgid "Extracted {path} into {to} on {server}, which can let someone back in"
+msgstr "Extracted {path} into {to} on {server}, which can let someone back in"
 
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "Fetched a backup of {volume} from {destination}"

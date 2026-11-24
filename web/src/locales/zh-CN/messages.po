@@ -760,8 +760,14 @@ msgstr "{subject} 有可用更新：{where}"
 msgid "Asked for a passkey to apply {change}, and none came"
 msgstr "应用 {change} 时要求验证通行密钥，但未收到"
 
+msgid "Asked for a passkey to compress {path} on {server}, and none came"
+msgstr "压缩 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
 msgid "Asked for a passkey to delete {path} on {server}, and none came"
 msgstr "删除 {server} 上的 {path} 时要求验证通行密钥，但未收到"
+
+msgid "Asked for a passkey to extract {path} on {server}, and none came"
+msgstr "解压 {server} 上的 {path} 时要求验证通行密钥，但未收到"
 
 msgid "Asked for a passkey to make {path} on {server}, and none came"
 msgstr "创建 {server} 上的 {path} 时要求验证通行密钥，但未收到"
@@ -871,6 +877,12 @@ msgstr "关闭了 {server} 上的终端"
 msgid "Closed a terminal on {server}, open {open}"
 msgstr "关闭了 {server} 上的终端，共打开 {open}"
 
+msgid "Compressed {path} on {server}, which can let someone back in"
+msgstr "压缩了 {server} 上的 {path}，该路径可用于重新进入服务器"
+
+msgid "Compressed {path} on {server}, {size}"
+msgstr "压缩了 {server} 上的 {path}，{size}"
+
 msgid "Confirmed which environments are protected"
 msgstr "确认了哪些环境受保护"
 
@@ -880,8 +892,14 @@ msgstr "已将一个密钥复制到新数据库"
 msgid "Copied the secret {name} into a new database"
 msgstr "已将密钥 {name} 复制到新数据库"
 
+msgid "Couldn't compress {path} on {server}"
+msgstr "无法压缩 {server} 上的 {path}"
+
 msgid "Couldn't delete {path} on {server}"
 msgstr "无法删除 {server} 上的 {path}"
+
+msgid "Couldn't extract {path} on {server}"
+msgstr "无法解压 {server} 上的 {path}"
 
 msgid "Couldn't make {app}'s owner"
 msgstr "无法创建 {app} 的所有者"
@@ -959,6 +977,12 @@ msgstr "结束了 {server} 告警的静音"
 
 msgid "Ended the sessions of a sign-in provider that stopped"
 msgstr "结束了已失效登录提供方的会话"
+
+msgid "Extracted {path} into {to} on {server}"
+msgstr "已将 {server} 上的 {path} 解压到 {to}"
+
+msgid "Extracted {path} into {to} on {server}, which can let someone back in"
+msgstr "已将 {server} 上的 {path} 解压到 {to}，该路径可用于重新进入服务器"
 
 msgid "Fetched a backup of {volume} from {destination}"
 msgstr "已从 {destination} 取回 {volume} 的一份备份"

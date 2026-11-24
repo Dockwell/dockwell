@@ -48,7 +48,7 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | --- | --- |
 | List a directory, read a file or save one, with any scope | Refused with `needs_session`, by the interceptor and again by the handler. Tested over Connect and REST, read-only and read-write |
 | Make, move or delete a file, or list, put back or delete what's in Recently deleted | Refused the same way. Tested over REST, read-only and read-write |
-| Begin, send or finish an upload, or download a file or a folder | Refused the same way, with nothing on record and nothing sent. Tested over REST, read-only and read-write |
+| Begin, send or finish an upload, compress or extract an archive, or download a file, folder or selection | Refused the same way, with nothing on record and nothing sent. Tested over REST, read-only and read-write |
 | Use a person's session beside it | The token alone counts, and is refused ([ADR 0016](../adr/0016-scoped-api-tokens.md)) |
 
 ### A stolen session
@@ -76,7 +76,9 @@ The agent refuses to read or save these whoever asks, over every surface, and no
 | Write over the install's key, or a secret's value in Docker's state | Refused: a save takes the same walk as a read |
 | Upload a way in, such as `authorized_keys`, or a cron job | It can't without the person's passkey, for that path on that server, when the upload begins, as making it would. One that's become a way in by the time it finishes starts again. Each upload is on the timeline with its size, in a warning tone where it took a passkey. Tested |
 | Upload an archive that unpacks a way in, or a credentials file | The passkey is for the archive, not what's in it, so an entry that would be a way in, or that the refused list holds as credentials, stops the unpack, and what it made goes. Tested |
-| Download what a read refuses, or a key inside a folder | Refused by the same walk. A folder's archive leaves out what a read would refuse in it, and a private key or a line of a password file anywhere in what's sent stops the download before it goes, by the rules a read goes by in a file's first MiB, across parts. Tested, past the first MiB, for an encrypted key in the old PEM form and a hash line |
+| Download what a read refuses, or a key inside a folder | Refused by the same walk. A folder's or selection's archive leaves out what a read would refuse in it, and a private key or a line of a password file anywhere in what's sent stops the download before it goes, by the rules a read goes by in a file's first MiB, across parts. Tested, past the first MiB, for an encrypted key in the old PEM form and a hash line |
+| Compress what a read refuses or write an archive to a way in | Refused by the same walk, `heldBack` and `keyScan` rules as download; writing into a way back in asks for a passkey, never replaces what's there, stays bounded by 200,000 entries, 16 GB and disk free space, and removes its temporary staging file on any failure. Tested |
+| Extract an existing archive on the server into a way in or over what's there | Extracting into a way back in asks for a passkey for the resolved destination folder; existing destination fails with `file_exists`; zip-slip, links, hard-linked archives, credentials, and oversized archives are refused all-or-nothing. Tested |
 | Download without leaving a record | It can't. `file.download` is written before any of it goes, and if it can't be written nothing goes. Tested |
 | Fill the server's disk with uploads | It can, up to what's free when each begins, as it can with a plan. An upload not finished within a day goes, and one the panel leaves out or stops when its sheet closes goes at once (`CancelUpload`) |
 | Force a cross-site request | Reading a file is a POST, so the guard's origin checks apply. Listing is a GET: a page on another site can't read the answer |

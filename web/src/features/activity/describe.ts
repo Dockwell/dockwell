@@ -656,6 +656,52 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             ? { title: t`Downloaded ${path} from ${server}, ${size}`, icon: "download" }
             : { title: t`Downloaded ${path} from ${server}`, icon: "download" };
         }
+        case "file.compress": {
+          const path = event.subject?.path ?? "";
+          const size = formatBytes(event.subject?.sizeBytes ?? 0n, i18n.locale);
+          return event.subject?.wayBackIn
+            ? {
+                title: t`Compressed ${path} on ${server}, which can let someone back in`,
+                icon: "archive",
+                tone: "warning",
+              }
+            : { title: t`Compressed ${path} on ${server}, ${size}`, icon: "archive" };
+        }
+        case "file.compress_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't compress ${path} on ${server}`, icon: "archive", tone: "warning" };
+        }
+        case "file.compress_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to compress ${path} on ${server}, and none came`,
+            icon: "archive",
+            tone: "warning",
+          };
+        }
+        case "file.extract": {
+          const path = event.subject?.path ?? "";
+          const to = event.subject?.toPath ?? "";
+          return event.subject?.wayBackIn
+            ? {
+                title: t`Extracted ${path} into ${to} on ${server}, which can let someone back in`,
+                icon: "archive",
+                tone: "warning",
+              }
+            : { title: t`Extracted ${path} into ${to} on ${server}`, icon: "archive" };
+        }
+        case "file.extract_failed": {
+          const path = event.subject?.path ?? "";
+          return { title: t`Couldn't extract ${path} on ${server}`, icon: "archive", tone: "warning" };
+        }
+        case "file.extract_unconfirmed": {
+          const path = event.subject?.path ?? "";
+          return {
+            title: t`Asked for a passkey to extract ${path} on ${server}, and none came`,
+            icon: "archive",
+            tone: "warning",
+          };
+        }
         case "file.change_unknown": {
           const path = event.subject?.path ?? "";
           return { title: t`May have changed ${path} on ${server}`, icon: "file", tone: "warning" };

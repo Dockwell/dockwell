@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/dockwell/dockwell/internal/lazyre"
@@ -58,6 +60,88 @@ func (s *Server) Download(ctx context.Context, p string, send func(*agentv1.Send
 		return s.sendFolder(ctx, o, out)
 	}
 	return s.sendFile(ctx, o, out)
+}
+
+// DownloadMany streams several files and folders together as one zip archive
+// over send. Each top-level path is checked before any byte goes out.
+func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
+	if err := CheckPaths(paths); err != nil {
+		return nil, err
+	}
+	// Check every top-level path before sending the archive header, so a refused
+	// or missing path answers cleanly with a refusal rather than a cut stream.
+	parent := ""
+	sameParent := true
+	firstWhere := ""
+	for i, p := range paths {
+		var o *opened
+		refusal, err := attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
+			var refusal *agentv1.FileRefusal
+			o, refusal = s.openDownload(ctx, t, p)
+			return refusal, nil
+		}, func(r *agentv1.FileRefusal) *agentv1.FileRefusal { return r })
+		switch {
+		case err != nil:
+			return nil, err
+		case refusal != nil:
+			return &agentv1.DownloadFileResult{Refusal: refusal}, nil
+		}
+		if i == 0 {
+			firstWhere = o.where
+		}
+		if !o.dir {
+			head := make([]byte, MaxFileBytes)
+			n, rerr := io.ReadFull(o.f, head)
+			if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+				where := o.where
+				o.close()
+				return &agentv1.DownloadFileResult{Refusal: denied(where, rerr)}, nil
+			}
+			if why := heldBack(head[:n]); why != "" {
+				where := o.where
+				o.close()
+				return &agentv1.DownloadFileResult{Refusal: refused(where, why)}, nil
+			}
+		}
+		o.close()
+		dir := path.Dir(strings.TrimRight(p, "/"))
+		if i == 0 {
+			parent = dir
+		} else if dir != parent {
+			sameParent = false
+		}
+	}
+	name := "files.zip"
+	if sameParent && parent != "" && parent != "/" {
+		name = path.Base(parent) + ".zip"
+	}
+	out := &frames{send: send, buf: make([]byte, 0, FrameBytes)}
+	if err := out.send(&agentv1.SendFileRequest{Name: name, Path: firstWhere, Archive: true}); err != nil {
+		return nil, err
+	}
+	z := zip.NewWriter(out)
+	g := s.guard(ctx)
+	t := &trail{s: s}
+	a := &archiver{ctx: ctx, z: z, g: g, where: parent, buf: make([]byte, FrameBytes)}
+	for _, p := range paths {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		refusal, err := s.archivePath(ctx, t, a, p)
+		if err != nil {
+			return nil, err
+		}
+		if refusal != nil {
+			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
+		}
+	}
+	if err := z.Close(); err != nil {
+		return nil, err
+	}
+	if err := out.flush(); err != nil {
+		return nil, err
+	}
+	return &agentv1.DownloadFileResult{SentBytes: out.sent}, nil
 }
 
 // opened is what a download opened.

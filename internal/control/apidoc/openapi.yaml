@@ -6084,6 +6084,42 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/files:compress:
+        post:
+            tags:
+                - FileService
+            description: |-
+                CompressFiles packs one or more files or folders into a new zip archive on
+                 the server, never over what's there. What a read refuses is left out, and
+                 any private key or password hash stops it. No API token can call it. Each
+                 one is on the timeline.
+            operationId: FileService_CompressFiles
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/CompressFilesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/CompressFilesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:delete:
         post:
             tags:
@@ -6126,12 +6162,12 @@ paths:
             tags:
                 - FileService
             description: |-
-                DownloadFile sends a file as it is, or a folder as a zip archive, as it
-                 reads it. Over REST it's a GET whose body is the file, written as it's
-                 read, for a browser to save; one that stops partway cuts the connection,
-                 so it can't pass for the whole. What a read refuses, a download does, and
-                 one stops at a private key in what it sends. No API token can call it.
-                 Each one is on the timeline, before anything goes out.
+                DownloadFile sends a file as it is, or a folder (or several selected paths)
+                 as a zip archive, as it reads it. Over REST it's a GET whose body is the
+                 file, written as it's read, for a browser to save; one that stops partway
+                 cuts the connection, so it can't pass for the whole. What a read refuses, a
+                 download does, and one stops at a private key in what it sends. No API
+                 token can call it. Each one is on the timeline, before anything goes out.
             operationId: FileService_DownloadFile
             parameters:
                 - name: serverId
@@ -6145,6 +6181,15 @@ paths:
                   description: The absolute path of a file or a folder, without . or .. in it.
                   schema:
                     type: string
+                - name: paths
+                  in: query
+                  description: |-
+                    Several absolute paths to download together as one zip archive, without .
+                     or .. in them. When set, path is left out.
+                  schema:
+                    type: array
+                    items:
+                        type: string
             responses:
                 "200":
                     description: 'The bytes, as they''re read: a file as it is, or a folder as a zip archive made as it goes. One that stops partway cuts the connection, so it can''t pass for the whole.'
@@ -6173,6 +6218,42 @@ paths:
                             schema:
                                 $ref: '#/components/schemas/Status'
             x-dockwell-stream: response
+    /v1/servers/{serverId}/files:extract:
+        post:
+            tags:
+                - FileService
+            description: |-
+                ExtractArchive unpacks an existing .zip, .tar.gz or .tgz archive on the
+                 server into a new folder beside it, never over what's there. Links and
+                 unsafe paths stop it, and unpacking into a way back in takes a passkey.
+                 No API token can call it. Each one is on the timeline.
+            operationId: FileService_ExtractArchive
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ExtractArchiveRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ExtractArchiveResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/files:make:
         post:
             tags:
@@ -14122,6 +14203,49 @@ components:
                     items:
                         type: string
             description: A managed resource and the servers it is placed on.
+        CompressFilesRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                paths:
+                    type: array
+                    items:
+                        type: string
+                    description: Absolute paths of files or folders to pack, without . or .. in them.
+                archivePath:
+                    type: string
+                    description: |-
+                        The absolute path of the new .zip file to create, without . or .. in it.
+                         Nothing may be at it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for
+                         archive_path on this server, where creating it is a way back onto it.
+            description: |-
+                CompressFilesRequest packs one or more files or folders into a new zip
+                 archive on the server.
+        CompressFilesResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: |-
+                        Where the archive was created, with every symlink in its folder's path
+                         followed.
+                file:
+                    allOf:
+                        - $ref: '#/components/schemas/FileEntry'
+                    description: The created archive file.
+                entries:
+                    type: string
+                    description: How many files and folders were packed into it.
+                wayBackIn:
+                    type: boolean
+                    description: True when creating the archive took a passkey.
+            description: CompressFilesResponse says what archive was created.
         ConfirmChangeRequest:
             type: object
             properties:
@@ -19401,6 +19525,38 @@ components:
                  as seeing it is useful and it rarely holds a secret. What runs keeps a value by
                  name, but for one of several words in a command written as one string. A name,
                  a number or a path doesn't count, as docs/security/compose-variables.md lists.
+        ExtractArchiveRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                    description: The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                path:
+                    type: string
+                    description: The absolute path of the .zip, .tar.gz or .tgz file, without . or .. in it.
+                proof:
+                    type: string
+                    description: |-
+                        The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for the
+                         destination folder on this server, where extracting there is a way back
+                         onto it.
+            description: ExtractArchiveRequest unpacks an existing archive on the server.
+        ExtractArchiveResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The archive's path, with every symlink in its folder's path followed.
+                unpackedTo:
+                    type: string
+                    description: The new folder the archive unpacked into.
+                unpackedEntries:
+                    type: string
+                    description: How many files and folders were extracted.
+                wayBackIn:
+                    type: boolean
+                    description: True when extracting into that folder took a passkey.
+            description: ExtractArchiveResponse says where the archive was unpacked.
         Fail2banBan:
             type: object
             properties:

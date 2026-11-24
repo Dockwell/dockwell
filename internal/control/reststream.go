@@ -188,7 +188,11 @@ func downloadREST(h http.Handler) http.Handler {
 			return
 		}
 		w := &stallWriter{ResponseWriter: rw, control: http.NewResponseController(rw)}
-		req, _ := proto.Marshal(&dockwellv1.DownloadFileRequest{ServerId: r.PathValue("server_id"), Path: r.URL.Query().Get("path")})
+		req, _ := proto.Marshal(&dockwellv1.DownloadFileRequest{
+			ServerId: r.PathValue("server_id"),
+			Path:     r.URL.Query().Get("path"),
+			Paths:    r.URL.Query()["paths"],
+		})
 		envelope := binary.BigEndian.AppendUint32([]byte{0}, uint32(len(req))) //nolint:gosec // a request's length
 		started := false
 		var each dockwellv1.DownloadFileResponse

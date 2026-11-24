@@ -30,8 +30,8 @@ import (
 // so does more than an upload may be, or more entries than maxUnpacked. What it
 // made by then goes again, so it's all or nothing.
 
-// unpackedName is the folder an archive called name unpacks into.
-func unpackedName(name string) string {
+// UnpackedName is the folder an archive called name unpacks into.
+func UnpackedName(name string) string {
 	for _, ext := range []string{".tar.gz", ".tgz", ".zip"} {
 		if base, ok := strings.CutSuffix(strings.ToLower(name), ext); ok && base != "" {
 			return name[:len(base)]
@@ -68,7 +68,7 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 	if err := unix.Fstat(afd, &ast); err != nil || ast.Mode&unix.S_IFMT != unix.S_IFREG {
 		return "", 0, unpackRefused(src.where, "it isn't a file")
 	}
-	dst := &target{w: src.w, name: unpackedName(src.name), where: joined(src.w.path(), unpackedName(src.name))}
+	dst := &target{w: src.w, name: UnpackedName(src.name), where: joined(src.w.path(), UnpackedName(src.name))}
 	if _, err := dst.stat(); err == nil {
 		return "", 0, unpackRefused(src.where, dst.where+" is there already")
 	}
@@ -112,17 +112,18 @@ func (s *Server) unpack(ctx context.Context, p string, as dockwellv1.Unpack) (st
 
 // unpacker makes an archive's entries in a folder.
 type unpacker struct {
-	s       *Server
-	ctx     context.Context //nolint:containedctx // it lives as long as one unpack
-	root    int
-	where   string
-	folder  *unix.Stat_t
-	dev     uint64
-	ways    *waysIn
-	buf     []byte
-	count   uint64
-	limit   uint64
-	written uint64
+	s          *Server
+	ctx        context.Context //nolint:containedctx // it lives as long as one unpack
+	root       int
+	where      string
+	folder     *unix.Stat_t
+	dev        uint64
+	ways       *waysIn
+	allowWayIn bool
+	buf        []byte
+	count      uint64
+	limit      uint64
+	written    uint64
 	// checked is how much was written when the free space was last looked at,
 	// and full why it stopped, if it did for that.
 	checked uint64
@@ -261,7 +262,7 @@ func (u *unpacker) entry(name string, dir bool, perm uint32, r io.Reader) error 
 		return fmt.Errorf("it holds more than %d entries", u.limit)
 	}
 	where := u.where + "/" + strings.Join(parts, "/")
-	if u.ways.listed(where, u.s.dataDir, false) {
+	if !u.allowWayIn && u.ways.listed(where, u.s.dataDir, false) {
 		return fmt.Errorf("it holds %s, which can let someone back onto this server", Printable(strings.Join(parts, "/")))
 	}
 	if why := credentials(where); why != "" {

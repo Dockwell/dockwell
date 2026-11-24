@@ -70,6 +70,10 @@ func (s *Session) PagesListings() bool { return s.pagesListings }
 // with the care ADR 0045 says, a passkey for a way in among it.
 func (s *Session) ManagesFiles() bool { return s.managesFiles }
 
+// ArchivesFiles reports an agent that compresses and extracts archives on disk,
+// and downloads several selected paths as one zip archive.
+func (s *Session) ArchivesFiles() bool { return s.archivesFiles }
+
 // FirstPasswords reports an agent that changes a database's first user's password in
 // the database as its service restarts with a new one (ADR 0038).
 func (s *Session) FirstPasswords() bool { return s.firstPasswords }
@@ -169,4 +173,33 @@ func (s *Session) PurgeDeleted(ctx context.Context, id string) (*agentv1.PurgeDe
 		return out, nil
 	}
 	return nil, fmt.Errorf("%s's agent answered a delete from Recently deleted with neither what went nor a refusal", s.name)
+}
+
+// CompressFiles asks the agent to pack paths into a new .zip file at archivePath.
+// confirmed is the archivePath a passkey confirmed, if any.
+func (s *Session) CompressFiles(ctx context.Context, paths []string, archivePath, confirmed string) (*agentv1.CompressFilesResult, error) {
+	call := &agentv1.CompressFilesCall{Paths: paths, ArchivePath: archivePath, ConfirmedPath: confirmed}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_CompressFiles{CompressFiles: call}}, time.Hour, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetCompressFiles(); out.GetCompressed() != nil || out.GetRefusal() != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered compressing files with neither the archive nor a refusal", s.name)
+}
+
+// ExtractArchive asks the agent to unpack an existing archive at path into a new
+// folder beside it. confirmed is the destination folder path a passkey confirmed,
+// if any.
+func (s *Session) ExtractArchive(ctx context.Context, path, confirmed string) (*agentv1.ExtractArchiveResult, error) {
+	call := &agentv1.ExtractArchiveCall{Path: path, ConfirmedPath: confirmed}
+	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_ExtractArchive{ExtractArchive: call}}, time.Hour, nil)
+	if err != nil {
+		return nil, err
+	}
+	if out := r.GetExtractArchive(); out.GetExtracted() != nil || out.GetRefusal() != nil {
+		return out, nil
+	}
+	return nil, fmt.Errorf("%s's agent answered extracting an archive with neither what it unpacked nor a refusal", s.name)
 }

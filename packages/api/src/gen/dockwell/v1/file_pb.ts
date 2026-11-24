@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iMgoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIqABChBSZWFkRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgdjb250ZW50GAMgASgJEg4KBmJpbmFyeRgEIAEoCBIRCgl0cnVuY2F0ZWQYBSABKAgSDwoHdmVyc2lvbhgGIAEoCRITCgt3YXlfYmFja19pbhgHIAEoCCJ7Cg9TYXZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDwoHY29udGVudBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDmNvbmZpcm1lZF9wYXRoGAUgASgJEg0KBXByb29mGAYgASgJImwKEFNhdmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB3ZlcnNpb24YAyABKAkSEwoLd2F5X2JhY2tfaW4YBCABKAgiZgoPTWFrZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRINCgVwcm9vZhgEIAEoCSJbChBNYWtlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCJNCg9Nb3ZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBGZyb20YAiABKAkSCgoCdG8YAyABKAkSDQoFcHJvb2YYBCABKAkiZwoQTW92ZUZpbGVSZXNwb25zZRIMCgRmcm9tGAEgASgJEgoKAnRvGAIgASgJEiQKBGZpbGUYAyABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YBCABKAgiVQoRRGVsZXRlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEAoIZm9yX2dvb2QYAyABKAgSDQoFcHJvb2YYBCABKAkiYgoSRGVsZXRlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoHZGVsZXRlZBgCIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlEhMKC3dheV9iYWNrX2luGAMgASgIIiwKF0xpc3REZWxldGVkRmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJFChhMaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2USKQoHZGVsZXRlZBgBIAMoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIsEBCgtEZWxldGVkRmlsZRIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAQgASgEEi8KC2RlbGV0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpwdXJnZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJCChJSZXN0b3JlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgoKAmlkGAIgASgJEg0KBXByb29mGAMgASgJIl4KE1Jlc3RvcmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIIjgKF1B1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCSJFChhQdXJnZURlbGV0ZWRGaWxlUmVzcG9uc2USKQoHZGVsZXRlZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIpABChJCZWdpblVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIjCgZ1bnBhY2sYBCABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEQoJdXBsb2FkX2lkGAUgASgJEg0KBXByb29mGAYgASgJIjoKE0JlZ2luVXBsb2FkUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjkKElVwbG9hZEZpbGVSZXNwb25zZRIjCgZ1cGxvYWQYASABKAsyEy5kb2Nrd2VsbC52MS5VcGxvYWQiOgoURG93bmxvYWRGaWxlUmVzcG9uc2USIgoEYm9keRgBIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiogEKBlVwbG9hZBIRCgl1cGxvYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCRISCgpzaXplX2J5dGVzGAMgASgEEhYKDnJlY2VpdmVkX2J5dGVzGAQgASgEEhEKCW1heF9ieXRlcxgFIAEoBBIjCgZ1bnBhY2sYBiABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEwoLd2F5X2JhY2tfaW4YByABKAgicAoRVXBsb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCRIOCgZvZmZzZXQYAyABKAQSJQoHY29udGVudBgEIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiOwoTRmluaXNoVXBsb2FkUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJdXBsb2FkX2lkGAIgASgJIjsKE0NhbmNlbFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSIWChRDYW5jZWxVcGxvYWRSZXNwb25zZSKOAQoURmluaXNoVXBsb2FkUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIEhMKC3VucGFja2VkX3RvGAQgASgJEhgKEHVucGFja2VkX2VudHJpZXMYBSABKAQiNgoTRG93bmxvYWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCSKyAgoJRmlsZUVudHJ5EgwKBG5hbWUYASABKAkSIwoEdHlwZRgCIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEhIKCnNpemVfYnl0ZXMYAyABKAQSLwoLbW9kaWZ5X3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEgwKBG1vZGUYBSABKAkSDQoFb3duZXIYBiABKAkSDQoFZ3JvdXAYByABKAkSEwoLbGlua190YXJnZXQYCCABKAkSKAoJbGlua190eXBlGAkgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDwoHcmVmdXNlZBgKIAEoCBIXCg91bnJlYWRhYmxlX25hbWUYCyABKAgSCwoDdWlkGDwgASgNEgsKA2dpZBg9IAEoDSpDCgZVbnBhY2sSFgoSVU5QQUNLX1VOU1BFQ0lGSUVEEAASDgoKVU5QQUNLX1pJUBABEhEKDVVOUEFDS19UQVJfR1oQAip+CghGaWxlVHlwZRIZChVGSUxFX1RZUEVfVU5TUEVDSUZJRUQQABISCg5GSUxFX1RZUEVfRklMRRABEhcKE0ZJTEVfVFlQRV9ESVJFQ1RPUlkQAhIVChFGSUxFX1RZUEVfU1lNTElOSxADEhMKD0ZJTEVfVFlQRV9PVEhFUhAEMpkTCgtGaWxlU2VydmljZRKZAQoJTGlzdEZpbGVzEh0uZG9ja3dlbGwudjEuTGlzdEZpbGVzUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1Jlc3BvbnNlIk2QAgGguxgBqrsYDQoFZmlsZXMSBGxpc3SwuxgBwLsYBMi7GATQuxgGgtPkkwIfEh0vdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlcxKbAQoIUmVhZEZpbGUSHC5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlc3BvbnNlIlKguxgBqrsYDQoFZmlsZXMSBHJlYWSwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpyZWFkEpsBCghTYXZlRmlsZRIcLmRvY2t3ZWxsLnYxLlNhdmVGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLlNhdmVGaWxlUmVzcG9uc2UiUqC7GASquxgNCgVmaWxlcxIEc2F2ZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOnNhdmUSmwEKCE1ha2VGaWxlEhwuZG9ja3dlbGwudjEuTWFrZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTWFrZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtYWtlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bWFrZRKbAQoITW92ZUZpbGUSHC5kb2Nrd2VsbC52MS5Nb3ZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5Nb3ZlRmlsZVJlc3BvbnNlIlKguxgDqrsYDQoFZmlsZXMSBG1vdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczptb3ZlEqUBCgpEZWxldGVGaWxlEh4uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlcXVlc3QaHy5kb2Nrd2VsbC52MS5EZWxldGVGaWxlUmVzcG9uc2UiVqC7GASquxgPCgVmaWxlcxIGZGVsZXRlsLsYAcC7GATIuxgE0LsYBoLT5JMCKToBKiIkL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZGVsZXRlEr4BChBMaXN0RGVsZXRlZEZpbGVzEiQuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5MaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2UiXZACAaC7GAGquxgVCgVmaWxlcxIMbGlzdC1kZWxldGVksLsYAcC7GATIuxgE0LsYBoLT5JMCJxIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcxK3AQoLUmVzdG9yZUZpbGUSHy5kb2Nrd2VsbC52MS5SZXN0b3JlRmlsZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5SZXN0b3JlRmlsZVJlc3BvbnNlImWguxgDqrsYEAoFZmlsZXMSB3Jlc3RvcmWwuxgBwLsYBMi7GATQuxgGgtPkkwI3OgEqIjIvdjEvc2VydmVycy97c2VydmVyX2lkfS9kZWxldGVkLWZpbGVzL3tpZH06cmVzdG9yZRK5AQoQUHVyZ2VEZWxldGVkRmlsZRIkLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0GiUuZG9ja3dlbGwudjEuUHVyZ2VEZWxldGVkRmlsZVJlc3BvbnNlIliguxgEqrsYDgoFZmlsZXMSBXB1cmdlsLsYAcC7GATIuxgE0LsYBoLT5JMCLCoqL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9EqkBCgtCZWdpblVwbG9hZBIfLmRvY2t3ZWxsLnYxLkJlZ2luVXBsb2FkUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkJlZ2luVXBsb2FkUmVzcG9uc2UiV6C7GAOquxgVCgVmaWxlcxIMYmVnaW4tdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCJDoBKiIfL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2FkcxK0AQoKVXBsb2FkRmlsZRIeLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuVXBsb2FkRmlsZVJlc3BvbnNlImOguxgDqrsYDwoFZmlsZXMSBnVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAjY6B2NvbnRlbnQaKy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMve3VwbG9hZF9pZH0oARLAAQoMRmluaXNoVXBsb2FkEiAuZG9ja3dlbGwudjEuRmluaXNoVXBsb2FkUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlc3BvbnNlImuguxgDqrsYFgoFZmlsZXMSDWZpbmlzaC11cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI3OgEqIjIvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9OmZpbmlzaBK2AQoMQ2FuY2VsVXBsb2FkEiAuZG9ja3dlbGwudjEuQ2FuY2VsVXBsb2FkUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlc3BvbnNlImGguxgEqrsYFgoFZmlsZXMSDWNhbmNlbC11cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwItKisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9ErcBCgxEb3dubG9hZEZpbGUSIC5kb2Nrd2VsbC52MS5Eb3dubG9hZEZpbGVSZXF1ZXN0GiEuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVzcG9uc2UiYJACAaC7GAGquxgRCgVmaWxlcxIIZG93bmxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwIuYgRib2R5EiYvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpkb3dubG9hZDABQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iMgoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIqABChBSZWFkRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgdjb250ZW50GAMgASgJEg4KBmJpbmFyeRgEIAEoCBIRCgl0cnVuY2F0ZWQYBSABKAgSDwoHdmVyc2lvbhgGIAEoCRITCgt3YXlfYmFja19pbhgHIAEoCCJ7Cg9TYXZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDwoHY29udGVudBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDmNvbmZpcm1lZF9wYXRoGAUgASgJEg0KBXByb29mGAYgASgJImwKEFNhdmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB3ZlcnNpb24YAyABKAkSEwoLd2F5X2JhY2tfaW4YBCABKAgiZgoPTWFrZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRINCgVwcm9vZhgEIAEoCSJbChBNYWtlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCJNCg9Nb3ZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBGZyb20YAiABKAkSCgoCdG8YAyABKAkSDQoFcHJvb2YYBCABKAkiZwoQTW92ZUZpbGVSZXNwb25zZRIMCgRmcm9tGAEgASgJEgoKAnRvGAIgASgJEiQKBGZpbGUYAyABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YBCABKAgiVQoRRGVsZXRlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEAoIZm9yX2dvb2QYAyABKAgSDQoFcHJvb2YYBCABKAkiYgoSRGVsZXRlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoHZGVsZXRlZBgCIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlEhMKC3dheV9iYWNrX2luGAMgASgIIiwKF0xpc3REZWxldGVkRmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJFChhMaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2USKQoHZGVsZXRlZBgBIAMoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIsEBCgtEZWxldGVkRmlsZRIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAQgASgEEi8KC2RlbGV0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpwdXJnZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJCChJSZXN0b3JlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgoKAmlkGAIgASgJEg0KBXByb29mGAMgASgJIl4KE1Jlc3RvcmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIIjgKF1B1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCSJFChhQdXJnZURlbGV0ZWRGaWxlUmVzcG9uc2USKQoHZGVsZXRlZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIpABChJCZWdpblVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIjCgZ1bnBhY2sYBCABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEQoJdXBsb2FkX2lkGAUgASgJEg0KBXByb29mGAYgASgJIjoKE0JlZ2luVXBsb2FkUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjkKElVwbG9hZEZpbGVSZXNwb25zZRIjCgZ1cGxvYWQYASABKAsyEy5kb2Nrd2VsbC52MS5VcGxvYWQiOgoURG93bmxvYWRGaWxlUmVzcG9uc2USIgoEYm9keRgBIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiogEKBlVwbG9hZBIRCgl1cGxvYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCRISCgpzaXplX2J5dGVzGAMgASgEEhYKDnJlY2VpdmVkX2J5dGVzGAQgASgEEhEKCW1heF9ieXRlcxgFIAEoBBIjCgZ1bnBhY2sYBiABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEwoLd2F5X2JhY2tfaW4YByABKAgicAoRVXBsb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCRIOCgZvZmZzZXQYAyABKAQSJQoHY29udGVudBgEIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiOwoTRmluaXNoVXBsb2FkUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJdXBsb2FkX2lkGAIgASgJIjsKE0NhbmNlbFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSIWChRDYW5jZWxVcGxvYWRSZXNwb25zZSKOAQoURmluaXNoVXBsb2FkUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIEhMKC3VucGFja2VkX3RvGAQgASgJEhgKEHVucGFja2VkX2VudHJpZXMYBSABKAQiRQoTRG93bmxvYWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRINCgVwYXRocxgDIAMoCSJdChRDb21wcmVzc0ZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDQoFcGF0aHMYAiADKAkSFAoMYXJjaGl2ZV9wYXRoGAMgASgJEg0KBXByb29mGAQgASgJInEKFUNvbXByZXNzRmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHZW50cmllcxgDIAEoBBITCgt3YXlfYmFja19pbhgEIAEoCCJHChVFeHRyYWN0QXJjaGl2ZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcHJvb2YYAyABKAkiagoWRXh0cmFjdEFyY2hpdmVSZXNwb25zZRIMCgRwYXRoGAEgASgJEhMKC3VucGFja2VkX3RvGAIgASgJEhgKEHVucGFja2VkX2VudHJpZXMYAyABKAQSEwoLd2F5X2JhY2tfaW4YBCABKAgisgIKCUZpbGVFbnRyeRIMCgRuYW1lGAEgASgJEiMKBHR5cGUYAiABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAMgASgEEi8KC21vZGlmeV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRtb2RlGAUgASgJEg0KBW93bmVyGAYgASgJEg0KBWdyb3VwGAcgASgJEhMKC2xpbmtfdGFyZ2V0GAggASgJEigKCWxpbmtfdHlwZRgJIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEg8KB3JlZnVzZWQYCiABKAgSFwoPdW5yZWFkYWJsZV9uYW1lGAsgASgIEgsKA3VpZBg8IAEoDRILCgNnaWQYPSABKA0qQwoGVW5wYWNrEhYKElVOUEFDS19VTlNQRUNJRklFRBAAEg4KClVOUEFDS19aSVAQARIRCg1VTlBBQ0tfVEFSX0daEAIqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDKEFgoLRmlsZVNlcnZpY2USmQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJNkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAcC7GATIuxgE0LsYBoLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSmwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJSoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKbAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIlKguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlEpsBCghNYWtlRmlsZRIcLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVzcG9uc2UiUqC7GAOquxgNCgVmaWxlcxIEbWFrZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOm1ha2USmwEKCE1vdmVGaWxlEhwuZG9ja3dlbGwudjEuTW92ZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTW92ZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtb3ZlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bW92ZRKlAQoKRGVsZXRlRmlsZRIeLmRvY2t3ZWxsLnYxLkRlbGV0ZUZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlc3BvbnNlIlaguxgEqrsYDwoFZmlsZXMSBmRlbGV0ZbC7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOmRlbGV0ZRK+AQoQTGlzdERlbGV0ZWRGaWxlcxIkLmRvY2t3ZWxsLnYxLkxpc3REZWxldGVkRmlsZXNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlIl2QAgGguxgBqrsYFQoFZmlsZXMSDGxpc3QtZGVsZXRlZLC7GAHAuxgEyLsYBNC7GAaC0+STAicSJS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMStwEKC1Jlc3RvcmVGaWxlEh8uZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXNwb25zZSJloLsYA6q7GBAKBWZpbGVzEgdyZXN0b3JlsLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9OnJlc3RvcmUSuQEKEFB1cmdlRGVsZXRlZEZpbGUSJC5kb2Nrd2VsbC52MS5QdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXNwb25zZSJYoLsYBKq7GA4KBWZpbGVzEgVwdXJnZbC7GAHAuxgEyLsYBNC7GAaC0+STAiwqKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMve2lkfRKpAQoLQmVnaW5VcGxvYWQSHy5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlc3BvbnNlIleguxgDqrsYFQoFZmlsZXMSDGJlZ2luLXVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAiQ6ASoiHy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMStAEKClVwbG9hZEZpbGUSHi5kb2Nrd2VsbC52MS5VcGxvYWRGaWxlUmVxdWVzdBofLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXNwb25zZSJjoLsYA6q7GA8KBWZpbGVzEgZ1cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI2Ogdjb250ZW50GisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9KAESwAEKDEZpbmlzaFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5GaW5pc2hVcGxvYWRSZXNwb25zZSJroLsYA6q7GBYKBWZpbGVzEg1maW5pc2gtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfTpmaW5pc2gStgEKDENhbmNlbFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DYW5jZWxVcGxvYWRSZXNwb25zZSJhoLsYBKq7GBYKBWZpbGVzEg1jYW5jZWwtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLSorL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfRK3AQoMRG93bmxvYWRGaWxlEiAuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRvd25sb2FkRmlsZVJlc3BvbnNlImCQAgGguxgBqrsYEQoFZmlsZXMSCGRvd25sb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLmIEYm9keRImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZG93bmxvYWQwARKyAQoNQ29tcHJlc3NGaWxlcxIhLmRvY2t3ZWxsLnYxLkNvbXByZXNzRmlsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ29tcHJlc3NGaWxlc1Jlc3BvbnNlIlqguxgDqrsYEQoFZmlsZXMSCGNvbXByZXNzsLsYAcC7GATIuxgE0LsYBoLT5JMCKzoBKiImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6Y29tcHJlc3MSswEKDkV4dHJhY3RBcmNoaXZlEiIuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXNwb25zZSJYoLsYA6q7GBAKBWZpbGVzEgdleHRyYWN0sLsYAcC7GATIuxgE0LsYBoLT5JMCKjoBKiIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZXh0cmFjdEKiAQoPY29tLmRvY2t3ZWxsLnYxQglGaWxlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -1170,6 +1170,14 @@ export type DownloadFileRequest = Message<"dockwell.v1.DownloadFileRequest"> & {
    * @generated from field: string path = 2;
    */
   path: string;
+
+  /**
+   * Several absolute paths to download together as one zip archive, without .
+   * or .. in them. When set, path is left out.
+   *
+   * @generated from field: repeated string paths = 3;
+   */
+  paths: string[];
 };
 
 /**
@@ -1178,6 +1186,173 @@ export type DownloadFileRequest = Message<"dockwell.v1.DownloadFileRequest"> & {
  */
 export const DownloadFileRequestSchema: GenMessage<DownloadFileRequest> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_file, 29);
+
+/**
+ * CompressFilesRequest packs one or more files or folders into a new zip
+ * archive on the server.
+ *
+ * @generated from message dockwell.v1.CompressFilesRequest
+ */
+export type CompressFilesRequest = Message<"dockwell.v1.CompressFilesRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * Absolute paths of files or folders to pack, without . or .. in them.
+   *
+   * @generated from field: repeated string paths = 2;
+   */
+  paths: string[];
+
+  /**
+   * The absolute path of the new .zip file to create, without . or .. in it.
+   * Nothing may be at it.
+   *
+   * @generated from field: string archive_path = 3;
+   */
+  archivePath: string;
+
+  /**
+   * The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for
+   * archive_path on this server, where creating it is a way back onto it.
+   *
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CompressFilesRequest.
+ * Use `create(CompressFilesRequestSchema)` to create a new message.
+ */
+export const CompressFilesRequestSchema: GenMessage<CompressFilesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 30);
+
+/**
+ * CompressFilesResponse says what archive was created.
+ *
+ * @generated from message dockwell.v1.CompressFilesResponse
+ */
+export type CompressFilesResponse = Message<"dockwell.v1.CompressFilesResponse"> & {
+  /**
+   * Where the archive was created, with every symlink in its folder's path
+   * followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * The created archive file.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 2;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * How many files and folders were packed into it.
+   *
+   * @generated from field: uint64 entries = 3;
+   */
+  entries: bigint;
+
+  /**
+   * True when creating the archive took a passkey.
+   *
+   * @generated from field: bool way_back_in = 4;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.CompressFilesResponse.
+ * Use `create(CompressFilesResponseSchema)` to create a new message.
+ */
+export const CompressFilesResponseSchema: GenMessage<CompressFilesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 31);
+
+/**
+ * ExtractArchiveRequest unpacks an existing archive on the server.
+ *
+ * @generated from message dockwell.v1.ExtractArchiveRequest
+ */
+export type ExtractArchiveRequest = Message<"dockwell.v1.ExtractArchiveRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The absolute path of the .zip, .tar.gz or .tgz file, without . or .. in it.
+   *
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for the
+   * destination folder on this server, where extracting there is a way back
+   * onto it.
+   *
+   * @generated from field: string proof = 3;
+   */
+  proof: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ExtractArchiveRequest.
+ * Use `create(ExtractArchiveRequestSchema)` to create a new message.
+ */
+export const ExtractArchiveRequestSchema: GenMessage<ExtractArchiveRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 32);
+
+/**
+ * ExtractArchiveResponse says where the archive was unpacked.
+ *
+ * @generated from message dockwell.v1.ExtractArchiveResponse
+ */
+export type ExtractArchiveResponse = Message<"dockwell.v1.ExtractArchiveResponse"> & {
+  /**
+   * The archive's path, with every symlink in its folder's path followed.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * The new folder the archive unpacked into.
+   *
+   * @generated from field: string unpacked_to = 2;
+   */
+  unpackedTo: string;
+
+  /**
+   * How many files and folders were extracted.
+   *
+   * @generated from field: uint64 unpacked_entries = 3;
+   */
+  unpackedEntries: bigint;
+
+  /**
+   * True when extracting into that folder took a passkey.
+   *
+   * @generated from field: bool way_back_in = 4;
+   */
+  wayBackIn: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ExtractArchiveResponse.
+ * Use `create(ExtractArchiveResponseSchema)` to create a new message.
+ */
+export const ExtractArchiveResponseSchema: GenMessage<ExtractArchiveResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 33);
 
 /**
  * FileEntry is one file or directory on a server.
@@ -1285,7 +1460,7 @@ export type FileEntry = Message<"dockwell.v1.FileEntry"> & {
  * Use `create(FileEntrySchema)` to create a new message.
  */
 export const FileEntrySchema: GenMessage<FileEntry> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_file, 30);
+  messageDesc(file_dockwell_v1_file, 34);
 
 /**
  * What to unpack an upload as, once it's all there.
@@ -1556,12 +1731,12 @@ export const FileService: GenService<{
     output: typeof CancelUploadResponseSchema;
   },
   /**
-   * DownloadFile sends a file as it is, or a folder as a zip archive, as it
-   * reads it. Over REST it's a GET whose body is the file, written as it's
-   * read, for a browser to save; one that stops partway cuts the connection,
-   * so it can't pass for the whole. What a read refuses, a download does, and
-   * one stops at a private key in what it sends. No API token can call it.
-   * Each one is on the timeline, before anything goes out.
+   * DownloadFile sends a file as it is, or a folder (or several selected paths)
+   * as a zip archive, as it reads it. Over REST it's a GET whose body is the
+   * file, written as it's read, for a browser to save; one that stops partway
+   * cuts the connection, so it can't pass for the whole. What a read refuses, a
+   * download does, and one stops at a private key in what it sends. No API
+   * token can call it. Each one is on the timeline, before anything goes out.
    *
    * @generated from rpc dockwell.v1.FileService.DownloadFile
    */
@@ -1569,6 +1744,32 @@ export const FileService: GenService<{
     methodKind: "server_streaming";
     input: typeof DownloadFileRequestSchema;
     output: typeof DownloadFileResponseSchema;
+  },
+  /**
+   * CompressFiles packs one or more files or folders into a new zip archive on
+   * the server, never over what's there. What a read refuses is left out, and
+   * any private key or password hash stops it. No API token can call it. Each
+   * one is on the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.CompressFiles
+   */
+  compressFiles: {
+    methodKind: "unary";
+    input: typeof CompressFilesRequestSchema;
+    output: typeof CompressFilesResponseSchema;
+  },
+  /**
+   * ExtractArchive unpacks an existing .zip, .tar.gz or .tgz archive on the
+   * server into a new folder beside it, never over what's there. Links and
+   * unsafe paths stop it, and unpacking into a way back in takes a passkey.
+   * No API token can call it. Each one is on the timeline.
+   *
+   * @generated from rpc dockwell.v1.FileService.ExtractArchive
+   */
+  extractArchive: {
+    methodKind: "unary";
+    input: typeof ExtractArchiveRequestSchema;
+    output: typeof ExtractArchiveResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_file, 0);
