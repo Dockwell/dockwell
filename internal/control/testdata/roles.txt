@@ -164,8 +164,10 @@ EventService.ListEvents                        read         viewer     viewer   
 EventService.WatchEvents                       read         viewer     viewer     project
 FileService.BeginUpload                        apply        admin      admin      install  session
 FileService.CancelUpload                       destructive  admin      admin      install  session
+FileService.CompressFiles                      apply        admin      admin      install  session
 FileService.DeleteFile                         destructive  admin      admin      install  session
 FileService.DownloadFile                       read         admin      admin      install  session
+FileService.ExtractArchive                     apply        admin      admin      install  session
 FileService.FinishUpload                       apply        admin      admin      install  session
 FileService.ListDeletedFiles                   read         admin      admin      install  session
 FileService.ListFiles                          read         admin      admin      install  session

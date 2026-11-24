@@ -93,7 +93,8 @@ export function FileDetailsPane({
   const [imageBroken, setImageBroken] = useState(false);
   const [textState, setTextState] = useState<TextState>({ kind: "idle" });
 
-  // Stream image bytes via the generated Connect client and display strictly as <img> (never inline SVG).
+  // Stream image bytes via the generated Connect client and display strictly as <img>
+  // using a data: URL (compatible with Dockwell's img-src 'self' data: CSP, never inline SVG).
   useEffect(() => {
     setImageDims(undefined);
     setImageBroken(false);
@@ -106,11 +107,10 @@ export function FileDetailsPane({
       return;
     }
     const abort = new AbortController();
-    let createdUrl: string | undefined;
     setImageState({ kind: "loading" });
     void (async () => {
       try {
-        const chunks: BlobPart[] = [];
+        const chunks: Uint8Array[] = [];
         let total = 0;
         for await (const frame of client.downloadFile({ serverId, path }, { signal: abort.signal })) {
           const data = frame.body?.data;
@@ -123,9 +123,19 @@ export function FileDetailsPane({
           chunks.push(data.slice());
         }
         if (abort.signal.aborted) return;
-        const blob = new Blob(chunks, { type: imageMime });
-        createdUrl = URL.createObjectURL(blob);
-        setImageState({ kind: "ready", url: createdUrl });
+        const merged = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          merged.set(chunk, offset);
+          offset += chunk.byteLength;
+        }
+        let binary = "";
+        const step = 0x8000;
+        for (let i = 0; i < merged.length; i += step) {
+          binary += String.fromCharCode(...merged.subarray(i, i + step));
+        }
+        const url = `data:${imageMime};base64,${btoa(binary)}`;
+        setImageState({ kind: "ready", url });
       } catch (err) {
         if (abort.signal.aborted) return;
         setImageState({ kind: "error", message: sentence(err) });
@@ -133,7 +143,6 @@ export function FileDetailsPane({
     })();
     return () => {
       abort.abort();
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
     };
   }, [client, serverId, path, imageMime, changeable, entry.sizeBytes]);
 

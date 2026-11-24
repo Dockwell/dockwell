@@ -7,7 +7,7 @@ import {
   Button,
   ButtonLink,
   Callout,
-  CodeField,
+  cx,
   Icon,
   Loading,
   Panel,
@@ -18,8 +18,8 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { useBlocker, useNavigate } from "@tanstack/react-router";
-import { type KeyboardEvent, useMemo, useState } from "react";
+import { useBlocker } from "@tanstack/react-router";
+import { lazy, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -29,47 +29,376 @@ import { AddPasskeyHere } from "../auth/AddPasskeyHere";
 import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
+import type { CodeMirrorEditorHandle } from "./CodeMirrorEditor";
 import { type Base, type Draft, dropDraft, heldDraft, holdDraft } from "./drafts";
 import { changedLines, editable, lineCount, lineEnding, nameOf, withEndings } from "./paths";
+import { readWordWrap, writeWordWrap } from "./preferences";
 
-interface FileViewerProps {
+const LazyCodeMirror = lazy(() => import("./CodeMirrorEditor"));
+
+export interface FileWorkspaceProps {
   serverId: string;
-  path: string;
-  /** The folder on show, which closing the file goes back to. */
-  folder: string;
-  /** The line to mark and bring into view, from 1, as an error that names it links here (#800). */
+  /** Open file paths in tab order. */
+  tabs: readonly string[];
+  /** Currently visible tab path. */
+  activePath: string;
+  /** Marked line for the active file, from 1. */
   line?: number | undefined;
+  /** Whether the editor fills the browser window. */
+  fullWindow: boolean;
+  onToggleFullWindow: () => void;
+  onSelectTab: (path: string) => void;
+  onCloseTab: (path: string) => void;
+  /** Optional preview reads already fetched before opening a tab, to avoid duplicate reads. */
+  initialReads?: ReadonlyMap<string, ReadFileResponse>;
+  /** Called once a tab reads or saves so stale preview caches can be cleared. */
+  onConsumedInitialRead?: (path: string) => void;
 }
 
 /**
- * A file, as the server has it. Reading one goes on record, so it reads once each
- * time the file opens: never on its own when the window takes focus, and nothing
- * of it stays in the cache once it closes. What it shows is text in a field,
- * whatever the file's name says: nothing in a file runs here.
+ * Multi-tab file editor workspace powered by lazy-loaded CodeMirror 6.
+ * Supports multiple open tabs with unsaved dot indicators, full-window mode,
+ * persisted word wrap, find & replace, and all Dockwell safety rails (drafts,
+ * passkey step-up, conflict resolution, symlink swap protection, BOM & line endings).
  */
-export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
-  const { t, i18n } = useLingui();
+export function FileViewer({
+  serverId,
+  tabs,
+  activePath,
+  line,
+  fullWindow,
+  onToggleFullWindow,
+  onSelectTab,
+  onCloseTab,
+  initialReads,
+  onConsumedInitialRead,
+}: FileWorkspaceProps) {
+  const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
-  const navigate = useNavigate();
+  const viewerId = useSignedInUser()?.id ?? "";
+  const [wordWrap, setWordWrap] = useState<boolean>(() => readWordWrap(viewerId));
+  const [dirtyTabs, setDirtyTabs] = useState<ReadonlySet<string>>(() => new Set());
+  const [erroredTabs, setErroredTabs] = useState<ReadonlySet<string>>(() => new Set());
+  const editorHandles = useRef(new Map<string, CodeMirrorEditorHandle | null>());
+  const saveHandlers = useRef(new Map<string, () => void>());
+
+  useEffect(() => {
+    setWordWrap(readWordWrap(viewerId));
+  }, [viewerId]);
+
+  // Prune dirty/error tracking for tabs that closed.
+  useEffect(() => {
+    const openSet = new Set(tabs);
+    setDirtyTabs((was) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const p of was) {
+        if (openSet.has(p)) next.add(p);
+        else changed = true;
+      }
+      return changed ? next : was;
+    });
+    setErroredTabs((was) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const p of was) {
+        if (openSet.has(p)) next.add(p);
+        else changed = true;
+      }
+      return changed ? next : was;
+    });
+  }, [tabs]);
+
+  // Block leaving the Files route while any tab has unsaved changes.
+  const anyDirty = dirtyTabs.size > 0;
+  useBlocker({
+    shouldBlockFn: ({ current, next }) => {
+      // Opening or switching tabs stays on the Files route and keeps dirty tabs mounted;
+      // only block leaving the server's files route or closing the last dirty tab via URL.
+      const stayingOnFiles =
+        next.pathname === current.pathname && typeof (next.search as { file?: unknown }).file === "string";
+      if (stayingOnFiles) return false;
+      const names = [...dirtyTabs].map(nameOf);
+      const prompt =
+        names.length === 1
+          ? t`Leave ${names[0]} without saving? What you typed goes.`
+          : t`Leave ${names.length} unsaved files? What you typed goes.`;
+      if (!window.confirm(prompt)) return true;
+      for (const p of dirtyTabs) dropDraft(serverId, p);
+      return false;
+    },
+    disabled: !anyDirty,
+    enableBeforeUnload: anyDirty,
+  });
+
+  // Escape exits full-window mode (unless focus is inside the CodeMirror search panel).
+  useEffect(() => {
+    if (!fullWindow) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".cm-search")) return;
+      event.preventDefault();
+      onToggleFullWindow();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [fullWindow, onToggleFullWindow]);
+
+  const setTabDirty = useCallback((path: string, dirty: boolean) => {
+    setDirtyTabs((was) => {
+      if (was.has(path) === dirty) return was;
+      const next = new Set(was);
+      if (dirty) next.add(path);
+      else next.delete(path);
+      return next;
+    });
+  }, []);
+
+  const setTabError = useCallback((path: string, failed: boolean) => {
+    setErroredTabs((was) => {
+      if (was.has(path) === failed) return was;
+      const next = new Set(was);
+      if (failed) next.add(path);
+      else next.delete(path);
+      return next;
+    });
+  }, []);
+
+  const requestCloseTab = (path: string) => {
+    if (dirtyTabs.has(path)) {
+      const name = nameOf(path);
+      if (!window.confirm(t`Leave ${name} without saving? What you typed goes.`)) return;
+      dropDraft(serverId, path);
+      setTabDirty(path, false);
+    }
+    onCloseTab(path);
+  };
+
+  const toggleWrap = () => {
+    setWordWrap((was) => {
+      const next = !was;
+      writeWordWrap(viewerId, next);
+      return next;
+    });
+  };
+
+  const activeName = nameOf(activePath);
+  const activeDirty = dirtyTabs.has(activePath);
+  const activeErrored = erroredTabs.has(activePath);
+  const multiTab = tabs.length > 1;
+  const showPanelChrome = !phone || fullWindow;
+
+  return (
+    <>
+      {fullWindow ? <div className="files-fullwindow-scrim" aria-hidden="true" onClick={onToggleFullWindow} /> : null}
+      <Panel
+        flush
+        className={cx("files-viewer", fullWindow && "is-fullwindow")}
+        title={
+          showPanelChrome ? (
+            <span className="files-viewer-title" title={activePath}>
+              <span className="files-icon">
+                <Icon name="file" size={16} />
+              </span>
+              <span className="files-viewer-name">{activeName}</span>
+              {activeDirty ? (
+                <span className="files-edited">
+                  <Trans>Edited</Trans>
+                </span>
+              ) : null}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <div className="files-editor-tools">
+            {!activeErrored ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="search"
+                  aria-label={t`Find and replace`}
+                  title={t`Find and replace`}
+                  onClick={() => editorHandles.current.get(activePath)?.openSearch()}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="wrap-text"
+                  aria-label={t`Word wrap`}
+                  aria-pressed={wordWrap}
+                  title={wordWrap ? t`Disable word wrap` : t`Enable word wrap`}
+                  className={wordWrap ? "is-active" : undefined}
+                  onClick={toggleWrap}
+                />
+              </>
+            ) : null}
+            {showPanelChrome && !activeErrored ? (
+              <ButtonLink
+                variant="ghost"
+                size="sm"
+                icon="download"
+                href={downloadFileURL({ serverId, path: activePath })}
+                download
+                aria-label={t`Download ${activeName}`}
+                title={t`Download`}
+              />
+            ) : null}
+            {showPanelChrome ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={fullWindow ? "minimize" : "maximize"}
+                  aria-label={fullWindow ? t`Exit full window` : t`Full window editor`}
+                  title={fullWindow ? t`Exit full window` : t`Full window`}
+                  onClick={onToggleFullWindow}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="x"
+                  aria-label={t`Close ${activeName}`}
+                  onClick={() => requestCloseTab(activePath)}
+                />
+              </>
+            ) : null}
+          </div>
+        }
+      >
+        {multiTab ? (
+          <div className="files-tabs" role="tablist" aria-label={t`Open files`}>
+            {tabs.map((tabPath) => {
+              const tabName = nameOf(tabPath);
+              const isCurrent = tabPath === activePath;
+              const isDirty = dirtyTabs.has(tabPath);
+              return (
+                <div key={tabPath} className={cx("files-tab", isCurrent && "is-active")}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isCurrent}
+                    className="files-tab-btn"
+                    title={tabPath}
+                    onClick={() => onSelectTab(tabPath)}
+                  >
+                    <Icon name="file" size={13} />
+                    <span className="files-tab-name">{tabName}</span>
+                    {isDirty ? (
+                      <>
+                        <span className="files-tab-dot" title={t`Unsaved changes`} aria-hidden="true" />
+                        <span className="dw-sr">
+                          <Trans>Unsaved changes</Trans>
+                        </span>
+                      </>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    className="files-tab-close"
+                    aria-label={t`Close tab ${tabName}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      requestCloseTab(tabPath);
+                    }}
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {tabs.map((tabPath) => (
+          <FileTabPane
+            key={tabPath}
+            serverId={serverId}
+            path={tabPath}
+            active={tabPath === activePath}
+            line={tabPath === activePath ? line : undefined}
+            wordWrap={wordWrap}
+            initialRead={initialReads?.get(tabPath)}
+            onConsumedInitialRead={onConsumedInitialRead}
+            onDirtyChange={setTabDirty}
+            onErrorChange={setTabError}
+            editorHandles={editorHandles}
+            saveHandlers={saveHandlers}
+          />
+        ))}
+      </Panel>
+    </>
+  );
+}
+
+interface FileTabPaneProps {
+  serverId: string;
+  path: string;
+  active: boolean;
+  line: number | undefined;
+  wordWrap: boolean;
+  initialRead?: ReadFileResponse | undefined;
+  onConsumedInitialRead?: ((path: string) => void) | undefined;
+  onDirtyChange: (path: string, dirty: boolean) => void;
+  onErrorChange: (path: string, failed: boolean) => void;
+  editorHandles: RefObject<Map<string, CodeMirrorEditorHandle | null>>;
+  saveHandlers: RefObject<Map<string, () => void>>;
+}
+
+function FileTabPane({
+  serverId,
+  path,
+  active,
+  line,
+  wordWrap,
+  initialRead,
+  onConsumedInitialRead,
+  onDirtyChange,
+  onErrorChange,
+  editorHandles,
+  saveHandlers,
+}: FileTabPaneProps) {
+  const { t, i18n } = useLingui();
+  const [seeded] = useState<ReadFileResponse | undefined>(() => initialRead);
+  useEffect(() => {
+    if (seeded) onConsumedInitialRead?.(path);
+  }, [seeded, path, onConsumedInitialRead]);
+
   const query = useQuery(
     FileService.method.readFile,
     { serverId, path },
-    { retry: false, gcTime: 0, staleTime: Number.POSITIVE_INFINITY, refetchOnWindowFocus: false },
+    {
+      retry: false,
+      gcTime: 0,
+      staleTime: Number.POSITIVE_INFINITY,
+      refetchOnWindowFocus: false,
+      initialData: seeded,
+    },
   );
   const name = nameOf(path);
   const read = query.data;
   const [saved, setSaved] = useState<FileEntry>();
-  const [edited, setEdited] = useState(false);
   const file = saved ?? read?.file;
-  const close = () => {
-    void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: { path: folder } });
-  };
   const size = file ? formatBytes(file.sizeBytes, i18n.locale) : "";
+
+  useEffect(() => {
+    onErrorChange(path, Boolean(query.error));
+  }, [path, query.error, onErrorChange]);
+
   const download = (
     <ButtonLink size="sm" icon="download" href={downloadFileURL({ serverId, path })} download>
       <Trans>Download</Trans>
     </ButtonLink>
   );
+
+  const registerHandle = useCallback(
+    (handle: CodeMirrorEditorHandle | null) => {
+      editorHandles.current.set(path, handle);
+    },
+    [editorHandles, path],
+  );
+
   const body = () => {
     if (query.error) {
       const reason = reasonOf(query.error);
@@ -121,13 +450,19 @@ export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
               </Trans>
             </Callout>
           </div>
-          <CodeField
-            className="files-code"
-            aria-label={t`Contents of ${name}`}
-            value={read.content}
-            markedLine={line}
-            readOnly
-          />
+          <div className="files-code">
+            <Suspense fallback={<EditorLoading name={name} />}>
+              <LazyCodeMirror
+                ref={registerHandle}
+                fileName={name}
+                value={read.content}
+                markedLine={line}
+                wordWrap={wordWrap}
+                readOnly
+                ariaLabel={t`Contents of ${name}`}
+              />
+            </Suspense>
+          </div>
         </>
       );
     }
@@ -139,13 +474,19 @@ export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
               <Trans>Update the agent on this server to edit {name} here. You can still read it.</Trans>
             </Callout>
           </div>
-          <CodeField
-            className="files-code"
-            aria-label={t`Contents of ${name}`}
-            value={read.content}
-            markedLine={line}
-            readOnly
-          />
+          <div className="files-code">
+            <Suspense fallback={<EditorLoading name={name} />}>
+              <LazyCodeMirror
+                ref={registerHandle}
+                fileName={name}
+                value={read.content}
+                markedLine={line}
+                wordWrap={wordWrap}
+                readOnly
+                ariaLabel={t`Contents of ${name}`}
+              />
+            </Suspense>
+          </div>
         </>
       );
     }
@@ -156,50 +497,17 @@ export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
         name={name}
         read={read}
         line={line}
+        wordWrap={wordWrap}
         onSaved={setSaved}
-        onEdited={setEdited}
+        onEdited={(dirty) => onDirtyChange(path, dirty)}
+        editorRef={registerHandle}
+        saveHandlers={saveHandlers}
       />
     );
   };
+
   return (
-    <Panel
-      flush
-      className="files-viewer"
-      title={
-        phone ? undefined : (
-          <span className="files-viewer-title" title={path}>
-            <span className="files-icon">
-              <Icon name="file" size={16} />
-            </span>
-            <span className="files-viewer-name">{name}</span>
-            {edited ? (
-              <span className="files-edited">
-                <Trans>Edited</Trans>
-              </span>
-            ) : null}
-          </span>
-        )
-      }
-      actions={
-        phone ? undefined : (
-          <>
-            {/* What a read refused, a download does, and a browser shows only "Failed" for it. */}
-            {query.error ? null : (
-              <ButtonLink
-                variant="ghost"
-                size="sm"
-                icon="download"
-                href={downloadFileURL({ serverId, path })}
-                download
-                aria-label={t`Download ${name}`}
-                title={t`Download`}
-              />
-            )}
-            <Button variant="ghost" size="sm" icon="x" aria-label={t`Close ${name}`} onClick={close} />
-          </>
-        )
-      }
-    >
+    <div className="files-tab-panel" hidden={!active}>
       {file ? (
         <p className="files-facts">
           <code>{file.owner}</code>
@@ -208,7 +516,18 @@ export function FileViewer({ serverId, path, folder, line }: FileViewerProps) {
         </p>
       ) : null}
       {body()}
-    </Panel>
+    </div>
+  );
+}
+
+function EditorLoading({ name }: { name: string }) {
+  const { t } = useLingui();
+  return (
+    <Loading label={t`Loading editor for ${name}`} className="files-reading">
+      {["84%", "62%", "74%", "50%", "68%"].map((w) => (
+        <Skeleton key={w} text="code" width={w} />
+      ))}
+    </Loading>
   );
 }
 
@@ -218,8 +537,11 @@ interface EditorProps {
   name: string;
   read: ReadFileResponse;
   line: number | undefined;
+  wordWrap: boolean;
   onSaved: (file: FileEntry | undefined) => void;
   onEdited: (edited: boolean) => void;
+  editorRef: (handle: CodeMirrorEditorHandle | null) => void;
+  saveHandlers: RefObject<Map<string, () => void>>;
 }
 
 function baseOf(read: ReadFileResponse): Base {
@@ -232,14 +554,18 @@ function baseOf(read: ReadFileResponse): Base {
   };
 }
 
-/**
- * A file's text, to edit and save. A save names the version it was edited from,
- * so a file that changed since isn't written over without you saying so. What you
- * typed stays in the field whatever a save comes to, and leaving with it unsaved
- * asks first. A session that ends takes the page with it and asks nobody, so what
- * you typed is held for when you sign in again.
- */
-function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorProps) {
+function Editor({
+  serverId,
+  path,
+  name,
+  read,
+  line,
+  wordWrap,
+  onSaved,
+  onEdited,
+  editorRef,
+  saveHandlers,
+}: EditorProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();
@@ -247,37 +573,21 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
   const explain = useAuthError();
   const [base, setBase] = useState(() => baseOf(read));
   const [draft, setDraft] = useState(base.text);
-  // A save keeps each line's ending, so a file with more than one kind says so and edits as any other.
   const ending = useMemo(() => lineEnding(base.original), [base.original]);
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [problem, setProblem] = useState<string>();
-  // Saving took a passkey, and there's none for this address: offer to add one, then save again.
   const [noPasskey, setNoPasskey] = useState(false);
-  // A save that was writing as the server stopped answering isn't a failure.
   const [mayLand, setMayLand] = useState(false);
-  // Where the file leads now, once that isn't where it led when you read it.
   const [moved, setMoved] = useState<string>();
   const [justSaved, setJustSaved] = useState(false);
-  // An edit too large to keep each line's ending, on a file with more than one kind: the person picks one,
-  // and it's saved over the version this holds, the one the save that asked was going to save over.
   const [pickEnding, setPickEnding] = useState<string>();
   const who = useSignedInUser()?.id ?? "";
   const [offer, setOffer] = useState<Draft | undefined>(() => heldDraft(serverId, path, who));
   const edited = draft !== base.text;
   const changes = edited ? changedLines(base.text, draft) : 0;
 
-  useBlocker({
-    shouldBlockFn: () => {
-      if (!window.confirm(t`Leave ${name} without saving? What you typed goes.`)) return true;
-      dropDraft(serverId, path);
-      return false;
-    },
-    disabled: !edited,
-    enableBeforeUnload: edited,
-  });
-
-  const client = createClient(FileService, transport);
+  const client = useMemo(() => createClient(FileService, transport), [transport]);
   const change = (next: string) => {
     setPickEnding(undefined);
     setDraft(next);
@@ -294,7 +604,6 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
     setProblem(undefined);
   };
 
-  /** Back to what was typed before you were signed out, over what it was typed on. */
   const bringBack = (held: Draft) => {
     setBase(held.base);
     setDraft(held.text);
@@ -307,7 +616,6 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
     setOffer(undefined);
   };
 
-  /** Saves what's typed over the version given, each line with its own ending, or every line with one. */
   const save = async (over: string, every?: "LF" | "CRLF") => {
     const sent = draft;
     const content =
@@ -338,7 +646,6 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
             confirmedPath: base.wayBackIn || proof ? base.where : "",
           }),
       );
-      // What was saved is what the next save keeps each line's ending from.
       setBase((was) => ({ ...was, text: sent, original: content, version: res.version }));
       dropDraft(serverId, path);
       setJustSaved(true);
@@ -364,7 +671,11 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
     }
   };
 
-  /** What's on the server now, for a person who has seen the file changed. */
+  const triggerSave = () => {
+    if (edited && !saving && !conflict && !moved) void save(base.version);
+  };
+  saveHandlers.current.set(path, triggerSave);
+
   const reread = () => client.readFile({ serverId, path });
 
   const saveOver = async () => {
@@ -375,8 +686,6 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
         setProblem(t`${name} isn't a text file under 1 MB any more, so it can't be saved here.`);
         return;
       }
-      // The change may be that this path leads somewhere else now, so saving would
-      // write there. You decide that with the file in front of you.
       if (now.path !== base.where) {
         setConflict(false);
         setMoved(now.path);
@@ -407,13 +716,6 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
       onEdited(false);
     } catch (err) {
       setProblem(sentence(err));
-    }
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      if (edited && !saving && !conflict && !moved) void save(base.version);
     }
   };
 
@@ -501,15 +803,21 @@ function Editor({ serverId, path, name, read, line, onSaved, onEdited }: EditorP
           </Callout>
         </div>
       ) : null}
-      <CodeField
-        className="files-code"
-        aria-label={t`Contents of ${name}`}
-        value={draft}
-        markedLine={line}
-        readOnly={offer !== undefined}
-        onChange={(event) => change(event.target.value)}
-        onKeyDown={onKeyDown}
-      />
+      <div className="files-code">
+        <Suspense fallback={<EditorLoading name={name} />}>
+          <LazyCodeMirror
+            ref={editorRef}
+            fileName={name}
+            value={draft}
+            markedLine={line}
+            wordWrap={wordWrap}
+            readOnly={offer !== undefined}
+            ariaLabel={t`Contents of ${name}`}
+            onChange={change}
+            onSave={triggerSave}
+          />
+        </Suspense>
+      </div>
       <div className="files-foot">
         <span>{plural(lineCount(draft), { one: "# line", other: "# lines" })}</span>
         <span>UTF-8</span>

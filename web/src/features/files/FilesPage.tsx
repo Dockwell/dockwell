@@ -306,14 +306,28 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   const [notice, setNotice] = useState<BannerNotice>();
   const [dragging, setDragging] = useState(false);
   const [previewFullWindow, setPreviewFullWindow] = useState(false);
+  const [editorFullWindow, setEditorFullWindow] = useState(false);
+  const [openTabs, setOpenTabs] = useState<string[]>(() => (file ? [file] : []));
   const [renaming, setRenaming] = useState<string>();
   const [renameError, setRenameError] = useState<string>();
   const [renameBusy, setRenameBusy] = useState(false);
+
+  // Sync URL active file into the open tabs list.
+  useEffect(() => {
+    if (!file) {
+      setEditorFullWindow(false);
+      return;
+    }
+    setOpenTabs((was) => (was.includes(file) ? was : [...was, file]));
+  }, [file]);
 
   // Cache of previewed text reads so opening the editor right after preview doesn't double-read.
   const previewReads = useRef(new Map<string, ReadFileResponse>());
   const onPreviewRead = useCallback((path: string, response: ReadFileResponse) => {
     previewReads.current.set(path, response);
+  }, []);
+  const onConsumedInitialRead = useCallback((path: string) => {
+    previewReads.current.delete(path);
   }, []);
 
   useEffect(() => {
@@ -403,8 +417,29 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     void navigate({ to: "/servers/$serverId/files", params: { serverId }, search: next });
 
   const away = (from: string, to?: string) => {
+    setOpenTabs((was) => {
+      if (!was.includes(from)) return was;
+      return to ? was.map((p) => (p === from ? to : p)) : was.filter((p) => p !== from);
+    });
     if (file !== from) return;
-    go(to ? { path: parentOf(to), file: to } : { path: shown });
+    if (to) {
+      go({ path: parentOf(to), file: to });
+    } else {
+      const remaining = openTabs.filter((p) => p !== from);
+      go(remaining.length > 0 ? { path: shown, file: remaining[remaining.length - 1] } : { path: shown });
+    }
+  };
+
+  const closeTab = (tabPath: string) => {
+    const remaining = openTabs.filter((p) => p !== tabPath);
+    setOpenTabs(remaining);
+    previewReads.current.delete(tabPath);
+    if (tabPath === file) {
+      const idx = openTabs.indexOf(tabPath);
+      const next = remaining[Math.min(idx, remaining.length - 1)];
+      if (!next) setEditorFullWindow(false);
+      go(next ? { path: shown, file: next } : { path: shown });
+    }
   };
 
   const openRow = (row: FileRow) => {
@@ -1253,8 +1288,19 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         )}
 
         {file ? (
-          <FileViewer serverId={serverId} path={file} folder={shown} line={line} key={file} />
-        ) : !phone && singleSelected ? (
+          <FileViewer
+            serverId={serverId}
+            tabs={openTabs.includes(file) ? openTabs : [...openTabs, file]}
+            activePath={file}
+            line={line}
+            fullWindow={editorFullWindow}
+            onToggleFullWindow={() => setEditorFullWindow((was) => !was)}
+            onSelectTab={(tabPath) => go({ path: shown, file: tabPath })}
+            onCloseTab={closeTab}
+            initialReads={previewReads.current}
+            onConsumedInitialRead={onConsumedInitialRead}
+          />
+        ) : singleSelected ? (
           <FileDetailsPane
             key={join(shown, singleSelected.name)}
             serverId={serverId}

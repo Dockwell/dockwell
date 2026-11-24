@@ -200,9 +200,11 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "FileService.beginUpload": { within: "FileService.listFiles" },
   "FileService.cancelUpload": { within: "FileService.listFiles" },
+  "FileService.compressFiles": { within: "FileService.listFiles" },
   "FileService.deleteFile": { within: "FileService.listFiles" },
   // Its bytes go over the REST path, from the Files screen.
   "FileService.downloadFile": { within: "FileService.listFiles" },
+  "FileService.extractArchive": { within: "FileService.listFiles" },
   "FileService.finishUpload": { within: "FileService.listFiles" },
   "FileService.listDeletedFiles": { within: "FileService.listFiles" },
   "FileService.listFiles": "may",

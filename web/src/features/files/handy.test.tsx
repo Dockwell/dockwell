@@ -2,6 +2,7 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import { EditorView } from "@codemirror/view";
 import type { HandlerContext } from "@connectrpc/connect";
 import {
   CompressFilesResponseSchema,
@@ -12,8 +13,9 @@ import {
   FileType,
   ListFilesResponseSchema,
   ReadFileResponseSchema,
+  SaveFileResponseSchema,
 } from "@dockwell/api";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -93,10 +95,6 @@ describe("File manager UX", () => {
   });
 
   it("renders SVG previews strictly inside an <img>, never inline markup", async () => {
-    const createObjectURL = vi.fn(() => "blob:dockwell-svg-preview");
-    const revokeObjectURL = vi.fn();
-    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
-
     async function* downloadFile() {
       yield create(DownloadFileResponseSchema, {
         body: {
@@ -108,7 +106,7 @@ describe("File manager UX", () => {
     await userEvent.click(screen.getByText("icon.svg"));
 
     const img = await screen.findByRole("img", { name: "icon.svg" });
-    expect(img).toHaveAttribute("src", "blob:dockwell-svg-preview");
+    expect(img.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(document.querySelector(".files-details script")).toBeNull();
     expect(document.querySelector(".files-details-stage svg")).toBeNull();
   });
@@ -227,5 +225,67 @@ describe("File manager UX", () => {
     const treeMenu = await screen.findByRole("menu", { name: "Actions for www" });
     expect(within(treeMenu).getByRole("menuitem", { name: "Download as a .zip" })).toBeVisible();
     expect(within(treeMenu).getByRole("menuitem", { name: "Delete" })).toBeVisible();
+  });
+
+  it("supports multiple editor tabs with unsaved dots, word wrap, find/replace, and full-window mode", async () => {
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    const saveFile = vi.fn((req: { path: string }) =>
+      create(SaveFileResponseSchema, { path: req.path, file: entry("alpha.txt"), version: "v2" }),
+    );
+    const readFile = vi.fn((req: { path: string }) =>
+      create(ReadFileResponseSchema, {
+        path: req.path,
+        file: entry(req.path.split("/").pop() ?? "file"),
+        content: req.path.endsWith("alpha.txt") ? "alpha original\n" : "beta original\n",
+        version: "v1",
+      }),
+    );
+    await renderFiles({ listFiles: () => site, readFile: readFile as never, saveFile: saveFile as never });
+
+    // Open alpha.txt and edit it.
+    await userEvent.dblClick(screen.getByText("alpha.txt"));
+    const alphaBox = await screen.findByRole("textbox", { name: "Contents of alpha.txt" });
+    const alphaView = EditorView.findFromDOM(alphaBox);
+    expect(alphaView).toBeTruthy();
+    act(() => {
+      alphaView?.dispatch({ changes: { from: 0, to: alphaView.state.doc.length, insert: "alpha changed\n" } });
+    });
+
+    // Open beta.txt as a second tab: both tabs show in tablist, and alpha keeps its unsaved dot.
+    await userEvent.dblClick(screen.getByText("beta.txt"));
+    await screen.findByRole("textbox", { name: "Contents of beta.txt" });
+    const tablist = await screen.findByRole("tablist", { name: "Open files" });
+    const alphaTab = within(tablist).getByRole("tab", { name: /alpha\.txt/ });
+    expect(within(alphaTab).getByText("Unsaved changes")).toBeInTheDocument();
+
+    // Closing dirty alpha tab asks first; cancelling keeps it open.
+    await userEvent.click(within(tablist).getByRole("button", { name: "Close tab alpha.txt" }));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(within(tablist).getByRole("tab", { name: /alpha\.txt/ })).toBeVisible();
+
+    // Word wrap toggle persists.
+    const wrapBtn = screen.getByRole("button", { name: "Word wrap" });
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(wrapBtn);
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "true");
+    const wrapKey = Object.keys(window.localStorage).find((k) => k.startsWith("dockwell:files:word-wrap:"));
+    expect(wrapKey && window.localStorage.getItem(wrapKey)).toBe("1");
+
+    // Find & replace opens CodeMirror's search panel.
+    await userEvent.click(screen.getByRole("button", { name: "Find and replace" }));
+    expect(document.querySelector(".cm-search")).toBeTruthy();
+
+    // Full-window toggle expands editor and Escape exits it.
+    await userEvent.click(screen.getByRole("button", { name: "Full window editor" }));
+    expect(document.querySelector(".files-viewer.is-fullwindow")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Exit full window" }));
+    expect(document.querySelector(".files-viewer.is-fullwindow")).toBeNull();
+
+    // Switching back to alpha.txt preserves its unsaved edits.
+    await userEvent.click(alphaTab);
+    expect(
+      EditorView.findFromDOM(screen.getByRole("textbox", { name: "Contents of alpha.txt" }))?.state.doc.toString(),
+    ).toBe("alpha changed\n");
   });
 });
