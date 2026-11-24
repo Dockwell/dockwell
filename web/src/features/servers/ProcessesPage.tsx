@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampMs } from "@bufbuild/protobuf/wkt";
-import { Connection, type Process, type Server } from "@dockwell/api";
+import { Connection, type Process, ProcessService, type Server } from "@dockwell/api";
 import {
   Button,
   Icon,
@@ -13,17 +13,28 @@ import {
   StatusBadge,
   Table,
   type TableColumn,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { type ReactNode, useDeferredValue, useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatFixed, formatLiveBytesOf } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { useServices } from "../apps/useServices";
+import { useMay } from "../auth/may";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import {
+  ListPager,
+  type ListPlace,
+  type ListRouteProps,
+  ListSearchField,
+  sortableColumns,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { pagedRows, sortedRows } from "../shell/list";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { EndProcessSheet } from "./EndProcessSheet";
 import {
@@ -45,38 +56,49 @@ import { useControlPlaneNow } from "./useFleet";
 import "./ServerPanels.css";
 import "./ProcessesPage.css";
 
-/** How many rows show at first, and how many more each time. */
+/** The number of processes on each page. */
 const PAGE = 20;
+const SORT_KEYS = Object.keys(FIRST_WAY) as SortKey[];
+const GROUP_SORT_KEYS = ["name", "count", "cpu", "memory"] as const;
 /** How many units the Services panel names. */
 const UNITS = 7;
 
 type View = "processes" | "services" | "containers";
 
 /** A server's processes, as Server-Processes.dc.html has them: what runs, sorted and searchable, and ending one. */
-export function ProcessesPage({ serverId }: { serverId: string }) {
-  return <ServerFrame id={serverId}>{(server) => <Processes server={server} />}</ServerFrame>;
+export function ProcessesPage({ serverId, search, onSearch }: { serverId: string } & ListRouteProps) {
+  return (
+    <ServerFrame id={serverId}>
+      {(server) => <Processes server={server} search={search} onSearch={onSearch} />}
+    </ServerFrame>
+  );
 }
 
-function Processes({ server }: { server: Server }) {
+function Processes({ server, search, onSearch }: { server: Server } & ListRouteProps) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const connected = server.connection === Connection.CONNECTED;
   const { list, error } = useProcesses(server.id, connected);
   const services = useServices().data ?? [];
   const [view, setView] = useState<View>("processes");
-  const [query, setQuery] = useState("");
-  const filter = useDeferredValue(query);
-  const [sort, setSort] = useState<Sort>({ key: "cpu", descending: true });
-  const [shown, setShown] = useState(PAGE);
+  const place = useListPlace(search, onSearch, view === "processes" ? SORT_KEYS : GROUP_SORT_KEYS);
+  const filter = place.query;
+  const sortKey = (place.sort?.key as SortKey) ?? "cpu";
+  const descending = place.sort ? place.sort.dir === "desc" : true;
+  const sort: Sort = { key: sortKey, descending };
   const [ending, setEnding] = useState<Process>();
   const all = list?.processes ?? [];
   const measured = list?.cpuWindow !== undefined;
 
   const owners = useMemo(() => new Map(all.map((p) => [p, ownerOf(p, services)])), [all, services]);
   const found = useMemo(
-    () => sortProcesses(all, sort).filter((p) => matchesProcess(p, owners.get(p) ?? { kind: "none" }, filter)),
-    [all, sort, owners, filter],
+    () =>
+      sortProcesses(all, { key: sortKey, descending }).filter((p) =>
+        matchesProcess(p, owners.get(p) ?? { kind: "none" }, filter),
+      ),
+    [all, sortKey, descending, owners, filter],
   );
+  const page = pagedRows(found, place.page, PAGE);
   const units = useMemo(() => groupProcesses(all, services, "services"), [all, services]);
   const containers = useMemo(() => groupProcesses(all, services, "containers"), [all, services]);
 
@@ -123,7 +145,7 @@ function Processes({ server }: { server: Server }) {
         </Loading>
       ));
   } else if (view === "processes") {
-    const rows = found.slice(0, shown);
+    const rows = page.rows;
     body = (
       <>
         {phone ? (
@@ -134,24 +156,19 @@ function Processes({ server }: { server: Server }) {
             owners={owners}
             measured={measured}
             sort={sort}
-            onSort={(key) =>
-              setSort((s) => (s.key === key ? { key, descending: !s.descending } : { key, descending: FIRST_WAY[key] }))
-            }
+            onSort={(key) => {
+              const descending = key === sort.key ? !sort.descending : FIRST_WAY[key];
+              onSearch({ ...search, q: place.typed || undefined, sort: descending ? `-${key}` : key, page: undefined });
+            }}
             onEnd={setEnding}
             caption={t`Processes on ${server.name}`}
             filtered={filter.trim() !== ""}
           />
         )}
-        {found.length > shown ? (
-          <div className="procs-more">
-            <Button size="sm" variant="secondary" onClick={() => setShown((n) => n + PAGE)}>
-              {plural(Math.min(PAGE, found.length - shown), { one: "Show # more", other: "Show # more" })}
-            </Button>
-          </div>
-        ) : null}
+        <ListPager page={page} onPage={place.setPage} />
         <p className="procs-note">
           <ShowingNote
-            shown={Math.min(shown, found.length)}
+            shown={found.length}
             matching={found.length}
             total={list.total}
             sort={sort}
@@ -166,7 +183,7 @@ function Processes({ server }: { server: Server }) {
       <GroupTable
         groups={view === "services" ? units : containers}
         view={view}
-        filter={filter}
+        place={place}
         caption={view === "services" ? t`Services on ${server.name}` : t`Containers on ${server.name}`}
       />
     );
@@ -184,7 +201,7 @@ function Processes({ server }: { server: Server }) {
             value={view}
             onChange={(v) => {
               setView(v);
-              setShown(PAGE);
+              onSearch({ ...search, q: place.typed || undefined, sort: undefined, page: undefined });
             }}
             label={t`Show`}
             size="sm"
@@ -200,16 +217,11 @@ function Processes({ server }: { server: Server }) {
             </span>
           ) : null}
           <div className="procs-filter">
-            <TextField
-              size="sm"
-              icon="search"
+            <ListSearchField
               placeholder={t`Filter by name, PID or user`}
-              aria-label={t`Filter processes`}
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setShown(PAGE);
-              }}
+              label={t`Filter processes`}
+              value={place.typed}
+              onChange={place.setTyped}
             />
           </div>
         </div>
@@ -312,6 +324,21 @@ function ProcessTable({
   const { t, i18n } = useLingui();
   const ownerWords = useOwnerWords();
   const uptime = useUptime();
+  const mayEnd = useMay()(ProcessService.method.endProcess).allowed;
+  const context = useRowMenu<Process>();
+  const actionsFor = (process: Process): MenuAction[] =>
+    !process.protected && mayEnd
+      ? [
+          {
+            id: "stop",
+            label: t`Stop`,
+            icon: "stop",
+            danger: true,
+            onSelect: () => onEnd(process),
+          },
+        ]
+      : [];
+  const menuLabel = (process: Process) => t`Actions for ${process.name}`;
   const header = (key: SortKey, label: string) => {
     const on = sort.key === key;
     return (
@@ -380,29 +407,45 @@ function ProcessTable({
       header: <span className="dw-sr">{t`Actions`}</span>,
       width: 108,
       align: "right",
-      render: (p) => <EndButton process={p} onEnd={onEnd} />,
+      render: (p) => (
+        <span className="list-row-actions">
+          <EndButton process={p} onEnd={onEnd} />
+          <ActionMenu label={menuLabel(p)} actions={actionsFor(p)} />
+        </span>
+      ),
     },
   ];
   return (
-    <Table
-      className="procs-table"
-      columns={columns}
-      rows={rows}
-      rowKey="pid"
-      density="compact"
-      caption={caption}
-      loading={loading}
-      loadingRows={10}
-      loadingLabel={t`Reading what runs here`}
-      slow={slow}
-      empty={filtered ? t`Nothing that runs matches.` : t`Nothing runs here but the kernel.`}
-    />
+    <>
+      <Table
+        className="procs-table"
+        columns={columns}
+        rows={rows}
+        rowKey="pid"
+        rowHasContextMenu={(process) => !process.protected && mayEnd}
+        onRowContextMenu={(process, at, row) =>
+          context.open(process, at, row, {
+            label: menuLabel(process),
+            actions: actionsFor(process),
+          })
+        }
+        density="compact"
+        caption={caption}
+        loading={loading}
+        loadingRows={10}
+        loadingLabel={t`Reading what runs here`}
+        slow={slow}
+        empty={filtered ? t`Nothing that runs matches.` : t`Nothing runs here but the kernel.`}
+      />
+      {context.element}
+    </>
   );
 }
 
 /** Stop, or why it can't be. */
 function EndButton({ process, onEnd }: { process: Process; onEnd: (p: Process) => void }) {
   const { t } = useLingui();
+  const mayEnd = useMay()(ProcessService.method.endProcess);
   if (process.protected) {
     let why: string;
     switch (process.protected) {
@@ -430,6 +473,7 @@ function EndButton({ process, onEnd }: { process: Process; onEnd: (p: Process) =
       icon="stop"
       aria-label={t`Stop ${process.name} (PID ${process.pid})`}
       onClick={() => onEnd(process)}
+      {...mayEnd.off}
     >
       <Trans>Stop</Trans>
     </Button>
@@ -468,17 +512,28 @@ function PhoneRows({ rows, owners, measured, onEnd }: RowsProps) {
 function GroupTable({
   groups,
   view,
-  filter,
+  place,
   caption,
 }: {
   groups: readonly ProcessGroup[];
   view: "services" | "containers";
-  filter: string;
+  place: ListPlace;
   caption: string;
 }) {
   const { t, i18n } = useLingui();
-  const q = filter.trim().toLowerCase();
-  const rows = groups.map((g) => ({ ...g, name: groupName(g) })).filter((g) => !q || g.name.toLowerCase().includes(q));
+  const rows = groups
+    .map((g) => ({ ...g, name: groupName(g) }))
+    .filter((g) => g.name.toLowerCase().includes(place.query));
+  const page = pagedRows(
+    sortedRows(rows, place.sort, (group, key) => {
+      if (key === "count") return group.processes.length;
+      if (key === "cpu") return group.cpuPercent;
+      if (key === "memory") return Number(group.memoryBytes);
+      return group.name;
+    }),
+    place.page,
+    PAGE,
+  );
   const columns: TableColumn<(typeof rows)[number]>[] = [
     {
       key: "name",
@@ -514,15 +569,18 @@ function GroupTable({
     },
   ];
   return (
-    <Table
-      className="procs-table"
-      columns={columns}
-      rows={rows}
-      rowKey="key"
-      density="compact"
-      caption={caption}
-      empty={view === "services" ? t`No systemd unit runs a process here.` : t`No container runs here.`}
-    />
+    <>
+      <Table
+        className="procs-table"
+        columns={sortableColumns(columns, place, GROUP_SORT_KEYS)}
+        rows={page.rows}
+        rowKey="key"
+        density="compact"
+        caption={caption}
+        empty={view === "services" ? t`No systemd unit runs a process here.` : t`No container runs here.`}
+      />
+      <ListPager page={page} onPage={place.setPage} />
+    </>
   );
 }
 

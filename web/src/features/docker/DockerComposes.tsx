@@ -28,7 +28,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useRef, useState } from "react";
-
 import { sentence } from "../../lib/errors";
 import { formatDateTime } from "../../lib/format";
 import { useHeldRows } from "../../lib/loading";
@@ -36,6 +35,7 @@ import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { ActionMenu } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { useListSearchShortcut } from "../shell/ListTools";
 import { ComposeOperations } from "./ComposeOperations";
 import { type ComposeSource, ComposeSourceSheet } from "./ComposeSourceSheet";
 import { useDockerWatch } from "./live";
@@ -98,6 +98,7 @@ export function DockerComposes({
   serverId?: string | undefined;
 }) {
   const { t, i18n } = useLingui();
+  const searchInput = useListSearchShortcut();
   const may = useMay();
   const navigate = useNavigate();
   const times = useTimeWords();
@@ -238,6 +239,7 @@ export function DockerComposes({
       <div className="compose-list-head">
         <div className="compose-list-filter">
           <TextField
+            ref={searchInput}
             icon="search"
             aria-label={t`Find a Compose project`}
             value={search}

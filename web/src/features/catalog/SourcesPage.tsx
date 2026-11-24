@@ -30,6 +30,8 @@ import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { type Opening, PlanView, useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
+import { ListNoMatch, ListPager, type ListRouteProps, ListToolbar, useListPlace } from "../shell/ListTools";
+import { pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import { CatalogBack } from "./CatalogBack";
@@ -62,12 +64,24 @@ export interface Editing {
  * Adding one, moving it to another commit and removing it are each a plan to
  * review, as anything that changes what can be installed is.
  */
-export function SourcesPage() {
+export function SourcesPage({ search, onSearch }: ListRouteProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const sources = useSources();
   const [editing, setEditing] = useState<Editing>();
   const list = sources.data?.sources;
+  const place = useListPlace(search, onSearch, ["name"]);
+  const named = useSourceNames();
+  const page = pagedRows(
+    sortedRows(
+      (list ?? []).filter((source) =>
+        `${named(source.name)} ${source.name} ${source.source?.repository ?? ""}`.toLowerCase().includes(place.query),
+      ),
+      place.sort,
+      (source) => named(source.name),
+    ),
+    place.page,
+  );
   // A source decides what anyone can install, so adding, moving and removing one are an admin's.
   const may = useMay();
   const set = may(CatalogService.method.setCatalogSource, { install: true });
@@ -163,7 +177,21 @@ export function SourcesPage() {
             <h2 id="sources-list-heading" className="sources-list-heading">
               {plural(list.length, { one: "# source you read", other: "# sources you read" })}
             </h2>
-            {list.map((source) => (
+            <ListToolbar place={place} label={t`Filter catalog sources`}>
+              <SelectField
+                aria-label={t`Order`}
+                size="sm"
+                value={search.sort ?? ""}
+                options={[
+                  { value: "", label: t`Source order` },
+                  { value: "name", label: t`By name` },
+                  { value: "-name", label: t`By name, descending` },
+                ]}
+                onChange={(event) => onSearch({ ...search, sort: event.target.value || undefined, page: undefined })}
+              />
+            </ListToolbar>
+            {page.total === 0 ? <ListNoMatch clear={place.clearQuery} /> : null}
+            {page.rows.map((source) => (
               <SourceCard
                 key={source.name}
                 source={source}
@@ -181,6 +209,7 @@ export function SourcesPage() {
                 }
               />
             ))}
+            <ListPager page={page} onPage={place.setPage} />
           </section>
         </>
       )}

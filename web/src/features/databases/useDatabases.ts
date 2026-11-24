@@ -11,6 +11,7 @@ import {
   DatabaseEngine,
   type DatabaseReading,
   DatabaseService,
+  ResourceService,
   type ServerContainer,
 } from "@dockwell/api";
 import { useLingui } from "@lingui/react/macro";
@@ -24,6 +25,28 @@ import { useFleetView } from "../servers/useFleet";
 /** Every database, with what each says of itself, read again while a screen shows them. */
 export function useDatabases() {
   return useQuery(DatabaseService.method.listDatabases, {}, { refetchInterval: READ_EVERY_MS });
+}
+
+/** Users that go with a deleted database, including when its server is silent. */
+export function useDatabaseDeleteUsers(db: Database) {
+  const scope = db.resource?.scope ?? "";
+  const users = useQuery(
+    ResourceService.method.listResources,
+    { kind: "database.user", scope },
+    { enabled: scope !== "" },
+  );
+  const databases = useDatabases();
+  const only = databases.data?.databases.filter((d) => d.resource?.scope === scope).length === 1;
+  const made = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)));
+  return {
+    alongside: (users.data?.resources ?? []).filter((u) => only || made.has(u.id)),
+    pending: (scope !== "" && users.isPending) || databases.isPending,
+    error: users.error ?? databases.error,
+    retry: () => {
+      if (users.error) void users.refetch();
+      if (databases.error) void databases.refetch();
+    },
+  };
 }
 
 /** One database, by its service's ID, with what it holds. */

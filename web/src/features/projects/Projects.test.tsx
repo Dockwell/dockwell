@@ -20,6 +20,13 @@ import { authState, mira } from "../../test/auth";
 import { shopPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
+import { projectNameOf } from "./ProjectSheets";
+
+it("makes a URL name for a display name that starts with digits or uses non-Latin letters", () => {
+  expect(projectNameOf("24 hour café")).toBe("project-24-hour-cafe");
+  expect(projectNameOf("商店")).toBe("project-5546-5e97");
+  expect(projectNameOf("!?")).toBe("");
+});
 
 function resource(id: string, kind: string, scope: string, name: string, displayName = ""): Resource {
   return create(ResourceSchema, { id, resource: { kind, scope, name }, displayName });
@@ -109,9 +116,10 @@ describe("the projects", () => {
     expect(rows[3]).toHaveTextContent("Nothing running");
     expect(rows[3]).toHaveTextContent("1 variable · 1 secret");
     expect(screen.getByText("3 projects · 1 with nothing running")).toBeVisible();
-    // Only a leftover has Delete in the list; the rest are a click from theirs.
-    expect(within(rows[1] as HTMLElement).queryByRole("button")).toBeNull();
-    expect(within(rows[2] as HTMLElement).queryByRole("button")).toBeNull();
+    // Only a leftover has Delete beside it; every row has its menu, with the rest in it.
+    expect(within(rows[1] as HTMLElement).queryByRole("button", { name: /Delete the project/ })).toBeNull();
+    expect(within(rows[2] as HTMLElement).queryByRole("button", { name: /Delete the project/ })).toBeNull();
+    expect(within(rows[1] as HTMLElement).getByRole("button", { name: "Actions for default" })).toBeVisible();
     await expectAccessible(document.body);
 
     await user.click(within(rows[3] as HTMLElement).getByRole("button", { name: "Delete the project old-shop" }));
@@ -119,6 +127,143 @@ describe("the projects", () => {
     expect(proposals[0]?.summary).toBe("Delete the project old-shop");
     // One edit, which the engine fills with what's in the project as it plans (ADR 0074).
     expect(edits(proposals[0])).toEqual([["project", "old-shop", true, true]]);
+  });
+
+  it("make an empty one from the list, by name only, as a plan", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/projects", api({}, proposals));
+    await user.click(await screen.findByRole("button", { name: /New project/ }));
+    const sheet = await screen.findByRole("dialog", { name: "New project" });
+    const field = within(sheet).getByRole("textbox", { name: "Name" });
+    // A taken name is said as you type, and Review plan stays off.
+    await user.type(field, "Blog");
+    expect(await within(sheet).findByText("There's a project named blog already")).toBeVisible();
+    expect(within(sheet).getByRole("button", { name: "Review plan" })).toBeDisabled();
+    await user.clear(field);
+    await user.type(field, "Shop front");
+    // What was typed is its display name; its name in URLs is written for you.
+    expect(await within(sheet).findByText("Named shop-front in URLs and the CLI")).toBeVisible();
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.summary).toBe("Create the project shop-front");
+    expect(proposals[0]?.edits[0]?.resource).toMatchObject({ kind: "project", name: "shop-front" });
+    expect(proposals[0]?.edits[0]?.spec?.kind).toMatchObject({
+      case: "project",
+      value: { displayName: "Shop front" },
+    });
+  });
+
+  it("lets you edit a derived URL name and validates it beside the field", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/projects", api({}, proposals));
+    await user.click(await screen.findByRole("button", { name: /New project/ }));
+    const sheet = await screen.findByRole("dialog", { name: "New project" });
+    await user.type(within(sheet).getByRole("textbox", { name: "Name" }), "商店");
+    await user.click(within(sheet).getByRole("button", { name: "Change name in URLs" }));
+    const name = within(sheet).getByRole("textbox", { name: "Name in URLs" });
+    expect(name).toHaveValue("project-5546-5e97");
+    await user.clear(name);
+    await user.type(name, "blog");
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    expect(within(sheet).getByText("There's a project named blog already")).toBeVisible();
+    await user.clear(name);
+    await user.type(name, "shop");
+    await user.click(review);
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.edits[0]?.resource?.name).toBe("shop");
+    expect(proposals[0]?.edits[0]?.spec?.kind).toMatchObject({ case: "project", value: { displayName: "商店" } });
+  });
+
+  it("rename and delete one from its row's menu, each as its plan", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    renderAt("/projects", api({}, proposals));
+    const table = await screen.findByRole("table", { name: "Projects" });
+    const blog = within(table).getByRole("row", { name: /Blog/ });
+    // Right-click asks for the same menu its button has.
+    await user.pointer({ keys: "[MouseRight]", target: blog });
+    const menu = await screen.findByRole("menu", { name: "Actions for Blog" });
+    await user.click(within(menu).getByRole("menuitem", { name: "Rename" }));
+    const sheet = await screen.findByRole("dialog", { name: "Rename Blog" });
+    const field = within(sheet).getByRole("textbox", { name: "Display name" });
+    await user.clear(field);
+    await user.type(field, "Company blog");
+    await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(proposals[0]?.summary).toBe("Show blog as Company blog");
+    expect(proposals[0]?.edits[0]?.spec?.kind).toMatchObject({
+      case: "project",
+      value: { displayName: "Company blog" },
+    });
+    await user.keyboard("{Escape}");
+    // A project with something running deletes from the list too, with what it holds in its plan.
+    await user.click(within(blog).getByRole("button", { name: "Actions for Blog" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits(proposals[1])).toEqual([["project", "blog", true, true]]);
+  });
+
+  it("keep the default project's Delete off in its menu, with why", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects", api());
+    const table = await screen.findByRole("table", { name: "Projects" });
+    const first = within(table).getByRole("row", { name: /default/ });
+    await user.click(within(first).getByRole("button", { name: "Actions for default" }));
+    const item = await screen.findByRole("menuitem", { name: /Delete/ });
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(item).toHaveTextContent("Apps with no project go here, so it stays.");
+  });
+
+  it("filter by name from the address, and sort by the head", async () => {
+    const user = userEvent.setup();
+    // From six projects the list has its filter box.
+    const many = {
+      projects: [
+        ...projects,
+        resource("prj_shop", "project", "org_1", "shop"),
+        resource("prj_docs", "project", "org_1", "docs"),
+        resource("prj_api", "project", "org_1", "api"),
+      ],
+      environments: [
+        ...environments,
+        resource("env_shop", "environment", "prj_shop", "production"),
+        resource("env_docs", "environment", "prj_docs", "production"),
+        resource("env_api", "environment", "prj_api", "production"),
+      ],
+    };
+    const { router } = renderAt(
+      "/projects?q=sh",
+      api({
+        resources: {
+          listResources: (req) => ({
+            resources:
+              req.kind === "project"
+                ? many.projects
+                : req.kind === "environment"
+                  ? many.environments
+                  : req.scope
+                    ? inside.filter((r) => r.resource?.scope === req.scope)
+                    : req.kind === ""
+                      ? [...many.projects, ...many.environments, ...inside]
+                      : [],
+          }),
+        },
+      }),
+    );
+    const table = await screen.findByRole("table", { name: "Projects" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(3));
+    expect(within(table).getByRole("row", { name: /old-shop/ })).toBeVisible();
+    expect(within(table).getAllByRole("row", { name: /shop/ })).toHaveLength(2);
+    await user.clear(screen.getByRole("searchbox", { name: "Filter projects" }));
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(7));
+    await user.click(within(table).getByRole("button", { name: /Project/ }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ sort: "name" }));
+    const rows = within(table).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("api");
+    expect(rows[6]).toHaveTextContent("shop");
   });
 
   it("show only those with nothing running, when asked", async () => {

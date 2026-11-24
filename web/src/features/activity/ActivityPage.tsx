@@ -59,7 +59,10 @@ import { parentOf } from "../files/paths";
 import { FailedDeployLogs } from "../logs/DeployLogLinks";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { ListNoMatch, ListPager, ListToolbar, useListPlace, useRowMenu } from "../shell/ListTools";
+import { type ListSearch, pagedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { useEndWords } from "../terminal/words";
 import { useActorWords } from "./actor";
@@ -74,7 +77,7 @@ import { RefLink, refKindOf } from "../shell/RefLink";
 export type ActivityKind = "changes" | "servers" | "access" | "health" | "backups" | "alerts";
 
 /** Activity's place, in its URL: the filters and the event open beside the list. */
-export interface ActivitySearch {
+export interface ActivitySearch extends ListSearch {
   kind?: ActivityKind;
   /** An actor's ID, or "dockwell" for what Dockwell did on its own. */
   actor?: string;
@@ -117,6 +120,7 @@ export function ActivityPage({
   const sheet = useChangeSheet();
   const describe = useDescribe();
   const time = useTimeWords();
+  const place = useListPlace(search, onSearch, []);
   const now = useControlPlaneNow(15_000);
   const filter = useMemo<EventFilter>(
     () => ({
@@ -151,7 +155,13 @@ export function ActivityPage({
   // A failed change's rollback and the alert it raised are one row with it, where the failure is listed (#802).
   const { shown: unfolded, folded } = useMemo(() => foldFailures(events ?? []), [events]);
   const { shown, repeats } = useMemo(() => collapseRepeats(unfolded), [unfolded]);
-  const days = useMemo(() => byDay(phone ? unfolded : shown), [unfolded, shown, phone]);
+  const matching = (phone ? unfolded : shown).filter(
+    (event) =>
+      !place.query ||
+      `${describe(event, summaries).title} ${event.actor?.name ?? ""}`.toLowerCase().includes(place.query),
+  );
+  const page = pagedRows(matching, place.page);
+  const days = byDay(page.rows);
   const selected = search.event ? events?.find((e) => e.id === search.event) : undefined;
   const select = (id: string | undefined) => onSearch({ ...search, event: id });
   // Below the list, where a narrow screen puts it, an event chosen comes into view.
@@ -257,6 +267,7 @@ export function ActivityPage({
   } else {
     body = (
       <>
+        {page.total === 0 ? <ListNoMatch clear={place.clearQuery} /> : null}
         {days.map((day) => {
           const label = dayLabel(day.date, now, i18n);
           const count = day.events.reduce(
@@ -291,7 +302,8 @@ export function ActivityPage({
             </section>
           );
         })}
-        {older ? (
+        <ListPager page={page} onPage={place.setPage} />
+        {older && page.page === page.pages - 1 ? (
           <div className="activity-more">
             <Button variant="ghost" icon="chevron-down" loading={loadingOlder} onClick={loadOlder}>
               <Trans>Show earlier events</Trans>
@@ -320,17 +332,23 @@ export function ActivityPage({
           value={kind}
           label={t`Event type`}
           onChange={(value) =>
-            onSearch({ ...search, kind: value === "all" ? undefined : (value as ActivityKind), event: undefined })
+            onSearch({
+              ...search,
+              kind: value === "all" ? undefined : (value as ActivityKind),
+              event: undefined,
+              page: undefined,
+            })
           }
         />
         <span className="activity-fill" />
         <ActorFilter
           events={events ?? []}
           value={search.actor ?? ""}
-          onChange={(actor) => onSearch({ ...search, actor: actor || undefined, event: undefined })}
+          onChange={(actor) => onSearch({ ...search, actor: actor || undefined, event: undefined, page: undefined })}
         />
       </div>
-      <Scopes search={search} events={events ?? []} onSearch={onSearch} />
+      <Scopes search={search} events={events ?? []} onSearch={(next) => onSearch({ ...next, page: undefined })} />
+      {events && events.length > 0 ? <ListToolbar place={place} label={t`Filter loaded events`} /> : null}
       <div ref={layout} className="activity-layout">
         <div className="activity-list">{body}</div>
         {selected && !phone ? (
@@ -548,6 +566,27 @@ function DayTable({
   const describe = useDescribe();
   const time = useTimeWords();
   const meta = useMeta();
+  const context = useRowMenu<Event>();
+  const sheet = useChangeSheet();
+  const may = useMay();
+  const actionsFor = (event: Event): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => onSelect(event) },
+    ...(event.change
+      ? [
+          {
+            id: "plan",
+            label: t`View plan`,
+            onSelect: () => sheet.open({ kind: "change", id: event.id }),
+          },
+        ]
+      : []),
+    ...(event.change &&
+    canUndo(event.change, now) &&
+    may(ChangeService.method.undoChange, placesOfChange(event.change)).allowed
+      ? [{ id: "undo", label: t`Undo`, onSelect: () => sheet.open({ kind: "undo", id: event.id }) }]
+      : []),
+  ];
+  const menuLabel = (event: Event) => t`Actions for ${describe(event, summaries).title}`;
   const columns: TableColumn<Event>[] = [
     {
       key: "title",
@@ -587,16 +626,31 @@ function DayTable({
         );
       },
     },
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 48,
+      render: (event) => <ActionMenu label={menuLabel(event)} actions={actionsFor(event)} />,
+    },
   ];
   return (
-    <Table<Event>
-      columns={columns}
-      rows={events}
-      rowKey="id"
-      caption={t`Events: ${caption}`}
-      selectedKey={selected ?? null}
-      onRowClick={onSelect}
-    />
+    <>
+      <Table<Event>
+        columns={columns}
+        rows={events}
+        rowKey="id"
+        caption={t`Events: ${caption}`}
+        selectedKey={selected ?? null}
+        onRowClick={onSelect}
+        onRowContextMenu={(event, at, row) =>
+          context.open(event, at, row, {
+            label: menuLabel(event),
+            actions: actionsFor(event),
+          })
+        }
+      />
+      {context.element}
+    </>
   );
 }
 

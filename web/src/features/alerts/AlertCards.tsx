@@ -317,7 +317,7 @@ export function ResolvedAlerts({ alerts }: { alerts: readonly Alert[] }) {
   // The list's own clock, so a row resolved before midnight turns to its day as the day turns.
   const now = useControlPlaneNow(60_000);
   if (alerts.length === 0) return null;
-  const rows = [...alerts].sort((a, b) => (ms(b.resolveTime) ?? 0) - (ms(a.resolveTime) ?? 0)).slice(0, 20);
+  const rows = alerts;
   return (
     <aside className="alerts-side" aria-labelledby="alerts-resolved">
       <div className="alerts-heading">

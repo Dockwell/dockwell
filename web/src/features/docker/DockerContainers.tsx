@@ -38,7 +38,6 @@ import {
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatPercent } from "../../lib/format";
 import { RouterButtonLink, RouterTagLink } from "../../lib/links";
@@ -50,6 +49,7 @@ import { statusOf, useContainerStateWord } from "../servers/containers";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { useListSearchShortcut, useRowMenu } from "../shell/ListTools";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, LiveUpdates, Unread } from "./parts";
@@ -182,15 +182,7 @@ function Usage({ sample, now }: { sample?: DockerSample | undefined; now: number
   );
 }
 
-export function ContainerActions({
-  row,
-  stack,
-  takeOnMode = "menu",
-  shortcuts = true,
-  workloadServers = 1,
-  onApplied,
-  onTakeOn,
-}: {
+interface ContainerActionProps {
   row: DockerObject;
   stack?: (project: string) => void;
   takeOnMode?: "menu" | "primary" | "choose";
@@ -198,89 +190,125 @@ export function ContainerActions({
   workloadServers?: number | undefined;
   onApplied?: () => void;
   onTakeOn?: (row: DockerObject) => void;
-}) {
+}
+
+export function ContainerActions(props: ContainerActionProps) {
+  const actionsFor = useContainerActions();
+  return <ContainerActionButtons {...actionsFor(props)} />;
+}
+
+function useContainerActions() {
   const { t } = useLingui();
   const may = useMay();
   const navigate = useNavigate();
-  const key = row.key;
-  const managed = row.managedResource;
   const { changeRun, restartInstance } = useWorkloadControls();
-  const canTake =
-    onTakeOn && row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
-  const showTakeOn = canTake && takeOnMode !== "menu";
-  const showShortcuts = shortcuts && (takeOnMode !== "choose" || !canTake);
-  if (!key) return null;
-  const params = { serverId: key.serverId, containerId: key.engineId };
-  const log =
-    may(LogService.method.watchLogs).allowed &&
-    row.ownership !== DockerOwnership.SYSTEM &&
-    (row.ownership !== DockerOwnership.MANAGED || (!!row.managedResourceId && row.managedResource?.kind === "service"));
-  const terminal = may(TerminalService.method.openTerminal).allowed && row.state === ContainerState.RUNNING;
-  const actions: MenuAction[] = [
-    {
-      id: "inspect",
-      label: t`Inspect`,
-      icon: "eye",
-      onSelect: () => void navigate({ to: detailTarget, params, search: { view: "inspect", name: row.name } }),
-    },
-  ];
-  if (row.managedResourceId && row.managedResource?.kind === "service") {
-    const serviceId = row.managedResourceId;
-    actions.push({
-      id: "app",
-      label: t`Open app`,
-      icon: "service",
-      onSelect: () => void navigate({ to: "/apps/$serviceId", params: { serviceId } }),
-    });
-  }
-  if (canTake && !showTakeOn) {
-    actions.push({
-      id: "take-on",
-      label: t`Take on`,
-      icon: "plus",
-      onSelect: () => onTakeOn?.(row),
-    });
-  }
-  if (managed && row.managedRevision > 0n && row.managedResourceId) {
-    const where = managed.kind === "container" ? { install: true as const } : { environment: managed.scope };
-    const active = [ContainerState.RUNNING, ContainerState.PAUSED, ContainerState.RESTARTING].includes(row.state);
-    const mayPlan = may(ChangeService.method.proposeChange, where);
-    if (mayPlan.allowed) {
-      actions.unshift({
-        id: active ? "stop" : "start",
-        label:
-          workloadServers > 1
-            ? active
-              ? t`Stop workload on ${workloadServers} servers`
-              : t`Start workload on ${workloadServers} servers`
-            : active
-              ? t`Stop workload`
-              : t`Start workload`,
-        icon: active ? "stop" : "play",
-        onSelect: () => changeRun(managed, row.managedRevision, !active, onApplied),
+  return ({
+    row,
+    stack,
+    takeOnMode = "menu",
+    shortcuts = true,
+    workloadServers = 1,
+    onApplied,
+    onTakeOn,
+  }: ContainerActionProps) => {
+    const key = row.key;
+    const label = t`Actions for ${row.name}`;
+    if (!key) return { label, actions: [], row };
+    const managed = row.managedResource;
+    const canTake =
+      onTakeOn && row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
+    const showTakeOn = canTake && takeOnMode !== "menu";
+    const showShortcuts = shortcuts && (takeOnMode !== "choose" || !canTake);
+    const params = { serverId: key.serverId, containerId: key.engineId };
+    const log =
+      may(LogService.method.watchLogs).allowed &&
+      row.ownership !== DockerOwnership.SYSTEM &&
+      (row.ownership !== DockerOwnership.MANAGED ||
+        (!!row.managedResourceId && row.managedResource?.kind === "service"));
+    const terminal = may(TerminalService.method.openTerminal).allowed && row.state === ContainerState.RUNNING;
+    const actions: MenuAction[] = [
+      {
+        id: "inspect",
+        label: t`Inspect`,
+        icon: "eye",
+        onSelect: () => void navigate({ to: detailTarget, params, search: { view: "inspect", name: row.name } }),
+      },
+    ];
+    if (row.managedResourceId && row.managedResource?.kind === "service") {
+      const serviceId = row.managedResourceId;
+      actions.push({
+        id: "app",
+        label: t`Open app`,
+        icon: "service",
+        onSelect: () => void navigate({ to: "/apps/$serviceId", params: { serviceId } }),
       });
     }
-    if (
-      (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) &&
-      may(ChangeService.method.restartService, where).allowed
-    ) {
-      actions.splice(mayPlan.allowed ? 1 : 0, 0, {
-        id: "restart",
-        label: t`Restart this container`,
-        icon: "refresh",
-        onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
+    if (canTake && !showTakeOn) {
+      actions.push({
+        id: "take-on",
+        label: t`Take on`,
+        icon: "plus",
+        onSelect: () => onTakeOn?.(row),
       });
     }
-  }
-  const project = containerOf(row)?.composeProject;
-  if (stack && project) {
-    actions.push({
-      id: "compose",
-      label: t`Filter by this Compose project`,
-      icon: "filter",
-      onSelect: () => stack(project),
-    });
-  }
+    if (managed && row.managedRevision > 0n && row.managedResourceId) {
+      const where = managed.kind === "container" ? { install: true as const } : { environment: managed.scope };
+      const active = [ContainerState.RUNNING, ContainerState.PAUSED, ContainerState.RESTARTING].includes(row.state);
+      const mayPlan = may(ChangeService.method.proposeChange, where);
+      if (mayPlan.allowed) {
+        actions.unshift({
+          id: active ? "stop" : "start",
+          label:
+            workloadServers > 1
+              ? active
+                ? t`Stop workload on ${workloadServers} servers`
+                : t`Start workload on ${workloadServers} servers`
+              : active
+                ? t`Stop workload`
+                : t`Start workload`,
+          icon: active ? "stop" : "play",
+          onSelect: () => changeRun(managed, row.managedRevision, !active, onApplied),
+        });
+      }
+      if (
+        (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) &&
+        may(ChangeService.method.restartService, where).allowed
+      ) {
+        actions.splice(mayPlan.allowed ? 1 : 0, 0, {
+          id: "restart",
+          label: t`Restart this container`,
+          icon: "refresh",
+          onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
+        });
+      }
+    }
+    const project = containerOf(row)?.composeProject;
+    if (stack && project) {
+      actions.push({
+        id: "compose",
+        label: t`Filter by this Compose project`,
+        icon: "filter",
+        onSelect: () => stack(project),
+      });
+    }
+    return { label, actions, row, params, objectKey: key, log, terminal, showTakeOn, showShortcuts, onTakeOn };
+  };
+}
+
+function ContainerActionButtons({
+  label,
+  actions,
+  row,
+  params,
+  objectKey,
+  log,
+  terminal,
+  showTakeOn,
+  showShortcuts,
+  onTakeOn,
+}: ReturnType<ReturnType<typeof useContainerActions>>) {
+  const { t } = useLingui();
+  if (!objectKey) return null;
   return (
     <div className="docker-row-actions">
       {showTakeOn ? (
@@ -303,8 +331,8 @@ export function ContainerActions({
       {terminal && showShortcuts ? (
         <RouterButtonLink
           to={shellTarget}
-          params={{ serverId: key.serverId }}
-          search={{ containerId: key.engineId, containerTitle: row.name }}
+          params={{ serverId: objectKey.serverId }}
+          search={{ containerId: objectKey.engineId, containerTitle: row.name }}
           icon="terminal"
           variant="ghost"
           size="sm"
@@ -312,7 +340,7 @@ export function ContainerActions({
           title={t`Terminal`}
         />
       ) : null}
-      <ActionMenu actions={actions} label={t`Actions for ${row.name}`} />
+      <ActionMenu actions={actions} label={label} />
     </div>
   );
 }
@@ -356,6 +384,7 @@ export function DockerContainers({
   attention?: boolean | undefined;
 }) {
   const { t } = useLingui();
+  const searchInput = useListSearchShortcut();
   const may = useMay();
   const navigate = useNavigate();
   const serverId = !fleet || servers.length === 1 ? servers[0]?.id : undefined;
@@ -454,15 +483,23 @@ export function DockerContainers({
       <Ownership row={row.object} />
     </div>
   );
-  const dots = (row: Row) => (
-    <ContainerActions
-      row={row.object}
-      stack={stack}
-      takeOnMode={choosingContainer ? "choose" : "menu"}
-      onApplied={refresh}
-      onTakeOn={setTakeOn}
-    />
-  );
+  const menu = useRowMenu<Row>();
+  const actionsFor = useContainerActions();
+  const rowActions = (row: Row) =>
+    actionsFor({
+      row: row.object,
+      stack,
+      takeOnMode: choosingContainer ? "choose" : "menu",
+      onApplied: refresh,
+      onTakeOn: setTakeOn,
+    });
+  const dots = (row: Row) => <ContainerActionButtons {...rowActions(row)} />;
+  const open = (row: Row) =>
+    void navigate({
+      to: detailTarget,
+      params: { serverId: row.serverId, containerId: row.engineId },
+      search: { name: row.object.name },
+    });
   const measured = (row: Row) => (
     <Usage
       sample={connected && row.object.state === ContainerState.RUNNING ? samples.get(row.id) : undefined}
@@ -640,6 +677,7 @@ export function DockerContainers({
           }}
         />
         <TextField
+          ref={searchInput}
           icon="search"
           value={typed}
           maxLength={255}
@@ -769,11 +807,15 @@ export function DockerContainers({
               caption={t`Container inventory`}
               rows={list}
               rowKey="id"
+              onRowClick={open}
+              rowHasContextMenu={(row) => !!row.object.key}
+              onRowContextMenu={(row, at, element) => menu.open(row, at, element, rowActions(row))}
               columns={columns}
             />
           )}
         </Panel>
       ) : null}
+      {menu.element}
       {pages.length > 1 || next ? (
         <nav className="docker-pager" aria-label={t`Container pages`}>
           <Button

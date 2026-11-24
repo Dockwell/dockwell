@@ -189,8 +189,7 @@ describe("Alert channels", () => {
     expect(await screen.findByRole("dialog", { name: "Add a channel" })).toBeVisible();
   });
 
-  it("leaves a channel's Review plan off, with why, for someone who can't plan the install's channels", async () => {
-    const user = userEvent.setup();
+  it("leaves Add channel off, with why, for someone who can't plan the install's channels", async () => {
     renderAt(
       "/alerts/channels",
       api([], {
@@ -203,11 +202,9 @@ describe("Alert channels", () => {
         },
       }),
     );
-    await user.click(await screen.findByRole("button", { name: "Add channel" }));
-    const sheet = await screen.findByRole("dialog", { name: "Add a channel" });
-    const review = within(sheet).getByRole("button", { name: "Review plan" });
-    expect(review).toHaveAttribute("aria-disabled", "true");
-    expect(review).not.toHaveAccessibleDescription("");
+    const add = await screen.findByRole("button", { name: "Add channel" });
+    expect(add).toHaveAttribute("aria-disabled", "true");
+    expect(add).not.toHaveAccessibleDescription("");
   });
 
   it("adds email through a mail service, which fills in its server, named from its type", async () => {

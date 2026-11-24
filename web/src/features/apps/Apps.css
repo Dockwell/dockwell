@@ -992,6 +992,18 @@
   border-top: 1px solid var(--line);
 }
 
+/* A phone row with its menu beside its link, as a link holds nothing else that acts. */
+.apps-phone-menurow {
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-2);
+}
+
+.apps-phone-menurow > .apps-phone-row {
+  flex: 1;
+  min-width: 0;
+}
+
 .apps-phone-row.is-member {
   padding-left: calc(var(--space-4) + var(--space-5));
 }

@@ -6,6 +6,7 @@ import {
   ChangeState,
   Connection,
   DeploymentState,
+  type ListDomainsRequest,
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -68,6 +69,25 @@ function dropping(err: unknown) {
 }
 
 describe("the apps list", () => {
+  it("makes no requests from 50 row menus until Delete is chosen", async () => {
+    const apps = Array.from({ length: 50 }, (_, i) => anApp(`web-${i}`, "nginx"));
+    const listDomains = vi.fn((_request: ListDomainsRequest) => ({ domains: [] }));
+    const fixture = api(apps);
+    renderAt("/apps", { ...fixture, domains: { listDomains } });
+    const table = await screen.findByRole("table", { name: "Apps" });
+    await waitFor(() => expect(within(table).getAllByRole("button", { name: /^Actions for web-/ })).toHaveLength(50));
+    await waitFor(() => expect(listDomains).toHaveBeenCalledTimes(1));
+    expect(listDomains.mock.calls[0]?.[0]).toMatchObject({ service: "" });
+
+    const user = userEvent.setup();
+    await user.click(within(table).getByRole("button", { name: "Actions for web-0" }));
+    const menu = await screen.findByRole("menu", { name: "Actions for web-0" });
+    expect(listDomains).toHaveBeenCalledTimes(1);
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete" }));
+    await waitFor(() => expect(listDomains).toHaveBeenCalledTimes(2));
+    expect(listDomains.mock.calls[1]?.[0]).toMatchObject({ service: "web-0" });
+  });
+
   it("offers the ways to a first app when there is none, each opening its own flow", async () => {
     const { container } = renderAt("/apps", api([]));
     expect(await screen.findByRole("heading", { name: "No apps yet" })).toBeVisible();
@@ -180,7 +200,7 @@ describe("the apps list", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["App", "Status", "Revision", "Deployed"]);
+    ).toEqual(["App", "Status", "Revision", "Deployed", "Actions"]);
     expect(row).toHaveTextContent("ghcr.io/acme/web:1.4");
     expect(row).not.toHaveTextContent("Live");
     expect(row).toHaveTextContent("r3");
@@ -213,6 +233,7 @@ describe("the apps list", () => {
       "Revision",
       "Domain",
       "Deployed",
+      "Actions",
     ]);
     // As Apps-List has it: the image under the name, so the eye doesn't cross the row for it.
     expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("ghcr.io/acme/web:1.4");
@@ -433,16 +454,26 @@ describe("the apps list", () => {
     await expectAccessible(container);
   });
 
-  it("takes seventy apps with long names and images, and stays accessible", async () => {
+  it("takes seventy apps with long names and images, a page at a time, and stays accessible", async () => {
+    const user = userEvent.setup();
     const long = `registry.internal.acme.example.com:5000/platform/commerce/${"x".repeat(60)}:2026.11.04`;
-    const services = Array.from({ length: 70 }, (_, i) => anApp(`service-${i}-${"y".repeat(40)}`, long));
-    const { container } = renderAt("/apps", api(services));
+    const updateTime = timestampFromDate(new Date("2026-11-04T00:00:00Z"));
+    const services = Array.from({ length: 70 }, (_, i) =>
+      anApp(`service-${i}-${"y".repeat(40)}`, long, {}, { updateTime }),
+    );
+    const { container, router } = renderAt("/apps", api(services));
     await screen.findByRole("link", { name: /service-0-/ });
-    expect(await screen.findAllByRole("row")).toHaveLength(71);
+    // Fifty to a page, counted, with the rest a click away in the address.
+    expect(await screen.findAllByRole("row")).toHaveLength(51);
     expect(screen.getByText("70 apps")).toBeVisible();
+    expect(screen.getByText("1-50 of 70")).toBeVisible();
     // Every clip says the whole of what it clips.
-    expect(container.querySelectorAll(".apps-name[title]").length).toBe(70);
-    expect(container.querySelectorAll(".image-name[title]").length).toBe(70);
+    expect(container.querySelectorAll(".apps-name[title]").length).toBe(50);
+    expect(container.querySelectorAll(".image-name[title]").length).toBe(50);
+    await user.click(screen.getByRole("button", { name: /Next/ }));
+    await waitFor(() => expect(router.state.location.search).toEqual({ page: 2 }));
+    expect(await screen.findAllByRole("row")).toHaveLength(21);
+    expect(screen.getByText("51-70 of 70")).toBeVisible();
     await expectAccessible(container);
   });
 

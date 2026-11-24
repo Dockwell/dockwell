@@ -31,6 +31,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, type Ref, useEffect, useMemo, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink } from "../../lib/links";
@@ -43,7 +44,10 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useProjectDelete } from "../projects/deleteProject";
 import { useProjects } from "../projects/useProjects";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { ListPager, type ListPlace, ListSearchField, ListSortField, SortHeader, useRowMenu } from "../shell/ListTools";
+import { nextSort, pagedRows, readListPages, readSort, sortedRows, sortParam } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { ProjectPicker } from "./ProjectPicker";
@@ -92,13 +96,13 @@ export function useAllVariables(environment: string | undefined) {
     queryFn: async ({ signal }) => {
       const client = createClient(VariableService, transport);
       const all = create(ListVariablesResponseSchema);
-      let pageToken = "";
-      do {
-        const page = await client.listVariables({ ...input, pageSize: PAGE_SIZE, pageToken }, { signal });
-        all.environmentId = page.environmentId;
-        all.variables.push(...page.variables);
-        pageToken = page.nextPageToken;
-      } while (pageToken !== "");
+      await readListPages(
+        (pageToken) => client.listVariables({ ...input, pageSize: PAGE_SIZE, pageToken }, { signal }),
+        (page) => {
+          all.environmentId = page.environmentId;
+          all.variables.push(...page.variables);
+        },
+      );
       return all;
     },
     enabled: environment !== undefined,
@@ -178,8 +182,15 @@ export interface VariablesPageProps {
   app?: string | undefined;
   /** Where the values listed come from: shared by the environment, or set on its apps; unset for both. */
   from?: Source | undefined;
-  onEnvironment: (id: string, query?: string, app?: string, from?: Source) => void;
+  /** How the list is sorted, as its address holds it ("name", or "-updated" the other way). */
+  sort?: string | undefined;
+  /** Which page of the list shows, from 1. */
+  page?: number | undefined;
+  onEnvironment: (id: string, query?: string, app?: string, from?: Source, sort?: string, page?: number) => void;
 }
+
+/** The columns the list sorts by, as its address names them. */
+const SORT_KEYS = ["name", "updated"] as const;
 
 /** Where a value comes from: shared by the environment, or set on an app (#618). */
 export type Source = "shared" | "apps";
@@ -224,7 +235,7 @@ function usedByApp(row: Row, app: string): boolean {
  * app's own that may be a secret shows hidden too, as no response carries it
  * (ADR 0081).
  */
-export function VariablesPage({ environment, query, app, from, onEnvironment }: VariablesPageProps) {
+export function VariablesPage({ environment, query, app, from, sort, page, onEnvironment }: VariablesPageProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const envs = useQuery(ResourceService.method.listResources, { kind: "environment" });
@@ -278,11 +289,43 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
   const source = rows.length > 0 ? from : undefined;
   const named = rows.filter((r) => (!q || r.name.toLowerCase().includes(q)) && (!only || usedByApp(r, only.id)));
   const sharedRows = named.filter((r) => "shared" in r).length;
-  const shown = named.filter((r) => !source || (source === "shared") === "shared" in r);
+  const filtered = named.filter((r) => !source || (source === "shared") === "shared" in r);
+  // Sorted only where its head was asked to: as read, what the environment shares
+  // comes first, then each app's own, which is how the list reads until then.
+  const sortState = readSort(sort, SORT_KEYS);
+  const shown = sortedRows(filtered, sortState, (r, key) =>
+    key === "updated"
+      ? "shared" in r && r.shared.updateTime
+        ? timestampDate(r.shared.updateTime).getTime()
+        : null
+      : r.name,
+  );
+  const paged = pagedRows(shown, (page ?? 1) - 1);
+  // This page's place in the shared list tools' shape: its address has held the
+  // filter word by word all along, beside its environment, app and source.
+  const place: ListPlace = {
+    typed: query ?? "",
+    setTyped: (words) => filter({ q: words }),
+    query: q,
+    clearQuery: () => filter({ q: undefined }),
+    sort: sortState,
+    toggleSort: (key) => {
+      if (chosen) onEnvironment(chosen.id, query, only?.id, from, sortParam(nextSort(sortState, key)));
+    },
+    setSort: (next) => {
+      if (chosen) onEnvironment(chosen.id, query, only?.id, from, sortParam(next));
+    },
+    sortOf: (key) => (sortState?.key === key ? (sortState.dir === "asc" ? "ascending" : "descending") : undefined),
+    page: paged.page,
+    setPage: (next) => {
+      if (chosen) onEnvironment(chosen.id, query, only?.id, from, sort, next > 0 ? next + 1 : undefined);
+    },
+  };
   // What the rows listed are: a secret is shared, and an app's own value is a variable, even one
   // that reads hidden as it may hold a secret, as it's a value of the app's own environment and no
   // secret of the environment's (ADR 0081); so a hidden row can sit under "0 secrets" (#618).
   const secrets = shown.filter((r) => "shared" in r && r.shared.secret).length;
+  const phoneMenuFor = useVariableMenu(chosen?.id ?? "", list.data?.variables, setEditing);
   const counts = [
     plural(shown.length - secrets, { one: "# variable", other: "# variables" }),
     plural(secrets, { one: "# secret", other: "# secrets" }),
@@ -294,7 +337,8 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
     const nq = "q" in next ? next.q : query;
     const na = "app" in next ? next.app : only?.id;
     const nf = "from" in next ? next.from : from;
-    onEnvironment(chosen.id, nq || undefined, na || undefined, nf || undefined);
+    // A new filter keeps the sort and starts again at the first page.
+    onEnvironment(chosen.id, nq || undefined, na || undefined, nf || undefined, sort);
   };
   const opened = chosen !== undefined && adding === chosen.id;
   const showForm = chosen !== undefined && list.data !== undefined && (!empty || opened || editing !== undefined);
@@ -374,16 +418,17 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               />
             ) : null}
             {chosen && (rows.length >= FILTER_FROM || q) ? (
-              <TextField
+              <ListSearchField
                 className="variables-filter"
-                icon="search"
-                type="search"
                 size={phone ? "lg" : "sm"}
-                aria-label={t`Filter by name`}
+                label={t`Filter by name`}
                 placeholder={t`Filter by name`}
                 value={query ?? ""}
-                onChange={(event) => filter({ q: event.target.value })}
+                onChange={(words) => filter({ q: words })}
               />
+            ) : null}
+            {phone && rows.length > 0 ? (
+              <ListSortField place={place} columns={{ name: t`Key`, updated: t`Updated` }} />
             ) : null}
           </div>
           {view?.idle && !view.isDefault ? (
@@ -484,29 +529,36 @@ export function VariablesPage({ environment, query, app, from, onEnvironment }: 
               />
             )
           ) : phone ? (
-            <ul className="variables-list" aria-label={t`Variables in ${envName}`}>
-              {shown.map((r) => (
-                <li key={r.id} className="variables-item">
-                  <div className="variables-item-head">
-                    <KeyCell row={r} />
-                    <RowActions row={r} scope={chosen?.id ?? ""} store={list.data?.variables} onEdit={setEditing} />
-                  </div>
-                  <ValueCell row={r} />
-                  <span className="variables-item-source">
-                    <Source row={r} /> <UsedBy row={r} />
-                  </span>
-                  <Updated row={r} />
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="variables-list" aria-label={t`Variables in ${envName}`}>
+                {paged.rows.map((r) => (
+                  <li key={r.id} className="variables-item">
+                    <div className="variables-item-head">
+                      <KeyCell row={r} />
+                      <ActionMenu label={t`Actions for ${r.name}`} actions={phoneMenuFor(r)} />
+                    </div>
+                    <ValueCell row={r} />
+                    <span className="variables-item-source">
+                      <Source row={r} /> <UsedBy row={r} />
+                    </span>
+                    <Updated row={r} />
+                  </li>
+                ))}
+              </ul>
+              <ListPager page={paged} onPage={place.setPage} />
+            </>
           ) : (
-            <VariablesTable
-              rows={shown}
-              scope={chosen?.id ?? ""}
-              store={list.data?.variables}
-              caption={t`Variables in ${envName}`}
-              onEdit={setEditing}
-            />
+            <>
+              <VariablesTable
+                rows={paged.rows}
+                scope={chosen?.id ?? ""}
+                store={list.data?.variables}
+                caption={t`Variables in ${envName}`}
+                onEdit={setEditing}
+                place={place}
+              />
+              <ListPager page={paged} onPage={place.setPage} />
+            </>
           )}
         </section>
       </RevealsProvider>
@@ -520,17 +572,86 @@ interface TableProps {
   store: readonly EnvironmentVariable[] | undefined;
   caption: string;
   onEdit: (v: EnvironmentVariable) => void;
+  place: ListPlace;
 }
 
-function VariablesTable({ rows, scope, store, caption, onEdit }: TableProps) {
+function useVariableMenu(
+  scope: string,
+  store: readonly EnvironmentVariable[] | undefined,
+  onEdit: (v: EnvironmentVariable) => void,
+) {
   const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const navigate = useNavigate();
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: scope });
+  const ownActionsFor = useOwnValueActions(scope, store);
+  // A row's menu on a right-click or Shift+F10: what its own buttons do, for a shared
+  // value. An app's own changes on its app's page, as its button there says.
+  return (row: Row): MenuAction[] => {
+    const off = mayPlan.allowed ? {} : { off: mayPlan.reason || undefined, disabled: !mayPlan.reason };
+    if ("own" in row) {
+      const app = nameOf(row.own.service);
+      return row.own.row.now?.kind === "runtime" && row.name === "PORT"
+        ? []
+        : [
+            {
+              id: "change",
+              icon: "edit",
+              label: t`Change ${row.name} on ${app}`,
+              onSelect: () =>
+                void navigate({
+                  to: "/apps/$serviceId/environment",
+                  params: { serviceId: row.own.service.id },
+                  search: { change: row.name },
+                }),
+            },
+            ...ownActionsFor(row.own.service, row.own.row),
+          ];
+    }
+    const variable = row.shared;
+    const kind: Kind = variable.secret ? "secret" : "variable";
+    return [
+      { id: "change", icon: "edit", label: t`Change ${row.name}`, ...off, onSelect: () => onEdit(variable) },
+      {
+        id: "remove",
+        icon: "trash",
+        label: t`Remove ${row.name}`,
+        danger: true,
+        ...off,
+        onSelect: () =>
+          sheet.open({
+            kind: "propose",
+            summary: variable.secret ? t`Remove the secret ${row.name}` : t`Remove the variable ${row.name}`,
+            edits: [edit(kind, scope, row.name)],
+          }),
+      },
+    ];
+  };
+}
+
+function VariablesTable({ rows, scope, store, caption, onEdit, place }: TableProps) {
+  const { t } = useLingui();
+  const menuFor = useVariableMenu(scope, store, onEdit);
+  const menu = useRowMenu<Row>();
   const columns = useMemo<TableColumn<Row>[]>(
     () => [
-      { key: "name", header: t`Key`, width: 240, render: (r) => <KeyCell row={r} /> },
+      {
+        key: "name",
+        header: <SortHeader label={t`Key`} sortKey="name" place={place} />,
+        sort: place.sortOf("name"),
+        width: 240,
+        render: (r) => <KeyCell row={r} />,
+      },
       { key: "value", header: t`Value`, render: (r) => <ValueCell row={r} /> },
       { key: "source", header: t`Source`, width: 120, muted: true, render: (r) => <Source row={r} /> },
       { key: "usedBy", header: t`Used by`, width: 200, render: (r) => <UsedBy row={r} /> },
-      { key: "updated", header: t`Updated`, width: 160, render: (r) => <Updated row={r} /> },
+      {
+        key: "updated",
+        header: <SortHeader label={t`Updated`} sortKey="updated" place={place} />,
+        sort: place.sortOf("updated"),
+        width: 176,
+        render: (r) => <Updated row={r} />,
+      },
       {
         key: "actions",
         header: <span className="dw-sr">{t`Actions`}</span>,
@@ -539,9 +660,23 @@ function VariablesTable({ rows, scope, store, caption, onEdit }: TableProps) {
         render: (r) => <RowActions row={r} scope={scope} store={store} onEdit={onEdit} />,
       },
     ],
-    [t, scope, store, onEdit],
+    [t, scope, store, onEdit, place],
   );
-  return <Table className="variables-table" columns={columns} rows={rows} caption={caption} />;
+  return (
+    <>
+      <Table
+        className="variables-table"
+        columns={columns}
+        rows={rows}
+        caption={caption}
+        rowHasContextMenu={(row) => menuFor(row).length > 0}
+        onRowContextMenu={(row, at, el) =>
+          menu.open(row, at, el, { label: t`Actions for ${row.name}`, actions: menuFor(row) })
+        }
+      />
+      {menu.element}
+    </>
+  );
 }
 
 function KeyCell({ row }: { row: Row }) {
@@ -806,6 +941,66 @@ function RowActions({ row, scope, store, onEdit }: RowActionsProps) {
  * value it shows, and Change, on the app's own page, where the rest of what it
  * runs with is.
  */
+function useOwnValueActions(scope: string, store: readonly EnvironmentVariable[] | undefined) {
+  const { t } = useLingui();
+  const sheet = useChangeSheet();
+  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: scope });
+  return (service: ServiceInfo, row: EnvRow): MenuAction[] => {
+    if (row.now?.kind !== "own") return [];
+    const name = row.name;
+    const app = nameOf(service);
+    const why = cantShare(row, store);
+    const share = () =>
+      sheet.open({
+        kind: "propose",
+        summary: t`Make ${name} on ${app} a shared variable`,
+        edits: envEdits(service, new Map([[name, { op: "share", name, value: row.now?.value ?? "" }]]), store),
+      });
+    const makeSecret = () =>
+      sheet.open({
+        kind: "propose",
+        summary: t`Make ${name} on ${app} a secret`,
+        edits: envEdits(service, new Map([[name, { op: "secret", name }]]), store),
+      });
+    const blocked = cantMakeSecret(row, store);
+    const secretOff =
+      blocked === "secret"
+        ? t`The environment has a secret ${name} already. Rename one to keep this as a secret.`
+        : blocked === "variable"
+          ? t`The environment has a variable ${name} already. Rename one to keep this as a secret.`
+          : blocked === "reading"
+            ? t`Waits until the environment's variables and secrets load.`
+            : mayPlan.reason;
+    const off =
+      why === "secret"
+        ? t`The environment has a secret ${name} already. Rename one to share this.`
+        : why === "other"
+          ? t`The environment has a variable ${name} with another value. Rename one to share this.`
+          : why === "reading"
+            ? t`Waits until the environment's variables and secrets load.`
+            : mayPlan.reason;
+    return [
+      why === "hidden"
+        ? {
+            id: "secret",
+            icon: "lock",
+            label: t`Make ${name} on ${app} a secret`,
+            ...mayPlan.off,
+            off: secretOff || undefined,
+            onSelect: makeSecret,
+          }
+        : {
+            id: "share",
+            icon: "layers",
+            label: t`Make ${name} on ${app} shared`,
+            ...mayPlan.off,
+            off: off || undefined,
+            onSelect: share,
+          },
+    ];
+  };
+}
+
 function OwnActions({
   service,
   row,
@@ -818,40 +1013,9 @@ function OwnActions({
   store: readonly EnvironmentVariable[] | undefined;
 }) {
   const { t } = useLingui();
-  const sheet = useChangeSheet();
-  const name = row.name;
+  const { name } = row;
   const app = nameOf(service);
-  const mayPlan = useMay()(ChangeService.method.proposeChange, { environment: scope });
-  const why = cantShare(row, store);
-  const share = () =>
-    sheet.open({
-      kind: "propose",
-      summary: t`Make ${name} on ${app} a shared variable`,
-      edits: envEdits(service, new Map([[name, { op: "share", name, value: row.now?.value ?? "" }]]), store),
-    });
-  const makeSecret = () =>
-    sheet.open({
-      kind: "propose",
-      summary: t`Make ${name} on ${app} a secret`,
-      edits: envEdits(service, new Map([[name, { op: "secret", name }]]), store),
-    });
-  const blocked = cantMakeSecret(row, store);
-  const secretOff =
-    blocked === "secret"
-      ? t`The environment has a secret ${name} already. Rename one to keep this as a secret.`
-      : blocked === "variable"
-        ? t`The environment has a variable ${name} already. Rename one to keep this as a secret.`
-        : blocked === "reading"
-          ? t`Waits until the environment's variables and secrets load.`
-          : mayPlan.reason;
-  const off =
-    why === "secret"
-      ? t`The environment has a secret ${name} already. Rename one to share this.`
-      : why === "other"
-        ? t`The environment has a variable ${name} with another value. Rename one to share this.`
-        : why === "reading"
-          ? t`Waits until the environment's variables and secrets load.`
-          : mayPlan.reason;
+  const [action] = useOwnValueActions(scope, store)(service, row);
   return (
     <span className="variables-actions">
       {row.now?.kind === "runtime" && name === "PORT" ? null : (
@@ -866,26 +1030,16 @@ function OwnActions({
           aria-label={t`Change ${name} on ${app}`}
         />
       )}
-      {row.now?.kind === "own" && why !== "hidden" ? (
+      {action ? (
         <Button
           className="variables-act-share"
           size="sm"
           variant="ghost"
-          icon="layers"
-          aria-label={t`Make ${name} on ${app} shared`}
-          onClick={share}
-          off={off || undefined}
-        />
-      ) : row.now?.kind === "own" ? (
-        // One that's hidden may be a secret: it becomes one, with the value it has, unread.
-        <Button
-          className="variables-act-share"
-          size="sm"
-          variant="ghost"
-          icon="lock"
-          aria-label={t`Make ${name} on ${app} a secret`}
-          onClick={makeSecret}
-          off={secretOff || undefined}
+          icon={action.icon}
+          aria-label={String(action.label)}
+          onClick={action.onSelect}
+          off={action.off}
+          disabled={action.disabled}
         />
       ) : null}
     </span>

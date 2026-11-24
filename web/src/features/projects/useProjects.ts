@@ -15,11 +15,11 @@ import {
 } from "@dockwell/api";
 import { useQuery as useTanstackQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-
 import { environmentOf } from "../apps/app";
 import { DEFAULT_PROJECT, useServices } from "../apps/useServices";
 import { useInstalls } from "../catalog/useCatalog";
 import { useDatabases } from "../databases/useDatabases";
+import { readListPages } from "../shell/list";
 import { useWebsites } from "../websites/website";
 
 /** One project, as the Projects list and its page show it: what's in it, by kind. */
@@ -71,12 +71,12 @@ export function useAllResources() {
     queryFn: async ({ signal }) => {
       const client = createClient(ResourceService, transport);
       const all = create(ListResourcesResponseSchema);
-      let pageToken = "";
-      do {
-        const page = await client.listResources({ ...input, pageToken }, { signal });
-        all.resources.push(...page.resources);
-        pageToken = page.nextPageToken;
-      } while (pageToken !== "");
+      await readListPages(
+        (pageToken) => client.listResources({ ...input, pageToken }, { signal }),
+        (page) => {
+          all.resources.push(...page.resources);
+        },
+      );
       return all.resources;
     },
   });

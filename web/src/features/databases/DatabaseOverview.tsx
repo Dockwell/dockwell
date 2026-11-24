@@ -11,7 +11,6 @@ import {
   DatabaseEngine,
   type DatabaseReading,
   DatabaseService,
-  ResourceService,
   UpdateSource,
   VariableService,
 } from "@dockwell/api";
@@ -66,7 +65,7 @@ import {
   readOf,
   speaksSQL,
   useBackupHow,
-  useDatabases,
+  useDatabaseDeleteUsers,
   useOwnInstall,
   useUnreadWord,
 } from "./useDatabases";
@@ -137,16 +136,7 @@ function DatabaseDanger({ db }: { db: Database }) {
   const may = useMay();
   const service = useServices().data?.find((s) => s.id === db.id);
   const scope = db.resource?.scope ?? "";
-  const users = useQuery(
-    ResourceService.method.listResources,
-    { kind: "database.user", scope },
-    { enabled: scope !== "" },
-  ).data?.resources;
-  // Its users are those its server says Dockwell made, or, with one database here, every user here,
-  // as a server that isn't answering says none.
-  const only = (useDatabases().data?.databases ?? []).filter((d) => d.resource?.scope === scope).length === 1;
-  const made = new Set(db.readings.flatMap((r) => r.users.map((u) => u.resourceId)).filter((id) => id !== ""));
-  const alongside = (users ?? []).filter((u) => only || made.has(u.id));
+  const { alongside } = useDatabaseDeleteUsers(db);
   if (!service) return null;
   return (
     <MayEdit offer={may(ChangeService.method.proposeChange, { environment: scope })}>

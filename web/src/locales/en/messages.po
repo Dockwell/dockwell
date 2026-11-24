@@ -432,6 +432,15 @@ msgstr "About"
 msgid "Access"
 msgstr "Access"
 
+msgid "Actions"
+msgstr "Actions"
+
+#. placeholder {0}: c.name
+#. placeholder {0}: channel.name
+#. placeholder {0}: check.name
+msgid "Actions for {0}"
+msgstr "Actions for {0}"
+
 msgid "Activity"
 msgstr "Activity"
 
@@ -495,6 +504,9 @@ msgstr "Events: {caption}"
 msgid "Every change, server event, access grant, change of health, backup and alert, newest first"
 msgstr "Every change, server event, access grant, change of health, backup and alert, newest first"
 
+msgid "Filter loaded events"
+msgstr "Filter loaded events"
+
 msgid "From"
 msgstr "From"
 
@@ -524,6 +536,9 @@ msgstr "Nothing here yet"
 
 msgid "Nothing matches these filters."
 msgstr "Nothing matches these filters."
+
+msgid "Open"
+msgstr "Open"
 
 msgid "Open Variables"
 msgstr "Open Variables"
@@ -606,6 +621,9 @@ msgstr "Undone"
 
 msgid "Undone by"
 msgstr "Undone by"
+
+msgid "View plan"
+msgstr "View plan"
 
 msgid "Volume"
 msgstr "Volume"
@@ -1915,6 +1933,7 @@ msgid "Change the alert channel {name}"
 msgstr "Change the alert channel {name}"
 
 #. placeholder {0}: channel.name
+#. placeholder {0}: row.name
 msgid "Change {0}"
 msgstr "Change {0}"
 
@@ -2059,9 +2078,6 @@ msgstr "{kindName} answered {said}."
 msgid "A rule that names no channel sends to every one."
 msgstr "A rule that names no channel sends to every one."
 
-msgid "Actions"
-msgstr "Actions"
-
 msgid "Add channel"
 msgstr "Add channel"
 
@@ -2080,6 +2096,9 @@ msgstr "Dockwell didn't send a test to {name}"
 #. placeholder {0}: list(r.failed)
 msgid "Failed to {0}"
 msgstr "Failed to {0}"
+
+msgid "Filter alert channels"
+msgstr "Filter alert channels"
 
 msgid "It answered {said}."
 msgstr "It answered {said}."
@@ -2116,6 +2135,10 @@ msgstr "Reaches no channel."
 
 msgid "Recent deliveries"
 msgstr "Recent deliveries"
+
+#. placeholder {0}: channel.name
+msgid "Remove the alert channel {0}"
+msgstr "Remove the alert channel {0}"
 
 msgid "Result"
 msgstr "Result"
@@ -2207,6 +2230,9 @@ msgstr "Every 5 min"
 msgid "Every minute"
 msgstr "Every minute"
 
+msgid "Filter uptime checks"
+msgstr "Filter uptime checks"
+
 msgid "For its route"
 msgstr "For its route"
 
@@ -2236,6 +2262,10 @@ msgctxt "how a check runs"
 msgid "Runs"
 msgstr "Runs"
 
+#. placeholder {0}: hostOf(check.spec?.address ?? check.name)
+msgid "Stop watching {0}"
+msgstr "Stop watching {0}"
+
 msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
 msgstr "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
 
@@ -2258,6 +2288,15 @@ msgstr "Can't load the rules"
 msgid "Every channel"
 msgstr "Every channel"
 
+msgid "Every state"
+msgstr "Every state"
+
+msgid "Filter alert rules"
+msgstr "Filter alert rules"
+
+msgid "Filter alerts"
+msgstr "Filter alerts"
+
 msgid "Loading the alerts"
 msgstr "Loading the alerts"
 
@@ -2266,6 +2305,9 @@ msgstr "Loading the rules"
 
 msgid "New rule"
 msgstr "New rule"
+
+msgid "No alert rules yet"
+msgstr "No alert rules yet"
 
 msgid "No channel yet"
 msgstr "No channel yet"
@@ -5265,7 +5307,6 @@ msgstr "{0, plural, one {# app} other {# apps}}"
 
 #. placeholder {0}: (catalog.total ?? 0) - entries.length
 #. placeholder {0}: (catalog.total ?? 0) - shown.length
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
 msgid "{0, plural, one {Show # more} other {Show # more}}"
 msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
@@ -6137,6 +6178,12 @@ msgstr "{0}, the one it runs"
 
 msgid "{word} version"
 msgstr "{word} version"
+
+msgid "Move to a project"
+msgstr "Move to a project"
+
+msgid "Prepare to delete {name}"
+msgstr "Prepare to delete {name}"
 
 msgid "A new secret for {name}'s hook"
 msgstr "A new secret for {name}'s hook"
@@ -7932,6 +7979,10 @@ msgstr "your passphrase"
 msgid "A backup is of a volume, and no app keeps one yet."
 msgstr "A backup is of a volume, and no app keeps one yet."
 
+#. placeholder {0}: b.volume
+msgid "Actions for this backup of {0}"
+msgstr "Actions for this backup of {0}"
+
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
 msgstr "Also on {0}"
@@ -7941,6 +7992,9 @@ msgstr "Back up a volume before you change what's in it. A database's backup sto
 
 msgid "Backups, newest first"
 msgstr "Backups, newest first"
+
+msgid "Check it now"
+msgstr "Check it now"
 
 msgid "Delete from both"
 msgstr "Delete from both"
@@ -7961,6 +8015,15 @@ msgstr "Failed {ago}"
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "Fetch this backup of {0}"
+
+msgid "Filter and sort use loaded backups."
+msgstr "Filter and sort use loaded backups."
+
+msgid "Filter backups"
+msgstr "Filter backups"
+
+msgid "Filter by volume, destination or server"
+msgstr "Filter by volume, destination or server"
 
 msgid "Install a database"
 msgstr "Install a database"
@@ -8033,6 +8096,9 @@ msgstr "Restore tests"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "Sealed with an earlier passphrase"
+
+msgid "Search all backups"
+msgstr "Search all backups"
 
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
@@ -8542,9 +8608,6 @@ msgstr "Not listed? Deploy any image or Compose file as an app. <0>New app</0>"
 
 msgid "Nothing from the catalog is installed yet"
 msgstr "Nothing from the catalog is installed yet"
-
-msgid "Open"
-msgstr "Open"
 
 #. placeholder {0}: entry.name
 msgid "Open the installed {0}"
@@ -9318,6 +9381,9 @@ msgstr "Browse the apps from {said}"
 msgid "Browse these apps"
 msgstr "Browse these apps"
 
+msgid "By name, descending"
+msgstr "By name, descending"
+
 msgid "Can't be read now, so its apps are out of the catalog"
 msgstr "Can't be read now, so its apps are out of the catalog"
 
@@ -9352,6 +9418,9 @@ msgstr "Dockwell's own apps, kept up to date, or any public Git repository."
 
 msgid "Entries at {folderWords}"
 msgstr "Entries at {folderWords}"
+
+msgid "Filter catalog sources"
+msgstr "Filter catalog sources"
 
 msgid "Follow {branch}"
 msgstr "Follow {branch}"
@@ -9391,6 +9460,9 @@ msgstr "Read. It has {count} or more branches and tags."
 
 msgid "Remove {said}"
 msgstr "Remove {said}"
+
+msgid "Source order"
+msgstr "Source order"
 
 msgid "The source {name}"
 msgstr "The source {name}"
@@ -13627,23 +13699,48 @@ msgstr "An admin adds the buckets and mail servers your apps may use."
 msgid "Backups only"
 msgstr "Backups only"
 
+msgid "Every type"
+msgstr "Every type"
+
+msgid "Filter by name"
+msgstr "Filter by name"
+
+msgid "Filter connections"
+msgstr "Filter connections"
+
 msgid "Last check"
 msgstr "Last check"
 
 msgid "Loading connections"
 msgstr "Loading connections"
 
+msgid "Mail"
+msgstr "Mail"
+
 msgid "No app yet"
 msgstr "No app yet"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No connection here has <0>{0}</0> in its name."
+msgstr "No connection here has <0>{0}</0> in its name."
 
 msgid "No connections yet"
 msgstr "No connections yet"
 
+msgid "Object storage"
+msgstr "Object storage"
+
 msgid "The page tries again by itself."
 msgstr "The page tries again by itself."
 
+msgid "Type"
+msgstr "Type"
+
 msgid "Use as a connection"
 msgstr "Use as a connection"
+
+msgid "Used by {usedBy}. Disconnect it there first."
+msgstr "Used by {usedBy}. Disconnect it there first."
 
 msgid "no app uses them yet"
 msgstr "no app uses them yet"
@@ -13773,9 +13870,6 @@ msgstr "Another S3-compatible store"
 
 msgid "Another mail server"
 msgstr "Another mail server"
-
-msgid "Mail"
-msgstr "Mail"
 
 msgctxt "another S3-compatible store, as a tile"
 msgid "Other"
@@ -14447,6 +14541,15 @@ msgstr "Each server's disk alone, unencrypted"
 msgid "Engines"
 msgstr "Engines"
 
+msgid "Every engine"
+msgstr "Every engine"
+
+msgid "Filter by name or engine"
+msgstr "Filter by name or engine"
+
+msgid "Filter databases"
+msgstr "Filter databases"
+
 msgid "From the catalog, with its password kept as a secret"
 msgstr "From the catalog, with its password kept as a secret"
 
@@ -14461,6 +14564,13 @@ msgstr "Loading the databases"
 
 msgid "More in the catalog"
 msgstr "More in the catalog"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No database here has <0>{0}</0> in its name or engine."
+msgstr "No database here has <0>{0}</0> in its name or engine."
+
+msgid "No database of this engine here."
+msgstr "No database of this engine here."
 
 msgid "No databases yet"
 msgstr "No databases yet"
@@ -14477,6 +14587,12 @@ msgstr "Nothing changed on the servers. The page tries again by itself."
 msgid "Nothing has happened to them lately"
 msgstr "Nothing has happened to them lately"
 
+msgid "Read the database service"
+msgstr "Read the database service"
+
+msgid "Read the database users"
+msgstr "Read the database users"
+
 msgid "Reading what happened"
 msgstr "Reading what happened"
 
@@ -14488,6 +14604,9 @@ msgstr "Some on schedule"
 
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "Take one on from its page: it keeps running, with no restart."
+
+msgid "This database has no service to manage"
+msgstr "This database has no service to manage"
 
 msgid "not scheduled"
 msgstr "not scheduled"
@@ -15711,12 +15830,6 @@ msgstr "{0} CPUs"
 msgid "+{0} more"
 msgstr "+{0} more"
 
-#. placeholder {0}: entry.name
-#. placeholder {0}: menu.row.name
-#. placeholder {0}: menu.target.name
-msgid "Actions for {0}"
-msgstr "Actions for {0}"
-
 msgid "Addresses"
 msgstr "Addresses"
 
@@ -16644,9 +16757,6 @@ msgstr "This volume is gone"
 msgid "This volume was replaced"
 msgstr "This volume was replaced"
 
-msgid "Type"
-msgstr "Type"
-
 msgid "Volume couldn't be read"
 msgstr "Volume couldn't be read"
 
@@ -16945,6 +17055,9 @@ msgstr "No domains yet"
 msgid "Not served on {server}"
 msgstr "Not served on {server}"
 
+msgid "Open {address}"
+msgstr "Open {address}"
+
 msgid "Reading DNS"
 msgstr "Reading DNS"
 
@@ -16956,6 +17069,10 @@ msgstr "Redirects to {where}"
 
 msgid "Redirects: <0>{from}</0> → {into}"
 msgstr "Redirects: <0>{from}</0> → {into}"
+
+#. placeholder {0}: nameOf(service)
+msgid "Remove {address} from {0}"
+msgstr "Remove {address} from {0}"
 
 msgid "Renewed automatically"
 msgstr "Renewed automatically"
@@ -17182,6 +17299,7 @@ msgid "Rename"
 msgstr "Rename"
 
 #. placeholder {0}: entry.name
+#. placeholder {0}: view.label
 msgid "Rename {0}"
 msgstr "Rename {0}"
 
@@ -19065,17 +19183,44 @@ msgstr "{0} of the whole install"
 msgid "{0} of this project"
 msgstr "{0} of this project"
 
+msgid "Change name in URLs"
+msgstr "Change name in URLs"
+
+msgid "Create the project {name}"
+msgstr "Create the project {name}"
+
+msgid "Name in URLs"
+msgstr "Name in URLs"
+
+msgid "Named {name} in URLs and the CLI"
+msgstr "Named {name} in URLs and the CLI"
+
+msgid "New project"
+msgstr "New project"
+
+msgid "There's a project named {name} already"
+msgstr "There's a project named {name} already"
+
+msgid "Use letters or digits in its name"
+msgstr "Use letters or digits in its name"
+
+msgid "shop"
+msgstr "shop"
+
 msgid "All {count}"
 msgstr "All {count}"
 
 msgid "Apps with no project"
 msgstr "Apps with no project"
 
+msgid "Apps, and what only they use, live in a project."
+msgstr "Apps, and what only they use, live in a project."
+
 msgid "Can't load the projects"
 msgstr "Can't load the projects"
 
-msgid "Filter by name"
-msgstr "Filter by name"
+msgid "Every project has something running."
+msgstr "Every project has something running."
 
 msgid "Filter projects"
 msgstr "Filter projects"
@@ -19087,8 +19232,15 @@ msgstr "From the catalog · {0}"
 msgid "Loading projects"
 msgstr "Loading projects"
 
+#. placeholder {0}: place.typed.trim()
+msgid "No project here has <0>{0}</0> in its name."
+msgstr "No project here has <0>{0}</0> in its name."
+
 msgid "No project matches."
 msgstr "No project matches."
+
+msgid "No projects yet"
+msgstr "No projects yet"
 
 msgid "Nothing in it"
 msgstr "Nothing in it"
@@ -19860,6 +20012,9 @@ msgstr "Every IPv6 address"
 
 msgid "Every address"
 msgstr "Every address"
+
+msgid "Filter firewall rules and ports"
+msgstr "Filter firewall rules and ports"
 
 msgid "Inbound traffic"
 msgstr "Inbound traffic"
@@ -20727,11 +20882,11 @@ msgstr "CPU {cpu}%"
 msgid "Chosen server"
 msgstr "Chosen server"
 
-msgid "Clear the selector"
-msgstr "Clear the selector"
-
 msgid "Every other server"
 msgstr "Every other server"
+
+msgid "Filter servers"
+msgstr "Filter servers"
 
 msgid "Group by {k}"
 msgstr "Group by {k}"
@@ -20744,6 +20899,9 @@ msgstr "No groups"
 
 msgid "No {key}"
 msgstr "No {key}"
+
+msgid "Open server"
+msgstr "Open server"
 
 msgid "Pick every server shown"
 msgstr "Pick every server shown"
@@ -20769,17 +20927,8 @@ msgstr "Servers matching {matching}, sorted by name"
 msgid "Servers, sorted by name"
 msgstr "Servers, sorted by name"
 
-msgid "Show all {count}"
-msgstr "Show all {count}"
-
-msgid "Showing {shown} of {count} · sorted by name"
-msgstr "Showing {shown} of {count} · sorted by name"
-
 msgid "label:value"
 msgstr "label:value"
-
-msgid "sorted by name"
-msgstr "sorted by name"
 
 msgid "{count, plural, one {# selected} other {# selected}}"
 msgstr "{count, plural, one {# selected} other {# selected}}"
@@ -21982,6 +22131,9 @@ msgstr "Dockwell can't list its sign-in providers"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell can't list where backups go"
 
+msgid "Filter integrations"
+msgstr "Filter integrations"
+
 msgid "How to route behind it"
 msgstr "How to route behind it"
 
@@ -22005,9 +22157,6 @@ msgstr "Loading where backups go"
 
 msgid "No backup yet"
 msgstr "No backup yet"
-
-msgid "Object storage"
-msgstr "Object storage"
 
 msgid "Private images, past its pull limits"
 msgstr "Private images, past its pull limits"
@@ -22299,12 +22448,18 @@ msgstr "Dockwell can't say who signs in"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "Enter an email address, such as ada@example.com."
 
+msgid "Every role"
+msgstr "Every role"
+
 msgid "Expires"
 msgstr "Expires"
 
 #. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
 msgid "Expires in {0}"
 msgstr "Expires in {0}"
+
+msgid "Filter members"
+msgstr "Filter members"
 
 msgid "Invite"
 msgstr "Invite"
@@ -22667,6 +22822,12 @@ msgstr "Dockwell can't list your tokens"
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "Each new address it's used from goes in the <0>audit log</0>"
 
+msgid "Every scope"
+msgstr "Every scope"
+
+msgid "Filter tokens"
+msgstr "Filter tokens"
+
 msgid "Hide the token"
 msgstr "Hide the token"
 
@@ -22701,21 +22862,23 @@ msgctxt "token expiry"
 msgid "Never"
 msgstr "Never"
 
+msgid "New token"
+msgstr "New token"
+
 msgid "No tokens yet"
 msgstr "No tokens yet"
 
 msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
 msgstr "Plan and apply changes that can be undone. Never removes data or cuts off access."
 
+msgid "Read and write"
+msgstr "Read and write"
+
 msgid "Read apps' logs, which often hold what apps shouldn't print."
 msgstr "Read apps' logs, which often hold what apps shouldn't print."
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "Read servers, apps, plans and activity. Every token can, and changes nothing."
-
-#. placeholder {0}: token.name
-msgid "Revoke {0}"
-msgstr "Revoke {0}"
 
 msgid "Scopes"
 msgstr "Scopes"
@@ -22955,9 +23118,6 @@ msgstr "Create the environment {name}"
 msgid "Create the environment {name} in {projectName}"
 msgstr "Create the environment {name} in {projectName}"
 
-msgid "Create the project {name}"
-msgstr "Create the project {name}"
-
 msgid "Delete a project"
 msgstr "Delete a project"
 
@@ -23044,6 +23204,33 @@ msgstr "{address}, private"
 
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
+
+msgid "Default order"
+msgstr "Default order"
+
+msgid "Page {number}"
+msgstr "Page {number}"
+
+msgid "Sort by"
+msgstr "Sort by"
+
+#. placeholder {0}: page.from
+#. placeholder {1}: page.to
+#. placeholder {2}: page.total
+msgid "{0}-{1} of {2}"
+msgstr "{0}-{1} of {2}"
+
+#. placeholder {0}: page.from
+#. placeholder {1}: page.to
+#. placeholder {2}: page.total
+msgid "{0}-{1} of {2}+"
+msgstr "{0}-{1} of {2}+"
+
+msgid "{label} ascending"
+msgstr "{label} ascending"
+
+msgid "{label} descending"
+msgstr "{label} descending"
 
 msgid "More"
 msgstr "More"
@@ -23521,6 +23708,9 @@ msgstr "Dockwell can't read its scheduled tasks"
 msgid "Each runs on its server's own clock, even while the control plane is away."
 msgstr "Each runs on its server's own clock, even while the control plane is away."
 
+msgid "Filter tasks"
+msgstr "Filter tasks"
+
 msgid "Loading the tasks"
 msgstr "Loading the tasks"
 
@@ -23543,6 +23733,9 @@ msgstr "Run a shell command, a command in an app or an HTTP request on a schedul
 
 msgid "Task"
 msgstr "Task"
+
+msgid "Task type"
+msgstr "Task type"
 
 msgid "no failures in the last 24 h"
 msgstr "no failures in the last 24 h"
@@ -24340,6 +24533,10 @@ msgstr "Change the secret {trimmed}"
 msgid "Change the variable {trimmed}"
 msgstr "Change the variable {trimmed}"
 
+#. placeholder {0}: row.name
+msgid "Change {0} on {app}"
+msgstr "Change {0} on {app}"
+
 msgid "Change {name} on {app}"
 msgstr "Change {name} on {app}"
 
@@ -24401,11 +24598,23 @@ msgstr "Nothing in {envName} is shared"
 msgid "Nothing running in {0}"
 msgstr "Nothing running in {0}"
 
+#. placeholder {0}: row.name
+msgid "Remove the secret {0}"
+msgstr "Remove the secret {0}"
+
 msgid "Remove the secret {name}"
 msgstr "Remove the secret {name}"
 
+#. placeholder {0}: row.name
+msgid "Remove the variable {0}"
+msgstr "Remove the variable {0}"
+
 msgid "Remove the variable {name}"
 msgstr "Remove the variable {name}"
+
+#. placeholder {0}: row.name
+msgid "Remove {0}"
+msgstr "Remove {0}"
 
 msgid "Reveal {name}"
 msgstr "Reveal {name}"
@@ -25080,8 +25289,21 @@ msgstr "{0} MiB"
 msgid "Can't load the websites"
 msgstr "Can't load the websites"
 
+msgid "Filter by domain"
+msgstr "Filter by domain"
+
+msgid "Filter websites"
+msgstr "Filter websites"
+
 msgid "Loading websites"
 msgstr "Loading websites"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No website here has <0>{0}</0> in its domain or what it sends to."
+msgstr "No website here has <0>{0}</0> in its domain or what it sends to."
+
+msgid "No website of this kind here."
+msgstr "No website of this kind here."
 
 msgid "No websites yet"
 msgstr "No websites yet"

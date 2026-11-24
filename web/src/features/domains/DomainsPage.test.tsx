@@ -307,7 +307,7 @@ describe("the list of domains", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/servers/${SERVER}`));
   });
 
-  it("isn't a keyboard stop where a row leads nowhere, and is where it leads somewhere", async () => {
+  it("makes rows keyboard reachable when they offer actions", async () => {
     const user = userEvent.setup();
     renderAt(
       "/domains",
@@ -321,22 +321,22 @@ describe("the list of domains", () => {
     const port = await rowOf(/^port\.example\.com/);
     const old = await rowOf(/^old\.example\.com/);
     expect(app).toHaveAttribute("tabindex", "0");
-    expect(port).not.toHaveAttribute("tabindex");
-    expect(old).not.toHaveAttribute("tabindex");
+    expect(port).toHaveAttribute("tabindex", "0");
+    expect(old).toHaveAttribute("tabindex", "0");
     expect(port).not.toHaveClass("is-clickable");
 
-    // Tabbing goes past each, to what's in it that does something: its link, who gets in, and its DNS.
+    // Tabbing goes past each, to what's in it that does something: its link, who gets in, its DNS, and its menu.
     within(app).getByRole("link", { name: "Open app.example.com" }).focus();
     await user.tab();
     expect(within(app).getByRole("button", { name: "Make app.example.com private" })).toHaveFocus();
     await user.tab();
     expect(within(app).getByRole("button", { name: "Check DNS for app.example.com now" })).toHaveFocus();
     await user.tab();
-    expect(screen.getByRole("link", { name: "Open port.example.com" })).toHaveFocus();
+    expect(within(app).getByRole("button", { name: "Actions for app.example.com" })).toHaveFocus();
     await user.tab();
-    await user.tab();
-    await user.tab();
-    expect(screen.getByRole("link", { name: "Open old.example.com" })).toHaveFocus();
+    expect(port).toHaveFocus();
+    await user.keyboard("{Shift>}{F10}{/Shift}");
+    expect(screen.getByRole("menuitem", { name: "Open port.example.com" })).toHaveFocus();
   });
 
   it("reads a certificate past its end as expired, in red, with what to do", async () => {
@@ -2743,12 +2743,12 @@ describe("Cloudflare on the list (#820)", () => {
         changes: { watchChange: feed<WatchChangeResponse>().stream, proposeChange: () => ({ change: webPlanned() }) },
       },
     });
-  /** A row's cell in the At Cloudflare column, the last one. */
+  /** A row's cell in the At Cloudflare column, the last but its menu's. */
   const atCloudflare = async (name: RegExp) => {
     await screen.findByRole("columnheader", { name: "At Cloudflare" }, { timeout: 5000 });
     return within(await rowOf(name))
       .getAllByRole("cell")
-      .at(-1) as HTMLElement;
+      .at(-2) as HTMLElement;
   };
 
   it.each([

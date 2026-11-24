@@ -9,11 +9,13 @@ import {
   searchWithout,
 } from "../../features/activity/ActivityPage";
 
+import { readListSearch } from "../../features/shell/list";
+
 const KINDS: readonly ActivityKind[] = ["changes", "servers", "access", "health", "backups", "alerts"];
 
 /** Reads Activity's filters from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): ActivitySearch {
-  const out: ActivitySearch = {};
+  const out: ActivitySearch = readListSearch(search);
   const text = (key: string) => {
     const value = search[key];
     return typeof value === "string" && value !== "" ? value : undefined;

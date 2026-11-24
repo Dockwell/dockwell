@@ -16,25 +16,32 @@ import {
   StatusBadge,
   Table,
   type TableColumn,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useTimeWords } from "../../lib/time";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import {
+  ListPager,
+  type ListPlace,
+  type ListRouteProps,
+  ListSearchField,
+  sortableColumns,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { pagedRows, sortedRows } from "../shell/list";
 import { matches, mountSource, portWords, READ_EVERY_MS, statusOf, useContainerStateWord } from "./containers";
 import { useTakeOn } from "./takeOn";
 import "./ContainersPanel.css";
 import { useMay } from "../auth/may";
 
-/** A filter earns its place once there are more containers than read at a glance. */
-const FILTER_FROM = 13;
-/** How many rows show at a time, so a server of thousands stays a page. */
-const PAGE = 100;
+const SORT_KEYS = ["name", "state", "image", "project"] as const;
 
 /** Up to a few of a list, and how many more there are. */
 function Some({ items, more }: { items: readonly string[]; more: number }) {
@@ -55,7 +62,7 @@ function Some({ items, more }: { items: readonly string[]; more: number }) {
  * where Dockwell's own went. Each opens on its details and logs. Past what reads at a
  * glance it grows a filter, and a project column once there is more than one project.
  */
-export function ContainersPanel({ server }: { server: Server }) {
+export function ContainersPanel({ server, search, onSearch }: { server: Server } & ListRouteProps) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   // The containers on a server are an admin's to read, and the panel is left out for anyone else (ADR 0059).
@@ -68,10 +75,19 @@ export function ContainersPanel({ server }: { server: Server }) {
     { server: server.id },
     { refetchInterval: READ_EVERY_MS, retry: false, enabled: allowed && connected && !blind },
   );
-  const [filter, setFilter] = useState("");
-  const [shown, setShown] = useState(PAGE);
+  const place = useListPlace(search, onSearch, SORT_KEYS);
   const containers = list.data?.containers;
-  const found = useMemo(() => (containers ?? []).filter((c) => matches(c, filter)), [containers, filter]);
+  const found = sortedRows(
+    (containers ?? []).filter((container) => matches(container, place.query)),
+    place.sort,
+    (container, key) => {
+      if (key === "state") return container.state;
+      if (key === "image") return container.image;
+      if (key === "project") return container.composeProject;
+      return container.name;
+    },
+  );
+  const page = pagedRows(found, place.page);
   const count = containers?.length ?? 0;
   const running = containers?.filter((c) => c.state === ContainerState.RUNNING).length ?? 0;
   const own = list.data?.ownContainers ?? 0;
@@ -114,31 +130,21 @@ export function ContainersPanel({ server }: { server: Server }) {
           </Trans>
         </p>
       </div>
-      {count >= FILTER_FROM ? (
-        <TextField
+      {count > 0 ? (
+        <ListSearchField
           className="containers-filter"
-          icon="search"
-          aria-label={t`Filter containers`}
+          label={t`Filter containers`}
           placeholder={t`Filter by name, image or project`}
-          value={filter}
-          onChange={(event) => {
-            setFilter(event.target.value);
-            setShown(PAGE);
-          }}
+          value={place.typed}
+          onChange={place.setTyped}
         />
       ) : null}
       {count === 0 ? null : phone ? (
-        <PhoneRows server={server.id} rows={found.slice(0, shown)} />
+        <PhoneRows server={server.id} rows={page.rows} />
       ) : (
-        <Rows server={server.id} rows={found.slice(0, shown)} projects={projects.size > 1} />
+        <Rows server={server.id} rows={page.rows} projects={projects.size > 1} place={place} />
       )}
-      {found.length > shown ? (
-        <div className="containers-foot">
-          <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + PAGE)}>
-            <Trans>Show more</Trans>
-          </Button>
-        </div>
-      ) : null}
+      <ListPager page={page} onPage={place.setPage} />
       {unlisted > 0 ? (
         <p className="containers-note">
           {plural(unlisted, {
@@ -174,63 +180,73 @@ function Rows({
   server,
   rows,
   projects,
+  place,
 }: {
   server: string;
   rows: readonly ServerContainer[];
   /** More than one project among them, which makes a column worth its width. */
   projects: boolean;
+  place: ListPlace;
 }) {
   const { t } = useLingui();
   const navigate = useNavigate();
   const stateWord = useContainerStateWord();
   const { take } = useTakeOn(server);
-  const columns = useMemo<TableColumn<ServerContainer>[]>(
-    () => [
-      {
-        key: "name",
-        header: t`Name`,
-        render: (c) => (
-          <Link to="/servers/$serverId/containers/$name" params={{ serverId: server, name: c.name }}>
-            {c.name}
-          </Link>
-        ),
-      },
-      {
-        key: "state",
-        header: t`State`,
-        width: 132,
-        render: (c) => <StatusBadge status={statusOf(c.state)} label={stateWord(c.state)} labelIsState />,
-      },
-      { key: "image", header: t`Image`, mono: true, render: (c) => shortImage(c.image) },
-      ...(projects
-        ? [
-            {
-              key: "project",
-              header: t`Project`,
-              mono: true,
-              render: (c: ServerContainer) => c.composeProject || <span className="containers-none">—</span>,
-            },
-          ]
-        : []),
-      {
-        key: "ports",
-        header: t`Ports`,
-        mono: true,
-        render: (c) => <Some items={c.ports.map(portWords)} more={c.morePorts} />,
-      },
-      {
-        key: "volumes",
-        header: t`Volumes`,
-        mono: true,
-        render: (c) => <Some items={c.mounts.map(mountSource)} more={c.moreMounts} />,
-      },
-      {
-        // Taking it on, with the name and place Dockwell would give it; its own page picks others.
-        key: "take",
-        header: <span className="dw-sr">{t`Take on`}</span>,
-        width: 96,
-        align: "right",
-        render: (c) => (
+  const mayAdopt = useMay()(ContainerService.method.adoptContainer).allowed;
+  const context = useRowMenu<ServerContainer>();
+  const open = (container: ServerContainer) =>
+    void navigate({ to: "/servers/$serverId/containers/$name", params: { serverId: server, name: container.name } });
+  const actionsFor = (container: ServerContainer): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => open(container) },
+    ...(mayAdopt ? [{ id: "adopt", label: t`Take on`, onSelect: () => take(container) }] : []),
+  ];
+  const columns: TableColumn<ServerContainer>[] = [
+    {
+      key: "name",
+      header: t`Name`,
+      render: (c) => (
+        <Link to="/servers/$serverId/containers/$name" params={{ serverId: server, name: c.name }}>
+          {c.name}
+        </Link>
+      ),
+    },
+    {
+      key: "state",
+      header: t`State`,
+      width: 132,
+      render: (c) => <StatusBadge status={statusOf(c.state)} label={stateWord(c.state)} labelIsState />,
+    },
+    { key: "image", header: t`Image`, mono: true, render: (c) => shortImage(c.image) },
+    ...(projects
+      ? [
+          {
+            key: "project",
+            header: t`Project`,
+            mono: true,
+            render: (c: ServerContainer) => c.composeProject || <span className="containers-none">—</span>,
+          },
+        ]
+      : []),
+    {
+      key: "ports",
+      header: t`Ports`,
+      mono: true,
+      render: (c) => <Some items={c.ports.map(portWords)} more={c.morePorts} />,
+    },
+    {
+      key: "volumes",
+      header: t`Volumes`,
+      mono: true,
+      render: (c) => <Some items={c.mounts.map(mountSource)} more={c.moreMounts} />,
+    },
+    {
+      // Taking it on, with the name and place Dockwell would give it; its own page picks others.
+      key: "take",
+      header: <span className="dw-sr">{t`Take on`}</span>,
+      width: 144,
+      align: "right",
+      render: (c) => (
+        <span className="list-row-actions">
           <Button
             size="sm"
             variant="secondary"
@@ -242,22 +258,29 @@ function Rows({
           >
             {t`Take on`}
           </Button>
-        ),
-      },
-    ],
-    [t, server, stateWord, projects, take],
-  );
+          <ActionMenu label={t`Actions for ${c.name}`} actions={actionsFor(c)} />
+        </span>
+      ),
+    },
+  ];
   return (
-    <Table<ServerContainer>
-      className="containers-table"
-      columns={columns}
-      rows={rows}
-      caption={t`Containers Dockwell didn't make`}
-      empty={t`No container matches this filter.`}
-      onRowClick={(c) =>
-        void navigate({ to: "/servers/$serverId/containers/$name", params: { serverId: server, name: c.name } })
-      }
-    />
+    <>
+      <Table<ServerContainer>
+        className="containers-table"
+        columns={sortableColumns(columns, place, SORT_KEYS)}
+        rows={rows}
+        caption={t`Containers Dockwell didn't make`}
+        empty={t`No container matches this filter.`}
+        onRowClick={open}
+        onRowContextMenu={(container, at, row) =>
+          context.open(container, at, row, {
+            label: t`Actions for ${container.name}`,
+            actions: actionsFor(container),
+          })
+        }
+      />
+      {context.element}
+    </>
   );
 }
 

@@ -71,7 +71,8 @@ export async function tasksFlow(page: Page, { origin, step, shoot }: TasksFlowOp
 
   step("tasks: on a phone, each is a row, and nothing widens the page");
   await atWidth(page, { width: 390, height: 844 });
-  await page.getByRole("button", { name: /Say hello/ }).waitFor();
+  await page.getByRole("button", { name: /^Say hello\b/ }).waitFor();
+  await page.getByRole("button", { name: "Actions for Say hello" }).waitFor();
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   if (wide > 0) fail(`the page scrolls ${wide}px sideways on a phone`);
   await shoot(page, "tasks-phone");

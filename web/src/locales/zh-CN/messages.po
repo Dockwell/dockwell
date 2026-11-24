@@ -432,6 +432,15 @@ msgstr "关于"
 msgid "Access"
 msgstr "访问"
 
+msgid "Actions"
+msgstr "操作"
+
+#. placeholder {0}: c.name
+#. placeholder {0}: channel.name
+#. placeholder {0}: check.name
+msgid "Actions for {0}"
+msgstr "{0} 的操作"
+
 msgid "Activity"
 msgstr "动态"
 
@@ -495,6 +504,9 @@ msgstr "事件：{caption}"
 msgid "Every change, server event, access grant, change of health, backup and alert, newest first"
 msgstr "所有变更、服务器事件、访问授权、健康变化、备份和告警，最新的在前"
 
+msgid "Filter loaded events"
+msgstr "筛选已加载的事件"
+
 msgid "From"
 msgstr "来源"
 
@@ -524,6 +536,9 @@ msgstr "这里还没有内容"
 
 msgid "Nothing matches these filters."
 msgstr "没有符合这些筛选条件的内容。"
+
+msgid "Open"
+msgstr "打开"
 
 msgid "Open Variables"
 msgstr "打开变量"
@@ -606,6 +621,9 @@ msgstr "已撤销"
 
 msgid "Undone by"
 msgstr "撤销者"
+
+msgid "View plan"
+msgstr "查看计划"
 
 msgid "Volume"
 msgstr "卷"
@@ -1915,6 +1933,7 @@ msgid "Change the alert channel {name}"
 msgstr "修改告警渠道 {name}"
 
 #. placeholder {0}: channel.name
+#. placeholder {0}: row.name
 msgid "Change {0}"
 msgstr "更改 {0}"
 
@@ -2059,9 +2078,6 @@ msgstr "{kindName} 回复：{said}。"
 msgid "A rule that names no channel sends to every one."
 msgstr "没有指定渠道的规则会发送到所有渠道。"
 
-msgid "Actions"
-msgstr "操作"
-
 msgid "Add channel"
 msgstr "添加渠道"
 
@@ -2080,6 +2096,9 @@ msgstr "Dockwell 没有向 {name} 发送测试"
 #. placeholder {0}: list(r.failed)
 msgid "Failed to {0}"
 msgstr "发送到 {0} 失败"
+
+msgid "Filter alert channels"
+msgstr "筛选告警渠道"
 
 msgid "It answered {said}."
 msgstr "它回复了 {said}。"
@@ -2116,6 +2135,10 @@ msgstr "不会发送到任何渠道。"
 
 msgid "Recent deliveries"
 msgstr "最近的发送"
+
+#. placeholder {0}: channel.name
+msgid "Remove the alert channel {0}"
+msgstr "移除告警渠道 {0}"
 
 msgid "Result"
 msgstr "结果"
@@ -2207,6 +2230,9 @@ msgstr "每 5 分钟"
 msgid "Every minute"
 msgstr "每分钟"
 
+msgid "Filter uptime checks"
+msgstr "筛选可用性检查"
+
 msgid "For its route"
 msgstr "为其路由创建"
 
@@ -2236,6 +2262,10 @@ msgctxt "how a check runs"
 msgid "Runs"
 msgstr "检查方式"
 
+#. placeholder {0}: hostOf(check.spec?.address ?? check.name)
+msgid "Stop watching {0}"
+msgstr "停止监控 {0}"
+
 msgid "Watch one from its app's or website's domain, and Dockwell alerts when it stops answering."
 msgstr "从应用或网站的域名处监测它，地址无响应时 Dockwell 会发出告警。"
 
@@ -2258,6 +2288,15 @@ msgstr "无法加载规则"
 msgid "Every channel"
 msgstr "所有渠道"
 
+msgid "Every state"
+msgstr "所有状态"
+
+msgid "Filter alert rules"
+msgstr "筛选告警规则"
+
+msgid "Filter alerts"
+msgstr "筛选告警"
+
 msgid "Loading the alerts"
 msgstr "正在加载告警"
 
@@ -2266,6 +2305,9 @@ msgstr "正在加载告警规则"
 
 msgid "New rule"
 msgstr "新建规则"
+
+msgid "No alert rules yet"
+msgstr "还没有告警规则"
 
 msgid "No channel yet"
 msgstr "还没有渠道"
@@ -5265,7 +5307,6 @@ msgstr "{0, plural, other {# 个应用}}"
 
 #. placeholder {0}: (catalog.total ?? 0) - entries.length
 #. placeholder {0}: (catalog.total ?? 0) - shown.length
-#. placeholder {0}: Math.min(PAGE, found.length - shown)
 msgid "{0, plural, one {Show # more} other {Show # more}}"
 msgstr "{0, plural, other {再显示 # 个}}"
 
@@ -6137,6 +6178,12 @@ msgstr "{0}，当前运行的版本"
 
 msgid "{word} version"
 msgstr "{word} 版本"
+
+msgid "Move to a project"
+msgstr "移至项目"
+
+msgid "Prepare to delete {name}"
+msgstr "准备删除 {name}"
 
 msgid "A new secret for {name}'s hook"
 msgstr "{name} 的 Webhook 新密钥"
@@ -7932,6 +7979,10 @@ msgstr "你的密码短语"
 msgid "A backup is of a volume, and no app keeps one yet."
 msgstr "备份针对的是卷，目前还没有应用使用卷。"
 
+#. placeholder {0}: b.volume
+msgid "Actions for this backup of {0}"
+msgstr "{0} 备份的操作"
+
 #. placeholder {0}: b.destination
 msgid "Also on {0}"
 msgstr "同时保存在 {0}"
@@ -7941,6 +7992,9 @@ msgstr "在更改卷的内容之前先备份。数据库备份不会停止任何
 
 msgid "Backups, newest first"
 msgstr "备份，最新的在前"
+
+msgid "Check it now"
+msgstr "立即检查"
 
 msgid "Delete from both"
 msgstr "从两处都删除"
@@ -7961,6 +8015,15 @@ msgstr "{ago}失败"
 #. placeholder {0}: backup.volume
 msgid "Fetch this backup of {0}"
 msgstr "取回 {0} 的这个备份"
+
+msgid "Filter and sort use loaded backups."
+msgstr "筛选和排序只针对已加载的备份。"
+
+msgid "Filter backups"
+msgstr "筛选备份"
+
+msgid "Filter by volume, destination or server"
+msgstr "按卷、目标或服务器筛选"
 
 msgid "Install a database"
 msgstr "安装数据库"
@@ -8033,6 +8096,9 @@ msgstr "恢复测试"
 
 msgid "Sealed with an earlier passphrase"
 msgstr "使用较早的密码短语加密"
+
+msgid "Search all backups"
+msgstr "搜索所有备份"
 
 #. placeholder {0}: b.destination
 msgid "Sending to {0}"
@@ -8542,9 +8608,6 @@ msgstr "没有找到？可以把任意镜像或 Compose 文件部署为应用。
 
 msgid "Nothing from the catalog is installed yet"
 msgstr "还没有安装应用目录中的应用"
-
-msgid "Open"
-msgstr "打开"
 
 #. placeholder {0}: entry.name
 msgid "Open the installed {0}"
@@ -9318,6 +9381,9 @@ msgstr "浏览来自 {said} 的应用"
 msgid "Browse these apps"
 msgstr "浏览这些应用"
 
+msgid "By name, descending"
+msgstr "按名称降序"
+
 msgid "Can't be read now, so its apps are out of the catalog"
 msgstr "暂时无法读取，其应用不在应用目录中"
 
@@ -9352,6 +9418,9 @@ msgstr "Dockwell 自带的应用，始终保持最新，或者任意公开的 Gi
 
 msgid "Entries at {folderWords}"
 msgstr "条目位于 {folderWords}"
+
+msgid "Filter catalog sources"
+msgstr "筛选目录来源"
 
 msgid "Follow {branch}"
 msgstr "跟随 {branch}"
@@ -9391,6 +9460,9 @@ msgstr "已读取。共有 {count} 个或更多分支和标签。"
 
 msgid "Remove {said}"
 msgstr "移除 {said}"
+
+msgid "Source order"
+msgstr "来源顺序"
 
 msgid "The source {name}"
 msgstr "来源 {name}"
@@ -13627,23 +13699,48 @@ msgstr "管理员会添加你的应用可用的存储桶和邮件服务器。"
 msgid "Backups only"
 msgstr "仅用于备份"
 
+msgid "Every type"
+msgstr "所有类型"
+
+msgid "Filter by name"
+msgstr "按名称筛选"
+
+msgid "Filter connections"
+msgstr "筛选连接"
+
 msgid "Last check"
 msgstr "上次检查"
 
 msgid "Loading connections"
 msgstr "正在加载连接"
 
+msgid "Mail"
+msgstr "邮件"
+
 msgid "No app yet"
 msgstr "尚无应用"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No connection here has <0>{0}</0> in its name."
+msgstr "没有名称包含 <0>{0}</0> 的连接。"
 
 msgid "No connections yet"
 msgstr "尚无连接"
 
+msgid "Object storage"
+msgstr "对象存储"
+
 msgid "The page tries again by itself."
 msgstr "页面会自动重试。"
 
+msgid "Type"
+msgstr "类型"
+
 msgid "Use as a connection"
 msgstr "作为连接使用"
+
+msgid "Used by {usedBy}. Disconnect it there first."
+msgstr "{usedBy} 正在使用此连接。请先在那里断开连接。"
 
 msgid "no app uses them yet"
 msgstr "尚无应用使用"
@@ -13773,9 +13870,6 @@ msgstr "其他 S3 兼容存储"
 
 msgid "Another mail server"
 msgstr "其他邮件服务器"
-
-msgid "Mail"
-msgstr "邮件"
 
 msgctxt "another S3-compatible store, as a tile"
 msgid "Other"
@@ -14447,6 +14541,15 @@ msgstr "仅各服务器的磁盘，未加密"
 msgid "Engines"
 msgstr "数据库引擎"
 
+msgid "Every engine"
+msgstr "所有数据库引擎"
+
+msgid "Filter by name or engine"
+msgstr "按名称或引擎筛选"
+
+msgid "Filter databases"
+msgstr "筛选数据库"
+
 msgid "From the catalog, with its password kept as a secret"
 msgstr "从应用目录安装，密码保存为密钥"
 
@@ -14461,6 +14564,13 @@ msgstr "正在加载数据库"
 
 msgid "More in the catalog"
 msgstr "应用目录中的更多"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No database here has <0>{0}</0> in its name or engine."
+msgstr "没有名称或引擎包含 <0>{0}</0> 的数据库。"
+
+msgid "No database of this engine here."
+msgstr "没有使用此引擎的数据库。"
 
 msgid "No databases yet"
 msgstr "还没有数据库"
@@ -14477,6 +14587,12 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 msgid "Nothing has happened to them lately"
 msgstr "最近没有相关动态"
 
+msgid "Read the database service"
+msgstr "读取数据库服务"
+
+msgid "Read the database users"
+msgstr "读取数据库用户"
+
 msgid "Reading what happened"
 msgstr "正在读取动态"
 
@@ -14488,6 +14604,9 @@ msgstr "部分按计划运行"
 
 msgid "Take one on from its page: it keeps running, with no restart."
 msgstr "在它的页面接管：它会继续运行，无需重启。"
+
+msgid "This database has no service to manage"
+msgstr "此数据库没有可管理的服务"
 
 msgid "not scheduled"
 msgstr "未安排"
@@ -15711,12 +15830,6 @@ msgstr "{0} 个 CPU"
 msgid "+{0} more"
 msgstr "另有 {0} 项"
 
-#. placeholder {0}: entry.name
-#. placeholder {0}: menu.row.name
-#. placeholder {0}: menu.target.name
-msgid "Actions for {0}"
-msgstr "{0} 的操作"
-
 msgid "Addresses"
 msgstr "地址"
 
@@ -16644,9 +16757,6 @@ msgstr "此卷已不存在"
 msgid "This volume was replaced"
 msgstr "此卷已被替换"
 
-msgid "Type"
-msgstr "类型"
-
 msgid "Volume couldn't be read"
 msgstr "无法读取卷"
 
@@ -16945,6 +17055,9 @@ msgstr "还没有域名"
 msgid "Not served on {server}"
 msgstr "{server} 上未提供此重定向"
 
+msgid "Open {address}"
+msgstr "打开 {address}"
+
 msgid "Reading DNS"
 msgstr "正在读取 DNS"
 
@@ -16956,6 +17069,10 @@ msgstr "重定向到 {where}"
 
 msgid "Redirects: <0>{from}</0> → {into}"
 msgstr "重定向：<0>{from}</0> → {into}"
+
+#. placeholder {0}: nameOf(service)
+msgid "Remove {address} from {0}"
+msgstr "从 {0} 移除 {address}"
 
 msgid "Renewed automatically"
 msgstr "自动续期"
@@ -17182,6 +17299,7 @@ msgid "Rename"
 msgstr "重命名"
 
 #. placeholder {0}: entry.name
+#. placeholder {0}: view.label
 msgid "Rename {0}"
 msgstr "重命名 {0}"
 
@@ -19065,17 +19183,44 @@ msgstr "整个安装的{0}"
 msgid "{0} of this project"
 msgstr "这个项目的{0}"
 
+msgid "Change name in URLs"
+msgstr "更改网址中的名称"
+
+msgid "Create the project {name}"
+msgstr "创建项目 {name}"
+
+msgid "Name in URLs"
+msgstr "网址中的名称"
+
+msgid "Named {name} in URLs and the CLI"
+msgstr "在网址和命令行中使用名称 {name}"
+
+msgid "New project"
+msgstr "新建项目"
+
+msgid "There's a project named {name} already"
+msgstr "已存在名为 {name} 的项目"
+
+msgid "Use letters or digits in its name"
+msgstr "请在名称中使用字母或数字"
+
+msgid "shop"
+msgstr "shop"
+
 msgid "All {count}"
 msgstr "全部 {count}"
 
 msgid "Apps with no project"
 msgstr "未指定项目的应用"
 
+msgid "Apps, and what only they use, live in a project."
+msgstr "项目包含应用及其专用资源。"
+
 msgid "Can't load the projects"
 msgstr "无法加载项目"
 
-msgid "Filter by name"
-msgstr "按名称筛选"
+msgid "Every project has something running."
+msgstr "每个项目都在运行资源。"
 
 msgid "Filter projects"
 msgstr "筛选项目"
@@ -19087,8 +19232,15 @@ msgstr "来自应用目录 · {0}"
 msgid "Loading projects"
 msgstr "正在加载项目"
 
+#. placeholder {0}: place.typed.trim()
+msgid "No project here has <0>{0}</0> in its name."
+msgstr "没有名称包含 <0>{0}</0> 的项目。"
+
 msgid "No project matches."
 msgstr "没有匹配的项目。"
+
+msgid "No projects yet"
+msgstr "还没有项目"
 
 msgid "Nothing in it"
 msgstr "其中什么都没有"
@@ -19860,6 +20012,9 @@ msgstr "所有 IPv6 地址"
 
 msgid "Every address"
 msgstr "所有地址"
+
+msgid "Filter firewall rules and ports"
+msgstr "筛选防火墙规则和端口"
 
 msgid "Inbound traffic"
 msgstr "入站流量"
@@ -20727,11 +20882,11 @@ msgstr "CPU {cpu}%"
 msgid "Chosen server"
 msgstr "选中的服务器"
 
-msgid "Clear the selector"
-msgstr "清除筛选条件"
-
 msgid "Every other server"
 msgstr "其他所有服务器"
+
+msgid "Filter servers"
+msgstr "筛选服务器"
 
 msgid "Group by {k}"
 msgstr "按 {k} 分组"
@@ -20744,6 +20899,9 @@ msgstr "不分组"
 
 msgid "No {key}"
 msgstr "无 {key}"
+
+msgid "Open server"
+msgstr "打开服务器"
 
 msgid "Pick every server shown"
 msgstr "选择显示的所有服务器"
@@ -20769,17 +20927,8 @@ msgstr "匹配 {matching} 的服务器，按名称排序"
 msgid "Servers, sorted by name"
 msgstr "服务器，按名称排序"
 
-msgid "Show all {count}"
-msgstr "显示全部 {count} 台"
-
-msgid "Showing {shown} of {count} · sorted by name"
-msgstr "显示 {count} 台中的 {shown} 台 · 按名称排序"
-
 msgid "label:value"
 msgstr "label:value"
-
-msgid "sorted by name"
-msgstr "按名称排序"
 
 msgid "{count, plural, one {# selected} other {# selected}}"
 msgstr "{count, plural, other {已选择 #}}"
@@ -21982,6 +22131,9 @@ msgstr "Dockwell 无法列出登录提供方"
 msgid "Dockwell can't list where backups go"
 msgstr "Dockwell 无法列出备份的去向"
 
+msgid "Filter integrations"
+msgstr "筛选集成"
+
 msgid "How to route behind it"
 msgstr "如何在其后设置路由"
 
@@ -22005,9 +22157,6 @@ msgstr "正在加载备份去向"
 
 msgid "No backup yet"
 msgstr "尚无备份"
-
-msgid "Object storage"
-msgstr "对象存储"
 
 msgid "Private images, past its pull limits"
 msgstr "私有镜像，不受其拉取限制"
@@ -22299,12 +22448,18 @@ msgstr "Dockwell 无法得知谁可以登录"
 msgid "Enter an email address, such as ada@example.com."
 msgstr "请输入电子邮件地址，例如 ada@example.com。"
 
+msgid "Every role"
+msgstr "所有角色"
+
 msgid "Expires"
 msgstr "过期时间"
 
 #. placeholder {0}: words.span(left >= DAY ? Math.round(left / DAY) * DAY : left)
 msgid "Expires in {0}"
 msgstr "{0}后过期"
+
+msgid "Filter members"
+msgstr "筛选成员"
 
 msgid "Invite"
 msgstr "邀请"
@@ -22667,6 +22822,12 @@ msgstr "Dockwell 无法列出你的令牌"
 msgid "Each new address it's used from goes in the <0>audit log</0>"
 msgstr "每次从新地址使用都会记入<0>审计日志</0>"
 
+msgid "Every scope"
+msgstr "所有权限范围"
+
+msgid "Filter tokens"
+msgstr "筛选令牌"
+
 msgid "Hide the token"
 msgstr "隐藏令牌"
 
@@ -22701,21 +22862,23 @@ msgctxt "token expiry"
 msgid "Never"
 msgstr "从不"
 
+msgid "New token"
+msgstr "新建令牌"
+
 msgid "No tokens yet"
 msgstr "还没有令牌"
 
 msgid "Plan and apply changes that can be undone. Never removes data or cuts off access."
 msgstr "规划并应用可撤销的变更。绝不会删除数据或切断访问。"
 
+msgid "Read and write"
+msgstr "读写"
+
 msgid "Read apps' logs, which often hold what apps shouldn't print."
 msgstr "读取应用日志，其中常含有应用不该打印的内容。"
 
 msgid "Read servers, apps, plans and activity. Every token can, and changes nothing."
 msgstr "读取服务器、应用、计划和动态。所有令牌都可以，且不做任何更改。"
-
-#. placeholder {0}: token.name
-msgid "Revoke {0}"
-msgstr "撤销 {0}"
 
 msgid "Scopes"
 msgstr "范围"
@@ -22955,9 +23118,6 @@ msgstr "创建环境 {name}"
 msgid "Create the environment {name} in {projectName}"
 msgstr "在 {projectName} 中创建环境 {name}"
 
-msgid "Create the project {name}"
-msgstr "创建项目 {name}"
-
 msgid "Delete a project"
 msgstr "删除项目"
 
@@ -23044,6 +23204,33 @@ msgstr "{address}，私有地址"
 
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
+
+msgid "Default order"
+msgstr "默认顺序"
+
+msgid "Page {number}"
+msgstr "第 {number} 页"
+
+msgid "Sort by"
+msgstr "排序方式"
+
+#. placeholder {0}: page.from
+#. placeholder {1}: page.to
+#. placeholder {2}: page.total
+msgid "{0}-{1} of {2}"
+msgstr "第 {0}–{1} 项，共 {2} 项"
+
+#. placeholder {0}: page.from
+#. placeholder {1}: page.to
+#. placeholder {2}: page.total
+msgid "{0}-{1} of {2}+"
+msgstr "第 {0}–{1} 项，至少 {2} 项"
+
+msgid "{label} ascending"
+msgstr "{label}升序"
+
+msgid "{label} descending"
+msgstr "{label}降序"
 
 msgid "More"
 msgstr "更多"
@@ -23521,6 +23708,9 @@ msgstr "Dockwell 无法读取计划任务"
 msgid "Each runs on its server's own clock, even while the control plane is away."
 msgstr "每个任务都按其服务器自己的时钟运行，控制平面不在时也照常运行。"
 
+msgid "Filter tasks"
+msgstr "筛选任务"
+
 msgid "Loading the tasks"
 msgstr "正在加载计划任务"
 
@@ -23543,6 +23733,9 @@ msgstr "按计划运行 shell 命令、应用中的命令或 HTTP 请求"
 
 msgid "Task"
 msgstr "任务"
+
+msgid "Task type"
+msgstr "任务类型"
 
 msgid "no failures in the last 24 h"
 msgstr "过去 24 小时没有失败"
@@ -24340,6 +24533,10 @@ msgstr "更改密钥 {trimmed}"
 msgid "Change the variable {trimmed}"
 msgstr "更改变量 {trimmed}"
 
+#. placeholder {0}: row.name
+msgid "Change {0} on {app}"
+msgstr "更改 {app} 上的 {0}"
+
 msgid "Change {name} on {app}"
 msgstr "更改 {app} 上的 {name}"
 
@@ -24401,11 +24598,23 @@ msgstr "{envName} 中没有共享的值"
 msgid "Nothing running in {0}"
 msgstr "{0} 中没有在运行"
 
+#. placeholder {0}: row.name
+msgid "Remove the secret {0}"
+msgstr "移除机密 {0}"
+
 msgid "Remove the secret {name}"
 msgstr "移除密钥 {name}"
 
+#. placeholder {0}: row.name
+msgid "Remove the variable {0}"
+msgstr "移除变量 {0}"
+
 msgid "Remove the variable {name}"
 msgstr "移除变量 {name}"
+
+#. placeholder {0}: row.name
+msgid "Remove {0}"
+msgstr "移除 {0}"
 
 msgid "Reveal {name}"
 msgstr "显示 {name}"
@@ -25080,8 +25289,21 @@ msgstr "{0} MiB"
 msgid "Can't load the websites"
 msgstr "无法加载网站"
 
+msgid "Filter by domain"
+msgstr "按域名筛选"
+
+msgid "Filter websites"
+msgstr "筛选网站"
+
 msgid "Loading websites"
 msgstr "正在加载网站"
+
+#. placeholder {0}: place.typed.trim()
+msgid "No website here has <0>{0}</0> in its domain or what it sends to."
+msgstr "没有域名或目标包含 <0>{0}</0> 的网站。"
+
+msgid "No website of this kind here."
+msgstr "没有此类型的网站。"
 
 msgid "No websites yet"
 msgstr "还没有网站"

@@ -3,11 +3,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { AppsPage, type AppsSearch } from "../../features/apps/AppsPage";
+import { readListSearch } from "../../features/shell/list";
 
-/** Reads the list's filters from its URL, leaving out what isn't one. */
+/** Reads the list's filters and where it is in them from its URL, leaving out what isn't one. */
 function readSearch(search: Record<string, unknown>): AppsSearch {
-  const out: AppsSearch = {};
-  for (const key of ["q", "environment", "server", "show"] as const) {
+  const out: AppsSearch = { ...readListSearch(search) };
+  for (const key of ["environment", "server", "show"] as const) {
     const value = search[key];
     if (typeof value === "string" && value !== "") out[key] = value;
   }

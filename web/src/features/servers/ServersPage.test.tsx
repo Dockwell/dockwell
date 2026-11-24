@@ -281,10 +281,17 @@ describe("Servers", () => {
     renderServers(many);
     const table = await screen.findByRole("table", { name: "Servers, sorted by name" });
     await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(21));
-    expect(screen.getByText("Showing 20 of 25 · sorted by name")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Show all 25" }));
-    expect(within(table).getAllByRole("row")).toHaveLength(26);
-    expect(screen.getByText("25 servers · sorted by name")).toBeVisible();
+    expect(screen.getByText("1-20 of 25")).toBeVisible();
+    await user.click(within(table).getByRole("checkbox", { name: "node-00" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(6);
+    expect(screen.getByText("21-25 of 25")).toBeVisible();
+    const pageCheckbox = within(table).getByRole("checkbox", { name: "Pick every server shown" });
+    await user.click(pageCheckbox);
+    expect(screen.getByRole("region", { name: "Picked servers" })).toHaveTextContent("6 selected");
+    await user.click(pageCheckbox);
+    expect(screen.getByRole("region", { name: "Picked servers" })).toHaveTextContent("1 selected");
+    expect(screen.getByRole("region", { name: "Picked servers" })).toHaveTextContent("node-00");
   });
 
   it.each(["/servers", "/servers?server=srv_24"])(
@@ -298,16 +305,16 @@ describe("Servers", () => {
       await user.click(await screen.findByRole("button", { name: /^node-24, / }));
       const inspector = await screen.findByRole("complementary", { name: "node-24" });
       const table = screen.getByRole("table", { name: "Servers, sorted by name" });
-      expect(within(table).getAllByRole("row")).toHaveLength(26);
+      expect(within(table).getAllByRole("row")).toHaveLength(6);
 
       await user.click(within(inspector).getByRole("button", { name: "Close node-24" }));
       await waitFor(() => expect(screen.queryByRole("complementary")).toBeNull());
-      expect(within(table).getAllByRole("row")).toHaveLength(26);
+      expect(within(table).getAllByRole("row")).toHaveLength(6);
       expect(within(table).getByRole("row", { name: /^node-24/ })).toHaveFocus();
 
       await user.click(screen.getByRole("button", { name: /^node-00, / }));
       await screen.findByRole("complementary", { name: "node-00" });
-      expect(within(table).getAllByRole("row")).toHaveLength(26);
+      expect(within(table).getAllByRole("row")).toHaveLength(21);
     },
   );
 
@@ -1314,7 +1321,7 @@ describe("Servers", () => {
 
       await user.type(field, "pool:db{Enter}");
       expect(await screen.findByText("No server matches")).toBeVisible();
-      await user.click(screen.getByRole("button", { name: "Clear the selector" }));
+      await user.click(screen.getByRole("button", { name: "Clear the filter" }));
       await waitFor(() => expect(router.state.location.search).toEqual({ closed: true }));
 
       // Group by another key, or none.

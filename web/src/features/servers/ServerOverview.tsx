@@ -5,6 +5,7 @@ import { PHONE_QUERY, useMediaQuery } from "@dockwell/ui";
 
 import { OnePanelCallout } from "../import/OnePanelImport";
 import { StopPanelCallout } from "../import/StopPanel";
+import type { ListRouteProps } from "../shell/ListTools";
 import { RebootCallout } from "../updates/reboot";
 import { ContainersPanel } from "./ContainersPanel";
 import { DiskUsePanel } from "./DiskUse";
@@ -22,7 +23,7 @@ import "./ServerOverview.css";
  * One server's overview, as Server-Overview.dc.html has it: its live numbers, what
  * runs on it, what takes its disk, what it is, how to reach it, and its agent.
  */
-export function ServerOverview({ id }: { id: string }) {
+export function ServerOverview({ id, search, onSearch }: { id: string } & ListRouteProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const unread = useFleetUnread();
   return (
@@ -54,7 +55,7 @@ export function ServerOverview({ id }: { id: string }) {
           {/* What fills the disks, beside the containers Dockwell didn't make once the page has room for both. */}
           <div className="server-pair">
             <DiskUsePanel server={server} />
-            <ContainersPanel server={server} />
+            <ContainersPanel server={server} search={search} onSearch={onSearch} />
           </div>
           <div className="server-panels">
             <SystemPanel server={server} />

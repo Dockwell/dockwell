@@ -7,8 +7,12 @@ export interface CatalogSearch {
   catalog?: string | undefined;
   /** Only the apps installed here (ADR 0092). */
   installed?: boolean | undefined;
-  /** By name rather than the default, the apps most people start with first, then the most installed. */
-  sort?: "name" | undefined;
+  /**
+   * By name rather than the default, the apps most people start with first, then the most
+   * installed: "name", read so below. A string, as every list's sort in its address is, so
+   * the router's one search type holds them all.
+   */
+  sort?: string | undefined;
 }
 
 /** Carry browsing filters through app details, installation and the way back. */

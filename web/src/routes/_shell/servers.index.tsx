@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
 import { ServersPage, type ServersSearch } from "../../features/servers/ServersPage";
+import { readListSearch } from "../../features/shell/list";
 
 /**
  * Reads whether Add a server opens with the page, which server is inspected, or that
@@ -11,7 +12,7 @@ import { ServersPage, type ServersSearch } from "../../features/servers/ServersP
  */
 function readSearch(search: Record<string, unknown>): ServersSearch {
   if (search["add"] === true || search["add"] === 1 || search["add"] === "1") return { add: true };
-  const out: ServersSearch = {};
+  const out: ServersSearch = readListSearch(search);
   const selector = search["selector"];
   if (typeof selector === "string" && selector.trim() !== "") out.selector = selector;
   const group = search["group"];

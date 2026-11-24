@@ -141,28 +141,32 @@ describe("the containers Dockwell didn't make", () => {
     expect(screen.getByRole("columnheader", { name: "Project" })).toBeVisible();
   });
 
-  it("grows a filter past a glance, and a way through hundreds", async () => {
-    const many = Array.from({ length: 250 }, (_, i) => container(`box-${i}`));
+  it("filters and pages through 500 containers", async () => {
+    const many = Array.from({ length: 500 }, (_, i) => container(`box-${i}`));
     await renderList(() => answer({ containers: many, unlisted: 7 }));
     const panel = await screen.findByRole("region", { name: "Containers Dockwell didn't make" });
     await within(panel).findByRole("link", { name: "box-0" });
-    expect(within(panel).getAllByRole("row")).toHaveLength(101);
+    expect(within(panel).getAllByRole("row")).toHaveLength(51);
+    expect(within(panel).getByText("1-50 of 500")).toBeVisible();
     const user = userEvent.setup();
-    await user.click(within(panel).getByRole("button", { name: "Show more" }));
-    expect(within(panel).getAllByRole("row")).toHaveLength(201);
+    await user.click(within(panel).getByRole("button", { name: "Next" }));
+    expect(await within(panel).findByText("51-100 of 500")).toBeVisible();
+    expect(within(panel).getAllByRole("row")).toHaveLength(51);
     expect(within(panel).getByText(/This server has 7 more containers than fit here/)).toBeVisible();
 
-    await user.type(within(panel).getByRole("textbox", { name: "Filter containers" }), "box-249");
+    const search = within(panel).getByRole("searchbox", { name: "Filter containers" });
+    await user.type(search, "box-499");
     expect(within(panel).getAllByRole("row")).toHaveLength(2);
-    await user.clear(within(panel).getByRole("textbox", { name: "Filter containers" }));
-    await user.type(within(panel).getByRole("textbox", { name: "Filter containers" }), "nothing");
+    expect(within(panel).getByRole("link", { name: "box-499" })).toBeVisible();
+    await user.clear(search);
+    await user.type(search, "nothing");
     expect(within(panel).getByText("No container matches this filter.")).toBeVisible();
   });
 
-  it("has no filter for what reads at a glance", async () => {
+  it("makes search available for a short list", async () => {
     await renderList(() => answer({ containers: Array.from({ length: 12 }, (_, i) => container(`box-${i}`)) }));
     await screen.findByRole("link", { name: "box-0" });
-    expect(screen.queryByRole("textbox", { name: "Filter containers" })).toBeNull();
+    expect(screen.getByRole("searchbox", { name: "Filter containers" })).toBeVisible();
   });
 
   it("says why it can't read them, and nothing it read before", async () => {

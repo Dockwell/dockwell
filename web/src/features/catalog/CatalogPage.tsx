@@ -20,6 +20,7 @@ import { nameOf } from "../apps/app";
 import { useAllDomains } from "../apps/domains";
 import { useServices } from "../apps/useServices";
 import { EmptyState } from "../shell/EmptyState";
+import { useListSearchShortcut } from "../shell/ListTools";
 import { Page } from "../shell/Page";
 import { AppIcon } from "./media";
 import { useOwnerWords } from "./Owner";
@@ -55,6 +56,7 @@ export interface CatalogPageProps {
  */
 export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProps) {
   const { t, i18n } = useLingui();
+  const searchInput = useListSearchShortcut();
   const origins = useOrigins();
   const sources = origins.data?.sources ?? [];
   // The catalog the grid is narrowed to, by its source's name, as a source's card links to it.
@@ -189,6 +191,7 @@ export function CatalogPage({ search = {}, onSearch, children }: CatalogPageProp
         <div className="catalog-bar">
           <div className="catalog-search">
             <TextField
+              ref={searchInput}
               icon="search"
               placeholder={t`Search apps`}
               aria-label={t`Search apps`}

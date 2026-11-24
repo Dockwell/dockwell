@@ -18,6 +18,7 @@ import {
   Icon,
   Loading,
   PHONE_QUERY,
+  SelectField,
   SkeletonRows,
   StatusBadge,
   Table,
@@ -37,7 +38,18 @@ import { useMay } from "../auth/may";
 import { useDestinations } from "../backups/DestinationsPanel";
 import { destinationsOn } from "../backups/storage";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListPager,
+  type ListPlace,
+  ListSearchField,
+  ListSortField,
+  SortHeader,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { ConnectionSheet } from "./ConnectionSheet";
 import { LastCheckCell, useLastCheck } from "./LastCheck";
@@ -53,6 +65,29 @@ type ListRow =
   | { kind: "connection"; id: string; connection: ConnectionInfo }
   | { kind: "destination"; id: string; destination: BackupDestinationInfo };
 
+/** The list's place, in its URL: its filter, its sort and its page. */
+export interface ConnectionsSearch extends ListSearch {
+  kind?: "mail" | "storage" | "destination";
+}
+
+function rowKind(row: ListRow): NonNullable<ConnectionsSearch["kind"]> {
+  return row.kind === "destination" ? "destination" : row.connection.kind === LinkKind.SMTP ? "mail" : "storage";
+}
+
+/** The columns the list sorts by, as its address names them. */
+const SORT_KEYS = ["name"] as const;
+
+/** A row's name, and where it is, as the list filters and sorts by them. */
+function rowWords(row: ListRow): string {
+  return row.kind === "connection"
+    ? `${row.connection.name} ${row.connection.displayName} ${where(row.connection)}`
+    : `${row.destination.name} ${whereDestination(row.destination)}`;
+}
+
+function rowName(row: ListRow): string {
+  return row.kind === "connection" ? row.connection.name : row.destination.name;
+}
+
 /**
  * Every connection: the buckets apps keep files in, each with the apps that read
  * it, and the way to add one (Connections-List, ADR 0099). Standalone legacy
@@ -61,7 +96,13 @@ type ListRow =
  * A connection is install-wide, so adding one is an admin's; below an admin,
  * the list holds only what the caller's projects may use, and only their own apps.
  */
-export function ConnectionsPage() {
+export function ConnectionsPage({
+  search = {},
+  onSearch,
+}: {
+  search?: ConnectionsSearch;
+  onSearch?: (next: ConnectionsSearch) => void;
+}) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const navigate = useNavigate();
@@ -78,6 +119,7 @@ export function ConnectionsPage() {
   const connections = query.data?.connections ?? [];
   const standaloneDests = destinations.filter((d) => d.connection === "");
   const totalRows = connections.length + standaloneDests.length;
+  const [editing, setEditing] = useState<ConnectionInfo>();
   const [adding, setAdding] = useState<ProviderId | MailProviderId | "">();
   const apps = new Set(connections.flatMap((c) => appsOf(c).map((a) => a.id))).size;
   const linkedBackupDests = destinations.filter(
@@ -134,6 +176,18 @@ export function ConnectionsPage() {
       (destination): ListRow => ({ kind: "destination", id: `dest:${destination.id}`, destination }),
     ),
   ];
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const shown = sortedRows(
+    rows.filter(
+      (row) => (!search.kind || rowKind(row) === search.kind) && rowWords(row).toLowerCase().includes(place.query),
+    ),
+    place.sort,
+    rowName,
+  );
+  const page = pagedRows(shown, place.page);
+  const kinds = new Set(rows.map(rowKind));
+  const kindLabel = (kind: NonNullable<ConnectionsSearch["kind"]>) =>
+    kind === "mail" ? t`Mail` : kind === "storage" ? t`Object storage` : t`Backup destination`;
   const openRow = (row: ListRow) => {
     if (row.kind === "connection") {
       void navigate({ to: "/connections/$name", params: { name: row.connection.name } });
@@ -147,6 +201,59 @@ export function ConnectionsPage() {
       // biome-ignore lint/correctness/useHookAtTopLevel: Connect RPC method name begins with "use", not a React hook
       make: () => backupClient.useDestinationAsConnection({ destination: d.name }),
     });
+  // A row's menu: open it, and for a destination with keys of its own, use it as a connection.
+  const removeOff = (connection: ConnectionInfo) => {
+    if (!mayAdd.allowed) return mayAdd.off;
+    const apps = connection.uses.flatMap((use) => (use.apps.length ? use.apps : [use.link]));
+    const names = [
+      ...apps,
+      ...destinationsOn(connection.name, destinations).map((d) => d.name),
+      ...channelsOn(connection.name, channels).map((c) => c.name),
+    ].filter(Boolean);
+    const usedBy = [...new Set(names)].join(", ");
+    return usedBy ? { off: t`Used by ${usedBy}. Disconnect it there first.` } : {};
+  };
+  const actionsFor = (row: ListRow): MenuAction[] => [
+    { id: "open", icon: "network", label: t`Open`, onSelect: () => openRow(row) },
+    ...(row.kind === "destination"
+      ? [
+          {
+            id: "use",
+            icon: "link" as const,
+            label: t`Use as a connection`,
+            ...(mayUseAsConnection.allowed
+              ? {}
+              : { off: mayUseAsConnection.reason || undefined, disabled: !mayUseAsConnection.reason }),
+            onSelect: () => convertToConnection(row.destination),
+          },
+        ]
+      : !mayAdd.allowed || seesWhere(row.connection)
+        ? [
+            {
+              id: "edit",
+              label: t`Edit`,
+              icon: "edit" as const,
+              ...mayAdd.off,
+              onSelect: () => setEditing(row.connection),
+            },
+            {
+              id: "remove",
+              label: t`Remove`,
+              icon: "trash" as const,
+              danger: true,
+              ...removeOff(row.connection),
+              onSelect: () => {
+                const name = row.connection.name;
+                sheet.open({
+                  kind: "propose",
+                  summary: t`Remove the connection ${name}`,
+                  edits: [{ resource: { kind: "connection", name }, delete: true }],
+                });
+              },
+            },
+          ]
+        : []),
+  ];
   const add = mayAdd.allowed ? (
     <Button variant="primary" icon="plus" onClick={() => setAdding("")} {...mayAdd.off}>
       <Trans>Add connection</Trans>
@@ -179,6 +286,37 @@ export function ConnectionsPage() {
           {sentence(query.error)} <Trans>The page tries again by itself.</Trans>
         </Callout>
       ) : null}
+      {totalRows > 0 ? (
+        <div className="list-bar">
+          <ListSearchField
+            label={t`Filter connections`}
+            placeholder={t`Filter by name`}
+            size={phone ? "lg" : "sm"}
+            value={place.typed}
+            onChange={place.setTyped}
+          />
+          {phone ? <ListSortField place={place} columns={{ name: t`Connection` }} /> : null}
+          {kinds.size > 1 || search.kind ? (
+            <SelectField
+              size="sm"
+              aria-label={t`Type`}
+              value={search.kind ?? ""}
+              options={[
+                { value: "", label: t`Every type` },
+                ...[...kinds].map((kind) => ({ value: kind, label: kindLabel(kind) })),
+              ]}
+              onChange={(event) => {
+                const value = event.target.value;
+                onSearch?.({
+                  ...search,
+                  page: undefined,
+                  kind: value === "mail" || value === "storage" || value === "destination" ? value : undefined,
+                });
+              }}
+            />
+          ) : null}
+        </div>
+      ) : null}
       {query.isPending ? (
         phone ? (
           <Loading label={t`Loading connections`}>
@@ -192,6 +330,8 @@ export function ConnectionsPage() {
             onOpen={openRow}
             onUseAsConnection={convertToConnection}
             useAsConnectionOff={mayUseAsConnection.off}
+            place={place}
+            actionsFor={actionsFor}
             loading
           />
         )
@@ -214,55 +354,95 @@ export function ConnectionsPage() {
             <Trans>An admin adds the buckets and mail servers your apps may use.</Trans>
           )}
         </EmptyState>
+      ) : shown.length === 0 && !query.error ? (
+        <EmptyState
+          icon="search"
+          title={t`Nothing matches`}
+          action={
+            <Button
+              size="lg"
+              onClick={() => {
+                place.clearQuery();
+                onSearch?.({ ...search, q: undefined, page: undefined, kind: undefined });
+              }}
+            >
+              <Trans>Clear the filter</Trans>
+            </Button>
+          }
+        >
+          <p>
+            {place.query ? (
+              <Trans>
+                No connection here has <code>{place.typed.trim()}</code> in its name.
+              </Trans>
+            ) : null}
+          </p>
+        </EmptyState>
       ) : phone ? (
-        <ul className="connections-phone">
-          {rows.map((row) =>
-            row.kind === "connection" ? (
-              <li key={row.id}>
-                <Link to="/connections/$name" params={{ name: row.connection.name }} className="connections-phone-row">
-                  <ConnectionMark connection={row.connection} />
-                  <span className="connections-phone-text">
-                    <span className="connections-mono connections-name">{row.connection.name}</span>
-                    <span className="connections-meta">
-                      <UsedBy connection={row.connection} destinations={destinations} channels={channels} />
+        <>
+          <ul className="connections-phone">
+            {page.rows.map((row) =>
+              row.kind === "connection" ? (
+                <li key={row.id} className="connections-phone-item">
+                  <Link
+                    to="/connections/$name"
+                    params={{ name: row.connection.name }}
+                    className="connections-phone-row"
+                  >
+                    <ConnectionMark connection={row.connection} />
+                    <span className="connections-phone-text">
+                      <span className="connections-mono connections-name">{row.connection.name}</span>
+                      <span className="connections-meta">
+                        <UsedBy connection={row.connection} destinations={destinations} channels={channels} />
+                      </span>
+                      <PhoneCheck connection={row.connection} />
                     </span>
-                    <PhoneCheck connection={row.connection} />
-                  </span>
-                </Link>
-              </li>
-            ) : (
-              <li key={row.id} className="connections-phone-row connections-phone-dest">
-                <Link to="/backups" className="connections-phone-main">
-                  <DestinationMark destination={row.destination} />
-                  <span className="connections-phone-text">
-                    <span className="connections-mono connections-name">{row.destination.name}</span>
-                    <span className="connections-meta">
-                      <Trans>Backup destination</Trans>
+                  </Link>
+                  <ActionMenu label={t`Actions for ${rowName(row)}`} actions={actionsFor(row)} />
+                </li>
+              ) : (
+                <li key={row.id} className="connections-phone-row connections-phone-dest">
+                  <Link to="/backups" className="connections-phone-main">
+                    <DestinationMark destination={row.destination} />
+                    <span className="connections-phone-text">
+                      <span className="connections-mono connections-name">{row.destination.name}</span>
+                      <span className="connections-meta">
+                        <Trans>Backup destination</Trans>
+                      </span>
                     </span>
-                  </span>
-                </Link>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => convertToConnection(row.destination)}
-                  {...mayUseAsConnection.off}
-                >
-                  <Trans>Use as a connection</Trans>
-                </Button>
-              </li>
-            ),
-          )}
-        </ul>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => convertToConnection(row.destination)}
+                    {...mayUseAsConnection.off}
+                  >
+                    <Trans>Use as a connection</Trans>
+                  </Button>
+                </li>
+              ),
+            )}
+          </ul>
+          <ListPager page={page} onPage={place.setPage} />
+        </>
       ) : (
-        <ConnectionsTable
-          rows={rows}
-          destinations={destinations}
-          channels={channels}
-          onOpen={openRow}
-          onUseAsConnection={convertToConnection}
-          useAsConnectionOff={mayUseAsConnection.off}
-        />
+        <>
+          <ConnectionsTable
+            rows={page.rows}
+            destinations={destinations}
+            channels={channels}
+            onOpen={openRow}
+            onUseAsConnection={convertToConnection}
+            useAsConnectionOff={mayUseAsConnection.off}
+            place={place}
+            actionsFor={actionsFor}
+          />
+          <ListPager page={page} onPage={place.setPage} />
+        </>
       )}
+      {editing ? (
+        <ConnectionSheet onClose={() => setEditing(undefined)} existing={connections} editing={editing} />
+      ) : null}
       {adding !== undefined ? (
         <ConnectionSheet
           onClose={() => setAdding(undefined)}
@@ -282,6 +462,8 @@ function ConnectionsTable({
   onOpen,
   onUseAsConnection,
   useAsConnectionOff,
+  place,
+  actionsFor,
   loading = false,
 }: {
   /** The connections are on their way: the table draws their rows' shapes under its header. */
@@ -292,15 +474,19 @@ function ConnectionsTable({
   onOpen: (row: ListRow) => void;
   onUseAsConnection: (d: BackupDestinationInfo) => void;
   useAsConnectionOff: { off?: string; disabled?: true };
+  place: ListPlace;
+  actionsFor: (row: ListRow) => MenuAction[];
 }) {
   const { t } = useLingui();
   const projectName = useProjectLabel();
+  const menu = useRowMenu<ListRow>();
   const hasStandalone = rows.some((r) => r.kind === "destination");
   const admin = rows.some((r) => (r.kind === "connection" ? seesWhere(r.connection) : r.destination.endpoint !== ""));
   const columns: TableColumn<ListRow>[] = [
     {
       key: "name",
-      header: t`Connection`,
+      header: <SortHeader label={t`Connection`} sortKey="name" place={place} />,
+      sort: place.sortOf("name"),
       render: (row) =>
         row.kind === "connection" ? (
           <div className="connections-cell-name">
@@ -377,18 +563,18 @@ function ConnectionsTable({
         ),
     });
   }
-  if (hasStandalone) {
-    columns.push({
-      key: "actions",
-      header: (
-        <span className="dw-sr">
-          <Trans>Actions</Trans>
-        </span>
-      ),
-      width: 190,
-      align: "right",
-      render: (row) =>
-        row.kind === "destination" ? (
+  columns.push({
+    key: "actions",
+    header: (
+      <span className="dw-sr">
+        <Trans>Actions</Trans>
+      </span>
+    ),
+    width: hasStandalone ? 238 : 48,
+    align: "right",
+    render: (row) => (
+      <span className="connections-row-actions">
+        {row.kind === "destination" ? (
           <Button
             size="sm"
             variant="secondary"
@@ -400,18 +586,26 @@ function ConnectionsTable({
           >
             <Trans>Use as a connection</Trans>
           </Button>
-        ) : null,
-    });
-  }
+        ) : null}
+        <ActionMenu label={t`Actions for ${rowName(row)}`} actions={actionsFor(row)} />
+      </span>
+    ),
+  });
   return (
-    <Table
-      columns={columns}
-      rows={rows}
-      onRowClick={onOpen}
-      caption={t`Connections`}
-      loading={loading}
-      loadingLabel={t`Loading connections`}
-    />
+    <>
+      <Table
+        columns={columns}
+        rows={rows}
+        onRowClick={onOpen}
+        onRowContextMenu={(row, at, el) =>
+          menu.open(row, at, el, { label: t`Actions for ${rowName(row)}`, actions: actionsFor(row) })
+        }
+        caption={t`Connections`}
+        loading={loading}
+        loadingLabel={t`Loading connections`}
+      />
+      {menu.element}
+    </>
   );
 }
 

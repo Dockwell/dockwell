@@ -19,7 +19,7 @@ export async function serversFlow(page: Page, { origin, step }: Pick<FlowRun, "o
   step("servers: choosing a server down the page leaves it where it is, with the server's inspector in view");
   const was = page.viewportSize();
   // Short enough that even one server's page scrolls, wide enough for the inspector beside the list.
-  const height = 320;
+  const height = 300;
   await atWidth(page, { width: 1280, height });
   try {
     await page.goto(`${origin}/servers?closed=true`);
@@ -94,8 +94,9 @@ async function manyServersFlow(page: Page, { origin, step }: Pick<FlowRun, "orig
       await inspector.getByRole("button", { name: "Close node-53" }).click();
       await inspector.waitFor({ state: "detached" });
       await settled(probe);
-      if ((await probe.locator(".servers-table tbody tr").count()) !== 60) {
-        throw new Error(`closing a server past row 20 collapsed the list at ${width} px`);
+      await probe.getByText("41-60 of 60", { exact: true }).waitFor();
+      if ((await probe.locator(".servers-table tbody tr").count()) !== 20) {
+        throw new Error(`closing a server changed the number of visible rows at ${width} px`);
       }
       if (!(await row.evaluate((el) => el === document.activeElement))) {
         throw new Error(`closing a server past row 20 lost keyboard focus at ${width} px`);
@@ -104,9 +105,9 @@ async function manyServersFlow(page: Page, { origin, step }: Pick<FlowRun, "orig
     step("servers: closing a server past row 20 keeps its row and returns keyboard focus, wide and wrapped");
 
     await atWidth(probe, { width: 390, height: 844 });
-    await probe.goto(`${origin}/servers?closed=true`);
+    await probe.goto(`${origin}/servers?closed=true&page=3`);
     const rows = probe.locator(".servers-phone-row");
-    const chosen = rows.nth(40);
+    const chosen = rows.first();
     await chosen.scrollIntoViewIfNeeded();
     await chosen.focus();
     await settled(probe);

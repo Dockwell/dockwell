@@ -162,7 +162,7 @@ describe("ProcessesPage", () => {
     expect(memory.closest("th")).toHaveAttribute("aria-sort", "ascending");
     expect(rows()[0]).toHaveTextContent("dockwell");
 
-    const filter = screen.getByRole("textbox", { name: "Filter processes" });
+    const filter = screen.getByRole("searchbox", { name: "Filter processes" });
     await user.type(filter, "shop-db");
     await waitFor(() => expect(rows()).toHaveLength(1));
     expect(rows()[0]).toHaveTextContent("postgres");
@@ -342,7 +342,7 @@ describe("ProcessesPage", () => {
     const { processes } = await renderProcesses();
     processes.push(list(true));
     await screen.findByRole("table", { name: "hz-1 上的进程" });
-    expect(screen.getByRole("textbox", { name: "筛选进程" })).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "筛选进程" })).toBeVisible();
     expect(screen.getByRole("button", { name: "停止 postgres（PID 1184）" })).toBeVisible();
     expect(screen.getByRole("region", { name: "总计" })).toHaveTextContent("平均负载 0.84 / 0.91 / 0.88，共 4 个 vCPU");
   });

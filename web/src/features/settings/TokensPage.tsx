@@ -40,7 +40,10 @@ import { useAuthError } from "../auth/messages";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedIn } from "../auth/useAuthState";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import { ListPager, type ListPlace, ListToolbar, sortableColumns, useListPlace } from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { CopyButton } from "../system/CopyCommand";
 import "./Settings.css";
@@ -55,6 +58,17 @@ type Expiry = "30" | "90" | "365" | "never";
 
 /** The new token's name field, which an empty list's Make a token goes to. */
 const NEW_TOKEN_NAME = "new-token-name";
+const SORT_KEYS = ["name", "scopes", "created", "used", "expires"] as const;
+
+export interface TokensSearch extends ListSearch {
+  scope?: "read" | "write";
+}
+
+function focusNewToken() {
+  const field = document.getElementById(NEW_TOKEN_NAME);
+  field?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  field?.focus({ preventScroll: true });
+}
 
 /** A token just made, with its secret, which is shown only now. */
 export interface Made {
@@ -72,7 +86,7 @@ export interface Made {
  * each revocable; and a form to make another, which your passkey confirms
  * (ADR 0016, ADR 0022).
  */
-export function TokensPage() {
+export function TokensPage({ search, onSearch }: { search: TokensSearch; onSearch: (next: TokensSearch) => void }) {
   const { t } = useLingui();
   const tokens = useQuery(TokenService.method.listTokens, {});
   const explain = useAuthError();
@@ -80,6 +94,30 @@ export function TokensPage() {
   const now = useControlPlaneNow();
   const [made, setMade] = useState<Made>();
   const list = tokens.data?.tokens ?? [];
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const rows = sortedRows(
+    list.filter(
+      (token) =>
+        (!search.scope || (token.scope === TokenScope.READ_WRITE ? "write" : "read") === search.scope) &&
+        `${token.name} ${token.hint}`.toLowerCase().includes(place.query),
+    ),
+    place.sort,
+    (token, key) => {
+      switch (key) {
+        case "scopes":
+          return token.scope;
+        case "created":
+          return token.createTime ? timestampDate(token.createTime).getTime() : undefined;
+        case "used":
+          return token.lastUsedTime ? timestampDate(token.lastUsedTime).getTime() : undefined;
+        case "expires":
+          return token.expireTime ? timestampDate(token.expireTime).getTime() : undefined;
+        default:
+          return token.name;
+      }
+    },
+  );
+  const page = pagedRows(rows, place.page);
   const soon = list.filter((token) => expiresWithin(token, now, SOON)).length;
   const count = list.length === 1 ? t`1 token` : t`${list.length} tokens`;
   let meta = "";
@@ -125,15 +163,7 @@ export function TokensPage() {
         icon="key"
         title={<Trans>No tokens yet</Trans>}
         action={
-          // The form is below, out of sight on a short screen: this goes there and starts it.
-          <Button
-            icon="plus"
-            onClick={() => {
-              const field = document.getElementById(NEW_TOKEN_NAME);
-              field?.scrollIntoView?.({ block: "center", behavior: "smooth" });
-              field?.focus({ preventScroll: true });
-            }}
-          >
+          <Button icon="plus" onClick={focusNewToken}>
             <Trans>Make a token</Trans>
           </Button>
         }
@@ -143,10 +173,27 @@ export function TokensPage() {
         </p>
       </EmptyState>
     );
+  } else if (rows.length === 0) {
+    body = (
+      <EmptyState
+        icon="search"
+        title={t`Nothing matches`}
+        action={
+          <Button
+            onClick={() => {
+              place.clearQuery();
+              onSearch({ ...search, q: undefined, scope: undefined, page: undefined });
+            }}
+          >
+            <Trans>Clear the filter</Trans>
+          </Button>
+        }
+      />
+    );
   } else if (phone) {
     body = (
       <ul className="dw-panel tokens-list" aria-label={t`Your API tokens`}>
-        {list.map((token) => (
+        {page.rows.map((token) => (
           <li key={token.id} className="tokens-item">
             <TokenFacts token={token} now={now} isNew={token.id === made?.id} />
             <RevokeButton token={token} onRevoked={() => void tokens.refetch()} />
@@ -155,7 +202,15 @@ export function TokensPage() {
       </ul>
     );
   } else {
-    body = <TokensTable tokens={list} now={now} newId={made?.id} onRevoked={() => void tokens.refetch()} />;
+    body = (
+      <TokensTable
+        place={place}
+        tokens={page.rows}
+        now={now}
+        newId={made?.id}
+        onRevoked={() => void tokens.refetch()}
+      />
+    );
   }
 
   return (
@@ -164,6 +219,11 @@ export function TokensPage() {
       title={t`API tokens`}
       lead={t`Tokens act for you from CI, scripts and the CLI, with only the scope you give them`}
       back="/settings"
+      actions={
+        <Button icon="plus" variant="primary" onClick={focusNewToken}>
+          <Trans>New token</Trans>
+        </Button>
+      }
     >
       {made ? <NewToken made={made} onDone={() => setMade(undefined)} /> : null}
       <section className="tokens-section" aria-labelledby="tokens-active">
@@ -173,7 +233,32 @@ export function TokensPage() {
           </h2>
           {meta ? <span className="settings-meta">{meta}</span> : null}
         </div>
+        {list.length > 0 ? (
+          <ListToolbar place={place} label={t`Filter tokens`}>
+            {search.scope || new Set(list.map((token) => token.scope)).size > 1 ? (
+              <SelectField
+                size="sm"
+                aria-label={t`Scope`}
+                value={search.scope ?? ""}
+                options={[
+                  { value: "", label: t`Every scope` },
+                  { value: "read", label: t`Read only` },
+                  { value: "write", label: t`Read and write` },
+                ]}
+                onChange={(event) =>
+                  onSearch({
+                    ...search,
+                    scope:
+                      event.target.value === "read" || event.target.value === "write" ? event.target.value : undefined,
+                    page: undefined,
+                  })
+                }
+              />
+            ) : null}
+          </ListToolbar>
+        ) : null}
         {body}
+        <ListPager page={page} onPage={place.setPage} />
       </section>
       <CreateToken
         taken={list.map((token) => token.name)}
@@ -304,11 +389,13 @@ function Created({ token }: { token: Token }) {
 
 function TokensTable({
   tokens,
+  place,
   now,
   newId,
   onRevoked,
 }: {
   tokens: readonly Token[];
+  place: ListPlace;
   now: number;
   newId: string | undefined;
   onRevoked: () => void;
@@ -332,8 +419,11 @@ function TokensTable({
   return (
     <Table
       className="tokens-table"
-      columns={columns}
+      columns={sortableColumns(columns, place, SORT_KEYS)}
       rows={tokens}
+      onRowContextMenu={(_token, _at, row) => {
+        row.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"][aria-expanded="false"]')?.click();
+      }}
       selectedKey={newId ?? null}
       caption={t`Your API tokens`}
     />
@@ -394,9 +484,12 @@ function RevokeButton({ token, onRevoked }: { token: Token; onRevoked: () => voi
           </Button>
         </>
       ) : (
-        <Button size="sm" variant="ghost" aria-label={t`Revoke ${token.name}`} onClick={() => setConfirming(true)}>
-          <Trans>Revoke</Trans>
-        </Button>
+        <ActionMenu
+          label={t`Actions for ${token.name}`}
+          actions={[
+            { id: "revoke", label: t`Revoke`, icon: "trash", danger: true, onSelect: () => setConfirming(true) },
+          ]}
+        />
       )}
       {problem ? (
         <span className="tokens-problem" role="alert">

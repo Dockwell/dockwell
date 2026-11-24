@@ -26,18 +26,28 @@ import {
   Table,
   type TableColumn,
   Tag,
-  TextField,
   useMediaQuery,
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import {
+  ListPager,
+  type ListPlace,
+  type ListRouteProps,
+  ListSearchField,
+  sortableColumns,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
 import { ServerFrame } from "./ServerFrame";
 import { SystemLog } from "./SystemLog";
@@ -68,24 +78,56 @@ import "./SystemServicesPage.css";
  * likely action, and a unit's sheet every action, its facts and its journal
  * (ADR 0082). An action is a plan, applied from the plan sheet.
  */
-export function SystemServicesPage({ serverId, unit }: { serverId: string; unit?: string }) {
-  return <ServerFrame id={serverId}>{(server) => <SystemServices server={server} unit={unit} />}</ServerFrame>;
+export interface SystemServicesSearch extends ListSearch {
+  unit?: string;
 }
 
-function SystemServices({ server, unit }: { server: Server; unit?: string }) {
+const SORT_KEYS = ["name", "state", "atBoot", "memory", "pid"] as const;
+
+export function SystemServicesPage({
+  serverId,
+  search,
+  onSearch,
+}: { serverId: string } & ListRouteProps<SystemServicesSearch>) {
+  return (
+    <ServerFrame id={serverId}>
+      {(server) => <SystemServices server={server} search={search} onSearch={onSearch} />}
+    </ServerFrame>
+  );
+}
+
+function SystemServices({ server, search, onSearch }: { server: Server } & ListRouteProps<SystemServicesSearch>) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const connected = server.connection === Connection.CONNECTED;
   const { list, error } = useSystemServices(server.id, connected);
   const [view, setView] = useState<SystemView>("all");
-  const [query, setQuery] = useState("");
-  const filter = useDeferredValue(query);
-  const [open, setOpen] = useState(unit);
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const filter = place.query;
+  const [open, setOpen] = useState(search.unit);
   const acts = useUnitActions(server.id);
   const all = list?.services ?? [];
   const failed = all.filter((s) => s.state === SystemServiceState.FAILED).length;
   const running = all.filter((s) => s.state === SystemServiceState.RUNNING).length;
-  const shown = useMemo(() => all.filter((s) => inView(s, view) && matchesService(s, filter)), [all, view, filter]);
+  const shown = sortedRows(
+    all.filter((service) => inView(service, view) && matchesService(service, filter)),
+    place.sort,
+    (service, key) => {
+      switch (key) {
+        case "state":
+          return service.state;
+        case "atBoot":
+          return service.atBoot;
+        case "memory":
+          return service.memoryBytes !== undefined ? Number(service.memoryBytes) : undefined;
+        case "pid":
+          return service.mainPid || undefined;
+        default:
+          return service.name;
+      }
+    },
+  );
+  const page = pagedRows(shown, place.page);
   const opened = all.find((s) => s.name === open || (open === "docker.service" && s.name === "docker"));
 
   const views = [
@@ -163,6 +205,7 @@ function SystemServices({ server, unit }: { server: Server; unit?: string }) {
       ) : (
         <ServiceTable
           rows={[]}
+          place={place}
           onOpen={setOpen}
           caption={t`System services on ${server.name}`}
           none={none}
@@ -179,11 +222,12 @@ function SystemServices({ server, unit }: { server: Server; unit?: string }) {
       </p>
     );
   } else if (phone) {
-    body = <PhoneRows rows={shown} onOpen={setOpen} none={none} acts={acts} />;
+    body = <PhoneRows rows={page.rows} onOpen={setOpen} none={none} acts={acts} />;
   } else {
     body = (
       <ServiceTable
-        rows={shown}
+        rows={page.rows}
+        place={place}
         onOpen={setOpen}
         caption={t`System services on ${server.name}`}
         none={none}
@@ -201,7 +245,16 @@ function SystemServices({ server, unit }: { server: Server; unit?: string }) {
       </h2>
       {filterable ? (
         <div className="procs-bar" ref={bar}>
-          <SegmentedControl options={views} value={view} onChange={setView} label={t`Show`} size="sm" />
+          <SegmentedControl
+            options={views}
+            value={view}
+            onChange={(next) => {
+              setView(next);
+              place.setPage(0);
+            }}
+            label={t`Show`}
+            size="sm"
+          />
           <span className="procs-spacer" />
           {connected && list && !error ? (
             <span className="procs-live">
@@ -213,19 +266,18 @@ function SystemServices({ server, unit }: { server: Server; unit?: string }) {
             </span>
           ) : null}
           <div className="procs-filter">
-            <TextField
-              size="sm"
-              icon="search"
+            <ListSearchField
               placeholder={t`Filter by name or description`}
-              aria-label={t`Filter system services`}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              label={t`Filter system services`}
+              value={place.typed}
+              onChange={place.setTyped}
             />
           </div>
         </div>
       ) : null}
       {list ? failure : null}
       {body}
+      {connected && list?.init !== SystemInit.OTHER ? <ListPager page={page} onPage={place.setPage} /> : null}
       {opened && list ? (
         <ServiceSheet server={server} service={opened} list={list} acts={acts} onClose={() => setOpen(undefined)} />
       ) : null}
@@ -487,6 +539,7 @@ function useFileLink(
 
 function ServiceTable({
   rows,
+  place,
   onOpen,
   caption,
   none,
@@ -496,6 +549,7 @@ function ServiceTable({
   loading = false,
 }: {
   rows: readonly SystemServiceInfo[];
+  place: ListPlace;
   onOpen: (name: string) => void;
   caption: string;
   none: string;
@@ -507,6 +561,10 @@ function ServiceTable({
 }) {
   const { t, i18n } = useLingui();
   const atBoot = useAtBoot();
+  const context = useRowMenu<SystemServiceInfo>();
+  const actionsFor = (service: SystemServiceInfo): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => onOpen(service.name) },
+  ];
   const columns: TableColumn<SystemServiceInfo>[] = [
     { key: "name", header: t`Service`, render: (s) => <Name service={s} acts={acts} server={server} /> },
     { key: "state", header: t`State`, width: 220, render: (s) => <State service={s} acts={acts} /> },
@@ -524,23 +582,37 @@ function ServiceTable({
       header: <span className="dw-sr">{t`Action`}</span>,
       width: 120,
       align: "right",
-      render: (s) => <RowAction service={s} server={server} list={list} acts={acts} />,
+      render: (s) => (
+        <span className="list-row-actions">
+          <RowAction service={s} server={server} list={list} acts={acts} />
+          <ActionMenu label={t`Actions for ${s.name}`} actions={actionsFor(s)} />
+        </span>
+      ),
     },
   ];
   return (
-    <Table
-      className="procs-table"
-      columns={columns}
-      rows={rows}
-      rowKey="name"
-      onRowClick={(s) => onOpen(s.name)}
-      caption={caption}
-      loading={loading}
-      loadingRows={10}
-      loadingLabel={t`Reading the system services`}
-      slow={t`${server.name} is slow to list its services`}
-      empty={<p className="procs-note">{none}</p>}
-    />
+    <>
+      <Table
+        className="procs-table"
+        columns={sortableColumns(columns, place, SORT_KEYS)}
+        rows={rows}
+        rowKey="name"
+        onRowClick={(s) => onOpen(s.name)}
+        onRowContextMenu={(service, at, row) =>
+          context.open(service, at, row, {
+            label: t`Actions for ${service.name}`,
+            actions: actionsFor(service),
+          })
+        }
+        caption={caption}
+        loading={loading}
+        loadingRows={10}
+        loadingLabel={t`Reading the system services`}
+        slow={t`${server.name} is slow to list its services`}
+        empty={<p className="procs-note">{none}</p>}
+      />
+      {context.element}
+    </>
   );
 }
 

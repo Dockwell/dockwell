@@ -1804,6 +1804,25 @@ describe("deleting a database", () => {
     ]);
   });
 
+  it("opens the same delete plan from the Databases row and reads users on selection", async () => {
+    const user = userEvent.setup();
+    const proposals: ProposeChangeRequest[] = [];
+    const listResources = vi.fn(deleting(proposals).resources?.listResources ?? (() => ({})));
+    const view = deleting(proposals, { listResources });
+    renderAt("/databases", view);
+    const row = await screen.findByRole("button", { name: "Actions for db" });
+    await user.click(row);
+    const menu = await screen.findByRole("menu", { name: "Actions for db" });
+    expect(within(menu).getByRole("menuitem", { name: "Move to a project" })).toBeVisible();
+    expect(listResources.mock.calls.some(([req]) => req?.kind === "database.user")).toBe(false);
+    await user.click(within(menu).getByRole("menuitem", { name: "Delete" }));
+    await screen.findByRole("dialog", { name: "Review plan" });
+    expect(edits(proposals[0])).toEqual([
+      ["database.user", "shop", true],
+      ["service", "db", true],
+    ]);
+  });
+
   it("takes its project with it when it's the last thing there, behind a switch that's on", async () => {
     const user = userEvent.setup();
     const proposals: ProposeChangeRequest[] = [];

@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type AlertChannelInfo, type AlertDelivery, AlertRule_Severity as Severity } from "@dockwell/api";
+import {
+  type AlertChannelInfo,
+  type AlertDelivery,
+  AlertService,
+  ChangeService,
+  AlertRule_Severity as Severity,
+} from "@dockwell/api";
 import {
   BrandMark,
   Button,
@@ -16,12 +22,25 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatClock, formatDateTime, sameDay } from "../../lib/format";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
+import {
+  ListNoMatch,
+  ListPager,
+  type ListRouteProps,
+  ListToolbar,
+  sortableColumns,
+  useListPlace,
+  useRowMenu,
+} from "../shell/ListTools";
+import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { ReadFailed } from "../shell/ReadFailed";
 import { AlertsPage } from "./AlertsPage";
 import { ChannelSheet } from "./ChannelSheet";
@@ -87,7 +106,13 @@ function ChannelName({ channel, linkConnection = true }: { channel: AlertChannel
  * The Channels tab: where alerts go, how each last went, what was sent lately,
  * and which channels each severity reaches, with a test for each.
  */
-export function ChannelsTab() {
+export interface ChannelsSearch extends ListSearch {
+  edit?: string;
+}
+
+const SORT_KEYS = ["name", "state", "used", "last"] as const;
+
+export function ChannelsTab({ search, onSearch }: ListRouteProps<ChannelsSearch>) {
   const { t, i18n } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const channels = useChannels();
@@ -97,19 +122,55 @@ export function ChannelsTab() {
   const [editing, setEditing] = useState<AlertChannelInfo | "new">();
   const list = channels.data?.channels ?? [];
   // A link that names a channel, as Alerts' "Edit channel" is, opens it once the list is read (#794).
-  const { edit } = useSearch({ from: "/_shell/alerts/channels" });
-  const navigate = useNavigate();
+  const { edit } = search;
   const named = edit ? list.find((c) => c.name === edit) : undefined;
   useEffect(() => {
     if (!named) return;
     setEditing(named);
-    void navigate({ to: "/alerts/channels", search: {}, replace: true });
-  }, [named, navigate]);
+    onSearch({ ...search, edit: undefined });
+  }, [named, onSearch, search]);
   // The rules on, which send to every channel once there is one.
   const waiting = (useRules().data?.rules ?? []).filter((r) => !r.spec?.disabled).length;
 
+  const place = useListPlace(search, onSearch, SORT_KEYS);
+  const context = useRowMenu<AlertChannelInfo>();
+  const sheet = useChangeSheet();
+  const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange, { install: true });
+  const mayTest = may(AlertService.method.testAlertChannel, { install: true });
+  const page = pagedRows(
+    sortedRows(
+      list.filter((channel) =>
+        `${channel.name} ${channel.type} ${channelConnection(channel) ?? ""}`.toLowerCase().includes(place.query),
+      ),
+      place.sort,
+      (channel, key) => {
+        if (key === "state") return channelStatus(channel).status;
+        if (key === "used") return channel.rules;
+        if (key === "last") return channel.last?.time ? timestampDate(channel.last.time).getTime() : undefined;
+        return channel.name;
+      },
+    ),
+    place.page,
+  );
+  const actionsFor = (channel: AlertChannelInfo): MenuAction[] => [
+    { id: "open", label: t`Open`, onSelect: () => setEditing(channel) },
+    {
+      id: "remove",
+      label: t`Remove`,
+      icon: "trash" as const,
+      danger: true,
+      ...mayPlan.off,
+      onSelect: () =>
+        sheet.open({
+          kind: "propose",
+          summary: t`Remove the alert channel ${channel.name}`,
+          edits: [{ resource: { kind: "alert.channel", name: channel.name }, delete: true }],
+        }),
+    },
+  ];
   const add = (
-    <Button variant="primary" icon="plus" onClick={() => setEditing("new")}>
+    <Button variant="primary" icon="plus" onClick={() => setEditing("new")} {...mayPlan.off}>
       <Trans>Add channel</Trans>
     </Button>
   );
@@ -120,6 +181,7 @@ export function ChannelsTab() {
       disabled={test.sending !== undefined}
       aria-label={t`Send a test to ${c.name}`}
       onClick={() => void test.send(c.name)}
+      {...mayTest.off}
     >
       {test.sending === c.name ? <Trans>Sending…</Trans> : <Trans>Send test</Trans>}
     </Button>
@@ -166,7 +228,12 @@ export function ChannelsTab() {
       header: <span className="dw-sr">{t`Actions`}</span>,
       width: 140,
       align: "right",
-      render: sendButton,
+      render: (channel) => (
+        <span className="list-row-actions">
+          {sendButton(channel)}
+          <ActionMenu label={t`Actions for ${channel.name}`} actions={actionsFor(channel)} />
+        </span>
+      ),
     },
   ];
 
@@ -210,9 +277,12 @@ export function ChannelsTab() {
             <span className="alerts-muted">{summary}</span>
           </div>
           {test.last ? <TestResult result={test.last} onClose={test.clear} /> : null}
-          {phone ? (
+          <ListToolbar place={place} label={t`Filter alert channels`} />
+          {page.total === 0 ? (
+            <ListNoMatch clear={place.clearQuery} />
+          ) : phone ? (
             <ul className="alerts-phone-list">
-              {list.map((c) => {
+              {page.rows.map((c) => {
                 const s = channelStatus(c);
                 const conn = channelConnection(c);
                 return (
@@ -235,13 +305,27 @@ export function ChannelsTab() {
                       ) : null}
                     </div>
                     {sendButton(c)}
+                    <ActionMenu label={t`Actions for ${c.name}`} actions={actionsFor(c)} />
                   </li>
                 );
               })}
             </ul>
           ) : (
-            <Table columns={columns} rows={list} caption={t`Alert channels`} onRowClick={(c) => setEditing(c)} />
+            <Table
+              columns={sortableColumns(columns, place, SORT_KEYS)}
+              rows={page.rows}
+              caption={t`Alert channels`}
+              onRowClick={setEditing}
+              onRowContextMenu={(channel, at, row) =>
+                context.open(channel, at, row, {
+                  label: t`Actions for ${channel.name}`,
+                  actions: actionsFor(channel),
+                })
+              }
+            />
           )}
+          <ListPager page={page} onPage={place.setPage} />
+          {context.element}
           <Deliveries deliveries={deliveries.data?.deliveries ?? []} />
         </section>
         <aside className="alerts-side">
@@ -255,7 +339,7 @@ export function ChannelsTab() {
     <AlertsPage
       actions={list.length > 0 ? add : undefined}
       phoneAction={
-        list.length > 0 ? (
+        list.length > 0 && mayPlan.allowed ? (
           <button
             type="button"
             className="mobile-header-button"
