@@ -751,6 +751,9 @@ msgstr "用恢复码登录后添加了一个通行密钥"
 msgid "Added a passkey after signing in with an authenticator code"
 msgstr "用身份验证器验证码登录后添加了一个通行密钥"
 
+msgid "Added an SSH key on {server}"
+msgstr "已在 {server} 上添加 SSH 密钥"
+
 msgid "Added an installation of a GitHub App"
 msgstr "新增了一个 GitHub 应用的安装"
 
@@ -819,6 +822,9 @@ msgstr "请求运行 {task}"
 
 msgid "Backed up {volume}"
 msgstr "已备份 {volume}"
+
+msgid "Banned an SSH address on {server}"
+msgstr "已在 {server} 上封禁 SSH 地址"
 
 msgid "Changed their email"
 msgstr "更改了自己的邮箱"
@@ -977,6 +983,9 @@ msgstr "已永久删除 {server} 上的 {path}"
 
 msgid "Deleted {path} on {server}, which can let someone back in"
 msgstr "已删除 {server} 上的 {path}，这里可能让他人重新进入服务器"
+
+msgid "Disconnected an SSH session on {server}"
+msgstr "已断开 {server} 上的 SSH 会话"
 
 msgid "Downloaded {path} from {server}"
 msgstr "已从 {server} 下载 {path}"
@@ -1179,6 +1188,9 @@ msgstr "已从服务器移除 {volume} 的备份，并保留在 {destination} �
 msgid "Removed a passkey"
 msgstr "移除了通行密钥"
 
+msgid "Removed an SSH key on {server}"
+msgstr "已在 {server} 上移除 SSH 密钥"
+
 msgid "Removed the GitHub App {name}"
 msgstr "移除了 GitHub 应用 {name}"
 
@@ -1260,6 +1272,9 @@ msgstr "回滚：{reverted}"
 
 msgid "Rotated the key that wraps every secret"
 msgstr "轮换了加密所有密钥的密钥"
+
+msgid "SSH operation unconfirmed on {server}"
+msgstr "{server} 上的 SSH 操作结果尚未确认"
 
 msgid "Saved {path} on {server}"
 msgstr "已保存 {server} 上的 {path}"
@@ -10068,6 +10083,9 @@ msgstr "回滚失败"
 msgid "Rolls back to <0>{back}</0> if it fails"
 msgstr "如果失败，将回滚到 <0>{back}</0>"
 
+msgid "SSH settings updated"
+msgstr "SSH 设置已更新"
+
 msgid "See the guide"
 msgstr "查看指南"
 
@@ -10355,8 +10373,14 @@ msgstr "{where} 拒绝其他一切流量"
 msgid "{where} lets in what no rule drops"
 msgstr "{where} 放行没有规则丢弃的流量"
 
+msgid "A fresh SSH connection verified these settings."
+msgstr "新的 SSH 连接已验证这些设置。"
+
 msgid "Check you can still reach {name}"
 msgstr "确认你仍能访问 {name}"
+
+msgid "Copy SSH test command"
+msgstr "复制 SSH 测试命令"
 
 msgid "Keep the change"
 msgstr "保留更改"
@@ -10376,14 +10400,38 @@ msgstr "从这里用你的密钥向端口 {portList} 打开一个新的 SSH 会�
 msgid "Open a new SSH session to port {port} from here with your key, and keep the change if it works."
 msgstr "从这里用你的密钥向端口 {port} 打开一个新的 SSH 会话，能连上就保留此更改。"
 
+msgid "Run the test command from the expected address and wait for verification before choosing Keep again."
+msgstr "从指定地址运行测试命令，等待验证通过后再次选择保留。"
+
+msgid "Run this command from the SSH client you used to sign in."
+msgstr "请在刚才登录时使用的 SSH 客户端上运行此命令。"
+
+msgid "Run this command from {testAddress}."
+msgstr "请从 {testAddress} 运行此命令。"
+
 msgid "That wait is over: this sheet shows whether the server kept the change."
 msgstr "这次等待已经结束：此面板会显示服务器是否保留了更改。"
 
 msgid "The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again."
 msgstr "服务器还没能保留此更改，所以它仍在等待。请先释放服务器磁盘空间，再点击保留。"
 
+msgid "The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and use the new address in a new plan."
+msgstr "服务器看到的测试登录地址是 {unexpected}。请从 {testAddress} 重新连接，或等待此次试用回退，再用新地址制定计划。"
+
 msgid "Then open the panel at its own address in a new tab."
 msgstr "然后在新标签页中用面板自己的地址打开面板。"
+
+#. placeholder {0}: login.address
+msgid "Verified from {0} with {identity}."
+msgstr "已验证来自 {0} 的登录，认证方式为 {identity}。"
+
+#. placeholder {0}: login.address
+msgid "Verified from {0}."
+msgstr "已验证来自 {0} 的登录。"
+
+#. placeholder {0}: wait.sshAccount
+msgid "Waiting for the test command for {0} on port {port}."
+msgstr "正在等待 {0} 在端口 {port} 上的测试命令。"
 
 msgid "or"
 msgstr "或"
@@ -10391,8 +10439,14 @@ msgstr "或"
 msgid "{name} is putting back its firewall as it was."
 msgstr "{name} 正在把防火墙恢复为原样。"
 
+msgid "{name} is restoring its SSH settings."
+msgstr "{name} 正在恢复 SSH 设置。"
+
 msgid "{name} puts back its firewall as it was in {left} s unless you keep it."
 msgstr "除非你保留这项更改，{name} 将在 {left} 秒后把防火墙恢复为原样。"
+
+msgid "{name} restores its SSH settings in {left} s unless you keep them."
+msgstr "如果不保留这些设置，{name} 将在 {left} 秒后恢复原来的 SSH 设置。"
 
 msgid "{name}'s agent isn't connected, so it puts back its firewall when its time runs out."
 msgstr "{name} 的代理没有连接，因此时间用完后它会恢复防火墙。"
@@ -11715,6 +11769,9 @@ msgstr "通过 {driver} 驱动。"
 msgid "Change Docker daemon settings on {server}"
 msgstr "更改 {server} 上的 Docker 守护进程设置"
 
+msgid "Change TCP port {fromPort} to {toPort} in firewall rules {rules}."
+msgstr "将防火墙规则 {rules} 的 TCP 端口从 {fromPort} 改为 {toPort}。"
+
 msgid "Check it's the commit you mean."
 msgstr "请确认这是你想要的提交。"
 
@@ -11986,6 +12043,12 @@ msgstr "MongoDB 只能从与当前版本一致的数据迁移，因此它的功�
 
 msgid "More than one container answers to {shared} on {network}"
 msgstr "在 {network} 上有多个容器响应 {shared}"
+
+msgid "Move SSH from port {fromPort} to {toPort}"
+msgstr "将 SSH 从端口 {fromPort} 移至 {toPort}"
+
+msgid "Move the fail2ban sshd jail with the listener."
+msgstr "同时迁移 fail2ban 的 sshd 防护规则。"
 
 msgid "Moves {names} on, which an install of each can upgrade to."
 msgstr "更新 {names}，已安装的实例可以升级到新版本。"
@@ -12931,6 +12994,9 @@ msgstr "滚动更新，不停止任何服务"
 
 msgid "Routes without a certificate go on answering"
 msgstr "没有证书的路由继续响应"
+
+msgid "SSH settings"
+msgstr "SSH 设置"
 
 msgid "Skipped"
 msgstr "已跳过"
@@ -19783,8 +19849,14 @@ msgstr "仅限强制命令"
 msgid "Jails"
 msgstr "Jail"
 
+msgid "Key login"
+msgstr "密钥登录"
+
 msgid "Keys only"
 msgstr "仅限密钥"
+
+msgid "Listen addresses"
+msgstr "监听地址"
 
 msgid "Name an address or a range to never ban, such as 203.0.113.7 or 198.51.100.0/24."
 msgstr "请填写永不封禁的地址或范围，例如 203.0.113.7 或 198.51.100.0/24。"
@@ -20975,6 +21047,116 @@ msgstr "即服务商控制台显示的地址。之后所有关于 DNS 的提示�
 msgid "What the internet knows this server by"
 msgstr "互联网识别此服务器所用的地址"
 
+msgid "Accepted"
+msgstr "成功"
+
+msgid "Add key"
+msgstr "添加密钥"
+
+msgid "Administrator to test with"
+msgstr "用于测试的管理员"
+
+msgid "All interfaces"
+msgstr "所有网络接口"
+
+msgid "Authentication log entries are unverified."
+msgstr "认证日志中的记录未经验证。"
+
+msgid "Ban in Fail2ban"
+msgstr "通过 Fail2ban 封禁"
+
+msgid "Banned"
+msgstr "已封禁"
+
+msgid "Choose a port from 1 to 65535."
+msgstr "请选择 1 到 65535 之间的端口。"
+
+msgid "Choose an SSH session address or enter the IP address the server will see."
+msgstr "请选择一个 SSH 会话地址，或输入服务器将看到的 IP 地址。"
+
+msgid "Choose an account"
+msgstr "选择账户"
+
+msgid "Edit settings"
+msgstr "编辑设置"
+
+msgid "Enter a listen address. Use 0.0.0.0 and :: for all interfaces."
+msgstr "请输入监听地址。使用 0.0.0.0 和 :: 监听所有网络接口。"
+
+msgid "Failures by address"
+msgstr "各地址的失败次数"
+
+msgid "Keep current setting"
+msgstr "保留当前设置"
+
+msgid "Last 24 hours"
+msgstr "最近 24 小时"
+
+msgid "Last 7 days"
+msgstr "最近 7 天"
+
+msgid "Last hour"
+msgstr "过去 1 小时"
+
+msgid "Login log"
+msgstr "登录日志"
+
+msgid "No SSH logins match these filters."
+msgstr "没有符合筛选条件的 SSH 登录记录。"
+
+msgid "No active SSH sessions."
+msgstr "没有活动的 SSH 会话。"
+
+msgid "No authorized keys for this account."
+msgstr "此账户没有已授权的密钥。"
+
+msgid "OpenSSH public key"
+msgstr "OpenSSH 公钥"
+
+msgid "Remove key"
+msgstr "移除密钥"
+
+msgid "Runs a command"
+msgstr "运行命令"
+
+#. placeholder {0}: server.name
+msgid "SSH keys on {0}"
+msgstr "{0} 上的 SSH 密钥"
+
+#. placeholder {0}: server.name
+msgid "SSH login log on {0}"
+msgstr "{0} 上的 SSH 登录日志"
+
+#. placeholder {0}: server.name
+msgid "SSH sessions on {0}"
+msgstr "{0} 上的 SSH 会话"
+
+#. placeholder {0}: server.name
+msgid "SSH settings on {0}"
+msgstr "{0} 上的 SSH 设置"
+
+msgid "SSH test client address"
+msgstr "SSH 测试客户端地址"
+
+msgid "Showing recent matches within the log limit."
+msgstr "仅显示日志上限内最近的匹配记录。"
+
+msgid "The systemd socket sets the port and addresses."
+msgstr "端口和地址由 systemd 套接字设置。"
+
+msgid "This is a private key. Paste the public key instead."
+msgstr "这是私钥。请改为粘贴公钥。"
+
+msgid "Trusts a certificate authority"
+msgstr "信任证书颁发机构"
+
+#. placeholder {0}: server.name
+msgid "Update SSH settings on {0}"
+msgstr "更新 {0} 上的 SSH 设置"
+
+msgid "{count} failed"
+msgstr "失败 {count} 次"
+
 msgctxt "system log level"
 msgid "Errors"
 msgstr "错误"
@@ -21483,14 +21665,8 @@ msgstr "隐藏 {time} 的 {0} 详情"
 msgid "JSON lines"
 msgstr "JSON 行"
 
-msgid "Last 24 hours"
-msgstr "最近 24 小时"
-
 msgid "Last 30 days"
 msgstr "最近 30 天"
-
-msgid "Last 7 days"
-msgstr "最近 7 天"
 
 msgid "Loading the audit log"
 msgstr "正在加载审计日志"

@@ -159,6 +159,60 @@ it("keeps a wait the watch said, when the apply's own answer comes after it with
   expect(screen.getByRole("button", { name: "Keep the change" })).toBeVisible();
 });
 
+it("offers Keep for SSH settings only after a fresh connection proves this change", async () => {
+  const change = webPlanned();
+  const watch = feed<WatchChangeResponse>();
+  let proved = "chg_other";
+  const command = "ssh -p 2222 deploy@192.0.2.10 test-fixture";
+  renderWithApi(
+    <FleetProvider>
+      <ChangeSheetProvider>
+        <Opener opening={{ kind: "plan", make: () => Promise.resolve({ change }) }} />
+      </ChangeSheetProvider>
+    </FleetProvider>,
+    {
+      changes: {
+        watchChange: watch.stream,
+        applyChange: () => ({ change: moved(change, { state: ChangeState.APPLYING }) }),
+        confirmChange: () => {
+          throw authError(
+            Code.FailedPrecondition,
+            "ssh_keep_failed",
+            "OpenSSH couldn't load the final settings. Check its service logs.",
+          );
+        },
+      },
+      firewall: {
+        getServerSsh: () => ({
+          ssh: {
+            provedChange: proved,
+            testChange: change.id,
+            testCommand: command,
+            testAddress: "192.0.2.5",
+            unexpectedTestAddress: "192.0.2.8",
+            proof: { address: "192.0.2.5", method: "publickey", fingerprint: "SHA256:fixture" },
+          },
+        }),
+      },
+    },
+  );
+  const next = waiting(change, 45, [2222]);
+  const confirmation = next.steps[0]?.confirmation;
+  if (!confirmation) throw new Error("expected SSH confirmation");
+  confirmation.sshAccount = "deploy";
+  const user = await applyAndWait(change, watch, next);
+  expect(await screen.findByText(command)).toBeVisible();
+  expect(screen.getByText("Run this command from 192.0.2.5.")).toBeVisible();
+  expect(screen.getByText(/The server saw your test login from 192.0.2.8/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Copy SSH test command" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Keep the change" })).toBeNull();
+  proved = change.id;
+  expect(await screen.findByRole("button", { name: "Keep the change" }, { timeout: 4000 })).toBeEnabled();
+  expect(screen.getByText("Verified from 192.0.2.5 with publickey · SHA256:fixture.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Keep the change" }));
+  expect(await screen.findByText("OpenSSH couldn't load the final settings. Check its service logs.")).toBeVisible();
+});
+
 describe("a change that waits for its confirmation", () => {
   it("says what to test and how long is left, and keeps the change when asked", async () => {
     const user = userEvent.setup();

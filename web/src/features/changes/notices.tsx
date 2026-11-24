@@ -934,6 +934,17 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
       }
       // A jail bans whoever keeps failing to sign in, whoever they are: the
       // person applying it too, and for what they failed before it applied.
+      if (step.sshPortMove && !applied) {
+        const { fromPort, toPort, firewallRules, fail2ban } = step.sshPortMove;
+        const rules = firewallRules.join(", ");
+        out.push({
+          key: `ssh-port-${key}`,
+          amber: false,
+          title: t`Move SSH from port ${fromPort} to ${toPort}`,
+          detail: fail2ban ? t`Move the fail2ban sshd jail with the listener.` : "",
+          more: rules ? t`Change TCP port ${fromPort} to ${toPort} in firewall rules ${rules}.` : undefined,
+        });
+      }
       if (step.resource?.kind === "fail2ban.jail" && step.action !== PlanAction.DELETE && !applied) {
         const jail = step.jail;
         const never = (jail?.neverBans ?? []).join(", ");

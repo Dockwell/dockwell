@@ -1350,6 +1350,7 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
   }
   // A server's firewall policy has one name, "default", which says nothing: its
   // title says what it does.
+  if (only?.resource?.kind === "ssh.config") return t`SSH settings updated`;
   if (only?.resource?.kind === "firewall.policy") {
     const where = plan?.servers.find((s) => s.steps.length > 0)?.serverName ?? only.resource.scope;
     return only.action === PlanAction.DELETE

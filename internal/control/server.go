@@ -544,6 +544,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 	var filesHandler http.Handler
 	var artifactHandler *containers.Handler
 	var appOpener *opener.Opener
+	var firewallHandler *firewall.Handler
 	// handle serves a service's procedures, and its REST paths through
 	// Vanguard, which calls the same handler, interceptors and all.
 	handle := func(path string, h http.Handler) {
@@ -622,10 +623,14 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		}
 		handle(dockwellv1connect.NewServerServiceHandler(serverHandler, opts...))
 		handle(dockwellv1connect.NewImageServiceHandler(images.New(cfg.Fleet, cfg.Agents, cfg.logins), opts...))
-		handle(dockwellv1connect.NewFirewallServiceHandler(firewall.New(cfg.Fleet, cfg.Agents), opts...))
+		firewallHandler = firewall.New(cfg.Fleet, cfg.Agents).WithSSHChanges(cfg.Auth, cfg.Store, cfg.Logger)
+		handle(dockwellv1connect.NewFirewallServiceHandler(firewallHandler, opts...))
 	}
 	if cfg.Changes != nil {
 		ch := changes.New(cfg.Changes, cfg.Auth, cfg.Store, cfg.Logger)
+		if firewallHandler != nil {
+			firewallHandler.SetSSHTrialAccess(ch.AppliedFrom)
+		}
 		if cfg.certificates != nil {
 			ch.SetRemovalNotes(cfg.certificates.RemovalNotes)
 		}

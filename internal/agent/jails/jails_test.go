@@ -483,3 +483,41 @@ func TestAJailsPlanSaysWhenItsHalvesIgnoreEveryone(t *testing.T) {
 		t.Errorf("the file:\n%s", got)
 	}
 }
+
+func TestAnExplicitSSHJailPortEditReplacesTheSSHOverride(t *testing.T) {
+	s := newStand(t)
+	m := s.manager()
+	ctx := t.Context()
+	if err := m.Put(ctx, "sshd", &resourcev1.Jail{Filter: "sshd", Backend: "systemd", Ports: []uint32{22}}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(s.root, SSHPortFile)
+	previous := SSHPortHeader + "2222\n"
+	if err := os.WriteFile(path, []byte(previous), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Put(ctx, "sshd", &resourcev1.Jail{Filter: "sshd", Backend: "systemd", Ports: []uint32{22}, MaxRetry: 9}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != previous {
+		t.Fatalf("a retry-count edit changed the SSH override: %s, %v", got, err)
+	}
+	next := &resourcev1.Jail{Filter: "sshd", Backend: "systemd", Ports: []uint32{2223}}
+	s.mark("refuse", true)
+	if err := m.Put(ctx, "sshd", next); err == nil {
+		t.Fatal("edited the jail past the configuration refusal")
+	}
+	if got, err := os.ReadFile(path); err != nil || string(got) != previous {
+		t.Fatalf("failed edit lost the SSH override: %s, %v", got, err)
+	}
+	s.mark("refuse", false)
+	if err := m.Put(ctx, "sshd", next); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) || !strings.Contains(s.file(), "port = 2223") {
+		t.Fatalf("the explicit port didn't replace the override: %v, %s", err, s.file())
+	}
+	if !strings.HasSuffix(s.runs(), "-t; ping; reload --restart sshd") {
+		t.Fatalf("new jail covering the explicit port wasn't restarted: %s", s.runs())
+	}
+}

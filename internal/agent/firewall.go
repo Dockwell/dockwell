@@ -160,7 +160,7 @@ func (f *firewallReader) readNow(ctx context.Context) *dockwellv1.ServerFirewall
 	if f.installed("firewall-cmd") {
 		out.Tools = append(out.Tools, f.firewalld(ctx)...)
 	}
-	kernel, dockerUser := f.kernelRules(ctx, ufwThere)
+	kernel, dockerUser := f.kernelRules(ctx, ufwThere, nil)
 	out.Tools = append(out.Tools, kernel...)
 	out.DockerUserRules = dockerUser
 	// A Docker that doesn't answer leaves the firewalls to say: the ports it

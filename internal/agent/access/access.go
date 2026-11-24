@@ -29,6 +29,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 	"github.com/dockwell/dockwell/internal/agent/nftables"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -66,6 +67,7 @@ type Table interface {
 // Manager keeps who reaches the server. Its methods are the firewall drivers'
 // backend.
 type Manager struct {
+	SSH SSHBackend
 	// Dir holds its state: confirmed.json, waiting.json, verdicts.json, and
 	// confirmed.nft, the table as last confirmed, for loading at boot.
 	Dir   string
@@ -131,9 +133,11 @@ var (
 
 // state is the rules and policy, by name, and the SSH pins they keep.
 type state struct {
-	Rules  map[string]*resourcev1.FirewallRule
-	Policy *resourcev1.FirewallPolicy
-	Pinned Pinned
+	SSH     *resourcev1.SshConfig
+	SSHOpen []netip.Prefix
+	Rules   map[string]*resourcev1.FirewallRule
+	Policy  *resourcev1.FirewallPolicy
+	Pinned  Pinned
 }
 
 // Pinned are the SSH ports and addresses a state keeps reaching SSH: those of
@@ -147,7 +151,7 @@ type Pinned struct {
 }
 
 func (s state) clone() state {
-	out := state{Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
+	out := state{SSH: proto.CloneOf(s.SSH), SSHOpen: slices.Clone(s.SSHOpen), Rules: make(map[string]*resourcev1.FirewallRule, len(s.Rules))}
 	for name, r := range s.Rules {
 		out.Rules[name] = proto.CloneOf(r)
 	}
@@ -158,7 +162,9 @@ func (s state) clone() state {
 	return out
 }
 
-func (s state) empty() bool { return len(s.Rules) == 0 && !s.Policy.GetDenyEverythingElse() }
+func (s state) empty() bool {
+	return len(s.Rules) == 0 && !s.Policy.GetDenyEverythingElse() && len(s.SSHOpen) == 0
+}
 
 // confirmedState is what was last confirmed, and the table it loaded as, which
 // a revert or a start loads again as it is, needing neither Docker nor the
@@ -173,7 +179,11 @@ type confirmedState struct {
 
 // pending is the change that waits for its confirmation.
 type pending struct {
-	change string
+	ssh           *SSHChange
+	sshProof      *SSHProof
+	sshUnexpected netip.Addr
+	sshFinal      nftables.Table
+	change        string
 	// wait names this wait, on disk too.
 	wait     string
 	state    state
@@ -191,8 +201,9 @@ type pending struct {
 type stopper interface{ Stop() bool }
 
 type verdict struct {
-	Change  string                 `json:"change"`
-	Verdict resource.AccessVerdict `json:"verdict"`
+	Change     string                 `json:"change"`
+	Verdict    resource.AccessVerdict `json:"verdict"`
+	SSHFailure string                 `json:"ssh_failure,omitempty"`
 }
 
 func (m *Manager) clock() time.Time {
@@ -239,6 +250,10 @@ func (m *Manager) Ready(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if !m.probed {
+		if err := m.recoverSSHBeforeProbe(ctx); err != nil {
+			m.unusable = err
+			return err
+		}
 		if m.unusable = m.Table.Probe(ctx); m.unusable != nil {
 			// No nft, a kernel that takes no table, or a test that runs no tools:
 			// the server as it is, not something gone wrong.
@@ -518,12 +533,16 @@ func (m *Manager) Rule(ctx context.Context, name string) (*resourcev1.FirewallRu
 // Put adds or replaces the named rule.
 func (m *Manager) Put(ctx context.Context, name string, rule *resourcev1.FirewallRule) error {
 	rule = proto.CloneOf(rule)
-	return m.edit(ctx, func(s *state) { s.Rules[name] = rule })
+	return m.edit(ctx, func(s *state) {
+		s.Rules[name] = rule
+	})
 }
 
 // Delete removes the named rule.
 func (m *Manager) Delete(ctx context.Context, name string) error {
-	return m.edit(ctx, func(s *state) { delete(s.Rules, name) })
+	return m.edit(ctx, func(s *state) {
+		delete(s.Rules, name)
+	})
 }
 
 // Policy returns the server's policy, or nil.
@@ -557,6 +576,10 @@ var ErrBusy = errors.New("another change to this server's firewall waits for its
 // again and waits for the verdict. A step of a change the server already put
 // back fails, so the change rolls back rather than end with part of it here.
 func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
+	return m.editAccess(ctx, fn, false, nil)
+}
+
+func (m *Manager) editAccess(ctx context.Context, fn func(*state), ssh bool, move *dockwellv1.SshPortMove) error {
 	d := resource.DeployOf(ctx)
 	if d.Change == "" {
 		return errors.New("a change to the firewall comes through a change, which names it")
@@ -565,6 +588,13 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	// a confirmation or the timer.
 	host := m.readHost(ctx)
 	m.mu.Lock()
+	if d.Rollback && ssh {
+		defer m.mu.Unlock()
+		if m.waiting != nil && m.waiting.change == d.Change {
+			m.rollBackLocked(ctx, d.Change)
+		}
+		return m.undoSSHLocked(fn)
+	}
 	if d.Rollback {
 		defer m.mu.Unlock()
 		return m.rollBackStepLocked(ctx, d.Change, fn, host)
@@ -573,6 +603,10 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		other := m.waiting.change
 		m.mu.Unlock()
 		return fmt.Errorf("%w (%s). Wait for it to be confirmed or rolled back, then try again", ErrBusy, other)
+	}
+	if ssh && m.unrestored != nil {
+		m.mu.Unlock()
+		return errors.New("the previous access settings are still being restored. Wait for the agent's rollback to finish")
 	}
 	first := m.waiting == nil
 	if first && m.verdictOf(d.Change) == resource.AccessRolledBack {
@@ -587,9 +621,44 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	}
 	next := base.clone()
 	fn(&next)
+	var trial *SSHChange
+	if ssh {
+		if !first || !d.LastAccess || m.SSH == nil {
+			m.mu.Unlock()
+			return errors.New("plan SSH settings on their own so they can be tested and kept together")
+		}
+		var err error
+		trial, err = m.SSH.Plan(ctx, base.SSH, next.SSH)
+		if err == nil {
+			err = m.checkPanelSSH(trial)
+		}
+		if err == nil {
+			var now *dockwellv1.SshPortMove
+			now, err = next.planSSHMove(trial)
+			if err == nil && !proto.Equal(now, move) {
+				err = errors.New("the SSH port move differs from the plan. Review the updated plan")
+			}
+		}
+		if err != nil {
+			m.mu.Unlock()
+			return err
+		}
+		if trial.Port != trial.OldPort {
+			for _, from := range next.SSHOpen {
+				next.Pinned.SSHFrom = appendNew(next.Pinned.SSHFrom, from)
+			}
+			next.SSHOpen = nil
+			next.Pinned.SSHPorts = slices.DeleteFunc(next.Pinned.SSHPorts, func(p uint16) bool { return p == trial.OldPort })
+			host.pins.SSHPorts = slices.DeleteFunc(slices.Clone(host.pins.SSHPorts), func(p uint16) bool { return p == trial.OldPort })
+			host.pins.SSHPorts = append(host.pins.SSHPorts, trial.Port)
+		}
+	}
 	next, tbl, pins, err := m.prepareLocked(ctx, next, host, false)
 	if err == nil {
 		err = check(next, pins, m.PanelOverSSH)
+	}
+	if err == nil && trial != nil && trial.ProofPeer.IsValid() && !sshPeerReachable(tbl, trial) {
+		err = fmt.Errorf("the kept firewall would block SSH from %s on port %d. Choose a client address that will stay allowed", trial.ProofPeer, trial.Port)
 	}
 	if err != nil {
 		// Nothing loaded, but a change whose earlier steps did has them live.
@@ -599,24 +668,57 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		m.mu.Unlock()
 		return err
 	}
+	var unlockSSH func()
+	if trial != nil {
+		unlock, err := m.lockSSH()
+		if err != nil {
+			m.mu.Unlock()
+			return fmt.Errorf("can't secure the SSH rollback file: %w", err)
+		}
+		unlockSSH = unlock
+		defer unlockSSH()
+	}
 	wait := ""
 	if first {
 		// On disk before the table loads, so an agent that stops from here on
 		// puts back what was confirmed as it starts again.
 		wait = d.Change + "@" + strconv.FormatInt(m.clock().UnixNano(), 10)
-		if err := m.saveWaiting(d.Change, wait); err != nil {
+		if err := m.saveWaiting(d.Change, wait, trial); err != nil {
 			m.mu.Unlock()
 			return err
 		}
 		// And armed outside the agent before it loads, so an agent that stops
 		// and can't start again doesn't leave the change's table for good. With
 		// no net, nothing loads.
-		if err := m.armDeadManLocked(ctx, d.Change); err != nil {
+		if err := m.armAccessLocked(ctx, d.Change, wait, trial); err != nil {
+			if trial != nil {
+				m.disarmSSH(ctx)
+				m.disarmDeadManLocked(ctx)
+			}
 			if rerr := m.removeWaiting(); rerr != nil {
 				m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that didn't load", slog.String("error", rerr.Error()))
 			}
 			m.mu.Unlock()
 			return err
+		}
+	}
+	final := tbl
+	if trial != nil && trial.Port != trial.OldPort {
+		tbl.Pins = slices.Clone(tbl.Pins)
+		if len(pins.SSHFrom) > 0 {
+			tbl.Pins = append(tbl.Pins, sshPortPin("ssh old listener", trial.OldPort, pins.SSHFrom))
+		}
+		if trial.ProofPeer.IsValid() {
+			tbl.Pins = append(tbl.Pins, sshPortPin("ssh trial listener", trial.Port, []netip.Prefix{netip.PrefixFrom(trial.ProofPeer, trial.ProofPeer.BitLen())}))
+		}
+		tbl.Allows = slices.Clone(tbl.Allows)
+		for _, name := range slices.Sorted(maps.Keys(base.Rules)) {
+			rule := base.Rules[name]
+			if protocolOf(rule) == "tcp" && portOf(rule) == trial.OldPort {
+				old := nftablesRule(name, rule)
+				old.Name = "ssh trial old " + name
+				tbl.Allows = append(tbl.Allows, old)
+			}
 		}
 	}
 	loaded, err := m.Table.Load(ctx, tbl)
@@ -625,7 +727,10 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		// A load nft refused changed nothing, but one that can't be seen through
 		// may be live, and a change that had loaded steps before has them live:
 		// either way, what was confirmed goes back.
-		if !first || errors.Is(err, nftables.ErrUnknown) {
+		if trial != nil || !first || errors.Is(err, nftables.ErrUnknown) {
+			if unlockSSH != nil {
+				unlockSSH()
+			}
 			m.rollBackLocked(ctx, d.Change)
 		} else {
 			// Nothing loaded, so there's nothing for the revert outside the agent either.
@@ -638,8 +743,31 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		m.mu.Unlock()
 		return err
 	}
+	if trial != nil {
+		if err := m.SSH.Install(context.WithoutCancel(ctx), trial, trial.Candidate); err != nil {
+			unlockSSH()
+			m.rollBackLocked(ctx, d.Change)
+			m.mu.Unlock()
+			return err
+		}
+		if err := m.SSH.Rearm(context.WithoutCancel(ctx), m.Dir, wait, m.timer()+30*time.Second, trial); err != nil {
+			unlockSSH()
+			m.rollBackLocked(ctx, d.Change)
+			m.mu.Unlock()
+			return err
+		}
+		trial.Started, err = m.SSH.Started()
+		trial.StartedAt = m.clock()
+		if err != nil {
+			unlockSSH()
+			m.rollBackLocked(ctx, d.Change)
+			m.mu.Unlock()
+			return err
+		}
+		pins.SSHPorts = []uint16{trial.Port}
+	}
 	if first {
-		m.waiting = &pending{change: d.Change, wait: wait, done: make(chan struct{})}
+		m.waiting = &pending{change: d.Change, wait: wait, done: make(chan struct{}), ssh: trial, sshFinal: final}
 		m.armLocked(d.Change)
 	}
 	m.waiting.state, m.waiting.table, m.waiting.sshPorts = next, tbl, pins.SSHPorts
@@ -651,6 +779,9 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 	// whole length from now to check and confirm.
 	m.armLocked(d.Change)
 	if err := m.armDeadManLocked(ctx, d.Change); err != nil {
+		if unlockSSH != nil {
+			unlockSSH()
+		}
 		// Its earlier steps are loaded, and the net for the wait can't be set:
 		// what was confirmed goes back now.
 		m.rollBackLocked(ctx, d.Change)
@@ -658,6 +789,9 @@ func (m *Manager) edit(ctx context.Context, fn func(*state)) error {
 		return err
 	}
 	done, limit := m.waiting.done, m.announceLocked(ctx)
+	if unlockSSH != nil {
+		unlockSSH()
+	}
 	m.mu.Unlock()
 	return m.await(ctx, d.Change, done, limit)
 }
@@ -806,6 +940,9 @@ func (m *Manager) announceLocked(ctx context.Context) time.Duration {
 	m.waiting.announced = true
 	left := m.waiting.deadline.Sub(m.clock())
 	w := resource.AccessWait{Deadline: m.waiting.deadline, Left: left}
+	if m.waiting.ssh != nil {
+		w.SSHAccount = m.waiting.ssh.Account
+	}
 	for _, p := range m.waiting.sshPorts {
 		w.SSHPorts = append(w.SSHPorts, uint32(p))
 	}
@@ -824,9 +961,13 @@ func (m *Manager) await(ctx context.Context, change string, done <-chan struct{}
 	}
 	m.mu.Lock()
 	v := m.verdictOf(change)
+	failure := m.sshFailure(change)
 	m.mu.Unlock()
 	if v == resource.AccessKept {
 		return nil
+	}
+	if failure != "" {
+		return resource.Plainly(failure, errors.New(failure))
 	}
 	return resource.Plainly(
 		fmt.Sprintf("Nobody confirmed the change within %s, so the server put back its firewall as it was.", wording(m.timer())),
@@ -869,25 +1010,70 @@ var closed = func() chan struct{} { c := make(chan struct{}); close(c); return c
 // kept it. What it records is the table as it loaded, so a confirmation reads
 // nothing of the server and can't fail on it.
 func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVerdict {
+	verdict, _ := m.ConfirmDetails(ctx, change)
+	return verdict
+}
+
+// ConfirmDetails returns any SSH-specific failure alongside the verdict.
+func (m *Manager) ConfirmDetails(ctx context.Context, change string) (resource.AccessVerdict, string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	w := m.waiting
 	if w == nil || w.change != change {
 		if v := m.verdictOf(change); v != 0 {
-			return v
+			return v, m.sshFailure(change)
 		}
-		return resource.AccessNotWaiting
+		return resource.AccessNotWaiting, ""
 	}
 	if !m.clock().Before(w.deadline) {
 		// The timer is about to put it back, if it hasn't yet: running out wins.
+		if w.ssh != nil {
+			return m.sshKeepFailed(ctx, change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		}
 		m.rollBackLocked(ctx, change)
-		return resource.AccessRolledBack
+		return resource.AccessRolledBack, ""
 	}
 	if !w.announced {
 		// Its last step here hasn't loaded yet: keeping it now would keep part of it.
-		return resource.AccessNotWaiting
+		return resource.AccessNotWaiting, ""
 	}
 	c := confirmedState{state: w.state, table: w.table, wait: w.wait}
+	var unlockSSH func()
+	if w.ssh != nil {
+		unlock, err := m.lockSSH()
+		if err != nil {
+			return resource.AccessNotKept, "The agent couldn't lock the SSH rollback files. Try Keep again while time remains."
+		}
+		unlockSSH = unlock
+		defer unlockSSH()
+		if !m.SSH.CandidateLive(w.ssh) {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The SSH trial settings are no longer on disk. Check the SSH settings on the server, then review a new plan.", nil)
+		}
+		if w.sshProof == nil {
+			w.sshProof, _ = m.SSH.Proved(ctx, w.ssh)
+		}
+		if !m.clock().Before(w.deadline) {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		}
+		if w.sshProof == nil {
+			return resource.AccessNotProved, ""
+		}
+		c.table = w.sshFinal
+		if w.ssh.Final != w.ssh.Candidate {
+			if err := m.SSH.Install(context.WithoutCancel(ctx), w.ssh, w.ssh.Final); err != nil {
+				unlockSSH()
+				return m.sshKeepFailed(ctx, change, "OpenSSH or fail2ban couldn't load the final settings. Check their service logs on the server before trying again.", err)
+			}
+			loaded, err := m.Table.Load(context.WithoutCancel(ctx), c.table)
+			m.skipped(ctx, loaded)
+			if err != nil {
+				unlockSSH()
+				return m.sshKeepFailed(ctx, change, "The server couldn't load the final firewall rules. Check the agent's firewall logs before trying again.", err)
+			}
+		}
+	}
 	// What the revert outside the agent would load once this is kept is written
 	// first, beside the file it loads now: a kept change must never have a stale
 	// revert behind it, so one that can't be written keeps nothing, and the
@@ -896,7 +1082,11 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 	if err != nil {
 		m.logger().ErrorContext(ctx, "can't write what the firewall's revert outside the agent would load once this change is kept, so it isn't kept, and still waits",
 			slog.String("change", change), slog.String("error", err.Error()))
-		return resource.AccessNotKept
+		if unlockSSH != nil {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The server couldn't save the SSH rollback files. Check disk space and the agent's data directory before trying again.", err)
+		}
+		return resource.AccessNotKept, ""
 	}
 	if err := m.saveConfirmed(c); err != nil {
 		m.logger().ErrorContext(ctx, "can't record a confirmed change to the firewall, so the agent puts back what was confirmed before",
@@ -904,20 +1094,36 @@ func (m *Manager) Confirm(ctx context.Context, change string) resource.AccessVer
 		if staged != "" {
 			_ = os.Remove(staged)
 		}
+		if unlockSSH != nil {
+			unlockSSH()
+			return m.sshKeepFailed(ctx, change, "The server couldn't save the kept SSH settings. Check disk space and the agent's data directory before trying again.", err)
+		}
 		m.rollBackLocked(ctx, change)
-		return resource.AccessRolledBack
+		return resource.AccessRolledBack, ""
 	}
 	m.confirmed = c
 	w.timer.Stop()
 	m.waiting = nil
 	m.settleDeadManLocked(ctx, staged)
 	m.record(change, resource.AccessKept)
+	if w.ssh != nil {
+		m.disarmSSH(ctx)
+	}
 	if err := m.removeWaiting(); err != nil {
 		// confirmed.json names this wait, so a start reads it as kept.
 		m.logger().WarnContext(ctx, "can't remove the record of a change to the firewall that waited", slog.String("error", err.Error()))
 	}
 	close(w.done)
-	return resource.AccessKept
+	return resource.AccessKept, ""
+}
+
+func (m *Manager) sshKeepFailed(ctx context.Context, change, message string, err error) (resource.AccessVerdict, string) {
+	if err != nil {
+		m.logger().WarnContext(ctx, "couldn't keep the SSH trial", slog.String("change", change), slog.String("error", err.Error()))
+	}
+	m.recordVerdict(verdict{Change: change, Verdict: resource.AccessRolledBack, SSHFailure: message})
+	m.rollBackLocked(ctx, change)
+	return resource.AccessRolledBack, message
 }
 
 // expire is a change's timer running out.
@@ -928,6 +1134,10 @@ func (m *Manager) expire(change string) {
 		return
 	}
 	m.logger().Warn("nobody confirmed a change to the firewall in time, so the agent puts back what was confirmed", slog.String("change", change))
+	if m.waiting.ssh != nil {
+		m.sshKeepFailed(context.Background(), change, "The Keep window ended. Check that SSH is back on its previous settings, then review and apply a new plan.", nil)
+		return
+	}
 	m.rollBackLocked(context.Background(), change)
 }
 
@@ -964,6 +1174,15 @@ func (m *Manager) rollBackLocked(ctx context.Context, change string) {
 // load it at its next check. It fails only when neither works.
 func (m *Manager) restoreLocked(ctx context.Context) error {
 	ctx = context.WithoutCancel(ctx)
+	sshErr := m.restoreSSHLocked(ctx)
+	err := m.restoreTableLocked(ctx)
+	if sshErr != nil {
+		m.unrestored = sshErr
+	}
+	return errors.Join(sshErr, err)
+}
+
+func (m *Manager) restoreTableLocked(ctx context.Context) error {
 	if m.confirmed.empty() {
 		if err := m.Table.Delete(ctx); err != nil {
 			m.unrestored = err
@@ -995,16 +1214,29 @@ func (m *Manager) skipped(ctx context.Context, loaded nftables.Loaded) {
 
 // record keeps a change's verdict, once.
 func (m *Manager) record(change string, v resource.AccessVerdict) {
-	if m.verdictOf(change) == v {
+	m.recordVerdict(verdict{Change: change, Verdict: v})
+}
+
+func (m *Manager) recordVerdict(v verdict) {
+	if m.verdictOf(v.Change) == v.Verdict {
 		return
 	}
-	m.verdicts = append(m.verdicts, verdict{Change: change, Verdict: v})
+	m.verdicts = append(m.verdicts, v)
 	if len(m.verdicts) > keptVerdicts {
 		m.verdicts = m.verdicts[len(m.verdicts)-keptVerdicts:]
 	}
 	if err := writeJSON(filepath.Join(m.Dir, "verdicts.json"), m.verdicts); err != nil {
-		m.logger().Error("can't record what came of a change to the firewall", slog.String("change", change), slog.String("error", err.Error()))
+		m.logger().Error("can't record what came of a change to the firewall", slog.String("change", v.Change), slog.String("error", err.Error()))
 	}
+}
+
+func (m *Manager) sshFailure(change string) string {
+	for i := len(m.verdicts) - 1; i >= 0; i-- {
+		if m.verdicts[i].Change == change {
+			return m.verdicts[i].SSHFailure
+		}
+	}
+	return ""
 }
 
 func (m *Manager) verdictOf(change string) resource.AccessVerdict {
@@ -1123,6 +1355,9 @@ func withPinned(found Pins, kept Pinned, docker []netip.Prefix) Pins {
 // render is the table a state loads as.
 func render(s state, pins Pins, nets DockerNetworks) nftables.Table {
 	t := nftables.Table{Pins: pins.Rules(), DenyRest: s.Policy.GetDenyEverythingElse(), NoDocker: nets.None}
+	if port := s.SSH.GetPort(); len(s.SSHOpen) > 0 && port > 0 && port <= 65535 {
+		t.Pins = append(t.Pins, nftables.Rule{Name: "ssh managed listener", Protocol: "tcp", Ports: []uint16{uint16(port)}, Sources: slices.Clone(s.SSHOpen)})
+	}
 	if !nets.None {
 		t.DockerInterfaces = slices.Clone(nets.Interfaces)
 	}
@@ -1558,12 +1793,13 @@ func (m *Manager) saveConfirmed(c confirmedState) error {
 
 // waitingFile is waiting.json: the change that waits, and which wait of it.
 type waitingFile struct {
-	Change string `json:"change"`
-	Wait   string `json:"wait,omitempty"`
+	SSH    *SSHChange `json:"ssh,omitempty"`
+	Change string     `json:"change"`
+	Wait   string     `json:"wait,omitempty"`
 }
 
-func (m *Manager) saveWaiting(change, wait string) error {
-	if err := writeJSON(filepath.Join(m.Dir, "waiting.json"), waitingFile{Change: change, Wait: wait}); err != nil {
+func (m *Manager) saveWaiting(change, wait string, ssh *SSHChange) error {
+	if err := writeJSON(filepath.Join(m.Dir, "waiting.json"), waitingFile{Change: change, Wait: wait, SSH: ssh}); err != nil {
 		return fmt.Errorf("can't record the change to the firewall before it loads, so it doesn't load: %w", err)
 	}
 	return nil
@@ -1579,21 +1815,27 @@ func (m *Manager) removeWaiting() error {
 // stored is what was confirmed as it's kept on disk: each spec as protojson,
 // the pins it keeps, and the table it loaded as.
 type stored struct {
-	Wait   string                     `json:"wait,omitempty"`
-	Rules  map[string]json.RawMessage `json:"rules,omitempty"`
-	Policy json.RawMessage            `json:"policy,omitempty"`
-	Pinned Pinned                     `json:"pinned,omitzero"`
-	Table  *nftables.Table            `json:"table,omitempty"`
+	SSH          json.RawMessage            `json:"ssh,omitempty"`
+	SSHOpen      []netip.Prefix             `json:"ssh_open,omitempty"`
+	SSHRulePorts map[string]uint16          `json:"ssh_rule_ports,omitempty"`
+	Wait         string                     `json:"wait,omitempty"`
+	Rules        map[string]json.RawMessage `json:"rules,omitempty"`
+	Policy       json.RawMessage            `json:"policy,omitempty"`
+	Pinned       Pinned                     `json:"pinned,omitzero"`
+	Table        *nftables.Table            `json:"table,omitempty"`
 }
 
 func encodeConfirmed(c confirmedState) stored {
-	out := stored{Wait: c.wait, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
+	out := stored{Wait: c.wait, SSHOpen: c.SSHOpen, Rules: map[string]json.RawMessage{}, Pinned: c.Pinned, Table: &c.table}
 	for name, r := range c.Rules {
 		b, _ := protojson.Marshal(r)
 		out.Rules[name] = b
 	}
 	if c.Policy != nil {
 		out.Policy, _ = protojson.Marshal(c.Policy)
+	}
+	if c.SSH != nil {
+		out.SSH, _ = protojson.Marshal(c.SSH)
 	}
 	return out
 }
@@ -1604,12 +1846,22 @@ func decodeConfirmed(b []byte, v any) error {
 		return err
 	}
 	c := v.(*confirmedState)
-	c.wait, c.Pinned = in.Wait, in.Pinned
+	c.wait, c.Pinned, c.SSHOpen = in.Wait, in.Pinned, in.SSHOpen
+	if len(in.SSH) != 0 {
+		c.SSH = &resourcev1.SshConfig{}
+		if err := protojson.Unmarshal(in.SSH, c.SSH); err != nil {
+			return fmt.Errorf("SSH settings: %w", err)
+		}
+	}
 	c.Rules = map[string]*resourcev1.FirewallRule{}
 	for name, raw := range in.Rules {
 		r := &resourcev1.FirewallRule{}
 		if err := protojson.Unmarshal(raw, r); err != nil {
 			return fmt.Errorf("rule %s: %w", name, err)
+		}
+		// Older agents stored a kept SSH port separately from the rule.
+		if port := in.SSHRulePorts[name]; port != 0 {
+			r.Port = uint32(port)
 		}
 		c.Rules[name] = r
 	}

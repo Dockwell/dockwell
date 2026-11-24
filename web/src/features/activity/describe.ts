@@ -510,6 +510,16 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             default:
               return { title: t`Let everyone choose how often their passkey is asked for`, icon: "settings" };
           }
+        case "ssh.key_add":
+          return { title: t`Added an SSH key on ${server}`, icon: "lock" };
+        case "ssh.key_remove":
+          return { title: t`Removed an SSH key on ${server}`, icon: "lock" };
+        case "ssh.disconnect":
+          return { title: t`Disconnected an SSH session on ${server}`, icon: "lock" };
+        case "ssh.unconfirmed":
+          return { title: t`SSH operation unconfirmed on ${server}`, icon: "lock" };
+        case "ssh.ban":
+          return { title: t`Banned an SSH address on ${server}`, icon: "lock" };
         case "process.end": {
           const what = event.process?.name ?? "";
           const pid = event.process?.pid ?? 0;

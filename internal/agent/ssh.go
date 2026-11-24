@@ -14,12 +14,14 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/internal/agent/access"
 	"github.com/dockwell/dockwell/internal/agent/hosttool"
 )
 
@@ -52,13 +54,20 @@ var sshKeywords = map[string]string{
 	"kbdinteractiveauthentication":    "KbdInteractiveAuthentication",
 	"challengeresponseauthentication": "ChallengeResponseAuthentication",
 	"permitrootlogin":                 "PermitRootLogin",
+	"pubkeyauthentication":            "PubkeyAuthentication",
+	"authenticationmethods":           "AuthenticationMethods",
+	"authorizedkeysfile":              "AuthorizedKeysFile",
+	"listenaddress":                   "ListenAddress",
 	"port":                            "Port",
 }
 
 // sshReader says how SSH lets people in, reading what sshd's files say now,
 // and the files that set it, and changes nothing (ADR 0052).
 type sshReader struct {
-	tools *hosttool.Runner
+	edits        sync.Mutex
+	panelOverSSH bool
+	access       *access.Manager
+	tools        *hosttool.Runner
 	// root is the server's files, where /etc/ssh is: the stand-ins' folder in a
 	// test.
 	root fs.FS
@@ -190,6 +199,7 @@ func effective(text string, out *dockwellv1.ServerSsh) (pidFile string, said boo
 	case password == dockwellv1.SshAnswer_SSH_ANSWER_NO && kbd != dockwellv1.SshAnswer_SSH_ANSWER_UNSPECIFIED:
 		out.PasswordLogin = dockwellv1.SshAnswer_SSH_ANSWER_NO
 	}
+	out.ListenAddresses = slices.Clone(values["listenaddress"])
 	out.KeyLogin = sshAnswer(first("pubkeyauthentication"))
 	switch first("permitrootlogin") {
 	case "yes":
@@ -319,8 +329,10 @@ func (r *sshReader) socket(ctx context.Context, unit string) sshSocket {
 
 // sshdFiles is what sshd's files set, read as sshd reads them.
 type sshdFiles struct {
-	setIn   []*dockwellv1.SshSource
-	matches []*dockwellv1.SshMatch
+	setIn        []*dockwellv1.SshSource
+	matches      []*dockwellv1.SshMatch
+	writeMatches []*dockwellv1.SshMatch
+	beforeDropIn []*dockwellv1.SshSource
 	// dropIns is the folder sshd_config includes, where Dockwell would write.
 	dropIns string
 	// walked is every file sshd reads, sshd_config and each file an Include
@@ -435,6 +447,7 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 	var out sshdFiles
 	seen := map[string]bool{}
 	var match *dockwellv1.SshMatch
+	dockwellSeen := false
 	var read func(file string, depth int)
 	var walk func(file string)
 	walk = func(file string) {
@@ -453,6 +466,12 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 		if depth > 16 {
 			return
 		}
+		if file == sshDropInPath {
+			dockwellSeen = true
+			if _, err := fs.Stat(root, strings.TrimPrefix(file, "/")); errors.Is(err, fs.ErrNotExist) {
+				return
+			}
+		}
 		walk(file)
 		f, err := root.Open(strings.TrimPrefix(file, "/"))
 		if err != nil {
@@ -470,7 +489,7 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 					if !path.IsAbs(pattern) {
 						pattern = path.Join("/etc/ssh", pattern)
 					}
-					if file == sshdConfig && out.dropIns == "" && path.Dir(pattern) == "/etc/ssh/sshd_config.d" {
+					if file == sshdConfig && out.dropIns == "" && match == nil && path.Dir(pattern) == "/etc/ssh/sshd_config.d" && appliesToDockwell(pattern) {
 						out.dropIns = path.Dir(pattern)
 					}
 					// A file taken out of a folder changes the folder alone: each folder
@@ -489,6 +508,10 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 						}
 					}
 					found, _ := fs.Glob(root, strings.TrimPrefix(pattern, "/"))
+					if !dockwellSeen && match == nil && appliesToDockwell(pattern) && !slices.Contains(found, strings.TrimPrefix(sshDropInPath, "/")) {
+						found = append(found, strings.TrimPrefix(sshDropInPath, "/"))
+						slices.Sort(found)
+					}
 					for _, name := range found {
 						// A file read in starts inside the Match block its Include
 						// stands in, and a Match block of its own ends with it.
@@ -498,23 +521,32 @@ func readSSHDConfig(root fs.FS, changed func(root fs.FS, name string) time.Time)
 					}
 				}
 			case "match":
-				match = nil
+				match = &dockwellv1.SshMatch{File: file, Line: uint32(n), Criteria: strings.TrimSpace(value)}
+				out.writeMatches = append(out.writeMatches, match)
 				if !strings.EqualFold(strings.TrimSpace(value), "all") {
 					// Listed whatever it sets: a block Dockwell misreads still shows.
-					match = &dockwellv1.SshMatch{File: file, Line: uint32(n), Criteria: strings.TrimSpace(value)}
 					out.matches = append(out.matches, match)
 				}
 			default:
 				name, tracked := sshKeywords[key]
-				switch {
-				case !tracked:
-				case match != nil:
+				if !tracked {
+					continue
+				}
+				if match != nil {
 					if !slices.Contains(match.Sets, name) {
 						match.Sets = append(match.Sets, name)
 					}
-				case key == "port" || !seen[key]:
+					if !strings.EqualFold(match.Criteria, "all") {
+						continue
+					}
+				}
+				if key == "port" || key == "listenaddress" || !seen[key] {
 					seen[key] = true
-					out.setIn = append(out.setIn, &dockwellv1.SshSource{Keyword: name, File: file, Line: uint32(n), Value: firstWord(value)})
+					source := &dockwellv1.SshSource{Keyword: name, File: file, Line: uint32(n), Value: firstWord(value)}
+					out.setIn = append(out.setIn, source)
+					if !dockwellSeen && match == nil {
+						out.beforeDropIn = append(out.beforeDropIn, source)
+					}
 				}
 			}
 		}
@@ -546,4 +578,9 @@ func firstWord(s string) string {
 		return strings.Trim(f[0], `"`)
 	}
 	return ""
+}
+
+func appliesToDockwell(pattern string) bool {
+	match, _ := path.Match(pattern, sshDropInPath)
+	return match
 }

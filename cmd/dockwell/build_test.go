@@ -86,6 +86,7 @@ var agentPackages = []string{
 	"internal/resource/dockerdaemon", // the local Docker settings driver and recovery worker (ADR 0107)
 	"internal/resource/dockerlog",    // the Docker driver's log policy and inventory projection (ADR 0107)
 	"internal/resource/fail2ban",     // fail2ban's jails, on every server (ADR 0052)
+	"internal/resource/sshconfig",    // guarded SSH changes share the firewall timer (ADR 0052)
 	"internal/resource/firewall",     // firewall rules and the policy, on every server (ADR 0052)
 	"internal/resource/network",
 	"internal/resource/resourcepb",
@@ -106,6 +107,7 @@ var agentModules = []string{
 	"github.com/moby/patternmatcher",            // Docker's .dockerignore rules for folder build contexts
 	"github.com/spf13/cobra",                    // the command line
 	"github.com/spf13/pflag",                    // its flags
+	"golang.org/x/crypto",                       // OpenSSH key decoding and fingerprints; SSH branch idle RSS 35.2 MB against 40 MB
 	"golang.org/x/sys",                          // system calls, for x/term
 	"golang.org/x/term",                         // whether a person is at a terminal
 	"google.golang.org/genproto/googleapis/api", // google.api annotations, which the schema's files import

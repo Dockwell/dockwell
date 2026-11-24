@@ -1980,6 +1980,14 @@ func (e *Engine) items(ctx context.Context, edits []Edit, rotate bool) ([]item, 
 					return err
 				}
 				it.spec = proto.Clone(ed.Spec)
+				if rule, ok := it.spec.(*resourcev1.FirewallRule); ok && rule.GetPort() == 0 {
+					if current, ok := it.current.(*resourcev1.FirewallRule); ok {
+						rule.Port = current.GetPort()
+						rule.Action = cmp.Or(rule.GetAction(), current.GetAction())
+						rule.Protocol = cmp.Or(rule.GetProtocol(), current.GetProtocol())
+						rule.Comment = cmp.Or(rule.GetComment(), current.GetComment())
+					}
+				}
 				registryPushOnly := false
 				if login, ok := it.spec.(*resourcev1.RegistryLogin); ok && login.AllowPush != nil &&
 					proto.Equal(login, &resourcev1.RegistryLogin{AllowPush: login.AllowPush}) {
@@ -3027,6 +3035,16 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 	// A server a removal takes steps on for some items, and lets go of others, is one
 	// with steps (ADR 0090).
 	removed = slices.DeleteFunc(removed, func(s string) bool { return slices.Contains(servers, s) })
+	for _, server := range servers {
+		var ssh, otherAccess bool
+		for _, it := range byServer[server] {
+			ssh = ssh || it.ref.Kind == "ssh.config"
+			otherAccess = otherAccess || it.ref.Kind == "fail2ban.jail" || (it.ref.Kind != "ssh.config" && e.guardsAccess(it.ref.Kind))
+		}
+		if ssh && otherAccess {
+			return nil, fault.New(ErrInvalid, "plan SSH settings separately from other access edits on the same server")
+		}
+	}
 	// The server leaving is on the plan as one, steps or not, as one with nothing on it has none.
 	if removal != nil && !slices.Contains(servers, removal.Server) && !slices.Contains(removed, removal.Server) {
 		removed = append(removed, removal.Server)
@@ -3447,6 +3465,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 			}
 			if s.Proof != "" {
 				fmt.Fprintf(fp, "proof %s|%s|%s\n", server, ref(s.Ref), s.Proof)
+			}
+			if move := s.SSHPortMove; move != nil {
+				fmt.Fprintf(fp, "ssh port move %s|%d|%d|%q|%t\n", server, move.GetFromPort(), move.GetToPort(), move.GetFirewallRules(), move.GetFail2Ban())
 			}
 			s.HostAccess = gained
 			sp.Steps = append(sp.Steps, *s)
@@ -5198,7 +5219,8 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		case err == nil:
 		case e.stoppedBy(err):
 			return result{outcome: interrupted, err: interrupt(qi)}
-		case (IsRollback(c) || it.noRevision() || step.DockerDaemon != nil) && (errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
+		case (IsRollback(c) || it.noRevision() || step.DockerDaemon != nil || step.Ref.Kind == "ssh.config") &&
+			(errors.Is(err, resource.ErrNotConnected) || errors.Is(err, resource.ErrLost)):
 			// The agent went away: the call never reached it, or it may
 			// have run. Either way a rollback waits for the server, as for
 			// one that isn't connected, and Resume plans the step against
@@ -5274,6 +5296,21 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		}
 		if q.backupOnly {
 			// The deletion it comes before finishes the step.
+			return result{}
+		}
+		move := step.SSHPortMove
+		if move == nil && step.Ref.Kind == "ssh.config" && step.Finishing && !step.NeverBegan {
+			if reviewed, err := r.asked.whole(); err == nil {
+				if was := reviewed.step(q.server, step.Ref); was != nil {
+					move = was.SSHPortMove
+				}
+			}
+		}
+		if err := e.keepSSHRulePorts(ctx, c, q.server, move); err != nil {
+			e.logger.ErrorContext(ctx, "can't record the kept SSH port in the firewall rules", "change", c.ID, "error", err)
+			pending[q.server] = q.name
+			_, u := e.step(c.ID, q.index, StepWaiting, "SSH was kept. Waiting to record the firewall rule ports in the control plane.")
+			waits = append(waits, u)
 			return result{}
 		}
 		did := q.step.Action
@@ -6852,7 +6889,25 @@ func (e *Engine) ConfirmAccess(ctx context.Context, changeID, server string, dea
 	if !ok {
 		return 0, errors.New("the server's agent can't confirm a change")
 	}
-	return confirmer.ConfirmAccess(ctx, changeID)
+	var reviewed *Record
+	if w.SSHAccount != "" {
+		var err error
+		reviewed, err = e.Change(ctx, changeID)
+		if err != nil {
+			return 0, err
+		}
+	}
+	verdict, err := confirmer.ConfirmAccess(ctx, changeID)
+	if err != nil || verdict != resource.AccessKept || reviewed == nil {
+		return verdict, err
+	}
+	if step := reviewed.Plan.step(server, resource.Ref{Kind: "ssh.config", Scope: server, Name: "default"}); step != nil {
+		if err := e.keepSSHRulePorts(ctx, reviewed.Change, server, step.SSHPortMove); err != nil {
+			e.logger.ErrorContext(ctx, "couldn't record the kept SSH port in the firewall rules", "change", changeID, "error", err)
+			return verdict, &resource.SSHKeepError{Message: "SSH was kept on the server. The control plane couldn't record the new firewall rule ports. Check its disk space and logs, then check the change again."}
+		}
+	}
+	return verdict, nil
 }
 
 // guardsAccess says whether a kind applies under the firewall's timer.
@@ -6943,6 +6998,9 @@ func (e *Engine) reverse(ctx context.Context, changeID string) ([]Edit, error) {
 			if ci := &c.Items[j]; ci.Follows {
 				followed[resource.Ref{Kind: resource.Kind(ci.Kind), Scope: ci.Scope, Name: ci.Name}] = true
 			}
+		}
+		if reviewed, err := readPlan(c).whole(); err == nil {
+			markSSHRuleFollowers(reviewed, followed)
 		}
 		for i := range revs {
 			rev := &revs[i]

@@ -151,6 +151,7 @@ func Step(s resource.Step, resourceID string) *dockwellv1.PlanStep {
 		p.Answers = &dockwellv1.RouteAnswers{Reach: routeReaches[a.Reach], Proxies: a.Proxies, Plain: a.Plain}
 	}
 	p.Closes = s.Closes
+	p.SshPortMove = s.SSHPortMove
 	if j := s.Jail; j != nil {
 		p.Jail = &dockwellv1.JailPlan{NeverBans: j.NeverBans, SignedInNotIgnored: j.SignedInNotIgnored, IgnoresEverything: j.IgnoresEverything}
 	}
@@ -547,6 +548,7 @@ func FromStep(p *dockwellv1.PlanStep) (resource.Step, error) {
 		s.Answers = &resource.RouteAnswers{Reach: reach, Proxies: a.GetProxies(), Plain: a.GetPlain()}
 	}
 	s.Closes = p.GetCloses()
+	s.SSHPortMove = p.GetSshPortMove()
 	if j := p.GetJail(); j != nil {
 		s.Jail = &resource.JailPlan{NeverBans: j.GetNeverBans(), SignedInNotIgnored: j.GetSignedInNotIgnored(), IgnoresEverything: j.GetIgnoresEverything()}
 	}

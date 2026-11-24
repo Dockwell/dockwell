@@ -23,10 +23,12 @@ type ruleSet struct {
 	rules  uint32
 	// filters says whether it has a chain that filters, on any hook; a table of
 	// nat chains alone filters nothing.
-	filters    bool
-	inputDrops bool
-	input      bool
-	inputRules uint32
+	filters     bool
+	inputDrops  bool
+	input       bool
+	inputRules  uint32
+	inputChains []string
+	chainRules  map[string][]inputRule
 	// dockerUser is how many rules DOCKER-USER holds beyond a return.
 	dockerUser uint32
 }
@@ -79,13 +81,16 @@ func (r *ruleSet) tool(kind dockwellv1.FirewallToolKind, ufwThere bool) *dockwel
 // nftables table, and iptables-legacy's, whose drops win beside nftables's; or,
 // on a server without nft, iptables-save's. It returns the tables that may
 // filter what comes in, and how many rules Docker's DOCKER-USER chains hold.
-func (f *firewallReader) kernelRules(ctx context.Context, ufwThere bool) ([]*dockwellv1.FirewallTool, uint32) {
+func (f *firewallReader) kernelRules(ctx context.Context, ufwThere bool, inspect func(*dockwellv1.FirewallTool, *ruleSet)) ([]*dockwellv1.FirewallTool, uint32) {
 	var tools []*dockwellv1.FirewallTool
 	var dockerUser uint32
 	add := func(kind dockwellv1.FirewallToolKind, sets []*ruleSet) {
 		for _, s := range sets {
 			dockerUser += s.dockerUser
 			if t := s.tool(kind, ufwThere); t != nil {
+				if inspect != nil {
+					inspect(t, s)
+				}
 				tools = append(tools, t)
 			}
 		}
@@ -169,7 +174,7 @@ func parseNftables(out []byte) ([]*ruleSet, error) {
 			if ownedElsewhere(name) {
 				continue
 			}
-			s := &ruleSet{name: name, family: nftFamily(item.Table.Family)}
+			s := &ruleSet{name: name, family: nftFamily(item.Table.Family), chainRules: map[string][]inputRule{}}
 			byName[name] = s
 			sets = append(sets, s)
 		case item.Chain != nil:
@@ -178,11 +183,13 @@ func parseNftables(out []byte) ([]*ruleSet, error) {
 				continue
 			}
 			s.chains = append(s.chains, item.Chain.Name)
+			s.chainRules[item.Chain.Name] = nil
 			if item.Chain.Hook != "" && cmp.Or(item.Chain.Type, "filter") == "filter" {
 				s.filters = true
 			}
 			if item.Chain.Hook == "input" && cmp.Or(item.Chain.Type, "filter") == "filter" {
 				s.input = true
+				s.inputChains = append(s.inputChains, item.Chain.Name)
 				s.inputDrops = s.inputDrops || item.Chain.Policy == "drop"
 				inputs[s.name+" "+item.Chain.Name] = true
 			}
@@ -192,6 +199,7 @@ func parseNftables(out []byte) ([]*ruleSet, error) {
 				continue
 			}
 			s.rules++
+			s.chainRules[item.Rule.Chain] = append(s.chainRules[item.Rule.Chain], inputRule{expr: item.Rule.Expr})
 			if inputs[s.name+" "+item.Rule.Chain] {
 				s.inputRules++
 			}
@@ -245,7 +253,7 @@ func nftFamily(family string) int {
 //	-A DOCKER-USER -j RETURN
 //	COMMIT
 func parseIptablesSave(out []byte, name string, family int) *ruleSet {
-	s := &ruleSet{name: name, family: family}
+	s := &ruleSet{name: name, family: family, chainRules: map[string][]inputRule{}}
 	table := ""
 	for line := range strings.SplitSeq(string(out), "\n") {
 		line = strings.TrimSpace(line)
@@ -259,14 +267,17 @@ func parseIptablesSave(out []byte, name string, family int) *ruleSet {
 				continue
 			}
 			s.chains = append(s.chains, fields[0])
+			s.chainRules[fields[0]] = nil
 			s.filters = true
 			if fields[0] == "INPUT" {
 				s.input = true
+				s.inputChains = []string{"INPUT"}
 				s.inputDrops = len(fields) > 1 && fields[1] != "ACCEPT"
 			}
 		case strings.HasPrefix(line, "-A "):
 			s.rules++
 			chain := strings.Fields(line)[1]
+			s.chainRules[chain] = append(s.chainRules[chain], inputRule{line: line})
 			switch chain {
 			case "INPUT":
 				s.inputRules++

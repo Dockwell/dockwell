@@ -5,6 +5,7 @@ package files
 import (
 	"encoding/json"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -204,9 +205,13 @@ func TestArchiveJobActivityBeforeTrackingAndAfterRestart(t *testing.T) {
 			State: dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING, Path: "/srv/lost.zip",
 		}, w)
 		h.failLostArchiveJob("srv_A", lostJobID)
+		// The started and failed rows can share a millisecond, so find the
+		// failure rather than expect it first (CI on #917, 2026-11-24).
 		finalEvs := listAll()
-		if finalEvs[0].Action != "file.compress_failed" || !strings.Contains(finalEvs[0].Detail, "agent restarted") {
-			t.Fatalf("lost job event = %+v, want file.compress_failed mentioning agent restarted", finalEvs[0])
+		if !slices.ContainsFunc(finalEvs, func(e store.Event) bool {
+			return e.Action == "file.compress_failed" && strings.Contains(e.Detail, "agent restarted")
+		}) {
+			t.Fatalf("lost job events = %+v, want file.compress_failed mentioning agent restarted", finalEvs)
 		}
 	})
 }

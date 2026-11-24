@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/netip"
 
@@ -16,16 +17,22 @@ import (
 
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/store"
 )
 
 // Handler implements FirewallService.
 type Handler struct {
-	fleet  *fleet.Hub
-	agents *agentapi.Agents
+	fleet       *fleet.Hub
+	agents      *agentapi.Agents
+	auth        *auth.Service
+	db          *store.DB
+	logger      *slog.Logger
+	appliedFrom func(string, auth.Principal) bool
 }
 
 var _ dockwellv1connect.FirewallServiceHandler = (*Handler)(nil)
@@ -33,6 +40,11 @@ var _ dockwellv1connect.FirewallServiceHandler = (*Handler)(nil)
 // New returns a handler that reaches servers through agents.
 func New(hub *fleet.Hub, agents *agentapi.Agents) *Handler {
 	return &Handler{fleet: hub, agents: agents}
+}
+
+// SetSSHTrialAccess limits each test command to the session that applied it.
+func (h *Handler) SetSSHTrialAccess(appliedFrom func(string, auth.Principal) bool) {
+	h.appliedFrom = appliedFrom
 }
 
 // GetServerFirewall asks a server's agent what filters its inbound traffic.
@@ -60,6 +72,14 @@ func (h *Handler) GetServerSsh(ctx context.Context, req *connect.Request[dockwel
 	if err != nil {
 		return nil, readError(srv, "SSH", "how SSH lets people in", err)
 	}
+	if change := read.GetTestChange(); change != "" {
+		p, ok := authapi.PrincipalFrom(ctx)
+		if !ok || h.appliedFrom == nil || !h.appliedFrom(change, p) {
+			read.TestChange, read.TestCommand, read.ProvedChange, read.Proof = "", "", "", nil
+			read.TestAddress, read.UnexpectedTestAddress = "", ""
+		}
+	}
+	read.YourAddress = callersAddress(ctx)
 	return connect.NewResponse(&dockwellv1.GetServerSshResponse{Ssh: read}), nil
 }
 

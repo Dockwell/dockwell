@@ -41,6 +41,24 @@ const (
 	// FirewallServiceGetServerSshProcedure is the fully-qualified name of the FirewallService's
 	// GetServerSsh RPC.
 	FirewallServiceGetServerSshProcedure = "/dockwell.v1.FirewallService/GetServerSsh"
+	// FirewallServiceListServerSshKeysProcedure is the fully-qualified name of the FirewallService's
+	// ListServerSshKeys RPC.
+	FirewallServiceListServerSshKeysProcedure = "/dockwell.v1.FirewallService/ListServerSshKeys"
+	// FirewallServiceEditServerSshKeyProcedure is the fully-qualified name of the FirewallService's
+	// EditServerSshKey RPC.
+	FirewallServiceEditServerSshKeyProcedure = "/dockwell.v1.FirewallService/EditServerSshKey"
+	// FirewallServiceListServerSshSessionsProcedure is the fully-qualified name of the
+	// FirewallService's ListServerSshSessions RPC.
+	FirewallServiceListServerSshSessionsProcedure = "/dockwell.v1.FirewallService/ListServerSshSessions"
+	// FirewallServiceDisconnectServerSshSessionProcedure is the fully-qualified name of the
+	// FirewallService's DisconnectServerSshSession RPC.
+	FirewallServiceDisconnectServerSshSessionProcedure = "/dockwell.v1.FirewallService/DisconnectServerSshSession"
+	// FirewallServiceListServerSshLoginsProcedure is the fully-qualified name of the FirewallService's
+	// ListServerSshLogins RPC.
+	FirewallServiceListServerSshLoginsProcedure = "/dockwell.v1.FirewallService/ListServerSshLogins"
+	// FirewallServiceBanServerSshAddressProcedure is the fully-qualified name of the FirewallService's
+	// BanServerSshAddress RPC.
+	FirewallServiceBanServerSshAddressProcedure = "/dockwell.v1.FirewallService/BanServerSshAddress"
 	// FirewallServiceGetServerFail2BanProcedure is the fully-qualified name of the FirewallService's
 	// GetServerFail2ban RPC.
 	FirewallServiceGetServerFail2BanProcedure = "/dockwell.v1.FirewallService/GetServerFail2ban"
@@ -65,6 +83,18 @@ type FirewallServiceClient interface {
 	// nothing. How SSH lets people in is the whole server's, so reading it is an
 	// admin's (ADR 0049), as reading its firewall is.
 	GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error)
+	// ListServerSshKeys lists local accounts and a selected account's authorized SSH keys.
+	ListServerSshKeys(context.Context, *connect.Request[v1.ListServerSshKeysRequest]) (*connect.Response[v1.ListServerSshKeysResponse], error)
+	// EditServerSshKey adds one public key or removes a key by its fingerprint. It requires a fresh passkey.
+	EditServerSshKey(context.Context, *connect.Request[v1.EditServerSshKeyRequest]) (*connect.Response[v1.EditServerSshKeyResponse], error)
+	// ListServerSshSessions lists authenticated SSH connections and whether the agent can disconnect each one.
+	ListServerSshSessions(context.Context, *connect.Request[v1.ListServerSshSessionsRequest]) (*connect.Response[v1.ListServerSshSessionsResponse], error)
+	// DisconnectServerSshSession ends a specific SSH connection after a passkey check.
+	DisconnectServerSshSession(context.Context, *connect.Request[v1.DisconnectServerSshSessionRequest]) (*connect.Response[v1.DisconnectServerSshSessionResponse], error)
+	// ListServerSshLogins reads a bounded window of SSH login results and counts failures by address.
+	ListServerSshLogins(context.Context, *connect.Request[v1.ListServerSshLoginsRequest]) (*connect.Response[v1.ListServerSshLoginsResponse], error)
+	// BanServerSshAddress bans a failed SSH peer in the active fail2ban sshd jail after a passkey check.
+	BanServerSshAddress(context.Context, *connect.Request[v1.BanServerSshAddressRequest]) (*connect.Response[v1.BanServerSshAddressResponse], error)
 	// GetServerFail2ban reads, through the server's agent, what fail2ban does:
 	// whether it's installed and running, each jail as fail2ban says it runs,
 	// and the addresses each has banned now, through fail2ban-client. Reading it
@@ -99,6 +129,45 @@ func NewFirewallServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listServerSshKeys: connect.NewClient[v1.ListServerSshKeysRequest, v1.ListServerSshKeysResponse](
+			httpClient,
+			baseURL+FirewallServiceListServerSshKeysProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("ListServerSshKeys")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		editServerSshKey: connect.NewClient[v1.EditServerSshKeyRequest, v1.EditServerSshKeyResponse](
+			httpClient,
+			baseURL+FirewallServiceEditServerSshKeyProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("EditServerSshKey")),
+			connect.WithClientOptions(opts...),
+		),
+		listServerSshSessions: connect.NewClient[v1.ListServerSshSessionsRequest, v1.ListServerSshSessionsResponse](
+			httpClient,
+			baseURL+FirewallServiceListServerSshSessionsProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("ListServerSshSessions")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		disconnectServerSshSession: connect.NewClient[v1.DisconnectServerSshSessionRequest, v1.DisconnectServerSshSessionResponse](
+			httpClient,
+			baseURL+FirewallServiceDisconnectServerSshSessionProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("DisconnectServerSshSession")),
+			connect.WithClientOptions(opts...),
+		),
+		listServerSshLogins: connect.NewClient[v1.ListServerSshLoginsRequest, v1.ListServerSshLoginsResponse](
+			httpClient,
+			baseURL+FirewallServiceListServerSshLoginsProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("ListServerSshLogins")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		banServerSshAddress: connect.NewClient[v1.BanServerSshAddressRequest, v1.BanServerSshAddressResponse](
+			httpClient,
+			baseURL+FirewallServiceBanServerSshAddressProcedure,
+			connect.WithSchema(firewallServiceMethods.ByName("BanServerSshAddress")),
+			connect.WithClientOptions(opts...),
+		),
 		getServerFail2Ban: connect.NewClient[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse](
 			httpClient,
 			baseURL+FirewallServiceGetServerFail2BanProcedure,
@@ -111,9 +180,15 @@ func NewFirewallServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 
 // firewallServiceClient implements FirewallServiceClient.
 type firewallServiceClient struct {
-	getServerFirewall *connect.Client[v1.GetServerFirewallRequest, v1.GetServerFirewallResponse]
-	getServerSsh      *connect.Client[v1.GetServerSshRequest, v1.GetServerSshResponse]
-	getServerFail2Ban *connect.Client[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse]
+	getServerFirewall          *connect.Client[v1.GetServerFirewallRequest, v1.GetServerFirewallResponse]
+	getServerSsh               *connect.Client[v1.GetServerSshRequest, v1.GetServerSshResponse]
+	listServerSshKeys          *connect.Client[v1.ListServerSshKeysRequest, v1.ListServerSshKeysResponse]
+	editServerSshKey           *connect.Client[v1.EditServerSshKeyRequest, v1.EditServerSshKeyResponse]
+	listServerSshSessions      *connect.Client[v1.ListServerSshSessionsRequest, v1.ListServerSshSessionsResponse]
+	disconnectServerSshSession *connect.Client[v1.DisconnectServerSshSessionRequest, v1.DisconnectServerSshSessionResponse]
+	listServerSshLogins        *connect.Client[v1.ListServerSshLoginsRequest, v1.ListServerSshLoginsResponse]
+	banServerSshAddress        *connect.Client[v1.BanServerSshAddressRequest, v1.BanServerSshAddressResponse]
+	getServerFail2Ban          *connect.Client[v1.GetServerFail2BanRequest, v1.GetServerFail2BanResponse]
 }
 
 // GetServerFirewall calls dockwell.v1.FirewallService.GetServerFirewall.
@@ -124,6 +199,36 @@ func (c *firewallServiceClient) GetServerFirewall(ctx context.Context, req *conn
 // GetServerSsh calls dockwell.v1.FirewallService.GetServerSsh.
 func (c *firewallServiceClient) GetServerSsh(ctx context.Context, req *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error) {
 	return c.getServerSsh.CallUnary(ctx, req)
+}
+
+// ListServerSshKeys calls dockwell.v1.FirewallService.ListServerSshKeys.
+func (c *firewallServiceClient) ListServerSshKeys(ctx context.Context, req *connect.Request[v1.ListServerSshKeysRequest]) (*connect.Response[v1.ListServerSshKeysResponse], error) {
+	return c.listServerSshKeys.CallUnary(ctx, req)
+}
+
+// EditServerSshKey calls dockwell.v1.FirewallService.EditServerSshKey.
+func (c *firewallServiceClient) EditServerSshKey(ctx context.Context, req *connect.Request[v1.EditServerSshKeyRequest]) (*connect.Response[v1.EditServerSshKeyResponse], error) {
+	return c.editServerSshKey.CallUnary(ctx, req)
+}
+
+// ListServerSshSessions calls dockwell.v1.FirewallService.ListServerSshSessions.
+func (c *firewallServiceClient) ListServerSshSessions(ctx context.Context, req *connect.Request[v1.ListServerSshSessionsRequest]) (*connect.Response[v1.ListServerSshSessionsResponse], error) {
+	return c.listServerSshSessions.CallUnary(ctx, req)
+}
+
+// DisconnectServerSshSession calls dockwell.v1.FirewallService.DisconnectServerSshSession.
+func (c *firewallServiceClient) DisconnectServerSshSession(ctx context.Context, req *connect.Request[v1.DisconnectServerSshSessionRequest]) (*connect.Response[v1.DisconnectServerSshSessionResponse], error) {
+	return c.disconnectServerSshSession.CallUnary(ctx, req)
+}
+
+// ListServerSshLogins calls dockwell.v1.FirewallService.ListServerSshLogins.
+func (c *firewallServiceClient) ListServerSshLogins(ctx context.Context, req *connect.Request[v1.ListServerSshLoginsRequest]) (*connect.Response[v1.ListServerSshLoginsResponse], error) {
+	return c.listServerSshLogins.CallUnary(ctx, req)
+}
+
+// BanServerSshAddress calls dockwell.v1.FirewallService.BanServerSshAddress.
+func (c *firewallServiceClient) BanServerSshAddress(ctx context.Context, req *connect.Request[v1.BanServerSshAddressRequest]) (*connect.Response[v1.BanServerSshAddressResponse], error) {
+	return c.banServerSshAddress.CallUnary(ctx, req)
 }
 
 // GetServerFail2Ban calls dockwell.v1.FirewallService.GetServerFail2ban.
@@ -150,6 +255,18 @@ type FirewallServiceHandler interface {
 	// nothing. How SSH lets people in is the whole server's, so reading it is an
 	// admin's (ADR 0049), as reading its firewall is.
 	GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error)
+	// ListServerSshKeys lists local accounts and a selected account's authorized SSH keys.
+	ListServerSshKeys(context.Context, *connect.Request[v1.ListServerSshKeysRequest]) (*connect.Response[v1.ListServerSshKeysResponse], error)
+	// EditServerSshKey adds one public key or removes a key by its fingerprint. It requires a fresh passkey.
+	EditServerSshKey(context.Context, *connect.Request[v1.EditServerSshKeyRequest]) (*connect.Response[v1.EditServerSshKeyResponse], error)
+	// ListServerSshSessions lists authenticated SSH connections and whether the agent can disconnect each one.
+	ListServerSshSessions(context.Context, *connect.Request[v1.ListServerSshSessionsRequest]) (*connect.Response[v1.ListServerSshSessionsResponse], error)
+	// DisconnectServerSshSession ends a specific SSH connection after a passkey check.
+	DisconnectServerSshSession(context.Context, *connect.Request[v1.DisconnectServerSshSessionRequest]) (*connect.Response[v1.DisconnectServerSshSessionResponse], error)
+	// ListServerSshLogins reads a bounded window of SSH login results and counts failures by address.
+	ListServerSshLogins(context.Context, *connect.Request[v1.ListServerSshLoginsRequest]) (*connect.Response[v1.ListServerSshLoginsResponse], error)
+	// BanServerSshAddress bans a failed SSH peer in the active fail2ban sshd jail after a passkey check.
+	BanServerSshAddress(context.Context, *connect.Request[v1.BanServerSshAddressRequest]) (*connect.Response[v1.BanServerSshAddressResponse], error)
 	// GetServerFail2ban reads, through the server's agent, what fail2ban does:
 	// whether it's installed and running, each jail as fail2ban says it runs,
 	// and the addresses each has banned now, through fail2ban-client. Reading it
@@ -180,6 +297,45 @@ func NewFirewallServiceHandler(svc FirewallServiceHandler, opts ...connect.Handl
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	firewallServiceListServerSshKeysHandler := connect.NewUnaryHandler(
+		FirewallServiceListServerSshKeysProcedure,
+		svc.ListServerSshKeys,
+		connect.WithSchema(firewallServiceMethods.ByName("ListServerSshKeys")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceEditServerSshKeyHandler := connect.NewUnaryHandler(
+		FirewallServiceEditServerSshKeyProcedure,
+		svc.EditServerSshKey,
+		connect.WithSchema(firewallServiceMethods.ByName("EditServerSshKey")),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceListServerSshSessionsHandler := connect.NewUnaryHandler(
+		FirewallServiceListServerSshSessionsProcedure,
+		svc.ListServerSshSessions,
+		connect.WithSchema(firewallServiceMethods.ByName("ListServerSshSessions")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceDisconnectServerSshSessionHandler := connect.NewUnaryHandler(
+		FirewallServiceDisconnectServerSshSessionProcedure,
+		svc.DisconnectServerSshSession,
+		connect.WithSchema(firewallServiceMethods.ByName("DisconnectServerSshSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceListServerSshLoginsHandler := connect.NewUnaryHandler(
+		FirewallServiceListServerSshLoginsProcedure,
+		svc.ListServerSshLogins,
+		connect.WithSchema(firewallServiceMethods.ByName("ListServerSshLogins")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	firewallServiceBanServerSshAddressHandler := connect.NewUnaryHandler(
+		FirewallServiceBanServerSshAddressProcedure,
+		svc.BanServerSshAddress,
+		connect.WithSchema(firewallServiceMethods.ByName("BanServerSshAddress")),
+		connect.WithHandlerOptions(opts...),
+	)
 	firewallServiceGetServerFail2BanHandler := connect.NewUnaryHandler(
 		FirewallServiceGetServerFail2BanProcedure,
 		svc.GetServerFail2Ban,
@@ -193,6 +349,18 @@ func NewFirewallServiceHandler(svc FirewallServiceHandler, opts ...connect.Handl
 			firewallServiceGetServerFirewallHandler.ServeHTTP(w, r)
 		case FirewallServiceGetServerSshProcedure:
 			firewallServiceGetServerSshHandler.ServeHTTP(w, r)
+		case FirewallServiceListServerSshKeysProcedure:
+			firewallServiceListServerSshKeysHandler.ServeHTTP(w, r)
+		case FirewallServiceEditServerSshKeyProcedure:
+			firewallServiceEditServerSshKeyHandler.ServeHTTP(w, r)
+		case FirewallServiceListServerSshSessionsProcedure:
+			firewallServiceListServerSshSessionsHandler.ServeHTTP(w, r)
+		case FirewallServiceDisconnectServerSshSessionProcedure:
+			firewallServiceDisconnectServerSshSessionHandler.ServeHTTP(w, r)
+		case FirewallServiceListServerSshLoginsProcedure:
+			firewallServiceListServerSshLoginsHandler.ServeHTTP(w, r)
+		case FirewallServiceBanServerSshAddressProcedure:
+			firewallServiceBanServerSshAddressHandler.ServeHTTP(w, r)
 		case FirewallServiceGetServerFail2BanProcedure:
 			firewallServiceGetServerFail2BanHandler.ServeHTTP(w, r)
 		default:
@@ -210,6 +378,30 @@ func (UnimplementedFirewallServiceHandler) GetServerFirewall(context.Context, *c
 
 func (UnimplementedFirewallServiceHandler) GetServerSsh(context.Context, *connect.Request[v1.GetServerSshRequest]) (*connect.Response[v1.GetServerSshResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.GetServerSsh is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) ListServerSshKeys(context.Context, *connect.Request[v1.ListServerSshKeysRequest]) (*connect.Response[v1.ListServerSshKeysResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.ListServerSshKeys is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) EditServerSshKey(context.Context, *connect.Request[v1.EditServerSshKeyRequest]) (*connect.Response[v1.EditServerSshKeyResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.EditServerSshKey is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) ListServerSshSessions(context.Context, *connect.Request[v1.ListServerSshSessionsRequest]) (*connect.Response[v1.ListServerSshSessionsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.ListServerSshSessions is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) DisconnectServerSshSession(context.Context, *connect.Request[v1.DisconnectServerSshSessionRequest]) (*connect.Response[v1.DisconnectServerSshSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.DisconnectServerSshSession is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) ListServerSshLogins(context.Context, *connect.Request[v1.ListServerSshLoginsRequest]) (*connect.Response[v1.ListServerSshLoginsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.ListServerSshLogins is not implemented"))
+}
+
+func (UnimplementedFirewallServiceHandler) BanServerSshAddress(context.Context, *connect.Request[v1.BanServerSshAddressRequest]) (*connect.Response[v1.BanServerSshAddressResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FirewallService.BanServerSshAddress is not implemented"))
 }
 
 func (UnimplementedFirewallServiceHandler) GetServerFail2Ban(context.Context, *connect.Request[v1.GetServerFail2BanRequest]) (*connect.Response[v1.GetServerFail2BanResponse], error) {

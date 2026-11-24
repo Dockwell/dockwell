@@ -508,7 +508,7 @@ func (a *Agents) SessionPastMove(ctx context.Context, server string, within time
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, serial ...string) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
@@ -741,6 +741,7 @@ type Session struct {
 	transfersFiles bool
 	// archivesFiles says the agent compresses, extracts, and downloads selections as zip.
 	archivesFiles bool
+	managesSSH    bool
 	// firstPasswords says the agent changes a database's first user's password in
 	// it as its service restarts with a new one (ADR 0038).
 	firstPasswords bool
@@ -2495,7 +2496,7 @@ func accessWait(w *agentv1.AccessWait) *resource.AccessWait {
 	if w == nil {
 		return nil
 	}
-	out := &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts()}
+	out := &resource.AccessWait{Deadline: w.GetDeadline().AsTime(), SSHPorts: w.GetSshPorts(), SSHAccount: w.GetSshAccount()}
 	if left := w.GetLeft(); left != nil {
 		out.Left = left.AsDuration()
 		out.Deadline = time.Now().Add(out.Left)
@@ -2514,6 +2515,9 @@ func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.
 	if err != nil {
 		return 0, err
 	}
+	if failure := r.GetConfirmAccess().GetSshFailure(); failure != "" {
+		return 0, &resource.SSHKeepError{Message: failure}
+	}
 	switch r.GetConfirmAccess().GetVerdict() {
 	case agentv1.AccessVerdict_ACCESS_VERDICT_KEPT:
 		return resource.AccessKept, nil
@@ -2523,6 +2527,8 @@ func (s *Session) ConfirmAccess(ctx context.Context, changeID string) (resource.
 		return resource.AccessNotWaiting, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_KEPT:
 		return resource.AccessNotKept, nil
+	case agentv1.AccessVerdict_ACCESS_VERDICT_NOT_PROVED:
+		return resource.AccessNotProved, nil
 	case agentv1.AccessVerdict_ACCESS_VERDICT_UNSPECIFIED:
 	}
 	return 0, errors.New("the agent said nothing of the change")

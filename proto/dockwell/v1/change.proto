@@ -584,6 +584,7 @@ message ChangeConfirmation {
   google.protobuf.Timestamp deadline = 2;
   // The ports the server's SSH listens on now, for the test the person runs
   // before confirming: a new SSH session, from where they are, with their key.
+  string ssh_account = 4;
   repeated uint32 ssh_ports = 3;
 }
 
@@ -1986,6 +1987,8 @@ message PlanStep {
   PackageInstall install = 45;
   // What rebooting does, for a step that reboots its server.
   HostReboot reboot = 46;
+  // The rules and jail that move with a guarded SSH listener change.
+  SshPortMove ssh_port_move = 47;
   // What an action on one of its server's system services does, for a step that
   // takes one (ADR 0082). Track S takes 70 to 79 here.
   HostUnit unit = 70;
@@ -2034,6 +2037,14 @@ message PlanStep {
   // nothing runs there. Cloudflare's steps run before the server's and come off after
   // them (ADR 0104). Numbered in the block ADR 0104 holds, 340 to 349.
   ProviderStep provider = 340;
+}
+
+// SshPortMove describes the firewall rules and jail that follow a new listener.
+message SshPortMove {
+  uint32 from_port = 1;
+  uint32 to_port = 2;
+  repeated string firewall_rules = 3;
+  bool fail2ban = 4;
 }
 
 // ProviderStep is one thing the control plane writes, or removes, at Cloudflare

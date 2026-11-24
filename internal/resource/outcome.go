@@ -54,6 +54,11 @@ type Outcome struct {
 // its confirmation.
 type AccessVerdict int
 
+// SSHKeepError explains an agent's refusal to keep an SSH trial.
+type SSHKeepError struct{ Message string }
+
+func (e *SSHKeepError) Error() string { return e.Message }
+
 // Verdicts.
 const (
 	// AccessKept is a change confirmed in time, which the server keeps.
@@ -68,6 +73,8 @@ const (
 	// a kept change must never have a stale revert behind it. Its timer goes
 	// on, and a confirmation may be tried again.
 	AccessNotKept
+	// AccessNotProved means a fresh SSH connection has yet to prove access.
+	AccessNotProved
 )
 
 // AccessWait is a change to who reaches a server that waits for the person who
@@ -81,7 +88,8 @@ type AccessWait struct {
 	Left time.Duration `json:"left,omitempty"`
 	// SSHPorts are the ports SSH listens on now, for the test the person runs:
 	// a new SSH session, from where they are, with their key.
-	SSHPorts []uint32 `json:"ssh_ports,omitempty"`
+	SSHPorts   []uint32 `json:"ssh_ports,omitempty"`
+	SSHAccount string   `json:"ssh_account,omitempty"`
 }
 
 // Did is what Outcome.Did holds.

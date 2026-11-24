@@ -34,6 +34,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
+	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/githooks"
 	"github.com/dockwell/dockwell/internal/control/health"
@@ -109,7 +110,7 @@ const fileDownload = "file.download"
 var (
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
-		processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
+		firewall.EventSSHKeyAdded, firewall.EventSSHKeyRemoved, firewall.EventSSHDisconnected, firewall.EventSSHAddressBanned, firewall.EventSSHUnconfirmed, processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
 		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionWaiting, reconciled.ActionDropped,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).

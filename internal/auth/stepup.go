@@ -95,7 +95,10 @@ const (
 	StepUpRemoveGitHubApp StepUpAction = "github_app.remove"
 	// StepUpEndProcess ends a process on a server. Its target is the server's ID
 	// and the process's, as "srv_…:1234".
-	StepUpEndProcess StepUpAction = "process.end"
+	StepUpEndProcess           StepUpAction = "process.end"
+	StepUpEditSSHKey           StepUpAction = "ssh.edit_key"
+	StepUpDisconnectSSHSession StepUpAction = "ssh.disconnect"
+	StepUpBanSSHAddress        StepUpAction = "ssh.ban"
 	// StepUpOpenTerminal opens a root shell on a server. Its target is the
 	// server's ID. A proof opens one terminal (ADR 0037).
 	StepUpOpenTerminal StepUpAction = "terminal.open"
@@ -187,24 +190,27 @@ var stepUpActions = map[StepUpAction]struct {
 	doing    string
 	targeted bool
 }{
-	StepUpRevealSecret:     {"revealing", true},
-	StepUpAddPasskey:       {"adding a passkey", false},
-	StepUpRemovePasskey:    {"removing passkey", true},
-	StepUpSetUpCodes:       {"setting up code sign-in", false},
-	StepUpDisableCodes:     {"turning code sign-in off", false},
-	StepUpRecoveryCodes:    {"making new recovery codes", false},
-	StepUpCreateToken:      {"creating an API token", false},
-	StepUpApplyRootChange:  {"applying", true},
-	StepUpSaveWayBackIn:    {"saving", true},
-	StepUpCreateGitHook:    {"turning deploy on push on for", true},
-	StepUpRotateGitHook:    {"making a new hook secret for", true},
-	StepUpWidenGitHook:     {"letting deploy on push go without waiting for", true},
-	StepUpConnectGitHubApp: {"connecting GitHub", false},
-	StepUpRotateGitHubApp:  {"giving a new secret or key to", true},
-	StepUpRemoveGitHubApp:  {"removing", true},
-	StepUpEndProcess:       {"ending process", true},
-	StepUpOpenTerminal:     {"opening a terminal on", true},
-	StepUpApproveChange:    {"approving", true},
+	StepUpRevealSecret:         {"revealing", true},
+	StepUpAddPasskey:           {"adding a passkey", false},
+	StepUpRemovePasskey:        {"removing passkey", true},
+	StepUpSetUpCodes:           {"setting up code sign-in", false},
+	StepUpDisableCodes:         {"turning code sign-in off", false},
+	StepUpRecoveryCodes:        {"making new recovery codes", false},
+	StepUpCreateToken:          {"creating an API token", false},
+	StepUpApplyRootChange:      {"applying", true},
+	StepUpSaveWayBackIn:        {"saving", true},
+	StepUpCreateGitHook:        {"turning deploy on push on for", true},
+	StepUpRotateGitHook:        {"making a new hook secret for", true},
+	StepUpWidenGitHook:         {"letting deploy on push go without waiting for", true},
+	StepUpConnectGitHubApp:     {"connecting GitHub", false},
+	StepUpRotateGitHubApp:      {"giving a new secret or key to", true},
+	StepUpRemoveGitHubApp:      {"removing", true},
+	StepUpEditSSHKey:           {"changing SSH keys for", true},
+	StepUpDisconnectSSHSession: {"disconnecting SSH session", true},
+	StepUpBanSSHAddress:        {"banning SSH address", true},
+	StepUpEndProcess:           {"ending process", true},
+	StepUpOpenTerminal:         {"opening a terminal on", true},
+	StepUpApproveChange:        {"approving", true},
 	// A move's target has its two paths on two lines, which doing puts in words.
 	StepUpMakeWayBackIn:                     {"making", true},
 	StepUpMoveWayBackIn:                     {"moving", true},
@@ -235,6 +241,25 @@ var stepUpActions = map[StepUpAction]struct {
 // doing says what a step-up confirms, such as "revealing sec_…".
 func doing(action StepUpAction, target string) string {
 	a := stepUpActions[action]
+	server, subject, found := strings.Cut(target, ":")
+	if found {
+		switch action {
+		case StepUpEditSSHKey:
+			account, edit, ok := strings.Cut(subject, ":")
+			if operation, key, hasKey := strings.Cut(edit, ":"); ok && hasKey {
+				switch operation {
+				case "add":
+					fingerprint, _, _ := strings.Cut(key, "|")
+					return "adding SSH key " + fingerprint + " for " + account + " on " + server
+				case "remove":
+					return "removing SSH key " + key + " for " + account + " on " + server
+				}
+			}
+		case StepUpDisconnectSSHSession, StepUpBanSSHAddress:
+			return a.doing + " " + subject + " on " + server
+		default:
+		}
+	}
 	if a.targeted {
 		sep := " to "
 		if action == StepUpExtractWayBackIn {

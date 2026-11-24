@@ -6865,6 +6865,194 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh/bans:
+        post:
+            tags:
+                - FirewallService
+            description: BanServerSshAddress bans a failed SSH peer in the active fail2ban sshd jail after a passkey check.
+            operationId: FirewallService_BanServerSshAddress
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BanServerSshAddressRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BanServerSshAddressResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh/keys:
+        get:
+            tags:
+                - FirewallService
+            description: ListServerSshKeys lists local accounts and a selected account's authorized SSH keys.
+            operationId: FirewallService_ListServerSshKeys
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: account
+                  in: query
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListServerSshKeysResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - FirewallService
+            description: EditServerSshKey adds one public key or removes a key by its fingerprint. It requires a fresh passkey.
+            operationId: FirewallService_EditServerSshKey
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/EditServerSshKeyRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EditServerSshKeyResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh/logins:
+        get:
+            tags:
+                - FirewallService
+            description: ListServerSshLogins reads a bounded window of SSH login results and counts failures by address.
+            operationId: FirewallService_ListServerSshLogins
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+                - name: hours
+                  in: query
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: user
+                  in: query
+                  schema:
+                    type: string
+                - name: address
+                  in: query
+                  schema:
+                    type: string
+                - name: accepted
+                  in: query
+                  schema:
+                    type: boolean
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListServerSshLoginsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh/sessions:
+        get:
+            tags:
+                - FirewallService
+            description: ListServerSshSessions lists authenticated SSH connections and whether the agent can disconnect each one.
+            operationId: FirewallService_ListServerSshSessions
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListServerSshSessionsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/ssh/sessions:disconnect:
+        post:
+            tags:
+                - FirewallService
+            description: DisconnectServerSshSession ends a specific SSH connection after a passkey check.
+            operationId: FirewallService_DisconnectServerSshSession
+            parameters:
+                - name: serverId
+                  in: path
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DisconnectServerSshSessionRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisconnectServerSshSessionResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/systemLog:
         get:
             tags:
@@ -11576,6 +11764,20 @@ components:
                     type: string
                     description: How much those take, in bytes.
             description: BackupPolicyInfo is a schedule of backups, as it stands.
+        BanServerSshAddressRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                address:
+                    type: string
+                proof:
+                    type: string
+            description: BanServerSshAddressRequest identifies an address with recent SSH authentication failures.
+        BanServerSshAddressResponse:
+            type: object
+            properties: {}
+            description: BanServerSshAddressResponse confirms fail2ban accepted the ban.
         BeginAcceptInviteRequest:
             type: object
             properties:
@@ -11753,6 +11955,9 @@ components:
                         - STEP_UP_ACTION_SET_UP_CATALOG_INSTALL
                         - STEP_UP_ACTION_RESET_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_CATALOG_OWNER_PENDING_PASSWORD
+                        - STEP_UP_ACTION_EDIT_SSH_KEY
+                        - STEP_UP_ACTION_DISCONNECT_SSH_SESSION
+                        - STEP_UP_ACTION_BAN_SSH_ADDRESS
                         - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
@@ -13179,14 +13384,16 @@ components:
                     type: string
                     description: When the server puts back its firewall, unless confirmed first.
                     format: date-time
+                sshAccount:
+                    type: string
+                    description: |-
+                        The ports the server's SSH listens on now, for the test the person runs
+                         before confirming: a new SSH session, from where they are, with their key.
                 sshPorts:
                     type: array
                     items:
                         type: integer
                         format: uint32
-                    description: |-
-                        The ports the server's SSH listens on now, for the test the person runs
-                         before confirming: a new SSH session, from where they are, with their key.
             description: |-
                 ChangeConfirmation is what a change to a server's firewall waits for: that
                  the person who applied it confirms they can still reach the server, before
@@ -16428,6 +16635,20 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, discarded.
             description: DiscardChangeResponse carries the discarded change.
+        DisconnectServerSshSessionRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                sessionId:
+                    type: string
+                proof:
+                    type: string
+            description: DisconnectServerSshSessionRequest identifies a connection from the session list.
+        DisconnectServerSshSessionResponse:
+            type: object
+            properties: {}
+            description: DisconnectServerSshSessionResponse confirms the signal went to the identified session.
         DisconnectStorageRequest:
             type: object
             properties:
@@ -18578,6 +18799,26 @@ components:
                     type: boolean
                     description: Require a new network or volume and an unoccupied Engine name.
             description: Edit sets one resource's desired spec, or deletes it.
+        EditServerSshKeyRequest:
+            type: object
+            properties:
+                serverId:
+                    type: string
+                account:
+                    type: string
+                publicKey:
+                    type: string
+                removeFingerprint:
+                    type: string
+                proof:
+                    type: string
+            description: EditServerSshKeyRequest selects an account and a single add or remove operation.
+        EditServerSshKeyResponse:
+            type: object
+            properties:
+                key:
+                    $ref: '#/components/schemas/SshKey'
+            description: EditServerSshKeyResponse describes the affected public key.
         EndProcessRequest:
             type: object
             properties:
@@ -20131,7 +20372,7 @@ components:
                     format: enum
                 port:
                     type: integer
-                    description: The port the rule covers.
+                    description: The port the rule covers. Omit on an existing rule to keep its port.
                     format: uint32
                 sources:
                     type: array
@@ -23571,6 +23812,47 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListResourcesResponse is a page of resources.
+        ListServerSshKeysResponse:
+            type: object
+            properties:
+                accounts:
+                    type: array
+                    items:
+                        type: string
+                keys:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshKey'
+                account:
+                    type: string
+            description: ListServerSshKeysResponse lists accounts and the selected account's key metadata.
+        ListServerSshLoginsResponse:
+            type: object
+            properties:
+                logins:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshLogin'
+                failures:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshLoginFailures'
+                bounded:
+                    type: boolean
+                banAvailable:
+                    type: boolean
+                unverified:
+                    type: boolean
+                    description: Text syslog records lack a verified credential for the sender.
+            description: ListServerSshLoginsResponse holds the matching logins and the failures by address.
+        ListServerSshSessionsResponse:
+            type: object
+            properties:
+                sessions:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SshSession'
+            description: ListServerSshSessionsResponse lists the server's authenticated SSH connections.
         ListServersResponse:
             type: object
             properties:
@@ -26768,6 +27050,10 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/HostReboot'
                     description: What rebooting does, for a step that reboots its server.
+                sshPortMove:
+                    allOf:
+                        - $ref: '#/components/schemas/SshPortMove'
+                    description: The rules and jail that move with a guarded SSH listener change.
                 unit:
                     allOf:
                         - $ref: '#/components/schemas/HostUnit'
@@ -30099,6 +30385,35 @@ components:
                          generator builds it from sshd_config, "systemctl daemon-reload &&
                          systemctl restart ssh.socket", as a reload doesn't move them; empty where
                          the unit sets its ports itself.
+                listenAddresses:
+                    type: array
+                    items:
+                        type: string
+                managed:
+                    $ref: '#/components/schemas/SshConfig'
+                editRefusal:
+                    type: string
+                provedChange:
+                    type: string
+                adminAccounts:
+                    type: array
+                    items:
+                        type: string
+                testChange:
+                    type: string
+                    description: The command for the current trial and its verified authentication.
+                testCommand:
+                    type: string
+                proof:
+                    $ref: '#/components/schemas/SshProof'
+                testAddress:
+                    type: string
+                unexpectedTestAddress:
+                    type: string
+                    description: Address seen when the test command reached sshd from a different peer.
+                yourAddress:
+                    type: string
+                    description: Address of the panel request, when available.
             description: |-
                 ServerSsh is how SSH lets people in on a server, as its agent read it: the
                  values sshd's files say, read with sshd -T, which may not be what any one file writes,
@@ -31633,12 +31948,14 @@ components:
                     description: |-
                         What a server's firewall does with what no rule lets in, kind
                          "firewall.policy". Numbered apart, as open work adds to this message.
-                fail2banJail:
+                sshConfig:
                     allOf:
-                        - $ref: '#/components/schemas/Jail'
+                        - $ref: '#/components/schemas/SshConfig'
                     description: |-
                         One of fail2ban's jails on a server, kind "fail2ban.jail". Numbered
                          apart, as open work adds to this message.
+                fail2banJail:
+                    $ref: '#/components/schemas/Jail'
                 volume:
                     allOf:
                         - $ref: '#/components/schemas/Volume'
@@ -31762,6 +32079,72 @@ components:
                 Spec is the desired state of one resource, of any kind: the field that is
                  set says which. Edits in the API carry specs in it, so one message takes
                  every kind.
+        SshConfig:
+            type: object
+            properties:
+                passwordLogin:
+                    type: boolean
+                keyLogin:
+                    type: boolean
+                rootLogin:
+                    type: string
+                    description: OpenSSH PermitRootLogin, as yes, prohibit-password, or no.
+                port:
+                    type: integer
+                    format: uint32
+                listenAddresses:
+                    type: array
+                    items:
+                        type: string
+                    description: Numeric IP addresses, with no ports. Empty follows the server.
+                account:
+                    type: string
+                    description: Local administrator whose new SSH connection proves access.
+                testAddress:
+                    type: string
+                    description: Numeric client IP address as seen by this server for the test login.
+            description: SshConfig is Dockwell's SSH daemon drop-in. Unset fields follow the server.
+        SshKey:
+            type: object
+            properties:
+                type:
+                    type: string
+                comment:
+                    type: string
+                fingerprint:
+                    type: string
+                added:
+                    type: string
+                    format: date-time
+                options:
+                    type: array
+                    items:
+                        type: string
+            description: SshKey describes a public key without disclosing its material.
+        SshLogin:
+            type: object
+            properties:
+                time:
+                    type: string
+                    format: date-time
+                user:
+                    type: string
+                address:
+                    type: string
+                method:
+                    type: string
+                accepted:
+                    type: boolean
+            description: SshLogin is an authentication result reported by the SSH daemon.
+        SshLoginFailures:
+            type: object
+            properties:
+                address:
+                    type: string
+                count:
+                    type: integer
+                    format: uint32
+            description: SshLoginFailures summarizes failed SSH authentication for one address.
         SshMatch:
             type: object
             properties:
@@ -31786,6 +32169,49 @@ components:
             description: |-
                 SshMatch is a Match block that sets one of the values ServerSsh says, for
                  some people or addresses.
+        SshPortMove:
+            type: object
+            properties:
+                fromPort:
+                    type: integer
+                    format: uint32
+                toPort:
+                    type: integer
+                    format: uint32
+                firewallRules:
+                    type: array
+                    items:
+                        type: string
+                fail2ban:
+                    type: boolean
+            description: SshPortMove describes the firewall rules and jail that follow a new listener.
+        SshProof:
+            type: object
+            properties:
+                address:
+                    type: string
+                method:
+                    type: string
+                fingerprint:
+                    type: string
+            description: SshProof identifies the accepted login that verified an SSH trial.
+        SshSession:
+            type: object
+            properties:
+                id:
+                    type: string
+                user:
+                    type: string
+                address:
+                    type: string
+                since:
+                    type: string
+                    format: date-time
+                tty:
+                    type: string
+                canDisconnect:
+                    type: boolean
+            description: SshSession is an authenticated SSH connection.
         SshSource:
             type: object
             properties:
@@ -33889,8 +34315,8 @@ tags:
          docs/security/files.md lists them.
     - name: FirewallService
       description: |-
-        FirewallService says what filters a server's inbound traffic. Reading it
-         changes nothing. See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
+        FirewallService reads a server's inbound filters and manages SSH access.
+         See docs/adr/0052-a-servers-firewall-ssh-and-fail2ban.md.
     - name: GitHookService
       description: |-
         GitHookService turns deploy on push on and off for a service that builds from

@@ -2,8 +2,8 @@
 
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
-import { useTransport } from "@connectrpc/connect-query";
-import { type AccessStays, type ChangeConfirmation, ChangeService, Connection } from "@dockwell/api";
+import { useQuery, useTransport } from "@connectrpc/connect-query";
+import { type AccessStays, type ChangeConfirmation, ChangeService, Connection, FirewallService } from "@dockwell/api";
 import { Button, Callout } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { useSignedInUser } from "../auth/useAuthState";
+import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 
 /**
@@ -58,6 +59,22 @@ export function ConfirmAccess({
   // so a click doesn't land after the server has put its firewall back.
   const left = Math.max(0, Math.floor((deadline - now) / 1000));
   const open = deadline - now > KEEP_MARGIN_MS && !gone;
+  const proof = useQuery(
+    FirewallService.method.getServerSsh,
+    { serverId: wait.serverId },
+    {
+      enabled: !!wait.sshAccount && open && !theirs,
+      refetchInterval: 2000,
+      retry: false,
+    },
+  );
+  const proved = !wait.sshAccount || proof.data?.ssh?.provedChange === changeId;
+  const ssh = proof.data?.ssh;
+  const command = open && ssh?.testChange === changeId ? ssh.testCommand : "";
+  const testAddress = command ? ssh?.testAddress : "";
+  const unexpected = command ? ssh?.unexpectedTestAddress : "";
+  const login = proved ? ssh?.proof : undefined;
+  const identity = login?.fingerprint ? `${login.method} · ${login.fingerprint}` : login?.method;
   const ports = wait.sshPorts;
   const port = ports[0] ?? 0;
   const portList = ports.join(` ${t`or`} `);
@@ -82,7 +99,7 @@ export function ConfirmAccess({
       title={t`Check you can still reach ${name}`}
       className="plan-confirm"
       actions={
-        theirs ? undefined : (
+        theirs || !proved ? undefined : (
           <Button variant="primary" onClick={keep} disabled={busy || !open} {...mayKeep.off}>
             <Trans>Keep the change</Trans>
           </Button>
@@ -90,7 +107,27 @@ export function ConfirmAccess({
       }
     >
       <p>
-        {ports.length === 0 ? (
+        {wait.sshAccount ? (
+          proved && login ? (
+            identity ? (
+              <Trans>
+                Verified from {login.address} with {identity}.
+              </Trans>
+            ) : (
+              <Trans>Verified from {login.address}.</Trans>
+            )
+          ) : proved ? (
+            <Trans>A fresh SSH connection verified these settings.</Trans>
+          ) : testAddress ? (
+            <Trans>Run this command from {testAddress}.</Trans>
+          ) : command ? (
+            <Trans>Run this command from the SSH client you used to sign in.</Trans>
+          ) : (
+            <Trans>
+              Waiting for the test command for {wait.sshAccount} on port {port}.
+            </Trans>
+          )
+        ) : ports.length === 0 ? (
           <Trans>Open a new SSH session from here with your key, and keep the change if it works.</Trans>
         ) : ports.length === 1 ? (
           <Trans>Open a new SSH session to port {port} from here with your key, and keep the change if it works.</Trans>
@@ -100,6 +137,20 @@ export function ConfirmAccess({
           </Trans>
         )}
       </p>
+      {!theirs && !proved && unexpected ? (
+        <p role="status">
+          <Trans>
+            The server saw your test login from {unexpected}. Reconnect from {testAddress}, or let this trial revert and
+            use the new address in a new plan.
+          </Trans>
+        </p>
+      ) : null}
+      {!theirs && !proved && command ? (
+        <p className="plan-ssh-command">
+          <code>{command}</code>
+          <CopyButton text={command} label={t`Copy SSH test command`} />
+        </p>
+      ) : null}
       {panelPorts ? (
         <p>
           <Trans>Then open the panel at its own address in a new tab.</Trans>
@@ -116,7 +167,13 @@ export function ConfirmAccess({
         </p>
       ) : null}
       <p className="plan-confirm-left" aria-live="polite">
-        {gone ? (
+        {wait.sshAccount && open ? (
+          <Trans>
+            {name} restores its SSH settings in {left} s unless you keep them.
+          </Trans>
+        ) : wait.sshAccount ? (
+          <Trans>{name} is restoring its SSH settings.</Trans>
+        ) : gone ? (
           <Trans>{name}'s agent isn't connected, so it puts back its firewall when its time runs out.</Trans>
         ) : open ? (
           <Trans>
@@ -134,7 +191,9 @@ export function ConfirmAccess({
               ? t`The server couldn't keep it yet, so it still waits. Free space on its disk, then keep it again.`
               : reasonOf(error) === "not_waiting"
                 ? t`That wait is over: this sheet shows whether the server kept the change.`
-                : sentence(error)}
+                : reasonOf(error) === "ssh_not_proved"
+                  ? t`Run the test command from the expected address and wait for verification before choosing Keep again.`
+                  : sentence(error)}
         </p>
       ) : null}
     </Callout>

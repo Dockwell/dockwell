@@ -303,17 +303,20 @@ jobs:
             --config-file /socket/daemon.json --storage-driver overlayfs \
             --bridge none --iptables=false --ip6tables=false --ip-forward=false --registry-mirror https://mirror.gcr.io
           export DOCKWELL_TEST_DOCKER="$state/docker.sock" TMPDIR="$state"
+          # dockerd can answer info before its snapshotter is reported, so wait
+          # for the snapshotter itself, as the vfs job waits for its driver (2026-11-24).
           for attempt in {1..30}; do
-            if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{json .DriverStatus}}' >"$state/driver" 2>/dev/null; then
+            if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{json .DriverStatus}}' >"$state/driver" 2>/dev/null &&
+              grep -Fq 'io.containerd.snapshotter.v1' "$state/driver"; then
               break
             fi
             if [[ "$attempt" == 30 ]]; then
+              echo "dockerd reports no containerd snapshotter: $(cat "$state/driver" 2>/dev/null)"
               docker logs "$name"
               exit 1
             fi
             sleep 1
           done
-          grep -Fq 'io.containerd.snapshotter.v1' "$state/driver"
           go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
           for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedImagePush ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupRemovesPinnedImage CleanupKeepsAnImageWithTwoTags CleanupRemovesOneBuildCacheRecord CleanupRemovesUnusedVolumesAndManyImages CleanupKeepsStoppedContainerVolume CleanupProtectsComposeAndCopiedMarkerVolumes; do
             grep -q "^--- PASS: Test${test}OnRealDocker " "$state/tests.out"

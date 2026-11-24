@@ -61,6 +61,7 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/sshconfig"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/task"
 )
@@ -550,7 +551,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Drivers: resource.NewRegistry(daemon, &containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups, Moves: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			users, tasks,
-			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls},
+			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}, &sshconfig.Driver{Backend: firewalls},
 			&fail2ban.Driver{Backend: jailed}, &host.Driver{Backend: updates.Host{Installer: installs}, Units: units, Panels: panels.Stopper{Docker: client, WithRunIntent: runtime.WithRunIntent, BeforeProxy: proxy.Pull, Check: panelReader(stdio, client).Check}, Upgrader: upgrades}),
 		Updates:        packages,
 		UpgradesItself: true,
@@ -622,6 +623,7 @@ func firewallAccess(ctx context.Context, logger *slog.Logger, dir datadir.Dir, t
 		DeadMan:      access.NewDeadMan(tools, filepath.Join(dir.Agent(), "access")),
 		Tunnels:      access.WireGuardTunnels(os.DirFS("/sys/class/net"), tools),
 	}
+	agent.SetUpSSH(m, tools)
 	if err := m.Ready(ctx); err != nil {
 		logger.InfoContext(ctx, "the agent offers no firewall kinds until this server can hold Dockwell's firewall", slog.String("reason", err.Error()))
 	}

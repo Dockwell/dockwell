@@ -1087,3 +1087,11 @@ code.plan-server-chip .middle-name-head {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+.plan-ssh-command {
+  display: flex;
+  align-items: start;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
