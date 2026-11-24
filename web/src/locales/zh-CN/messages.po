@@ -9867,6 +9867,9 @@ msgstr "服务器之外还无法访问这些应用。"
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "{server} 之外还无法访问 {name}。"
 
+msgid "Nothing removed"
+msgstr "未移除任何对象"
+
 msgid "Open the app {name}"
 msgstr "打开应用 {name}"
 
@@ -9917,6 +9920,9 @@ msgstr "正在 {server} 上重启 {name}"
 
 msgid "Result unknown"
 msgstr "结果未知"
+
+msgid "Review again"
+msgstr "重新审查"
 
 msgid "Rolling back failed"
 msgstr "回滚失败"
@@ -10113,6 +10119,12 @@ msgstr "{apps} 和 {dbs} 将停止，你可以在 {deadline} 之前撤销。"
 
 msgid "{apps} and {dbs} stop."
 msgstr "{apps} 和 {dbs} 将停止。"
+
+msgid "{cleanupChanged} changed since you reviewed"
+msgstr "{cleanupChanged} 项自审查后已变更"
+
+msgid "{cleanupRemoved, plural, one {# artifact removed} other {# artifacts removed}}"
+msgstr "{cleanupRemoved, plural, other {已移除 # 个对象}}"
 
 msgid "{ing} failed"
 msgstr "{ing}失败"
@@ -10357,9 +10369,6 @@ msgstr "镜像仓库当前提供"
 
 msgid "Registry serves the reviewed digest"
 msgstr "镜像仓库提供的摘要与审核一致"
-
-msgid "Review again"
-msgstr "重新审查"
 
 msgid "Tag"
 msgstr "标签"
@@ -15361,6 +15370,9 @@ msgstr "已选择 {0} 项 · 预计可回收 {estimated}"
 msgid "{deferredCount} more after this cleanup"
 msgstr "本次清理后还剩 {deferredCount} 项"
 
+msgid "Changed"
+msgstr "更改于"
+
 #. placeholder {0}: formatBytes(totalFreedBytes, i18n.locale)
 msgid "Freed {0}"
 msgstr "已释放 {0}"
@@ -15368,8 +15380,8 @@ msgstr "已释放 {0}"
 msgid "Outcome unknown"
 msgstr "结果未知"
 
-msgid "{changedCount} changed"
-msgstr "{changedCount} 项已变化"
+msgid "{changedCount} changed since you reviewed"
+msgstr "{changedCount} 项自审查后已变更"
 
 msgid "{display} estimated"
 msgstr "预计可回收 {display}"
@@ -16597,6 +16609,9 @@ msgstr "{0} 个正在运行"
 msgid "A different volume now uses this name"
 msgstr "已有另一个卷使用此名称"
 
+msgid "Already gone"
+msgstr "已不存在"
+
 msgid "Anonymous volume"
 msgstr "匿名卷"
 
@@ -16651,8 +16666,20 @@ msgstr "已挂载到容器"
 msgid "Needed for rollback or deployment"
 msgstr "回滚或部署所需"
 
+msgid "Newer than preview"
+msgstr "比预览更新"
+
+msgid "Now in use"
+msgstr "现已在使用"
+
+msgid "Now protected"
+msgstr "现已受保护"
+
 msgid "Only local volumes can be removed here"
 msgstr "此处仅支持移除本地卷"
+
+msgid "Reference moved"
+msgstr "引用已变更"
 
 msgid "Retained for recovery"
 msgstr "保留以供恢复"
@@ -24532,9 +24559,6 @@ msgstr "{index} · 单页应用"
 
 msgid "Change the folder"
 msgstr "更改文件夹"
-
-msgid "Changed"
-msgstr "更改于"
 
 msgid "It sends its requests on."
 msgstr "它会把请求转发出去。"

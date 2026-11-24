@@ -558,6 +558,9 @@ func renderChangeWithOptions(w io.Writer, c *dockwellv1.Change, now time.Time, f
 		tw := newTable(w)
 		for _, s := range c.GetSteps() {
 			row(tw, "  "+word(s.GetState()), stepText(s))
+			for _, line := range dockerCleanupOutcomeLines(s.GetDockerReceipts(), dockerCleanupReviewCommandForChange(c, s.GetDockerReceipts())) {
+				fmt.Fprintln(tw, "      "+line)
+			}
 		}
 		_ = tw.Flush()
 		for _, s := range c.GetSteps() {

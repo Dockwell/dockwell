@@ -35,6 +35,7 @@ import {
   useCleanupPreview,
 } from "./cleanupHelpers";
 import { Unread } from "./parts";
+import { type CleanupKindParam, cleanupKindFromParam } from "./search";
 import "./DockerArtifacts.css";
 
 const ALL_CLEANUP_FILTERS: CleanupFilterSpec = {
@@ -44,14 +45,33 @@ const ALL_CLEANUP_FILTERS: CleanupFilterSpec = {
   kinds: [],
 };
 
-export function DockerCleanup({ servers, group }: { servers: readonly CleanupServer[]; group?: string | undefined }) {
+export function DockerCleanup({
+  servers,
+  group,
+  kinds: scopedKinds,
+}: {
+  servers: readonly CleanupServer[];
+  group?: string | undefined;
+  kinds?: readonly CleanupKindParam[] | undefined;
+}) {
   const { t, i18n } = useLingui();
   const words = useDockerArtifactWords();
   const sheet = useChangeSheet();
   const may = useMay()(DockerService.method.planDockerMaintenance).allowed;
   const [overrides, setOverrides] = useState<ReadonlyMap<string, boolean>>(() => new Map());
 
-  const preview = useCleanupPreview(servers, ALL_CLEANUP_FILTERS, true);
+  const filters = useMemo<CleanupFilterSpec>(() => {
+    if (!scopedKinds || scopedKinds.length === 0) return ALL_CLEANUP_FILTERS;
+    const only = scopedKinds.map(cleanupKindFromParam);
+    return {
+      taggedImages: only.includes(DockerCleanupKind.IMAGE),
+      networks: only.includes(DockerCleanupKind.NETWORK),
+      volumes: only.includes(DockerCleanupKind.VOLUME),
+      kinds: only,
+    };
+  }, [scopedKinds]);
+
+  const preview = useCleanupPreview(servers, filters, true);
   const { candidates, protectedRows, pauses, unavailable, measuring, loadingMore, hasAnyData } = preview;
 
   const bounded = useMemo(
@@ -99,6 +119,7 @@ export function DockerCleanup({ servers, group }: { servers: readonly CleanupSer
     sheet.open({
       kind: "plan",
       retryLabel: t`Review again`,
+      onReviewAgain: () => preview.reviewAgain(),
       make: () =>
         preview.client.planDockerMaintenance({
           serverIds: preview.serverIds,
@@ -107,10 +128,10 @@ export function DockerCleanup({ servers, group }: { servers: readonly CleanupSer
             case: "cleanup",
             value: {
               filters: {
-                taggedImages: ALL_CLEANUP_FILTERS.taggedImages,
-                networks: ALL_CLEANUP_FILTERS.networks,
-                volumes: ALL_CLEANUP_FILTERS.volumes,
-                kinds: [],
+                taggedImages: filters.taggedImages,
+                networks: filters.networks,
+                volumes: filters.volumes,
+                kinds: [...filters.kinds],
               },
               targets: selected,
             },

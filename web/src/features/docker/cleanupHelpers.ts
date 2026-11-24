@@ -42,6 +42,7 @@ export function cleanupTargetKey(target: DockerCleanupTarget): string {
 
 export function cleanupTargetFullName(target: DockerCleanupTarget, fallback = ""): string {
   if (target.kind === DockerCleanupKind.IMAGE && target.imageTags.length === 0) {
+    if (target.name && target.name !== target.engineId) return target.name;
     return target.engineId;
   }
   return target.name || target.engineId || fallback;
@@ -56,6 +57,7 @@ export function isAnonymousVolumeTarget(target: DockerCleanupTarget): boolean {
 
 export function cleanupTargetDisplayName(target: DockerCleanupTarget, fallback = ""): string {
   if (target.kind === DockerCleanupKind.IMAGE && target.imageTags.length === 0) {
+    if (target.name && target.name !== target.engineId) return target.name;
     return target.engineId.slice(7, 19);
   }
   if (target.kind === DockerCleanupKind.VOLUME && isHex64VolumeName(target.name)) {
@@ -256,6 +258,7 @@ export function useCleanupPreview(servers: readonly CleanupServer[], filters: Cl
     initialPageParam: "",
     getNextPageParam: (last) => last.nextPageToken || undefined,
     placeholderData: (previous) => previous,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchInterval: ({ state }) =>
       state.data?.pages[0]?.unavailable.some((row) => row.state === DockerReadState.UNSPECIFIED) ? 2_000 : false,

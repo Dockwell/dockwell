@@ -96,11 +96,13 @@ func TestDockerCleanupExactScopeAndReceipts(t *testing.T) {
 		active := idle
 		active.InUse = true
 		engine.SetBuildCache(active, busy)
-		failed := apply(stale)
-		if failed.GetState() != v1.ChangeState_CHANGE_STATE_FAILED || !slices.ContainsFunc(failed.GetSteps(), func(s *v1.StepProgress) bool {
-			return len(s.GetDockerReceipts()) == 1 && s.GetDockerReceipts()[0].GetState() == v1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED
+		drifted := apply(stale)
+		if drifted.GetState() != v1.ChangeState_CHANGE_STATE_APPLIED || !slices.ContainsFunc(drifted.GetSteps(), func(s *v1.StepProgress) bool {
+			return len(s.GetDockerReceipts()) == 1 &&
+				s.GetDockerReceipts()[0].GetState() == v1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED &&
+				s.GetDockerReceipts()[0].GetReason() == v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IN_USE
 		}) {
-			t.Fatalf("changed cache was not refused: %v", failed)
+			t.Fatalf("changed cache was not recorded as Changed/IN_USE: %v", drifted)
 		}
 		engine.SetBuildCache(idle, busy)
 		finished := apply(plan())

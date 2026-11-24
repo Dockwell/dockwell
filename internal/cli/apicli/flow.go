@@ -43,6 +43,9 @@ type runner struct {
 	choiceFlag func(*dockwellv1.Choice) string
 	// logs prints log lines, from one message to the next.
 	logs *logPrinter
+	// cleanupReviewCmd repeats the flags used by dockwell docker cleanup when
+	// some targets changed since review.
+	cleanupReviewCmd string
 }
 
 func (r *runner) connect(ctx context.Context) error {
@@ -783,6 +786,17 @@ func (r *runner) outcome(c *dockwellv1.Change, began time.Time) error {
 				msg += fmt.Sprintf(" Undo it %s with dockwell changes undo %s.", untilWord(d.AsTime(), r.env.now()), id)
 			}
 			fmt.Fprintln(r.env.Out, msg)
+			var receipts []*dockwellv1.DockerReceipt
+			for _, s := range c.GetSteps() {
+				receipts = append(receipts, s.GetDockerReceipts()...)
+			}
+			reviewCmd := r.cleanupReviewCmd
+			if reviewCmd == "" {
+				reviewCmd = dockerCleanupReviewCommandForChange(c, receipts)
+			}
+			for _, line := range dockerCleanupOutcomeLines(receipts, reviewCmd) {
+				fmt.Fprintln(r.env.Out, line)
+			}
 		}
 		return nil
 	case dockwellv1.ChangeState_CHANGE_STATE_FAILED:

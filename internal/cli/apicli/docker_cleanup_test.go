@@ -322,3 +322,98 @@ func TestDockerCleanupCLILimitFullPlanAndPanelLink(t *testing.T) {
 		}
 	})
 }
+
+func TestDockerCleanupPinnedNameAndOutcomeLines(t *testing.T) {
+	pinnedID := "sha256:" + strings.Repeat("a", 64)
+	pinned := &dockwellv1.DockerCleanupTarget{
+		Kind:         dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE,
+		EngineId:     pinnedID,
+		Name:         "busybox:1.36",
+		Reason:       dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED,
+		ImageDigests: []string{"busybox@" + pinnedID},
+	}
+	if got := cleanupTargetLine(pinned); !strings.Contains(got, "image busybox:1.36 (unused)") {
+		t.Fatalf("pinned target line = %q, want name busybox:1.36", got)
+	}
+	danglingID := "sha256:" + strings.Repeat("b", 64)
+	dangling := &dockwellv1.DockerCleanupTarget{
+		Kind:     dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE,
+		EngineId: danglingID,
+		Name:     danglingID,
+		Reason:   dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_DANGLING,
+	}
+	if got := cleanupTargetLine(dangling); !strings.Contains(got, "image bbbbbbbbbbbb (dangling)") {
+		t.Fatalf("dangling target line = %q, want short ID", got)
+	}
+
+	receipts := []*dockwellv1.DockerReceipt{
+		{Target: dangling, State: dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_REMOVED},
+		{Target: pinned, State: dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED, Reason: dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IN_USE},
+		{
+			Target: &dockwellv1.DockerCleanupTarget{ServerId: "srv_1", Kind: dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK, EngineId: "net1", Name: "old-net"},
+			State:  dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED,
+			Reason: dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_GONE,
+		},
+		{
+			Target: &dockwellv1.DockerCleanupTarget{ServerId: "srv_1", Kind: dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE, EngineId: "cache1", Name: "cache1"},
+			State:  dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED,
+			Reason: dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_NEWER,
+		},
+	}
+	pinned.ServerId = "srv_1"
+	planChange := &dockwellv1.Change{
+		Plan: &dockwellv1.Plan{
+			Servers: []*dockwellv1.ServerPlan{{ServerId: "srv_1", ServerName: "alpha"}},
+		},
+	}
+	joined := strings.Join(dockerCleanupOutcomeLines(receipts, dockerCleanupReviewCommandForChange(planChange, receipts)), "\n")
+	for _, want := range []string{
+		"1 removed · 3 changed since you reviewed. Run dockwell docker cleanup --server alpha --kind images --kind networks --kind build-cache --tagged-images to review again.",
+		"- busybox:1.36: now in use",
+		"- old-net: already gone",
+		"- cache1: newer than preview",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("outcome lines missing %q:\n%s", want, joined)
+		}
+	}
+
+	// Fleet named-volume and pinned-image flags repeat on the review-again command.
+	fleetReceipts := []*dockwellv1.DockerReceipt{
+		{
+			Target: &dockwellv1.DockerCleanupTarget{ServerId: "srv_1", Kind: dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME, EngineId: "local/v1", Name: "v1", Reason: dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED},
+			State:  dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_REMOVED,
+		},
+		{
+			Target: &dockwellv1.DockerCleanupTarget{ServerId: "srv_2", Kind: dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME, EngineId: "local/v2", Name: "v2", Reason: dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED},
+			State:  dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED,
+			Reason: dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IN_USE,
+		},
+	}
+	fleetChange := &dockwellv1.Change{
+		Id:    "chg_fleet",
+		State: dockwellv1.ChangeState_CHANGE_STATE_APPLIED,
+		Plan: &dockwellv1.Plan{
+			Servers: []*dockwellv1.ServerPlan{
+				{ServerId: "srv_1", ServerName: "alpha"},
+				{ServerId: "srv_2", ServerName: "beta"},
+			},
+		},
+		Steps: []*dockwellv1.StepProgress{{DockerReceipts: fleetReceipts}},
+	}
+	if got := dockerCleanupReviewCommandForChange(fleetChange, fleetReceipts); got != "dockwell docker cleanup --server beta --kind volumes --named-volumes" {
+		t.Fatalf("fleet review command = %q, want beta + volumes + named-volumes", got)
+	}
+	var out bytes.Buffer
+	r := &runner{
+		env:              &Env{Out: &out},
+		opts:             &options{},
+		cleanupReviewCmd: dockerCleanupReviewCommand([]string{"alpha", "beta"}, []dockwellv1.DockerCleanupKind{dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME}, false, true),
+	}
+	if err := r.outcome(fleetChange, r.env.now()); err != nil {
+		t.Fatalf("outcome: %v", err)
+	}
+	if !strings.Contains(out.String(), "Run dockwell docker cleanup --server alpha --server beta --kind volumes --named-volumes to review again.") {
+		t.Fatalf("runner outcome did not repeat cleanup flags:\n%s", out.String())
+	}
+}

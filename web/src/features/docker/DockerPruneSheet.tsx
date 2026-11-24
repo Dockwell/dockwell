@@ -45,9 +45,18 @@ export interface DockerPruneSheetProps {
   focusEngineId?: string | undefined;
   onClose: () => void;
   onApplied?: (() => void) | undefined;
+  /** Reopens this prune sheet with the same server and kind scope after Review again. */
+  onReviewAgain?: (() => void) | undefined;
 }
 
-export function DockerPruneSheet({ kind, servers, focusEngineId, onClose, onApplied }: DockerPruneSheetProps) {
+export function DockerPruneSheet({
+  kind,
+  servers,
+  focusEngineId,
+  onClose,
+  onApplied,
+  onReviewAgain,
+}: DockerPruneSheetProps) {
   const { t, i18n } = useLingui();
   const words = useDockerArtifactWords();
   const sheet = useChangeSheet();
@@ -150,6 +159,12 @@ export function DockerPruneSheet({ kind, servers, focusEngineId, onClose, onAppl
     sheet.open({
       kind: "plan",
       retryLabel: t`Review again`,
+      onReviewAgain: onReviewAgain
+        ? () => {
+            preview.invalidateAfterCleanup();
+            onReviewAgain();
+          }
+        : undefined,
       make: () =>
         preview.client.planDockerMaintenance({
           serverIds,

@@ -424,6 +424,7 @@ export function DockerStorage({
           servers={servers}
           onClose={() => setPruning(false)}
           onApplied={refresh}
+          onReviewAgain={() => setPruning(true)}
         />
       ) : null}
     </>

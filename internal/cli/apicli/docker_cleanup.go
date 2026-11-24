@@ -315,6 +315,7 @@ func (r *runner) dockerCleanup(ctx context.Context, serverIDs []string, kinds []
 			fmt.Fprintf(r.env.Err, "  - %s\n", cleanupTargetLine(t))
 		}
 	}
+	r.cleanupReviewCmd = dockerCleanupReviewCommand(serverIDs, kinds, taggedImages, namedVolumes)
 	return r.planned(ctx, res, res.GetChange())
 }
 
@@ -450,6 +451,20 @@ func dockerMaintenanceWords(m *dockwellv1.DockerMaintenance, server string, full
 	return lines
 }
 
+func cleanupTargetName(t *dockwellv1.DockerCleanupTarget) string {
+	name := t.GetName()
+	if t.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE &&
+		len(t.GetImageTags()) == 0 && (name == "" || name == t.GetEngineId()) {
+		if id := t.GetEngineId(); len(id) >= 19 {
+			return id[7:19]
+		}
+	}
+	if name == "" {
+		return t.GetEngineId()
+	}
+	return name
+}
+
 func cleanupTargetLine(t *dockwellv1.DockerCleanupTarget) string {
 	kind := "artifact"
 	switch t.GetKind() {
@@ -463,16 +478,7 @@ func cleanupTargetLine(t *dockwellv1.DockerCleanupTarget) string {
 		kind = "volume"
 	default:
 	}
-	name := t.GetName()
-	if t.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE && len(t.GetImageTags()) == 0 {
-		id := t.GetEngineId()
-		if len(id) >= 19 {
-			name = id[7:19]
-		}
-	}
-	if name == "" {
-		name = t.GetEngineId()
-	}
+	name := cleanupTargetName(t)
 	var meta []string
 	switch {
 	case t.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME &&
@@ -495,4 +501,216 @@ func cleanupTargetLine(t *dockwellv1.DockerCleanupTarget) string {
 		return fmt.Sprintf("%s %s", kind, name)
 	}
 	return fmt.Sprintf("%s %s (%s)", kind, name, strings.Join(meta, ", "))
+}
+
+func dockerReceiptReasonWords(r *dockwellv1.DockerReceipt) string {
+	switch r.GetReason() {
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IN_USE:
+		return "now in use"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_GONE:
+		return "already gone"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_REFERENCE_MOVED:
+		return "reference moved"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_NEWER:
+		return "newer than preview"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_PROTECTED:
+		return "now protected"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED:
+		return "Docker refused to remove this image by ID"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_EXTRA_CACHE_REMOVED:
+		return "Docker removed other build cache records"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED:
+		return "build cache removal could not be verified"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED:
+		return "volume removal could not be verified"
+	case dockwellv1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_REPLACED:
+		return "a different volume now uses this name"
+	default:
+	}
+	switch r.GetState() {
+	case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED:
+		return "changed since you reviewed"
+	case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_FAILED:
+		return "failed"
+	case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_UNKNOWN:
+		return "outcome unknown"
+	default:
+		return ""
+	}
+}
+
+func cleanupKindFlagName(kind dockwellv1.DockerCleanupKind) string {
+	switch kind {
+	case dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE:
+		return "images"
+	case dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME:
+		return "volumes"
+	case dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK:
+		return "networks"
+	case dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE:
+		return "build-cache"
+	default:
+		return ""
+	}
+}
+
+func cleanupFlagArg(value string) string {
+	if value == "" || strings.ContainsAny(value, " \t\n\r\"'\\") {
+		return fmt.Sprintf("%q", value)
+	}
+	return value
+}
+
+func dockerCleanupReviewCommand(servers []string, kinds []dockwellv1.DockerCleanupKind, taggedImages, namedVolumes bool) string {
+	parts := []string{"dockwell docker cleanup"}
+	for _, s := range servers {
+		if s != "" {
+			parts = append(parts, "--server", cleanupFlagArg(s))
+		}
+	}
+	for _, k := range kinds {
+		if name := cleanupKindFlagName(k); name != "" {
+			parts = append(parts, "--kind", name)
+		}
+	}
+	if taggedImages {
+		parts = append(parts, "--tagged-images")
+	}
+	if namedVolumes {
+		parts = append(parts, "--named-volumes")
+	}
+	return strings.Join(parts, " ")
+}
+
+func dockerCleanupReviewCommandForChange(c *dockwellv1.Change, receipts []*dockwellv1.DockerReceipt) string {
+	serverNames := map[string]string{}
+	var plannedKinds []dockwellv1.DockerCleanupKind
+	var taggedImages, namedVolumes bool
+	for _, sp := range c.GetPlan().GetServers() {
+		if sp.GetServerId() != "" && sp.GetServerName() != "" {
+			serverNames[sp.GetServerId()] = sp.GetServerName()
+		}
+		for _, step := range sp.GetSteps() {
+			for _, target := range step.GetDockerMaintenance().GetTargets() {
+				if kind := target.GetKind(); cleanupKindFlagName(kind) != "" && !slices.Contains(plannedKinds, kind) {
+					plannedKinds = append(plannedKinds, kind)
+				}
+				if target.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE &&
+					target.GetReason() == dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED {
+					taggedImages = true
+				}
+				if target.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME &&
+					target.GetReason() == dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED {
+					namedVolumes = true
+				}
+			}
+		}
+	}
+	var servers []string
+	var receiptKinds []dockwellv1.DockerCleanupKind
+	for _, r := range receipts {
+		target := r.GetTarget()
+		if kind := target.GetKind(); cleanupKindFlagName(kind) != "" && !slices.Contains(receiptKinds, kind) {
+			receiptKinds = append(receiptKinds, kind)
+		}
+		if r.GetState() == dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED {
+			sid := target.GetServerId()
+			label := serverNames[sid]
+			if label == "" {
+				label = sid
+			}
+			if label != "" && !slices.Contains(servers, label) {
+				servers = append(servers, label)
+			}
+		}
+		if target.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE &&
+			target.GetReason() == dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED {
+			taggedImages = true
+		}
+		if target.GetKind() == dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME &&
+			target.GetReason() == dockwellv1.DockerCleanupReason_DOCKER_CLEANUP_REASON_UNUSED {
+			namedVolumes = true
+		}
+	}
+	kinds := plannedKinds
+	if len(kinds) == 0 {
+		kinds = receiptKinds
+	}
+	// All four kinds means no --kind filter was needed.
+	if len(kinds) >= 4 {
+		kinds = nil
+	} else {
+		ordered := make([]dockwellv1.DockerCleanupKind, 0, len(kinds))
+		for _, k := range []dockwellv1.DockerCleanupKind{
+			dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_IMAGE,
+			dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_VOLUME,
+			dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_NETWORK,
+			dockwellv1.DockerCleanupKind_DOCKER_CLEANUP_KIND_BUILD_CACHE,
+		} {
+			if slices.Contains(kinds, k) {
+				ordered = append(ordered, k)
+			}
+		}
+		kinds = ordered
+	}
+	return dockerCleanupReviewCommand(servers, kinds, taggedImages, namedVolumes)
+}
+
+func dockerCleanupOutcomeLines(receipts []*dockwellv1.DockerReceipt, reviewCmd string) []string {
+	if len(receipts) == 0 {
+		return nil
+	}
+	var removed, changed, failed, unknown int
+	var notable []*dockwellv1.DockerReceipt
+	for _, r := range receipts {
+		switch r.GetState() {
+		case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_REMOVED:
+			removed++
+		case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_CHANGED:
+			changed++
+			notable = append(notable, r)
+		case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_FAILED:
+			failed++
+			notable = append(notable, r)
+		case dockwellv1.DockerReceiptState_DOCKER_RECEIPT_STATE_UNKNOWN:
+			unknown++
+			notable = append(notable, r)
+		default:
+		}
+	}
+	var parts []string
+	if removed > 0 || changed > 0 {
+		parts = append(parts, fmt.Sprintf("%d removed", removed))
+	}
+	if changed > 0 {
+		parts = append(parts, fmt.Sprintf("%d changed since you reviewed", changed))
+	}
+	if failed > 0 {
+		parts = append(parts, fmt.Sprintf("%d failed", failed))
+	}
+	if unknown > 0 {
+		parts = append(parts, fmt.Sprintf("%d outcome unknown", unknown))
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	summary := strings.Join(parts, " · ")
+	if changed > 0 {
+		if reviewCmd == "" {
+			reviewCmd = dockerCleanupReviewCommandForChange(nil, receipts)
+		}
+		summary += fmt.Sprintf(". Run %s to review again.", reviewCmd)
+	} else {
+		summary += "."
+	}
+	lines := []string{summary}
+	const detailLimit = 25
+	shown := min(len(notable), detailLimit)
+	for _, r := range notable[:shown] {
+		lines = append(lines, fmt.Sprintf("  - %s: %s", cleanupTargetName(r.GetTarget()), dockerReceiptReasonWords(r)))
+	}
+	if len(notable) > shown {
+		lines = append(lines, fmt.Sprintf("  ... and %d more", len(notable)-shown))
+	}
+	return lines
 }

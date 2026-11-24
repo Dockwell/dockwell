@@ -72,8 +72,10 @@ export function DockerCleanupReceipts({
 
   const summaryParts = [
     totalFreedBytes > 0n ? t`Freed ${formatBytes(totalFreedBytes, i18n.locale)}` : "",
-    removedCount > 0 && (totalFreedBytes === 0n || targets.length > COMPACT_LIMIT) ? t`${removedCount} removed` : "",
-    changedCount > 0 ? t`${changedCount} changed` : "",
+    removedCount > 0 && (changedCount > 0 || totalFreedBytes === 0n || targets.length > COMPACT_LIMIT)
+      ? t`${removedCount} removed`
+      : "",
+    changedCount > 0 ? t`${changedCount} changed since you reviewed` : "",
     failedCount > 0 ? t`${failedCount} failed` : "",
     unknownCount > 0 ? t`${unknownCount} outcome unknown` : "",
   ].filter(Boolean);
@@ -89,6 +91,8 @@ export function DockerCleanupReceipts({
       <ul className="docker-cleanup-list">
         {shown.map((target) => {
           const receipt = byEngineId.get(target.engineId);
+          const changedLabel =
+            receipt?.state === DockerReceiptState.CHANGED ? words.receiptChangedLabel(receipt.reason) : "";
           const reason = words.receiptReason(receipt?.reason);
           const name = cleanupTargetDisplayName(target);
           const fullName = cleanupTargetFullName(target);
@@ -98,7 +102,7 @@ export function DockerCleanupReceipts({
             receipt?.state === DockerReceiptState.REMOVED
               ? t`Removed`
               : receipt?.state === DockerReceiptState.CHANGED
-                ? t`Review again`
+                ? changedLabel || t`Changed`
                 : receipt?.state === DockerReceiptState.FAILED
                   ? t`Failed`
                   : t`Outcome unknown`;

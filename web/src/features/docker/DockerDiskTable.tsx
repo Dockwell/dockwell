@@ -90,6 +90,7 @@ export function DockerDiskTable({
           kind={DockerCleanupKind.BUILD_CACHE}
           servers={[{ id: serverId, name: serverName ?? serverId }]}
           onClose={() => setPruningCache(false)}
+          onReviewAgain={() => setPruningCache(true)}
         />
       ) : null}
     </>

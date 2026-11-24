@@ -43,6 +43,26 @@ export function useDockerArtifactWords() {
           return "archive";
       }
     },
+    receiptChangedLabel(reason: DockerReceiptReason | undefined): string {
+      switch (reason) {
+        case DockerReceiptReason.IN_USE:
+          return t`Now in use`;
+        case DockerReceiptReason.GONE:
+          return t`Already gone`;
+        case DockerReceiptReason.REFERENCE_MOVED:
+          return t`Reference moved`;
+        case DockerReceiptReason.NEWER:
+          return t`Newer than preview`;
+        case DockerReceiptReason.PROTECTED:
+          return t`Now protected`;
+        case DockerReceiptReason.VOLUME_REPLACED:
+          return t`Replaced`;
+        case DockerReceiptReason.IMAGE_ID_REFUSED:
+          return t`Refused`;
+        default:
+          return "";
+      }
+    },
     receiptReason(reason: DockerReceiptReason | undefined): string {
       switch (reason) {
         case DockerReceiptReason.IMAGE_ID_REFUSED:

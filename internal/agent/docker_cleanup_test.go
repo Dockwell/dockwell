@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -284,8 +285,21 @@ func TestDockerCleanupRemovesOnlyReviewedArtifacts(t *testing.T) {
 }
 
 func TestDockerCleanupRefusesChangedArtifacts(t *testing.T) {
-	for _, scenario := range []string{"dangling retagged", "tag moved", "network ID reassigned", "stopped image user", "stopped network user", "new rollback digest", "new desired tag", "new desired network"} {
-		t.Run(scenario, func(t *testing.T) {
+	for _, tc := range []struct {
+		scenario string
+		want     v1.DockerReceiptReason
+	}{
+		{"dangling retagged", receiptReasonReferenceMoved},
+		{"tag moved", receiptReasonReferenceMoved},
+		{"network ID reassigned", receiptReasonReferenceMoved},
+		{"stopped image user", receiptReasonInUse},
+		{"stopped network user", receiptReasonInUse},
+		{"new rollback digest", receiptReasonProtected},
+		{"new desired tag", receiptReasonProtected},
+		{"new desired network", receiptReasonProtected},
+	} {
+		t.Run(tc.scenario, func(t *testing.T) {
+			scenario := tc.scenario
 			c, engine := cleanupFixture(t)
 			client, ctx := engine.Client(), t.Context()
 			tag := ""
@@ -349,8 +363,9 @@ func TestDockerCleanupRefusesChangedArtifacts(t *testing.T) {
 			}
 			before := len(engine.Seen())
 			receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{target}, protection)
-			if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetRecheckedEngineId() != rechecked {
-				t.Fatalf("changed target %s: %v, %v", rechecked, receipts, err)
+			if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged ||
+				receipts[0].GetRecheckedEngineId() != rechecked || receipts[0].GetReason() != tc.want {
+				t.Fatalf("changed target %s: %v, %v (want reason %v)", rechecked, receipts, err, tc.want)
 			}
 			for _, request := range engine.Seen()[before:] {
 				if strings.HasPrefix(request, "DELETE ") {
@@ -559,7 +574,7 @@ func TestDockerCleanupReceiptReasons(t *testing.T) {
 			return nil
 		})
 		receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{})
-		if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged ||
+		if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged ||
 			receipts[0].GetReason() != v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED {
 			t.Fatalf("Engine refusal: %v, %v", receipts, err)
 		}
@@ -756,7 +771,7 @@ func TestDockerCleanupProtectsSeveralTagsInOneRepository(t *testing.T) {
 	tags := []string{"fixture/app:1", "fixture/app:stable"}
 	forged := &v1.DockerCleanupTarget{
 		ServerId: "srv_cleanup", Kind: cleanupImage, EngineId: image.ID,
-		Reason: reasonUnused, ImageTags: tags, Evidence: imageCleanupEvidence(image.ID, tags, nil),
+		Reason: reasonUnused, ImageTags: tags, ImageRecords: tags, Evidence: imageCleanupEvidence(image.ID, tags, nil, tags),
 	}
 	receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{forged}, &agentv1.DockerCleanupProtection{})
 	if err == nil || !strings.Contains(err.Error(), "unsupported target") || len(receipts) != 0 {
@@ -887,8 +902,18 @@ func TestDockerCleanupRemovesUnusedVolumesAndProtectsUsedOrHeld(t *testing.T) {
 }
 
 func TestDockerCleanupRefusesChangedVolumes(t *testing.T) {
-	for _, scenario := range []string{"stopped container mounted", "recreated volume", "new backup protection", "new desired volume", "retained for recovery"} {
-		t.Run(scenario, func(t *testing.T) {
+	for _, tc := range []struct {
+		scenario string
+		want     v1.DockerReceiptReason
+	}{
+		{"stopped container mounted", receiptReasonInUse},
+		{"recreated volume", v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_REPLACED},
+		{"new backup protection", receiptReasonProtected},
+		{"new desired volume", receiptReasonProtected},
+		{"retained for recovery", receiptReasonProtected},
+	} {
+		t.Run(tc.scenario, func(t *testing.T) {
+			scenario := tc.scenario
 			c, engine := cleanupFixture(t)
 			ctx := t.Context()
 			engine.AddVolume(docker.Volume{Name: "candidate-vol", Driver: "local", Scope: "local", CreatedAt: "2026-10-01T00:00:00Z"})
@@ -919,8 +944,8 @@ func TestDockerCleanupRefusesChangedVolumes(t *testing.T) {
 			}
 			before := len(engine.Seen())
 			receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{target}, protection)
-			if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
-				t.Fatalf("changed volume %s: %v, %v", scenario, receipts, err)
+			if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != tc.want {
+				t.Fatalf("changed volume %s: %v, %v (want reason %v)", scenario, receipts, err, tc.want)
 			}
 			for _, req := range engine.Seen()[before:] {
 				if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
@@ -1000,7 +1025,8 @@ func TestDockerCleanupVolumeMinAgeUsesAgentPreview(t *testing.T) {
 	fresh.Reason = reasonUnused
 	fresh.Evidence = volumeCleanupEvidence(fresh.GetEngineId(), fresh.GetName(), fresh.GetReason(), previewAt)
 	before := len(engine.Seen())
-	if err := apply(fresh, "h1-same-key-replacement"); err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+	if err := apply(fresh, "h1-same-key-replacement"); err != nil || len(receipts) != 1 ||
+		receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != receiptReasonNewer {
 		t.Fatalf("same-key volume below the preview age floor = %v, %v", receipts, err)
 	}
 	if receipts[0].GetRecheckedEngineId() != fresh.GetEngineId() || receipts[0].GetBeforeBytes() != 99 {
@@ -1090,7 +1116,7 @@ func TestDockerCleanupProtectsComposeVolumes(t *testing.T) {
 			Reason: reasonUnused, Evidence: volumeCleanupEvidence(row.GetEngineId(), name, reasonUnused, c.cleanupNow()),
 		}
 		receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{forged}, &agentv1.DockerCleanupProtection{})
-		if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
+		if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != receiptReasonProtected {
 			t.Fatalf("forged Compose volume %s apply: receipts=%v err=%v", name, receipts, err)
 		}
 	}
@@ -1149,8 +1175,8 @@ func TestDockerCleanupSwarmManagerBlocksVolumeRemoval(t *testing.T) {
 	}
 	before := len(engine.Seen())
 	receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{forged}, &agentv1.DockerCleanupProtection{})
-	if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
-		t.Fatalf("Swarm manager forged volume apply = %v, %v", receipts, err)
+	if !errors.Is(err, errCleanupSwarm) || len(receipts) != 0 {
+		t.Fatalf("Swarm manager forged volume apply = %v, %v, want errCleanupSwarm with 0 receipts", receipts, err)
 	}
 	for _, req := range engine.Seen()[before:] {
 		if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
@@ -1176,8 +1202,8 @@ func TestDockerCleanupRequiresInactiveSwarmState(t *testing.T) {
 			}
 			before := len(engine.Seen())
 			receipts, err := applyCleanupFixture(t, c, targets, &agentv1.DockerCleanupProtection{})
-			if err == nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged {
-				t.Fatalf("apply with incomplete Engine info = %v, %v", receipts, err)
+			if !errors.Is(err, errCleanupSwarm) || len(receipts) != 0 {
+				t.Fatalf("apply with incomplete Engine info = %v, %v, want errCleanupSwarm with 0 receipts", receipts, err)
 			}
 			for _, req := range engine.Seen()[before:] {
 				if strings.HasPrefix(req, "DELETE /") && strings.Contains(req, "/volumes/") {
@@ -1381,4 +1407,1272 @@ func TestDockerCleanupLargeBatchMeasurements(t *testing.T) {
 	}
 	t.Logf("mixed cleanup scale n=200 (250 containers): plan_proto_bytes=%d preview=%s apply=%s unfiltered_apply=%d filtered_apply=%d",
 		len(protoBytes), previewDur.Round(time.Millisecond), applyDur.Round(time.Millisecond), unfilteredDuringApply, filteredLists)
+}
+
+func TestDockerCleanupCanonicalPinnedImageRefs(t *testing.T) {
+	c, _ := cleanupFixture(t)
+	imageID := "sha256:" + strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		name        string
+		dfTags      []string
+		dfDigests   []string
+		inspTags    []string
+		inspDigests []string
+		wantName    string
+		wantDigest  string
+	}{
+		{
+			name:        "single-segment pinned containerd image",
+			dfTags:      []string{"busybox:1.36@" + imageID},
+			dfDigests:   []string{"busybox@" + imageID},
+			inspTags:    []string{"busybox:1.36@" + imageID},
+			inspDigests: []string{"busybox:1.36@" + imageID},
+			wantName:    "busybox:1.36",
+			wantDigest:  "busybox@" + imageID,
+		},
+		{
+			name:        "docker.io library pinned image",
+			dfTags:      []string{"docker.io/library/busybox:1.36@" + imageID},
+			dfDigests:   []string{"busybox@" + imageID},
+			inspTags:    []string{"busybox:1.36@" + imageID},
+			inspDigests: []string{"docker.io/library/busybox:1.36@" + imageID},
+			wantName:    "busybox:1.36",
+			wantDigest:  "busybox@" + imageID,
+		},
+		{
+			name:        "custom registry with port pinned image",
+			dfTags:      []string{"example.com:5000/team/app:1.2@" + imageID},
+			dfDigests:   []string{"example.com:5000/team/app@" + imageID},
+			inspTags:    []string{"example.com:5000/team/app:1.2@" + imageID},
+			inspDigests: []string{"example.com:5000/team/app:1.2@" + imageID},
+			wantName:    "example.com:5000/team/app:1.2",
+			wantDigest:  "example.com:5000/team/app@" + imageID,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fromDF := c.imageCleanupTarget(docker.DiskUsageImage{
+				ID: imageID, RepoTags: tc.dfTags, RepoDigests: tc.dfDigests, Size: 4096,
+			}, dockerOccupancy{}, nil)
+			fromInspect := c.imageCleanupTarget(docker.DiskUsageImage{
+				ID: imageID, RepoTags: tc.inspTags, RepoDigests: tc.inspDigests, Size: 4096,
+			}, dockerOccupancy{}, nil)
+			if !proto.Equal(fromDF, fromInspect) {
+				t.Fatalf("df and inspect targets differ:\ndf:      %v\ninspect: %v", fromDF, fromInspect)
+			}
+			if fromDF.GetName() != tc.wantName || fromDF.GetReason() != reasonUnused ||
+				len(fromDF.GetImageTags()) != 0 || !slices.Equal(fromDF.GetImageDigests(), []string{tc.wantDigest}) ||
+				fromDF.GetEvidence() == "" {
+				t.Fatalf("unexpected canonical target: %v", fromDF)
+			}
+		})
+	}
+
+	t.Run("multiple records and repositories stay protected", func(t *testing.T) {
+		twoRecords := c.imageCleanupTarget(docker.DiskUsageImage{
+			ID:          imageID,
+			RepoTags:    []string{"busybox:1.36@" + imageID, "busybox:1.36"},
+			RepoDigests: []string{"busybox@" + imageID},
+		}, dockerOccupancy{}, nil)
+		if twoRecords.GetReason() != reasonUnavailable || twoRecords.GetEvidence() != "" {
+			t.Fatalf("two containerd records must stay unavailable: %v", twoRecords)
+		}
+		twoRepos := c.imageCleanupTarget(docker.DiskUsageImage{
+			ID:          imageID,
+			RepoTags:    []string{"busybox:1.36@" + imageID},
+			RepoDigests: []string{"example.com/other@" + imageID},
+		}, dockerOccupancy{}, nil)
+		if twoRepos.GetReason() != v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES || twoRepos.GetEvidence() != "" {
+			t.Fatalf("two repositories must stay protected: %v", twoRepos)
+		}
+	})
+
+	t.Run("preview from df and apply via inspect remove pinned image", func(t *testing.T) {
+		pinnedRef := "busybox:1.36@" + imageID
+		canonicalDigest := "busybox@" + imageID
+		var deleted atomic.Bool
+		var inspectedDigest atomic.Bool
+		sockDir, err := os.MkdirTemp("", "dw-pin-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+			_ = os.RemoveAll(sockDir)
+			sockDir, err = os.MkdirTemp("/tmp", "dw-pin-")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+		sock := filepath.Join(sockDir, "d.sock")
+		rootDir := t.TempDir()
+		ln, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			path := r.URL.Path
+			if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+				if j := strings.Index(path[1:], "/"); j >= 0 {
+					path = path[1+j:]
+				}
+			}
+			switch {
+			case r.Method == http.MethodGet && path == "/version":
+				_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+			case r.Method == http.MethodGet && path == "/info":
+				_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+			case r.Method == http.MethodGet && path == "/containers/json":
+				_ = json.NewEncoder(w).Encode([]any{})
+			case r.Method == http.MethodGet && path == "/system/df":
+				var images []docker.DiskUsageImage
+				if !deleted.Load() {
+					images = []docker.DiskUsageImage{{
+						ID: imageID, Size: 4096, RepoTags: []string{pinnedRef}, RepoDigests: []string{canonicalDigest},
+					}}
+				}
+				_ = json.NewEncoder(w).Encode(docker.DiskUsage{Images: images})
+			case r.Method == http.MethodGet && strings.HasPrefix(path, "/images/") && strings.HasSuffix(path, "/json"):
+				ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
+				if deleted.Load() || (ref != imageID && ref != canonicalDigest && ref != pinnedRef) {
+					w.WriteHeader(http.StatusNotFound)
+					_ = json.NewEncoder(w).Encode(map[string]string{"message": "No such image"})
+					return
+				}
+				if ref == canonicalDigest {
+					inspectedDigest.Store(true)
+				}
+				// Containerd inspect reports name:tag@sha256:X in both RepoTags and RepoDigests.
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"Id":          imageID,
+					"RepoTags":    []string{pinnedRef},
+					"RepoDigests": []string{pinnedRef},
+					"Config":      map[string]any{},
+					"Size":        4096,
+				})
+			case r.Method == http.MethodDelete && path == "/images/"+imageID:
+				deleted.Store(true)
+				_ = json.NewEncoder(w).Encode([]map[string]string{{"Deleted": imageID}})
+			default:
+				w.WriteHeader(http.StatusNotFound)
+				_ = json.NewEncoder(w).Encode(map[string]string{"message": "not found: " + r.Method + " " + path})
+			}
+		})}
+		go func() { _ = srv.Serve(ln) }()
+		t.Cleanup(func() { _ = srv.Close() })
+
+		live := cleanupCalls(t, docker.New(sock))
+		targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{TaggedImages: true})
+		if len(targets) != 1 || targets[0].GetName() != "busybox:1.36" ||
+			!slices.Equal(targets[0].GetImageDigests(), []string{canonicalDigest}) {
+			t.Fatalf("pinned preview targets = %v", targets)
+		}
+		receipts, err := applyCleanupFixture(t, live, targets, &agentv1.DockerCleanupProtection{})
+		if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptRemoved ||
+			!deleted.Load() || !inspectedDigest.Load() {
+			t.Fatalf("pinned apply = %v, %v (deleted=%t inspectedDigest=%t)", receipts, err, deleted.Load(), inspectedDigest.Load())
+		}
+	})
+
+	t.Run("replacing pinned record with another pinned or digest-only record reads as REFERENCE_MOVED", func(t *testing.T) {
+		for _, tc := range []struct {
+			name        string
+			afterTags   []string
+			afterDigest []string
+		}{
+			{
+				name:        "different pinned tag for same digest",
+				afterTags:   []string{"busybox:1.36.1@" + imageID},
+				afterDigest: []string{"busybox:1.36.1@" + imageID},
+			},
+			{
+				name:        "containerd digest-only record for same digest",
+				afterTags:   []string{"busybox@" + imageID},
+				afterDigest: []string{"busybox@" + imageID},
+			},
+			{
+				name:        "classic digest-only record for same digest",
+				afterTags:   nil,
+				afterDigest: []string{"busybox@" + imageID},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				origRef := "busybox:1.36@" + imageID
+				canonicalDigest := "busybox@" + imageID
+				var replaced atomic.Bool
+				var deleted atomic.Bool
+				sockDir, err := os.MkdirTemp("", "dw-h1-")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+					_ = os.RemoveAll(sockDir)
+					sockDir, err = os.MkdirTemp("/tmp", "dw-h1-")
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+				sock := filepath.Join(sockDir, "d.sock")
+				rootDir := t.TempDir()
+				ln, err := net.Listen("unix", sock)
+				if err != nil {
+					t.Fatal(err)
+				}
+				srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					path := r.URL.Path
+					if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+						if j := strings.Index(path[1:], "/"); j >= 0 {
+							path = path[1+j:]
+						}
+					}
+					switch {
+					case r.Method == http.MethodGet && path == "/version":
+						_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+					case r.Method == http.MethodGet && path == "/info":
+						_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+					case r.Method == http.MethodGet && path == "/containers/json":
+						_ = json.NewEncoder(w).Encode([]any{})
+					case r.Method == http.MethodGet && path == "/system/df":
+						tags, digests := []string{origRef}, []string{canonicalDigest}
+						if replaced.Load() {
+							tags, digests = tc.afterTags, []string{canonicalDigest}
+						}
+						_ = json.NewEncoder(w).Encode(docker.DiskUsage{Images: []docker.DiskUsageImage{{
+							ID: imageID, Size: 4096, RepoTags: tags, RepoDigests: digests,
+						}}})
+					case r.Method == http.MethodGet && strings.HasPrefix(path, "/images/") && strings.HasSuffix(path, "/json"):
+						// Moby resolves digest lookups by repo+digest even when the original pinned tag spelling is gone.
+						tags, digests := []string{origRef}, []string{origRef}
+						if replaced.Load() {
+							tags, digests = tc.afterTags, tc.afterDigest
+						}
+						_ = json.NewEncoder(w).Encode(map[string]any{
+							"Id":          imageID,
+							"RepoTags":    tags,
+							"RepoDigests": digests,
+							"Config":      map[string]any{},
+							"Size":        4096,
+						})
+					case r.Method == http.MethodDelete && strings.HasPrefix(path, "/images/"):
+						deleted.Store(true)
+						_ = json.NewEncoder(w).Encode([]map[string]string{{"Deleted": imageID}})
+					default:
+						w.WriteHeader(http.StatusNotFound)
+					}
+				})}
+				go func() { _ = srv.Serve(ln) }()
+				t.Cleanup(func() { _ = srv.Close() })
+
+				live := cleanupCalls(t, docker.New(sock))
+				targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{TaggedImages: true})
+				if len(targets) != 1 || !slices.Equal(targets[0].GetImageRecords(), []string{origRef}) {
+					t.Fatalf("preview targets = %v, want image_records=[%s]", targets, origRef)
+				}
+				replaced.Store(true)
+				receipts, err := applyCleanupFixture(t, live, targets, &agentv1.DockerCleanupProtection{})
+				if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged ||
+					receipts[0].GetReason() != receiptReasonReferenceMoved || deleted.Load() {
+					t.Fatalf("substituted pinned record apply = %v, %v (deleted=%t), want CHANGED/REFERENCE_MOVED and no delete", receipts, err, deleted.Load())
+				}
+			})
+		}
+	})
+}
+
+func TestDockerCleanupSwarmStopNoChangedReceiptsAndReplay(t *testing.T) {
+	t.Run("initial Swarm activation writes no receipts and replay refuses again", func(t *testing.T) {
+		c, engine := cleanupFixture(t)
+		engine.AddVolume(docker.Volume{Name: "swarm-vol", Driver: "local", Scope: "local", CreatedAt: "2026-10-01T00:00:00Z"})
+		engine.AddLocalImage("", dockertest.Image{Size: 1024})
+		targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Volumes: true})
+		if len(targets) != 2 {
+			t.Fatalf("candidates = %d, want 2", len(targets))
+		}
+		for _, target := range targets {
+			target.ServerId = "srv_cleanup"
+		}
+		plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+		ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+		engine.SwarmLocalNodeState = "active"
+		for attempt := range 2 {
+			before := len(engine.Seen())
+			var receipts []*v1.DockerReceipt
+			ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { receipts = out.DockerReceipts })
+			err := c.applyDockerMaintenance(ctx, ref, plan, &agentv1.DockerCleanupProtection{})
+			if !errors.Is(err, errCleanupSwarm) || len(receipts) != 0 {
+				t.Fatalf("attempt %d: got receipts=%v err=%v, want errCleanupSwarm and 0 receipts", attempt, receipts, err)
+			}
+			for _, req := range engine.Seen()[before:] {
+				if strings.HasPrefix(req, "DELETE ") {
+					t.Fatalf("attempt %d: dispatched %s while Swarm active", attempt, req)
+				}
+			}
+		}
+	})
+
+	t.Run("late Swarm activation before volume final check stops batch and blocks replay", func(t *testing.T) {
+		var infoCalls atomic.Int32
+		var deleted atomic.Bool
+		volName := "late-swarm-vol"
+		imgID := "sha256:" + strings.Repeat("d", 64)
+		sockDir, err := os.MkdirTemp("", "dw-sw-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+			_ = os.RemoveAll(sockDir)
+			sockDir, err = os.MkdirTemp("/tmp", "dw-sw-")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+		sock := filepath.Join(sockDir, "d.sock")
+		rootDir := t.TempDir()
+		vol := docker.Volume{Name: volName, Driver: "local", Scope: "local", Mountpoint: "/var/lib/docker/volumes/" + volName + "/_data", CreatedAt: "2026-10-01T00:00:00Z"}
+		var armLateSwarm atomic.Bool
+		ln, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			path := r.URL.Path
+			if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+				if j := strings.Index(path[1:], "/"); j >= 0 {
+					path = path[1+j:]
+				}
+			}
+			switch {
+			case r.Method == http.MethodGet && path == "/version":
+				_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+			case r.Method == http.MethodGet && path == "/info":
+				state := "inactive"
+				if armLateSwarm.Load() {
+					// First /info during apply is the batch pre-check (inactive); second is the late final check (active).
+					if infoCalls.Add(1) >= 2 {
+						state = "active"
+					}
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": state}})
+			case r.Method == http.MethodGet && path == "/containers/json":
+				_ = json.NewEncoder(w).Encode([]any{})
+			case r.Method == http.MethodGet && path == "/system/df":
+				_ = json.NewEncoder(w).Encode(docker.DiskUsage{
+					Images:  []docker.DiskUsageImage{{ID: imgID, Size: 1024}},
+					Volumes: []docker.DiskUsageVolume{{Name: volName, Mountpoint: vol.Mountpoint, CreatedAt: vol.CreatedAt, UsageData: &docker.VolumeUsage{Size: 2048}}},
+				})
+			case r.Method == http.MethodGet && path == "/volumes":
+				_ = json.NewEncoder(w).Encode(map[string]any{"Volumes": []docker.Volume{vol}})
+			case r.Method == http.MethodGet && path == "/volumes/"+volName:
+				_ = json.NewEncoder(w).Encode(vol)
+			case r.Method == http.MethodGet && path == "/images/"+imgID+"/json":
+				_ = json.NewEncoder(w).Encode(map[string]any{"Id": imgID, "Config": map[string]any{}, "Size": 1024})
+			case r.Method == http.MethodDelete:
+				deleted.Store(true)
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})}
+		go func() { _ = srv.Serve(ln) }()
+		t.Cleanup(func() { _ = srv.Close() })
+
+		live := cleanupCalls(t, docker.New(sock))
+		targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{Volumes: true})
+		// Put volume first, image second so late Swarm activation happens while the image is still pending.
+		slices.SortFunc(targets, func(a, b *v1.DockerCleanupTarget) int {
+			if a.GetKind() == cleanupVolume && b.GetKind() != cleanupVolume {
+				return -1
+			}
+			if a.GetKind() != cleanupVolume && b.GetKind() == cleanupVolume {
+				return 1
+			}
+			return 0
+		})
+		if len(targets) != 2 || targets[0].GetKind() != cleanupVolume || targets[1].GetKind() != cleanupImage {
+			t.Fatalf("targets = %v, want [volume, image]", targets)
+		}
+		for _, target := range targets {
+			target.ServerId = "srv_cleanup"
+		}
+		plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+		ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+		armLateSwarm.Store(true)
+		for attempt := range 2 {
+			var receipts []*v1.DockerReceipt
+			ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { receipts = out.DockerReceipts })
+			err := live.applyDockerMaintenance(ctx, ref, plan, &agentv1.DockerCleanupProtection{})
+			if !errors.Is(err, errCleanupSwarm) || len(receipts) != 0 || deleted.Load() {
+				t.Fatalf("attempt %d: receipts=%v err=%v deleted=%t, want errCleanupSwarm, 0 receipts, no delete", attempt, receipts, err, deleted.Load())
+			}
+		}
+	})
+
+	t.Run("Swarm activation during volume preparation writes durable Failed receipt and blocks replay", func(t *testing.T) {
+		var swarmActiveAfterPrepare atomic.Bool
+		var postPrepareTriggered atomic.Bool
+		var deleted atomic.Bool
+		var agentDir string
+		volName := "prep-swarm-vol"
+		imgID := "sha256:" + strings.Repeat("c", 64)
+		sockDir, err := os.MkdirTemp("", "dw-swp-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+			_ = os.RemoveAll(sockDir)
+			sockDir, err = os.MkdirTemp("/tmp", "dw-swp-")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+		sock := filepath.Join(sockDir, "d.sock")
+		rootDir := t.TempDir()
+		vol := docker.Volume{Name: volName, Driver: "local", Scope: "local", Mountpoint: "/var/lib/docker/volumes/" + volName + "/_data", CreatedAt: "2026-10-01T00:00:00Z"}
+		ln, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			path := r.URL.Path
+			if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+				if j := strings.Index(path[1:], "/"); j >= 0 {
+					path = path[1+j:]
+				}
+			}
+			switch {
+			case r.Method == http.MethodGet && path == "/version":
+				_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+			case r.Method == http.MethodGet && path == "/info":
+				state := "inactive"
+				if swarmActiveAfterPrepare.Load() && agentDir != "" {
+					// Trigger only after prepare() has written the pending receipt and pause file.
+					if _, statErr := os.Stat(filepath.Join(agentDir, "docker-cleanup", "disabled")); statErr == nil {
+						state = "active"
+						postPrepareTriggered.Store(true)
+					}
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": state}})
+			case r.Method == http.MethodGet && path == "/containers/json":
+				_ = json.NewEncoder(w).Encode([]any{})
+			case r.Method == http.MethodGet && path == "/system/df":
+				_ = json.NewEncoder(w).Encode(docker.DiskUsage{
+					Images:  []docker.DiskUsageImage{{ID: imgID, Size: 1024}},
+					Volumes: []docker.DiskUsageVolume{{Name: volName, Mountpoint: vol.Mountpoint, CreatedAt: vol.CreatedAt, UsageData: &docker.VolumeUsage{Size: 2048}}},
+				})
+			case r.Method == http.MethodGet && path == "/volumes":
+				_ = json.NewEncoder(w).Encode(map[string]any{"Volumes": []docker.Volume{vol}})
+			case r.Method == http.MethodGet && path == "/volumes/"+volName:
+				_ = json.NewEncoder(w).Encode(vol)
+			case r.Method == http.MethodGet && path == "/images/"+imgID+"/json":
+				_ = json.NewEncoder(w).Encode(map[string]any{"Id": imgID, "Config": map[string]any{}, "Size": 1024})
+			case r.Method == http.MethodDelete:
+				deleted.Store(true)
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})}
+		go func() { _ = srv.Serve(ln) }()
+		t.Cleanup(func() { _ = srv.Close() })
+
+		live := cleanupCalls(t, docker.New(sock))
+		agentDir = live.cfg.Dir
+		targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{Volumes: true})
+		slices.SortFunc(targets, func(a, b *v1.DockerCleanupTarget) int {
+			if a.GetKind() == cleanupVolume && b.GetKind() != cleanupVolume {
+				return -1
+			}
+			if a.GetKind() != cleanupVolume && b.GetKind() == cleanupVolume {
+				return 1
+			}
+			return 0
+		})
+		if len(targets) != 2 || targets[0].GetKind() != cleanupVolume || targets[1].GetKind() != cleanupImage {
+			t.Fatalf("targets = %v, want [volume, image]", targets)
+		}
+		for _, target := range targets {
+			target.ServerId = "srv_cleanup"
+		}
+		plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+		ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+		swarmActiveAfterPrepare.Store(true)
+		var receipts []*v1.DockerReceipt
+		ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { receipts = out.DockerReceipts })
+		err = live.applyDockerMaintenance(ctx, ref, plan, &agentv1.DockerCleanupProtection{})
+		if !errors.Is(err, errCleanupSwarm) || !postPrepareTriggered.Load() || deleted.Load() || live.cleanupDisabled() {
+			t.Fatalf("post-prepare Swarm apply: err=%v triggered=%t deleted=%t paused=%t, want errCleanupSwarm, triggered, no delete, not paused", err, postPrepareTriggered.Load(), deleted.Load(), live.cleanupDisabled())
+		}
+		if len(receipts) != 1 || receipts[0].GetState() != receiptFailed || receipts[0].GetReason() != receiptReasonProtected {
+			t.Fatalf("post-prepare Swarm receipts = %v, want durable [FAILED/PROTECTED]", receipts)
+		}
+
+		// Even after Swarm turns inactive again, replay refuses because the Failed receipt is durable.
+		swarmActiveAfterPrepare.Store(false)
+		var replayReceipts []*v1.DockerReceipt
+		rctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { replayReceipts = out.DockerReceipts })
+		err = live.applyDockerMaintenance(rctx, ref, plan, &agentv1.DockerCleanupProtection{})
+		if err == nil || deleted.Load() {
+			t.Fatalf("replay after post-prepare Swarm failure: err=%v deleted=%t, want refusal and no delete", err, deleted.Load())
+		}
+		if len(replayReceipts) != 1 || replayReceipts[0].GetState() != receiptFailed || replayReceipts[0].GetReason() != receiptReasonProtected {
+			t.Fatalf("replay receipts = %v, want [FAILED/PROTECTED]", replayReceipts)
+		}
+	})
+}
+
+func TestDockerCleanupLegacyEvidenceCompatibility(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	imageID := "sha256:" + strings.Repeat("e", 64)
+	pinnedRef := "busybox:1.36@" + imageID
+	canonicalDigest := "busybox@" + imageID
+	ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+	// Direction 1: old agent reviewed plan -> new agent refuses with explicit stale-plan error, never "unsupported", no delete.
+	legacyPinned := &v1.DockerCleanupTarget{
+		ServerId:     "srv_cleanup",
+		Kind:         cleanupImage,
+		EngineId:     imageID,
+		Name:         imageID,
+		Reason:       reasonUnused,
+		ImageDigests: []string{pinnedRef, canonicalDigest},
+		Evidence:     legacyImageCleanupEvidence(imageID, nil, []string{pinnedRef, canonicalDigest}),
+	}
+	legacyDangling := &v1.DockerCleanupTarget{
+		ServerId: "srv_cleanup",
+		Kind:     cleanupImage,
+		EngineId: imageID,
+		Name:     imageID,
+		Reason:   reasonDangling,
+		Evidence: legacyImageCleanupEvidence(imageID, nil, nil),
+	}
+	for _, tc := range []struct {
+		name   string
+		target *v1.DockerCleanupTarget
+	}{
+		{name: "legacy pinned image", target: legacyPinned},
+		{name: "legacy dangling image", target: legacyDangling},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			before := len(engine.Seen())
+			plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: []*v1.DockerCleanupTarget{tc.target}}
+			err := c.applyDockerMaintenance(t.Context(), ref, plan, &agentv1.DockerCleanupProtection{})
+			if err == nil || err.Error() != "The cleanup was reviewed by an older agent. Review cleanup again" {
+				t.Fatalf("legacy plan error = %v, want explicit older-agent stale-plan error", err)
+			}
+			if strings.Contains(strings.ToLower(err.Error()), "unsupported") {
+				t.Fatalf("legacy plan error must not say unsupported: %v", err)
+			}
+			if len(engine.Seen()) != before {
+				t.Fatalf("legacy plan touched Docker: %v", engine.Seen()[before:])
+			}
+		})
+	}
+
+	// Direction 2: new agent reviewed targets never match the old agent's v1 evidence check, so a rolled-back agent refuses before deleting.
+	for _, tc := range []struct {
+		name string
+		raw  docker.DiskUsageImage
+	}{
+		{name: "new pinned", raw: docker.DiskUsageImage{ID: imageID, RepoTags: []string{pinnedRef}, RepoDigests: []string{canonicalDigest}}},
+		{name: "new tagged", raw: docker.DiskUsageImage{ID: imageID, RepoTags: []string{"busybox:1.36"}}},
+		{name: "new dangling", raw: docker.DiskUsageImage{ID: imageID}},
+	} {
+		t.Run(tc.name+" rejected by legacy validator", func(t *testing.T) {
+			target := c.imageCleanupTarget(tc.raw, dockerOccupancy{}, nil)
+			if target.GetEvidence() == "" {
+				t.Fatalf("expected eligible new target, got %v", target)
+			}
+			if target.GetEvidence() == legacyImageCleanupEvidence(target.GetEngineId(), target.GetImageTags(), target.GetImageDigests()) {
+				t.Fatalf("new v2 evidence matched legacy v1 evidence for %s", tc.name)
+			}
+			if isLegacyImageCleanupTarget(target) {
+				t.Fatalf("new v2 target was misclassified as legacy: %v", target)
+			}
+		})
+	}
+}
+
+func TestDockerCleanupFailedJournalAppendDoesNotReportOrDeleteOnReplay(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("chmod 0500 does not block root writes")
+	}
+	var cacheInUse atomic.Bool
+	var pruned atomic.Bool
+	var makeDirReadOnly atomic.Bool
+	var cleanupDir string
+
+	used := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	cacheID := strings.Repeat("b", 25)
+	busyImgID := "sha256:" + strings.Repeat("a", 64)
+	var imgInUse atomic.Bool
+
+	sockDir, err := os.MkdirTemp("", "dw-jfail-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+		_ = os.RemoveAll(sockDir)
+		sockDir, err = os.MkdirTemp("/tmp", "dw-jfail-")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+	sock := filepath.Join(sockDir, "d.sock")
+	rootDir := t.TempDir()
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		path := r.URL.Path
+		if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+			if j := strings.Index(path[1:], "/"); j >= 0 {
+				path = path[1+j:]
+			}
+		}
+		switch {
+		case r.Method == http.MethodGet && path == "/version":
+			_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+		case r.Method == http.MethodGet && path == "/info":
+			_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+		case r.Method == http.MethodGet && path == "/containers/json":
+			ctrs := []any{}
+			if imgInUse.Load() {
+				ctrs = append(ctrs, map[string]any{"Id": strings.Repeat("1", 64), "Image": busyImgID, "ImageID": busyImgID, "State": "running", "NetworkSettings": map[string]any{}})
+			}
+			_ = json.NewEncoder(w).Encode(ctrs)
+		case r.Method == http.MethodGet && path == "/system/df":
+			if r.URL.Query().Get("type") == "build-cache" && makeDirReadOnly.CompareAndSwap(true, false) {
+				// Trigger on target B's final BuildCacheUsage (/system/df?type=build-cache) after target A's Changed receipt is durable.
+				cacheInUse.Store(true)
+				_ = os.Chmod(cleanupDir, 0o500)
+			}
+			_ = json.NewEncoder(w).Encode(docker.DiskUsage{
+				Images:     []docker.DiskUsageImage{{ID: busyImgID, Size: 1024}},
+				BuildCache: []docker.DiskUsageCache{{ID: cacheID, Type: "regular", CreatedAt: used, LastUsedAt: &used, Size: 512, InUse: cacheInUse.Load()}},
+			})
+		case r.Method == http.MethodGet && path == "/images/"+busyImgID+"/json":
+			_ = json.NewEncoder(w).Encode(map[string]any{"Id": busyImgID, "Config": map[string]any{}, "Size": 1024})
+		case r.Method == http.MethodPost && path == "/build/prune":
+			pruned.Store(true)
+			_ = json.NewEncoder(w).Encode(map[string]any{"CachesDeleted": []string{cacheID}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	live := cleanupCalls(t, docker.New(sock))
+	cleanupDir = filepath.Join(live.cfg.Dir, "docker-cleanup")
+	t.Cleanup(func() { _ = os.Chmod(cleanupDir, 0o700) })
+
+	targets := cleanupCandidates(t, live, nil)
+	// Order [A=image, B=cache] so A writes a durable Changed receipt and B fails its Changed append.
+	slices.SortFunc(targets, func(a, b *v1.DockerCleanupTarget) int {
+		if a.GetKind() == cleanupImage && b.GetKind() != cleanupImage {
+			return -1
+		}
+		if a.GetKind() != cleanupImage && b.GetKind() == cleanupImage {
+			return 1
+		}
+		return 0
+	})
+	if len(targets) != 2 || targets[0].GetKind() != cleanupImage || targets[1].GetKind() != cleanupCache {
+		t.Fatalf("targets = %v, want [image, cache]", targets)
+	}
+	for _, target := range targets {
+		target.ServerId = "srv_cleanup"
+	}
+	plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+	ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+	// Make A in-use before apply so A gets a durable Changed receipt, then trigger journal failure on B.
+	imgInUse.Store(true)
+	makeDirReadOnly.Store(true)
+	var reported []*v1.DockerReceipt
+	ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { reported = out.DockerReceipts })
+	err = live.applyDockerMaintenance(ctx, ref, plan, &agentv1.DockerCleanupProtection{})
+	if err == nil {
+		t.Fatal("expected journal write error on target B")
+	}
+	// Only A (which reached the journal) may be reported; B must not be reported.
+	if len(reported) != 1 || reported[0].GetTarget().GetEngineId() != busyImgID || reported[0].GetState() != receiptChanged {
+		t.Fatalf("reported receipts after failed append = %v, want only durable [A(CHANGED)]", reported)
+	}
+
+	// Restore journal writability and make B eligible again. Replay must NOT delete B (same process or restarted agent).
+	if err := os.Chmod(cleanupDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cacheInUse.Store(false)
+	for _, tc := range []struct {
+		name  string
+		agent *calls
+	}{
+		{name: "same agent replay", agent: live},
+		{name: "restarted agent replay", agent: func() *calls {
+			restarted := cleanupCalls(t, docker.New(sock))
+			restarted.cfg.Dir = live.cfg.Dir
+			return restarted
+		}()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var replayReported []*v1.DockerReceipt
+			rctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { replayReported = out.DockerReceipts })
+			if err := tc.agent.applyDockerMaintenance(rctx, ref, plan, &agentv1.DockerCleanupProtection{}); err == nil {
+				t.Fatal("replay after failed append succeeded; expected review-again error")
+			}
+			if pruned.Load() {
+				t.Fatal("replay deleted target B after its Changed receipt failed to append")
+			}
+			if len(replayReported) != 1 || replayReported[0].GetTarget().GetEngineId() != busyImgID {
+				t.Fatalf("replay reported = %v, want only durable [A(CHANGED)]", replayReported)
+			}
+		})
+	}
+}
+
+func TestDockerCleanupCacheChangedReasonDistinguishesNewerFromOtherDrift(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	used := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	rec := docker.DiskUsageCache{ID: strings.Repeat("d", 25), CreatedAt: used, LastUsedAt: &used, Size: 512, UsageCount: 1}
+	engine.SetBuildCache(rec)
+
+	targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Kinds: []v1.DockerCleanupKind{cleanupCache}})
+	if len(targets) != 1 {
+		t.Fatalf("cache candidates = %v", targets)
+	}
+
+	// Size changes while LastUsedAt stays identical -> plain CHANGED (reason UNSPECIFIED), not NEWER.
+	resized := rec
+	resized.Size = 1024
+	engine.SetBuildCache(resized)
+	receipts, err := applyCleanupFixture(t, c, targets, nil)
+	if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != 0 {
+		t.Fatalf("resized idle cache receipt = %v, %v, want CHANGED with UNSPECIFIED reason", receipts, err)
+	}
+
+	// LastUsedAt advances -> CHANGED with NEWER.
+	later := used.Add(5 * time.Minute)
+	newer := rec
+	newer.LastUsedAt = &later
+	engine.SetBuildCache(newer)
+	receipts, err = applyCleanupFixture(t, c, targets, nil)
+	if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != receiptReasonNewer {
+		t.Fatalf("newer idle cache receipt = %v, %v, want CHANGED with NEWER reason", receipts, err)
+	}
+
+	// Absent reviewed LastUsedAt becoming present at apply -> plain CHANGED (UNSPECIFIED reason), not NEWER.
+	noUseRec := docker.DiskUsageCache{ID: strings.Repeat("e", 25), CreatedAt: used, LastUsedAt: nil, Size: 512, UsageCount: 0}
+	engine.SetBuildCache(noUseRec)
+	noUseTargets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{Kinds: []v1.DockerCleanupKind{cleanupCache}})
+	if len(noUseTargets) != 1 || noUseTargets[0].GetLastUsedAt() != nil {
+		t.Fatalf("absent LastUsedAt cache candidates = %v", noUseTargets)
+	}
+	withUse := noUseRec
+	withUse.LastUsedAt = &used
+	engine.SetBuildCache(withUse)
+	receipts, err = applyCleanupFixture(t, c, noUseTargets, nil)
+	if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged || receipts[0].GetReason() != 0 {
+		t.Fatalf("absent-to-present LastUsedAt cache receipt = %v, %v, want CHANGED with UNSPECIFIED reason", receipts, err)
+	}
+}
+
+func TestDockerCleanupLibrarySubpathTagNotRewritten(t *testing.T) {
+	c, _ := cleanupFixture(t)
+	imageID := "sha256:" + strings.Repeat("7", 64)
+
+	t.Run("library/team/widget stays distinct from team/widget", func(t *testing.T) {
+		mixed := c.imageCleanupTarget(docker.DiskUsageImage{
+			ID:          imageID,
+			RepoTags:    []string{"library/team/widget:stable"},
+			RepoDigests: []string{"team/widget@" + imageID},
+		}, dockerOccupancy{}, nil)
+		if mixed.GetReason() != v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES || mixed.GetEvidence() != "" {
+			t.Fatalf("library/team/widget + team/widget = %v, want MULTIPLE_REPOSITORIES", mixed)
+		}
+	})
+
+	for _, reportedTag := range []string{
+		"library/team/widget:stable",
+		"docker.io/library/team/widget:stable",
+	} {
+		t.Run("classic tag "+reportedTag+" previews and removes without rewriting lookup", func(t *testing.T) {
+			var deleted atomic.Bool
+			var inspectedExact atomic.Bool
+			var inspectedRewritten atomic.Bool
+			sockDir, err := os.MkdirTemp("", "dw-lib-")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+				_ = os.RemoveAll(sockDir)
+				sockDir, err = os.MkdirTemp("/tmp", "dw-lib-")
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+			sock := filepath.Join(sockDir, "d.sock")
+			rootDir := t.TempDir()
+			ln, err := net.Listen("unix", sock)
+			if err != nil {
+				t.Fatal(err)
+			}
+			srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				path := r.URL.Path
+				if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+					if j := strings.Index(path[1:], "/"); j >= 0 {
+						path = path[1+j:]
+					}
+				}
+				switch {
+				case r.Method == http.MethodGet && path == "/version":
+					_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+				case r.Method == http.MethodGet && path == "/info":
+					_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+				case r.Method == http.MethodGet && path == "/containers/json":
+					_ = json.NewEncoder(w).Encode([]any{})
+				case r.Method == http.MethodGet && path == "/system/df":
+					var images []docker.DiskUsageImage
+					if !deleted.Load() {
+						images = []docker.DiskUsageImage{{
+							ID:       imageID,
+							Size:     4096,
+							RepoTags: []string{reportedTag},
+						}}
+					}
+					_ = json.NewEncoder(w).Encode(docker.DiskUsage{Images: images})
+				case r.Method == http.MethodGet && strings.HasPrefix(path, "/images/") && strings.HasSuffix(path, "/json"):
+					ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
+					if ref == "team/widget:stable" {
+						inspectedRewritten.Store(true)
+					}
+					if deleted.Load() || (ref != imageID && ref != reportedTag) {
+						w.WriteHeader(http.StatusNotFound)
+						_ = json.NewEncoder(w).Encode(map[string]string{"message": "No such image"})
+						return
+					}
+					if ref == reportedTag {
+						inspectedExact.Store(true)
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"Id":       imageID,
+						"RepoTags": []string{reportedTag},
+						"Config":   map[string]any{},
+						"Size":     4096,
+					})
+				case r.Method == http.MethodDelete && path == "/images/"+imageID:
+					deleted.Store(true)
+					_ = json.NewEncoder(w).Encode([]map[string]string{{"Deleted": imageID}})
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			})}
+			go func() { _ = srv.Serve(ln) }()
+			t.Cleanup(func() { _ = srv.Close() })
+
+			live := cleanupCalls(t, docker.New(sock))
+			targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{TaggedImages: true})
+			if len(targets) != 1 || !slices.Equal(targets[0].GetImageTags(), []string{reportedTag}) ||
+				!slices.Equal(targets[0].GetImageRecords(), []string{"library/team/widget:stable"}) {
+				t.Fatalf("preview targets = %v, want exact tag %q and normalized record library/team/widget:stable", targets, reportedTag)
+			}
+			receipts, err := applyCleanupFixture(t, live, targets, &agentv1.DockerCleanupProtection{})
+			if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptRemoved ||
+				!deleted.Load() || !inspectedExact.Load() || inspectedRewritten.Load() {
+				t.Fatalf("apply = %v, %v (deleted=%t exact=%t rewritten=%t)", receipts, err, deleted.Load(), inspectedExact.Load(), inspectedRewritten.Load())
+			}
+		})
+	}
+}
+
+func TestDockerCleanupApplyWithField13Dropped(t *testing.T) {
+	imageID := "sha256:" + strings.Repeat("8", 64)
+	for _, tc := range []struct {
+		name           string
+		dfTags         []string
+		dfDigests      []string
+		inspTags       []string
+		inspDigests    []string
+		changedTags    []string
+		changedDigests []string
+	}{
+		{
+			name:           "pinned containerd image",
+			dfTags:         []string{"busybox:1.36@" + imageID},
+			dfDigests:      []string{"busybox@" + imageID},
+			inspTags:       []string{"busybox:1.36@" + imageID},
+			inspDigests:    []string{"busybox:1.36@" + imageID},
+			changedTags:    []string{"busybox:1.36.1@" + imageID},
+			changedDigests: []string{"busybox:1.36.1@" + imageID},
+		},
+		{
+			name:           "tagged classic image",
+			dfTags:         []string{"library/team/widget:stable"},
+			inspTags:       []string{"library/team/widget:stable"},
+			changedTags:    []string{"library/team/widget:next"},
+			changedDigests: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, mutate := range []bool{false, true} {
+				mode := "unchanged removes"
+				if mutate {
+					mode = "changed refuses REFERENCE_MOVED"
+				}
+				t.Run(mode, func(t *testing.T) {
+					var changed atomic.Bool
+					var deleted atomic.Bool
+					sockDir, err := os.MkdirTemp("", "dw-f13-")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+						_ = os.RemoveAll(sockDir)
+						sockDir, err = os.MkdirTemp("/tmp", "dw-f13-")
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+					sock := filepath.Join(sockDir, "d.sock")
+					rootDir := t.TempDir()
+					ln, err := net.Listen("unix", sock)
+					if err != nil {
+						t.Fatal(err)
+					}
+					srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						path := r.URL.Path
+						if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+							if j := strings.Index(path[1:], "/"); j >= 0 {
+								path = path[1+j:]
+							}
+						}
+						switch {
+						case r.Method == http.MethodGet && path == "/version":
+							_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+						case r.Method == http.MethodGet && path == "/info":
+							_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+						case r.Method == http.MethodGet && path == "/containers/json":
+							_ = json.NewEncoder(w).Encode([]any{})
+						case r.Method == http.MethodGet && path == "/system/df":
+							var images []docker.DiskUsageImage
+							if !deleted.Load() {
+								tags, digests := tc.dfTags, tc.dfDigests
+								if changed.Load() {
+									tags, digests = tc.changedTags, tc.dfDigests
+								}
+								images = []docker.DiskUsageImage{{
+									ID: imageID, Size: 4096, RepoTags: tags, RepoDigests: digests,
+								}}
+							}
+							_ = json.NewEncoder(w).Encode(docker.DiskUsage{Images: images})
+						case r.Method == http.MethodGet && strings.HasPrefix(path, "/images/") && strings.HasSuffix(path, "/json"):
+							ref := strings.TrimSuffix(strings.TrimPrefix(path, "/images/"), "/json")
+							if deleted.Load() {
+								w.WriteHeader(http.StatusNotFound)
+								_ = json.NewEncoder(w).Encode(map[string]string{"message": "No such image"})
+								return
+							}
+							tags, digests := tc.inspTags, tc.inspDigests
+							if changed.Load() {
+								tags, digests = tc.changedTags, tc.changedDigests
+								if ref != imageID && !slices.Contains(tags, ref) && !slices.Contains(tc.dfDigests, ref) {
+									w.WriteHeader(http.StatusNotFound)
+									_ = json.NewEncoder(w).Encode(map[string]string{"message": "No such image"})
+									return
+								}
+							}
+							_ = json.NewEncoder(w).Encode(map[string]any{
+								"Id":          imageID,
+								"RepoTags":    tags,
+								"RepoDigests": digests,
+								"Config":      map[string]any{},
+								"Size":        4096,
+							})
+						case r.Method == http.MethodDelete && path == "/images/"+imageID:
+							deleted.Store(true)
+							_ = json.NewEncoder(w).Encode([]map[string]string{{"Deleted": imageID}})
+						default:
+							w.WriteHeader(http.StatusNotFound)
+						}
+					})}
+					go func() { _ = srv.Serve(ln) }()
+					t.Cleanup(func() { _ = srv.Close() })
+
+					live := cleanupCalls(t, docker.New(sock))
+					targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{TaggedImages: true})
+					if len(targets) != 1 || len(targets[0].GetImageRecords()) == 0 {
+						t.Fatalf("preview targets = %v, want 1 target with image_records", targets)
+					}
+					// Simulate an older control plane stripping unknown field 13 on JSON persistence.
+					targets[0].ImageRecords = nil
+					if mutate {
+						changed.Store(true)
+					}
+					receipts, err := applyCleanupFixture(t, live, targets, &agentv1.DockerCleanupProtection{})
+					if mutate {
+						if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptChanged ||
+							receipts[0].GetReason() != receiptReasonReferenceMoved || deleted.Load() {
+							t.Fatalf("dropped field 13 changed apply = %v, %v (deleted=%t), want CHANGED/REFERENCE_MOVED and no delete", receipts, err, deleted.Load())
+						}
+					} else {
+						if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptRemoved || !deleted.Load() {
+							t.Fatalf("dropped field 13 unchanged apply = %v, %v (deleted=%t), want REMOVED", receipts, err, deleted.Load())
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestDockerCleanupFailedFinalCacheCheckPersistsAndBlocksReplay(t *testing.T) {
+	var failBuildCacheDF atomic.Bool
+	var pruned atomic.Bool
+	used := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	cacheID := strings.Repeat("f", 25)
+
+	sockDir, err := os.MkdirTemp("", "dw-cfail-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filepath.Join(sockDir, "d.sock")) >= 100 {
+		_ = os.RemoveAll(sockDir)
+		sockDir, err = os.MkdirTemp("/tmp", "dw-cfail-")
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(sockDir) })
+	sock := filepath.Join(sockDir, "d.sock")
+	rootDir := t.TempDir()
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		path := r.URL.Path
+		if i := strings.Index(path, "/"); i == 0 && strings.HasPrefix(path, "/v1.") {
+			if j := strings.Index(path[1:], "/"); j >= 0 {
+				path = path[1+j:]
+			}
+		}
+		switch {
+		case r.Method == http.MethodGet && path == "/version":
+			_ = json.NewEncoder(w).Encode(map[string]any{"ApiVersion": "1.52", "Version": "29.4.1", "Platform": map[string]string{"Name": "Docker Engine - Community"}})
+		case r.Method == http.MethodGet && path == "/info":
+			_ = json.NewEncoder(w).Encode(map[string]any{"DockerRootDir": rootDir, "Swarm": map[string]any{"LocalNodeState": "inactive"}})
+		case r.Method == http.MethodGet && path == "/containers/json":
+			_ = json.NewEncoder(w).Encode([]any{})
+		case r.Method == http.MethodGet && path == "/system/df":
+			if r.URL.Query().Get("type") == "build-cache" && failBuildCacheDF.Load() {
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]string{"message": "build cache scan failed"})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(docker.DiskUsage{
+				BuildCache: []docker.DiskUsageCache{{ID: cacheID, Type: "regular", CreatedAt: used, LastUsedAt: &used, Size: 512}},
+			})
+		case r.Method == http.MethodPost && path == "/build/prune":
+			pruned.Store(true)
+			_ = json.NewEncoder(w).Encode(map[string]any{"CachesDeleted": []string{cacheID}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+
+	live := cleanupCalls(t, docker.New(sock))
+	targets := cleanupCandidates(t, live, &v1.DockerCleanupFilters{Kinds: []v1.DockerCleanupKind{cleanupCache}})
+	if len(targets) != 1 {
+		t.Fatalf("cache candidates = %v, want 1", targets)
+	}
+	targets[0].ServerId = "srv_cleanup"
+	plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+	ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+
+	failBuildCacheDF.Store(true)
+	var reported []*v1.DockerReceipt
+	ctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { reported = out.DockerReceipts })
+	if err := live.applyDockerMaintenance(ctx, ref, plan, nil); err == nil {
+		t.Fatal("expected error when final BuildCacheUsage fails")
+	}
+	if len(reported) != 1 || reported[0].GetState() != receiptFailed || pruned.Load() {
+		t.Fatalf("failed final cache check receipts = %v (pruned=%t), want [FAILED] and no prune", reported, pruned.Load())
+	}
+
+	// Restore Engine health and replay on both the same agent and a restarted agent: replay must refuse and never prune.
+	failBuildCacheDF.Store(false)
+	for _, tc := range []struct {
+		name  string
+		agent *calls
+	}{
+		{name: "same agent replay", agent: live},
+		{name: "restarted agent replay", agent: func() *calls {
+			restarted := cleanupCalls(t, docker.New(sock))
+			restarted.cfg.Dir = live.cfg.Dir
+			return restarted
+		}()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var replayReported []*v1.DockerReceipt
+			rctx := resource.WithOutcome(t.Context(), func(out resource.Outcome) { replayReported = out.DockerReceipts })
+			if err := tc.agent.applyDockerMaintenance(rctx, ref, plan, nil); err == nil {
+				t.Fatal("replay after durable Failed cache receipt succeeded; want refusal")
+			}
+			if pruned.Load() {
+				t.Fatal("replay pruned build cache after durable Failed receipt")
+			}
+			if len(replayReported) != 1 || replayReported[0].GetState() != receiptFailed {
+				t.Fatalf("replay receipts = %v, want [FAILED]", replayReported)
+			}
+		})
+	}
+}
+
+func TestDockerCleanupPartialBatchRemovesUnchangedTargets(t *testing.T) {
+	c, engine := cleanupFixture(t)
+	client, ctx := engine.Client(), t.Context()
+
+	engine.AddLocalImage("", dockertest.Image{Size: 1024})
+	engine.AddLocalImage("fixture/busy:1", dockertest.Image{Size: 2048})
+	engine.AddLocalImage("fixture/gone:1", dockertest.Image{Size: 3072})
+	busyImg, err := client.InspectImage(ctx, "fixture/busy:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	goneImg, err := client.InspectImage(ctx, "fixture/gone:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	netID, err := client.CreateNetwork(ctx, &docker.NetworkCreate{Name: "fixture-keep-going"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	used := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	cacheRec := docker.DiskUsageCache{ID: strings.Repeat("c", 25), CreatedAt: used, LastUsedAt: &used, Size: 512}
+	engine.SetBuildCache(cacheRec)
+
+	targets := cleanupCandidates(t, c, &v1.DockerCleanupFilters{TaggedImages: true, Networks: true})
+	if len(targets) != 5 {
+		t.Fatalf("candidates = %d, want 5", len(targets))
+	}
+	// Mutate three targets in different ways while leaving the dangling image and network untouched.
+	engine.AddContainer(docker.Container{
+		Name: "/new-user", Image: busyImg.ID, Config: docker.Config{Image: busyImg.ID}, State: docker.State{Status: "exited"},
+	})
+	if err := client.RemoveReviewedImage(ctx, goneImg.ID); err != nil {
+		t.Fatal(err)
+	}
+	newer := used.Add(10 * time.Minute)
+	updatedCache := cacheRec
+	updatedCache.LastUsedAt = &newer
+	engine.SetBuildCache(updatedCache)
+
+	plan := &v1.DockerMaintenance{ChangeId: dwid.New(dwid.Change), Targets: targets}
+	var receipts []*v1.DockerReceipt
+	outCtx := resource.WithOutcome(ctx, func(out resource.Outcome) { receipts = out.DockerReceipts })
+	ref := resource.Ref{Kind: host.Kind, Name: host.Name, Scope: "srv_cleanup"}
+	if err := c.applyDockerMaintenance(outCtx, ref, plan, &agentv1.DockerCleanupProtection{}); err != nil {
+		t.Fatalf("partial batch with only Changed targets should end done, got err: %v", err)
+	}
+	if len(receipts) != 5 {
+		t.Fatalf("receipts = %d, want 5", len(receipts))
+	}
+	byID := map[string]*v1.DockerReceipt{}
+	for _, r := range receipts {
+		byID[r.GetTarget().GetEngineId()] = r
+	}
+	if r := byID[busyImg.ID]; r.GetState() != receiptChanged || r.GetReason() != receiptReasonInUse {
+		t.Fatalf("in-use image receipt = %v, want CHANGED/IN_USE", r)
+	}
+	if r := byID[goneImg.ID]; r.GetState() != receiptChanged || r.GetReason() != receiptReasonGone {
+		t.Fatalf("gone image receipt = %v, want CHANGED/GONE", r)
+	}
+	if r := byID[cacheRec.ID]; r.GetState() != receiptChanged || r.GetReason() != receiptReasonNewer {
+		t.Fatalf("newer cache receipt = %v, want CHANGED/NEWER", r)
+	}
+	if r := byID[netID]; r.GetState() != receiptRemoved {
+		t.Fatalf("unchanged network receipt = %v, want REMOVED", r)
+	}
+	var removedDangling int
+	for _, r := range receipts {
+		if r.GetTarget().GetKind() == cleanupImage && r.GetTarget().GetReason() == reasonDangling && r.GetState() == receiptRemoved {
+			removedDangling++
+		}
+	}
+	if removedDangling != 1 {
+		t.Fatalf("unchanged dangling image was not removed: %v", receipts)
+	}
+	if _, err := client.InspectImage(ctx, busyImg.ID); err != nil {
+		t.Fatalf("changed in-use image was removed: %v", err)
+	}
+	if _, err := client.InspectNetwork(ctx, netID); !docker.IsNotFound(err) {
+		t.Fatalf("unchanged network still exists: %v", err)
+	}
+
+	// Replaying the completed partial batch succeeds without dispatching any new deletes.
+	beforeReplay := len(engine.Seen())
+	receipts = nil
+	if err := c.applyDockerMaintenance(outCtx, ref, plan, &agentv1.DockerCleanupProtection{}); err != nil || len(receipts) != 5 {
+		t.Fatalf("replay of settled partial batch = %v, %v", receipts, err)
+	}
+	for _, req := range engine.Seen()[beforeReplay:] {
+		if strings.HasPrefix(req, "DELETE ") || strings.HasSuffix(req, "/build/prune") {
+			t.Fatalf("replay dispatched %s", req)
+		}
+	}
+}
+
+func TestFamiliarImageNameFollowsDockersRules(t *testing.T) {
+	for in, want := range map[string]string{
+		"busybox":                          "busybox",
+		"library/busybox":                  "busybox",
+		"docker.io/library/busybox":        "busybox",
+		"index.docker.io/library/busybox":  "busybox",
+		"docker.io/library/team/widget":    "library/team/widget",
+		"library/team/widget":              "library/team/widget",
+		"team/widget":                      "team/widget",
+		"docker.io/team/widget":            "team/widget",
+		"ghcr.io/team/widget":              "ghcr.io/team/widget",
+		"localhost/widget":                 "localhost/widget",
+		"registry.example.com:5000/widget": "registry.example.com:5000/widget",
+	} {
+		if got := familiarImageName(in); got != want {
+			t.Errorf("familiarImageName(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"busybox:1.36@sha256:abc":                     "busybox:1.36@sha256:abc",
+		"docker.io/library/busybox:1.36":              "busybox:1.36",
+		"registry.example.com:5000/widget@sha256:abc": "registry.example.com:5000/widget@sha256:abc",
+	} {
+		if got := canonicalImageRecord(in); got != want {
+			t.Errorf("canonicalImageRecord(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := canonicalDigestRef("docker.io/library/busybox:1.36@sha256:abc"); got != "busybox@sha256:abc" {
+		t.Errorf("canonicalDigestRef = %q", got)
+	}
+	if got := pinnedTagName("busybox:1.36@sha256:abc"); got != "busybox:1.36" {
+		t.Errorf("pinnedTagName = %q", got)
+	}
 }

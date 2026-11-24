@@ -265,6 +265,7 @@ function VolumeDetail({ serverId, volumeKey }: { serverId: string; volumeKey: st
               focusEngineId={volumeKey}
               onClose={() => setRemoving(false)}
               onApplied={refresh}
+              onReviewAgain={() => setRemoving(true)}
             />
           ) : null}
         </>

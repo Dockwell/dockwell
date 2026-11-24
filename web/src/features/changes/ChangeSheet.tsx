@@ -18,6 +18,7 @@ import {
   ConnectionService,
   DatabaseService,
   DockerImageOutcome,
+  DockerReceiptState,
   DockerService,
   type Domain,
   type DomainRoute,
@@ -157,6 +158,7 @@ import { useAlsoWords, useChangeWords } from "./words";
 import "./ChangeSheet.css";
 import { localHost, useActorWords } from "../activity/actor";
 import { placesOfChange, useMay } from "../auth/may";
+import { cleanupKindToParam } from "../docker/search";
 
 /** What every opening may say about what comes next. */
 interface Then {
@@ -174,6 +176,8 @@ interface Then {
   tryIt?: { href: string; label: string };
   /** What the button at the end of a change that failed says, when closing goes back to where it can be fixed. */
   retryLabel?: string;
+  /** Reopens the cleanup preview with its original server and kind scope after Review again. */
+  onReviewAgain?: () => void;
   /** Leaves altogether from a change that failed, when closing goes back to where it can be fixed: Done and × do this. */
   onDone?: () => void;
   /**
@@ -990,7 +994,14 @@ function ChangeSheet({
           variant={retry || phase === "arrived" || offlineNow ? "primary" : "secondary"}
           size={size}
           kbd={kbd}
-          onClick={retry ? close : leave}
+          onClick={
+            retry
+              ? () => {
+                  close();
+                  opening.onReviewAgain?.();
+                }
+              : leave
+          }
         >
           {retry ?? done ?? <Trans>Done</Trans>}
         </Button>
@@ -1386,6 +1397,8 @@ function PlanBody({
   onLeave: () => void;
 }) {
   const { t } = useLingui();
+  const router = useRouter({ warn: false });
+  const queryClient = useQueryClient();
   const words = useChangeWords();
   const alsoWords = useAlsoWords();
   const fleetView = useFleetView();
@@ -1523,6 +1536,62 @@ function PlanBody({
   const stepsDone = steps.filter((s) => s.state === StepState.DONE).length;
   const nothingNewer = foundNothingNewer(change);
   const confirmation = phase === "applying" ? confirmationOf(change) : undefined;
+  const cleanupReceiptEntries =
+    cleansDocker(plan) && !resumesDockerCleanup(plan) && landed
+      ? steps.flatMap((step) => step.dockerReceipts.map((receipt) => ({ stepServerId: step.serverId, receipt })))
+      : [];
+  const cleanupRemoved = cleanupReceiptEntries.filter(
+    ({ receipt }) => receipt.state === DockerReceiptState.REMOVED,
+  ).length;
+  const changedEntries = cleanupReceiptEntries.filter(({ receipt }) => receipt.state === DockerReceiptState.CHANGED);
+  const cleanupChanged = changedEntries.length;
+  const changedServerIds = [
+    ...new Set(
+      changedEntries.map(({ stepServerId, receipt }) => receipt.target?.serverId || stepServerId).filter(Boolean),
+    ),
+  ];
+  const plannedKinds = [
+    ...new Set(
+      (
+        plan?.servers.flatMap((server) =>
+          server.steps.flatMap((step) => step.dockerMaintenance?.targets.map((target) => target.kind) ?? []),
+        ) ?? []
+      )
+        .concat(cleanupReceiptEntries.map(({ receipt }) => receipt.target?.kind ?? 0))
+        .map(cleanupKindToParam)
+        .filter((k): k is NonNullable<typeof k> => k !== undefined),
+    ),
+  ];
+  const kindsParam = plannedKinds.length > 0 && plannedKinds.length < 4 ? plannedKinds : undefined;
+  const reviewCleanupAgain = () => {
+    void queryClient.invalidateQueries({ queryKey: ["docker-cleanup"] });
+    onLeave();
+    if (opening.onReviewAgain) {
+      opening.onReviewAgain();
+      return;
+    }
+    if (!router) return;
+    const targetServers =
+      changedServerIds.length > 0 ? changedServerIds : (plan?.servers.map((s) => s.serverId).filter(Boolean) ?? []);
+    if (targetServers.length === 1) {
+      const serverId = targetServers[0];
+      if (!serverId) return;
+      void router.navigate({
+        to: "/servers/$serverId/docker/cleanup",
+        params: { serverId },
+        search: kindsParam ? { kinds: kindsParam } : {},
+      });
+    } else if (targetServers.length > 1) {
+      void router.navigate({
+        to: "/servers/docker",
+        search: {
+          view: "cleanup",
+          servers: targetServers,
+          ...(kindsParam ? { kinds: kindsParam } : {}),
+        },
+      });
+    }
+  };
 
   return (
     <div className="plan-body">
@@ -1617,6 +1686,23 @@ function PlanBody({
         <Arrival reach={reach} change={change} phone={phone} onLeave={onLeave} />
       ) : null}
       {phase === "history" && change ? <OnRecord change={change} /> : null}
+      {cleanupChanged > 0 ? (
+        <Callout
+          tone="warning"
+          title={
+            cleanupRemoved > 0
+              ? plural(cleanupRemoved, { one: "# artifact removed", other: "# artifacts removed" })
+              : t`Nothing removed`
+          }
+          actions={
+            <Button size="sm" variant="secondary" onClick={reviewCleanupAgain}>
+              <Trans>Review again</Trans>
+            </Button>
+          }
+        >
+          {t`${cleanupChanged} changed since you reviewed`}
+        </Callout>
+      ) : null}
       {phase === "history" && change ? <PlanLinks plan={plan} /> : null}
       {phase !== "discarded" ? <Places plan={plan} /> : null}
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}

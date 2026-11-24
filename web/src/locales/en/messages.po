@@ -9867,6 +9867,9 @@ msgstr "Nothing outside the server reaches these yet."
 msgid "Nothing outside {server} reaches {name} yet."
 msgstr "Nothing outside {server} reaches {name} yet."
 
+msgid "Nothing removed"
+msgstr "Nothing removed"
+
 msgid "Open the app {name}"
 msgstr "Open the app {name}"
 
@@ -9917,6 +9920,9 @@ msgstr "Restarting {name} on {server}"
 
 msgid "Result unknown"
 msgstr "Result unknown"
+
+msgid "Review again"
+msgstr "Review again"
 
 msgid "Rolling back failed"
 msgstr "Rolling back failed"
@@ -10113,6 +10119,12 @@ msgstr "{apps} and {dbs} stop, and you can undo this until {deadline}."
 
 msgid "{apps} and {dbs} stop."
 msgstr "{apps} and {dbs} stop."
+
+msgid "{cleanupChanged} changed since you reviewed"
+msgstr "{cleanupChanged} changed since you reviewed"
+
+msgid "{cleanupRemoved, plural, one {# artifact removed} other {# artifacts removed}}"
+msgstr "{cleanupRemoved, plural, one {# artifact removed} other {# artifacts removed}}"
 
 msgid "{ing} failed"
 msgstr "{ing} failed"
@@ -10357,9 +10369,6 @@ msgstr "Registry serves"
 
 msgid "Registry serves the reviewed digest"
 msgstr "Registry serves the reviewed digest"
-
-msgid "Review again"
-msgstr "Review again"
 
 msgid "Tag"
 msgstr "Tag"
@@ -15361,6 +15370,9 @@ msgstr "{0} selected · {estimated} estimated"
 msgid "{deferredCount} more after this cleanup"
 msgstr "{deferredCount} more after this cleanup"
 
+msgid "Changed"
+msgstr "Changed"
+
 #. placeholder {0}: formatBytes(totalFreedBytes, i18n.locale)
 msgid "Freed {0}"
 msgstr "Freed {0}"
@@ -15368,8 +15380,8 @@ msgstr "Freed {0}"
 msgid "Outcome unknown"
 msgstr "Outcome unknown"
 
-msgid "{changedCount} changed"
-msgstr "{changedCount} changed"
+msgid "{changedCount} changed since you reviewed"
+msgstr "{changedCount} changed since you reviewed"
 
 msgid "{display} estimated"
 msgstr "{display} estimated"
@@ -16597,6 +16609,9 @@ msgstr "{0} running"
 msgid "A different volume now uses this name"
 msgstr "A different volume now uses this name"
 
+msgid "Already gone"
+msgstr "Already gone"
+
 msgid "Anonymous volume"
 msgstr "Anonymous volume"
 
@@ -16651,8 +16666,20 @@ msgstr "Mounted by a container"
 msgid "Needed for rollback or deployment"
 msgstr "Needed for rollback or deployment"
 
+msgid "Newer than preview"
+msgstr "Newer than preview"
+
+msgid "Now in use"
+msgstr "Now in use"
+
+msgid "Now protected"
+msgstr "Now protected"
+
 msgid "Only local volumes can be removed here"
 msgstr "Only local volumes can be removed here"
+
+msgid "Reference moved"
+msgstr "Reference moved"
 
 msgid "Retained for recovery"
 msgstr "Retained for recovery"
@@ -24532,9 +24559,6 @@ msgstr "{index} · single-page app"
 
 msgid "Change the folder"
 msgstr "Change the folder"
-
-msgid "Changed"
-msgstr "Changed"
 
 msgid "It sends its requests on."
 msgstr "It sends its requests on."

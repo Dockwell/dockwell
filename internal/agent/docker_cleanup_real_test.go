@@ -146,6 +146,147 @@ func TestCleanupRemovesADanglingImageByIDOnRealDocker(t *testing.T) {
 	}
 }
 
+func TestCleanupRemovesPinnedImageOnRealDocker(t *testing.T) {
+	client := dockertest.Real(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+	defer cancel()
+	const (
+		digest     = "sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+		pinnedRef  = "busybox:1.36@" + digest
+		wantDigest = "busybox@" + digest
+	)
+	preImages, err := client.InventoryImages(ctx)
+	if err != nil {
+		t.Fatalf("list images before pinned pull: %v", err)
+	}
+	preIDs := make(map[string]bool, len(preImages))
+	for _, row := range preImages {
+		preIDs[row.ID] = true
+		if row.ID == digest || slices.Contains(row.RepoTags, pinnedRef) ||
+			slices.ContainsFunc(row.RepoDigests, func(ref string) bool { return strings.HasSuffix(ref, "@"+digest) }) {
+			t.Skipf("pinned test image %s is already present on this Docker daemon (%s); skipping so the test never removes a pre-existing image", pinnedRef, row.ID)
+		}
+	}
+	if existing, err := client.InspectImage(ctx, pinnedRef); err == nil {
+		t.Skipf("pinned test image %s is already present on this Docker daemon (%s); skipping so the test never removes a pre-existing image", pinnedRef, existing.ID)
+	}
+	if existing, err := client.InspectImage(ctx, wantDigest); err == nil {
+		t.Skipf("pinned test image %s is already present on this Docker daemon (%s); skipping so the test never removes a pre-existing image", wantDigest, existing.ID)
+	}
+
+	if err := client.PullImage(ctx, pinnedRef, nil); err != nil {
+		t.Fatalf("pull pinned image %s: %v", pinnedRef, err)
+	}
+	info, err := client.Info(ctx)
+	if err != nil {
+		t.Fatalf("read engine info: %v", err)
+	}
+	containerd := info.ContainerdImageStore()
+	pulled, err := client.InspectImage(ctx, pinnedRef)
+	if err != nil {
+		t.Fatalf("inspect pinned image %s: %v", pinnedRef, err)
+	}
+	if preIDs[pulled.ID] {
+		// On a classic store, a pre-existing dangling image can share the config ID.
+		// Never delete an image ID that existed before the pull; untag only our digest ref and skip.
+		_ = client.UntagImage(ctx, wantDigest)
+		t.Skipf("image ID %s was already present on this Docker daemon before pulling %s; skipping so the test never removes a pre-existing image", pulled.ID, pinnedRef)
+	}
+	if !docker.IsImageID(pulled.ID) {
+		t.Fatalf("pulled image ID %q is not a full Docker image ID", pulled.ID)
+	}
+	pulledID := pulled.ID
+	t.Cleanup(func() {
+		cleanCtx, cleanCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanCancel()
+		if err := client.RemoveReviewedImage(cleanCtx, pulledID); err != nil && !docker.IsNotFound(err) {
+			t.Errorf("clean up pinned image %s: %v", pulledID, err)
+		}
+	})
+
+	df, err := client.CleanupDiskUsage(ctx)
+	if err != nil {
+		t.Fatalf("disk usage after pinned pull: %v", err)
+	}
+	var dfRow *docker.DiskUsageImage
+	for i := range df.Images {
+		if df.Images[i].ID == pulled.ID {
+			dfRow = &df.Images[i]
+			break
+		}
+	}
+	if dfRow == nil {
+		t.Fatalf("/system/df did not include pulled pinned image %s", pulled.ID)
+	}
+	listed, err := client.InventoryImages(ctx)
+	if err != nil {
+		t.Fatalf("list images after pinned pull: %v", err)
+	}
+	var listRow *docker.InventoryImage
+	for i := range listed {
+		if listed[i].ID == pulled.ID {
+			listRow = &listed[i]
+			break
+		}
+	}
+	if listRow == nil {
+		t.Fatalf("/images/json did not include pulled pinned image %s", pulled.ID)
+	}
+	if containerd {
+		if pulled.ID != digest {
+			t.Fatalf("containerd pinned image ID = %q, want %q", pulled.ID, digest)
+		}
+		if !slices.Contains(dfRow.RepoTags, pinnedRef) || !slices.Contains(listRow.RepoTags, pinnedRef) || !slices.Contains(pulled.RepoTags, pinnedRef) {
+			t.Fatalf("containerd pinned record %q missing from RepoTags (df=%v list=%v inspect=%v)", pinnedRef, dfRow.RepoTags, listRow.RepoTags, pulled.RepoTags)
+		}
+		if !slices.Contains(dfRow.RepoDigests, wantDigest) || !slices.Contains(listRow.RepoDigests, wantDigest) {
+			t.Fatalf("containerd /system/df or /images/json RepoDigests missing %q (df=%v list=%v)", wantDigest, dfRow.RepoDigests, listRow.RepoDigests)
+		}
+		if !slices.Contains(pulled.RepoDigests, pinnedRef) || slices.Equal(dfRow.RepoDigests, pulled.RepoDigests) {
+			t.Fatalf("containerd inspect RepoDigests did not show expected endpoint divergence (df=%v inspect=%v)", dfRow.RepoDigests, pulled.RepoDigests)
+		}
+	} else {
+		if slices.Contains(pulled.RepoTags, pinnedRef) || slices.Contains(dfRow.RepoTags, pinnedRef) {
+			t.Fatalf("classic store unexpectedly put pinned ref %q in RepoTags (df=%v inspect=%v)", pinnedRef, dfRow.RepoTags, pulled.RepoTags)
+		}
+		if !slices.Contains(dfRow.RepoDigests, wantDigest) || !slices.Contains(listRow.RepoDigests, wantDigest) || !slices.Contains(pulled.RepoDigests, wantDigest) {
+			t.Fatalf("classic store RepoDigests missing %q (df=%v list=%v inspect=%v)", wantDigest, dfRow.RepoDigests, listRow.RepoDigests, pulled.RepoDigests)
+		}
+	}
+
+	c := cleanupCalls(t, client)
+	var target *v1.DockerCleanupTarget
+	for _, row := range cleanupCandidates(t, c, &v1.DockerCleanupFilters{TaggedImages: true}) {
+		if row.GetKind() == cleanupImage && row.GetEngineId() == pulled.ID {
+			target = row
+		}
+	}
+	if target == nil {
+		t.Fatalf("preview did not offer pinned image %s (%s)", pinnedRef, pulled.ID)
+	}
+	if target.GetReason() != reasonUnused || len(target.GetImageTags()) != 0 ||
+		!slices.Equal(target.GetImageDigests(), []string{wantDigest}) {
+		t.Fatalf("pinned image target = %v, want UNUSED with digest %s and no movable tags", target, wantDigest)
+	}
+	if containerd {
+		if target.GetName() != "busybox:1.36" || !slices.Equal(target.GetImageRecords(), []string{pinnedRef}) {
+			t.Fatalf("containerd pinned image target = name=%q records=%v, want busybox:1.36 and [%s]", target.GetName(), target.GetImageRecords(), pinnedRef)
+		}
+	} else {
+		if target.GetName() != pulled.ID || len(target.GetImageRecords()) != 0 {
+			t.Fatalf("classic pinned image target = name=%q records=%v, want %q and empty records", target.GetName(), target.GetImageRecords(), pulled.ID)
+		}
+	}
+
+	receipts, err := applyCleanupFixture(t, c, []*v1.DockerCleanupTarget{target}, &agentv1.DockerCleanupProtection{})
+	if err != nil || len(receipts) != 1 || receipts[0].GetState() != receiptRemoved || receipts[0].GetRecheckedEngineId() != pulled.ID {
+		t.Fatalf("pinned image cleanup: %v, %v", receipts, err)
+	}
+	if _, err := client.InspectImage(ctx, pulled.ID); !docker.IsNotFound(err) {
+		t.Fatalf("pinned image wasn't removed: %v", err)
+	}
+}
+
 func TestCleanupKeepsAnImageWithTwoTagsOnRealDocker(t *testing.T) {
 	client := dockertest.Real(t)
 	c := cleanupCalls(t, client)

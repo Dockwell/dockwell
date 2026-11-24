@@ -334,6 +334,7 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
           servers={servers}
           onClose={() => setPruning(false)}
           onApplied={refresh}
+          onReviewAgain={() => setPruning(true)}
         />
       ) : null}
       <Unread values={query.data?.unavailable ?? []} servers={servers} retry={refresh} />

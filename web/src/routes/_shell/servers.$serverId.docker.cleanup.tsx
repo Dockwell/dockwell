@@ -2,12 +2,19 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { DockerWorkspace } from "../../features/docker/DockerWorkspace";
+import { readServerCleanupSearch } from "../../features/docker/search";
 
 export const Route = createFileRoute("/_shell/servers/$serverId/docker/cleanup")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    ...(typeof search["group"] === "string" ? { group: search["group"] } : {}),
-  }),
+  validateSearch: readServerCleanupSearch,
   component: function Cleanup() {
-    return <DockerWorkspace serverId={Route.useParams().serverId} tab="cleanup" group={Route.useSearch().group} />;
+    const search = Route.useSearch();
+    return (
+      <DockerWorkspace
+        serverId={Route.useParams().serverId}
+        tab="cleanup"
+        group={search.group}
+        cleanupKinds={search.kinds}
+      />
+    );
   },
 });

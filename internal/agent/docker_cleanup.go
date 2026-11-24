@@ -71,6 +71,9 @@ func (c *calls) dockerOccupancy(ctx context.Context) (dockerOccupancy, error) {
 		}
 		held.images[row.ImageID] = true
 		held.images[row.Image] = true
+		if strings.Contains(row.Image, "@") {
+			held.images[canonicalDigestRef(row.Image)] = true
+		}
 		if project := composeIdentity(row.Labels[docker.LabelProject]); project != "" && composeIdentity(row.Labels[docker.LabelService]) != "" && !strings.EqualFold(row.Labels[docker.LabelOneoff], "true") {
 			held.composeProjects[project] = true
 		}
@@ -472,24 +475,142 @@ func imageTags(raw []string) []string {
 	return tags
 }
 
-func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupancy, protected []string) *v1.DockerCleanupTarget {
-	// The containerd store can include a canonical digest in RepoTags as well.
-	// Count it as a digest exactly once, while verifying it at apply like any other reference.
-	references := slices.Compact(imageTags(raw.RepoTags))
-	var tags, digests []string
-	digests = append(digests, raw.RepoDigests...)
+// splitImageRef splits a reference into its name, tag and digest, any of which
+// but the name may be empty.
+func splitImageRef(ref string) (name, tag, digest string) {
+	name, digest, _ = strings.Cut(ref, "@")
+	if i := strings.LastIndex(name, ":"); i > strings.LastIndex(name, "/") {
+		name, tag = name[:i], name[i+1:]
+	}
+	return name, tag, digest
+}
+
+// familiarImageName is a repository name as Docker shows it, by the rules of
+// distribution/reference's FamiliarName: Docker Hub's domain goes, and its
+// library/ prefix goes only from a single-segment name, so library/team/widget
+// stays apart from team/widget. It isn't imported for this, as the agent build
+// links only what it must (ADR 0023).
+func familiarImageName(name string) string {
+	domain, rest := "docker.io", name
+	if i := strings.IndexByte(name, '/'); i >= 0 {
+		if first := name[:i]; strings.ContainsAny(first, ".:") || first == "localhost" {
+			domain, rest = first, name[i+1:]
+		}
+	}
+	if domain == "index.docker.io" {
+		domain = "docker.io"
+	}
+	if domain != "docker.io" {
+		return domain + "/" + rest
+	}
+	if r, ok := strings.CutPrefix(rest, "library/"); ok && !strings.Contains(r, "/") {
+		return r
+	}
+	return rest
+}
+
+// canonicalImageRepository is a reference's repository as Docker shows it.
+func canonicalImageRepository(ref string) string {
+	if strings.HasPrefix(ref, "sha256:") {
+		return ref
+	}
+	name, _, _ := splitImageRef(ref)
+	return familiarImageName(name)
+}
+
+// canonicalDigestRef normalizes a digest reference to <familiar repository>@<digest>
+// so pinned references like name:tag@sha256:X and name@sha256:X agree across Engine
+// endpoints (/system/df, /images/json, and /images/{id}/json).
+func canonicalDigestRef(ref string) string {
+	name, _, digest := splitImageRef(ref)
+	if digest == "" || name == "" || strings.HasPrefix(name, "sha256:") {
+		return ref
+	}
+	return familiarImageName(name) + "@" + digest
+}
+
+// pinnedTagName is a pinned name:tag@digest reference's name:tag, as Docker shows it.
+func pinnedTagName(ref string) string {
+	name, tag, _ := splitImageRef(ref)
+	if name == "" || tag == "" || docker.IsImageID(name) {
+		return ""
+	}
+	return familiarImageName(name) + ":" + tag
+}
+
+// canonicalImageRecord normalizes a single RepoTags entry for comparison and
+// evidence hashing with Docker's familiar reference rules, without rewriting
+// the Engine's original spelling used for apply-time lookup.
+func canonicalImageRecord(ref string) string {
+	name, tag, digest := splitImageRef(ref)
+	if name == "" || strings.HasPrefix(name, "sha256:") {
+		return ref
+	}
+	out := familiarImageName(name)
+	if tag != "" {
+		out += ":" + tag
+	}
+	if digest != "" {
+		out += "@" + digest
+	}
+	return out
+}
+
+// canonicalImageRefs projects RepoTags and RepoDigests from either /system/df
+// (or /images/json) or /images/{id}/json into movable tags (kept verbatim as
+// reported by Engine for apply-time lookup), canonical repository digests, and
+// normalized RepoTags record names (for evidence comparison). Pinned
+// name:tag@sha256:X references are counted as digests rather than movable tags,
+// while keeping their name:tag prefix for displayName and freezing the full
+// normalized record name in records. recordCount counts distinct RepoTags
+// entries (containerd image records).
+func canonicalImageRefs(repoTags, repoDigests []string) (tags, digests, records []string, displayName string, recordCount int) {
+	references := slices.Compact(imageTags(repoTags))
+	recordCount = len(references)
+	rawDigests := imageTags(repoDigests)
+	var pinnedNames []string
+	if len(references) > 0 {
+		records = make([]string, 0, len(references))
+	}
 	for _, ref := range references {
+		records = append(records, canonicalImageRecord(ref))
 		if strings.Contains(ref, "@") {
-			digests = append(digests, ref)
+			rawDigests = append(rawDigests, ref)
+			if pinned := pinnedTagName(ref); pinned != "" {
+				pinnedNames = append(pinnedNames, pinned)
+			}
 		} else {
 			tags = append(tags, ref)
 		}
 	}
-	digests = slices.Compact(imageTags(digests))
+	if len(records) > 0 {
+		slices.Sort(records)
+		records = slices.Compact(records)
+	}
+	if len(rawDigests) > 0 {
+		digests = make([]string, 0, len(rawDigests))
+		for _, ref := range rawDigests {
+			digests = append(digests, canonicalDigestRef(ref))
+		}
+		slices.Sort(digests)
+		digests = slices.Compact(digests)
+	}
+	switch {
+	case len(tags) > 0:
+		displayName = tags[0]
+	case len(pinnedNames) > 0:
+		displayName = pinnedNames[0]
+	}
+	return tags, digests, records, displayName, recordCount
+}
+
+func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupancy, protected []string) *v1.DockerCleanupTarget {
+	tags, digests, records, displayName, recordCount := canonicalImageRefs(raw.RepoTags, raw.RepoDigests)
+	rawRefs := append(slices.Clone(raw.RepoTags), raw.RepoDigests...)
 	raw.RepoTags, raw.RepoDigests = tags, digests
 	name := raw.ID
-	if len(tags) > 0 {
-		name = tags[0]
+	if displayName != "" {
+		name = displayName
 	}
 	t := &v1.DockerCleanupTarget{Kind: cleanupImage, EngineId: raw.ID, Name: bounded(name, 255), EstimatedBytes: imageUnique(raw)}
 	switch {
@@ -497,8 +618,11 @@ func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupan
 		t.Reason = reasonRollback
 	case c.ownedImage(raw):
 		t.Reason = reasonDesired
-	case held.images[raw.ID] || raw.Containers > 0 || slices.ContainsFunc(tags, func(tag string) bool { return held.images[tag] }) ||
-		slices.ContainsFunc(raw.RepoDigests, func(digest string) bool { return held.images[digest] }):
+	case held.images[raw.ID] || raw.Containers > 0 ||
+		slices.ContainsFunc(tags, func(tag string) bool { return held.images[tag] }) ||
+		slices.ContainsFunc(digests, func(digest string) bool { return held.images[digest] }) ||
+		slices.ContainsFunc(records, func(rec string) bool { return held.images[rec] }) ||
+		slices.ContainsFunc(rawRefs, func(ref string) bool { return held.images[ref] }):
 		t.Reason = reasonInUse
 	case held.unknownImageMount:
 		t.Reason = reasonUnavailable
@@ -506,23 +630,72 @@ func (c *calls) imageCleanupTarget(raw docker.DiskUsageImage, held dockerOccupan
 		t.Reason = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES
 	case len(tags) > 1:
 		t.Reason = v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_TAGS
-	case len(references) > 1:
+	case recordCount > 1:
 		// The snapshotter's canonical references are independent records. Its
 		// non-forced delete by ID refuses when several records name the target.
 		t.Reason = reasonUnavailable
-	case !reviewableImageRefs(tags, digests):
+	case !reviewableImageRefs(tags, digests) || !reviewableImageRecords(records, tags, digests):
 		t.Reason = reasonUnavailable
 	default:
 		t.Reason = imageCleanupReason(tags, digests)
-		t.ImageTags, t.ImageDigests = tags, digests
-		t.Evidence = imageCleanupEvidence(raw.ID, tags, digests)
+		t.ImageTags, t.ImageDigests, t.ImageRecords = tags, digests, records
+		t.Evidence = imageCleanupEvidence(raw.ID, tags, digests, records)
 	}
 	return t
 }
 
-func imageCleanupEvidence(id string, tags, digests []string) string {
+func imageCleanupEvidence(id string, tags, digests, records []string) string {
+	// v2 freezes the normalized RepoTags record names alongside movable tags and
+	// canonical repository digests so replacing one pinned record with another of
+	// the same digest cannot match the reviewed evidence.
+	return cleanupEvidence("v2", id, strings.Join(tags, "\n"), strings.Join(digests, "\n"), strings.Join(records, "\n"))
+}
+
+func legacyImageCleanupEvidence(id string, tags, digests []string) string {
 	// Empty repeated fields are equivalent before and after wire decoding.
 	return cleanupEvidence(id, strings.Join(tags, "\n"), strings.Join(digests, "\n"))
+}
+
+func legacyReviewableImageRefs(tags, digests []string) bool {
+	return len(tags)+len(digests) <= 16 && reviewableImageTags(tags) && slices.IsSorted(digests) &&
+		!slices.ContainsFunc(digests, func(ref string) bool {
+			name, digest, found := strings.Cut(ref, "@")
+			return !found || name == "" || len(ref) > 512 || !docker.IsImageID(digest)
+		})
+}
+
+func isLegacyImageCleanupTarget(target *v1.DockerCleanupTarget) bool {
+	id := target.GetEngineId()
+	tags, digests, records := target.GetImageTags(), target.GetImageDigests(), target.GetImageRecords()
+	return len(records) == 0 && target.GetReason() == imageCleanupReason(tags, digests) &&
+		docker.IsImageID(id) && len(tags) <= 1 &&
+		legacyReviewableImageRefs(tags, digests) && oneImageRepository(tags, digests) &&
+		target.GetEvidence() == legacyImageCleanupEvidence(id, tags, digests)
+}
+
+func reviewableImageRecords(records, tags, digests []string) bool {
+	if len(records) > 1 || !slices.IsSorted(records) {
+		return false
+	}
+	for _, tag := range tags {
+		if !slices.Contains(records, canonicalImageRecord(tag)) {
+			return false
+		}
+	}
+	for i, rec := range records {
+		if len(rec) > 512 || (i > 0 && records[i-1] == rec) || canonicalImageRecord(rec) != rec {
+			return false
+		}
+		if name, digest, found := strings.Cut(rec, "@"); found {
+			if name == "" || !docker.IsImageID(digest) || strings.ContainsAny(name, "@<>?% \r\n\t") ||
+				!slices.Contains(digests, canonicalDigestRef(rec)) {
+				return false
+			}
+		} else if !slices.ContainsFunc(tags, func(tag string) bool { return canonicalImageRecord(tag) == rec }) {
+			return false
+		}
+	}
+	return true
 }
 
 func imageCleanupReason(tags, digests []string) v1.DockerCleanupReason {
@@ -536,7 +709,7 @@ func oneImageRepository(tags, digests []string) bool {
 	var repo string
 	for _, refs := range [][]string{tags, digests} {
 		for _, ref := range refs {
-			name := docker.Repository(ref)
+			name := canonicalImageRepository(ref)
 			if repo != "" && name != repo {
 				return false
 			}
@@ -547,11 +720,18 @@ func oneImageRepository(tags, digests []string) bool {
 }
 
 func reviewableImageRefs(tags, digests []string) bool {
-	return len(tags)+len(digests) <= 16 && reviewableImageTags(tags) && slices.IsSorted(digests) &&
-		!slices.ContainsFunc(digests, func(ref string) bool {
-			name, digest, found := strings.Cut(ref, "@")
-			return !found || name == "" || len(ref) > 512 || !docker.IsImageID(digest)
-		})
+	if len(tags)+len(digests) > 16 || !reviewableImageTags(tags) || !slices.IsSorted(digests) {
+		return false
+	}
+	for i, ref := range digests {
+		name, digest, found := strings.Cut(ref, "@")
+		if !found || name == "" || len(ref) > 512 || !docker.IsImageID(digest) ||
+			strings.ContainsAny(name, "@<>?% \r\n\t") || canonicalDigestRef(ref) != ref ||
+			i > 0 && digests[i-1] == ref {
+			return false
+		}
+	}
+	return true
 }
 
 func containsProtectedImage(image docker.DiskUsageImage, protected []string) bool {
