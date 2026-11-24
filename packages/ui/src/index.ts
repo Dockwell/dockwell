@@ -113,6 +113,13 @@ export {
 export { Tag, TagLink, type TagLinkProps, type TagProps } from "./components/Tag/Tag";
 export { TextField, type TextFieldProps } from "./components/TextField/TextField";
 export { Timeline, type TimelineEvent, type TimelineKind, type TimelineProps } from "./components/Timeline/Timeline";
+export {
+  TimeSeriesChart,
+  type TimeSeriesChartProps,
+  type TimeSeriesGapKind,
+  type TimeSeriesLine,
+  type TimeSeriesTone,
+} from "./components/TimeSeriesChart/TimeSeriesChart";
 export { Toast, type ToastAction, type ToastProps } from "./components/Toast/Toast";
 export { cx } from "./lib/cx";
 export { type Off, useOff, useOffReasons } from "./lib/off";

@@ -5322,6 +5322,7 @@ msgstr "{0, plural, one {# app} other {# apps}}"
 
 #. placeholder {0}: (catalog.total ?? 0) - entries.length
 #. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, filtered.length - shown)
 msgid "{0, plural, one {Show # more} other {Show # more}}"
 msgstr "{0, plural, one {Show # more} other {Show # more}}"
 
@@ -15404,10 +15405,10 @@ msgstr "{0} min left"
 
 #. placeholder {0}: formatBytes(item.receivedBytes, i18n.locale)
 #. placeholder {0}: formatBytes(progress, i18n.locale)
-#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {0}: sockets.length
+#. placeholder {1}: detail.socketsTotal
 #. placeholder {1}: formatBytes(item.sizeBytes, i18n.locale)
 #. placeholder {1}: formatBytes(size, i18n.locale)
-#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
 msgid "{0} of {1}"
 msgstr "{0} of {1}"
 
@@ -19569,6 +19570,104 @@ msgstr "{minutes} min"
 msgid "{0}'s agent is outdated"
 msgstr "{0}'s agent is outdated"
 
+msgid "All protocols"
+msgstr "All protocols"
+
+#. placeholder {0}: server.name
+msgid "Connections on {0}"
+msgstr "Connections on {0}"
+
+#. placeholder {0}: c.container.name
+#. placeholder {0}: owner.name
+msgid "Container {0}"
+msgstr "Container {0}"
+
+msgid "Filter by protocol"
+msgstr "Filter by protocol"
+
+msgid "Filter by state"
+msgstr "Filter by state"
+
+msgid "It's older than the control plane, so it can't list network connections."
+msgstr "It's older than the control plane, so it can't list network connections."
+
+msgid "Local address"
+msgstr "Local address"
+
+msgid "Network connections"
+msgstr "Network connections"
+
+msgid "No connections match."
+msgstr "No connections match."
+
+msgid "No open network sockets."
+msgstr "No open network sockets."
+
+msgid "Process"
+msgstr "Process"
+
+msgid "Reading network connections"
+msgstr "Reading network connections"
+
+msgid "Remote address"
+msgstr "Remote address"
+
+#. placeholder {0}: c.unit.replace(/\.service$/, "")
+#. placeholder {0}: owner.name
+msgid "Service {0}"
+msgstr "Service {0}"
+
+#. placeholder {0}: rows.length
+#. placeholder {1}: query.data.total
+msgid "Showing {0} of {1} sockets (bounded at 1,000)."
+msgstr "Showing {0} of {1} sockets (bounded at 1,000)."
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected; connections read again once it reconnects."
+msgstr "The agent on {0} isn't connected; connections read again once it reconnects."
+
+#. placeholder {0}: filtered.length
+msgid "{0, plural, one {# connection matches.} other {# connections match.}}"
+msgstr "{0, plural, one {# connection matches.} other {# connections match.}}"
+
+#. placeholder {0}: all.length
+msgid "{0, plural, one {# open socket.} other {# open sockets.}}"
+msgstr "{0, plural, one {# open socket.} other {# open sockets.}}"
+
+#. placeholder {0}: server.name
+msgid "{0} is slow to list its sockets"
+msgstr "{0} is slow to list its sockets"
+
+msgid "30 d"
+msgstr "30 d"
+
+msgid "6 h"
+msgstr "6 h"
+
+msgid "7 d"
+msgstr "7 d"
+
+msgid "Avg"
+msgstr "Avg"
+
+msgid "Container history couldn't be loaded"
+msgstr "Container history couldn't be loaded"
+
+msgid "Loading container history"
+msgstr "Loading container history"
+
+msgid "No container samples recorded for this range yet."
+msgstr "No container samples recorded for this range yet."
+
+#. placeholder {0}: formatBytes(Math.round(pk), locale)
+#. placeholder {0}: formatFixed(pk, 2, locale)
+msgid "peak {0}"
+msgstr "peak {0}"
+
+#. placeholder {0}: formatFixed(pk, 1, locale)
+msgid "peak {0}%"
+msgstr "peak {0}%"
+
 msgid "Back to the server"
 msgstr "Back to the server"
 
@@ -20483,15 +20582,65 @@ msgstr "{replicas, plural, one {# replica} other {# replicas}}"
 msgid "{text}, as last heard {0}"
 msgstr "{text}, as last heard {0}"
 
+msgid "Command line"
+msgstr "Command line"
+
+msgid "Copy command line"
+msgstr "Copy command line"
+
+msgid "Dockwell needs this process, or runs under it. Restart Dockwell instead."
+msgstr "Dockwell needs this process, or runs under it. Restart Dockwell instead."
+
+msgid "It's older than the control plane, so it can't inspect process details."
+msgstr "It's older than the control plane, so it can't inspect process details."
+
+msgid "No open TCP or UDP sockets."
+msgstr "No open TCP or UDP sockets."
+
+msgid "Open sockets"
+msgstr "Open sockets"
+
+msgid "PID 1 starts and stops everything else. Restart the server instead."
+msgstr "PID 1 starts and stops everything else. Restart the server instead."
+
+#. placeholder {0}: target.pid
+#. placeholder {1}: server.name
+msgid "PID {0} on {1}"
+msgstr "PID {0} on {1}"
+
+msgid "Parent"
+msgstr "Parent"
+
+msgid "Process couldn't be inspected"
+msgstr "Process couldn't be inspected"
+
+#. placeholder {0}: target.pid
+msgid "Process {0}"
+msgstr "Process {0}"
+
+msgid "Reading open sockets"
+msgstr "Reading open sockets"
+
+msgid "Reading process details"
+msgstr "Reading process details"
+
+msgid "Secrets are hidden; the environment is never read."
+msgstr "Secrets are hidden; the environment is never read."
+
+msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
+msgstr "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
+
+msgid "Threads"
+msgstr "Threads"
+
+msgid "Truncated at 16 KB; secrets are hidden and the environment is never read."
+msgstr "Truncated at 16 KB; secrets are hidden and the environment is never read."
+
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
 #. placeholder {0}: spec.runs.value.service
 msgid "App {0}"
 msgstr "App {0}"
-
-#. placeholder {0}: owner.name
-msgid "Container {0}"
-msgstr "Container {0}"
 
 #. placeholder {0}: server.name
 msgid "Containers on {0}"
@@ -20500,11 +20649,11 @@ msgstr "Containers on {0}"
 msgid "Dockwell"
 msgstr "Dockwell"
 
-msgid "Dockwell needs this process, or runs under it. Restart Dockwell instead."
-msgstr "Dockwell needs this process, or runs under it. Restart Dockwell instead."
-
 msgid "Filter by name, PID or user"
 msgstr "Filter by name, PID or user"
+
+msgid "Filter by port, address, process or state"
+msgstr "Filter by port, address, process or state"
 
 msgid "Filter processes"
 msgstr "Filter processes"
@@ -20533,12 +20682,6 @@ msgstr "Nothing that runs matches."
 msgid "PID"
 msgstr "PID"
 
-msgid "PID 1 starts and stops everything else. Restart the server instead."
-msgstr "PID 1 starts and stops everything else. Restart the server instead."
-
-msgid "Process"
-msgstr "Process"
-
 msgid "Processes"
 msgstr "Processes"
 
@@ -20548,10 +20691,6 @@ msgstr "Processes on {0}"
 
 msgid "Reading what runs here"
 msgstr "Reading what runs here"
-
-#. placeholder {0}: owner.name
-msgid "Service {0}"
-msgstr "Service {0}"
 
 #. placeholder {0}: server.name
 msgid "Services on {0}"
@@ -20577,9 +20716,6 @@ msgstr "The agent hasn't reported yet."
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected; this reads again once it reconnects."
 msgstr "The agent on {0} isn't connected; this reads again once it reconnects."
-
-msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
-msgstr "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
 
 msgid "Totals"
 msgstr "Totals"
@@ -20803,6 +20939,75 @@ msgstr "System log"
 msgid "System services"
 msgstr "System services"
 
+msgid "1 min"
+msgstr "1 min"
+
+msgid "All disks"
+msgstr "All disks"
+
+msgid "All interfaces"
+msgstr "All interfaces"
+
+msgid "Disk"
+msgstr "Disk"
+
+msgid "Disk I/O"
+msgstr "Disk I/O"
+
+msgid "Disk I/O unit"
+msgstr "Disk I/O unit"
+
+msgid "History couldn't be loaded"
+msgstr "History couldn't be loaded"
+
+msgid "IOPS"
+msgstr "IOPS"
+
+msgid "In"
+msgstr "In"
+
+msgid "Load"
+msgstr "Load"
+
+msgid "Loading server history"
+msgstr "Loading server history"
+
+msgid "Network interface"
+msgstr "Network interface"
+
+msgid "No data before Dockwell joined"
+msgstr "No data before Dockwell joined"
+
+msgid "No history recorded for this range yet."
+msgstr "No history recorded for this range yet."
+
+msgid "Not tracked (past the 128-container limit)"
+msgstr "Not tracked (past the 128-container limit)"
+
+msgid "Out"
+msgstr "Out"
+
+msgid "The agent was offline"
+msgstr "The agent was offline"
+
+msgid "The container wasn't created yet"
+msgstr "The container wasn't created yet"
+
+msgid "The container wasn't running"
+msgstr "The container wasn't running"
+
+msgid "The control plane was offline"
+msgstr "The control plane was offline"
+
+msgid "Throughput"
+msgstr "Throughput"
+
+msgid "Use the left and right arrows to read values over time."
+msgstr "Use the left and right arrows to read values over time."
+
+msgid "Write"
+msgstr "Write"
+
 msgid "Close {name}"
 msgstr "Close {name}"
 
@@ -20835,9 +21040,6 @@ msgstr "1, 5 and 15 min"
 
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1, 5 and 15 min, on {cpus} vCPU"
-
-msgid "Disk"
-msgstr "Disk"
 
 msgid "Load average"
 msgstr "Load average"
@@ -21055,9 +21257,6 @@ msgstr "Add key"
 
 msgid "Administrator to test with"
 msgstr "Administrator to test with"
-
-msgid "All interfaces"
-msgstr "All interfaces"
 
 msgid "Authentication log entries are unverified."
 msgstr "Authentication log entries are unverified."

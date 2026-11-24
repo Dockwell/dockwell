@@ -14,6 +14,7 @@ import { PhoneServer } from "./PhoneServer";
 import { RunsHere } from "./RunsHere";
 import { ServerCallout } from "./ServerCallout";
 import { ServerFrame } from "./ServerFrame";
+import { ServerHistory } from "./ServerHistory";
 import { ServerMetrics } from "./ServerMetrics";
 import { AgentPanel, NetworkPanel, SystemPanel } from "./ServerPanels";
 import { useFleetUnread } from "./useFleet";
@@ -41,7 +42,10 @@ export function ServerOverview({ id, search, onSearch }: { id: string } & ListRo
           <RebootCallout server={server} />
           {/* A phone leads with M-Server.dc.html's: how it is, what runs, and what happened. */}
           {phone ? (
-            <PhoneServer server={server} heard={unread?.heard} />
+            <>
+              <PhoneServer server={server} heard={unread?.heard} />
+              <ServerHistory server={server} />
+            </>
           ) : (
             <>
               <ServerMetrics
@@ -49,6 +53,7 @@ export function ServerOverview({ id, search, onSearch }: { id: string } & ListRo
                 fourth="load"
                 stale={unread !== undefined || server.connection !== Connection.CONNECTED}
               />
+              <ServerHistory server={server} />
               <RunsHere server={server} />
             </>
           )}

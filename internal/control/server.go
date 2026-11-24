@@ -464,7 +464,11 @@ func New(cfg Config) (*Server, error) {
 		}
 	}
 	cfg.connectionChecks = new(*connections.Checker)
-	api, err := apiRoutes(cfg, ui, ports, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
+	var histRecorder *history.Recorder
+	if cfg.Identity != nil && cfg.Store != nil && cfg.Fleet != nil {
+		histRecorder = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
+	}
+	api, err := apiRoutes(cfg, ui, ports, histRecorder, &logs, &backupHandler, &taskHandler, &evaluator, &updateKeeper, &autoupdates, &follower, &hooks, &gitApps)
 	if err != nil {
 		return nil, err
 	}
@@ -520,8 +524,8 @@ func New(cfg Config) (*Server, error) {
 			// What each container uses is placed by its service, for an app's figures (#797).
 			opts = append(opts, agentapi.WithServices((&serviceIDs{db: cfg.Store}).find), agentapi.WithArtifactPlans(cfg.Store))
 		}
-		if cfg.Store != nil && cfg.Fleet != nil {
-			s.history = &history.Recorder{DB: cfg.Store, Servers: fleetIDs(cfg.Fleet), Logger: cfg.Logger}
+		if histRecorder != nil {
+			s.history = histRecorder
 			opts = append(opts, agentapi.WithHistory(s.history))
 		}
 		s.agents = agentapi.NewHandler(cfg.Identity, cfg.Fleet, cfg.Logger, opts...)
@@ -533,7 +537,7 @@ func New(cfg Config) (*Server, error) {
 // Handler returns the API listener's root handler.
 func (s *Server) Handler() http.Handler { return s.api }
 
-func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
+func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Recorder, logsOut **logapi.Handler, backupsOut **backups.Handler, tasksOut **tasks.Handler, alertsOut **alerts.Evaluator, updatesOut **serviceupdates.Keeper, autoupdates **autoupdate.Runner, followOut **catalogapi.Follower, hooksOut **githooks.Handler, appsOut **gitproviders.Handler) (http.Handler, error) {
 	opts := append(serve.HandlerOptions(cfg.Logger), connect.WithInterceptors(authapi.Interceptor(cfg.Auth, cfg.Logger)))
 	mux := http.NewServeMux()
 	var services []string
@@ -616,7 +620,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, logsOut **logapi
 		handle(dockwellv1connect.NewTokenServiceHandler(h, opts...))
 	}
 	if cfg.Fleet != nil {
-		serverHandler := servers.New(cfg.Fleet, cfg.Store, cfg.Agents).Tickets(cfg.Identity, cfg.Auth)
+		serverHandler := servers.New(cfg.Fleet, cfg.Store, cfg.Agents).Tickets(cfg.Identity, cfg.Auth).History(hist)
 		if cfg.Changes != nil {
 			// A unit an action moved reads anew for whoever watches its server (ADR 0082).
 			cfg.Changes.OnUnit(serverHandler.ReadSystemAgain)

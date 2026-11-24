@@ -277,6 +277,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "MemberService.transferOwnership": "may",
 
   "ProcessService.endProcess": { within: "ProcessService.watchProcesses" },
+  "ProcessService.getProcess": { within: "ProcessService.watchProcesses" },
+  "ProcessService.listSockets": { within: "ProcessService.watchProcesses" },
   "ProcessService.watchProcesses": "may",
 
   "ResourceService.listResources": "read",
@@ -290,7 +292,9 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "ServerService.listJoinTickets": "may",
   "ServerService.getServer": "unused",
   "ServerService.checkServerPorts": "may",
+  "ServerService.getContainerHistory": "may",
   "ServerService.getServerDiskUse": "may",
+  "ServerService.getServerHistory": "may",
   "ServerService.listServers": "unused",
   "ServerService.setServerPublicAddress": "may",
   "ServerService.watchServers": "read",

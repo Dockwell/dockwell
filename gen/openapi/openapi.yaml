@@ -5749,6 +5749,59 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{id}/history:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetServerHistory reads downsampled resource history for one server over a
+                 time range (1 h, 6 h, 24 h, 7 d or 30 d): CPU, memory, swap, load, disk I/O
+                 (all whole disks or one named disk) and network (all physical interfaces or
+                 one named interface). Admin-only, like the rest of a server's stats.
+            operationId: ServerService_GetServerHistory
+            parameters:
+                - name: id
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: range
+                  in: query
+                  description: How far back to read. Unset defaults to 24 h.
+                  schema:
+                    enum:
+                        - HISTORY_RANGE_UNSPECIFIED
+                        - HISTORY_RANGE_1H
+                        - HISTORY_RANGE_6H
+                        - HISTORY_RANGE_24H
+                        - HISTORY_RANGE_7D
+                        - HISTORY_RANGE_30D
+                    type: string
+                    format: enum
+                - name: disk
+                  in: query
+                  description: Optional whole block device name for disk I/O series (empty sums all disks).
+                  schema:
+                    type: string
+                - name: networkInterface
+                  in: query
+                  description: Optional physical interface name for network series (empty sums all interfaces).
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetServerHistoryResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{id}/ports:
         get:
             tags:
@@ -5949,6 +6002,61 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/GetArchiveJobResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/containers/{containerId}/history:
+        get:
+            tags:
+                - ServerService
+            description: |-
+                GetContainerHistory reads downsampled CPU and memory history for one
+                 container on a server over a time range (1 h, 6 h, 24 h, 7 d or 30 d).
+            operationId: ServerService_GetContainerHistory
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: containerId
+                  in: path
+                  description: The container's 64-character hex Engine ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: range
+                  in: query
+                  description: How far back to read. Unset defaults to 24 h.
+                  schema:
+                    enum:
+                        - HISTORY_RANGE_UNSPECIFIED
+                        - HISTORY_RANGE_1H
+                        - HISTORY_RANGE_6H
+                        - HISTORY_RANGE_24H
+                        - HISTORY_RANGE_7D
+                        - HISTORY_RANGE_30D
+                    type: string
+                    format: enum
+                - name: createdAt
+                  in: query
+                  description: |-
+                    Optional time when the container was created, so buckets before it read as
+                     not yet created rather than not running.
+                  schema:
+                    type: string
+                    format: date-time
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetContainerHistoryResponse'
                 default:
                     description: Default error response
                     content:
@@ -6782,6 +6890,48 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/processes/{pid}:
+        get:
+            tags:
+                - ProcessService
+            description: |-
+                GetProcess reads detail for one running process on a server: its full
+                 secret-redacted command line, parent, user, start time, threads, open
+                 network sockets, and container or service. Environment variables are never
+                 read or returned. Admin and session only, like WatchProcesses.
+            operationId: ProcessService_GetProcess
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+                - name: pid
+                  in: path
+                  description: The process ID, 1 to 4194304.
+                  required: true
+                  schema:
+                    type: integer
+                    format: uint32
+                - name: startTicks
+                  in: query
+                  description: Optional start_ticks to confirm this is the same process instance.
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/servers/{serverId}/processes/{pid}:end:
         post:
             tags:
@@ -6827,6 +6977,36 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/EndProcessResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/servers/{serverId}/sockets:
+        get:
+            tags:
+                - ProcessService
+            description: |-
+                ListSockets reads live network sockets on a server (TCP and UDP, IPv4
+                 and IPv6), as ss -tunap shows them, with each socket's protocol, local and
+                 remote address, state, and owning process or container. Admin and session
+                 only, like WatchProcesses.
+            operationId: ProcessService_ListSockets
+            parameters:
+                - name: serverId
+                  in: path
+                  description: The server's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListSocketsResponse'
                 default:
                     description: Default error response
                     content:
@@ -15494,6 +15674,44 @@ components:
                 Container is one Docker container: run by hand on a server, or a
                  service's app. Docker fills in from the image what a container leaves
                  out, such as its command or working directory, and that isn't drift.
+        ContainerHistoryPoint:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: Start time of this bucket.
+                    format: date-time
+                state:
+                    enum:
+                        - HISTORY_POINT_STATE_UNSPECIFIED
+                        - HISTORY_POINT_STATE_COVERED
+                        - HISTORY_POINT_STATE_OFFLINE
+                        - HISTORY_POINT_STATE_NO_CONTROL_PLANE
+                        - HISTORY_POINT_STATE_BEFORE_JOIN
+                        - HISTORY_POINT_STATE_NOT_RUNNING
+                        - HISTORY_POINT_STATE_BEFORE_CREATE
+                        - HISTORY_POINT_STATE_NOT_TRACKED
+                    type: string
+                    description: Whether this bucket is covered or why it is missing.
+                    format: enum
+                cpuPercent:
+                    type: number
+                    description: Average CPU share of one core across the bucket (0 to 100 * cores).
+                    format: double
+                cpuPeakPercent:
+                    type: number
+                    description: Highest sampled CPU share in the bucket.
+                    format: double
+                memoryBytes:
+                    type: string
+                    description: Average working memory in use, in bytes.
+                memoryPeakBytes:
+                    type: string
+                    description: Highest sampled working memory in the bucket, in bytes.
+                memoryLimitBytes:
+                    type: string
+                    description: Memory limit, in bytes (0 when unlimited).
+            description: ContainerHistoryPoint is one bucket of a container's resource history.
         ContainerLogging:
             type: object
             properties:
@@ -16685,6 +16903,27 @@ components:
                     type: string
                     description: Total size, in bytes.
             description: Disk is one mounted filesystem.
+        DiskIOStats:
+            type: object
+            properties:
+                device:
+                    type: string
+                    description: Block device name as /proc/diskstats lists it, such as "sda" or "nvme0n1".
+                readBytes:
+                    type: string
+                    description: Cumulative bytes read since boot.
+                writtenBytes:
+                    type: string
+                    description: Cumulative bytes written since boot.
+                readOps:
+                    type: string
+                    description: Cumulative completed read operations since boot.
+                writeOps:
+                    type: string
+                    description: Cumulative completed write operations since boot.
+            description: |-
+                DiskIOStats carries cumulative read and write counters for one whole block
+                 device since boot.
         DiskUsage:
             type: object
             properties:
@@ -20733,6 +20972,42 @@ components:
                     items:
                         $ref: '#/components/schemas/ComposeWorkspaceOmission'
             description: The portable workspace and the snapshot required to plan edits to it.
+        GetContainerHistoryResponse:
+            type: object
+            properties:
+                since:
+                    type: string
+                    description: Start of the first bucket.
+                    format: date-time
+                until:
+                    type: string
+                    description: End of the last bucket.
+                    format: date-time
+                bucket:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: Width of each bucket.
+                joinedAt:
+                    type: string
+                    description: When the server joined Dockwell.
+                    format: date-time
+                points:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ContainerHistoryPoint'
+                    description: Bucketed points, oldest first.
+                untracked:
+                    type: boolean
+                    description: |-
+                        True when the server currently runs more containers than the 128-container
+                         history cap and this container is not in the tracked set.
+                containerLimit:
+                    type: integer
+                    description: The per-server container history limit (128).
+                    format: uint32
+            description: |-
+                GetContainerHistoryResponse returns bucketed CPU and memory history for one
+                 container on an even clock.
         GetControlPlaneResponse:
             type: object
             properties:
@@ -20834,6 +21109,14 @@ components:
                         - $ref: '#/components/schemas/JoinTicket'
                     description: The ticket, without its secret.
             description: GetJoinTicketResponse carries the ticket as it stands.
+        GetProcessResponse:
+            type: object
+            properties:
+                process:
+                    allOf:
+                        - $ref: '#/components/schemas/ProcessDetail'
+                    description: The process detail.
+            description: GetProcessResponse returns detailed metadata for one process.
         GetServerDiskUseResponse:
             type: object
             properties:
@@ -20866,6 +21149,41 @@ components:
                         - $ref: '#/components/schemas/ServerFirewall'
                     description: The firewall, as the agent read it, Dockwell's own with the rest.
             description: GetServerFirewallResponse is what filters the server's inbound traffic.
+        GetServerHistoryResponse:
+            type: object
+            properties:
+                since:
+                    type: string
+                    description: Start of the first bucket.
+                    format: date-time
+                until:
+                    type: string
+                    description: End of the last bucket.
+                    format: date-time
+                bucket:
+                    pattern: ^-?(?:0|[1-9][0-9]{0,11})(?:\.[0-9]{1,9})?s$
+                    type: string
+                    description: Width of each bucket.
+                joinedAt:
+                    type: string
+                    description: When the server joined Dockwell.
+                    format: date-time
+                disks:
+                    type: array
+                    items:
+                        type: string
+                    description: Whole block devices observed in this range, sorted.
+                interfaces:
+                    type: array
+                    items:
+                        type: string
+                    description: Physical network interfaces observed in this range, sorted.
+                points:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/ServerHistoryPoint'
+                    description: Bucketed points, oldest first.
+            description: GetServerHistoryResponse returns bucketed server history on an even clock.
         GetServerResponse:
             type: object
             properties:
@@ -23912,6 +24230,26 @@ components:
                     items:
                         $ref: '#/components/schemas/SigninProviderInfo'
             description: ListSigninProvidersResponse lists sign-in providers.
+        ListSocketsResponse:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: When the agent read the socket tables, on the server's clock.
+                    format: date-time
+                connections:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SocketConnection'
+                    description: The sockets, LISTEN and ESTABLISHED first, bounded at 1,000 rows.
+                total:
+                    type: integer
+                    description: Total number of sockets seen in /proc/net before bounding.
+                    format: uint32
+                truncated:
+                    type: boolean
+                    description: True when more sockets existed than the response cap or time budget allowed.
+            description: ListSocketsResponse returns the live network sockets on a server.
         ListTaskRunsResponse:
             type: object
             properties:
@@ -24879,6 +25217,21 @@ components:
                  by name, as a Compose file's networks. A service reaches another on a
                  network they share by the other's name. Docker can't change a network,
                  so its spec can't change once it is made.
+        NetworkIOStats:
+            type: object
+            properties:
+                interface:
+                    type: string
+                    description: Interface name as /proc/net/dev lists it, such as "eth0" or "ens3".
+                rxBytes:
+                    type: string
+                    description: Cumulative bytes received since boot.
+                txBytes:
+                    type: string
+                    description: Cumulative bytes sent since boot.
+            description: |-
+                NetworkIOStats carries cumulative receive and transmit counters for one
+                 physical network interface since boot.
         NetworkIPAM:
             type: object
             properties:
@@ -27528,6 +27881,145 @@ components:
                          website that needs no web server of its own, as one that sends to a port on
                          the server.
             description: PreviewWebsiteResponse is what serving it takes.
+        Process:
+            type: object
+            properties:
+                pid:
+                    type: integer
+                    description: Its process ID.
+                    format: uint32
+                parentPid:
+                    type: integer
+                    description: Its parent's process ID.
+                    format: uint32
+                name:
+                    type: string
+                    description: What the kernel calls it, such as "postgres", at most 15 characters.
+                command:
+                    type: string
+                    description: Its command line, words joined by spaces, at most 512 characters.
+                user:
+                    type: string
+                    description: |-
+                        Who it runs as: the user's name as the container it runs in knows it, or
+                         the server, or the user's ID when neither has a name for it.
+                uid:
+                    type: integer
+                    description: The user's ID.
+                    format: uint32
+                cpuPercent:
+                    type: number
+                    description: |-
+                        Its share of one CPU over the list's cpu_window, as top says it: 0 to 100
+                         times the server's CPUs.
+                    format: double
+                memoryBytes:
+                    type: string
+                    description: What it holds in memory (its resident set), in bytes.
+                startTime:
+                    type: string
+                    description: When it started, on the server's clock.
+                    format: date-time
+                startTicks:
+                    type: string
+                    description: |-
+                        When it started, in clock ticks after the server booted, as the kernel
+                         says it. With the PID, it tells this process from a later one given the
+                         same PID, so EndProcess takes it.
+                container:
+                    allOf:
+                        - $ref: '#/components/schemas/ProcessContainer'
+                    description: The container it runs in. Unset for one that doesn't.
+                unit:
+                    type: string
+                    description: |-
+                        The systemd unit it runs under, such as "docker.service". Empty for a
+                         process in a container, or outside any unit.
+                protected:
+                    type: string
+                    description: |-
+                        Why it can't be ended here: "dockwell" for the process Dockwell's agent
+                         runs in, which on the control server is the control plane's too, and for
+                         what the agent runs under, such as the shell or container that started it;
+                         "init" for PID 1; and "ssh" for the SSH server that takes new logins, which
+                         is a way back onto the server. Empty for everything else.
+                stops:
+                    type: string
+                    description: |-
+                        What else stops with it, when that's more than itself: "containers" for
+                         Docker's daemons, dockerd and containerd, which every container needs, and
+                         "container" for the shim that runs one. Empty for everything else.
+                containerMain:
+                    type: boolean
+                    description: |-
+                        True for the process its container runs, which the container's restart
+                         policy starts again. Another process in a container stops for good.
+                threads:
+                    type: integer
+                    description: Number of threads in this process, as /proc/<pid>/stat reports it.
+                    format: uint32
+            description: Process is one process on a server.
+        ProcessContainer:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The container's full ID.
+                name:
+                    type: string
+                    description: Its name, without Docker's leading slash.
+                composeProject:
+                    type: string
+                    description: |-
+                        Its Compose project and service, as its labels say, for one Compose or
+                         Dockwell made. Dockwell's project is its environment's ID, in lower case.
+                composeService:
+                    type: string
+                    description: Its Compose service.
+                restartPolicy:
+                    type: string
+                    description: |-
+                        Its restart policy, as Docker says it: "no", "always", "unless-stopped" or
+                         "on-failure". Empty when it isn't known.
+            description: ProcessContainer is the container a process runs in.
+        ProcessDetail:
+            type: object
+            properties:
+                process:
+                    allOf:
+                        - $ref: '#/components/schemas/Process'
+                    description: The core process fields (PID, parent, user, memory, container, unit, guards).
+                fullCommand:
+                    type: string
+                    description: Full secret-redacted command line, up to 16 KiB.
+                commandTruncated:
+                    type: boolean
+                    description: True when the kernel's cmdline exceeded the 16 KiB read cap.
+                parentName:
+                    type: string
+                    description: Kernel name of the parent process, if readable.
+                threads:
+                    type: integer
+                    description: Number of threads in the process.
+                    format: uint32
+                sockets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SocketConnection'
+                    description: Open TCP/UDP network sockets held by this process, up to 256.
+                socketsTotal:
+                    type: integer
+                    description: Total open sockets held by this process.
+                    format: uint32
+                socketsTruncated:
+                    type: boolean
+                    description: True when the process holds more sockets than returned.
+                state:
+                    type: string
+                    description: Kernel process state in plain words, such as "running", "sleeping", "stopped" or "zombie".
+            description: |-
+                ProcessDetail is detailed metadata for one running process, without its
+                 environment and with secrets redacted from its command line.
         Project:
             type: object
             properties:
@@ -29972,6 +30464,109 @@ components:
                          and when stale.
                     format: date-time
             description: ServerHealth is how a service is on one server.
+        ServerHistoryPoint:
+            type: object
+            properties:
+                time:
+                    type: string
+                    description: Start time of this bucket.
+                    format: date-time
+                state:
+                    enum:
+                        - HISTORY_POINT_STATE_UNSPECIFIED
+                        - HISTORY_POINT_STATE_COVERED
+                        - HISTORY_POINT_STATE_OFFLINE
+                        - HISTORY_POINT_STATE_NO_CONTROL_PLANE
+                        - HISTORY_POINT_STATE_BEFORE_JOIN
+                        - HISTORY_POINT_STATE_NOT_RUNNING
+                        - HISTORY_POINT_STATE_BEFORE_CREATE
+                        - HISTORY_POINT_STATE_NOT_TRACKED
+                    type: string
+                    description: Whether this bucket is covered or why it is missing.
+                    format: enum
+                cpuPercent:
+                    type: number
+                    description: Average CPU busy percentage across the bucket (0 to 100).
+                    format: double
+                cpuPeakPercent:
+                    type: number
+                    description: Highest CPU busy percentage sampled in the bucket.
+                    format: double
+                memoryUsedBytes:
+                    type: string
+                    description: Average memory in use, in bytes.
+                memoryPeakBytes:
+                    type: string
+                    description: Highest memory in use sampled in the bucket, in bytes.
+                memoryTotalBytes:
+                    type: string
+                    description: Total memory, in bytes.
+                swapUsedBytes:
+                    type: string
+                    description: Average swap in use, in bytes.
+                load1:
+                    type: number
+                    description: Average 1-minute load across the bucket.
+                    format: double
+                load1Peak:
+                    type: number
+                    description: Highest 1-minute load sampled in the bucket.
+                    format: double
+                diskPercent:
+                    type: number
+                    description: Average fullest-disk share (0 to 100).
+                    format: double
+                networkRxBytesPerSecond:
+                    type: string
+                    description: Average network receive rate, in bytes per second.
+                networkRxPeakBytesPerSecond:
+                    type: string
+                    description: Highest sampled network receive rate, in bytes per second.
+                networkTxBytesPerSecond:
+                    type: string
+                    description: Average network transmit rate, in bytes per second.
+                networkTxPeakBytesPerSecond:
+                    type: string
+                    description: Highest sampled network transmit rate, in bytes per second.
+                diskReadBytesPerSecond:
+                    type: string
+                    description: Average disk read throughput, in bytes per second.
+                diskReadPeakBytesPerSecond:
+                    type: string
+                    description: Highest sampled disk read throughput, in bytes per second.
+                diskWriteBytesPerSecond:
+                    type: string
+                    description: Average disk write throughput, in bytes per second.
+                diskWritePeakBytesPerSecond:
+                    type: string
+                    description: Highest sampled disk write throughput, in bytes per second.
+                diskReadIops:
+                    type: number
+                    description: Average disk read operations per second (IOPS).
+                    format: double
+                diskReadIopsPeak:
+                    type: number
+                    description: Highest sampled disk read IOPS.
+                    format: double
+                diskWriteIops:
+                    type: number
+                    description: Average disk write operations per second (IOPS).
+                    format: double
+                diskWriteIopsPeak:
+                    type: number
+                    description: Highest sampled disk write IOPS.
+                    format: double
+                diskIoMissing:
+                    type: boolean
+                    description: |-
+                        True when a specific disk was requested and that disk had no covered samples
+                         in this bucket; disk I/O fields are unset rather than zero.
+                networkIoMissing:
+                    type: boolean
+                    description: |-
+                        True when a specific network interface was requested and that interface had
+                         no covered samples in this bucket; network I/O fields are unset rather than zero.
+            description: ServerHistoryPoint is one bucket of a server's resource history.
         ServerHost:
             type: object
             properties:
@@ -30511,6 +31106,26 @@ components:
                          Someone below an admin, who sees nothing else of a server's stats, sees
                          these of their own projects' apps alone, and each sample's time, so an app
                          that stops reads as stopped.
+                diskIo:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DiskIOStats'
+                    description: |-
+                        Cumulative disk I/O counters per whole block device since boot, from
+                         /proc/diskstats. Empty from an agent before per-disk I/O history.
+                networkIo:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/NetworkIOStats'
+                    description: |-
+                        Cumulative network I/O counters per physical interface since boot, from
+                         /proc/net/dev. Empty from an agent before per-interface network history.
+                containersOmitted:
+                    type: integer
+                    description: |-
+                        How many running containers on this server were left out of containers by
+                         the 128-container history cap. 0 when every running container fit.
+                    format: uint32
             description: ServerStats is one sample of a server's resource use.
         ServerUpdates:
             type: object
@@ -31902,6 +32517,50 @@ components:
                 update:
                     $ref: '#/components/schemas/ServiceUpdate'
             description: SnoozeServiceUpdatesResponse is the service's updates as they now stand.
+        SocketConnection:
+            type: object
+            properties:
+                protocol:
+                    type: string
+                    description: 'Protocol: "tcp", "tcp6", "udp" or "udp6".'
+                localAddress:
+                    type: string
+                    description: Local IP address, such as "0.0.0.0", "127.0.0.1" or "::".
+                localPort:
+                    type: integer
+                    description: Local port number.
+                    format: uint32
+                remoteAddress:
+                    type: string
+                    description: Remote IP address, or "0.0.0.0" / "::" for listening or unconnected sockets.
+                remotePort:
+                    type: integer
+                    description: Remote port number, or 0 for listening or unconnected sockets.
+                    format: uint32
+                state:
+                    type: string
+                    description: Kernel socket state, such as "LISTEN", "ESTABLISHED", "TIME_WAIT" or "UNCONN".
+                pid:
+                    type: integer
+                    description: Owning process ID, or 0 when the kernel owns it or no process matched.
+                    format: uint32
+                startTicks:
+                    type: string
+                    description: Owning process's start ticks, for opening detail or matching the process list.
+                processName:
+                    type: string
+                    description: Owning process's kernel name, such as "nginx" or "sshd".
+                user:
+                    type: string
+                    description: Owning user name, as the container or server knows it.
+                container:
+                    allOf:
+                        - $ref: '#/components/schemas/ProcessContainer'
+                    description: Container the owning process runs in, if any.
+                unit:
+                    type: string
+                    description: Systemd unit the owning process runs under, if any.
+            description: SocketConnection is one live TCP or UDP socket on a server.
         Source:
             type: object
             properties:

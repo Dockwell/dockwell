@@ -5322,6 +5322,7 @@ msgstr "{0, plural, other {# 个应用}}"
 
 #. placeholder {0}: (catalog.total ?? 0) - entries.length
 #. placeholder {0}: (catalog.total ?? 0) - shown.length
+#. placeholder {0}: Math.min(PAGE, filtered.length - shown)
 msgid "{0, plural, one {Show # more} other {Show # more}}"
 msgstr "{0, plural, other {再显示 # 个}}"
 
@@ -15404,10 +15405,10 @@ msgstr "还需 {0} 分钟"
 
 #. placeholder {0}: formatBytes(item.receivedBytes, i18n.locale)
 #. placeholder {0}: formatBytes(progress, i18n.locale)
-#. placeholder {0}: step.toLocaleString(i18n.locale)
+#. placeholder {0}: sockets.length
+#. placeholder {1}: detail.socketsTotal
 #. placeholder {1}: formatBytes(item.sizeBytes, i18n.locale)
 #. placeholder {1}: formatBytes(size, i18n.locale)
-#. placeholder {1}: store.matches.toLocaleString(i18n.locale)
 msgid "{0} of {1}"
 msgstr "第 {0} 个，共 {1} 个"
 
@@ -19569,6 +19570,104 @@ msgstr "{minutes} 分钟"
 msgid "{0}'s agent is outdated"
 msgstr "{0} 的代理已过时"
 
+msgid "All protocols"
+msgstr "全部协议"
+
+#. placeholder {0}: server.name
+msgid "Connections on {0}"
+msgstr "{0} 上的网络连接"
+
+#. placeholder {0}: c.container.name
+#. placeholder {0}: owner.name
+msgid "Container {0}"
+msgstr "容器 {0}"
+
+msgid "Filter by protocol"
+msgstr "按协议筛选"
+
+msgid "Filter by state"
+msgstr "按状态筛选"
+
+msgid "It's older than the control plane, so it can't list network connections."
+msgstr "代理版本早于控制平面，因此无法列出网络连接。"
+
+msgid "Local address"
+msgstr "本地地址"
+
+msgid "Network connections"
+msgstr "网络连接"
+
+msgid "No connections match."
+msgstr "没有匹配的网络连接。"
+
+msgid "No open network sockets."
+msgstr "没有打开的网络套接字。"
+
+msgid "Process"
+msgstr "进程"
+
+msgid "Reading network connections"
+msgstr "正在读取网络连接"
+
+msgid "Remote address"
+msgstr "远程地址"
+
+#. placeholder {0}: c.unit.replace(/\.service$/, "")
+#. placeholder {0}: owner.name
+msgid "Service {0}"
+msgstr "服务 {0}"
+
+#. placeholder {0}: rows.length
+#. placeholder {1}: query.data.total
+msgid "Showing {0} of {1} sockets (bounded at 1,000)."
+msgstr "显示 {1} 个套接字中的 {0} 个（上限 1,000 个）。"
+
+#. placeholder {0}: server.name
+msgid "The agent on {0} isn't connected; connections read again once it reconnects."
+msgstr "{0} 上的代理未连接；重新连接后将再次读取网络连接。"
+
+#. placeholder {0}: filtered.length
+msgid "{0, plural, one {# connection matches.} other {# connections match.}}"
+msgstr "{0, plural, other {匹配 # 条连接。}}"
+
+#. placeholder {0}: all.length
+msgid "{0, plural, one {# open socket.} other {# open sockets.}}"
+msgstr "{0, plural, other {# 个打开的套接字。}}"
+
+#. placeholder {0}: server.name
+msgid "{0} is slow to list its sockets"
+msgstr "{0} 列出套接字较慢"
+
+msgid "30 d"
+msgstr "30 天"
+
+msgid "6 h"
+msgstr "6 小时"
+
+msgid "7 d"
+msgstr "7 天"
+
+msgid "Avg"
+msgstr "平均"
+
+msgid "Container history couldn't be loaded"
+msgstr "无法加载容器历史数据"
+
+msgid "Loading container history"
+msgstr "正在加载容器历史数据"
+
+msgid "No container samples recorded for this range yet."
+msgstr "此时间范围内尚未记录容器样本。"
+
+#. placeholder {0}: formatBytes(Math.round(pk), locale)
+#. placeholder {0}: formatFixed(pk, 2, locale)
+msgid "peak {0}"
+msgstr "峰值 {0}"
+
+#. placeholder {0}: formatFixed(pk, 1, locale)
+msgid "peak {0}%"
+msgstr "峰值 {0}%"
+
 msgid "Back to the server"
 msgstr "返回服务器"
 
@@ -20483,15 +20582,65 @@ msgstr "{replicas, plural, other {# 个副本}}"
 msgid "{text}, as last heard {0}"
 msgstr "{text}，最后一次收到于 {0}"
 
+msgid "Command line"
+msgstr "命令行"
+
+msgid "Copy command line"
+msgstr "复制命令行"
+
+msgid "Dockwell needs this process, or runs under it. Restart Dockwell instead."
+msgstr "Dockwell 需要此进程，或运行在它之下。请改为重启 Dockwell。"
+
+msgid "It's older than the control plane, so it can't inspect process details."
+msgstr "代理版本早于控制平面，因此无法查看进程详情。"
+
+msgid "No open TCP or UDP sockets."
+msgstr "没有打开的 TCP 或 UDP 套接字。"
+
+msgid "Open sockets"
+msgstr "打开的套接字"
+
+msgid "PID 1 starts and stops everything else. Restart the server instead."
+msgstr "PID 1 负责启动和停止其他一切。请改为重启服务器。"
+
+#. placeholder {0}: target.pid
+#. placeholder {1}: server.name
+msgid "PID {0} on {1}"
+msgstr "{1} 上的 PID {0}"
+
+msgid "Parent"
+msgstr "父进程"
+
+msgid "Process couldn't be inspected"
+msgstr "无法查看进程详情"
+
+#. placeholder {0}: target.pid
+msgid "Process {0}"
+msgstr "进程 {0}"
+
+msgid "Reading open sockets"
+msgstr "正在读取打开的套接字"
+
+msgid "Reading process details"
+msgstr "正在读取进程详情"
+
+msgid "Secrets are hidden; the environment is never read."
+msgstr "密钥已隐藏；不会读取环境变量。"
+
+msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
+msgstr "此 SSH 服务器接受新的登录，是重新进入服务器的途径。请改为用 systemctl restart ssh 重启它。"
+
+msgid "Threads"
+msgstr "线程数"
+
+msgid "Truncated at 16 KB; secrets are hidden and the environment is never read."
+msgstr "已在 16 KB 处截断；密钥已隐藏，不会读取环境变量。"
+
 #. placeholder {0}: g.owner.name
 #. placeholder {0}: owner.name
 #. placeholder {0}: spec.runs.value.service
 msgid "App {0}"
 msgstr "应用 {0}"
-
-#. placeholder {0}: owner.name
-msgid "Container {0}"
-msgstr "容器 {0}"
 
 #. placeholder {0}: server.name
 msgid "Containers on {0}"
@@ -20500,11 +20649,11 @@ msgstr "{0} 上的容器"
 msgid "Dockwell"
 msgstr "Dockwell"
 
-msgid "Dockwell needs this process, or runs under it. Restart Dockwell instead."
-msgstr "Dockwell 需要此进程，或运行在它之下。请改为重启 Dockwell。"
-
 msgid "Filter by name, PID or user"
 msgstr "按名称、PID 或用户筛选"
+
+msgid "Filter by port, address, process or state"
+msgstr "按端口、地址、进程或状态筛选"
 
 msgid "Filter processes"
 msgstr "筛选进程"
@@ -20533,12 +20682,6 @@ msgstr "没有匹配的运行中进程。"
 msgid "PID"
 msgstr "PID"
 
-msgid "PID 1 starts and stops everything else. Restart the server instead."
-msgstr "PID 1 负责启动和停止其他一切。请改为重启服务器。"
-
-msgid "Process"
-msgstr "进程"
-
 msgid "Processes"
 msgstr "进程"
 
@@ -20548,10 +20691,6 @@ msgstr "{0} 上的进程"
 
 msgid "Reading what runs here"
 msgstr "正在读取这里运行的内容"
-
-#. placeholder {0}: owner.name
-msgid "Service {0}"
-msgstr "服务 {0}"
 
 #. placeholder {0}: server.name
 msgid "Services on {0}"
@@ -20577,9 +20716,6 @@ msgstr "代理尚未上报。"
 #. placeholder {0}: server.name
 msgid "The agent on {0} isn't connected; this reads again once it reconnects."
 msgstr "{0} 上的代理未连接；重新连接后会再次读取。"
-
-msgid "This SSH server takes new logins, a way back onto the server. Restart it with systemctl restart ssh instead."
-msgstr "此 SSH 服务器接受新的登录，是重新进入服务器的途径。请改为用 systemctl restart ssh 重启它。"
 
 msgid "Totals"
 msgstr "总计"
@@ -20803,6 +20939,75 @@ msgstr "系统日志"
 msgid "System services"
 msgstr "系统服务"
 
+msgid "1 min"
+msgstr "1 分钟"
+
+msgid "All disks"
+msgstr "全部磁盘"
+
+msgid "All interfaces"
+msgstr "所有网络接口"
+
+msgid "Disk"
+msgstr "磁盘"
+
+msgid "Disk I/O"
+msgstr "磁盘 I/O"
+
+msgid "Disk I/O unit"
+msgstr "磁盘 I/O 单位"
+
+msgid "History couldn't be loaded"
+msgstr "无法加载历史数据"
+
+msgid "IOPS"
+msgstr "IOPS"
+
+msgid "In"
+msgstr "入站"
+
+msgid "Load"
+msgstr "负载"
+
+msgid "Loading server history"
+msgstr "正在加载服务器历史数据"
+
+msgid "Network interface"
+msgstr "网络接口"
+
+msgid "No data before Dockwell joined"
+msgstr "加入 Dockwell 之前没有数据"
+
+msgid "No history recorded for this range yet."
+msgstr "此时间范围内尚未记录历史数据。"
+
+msgid "Not tracked (past the 128-container limit)"
+msgstr "未追踪（超出 128 个容器上限）"
+
+msgid "Out"
+msgstr "出站"
+
+msgid "The agent was offline"
+msgstr "代理离线"
+
+msgid "The container wasn't created yet"
+msgstr "容器尚未创建"
+
+msgid "The container wasn't running"
+msgstr "容器未运行"
+
+msgid "The control plane was offline"
+msgstr "控制平面离线"
+
+msgid "Throughput"
+msgstr "吞吐量"
+
+msgid "Use the left and right arrows to read values over time."
+msgstr "使用左右方向键按时间查看数值。"
+
+msgid "Write"
+msgstr "写入"
+
 msgid "Close {name}"
 msgstr "关闭 {name}"
 
@@ -20835,9 +21040,6 @@ msgstr "1、5 和 15 分钟"
 
 msgid "1, 5 and 15 min, on {cpus} vCPU"
 msgstr "1、5 和 15 分钟，共 {cpus} 个 vCPU"
-
-msgid "Disk"
-msgstr "磁盘"
 
 msgid "Load average"
 msgstr "平均负载"
@@ -21055,9 +21257,6 @@ msgstr "添加密钥"
 
 msgid "Administrator to test with"
 msgstr "用于测试的管理员"
-
-msgid "All interfaces"
-msgstr "所有网络接口"
 
 msgid "Authentication log entries are unverified."
 msgstr "认证日志中的记录未经验证。"

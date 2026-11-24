@@ -57,8 +57,8 @@ A row is 22 integers and its key: about 180 to 220 B on SQLite, and about 300 to
 ### Retention, backups and privacy
 
 - **Retention is fixed** at 24 hours of minutes and 31 days of hours. A setting ([ADR 0042](0042-the-installs-settings.md)) can come later if people ask.
-- **The control-plane backup (#356) carries the table,** tens of megabytes at most for a small fleet, and a restore brings it back with a gap for the time between.
-- **Only numbers,** keyed by server ID: no names, processes, paths or addresses. Only admins read it, and it's gone after 31 days, a removed server's included.
+- **The control-plane backup ([ADR 0073](0073-backing-up-and-restoring-the-control-plane.md)) leaves metric history out by default.** Metric history is telemetry, not managed state; keeping it out keeps control-plane bundles small and fast to copy off-site and to sibling agents. A restored control plane starts with empty history charts and fills from new samples.
+- **Admin-only keys, gone after 31 days.** `server_history` holds numbers keyed by server ID alone. The breakdown series table (`history_series`, added by the 2026-11-24 amendment below) additionally keys on whole block device names (e.g. `nvme0n1`), physical network interface names (e.g. `eth0`), and 64-character hex Docker container IDs. It stores no container names, app names, processes, paths, or IP addresses. Only admins can read history (`NEEDS_ADMIN`, `REACH_INSTALL`), and every chunk and orphaned series key is deleted after 31 days, including removed servers.
 
 ### What this changes in ADR 0040
 
@@ -68,6 +68,48 @@ Its "history stays in the control plane's memory, never the store" holds for the
 
 - A server's page answers what happened last night, or over the month, without anything new on the server, the network or the agent's memory.
 - A control plane that was down, or a server that was away, has a gap for that time, and the two read differently. Nothing fills it later, as no agent buffers.
-- The store grows by a known amount for each server, at most about a megabyte, and its backups carry it.
+- The store grows by a known amount for each server and container, bounded by per-tier row and chunk caps, and control-plane backups leave it out by default as telemetry.
 - Service history is a separate decision, for the PRD's "Live node and service metrics" row.
-- Slices: (1) disk I/O in the sample, the table, the writer, the roll-up and the catch-up, with tests on SQLite and Postgres; (2) `GetServerHistory`, the range picker and #410's bars.
+- Slices: (1) disk I/O in the sample, the table, the writer, the roll-up and the catch-up, with tests on SQLite and Postgres; (2) `GetServerHistory`, the range picker and #410's bars; (3) the 5-minute tier, per-disk IOPS, per-interface network, per-container CPU and memory, packed chunk storage, and `GetContainerHistory` (below).
+
+## Amendment (2026-11-24): three tiers, per-device and per-container breakdowns, packed storage, and backups
+
+Adding the 7-day range with 30-minute resolution, per-disk I/O (bytes and IOPS), per-interface network traffic, and per-container CPU and memory history changes five parts of the original decision above:
+
+### Three tiers and bucket alignment
+
+- **1-minute tier** (`tier = 1`): kept for 24 hours (at most 1,440 server rows; 25 hourly breakdown chunks). Serves the 1 h (1-minute buckets, 60 points) and 6 h (2-minute buckets, 180 points) ranges, plus the in-progress tail of coarser ranges.
+- **5-minute tier** (`tier = 3`): kept for 7 days (at most 2,016 server rows; 8 daily breakdown chunks), rolled every 5 minutes from 1-minute points and caught up after restarts or store outages. Serves the 24 h (5-minute buckets, 288 points) and 7 d (30-minute buckets, 336 points) ranges.
+- **1-hour tier** (`tier = 2`): kept for 31 days (at most 744 server rows; 32 daily breakdown chunks), rolled every hour from 1-minute points. Serves the 30 d (3-hour buckets, 240 points) range and acts as a fallback on 7 d (spreading an hour across both of its 30-minute buckets when 5-minute rows are absent, such as right after an upgrade).
+- Both server and container charts apply the same half-coverage rule per bucket. Container gaps distinguish before server join, control plane offline, agent offline, before container created, not running, and not tracked past the 128-container cap.
+
+### Wire payload and per-server bounds
+
+- `ServerStats` adds `disk_io` (field 21, per whole block device, capped at 16), `network_io` (field 22, per physical interface, capped at 16), and `containers_omitted` (field 23, count of running containers past the 128 cap). `containers` (field 20) carries managed containers first, then running Docker containers discovered from cgroup v2 without calling Docker, capped at 128 per server.
+- At the 128-container cap plus 16 disks and 16 interfaces, a sample is about 12 KB every 10 s (or every 5 s while someone watches).
+- While the store is unavailable, the in-memory backlog is capped at 60 minutes and 4,096 total rows, dropping oldest breakdown rows (containers, disks, interfaces) first while preserving server rows so memory stays within the 250 MB control-plane budget.
+
+### Packed breakdown tables (migration 0054)
+
+Storing one SQL row per `(server_id, container_id, tier, start_at)` costs ~264 B/row on SQLite (about 1.1 MB per container, or ~1.4 GB for 10 servers at 128 containers each) because the 36-byte server ID and 64-byte container ID repeat in both the primary key and the time index. Migration 0054 instead extends `server_history` with four aggregate IOPS columns (`read_ops`, `read_iops_peak`, `write_ops`, `write_iops_peak`) and stores all breakdowns in two compact tables:
+
+- **`history_series (id, server_id, kind, name)`** with `UNIQUE (server_id, kind, name)`: assigns each series (`kind`: 1 = whole block device name, 2 = physical interface name, 3 = 64-character hex container ID) a small integer ID.
+- **`history_chunks (series_id, tier, chunk_start, data)`** (`WITHOUT ROWID` on SQLite, `BYTEA` on Postgres) with secondary index `history_chunks_by_time (tier, chunk_start)`: packs multiple points of one series and tier into a single varint-encoded binary blob (1-hour chunks for 1-minute points, 1-day chunks for 5-minute and 1-hour points, with delta-encoded slots, peaks, and memory limits).
+- On every hourly roll-up, each touched `(series_id, tier)` is capped to 25 minute chunks, 8 five-minute chunks, and 32 hour chunks, preserving the clock-jump ceiling across all four series kinds. Pruning deletes expired chunks and removes orphaned `history_series` entries.
+
+### Privacy of the new keys
+
+The breakdown tables store whole block device names, physical network interface names, and 64-character hex Docker container IDs. They never store container names, app names, commands, processes, file paths, or IP addresses. Both `GetServerHistory` and `GetContainerHistory` require `NEEDS_ADMIN` and `REACH_INSTALL`, and all keys and chunks disappear after 31 days.
+
+### Measured steady-state SQLite cost
+
+Measured by `TestMetricsHistoryStorageCost` in `internal/store/metrics_history_test.go` with all three tiers full (1,440 1-minute + 2,016 5-minute + 744 1-hour points per series, checkpointed SQLite file size):
+
+| Fleet shape | Measured SQLite size | Target |
+| --- | --- | --- |
+| 1 server, 1 disk, 1 interface, 30 containers | **3.11 MiB** (3.26 MB; 3,260,592 bytes) | <= 8 MiB |
+| 10 servers, 1 disk + 1 interface + 128 containers each (1,280 containers) | **97.91 MiB** (102.7 MB; 102,670,512 bytes) | <= 300 MiB |
+
+### Backups
+
+Control-plane backups ([ADR 0073](0073-backing-up-and-restoring-the-control-plane.md)) leave `server_history`, `history_series`, and `history_chunks` out by default because metric history is telemetry rather than managed state. Restoring a control plane starts with empty history charts and records forward from the next minute.

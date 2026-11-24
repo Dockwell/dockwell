@@ -3,6 +3,7 @@
 package history
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -324,4 +325,188 @@ func TestOnlyTheStartCatchesUp(t *testing.T) {
 	if hours := rowsOf(t, db, "srv_a", store.HistoryHour, h, h.Add(2*time.Hour)); len(hours) != 2 {
 		t.Fatalf("catching up made %d hours, want 2", len(hours))
 	}
+}
+
+// L2: After a store outage, flushing a backlog of ended minutes rolls every
+// completed 5-minute block and completed hour they span, not just the latest.
+func TestFlushAndRollRebuildsMissedRollups(t *testing.T) {
+	t0 := time.Date(2026, 11, 10, 12, 50, 0, 0, time.UTC)
+	r, at, db := listening(t, t0, "srv_a")
+	// Accumulate 20 minutes (12:50..13:09) without flushing, crossing 4 five-minute
+	// blocks (12:50, 12:55, 13:00, 13:05) and the 12:00 hour boundary.
+	for m := range 20 {
+		for s := 5; s <= 55; s += 5 {
+			at.set(t0.Add(time.Duration(m)*time.Minute + time.Duration(s)*time.Second))
+			r.Sample("srv_a", sample(25, uint64(m*100+s)))
+		}
+	}
+	at.set(t0.Add(20*time.Minute + time.Second))
+	r.FlushAndRoll(t.Context())
+
+	fives := rowsOf(t, db, "srv_a", store.HistoryFiveMinute, t0, t0.Add(20*time.Minute))
+	if len(fives) != 4 {
+		t.Fatalf("FlushAndRoll rolled %d five-minute blocks, want 4", len(fives))
+	}
+	hours := rowsOf(t, db, "srv_a", store.HistoryHour, time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC), time.Date(2026, 11, 10, 13, 0, 0, 0, time.UTC))
+	if len(hours) != 1 {
+		t.Fatalf("FlushAndRoll rolled %d hour blocks for 12:00, want 1", len(hours))
+	}
+}
+
+// L7: While the store is unavailable, held rows stay bounded at maxHeldRows,
+// dropping oldest breakdown rows (containers, disks, interfaces) first while
+// preserving server rows.
+func TestHeldRowsBoundedWhileKeepingServerRows(t *testing.T) {
+	t0 := time.Date(2026, 11, 10, 14, 0, 0, 0, time.UTC)
+	r, at, _ := listening(t, t0, "srv_1", "srv_2")
+
+	conts := make([]*dockwellv1.ContainerUsage, 128)
+	for i := range 128 {
+		conts[i] = &dockwellv1.ContainerUsage{
+			ContainerId: "000000000000000000000000000000000000000000000000000000000000" + string([]byte{
+				'0' + byte((i/100)%10), '0' + byte((i/10)%10), '0' + byte(i%10), 'a',
+			}),
+			CpuPercent:  5,
+			MemoryBytes: 64 << 20,
+		}
+	}
+
+	// 40 minutes x 2 servers x 128 containers = 10,240 container rows > maxHeldRows (4096).
+	for m := range 40 {
+		for _, off := range []time.Duration{2 * time.Second, 7 * time.Second} {
+			at.set(t0.Add(time.Duration(m)*time.Minute + off))
+			for _, srv := range []string{"srv_1", "srv_2"} {
+				st := sample(20, uint64(m*100))
+				st.Containers = conts
+				r.Sample(srv, st)
+			}
+		}
+	}
+	at.set(t0.Add(40*time.Minute + time.Second))
+	r.mu.Lock()
+	r.turn(at.Now())
+	totalRows := 0
+	serverRows := 0
+	for _, e := range r.ended {
+		totalRows += len(e.sums) + len(e.diskSums) + len(e.netSums) + len(e.contSums)
+		serverRows += len(e.sums)
+	}
+	endedCount := len(r.ended)
+	r.mu.Unlock()
+
+	if totalRows > maxHeldRows {
+		t.Fatalf("held rows = %d, exceeds maxHeldRows (%d)", totalRows, maxHeldRows)
+	}
+	if endedCount != 40 || serverRows != 80 {
+		t.Errorf("server rows dropped prematurely: ended=%d serverRows=%d, want 40 / 80", endedCount, serverRows)
+	}
+}
+
+// M6: ContainerUntracked reports true when a server exceeded MaxContainersPerServer
+// and the queried container ID wasn't in the tracked set.
+func TestContainerUntrackedTracking(t *testing.T) {
+	t0 := time.Date(2026, 11, 10, 14, 0, 0, 0, time.UTC)
+	r, at, _ := listening(t, t0, "srv_cap")
+	trackedID := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	omittedID := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+	at.set(t0.Add(5 * time.Second))
+	st := sample(10, 100)
+	st.Containers = []*dockwellv1.ContainerUsage{{ContainerId: trackedID, CpuPercent: 5, MemoryBytes: 1 << 20}}
+	st.ContainersOmitted = 3
+	r.Sample("srv_cap", st)
+
+	if r.ContainerUntracked("srv_cap", trackedID) {
+		t.Error("tracked container reported as untracked")
+	}
+	if !r.ContainerUntracked("srv_cap", omittedID) {
+		t.Error("omitted container not reported as untracked")
+	}
+}
+
+// N1: A corrupt or truncated blob in one server's container chunk never stops
+// other servers from flushing minutes, rolling 5-minute/hour blocks, or pruning,
+// on both SQLite and Postgres.
+func TestRecorderSurvivesUnreadableBlobsAcrossFleet(t *testing.T) {
+	storetest.Each(t, func(t *testing.T, b store.Backend) {
+		db, loc := storetest.Open(t, b)
+		ctx := t.Context()
+		h0 := time.Date(2026, 11, 20, 10, 0, 0, 0, time.UTC)
+		h1 := h0.Add(time.Hour)
+		expired := h0.Add(-40 * 24 * time.Hour)
+		badCID := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		goodCID := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+		if err := db.Update(ctx, func(tx *store.Tx) error {
+			if err := tx.AddMinutes(ctx, []store.HistoryRow{
+				{ServerID: "srv_good", Start: expired, CoveredMs: 60_000},
+				{ServerID: "srv_bad", Start: h0, CoveredMs: 60_000},
+				{ServerID: "srv_good", Start: h0, CoveredMs: 60_000, CPUSum: 60_000 * 20_000, CPUMax: 20_000},
+				{ServerID: "srv_bad", Start: h1, CoveredMs: 60_000},
+				{ServerID: "srv_good", Start: h1, CoveredMs: 60_000, CPUSum: 60_000 * 30_000, CPUMax: 30_000},
+			}); err != nil {
+				return err
+			}
+			return tx.AddContainerMinutes(ctx, []store.ContainerHistoryRow{
+				{ServerID: "srv_bad", ContainerID: badCID, Start: h0, CoveredMs: 60_000, CPUSum: 60_000 * 5_000, CPUMax: 5_000},
+				{ServerID: "srv_good", ContainerID: goodCID, Start: h0, CoveredMs: 60_000, CPUSum: 60_000 * 10_000, CPUMax: 10_000},
+				{ServerID: "srv_bad", ContainerID: badCID, Start: h1, CoveredMs: 60_000, CPUSum: 60_000 * 5_000, CPUMax: 5_000},
+				{ServerID: "srv_good", ContainerID: goodCID, Start: h1, CoveredMs: 60_000, CPUSum: 60_000 * 12_000, CPUMax: 12_000},
+			})
+		}); err != nil {
+			t.Fatal(err)
+		}
+
+		hexLit := func(hex string) string {
+			if b == store.Postgres {
+				return fmt.Sprintf("decode('%s', 'hex')", hex)
+			}
+			return fmt.Sprintf("X'%s'", hex)
+		}
+		// Corrupt blob in h0 and truncated blob in h1 for srv_bad.
+		storetest.Exec(t, loc, fmt.Sprintf(
+			`UPDATE history_chunks SET data = %s WHERE tier = %d AND chunk_start = %d AND series_id IN (SELECT id FROM history_series WHERE server_id = 'srv_bad')`,
+			hexLit("fe00"), store.HistoryMinute, h0.UnixMilli(),
+		))
+		storetest.Exec(t, loc, fmt.Sprintf(
+			`UPDATE history_chunks SET data = %s WHERE tier = %d AND chunk_start = %d AND series_id IN (SELECT id FROM history_series WHERE server_id = 'srv_bad')`,
+			hexLit("010400"), store.HistoryMinute, h1.UnixMilli(),
+		))
+
+		at := &clock{now: h1.Add(time.Hour + 10*time.Second)}
+		r := &Recorder{DB: db, Now: at.Now, Servers: func() []string { return []string{"srv_bad", "srv_good"} }}
+		if err := r.RollFiveMinutes(ctx, true); err != nil {
+			t.Fatalf("RollFiveMinutes failed: %v", err)
+		}
+		if err := r.Roll(ctx, true); err != nil {
+			t.Fatalf("Roll failed: %v", err)
+		}
+
+		if err := db.View(ctx, func(tx *store.Tx) error {
+			fives, err := tx.ContainerHistory(ctx, "srv_good", goodCID, store.HistoryFiveMinute, h0, h1.Add(time.Hour))
+			if err != nil {
+				return err
+			}
+			if len(fives) != 2 {
+				return fmt.Errorf("srv_good 5m container rows = %d, want 2", len(fives))
+			}
+			hours, err := tx.ContainerHistory(ctx, "srv_good", goodCID, store.HistoryHour, h0, h1.Add(time.Hour))
+			if err != nil {
+				return err
+			}
+			if len(hours) != 2 {
+				return fmt.Errorf("srv_good 1h container rows = %d, want 2", len(hours))
+			}
+			oldRows, err := tx.History(ctx, "srv_good", store.HistoryMinute, expired, expired.Add(time.Hour))
+			if err != nil {
+				return err
+			}
+			if len(oldRows) != 0 {
+				return fmt.Errorf("expired rows = %d, want 0", len(oldRows))
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
 }

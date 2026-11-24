@@ -639,6 +639,8 @@ message Hello {
   // downloads several paths as one zip. Files handy uses 420 to 429.
   bool manages_ssh = 446;
   bool archives_files = 420;
+  // True when the agent reads live sockets and process details (430 to 439).
+  bool reads_sockets = 430;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -969,6 +971,9 @@ message Call {
     dockwell.v1.ListServerSshLoginsRequest list_ssh_logins = 444;
     dockwell.v1.BanServerSshAddressRequest ban_ssh_address = 445;
     ListArchiveJobsCall list_archive_jobs = 423;
+    // Live sockets and process details take 430 to 439.
+    ListSocketsCall list_sockets = 430;
+    ProcessDetailCall process_detail = 431;
   }
 }
 
@@ -2834,6 +2839,9 @@ message CallResult {
     dockwell.v1.ListServerSshLoginsResponse list_ssh_logins = 444;
     dockwell.v1.BanServerSshAddressResponse ban_ssh_address = 445;
     ListArchiveJobsResult list_archive_jobs = 423;
+    // What list_sockets and process_detail read (430 to 439).
+    ListSocketsResult list_sockets = 430;
+    ProcessDetailResult process_detail = 431;
   }
 }
 
@@ -3267,4 +3275,33 @@ message DockerSettingsResult {
     dockwell.v1.DockerSettings settings = 1;
     dockwell.v1.CheckDockerSettingsResponse checked = 2;
   }
+}
+
+// ListSocketsCall asks the agent for live TCP and UDP sockets on the server.
+message ListSocketsCall {}
+
+// ListSocketsResult carries the live network sockets read from /proc/net.
+message ListSocketsResult {
+  // When the agent read the sockets, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // Bounded list of live sockets.
+  repeated dockwell.v1.SocketConnection connections = 2;
+  // Total sockets seen before bounding.
+  uint32 total = 3;
+  // True when truncated by row cap or time budget.
+  bool truncated = 4;
+}
+
+// ProcessDetailCall asks the agent for full secret-redacted detail of one process.
+message ProcessDetailCall {
+  // The process ID, 1 to 4194304.
+  uint32 pid = 1;
+  // Optional start_ticks to verify it is the same process instance.
+  uint64 start_ticks = 2;
+}
+
+// ProcessDetailResult carries detailed metadata for one process.
+message ProcessDetailResult {
+  // The process detail, without environment variables.
+  dockwell.v1.ProcessDetail detail = 1;
 }

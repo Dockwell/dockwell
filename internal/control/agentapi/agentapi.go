@@ -337,11 +337,13 @@ func (h *Handler) Connect(ctx context.Context, stream *connect.BidiStream[agentv
 				if !hello.GetFollowsPace() {
 					stats.Interval = durationpb.New(told)
 				}
-				stats.Containers = h.placeContainers(ctx, peer.ServerID, stats.GetContainers())
-				h.fleet.Record(peer.ServerID, stats)
+				// Record raw per-container, per-disk and per-interface stats before
+				// placeContainers folds managed containers into service-level totals.
 				if h.history != nil {
 					h.history.Sample(peer.ServerID, stats)
 				}
+				stats.Containers = h.placeContainers(ctx, peer.ServerID, stats.GetContainers())
+				h.fleet.Record(peer.ServerID, stats)
 			case msg.GetNetwork() != nil:
 				h.fleet.RecordNetwork(peer.ServerID, msg.GetNetwork())
 			case msg.GetResult() != nil && session != nil:

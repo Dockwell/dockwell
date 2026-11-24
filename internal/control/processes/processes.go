@@ -271,6 +271,71 @@ func (h *Handler) EndProcess(ctx context.Context, req *connect.Request[dockwellv
 	return connect.NewResponse(&dockwellv1.EndProcessResponse{Killed: out.GetKilled()}), nil
 }
 
+// ListSockets reads live network sockets on a server through its agent.
+func (h *Handler) ListSockets(ctx context.Context, req *connect.Request[dockwellv1.ListSocketsRequest]) (*connect.Response[dockwellv1.ListSocketsResponse], error) {
+	if _, err := person(ctx); err != nil {
+		return nil, err
+	}
+	srv, err := h.server(req.Msg.GetServerId())
+	if err != nil {
+		return nil, err
+	}
+	session, err := h.session(ctx, srv)
+	if err != nil {
+		return nil, err
+	}
+	readCtx, cancel := context.WithTimeout(ctx, readWait)
+	defer cancel()
+	out, err := session.ListSockets(readCtx)
+	switch {
+	case errors.Is(err, agentapi.ErrOlderAgent):
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"%s's agent is older than the control plane, and can't list network connections. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
+	case err != nil:
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't list its network connections now: %w", srv.GetName(), plain(err)), authapi.ReasonUnavailable)
+	}
+	return connect.NewResponse(&dockwellv1.ListSocketsResponse{
+		Time:        out.GetTime(),
+		Connections: out.GetConnections(),
+		Total:       out.GetTotal(),
+		Truncated:   out.GetTruncated(),
+	}), nil
+}
+
+// GetProcess reads detailed metadata for one running process on a server
+// (full secret-redacted command line, parent, user, threads, open sockets),
+// never its environment.
+func (h *Handler) GetProcess(ctx context.Context, req *connect.Request[dockwellv1.GetProcessRequest]) (*connect.Response[dockwellv1.GetProcessResponse], error) {
+	if _, err := person(ctx); err != nil {
+		return nil, err
+	}
+	m := req.Msg
+	srv, err := h.server(m.GetServerId())
+	if err != nil {
+		return nil, err
+	}
+	if m.GetPid() == 0 || m.GetPid() > MaxPID {
+		return nil, authapi.Invalid(fmt.Errorf("there's no PID %d: Linux gives PIDs up to %d. Pick the process from the list", m.GetPid(), MaxPID))
+	}
+	session, err := h.session(ctx, srv)
+	if err != nil {
+		return nil, err
+	}
+	readCtx, cancel := context.WithTimeout(ctx, readWait)
+	defer cancel()
+	out, err := session.ProcessDetail(readCtx, m.GetPid(), m.GetStartTicks())
+	switch {
+	case resource.ReasonOf(err) == collect.ReasonProcessGone:
+		return nil, authapi.ReasonError(connect.CodeNotFound, plain(err), "process_gone")
+	case errors.Is(err, agentapi.ErrOlderAgent):
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf(
+			"%s's agent is older than the control plane, and can't inspect process details. Update its agent, then look again", srv.GetName()), authapi.ReasonAgentOutdated)
+	case err != nil:
+		return nil, authapi.ReasonError(connect.CodeUnavailable, fmt.Errorf("%s can't read process %d now: %w", srv.GetName(), m.GetPid(), plain(err)), authapi.ReasonUnavailable)
+	}
+	return connect.NewResponse(&dockwellv1.GetProcessResponse{Process: out.GetDetail()}), nil
+}
+
 // endError says why a process couldn't be ended, as the API says it.
 func (h *Handler) endError(srv *dockwellv1.Server, pid uint32, err error) error {
 	switch resource.ReasonOf(err) {

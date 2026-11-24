@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/process.proto.
  */
 export const file_dockwell_v1_process: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS9wcm9jZXNzLnByb3RvEgtkb2Nrd2VsbC52MSIqChVXYXRjaFByb2Nlc3Nlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkUKFldhdGNoUHJvY2Vzc2VzUmVzcG9uc2USKwoJcHJvY2Vzc2VzGAEgASgLMhguZG9ja3dlbGwudjEuUHJvY2Vzc0xpc3QingEKC1Byb2Nlc3NMaXN0EigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKCXByb2Nlc3NlcxgCIAMoCzIULmRvY2t3ZWxsLnYxLlByb2Nlc3MSDQoFdG90YWwYAyABKA0SLQoKY3B1X3dpbmRvdxgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiLOAgoHUHJvY2VzcxILCgNwaWQYASABKA0SEgoKcGFyZW50X3BpZBgCIAEoDRIMCgRuYW1lGAMgASgJEg8KB2NvbW1hbmQYBCABKAkSDAoEdXNlchgFIAEoCRILCgN1aWQYBiABKA0SEwoLY3B1X3BlcmNlbnQYByABKAESFAoMbWVtb3J5X2J5dGVzGAggASgEEi4KCnN0YXJ0X3RpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3N0YXJ0X3RpY2tzGAogASgEEjAKCWNvbnRhaW5lchgLIAEoCzIdLmRvY2t3ZWxsLnYxLlByb2Nlc3NDb250YWluZXISDAoEdW5pdBgMIAEoCRIRCglwcm90ZWN0ZWQYDSABKAkSDQoFc3RvcHMYDiABKAkSFgoOY29udGFpbmVyX21haW4YDyABKAgidgoQUHJvY2Vzc0NvbnRhaW5lchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhcKD2NvbXBvc2VfcHJvamVjdBgDIAEoCRIXCg9jb21wb3NlX3NlcnZpY2UYBCABKAkSFgoOcmVzdGFydF9wb2xpY3kYBSABKAkiVwoRRW5kUHJvY2Vzc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgsKA3BpZBgCIAEoDRITCgtzdGFydF90aWNrcxgDIAEoBBINCgVwcm9vZhgEIAEoCSIkChJFbmRQcm9jZXNzUmVzcG9uc2USDgoGa2lsbGVkGAEgASgIMrMCCg5Qcm9jZXNzU2VydmljZRJxCg5XYXRjaFByb2Nlc3NlcxIiLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVxdWVzdBojLmRvY2t3ZWxsLnYxLldhdGNoUHJvY2Vzc2VzUmVzcG9uc2UiFKC7GAGwuxgBwLsYBMi7GATQuxgGMAESrQEKCkVuZFByb2Nlc3MSHi5kb2Nrd2VsbC52MS5FbmRQcm9jZXNzUmVxdWVzdBofLmRvY2t3ZWxsLnYxLkVuZFByb2Nlc3NSZXNwb25zZSJeoLsYBKq7GBAKCXByb2Nlc3NlcxIDZW5ksLsYAcC7GATIuxgE0LsYBoLT5JMCMDoBKiIrL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vcHJvY2Vzc2VzL3twaWR9OmVuZEKlAQoPY29tLmRvY2t3ZWxsLnYxQgxQcm9jZXNzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS9wcm9jZXNzLnByb3RvEgtkb2Nrd2VsbC52MSIqChVXYXRjaFByb2Nlc3Nlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIkUKFldhdGNoUHJvY2Vzc2VzUmVzcG9uc2USKwoJcHJvY2Vzc2VzGAEgASgLMhguZG9ja3dlbGwudjEuUHJvY2Vzc0xpc3QingEKC1Byb2Nlc3NMaXN0EigKBHRpbWUYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEicKCXByb2Nlc3NlcxgCIAMoCzIULmRvY2t3ZWxsLnYxLlByb2Nlc3MSDQoFdG90YWwYAyABKA0SLQoKY3B1X3dpbmRvdxgEIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbiLfAgoHUHJvY2VzcxILCgNwaWQYASABKA0SEgoKcGFyZW50X3BpZBgCIAEoDRIMCgRuYW1lGAMgASgJEg8KB2NvbW1hbmQYBCABKAkSDAoEdXNlchgFIAEoCRILCgN1aWQYBiABKA0SEwoLY3B1X3BlcmNlbnQYByABKAESFAoMbWVtb3J5X2J5dGVzGAggASgEEi4KCnN0YXJ0X3RpbWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3N0YXJ0X3RpY2tzGAogASgEEjAKCWNvbnRhaW5lchgLIAEoCzIdLmRvY2t3ZWxsLnYxLlByb2Nlc3NDb250YWluZXISDAoEdW5pdBgMIAEoCRIRCglwcm90ZWN0ZWQYDSABKAkSDQoFc3RvcHMYDiABKAkSFgoOY29udGFpbmVyX21haW4YDyABKAgSDwoHdGhyZWFkcxgQIAEoDSJ2ChBQcm9jZXNzQ29udGFpbmVyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFwoPY29tcG9zZV9wcm9qZWN0GAMgASgJEhcKD2NvbXBvc2Vfc2VydmljZRgEIAEoCRIWCg5yZXN0YXJ0X3BvbGljeRgFIAEoCSJXChFFbmRQcm9jZXNzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSCwoDcGlkGAIgASgNEhMKC3N0YXJ0X3RpY2tzGAMgASgEEg0KBXByb29mGAQgASgJIiQKEkVuZFByb2Nlc3NSZXNwb25zZRIOCgZraWxsZWQYASABKAgiJwoSTGlzdFNvY2tldHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSKVAQoTTGlzdFNvY2tldHNSZXNwb25zZRIoCgR0aW1lGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIyCgtjb25uZWN0aW9ucxgCIAMoCzIdLmRvY2t3ZWxsLnYxLlNvY2tldENvbm5lY3Rpb24SDQoFdG90YWwYAyABKA0SEQoJdHJ1bmNhdGVkGAQgASgIIpECChBTb2NrZXRDb25uZWN0aW9uEhAKCHByb3RvY29sGAEgASgJEhUKDWxvY2FsX2FkZHJlc3MYAiABKAkSEgoKbG9jYWxfcG9ydBgDIAEoDRIWCg5yZW1vdGVfYWRkcmVzcxgEIAEoCRITCgtyZW1vdGVfcG9ydBgFIAEoDRINCgVzdGF0ZRgGIAEoCRILCgNwaWQYByABKA0SEwoLc3RhcnRfdGlja3MYCCABKAQSFAoMcHJvY2Vzc19uYW1lGAkgASgJEgwKBHVzZXIYCiABKAkSMAoJY29udGFpbmVyGAsgASgLMh0uZG9ja3dlbGwudjEuUHJvY2Vzc0NvbnRhaW5lchIMCgR1bml0GAwgASgJIkgKEUdldFByb2Nlc3NSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRILCgNwaWQYAiABKA0SEwoLc3RhcnRfdGlja3MYAyABKAQiQQoSR2V0UHJvY2Vzc1Jlc3BvbnNlEisKB3Byb2Nlc3MYASABKAsyGi5kb2Nrd2VsbC52MS5Qcm9jZXNzRGV0YWlsIv4BCg1Qcm9jZXNzRGV0YWlsEiUKB3Byb2Nlc3MYASABKAsyFC5kb2Nrd2VsbC52MS5Qcm9jZXNzEhQKDGZ1bGxfY29tbWFuZBgCIAEoCRIZChFjb21tYW5kX3RydW5jYXRlZBgDIAEoCBITCgtwYXJlbnRfbmFtZRgEIAEoCRIPCgd0aHJlYWRzGAUgASgNEi4KB3NvY2tldHMYBiADKAsyHS5kb2Nrd2VsbC52MS5Tb2NrZXRDb25uZWN0aW9uEhUKDXNvY2tldHNfdG90YWwYByABKA0SGQoRc29ja2V0c190cnVuY2F0ZWQYCCABKAgSDQoFc3RhdGUYCSABKAkyigUKDlByb2Nlc3NTZXJ2aWNlEnEKDldhdGNoUHJvY2Vzc2VzEiIuZG9ja3dlbGwudjEuV2F0Y2hQcm9jZXNzZXNSZXF1ZXN0GiMuZG9ja3dlbGwudjEuV2F0Y2hQcm9jZXNzZXNSZXNwb25zZSIUoLsYAbC7GAHAuxgEyLsYBNC7GAYwARKtAQoKRW5kUHJvY2VzcxIeLmRvY2t3ZWxsLnYxLkVuZFByb2Nlc3NSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuRW5kUHJvY2Vzc1Jlc3BvbnNlIl6guxgEqrsYEAoJcHJvY2Vzc2VzEgNlbmSwuxgBwLsYBMi7GATQuxgGgtPkkwIwOgEqIisvdjEvc2VydmVycy97c2VydmVyX2lkfS9wcm9jZXNzZXMve3BpZH06ZW5kEqgBCgtMaXN0U29ja2V0cxIfLmRvY2t3ZWxsLnYxLkxpc3RTb2NrZXRzUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkxpc3RTb2NrZXRzUmVzcG9uc2UiVpACAaC7GAGquxgUCglwcm9jZXNzZXMSB3NvY2tldHOwuxgBwLsYBMi7GATQuxgGgtPkkwIhEh8vdjEvc2VydmVycy97c2VydmVyX2lkfS9zb2NrZXRzEqkBCgpHZXRQcm9jZXNzEh4uZG9ja3dlbGwudjEuR2V0UHJvY2Vzc1JlcXVlc3QaHy5kb2Nrd2VsbC52MS5HZXRQcm9jZXNzUmVzcG9uc2UiWpACAaC7GAGquxgQCglwcm9jZXNzZXMSA2dldLC7GAHAuxgEyLsYBNC7GAaC0+STAikSJy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3Byb2Nlc3Nlcy97cGlkfUKlAQoPY29tLmRvY2t3ZWxsLnYxQgxQcm9jZXNzUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_duration, file_google_protobuf_timestamp]);
 
 /**
  * WatchProcessesRequest names a server.
@@ -225,6 +225,13 @@ export type Process = Message<"dockwell.v1.Process"> & {
    * @generated from field: bool container_main = 15;
    */
   containerMain: boolean;
+
+  /**
+   * Number of threads in this process, as /proc/<pid>/stat reports it.
+   *
+   * @generated from field: uint32 threads = 16;
+   */
+  threads: number;
 };
 
 /**
@@ -351,6 +358,301 @@ export const EndProcessResponseSchema: GenMessage<EndProcessResponse> = /*@__PUR
   messageDesc(file_dockwell_v1_process, 6);
 
 /**
+ * ListSocketsRequest names a server whose live sockets to list.
+ *
+ * @generated from message dockwell.v1.ListSocketsRequest
+ */
+export type ListSocketsRequest = Message<"dockwell.v1.ListSocketsRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListSocketsRequest.
+ * Use `create(ListSocketsRequestSchema)` to create a new message.
+ */
+export const ListSocketsRequestSchema: GenMessage<ListSocketsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 7);
+
+/**
+ * ListSocketsResponse returns the live network sockets on a server.
+ *
+ * @generated from message dockwell.v1.ListSocketsResponse
+ */
+export type ListSocketsResponse = Message<"dockwell.v1.ListSocketsResponse"> & {
+  /**
+   * When the agent read the socket tables, on the server's clock.
+   *
+   * @generated from field: google.protobuf.Timestamp time = 1;
+   */
+  time?: Timestamp | undefined;
+
+  /**
+   * The sockets, LISTEN and ESTABLISHED first, bounded at 1,000 rows.
+   *
+   * @generated from field: repeated dockwell.v1.SocketConnection connections = 2;
+   */
+  connections: SocketConnection[];
+
+  /**
+   * Total number of sockets seen in /proc/net before bounding.
+   *
+   * @generated from field: uint32 total = 3;
+   */
+  total: number;
+
+  /**
+   * True when more sockets existed than the response cap or time budget allowed.
+   *
+   * @generated from field: bool truncated = 4;
+   */
+  truncated: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ListSocketsResponse.
+ * Use `create(ListSocketsResponseSchema)` to create a new message.
+ */
+export const ListSocketsResponseSchema: GenMessage<ListSocketsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 8);
+
+/**
+ * SocketConnection is one live TCP or UDP socket on a server.
+ *
+ * @generated from message dockwell.v1.SocketConnection
+ */
+export type SocketConnection = Message<"dockwell.v1.SocketConnection"> & {
+  /**
+   * Protocol: "tcp", "tcp6", "udp" or "udp6".
+   *
+   * @generated from field: string protocol = 1;
+   */
+  protocol: string;
+
+  /**
+   * Local IP address, such as "0.0.0.0", "127.0.0.1" or "::".
+   *
+   * @generated from field: string local_address = 2;
+   */
+  localAddress: string;
+
+  /**
+   * Local port number.
+   *
+   * @generated from field: uint32 local_port = 3;
+   */
+  localPort: number;
+
+  /**
+   * Remote IP address, or "0.0.0.0" / "::" for listening or unconnected sockets.
+   *
+   * @generated from field: string remote_address = 4;
+   */
+  remoteAddress: string;
+
+  /**
+   * Remote port number, or 0 for listening or unconnected sockets.
+   *
+   * @generated from field: uint32 remote_port = 5;
+   */
+  remotePort: number;
+
+  /**
+   * Kernel socket state, such as "LISTEN", "ESTABLISHED", "TIME_WAIT" or "UNCONN".
+   *
+   * @generated from field: string state = 6;
+   */
+  state: string;
+
+  /**
+   * Owning process ID, or 0 when the kernel owns it or no process matched.
+   *
+   * @generated from field: uint32 pid = 7;
+   */
+  pid: number;
+
+  /**
+   * Owning process's start ticks, for opening detail or matching the process list.
+   *
+   * @generated from field: uint64 start_ticks = 8;
+   */
+  startTicks: bigint;
+
+  /**
+   * Owning process's kernel name, such as "nginx" or "sshd".
+   *
+   * @generated from field: string process_name = 9;
+   */
+  processName: string;
+
+  /**
+   * Owning user name, as the container or server knows it.
+   *
+   * @generated from field: string user = 10;
+   */
+  user: string;
+
+  /**
+   * Container the owning process runs in, if any.
+   *
+   * @generated from field: dockwell.v1.ProcessContainer container = 11;
+   */
+  container?: ProcessContainer | undefined;
+
+  /**
+   * Systemd unit the owning process runs under, if any.
+   *
+   * @generated from field: string unit = 12;
+   */
+  unit: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SocketConnection.
+ * Use `create(SocketConnectionSchema)` to create a new message.
+ */
+export const SocketConnectionSchema: GenMessage<SocketConnection> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 9);
+
+/**
+ * GetProcessRequest names one process on a server.
+ *
+ * @generated from message dockwell.v1.GetProcessRequest
+ */
+export type GetProcessRequest = Message<"dockwell.v1.GetProcessRequest"> & {
+  /**
+   * The server's ID.
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The process ID, 1 to 4194304.
+   *
+   * @generated from field: uint32 pid = 2;
+   */
+  pid: number;
+
+  /**
+   * Optional start_ticks to confirm this is the same process instance.
+   *
+   * @generated from field: uint64 start_ticks = 3;
+   */
+  startTicks: bigint;
+};
+
+/**
+ * Describes the message dockwell.v1.GetProcessRequest.
+ * Use `create(GetProcessRequestSchema)` to create a new message.
+ */
+export const GetProcessRequestSchema: GenMessage<GetProcessRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 10);
+
+/**
+ * GetProcessResponse returns detailed metadata for one process.
+ *
+ * @generated from message dockwell.v1.GetProcessResponse
+ */
+export type GetProcessResponse = Message<"dockwell.v1.GetProcessResponse"> & {
+  /**
+   * The process detail.
+   *
+   * @generated from field: dockwell.v1.ProcessDetail process = 1;
+   */
+  process?: ProcessDetail | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetProcessResponse.
+ * Use `create(GetProcessResponseSchema)` to create a new message.
+ */
+export const GetProcessResponseSchema: GenMessage<GetProcessResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 11);
+
+/**
+ * ProcessDetail is detailed metadata for one running process, without its
+ * environment and with secrets redacted from its command line.
+ *
+ * @generated from message dockwell.v1.ProcessDetail
+ */
+export type ProcessDetail = Message<"dockwell.v1.ProcessDetail"> & {
+  /**
+   * The core process fields (PID, parent, user, memory, container, unit, guards).
+   *
+   * @generated from field: dockwell.v1.Process process = 1;
+   */
+  process?: Process | undefined;
+
+  /**
+   * Full secret-redacted command line, up to 16 KiB.
+   *
+   * @generated from field: string full_command = 2;
+   */
+  fullCommand: string;
+
+  /**
+   * True when the kernel's cmdline exceeded the 16 KiB read cap.
+   *
+   * @generated from field: bool command_truncated = 3;
+   */
+  commandTruncated: boolean;
+
+  /**
+   * Kernel name of the parent process, if readable.
+   *
+   * @generated from field: string parent_name = 4;
+   */
+  parentName: string;
+
+  /**
+   * Number of threads in the process.
+   *
+   * @generated from field: uint32 threads = 5;
+   */
+  threads: number;
+
+  /**
+   * Open TCP/UDP network sockets held by this process, up to 256.
+   *
+   * @generated from field: repeated dockwell.v1.SocketConnection sockets = 6;
+   */
+  sockets: SocketConnection[];
+
+  /**
+   * Total open sockets held by this process.
+   *
+   * @generated from field: uint32 sockets_total = 7;
+   */
+  socketsTotal: number;
+
+  /**
+   * True when the process holds more sockets than returned.
+   *
+   * @generated from field: bool sockets_truncated = 8;
+   */
+  socketsTruncated: boolean;
+
+  /**
+   * Kernel process state in plain words, such as "running", "sleeping", "stopped" or "zombie".
+   *
+   * @generated from field: string state = 9;
+   */
+  state: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ProcessDetail.
+ * Use `create(ProcessDetailSchema)` to create a new message.
+ */
+export const ProcessDetailSchema: GenMessage<ProcessDetail> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_process, 12);
+
+/**
  * ProcessService shows what runs on a server, process by process, and ends one.
  * A server's agent reads its processes only while someone watches them. See
  * docs/adr/0041-processes-on-a-server.md.
@@ -396,6 +698,32 @@ export const ProcessService: GenService<{
     methodKind: "unary";
     input: typeof EndProcessRequestSchema;
     output: typeof EndProcessResponseSchema;
+  },
+  /**
+   * ListSockets reads live network sockets on a server (TCP and UDP, IPv4
+   * and IPv6), as ss -tunap shows them, with each socket's protocol, local and
+   * remote address, state, and owning process or container. Admin and session
+   * only, like WatchProcesses.
+   *
+   * @generated from rpc dockwell.v1.ProcessService.ListSockets
+   */
+  listSockets: {
+    methodKind: "unary";
+    input: typeof ListSocketsRequestSchema;
+    output: typeof ListSocketsResponseSchema;
+  },
+  /**
+   * GetProcess reads detail for one running process on a server: its full
+   * secret-redacted command line, parent, user, start time, threads, open
+   * network sockets, and container or service. Environment variables are never
+   * read or returned. Admin and session only, like WatchProcesses.
+   *
+   * @generated from rpc dockwell.v1.ProcessService.GetProcess
+   */
+  getProcess: {
+    methodKind: "unary";
+    input: typeof GetProcessRequestSchema;
+    output: typeof GetProcessResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_process, 0);

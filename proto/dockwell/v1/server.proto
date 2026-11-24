@@ -248,6 +248,38 @@ service ServerService {
     option (dockwell.v1.reach) = REACH_INSTALL;
     option (dockwell.v1.needs_session) = true;
   }
+
+  // GetServerHistory reads downsampled resource history for one server over a
+  // time range (1 h, 6 h, 24 h, 7 d or 30 d): CPU, memory, swap, load, disk I/O
+  // (all whole disks or one named disk) and network (all physical interfaces or
+  // one named interface). Admin-only, like the rest of a server's stats.
+  rpc GetServerHistory(GetServerHistoryRequest) returns (GetServerHistoryResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "history"
+    };
+    option (google.api.http) = {get: "/v1/servers/{id}/history"};
+  }
+
+  // GetContainerHistory reads downsampled CPU and memory history for one
+  // container on a server over a time range (1 h, 6 h, 24 h, 7 d or 30 d).
+  rpc GetContainerHistory(GetContainerHistoryRequest) returns (GetContainerHistoryResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.command) = {
+      noun: "servers"
+      verb: "container-history"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/containers/{container_id}/history"};
+  }
 }
 
 // CreateJoinTicketRequest says how long the ticket works.
@@ -853,6 +885,213 @@ message ServerStats {
   // these of their own projects' apps alone, and each sample's time, so an app
   // that stops reads as stopped.
   repeated ContainerUsage containers = 20;
+  // Cumulative disk I/O counters per whole block device since boot, from
+  // /proc/diskstats. Empty from an agent before per-disk I/O history.
+  repeated DiskIOStats disk_io = 21;
+  // Cumulative network I/O counters per physical interface since boot, from
+  // /proc/net/dev. Empty from an agent before per-interface network history.
+  repeated NetworkIOStats network_io = 22;
+  // How many running containers on this server were left out of containers by
+  // the 128-container history cap. 0 when every running container fit.
+  uint32 containers_omitted = 23;
+}
+
+// DiskIOStats carries cumulative read and write counters for one whole block
+// device since boot.
+message DiskIOStats {
+  // Block device name as /proc/diskstats lists it, such as "sda" or "nvme0n1".
+  string device = 1;
+  // Cumulative bytes read since boot.
+  uint64 read_bytes = 2;
+  // Cumulative bytes written since boot.
+  uint64 written_bytes = 3;
+  // Cumulative completed read operations since boot.
+  uint64 read_ops = 4;
+  // Cumulative completed write operations since boot.
+  uint64 write_ops = 5;
+}
+
+// NetworkIOStats carries cumulative receive and transmit counters for one
+// physical network interface since boot.
+message NetworkIOStats {
+  // Interface name as /proc/net/dev lists it, such as "eth0" or "ens3".
+  string interface = 1;
+  // Cumulative bytes received since boot.
+  uint64 rx_bytes = 2;
+  // Cumulative bytes sent since boot.
+  uint64 tx_bytes = 3;
+}
+
+// HistoryRange picks how far back a history query looks.
+enum HistoryRange {
+  HISTORY_RANGE_UNSPECIFIED = 0;
+  // Last hour, bucketed by 1 minute (60 points).
+  HISTORY_RANGE_1H = 1 [(dockwell.v1.word) = "1 h"];
+  // Last 6 hours, bucketed by 2 minutes (180 points).
+  HISTORY_RANGE_6H = 2 [(dockwell.v1.word) = "6 h"];
+  // Last 24 hours, bucketed by 5 minutes (288 points).
+  HISTORY_RANGE_24H = 3 [(dockwell.v1.word) = "24 h"];
+  // Last 7 days, bucketed by 30 minutes (336 points).
+  HISTORY_RANGE_7D = 4 [(dockwell.v1.word) = "7 d"];
+  // Last 30 days, bucketed by 3 hours (240 points).
+  HISTORY_RANGE_30D = 5 [(dockwell.v1.word) = "30 d"];
+}
+
+// HistoryPointState says whether a bucket has measurements or why it is a gap.
+enum HistoryPointState {
+  HISTORY_POINT_STATE_UNSPECIFIED = 0;
+  // Enough samples arrived in this bucket to draw it.
+  HISTORY_POINT_STATE_COVERED = 1;
+  // The control plane listened during this bucket and heard nothing from the agent.
+  HISTORY_POINT_STATE_OFFLINE = 2;
+  // The control plane was not running during this bucket.
+  HISTORY_POINT_STATE_NO_CONTROL_PLANE = 3;
+  // This bucket ended before the server joined Dockwell.
+  HISTORY_POINT_STATE_BEFORE_JOIN = 4;
+  // The server reported during this bucket, and this container had no covered samples.
+  HISTORY_POINT_STATE_NOT_RUNNING = 5;
+  // This bucket ended before the container was created.
+  HISTORY_POINT_STATE_BEFORE_CREATE = 6;
+  // The server ran more containers than the 128-container history cap, so this
+  // container wasn't tracked.
+  HISTORY_POINT_STATE_NOT_TRACKED = 7;
+}
+
+// GetServerHistoryRequest asks for one server's resource history.
+message GetServerHistoryRequest {
+  // The server's ID.
+  string id = 1;
+  // How far back to read. Unset defaults to 24 h.
+  HistoryRange range = 2;
+  // Optional whole block device name for disk I/O series (empty sums all disks).
+  string disk = 3;
+  // Optional physical interface name for network series (empty sums all interfaces).
+  string network_interface = 4;
+}
+
+// GetServerHistoryResponse returns bucketed server history on an even clock.
+message GetServerHistoryResponse {
+  // Start of the first bucket.
+  google.protobuf.Timestamp since = 1;
+  // End of the last bucket.
+  google.protobuf.Timestamp until = 2;
+  // Width of each bucket.
+  google.protobuf.Duration bucket = 3;
+  // When the server joined Dockwell.
+  google.protobuf.Timestamp joined_at = 4;
+  // Whole block devices observed in this range, sorted.
+  repeated string disks = 5;
+  // Physical network interfaces observed in this range, sorted.
+  repeated string interfaces = 6;
+  // Bucketed points, oldest first.
+  repeated ServerHistoryPoint points = 7;
+}
+
+// ServerHistoryPoint is one bucket of a server's resource history.
+message ServerHistoryPoint {
+  // Start time of this bucket.
+  google.protobuf.Timestamp time = 1;
+  // Whether this bucket is covered or why it is missing.
+  HistoryPointState state = 2;
+  // Average CPU busy percentage across the bucket (0 to 100).
+  double cpu_percent = 3;
+  // Highest CPU busy percentage sampled in the bucket.
+  double cpu_peak_percent = 4;
+  // Average memory in use, in bytes.
+  uint64 memory_used_bytes = 5;
+  // Highest memory in use sampled in the bucket, in bytes.
+  uint64 memory_peak_bytes = 6;
+  // Total memory, in bytes.
+  uint64 memory_total_bytes = 7;
+  // Average swap in use, in bytes.
+  uint64 swap_used_bytes = 8;
+  // Average 1-minute load across the bucket.
+  double load1 = 9;
+  // Highest 1-minute load sampled in the bucket.
+  double load1_peak = 10;
+  // Average fullest-disk share (0 to 100).
+  double disk_percent = 11;
+  // Average network receive rate, in bytes per second.
+  uint64 network_rx_bytes_per_second = 12;
+  // Highest sampled network receive rate, in bytes per second.
+  uint64 network_rx_peak_bytes_per_second = 13;
+  // Average network transmit rate, in bytes per second.
+  uint64 network_tx_bytes_per_second = 14;
+  // Highest sampled network transmit rate, in bytes per second.
+  uint64 network_tx_peak_bytes_per_second = 15;
+  // Average disk read throughput, in bytes per second.
+  uint64 disk_read_bytes_per_second = 16;
+  // Highest sampled disk read throughput, in bytes per second.
+  uint64 disk_read_peak_bytes_per_second = 17;
+  // Average disk write throughput, in bytes per second.
+  uint64 disk_write_bytes_per_second = 18;
+  // Highest sampled disk write throughput, in bytes per second.
+  uint64 disk_write_peak_bytes_per_second = 19;
+  // Average disk read operations per second (IOPS).
+  double disk_read_iops = 20;
+  // Highest sampled disk read IOPS.
+  double disk_read_iops_peak = 21;
+  // Average disk write operations per second (IOPS).
+  double disk_write_iops = 22;
+  // Highest sampled disk write IOPS.
+  double disk_write_iops_peak = 23;
+  // True when a specific disk was requested and that disk had no covered samples
+  // in this bucket; disk I/O fields are unset rather than zero.
+  bool disk_io_missing = 24;
+  // True when a specific network interface was requested and that interface had
+  // no covered samples in this bucket; network I/O fields are unset rather than zero.
+  bool network_io_missing = 25;
+}
+
+// GetContainerHistoryRequest asks for one container's CPU and memory history.
+message GetContainerHistoryRequest {
+  // The server's ID.
+  string server_id = 1;
+  // The container's 64-character hex Engine ID.
+  string container_id = 2;
+  // How far back to read. Unset defaults to 24 h.
+  HistoryRange range = 3;
+  // Optional time when the container was created, so buckets before it read as
+  // not yet created rather than not running.
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// GetContainerHistoryResponse returns bucketed CPU and memory history for one
+// container on an even clock.
+message GetContainerHistoryResponse {
+  // Start of the first bucket.
+  google.protobuf.Timestamp since = 1;
+  // End of the last bucket.
+  google.protobuf.Timestamp until = 2;
+  // Width of each bucket.
+  google.protobuf.Duration bucket = 3;
+  // When the server joined Dockwell.
+  google.protobuf.Timestamp joined_at = 4;
+  // Bucketed points, oldest first.
+  repeated ContainerHistoryPoint points = 5;
+  // True when the server currently runs more containers than the 128-container
+  // history cap and this container is not in the tracked set.
+  bool untracked = 6;
+  // The per-server container history limit (128).
+  uint32 container_limit = 7;
+}
+
+// ContainerHistoryPoint is one bucket of a container's resource history.
+message ContainerHistoryPoint {
+  // Start time of this bucket.
+  google.protobuf.Timestamp time = 1;
+  // Whether this bucket is covered or why it is missing.
+  HistoryPointState state = 2;
+  // Average CPU share of one core across the bucket (0 to 100 * cores).
+  double cpu_percent = 3;
+  // Highest sampled CPU share in the bucket.
+  double cpu_peak_percent = 4;
+  // Average working memory in use, in bytes.
+  uint64 memory_bytes = 5;
+  // Highest sampled working memory in the bucket, in bytes.
+  uint64 memory_peak_bytes = 6;
+  // Memory limit, in bytes (0 when unlimited).
+  uint64 memory_limit_bytes = 7;
 }
 
 // ContainerUsage is what a service's containers use on a server, at one sample.

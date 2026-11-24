@@ -219,9 +219,10 @@ func (c *Collector) Stats(ctx context.Context, now time.Time) *dockwellv1.Server
 		}
 	}
 
-	if rx, tx, ok := netTotals(c.read("proc/net/dev")); ok {
+	if rx, tx, ifaces, ok := netStats(c.read("proc/net/dev")); ok {
 		cur.rx, cur.tx, cur.haveNet = rx, tx, true
 		st.NetworkRxBytes, st.NetworkTxBytes = rx, tx
+		st.NetworkIo = ifaces
 		if p := c.prev; p != nil && p.haveNet {
 			if secs := now.Sub(p.at).Seconds(); secs > 0 && rx >= p.rx && tx >= p.tx {
 				st.NetworkRxBytesPerSecond = uint64(float64(rx-p.rx) / secs)
@@ -237,8 +238,8 @@ func (c *Collector) Stats(ctx context.Context, now time.Time) *dockwellv1.Server
 		}
 		st.Disks = append(st.Disks, &dockwellv1.DiskUsage{MountPoint: m.point, UsedBytes: used, SizeBytes: size})
 	}
-	st.DiskReadBytes, st.DiskWrittenBytes = c.diskTotals()
-	st.Containers = c.containerUsage(ctx, now)
+	st.DiskReadBytes, st.DiskWrittenBytes, st.DiskIo = c.diskStats()
+	st.Containers, st.ContainersOmitted = c.containerUsage(ctx, now)
 
 	c.prev = cur
 	return st
@@ -425,8 +426,15 @@ func kernelInterfaces() ([]Interface, error) {
 	return out, nil
 }
 
-// netTotals sums received and sent bytes over physical interfaces.
-func netTotals(dev []byte) (rx, tx uint64, ok bool) {
+const (
+	// maxDiskIO and maxNetIO cap per-device and per-interface breakdowns in one sample.
+	maxDiskIO = 16
+	maxNetIO  = 16
+)
+
+// netStats sums received and sent bytes over physical interfaces and also
+// returns per-interface counters, sorted by interface name.
+func netStats(dev []byte) (rx, tx uint64, per []*dockwellv1.NetworkIOStats, ok bool) {
 	sc := bufio.NewScanner(bytes.NewReader(dev))
 	for sc.Scan() {
 		name, rest, found := strings.Cut(sc.Text(), ":")
@@ -447,30 +455,50 @@ func netTotals(dev []byte) (rx, tx uint64, ok bool) {
 			continue
 		}
 		rx, tx, ok = rx+r, tx+t, true
+		per = append(per, &dockwellv1.NetworkIOStats{Interface: name, RxBytes: r, TxBytes: t})
 	}
-	return rx, tx, ok
+	slices.SortFunc(per, func(a, b *dockwellv1.NetworkIOStats) int { return strings.Compare(a.GetInterface(), b.GetInterface()) })
+	if len(per) > maxNetIO {
+		per = per[:maxNetIO]
+	}
+	return rx, tx, per, ok
 }
 
-// diskTotals is what the server's whole disks have read and written since it
-// booted, from /proc/diskstats: a disk is a device in /sys/block with a device
-// link, so its partitions, which have none, and the device-mapper, md, loop,
-// ram and zram devices on top of disks, which would count the same bytes again,
-// are left out. Sectors there are 512 bytes, whatever the disk's own are.
-func (c *Collector) diskTotals() (read, written uint64) {
+// diskStats is what the server's whole disks have read and written since it
+// booted, from /proc/diskstats, both totaled and per whole disk (bytes and IOs).
+// A disk is a device in /sys/block with a device link, so its partitions, which
+// have none, and the device-mapper, md, loop, ram and zram devices on top of
+// disks, which would count the same bytes again, are left out. Sectors there
+// are 512 bytes, whatever the disk's own are.
+func (c *Collector) diskStats() (read, written uint64, per []*dockwellv1.DiskIOStats) {
 	sc := bufio.NewScanner(bytes.NewReader(c.read("proc/diskstats")))
 	for sc.Scan() {
 		f := strings.Fields(sc.Text())
 		if len(f) < 10 || !c.wholeDisk(f[2]) {
 			continue
 		}
-		r, err1 := strconv.ParseUint(f[5], 10, 64)
-		w, err2 := strconv.ParseUint(f[9], 10, 64)
-		if err1 != nil || err2 != nil {
+		rOps, err0 := strconv.ParseUint(f[3], 10, 64)
+		rSec, err1 := strconv.ParseUint(f[5], 10, 64)
+		wOps, err2 := strconv.ParseUint(f[7], 10, 64)
+		wSec, err3 := strconv.ParseUint(f[9], 10, 64)
+		if err0 != nil || err1 != nil || err2 != nil || err3 != nil {
 			continue
 		}
-		read, written = read+r*512, written+w*512
+		rb, wb := rSec*512, wSec*512
+		read, written = read+rb, written+wb
+		per = append(per, &dockwellv1.DiskIOStats{
+			Device:       f[2],
+			ReadBytes:    rb,
+			WrittenBytes: wb,
+			ReadOps:      rOps,
+			WriteOps:     wOps,
+		})
 	}
-	return read, written
+	slices.SortFunc(per, func(a, b *dockwellv1.DiskIOStats) int { return strings.Compare(a.GetDevice(), b.GetDevice()) })
+	if len(per) > maxDiskIO {
+		per = per[:maxDiskIO]
+	}
+	return read, written, per
 }
 
 // wholeDisk reports whether a block device is a disk of its own, not a part or

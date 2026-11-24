@@ -31,11 +31,18 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 )
 
+// ContainerTracker reports whether a server exceeded the per-server container
+// history cap and left a given container untracked.
+type ContainerTracker interface {
+	ContainerUntracked(serverID, containerID string) bool
+}
+
 // Service answers ServerService calls.
 type Service struct {
-	fleet  *fleet.Hub
-	db     *store.DB
-	agents *agentapi.Agents
+	fleet   *fleet.Hub
+	db      *store.DB
+	agents  *agentapi.Agents
+	history ContainerTracker
 	// ident makes join tickets, each confirmed with a passkey people checks.
 	ident  *identity.Authority
 	people *auth.Service
@@ -64,6 +71,13 @@ func New(hub *fleet.Hub, db *store.DB, agents *agentapi.Agents) *Service {
 		fleet: hub, db: db, agents: agents,
 		systemFeeds: &feeds.Hub[dockwellv1.SystemServiceList]{Max: MaxSystemWatchesPerSession}, systemEvery: SystemEvery,
 	}
+}
+
+// History wires the live history recorder so container history can report when
+// a container was left out by the per-server container cap.
+func (s *Service) History(h ContainerTracker) *Service {
+	s.history = h
+	return s
 }
 
 // ListServers returns every server, or those its selector matches (ADR 0091).

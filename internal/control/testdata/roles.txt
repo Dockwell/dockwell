@@ -228,13 +228,17 @@ MemberService.RevokeInvite                     apply        admin      admin    
 MemberService.SetMemberRole                    apply        admin      admin      install  session
 MemberService.TransferOwnership                apply        owner      owner      install  session
 ProcessService.EndProcess                      destructive  admin      admin      install  session
+ProcessService.GetProcess                      read         admin      admin      install  session
+ProcessService.ListSockets                     read         admin      admin      install  session
 ProcessService.WatchProcesses                  read         admin      admin      install  session
 ResourceService.ListResources                  read         viewer     viewer     project
 ServerService.CheckServerPorts                 read         admin      admin      install
 ServerService.CreateJoinTicket                 apply        admin      admin      install  session
+ServerService.GetContainerHistory              read         admin      admin      install
 ServerService.GetJoinTicket                    read         admin      admin      install
 ServerService.GetServer                        read         viewer     viewer     named
 ServerService.GetServerDiskUse                 read         admin      admin      install
+ServerService.GetServerHistory                 read         admin      admin      install
 ServerService.ListJoinTickets                  read         admin      admin      install
 ServerService.ListServers                      read         viewer     viewer     named
 ServerService.ReadSystemLog                    read         admin      admin      install  session
