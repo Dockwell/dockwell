@@ -531,7 +531,7 @@ func (h *Handler) load(ctx context.Context, tx *store.Tx, r store.Resource) (sto
 func (h *Handler) info(ctx context.Context, tx *store.Tx, s stored) (*dockwellv1.TaskInfo, error) {
 	out := &dockwellv1.TaskInfo{
 		Id: s.res.ID, Resource: &dockwellv1.ResourceRef{Kind: string(task.Kind), Scope: s.res.Scope, Name: s.res.Name},
-		Kind: task.KindOf(s.spec), Spec: s.spec,
+		Kind: task.KindOf(s.spec), Spec: s.spec, Revision: int64(s.res.Revision),
 	}
 	now := h.now()
 	upcoming := task.Upcoming(s.spec, now, now.Add(24*time.Hour), maxUpcoming)

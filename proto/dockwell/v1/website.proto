@@ -89,9 +89,9 @@ service WebsiteService {
     };
   }
 
-  // DeleteWebsite plans deleting a website: its route, what serves it, and its
-  // project. Undoing it brings it all back. Its folder on the server, if it has
-  // one, stays where it is.
+  // DeleteWebsite plans deleting selected websites: their routes, what serves
+  // them, and their projects. Undoing it brings them all back. Their folders on
+  // the servers stay where they are.
   rpc DeleteWebsite(DeleteWebsiteRequest) returns (DeleteWebsiteResponse) {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
@@ -305,6 +305,8 @@ message DeleteWebsiteRequest {
   string id = 1;
   // What the change is for, for the timeline. Empty says what it deletes.
   string summary = 2;
+  // Up to 49 more website project IDs to include in the same plan.
+  repeated string additional_ids = 3;
 }
 
 // DeleteWebsiteResponse carries the planned change.

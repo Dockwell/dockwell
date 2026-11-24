@@ -10,6 +10,7 @@ interface NewAppSearch {
   /** Where the app comes from: the catalog unless it says otherwise (#617). */
   server?: string;
   advanced?: boolean;
+  image?: string;
   source?: "git" | "image" | "compose" | "folder";
   /** For a folder: the language and version a runtime's card asked for. */
   language?: string;
@@ -29,7 +30,13 @@ export const Route = createFileRoute("/_shell/apps/new")({
     if (search["source"] === "compose") return { source: "compose", ...selection };
     if (search["source"] === "git") return { source: "git", ...selection };
     if (search["source"] === "image") {
-      return { source: "image", ...selection, ...(search["advanced"] === true ? { advanced: true } : {}) };
+      const image = text(search["image"]);
+      return {
+        source: "image",
+        ...selection,
+        ...(image ? { image } : {}),
+        ...(search["advanced"] === true ? { advanced: true } : {}),
+      };
     }
     if (search["source"] === "folder") {
       const language = text(search["language"]);
@@ -45,7 +52,7 @@ export const Route = createFileRoute("/_shell/apps/new")({
     return { ...(q ? { q } : {}), ...(entry ? { entry } : {}) };
   },
   component: function NewApp() {
-    const { source, language, version, q, entry, server, advanced } = Route.useSearch();
+    const { source, language, version, q, entry, server, advanced, image } = Route.useSearch();
     const navigate = useNavigate();
     const onSource = (next: NewAppSource) =>
       void navigate({
@@ -55,7 +62,10 @@ export const Route = createFileRoute("/_shell/apps/new")({
       });
     const onClose = () =>
       void (server
-        ? navigate({ to: "/servers/$serverId/docker/containers", params: { serverId: server } })
+        ? navigate({
+            to: image ? "/servers/$serverId/docker/images" : "/servers/$serverId/docker/containers",
+            params: { serverId: server },
+          })
         : navigate({ to: "/apps" }));
     return (
       <AppsPage>
@@ -63,6 +73,7 @@ export const Route = createFileRoute("/_shell/apps/new")({
           <NewAppSheet
             source={source}
             initialServer={server}
+            initialImage={image}
             initialAdvanced={advanced}
             runtime={language ? { language, version } : undefined}
             onSource={onSource}

@@ -31,6 +31,15 @@ export function useWorkloadControls() {
       },
     });
   };
+  /** Restarts a service on every server it runs on, as its own page's Restart does. */
+  const restart = (id: string, onApplied?: () => void) =>
+    sheet.open({
+      kind: "plan",
+      make: () => createClient(ChangeService, transport).restartService({ id }),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) onApplied?.();
+      },
+    });
   const restartInstance = (id: string, serverId: string, containerId: string, onApplied?: () => void) =>
     sheet.open({
       kind: "plan",
@@ -39,5 +48,22 @@ export function useWorkloadControls() {
         if (change?.state === ChangeState.APPLIED) onApplied?.();
       },
     });
-  return { changeRun, restartInstance };
+  /** Starts or stops several workloads as one plan with an edit for each, never a change apiece. */
+  const changeRunMany = (
+    targets: readonly { resource: ResourceRef; baseRevision: bigint }[],
+    start: boolean,
+    summary: string,
+    onApplied?: () => void,
+  ) => {
+    if (targets.length === 0) return;
+    sheet.open({
+      kind: "propose",
+      summary,
+      edits: targets.map(({ resource, baseRevision }) => runStateEdit(resource, baseRevision, start)),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) onApplied?.();
+      },
+    });
+  };
+  return { changeRun, restartInstance, changeRunMany, restart };
 }

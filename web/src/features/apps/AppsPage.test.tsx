@@ -7,6 +7,7 @@ import {
   Connection,
   DeploymentState,
   type ListDomainsRequest,
+  type ProposeChangeRequest,
   type WatchEventsResponse,
   type WatchServersResponse,
 } from "@dockwell/api";
@@ -16,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
-import { anApp, aProject, aWebsite, ENV, places, projectPlaces, running, SERVER } from "../../test/apps";
+import { anApp, aProject, aWebsite, ENV, places, projectPlaces, resource, running, SERVER } from "../../test/apps";
 import { catalogPages } from "../../test/catalog";
 import { applied, changeEvent, moved, shopPlanned, since, snapshot, webPlanned } from "../../test/changes";
 import { type Api, feed, onPhone, onScreen, renderAt } from "../../test/render";
@@ -86,6 +87,52 @@ describe("the apps list", () => {
     await user.click(within(menu).getByRole("menuitem", { name: "Delete" }));
     await waitFor(() => expect(listDomains).toHaveBeenCalledTimes(2));
     expect(listDomains.mock.calls[1]?.[0]).toMatchObject({ service: "web-0" });
+  });
+
+  it("offers every project left empty by the batch and can keep them in the same plan", async () => {
+    const apps = [
+      ...aProject("shop", "buyer", "seller"),
+      ...aProject("blog", "editor"),
+      ...aProject("tools", "worker", "helper"),
+      anApp("default-app", "nginx"),
+    ];
+    const projects = projectPlaces("shop", "blog", "tools");
+    const fixture = api(apps);
+    const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: webPlanned() }));
+    renderAt("/apps", {
+      ...fixture,
+      resources: {
+        listResources: (request) =>
+          request.kind
+            ? projects.listResources(request)
+            : {
+                resources: apps
+                  .filter((app) => app.resource?.scope === request.scope)
+                  .map((app) => resource(app.id, "service", request.scope, app.resource?.name ?? "")),
+              },
+      },
+      changes: { proposeChange: propose, discardChange: () => ({}) },
+    });
+    const user = userEvent.setup();
+    const table = await screen.findByRole("table", { name: "Apps" });
+    for (const name of ["buyer", "seller", "editor", "worker", "default-app"])
+      await user.click(within(table).getByRole("checkbox", { name: `Select ${name}` }));
+    const bar = screen.getByRole("toolbar", { name: "Actions for the rows selected" });
+    await user.click(within(bar).getByRole("button", { name: "Delete 5" }));
+    const toggle = await screen.findByRole("switch", { name: "Also delete 2 projects" });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription("shop and blog");
+    const edits = propose.mock.calls[0]?.[0].edits ?? [];
+    expect(edits.filter((edit) => edit.withContents).map((edit) => edit.resource?.name)).toEqual(["shop", "blog"]);
+    expect(
+      edits
+        .filter((edit) => edit.resource?.kind === "service")
+        .map((edit) => edit.resource?.name)
+        .sort(),
+    ).toEqual(["buyer", "default-app", "editor", "seller", "worker"]);
+    await user.click(toggle);
+    await waitFor(() => expect(propose).toHaveBeenCalledTimes(2));
+    expect(propose.mock.calls[1]?.[0].edits).toEqual(edits.filter((edit) => !edit.withContents));
   });
 
   it("offers the ways to a first app when there is none, each opening its own flow", async () => {
@@ -200,7 +247,8 @@ describe("the apps list", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["App", "Status", "Revision", "Deployed", "Actions"]);
+    ).toEqual(["", "App", "Status", "Revision", "Deployed", "Actions"]);
+    expect(within(table).getByRole("checkbox", { name: "Select all rows on this page" })).toBeInTheDocument();
     expect(row).toHaveTextContent("ghcr.io/acme/web:1.4");
     expect(row).not.toHaveTextContent("Live");
     expect(row).toHaveTextContent("r3");
@@ -228,6 +276,7 @@ describe("the apps list", () => {
     });
     const row = await screen.findByRole("row", { name: /web/ });
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "",
       "App",
       "Status",
       "Revision",
@@ -236,10 +285,10 @@ describe("the apps list", () => {
       "Actions",
     ]);
     // As Apps-List has it: the image under the name, so the eye doesn't cross the row for it.
-    expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("ghcr.io/acme/web:1.4");
-    await waitFor(() => expect(within(row).getAllByRole("cell")[3]).toHaveTextContent("www.example.com+1"));
-    expect(within(screen.getByRole("row", { name: /^api/ })).getAllByRole("cell")[3]).toHaveTextContent("—");
-    expect(within(screen.getByRole("row", { name: /shop/ })).getAllByRole("cell")[0]).toHaveTextContent("2 apps");
+    expect(within(row).getAllByRole("cell")[1]).toHaveTextContent("ghcr.io/acme/web:1.4");
+    await waitFor(() => expect(within(row).getAllByRole("cell")[4]).toHaveTextContent("www.example.com+1"));
+    expect(within(screen.getByRole("row", { name: /api/ })).getAllByRole("cell")[4]).toHaveTextContent("—");
+    expect(within(screen.getByRole("row", { name: /shop/ })).getAllByRole("cell")[1]).toHaveTextContent("2 apps");
     await expectAccessible(container);
   });
 
@@ -276,7 +325,7 @@ describe("the apps list", () => {
     });
     const row = await screen.findByRole("row", { name: /web/ });
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(within(row).getAllByRole("cell")[3]).toHaveTextContent(/^$/);
+    expect(within(row).getAllByRole("cell")[4]).toHaveTextContent(/^$/);
   });
 
   it("finds an app by where it answers, as the filter says", async () => {
@@ -328,7 +377,7 @@ describe("the apps list", () => {
     const head = await screen.findByRole("row", { name: /shop/ });
     expect(head).toHaveTextContent("5 apps");
     // Its revision column has nothing to say, and says so without leaving a hole.
-    expect(within(head).getAllByRole("cell")[2]).toHaveTextContent("—");
+    expect(within(head).getAllByRole("cell")[3]).toHaveTextContent("—");
     expect(screen.getByRole("row", { name: /worker/ })).toBeVisible();
     expect(screen.getByRole("row", { name: /nginx/ })).toBeVisible();
     await expectAccessible(container);

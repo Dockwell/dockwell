@@ -117,6 +117,27 @@ export interface ListPage<Row> {
   total: number;
 }
 
+/** The selection with these ids in it, or out of it, as a new set. */
+export function toggledIds(selected: ReadonlySet<string>, ids: readonly string[], on: boolean): Set<string> {
+  const next = new Set(selected);
+  for (const id of ids) {
+    if (on) next.add(id);
+    else next.delete(id);
+  }
+  return next;
+}
+
+/**
+ * The ids from the last one picked to this one, in the order the list shows
+ * them, for a shift-click. Without a known place to start from, just this one.
+ */
+export function rangeIds(order: readonly string[], anchor: string | undefined, id: string): string[] {
+  const from = anchor === undefined ? -1 : order.indexOf(anchor);
+  const to = order.indexOf(id);
+  if (from < 0 || to < 0) return [id];
+  return order.slice(Math.min(from, to), Math.max(from, to) + 1);
+}
+
 /** The page of the rows that shows, over the full list, for a list the API reads whole. */
 export function pagedRows<Row>(rows: readonly Row[], page: number, pageSize = LIST_PAGE_SIZE): ListPage<Row> {
   const total = rows.length;

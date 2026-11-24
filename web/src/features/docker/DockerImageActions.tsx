@@ -12,7 +12,7 @@ import { sentence } from "../../lib/errors";
 import { splitTag } from "../apps/ImageField";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
-import { ActionMenu } from "../shell/ActionMenu";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { type ArchiveImageChoice, useArchiveActions } from "./DockerArchiveActions";
 import { type ImageServer, useDockerPull } from "./DockerPullFields";
 import { DockerPushSheet } from "./DockerPushSheet";
@@ -53,10 +53,6 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
     return capabilities?.canPull ? [{ ...server, registry: capabilities.defaultRegistry }] : [];
   });
   const capabilityPending = mayPlan && servers.length > 0 && !overview.data && overview.isFetching;
-  const showRowActions =
-    capabilityPending ||
-    (mayPlan &&
-      [...support.values()].some((item) => item?.canPull || item?.canTag || item?.canExport || item?.canPush));
   const openEditor = (next: Editor) => {
     request.current?.abort();
     setQuick(undefined);
@@ -92,53 +88,65 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
     }
   };
 
-  const rowMenu = (image: Selection, detail = false) => {
-    if (capabilityPending) {
+  const actionsFor = (image: Selection, detail = false): MenuAction[] => {
+    const capabilities = mayPlan ? support.get(image.serverId) : undefined;
+    if (!capabilities) return [];
+    return [
+      ...(capabilities.canPull && image.alias
+        ? [{ id: "pull", label: t`Pull again`, icon: "download" as const, onSelect: () => void pullAgain(image) }]
+        : []),
+      ...(capabilities.canTag
+        ? [
+            {
+              id: "add",
+              label: t`Add tag`,
+              icon: "plus" as const,
+              onSelect: () => openEditor({ kind: "add", image }),
+            },
+            {
+              id: "move",
+              label: t`Move tag`,
+              icon: "arrow-right" as const,
+              onSelect: () => openEditor({ kind: "move", image }),
+            },
+          ]
+        : []),
+      ...(capabilities.canPush
+        ? [
+            {
+              id: "push",
+              label: t`Push image`,
+              icon: "arrow-up" as const,
+              onSelect: () => openEditor({ kind: "push", image }),
+            },
+          ]
+        : []),
+      ...archives.forImage(image, detail),
+    ];
+  };
+  const labelFor = (image: Selection) => {
+    const label = image.alias || image.imageId.replace(/^sha256:/, "").slice(0, 12);
+    return t`Actions for ${label}`;
+  };
+  const withActions = (image: Selection, detail: boolean, extra: readonly MenuAction[]) => [
+    ...extra.filter((action) => !action.danger),
+    ...actionsFor(image, detail),
+    ...extra.filter((action) => action.danger),
+  ];
+  const rowMenu = (image: Selection, detail = false, extra: readonly MenuAction[] = [], onOpen?: () => void) => {
+    if (capabilityPending && extra.length === 0) {
       return (
         <Loading label={t`Loading image actions`}>
           <Skeleton shape="pill" width={28} height={28} inline />
         </Loading>
       );
     }
-    const capabilities = mayPlan ? support.get(image.serverId) : undefined;
-    if (!capabilities) return null;
-    const label = image.alias || image.imageId.replace(/^sha256:/, "").slice(0, 12);
     return (
       <ActionMenu
-        label={t`Actions for ${label}`}
+        label={labelFor(image)}
         className="docker-image-menu"
-        actions={[
-          ...(capabilities.canPull && image.alias
-            ? [{ id: "pull", label: t`Pull again`, icon: "download" as const, onSelect: () => void pullAgain(image) }]
-            : []),
-          ...(capabilities.canTag
-            ? [
-                {
-                  id: "add",
-                  label: t`Add tag`,
-                  icon: "plus" as const,
-                  onSelect: () => openEditor({ kind: "add", image }),
-                },
-                {
-                  id: "move",
-                  label: t`Move tag`,
-                  icon: "arrow-right" as const,
-                  onSelect: () => openEditor({ kind: "move", image }),
-                },
-              ]
-            : []),
-          ...(capabilities.canPush
-            ? [
-                {
-                  id: "push",
-                  label: t`Push image`,
-                  icon: "arrow-up" as const,
-                  onSelect: () => openEditor({ kind: "push", image }),
-                },
-              ]
-            : []),
-          ...archives.forImage(image, detail),
-        ]}
+        actions={withActions(image, detail, extra)}
+        onOpen={onOpen}
       />
     );
   };
@@ -161,10 +169,11 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
 
   return {
     rowMenu,
+    withActions,
+    labelFor,
     archiveMenu: archives.header,
     leases: archives.leases,
     rowResult,
-    showRowActions,
     capabilityPending,
     canPull: mayPlan && pullServers.length > 0,
     refreshCapabilities: () => {

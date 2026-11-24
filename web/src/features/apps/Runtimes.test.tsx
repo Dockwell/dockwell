@@ -764,7 +764,7 @@ describe("an app from a folder", () => {
     });
     const row = await screen.findByRole("row", { name: /shop/ });
     expect(screen.getByRole("columnheader", { name: "Domain" })).toBeVisible();
-    await waitFor(() => expect(within(row).getAllByRole("cell")[0]).toHaveTextContent("Node.js 24 · /srv/shop"));
+    await waitFor(() => expect(within(row).getAllByRole("cell")[1]).toHaveTextContent("Node.js 24 · /srv/shop"));
     await waitFor(() => expect(row).toHaveTextContent("shop.example.com"));
   });
 

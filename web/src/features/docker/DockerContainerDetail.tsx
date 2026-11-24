@@ -45,7 +45,7 @@ import { mountSource } from "../servers/containers";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { ContainerActions, ContainerStatus, dockerPort, Ownership } from "./DockerContainers";
+import { ContainerActions, ContainerStatus, dockerPort, Ownership, portUrl } from "./DockerContainers";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, Fact, LiveUpdates } from "./parts";
@@ -96,9 +96,13 @@ export function DockerContainerDetail({
   const [takeOn, setTakeOn] = useState<DockerObject>();
   const params = { serverId, containerId };
   const label = object?.name ?? search.name ?? t`Container`;
+  const logScope =
+    object?.managedResource?.kind === "service"
+      ? { environment: object.managedResource.scope }
+      : { install: true as const };
   const supportedLogs =
     object &&
-    may(LogService.method.watchLogs).allowed &&
+    may(LogService.method.watchLogs, logScope).allowed &&
     object.ownership !== DockerOwnership.SYSTEM &&
     (object.ownership !== DockerOwnership.MANAGED ||
       (object.managedResource?.kind === "service" && !!object.managedResourceId));
@@ -142,6 +146,7 @@ export function DockerContainerDetail({
           object ? (
             <ContainerActions
               row={object}
+              address={server?.address}
               takeOnMode="primary"
               onApplied={() => void query.refetch()}
               onTakeOn={setTakeOn}
@@ -367,16 +372,27 @@ function Summary({
 
 function Attachments({ container, serverId }: { container: DockerContainer; serverId: string }) {
   const { t } = useLingui();
+  const address = useFleetView().servers?.find((server) => server.id === serverId)?.address;
   return (
     <div className="docker-overview-grid">
       <Panel title={t`Published ports`}>
         {container.ports.length ? (
           <ul className="docker-detail-list">
-            {container.ports.map((port) => (
-              <li key={dockerPort(port)}>
-                <code>{dockerPort(port)}</code>
-              </li>
-            ))}
+            {container.ports.map((port) => {
+              const label = dockerPort(port);
+              const href = portUrl(port, address);
+              return (
+                <li key={label}>
+                  {href ? (
+                    <a className="docker-fact-link" href={href} target="_blank" rel="noreferrer">
+                      <code>{label}</code>
+                    </a>
+                  ) : (
+                    <code>{label}</code>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <span className="docker-muted">

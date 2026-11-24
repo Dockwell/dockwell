@@ -267,9 +267,12 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const isStopped = appOf(service)?.desiredRunState === DesiredRunState.STOPPED;
   const restartable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
   const startable = !moving && state.kind !== "unplaced" && changeable && isStopped;
-  const { changeRun } = useWorkloadControls();
+  const { changeRun, restart: restartWorkload } = useWorkloadControls();
   const start = () => {
     if (service.resource) changeRun(service.resource, service.revision, true);
+  };
+  const stop = () => {
+    if (service.resource) changeRun(service.resource, service.revision, false);
   };
   const build = service.spec?.build;
   const source = build?.source.case === "git" ? build.source.value : undefined;
@@ -281,11 +284,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           make: () => createClient(ServiceService, transport).deployService({ id: service.id }),
         })
       : setDeploying(true);
-  const restart = () =>
-    sheet.open({
-      kind: "plan",
-      make: () => createClient(ChangeService, transport).restartService({ id: service.id }),
-    });
+  const restart = () => restartWorkload(service.id);
   const place = places.place(environmentOf(service));
   // An action on what you can see stays where it is, off, with why (ADR 0059).
   const may = useMay();
@@ -328,6 +327,9 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             run: deploy,
           },
         ]
+      : []),
+    ...(restartable && service.resource && mayStart.allowed
+      ? [{ id: "stop", icon: "stop" as const, label: t`Stop ${name}`, hint: t`Opens a plan`, run: stop }]
       : []),
     ...(restartable && mayRestart.allowed
       ? [{ id: "restart", icon: "refresh" as const, label: t`Restart ${name}`, hint: t`Opens a plan`, run: restart }]
@@ -465,6 +467,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans context="open an app at its domain">Open</Trans>
             </ButtonLink>
           ) : null}
+          {restartable && service.resource ? (
+            <Button icon="stop" onClick={stop} {...mayStart.off}>
+              <Trans>Stop</Trans>
+            </Button>
+          ) : null}
           {restartable ? (
             <Button icon="refresh" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>
@@ -525,6 +532,11 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
             <Trans>Logs</Trans>
           </RouterButtonLink>
+          {restartable && service.resource ? (
+            <Button icon="stop" size="lg" onClick={stop} {...mayStart.off}>
+              <Trans>Stop</Trans>
+            </Button>
+          ) : null}
           {restartable ? (
             <Button icon="refresh" size="lg" onClick={restart} {...mayRestart.off}>
               <Trans>Restart</Trans>

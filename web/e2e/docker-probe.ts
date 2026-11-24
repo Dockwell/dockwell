@@ -248,3 +248,15 @@ export async function removeMade(socket: string, before: DockerMade): Promise<st
     ...left.volumes.filter((i) => !before.volumes.includes(i)).map((i) => `volume ${i}`),
   ];
 }
+
+/** Creates an unused local artifact for cleanup flows. */
+export async function dockerCreateStorage(socket: string, kind: "volumes" | "networks", name: string) {
+  await call(socket, "POST", `/${kind}/create`, { Name: name, Driver: kind === "volumes" ? "local" : "bridge" });
+}
+
+/** Lists storage by its Engine name after a reviewed cleanup. */
+export async function dockerStorageNames(socket: string, kind: "volumes" | "networks"): Promise<string[]> {
+  if (kind === "networks") return (await get<{ Name: string }[]>(socket, "/networks")).map((item) => item.Name);
+  const { Volumes } = await get<{ Volumes: { Name: string }[] | null }>(socket, "/volumes");
+  return (Volumes ?? []).map((item) => item.Name);
+}

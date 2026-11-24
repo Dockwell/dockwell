@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { type WebsiteInfo, WebsiteService } from "@dockwell/api";
+import { ChangeService, ChangeState, LogService, type WebsiteInfo, WebsiteService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -34,16 +34,24 @@ import type { HealthView } from "../apps/health";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
-import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import {
+  BatchBar,
+  cardContextMenu,
   ListPager,
   type ListPlace,
   ListSearchField,
   ListSortField,
+  RowActions,
+  type RowSelection,
+  SelectBox,
   SortHeader,
+  selectionColumn,
+  useBatchAction,
   useListPlace,
   useRowMenu,
+  useRowSelection,
 } from "../shell/ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
@@ -90,7 +98,7 @@ export function WebsitesPage({
   const { servers, fleet } = useFleetView();
   const navigate = useNavigate();
   const place = useListPlace(search, onSearch, SORT_KEYS);
-  const actionsFor = useWebsiteActions();
+  const { actionsFor, canDelete, remove } = useWebsiteActions();
   const target = useTargetWords();
 
   const only = !fleet && servers?.length === 1 ? servers[0] : undefined;
@@ -115,6 +123,25 @@ export function WebsitesPage({
     );
   }, [rows, search.kind, place.query, place.sort, target]);
   const page = pagedRows(shown, place.page);
+  const selection = useRowSelection(
+    page.rows.map((row) => row.id),
+    useMay()(ChangeService.method.proposeChange).allowed,
+  );
+  const selected = page.rows.filter((row) => selection.has(row.id));
+  const batch = useBatchAction<Row>()(
+    selected,
+    (row) => {
+      const permission = canDelete(row);
+      return permission.allowed ? undefined : { permission };
+    },
+    {
+      id: "delete",
+      icon: "trash",
+      danger: true,
+      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+      onSelect: (targets) => remove(targets, selection.clear),
+    },
+  );
   const lead = only
     ? plural(count, { one: `# site on ${only.name}`, other: `# sites on ${only.name}` })
     : plural(count, { one: "# site", other: "# sites" });
@@ -189,7 +216,7 @@ export function WebsitesPage({
   } else if (phone) {
     body = (
       <>
-        <PhoneList rows={page.rows} health={health} read={read} actionsFor={actionsFor} />
+        <PhoneList rows={page.rows} health={health} read={read} actionsFor={actionsFor} selection={selection} />
         <ListPager page={page} onPage={place.setPage} />
       </>
     );
@@ -204,6 +231,7 @@ export function WebsitesPage({
           read={read}
           place={place}
           actionsFor={actionsFor}
+          selection={selection}
           onOpen={(id) => void navigate({ to: "/websites/$websiteId", params: { websiteId: id } })}
         />
         <ListPager page={page} onPage={place.setPage} />
@@ -230,7 +258,13 @@ export function WebsitesPage({
         </>
       }
     >
-      <section className="websites-section" aria-label={t`Websites`}>
+      <section
+        className={cx("websites-section", selection.any && "has-selection")}
+        aria-label={t`Websites`}
+        ref={selection.list}
+        tabIndex={-1}
+        onKeyDown={selection.onKeyDown}
+      >
         {phone && count > 0 ? (
           <div className="websites-phone-head">
             <h2 className="dw-text-heading">{lead}</h2>
@@ -262,6 +296,7 @@ export function WebsitesPage({
           </div>
         ) : null}
         {body}
+        <BatchBar count={selected.length} onClear={selection.clear} {...batch} />
       </section>
       {/* What code runs on, once there are websites or apps from folders, as the empty state has its own next step. */}
       {!pending && !websites.error ? <Runtimes rows={rows} health={health} /> : null}
@@ -285,15 +320,29 @@ function kindWord(kind: string, t: ReturnType<typeof useLingui>["t"]): string {
 }
 
 /** A website's menu: open it here, open the site itself, or delete it as the plan its page opens. */
-function useWebsiteActions(): (row: Row) => MenuAction[] {
+function useWebsiteActions() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const may = useMay();
   const sheet = useChangeSheet();
   const transport = useTransport();
-  return (row) => {
-    // Deleting a website deletes its project, which is an admin's (ADR 0049), as its page says.
-    const mayDelete = may(WebsiteService.method.deleteWebsite, { project: row.site.id });
+  const canDelete = (row: Row) => may(WebsiteService.method.deleteWebsite, { project: row.site.id });
+  const remove = (rows: readonly Row[], onApplied?: () => void) => {
+    const [first, ...rest] = rows;
+    if (!first) return;
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        createClient(WebsiteService, transport).deleteWebsite({
+          id: first.site.id,
+          additionalIds: rest.map((row) => row.site.id),
+        }),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) onApplied?.();
+      },
+    });
+  };
+  const actionsFor = (row: Row): MenuAction[] => {
     const domain = row.site.domain;
     return [
       {
@@ -305,20 +354,27 @@ function useWebsiteActions(): (row: Row) => MenuAction[] {
       ...(domain
         ? [{ id: "visit", icon: "external" as const, label: t`Open ${domain}`, href: `https://${domain}` }]
         : []),
+      ...(row.site.serviceId && may(LogService.method.watchLogs, { environment: row.site.environmentId }).allowed
+        ? [
+            {
+              id: "logs",
+              icon: "file" as const,
+              label: t`Logs`,
+              onSelect: () => void navigate({ to: "/websites/$websiteId/logs", params: { websiteId: row.id } }),
+            },
+          ]
+        : []),
       {
         id: "delete",
         icon: "trash",
         label: t`Delete website`,
         danger: true,
-        ...(mayDelete.allowed ? {} : { off: mayDelete.reason || undefined, disabled: !mayDelete.reason }),
-        onSelect: () =>
-          sheet.open({
-            kind: "plan",
-            make: () => createClient(WebsiteService, transport).deleteWebsite({ id: row.site.id }),
-          }),
+        ...canDelete(row).off,
+        onSelect: () => remove([row]),
       },
     ];
   };
+  return { actionsFor, canDelete, remove };
 }
 
 /** What a website is, in a word or two, as the list's Type column has it. */
@@ -360,6 +416,7 @@ interface TableProps {
   read: DomainRead;
   place: ListPlace;
   actionsFor: (row: Row) => MenuAction[];
+  selection: RowSelection;
   onOpen: (id: string) => void;
 }
 
@@ -392,7 +449,7 @@ function useColumnHeads(fleet: boolean) {
   }, [t, typed, placed]);
 }
 
-function WebsitesTable({ rows, caption, fleet, health, read, place, actionsFor, onOpen }: TableProps) {
+function WebsitesTable({ rows, caption, fleet, health, read, place, actionsFor, selection, onOpen }: TableProps) {
   const { t, i18n } = useLingui();
   const typeWord = useTypeWord();
   const target = useTargetWords();
@@ -456,10 +513,14 @@ function WebsitesTable({ rows, caption, fleet, health, read, place, actionsFor, 
       {
         key: "actions",
         header: <span className="dw-sr">{t`Actions`}</span>,
-        width: 48,
+        width: 80,
         align: "right" as const,
         render: (row: Row) => (
-          <ActionMenu label={t`Actions for ${row.site.domain || row.site.name}`} actions={actionsFor(row)} />
+          <RowActions
+            label={t`Actions for ${row.site.domain || row.site.name}`}
+            actions={actionsFor(row)}
+            quick={["logs"]}
+          />
         ),
       },
     ];
@@ -468,8 +529,22 @@ function WebsitesTable({ rows, caption, fleet, health, read, place, actionsFor, 
     <>
       <Table<Row>
         className="websites-table"
-        columns={columns}
+        columns={[
+          ...(selection.enabled
+            ? [
+                selectionColumn({
+                  selection,
+                  rows,
+                  idOf: (row) => row.id,
+                  labelOf: (row) => t`Select ${row.site.domain || row.site.name}`,
+                  allLabel: t`Select all rows on this page`,
+                }),
+              ]
+            : []),
+          ...columns,
+        ]}
         rows={rows}
+        rowClassName={(row) => (selection.has(row.id) ? "is-checked" : "")}
         caption={caption}
         onRowClick={(row) => onOpen(row.id)}
         onRowContextMenu={(row, at, el) =>
@@ -506,18 +581,40 @@ function PhoneList({
   health,
   read,
   actionsFor,
+  selection,
 }: {
   rows: readonly Row[];
   health: HealthView;
   read: DomainRead;
   actionsFor: (row: Row) => MenuAction[];
+  selection: RowSelection;
 }) {
   const { t } = useLingui();
   const typeWord = useTypeWord();
+  const menu = useRowMenu<Row>();
   return (
     <Panel flush className="apps-phone websites-phone">
       {rows.map((row) => (
-        <div key={row.id} className="websites-phone-row">
+        // biome-ignore lint/a11y/noStaticElementInteractions: The row link and menu button provide keyboard access.
+        <div
+          key={row.id}
+          className={cx("websites-phone-row list-select-card", selection.has(row.id) && "is-checked")}
+          onContextMenu={(event) =>
+            cardContextMenu(event, (at, el) =>
+              menu.open(row, at, el, {
+                label: t`Actions for ${row.site.domain || row.site.name}`,
+                actions: actionsFor(row),
+              }),
+            )
+          }
+        >
+          {selection.enabled ? (
+            <SelectBox
+              label={t`Select ${row.site.domain || row.site.name}`}
+              checked={selection.has(row.id)}
+              onPick={(on, range) => selection.toggle(row.id, on, range)}
+            />
+          ) : null}
           <Link to="/websites/$websiteId" params={{ websiteId: row.id }} className="apps-phone-row">
             <SiteStanding row={row} health={health} read={read}>
               {({ status }) => (
@@ -546,9 +643,10 @@ function PhoneList({
             </span>
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
           </Link>
-          <ActionMenu label={t`Actions for ${row.site.domain || row.site.name}`} actions={actionsFor(row)} />
+          <RowActions label={t`Actions for ${row.site.domain || row.site.name}`} actions={actionsFor(row)} />
         </div>
       ))}
+      {menu.element}
     </Panel>
   );
 }

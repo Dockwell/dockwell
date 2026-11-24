@@ -123,6 +123,8 @@ message TaskInfo {
   dockwell.resource.v1alpha1.Task spec = 4;
   // How it stands on each server it's placed on, by server name.
   repeated TaskOnServer servers = 5;
+  // The revision of the task spec, to guard edits based on this read.
+  int64 revision = 6;
 }
 
 // TaskOnServer is how a task stands on one server.

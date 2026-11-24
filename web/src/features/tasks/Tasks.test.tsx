@@ -92,6 +92,44 @@ afterEach(() => {
 });
 
 describe("scheduled tasks", () => {
+  it("pauses the two active tasks in a mixed selection with their current revisions and specs", async () => {
+    const first = aTask({ revision: 2n });
+    const second = aTask({
+      id: "tsk_report_again",
+      resource: { kind: "task", scope: ENV, name: "report-again" },
+      spec: first.spec ? { ...first.spec, displayName: "Second report" } : undefined,
+      revision: 5n,
+    });
+    const paused = aTask({
+      id: "tsk_paused",
+      resource: { kind: "task", scope: ENV, name: "paused" },
+      spec: first.spec ? { ...first.spec, displayName: "Paused report", paused: true } : undefined,
+      revision: 4n,
+    });
+    const propose = vi.fn((_request: ProposeChangeRequest) => ({ change: webPlanned() }));
+    renderAt("/scheduled-tasks", api([first, second, paused], { changes: { proposeChange: propose } }));
+    const table = await screen.findByRole("table", { name: "Scheduled tasks" });
+    await userEvent.click(within(table).getByRole("checkbox", { name: "Select all rows on this page" }));
+    const actions = screen.getByRole("toolbar", { name: "Actions for the rows selected" });
+    expect(actions).toHaveTextContent("3 selected");
+    expect(actions).toHaveTextContent("1 skipped (Already paused)");
+    expect(within(actions).getByRole("button", { name: "Resume 1" })).toBeEnabled();
+    await userEvent.click(within(actions).getByRole("button", { name: "Pause 2" }));
+    await waitFor(() => expect(propose).toHaveBeenCalledOnce());
+    expect(propose.mock.calls[0]?.[0].edits).toEqual([
+      expect.objectContaining({
+        resource: first.resource,
+        baseRevision: 2n,
+        spec: expect.objectContaining({ kind: { case: "task", value: { ...first.spec, paused: true } } }),
+      }),
+      expect.objectContaining({
+        resource: second.resource,
+        baseRevision: 5n,
+        spec: expect.objectContaining({ kind: { case: "task", value: { ...second.spec, paused: true } } }),
+      }),
+    ]);
+  });
+
   it("says what a task is before there's one", async () => {
     renderAt("/scheduled-tasks", api([]));
     expect(await screen.findByRole("heading", { level: 2, name: "No scheduled tasks yet" })).toBeVisible();

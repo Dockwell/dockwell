@@ -3,6 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
+  ChangeService,
   DockerCleanupKind,
   type DockerImage,
   DockerImageState,
@@ -13,6 +14,7 @@ import {
 import {
   Button,
   Callout,
+  cx,
   Icon,
   Loading,
   Panel,
@@ -30,7 +32,7 @@ import {
 } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
@@ -39,13 +41,24 @@ import { useHeldRows } from "../../lib/loading";
 import { useMay } from "../auth/may";
 import { CopyButton } from "../servers/CopyButton";
 import { ServerFrame } from "../servers/ServerFrame";
+import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
-import { useListSearchShortcut } from "../shell/ListTools";
+import {
+  BatchBar,
+  cardContextMenu,
+  SelectBox,
+  selectionColumn,
+  useBatchAction,
+  useListSearchShortcut,
+  useRowMenu,
+  useRowSelection,
+} from "../shell/ListTools";
 import { useImageActions } from "./DockerImageActions";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { shortImageId } from "./imageIdentity";
 import { useDockerWatch } from "./live";
 import { Fact, LiveUpdates, MeasuringSize, Unread } from "./parts";
+import { useSelectedCleanup } from "./selectedCleanup";
 import "./Docker.css";
 import "./DockerArtifacts.css";
 
@@ -91,8 +104,45 @@ function selection(row: ImageRow) {
   };
 }
 
+function useImageRowVerbs(refresh: () => void, selected: readonly ImageRow[] = []) {
+  const { t } = useLingui();
+  const navigate = useNavigate();
+  const may = useMay();
+  const maintenance = may(DockerService.method.planDockerMaintenance);
+  const createApp = may(ChangeService.method.proposeChange);
+  const cleanup = useSelectedCleanup(DockerCleanupKind.IMAGE, selected, maintenance.allowed);
+  const verbs = (row: ImageRow): MenuAction[] => {
+    const reference = selection(row).alias || row.image.digests[0];
+    return [
+      ...(reference
+        ? [
+            {
+              id: "run",
+              label: t`Run as an app`,
+              icon: "play" as const,
+              ...createApp.off,
+              onSelect: () =>
+                void navigate({ to: "/apps/new", search: { source: "image", image: reference, server: row.serverId } }),
+            },
+          ]
+        : []),
+      {
+        id: "delete",
+        label: t`Delete`,
+        icon: "trash",
+        danger: true,
+        ...maintenance.off,
+        ...(maintenance.allowed ? cleanup.rowOff(row) : {}),
+        onSelect: () => cleanup.remove([row], refresh),
+      },
+    ];
+  };
+  return { maintenance, cleanup, verbs };
+}
+
 export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server, "id" | "name">[]; fleet: boolean }) {
   const { t, i18n } = useLingui();
+  const navigate = useNavigate();
   const searchInput = useListSearchShortcut();
   const compact = useMediaQuery(fleet ? "(max-width: 1120px)" : "(max-width: 1000px)");
   const mayPrune = useMay()(DockerService.method.planDockerMaintenance).allowed;
@@ -131,7 +181,6 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
     else void query.refetch();
   };
   const actions = useImageActions(servers, refresh);
-  const watch = useDockerWatch(serverIds, [], () => void query.refetch(), DockerObjectKind.IMAGE);
   const rows: ImageRow[] = (query.data?.objects ?? []).flatMap((row) =>
     row.key && row.detail.case === "image"
       ? [
@@ -145,6 +194,56 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         ]
       : [],
   );
+  const chosenRows = useRowSelection(
+    rows.map((row) => row.id),
+    true,
+    searchInput,
+  );
+  const selected = rows.filter((row) => chosenRows.has(row.id));
+  const { maintenance, cleanup, verbs } = useImageRowVerbs(refresh, selected);
+  const watch = useDockerWatch(
+    serverIds,
+    [],
+    () => {
+      void query.refetch();
+      cleanup.refresh();
+    },
+    DockerObjectKind.IMAGE,
+  );
+  const batch = useBatchAction<ImageRow>()(
+    selected,
+    (row) => (maintenance.allowed ? cleanup.batchStatus(row) : { permission: maintenance }),
+    {
+      id: "delete",
+      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+      icon: "trash",
+      danger: true,
+      onSelect: (targets, notes) =>
+        cleanup.remove(
+          targets,
+          () => {
+            chosenRows.clear();
+            refresh();
+          },
+          notes,
+        ),
+    },
+  );
+  const menuFor = (row: ImageRow) => ({
+    label: actions.labelFor(selection(row)),
+    actions: actions.withActions(selection(row), false, verbs(row)),
+  });
+  const context = useRowMenu(menuFor);
+  const openContext = (row: ImageRow, at: { x: number; y: number }, el: HTMLElement) => {
+    cleanup.checkMenu(row);
+    context.open(row, at, el);
+  };
+  const dots = (row: ImageRow) => actions.rowMenu(selection(row), false, verbs(row), () => cleanup.checkMenu(row));
+  const open = (row: ImageRow) =>
+    void navigate({
+      to: "/servers/$serverId/docker/images/$imageId",
+      params: { serverId: row.serverId, imageId: row.engineId },
+    });
   const selectFilter = (value: ImageFilter) => {
     setFilter(value);
     setPages([""]);
@@ -175,6 +274,13 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
       </span>
     ) : null;
   const columns: TableColumn<ImageRow>[] = [
+    selectionColumn({
+      selection: chosenRows,
+      rows,
+      idOf: (row) => row.id,
+      labelOf: (row) => t`Select ${selection(row).alias || shortImageId(row.engineId)}`,
+      allLabel: t`Select all rows on this page`,
+    }),
     {
       key: "image",
       header: t`Image`,
@@ -245,22 +351,14 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         );
       },
     },
-    ...(actions.showRowActions
-      ? [
-          {
-            key: "actions",
-            header: (
-              <span className="dw-sr">
-                <Trans>Actions</Trans>
-              </span>
-            ),
-            width: 56,
-            align: "right" as const,
-            skeleton: "action" as const,
-            render: (row: ImageRow) => actions.rowMenu(selection(row)),
-          },
-        ]
-      : []),
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: 56,
+      align: "right",
+      skeleton: "action",
+      render: dots,
+    },
   ];
   const empty = rows.length === 0 && query.isSuccess && !next && !query.data.unavailable.length;
   return (
@@ -386,54 +484,78 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
         />
       ) : null}
       {rows.length ? (
-        compact ? (
-          <ul className="docker-artifact-list" aria-label={t`Local images`}>
-            {rows.map((row) => (
-              <li className="docker-image-row" key={row.id}>
-                <div className="docker-artifact-name">
-                  <Icon name="archive" />
-                  <div>
-                    {link(row)}
-                    {fleet ? <div className="docker-muted">{serverName(row.serverId)}</div> : null}
-                    {moreTags(row)}
-                    {actions.rowResult(selection(row))}
+        <section
+          aria-label={t`Local images`}
+          className={cx("list-select-region", chosenRows.any && "has-selection")}
+          ref={chosenRows.list}
+          tabIndex={-1}
+          onKeyDown={chosenRows.onKeyDown}
+        >
+          {compact ? (
+            <ul className="docker-artifact-list" aria-label={t`Local images`}>
+              {rows.map((row) => (
+                <li
+                  key={row.id}
+                  className={cx("docker-image-row list-select-card", chosenRows.has(row.id) && "is-checked")}
+                  onContextMenu={(event) => cardContextMenu(event, (at, el) => openContext(row, at, el))}
+                >
+                  <div className="docker-artifact-name">
+                    <SelectBox
+                      label={t`Select ${selection(row).alias || shortImageId(row.engineId)}`}
+                      checked={chosenRows.has(row.id)}
+                      onPick={(on, range) => chosenRows.toggle(row.id, on, range)}
+                    />
+                    <Icon name="archive" />
+                    <div>
+                      {link(row)}
+                      {fleet ? <div className="docker-muted">{serverName(row.serverId)}</div> : null}
+                      {moreTags(row)}
+                      {actions.rowResult(selection(row))}
+                    </div>
                   </div>
-                </div>
-                <div className="docker-image-row-actions">
-                  <ImageState row={row} />
-                  {actions.rowMenu(selection(row))}
-                </div>
-                <dl className="docker-image-data">
-                  <Fact label={t`Platform`} value={row.image.platform || t`Unknown`} mono />
-                  <Fact
-                    label={t`Total`}
-                    value={<ImageBytes bytes={row.image.totalBytes} pending={!row.diskMeasured} />}
-                  />
-                  <Fact
-                    label={t`Unique`}
-                    value={<ImageBytes bytes={row.image.uniqueBytes} pending={!row.diskMeasured} />}
-                  />
-                  <Fact
-                    label={t`Created`}
-                    value={
-                      row.image.createdAt ? formatDateTime(timestampDate(row.image.createdAt), i18n.locale) : t`Unknown`
-                    }
-                  />
-                </dl>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Panel flush>
-            <Table
-              className="docker-table docker-image-table"
-              columns={columns}
-              rows={rows}
-              rowKey="id"
-              caption={t`Local images`}
-            />
-          </Panel>
-        )
+                  <div className="docker-image-row-actions">
+                    <ImageState row={row} />
+                    {dots(row)}
+                  </div>
+                  <dl className="docker-image-data">
+                    <Fact label={t`Platform`} value={row.image.platform || t`Unknown`} mono />
+                    <Fact
+                      label={t`Total`}
+                      value={<ImageBytes bytes={row.image.totalBytes} pending={!row.diskMeasured} />}
+                    />
+                    <Fact
+                      label={t`Unique`}
+                      value={<ImageBytes bytes={row.image.uniqueBytes} pending={!row.diskMeasured} />}
+                    />
+                    <Fact
+                      label={t`Created`}
+                      value={
+                        row.image.createdAt
+                          ? formatDateTime(timestampDate(row.image.createdAt), i18n.locale)
+                          : t`Unknown`
+                      }
+                    />
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Panel flush>
+              <Table
+                className="docker-table docker-image-table"
+                columns={columns}
+                rows={rows}
+                rowKey="id"
+                rowClassName={(row) => (chosenRows.has(row.id) ? "is-checked" : "")}
+                onRowClick={open}
+                onRowContextMenu={(row, at, el) => openContext(row, at, el)}
+                caption={t`Local images`}
+              />
+            </Panel>
+          )}
+          {context.element}
+          <BatchBar count={selected.length} onClear={chosenRows.clear} {...batch} />
+        </section>
       ) : null}
       {next || pageToken ? (
         <div className="docker-pager">
@@ -481,6 +603,7 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
   const row = read.data?.object;
   const image = row?.detail.case === "image" ? row.detail.value : undefined;
   const actions = useImageActions([{ id: serverId, name: "" }], () => void read.refetch());
+  const { cleanup, verbs } = useImageRowVerbs(() => void read.refetch());
   const selected = {
     serverId,
     imageId,
@@ -513,7 +636,14 @@ export function DockerImageDetail({ serverId, imageId }: { serverId: string; ima
               >
                 <Trans>All images</Trans>
               </RouterButtonLink>
-              {image ? actions.rowMenu(selected, true) : null}
+              {image
+                ? actions.rowMenu(
+                    selected,
+                    true,
+                    verbs({ id: imageId, serverId, engineId: imageId, diskMeasured: false, image }),
+                    () => cleanup.checkMenu({ serverId, engineId: imageId }),
+                  )
+                : null}
             </div>
           </div>
           {actions.rowResult(selected)}

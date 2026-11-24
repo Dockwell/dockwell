@@ -1078,7 +1078,9 @@ type DeleteWebsiteRequest struct {
 	// The website, by its project's name or ID.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// What the change is for, for the timeline. Empty says what it deletes.
-	Summary       string `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	Summary string `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Up to 49 more website project IDs to include in the same plan.
+	AdditionalIds []string `protobuf:"bytes,3,rep,name=additional_ids,json=additionalIds,proto3" json:"additional_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1125,6 +1127,13 @@ func (x *DeleteWebsiteRequest) GetSummary() string {
 		return x.Summary
 	}
 	return ""
+}
+
+func (x *DeleteWebsiteRequest) GetAdditionalIds() []string {
+	if x != nil {
+		return x.AdditionalIds
+	}
+	return nil
 }
 
 // DeleteWebsiteResponse carries the planned change.
@@ -1255,10 +1264,11 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x10plain_for_anyone\x18\x05 \x01(\bH\x00R\x0eplainForAnyone\x88\x01\x01B\x13\n" +
 	"\x11_plain_for_anyone\"D\n" +
 	"\x15UpdateWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"@\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"g\n" +
 	"\x14DeleteWebsiteRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\asummary\x18\x02 \x01(\tR\asummary\"D\n" +
+	"\asummary\x18\x02 \x01(\tR\asummary\x12%\n" +
+	"\x0eadditional_ids\x18\x03 \x03(\tR\radditionalIds\"D\n" +
 	"\x15DeleteWebsiteResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xed\x06\n" +
 	"\x0eWebsiteService\x12|\n" +

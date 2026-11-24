@@ -8,6 +8,7 @@ import {
   type ContainerPort,
   ContainerService,
   ContainerState,
+  DeploymentState,
   type DockerContainer,
   DockerHealth,
   type DockerObject,
@@ -15,14 +16,17 @@ import {
   DockerOwnership,
   type DockerSample,
   DockerService,
+  FileService,
   ImportService,
   LogService,
   type Server,
+  type ServiceInfo,
   TerminalService,
 } from "@dockwell/api";
 import {
   Button,
   Callout,
+  cx,
   Loading,
   Panel,
   SegmentedControl,
@@ -35,6 +39,7 @@ import {
   TextField,
   useMediaQuery,
 } from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -43,16 +48,31 @@ import { formatBytes, formatPercent } from "../../lib/format";
 import { RouterButtonLink, RouterTagLink } from "../../lib/links";
 import { useHeldRows } from "../../lib/loading";
 import { useTimeWords } from "../../lib/time";
+import { PrepareServiceUpdate } from "../apps/ServiceRowActions";
+import { counts, offered, useMayUpdate } from "../apps/updates";
+import { useServices } from "../apps/useServices";
 import { useWorkloadControls } from "../apps/workload";
 import { useMay } from "../auth/may";
+import { askable } from "../files/lookup";
 import { statusOf, useContainerStateWord } from "../servers/containers";
-import { useControlPlaneNow } from "../servers/useFleet";
+import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
-import { useListSearchShortcut, useRowMenu } from "../shell/ListTools";
+import {
+  BatchBar,
+  cardContextMenu,
+  combineBatchActions,
+  SelectBox,
+  selectionColumn,
+  useBatchAction,
+  useListSearchShortcut,
+  useRowMenu,
+  useRowSelection,
+} from "../shell/ListTools";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, LiveUpdates, Unread } from "./parts";
+import { publishedPortUrl } from "./publishedPort";
 
 type State = "all" | "running" | "stopped" | "attention";
 const shellTarget = "/servers/$serverId/terminal";
@@ -142,6 +162,48 @@ function ValuePreview({ values }: { values: readonly string[] }) {
   );
 }
 
+export function portUrl(port: ContainerPort, address: string | undefined) {
+  return port.protocol.toLowerCase() === "tcp" ? publishedPortUrl(port.address, port.serverPort, address) : undefined;
+}
+
+export function PublishedPorts({ ports, address }: { ports: readonly ContainerPort[]; address?: string | undefined }) {
+  const { t } = useLingui();
+  if (ports.length === 0) return <ValuePreview values={[]} />;
+  return (
+    <span className="docker-port-preview" title={ports.map(dockerPort).join(", ")}>
+      {ports.slice(0, 2).map((port) => {
+        const label = dockerPort(port);
+        const href = portUrl(port, address);
+        return href ? (
+          <a className="docker-fact-link docker-cell-text" key={label} href={href} target="_blank" rel="noreferrer">
+            <code>{label}</code>
+          </a>
+        ) : (
+          <code className="docker-cell-text" key={label}>
+            {label}
+          </code>
+        );
+      })}
+      {ports.length > 2 ? <span className="docker-cell-text">{t`+${ports.length - 2} more`}</span> : null}
+    </span>
+  );
+}
+
+function runTarget(row: DockerObject) {
+  const resource = row.managedResource;
+  if (
+    !resource ||
+    !["container", "service"].includes(resource.kind) ||
+    !row.managedResourceId ||
+    row.managedRevision <= 0n
+  )
+    return;
+  const start = row.state === ContainerState.CREATED || row.state === ContainerState.EXITED;
+  if (!start && ![ContainerState.RUNNING, ContainerState.PAUSED, ContainerState.RESTARTING].includes(row.state)) return;
+  const where = resource.kind === "container" ? { install: true as const } : { environment: resource.scope };
+  return { resource, baseRevision: row.managedRevision, start, where };
+}
+
 function ImageReference({ image }: { image: string | undefined }) {
   return image ? (
     <code className="docker-image-ref docker-cell-text" title={image}>
@@ -187,7 +249,10 @@ interface ContainerActionProps {
   stack?: (project: string) => void;
   takeOnMode?: "menu" | "primary" | "choose";
   shortcuts?: boolean;
+  address?: string | undefined;
+  update?: MenuAction | undefined;
   workloadServers?: number | undefined;
+  requireServicePlacement?: boolean;
   onApplied?: () => void;
   onTakeOn?: (row: DockerObject) => void;
 }
@@ -201,27 +266,31 @@ function useContainerActions() {
   const { t } = useLingui();
   const may = useMay();
   const navigate = useNavigate();
-  const { changeRun, restartInstance } = useWorkloadControls();
+  const { changeRun, changeRunMany, restartInstance } = useWorkloadControls();
   return ({
     row,
     stack,
     takeOnMode = "menu",
     shortcuts = true,
-    workloadServers = 1,
+    address,
+    update,
+    workloadServers,
+    requireServicePlacement = false,
     onApplied,
     onTakeOn,
   }: ContainerActionProps) => {
     const key = row.key;
     const label = t`Actions for ${row.name}`;
     if (!key) return { label, actions: [], row };
-    const managed = row.managedResource;
     const canTake =
       onTakeOn && row.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
     const showTakeOn = canTake && takeOnMode !== "menu";
     const showShortcuts = shortcuts && (takeOnMode !== "choose" || !canTake);
     const params = { serverId: key.serverId, containerId: key.engineId };
+    const logScope =
+      row.managedResource?.kind === "service" ? { environment: row.managedResource.scope } : { install: true as const };
     const log =
-      may(LogService.method.watchLogs).allowed &&
+      may(LogService.method.watchLogs, logScope).allowed &&
       row.ownership !== DockerOwnership.SYSTEM &&
       (row.ownership !== DockerOwnership.MANAGED ||
         (!!row.managedResourceId && row.managedResource?.kind === "service"));
@@ -251,37 +320,83 @@ function useContainerActions() {
         onSelect: () => onTakeOn?.(row),
       });
     }
-    if (managed && row.managedRevision > 0n && row.managedResourceId) {
-      const where = managed.kind === "container" ? { install: true as const } : { environment: managed.scope };
-      const active = [ContainerState.RUNNING, ContainerState.PAUSED, ContainerState.RESTARTING].includes(row.state);
-      const mayPlan = may(ChangeService.method.proposeChange, where);
-      if (mayPlan.allowed) {
-        actions.unshift({
-          id: active ? "stop" : "start",
-          label:
-            workloadServers > 1
-              ? active
-                ? t`Stop workload on ${workloadServers} servers`
-                : t`Start workload on ${workloadServers} servers`
-              : active
-                ? t`Stop workload`
-                : t`Start workload`,
-          icon: active ? "stop" : "play",
-          onSelect: () => changeRun(managed, row.managedRevision, !active, onApplied),
-        });
-      }
-      if (
-        (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) &&
-        may(ChangeService.method.restartService, where).allowed
-      ) {
-        actions.splice(mayPlan.allowed ? 1 : 0, 0, {
+    const target = runTarget(row);
+    if (target) {
+      const mayPlan = may(ChangeService.method.proposeChange, target.where);
+      const { start, resource, baseRevision } = target;
+      const service = resource.kind === "service";
+      const name = resource.name;
+      const fleetAction = service && workloadServers !== undefined && workloadServers > 1;
+      const label = fleetAction
+        ? start
+          ? t`Start ${name} on all ${workloadServers} servers`
+          : t`Stop ${name} on all ${workloadServers} servers`
+        : start
+          ? t`Start`
+          : t`Stop`;
+      actions.unshift({
+        id: start ? "start" : "stop",
+        label,
+        icon: start ? "play" : "stop",
+        ...mayPlan.off,
+        ...(mayPlan.allowed && service && requireServicePlacement && !workloadServers
+          ? { off: t`Service placement is unavailable` }
+          : {}),
+        onSelect: () =>
+          fleetAction
+            ? changeRunMany([{ resource, baseRevision }], start, label, onApplied)
+            : changeRun(resource, baseRevision, start, onApplied),
+      });
+      if (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) {
+        actions.splice(1, 0, {
           id: "restart",
           label: t`Restart this container`,
           icon: "refresh",
+          ...may(ChangeService.method.restartService, target.where).off,
           onSelect: () => restartInstance(row.managedResourceId, key.serverId, key.engineId, onApplied),
         });
       }
     }
+    if (log)
+      actions.push({
+        id: "logs",
+        label: t`Logs`,
+        icon: "file",
+        onSelect: () => void navigate({ to: detailTarget, params, search: { view: "logs", name: row.name } }),
+      });
+    if (terminal)
+      actions.push({
+        id: "terminal",
+        label: t`Terminal`,
+        icon: "terminal",
+        onSelect: () =>
+          void navigate({
+            to: shellTarget,
+            params: { serverId: key.serverId },
+            search: { containerId: key.engineId, containerTitle: row.name },
+          }),
+      });
+    const container = containerOf(row);
+    const path = [container?.composeDirectory, ...(container?.mounts.map((mount) => mount.hostPath) ?? [])].find(
+      (path) => !!path && askable(key.serverId, path),
+    );
+    if (path && may(FileService.method.listFiles).allowed)
+      actions.push({
+        id: "files",
+        label: t`Open files`,
+        icon: "folder",
+        onSelect: () =>
+          void navigate({ to: "/servers/$serverId/files", params: { serverId: key.serverId }, search: { path } }),
+      });
+    const visit = container?.ports.map((port) => portUrl(port, address)).find((url) => url !== undefined);
+    if (visit && row.state === ContainerState.RUNNING)
+      actions.push({
+        id: "visit",
+        label: t`Open in browser`,
+        icon: "external",
+        href: visit,
+      });
+    if (update) actions.push(update);
     const project = containerOf(row)?.composeProject;
     if (stack && project) {
       actions.push({
@@ -387,6 +502,7 @@ export function DockerContainers({
   const searchInput = useListSearchShortcut();
   const may = useMay();
   const navigate = useNavigate();
+  const { servers: fleetServers } = useFleetView();
   const serverId = !fleet || servers.length === 1 ? servers[0]?.id : undefined;
   const [choosingContainer, setChoosingContainer] = useState(false);
   const [takeOn, setTakeOn] = useState<DockerObject>();
@@ -483,11 +599,53 @@ export function DockerContainers({
       <Ownership row={row.object} />
     </div>
   );
+  const services = useServices().data;
+  const placements = new Map(
+    services?.map((service) => [
+      service.id,
+      {
+        revision: service.revision,
+        servers: new Set(
+          service.deployments
+            .filter((deployment) => deployment.state !== DeploymentState.SUPERSEDED)
+            .map((deployment) => deployment.serverId),
+        ),
+      },
+    ]),
+  );
+  const placementFor = (row: Row) => {
+    const placement = placements.get(row.object.managedResourceId);
+    if (placement?.revision === row.object.managedRevision && placement.servers.has(row.serverId))
+      return placement.servers;
+    return undefined;
+  };
+  const mayUpdate = useMayUpdate();
+  const [updatingApp, setUpdatingApp] = useState<ServiceInfo>();
+  const { changeRunMany } = useWorkloadControls();
+  const address = (row: Row) => fleetServers?.find((server) => server.id === row.serverId)?.address;
+  const updateFor = (row: Row): MenuAction | undefined => {
+    const service = services?.find((item) => item.id === row.object.managedResourceId);
+    if (!service || !counts(service.update, now)) return;
+    const offer = offered(service.update);
+    if (!offer) return;
+    const version = offer.toVersion;
+    return {
+      id: "update",
+      icon: "arrow-up",
+      label: version ? t`Update to ${version}` : t`Update`,
+      ...mayUpdate(service).off,
+      onSelect: () => setUpdatingApp(service),
+    };
+  };
   const menu = useRowMenu<Row>();
   const actionsFor = useContainerActions();
   const rowActions = (row: Row) =>
     actionsFor({
       row: row.object,
+      address: address(row),
+      update: updateFor(row),
+      workloadServers: placementFor(row)?.size,
+      requireServicePlacement: true,
       stack,
       takeOnMode: choosingContainer ? "choose" : "menu",
       onApplied: refresh,
@@ -550,7 +708,7 @@ export function DockerContainers({
     {
       key: "ports",
       header: t`Published ports`,
-      render: (row) => <ValuePreview values={row.container?.ports.map(dockerPort) ?? []} />,
+      render: (row) => <PublishedPorts ports={row.container?.ports ?? []} address={address(row)} />,
     },
     { key: "addresses", header: t`Addresses`, render: addresses, skeleton: "mono" },
     { key: "usage", header: t`Usage`, render: measured, skeleton: "short" },
@@ -582,6 +740,64 @@ export function DockerContainers({
       },
     ];
   });
+  const selection = useRowSelection(query.isPlaceholderData ? [] : list.map((row) => row.id), true, searchInput);
+  const selected = list.filter((row) => selection.has(row.id));
+  const candidates = selected.flatMap((row) => {
+    const target = runTarget(row.object);
+    return target ? [{ row, ...target, permission: may(ChangeService.method.proposeChange, target.where) }] : [];
+  });
+  const byId = new Map(candidates.map((target) => [target.row.id, target]));
+  const batchAction = useBatchAction<Row>();
+  const runBatch = (start: boolean) =>
+    batchAction(
+      selected,
+      (row) => {
+        const target = byId.get(row.id);
+        if (!target) return { reason: t`No managed run state` };
+        if (target.start !== start) return { reason: start ? t`Already running` : t`Already stopped` };
+        if (!target.permission.allowed) return { permission: target.permission };
+        if (target.resource.kind === "service") {
+          const placement = placementFor(row);
+          if (!placement) return { reason: t`Service placement is unavailable` };
+          const selectedServers = new Set(
+            candidates
+              .filter(
+                (candidate) =>
+                  candidate.row.object.managedResourceId === row.object.managedResourceId &&
+                  candidate.baseRevision === target.baseRevision &&
+                  candidate.start === start &&
+                  candidate.permission.allowed,
+              )
+              .map((candidate) => candidate.row.serverId),
+          );
+          if ([...placement].some((server) => !selectedServers.has(server)))
+            return { reason: t`Select a matching replica on every server` };
+        }
+        return undefined;
+      },
+      {
+        id: start ? "start" : "stop",
+        label: (count) => (start ? (count ? t`Start ${count}` : t`Start`) : count ? t`Stop ${count}` : t`Stop`),
+        icon: start ? "play" : "stop",
+        onSelect: (rows) => {
+          const unique = new Map(
+            rows.flatMap((row) => {
+              const target = byId.get(row.id);
+              return target ? [[row.object.managedResourceId, target] as const] : [];
+            }),
+          );
+          const n = unique.size;
+          const summary = start
+            ? plural(n, { one: "Start # workload", other: "Start # workloads" })
+            : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
+          changeRunMany([...unique.values()], start, summary, () => {
+            selection.clear();
+            refresh();
+          });
+        },
+      },
+    );
+  const batch = combineBatchActions(runBatch(true), runBatch(false));
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;
@@ -772,50 +988,81 @@ export function DockerContainers({
         />
       ) : null}
       {list.length > 0 ? (
-        <Panel flush>
-          {compact ? (
-            <ul className="docker-card-list">
-              {list.map((row) => (
-                <li key={row.id} className="docker-card">
-                  <div className="docker-card-head">
-                    {name(row)}
-                    <ContainerStatus row={row.object} />
-                  </div>
-                  {fleet ? (
-                    <Link className="dw-link" to="/servers/$serverId/docker" params={{ serverId: row.serverId }}>
-                      {row.serverName}
-                    </Link>
-                  ) : null}
-                  <div className="docker-card-image">
-                    <ImageReference image={row.container?.image} />
-                  </div>
-                  <div className="docker-card-foot">
-                    <div>
-                      {measured(row)}
-                      {row.container?.ports.length ? (
-                        <ValuePreview values={row.container.ports.map(dockerPort)} />
-                      ) : null}
+        <section
+          aria-label={t`Container inventory`}
+          className={cx("list-select-region", selection.any && "has-selection")}
+          ref={selection.list}
+          tabIndex={-1}
+          onKeyDown={selection.onKeyDown}
+        >
+          <Panel flush>
+            {compact ? (
+              <ul className="docker-card-list">
+                {list.map((row) => (
+                  <li
+                    key={row.id}
+                    className={cx("docker-card list-select-card", selection.has(row.id) && "is-checked")}
+                    onContextMenu={(event) =>
+                      cardContextMenu(event, (at, el) => menu.open(row, at, el, rowActions(row)))
+                    }
+                  >
+                    <div className="docker-card-head">
+                      <SelectBox
+                        label={t`Select ${row.object.name}`}
+                        checked={selection.has(row.id)}
+                        onPick={(on, range) => selection.toggle(row.id, on, range)}
+                      />
+                      {name(row)}
+                      <ContainerStatus row={row.object} />
                     </div>
-                    {dots(row)}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Table
-              className="docker-table"
-              caption={t`Container inventory`}
-              rows={list}
-              rowKey="id"
-              onRowClick={open}
-              rowHasContextMenu={(row) => !!row.object.key}
-              onRowContextMenu={(row, at, element) => menu.open(row, at, element, rowActions(row))}
-              columns={columns}
-            />
-          )}
-        </Panel>
+                    {fleet ? (
+                      <Link className="dw-link" to="/servers/$serverId/docker" params={{ serverId: row.serverId }}>
+                        {row.serverName}
+                      </Link>
+                    ) : null}
+                    <div className="docker-card-image">
+                      <ImageReference image={row.container?.image} />
+                    </div>
+                    <div className="docker-card-foot">
+                      <div>
+                        {measured(row)}
+                        {row.container?.ports.length ? (
+                          <PublishedPorts ports={row.container.ports} address={address(row)} />
+                        ) : null}
+                      </div>
+                      {dots(row)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Table
+                className="docker-table"
+                caption={t`Container inventory`}
+                rows={list}
+                rowKey="id"
+                rowClassName={(row) => (selection.has(row.id) ? "is-checked" : "")}
+                onRowClick={open}
+                rowHasContextMenu={(row) => !!row.object.key}
+                onRowContextMenu={(row, at, element) => menu.open(row, at, element, rowActions(row))}
+                columns={[
+                  selectionColumn({
+                    selection,
+                    rows: list,
+                    idOf: (row) => row.id,
+                    labelOf: (row) => t`Select ${row.object.name}`,
+                    allLabel: t`Select all rows on this page`,
+                  }),
+                  ...columns,
+                ]}
+              />
+            )}
+          </Panel>
+          {menu.element}
+          <BatchBar count={selected.length} onClear={selection.clear} {...batch} />
+        </section>
       ) : null}
-      {menu.element}
+      {updatingApp ? <PrepareServiceUpdate service={updatingApp} onClose={() => setUpdatingApp(undefined)} /> : null}
       {pages.length > 1 || next ? (
         <nav className="docker-pager" aria-label={t`Container pages`}>
           <Button

@@ -289,7 +289,7 @@ export async function websitesFlow(page: Page, { origin, step, shoot }: Websites
 
   step("websites: each with what it sends to, what it is, its certificate and when it changed");
   await page.reload();
-  const row = (name: string) => page.getByRole("row", { name: new RegExp(`^${name.replaceAll(".", "\\.")}`) });
+  const row = (name: string) => page.getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) });
   await row("blog.example.net").getByText("https://backend.example.net/blog").waitFor();
   await row("blog.example.net").getByText("Valid").waitFor({ timeout: 15_000 });
   await row("blog.example.net").getByText("· 61 days left").waitFor();

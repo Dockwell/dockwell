@@ -52,6 +52,11 @@
   overflow-wrap: anywhere;
 }
 
+.docker-storage-mount-link {
+  display: block;
+  min-width: 0;
+}
+
 .docker-storage-mountpoint {
   display: flex;
   white-space: nowrap;

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { ChangeService, type TaskInfo, TaskKind } from "@dockwell/api";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { ChangeService, ChangeState, type TaskInfo, TaskKind, TaskService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -20,13 +22,29 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 
-import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { dateLocale } from "../../lib/format";
 import { useNow, useTimeWords } from "../../lib/time";
-import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
+import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
-import { ListPager, ListToolbar, sortableColumns, useListPlace, useRowMenu } from "../shell/ListTools";
+import {
+  BatchBar,
+  type BatchRefusal,
+  cardContextMenu,
+  combineBatchActions,
+  ListPager,
+  ListToolbar,
+  RowActions,
+  SelectBox,
+  selectionColumn,
+  sortableColumns,
+  useBatchAction,
+  useListPlace,
+  useRowMenu,
+  useRowSelection,
+} from "../shell/ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { TaskPanel } from "./TaskPanel";
@@ -35,6 +53,7 @@ import { lastRunOf, nameOf, nextRunOf, offline, runStatus, targetOf, tookOf, use
 import "./Tasks.css";
 import { useServicesNamed } from "../apps/useServices";
 import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { RefLink } from "../shell/RefLink";
 
 export interface TasksSearch extends ListSearch {
@@ -66,19 +85,31 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
   const context = useRowMenu<TaskInfo>();
   const [editing, setEditing] = useState<TaskInfo>();
   const choose = (task: TaskInfo) => onSearch({ ...search, task: task.id });
-  const actionsFor = (task: TaskInfo): MenuAction[] => [
-    { id: "open", label: t`Open`, onSelect: () => choose(task) },
-    {
-      id: "edit",
-      label: t`Edit`,
-      icon: "edit",
-      ...(!mayPlan.allowed && { disabled: true, off: mayPlan.reason }),
-      onSelect: () => setEditing(task),
-    },
-  ];
   const [making, setMaking] = useState(false);
-  // A task is a plan, which is a developer's: off, with why, for a viewer (ADR 0059).
-  const mayPlan = useMay()(ChangeService.method.proposeChange);
+  const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange);
+  const editsFor = (task: TaskInfo) =>
+    may(ChangeService.method.proposeChange, { environment: task.resource?.scope ?? "" });
+  const sheet = useChangeSheet();
+  const transport = useTransport();
+  const queries = useQueryClient();
+  const running = useRef(new Set<string>());
+  const [runFailure, setRunFailure] = useState<string>();
+  const runTask = async (task: TaskInfo, server: string) => {
+    const key = `${task.id}/${server}`;
+    if (running.current.has(key)) return;
+    running.current.add(key);
+    setRunFailure(undefined);
+    try {
+      await createClient(TaskService, transport).runTask({ id: task.id, server });
+      choose(task);
+      await queries.invalidateQueries();
+    } catch (error) {
+      setRunFailure(sentence(error));
+    } finally {
+      running.current.delete(key);
+    }
+  };
   // A task just made, to open once the list has it, where Run now is.
   const [made, setMade] = useState<{ name: string; scope: string }>();
   const tasks = query.data?.tasks ?? [];
@@ -105,6 +136,118 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
     },
   );
   const page = pagedRows(listed, place.page);
+  const selection = useRowSelection(
+    page.rows.map((task) => task.id),
+    mayPlan.allowed,
+  );
+  const selected = page.rows.filter((task) => selection.has(task.id));
+  const review = (targets: readonly TaskInfo[], action: "pause" | "resume" | "delete", onApplied?: () => void) => {
+    const n = targets.length;
+    const summary =
+      action === "delete"
+        ? plural(n, { one: "Delete # task", other: "Delete # tasks" })
+        : action === "pause"
+          ? plural(n, { one: "Pause # task", other: "Pause # tasks" })
+          : plural(n, { one: "Resume # task", other: "Resume # tasks" });
+    sheet.open({
+      kind: "propose",
+      summary,
+      edits: targets.map((task) => ({
+        resource: task.resource,
+        baseRevision: task.revision,
+        ...(action === "delete"
+          ? { delete: true }
+          : task.spec
+            ? { spec: { kind: { case: "task" as const, value: { ...task.spec, paused: action === "pause" } } } }
+            : {}),
+      })),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) onApplied?.();
+      },
+    });
+  };
+  const total = selected.length;
+  const batchAction = useBatchAction<TaskInfo>();
+  const editRefusal = (task: TaskInfo): BatchRefusal | undefined => {
+    if (!task.resource) return { reason: t`Task details are unavailable` };
+    const permission = editsFor(task);
+    return permission.allowed ? undefined : { permission };
+  };
+  const toggleBatch = (pause: boolean) =>
+    batchAction(
+      selected,
+      (task) => {
+        if (!task.spec || task.revision <= 0n) return { reason: t`Task details are unavailable` };
+        if (pause === task.spec.paused) return { reason: pause ? t`Already paused` : t`Already active` };
+        return editRefusal(task);
+      },
+      {
+        id: pause ? "pause" : "resume",
+        label: (count) => (pause ? (count ? t`Pause ${count}` : t`Pause`) : count ? t`Resume ${count}` : t`Resume`),
+        icon: pause ? "pause" : "play",
+        onSelect: (targets) => review(targets, pause ? "pause" : "resume", selection.clear),
+      },
+    );
+  const batch = combineBatchActions(
+    toggleBatch(true),
+    toggleBatch(false),
+    batchAction(selected, editRefusal, {
+      id: "delete",
+      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+      icon: "trash",
+      danger: true,
+      onSelect: (targets) => review(targets, "delete", selection.clear),
+    }),
+  );
+  const actionsFor = (task: TaskInfo): MenuAction[] => {
+    const where = { environment: task.resource?.scope ?? "" };
+    const canRun = may(TaskService.method.runTask, where);
+    const edit = editsFor(task);
+    const paused = task.spec?.paused;
+    return [
+      { id: "open", label: t`Open`, onSelect: () => choose(task) },
+      ...task.servers.map(
+        (server): MenuAction => ({
+          id: `run-${server.serverId}`,
+          label: task.servers.length === 1 ? t`Run now` : t`Run now on ${server.serverName}`,
+          icon: "play",
+          ...(canRun.allowed && offline(server) ? { off: t`This server is offline` } : canRun.off),
+          onSelect: () => void runTask(task, server.serverId),
+        }),
+      ),
+      { id: "edit", label: t`Edit`, icon: "edit", ...edit.off, onSelect: () => setEditing(task) },
+      ...(task.spec && task.resource && task.revision > 0n
+        ? [
+            {
+              id: paused ? "resume" : "pause",
+              label: paused ? t`Resume` : t`Pause`,
+              icon: paused ? ("play" as const) : ("pause" as const),
+              ...edit.off,
+              onSelect: () => review([task], paused ? "resume" : "pause"),
+            },
+          ]
+        : []),
+      ...(task.resource
+        ? [
+            {
+              id: "delete",
+              label: t`Delete`,
+              icon: "trash" as const,
+              danger: true,
+              ...edit.off,
+              onSelect: () => review([task], "delete"),
+            },
+          ]
+        : []),
+    ];
+  };
+  const rowActions = (task: TaskInfo) => (
+    <RowActions
+      label={t`Actions for ${nameOf(task)}`}
+      actions={actionsFor(task)}
+      quick={task.servers.length === 1 ? [`run-${task.servers[0]?.serverId}`] : []}
+    />
+  );
   const chosen = tasks.find((task) => task.id === search.task) ?? page.rows[0];
   const kinds = [...new Map(tasks.map((task) => [task.kind, words.kind(task)])).entries()];
   const servers = [...new Set(tasks.flatMap((task) => task.servers.map((s) => s.serverName)))];
@@ -205,8 +348,9 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
     {
       key: "actions",
       header: <span className="dw-sr">{t`Actions`}</span>,
-      width: 48,
-      render: (task) => <ActionMenu label={t`Actions for ${nameOf(task)}`} actions={actionsFor(task)} />,
+      width: 80,
+      align: "right",
+      render: rowActions,
     },
   ];
 
@@ -295,7 +439,13 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
       ) : (
         <div className="tasks-columns">
           <div className="tasks-main">
-            <section className="tasks-section" aria-labelledby="tasks-all">
+            <section
+              className={cx("tasks-section", selection.any && "has-selection")}
+              aria-labelledby="tasks-all"
+              ref={selection.list}
+              tabIndex={-1}
+              onKeyDown={selection.onKeyDown}
+            >
               <div className="tasks-section-head">
                 <h2 className="dw-text-heading" id="tasks-all">
                   <Trans>All tasks</Trans>
@@ -345,7 +495,25 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
                     const last = lastRunOf(task);
                     const at = nextRunOf(task);
                     return (
-                      <li key={task.id}>
+                      <li
+                        key={task.id}
+                        className={cx("list-select-card", selection.has(task.id) && "is-checked")}
+                        onContextMenu={(event) =>
+                          cardContextMenu(event, (at, row) =>
+                            context.open(task, at, row, {
+                              label: t`Actions for ${nameOf(task)}`,
+                              actions: actionsFor(task),
+                            }),
+                          )
+                        }
+                      >
+                        {selection.enabled ? (
+                          <SelectBox
+                            label={t`Select ${nameOf(task)}`}
+                            checked={selection.has(task.id)}
+                            onPick={(on, range) => selection.toggle(task.id, on, range)}
+                          />
+                        ) : null}
                         <button
                           type="button"
                           className="tasks-phone-row"
@@ -360,14 +528,28 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
                           </span>
                           {last ? <StatusBadge status={runStatus(last.state)} label={words.state(last.state)} /> : null}
                         </button>
-                        <ActionMenu label={t`Actions for ${nameOf(task)}`} actions={actionsFor(task)} />
+                        {rowActions(task)}
                       </li>
                     );
                   })}
                 </ul>
               ) : (
                 <Table<TaskInfo>
-                  columns={sortableColumns(columns, place, SORT_KEYS)}
+                  columns={[
+                    ...(selection.enabled
+                      ? [
+                          selectionColumn({
+                            selection,
+                            rows: page.rows,
+                            idOf: (task) => task.id,
+                            labelOf: (task) => t`Select ${nameOf(task)}`,
+                            allLabel: t`Select all rows on this page`,
+                          }),
+                        ]
+                      : []),
+                    ...sortableColumns(columns, place, SORT_KEYS),
+                  ]}
+                  rowClassName={(task) => (selection.has(task.id) ? "is-checked" : "")}
                   rows={page.rows}
                   rowKey="id"
                   selectedKey={chosen?.id}
@@ -381,7 +563,13 @@ export function TasksPage({ search, onSearch }: { search: TasksSearch; onSearch:
                   caption={t`Scheduled tasks`}
                 />
               )}
+              {runFailure ? (
+                <Callout tone="warning" title={t`Couldn't run the task`}>
+                  {runFailure}
+                </Callout>
+              ) : null}
               <ListPager page={page} onPage={place.setPage} />
+              <BatchBar count={total} onClear={selection.clear} {...batch} />
               {context.element}
             </section>
             <NextDay tasks={page.rows} chosen={chosen} now={now} />

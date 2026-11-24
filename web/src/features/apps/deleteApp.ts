@@ -1,25 +1,161 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
+  type CatalogInstall,
   CatalogService,
   type Change,
   ChangeService,
   ChangeState,
   type Domain,
+  DomainService,
+  PlanAction,
   type Resource,
+  type ResourceRef,
   ResourceService,
   type ServiceInfo,
 } from "@dockwell/api";
+import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useMay } from "../auth/may";
 import { type Opening, type PlanChoice, useChangeSheet } from "../changes/ChangeSheet";
-import { planDeletingProject, useResourcesIn, useResourceWords } from "../projects/contents";
+import {
+  deletingProjectEdit,
+  listResources,
+  planDeletingProject,
+  resourcesIn,
+  useResourcesIn,
+  useResourceWords,
+} from "../projects/contents";
 import { environmentOf, nameOf } from "./app";
 import { useAppDomains } from "./domains";
-import { usePlaces } from "./useServices";
+import { DEFAULT_PROJECT, usePlaces } from "./useServices";
+
+function projectLabel(project: Resource, installs: readonly CatalogInstall[] | undefined) {
+  const name = project.resource?.name || project.id;
+  return installs?.some((install) => install.projectId === project.id) ? name : project.displayName || name;
+}
+
+const appOrRoute = (kind: string | undefined) => kind === "service" || kind === "route";
+const refKey = ({ kind, scope, name }: Pick<ResourceRef, "kind" | "scope" | "name">) =>
+  JSON.stringify([kind, scope, name]);
+
+export function useDeleteApps() {
+  const { i18n, t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const mayProject = useMay()(ChangeService.method.proposeChange, { install: true });
+  return (apps: readonly ServiceInfo[], onApplied: () => void) => {
+    if (apps.length === 0) return;
+    const n = apps.length;
+    const summary = plural(n, { one: "Delete # app", other: "Delete # apps" });
+    const client = createClient(ChangeService, transport);
+    const onClose = (change: Change | undefined) => {
+      if (change?.state === ChangeState.APPLIED) onApplied();
+    };
+    sheet.open({
+      kind: "plan",
+      retryLabel: t`Review again`,
+      onClose,
+      make: async () => {
+        const [{ domains }, projects, environments, { installs }] = await Promise.all([
+          createClient(DomainService, transport).listDomains({}),
+          listResources(transport, { kind: "project" }),
+          listResources(transport, { kind: "environment" }),
+          createClient(CatalogService, transport).listCatalogInstalls({}),
+        ]);
+        const edits = apps.flatMap((app) => {
+          if (!app.resource) return [];
+          const { scope, name } = app.resource;
+          return [
+            ...domains
+              .filter((domain) => domain.environmentId === scope)
+              .flatMap((domain) => domain.routes)
+              .filter((route) => route.service === name)
+              .map((route) => ({ resource: { kind: "route", scope, name: route.name }, delete: true })),
+            { resource: app.resource, baseRevision: app.revision, delete: true },
+          ];
+        });
+        const deleting = new Set(edits.map((edit) => refKey(edit.resource)));
+        const touched = new Set(apps.map(environmentOf));
+        const possible = projects.filter(
+          (project) => projects.length > 1 && project.resource?.name !== DEFAULT_PROJECT,
+        );
+        const empty = (
+          await Promise.all(
+            possible.map(async (project) => {
+              const scopes = environments.filter((env) => env.resource?.scope === project.id).map((env) => env.id);
+              if (!scopes.some((scope) => touched.has(scope))) return undefined;
+              const contents = await resourcesIn(transport, [project.id, ...scopes]);
+              if (
+                contents.some(
+                  ({ resource }) => resource && appOrRoute(resource.kind) && !deleting.has(refKey(resource)),
+                )
+              )
+                return undefined;
+              return { project, scopes };
+            }),
+          )
+        ).filter((item) => item !== undefined);
+        if (empty.length === 0) return client.proposeChange({ summary, edits });
+
+        const labels = new Intl.ListFormat(i18n.locale, { type: "conjunction" }).format(
+          empty.map(({ project }) => projectLabel(project, installs)),
+        );
+        const projectCount = empty.length;
+        const label = plural(projectCount, {
+          one: "Also delete # project",
+          other: "Also delete # projects",
+        });
+        const covered = new Set(empty.flatMap(({ project, scopes }) => [project.id, ...scopes]));
+        const projectEdits = empty.map(({ project }) => ({
+          ...deletingProjectEdit(project),
+          baseRevision: project.revision,
+        }));
+        const make = async (on: boolean) => {
+          const result = await client.proposeChange({
+            summary,
+            edits: on ? [...edits, ...projectEdits] : edits,
+          });
+          // The server expands projects within the proposal. Catch an app or route added since the list read.
+          const change = result.change;
+          const steps = change?.plan?.resources ?? [];
+          const projectScopes = new Set(covered);
+          for (const { id, resource } of steps) {
+            if (resource?.kind === "environment" && covered.has(resource.scope)) projectScopes.add(id);
+          }
+          if (
+            on &&
+            change &&
+            steps.some(
+              ({ action, resource }) =>
+                action === PlanAction.DELETE &&
+                resource &&
+                projectScopes.has(resource.scope) &&
+                appOrRoute(resource.kind) &&
+                !deleting.has(refKey(resource)),
+            )
+          ) {
+            await client.discardChange({ id: change.id });
+            throw new Error(t`A project gained an app or domain. Nothing was deleted. Review again.`);
+          }
+          return result;
+        };
+        const choice = (on: boolean): PlanChoice => ({
+          label,
+          on,
+          ...(mayProject.allowed ? { description: labels } : { off: mayProject.reason }),
+          flip: () => ({ kind: "plan", make: () => make(!on), choice: choice(!on), onClose }),
+        });
+        const on = mayProject.allowed;
+        return { ...(await make(on)), choice: choice(on), ...(on ? {} : { notes: [labels] }) };
+      },
+    });
+  };
+}
 
 /** An app's project, as deleting the app sees it. */
 export interface AppProject {
@@ -94,21 +230,12 @@ export function useDeleteAppPlan(
     (r.resource?.kind === "route" && mine.has(r.resource.name)) ||
     alongside.some((a) => a.id === r.id);
   const left = (inside ?? []).filter((r) => !isMine(r));
-  const last =
-    project !== undefined &&
-    inside !== undefined &&
-    !left.some((r) => ["service", "route"].includes(r.resource?.kind ?? ""));
+  const last = project !== undefined && inside !== undefined && !left.some((r) => appOrRoute(r.resource?.kind));
   // A project itself is in no project, so deleting one is an admin's (ADR 0049).
   const mayProject = may(ChangeService.method.proposeChange, { install: true });
   const refused = mayProject.allowed ? undefined : mayProject.reason || undefined;
   // As Projects names it: an install by the name it was given, never its app's (#796).
-  const label = project
-    ? (installs.data?.installs.some((i) => i.projectId === project.id)
-        ? project.resource?.name
-        : project.displayName) ||
-      project.resource?.name ||
-      project.id
-    : "";
+  const label = project ? projectLabel(project, installs.data?.installs) : "";
   const leftWords = left.length > 0 ? words(left) : "";
 
   const onClose = (change: Change | undefined) => {

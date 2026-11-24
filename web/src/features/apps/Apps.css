@@ -908,8 +908,13 @@
   box-shadow: var(--focus-ring);
 }
 
-.apps-table .is-member td:first-child {
-  padding-left: calc(var(--space-4) + var(--space-5));
+.apps-table .is-member .apps-name-cell {
+  padding-inline-start: var(--space-5);
+}
+
+.apps-table .dw-table :is(th, td):has(> .list-select-box) {
+  padding-inline: 0;
+  text-align: center;
 }
 
 .apps-stack {
@@ -1574,6 +1579,10 @@
 
   .app-actionbar {
     margin-top: auto;
+  }
+
+  .app-actionbar .dw-btn {
+    padding-inline: var(--space-2);
   }
 }
 

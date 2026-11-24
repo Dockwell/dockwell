@@ -181,6 +181,7 @@ export function NewAppSheet({
   source,
   runtime,
   initialServer,
+  initialImage = "",
   initialAdvanced = false,
   initialCompose,
   fixedSource = false,
@@ -194,6 +195,7 @@ export function NewAppSheet({
   /** The language and version a runtime's card asked for, for a folder. */
   runtime?: { language: string; version?: string | undefined } | undefined;
   initialServer?: string | undefined;
+  initialImage?: string | undefined;
   initialAdvanced?: boolean | undefined;
   initialCompose?: { file: string; directory: string } | undefined;
   fixedSource?: boolean;
@@ -231,7 +233,7 @@ export function NewAppSheet({
   const [environment, setEnvironment] = useState("");
   const [chosenServers, setChosenServers] = useState<readonly string[]>(initialServer ? [initialServer] : []);
 
-  const [image, setImage] = useState<ImageForm>({ image: "", name: "", ports: [], env: [], mounts: [] });
+  const [image, setImage] = useState<ImageForm>({ image: initialImage, name: "", ports: [], env: [], mounts: [] });
   const [git, setGit] = useState<GitForm>(emptyGit);
   const [showBuild, setShowBuild] = useState(false);
   const [folder, setFolder] = useState<FolderForm>({

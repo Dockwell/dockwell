@@ -89,6 +89,7 @@ export function ActionMenu({
   icon = "more",
   className,
   text,
+  onOpen,
 }: {
   /** What the button is called for a screen reader, such as "Actions for git.example.com". */
   label: string;
@@ -96,6 +97,7 @@ export function ActionMenu({
   icon?: IconName;
   className?: string;
   text?: ReactNode;
+  onOpen?: (() => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLSpanElement>(null);
@@ -104,6 +106,7 @@ export function ActionMenu({
   // Where it opens, on the viewport, so a table's scrolling box doesn't cut it off (#798):
   // under the button, or over it where there's no room under it.
   const [at, setAt] = useState<CSSProperties>();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A live eligibility reason changes the menu height.
   useLayoutEffect(() => {
     if (!open) {
       setAt(undefined);
@@ -116,7 +119,7 @@ export function ActionMenu({
     const right = Math.max(gutter, Math.min(window.innerWidth - button.right, window.innerWidth - box.width - gutter));
     const below = button.bottom + 4 + box.height <= window.innerHeight || button.top - 4 - box.height < 0;
     setAt(below ? { top: button.bottom + 4, right } : { bottom: window.innerHeight - button.top + 4, right });
-  }, [open]);
+  }, [actions, open]);
   useEffect(() => {
     if (!open) return;
     root.current
@@ -180,7 +183,10 @@ export function ActionMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (!open) onOpen?.();
+          setOpen(!open);
+        }}
       >
         {text}
       </Button>

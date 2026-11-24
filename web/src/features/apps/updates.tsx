@@ -519,7 +519,7 @@ export function useMayUpdate(): (service: ServiceInfo) => Offer {
  * build of the newest commit for an app from Git; and the newest build of its
  * language's version for an app from a folder.
  */
-function useUpdateAction(service: ServiceInfo) {
+export function useUpdateAction(service: ServiceInfo) {
   const { t } = useLingui();
   const transport = useTransport();
   const sheet = useChangeSheet();
