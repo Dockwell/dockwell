@@ -729,9 +729,9 @@ jobs:
   e2e:
     name: Panel end to end
     runs-on: ubuntu-24.04
-    # About 14 minutes on 2026-11-07, and it grows with each flow, so this leaves room for a slow runner rather than
-    # cutting off a run that's still going.
-    timeout-minutes: 30
+    # About 14 minutes on 2026-11-07 and 28 to 30 on 2026-11-23, as it grows with each flow, so this leaves room for a
+    # slow runner rather than cutting off a run that's still going.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The steps after this one run only when this change needs this job,
