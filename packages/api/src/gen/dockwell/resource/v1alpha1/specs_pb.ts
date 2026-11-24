@@ -4681,8 +4681,8 @@ export type DnsProvider = Message<"dockwell.resource.v1alpha1.DnsProvider"> & {
 
   /**
    * Publishes for every project, including future projects. For unlisted
-   * projects, DNS-01 proof is limited to names their own routes publish here.
-   * Set only when projects is empty.
+   * projects, DNS-01 proof is limited to names their own routes publish here;
+   * the projects listed beside it may still prove any name in its zones.
    *
    * @generated from field: bool every_project = 9;
    */

@@ -39,4 +39,13 @@ func TestDomainFrontKeepsMainRouteSettings(t *testing.T) {
 	if got.PlainForAnyone {
 		t.Fatal("requesting a certificate should disable plain HTTP to anyone")
 	}
+	// Plain HTTP for anyone in front, then the way in moves behind a tunnel or
+	// Cloudflare's proxy: the server stops answering anyone directly (re-check N2).
+	front := website.Front{TLS: "off", PlainForAnyone: true}
+	for _, way := range []resourcev1.RouteWay{resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL, resourcev1.RouteWay_ROUTE_WAY_PROXY} {
+		got = domainFront(front, &dockwellv1.WebsiteDomainFront{Tls: "off", Publish: &resourcev1.RoutePublish{Way: way, Provider: "cloudflare"}})
+		if got.PlainForAnyone {
+			t.Fatalf("moving behind %s should close plain HTTP to anyone: %+v", way, got)
+		}
+	}
 }

@@ -171,9 +171,6 @@ func (Type) Validate(spec proto.Message) error {
 	}
 	slices.Sort(strict)
 	p.StrictZones = strict
-	if p.GetEveryProject() && len(p.GetProjects()) != 0 {
-		return errors.New("a DNS provider can reach every project or a list of projects. Leave projects empty to reach every project")
-	}
 	for _, id := range p.GetProjects() {
 		if !strings.HasPrefix(id, "prj_") {
 			return fmt.Errorf("%q isn't a project's ID. A DNS provider names the projects it proves names for by ID, such as prj_…", id)

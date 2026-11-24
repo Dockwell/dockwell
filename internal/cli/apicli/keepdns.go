@@ -12,7 +12,7 @@ import (
 )
 
 // keepEveryProject reads the provider this edit replaces and keeps its
-// every-project flag, unless the command explicitly set the flag. The revision
+// every-project flag, unless the command set the flag or named projects. The revision
 // prevents this read from overriding a concurrent change to reach.
 func (r *runner) keepEveryProject(ctx context.Context, edit *dockwellv1.Edit) error {
 	if err := r.connect(ctx); err != nil {
@@ -25,7 +25,11 @@ func (r *runner) keepEveryProject(ctx context.Context, edit *dockwellv1.Edit) er
 	}
 	for _, p := range res.Msg.GetProviders() {
 		if p.GetName() == edit.GetResource().GetName() {
-			edit.GetSpec().GetDnsProvider().EveryProject = p.GetEveryProject()
+			// An edit that names projects serves only those, unless it says
+			// --every-project too; one that names none keeps the reach it had.
+			if len(edit.GetSpec().GetDnsProvider().GetProjects()) == 0 {
+				edit.GetSpec().GetDnsProvider().EveryProject = p.GetEveryProject()
+			}
 			edit.BaseRevision = p.GetRevision()
 			break
 		}

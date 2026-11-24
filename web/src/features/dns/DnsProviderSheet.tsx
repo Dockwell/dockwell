@@ -106,7 +106,9 @@ export function DnsProviderSheet({
 
   const zones = picked ?? [];
   const writes = answer?.state === DnsProviderState.WRITES && !checking;
-  const namedProjects = everyProject ? [] : [...new Set(selected)].sort();
+  // Widening keeps the projects it named: they may still prove any name in its zones
+  // by DNS, which every project alone allows only for names their routes publish.
+  const namedProjects = everyProject ? [...new Set(editing?.projects ?? [])].sort() : [...new Set(selected)].sort();
   const reachChanged =
     editing !== undefined &&
     (everyProject !== editing.everyProject || namedProjects.join() !== [...new Set(editing.projects)].sort().join());

@@ -5163,7 +5163,7 @@ func Kinds() []*apicli.Kind {
 				{Path: "strict_zones", Help: "The zones an admin set to Full (strict) through Dockwell, so Cloudflare reaches every proxied name in them over HTTPS with a certificate it checks. A zone's mode changes how all its proxied names are reached, so it's set here, on its own plan, never as a side effect of one domain (ADR 0104)."},
 				{Path: "clear_tunnel_api_token", Help: "Takes the second token off, so the API token does tunnels again. An update that leaves tunnel_api_token out keeps it, so this says it goes. It's never stored, and comes with no tunnel_api_token (ADR 0104)."},
 				{Path: "put_back", Help: "Records made by hand that Dockwell keeps a copy of, by the ID the provider's info lists them with, to put back at Cloudflare in this change: a route that replaced one was removed, and the name held something else then. One whose name holds a record now isn't put back, and the plan says so; nothing is replaced. It takes an admin, as it writes someone's record, and it's never stored (ADR 0104)."},
-				{Path: "every_project", Help: "Publishes for every project, including future projects. For unlisted projects, DNS-01 proof is limited to names their own routes publish here. Set only when projects is empty."},
+				{Path: "every_project", Help: "Publishes for every project, including future projects. For unlisted projects, DNS-01 proof is limited to names their own routes publish here; the projects listed beside it may still prove any name in its zones."},
 			},
 		},
 		{

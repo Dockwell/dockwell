@@ -479,8 +479,13 @@ func domainFront(was website.Front, asked *dockwellv1.WebsiteDomainFront) websit
 	was.Publish = nil
 	if was.TLS == ingress.TLSOff {
 		was.Proof = ""
-		if asked.PlainForAnyone != nil {
+		switch {
+		case asked.PlainForAnyone != nil:
 			was.PlainForAnyone = asked.GetPlainForAnyone()
+		case asked.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_UNSPECIFIED && asked.GetPublish().GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT:
+			// Behind a tunnel or Cloudflare's proxy, plain HTTP stays closed to anyone
+			// at the server unless the person asks for it again.
+			was.PlainForAnyone = false
 		}
 	} else {
 		was.PlainForAnyone = false

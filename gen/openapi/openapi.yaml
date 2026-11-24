@@ -16304,8 +16304,8 @@ components:
                     type: boolean
                     description: |-
                         Publishes for every project, including future projects. For unlisted
-                         projects, DNS-01 proof is limited to names their own routes publish here.
-                         Set only when projects is empty.
+                         projects, DNS-01 proof is limited to names their own routes publish here;
+                         the projects listed beside it may still prove any name in its zones.
             description: |-
                 DnsProvider is what writes the records of one or more DNS zones through a DNS
                  provider's API, so the control plane can prove a name by DNS-01 and get its

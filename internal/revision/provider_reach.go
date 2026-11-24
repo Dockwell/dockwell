@@ -36,6 +36,18 @@ func (e *Engine) providerReachNotes(ctx context.Context, items []item) ([]Note, 
 					Message: provider + " serves every project from now on, including new ones. Their developers can publish names in " + zones + " and prove the names they publish there by DNS",
 				})
 			}
+			// A project it stops listing keeps publishing, but proves by DNS only the
+			// names its own routes publish here.
+			for _, project := range before.GetProjects() {
+				if slices.Contains(after.GetProjects(), project) {
+					continue
+				}
+				name := e.projectName(ctx, items, project)
+				out = append(out, Note{
+					Reason: "provider_stops_proving", Ref: it.ref, Names: []string{provider, name},
+					Message: name + " can prove by DNS through " + provider + " only the names its routes publish there from now on. Certificates for its other names in " + zones + " may stop renewing",
+				})
+			}
 			continue
 		case before.GetEveryProject():
 			out = append(out, Note{

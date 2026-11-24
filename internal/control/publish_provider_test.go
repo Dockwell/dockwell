@@ -688,5 +688,11 @@ func TestEveryProjectCanOnlyProveNamesItsRoutesPublish(t *testing.T) {
 		check("managed.example.com")
 		s.applied(t, propose(t, s.person, "Name this project again", s.provider(func(*resourcev1.DnsProvider) {})))
 		check("managed.example.com", "manual.example.com")
+		// Widening while the project stays listed, as the panel does, takes no proof
+		// away (re-check N1).
+		s.applied(t, propose(t, s.person, "Every project, keeping this one", s.provider(func(p *resourcev1.DnsProvider) {
+			p.EveryProject = true
+		})))
+		check("managed.example.com", "manual.example.com")
 	})
 }

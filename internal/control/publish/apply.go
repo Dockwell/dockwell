@@ -86,8 +86,16 @@ func (p *Publisher) apply(ctx context.Context, changeID string, route revision.P
 				return "", err
 			}
 		}
+	case resource.ProviderRestoreRule:
+		// Putting a hand rule back while a route publishes again holds it for the
+		// route, which is publishing, so it needs reach as any write does.
+		if s.Mode == backHold {
+			if err := p.checkReach(ctx, route, s.Provider); err != nil {
+				return "", err
+			}
+		}
 	case resource.ProviderDeleteRecord, resource.ProviderRestoreRecord, resource.ProviderRemoveRule,
-		resource.ProviderKeepRule, resource.ProviderSetZoneMode, resource.ProviderRestoreRule:
+		resource.ProviderKeepRule, resource.ProviderSetZoneMode:
 	}
 	switch s.Action {
 	case resource.ProviderCreateRecord, resource.ProviderRestoreRecord:
