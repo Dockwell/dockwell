@@ -471,9 +471,32 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go routes.Watch(ctx)
 	monitor := &health.Monitor{Client: client, Logger: logger}
 	go monitor.Run(ctx)
-	// Each sample carries what the containers it watches use, read from their cgroups (#797).
+	// Each sample carries what running containers use, read from their cgroups (#797):
+	// Dockwell's health monitor lists managed services, and DiscoverDockerCgroups adds
+	// unmanaged containers directly from cgroup v2 with no extra Docker call.
 	// A test reads none of the machine's: only the stand-ins under DOCKWELL_TEST_CGROUP.
-	collector.Containers = monitor.Running
+	collector.Containers = func() []string {
+		managed := monitor.Running()
+		discovered := collector.DiscoverDockerCgroups()
+		if len(discovered) == 0 {
+			return managed
+		}
+		if len(managed) == 0 {
+			return discovered
+		}
+		seen := make(map[string]struct{}, len(managed)+len(discovered))
+		out := make([]string, 0, len(managed)+len(discovered))
+		for _, id := range managed {
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+		for _, id := range discovered {
+			if _, ok := seen[id]; !ok {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
 	// One in neither of Docker's usual places is found from its own process (#852).
 	collector.ContainerPID = func(ctx context.Context, id string) (int, error) {
 		c, err := client.InspectContainer(ctx, id)

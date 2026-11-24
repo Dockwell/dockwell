@@ -100,6 +100,50 @@ func (p *processes) list(ctx context.Context) (*dockwellv1.ProcessList, error) {
 	return list, nil
 }
 
+// sockets reads live TCP and UDP sockets on the server, resolving owning
+// processes and containers within a bounded time and row limit.
+func (p *processes) sockets(ctx context.Context) (*dockwellv1.ListSocketsResponse, error) {
+	if p == nil {
+		return nil, errors.New("this agent can't list network sockets")
+	}
+	now := p.now()
+	names := p.containerNames(ctx, now)
+	users := map[string]map[uint32]string{}
+	byID := func(id string) *dockwellv1.ProcessContainer { return names[id] }
+	userIn := func(container string, pid, uid uint32) string {
+		known, ok := users[container]
+		if !ok {
+			known = containerUsersOf(pid)
+			users[container] = known
+		}
+		return known[uid]
+	}
+	return p.collector.Sockets(ctx, now, byID, userIn), nil
+}
+
+// detail reads one process's full secret-redacted command line, parent,
+// threads, state, container or unit, and open network sockets. It never reads
+// the process's environment.
+func (p *processes) detail(ctx context.Context, pid uint32, start uint64) (*dockwellv1.ProcessDetail, error) {
+	if p == nil {
+		return nil, errors.New("this agent can't read process details")
+	}
+	if pid == 0 || pid > maxPID {
+		return nil, fmt.Errorf("there's no PID %d: Linux gives PIDs from 1 to %d", pid, maxPID)
+	}
+	now := p.now()
+	names := p.containerNames(ctx, now)
+	byID := func(id string) *dockwellv1.ProcessContainer { return names[id] }
+	userIn := func(_ string, cpid, uid uint32) string {
+		return containerUsersOf(cpid)[uid]
+	}
+	d, ok := p.collector.ProcessDetail(ctx, now, pid, start, p.self, byID, userIn)
+	if !ok {
+		return nil, gone()
+	}
+	return d, nil
+}
+
 // containerNames is what Docker says of its containers, by full ID, read again
 // once it's older than containerNamesFor, with each one's restart policy. Without
 // Docker it's empty.

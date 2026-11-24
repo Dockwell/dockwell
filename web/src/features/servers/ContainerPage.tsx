@@ -15,6 +15,7 @@ import { LogsPage } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import type { LogsSearch } from "../logs/search";
 import { Page } from "../shell/Page";
+import { ContainerHistory } from "./ContainerHistory";
 import { useMadeWords } from "./ContainersPanel";
 import {
   labelFor,
@@ -117,7 +118,19 @@ export function ContainerPage({
             <p className="containers-note">{sentence(list.error)}</p>
           </Panel>
         ) : container ? (
-          <Facts container={container} />
+          <>
+            <Facts container={container} />
+            <ContainerHistory
+              serverId={serverId}
+              containerId={container.id}
+              createdAt={container.createTime}
+              stopped={
+                container.state !== ContainerState.UNSPECIFIED &&
+                container.state !== ContainerState.RUNNING &&
+                container.state !== ContainerState.PAUSED
+              }
+            />
+          </>
         ) : null}
         {container ? (
           <TakeItOn

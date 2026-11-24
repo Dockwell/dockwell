@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"io"
 	"io/fs"
 	"os"
@@ -36,9 +37,13 @@ const (
 // MaxProcesses is the most a list holds, busiest first. The rest are counted.
 const MaxProcesses = 1000
 
-// maxCommand bounds a command line, which can run to megabytes, so only its
-// start, twice this, is ever read.
+// maxCommand bounds a command line in the process list, which can run to
+// megabytes, so only its start, twice this, is ever read.
 const maxCommand = 512
+
+// maxDetailCommand bounds the full command line read for one process's detail
+// sheet. Secrets are redacted before the command leaves the server.
+const maxDetailCommand = 16 << 10
 
 // maxPasswd bounds what's read of an /etc/passwd, a container's included, which
 // whoever runs the container writes.
@@ -72,6 +77,8 @@ type process struct {
 	pid, ppid, tgid uint32
 	name, command   string
 	uid             uint32
+	threads         uint32
+	state           string
 	ticks, start    uint64
 	rss             uint64
 	containerID     string
@@ -121,12 +128,13 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 		byPID[p.pid] = p
 	}
 	g := guard{self: self, of: func(pid uint32) (process, bool) { p, ok := byPID[pid]; return p, ok }}
-	for _, p := range all {
+	for i := range all {
+		p := &all[i]
 		key := procKey{p.pid, p.start}
 		next.ticks[key] = p.ticks
 		out := &dockwellv1.Process{
 			Pid: p.pid, ParentPid: p.ppid, Name: p.name, Command: p.command, Uid: p.uid,
-			MemoryBytes: p.rss * pageSize, StartTicks: p.start, Unit: p.unit,
+			MemoryBytes: p.rss * pageSize, StartTicks: p.start, Unit: p.unit, Threads: p.threads,
 		}
 		if !boot.IsZero() {
 			out.StartTime = timestamppb.New(boot.Add(time.Duration(p.start) * time.Second / userHZ)) //nolint:gosec // ticks since boot fit
@@ -161,7 +169,7 @@ func (c *Collector) Processes(now time.Time, prev *ProcTimes, self int, containe
 				out.User = strconv.FormatUint(uint64(p.uid), 10)
 			}
 		}
-		out.Protected, out.Stops, out.ContainerMain = g.protected(p), stopsWith(p), g.containerMain(p)
+		out.Protected, out.Stops, out.ContainerMain = g.protected(*p), stopsWith(*p), g.containerMain(*p)
 		found = append(found, out)
 	}
 	slices.SortStableFunc(found, func(a, b *dockwellv1.Process) int {
@@ -227,6 +235,116 @@ func (c *Collector) ProcessStart(pid uint32) (uint64, bool) {
 		return 0, false
 	}
 	return p.start, true
+}
+
+// ProcessDetail reads detailed metadata for one process: its full
+// secret-redacted command line (up to maxDetailCommand), parent process name,
+// user, start time, threads, state, container or unit, guards, and open network
+// sockets. It never opens or reads /proc/<pid>/environ.
+// Returns (detail, found): found is false when the process has gone or its
+// start_ticks does not match.
+func (c *Collector) ProcessDetail(ctx context.Context, now time.Time, pid uint32, startTicks uint64, self int, container ContainerOf, userIn UserIn) (*dockwellv1.ProcessDetail, bool) {
+	dir, err := fs.Sub(c.Root, path.Join("proc", strconv.FormatUint(uint64(pid), 10)))
+	if err != nil {
+		return nil, false
+	}
+	p, ok := readProcessIn(dir, pid)
+	if !ok || p.kthread {
+		return nil, false
+	}
+	if startTicks != 0 && p.start != startTicks {
+		return nil, false
+	}
+	// Read the full command line up to maxDetailCommand+1 so we know if it was truncated.
+	rawCmd := readAtMost(dir, "cmdline", maxDetailCommand+1)
+	cmdTruncated := len(rawCmd) > maxDetailCommand
+	if cmdTruncated {
+		rawCmd = rawCmd[:maxDetailCommand]
+	}
+	args := redact(strings.Split(strings.TrimRight(string(rawCmd), "\x00"), "\x00"))
+	clear(rawCmd)
+	fullCmd := strings.TrimSpace(strings.Join(args, " "))
+	fullCmd = strings.ToValidUTF8(fullCmd, "")
+
+	pageSize := uint64(os.Getpagesize()) //nolint:gosec // page size is positive
+	g := guard{self: self, of: c.readProcess}
+	proc := &dockwellv1.Process{
+		Pid:           p.pid,
+		ParentPid:     p.ppid,
+		Name:          p.name,
+		Command:       p.command,
+		Uid:           p.uid,
+		MemoryBytes:   p.rss * pageSize,
+		StartTicks:    p.start,
+		Unit:          p.unit,
+		Threads:       p.threads,
+		Protected:     g.protected(p),
+		Stops:         stopsWith(p),
+		ContainerMain: g.containerMain(p),
+	}
+	if boot := c.bootTime(now); !boot.IsZero() {
+		proc.StartTime = timestamppb.New(boot.Add(time.Duration(p.start) * time.Second / userHZ)) //nolint:gosec // ticks since boot fit
+	}
+	if p.containerID != "" {
+		pc := &dockwellv1.ProcessContainer{Id: p.containerID}
+		if container != nil {
+			if known := container(p.containerID); known != nil {
+				pc = known
+			}
+		}
+		proc.Container = pc
+		if userIn != nil {
+			proc.User = userIn(p.containerID, p.pid, p.uid)
+		}
+	} else {
+		proc.User = parsePasswd(readAtMost(c.Root, "etc/passwd", maxPasswd))[p.uid]
+	}
+	if proc.User == "" {
+		proc.User = formatUID(p.uid)
+	}
+
+	parentName := ""
+	if p.ppid > 0 {
+		if parent, ok := c.readProcess(p.ppid); ok {
+			parentName = parent.name
+		}
+	}
+
+	sockets, socketsTotal, socketsTrunc := c.processSockets(ctx, pid)
+	return &dockwellv1.ProcessDetail{
+		Process:          proc,
+		FullCommand:      fullCmd,
+		CommandTruncated: cmdTruncated,
+		ParentName:       parentName,
+		Threads:          p.threads,
+		Sockets:          sockets,
+		SocketsTotal:     socketsTotal,
+		SocketsTruncated: socketsTrunc,
+		State:            p.state,
+	}, true
+}
+
+func procStateName(code string) string {
+	switch code {
+	case "R":
+		return "running"
+	case "S":
+		return "sleeping"
+	case "D":
+		return "disk sleep"
+	case "T":
+		return "stopped"
+	case "t":
+		return "traced"
+	case "Z":
+		return "zombie"
+	case "X", "x":
+		return "dead"
+	case "I":
+		return "idle"
+	default:
+		return code
+	}
 }
 
 // guard says which processes can't be ended, from what of looks up by PID.
@@ -348,10 +466,12 @@ func readProcessIn(dir fs.FS, pid uint32) (p process, ok bool) {
 		return v
 	}
 	p.pid, p.name = pid, string(stat[open+1:end])
+	p.state = procStateName(rest[0])
 	p.zombie = rest[0] == "Z"
 	p.ppid = uint32(field(4)) //nolint:gosec // PIDs fit in 32 bits
 	p.kthread = field(9)&pfKThread != 0 || pid == 2 || p.ppid == 2
 	p.ticks = field(14) + field(15)
+	p.threads = uint32(field(20)) //nolint:gosec // thread counts fit in 32 bits
 	p.start = field(22)
 	p.rss = field(24)
 	p.tgid = pid

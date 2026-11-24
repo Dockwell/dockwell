@@ -991,6 +991,21 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			return fail(err)
 		}
 		return &agentv1.CallResult{Result: &agentv1.CallResult_BanSshAddress{BanSshAddress: result}}
+	case call.GetListSockets() != nil:
+		res, err := c.cfg.procs.sockets(ctx)
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListSockets{ListSockets: &agentv1.ListSocketsResult{
+			Time: res.GetTime(), Connections: res.GetConnections(), Total: res.GetTotal(), Truncated: res.GetTruncated(),
+		}}}
+	case call.GetProcessDetail() != nil:
+		ask := call.GetProcessDetail()
+		detail, err := c.cfg.procs.detail(ctx, ask.GetPid(), ask.GetStartTicks())
+		if err != nil {
+			return fail(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ProcessDetail{ProcessDetail: &agentv1.ProcessDetailResult{Detail: detail}}}
 	case call.GetSsh() != nil:
 		read, err := c.cfg.ssh.read(ctx)
 		if err != nil {

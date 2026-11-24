@@ -237,6 +237,8 @@ type Process struct {
 	// True for the process its container runs, which the container's restart
 	// policy starts again. Another process in a container stops for good.
 	ContainerMain bool `protobuf:"varint,15,opt,name=container_main,json=containerMain,proto3" json:"container_main,omitempty"`
+	// Number of threads in this process, as /proc/<pid>/stat reports it.
+	Threads       uint32 `protobuf:"varint,16,opt,name=threads,proto3" json:"threads,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -374,6 +376,13 @@ func (x *Process) GetContainerMain() bool {
 		return x.ContainerMain
 	}
 	return false
+}
+
+func (x *Process) GetThreads() uint32 {
+	if x != nil {
+		return x.Threads
+	}
+	return 0
 }
 
 // ProcessContainer is the container a process runs in.
@@ -581,6 +590,499 @@ func (x *EndProcessResponse) GetKilled() bool {
 	return false
 }
 
+// ListSocketsRequest names a server whose live sockets to list.
+type ListSocketsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID.
+	ServerId      string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSocketsRequest) Reset() {
+	*x = ListSocketsRequest{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSocketsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSocketsRequest) ProtoMessage() {}
+
+func (x *ListSocketsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSocketsRequest.ProtoReflect.Descriptor instead.
+func (*ListSocketsRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ListSocketsRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+// ListSocketsResponse returns the live network sockets on a server.
+type ListSocketsResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// When the agent read the socket tables, on the server's clock.
+	Time *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
+	// The sockets, LISTEN and ESTABLISHED first, bounded at 1,000 rows.
+	Connections []*SocketConnection `protobuf:"bytes,2,rep,name=connections,proto3" json:"connections,omitempty"`
+	// Total number of sockets seen in /proc/net before bounding.
+	Total uint32 `protobuf:"varint,3,opt,name=total,proto3" json:"total,omitempty"`
+	// True when more sockets existed than the response cap or time budget allowed.
+	Truncated     bool `protobuf:"varint,4,opt,name=truncated,proto3" json:"truncated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSocketsResponse) Reset() {
+	*x = ListSocketsResponse{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSocketsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSocketsResponse) ProtoMessage() {}
+
+func (x *ListSocketsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSocketsResponse.ProtoReflect.Descriptor instead.
+func (*ListSocketsResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ListSocketsResponse) GetTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Time
+	}
+	return nil
+}
+
+func (x *ListSocketsResponse) GetConnections() []*SocketConnection {
+	if x != nil {
+		return x.Connections
+	}
+	return nil
+}
+
+func (x *ListSocketsResponse) GetTotal() uint32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListSocketsResponse) GetTruncated() bool {
+	if x != nil {
+		return x.Truncated
+	}
+	return false
+}
+
+// SocketConnection is one live TCP or UDP socket on a server.
+type SocketConnection struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Protocol: "tcp", "tcp6", "udp" or "udp6".
+	Protocol string `protobuf:"bytes,1,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// Local IP address, such as "0.0.0.0", "127.0.0.1" or "::".
+	LocalAddress string `protobuf:"bytes,2,opt,name=local_address,json=localAddress,proto3" json:"local_address,omitempty"`
+	// Local port number.
+	LocalPort uint32 `protobuf:"varint,3,opt,name=local_port,json=localPort,proto3" json:"local_port,omitempty"`
+	// Remote IP address, or "0.0.0.0" / "::" for listening or unconnected sockets.
+	RemoteAddress string `protobuf:"bytes,4,opt,name=remote_address,json=remoteAddress,proto3" json:"remote_address,omitempty"`
+	// Remote port number, or 0 for listening or unconnected sockets.
+	RemotePort uint32 `protobuf:"varint,5,opt,name=remote_port,json=remotePort,proto3" json:"remote_port,omitempty"`
+	// Kernel socket state, such as "LISTEN", "ESTABLISHED", "TIME_WAIT" or "UNCONN".
+	State string `protobuf:"bytes,6,opt,name=state,proto3" json:"state,omitempty"`
+	// Owning process ID, or 0 when the kernel owns it or no process matched.
+	Pid uint32 `protobuf:"varint,7,opt,name=pid,proto3" json:"pid,omitempty"`
+	// Owning process's start ticks, for opening detail or matching the process list.
+	StartTicks uint64 `protobuf:"varint,8,opt,name=start_ticks,json=startTicks,proto3" json:"start_ticks,omitempty"`
+	// Owning process's kernel name, such as "nginx" or "sshd".
+	ProcessName string `protobuf:"bytes,9,opt,name=process_name,json=processName,proto3" json:"process_name,omitempty"`
+	// Owning user name, as the container or server knows it.
+	User string `protobuf:"bytes,10,opt,name=user,proto3" json:"user,omitempty"`
+	// Container the owning process runs in, if any.
+	Container *ProcessContainer `protobuf:"bytes,11,opt,name=container,proto3" json:"container,omitempty"`
+	// Systemd unit the owning process runs under, if any.
+	Unit          string `protobuf:"bytes,12,opt,name=unit,proto3" json:"unit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SocketConnection) Reset() {
+	*x = SocketConnection{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SocketConnection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SocketConnection) ProtoMessage() {}
+
+func (x *SocketConnection) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SocketConnection.ProtoReflect.Descriptor instead.
+func (*SocketConnection) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SocketConnection) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetLocalAddress() string {
+	if x != nil {
+		return x.LocalAddress
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetLocalPort() uint32 {
+	if x != nil {
+		return x.LocalPort
+	}
+	return 0
+}
+
+func (x *SocketConnection) GetRemoteAddress() string {
+	if x != nil {
+		return x.RemoteAddress
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetRemotePort() uint32 {
+	if x != nil {
+		return x.RemotePort
+	}
+	return 0
+}
+
+func (x *SocketConnection) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetPid() uint32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *SocketConnection) GetStartTicks() uint64 {
+	if x != nil {
+		return x.StartTicks
+	}
+	return 0
+}
+
+func (x *SocketConnection) GetProcessName() string {
+	if x != nil {
+		return x.ProcessName
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
+func (x *SocketConnection) GetContainer() *ProcessContainer {
+	if x != nil {
+		return x.Container
+	}
+	return nil
+}
+
+func (x *SocketConnection) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+// GetProcessRequest names one process on a server.
+type GetProcessRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The server's ID.
+	ServerId string `protobuf:"bytes,1,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// The process ID, 1 to 4194304.
+	Pid uint32 `protobuf:"varint,2,opt,name=pid,proto3" json:"pid,omitempty"`
+	// Optional start_ticks to confirm this is the same process instance.
+	StartTicks    uint64 `protobuf:"varint,3,opt,name=start_ticks,json=startTicks,proto3" json:"start_ticks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProcessRequest) Reset() {
+	*x = GetProcessRequest{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProcessRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProcessRequest) ProtoMessage() {}
+
+func (x *GetProcessRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProcessRequest.ProtoReflect.Descriptor instead.
+func (*GetProcessRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetProcessRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *GetProcessRequest) GetPid() uint32 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *GetProcessRequest) GetStartTicks() uint64 {
+	if x != nil {
+		return x.StartTicks
+	}
+	return 0
+}
+
+// GetProcessResponse returns detailed metadata for one process.
+type GetProcessResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The process detail.
+	Process       *ProcessDetail `protobuf:"bytes,1,opt,name=process,proto3" json:"process,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetProcessResponse) Reset() {
+	*x = GetProcessResponse{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetProcessResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetProcessResponse) ProtoMessage() {}
+
+func (x *GetProcessResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetProcessResponse.ProtoReflect.Descriptor instead.
+func (*GetProcessResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetProcessResponse) GetProcess() *ProcessDetail {
+	if x != nil {
+		return x.Process
+	}
+	return nil
+}
+
+// ProcessDetail is detailed metadata for one running process, without its
+// environment and with secrets redacted from its command line.
+type ProcessDetail struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The core process fields (PID, parent, user, memory, container, unit, guards).
+	Process *Process `protobuf:"bytes,1,opt,name=process,proto3" json:"process,omitempty"`
+	// Full secret-redacted command line, up to 16 KiB.
+	FullCommand string `protobuf:"bytes,2,opt,name=full_command,json=fullCommand,proto3" json:"full_command,omitempty"`
+	// True when the kernel's cmdline exceeded the 16 KiB read cap.
+	CommandTruncated bool `protobuf:"varint,3,opt,name=command_truncated,json=commandTruncated,proto3" json:"command_truncated,omitempty"`
+	// Kernel name of the parent process, if readable.
+	ParentName string `protobuf:"bytes,4,opt,name=parent_name,json=parentName,proto3" json:"parent_name,omitempty"`
+	// Number of threads in the process.
+	Threads uint32 `protobuf:"varint,5,opt,name=threads,proto3" json:"threads,omitempty"`
+	// Open TCP/UDP network sockets held by this process, up to 256.
+	Sockets []*SocketConnection `protobuf:"bytes,6,rep,name=sockets,proto3" json:"sockets,omitempty"`
+	// Total open sockets held by this process.
+	SocketsTotal uint32 `protobuf:"varint,7,opt,name=sockets_total,json=socketsTotal,proto3" json:"sockets_total,omitempty"`
+	// True when the process holds more sockets than returned.
+	SocketsTruncated bool `protobuf:"varint,8,opt,name=sockets_truncated,json=socketsTruncated,proto3" json:"sockets_truncated,omitempty"`
+	// Kernel process state in plain words, such as "running", "sleeping", "stopped" or "zombie".
+	State         string `protobuf:"bytes,9,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProcessDetail) Reset() {
+	*x = ProcessDetail{}
+	mi := &file_dockwell_v1_process_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProcessDetail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProcessDetail) ProtoMessage() {}
+
+func (x *ProcessDetail) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_process_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProcessDetail.ProtoReflect.Descriptor instead.
+func (*ProcessDetail) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_process_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ProcessDetail) GetProcess() *Process {
+	if x != nil {
+		return x.Process
+	}
+	return nil
+}
+
+func (x *ProcessDetail) GetFullCommand() string {
+	if x != nil {
+		return x.FullCommand
+	}
+	return ""
+}
+
+func (x *ProcessDetail) GetCommandTruncated() bool {
+	if x != nil {
+		return x.CommandTruncated
+	}
+	return false
+}
+
+func (x *ProcessDetail) GetParentName() string {
+	if x != nil {
+		return x.ParentName
+	}
+	return ""
+}
+
+func (x *ProcessDetail) GetThreads() uint32 {
+	if x != nil {
+		return x.Threads
+	}
+	return 0
+}
+
+func (x *ProcessDetail) GetSockets() []*SocketConnection {
+	if x != nil {
+		return x.Sockets
+	}
+	return nil
+}
+
+func (x *ProcessDetail) GetSocketsTotal() uint32 {
+	if x != nil {
+		return x.SocketsTotal
+	}
+	return 0
+}
+
+func (x *ProcessDetail) GetSocketsTruncated() bool {
+	if x != nil {
+		return x.SocketsTruncated
+	}
+	return false
+}
+
+func (x *ProcessDetail) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
 var File_dockwell_v1_process_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_process_proto_rawDesc = "" +
@@ -595,7 +1097,7 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"\tprocesses\x18\x02 \x03(\v2\x14.dockwell.v1.ProcessR\tprocesses\x12\x14\n" +
 	"\x05total\x18\x03 \x01(\rR\x05total\x128\n" +
 	"\n" +
-	"cpu_window\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\tcpuWindow\"\xda\x03\n" +
+	"cpu_window\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\tcpuWindow\"\xf4\x03\n" +
 	"\aProcess\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\rR\x03pid\x12\x1d\n" +
 	"\n" +
@@ -616,7 +1118,8 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"\x04unit\x18\f \x01(\tR\x04unit\x12\x1c\n" +
 	"\tprotected\x18\r \x01(\tR\tprotected\x12\x14\n" +
 	"\x05stops\x18\x0e \x01(\tR\x05stops\x12%\n" +
-	"\x0econtainer_main\x18\x0f \x01(\bR\rcontainerMain\"\xaf\x01\n" +
+	"\x0econtainer_main\x18\x0f \x01(\bR\rcontainerMain\x12\x18\n" +
+	"\athreads\x18\x10 \x01(\rR\athreads\"\xaf\x01\n" +
 	"\x10ProcessContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +
@@ -630,12 +1133,59 @@ const file_dockwell_v1_process_proto_rawDesc = "" +
 	"startTicks\x12\x14\n" +
 	"\x05proof\x18\x04 \x01(\tR\x05proof\",\n" +
 	"\x12EndProcessResponse\x12\x16\n" +
-	"\x06killed\x18\x01 \x01(\bR\x06killed2\xb3\x02\n" +
+	"\x06killed\x18\x01 \x01(\bR\x06killed\"1\n" +
+	"\x12ListSocketsRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\"\xba\x01\n" +
+	"\x13ListSocketsResponse\x12.\n" +
+	"\x04time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04time\x12?\n" +
+	"\vconnections\x18\x02 \x03(\v2\x1d.dockwell.v1.SocketConnectionR\vconnections\x12\x14\n" +
+	"\x05total\x18\x03 \x01(\rR\x05total\x12\x1c\n" +
+	"\ttruncated\x18\x04 \x01(\bR\ttruncated\"\x8b\x03\n" +
+	"\x10SocketConnection\x12\x1a\n" +
+	"\bprotocol\x18\x01 \x01(\tR\bprotocol\x12#\n" +
+	"\rlocal_address\x18\x02 \x01(\tR\flocalAddress\x12\x1d\n" +
+	"\n" +
+	"local_port\x18\x03 \x01(\rR\tlocalPort\x12%\n" +
+	"\x0eremote_address\x18\x04 \x01(\tR\rremoteAddress\x12\x1f\n" +
+	"\vremote_port\x18\x05 \x01(\rR\n" +
+	"remotePort\x12\x14\n" +
+	"\x05state\x18\x06 \x01(\tR\x05state\x12\x10\n" +
+	"\x03pid\x18\a \x01(\rR\x03pid\x12\x1f\n" +
+	"\vstart_ticks\x18\b \x01(\x04R\n" +
+	"startTicks\x12!\n" +
+	"\fprocess_name\x18\t \x01(\tR\vprocessName\x12\x12\n" +
+	"\x04user\x18\n" +
+	" \x01(\tR\x04user\x12;\n" +
+	"\tcontainer\x18\v \x01(\v2\x1d.dockwell.v1.ProcessContainerR\tcontainer\x12\x12\n" +
+	"\x04unit\x18\f \x01(\tR\x04unit\"c\n" +
+	"\x11GetProcessRequest\x12\x1b\n" +
+	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x10\n" +
+	"\x03pid\x18\x02 \x01(\rR\x03pid\x12\x1f\n" +
+	"\vstart_ticks\x18\x03 \x01(\x04R\n" +
+	"startTicks\"J\n" +
+	"\x12GetProcessResponse\x124\n" +
+	"\aprocess\x18\x01 \x01(\v2\x1a.dockwell.v1.ProcessDetailR\aprocess\"\xeb\x02\n" +
+	"\rProcessDetail\x12.\n" +
+	"\aprocess\x18\x01 \x01(\v2\x14.dockwell.v1.ProcessR\aprocess\x12!\n" +
+	"\ffull_command\x18\x02 \x01(\tR\vfullCommand\x12+\n" +
+	"\x11command_truncated\x18\x03 \x01(\bR\x10commandTruncated\x12\x1f\n" +
+	"\vparent_name\x18\x04 \x01(\tR\n" +
+	"parentName\x12\x18\n" +
+	"\athreads\x18\x05 \x01(\rR\athreads\x127\n" +
+	"\asockets\x18\x06 \x03(\v2\x1d.dockwell.v1.SocketConnectionR\asockets\x12#\n" +
+	"\rsockets_total\x18\a \x01(\rR\fsocketsTotal\x12+\n" +
+	"\x11sockets_truncated\x18\b \x01(\bR\x10socketsTruncated\x12\x14\n" +
+	"\x05state\x18\t \x01(\tR\x05state2\x8a\x05\n" +
 	"\x0eProcessService\x12q\n" +
 	"\x0eWatchProcesses\x12\".dockwell.v1.WatchProcessesRequest\x1a#.dockwell.v1.WatchProcessesResponse\"\x14\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x060\x01\x12\xad\x01\n" +
 	"\n" +
 	"EndProcess\x12\x1e.dockwell.v1.EndProcessRequest\x1a\x1f.dockwell.v1.EndProcessResponse\"^\xa0\xbb\x18\x04\xaa\xbb\x18\x10\n" +
-	"\tprocesses\x12\x03end\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x020:\x01*\"+/v1/servers/{server_id}/processes/{pid}:endB\xa5\x01\n" +
+	"\tprocesses\x12\x03end\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x020:\x01*\"+/v1/servers/{server_id}/processes/{pid}:end\x12\xa8\x01\n" +
+	"\vListSockets\x12\x1f.dockwell.v1.ListSocketsRequest\x1a .dockwell.v1.ListSocketsResponse\"V\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
+	"\tprocesses\x12\asockets\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02!\x12\x1f/v1/servers/{server_id}/sockets\x90\x02\x01\x12\xa9\x01\n" +
+	"\n" +
+	"GetProcess\x12\x1e.dockwell.v1.GetProcessRequest\x1a\x1f.dockwell.v1.GetProcessResponse\"Z\xa0\xbb\x18\x01\xaa\xbb\x18\x10\n" +
+	"\tprocesses\x12\x03get\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02)\x12'/v1/servers/{server_id}/processes/{pid}\x90\x02\x01B\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fProcessProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -650,7 +1200,7 @@ func file_dockwell_v1_process_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_process_proto_rawDescData
 }
 
-var file_dockwell_v1_process_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_dockwell_v1_process_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_dockwell_v1_process_proto_goTypes = []any{
 	(*WatchProcessesRequest)(nil),  // 0: dockwell.v1.WatchProcessesRequest
 	(*WatchProcessesResponse)(nil), // 1: dockwell.v1.WatchProcessesResponse
@@ -659,25 +1209,41 @@ var file_dockwell_v1_process_proto_goTypes = []any{
 	(*ProcessContainer)(nil),       // 4: dockwell.v1.ProcessContainer
 	(*EndProcessRequest)(nil),      // 5: dockwell.v1.EndProcessRequest
 	(*EndProcessResponse)(nil),     // 6: dockwell.v1.EndProcessResponse
-	(*timestamppb.Timestamp)(nil),  // 7: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),    // 8: google.protobuf.Duration
+	(*ListSocketsRequest)(nil),     // 7: dockwell.v1.ListSocketsRequest
+	(*ListSocketsResponse)(nil),    // 8: dockwell.v1.ListSocketsResponse
+	(*SocketConnection)(nil),       // 9: dockwell.v1.SocketConnection
+	(*GetProcessRequest)(nil),      // 10: dockwell.v1.GetProcessRequest
+	(*GetProcessResponse)(nil),     // 11: dockwell.v1.GetProcessResponse
+	(*ProcessDetail)(nil),          // 12: dockwell.v1.ProcessDetail
+	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),    // 14: google.protobuf.Duration
 }
 var file_dockwell_v1_process_proto_depIdxs = []int32{
-	2, // 0: dockwell.v1.WatchProcessesResponse.processes:type_name -> dockwell.v1.ProcessList
-	7, // 1: dockwell.v1.ProcessList.time:type_name -> google.protobuf.Timestamp
-	3, // 2: dockwell.v1.ProcessList.processes:type_name -> dockwell.v1.Process
-	8, // 3: dockwell.v1.ProcessList.cpu_window:type_name -> google.protobuf.Duration
-	7, // 4: dockwell.v1.Process.start_time:type_name -> google.protobuf.Timestamp
-	4, // 5: dockwell.v1.Process.container:type_name -> dockwell.v1.ProcessContainer
-	0, // 6: dockwell.v1.ProcessService.WatchProcesses:input_type -> dockwell.v1.WatchProcessesRequest
-	5, // 7: dockwell.v1.ProcessService.EndProcess:input_type -> dockwell.v1.EndProcessRequest
-	1, // 8: dockwell.v1.ProcessService.WatchProcesses:output_type -> dockwell.v1.WatchProcessesResponse
-	6, // 9: dockwell.v1.ProcessService.EndProcess:output_type -> dockwell.v1.EndProcessResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	2,  // 0: dockwell.v1.WatchProcessesResponse.processes:type_name -> dockwell.v1.ProcessList
+	13, // 1: dockwell.v1.ProcessList.time:type_name -> google.protobuf.Timestamp
+	3,  // 2: dockwell.v1.ProcessList.processes:type_name -> dockwell.v1.Process
+	14, // 3: dockwell.v1.ProcessList.cpu_window:type_name -> google.protobuf.Duration
+	13, // 4: dockwell.v1.Process.start_time:type_name -> google.protobuf.Timestamp
+	4,  // 5: dockwell.v1.Process.container:type_name -> dockwell.v1.ProcessContainer
+	13, // 6: dockwell.v1.ListSocketsResponse.time:type_name -> google.protobuf.Timestamp
+	9,  // 7: dockwell.v1.ListSocketsResponse.connections:type_name -> dockwell.v1.SocketConnection
+	4,  // 8: dockwell.v1.SocketConnection.container:type_name -> dockwell.v1.ProcessContainer
+	12, // 9: dockwell.v1.GetProcessResponse.process:type_name -> dockwell.v1.ProcessDetail
+	3,  // 10: dockwell.v1.ProcessDetail.process:type_name -> dockwell.v1.Process
+	9,  // 11: dockwell.v1.ProcessDetail.sockets:type_name -> dockwell.v1.SocketConnection
+	0,  // 12: dockwell.v1.ProcessService.WatchProcesses:input_type -> dockwell.v1.WatchProcessesRequest
+	5,  // 13: dockwell.v1.ProcessService.EndProcess:input_type -> dockwell.v1.EndProcessRequest
+	7,  // 14: dockwell.v1.ProcessService.ListSockets:input_type -> dockwell.v1.ListSocketsRequest
+	10, // 15: dockwell.v1.ProcessService.GetProcess:input_type -> dockwell.v1.GetProcessRequest
+	1,  // 16: dockwell.v1.ProcessService.WatchProcesses:output_type -> dockwell.v1.WatchProcessesResponse
+	6,  // 17: dockwell.v1.ProcessService.EndProcess:output_type -> dockwell.v1.EndProcessResponse
+	8,  // 18: dockwell.v1.ProcessService.ListSockets:output_type -> dockwell.v1.ListSocketsResponse
+	11, // 19: dockwell.v1.ProcessService.GetProcess:output_type -> dockwell.v1.GetProcessResponse
+	16, // [16:20] is the sub-list for method output_type
+	12, // [12:16] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_process_proto_init() }
@@ -692,7 +1258,7 @@ func file_dockwell_v1_process_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_process_proto_rawDesc), len(file_dockwell_v1_process_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

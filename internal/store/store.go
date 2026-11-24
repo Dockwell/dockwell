@@ -28,6 +28,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -52,6 +53,9 @@ type DB struct {
 	recorded signal
 	// opener opens a sealed spec for what reads one directly (Tx.Open).
 	opener atomic.Pointer[Opener]
+	// badChunks tracks unreadable history chunks already logged on this store.
+	badChunksMu sync.Mutex
+	badChunks   map[chunkKey]struct{}
 }
 
 // Opener opens a stored spec that may be sealed, as the control plane's keeper
@@ -320,6 +324,7 @@ func (db *DB) Close() error {
 type Tx struct {
 	tx      *sql.Tx
 	dialect *dialect
+	db      *DB
 	// recorded is set once a write records an audit event; nil in a read.
 	recorded *bool
 	// opener is the DB's, when it has one.
@@ -385,7 +390,7 @@ func (db *DB) View(ctx context.Context, fn func(*Tx) error) error {
 		return fmt.Errorf("can't begin a read: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	return fn(&Tx{tx: tx, dialect: db.dialect, opener: db.openerNow()})
+	return fn(&Tx{tx: tx, dialect: db.dialect, db: db, opener: db.openerNow()})
 }
 
 // Update runs fn in a write transaction and commits it if fn returns nil.
@@ -400,7 +405,7 @@ func (db *DB) Update(ctx context.Context, fn func(*Tx) error) error {
 func (db *DB) writeTx(ctx context.Context, fn func(*Tx) error) error {
 	var recorded bool
 	err := db.update(ctx, func(tx *sql.Tx) error {
-		return fn(&Tx{tx: tx, dialect: db.dialect, recorded: &recorded, opener: db.openerNow()})
+		return fn(&Tx{tx: tx, dialect: db.dialect, db: db, recorded: &recorded, opener: db.openerNow()})
 	})
 	if err == nil && recorded {
 		db.recorded.fire()

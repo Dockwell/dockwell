@@ -57,6 +57,42 @@ service ProcessService {
       body: "*"
     };
   }
+
+  // ListSockets reads live network sockets on a server (TCP and UDP, IPv4
+  // and IPv6), as ss -tunap shows them, with each socket's protocol, local and
+  // remote address, state, and owning process or container. Admin and session
+  // only, like WatchProcesses.
+  rpc ListSockets(ListSocketsRequest) returns (ListSocketsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "processes"
+      verb: "sockets"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/sockets"};
+  }
+
+  // GetProcess reads detail for one running process on a server: its full
+  // secret-redacted command line, parent, user, start time, threads, open
+  // network sockets, and container or service. Environment variables are never
+  // read or returned. Admin and session only, like WatchProcesses.
+  rpc GetProcess(GetProcessRequest) returns (GetProcessResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "processes"
+      verb: "get"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/processes/{pid}"};
+  }
 }
 
 // WatchProcessesRequest names a server.
@@ -128,6 +164,8 @@ message Process {
   // True for the process its container runs, which the container's restart
   // policy starts again. Another process in a container stops for good.
   bool container_main = 15;
+  // Number of threads in this process, as /proc/<pid>/stat reports it.
+  uint32 threads = 16;
 }
 
 // ProcessContainer is the container a process runs in.
@@ -164,4 +202,89 @@ message EndProcessRequest {
 message EndProcessResponse {
   // True when it took SIGKILL, as SIGTERM didn't end it within 10 s.
   bool killed = 1;
+}
+
+// ListSocketsRequest names a server whose live sockets to list.
+message ListSocketsRequest {
+  // The server's ID.
+  string server_id = 1;
+}
+
+// ListSocketsResponse returns the live network sockets on a server.
+message ListSocketsResponse {
+  // When the agent read the socket tables, on the server's clock.
+  google.protobuf.Timestamp time = 1;
+  // The sockets, LISTEN and ESTABLISHED first, bounded at 1,000 rows.
+  repeated SocketConnection connections = 2;
+  // Total number of sockets seen in /proc/net before bounding.
+  uint32 total = 3;
+  // True when more sockets existed than the response cap or time budget allowed.
+  bool truncated = 4;
+}
+
+// SocketConnection is one live TCP or UDP socket on a server.
+message SocketConnection {
+  // Protocol: "tcp", "tcp6", "udp" or "udp6".
+  string protocol = 1;
+  // Local IP address, such as "0.0.0.0", "127.0.0.1" or "::".
+  string local_address = 2;
+  // Local port number.
+  uint32 local_port = 3;
+  // Remote IP address, or "0.0.0.0" / "::" for listening or unconnected sockets.
+  string remote_address = 4;
+  // Remote port number, or 0 for listening or unconnected sockets.
+  uint32 remote_port = 5;
+  // Kernel socket state, such as "LISTEN", "ESTABLISHED", "TIME_WAIT" or "UNCONN".
+  string state = 6;
+  // Owning process ID, or 0 when the kernel owns it or no process matched.
+  uint32 pid = 7;
+  // Owning process's start ticks, for opening detail or matching the process list.
+  uint64 start_ticks = 8;
+  // Owning process's kernel name, such as "nginx" or "sshd".
+  string process_name = 9;
+  // Owning user name, as the container or server knows it.
+  string user = 10;
+  // Container the owning process runs in, if any.
+  ProcessContainer container = 11;
+  // Systemd unit the owning process runs under, if any.
+  string unit = 12;
+}
+
+// GetProcessRequest names one process on a server.
+message GetProcessRequest {
+  // The server's ID.
+  string server_id = 1;
+  // The process ID, 1 to 4194304.
+  uint32 pid = 2;
+  // Optional start_ticks to confirm this is the same process instance.
+  uint64 start_ticks = 3;
+}
+
+// GetProcessResponse returns detailed metadata for one process.
+message GetProcessResponse {
+  // The process detail.
+  ProcessDetail process = 1;
+}
+
+// ProcessDetail is detailed metadata for one running process, without its
+// environment and with secrets redacted from its command line.
+message ProcessDetail {
+  // The core process fields (PID, parent, user, memory, container, unit, guards).
+  Process process = 1;
+  // Full secret-redacted command line, up to 16 KiB.
+  string full_command = 2;
+  // True when the kernel's cmdline exceeded the 16 KiB read cap.
+  bool command_truncated = 3;
+  // Kernel name of the parent process, if readable.
+  string parent_name = 4;
+  // Number of threads in the process.
+  uint32 threads = 5;
+  // Open TCP/UDP network sockets held by this process, up to 256.
+  repeated SocketConnection sockets = 6;
+  // Total open sockets held by this process.
+  uint32 sockets_total = 7;
+  // True when the process holds more sockets than returned.
+  bool sockets_truncated = 8;
+  // Kernel process state in plain words, such as "running", "sleeping", "stopped" or "zombie".
+  string state = 9;
 }

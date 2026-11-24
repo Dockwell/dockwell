@@ -5,6 +5,7 @@ import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
   ContainerService,
+  ContainerState,
   type DockerContainer,
   type DockerObject,
   DockerObjectKind,
@@ -38,6 +39,7 @@ import { useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { LogsPage } from "../logs/LogsPage";
 import { LogsSearchButton } from "../logs/phoneSearch";
+import { ContainerHistory } from "../servers/ContainerHistory";
 import { CopyButton } from "../servers/CopyButton";
 import { mountSource } from "../servers/containers";
 import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
@@ -317,6 +319,19 @@ function Summary({
         <Metric label={t`Memory`} value={bytes(live?.memoryBytes)} icon="gauge" caption={sampled} />
         <Metric label={t`Restarts`} value={String(container.restartCount)} icon="refresh" />
       </div>
+      {object.key?.serverId && object.key.engineId ? (
+        <ContainerHistory
+          serverId={object.key.serverId}
+          containerId={object.key.engineId}
+          memoryLimitBytes={container.memoryLimitBytes}
+          createdAt={container.createdAt}
+          stopped={
+            object.state !== ContainerState.UNSPECIFIED &&
+            object.state !== ContainerState.RUNNING &&
+            object.state !== ContainerState.PAUSED
+          }
+        />
+      ) : null}
       <div className="docker-overview-grid">
         <Panel title={t`Lifecycle`}>
           <dl className="docker-facts">

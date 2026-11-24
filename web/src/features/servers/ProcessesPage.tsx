@@ -36,7 +36,9 @@ import {
 } from "../shell/ListTools";
 import { pagedRows, sortedRows } from "../shell/list";
 import { AgentOutdated, isAgentOutdated } from "./AgentOutdated";
+import { ConnectionsView } from "./ConnectionsView";
 import { EndProcessSheet } from "./EndProcessSheet";
+import { ProcessDetailSheet, type ProcessTarget } from "./ProcessDetailSheet";
 import {
   FIRST_WAY,
   groupProcesses,
@@ -63,7 +65,7 @@ const GROUP_SORT_KEYS = ["name", "count", "cpu", "memory"] as const;
 /** How many units the Services panel names. */
 const UNITS = 7;
 
-type View = "processes" | "services" | "containers";
+type View = "processes" | "connections" | "services" | "containers";
 
 /** A server's processes, as Server-Processes.dc.html has them: what runs, sorted and searchable, and ending one. */
 export function ProcessesPage({ serverId, search, onSearch }: { serverId: string } & ListRouteProps) {
@@ -87,6 +89,7 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
   const descending = place.sort ? place.sort.dir === "desc" : true;
   const sort: Sort = { key: sortKey, descending };
   const [ending, setEnding] = useState<Process>();
+  const [selected, setSelected] = useState<ProcessTarget>();
   const all = list?.processes ?? [];
   const measured = list?.cpuWindow !== undefined;
 
@@ -104,6 +107,7 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
 
   const views = [
     { value: "processes" as const, label: t`Processes`, count: list?.total ?? 0 },
+    { value: "connections" as const, label: t`Connections` },
     { value: "services" as const, label: t`Services`, count: units.length },
     { value: "containers" as const, label: t`Containers`, count: containers.length },
   ];
@@ -114,8 +118,12 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
     <p className="procs-note">{sentence(error)}</p>
   );
 
+  const openDetail = (p: Process) => setSelected({ pid: p.pid, startTicks: p.startTicks, process: p });
+
   let body: ReactNode;
-  if (!connected) {
+  if (view === "connections") {
+    body = <ConnectionsView server={server} filter={filter} onSelectProcess={setSelected} />;
+  } else if (!connected) {
     body = (
       <p className="procs-note" role="status">
         {t`The agent on ${server.name} isn't connected; this reads again once it reconnects.`}
@@ -131,6 +139,8 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
           measured={measured}
           sort={sort}
           onSort={() => {}}
+          onSelect={openDetail}
+          selectedPid={selected?.pid ?? null}
           onEnd={setEnding}
           caption={t`Processes on ${server.name}`}
           filtered={false}
@@ -149,7 +159,7 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
     body = (
       <>
         {phone ? (
-          <PhoneRows rows={rows} owners={owners} measured={measured} onEnd={setEnding} />
+          <PhoneRows rows={rows} owners={owners} measured={measured} onSelect={openDetail} onEnd={setEnding} />
         ) : (
           <ProcessTable
             rows={rows}
@@ -160,6 +170,8 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
               const descending = key === sort.key ? !sort.descending : FIRST_WAY[key];
               onSearch({ ...search, q: place.typed || undefined, sort: descending ? `-${key}` : key, page: undefined });
             }}
+            onSelect={openDetail}
+            selectedPid={selected?.pid ?? null}
             onEnd={setEnding}
             caption={t`Processes on ${server.name}`}
             filtered={filter.trim() !== ""}
@@ -207,7 +219,7 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
             size="sm"
           />
           <span className="procs-spacer" />
-          {connected && list && !error ? (
+          {connected && list && !error && view !== "connections" ? (
             <span className="procs-live">
               <span className="dw-live">
                 <span className="dw-live-dot" />
@@ -218,20 +230,34 @@ function Processes({ server, search, onSearch }: { server: Server } & ListRouteP
           ) : null}
           <div className="procs-filter">
             <ListSearchField
-              placeholder={t`Filter by name, PID or user`}
-              label={t`Filter processes`}
+              placeholder={
+                view === "connections" ? t`Filter by port, address, process or state` : t`Filter by name, PID or user`
+              }
+              label={view === "connections" ? t`Filter connections` : t`Filter processes`}
               value={place.typed}
               onChange={place.setTyped}
             />
           </div>
         </div>
-        {list ? failure : null}
+        {list && view !== "connections" ? failure : null}
         {body}
       </section>
       <div className="procs-side">
         <ServicesPanel units={units} total={units.length} busy={connected && !list} />
         <TotalsPanel server={server} count={list?.total} locale={i18n.locale} />
       </div>
+      {selected ? (
+        <ProcessDetailSheet
+          server={server}
+          target={selected}
+          onSelectParent={(pid) => {
+            const match = all.find((p) => p.pid === pid);
+            setSelected({ pid, startTicks: match?.startTicks, process: match });
+          }}
+          onEnd={(p) => setEnding(p)}
+          onClose={() => setSelected(undefined)}
+        />
+      ) : null}
       {ending ? (
         <EndProcessSheet
           server={server}
@@ -297,6 +323,7 @@ interface RowsProps {
   rows: readonly Process[];
   owners: ReadonlyMap<Process, Owner>;
   measured: boolean;
+  onSelect: (p: Process) => void;
   onEnd: (p: Process) => void;
 }
 
@@ -306,6 +333,8 @@ function ProcessTable({
   measured,
   sort,
   onSort,
+  onSelect,
+  selectedPid,
   onEnd,
   caption,
   filtered,
@@ -314,6 +343,7 @@ function ProcessTable({
 }: RowsProps & {
   sort: Sort;
   onSort: (key: SortKey) => void;
+  selectedPid: number | null;
   caption: string;
   filtered: boolean;
   /** The first list is on its way: the table draws its rows' shapes under its real header. */
@@ -429,6 +459,8 @@ function ProcessTable({
             actions: actionsFor(process),
           })
         }
+        onRowClick={onSelect}
+        selectedKey={selectedPid}
         density="compact"
         caption={caption}
         loading={loading}
@@ -472,7 +504,10 @@ function EndButton({ process, onEnd }: { process: Process; onEnd: (p: Process) =
       variant="ghost"
       icon="stop"
       aria-label={t`Stop ${process.name} (PID ${process.pid})`}
-      onClick={() => onEnd(process)}
+      onClick={(event) => {
+        event.stopPropagation();
+        onEnd(process);
+      }}
       {...mayEnd.off}
     >
       <Trans>Stop</Trans>
@@ -481,7 +516,7 @@ function EndButton({ process, onEnd }: { process: Process; onEnd: (p: Process) =
 }
 
 /** On a phone, a row each: name and what it belongs to, then CPU and memory. */
-function PhoneRows({ rows, owners, measured, onEnd }: RowsProps) {
+function PhoneRows({ rows, owners, measured, onSelect, onEnd }: RowsProps) {
   const { t, i18n } = useLingui();
   const ownerWords = useOwnerWords();
   if (rows.length === 0) return <p className="procs-note">{t`Nothing that runs matches.`}</p>;
@@ -492,10 +527,10 @@ function PhoneRows({ rows, owners, measured, onEnd }: RowsProps) {
         const cpu = measured ? `${formatFixed(p.cpuPercent, 1, i18n.locale)}%` : "–";
         return (
           <li key={p.pid} className="procs-row">
-            <div className="procs-cell">
+            <button type="button" className="procs-cell procs-link-cell" onClick={() => onSelect(p)}>
               <span className="procs-name">{p.name}</span>
               <span className="procs-sub">{[`${p.pid}`, p.user, sub].filter(Boolean).join(" · ")}</span>
-            </div>
+            </button>
             <span className="procs-row-nums">
               <span>{cpu}</span>
               <span className="procs-sub">{formatBytes(p.memoryBytes, i18n.locale)}</span>

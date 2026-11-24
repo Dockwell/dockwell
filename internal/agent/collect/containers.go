@@ -53,6 +53,11 @@ type pidCgroup struct {
 	retryAt time.Time
 }
 
+// MaxTrackedContainers bounds how many running containers are reported in one
+// stats sample. Managed containers come first, followed by discovered cgroups;
+// any beyond this cap are counted in ServerStats.containers_omitted.
+const MaxTrackedContainers = 128
+
 // containerUsage reads what each running container uses from its cgroup, for an
 // app's figures beside the server's (#797). The IDs are the ones the health
 // monitor's latest list of Docker's has, so it asks Docker nothing: four small
@@ -61,20 +66,28 @@ type pidCgroup struct {
 // It reads cgroup v2 alone, under systemd's driver ("system.slice/docker-<id>.scope")
 // or cgroupfs' ("docker/<id>"), and elsewhere where the container's own process
 // says (#852); a host without it reads as none.
-func (c *Collector) containerUsage(ctx context.Context, now time.Time) []*dockwellv1.ContainerUsage {
+func (c *Collector) containerUsage(ctx context.Context, now time.Time) ([]*dockwellv1.ContainerUsage, uint32) {
 	if c.Containers == nil {
-		return nil
+		return nil, 0
 	}
 	ids := c.Containers()
-	seen := make(map[string]cpuUsage, len(ids))
-	running := make(map[string]bool, len(ids))
+	seen := make(map[string]cpuUsage, min(len(ids), MaxTrackedContainers))
+	running := make(map[string]bool, min(len(ids), MaxTrackedContainers))
 	asks := 0
 	// One budget for the whole sample's asks, ended with the loop that sends it.
 	ctx, cancel := context.WithTimeout(ctx, pidAskBudget)
 	defer cancel()
 	var out []*dockwellv1.ContainerUsage
+	var omitted uint32
 	for _, id := range ids {
 		if !containerIDish(id) {
+			continue
+		}
+		if running[id] {
+			continue
+		}
+		if len(running) >= MaxTrackedContainers {
+			omitted++
 			continue
 		}
 		running[id] = true
@@ -117,7 +130,7 @@ func (c *Collector) containerUsage(ctx context.Context, now time.Time) []*dockwe
 			delete(c.byPID, id)
 		}
 	}
-	return out
+	return out, omitted
 }
 
 // cgroupOf is where a container's cgroup is under either of Docker's drivers,
@@ -361,4 +374,57 @@ func usageUsec(b []byte) (uint64, bool) {
 func number(b []byte) (uint64, bool) {
 	n, err := strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64)
 	return n, err == nil
+}
+
+// maxDiscoveredContainers is a safety ceiling on cgroup directory scans;
+// containerUsage applies the single MaxTrackedContainers (128) cap after
+// managed containers are placed first, counting anything past 128 as omitted.
+const maxDiscoveredContainers = 1024
+
+// DiscoverDockerCgroups finds running Docker container IDs directly from the
+// kernel's cgroup v2 hierarchy (system.slice/docker-<id>.scope and docker/<id>),
+// without asking Docker. That lets container history cover unmanaged containers
+// as well as Dockwell's managed services at zero extra Docker API cost.
+func (c *Collector) DiscoverDockerCgroups() []string {
+	tree := c.cgroupTree()
+	if tree == nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	add := func(id string) {
+		if containerIDish(id) {
+			seen[id] = struct{}{}
+		}
+	}
+	if entries, err := fs.ReadDir(tree, "system.slice"); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			if rest, ok := strings.CutPrefix(e.Name(), "docker-"); ok {
+				if id, ok := strings.CutSuffix(rest, ".scope"); ok {
+					add(id)
+				}
+			}
+		}
+	}
+	if entries, err := fs.ReadDir(tree, "docker"); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				add(e.Name())
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	slices.Sort(out)
+	if len(out) > maxDiscoveredContainers {
+		out = out[:maxDiscoveredContainers]
+	}
+	return out
 }

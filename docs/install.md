@@ -258,7 +258,7 @@ rc-service dockwell start
 
 If you started `dockwell run` yourself, stop it first, run the `tar` and `cp` lines as root, and start it again. Then move `/root/dockwell-control.tgz` and `/root/dockwell-key` off the server, to two different places, and delete them from it. The archive holds the panel's certificate keys and a token that acts for you, so keep it as carefully as the key. The panel's Settings, under Control plane, shows these commands with this install's own paths, for what runs Dockwell there.
 
-With the state in Postgres (`DOCKWELL_DATABASE`), back the database up with `pg_dump`, as any Postgres database, and copy `control/`, `agent/` and the key as above: the key and the agent are still files on the control server.
+With the state in Postgres (`DOCKWELL_DATABASE`), back the database up with `pg_dump`, as any Postgres database, and copy `control/`, `agent/` and the key as above: the key and the agent are still files on the control server. Metric history (`server_history`, `history_series`, `history_chunks`) is telemetry rather than state; with `pg_dump` you can pass `--exclude-table-data='server_history' --exclude-table-data='history_series' --exclude-table-data='history_chunks'` for smaller dumps, and automated control-plane backups will leave it out by default once [ADR 0073](adr/0073-backing-up-and-restoring-the-control-plane.md) is built ([ADR 0065](adr/0065-a-servers-history-kept-by-the-control-plane.md)).
 
 **To restore** on the same server, after its disk was replaced or Dockwell was removed with its data, install Dockwell again as above, then put the copies back and start it:
 

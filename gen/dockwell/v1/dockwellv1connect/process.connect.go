@@ -41,6 +41,12 @@ const (
 	// ProcessServiceEndProcessProcedure is the fully-qualified name of the ProcessService's EndProcess
 	// RPC.
 	ProcessServiceEndProcessProcedure = "/dockwell.v1.ProcessService/EndProcess"
+	// ProcessServiceListSocketsProcedure is the fully-qualified name of the ProcessService's
+	// ListSockets RPC.
+	ProcessServiceListSocketsProcedure = "/dockwell.v1.ProcessService/ListSockets"
+	// ProcessServiceGetProcessProcedure is the fully-qualified name of the ProcessService's GetProcess
+	// RPC.
+	ProcessServiceGetProcessProcedure = "/dockwell.v1.ProcessService/GetProcess"
 )
 
 // ProcessServiceClient is a client for the dockwell.v1.ProcessService service.
@@ -64,6 +70,16 @@ type ProcessServiceClient interface {
 	// before Linux 5.3, ends nothing, as a signal by PID alone could reach
 	// whatever took the PID. It's on the activity log, without the command line.
 	EndProcess(context.Context, *connect.Request[v1.EndProcessRequest]) (*connect.Response[v1.EndProcessResponse], error)
+	// ListSockets reads live network sockets on a server (TCP and UDP, IPv4
+	// and IPv6), as ss -tunap shows them, with each socket's protocol, local and
+	// remote address, state, and owning process or container. Admin and session
+	// only, like WatchProcesses.
+	ListSockets(context.Context, *connect.Request[v1.ListSocketsRequest]) (*connect.Response[v1.ListSocketsResponse], error)
+	// GetProcess reads detail for one running process on a server: its full
+	// secret-redacted command line, parent, user, start time, threads, open
+	// network sockets, and container or service. Environment variables are never
+	// read or returned. Admin and session only, like WatchProcesses.
+	GetProcess(context.Context, *connect.Request[v1.GetProcessRequest]) (*connect.Response[v1.GetProcessResponse], error)
 }
 
 // NewProcessServiceClient constructs a client for the dockwell.v1.ProcessService service. By
@@ -89,6 +105,20 @@ func NewProcessServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(processServiceMethods.ByName("EndProcess")),
 			connect.WithClientOptions(opts...),
 		),
+		listSockets: connect.NewClient[v1.ListSocketsRequest, v1.ListSocketsResponse](
+			httpClient,
+			baseURL+ProcessServiceListSocketsProcedure,
+			connect.WithSchema(processServiceMethods.ByName("ListSockets")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getProcess: connect.NewClient[v1.GetProcessRequest, v1.GetProcessResponse](
+			httpClient,
+			baseURL+ProcessServiceGetProcessProcedure,
+			connect.WithSchema(processServiceMethods.ByName("GetProcess")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -96,6 +126,8 @@ func NewProcessServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type processServiceClient struct {
 	watchProcesses *connect.Client[v1.WatchProcessesRequest, v1.WatchProcessesResponse]
 	endProcess     *connect.Client[v1.EndProcessRequest, v1.EndProcessResponse]
+	listSockets    *connect.Client[v1.ListSocketsRequest, v1.ListSocketsResponse]
+	getProcess     *connect.Client[v1.GetProcessRequest, v1.GetProcessResponse]
 }
 
 // WatchProcesses calls dockwell.v1.ProcessService.WatchProcesses.
@@ -106,6 +138,16 @@ func (c *processServiceClient) WatchProcesses(ctx context.Context, req *connect.
 // EndProcess calls dockwell.v1.ProcessService.EndProcess.
 func (c *processServiceClient) EndProcess(ctx context.Context, req *connect.Request[v1.EndProcessRequest]) (*connect.Response[v1.EndProcessResponse], error) {
 	return c.endProcess.CallUnary(ctx, req)
+}
+
+// ListSockets calls dockwell.v1.ProcessService.ListSockets.
+func (c *processServiceClient) ListSockets(ctx context.Context, req *connect.Request[v1.ListSocketsRequest]) (*connect.Response[v1.ListSocketsResponse], error) {
+	return c.listSockets.CallUnary(ctx, req)
+}
+
+// GetProcess calls dockwell.v1.ProcessService.GetProcess.
+func (c *processServiceClient) GetProcess(ctx context.Context, req *connect.Request[v1.GetProcessRequest]) (*connect.Response[v1.GetProcessResponse], error) {
+	return c.getProcess.CallUnary(ctx, req)
 }
 
 // ProcessServiceHandler is an implementation of the dockwell.v1.ProcessService service.
@@ -129,6 +171,16 @@ type ProcessServiceHandler interface {
 	// before Linux 5.3, ends nothing, as a signal by PID alone could reach
 	// whatever took the PID. It's on the activity log, without the command line.
 	EndProcess(context.Context, *connect.Request[v1.EndProcessRequest]) (*connect.Response[v1.EndProcessResponse], error)
+	// ListSockets reads live network sockets on a server (TCP and UDP, IPv4
+	// and IPv6), as ss -tunap shows them, with each socket's protocol, local and
+	// remote address, state, and owning process or container. Admin and session
+	// only, like WatchProcesses.
+	ListSockets(context.Context, *connect.Request[v1.ListSocketsRequest]) (*connect.Response[v1.ListSocketsResponse], error)
+	// GetProcess reads detail for one running process on a server: its full
+	// secret-redacted command line, parent, user, start time, threads, open
+	// network sockets, and container or service. Environment variables are never
+	// read or returned. Admin and session only, like WatchProcesses.
+	GetProcess(context.Context, *connect.Request[v1.GetProcessRequest]) (*connect.Response[v1.GetProcessResponse], error)
 }
 
 // NewProcessServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -150,12 +202,30 @@ func NewProcessServiceHandler(svc ProcessServiceHandler, opts ...connect.Handler
 		connect.WithSchema(processServiceMethods.ByName("EndProcess")),
 		connect.WithHandlerOptions(opts...),
 	)
+	processServiceListSocketsHandler := connect.NewUnaryHandler(
+		ProcessServiceListSocketsProcedure,
+		svc.ListSockets,
+		connect.WithSchema(processServiceMethods.ByName("ListSockets")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	processServiceGetProcessHandler := connect.NewUnaryHandler(
+		ProcessServiceGetProcessProcedure,
+		svc.GetProcess,
+		connect.WithSchema(processServiceMethods.ByName("GetProcess")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ProcessService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ProcessServiceWatchProcessesProcedure:
 			processServiceWatchProcessesHandler.ServeHTTP(w, r)
 		case ProcessServiceEndProcessProcedure:
 			processServiceEndProcessHandler.ServeHTTP(w, r)
+		case ProcessServiceListSocketsProcedure:
+			processServiceListSocketsHandler.ServeHTTP(w, r)
+		case ProcessServiceGetProcessProcedure:
+			processServiceGetProcessHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -171,4 +241,12 @@ func (UnimplementedProcessServiceHandler) WatchProcesses(context.Context, *conne
 
 func (UnimplementedProcessServiceHandler) EndProcess(context.Context, *connect.Request[v1.EndProcessRequest]) (*connect.Response[v1.EndProcessResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ProcessService.EndProcess is not implemented"))
+}
+
+func (UnimplementedProcessServiceHandler) ListSockets(context.Context, *connect.Request[v1.ListSocketsRequest]) (*connect.Response[v1.ListSocketsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ProcessService.ListSockets is not implemented"))
+}
+
+func (UnimplementedProcessServiceHandler) GetProcess(context.Context, *connect.Request[v1.GetProcessRequest]) (*connect.Response[v1.GetProcessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ProcessService.GetProcess is not implemented"))
 }

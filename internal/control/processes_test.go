@@ -36,8 +36,8 @@ func testProcessesAreWatchedAndEnded(t *testing.T, backend store.Backend) {
 	server := f.lastDocker.id.ServerID
 	pc := dockwellv1connect.NewProcessServiceClient(b, b.origin, connect.WithProtoJSON())
 
-	// Its command line holds a password, as one can, typed with it: the list shows
-	// it to the person who looks, and nothing keeps it.
+	// Its command line holds a password: secret flags are redacted before
+	// leaving the server, and nothing keeps the secret on Activity either.
 	sleeper := exec.Command("sleep", "60")
 	sleeper.Args = []string{"sleep --password=hunter2", "60"}
 	if err := sleeper.Start(); err != nil {
@@ -76,7 +76,7 @@ func testProcessesAreWatchedAndEnded(t *testing.T, backend store.Backend) {
 	if lists != 2 {
 		t.Errorf("CPU came with list %d, want the second, a second after the first", lists)
 	}
-	if sleep == nil || sleep.GetName() != "sleep" || sleep.GetCommand() != "sleep --password=hunter2 60" || sleep.GetStartTicks() == 0 {
+	if sleep == nil || sleep.GetName() != "sleep" || sleep.GetCommand() != "sleep --password=… 60" || sleep.GetStartTicks() == 0 {
 		t.Fatalf("the sleep this test started reads %v", sleep)
 	}
 	if self.GetProtected() != "dockwell" {

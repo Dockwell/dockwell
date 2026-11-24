@@ -73,6 +73,12 @@ const (
 	// ServerServiceWatchSystemLogProcedure is the fully-qualified name of the ServerService's
 	// WatchSystemLog RPC.
 	ServerServiceWatchSystemLogProcedure = "/dockwell.v1.ServerService/WatchSystemLog"
+	// ServerServiceGetServerHistoryProcedure is the fully-qualified name of the ServerService's
+	// GetServerHistory RPC.
+	ServerServiceGetServerHistoryProcedure = "/dockwell.v1.ServerService/GetServerHistory"
+	// ServerServiceGetContainerHistoryProcedure is the fully-qualified name of the ServerService's
+	// GetContainerHistory RPC.
+	ServerServiceGetContainerHistoryProcedure = "/dockwell.v1.ServerService/GetContainerHistory"
 )
 
 // ServerServiceClient is a client for the dockwell.v1.ServerService service.
@@ -161,6 +167,14 @@ type ServerServiceClient interface {
 	// streams have none.
 	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
 	WatchSystemLog(context.Context, *connect.Request[v1.WatchSystemLogRequest]) (*connect.ServerStreamForClient[v1.WatchSystemLogResponse], error)
+	// GetServerHistory reads downsampled resource history for one server over a
+	// time range (1 h, 6 h, 24 h, 7 d or 30 d): CPU, memory, swap, load, disk I/O
+	// (all whole disks or one named disk) and network (all physical interfaces or
+	// one named interface). Admin-only, like the rest of a server's stats.
+	GetServerHistory(context.Context, *connect.Request[v1.GetServerHistoryRequest]) (*connect.Response[v1.GetServerHistoryResponse], error)
+	// GetContainerHistory reads downsampled CPU and memory history for one
+	// container on a server over a time range (1 h, 6 h, 24 h, 7 d or 30 d).
+	GetContainerHistory(context.Context, *connect.Request[v1.GetContainerHistoryRequest]) (*connect.Response[v1.GetContainerHistoryResponse], error)
 }
 
 // NewServerServiceClient constructs a client for the dockwell.v1.ServerService service. By default,
@@ -259,6 +273,20 @@ func NewServerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(serverServiceMethods.ByName("WatchSystemLog")),
 			connect.WithClientOptions(opts...),
 		),
+		getServerHistory: connect.NewClient[v1.GetServerHistoryRequest, v1.GetServerHistoryResponse](
+			httpClient,
+			baseURL+ServerServiceGetServerHistoryProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("GetServerHistory")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		getContainerHistory: connect.NewClient[v1.GetContainerHistoryRequest, v1.GetContainerHistoryResponse](
+			httpClient,
+			baseURL+ServerServiceGetContainerHistoryProcedure,
+			connect.WithSchema(serverServiceMethods.ByName("GetContainerHistory")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -277,6 +305,8 @@ type serverServiceClient struct {
 	watchSystemServices    *connect.Client[v1.WatchSystemServicesRequest, v1.WatchSystemServicesResponse]
 	readSystemLog          *connect.Client[v1.ReadSystemLogRequest, v1.ReadSystemLogResponse]
 	watchSystemLog         *connect.Client[v1.WatchSystemLogRequest, v1.WatchSystemLogResponse]
+	getServerHistory       *connect.Client[v1.GetServerHistoryRequest, v1.GetServerHistoryResponse]
+	getContainerHistory    *connect.Client[v1.GetContainerHistoryRequest, v1.GetContainerHistoryResponse]
 }
 
 // ListServers calls dockwell.v1.ServerService.ListServers.
@@ -342,6 +372,16 @@ func (c *serverServiceClient) ReadSystemLog(ctx context.Context, req *connect.Re
 // WatchSystemLog calls dockwell.v1.ServerService.WatchSystemLog.
 func (c *serverServiceClient) WatchSystemLog(ctx context.Context, req *connect.Request[v1.WatchSystemLogRequest]) (*connect.ServerStreamForClient[v1.WatchSystemLogResponse], error) {
 	return c.watchSystemLog.CallServerStream(ctx, req)
+}
+
+// GetServerHistory calls dockwell.v1.ServerService.GetServerHistory.
+func (c *serverServiceClient) GetServerHistory(ctx context.Context, req *connect.Request[v1.GetServerHistoryRequest]) (*connect.Response[v1.GetServerHistoryResponse], error) {
+	return c.getServerHistory.CallUnary(ctx, req)
+}
+
+// GetContainerHistory calls dockwell.v1.ServerService.GetContainerHistory.
+func (c *serverServiceClient) GetContainerHistory(ctx context.Context, req *connect.Request[v1.GetContainerHistoryRequest]) (*connect.Response[v1.GetContainerHistoryResponse], error) {
+	return c.getContainerHistory.CallUnary(ctx, req)
 }
 
 // ServerServiceHandler is an implementation of the dockwell.v1.ServerService service.
@@ -430,6 +470,14 @@ type ServerServiceHandler interface {
 	// streams have none.
 	// See docs/adr/0067-a-servers-system-services-and-its-system-log.md.
 	WatchSystemLog(context.Context, *connect.Request[v1.WatchSystemLogRequest], *connect.ServerStream[v1.WatchSystemLogResponse]) error
+	// GetServerHistory reads downsampled resource history for one server over a
+	// time range (1 h, 6 h, 24 h, 7 d or 30 d): CPU, memory, swap, load, disk I/O
+	// (all whole disks or one named disk) and network (all physical interfaces or
+	// one named interface). Admin-only, like the rest of a server's stats.
+	GetServerHistory(context.Context, *connect.Request[v1.GetServerHistoryRequest]) (*connect.Response[v1.GetServerHistoryResponse], error)
+	// GetContainerHistory reads downsampled CPU and memory history for one
+	// container on a server over a time range (1 h, 6 h, 24 h, 7 d or 30 d).
+	GetContainerHistory(context.Context, *connect.Request[v1.GetContainerHistoryRequest]) (*connect.Response[v1.GetContainerHistoryResponse], error)
 }
 
 // NewServerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -524,6 +572,20 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(serverServiceMethods.ByName("WatchSystemLog")),
 		connect.WithHandlerOptions(opts...),
 	)
+	serverServiceGetServerHistoryHandler := connect.NewUnaryHandler(
+		ServerServiceGetServerHistoryProcedure,
+		svc.GetServerHistory,
+		connect.WithSchema(serverServiceMethods.ByName("GetServerHistory")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	serverServiceGetContainerHistoryHandler := connect.NewUnaryHandler(
+		ServerServiceGetContainerHistoryProcedure,
+		svc.GetContainerHistory,
+		connect.WithSchema(serverServiceMethods.ByName("GetContainerHistory")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.ServerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case ServerServiceListServersProcedure:
@@ -552,6 +614,10 @@ func NewServerServiceHandler(svc ServerServiceHandler, opts ...connect.HandlerOp
 			serverServiceReadSystemLogHandler.ServeHTTP(w, r)
 		case ServerServiceWatchSystemLogProcedure:
 			serverServiceWatchSystemLogHandler.ServeHTTP(w, r)
+		case ServerServiceGetServerHistoryProcedure:
+			serverServiceGetServerHistoryHandler.ServeHTTP(w, r)
+		case ServerServiceGetContainerHistoryProcedure:
+			serverServiceGetContainerHistoryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -611,4 +677,12 @@ func (UnimplementedServerServiceHandler) ReadSystemLog(context.Context, *connect
 
 func (UnimplementedServerServiceHandler) WatchSystemLog(context.Context, *connect.Request[v1.WatchSystemLogRequest], *connect.ServerStream[v1.WatchSystemLogResponse]) error {
 	return connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.WatchSystemLog is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) GetServerHistory(context.Context, *connect.Request[v1.GetServerHistoryRequest]) (*connect.Response[v1.GetServerHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetServerHistory is not implemented"))
+}
+
+func (UnimplementedServerServiceHandler) GetContainerHistory(context.Context, *connect.Request[v1.GetContainerHistoryRequest]) (*connect.Response[v1.GetContainerHistoryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.ServerService.GetContainerHistory is not implemented"))
 }
