@@ -5,12 +5,16 @@ import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import { EditorView } from "@codemirror/view";
 import type { HandlerContext } from "@connectrpc/connect";
 import {
+  ArchiveJobKind,
+  ArchiveJobSchema,
+  ArchiveJobState,
   CompressFilesResponseSchema,
   DeleteFileResponseSchema,
-  DownloadFileResponseSchema,
   ExtractArchiveResponseSchema,
   FileEntrySchema,
   FileType,
+  GetArchiveJobResponseSchema,
+  ListArchiveJobsResponseSchema,
   ListFilesResponseSchema,
   ReadFileResponseSchema,
   SaveFileResponseSchema,
@@ -88,27 +92,37 @@ describe("File manager UX", () => {
       "href",
       "/v1/servers/srv_1/files:download?path=%2Fvar%2Fwww%2Falpha.txt",
     );
+    expect(within(details).getByRole("button", { name: "Rename alpha.txt" })).toBeVisible();
+    expect(within(details).getByRole("button", { name: "Compress alpha.txt" })).toBeVisible();
+    expect(within(details).getByRole("button", { name: "More options for alpha.txt" })).toBeVisible();
     expect(await screen.findByText(/line 1/)).toBeVisible();
     expect(screen.getByText(/line 2/)).toBeVisible();
     expect(screen.getByText("/var/www/alpha.txt")).toBeVisible();
     expect(readFile).toHaveBeenCalledTimes(1);
   });
 
-  it("renders SVG previews strictly inside an <img>, never inline markup", async () => {
-    async function* downloadFile() {
-      yield create(DownloadFileResponseSchema, {
-        body: {
-          data: new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
-        },
-      });
-    }
-    await renderFiles({ listFiles: () => site, downloadFile: downloadFile as never });
+  it("renders SVG and binary image previews via readFile(allowBinary) inside <img>, never downloadFile", async () => {
+    const downloadFile = vi.fn();
+    const readFile = vi.fn((req: { path: string; allowBinary?: boolean }) =>
+      create(ReadFileResponseSchema, {
+        path: req.path,
+        file: entry("icon.svg"),
+        content: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+        version: "v1",
+      }),
+    );
+    await renderFiles({ listFiles: () => site, readFile: readFile as never, downloadFile: downloadFile as never });
     await userEvent.click(screen.getByText("icon.svg"));
 
     const img = await screen.findByRole("img", { name: "icon.svg" });
     expect(img.getAttribute("src")).toMatch(/^data:image\/svg\+xml;base64,/);
     expect(document.querySelector(".files-details script")).toBeNull();
     expect(document.querySelector(".files-details-stage svg")).toBeNull();
+    expect(downloadFile).not.toHaveBeenCalled();
+    expect(readFile).toHaveBeenCalledWith(
+      expect.objectContaining({ serverId: "srv_1", path: "/var/www/icon.svg", allowBinary: true }),
+      expect.anything(),
+    );
   });
 
   it("supports multi-selection bar, multi-download zip URL, and multi-delete with count", async () => {
@@ -131,17 +145,66 @@ describe("File manager UX", () => {
     expect(await screen.findByText("Deleted 2 items")).toBeVisible();
   });
 
-  it("compresses selected items and extracts an archive from the context menu", async () => {
+  it("compresses selected items and extracts an archive via background jobs", async () => {
+    let compPolls = 0;
     const compressFiles = vi.fn((req: { archivePath: string }) =>
-      create(CompressFilesResponseSchema, { path: req.archivePath, entries: 2n }),
+      create(CompressFilesResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: "job_comp_1",
+          kind: ArchiveJobKind.COMPRESS,
+          state: ArchiveJobState.RUNNING,
+          path: req.archivePath,
+          entries: 1n,
+          bytes: 512n,
+        }),
+      }),
     );
+    const getArchiveJob = vi.fn((req: { jobId: string }) => {
+      if (req.jobId === "job_comp_1") {
+        compPolls++;
+        return create(GetArchiveJobResponseSchema, {
+          job: create(ArchiveJobSchema, {
+            jobId: "job_comp_1",
+            kind: ArchiveJobKind.COMPRESS,
+            state: ArchiveJobState.DONE,
+            path: "/var/www/alpha.txt.zip",
+            entries: 2n,
+            bytes: 1024n,
+            leftOut: 1n,
+          }),
+        });
+      }
+      return create(GetArchiveJobResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: req.jobId,
+          kind: ArchiveJobKind.EXTRACT,
+          state: ArchiveJobState.DONE,
+          path: "/var/www/bundle.zip",
+          unpackedTo: "/var/www/bundle",
+          entries: 4n,
+          skippedLinks: 2n,
+        }),
+      });
+    });
     const extractArchive = vi.fn((req: { path: string }) =>
-      create(ExtractArchiveResponseSchema, { path: req.path, unpackedTo: "/var/www/bundle", unpackedEntries: 4n }),
+      create(ExtractArchiveResponseSchema, {
+        job: create(ArchiveJobSchema, {
+          jobId: "job_ext_1",
+          kind: ArchiveJobKind.EXTRACT,
+          state: ArchiveJobState.DONE,
+          path: req.path,
+          unpackedTo: "/var/www/bundle",
+          entries: 4n,
+          skippedLinks: 2n,
+        }),
+      }),
     );
     await renderFiles({
       listFiles: () => site,
+      listArchiveJobs: () => create(ListArchiveJobsResponseSchema, { jobs: [] }),
       compressFiles: compressFiles as never,
       extractArchive: extractArchive as never,
+      getArchiveJob: getArchiveJob as never,
     });
 
     // Right-click alpha.txt -> Compress
@@ -156,7 +219,10 @@ describe("File manager UX", () => {
       paths: ["/var/www/alpha.txt"],
       archivePath: "/var/www/alpha.txt.zip",
     });
-    expect(await screen.findByText("Compressed alpha.txt.zip")).toBeVisible();
+    expect(await screen.findByText("Compressing alpha.txt.zip")).toBeVisible();
+    expect(await screen.findByText("Compressed alpha.txt.zip", {}, { timeout: 3000 })).toBeVisible();
+    expect(screen.getByText(/1 item was left out\./)).toBeVisible();
+    expect(compPolls).toBeGreaterThanOrEqual(1);
 
     // Right-click bundle.zip -> Extract
     fireEvent.contextMenu(screen.getByText("bundle.zip"));
@@ -168,6 +234,24 @@ describe("File manager UX", () => {
       path: "/var/www/bundle.zip",
     });
     expect(await screen.findByText("Extracted bundle.zip")).toBeVisible();
+    expect(screen.getByText(/2 links weren't made\./)).toBeVisible();
+  });
+
+  it("offers Compress instead of a broken multi-download link when URL length cap is exceeded", async () => {
+    const longEntries = Array.from({ length: 120 }, (_, i) =>
+      entry(`very-long-filename-to-exceed-the-query-string-cap-segment-${String(i).padStart(4, "0")}.txt`),
+    );
+    const crowded = create(ListFilesResponseSchema, {
+      path: "/var/www",
+      directory: entry("www", { type: FileType.DIRECTORY }),
+      entries: longEntries,
+    });
+    await renderFiles({ listFiles: () => crowded });
+    await userEvent.click(screen.getByRole("checkbox", { name: "Select all" }));
+    const bar = await screen.findByRole("toolbar", { name: "Selection actions" });
+    const dlBtn = within(bar).getByRole("button", { name: "Download" });
+    await userEvent.click(dlBtn);
+    expect(await screen.findByText("Too many items to download at once")).toBeVisible();
   });
 
   it("sorts columns by clicking headers and resizes the folder tree with keyboard", async () => {
@@ -272,18 +356,26 @@ describe("File manager UX", () => {
     const wrapKey = Object.keys(window.localStorage).find((k) => k.startsWith("dockwell:files:word-wrap:"));
     expect(wrapKey && window.localStorage.getItem(wrapKey)).toBe("1");
 
-    // Find & replace opens CodeMirror's search panel.
+    // Find & replace opens the Dockwell-styled search panel with sentence-case phrases.
     await userEvent.click(screen.getByRole("button", { name: "Find and replace" }));
-    expect(document.querySelector(".cm-search")).toBeTruthy();
+    const searchPanel = document.querySelector(".cm-search") as HTMLElement;
+    expect(searchPanel).toBeTruthy();
+    expect(within(searchPanel).getByRole("button", { name: "Match case" })).toBeVisible();
+    expect(within(searchPanel).getByRole("button", { name: "Next match" })).toBeVisible();
+    expect(within(searchPanel).getByRole("button", { name: "Select all" })).toBeVisible();
+    expect(within(searchPanel).getByRole("button", { name: "Replace all" })).toBeVisible();
 
-    // Full-window toggle expands editor and Escape exits it.
+    // Full-window toggle expands editor with a primary Save button (disabled on clean beta.txt, enabled on dirty alpha.txt).
     await userEvent.click(screen.getByRole("button", { name: "Full window editor" }));
     expect(document.querySelector(".files-viewer.is-fullwindow")).toBeTruthy();
+    const headerSave = screen.getByRole("button", { name: /^Save/ });
+    expect(headerSave).toBeDisabled();
+    await userEvent.click(alphaTab);
+    expect(screen.getByRole("button", { name: /^Save/ })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Exit full window" }));
     expect(document.querySelector(".files-viewer.is-fullwindow")).toBeNull();
 
     // Switching back to alpha.txt preserves its unsaved edits.
-    await userEvent.click(alphaTab);
     expect(
       EditorView.findFromDOM(screen.getByRole("textbox", { name: "Contents of alpha.txt" }))?.state.doc.toString(),
     ).toBe("alpha changed\n");

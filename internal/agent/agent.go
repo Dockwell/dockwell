@@ -965,8 +965,10 @@ func session(ctx context.Context, cfg Config) (err error) {
 		}
 	}
 	var savesEnded <-chan *agentv1.SaveEnded
+	var archiveEnded <-chan struct{}
 	if cfg.Files != nil {
 		savesEnded = cfg.Files.SavesEnded()
+		archiveEnded = cfg.Files.ArchiveJobsEnded()
 	}
 	var runsReady <-chan struct{}
 	if cfg.Tasks != nil {
@@ -992,6 +994,14 @@ func session(ctx context.Context, cfg Config) (err error) {
 		case ended := <-savesEnded:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_SaveEnded{SaveEnded: ended}}); err != nil {
 				return err
+			}
+		case <-archiveEnded:
+			ended := cfg.Files.TakeArchiveEnded()
+			for i, e := range ended {
+				if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_ArchiveJobEnded{ArchiveJobEnded: e}}); err != nil {
+					cfg.Files.UntoldArchiveEnded(ended[i:])
+					return err
+				}
 			}
 		case <-runsReady:
 			if err := send(&agentv1.ConnectRequest{Message: &agentv1.ConnectRequest_TaskRunsReady{TaskRunsReady: &agentv1.TaskRunsReady{}}}); err != nil {

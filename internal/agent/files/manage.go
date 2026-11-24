@@ -341,12 +341,18 @@ func makeAt(dir int, name string, kind dockwellv1.FileType) (int, error) {
 // site's folder is the site's, and its mode, whatever the umask took. A folder in one
 // with the set-group-ID bit keeps it, as the kernel gave it.
 func ownLike(fd int, folder *unix.Stat_t, kind dockwellv1.FileType) {
-	if unix.Geteuid() == 0 {
-		_ = unix.Fchown(fd, int(folder.Uid), int(folder.Gid))
-	}
 	mode := uint32(madeFileMode)
 	if kind == dockwellv1.FileType_FILE_TYPE_DIRECTORY {
 		mode = madeDirMode | folder.Mode&unix.S_ISGID
+	}
+	ownWithMode(fd, folder, mode)
+}
+
+// ownWithMode gives what fd is open on its folder's owner and group and sets an
+// explicit permission mode (never widening or adding set-ID bits).
+func ownWithMode(fd int, folder *unix.Stat_t, mode uint32) {
+	if unix.Geteuid() == 0 {
+		_ = unix.Fchown(fd, int(folder.Uid), int(folder.Gid))
 	}
 	_ = unix.Fchmod(fd, mode)
 }

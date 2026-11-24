@@ -223,7 +223,9 @@ describe("FilesPage", () => {
     });
     expect(await within(server).findByRole("link", { name: "pkg-68" })).toHaveAttribute("aria-current", "page");
     expect(within(server).queryByRole("link", { name: "pkg-69" })).toBeNull();
-    expect(within(server).getByText("and 9 more, in its list")).toBeVisible();
+    const moreLink = within(server).getByRole("link", { name: "9 more folders" });
+    expect(moreLink).toBeVisible();
+    expect(moreLink).toHaveAttribute("href", "/servers/srv_1/files?path=%2F");
   });
 
   it("marks the place you're on as yours, and only it", async () => {
@@ -399,7 +401,7 @@ describe("FilesPage", () => {
   it("searches what the folder holds, and says when nothing matches", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     const search = await screen.findByRole("textbox", { name: "Search in www" });
-    await screen.findByText("wp-admin");
+    await within(screen.getByRole("table")).findByText("wp-admin");
     await userEvent.type(search, "INDEX");
     expect(rowNames()).toEqual(["index.php"]);
     await userEvent.clear(search);

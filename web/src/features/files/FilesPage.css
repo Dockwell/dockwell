@@ -281,6 +281,34 @@ button.files-tree-toggle:hover {
   white-space: nowrap;
 }
 
+.files-tree-more {
+  margin: 0;
+  padding-block: 2px;
+  white-space: nowrap;
+}
+
+.files-tree-more-link {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding-inline: 2px;
+  border-radius: var(--radius-xs);
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-decoration: none;
+}
+
+.files-tree-more-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.files-tree-more-link:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+}
+
 .files-list {
   flex: 1 1 480px;
   display: flex;
@@ -545,11 +573,88 @@ button.files-tree-toggle:hover {
 
 .files-details-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 4px;
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
+}
+
+.files-details-more {
+  margin-inline-start: auto;
+}
+
+.files-archive-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.files-archive-job {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.files-archive-job-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+}
+
+.files-archive-job-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.files-archive-job-title > .dw-icon {
+  color: var(--cobalt);
+}
+
+.files-archive-job-meta {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.files-archive-progress {
+  margin-top: 0;
+}
+
+.files-archive-progress:indeterminate {
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 0%,
+    var(--cobalt) 35%,
+    var(--cobalt) 65%,
+    var(--surface-sunken) 100%
+  );
+  background-size: 200% 100%;
+  animation: files-archive-indeterminate 1.4s ease-in-out infinite;
+}
+
+.files-archive-progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+@keyframes files-archive-indeterminate {
+  0% {
+    background-position: 100% 0;
+  }
+
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .files-details-danger,

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -55,12 +56,14 @@ const (
 
 // Handler implements FileService.
 type Handler struct {
-	fleet  *fleet.Hub
-	agents *agentapi.Agents
-	auth   *auth.Service
-	db     *store.DB
-	logger *slog.Logger
-	now    func() time.Time
+	fleet           *fleet.Hub
+	agents          *agentapi.Agents
+	auth            *auth.Service
+	db              *store.DB
+	logger          *slog.Logger
+	now             func() time.Time
+	archiveMu       sync.Mutex
+	pendingArchives map[string]*writing
 }
 
 var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
@@ -68,8 +71,12 @@ var _ dockwellv1connect.FileServiceHandler = (*Handler)(nil)
 // New returns a handler that reaches servers through agents. people checks the
 // passkey a way back onto a server takes.
 func New(hub *fleet.Hub, agents *agentapi.Agents, people *auth.Service, db *store.DB, logger *slog.Logger) *Handler {
-	h := &Handler{fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now}
+	h := &Handler{
+		fleet: hub, agents: agents, auth: people, db: db, logger: logger, now: time.Now,
+		pendingArchives: map[string]*writing{},
+	}
 	agents.OnSaveEnded(h.saveEnded)
+	agents.OnArchiveJobEnded(h.archiveJobEnded)
 	return h
 }
 
@@ -191,7 +198,7 @@ func (h *Handler) ReadFile(ctx context.Context, req *connect.Request[dockwellv1.
 	if err != nil {
 		return nil, failed(err)
 	}
-	out, err := session.ReadFile(ctx, path)
+	out, err := session.ReadFileWithOptions(ctx, path, req.Msg.GetAllowBinary())
 	if err != nil {
 		return nil, failed(h.rpcError(ctx, err))
 	}

@@ -1520,6 +1520,15 @@ msgstr "{name} turned unhealthy on {server}"
 msgid "{name} was paused on {server}"
 msgstr "{name} was paused on {server}"
 
+msgid "{pathCount, plural, one {Compressed # item into {path} on {server}, {size}} other {Compressed # items into {path} on {server}, {size}}}"
+msgstr "{pathCount, plural, one {Compressed # item into {path} on {server}, {size}} other {Compressed # items into {path} on {server}, {size}}}"
+
+msgid "{pathCount, plural, one {Downloaded # item from {server}, {size}} other {Downloaded # items from {server}, {size}}}"
+msgstr "{pathCount, plural, one {Downloaded # item from {server}, {size}} other {Downloaded # items from {server}, {size}}}"
+
+msgid "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
+msgstr "{pathCount, plural, one {Downloaded # item from {server}} other {Downloaded # items from {server}}}"
+
 msgid "{server} can't be reached"
 msgstr "{server} can't be reached"
 
@@ -16990,6 +16999,45 @@ msgstr "No record yet"
 msgid "Proxied by Cloudflare"
 msgstr "Proxied by Cloudflare"
 
+msgid "$ of $"
+msgstr "$ of $"
+
+msgid "Close find bar"
+msgstr "Close find bar"
+
+msgid "Find"
+msgstr "Find"
+
+msgid "Find and replace"
+msgstr "Find and replace"
+
+msgid "Invalid regular expression"
+msgstr "Invalid regular expression"
+
+msgid "Match case"
+msgstr "Match case"
+
+msgid "Next match"
+msgstr "Next match"
+
+msgid "No matches"
+msgstr "No matches"
+
+msgid "Previous match"
+msgstr "Previous match"
+
+msgid "Regular expression"
+msgstr "Regular expression"
+
+msgid "Replace all"
+msgstr "Replace all"
+
+msgid "Replace with"
+msgstr "Replace with"
+
+msgid "Whole word"
+msgstr "Whole word"
+
 msgid "(Empty file)"
 msgstr "(Empty file)"
 
@@ -17002,13 +17050,16 @@ msgstr "Can't preview this image here. Download it to open it on your computer."
 msgid "Compress"
 msgstr "Compress"
 
-msgid "Copy path {path}"
-msgstr "Copy path {path}"
-
 #. placeholder {0}: entry.name
 #. placeholder {0}: single.name
-msgid "Delete {0}"
-msgstr "Delete {0}"
+msgid "Compress {0}"
+msgstr "Compress {0}"
+
+msgid "Copy path"
+msgstr "Copy path"
+
+msgid "Copy path {path}"
+msgstr "Copy path {path}"
 
 msgid "Dockwell doesn't open this"
 msgstr "Dockwell doesn't open this"
@@ -17029,6 +17080,10 @@ msgstr "Exit full window"
 
 msgid "Extract"
 msgstr "Extract"
+
+#. placeholder {0}: entry.name
+msgid "Extract {0}"
+msgstr "Extract {0}"
 
 msgid "File"
 msgstr "File"
@@ -17052,6 +17107,10 @@ msgstr "Loading preview of {0}"
 msgid "Modified"
 msgstr "Modified"
 
+#. placeholder {0}: entry.name
+msgid "More options for {0}"
+msgstr "More options for {0}"
+
 msgid "Move"
 msgstr "Move"
 
@@ -17064,6 +17123,10 @@ msgstr "Previewing {0}"
 
 msgid "Rename"
 msgstr "Rename"
+
+#. placeholder {0}: entry.name
+msgid "Rename {0}"
+msgstr "Rename {0}"
 
 #. placeholder {0}: snippet.totalLines
 msgid "Showing first {TEXT_PREVIEW_LINES} of {0} lines"
@@ -17123,9 +17186,6 @@ msgstr "Edited"
 
 msgid "Enable word wrap"
 msgstr "Enable word wrap"
-
-msgid "Find and replace"
-msgstr "Find and replace"
 
 msgid "Full window editor"
 msgstr "Full window editor"
@@ -17272,12 +17332,12 @@ msgstr "Can't read this folder"
 msgid "Common places"
 msgstr "Common places"
 
-#. placeholder {0}: nameOf(archivePath)
-msgid "Compressed {0}"
-msgstr "Compressed {0}"
+msgid "Compressed {archiveName}"
+msgstr "Compressed {archiveName}"
 
-msgid "Copy path"
-msgstr "Copy path"
+#. placeholder {0}: nameOf(job.path)
+msgid "Compressing {0}"
+msgstr "Compressing {0}"
 
 msgid "Copy path {shown}"
 msgstr "Copy path {shown}"
@@ -17285,7 +17345,12 @@ msgstr "Copy path {shown}"
 msgid "Copy paths"
 msgstr "Copy paths"
 
+#. placeholder {0}: nameOf(job.path)
+msgid "Couldn't compress {0}"
+msgstr "Couldn't compress {0}"
+
 #. placeholder {0}: nameOf(archivePath)
+#. placeholder {0}: nameOf(job.path)
 msgid "Couldn't extract {0}"
 msgstr "Couldn't extract {0}"
 
@@ -17303,9 +17368,13 @@ msgstr "Dockwell doesn't open this folder"
 msgid "Download {count} items as a .zip"
 msgstr "Download {count} items as a .zip"
 
-#. placeholder {0}: nameOf(archivePath)
+#. placeholder {0}: nameOf(job.path)
 msgid "Extracted {0}"
 msgstr "Extracted {0}"
+
+#. placeholder {0}: nameOf(job.path)
+msgid "Extracting {0}"
+msgstr "Extracting {0}"
 
 msgid "Files in {shown}"
 msgstr "Files in {shown}"
@@ -17367,6 +17436,9 @@ msgstr "Reading this folder"
 msgid "Recently deleted"
 msgstr "Recently deleted"
 
+msgid "Reconnecting to check progress"
+msgstr "Reconnecting to check progress"
+
 msgid "Resize folder tree"
 msgstr "Resize folder tree"
 
@@ -17379,6 +17451,9 @@ msgstr "Searching every name in this folder"
 
 msgid "Select a file to inspect it, or double-click to open it."
 msgstr "Select a file to inspect it, or double-click to open it."
+
+msgid "Selecting this many items makes the download link too long. Compress them into a .zip on the server, then download that archive."
+msgstr "Selecting this many items makes the download link too long. Compress them into a .zip on the server, then download that archive."
 
 msgid "Selection actions"
 msgstr "Selection actions"
@@ -17393,6 +17468,9 @@ msgstr "Show more"
 msgid "Something called {nextName} is here already."
 msgstr "Something called {nextName} is here already."
 
+msgid "Something went wrong on the server."
+msgstr "Something went wrong on the server."
+
 msgid "They're in Recently deleted for 7 days, where you can put them back."
 msgstr "They're in Recently deleted for 7 days, where you can put them back."
 
@@ -17401,6 +17479,9 @@ msgstr "This folder holds more than a listing shows"
 
 msgid "This folder is empty."
 msgstr "This folder is empty."
+
+msgid "Too many items to download at once"
+msgstr "Too many items to download at once"
 
 msgid "Upload"
 msgstr "Upload"
@@ -17411,6 +17492,14 @@ msgstr "Websites"
 msgid "owned by <0>{owner}</0>"
 msgstr "owned by <0>{owner}</0>"
 
+#. placeholder {0}: Number(job.leftOut)
+msgid "{0, plural, one {# item was left out.} other {# items were left out.}}"
+msgstr "{0, plural, one {# item was left out.} other {# items were left out.}}"
+
+#. placeholder {0}: Number(job.skippedLinks)
+msgid "{0, plural, one {# link wasn't made.} other {# links weren't made.}}"
+msgstr "{0, plural, one {# link wasn't made.} other {# links weren't made.}}"
+
 #. placeholder {0}: selectedRows.length
 msgid "{0, plural, one {# selected} other {# selected}}"
 msgstr "{0, plural, one {# selected} other {# selected}}"
@@ -17419,15 +17508,24 @@ msgstr "{0, plural, one {# selected} other {# selected}}"
 msgid "{0, plural, one {Deleted # item} other {Deleted # items}}"
 msgstr "{0, plural, one {Deleted # item} other {Deleted # items}}"
 
-#. placeholder {0}: res.entries
+#. placeholder {0}: Number(job.entries)
+msgid "{0, plural, one {Packed # item into the archive.} other {Packed # items into the archive.}}"
+msgstr "{0, plural, one {Packed # item into the archive.} other {Packed # items into the archive.}}"
+
+#. placeholder {0}: Number(job.entries)
 msgid "{0, plural, one {Unpacked # item into {into}.} other {Unpacked # items into {into}.}}"
 msgstr "{0, plural, one {Unpacked # item into {into}.} other {Unpacked # items into {into}.}}"
+
+#. placeholder {0}: many(entries)
+#. placeholder {1}: many(total)
+msgid "{0} of {1} items · {bytes}"
+msgstr "{0} of {1} items · {bytes}"
 
 msgid "{count, plural, one {# item} other {# items}}"
 msgstr "{count, plural, one {# item} other {# items}}"
 
-msgid "{entries, plural, one {Packed # item into the archive.} other {Packed # items into the archive.}}"
-msgstr "{entries, plural, one {Packed # item into the archive.} other {Packed # items into the archive.}}"
+msgid "{entries, plural, one {# item · {bytes}} other {# items · {bytes}}}"
+msgstr "{entries, plural, one {# item · {bytes}} other {# items · {bytes}}}"
 
 msgid "{shownWords} found so far, by name"
 msgstr "{shownWords} found so far, by name"
@@ -17441,8 +17539,8 @@ msgstr "Hide the folders in {name}"
 msgid "Show the folders in {name}"
 msgstr "Show the folders in {name}"
 
-msgid "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
-msgstr "{more, plural, one {and # more, in its list} other {and # more, in its list}}"
+msgid "{more, plural, one {# more folder} other {# more folders}}"
+msgstr "{more, plural, one {# more folder} other {# more folders}}"
 
 msgid "A name can't have a / in it. Make the folder first, then this in it."
 msgstr "A name can't have a / in it. Make the folder first, then this in it."
@@ -17450,15 +17548,15 @@ msgstr "A name can't have a / in it. Make the folder first, then this in it."
 msgid "Archive name"
 msgstr "Archive name"
 
-#. placeholder {0}: single.name
-msgid "Compress {0}"
-msgstr "Compress {0}"
-
 msgid "Creates a new .zip archive in this folder. Never replaces a file that's already there."
 msgstr "Creates a new .zip archive in this folder. Never replaces a file that's already there."
 
 msgid "Delete for good"
 msgstr "Delete for good"
+
+#. placeholder {0}: single.name
+msgid "Delete {0}"
+msgstr "Delete {0}"
 
 msgid "Delete {name} for good"
 msgstr "Delete {name} for good"
@@ -17559,6 +17657,9 @@ msgstr "The folder {folder} is gone, so {name} wasn't put back, and it's still i
 
 msgid "The passkey prompt closed, so nothing changed. Try again when you're ready."
 msgstr "The passkey prompt closed, so nothing changed. Try again when you're ready."
+
+msgid "The server didn't start the archive job. Try again."
+msgstr "The server didn't start the archive job. Try again."
 
 msgid "There's no folder at {wanted}."
 msgstr "There's no folder at {wanted}."

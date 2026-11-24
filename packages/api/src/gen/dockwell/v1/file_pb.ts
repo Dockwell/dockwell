@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iMgoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIqABChBSZWFkRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgdjb250ZW50GAMgASgJEg4KBmJpbmFyeRgEIAEoCBIRCgl0cnVuY2F0ZWQYBSABKAgSDwoHdmVyc2lvbhgGIAEoCRITCgt3YXlfYmFja19pbhgHIAEoCCJ7Cg9TYXZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDwoHY29udGVudBgDIAEoCRIPCgd2ZXJzaW9uGAQgASgJEhYKDmNvbmZpcm1lZF9wYXRoGAUgASgJEg0KBXByb29mGAYgASgJImwKEFNhdmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5Eg8KB3ZlcnNpb24YAyABKAkSEwoLd2F5X2JhY2tfaW4YBCABKAgiZgoPTWFrZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRINCgVwcm9vZhgEIAEoCSJbChBNYWtlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCJNCg9Nb3ZlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBGZyb20YAiABKAkSCgoCdG8YAyABKAkSDQoFcHJvb2YYBCABKAkiZwoQTW92ZUZpbGVSZXNwb25zZRIMCgRmcm9tGAEgASgJEgoKAnRvGAIgASgJEiQKBGZpbGUYAyABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YBCABKAgiVQoRRGVsZXRlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEAoIZm9yX2dvb2QYAyABKAgSDQoFcHJvb2YYBCABKAkiYgoSRGVsZXRlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoHZGVsZXRlZBgCIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlEhMKC3dheV9iYWNrX2luGAMgASgIIiwKF0xpc3REZWxldGVkRmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJFChhMaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2USKQoHZGVsZXRlZBgBIAMoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIsEBCgtEZWxldGVkRmlsZRIKCgJpZBgBIAEoCRIMCgRwYXRoGAIgASgJEiMKBHR5cGUYAyABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAQgASgEEi8KC2RlbGV0ZV90aW1lGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIuCgpwdXJnZV90aW1lGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCJCChJSZXN0b3JlRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgoKAmlkGAIgASgJEg0KBXByb29mGAMgASgJIl4KE1Jlc3RvcmVGaWxlUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIIjgKF1B1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCSJFChhQdXJnZURlbGV0ZWRGaWxlUmVzcG9uc2USKQoHZGVsZXRlZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLkRlbGV0ZWRGaWxlIpABChJCZWdpblVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIjCgZ1bnBhY2sYBCABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEQoJdXBsb2FkX2lkGAUgASgJEg0KBXByb29mGAYgASgJIjoKE0JlZ2luVXBsb2FkUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjkKElVwbG9hZEZpbGVSZXNwb25zZRIjCgZ1cGxvYWQYASABKAsyEy5kb2Nrd2VsbC52MS5VcGxvYWQiOgoURG93bmxvYWRGaWxlUmVzcG9uc2USIgoEYm9keRgBIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiogEKBlVwbG9hZBIRCgl1cGxvYWRfaWQYASABKAkSDAoEcGF0aBgCIAEoCRISCgpzaXplX2J5dGVzGAMgASgEEhYKDnJlY2VpdmVkX2J5dGVzGAQgASgEEhEKCW1heF9ieXRlcxgFIAEoBBIjCgZ1bnBhY2sYBiABKA4yEy5kb2Nrd2VsbC52MS5VbnBhY2sSEwoLd2F5X2JhY2tfaW4YByABKAgicAoRVXBsb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCRIOCgZvZmZzZXQYAyABKAQSJQoHY29udGVudBgEIAEoCzIULmdvb2dsZS5hcGkuSHR0cEJvZHkiOwoTRmluaXNoVXBsb2FkUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSEQoJdXBsb2FkX2lkGAIgASgJIjsKE0NhbmNlbFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSIWChRDYW5jZWxVcGxvYWRSZXNwb25zZSKOAQoURmluaXNoVXBsb2FkUmVzcG9uc2USDAoEcGF0aBgBIAEoCRIkCgRmaWxlGAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAMgASgIEhMKC3VucGFja2VkX3RvGAQgASgJEhgKEHVucGFja2VkX2VudHJpZXMYBSABKAQiRQoTRG93bmxvYWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRINCgVwYXRocxgDIAMoCSJdChRDb21wcmVzc0ZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDQoFcGF0aHMYAiADKAkSFAoMYXJjaGl2ZV9wYXRoGAMgASgJEg0KBXByb29mGAQgASgJInEKFUNvbXByZXNzRmlsZXNSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHZW50cmllcxgDIAEoBBITCgt3YXlfYmFja19pbhgEIAEoCCJHChVFeHRyYWN0QXJjaGl2ZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcHJvb2YYAyABKAkiagoWRXh0cmFjdEFyY2hpdmVSZXNwb25zZRIMCgRwYXRoGAEgASgJEhMKC3VucGFja2VkX3RvGAIgASgJEhgKEHVucGFja2VkX2VudHJpZXMYAyABKAQSEwoLd2F5X2JhY2tfaW4YBCABKAgisgIKCUZpbGVFbnRyeRIMCgRuYW1lGAEgASgJEiMKBHR5cGUYAiABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRISCgpzaXplX2J5dGVzGAMgASgEEi8KC21vZGlmeV90aW1lGAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIMCgRtb2RlGAUgASgJEg0KBW93bmVyGAYgASgJEg0KBWdyb3VwGAcgASgJEhMKC2xpbmtfdGFyZ2V0GAggASgJEigKCWxpbmtfdHlwZRgJIAEoDjIVLmRvY2t3ZWxsLnYxLkZpbGVUeXBlEg8KB3JlZnVzZWQYCiABKAgSFwoPdW5yZWFkYWJsZV9uYW1lGAsgASgIEgsKA3VpZBg8IAEoDRILCgNnaWQYPSABKA0qQwoGVW5wYWNrEhYKElVOUEFDS19VTlNQRUNJRklFRBAAEg4KClVOUEFDS19aSVAQARIRCg1VTlBBQ0tfVEFSX0daEAIqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDKEFgoLRmlsZVNlcnZpY2USmQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJNkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAcC7GATIuxgE0LsYBoLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSmwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJSoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKbAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIlKguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlEpsBCghNYWtlRmlsZRIcLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVzcG9uc2UiUqC7GAOquxgNCgVmaWxlcxIEbWFrZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOm1ha2USmwEKCE1vdmVGaWxlEhwuZG9ja3dlbGwudjEuTW92ZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTW92ZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtb3ZlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bW92ZRKlAQoKRGVsZXRlRmlsZRIeLmRvY2t3ZWxsLnYxLkRlbGV0ZUZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlc3BvbnNlIlaguxgEqrsYDwoFZmlsZXMSBmRlbGV0ZbC7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOmRlbGV0ZRK+AQoQTGlzdERlbGV0ZWRGaWxlcxIkLmRvY2t3ZWxsLnYxLkxpc3REZWxldGVkRmlsZXNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlIl2QAgGguxgBqrsYFQoFZmlsZXMSDGxpc3QtZGVsZXRlZLC7GAHAuxgEyLsYBNC7GAaC0+STAicSJS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMStwEKC1Jlc3RvcmVGaWxlEh8uZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXNwb25zZSJloLsYA6q7GBAKBWZpbGVzEgdyZXN0b3JlsLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9OnJlc3RvcmUSuQEKEFB1cmdlRGVsZXRlZEZpbGUSJC5kb2Nrd2VsbC52MS5QdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXNwb25zZSJYoLsYBKq7GA4KBWZpbGVzEgVwdXJnZbC7GAHAuxgEyLsYBNC7GAaC0+STAiwqKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMve2lkfRKpAQoLQmVnaW5VcGxvYWQSHy5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlc3BvbnNlIleguxgDqrsYFQoFZmlsZXMSDGJlZ2luLXVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAiQ6ASoiHy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMStAEKClVwbG9hZEZpbGUSHi5kb2Nrd2VsbC52MS5VcGxvYWRGaWxlUmVxdWVzdBofLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXNwb25zZSJjoLsYA6q7GA8KBWZpbGVzEgZ1cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI2Ogdjb250ZW50GisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9KAESwAEKDEZpbmlzaFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5GaW5pc2hVcGxvYWRSZXNwb25zZSJroLsYA6q7GBYKBWZpbGVzEg1maW5pc2gtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfTpmaW5pc2gStgEKDENhbmNlbFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DYW5jZWxVcGxvYWRSZXNwb25zZSJhoLsYBKq7GBYKBWZpbGVzEg1jYW5jZWwtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLSorL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfRK3AQoMRG93bmxvYWRGaWxlEiAuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRvd25sb2FkRmlsZVJlc3BvbnNlImCQAgGguxgBqrsYEQoFZmlsZXMSCGRvd25sb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLmIEYm9keRImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZG93bmxvYWQwARKyAQoNQ29tcHJlc3NGaWxlcxIhLmRvY2t3ZWxsLnYxLkNvbXByZXNzRmlsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ29tcHJlc3NGaWxlc1Jlc3BvbnNlIlqguxgDqrsYEQoFZmlsZXMSCGNvbXByZXNzsLsYAcC7GATIuxgE0LsYBoLT5JMCKzoBKiImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6Y29tcHJlc3MSswEKDkV4dHJhY3RBcmNoaXZlEiIuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXNwb25zZSJYoLsYA6q7GBAKBWZpbGVzEgdleHRyYWN0sLsYAcC7GATIuxgE0LsYBoLT5JMCKjoBKiIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZXh0cmFjdEKiAQoPY29tLmRvY2t3ZWxsLnYxQglGaWxlUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iSAoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhQKDGFsbG93X2JpbmFyeRgDIAEoCCK1AQoQUmVhZEZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHY29udGVudBgDIAEoCRIOCgZiaW5hcnkYBCABKAgSEQoJdHJ1bmNhdGVkGAUgASgIEg8KB3ZlcnNpb24YBiABKAkSEwoLd2F5X2JhY2tfaW4YByABKAgSEwoLcmF3X2NvbnRlbnQYCCABKAwiewoPU2F2ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg8KB2NvbnRlbnQYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIWCg5jb25maXJtZWRfcGF0aBgFIAEoCRINCgVwcm9vZhgGIAEoCSJsChBTYXZlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgd2ZXJzaW9uGAMgASgJEhMKC3dheV9iYWNrX2luGAQgASgIImYKD01ha2VGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDQoFcHJvb2YYBCABKAkiWwoQTWFrZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YAyABKAgiTQoPTW92ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRmcm9tGAIgASgJEgoKAnRvGAMgASgJEg0KBXByb29mGAQgASgJImcKEE1vdmVGaWxlUmVzcG9uc2USDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRIkCgRmaWxlGAMgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAQgASgIIlUKEURlbGV0ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhAKCGZvcl9nb29kGAMgASgIEg0KBXByb29mGAQgASgJImIKEkRlbGV0ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKB2RlbGV0ZWQYAiABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZRITCgt3YXlfYmFja19pbhgDIAEoCCIsChdMaXN0RGVsZXRlZEZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiRQoYTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlEikKB2RlbGV0ZWQYASADKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSLBAQoLRGVsZXRlZEZpbGUSCgoCaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgEIAEoBBIvCgtkZWxldGVfdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcHVyZ2VfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoSUmVzdG9yZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCRINCgVwcm9vZhgDIAEoCSJeChNSZXN0b3JlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCI4ChdQdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSCgoCaWQYAiABKAkiRQoYUHVyZ2VEZWxldGVkRmlsZVJlc3BvbnNlEikKB2RlbGV0ZWQYASABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSKQAQoSQmVnaW5VcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAQSIwoGdW5wYWNrGAQgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhEKCXVwbG9hZF9pZBgFIAEoCRINCgVwcm9vZhgGIAEoCSI6ChNCZWdpblVwbG9hZFJlc3BvbnNlEiMKBnVwbG9hZBgBIAEoCzITLmRvY2t3ZWxsLnYxLlVwbG9hZCI5ChJVcGxvYWRGaWxlUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjoKFERvd25sb2FkRmlsZVJlc3BvbnNlEiIKBGJvZHkYASABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IqIBCgZVcGxvYWQSEQoJdXBsb2FkX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIWCg5yZWNlaXZlZF9ieXRlcxgEIAEoBBIRCgltYXhfYnl0ZXMYBSABKAQSIwoGdW5wYWNrGAYgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhMKC3dheV9iYWNrX2luGAcgASgIInAKEVVwbG9hZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkSDgoGb2Zmc2V0GAMgASgEEiUKB2NvbnRlbnQYBCABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IjsKE0ZpbmlzaFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSI7ChNDYW5jZWxVcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkiFgoUQ2FuY2VsVXBsb2FkUmVzcG9uc2UijgEKFEZpbmlzaFVwbG9hZFJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCBITCgt1bnBhY2tlZF90bxgEIAEoCRIYChB1bnBhY2tlZF9lbnRyaWVzGAUgASgEIkUKE0Rvd25sb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcGF0aHMYAyADKAkiXQoUQ29tcHJlc3NGaWxlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg0KBXBhdGhzGAIgAygJEhQKDGFyY2hpdmVfcGF0aBgDIAEoCRINCgVwcm9vZhgEIAEoCSI9ChVDb21wcmVzc0ZpbGVzUmVzcG9uc2USJAoDam9iGAEgASgLMhcuZG9ja3dlbGwudjEuQXJjaGl2ZUpvYiJHChVFeHRyYWN0QXJjaGl2ZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcHJvb2YYAyABKAkiPgoWRXh0cmFjdEFyY2hpdmVSZXNwb25zZRIkCgNqb2IYASABKAsyFy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iIjkKFEdldEFyY2hpdmVKb2JSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiPQoVR2V0QXJjaGl2ZUpvYlJlc3BvbnNlEiQKA2pvYhgBIAEoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2IiKwoWTGlzdEFyY2hpdmVKb2JzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQAoXTGlzdEFyY2hpdmVKb2JzUmVzcG9uc2USJQoEam9icxgBIAMoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2Ii5AMKCkFyY2hpdmVKb2ISDgoGam9iX2lkGAEgASgJEikKBGtpbmQYAiABKA4yGy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iS2luZBIrCgVzdGF0ZRgDIAEoDjIcLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2JTdGF0ZRIMCgRwYXRoGAQgASgJEhMKC3VucGFja2VkX3RvGAUgASgJEhQKDHNvdXJjZV9wYXRocxgGIAMoCRIUCgxzb3VyY2VfY291bnQYByABKA0SDwoHZW50cmllcxgIIAEoBBIVCg10b3RhbF9lbnRyaWVzGAkgASgEEg0KBWJ5dGVzGAogASgEEhUKDXNraXBwZWRfbGlua3MYCyABKAQSEAoIbGVmdF9vdXQYDCABKAQSJAoEZmlsZRgNIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgOIAEoCBINCgVlcnJvchgPIAEoCRIUCgxlcnJvcl9yZWFzb24YECABKAkSLgoKc3RhcnRfdGltZRgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoX3RpbWUYEiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrICCglGaWxlRW50cnkSDAoEbmFtZRgBIAEoCRIjCgR0eXBlGAIgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgDIAEoBBIvCgttb2RpZnlfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEbW9kZRgFIAEoCRINCgVvd25lchgGIAEoCRINCgVncm91cBgHIAEoCRITCgtsaW5rX3RhcmdldBgIIAEoCRIoCglsaW5rX3R5cGUYCSABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIPCgdyZWZ1c2VkGAogASgIEhcKD3VucmVhZGFibGVfbmFtZRgLIAEoCBILCgN1aWQYPCABKA0SCwoDZ2lkGD0gASgNKkMKBlVucGFjaxIWChJVTlBBQ0tfVU5TUEVDSUZJRUQQABIOCgpVTlBBQ0tfWklQEAESEQoNVU5QQUNLX1RBUl9HWhACKm8KDkFyY2hpdmVKb2JLaW5kEiAKHEFSQ0hJVkVfSk9CX0tJTkRfVU5TUEVDSUZJRUQQABIdChlBUkNISVZFX0pPQl9LSU5EX0NPTVBSRVNTEAESHAoYQVJDSElWRV9KT0JfS0lORF9FWFRSQUNUEAIqjQEKD0FyY2hpdmVKb2JTdGF0ZRIhCh1BUkNISVZFX0pPQl9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUFSQ0hJVkVfSk9CX1NUQVRFX1JVTk5JTkcQARIaChZBUkNISVZFX0pPQl9TVEFURV9ET05FEAISHAoYQVJDSElWRV9KT0JfU1RBVEVfRkFJTEVEEAMqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDKAGQoLRmlsZVNlcnZpY2USmQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJNkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAcC7GATIuxgE0LsYBoLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSmwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJSoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKbAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIlKguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlEpsBCghNYWtlRmlsZRIcLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVzcG9uc2UiUqC7GAOquxgNCgVmaWxlcxIEbWFrZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOm1ha2USmwEKCE1vdmVGaWxlEhwuZG9ja3dlbGwudjEuTW92ZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTW92ZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtb3ZlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bW92ZRKlAQoKRGVsZXRlRmlsZRIeLmRvY2t3ZWxsLnYxLkRlbGV0ZUZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlc3BvbnNlIlaguxgEqrsYDwoFZmlsZXMSBmRlbGV0ZbC7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOmRlbGV0ZRK+AQoQTGlzdERlbGV0ZWRGaWxlcxIkLmRvY2t3ZWxsLnYxLkxpc3REZWxldGVkRmlsZXNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlIl2QAgGguxgBqrsYFQoFZmlsZXMSDGxpc3QtZGVsZXRlZLC7GAHAuxgEyLsYBNC7GAaC0+STAicSJS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMStwEKC1Jlc3RvcmVGaWxlEh8uZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXNwb25zZSJloLsYA6q7GBAKBWZpbGVzEgdyZXN0b3JlsLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9OnJlc3RvcmUSuQEKEFB1cmdlRGVsZXRlZEZpbGUSJC5kb2Nrd2VsbC52MS5QdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXNwb25zZSJYoLsYBKq7GA4KBWZpbGVzEgVwdXJnZbC7GAHAuxgEyLsYBNC7GAaC0+STAiwqKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMve2lkfRKpAQoLQmVnaW5VcGxvYWQSHy5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlc3BvbnNlIleguxgDqrsYFQoFZmlsZXMSDGJlZ2luLXVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAiQ6ASoiHy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMStAEKClVwbG9hZEZpbGUSHi5kb2Nrd2VsbC52MS5VcGxvYWRGaWxlUmVxdWVzdBofLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXNwb25zZSJjoLsYA6q7GA8KBWZpbGVzEgZ1cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI2Ogdjb250ZW50GisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9KAESwAEKDEZpbmlzaFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5GaW5pc2hVcGxvYWRSZXNwb25zZSJroLsYA6q7GBYKBWZpbGVzEg1maW5pc2gtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfTpmaW5pc2gStgEKDENhbmNlbFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DYW5jZWxVcGxvYWRSZXNwb25zZSJhoLsYBKq7GBYKBWZpbGVzEg1jYW5jZWwtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLSorL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfRK3AQoMRG93bmxvYWRGaWxlEiAuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRvd25sb2FkRmlsZVJlc3BvbnNlImCQAgGguxgBqrsYEQoFZmlsZXMSCGRvd25sb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLmIEYm9keRImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZG93bmxvYWQwARKyAQoNQ29tcHJlc3NGaWxlcxIhLmRvY2t3ZWxsLnYxLkNvbXByZXNzRmlsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ29tcHJlc3NGaWxlc1Jlc3BvbnNlIlqguxgDqrsYEQoFZmlsZXMSCGNvbXByZXNzsLsYAcC7GATIuxgE0LsYBoLT5JMCKzoBKiImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6Y29tcHJlc3MSswEKDkV4dHJhY3RBcmNoaXZlEiIuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXNwb25zZSJYoLsYA6q7GBAKBWZpbGVzEgdleHRyYWN0sLsYAcC7GATIuxgE0LsYBoLT5JMCKjoBKiIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZXh0cmFjdBK8AQoNR2V0QXJjaGl2ZUpvYhIhLmRvY2t3ZWxsLnYxLkdldEFyY2hpdmVKb2JSZXF1ZXN0GiIuZG9ja3dlbGwudjEuR2V0QXJjaGl2ZUpvYlJlc3BvbnNlImSQAgGguxgBqrsYFAoFZmlsZXMSC2FyY2hpdmUtam9isLsYAcC7GATIuxgE0LsYBoLT5JMCLxItL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vYXJjaGl2ZS1qb2JzL3tqb2JfaWR9EroBCg9MaXN0QXJjaGl2ZUpvYnMSIy5kb2Nrd2VsbC52MS5MaXN0QXJjaGl2ZUpvYnNSZXF1ZXN0GiQuZG9ja3dlbGwudjEuTGlzdEFyY2hpdmVKb2JzUmVzcG9uc2UiXJACAaC7GAGquxgVCgVmaWxlcxIMYXJjaGl2ZS1qb2JzsLsYAcC7GATIuxgE0LsYBoLT5JMCJhIkL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vYXJjaGl2ZS1qb2JzQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -156,6 +156,15 @@ export type ReadFileRequest = Message<"dockwell.v1.ReadFileRequest"> & {
    * @generated from field: string path = 2;
    */
   path: string;
+
+  /**
+   * True to also return binary bytes (up to the preview cap of 5 MiB) in
+   * raw_content, for image previews through the read path instead of a
+   * download.
+   *
+   * @generated from field: bool allow_binary = 3;
+   */
+  allowBinary: boolean;
 };
 
 /**
@@ -193,14 +202,16 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
   content: string;
 
   /**
-   * True when the file isn't UTF-8 text, so its contents aren't sent.
+   * True when the file isn't UTF-8 text, so its contents aren't sent in
+   * content (and are in raw_content only when allow_binary was set).
    *
    * @generated from field: bool binary = 4;
    */
   binary: boolean;
 
   /**
-   * True when the file is longer than 1 MiB, so content is its beginning.
+   * True when the file is longer than 1 MiB (or 5 MiB when allow_binary is
+   * set), so content is its beginning or raw_content is omitted.
    *
    * @generated from field: bool truncated = 5;
    */
@@ -223,6 +234,14 @@ export type ReadFileResponse = Message<"dockwell.v1.ReadFileResponse"> & {
    * @generated from field: bool way_back_in = 7;
    */
   wayBackIn: boolean;
+
+  /**
+   * Binary file bytes when allow_binary was set on ReadFileRequest and the
+   * file is binary and within the preview cap. Empty otherwise.
+   *
+   * @generated from field: bytes raw_content = 8;
+   */
+  rawContent: Uint8Array;
 };
 
 /**
@@ -1217,7 +1236,7 @@ export type CompressFilesRequest = Message<"dockwell.v1.CompressFilesRequest"> &
   archivePath: string;
 
   /**
-   * The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for
+   * The proof from FinishStepUp, with STEP_UP_ACTION_COMPRESS_WAY_BACK_IN for
    * archive_path on this server, where creating it is a way back onto it.
    *
    * @generated from field: string proof = 4;
@@ -1233,39 +1252,17 @@ export const CompressFilesRequestSchema: GenMessage<CompressFilesRequest> = /*@_
   messageDesc(file_dockwell_v1_file, 30);
 
 /**
- * CompressFilesResponse says what archive was created.
+ * CompressFilesResponse returns the archive job started for the request.
  *
  * @generated from message dockwell.v1.CompressFilesResponse
  */
 export type CompressFilesResponse = Message<"dockwell.v1.CompressFilesResponse"> & {
   /**
-   * Where the archive was created, with every symlink in its folder's path
-   * followed.
+   * The running or finished compress job.
    *
-   * @generated from field: string path = 1;
+   * @generated from field: dockwell.v1.ArchiveJob job = 1;
    */
-  path: string;
-
-  /**
-   * The created archive file.
-   *
-   * @generated from field: dockwell.v1.FileEntry file = 2;
-   */
-  file?: FileEntry | undefined;
-
-  /**
-   * How many files and folders were packed into it.
-   *
-   * @generated from field: uint64 entries = 3;
-   */
-  entries: bigint;
-
-  /**
-   * True when creating the archive took a passkey.
-   *
-   * @generated from field: bool way_back_in = 4;
-   */
-  wayBackIn: boolean;
+  job?: ArchiveJob | undefined;
 };
 
 /**
@@ -1296,9 +1293,9 @@ export type ExtractArchiveRequest = Message<"dockwell.v1.ExtractArchiveRequest">
   path: string;
 
   /**
-   * The proof from FinishStepUp, with STEP_UP_ACTION_MAKE_WAY_BACK_IN for the
-   * destination folder on this server, where extracting there is a way back
-   * onto it.
+   * The proof from FinishStepUp, with STEP_UP_ACTION_EXTRACT_WAY_BACK_IN for
+   * the archive and destination folder on this server, where extracting there
+   * is a way back onto it.
    *
    * @generated from field: string proof = 3;
    */
@@ -1313,38 +1310,17 @@ export const ExtractArchiveRequestSchema: GenMessage<ExtractArchiveRequest> = /*
   messageDesc(file_dockwell_v1_file, 32);
 
 /**
- * ExtractArchiveResponse says where the archive was unpacked.
+ * ExtractArchiveResponse returns the archive job started for the request.
  *
  * @generated from message dockwell.v1.ExtractArchiveResponse
  */
 export type ExtractArchiveResponse = Message<"dockwell.v1.ExtractArchiveResponse"> & {
   /**
-   * The archive's path, with every symlink in its folder's path followed.
+   * The running or finished extract job.
    *
-   * @generated from field: string path = 1;
+   * @generated from field: dockwell.v1.ArchiveJob job = 1;
    */
-  path: string;
-
-  /**
-   * The new folder the archive unpacked into.
-   *
-   * @generated from field: string unpacked_to = 2;
-   */
-  unpackedTo: string;
-
-  /**
-   * How many files and folders were extracted.
-   *
-   * @generated from field: uint64 unpacked_entries = 3;
-   */
-  unpackedEntries: bigint;
-
-  /**
-   * True when extracting into that folder took a passkey.
-   *
-   * @generated from field: bool way_back_in = 4;
-   */
-  wayBackIn: boolean;
+  job?: ArchiveJob | undefined;
 };
 
 /**
@@ -1353,6 +1329,241 @@ export type ExtractArchiveResponse = Message<"dockwell.v1.ExtractArchiveResponse
  */
 export const ExtractArchiveResponseSchema: GenMessage<ExtractArchiveResponse> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_file, 33);
+
+/**
+ * GetArchiveJobRequest names one archive job on a server.
+ *
+ * @generated from message dockwell.v1.GetArchiveJobRequest
+ */
+export type GetArchiveJobRequest = Message<"dockwell.v1.GetArchiveJobRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * The job's ID, from CompressFiles or ExtractArchive.
+   *
+   * @generated from field: string job_id = 2;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetArchiveJobRequest.
+ * Use `create(GetArchiveJobRequestSchema)` to create a new message.
+ */
+export const GetArchiveJobRequestSchema: GenMessage<GetArchiveJobRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 34);
+
+/**
+ * GetArchiveJobResponse is the job's current state.
+ *
+ * @generated from message dockwell.v1.GetArchiveJobResponse
+ */
+export type GetArchiveJobResponse = Message<"dockwell.v1.GetArchiveJobResponse"> & {
+  /**
+   * The job.
+   *
+   * @generated from field: dockwell.v1.ArchiveJob job = 1;
+   */
+  job?: ArchiveJob | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetArchiveJobResponse.
+ * Use `create(GetArchiveJobResponseSchema)` to create a new message.
+ */
+export const GetArchiveJobResponseSchema: GenMessage<GetArchiveJobResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 35);
+
+/**
+ * ListArchiveJobsRequest names a server.
+ *
+ * @generated from message dockwell.v1.ListArchiveJobsRequest
+ */
+export type ListArchiveJobsRequest = Message<"dockwell.v1.ListArchiveJobsRequest"> & {
+  /**
+   * The server's ID, such as "srv_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListArchiveJobsRequest.
+ * Use `create(ListArchiveJobsRequestSchema)` to create a new message.
+ */
+export const ListArchiveJobsRequestSchema: GenMessage<ListArchiveJobsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 36);
+
+/**
+ * ListArchiveJobsResponse lists active and recently finished archive jobs for
+ * the caller on that server, newest first.
+ *
+ * @generated from message dockwell.v1.ListArchiveJobsResponse
+ */
+export type ListArchiveJobsResponse = Message<"dockwell.v1.ListArchiveJobsResponse"> & {
+  /**
+   * The jobs.
+   *
+   * @generated from field: repeated dockwell.v1.ArchiveJob jobs = 1;
+   */
+  jobs: ArchiveJob[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListArchiveJobsResponse.
+ * Use `create(ListArchiveJobsResponseSchema)` to create a new message.
+ */
+export const ListArchiveJobsResponseSchema: GenMessage<ListArchiveJobsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 37);
+
+/**
+ * ArchiveJob is one server-side compress or extract job, which outlives the
+ * request that started it so long archives survive proxy request timeouts.
+ *
+ * @generated from message dockwell.v1.ArchiveJob
+ */
+export type ArchiveJob = Message<"dockwell.v1.ArchiveJob"> & {
+  /**
+   * Its ID, which GetArchiveJob takes.
+   *
+   * @generated from field: string job_id = 1;
+   */
+  jobId: string;
+
+  /**
+   * Whether it compresses or extracts.
+   *
+   * @generated from field: dockwell.v1.ArchiveJobKind kind = 2;
+   */
+  kind: ArchiveJobKind;
+
+  /**
+   * Running, done or failed.
+   *
+   * @generated from field: dockwell.v1.ArchiveJobState state = 3;
+   */
+  state: ArchiveJobState;
+
+  /**
+   * The archive's path on the server, with every symlink in its folder's path
+   * followed.
+   *
+   * @generated from field: string path = 4;
+   */
+  path: string;
+
+  /**
+   * For extract, the new folder the archive unpacks into. Empty for compress.
+   *
+   * @generated from field: string unpacked_to = 5;
+   */
+  unpackedTo: string;
+
+  /**
+   * For compress, the resolved source paths being packed (first 10 when many).
+   *
+   * @generated from field: repeated string source_paths = 6;
+   */
+  sourcePaths: string[];
+
+  /**
+   * Total number of top-level source paths for compress.
+   *
+   * @generated from field: uint32 source_count = 7;
+   */
+  sourceCount: number;
+
+  /**
+   * Files and folders processed so far (or final count when done).
+   *
+   * @generated from field: uint64 entries = 8;
+   */
+  entries: bigint;
+
+  /**
+   * Total entries known ahead of time (for zip extract), or zero when unknown.
+   *
+   * @generated from field: uint64 total_entries = 9;
+   */
+  totalEntries: bigint;
+
+  /**
+   * Bytes written so far (or final archive / unpacked bytes when done).
+   *
+   * @generated from field: uint64 bytes = 10;
+   */
+  bytes: bigint;
+
+  /**
+   * For extract: symlinks, hard links, devices and FIFOs skipped in the archive.
+   *
+   * @generated from field: uint64 skipped_links = 11;
+   */
+  skippedLinks: bigint;
+
+  /**
+   * For compress: entries left out (refused paths, other filesystems, links,
+   * or deeper than the depth limit).
+   *
+   * @generated from field: uint64 left_out = 12;
+   */
+  leftOut: bigint;
+
+  /**
+   * For compress when done: the created archive file entry.
+   *
+   * @generated from field: dockwell.v1.FileEntry file = 13;
+   */
+  file?: FileEntry | undefined;
+
+  /**
+   * True when starting the job took a passkey for a way back in.
+   *
+   * @generated from field: bool way_back_in = 14;
+   */
+  wayBackIn: boolean;
+
+  /**
+   * When failed: the reason for people.
+   *
+   * @generated from field: string error = 15;
+   */
+  error: string;
+
+  /**
+   * When failed: the API error reason, such as "unpack_refused" or "disk_full".
+   *
+   * @generated from field: string error_reason = 16;
+   */
+  errorReason: string;
+
+  /**
+   * When the job started on the agent.
+   *
+   * @generated from field: google.protobuf.Timestamp start_time = 17;
+   */
+  startTime?: Timestamp | undefined;
+
+  /**
+   * When the job finished or failed. Unset while running.
+   *
+   * @generated from field: google.protobuf.Timestamp finish_time = 18;
+   */
+  finishTime?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.ArchiveJob.
+ * Use `create(ArchiveJobSchema)` to create a new message.
+ */
+export const ArchiveJobSchema: GenMessage<ArchiveJob> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 38);
 
 /**
  * FileEntry is one file or directory on a server.
@@ -1460,7 +1671,7 @@ export type FileEntry = Message<"dockwell.v1.FileEntry"> & {
  * Use `create(FileEntrySchema)` to create a new message.
  */
 export const FileEntrySchema: GenMessage<FileEntry> = /*@__PURE__*/
-  messageDesc(file_dockwell_v1_file, 34);
+  messageDesc(file_dockwell_v1_file, 39);
 
 /**
  * What to unpack an upload as, once it's all there.
@@ -1495,6 +1706,77 @@ export enum Unpack {
  */
 export const UnpackSchema: GenEnum<Unpack> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_file, 0);
+
+/**
+ * ArchiveJobKind says whether a job compresses or extracts an archive.
+ *
+ * @generated from enum dockwell.v1.ArchiveJobKind
+ */
+export enum ArchiveJobKind {
+  /**
+   * @generated from enum value: ARCHIVE_JOB_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Packing selected paths into a new .zip archive.
+   *
+   * @generated from enum value: ARCHIVE_JOB_KIND_COMPRESS = 1;
+   */
+  COMPRESS = 1,
+
+  /**
+   * Extracting an existing .zip, .tar.gz or .tgz archive.
+   *
+   * @generated from enum value: ARCHIVE_JOB_KIND_EXTRACT = 2;
+   */
+  EXTRACT = 2,
+}
+
+/**
+ * Describes the enum dockwell.v1.ArchiveJobKind.
+ */
+export const ArchiveJobKindSchema: GenEnum<ArchiveJobKind> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_file, 1);
+
+/**
+ * ArchiveJobState is where an archive job stands.
+ *
+ * @generated from enum dockwell.v1.ArchiveJobState
+ */
+export enum ArchiveJobState {
+  /**
+   * @generated from enum value: ARCHIVE_JOB_STATE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Running on the agent.
+   *
+   * @generated from enum value: ARCHIVE_JOB_STATE_RUNNING = 1;
+   */
+  RUNNING = 1,
+
+  /**
+   * Finished and in place on disk.
+   *
+   * @generated from enum value: ARCHIVE_JOB_STATE_DONE = 2;
+   */
+  DONE = 2,
+
+  /**
+   * Stopped with an error; nothing partial was left behind.
+   *
+   * @generated from enum value: ARCHIVE_JOB_STATE_FAILED = 3;
+   */
+  FAILED = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.ArchiveJobState.
+ */
+export const ArchiveJobStateSchema: GenEnum<ArchiveJobState> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_file, 2);
 
 /**
  * FileType says what an entry in a directory is.
@@ -1540,7 +1822,7 @@ export enum FileType {
  * Describes the enum dockwell.v1.FileType.
  */
 export const FileTypeSchema: GenEnum<FileType> = /*@__PURE__*/
-  enumDesc(file_dockwell_v1_file, 1);
+  enumDesc(file_dockwell_v1_file, 3);
 
 /**
  * FileService browses, reads, saves, makes, moves and deletes the files on a
@@ -1746,10 +2028,13 @@ export const FileService: GenService<{
     output: typeof DownloadFileResponseSchema;
   },
   /**
-   * CompressFiles packs one or more files or folders into a new zip archive on
-   * the server, never over what's there. What a read refuses is left out, and
-   * any private key or password hash stops it. No API token can call it. Each
-   * one is on the timeline.
+   * CompressFiles starts a job that packs one or more files or folders into a
+   * new zip archive on the server, never over what's there. Preflight checks
+   * run first, then the job runs on the agent so it outlives proxy request
+   * timeouts. Poll GetArchiveJob or ListArchiveJobs for progress and outcome.
+   * What a read refuses is left out and counted, and any private key or
+   * password hash stops it. No API token can call it. Each one is on the
+   * timeline.
    *
    * @generated from rpc dockwell.v1.FileService.CompressFiles
    */
@@ -1759,10 +2044,13 @@ export const FileService: GenService<{
     output: typeof CompressFilesResponseSchema;
   },
   /**
-   * ExtractArchive unpacks an existing .zip, .tar.gz or .tgz archive on the
-   * server into a new folder beside it, never over what's there. Links and
-   * unsafe paths stop it, and unpacking into a way back in takes a passkey.
-   * No API token can call it. Each one is on the timeline.
+   * ExtractArchive starts a job that unpacks an existing .zip, .tar.gz or .tgz
+   * archive on the server into a new folder beside it, never over what's
+   * there. Preflight checks run first, then the job runs on the agent so it
+   * outlives proxy request timeouts. Poll GetArchiveJob or ListArchiveJobs for
+   * progress and outcome. Symlinks and special files are skipped and counted;
+   * unsafe paths and way-in entries stop it all-or-nothing. No API token can
+   * call it. Each one is on the timeline.
    *
    * @generated from rpc dockwell.v1.FileService.ExtractArchive
    */
@@ -1770,6 +2058,29 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof ExtractArchiveRequestSchema;
     output: typeof ExtractArchiveResponseSchema;
+  },
+  /**
+   * GetArchiveJob returns the current state, progress and outcome of a
+   * compress or extract job started by the caller on a server. No API token
+   * can call it.
+   *
+   * @generated from rpc dockwell.v1.FileService.GetArchiveJob
+   */
+  getArchiveJob: {
+    methodKind: "unary";
+    input: typeof GetArchiveJobRequestSchema;
+    output: typeof GetArchiveJobResponseSchema;
+  },
+  /**
+   * ListArchiveJobs returns active and recently finished compress and extract
+   * jobs started by the caller on a server. No API token can call it.
+   *
+   * @generated from rpc dockwell.v1.FileService.ListArchiveJobs
+   */
+  listArchiveJobs: {
+    methodKind: "unary";
+    input: typeof ListArchiveJobsRequestSchema;
+    output: typeof ListArchiveJobsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_file, 0);

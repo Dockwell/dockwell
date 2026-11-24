@@ -38,8 +38,8 @@ var (
 	opMove     = op{"move", auth.StepUpMoveWayBackIn}
 	opDelete   = op{"delete", auth.StepUpDeleteWayBackIn}
 	opRestore  = op{"put back", auth.StepUpRestoreWayBackIn}
-	opCompress = op{"compress", auth.StepUpMakeWayBackIn}
-	opExtract  = op{"extract", auth.StepUpMakeWayBackIn}
+	opCompress = op{"compress", auth.StepUpCompressWayBackIn}
+	opExtract  = op{"extract", auth.StepUpExtractWayBackIn}
 )
 
 // actions names each outcome explicitly, so the audit inventory can follow every
@@ -74,8 +74,12 @@ type Told struct {
 	To        string `json:"to,omitempty"`
 	WayBackIn bool   `json:"way_back_in,omitempty"`
 	ForGood   bool   `json:"for_good,omitempty"`
-	// Size is how many bytes an upload or a download came to.
+	// Size is how many bytes an upload, download or archive came to.
 	Size uint64 `json:"size,omitempty"`
+	// Paths holds the first few resolved source or selected paths for a
+	// compress or multi-path download event, and PathCount holds the full count.
+	Paths     []string `json:"paths,omitempty"`
+	PathCount int      `json:"path_count,omitempty"`
 }
 
 // ReadTold reads what a write's event says, if it's one.
@@ -423,7 +427,74 @@ func (w *writing) archives(ctx context.Context, at string) error {
 		fmt.Errorf("%s's agent is too old to %s archives on the server, so it can't here. Update the agent on %s, then try again", w.srv.GetName(), w.op.verb, w.srv.GetName()), "agent_outdated"))
 }
 
-// CompressFiles packs one or more files or folders into a new .zip archive on a server.
+// jobOwner identifies who owns a background archive job so reloads keep access
+// while other users can't read or guess another user's job IDs.
+func jobOwner(p auth.Principal) string { return p.User.ID }
+
+func archiveJobKey(serverID, jobID string) string { return serverID + ":" + jobID }
+
+func (h *Handler) trackArchiveJob(serverID string, job *dockwellv1.ArchiveJob, w *writing) {
+	if job == nil || job.GetJobId() == "" {
+		return
+	}
+	key := archiveJobKey(serverID, job.GetJobId())
+	h.archiveMu.Lock()
+	h.pendingArchives[key] = w
+	h.archiveMu.Unlock()
+	if job.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+		h.settleArchiveJob(serverID, job)
+	}
+}
+
+func (h *Handler) archiveJobEnded(server string, ended *agentv1.ArchiveJobEnded) {
+	if ended.GetJob() == nil {
+		return
+	}
+	h.settleArchiveJob(server, ended.GetJob())
+}
+
+// settleArchiveJob records the final Activity event for a completed or failed
+// background archive job once and only once, only for jobs started on server.
+func (h *Handler) settleArchiveJob(server string, job *dockwellv1.ArchiveJob) {
+	if job == nil || job.GetJobId() == "" || job.GetState() == dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+		return
+	}
+	key := archiveJobKey(server, job.GetJobId())
+	h.archiveMu.Lock()
+	w, ok := h.pendingArchives[key]
+	if ok {
+		delete(h.pendingArchives, key)
+	}
+	h.archiveMu.Unlock()
+	if !ok {
+		return
+	}
+	ctx := context.Background()
+	switch job.GetState() {
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE:
+		if job.GetKind() == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS {
+			w.done(ctx, job.GetPath(), Told{
+				WayBackIn: job.GetWayBackIn(),
+				Size:      cmp.Or(job.GetFile().GetSizeBytes(), job.GetBytes()),
+				Paths:     job.GetSourcePaths(),
+				PathCount: int(job.GetSourceCount()),
+			})
+		} else {
+			w.done(ctx, job.GetPath(), Told{
+				To:        job.GetUnpackedTo(),
+				WayBackIn: job.GetWayBackIn(),
+			})
+		}
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED:
+		msg := cmp.Or(job.GetError(), "the archive job failed")
+		_ = w.failedAt(ctx, job.GetPath(), errors.New(msg))
+	case dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_UNSPECIFIED,
+		dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING:
+	}
+}
+
+// CompressFiles starts a background job that packs one or more files or folders
+// into a new .zip archive on a server.
 func (h *Handler) CompressFiles(ctx context.Context, req *connect.Request[dockwellv1.CompressFilesRequest]) (*connect.Response[dockwellv1.CompressFilesResponse], error) {
 	paths, archivePath, proof := req.Msg.GetPaths(), req.Msg.GetArchivePath(), req.Msg.GetProof()
 	w, err := h.start(ctx, req.Msg.GetServerId(), opCompress, archivePath, func() error {
@@ -446,9 +517,10 @@ func (h *Handler) CompressFiles(ctx context.Context, req *connect.Request[dockwe
 	if proof != "" {
 		confirmed = archivePath
 	}
-	out, err := w.session.CompressFiles(ctx, paths, archivePath, confirmed)
+	owner := jobOwner(w.p)
+	out, err := w.session.CompressFiles(ctx, paths, archivePath, confirmed, owner)
 	if err == nil && w.covered(ctx, proof, archivePath, out.GetRefusal()) {
-		out, err = w.session.CompressFiles(ctx, paths, archivePath, archivePath)
+		out, err = w.session.CompressFiles(ctx, paths, archivePath, archivePath, owner)
 	}
 	if err != nil {
 		return nil, w.called(ctx, archivePath, err)
@@ -456,13 +528,13 @@ func (h *Handler) CompressFiles(ctx context.Context, req *connect.Request[dockwe
 	if r := out.GetRefusal(); r != nil {
 		return nil, w.refused(ctx, archivePath, cmp.Or(r.GetPath(), archivePath), r)
 	}
-	compressed := out.GetCompressed()
-	w.done(ctx, compressed.GetPath(), Told{WayBackIn: compressed.GetWayBackIn(), Size: compressed.GetFile().GetSizeBytes()})
-	return connect.NewResponse(compressed), nil
+	job := out.GetJob()
+	h.trackArchiveJob(w.srv.GetId(), job, w)
+	return connect.NewResponse(&dockwellv1.CompressFilesResponse{Job: job}), nil
 }
 
-// ExtractArchive unpacks an existing .zip, .tar.gz or .tgz archive on a server
-// into a new folder beside it.
+// ExtractArchive starts a background job that unpacks an existing .zip, .tar.gz
+// or .tgz archive on a server into a new folder beside it.
 func (h *Handler) ExtractArchive(ctx context.Context, req *connect.Request[dockwellv1.ExtractArchiveRequest]) (*connect.Response[dockwellv1.ExtractArchiveResponse], error) {
 	archivePath, proof := req.Msg.GetPath(), req.Msg.GetProof()
 	w, err := h.start(ctx, req.Msg.GetServerId(), opExtract, archivePath, func() error {
@@ -482,27 +554,90 @@ func (h *Handler) ExtractArchive(ctx context.Context, req *connect.Request[dockw
 	}
 	trimmed := strings.TrimRight(archivePath, "/")
 	dstPath := posixpath.Join(posixpath.Dir(trimmed), files.UnpackedName(posixpath.Base(trimmed)))
-	if err := w.hold(ctx, archivePath, proof, dstPath); err != nil {
+	stepUpTarget := archivePath + "\n" + dstPath
+	if err := w.hold(ctx, archivePath, proof, stepUpTarget); err != nil {
 		return nil, err
 	}
 	ctx = context.WithoutCancel(ctx)
-	confirmed := ""
+	confirmedArchive, confirmedDst := "", ""
 	if proof != "" {
-		confirmed = dstPath
+		confirmedArchive, confirmedDst = archivePath, dstPath
 	}
-	out, err := w.session.ExtractArchive(ctx, archivePath, confirmed)
-	if r := out.GetRefusal(); err == nil && w.covered(ctx, proof, cmp.Or(r.GetPath(), dstPath), r) {
-		out, err = w.session.ExtractArchive(ctx, archivePath, cmp.Or(r.GetPath(), dstPath))
+	owner := jobOwner(w.p)
+	out, err := w.session.ExtractArchive(ctx, archivePath, confirmedArchive, confirmedDst, owner)
+	if r := out.GetRefusal(); err == nil && w.covered(ctx, proof, archivePath+"\n"+cmp.Or(r.GetPath(), dstPath), r) {
+		out, err = w.session.ExtractArchive(ctx, archivePath, archivePath, cmp.Or(r.GetPath(), dstPath), owner)
 	}
 	if err != nil {
 		return nil, w.called(ctx, archivePath, err)
 	}
 	if r := out.GetRefusal(); r != nil {
-		return nil, w.refused(ctx, archivePath, cmp.Or(r.GetPath(), dstPath), r)
+		return nil, w.refused(ctx, archivePath, archivePath+"\n"+cmp.Or(r.GetPath(), dstPath), r)
 	}
-	extracted := out.GetExtracted()
-	w.done(ctx, extracted.GetPath(), Told{To: extracted.GetUnpackedTo(), WayBackIn: extracted.GetWayBackIn()})
-	return connect.NewResponse(extracted), nil
+	job := out.GetJob()
+	h.trackArchiveJob(w.srv.GetId(), job, w)
+	return connect.NewResponse(&dockwellv1.ExtractArchiveResponse{Job: job}), nil
+}
+
+// GetArchiveJob returns the current state of one background archive job.
+func (h *Handler) GetArchiveJob(ctx context.Context, req *connect.Request[dockwellv1.GetArchiveJobRequest]) (*connect.Response[dockwellv1.GetArchiveJobResponse], error) {
+	p, err := person(ctx)
+	if err != nil {
+		return nil, err
+	}
+	jobID := req.Msg.GetJobId()
+	if err := checkDeletedID(jobID); err != nil {
+		return nil, authapi.Invalid(fmt.Errorf("%q isn't an archive job ID", jobID))
+	}
+	srv, err := h.server(ctx, req.Msg.GetServerId())
+	if err != nil {
+		return nil, err
+	}
+	session, err := h.session(ctx, srv)
+	if err != nil {
+		return nil, err
+	}
+	if !session.ArchivesFiles() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old for archive jobs. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
+	}
+	out, err := session.GetArchiveJob(ctx, jobID, jobOwner(p))
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	if r := out.GetRefusal(); r != nil {
+		return nil, refusal(r)
+	}
+	job := out.GetJob()
+	h.settleArchiveJob(srv.GetId(), job)
+	return connect.NewResponse(&dockwellv1.GetArchiveJobResponse{Job: job}), nil
+}
+
+// ListArchiveJobs lists active and recent archive jobs started by the caller.
+func (h *Handler) ListArchiveJobs(ctx context.Context, req *connect.Request[dockwellv1.ListArchiveJobsRequest]) (*connect.Response[dockwellv1.ListArchiveJobsResponse], error) {
+	p, err := person(ctx)
+	if err != nil {
+		return nil, err
+	}
+	srv, err := h.server(ctx, req.Msg.GetServerId())
+	if err != nil {
+		return nil, err
+	}
+	session, err := h.session(ctx, srv)
+	if err != nil {
+		return nil, err
+	}
+	if !session.ArchivesFiles() {
+		return connect.NewResponse(&dockwellv1.ListArchiveJobsResponse{}), nil
+	}
+	out, err := session.ListArchiveJobs(ctx, jobOwner(p))
+	if err != nil {
+		return nil, h.rpcError(ctx, err)
+	}
+	for _, job := range out.GetJobs() {
+		h.settleArchiveJob(srv.GetId(), job)
+	}
+	return connect.NewResponse(&dockwellv1.ListArchiveJobsResponse{Jobs: out.GetJobs()}), nil
 }
 
 // deletedPath is where what's in Recently deleted as id was deleted from, or nothing

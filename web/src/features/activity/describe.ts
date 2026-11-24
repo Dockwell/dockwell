@@ -648,24 +648,53 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
           };
         }
         case "file.download": {
-          // A folder goes as a .zip made as it's sent, so its size isn't known first.
+          // A folder or multi-item zip is made as it's sent, so its size isn't always known first.
           const path = event.subject?.path ?? "";
+          const pathCount = event.subject?.pathCount || event.subject?.paths.length || 0;
           const bytes = event.subject?.sizeBytes ?? 0n;
           const size = formatBytes(bytes, i18n.locale);
+          if (pathCount > 1) {
+            return bytes > 0n
+              ? {
+                  title: plural(pathCount, {
+                    one: `Downloaded # item from ${server}, ${size}`,
+                    other: `Downloaded # items from ${server}, ${size}`,
+                  }),
+                  icon: "download",
+                }
+              : {
+                  title: plural(pathCount, {
+                    one: `Downloaded # item from ${server}`,
+                    other: `Downloaded # items from ${server}`,
+                  }),
+                  icon: "download",
+                };
+          }
           return bytes > 0n
             ? { title: t`Downloaded ${path} from ${server}, ${size}`, icon: "download" }
             : { title: t`Downloaded ${path} from ${server}`, icon: "download" };
         }
         case "file.compress": {
           const path = event.subject?.path ?? "";
+          const pathCount = event.subject?.pathCount || event.subject?.paths.length || 0;
           const size = formatBytes(event.subject?.sizeBytes ?? 0n, i18n.locale);
-          return event.subject?.wayBackIn
-            ? {
-                title: t`Compressed ${path} on ${server}, which can let someone back in`,
-                icon: "archive",
-                tone: "warning",
-              }
-            : { title: t`Compressed ${path} on ${server}, ${size}`, icon: "archive" };
+          if (event.subject?.wayBackIn) {
+            return {
+              title: t`Compressed ${path} on ${server}, which can let someone back in`,
+              icon: "archive",
+              tone: "warning",
+            };
+          }
+          if (pathCount > 1) {
+            return {
+              title: plural(pathCount, {
+                one: `Compressed # item into ${path} on ${server}, ${size}`,
+                other: `Compressed # items into ${path} on ${server}, ${size}`,
+              }),
+              icon: "archive",
+            };
+          }
+          return { title: t`Compressed ${path} on ${server}, ${size}`, icon: "archive" };
         }
         case "file.compress_failed": {
           const path = event.subject?.path ?? "";

@@ -206,6 +206,8 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "FileService.downloadFile": { within: "FileService.listFiles" },
   "FileService.extractArchive": { within: "FileService.listFiles" },
   "FileService.finishUpload": { within: "FileService.listFiles" },
+  "FileService.getArchiveJob": { within: "FileService.listFiles" },
+  "FileService.listArchiveJobs": { within: "FileService.listFiles" },
   "FileService.listDeletedFiles": { within: "FileService.listFiles" },
   "FileService.listFiles": "may",
   "FileService.makeFile": { within: "FileService.listFiles" },

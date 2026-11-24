@@ -169,6 +169,8 @@ FileService.DeleteFile                         destructive  admin      admin    
 FileService.DownloadFile                       read         admin      admin      install  session
 FileService.ExtractArchive                     apply        admin      admin      install  session
 FileService.FinishUpload                       apply        admin      admin      install  session
+FileService.GetArchiveJob                      read         admin      admin      install  session
+FileService.ListArchiveJobs                    read         admin      admin      install  session
 FileService.ListDeletedFiles                   read         admin      admin      install  session
 FileService.ListFiles                          read         admin      admin      install  session
 FileService.MakeFile                           apply        admin      admin      install  session

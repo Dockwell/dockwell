@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { createConnectQueryKey, useQuery, useTransport } from "@connectrpc/connect-query";
-import { type DeletedFile, type FileEntry, FileService, FileType, StepUpAction } from "@dockwell/api";
+import { type ArchiveJob, type DeletedFile, type FileEntry, FileService, FileType, StepUpAction } from "@dockwell/api";
 import { Button, Callout, Icon, Loading, Sheet, SkeletonRows, Switch, TextField } from "@dockwell/ui";
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
@@ -398,10 +398,10 @@ export function CompressSheet({
   folder: string;
   targets: readonly FileTarget[];
   onClose: () => void;
-  onDone: (archivePath: string, entries: number) => void;
+  onDone: (job: ArchiveJob) => void;
 }) {
   const { t } = useLingui();
-  const { transport, client, changed, problem, noPasskey } = useFiles(serverId);
+  const { transport, client, problem, noPasskey } = useFiles(serverId);
   const nameProblem = useNameProblem();
   const field = useRef<HTMLInputElement>(null);
   const single = targets.length === 1 ? targets[0] : undefined;
@@ -434,7 +434,7 @@ export function CompressSheet({
     try {
       const res = await withStepUpIfAsked(
         transport,
-        StepUpAction.MAKE_WAY_BACK_IN,
+        StepUpAction.COMPRESS_WAY_BACK_IN,
         `${serverId}:${archivePath}`,
         (proof) =>
           client.compressFiles({
@@ -444,8 +444,12 @@ export function CompressSheet({
             proof,
           }),
       );
-      await changed();
-      onDone(res.path, Number(res.entries));
+      if (!res.job) {
+        setFailure(t`The server didn't start the archive job. Try again.`);
+        setBusy(false);
+        return;
+      }
+      onDone(res.job);
     } catch (err) {
       if (reasonOf(err) === "file_exists") {
         setError(t`Something called ${withZip} is here already. Choose another name.`);
@@ -513,17 +517,23 @@ export function CompressSheet({
 
 /** Extracts an existing .zip, .tar.gz or .tgz archive into a new folder beside it. */
 export function useExtract(serverId: string) {
-  const { transport, client, changed, problem } = useFiles(serverId);
+  const { transport, client, problem } = useFiles(serverId);
+  const { t } = useLingui();
   const [extracting, setExtracting] = useState(false);
-  const extract = async (archivePath: string): Promise<{ unpackedTo: string; entries: number }> => {
+  const extract = async (archivePath: string): Promise<ArchiveJob> => {
     setExtracting(true);
     try {
       const dstPath = join(parentOf(archivePath), unpackedName(nameOf(archivePath)));
-      const res = await withStepUpIfAsked(transport, StepUpAction.MAKE_WAY_BACK_IN, `${serverId}:${dstPath}`, (proof) =>
-        client.extractArchive({ serverId, path: archivePath, proof }),
+      const res = await withStepUpIfAsked(
+        transport,
+        StepUpAction.EXTRACT_WAY_BACK_IN,
+        `${serverId}:${archivePath}\n${dstPath}`,
+        (proof) => client.extractArchive({ serverId, path: archivePath, proof }),
       );
-      await changed();
-      return { unpackedTo: res.unpackedTo, entries: Number(res.unpackedEntries) };
+      if (!res.job) {
+        throw new Error(t`The server didn't start the archive job. Try again.`);
+      }
+      return res.job;
     } finally {
       setExtracting(false);
     }

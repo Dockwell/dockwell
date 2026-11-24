@@ -3,34 +3,91 @@
 package files
 
 import (
-	"archive/zip"
 	"cmp"
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 )
 
 // Compressing a selection into a .zip archive on disk and extracting an
-// existing .zip, .tar.gz or .tgz archive on disk (ADR 0045). Both follow the
-// same rules as making, uploading and downloading: paths read where they lead,
-// symlinks aren't followed for the target or inside archives, credentials and
-// private keys stay out, writes into a way back in take a passkey, disk space
-// and entry counts stay bounded, and failures leave nothing partial behind.
+// existing .zip, .tar.gz or .tgz archive on disk (ADR 0045). Both run as
+// background jobs in their own 2-slot pool (separate from the 4 listing/read
+// slots and 3 transfer slots, with transfer GC tuning) so long archives never
+// block browsing and outlive proxy request timeouts. Preflight checks run under
+// attempt() so hung mounts time out cleanly instead of freezing the Files page.
 
 // MaxCompressPaths is the most top-level paths one Compress or DownloadMany
 // call accepts.
 const MaxCompressPaths = 1000
+
+// maxJobSourcePaths is how many resolved source paths an ArchiveJob keeps for
+// display and Activity logging. SourceCount holds the full count.
+const maxJobSourcePaths = 10
+
+// archiveJob is one running or recently finished background compress/extract job.
+type archiveJob struct {
+	id           string
+	owner        string
+	kind         dockwellv1.ArchiveJobKind
+	state        dockwellv1.ArchiveJobState
+	path         string
+	unpackedTo   string
+	sourcePaths  []string
+	sourceCount  uint32
+	entries      uint64
+	totalEntries uint64
+	bytes        uint64
+	skippedLinks uint64
+	leftOut      uint64
+	file         *dockwellv1.FileEntry
+	wayBackIn    bool
+	errMsg       string
+	errReason    string
+	startTime    time.Time
+	finishTime   time.Time
+	done         chan struct{}
+}
+
+func (j *archiveJob) proto() *dockwellv1.ArchiveJob {
+	out := &dockwellv1.ArchiveJob{
+		JobId:        j.id,
+		Kind:         j.kind,
+		State:        j.state,
+		Path:         j.path,
+		UnpackedTo:   j.unpackedTo,
+		SourcePaths:  slices.Clone(j.sourcePaths),
+		SourceCount:  j.sourceCount,
+		Entries:      j.entries,
+		TotalEntries: j.totalEntries,
+		Bytes:        j.bytes,
+		SkippedLinks: j.skippedLinks,
+		LeftOut:      j.leftOut,
+		File:         j.file,
+		WayBackIn:    j.wayBackIn,
+		Error:        j.errMsg,
+		ErrorReason:  j.errReason,
+		StartTime:    timestamppb.New(j.startTime),
+	}
+	if !j.finishTime.IsZero() {
+		out.FinishTime = timestamppb.New(j.finishTime)
+	}
+	return out
+}
 
 // ArchiveKind reports the unpack format of an archive by its file name, or
 // UNPACK_UNSPECIFIED when its name doesn't end in .zip, .tar.gz or .tgz.
@@ -90,10 +147,152 @@ func CheckZipArchivePath(archivePath string) error {
 	return nil
 }
 
-// Extract unpacks an existing .zip, .tar.gz or .tgz archive at p into a new
-// folder beside it, never over what's there. confirmed is the destination
-// folder path a passkey confirmed, where extracting there is a way back in.
-func (s *Server) Extract(ctx context.Context, p, confirmed string) (*agentv1.ExtractArchiveResult, error) {
+// refusalReason maps a FileRefusal.Kind to the API reason string used by the
+// control plane.
+func refusalReason(k agentv1.FileRefusal_Kind) string {
+	switch k {
+	case agentv1.FileRefusal_KIND_NOT_FOUND:
+		return "not_found"
+	case agentv1.FileRefusal_KIND_REFUSED:
+		return "file_refused"
+	case agentv1.FileRefusal_KIND_NOT_A_DIRECTORY:
+		return "not_a_directory"
+	case agentv1.FileRefusal_KIND_NOT_A_FILE:
+		return "not_a_file"
+	case agentv1.FileRefusal_KIND_NOT_ANSWERING:
+		return "path_not_answering"
+	case agentv1.FileRefusal_KIND_CHANGED:
+		return "file_changed"
+	case agentv1.FileRefusal_KIND_EXISTS:
+		return "file_exists"
+	case agentv1.FileRefusal_KIND_TOO_LARGE:
+		return "too_large"
+	case agentv1.FileRefusal_KIND_UNPACK_REFUSED:
+		return "unpack_refused"
+	case agentv1.FileRefusal_KIND_BUSY:
+		return "transfers_busy"
+	case agentv1.FileRefusal_KIND_NO_SPACE:
+		return "disk_full"
+	default:
+		return "file_denied"
+	}
+}
+
+func (s *Server) registerArchiveJob(j *archiveJob) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneArchiveJobsLocked()
+	s.archiveJobs[j.id] = j
+}
+
+func (s *Server) pruneArchiveJobsLocked() {
+	now := s.now()
+	cutoff := now.Add(-keepArchiveJobs)
+	var finished []*archiveJob
+	for id, j := range s.archiveJobs {
+		if j.state == dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+			continue
+		}
+		if j.finishTime.Before(cutoff) {
+			delete(s.archiveJobs, id)
+			continue
+		}
+		finished = append(finished, j)
+	}
+	if len(finished) >= maxKeptArchiveJobs {
+		slices.SortFunc(finished, func(a, b *archiveJob) int {
+			return a.finishTime.Compare(b.finishTime)
+		})
+		for _, j := range finished[:len(finished)-maxKeptArchiveJobs+1] {
+			delete(s.archiveJobs, j.id)
+		}
+	}
+}
+
+func (s *Server) finishArchiveJob(j *archiveJob, mutate func()) {
+	s.mu.Lock()
+	mutate()
+	j.finishTime = s.now().UTC()
+	snap := j.proto()
+	s.archiveEnded = append(s.archiveEnded, &agentv1.ArchiveJobEnded{Job: snap})
+	close(j.done)
+	s.mu.Unlock()
+	select {
+	case s.archiveEndedCh <- struct{}{}:
+	default:
+	}
+}
+
+func (s *Server) updateArchiveJob(mutate func()) {
+	s.mu.Lock()
+	mutate()
+	s.mu.Unlock()
+}
+
+// GetArchiveJob returns the current state of one archive job owned by owner.
+func (s *Server) GetArchiveJob(id, owner string) (*agentv1.GetArchiveJobResult, error) {
+	if owner == "" {
+		return nil, errNoOwner
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	j, ok := s.archiveJobs[id]
+	if !ok || subtle.ConstantTimeCompare([]byte(j.owner), []byte(owner)) != 1 {
+		return &agentv1.GetArchiveJobResult{Refusal: &agentv1.FileRefusal{
+			Kind:    agentv1.FileRefusal_KIND_NOT_FOUND,
+			Message: fmt.Sprintf("there's no archive job %s on this server. It may have finished earlier", id),
+		}}, nil
+	}
+	return &agentv1.GetArchiveJobResult{Job: j.proto()}, nil
+}
+
+// ListArchiveJobs returns active and recent archive jobs owned by owner, newest first.
+func (s *Server) ListArchiveJobs(owner string) (*agentv1.ListArchiveJobsResult, error) {
+	if owner == "" {
+		return nil, errNoOwner
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pruneArchiveJobsLocked()
+	var jobs []*dockwellv1.ArchiveJob
+	for _, j := range s.archiveJobs {
+		if subtle.ConstantTimeCompare([]byte(j.owner), []byte(owner)) != 1 {
+			continue
+		}
+		jobs = append(jobs, j.proto())
+	}
+	slices.SortFunc(jobs, func(a, b *dockwellv1.ArchiveJob) int {
+		return b.GetStartTime().AsTime().Compare(a.GetStartTime().AsTime())
+	})
+	return &agentv1.ListArchiveJobsResult{Jobs: jobs}, nil
+}
+
+// WaitArchiveJob waits until job id finishes (for tests).
+func (s *Server) WaitArchiveJob(ctx context.Context, id string) (*dockwellv1.ArchiveJob, error) {
+	s.mu.Lock()
+	j, ok := s.archiveJobs[id]
+	s.mu.Unlock()
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	select {
+	case <-j.done:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return j.proto(), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// Extract starts a background job that unpacks an existing .zip, .tar.gz or .tgz
+// archive at p into a new folder beside it, never over what's there.
+// confirmedArchive and confirmedDst are the archive and destination folder paths
+// a passkey confirmed, where extracting there is a way back in.
+func (s *Server) Extract(ctx context.Context, p, confirmedArchive, confirmedDst, owner string) (*agentv1.ExtractArchiveResult, error) {
+	if owner == "" {
+		return nil, errNoOwner
+	}
 	if err := CheckPath(p); err != nil {
 		return nil, err
 	}
@@ -104,9 +303,228 @@ func (s *Server) Extract(ctx context.Context, p, confirmed string) (*agentv1.Ext
 	if as == dockwellv1.Unpack_UNPACK_UNSPECIFIED {
 		return nil, errors.New("only .zip, .tar.gz and .tgz archives can be extracted")
 	}
-	res := s.extract(ctx, p, as, confirmed)
-	s.settleSoon()
-	return res, nil
+	release, busyRefusal := s.tryTakeArchive()
+	if busyRefusal != nil {
+		return &agentv1.ExtractArchiveResult{Refusal: busyRefusal}, nil
+	}
+
+	type prepared struct {
+		src     *target
+		dst     *target
+		archive *os.File
+		ast     unix.Stat_t
+		dfd     int
+		dst0    unix.Stat_t
+		wayIn   bool
+	}
+	var prep *prepared
+	refusal, err := attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
+		g := s.guard(ctx)
+		src, r := s.targetOf(t, g, p)
+		if r != nil {
+			return r, nil
+		}
+		if r := t.touch(src.where); r != nil {
+			src.w.close()
+			return r, nil
+		}
+		st, serr := src.stat()
+		if serr != nil {
+			where := src.where
+			src.w.close()
+			return failed(where, serr), nil
+		}
+		if _, why := g.enter(src.w.last().place, src.name, &st); why != "" {
+			where := src.where
+			src.w.close()
+			return refused(where, why), nil
+		}
+		if why := checkCredentials(src.where); why != "" {
+			where := src.where
+			src.w.close()
+			return refused(where, why), nil
+		}
+		if st.Mode&unix.S_IFMT != unix.S_IFREG {
+			where := src.where
+			src.w.close()
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_NOT_A_FILE, Path: where,
+				Message: fmt.Sprintf("%s is %s, not an archive file, so there's nothing to extract", where, kindOf(&st)),
+			}, nil
+		}
+		if st.Nlink != 1 {
+			where := src.where
+			src.w.close()
+			return refused(where, hardLinkedFile), nil
+		}
+		dstName := UnpackedName(src.name)
+		dst := &target{w: src.w, name: dstName, where: joined(src.w.path(), dstName)}
+		if r := t.touch(dst.where); r != nil {
+			src.w.close()
+			return r, nil
+		}
+		switch _, serr := dst.stat(); {
+		case serr == nil:
+			where := dst.where
+			src.w.close()
+			return exists(where, "nothing was extracted"), nil
+		case !errors.Is(serr, unix.ENOENT):
+			where := dst.where
+			src.w.close()
+			return failed(where, serr), nil
+		}
+		if why := checkCredentials(dst.where); why != "" {
+			where := dst.where
+			src.w.close()
+			return refused(where, why), nil
+		}
+		wayIn := s.wayInAt(dst, nil, true)
+		if wayIn && (confirmedArchive != src.where || confirmedDst != dst.where) {
+			r := needsPasskey(dst.where, fmt.Sprintf("extracting %s into it", src.where))
+			r.Message = fmt.Sprintf("extracting %s into %s can let someone back onto this server, so it takes your passkey, and nothing was extracted. Confirm with it, then try again", src.where, dst.where)
+			src.w.close()
+			return r, nil
+		}
+		afd, oerr := unix.Openat(src.dir(), src.name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+		if oerr != nil {
+			where := src.where
+			src.w.close()
+			return failed(where, oerr), nil
+		}
+		archive := os.NewFile(uintptr(afd), src.where)
+		if !sameAs(afd, &st, unix.S_IFREG) {
+			_ = archive.Close()
+			where := src.where
+			src.w.close()
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_CHANGED, Path: where,
+				Message: where + " changed as the agent opened it. Try again",
+			}, nil
+		}
+		mask := archiveMask(st.Mode)
+		dirMode := extractMode(madeDirMode, true, mask)
+		if merr := unix.Mkdirat(src.dir(), dst.name, dirMode); merr != nil {
+			_ = archive.Close()
+			where := dst.where
+			src.w.close()
+			if errors.Is(merr, unix.EEXIST) {
+				return exists(where, "nothing was extracted"), nil
+			}
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_DENIED, Path: where,
+				Message: fmt.Sprintf("the agent can't make %s: %v. %s", where, merr, fixFor(merr)),
+			}, nil
+		}
+		dfd, derr := unix.Openat(src.dir(), dst.name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		if derr != nil {
+			_ = archive.Close()
+			srcWhere, dstWhere := src.where, dst.where
+			src.w.close()
+			return extractRefused(srcWhere, fmt.Sprintf("the agent can't open %s: %v", dstWhere, derr)), nil
+		}
+		var dst0 unix.Stat_t
+		if ferr := unix.Fstat(dfd, &dst0); ferr != nil || dst0.Uid != uint32(unix.Geteuid()) || !emptyDir(dfd) { //nolint:gosec // a user ID fits
+			_ = unix.Close(dfd)
+			_ = archive.Close()
+			srcWhere, dstWhere := src.where, dst.where
+			src.w.close()
+			return extractRefused(srcWhere, dstWhere+" changed as the agent made it"), nil //nolint:nilerr // refusal is returned to caller
+		}
+		ownWithMode(dfd, &src.w.st, dirMode)
+		prep = &prepared{
+			src: src, dst: dst, archive: archive, ast: st,
+			dfd: dfd, dst0: dst0, wayIn: wayIn,
+		}
+		return nil, nil
+	}, func(r *agentv1.FileRefusal) *agentv1.FileRefusal {
+		r.Message += ". Nothing was extracted"
+		return r
+	})
+	if err != nil {
+		release()
+		return nil, err
+	}
+	if refusal != nil {
+		release()
+		return &agentv1.ExtractArchiveResult{Refusal: refusal}, nil
+	}
+
+	job := &archiveJob{
+		id:         rand.Text(),
+		owner:      owner,
+		kind:       dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_EXTRACT,
+		state:      dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING,
+		path:       prep.src.where,
+		unpackedTo: prep.dst.where,
+		wayBackIn:  prep.wayIn,
+		startTime:  s.now().UTC(),
+		done:       make(chan struct{}),
+	}
+	s.registerArchiveJob(job)
+	snap := job.proto()
+
+	go func() { //nolint:gosec // G118: background archive job intentionally outlives the request context
+		defer release()
+		defer prep.src.w.close()
+		defer prep.archive.Close()
+		defer unix.Close(prep.dfd)
+
+		u := &unpacker{
+			s: s, ctx: context.Background(), root: prep.dfd, where: prep.dst.where,
+			folder: &prep.src.w.st, dev: prep.dst0.Dev,
+			ways: s.waysIn(), dstWayIn: prep.wayIn, mask: archiveMask(prep.ast.Mode),
+			buf: make([]byte, FrameBytes), limit: cmp.Or(s.unpackLimit, maxUnpacked),
+			statfs: s.statfs,
+			onTotal: func(total uint64) {
+				s.updateArchiveJob(func() { job.totalEntries = total })
+			},
+			onProgress: func(entries, written, skipped uint64) {
+				s.updateArchiveJob(func() {
+					job.entries = entries
+					job.bytes = written
+					job.skippedLinks = skipped
+				})
+			},
+		}
+		if u.statfs == nil {
+			u.statfs = unix.Fstatfs
+		}
+		var uerr error
+		switch as {
+		case dockwellv1.Unpack_UNPACK_ZIP:
+			uerr = u.zip(prep.archive, prep.ast.Size)
+		case dockwellv1.Unpack_UNPACK_TAR_GZ:
+			uerr = u.tarGz(prep.archive)
+		default:
+			uerr = errors.New("only .zip, .tar.gz and .tgz archives can be extracted")
+		}
+		if uerr != nil {
+			// All or nothing: remove what it made by device and inode.
+			msg := uerr.Error()
+			if rerr := removeAll(prep.src.dir(), prep.dst.name, prep.dst0.Dev, prep.dst0.Ino, 0); rerr != nil {
+				msg += ", and what it made is left in " + prep.dst.where
+			}
+			r := extractRefused(prep.src.where, msg)
+			reason := refusalReason(r.GetKind())
+			if u.full != nil {
+				reason = "disk_full"
+			}
+			s.finishArchiveJob(job, func() {
+				job.state = dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED
+				job.errMsg = r.GetMessage()
+				job.errReason = reason
+			})
+			return
+		}
+		s.finishArchiveJob(job, func() {
+			job.state = dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE
+			job.entries = u.count
+			job.bytes = u.written
+			job.skippedLinks = u.skippedLinks
+		})
+	}()
+
+	return &agentv1.ExtractArchiveResult{Job: snap}, nil
 }
 
 func extractRefused(archive, why string) *agentv1.FileRefusal {
@@ -116,131 +534,283 @@ func extractRefused(archive, why string) *agentv1.FileRefusal {
 	}
 }
 
-func (s *Server) extract(ctx context.Context, p string, as dockwellv1.Unpack, confirmed string) *agentv1.ExtractArchiveResult {
-	refuse := func(r *agentv1.FileRefusal) *agentv1.ExtractArchiveResult {
-		return &agentv1.ExtractArchiveResult{Refusal: r}
+// Compress starts a background job that packs paths into a new .zip archive at
+// archivePath, never over what's there. confirmed is the archivePath a passkey
+// confirmed, where making it is a way back in.
+func (s *Server) Compress(ctx context.Context, paths []string, archivePath, confirmed, owner string) (*agentv1.CompressFilesResult, error) {
+	if owner == "" {
+		return nil, errNoOwner
 	}
-	t := &trail{s: s}
-	g := s.guard(ctx)
-	src, refusal := s.targetOf(t, g, p)
-	if refusal != nil {
-		return refuse(refusal)
-	}
-	defer src.w.close()
-	if refusal := t.touch(src.where); refusal != nil {
-		return refuse(refusal)
-	}
-	st, err := src.stat()
-	if err != nil {
-		return refuse(failed(src.where, err))
-	}
-	if _, why := g.enter(src.w.last().place, src.name, &st); why != "" {
-		return refuse(refused(src.where, why))
-	}
-	if why := credentials(src.where); why != "" {
-		return refuse(refused(src.where, why))
-	}
-	if st.Mode&unix.S_IFMT != unix.S_IFREG {
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_NOT_A_FILE, Path: src.where,
-			Message: fmt.Sprintf("%s is %s, not an archive file, so there's nothing to extract", src.where, kindOf(&st)),
-		})
-	}
-	if st.Nlink != 1 {
-		return refuse(refused(src.where, hardLinkedFile))
-	}
-	dstName := UnpackedName(src.name)
-	dst := &target{w: src.w, name: dstName, where: joined(src.w.path(), dstName)}
-	if refusal := t.touch(dst.where); refusal != nil {
-		return refuse(refusal)
-	}
-	switch _, err := dst.stat(); {
-	case err == nil:
-		return refuse(exists(dst.where, "nothing was extracted"))
-	case !errors.Is(err, unix.ENOENT):
-		return refuse(failed(dst.where, err))
-	}
-	if why := credentials(dst.where); why != "" {
-		return refuse(refused(dst.where, why))
-	}
-	wayIn := s.wayInAt(dst, nil, true)
-	if wayIn && confirmed != dst.where {
-		return refuse(needsPasskey(dst.where, "extracting into it"))
-	}
-	afd, err := unix.Openat(src.dir(), src.name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return refuse(failed(src.where, err))
-	}
-	archive := os.NewFile(uintptr(afd), src.where)
-	defer archive.Close()
-	if !sameAs(afd, &st, unix.S_IFREG) {
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_CHANGED, Path: src.where,
-			Message: src.where + " changed as the agent opened it. Try again",
-		})
-	}
-	if err := unix.Mkdirat(src.dir(), dst.name, madeDirMode); err != nil {
-		if errors.Is(err, unix.EEXIST) {
-			return refuse(exists(dst.where, "nothing was extracted"))
-		}
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_DENIED, Path: dst.where,
-			Message: fmt.Sprintf("the agent can't make %s: %v. %s", dst.where, err, fixFor(err)),
-		})
-	}
-	dfd, err := unix.Openat(src.dir(), dst.name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return refuse(extractRefused(src.where, fmt.Sprintf("the agent can't open %s: %v", dst.where, err)))
-	}
-	defer unix.Close(dfd)
-	var dst0 unix.Stat_t
-	if err := unix.Fstat(dfd, &dst0); err != nil || dst0.Uid != uint32(unix.Geteuid()) || !emptyDir(dfd) { //nolint:gosec // a user ID fits
-		return refuse(extractRefused(src.where, dst.where+" changed as the agent made it"))
-	}
-	ownLike(dfd, &src.w.st, dockwellv1.FileType_FILE_TYPE_DIRECTORY)
-	u := &unpacker{
-		s: s, ctx: ctx, root: dfd, where: dst.where, folder: &src.w.st, dev: dst0.Dev,
-		ways: s.waysIn(), allowWayIn: wayIn && confirmed == dst.where,
-		buf: make([]byte, FrameBytes), limit: cmp.Or(s.unpackLimit, maxUnpacked), statfs: s.statfs,
-	}
-	if u.statfs == nil {
-		u.statfs = unix.Fstatfs
-	}
-	switch as {
-	case dockwellv1.Unpack_UNPACK_UNSPECIFIED:
-		err = errors.New("only .zip, .tar.gz and .tgz archives can be extracted")
-	case dockwellv1.Unpack_UNPACK_ZIP:
-		err = u.zip(archive, st.Size)
-	case dockwellv1.Unpack_UNPACK_TAR_GZ:
-		err = u.tarGz(archive)
-	}
-	if err != nil {
-		// All or nothing: remove what it made by device and inode.
-		if rerr := removeAll(src.dir(), dst.name, dst0.Dev, dst0.Ino, 0); rerr != nil {
-			return refuse(extractRefused(src.where, err.Error()+", and what it made is left in "+dst.where))
-		}
-		return refuse(extractRefused(src.where, err.Error()))
-	}
-	return &agentv1.ExtractArchiveResult{
-		Extracted: &dockwellv1.ExtractArchiveResponse{
-			Path: src.where, UnpackedTo: dst.where, UnpackedEntries: u.count, WayBackIn: wayIn,
-		},
-	}
-}
-
-// Compress packs paths into a new .zip archive at archivePath, never over
-// what's there. confirmed is the archivePath a passkey confirmed, where making
-// it is a way back in.
-func (s *Server) Compress(ctx context.Context, paths []string, archivePath, confirmed string) (*agentv1.CompressFilesResult, error) {
 	if err := CheckPaths(paths); err != nil {
 		return nil, err
 	}
 	if err := CheckZipArchivePath(archivePath); err != nil {
 		return nil, err
 	}
-	res := s.compress(ctx, paths, archivePath, confirmed)
-	s.settleSoon()
-	return res, nil
+	release, busyRefusal := s.tryTakeArchive()
+	if busyRefusal != nil {
+		return &agentv1.CompressFilesResult{Refusal: busyRefusal}, nil
+	}
+
+	type prepared struct {
+		dst         *target
+		tmpName     string
+		tmpFd       int
+		tmpSt       unix.Stat_t
+		tmpFile     *os.File
+		bw          *boundedZipWriter
+		archiveMode uint32
+		wayIn       bool
+		sources     []string
+		sourceCount uint32
+	}
+	var prep *prepared
+	refusal, err := attempt(ctx, s, archivePath, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
+		g := s.guard(ctx)
+		dst, r := s.targetOf(t, g, archivePath)
+		if r != nil {
+			return r, nil
+		}
+		if r := t.touch(dst.where); r != nil {
+			dst.w.close()
+			return r, nil
+		}
+		switch _, serr := dst.stat(); {
+		case serr == nil:
+			where := dst.where
+			dst.w.close()
+			return exists(where, "nothing was compressed"), nil
+		case !errors.Is(serr, unix.ENOENT):
+			where := dst.where
+			dst.w.close()
+			return failed(where, serr), nil
+		}
+		if why := checkCredentials(dst.where); why != "" {
+			where := dst.where
+			dst.w.close()
+			return refused(where, why), nil
+		}
+		wayIn := s.wayInAt(dst, nil, false)
+		if wayIn && confirmed != dst.where {
+			r := needsPasskey(dst.where, "compressing into it")
+			r.Message = fmt.Sprintf("compressing into %s can let someone back onto this server, so it takes your passkey, and nothing was compressed. Confirm with it, then try again", dst.where)
+			dst.w.close()
+			return r, nil
+		}
+
+		// Preflight every top-level source path inside attempt() so missing,
+		// refused, or hung-mount sources fail cleanly before the job starts.
+		// Archive permissions start at 0600 and tighten if a source folder is tighter.
+		archiveMode := uint32(0o600)
+		resolved := make([]string, 0, min(len(paths), maxJobSourcePaths))
+		for _, p := range paths {
+			o, or := s.openDownload(ctx, t, p)
+			if or != nil {
+				dst.w.close()
+				return or, nil
+			}
+			if len(resolved) < maxJobSourcePaths {
+				resolved = append(resolved, o.where)
+			}
+			// Tighten archive mode if the source folder (or parent folder of a
+			// selected file) has tighter owner rw bits than 0600 (e.g. 0500 -> 0400).
+			var folderMode uint32
+			if o.dir {
+				folderMode = o.w.st.Mode
+			} else if len(o.w.steps) >= 2 {
+				var pst unix.Stat_t
+				if unix.Fstat(o.w.steps[len(o.w.steps)-2].fd, &pst) == nil {
+					folderMode = pst.Mode
+				}
+			}
+			if folderMode != 0 {
+				tighter := uint32(0o600) & folderMode
+				if tighter&0o400 == 0 {
+					tighter |= 0o400
+				}
+				archiveMode &= tighter
+			}
+			if !o.dir {
+				head := make([]byte, MaxFileBytes)
+				n, rerr := io.ReadFull(o.f, head)
+				if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+					where := o.where
+					o.close()
+					dst.w.close()
+					return denied(where, rerr), nil
+				}
+				if why := heldBack(head[:n]); why != "" {
+					where := o.where
+					o.close()
+					dst.w.close()
+					return refused(where, why), nil
+				}
+			}
+			o.close()
+		}
+
+		// Stage under uploadPrefix so arriving() keeps it out of listings and archives while writing.
+		tmpName := uploadPrefix + rand.Text()
+		tmpFd, oerr := unix.Openat(dst.dir(), tmpName, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0o600)
+		if oerr != nil {
+			where := dst.where
+			dst.w.close()
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_DENIED, Path: where,
+				Message: fmt.Sprintf("the agent can't make %s: %v. %s", where, oerr, fixFor(oerr)),
+			}, nil
+		}
+		var tmpSt unix.Stat_t
+		if ferr := unix.Fstat(tmpFd, &tmpSt); ferr != nil {
+			_ = unix.Close(tmpFd)
+			_ = unix.Unlinkat(dst.dir(), tmpName, 0)
+			where := dst.where
+			dst.w.close()
+			return denied(where, ferr), nil
+		}
+		tmpFile := os.NewFile(uintptr(tmpFd), dst.where)
+		statfs := s.statfs
+		if statfs == nil {
+			statfs = unix.Fstatfs
+		}
+		bw := &boundedZipWriter{w: tmpFile, fd: tmpFd, where: dst.where, statfs: statfs}
+		if rerr := bw.checkRoom(); rerr != nil {
+			_ = tmpFile.Close()
+			_ = removeAll(dst.dir(), tmpName, tmpSt.Dev, tmpSt.Ino, 0)
+			where := dst.where
+			dst.w.close()
+			return &agentv1.FileRefusal{ //nolint:nilerr // refusal is returned to caller
+				Kind: agentv1.FileRefusal_KIND_NO_SPACE, Path: where,
+				Message: rerr.Error() + ". Free some space first",
+			}, nil
+		}
+		prep = &prepared{
+			dst: dst, tmpName: tmpName, tmpFd: tmpFd, tmpSt: tmpSt, tmpFile: tmpFile,
+			bw: bw, archiveMode: archiveMode, wayIn: wayIn,
+			sources: resolved, sourceCount: uint32(len(paths)), //nolint:gosec // <= MaxCompressPaths
+		}
+		return nil, nil
+	}, func(r *agentv1.FileRefusal) *agentv1.FileRefusal {
+		r.Message += ". Nothing was compressed"
+		return r
+	})
+	if err != nil {
+		release()
+		return nil, err
+	}
+	if refusal != nil {
+		release()
+		return &agentv1.CompressFilesResult{Refusal: refusal}, nil
+	}
+
+	pathsCopy := slices.Clone(paths)
+	job := &archiveJob{
+		id:          rand.Text(),
+		owner:       owner,
+		kind:        dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_COMPRESS,
+		state:       dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING,
+		path:        prep.dst.where,
+		sourcePaths: prep.sources,
+		sourceCount: prep.sourceCount,
+		wayBackIn:   prep.wayIn,
+		startTime:   s.now().UTC(),
+		done:        make(chan struct{}),
+	}
+	s.registerArchiveJob(job)
+	snap := job.proto()
+
+	go func() { //nolint:gosec // G118: background archive job intentionally outlives the request context
+		defer release()
+		defer prep.dst.w.close()
+		placed := false
+		defer func() {
+			_ = prep.tmpFile.Close()
+			if !placed {
+				_ = removeAll(prep.dst.dir(), prep.tmpName, prep.tmpSt.Dev, prep.tmpSt.Ino, 0)
+			}
+		}()
+
+		failJob := func(r *agentv1.FileRefusal) {
+			s.finishArchiveJob(job, func() {
+				job.state = dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_FAILED
+				job.errMsg = r.GetMessage()
+				job.errReason = refusalReason(r.GetKind())
+			})
+		}
+
+		bgCtx := context.Background()
+		zw, zerr := newZipWriter(prep.bw, s.tmpDir())
+		if zerr != nil {
+			failJob(compressError(prep.dst.where, prep.bw, zerr))
+			return
+		}
+		defer zw.Abort()
+
+		t := &trail{s: s}
+		g := s.guard(bgCtx)
+		a := &archiver{
+			ctx:  bgCtx,
+			z:    zw,
+			g:    g,
+			root: path.Dir(prep.dst.where),
+			buf:  make([]byte, FrameBytes),
+			onProgress: func(entries, leftOut uint64) {
+				s.updateArchiveJob(func() {
+					job.entries = entries
+					job.leftOut = leftOut
+					job.bytes = prep.bw.written
+				})
+			},
+		}
+		for _, p := range pathsCopy {
+			r, perr := s.archivePath(bgCtx, t, a, p)
+			if r != nil {
+				failJob(r)
+				return
+			}
+			if perr != nil {
+				failJob(compressError(prep.dst.where, prep.bw, perr))
+				return
+			}
+		}
+		if cerr := zw.Close(); cerr != nil {
+			failJob(compressError(prep.dst.where, prep.bw, cerr))
+			return
+		}
+		if serr := unix.Fsync(prep.tmpFd); serr != nil {
+			failJob(compressError(prep.dst.where, prep.bw, serr))
+			return
+		}
+		ownWithMode(prep.tmpFd, &prep.dst.w.st, prep.archiveMode)
+		if rerr := unix.Renameat2(prep.dst.dir(), prep.tmpName, prep.dst.dir(), prep.dst.name, unix.RENAME_NOREPLACE); rerr != nil {
+			if errors.Is(rerr, unix.EEXIST) {
+				failJob(exists(prep.dst.where, "nothing was compressed"))
+				return
+			}
+			failJob(&agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_DENIED, Path: prep.dst.where,
+				Message: fmt.Sprintf("the agent can't put %s in place: %v. %s", prep.dst.where, rerr, fixFor(rerr)),
+			})
+			return
+		}
+		var finalSt unix.Stat_t
+		if ferr := unix.Fstatat(prep.dst.dir(), prep.dst.name, &finalSt, unix.AT_SYMLINK_NOFOLLOW); ferr != nil || finalSt.Dev != prep.tmpSt.Dev || finalSt.Ino != prep.tmpSt.Ino {
+			_ = unix.Renameat2(prep.dst.dir(), prep.dst.name, prep.dst.dir(), prep.tmpName, unix.RENAME_NOREPLACE)
+			failJob(gone(prep.dst.where))
+			return
+		}
+		placed = true
+		fe := entry(prep.dst.name, &finalSt, owners{})
+		s.finishArchiveJob(job, func() {
+			job.state = dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE
+			job.file = fe
+			job.entries = uint64(max(a.count, 0))
+			job.leftOut = a.leftOut
+			job.bytes = uint64(max(finalSt.Size, 0))
+		})
+	}()
+
+	return &agentv1.CompressFilesResult{Job: snap}, nil
 }
 
 // boundedZipWriter writes a zip archive to disk while enforcing MaxUploadBytes
@@ -284,110 +854,6 @@ func (b *boundedZipWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func (s *Server) compress(ctx context.Context, paths []string, archivePath, confirmed string) *agentv1.CompressFilesResult {
-	refuse := func(r *agentv1.FileRefusal) *agentv1.CompressFilesResult {
-		return &agentv1.CompressFilesResult{Refusal: r}
-	}
-	t := &trail{s: s}
-	g := s.guard(ctx)
-	dst, refusal := s.targetOf(t, g, archivePath)
-	if refusal != nil {
-		return refuse(refusal)
-	}
-	defer dst.w.close()
-	if refusal := t.touch(dst.where); refusal != nil {
-		return refuse(refusal)
-	}
-	switch _, err := dst.stat(); {
-	case err == nil:
-		return refuse(exists(dst.where, "nothing was compressed"))
-	case !errors.Is(err, unix.ENOENT):
-		return refuse(failed(dst.where, err))
-	}
-	if why := credentials(dst.where); why != "" {
-		return refuse(refused(dst.where, why))
-	}
-	wayIn := s.wayInAt(dst, nil, false)
-	if wayIn && confirmed != dst.where {
-		return refuse(needsPasskey(dst.where, "making it"))
-	}
-	// Stage under uploadPrefix so arriving() keeps it out of listings and archives while writing.
-	tmpName := uploadPrefix + rand.Text()
-	tmpFd, err := unix.Openat(dst.dir(), tmpName, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0o600)
-	if err != nil {
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_DENIED, Path: dst.where,
-			Message: fmt.Sprintf("the agent can't make %s: %v. %s", dst.where, err, fixFor(err)),
-		})
-	}
-	var tmpSt unix.Stat_t
-	if err := unix.Fstat(tmpFd, &tmpSt); err != nil {
-		_ = unix.Close(tmpFd)
-		_ = unix.Unlinkat(dst.dir(), tmpName, 0)
-		return refuse(denied(dst.where, err))
-	}
-	tmpFile := os.NewFile(uintptr(tmpFd), dst.where)
-	placed := false
-	defer func() {
-		_ = tmpFile.Close()
-		if !placed {
-			_ = removeAll(dst.dir(), tmpName, tmpSt.Dev, tmpSt.Ino, 0)
-		}
-	}()
-	statfs := s.statfs
-	if statfs == nil {
-		statfs = unix.Fstatfs
-	}
-	bw := &boundedZipWriter{w: tmpFile, fd: tmpFd, where: dst.where, statfs: statfs}
-	if err := bw.checkRoom(); err != nil {
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_NO_SPACE, Path: dst.where,
-			Message: err.Error() + ". Free some space first",
-		})
-	}
-	zw := zip.NewWriter(bw)
-	a := &archiver{ctx: ctx, z: zw, g: g, where: path.Dir(dst.where), buf: make([]byte, FrameBytes)}
-	for _, p := range paths {
-		if err := ctx.Err(); err != nil {
-			return refuse(notAnswering(p))
-		}
-		refusal, err := s.archivePath(ctx, t, a, p)
-		if refusal != nil {
-			return refuse(refusal)
-		}
-		if err != nil {
-			return refuse(compressError(dst.where, bw, err))
-		}
-	}
-	if err := zw.Close(); err != nil {
-		return refuse(compressError(dst.where, bw, err))
-	}
-	if err := unix.Fsync(tmpFd); err != nil {
-		return refuse(compressError(dst.where, bw, err))
-	}
-	ownLike(tmpFd, &dst.w.st, dockwellv1.FileType_FILE_TYPE_FILE)
-	if err := unix.Renameat2(dst.dir(), tmpName, dst.dir(), dst.name, unix.RENAME_NOREPLACE); err != nil {
-		if errors.Is(err, unix.EEXIST) {
-			return refuse(exists(dst.where, "nothing was compressed"))
-		}
-		return refuse(&agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_DENIED, Path: dst.where,
-			Message: fmt.Sprintf("the agent can't put %s in place: %v. %s", dst.where, err, fixFor(err)),
-		})
-	}
-	var finalSt unix.Stat_t
-	if err := unix.Fstatat(dst.dir(), dst.name, &finalSt, unix.AT_SYMLINK_NOFOLLOW); err != nil || finalSt.Dev != tmpSt.Dev || finalSt.Ino != tmpSt.Ino {
-		_ = unix.Renameat2(dst.dir(), dst.name, dst.dir(), tmpName, unix.RENAME_NOREPLACE)
-		return refuse(gone(dst.where))
-	}
-	placed = true
-	return &agentv1.CompressFilesResult{
-		Compressed: &dockwellv1.CompressFilesResponse{
-			Path: dst.where, File: entry(dst.name, &finalSt, owners{}), Entries: uint64(max(a.count, 0)), WayBackIn: wayIn,
-		},
-	}
-}
-
 func compressError(where string, bw *boundedZipWriter, err error) *agentv1.FileRefusal {
 	switch {
 	case bw.tooBig:
@@ -422,7 +888,7 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 	if name == "/" || name == "." || name == "" {
 		name = o.w.last().name
 	}
-	a.where = o.where
+	a.root = o.where
 	if o.dir {
 		a.count++
 		if a.count > maxArchived {
@@ -431,15 +897,18 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 				Message: fmt.Sprintf("this archive holds more than %d files and folders, so it stopped. Archive a smaller selection, or use SSH", maxArchived),
 			}, nil
 		}
-		if _, err := a.z.CreateHeader(&zip.FileHeader{Name: name + "/", Modified: time.Unix(o.w.st.Mtim.Unix()), Method: zip.Store}); err != nil {
+		if _, err := a.z.Create(name+"/", time.Unix(o.w.st.Mtim.Unix()), fs.ModeDir|fs.FileMode(o.w.st.Mode&0o777), zipStored); err != nil {
 			return nil, err
 		}
+		a.progress()
 		fd, err := unix.Openat(o.w.last().fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 		if err != nil {
 			return denied(o.where, err), nil
 		}
 		defer unix.Close(fd)
-		return a.folder(fd, name, o.w.last().place, o.w.st.Dev, 0)
+		// Pass o.where as diskDir separately from archive prefix name so inner
+		// credential paths are never doubled (e.g. /etc/shadow, never /etc/etc/shadow).
+		return a.folder(fd, o.where, name, o.w.last().place, o.w.st.Dev, 0)
 	}
 	a.count++
 	if a.count > maxArchived {
@@ -457,9 +926,7 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 	if why := heldBack(head); why != "" {
 		return refused(o.where, why), nil
 	}
-	h := &zip.FileHeader{Name: name, Modified: time.Unix(o.w.st.Mtim.Unix()), Method: zip.Deflate}
-	h.SetMode(os.FileMode(o.w.st.Mode & 0o777))
-	w, err := a.z.CreateHeader(h)
+	w, err := a.z.Create(name, time.Unix(o.w.st.Mtim.Unix()), fs.FileMode(o.w.st.Mode&0o777), zipDeflated)
 	if err != nil {
 		return nil, err
 	}
@@ -484,6 +951,7 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 			}
 		}
 		if errors.Is(err, io.EOF) {
+			a.progress()
 			return nil, nil
 		}
 		if err != nil {

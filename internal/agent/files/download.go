@@ -3,12 +3,12 @@
 package files
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"strings"
@@ -72,7 +72,9 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	// or missing path answers cleanly with a refusal rather than a cut stream.
 	parent := ""
 	sameParent := true
-	firstWhere := ""
+	resolved := make([]string, 0, len(paths))
+	var knownBytes uint64
+	hasDir := false
 	for i, p := range paths {
 		var o *opened
 		refusal, err := attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
@@ -86,10 +88,11 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 		case refusal != nil:
 			return &agentv1.DownloadFileResult{Refusal: refusal}, nil
 		}
-		if i == 0 {
-			firstWhere = o.where
-		}
-		if !o.dir {
+		resolved = append(resolved, o.where)
+		if o.dir {
+			hasDir = true
+		} else {
+			knownBytes += uint64(max(o.w.st.Size, 0))
 			head := make([]byte, MaxFileBytes)
 			n, rerr := io.ReadFull(o.f, head)
 			if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
@@ -115,14 +118,21 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	if sameParent && parent != "" && parent != "/" {
 		name = path.Base(parent) + ".zip"
 	}
+	if hasDir {
+		knownBytes = 0
+	}
 	out := &frames{send: send, buf: make([]byte, 0, FrameBytes)}
-	if err := out.send(&agentv1.SendFileRequest{Name: name, Path: firstWhere, Archive: true}); err != nil {
+	if err := out.send(&agentv1.SendFileRequest{Name: name, Path: resolved[0], SizeBytes: knownBytes, Archive: true, ResolvedPaths: resolved}); err != nil {
 		return nil, err
 	}
-	z := zip.NewWriter(out)
+	z, err := newZipWriter(out, s.tmpDir())
+	if err != nil {
+		return nil, err
+	}
+	defer z.Abort()
 	g := s.guard(ctx)
 	t := &trail{s: s}
-	a := &archiver{ctx: ctx, z: z, g: g, where: parent, buf: make([]byte, FrameBytes)}
+	a := &archiver{ctx: ctx, z: z, g: g, root: parent, buf: make([]byte, FrameBytes)}
 	for _, p := range paths {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -132,7 +142,7 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 			return nil, err
 		}
 		if refusal != nil {
-			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
+			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut}, nil
 		}
 	}
 	if err := z.Close(); err != nil {
@@ -141,7 +151,7 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	if err := out.flush(); err != nil {
 		return nil, err
 	}
-	return &agentv1.DownloadFileResult{SentBytes: out.sent}, nil
+	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut}, nil
 }
 
 // opened is what a download opened.
@@ -167,7 +177,7 @@ func (s *Server) openDownload(ctx context.Context, t *trail, p string) (*opened,
 		return nil, refusal
 	}
 	o := &opened{w: w, where: w.path(), g: g}
-	if why := credentials(o.where); why != "" {
+	if why := checkCredentials(o.where); why != "" {
 		w.close()
 		return nil, refused(o.where, why)
 	}
@@ -329,19 +339,23 @@ func (s *Server) sendFolder(ctx context.Context, o *opened, out *frames) (*agent
 	if err := out.send(&agentv1.SendFileRequest{Name: name + ".zip", Path: o.where, Archive: true}); err != nil {
 		return nil, err
 	}
-	z := zip.NewWriter(out)
-	a := &archiver{ctx: ctx, z: z, g: o.g, where: o.where, buf: make([]byte, FrameBytes)}
+	z, err := newZipWriter(out, s.tmpDir())
+	if err != nil {
+		return nil, err
+	}
+	defer z.Abort()
+	a := &archiver{ctx: ctx, z: z, g: o.g, root: o.where, buf: make([]byte, FrameBytes)}
 	fd, err := unix.Openat(o.w.last().fd, ".", unix.O_RDONLY|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
 	}
-	refusal, err := a.folder(fd, "", o.w.last().place, o.w.st.Dev, 0)
+	refusal, err := a.folder(fd, o.where, "", o.w.last().place, o.w.st.Dev, 0)
 	_ = unix.Close(fd)
 	if err != nil {
 		return nil, err
 	}
 	if refusal != nil {
-		return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
+		return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut}, nil
 	}
 	if err := z.Close(); err != nil {
 		return nil, err
@@ -349,23 +363,35 @@ func (s *Server) sendFolder(ctx context.Context, o *opened, out *frames) (*agent
 	if err := out.flush(); err != nil {
 		return nil, err
 	}
-	return &agentv1.DownloadFileResult{SentBytes: out.sent}, nil
+	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut}, nil
 }
 
-// archiver writes a folder into a zip archive, a file at a time.
+// archiver writes a folder or selection into a streaming zip archive, a file at a time.
 type archiver struct {
-	ctx   context.Context //nolint:containedctx // it lives as long as one download
-	z     *zip.Writer
-	g     *guard
-	where string
-	buf   []byte
-	count int
+	ctx        context.Context //nolint:containedctx // it lives as long as one archive
+	z          *zipWriter
+	g          *guard
+	root       string
+	buf        []byte
+	count      int
+	leftOut    uint64
+	onProgress func(entries, leftOut uint64)
 }
 
-// folder adds what's in the folder fd, as rel in the archive, at place in Docker's
-// data, on the filesystem dev.
-func (a *archiver) folder(fd int, rel string, at place, dev uint64, depth int) (*agentv1.FileRefusal, error) {
+func (a *archiver) progress() {
+	if a.onProgress != nil {
+		a.onProgress(uint64(max(a.count, 0)), a.leftOut)
+	}
+}
+
+// folder adds what's in the folder fd (at diskDir on disk, as rel inside the
+// archive), at place in Docker's data, on the filesystem dev. Keeping diskDir
+// separate from rel ensures credential rules match the true disk path even when
+// rel starts with the selected folder's name.
+func (a *archiver) folder(fd int, diskDir, rel string, at place, dev uint64, depth int) (*agentv1.FileRefusal, error) {
 	if depth > maxDepth {
+		a.leftOut++
+		a.progress()
 		return nil, nil // deeper than a removal goes: left out
 	}
 	dup, err := unix.Dup(fd)
@@ -380,7 +406,7 @@ func (a *archiver) folder(fd int, rel string, at place, dev uint64, depth int) (
 			if err := a.ctx.Err(); err != nil {
 				return nil, err
 			}
-			if refusal, err := a.add(fd, rel, name, at, dev, depth); refusal != nil || err != nil {
+			if refusal, err := a.add(fd, diskDir, rel, name, at, dev, depth); refusal != nil || err != nil {
 				return refusal, err
 			}
 		}
@@ -390,7 +416,7 @@ func (a *archiver) folder(fd int, rel string, at place, dev uint64, depth int) (
 	}
 }
 
-func (a *archiver) add(parent int, rel, name string, at place, dev uint64, depth int) (*agentv1.FileRefusal, error) {
+func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint64, depth int) (*agentv1.FileRefusal, error) {
 	if arriving(name) {
 		return nil, nil // an upload's, as it arrives: not the folder's yet
 	}
@@ -398,43 +424,54 @@ func (a *archiver) add(parent int, rel, name string, at place, dev uint64, depth
 	if unix.Fstatat(parent, name, &st, unix.AT_SYMLINK_NOFOLLOW) != nil {
 		return nil, nil // it went as we read
 	}
-	where := joined(a.where+"/"+rel, name)
+	where := joined(diskDir, name)
 	inside := name
 	if rel != "" {
 		inside = rel + "/" + name
 	}
-	// What a read refuses stays out.
+	// What a read refuses stays out, and is counted.
 	into, why := a.g.enter(at, name, &st)
-	if why != "" || credentials(where) != "" {
+	if why != "" || checkCredentials(where) != "" {
+		a.leftOut++
+		a.progress()
 		return nil, nil
-	}
-	a.count++
-	if a.count > maxArchived {
-		return &agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_REFUSED, Path: a.where,
-			Message: fmt.Sprintf("%s holds more than %d files and folders, so the download stopped, and is cut short. Download a folder inside it, or copy it over SSH", a.where, maxArchived),
-		}, nil
 	}
 	switch st.Mode & unix.S_IFMT {
 	case unix.S_IFDIR:
 		if st.Dev != dev {
+			a.leftOut++
+			a.progress()
 			return nil, nil // another filesystem, mounted here: left out
 		}
 		fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if err != nil {
+			a.leftOut++
+			a.progress()
 			return nil, nil
 		}
 		defer unix.Close(fd)
 		if !sameAs(fd, &st, unix.S_IFDIR) {
+			a.leftOut++
+			a.progress()
 			return nil, nil // it changed as it was opened: left out
 		}
-		if _, err := a.z.CreateHeader(&zip.FileHeader{Name: inside + "/", Modified: time.Unix(st.Mtim.Unix()), Method: zip.Store}); err != nil {
+		a.count++
+		if a.count > maxArchived {
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_REFUSED, Path: a.root,
+				Message: fmt.Sprintf("%s holds more than %d files and folders, so the archive stopped. Choose a smaller folder, or use SSH", a.root, maxArchived),
+			}, nil
+		}
+		if _, err := a.z.Create(inside+"/", time.Unix(st.Mtim.Unix()), fs.ModeDir|fs.FileMode(st.Mode&0o777), zipStored); err != nil {
 			return nil, err
 		}
-		return a.folder(fd, inside, into, dev, depth+1)
+		a.progress()
+		return a.folder(fd, where, inside, into, dev, depth+1)
 	case unix.S_IFREG:
 		fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 		if err != nil {
+			a.leftOut++
+			a.progress()
 			return nil, nil
 		}
 		f := os.NewFile(uintptr(fd), where)
@@ -442,18 +479,29 @@ func (a *archiver) add(parent int, rel, name string, at place, dev uint64, depth
 		// What was checked is what's read: a FIFO or a device put in its place
 		// between the two is left out, as one there before is.
 		if !sameAs(fd, &st, unix.S_IFREG) {
+			a.leftOut++
+			a.progress()
 			return nil, nil
 		}
 		n, err := io.ReadFull(f, a.buf[:min(len(a.buf), MaxFileBytes)])
 		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+			a.leftOut++
+			a.progress()
 			return nil, nil
 		}
 		if heldBack(a.buf[:n]) != "" {
+			a.leftOut++
+			a.progress()
 			return nil, nil
 		}
-		h := &zip.FileHeader{Name: inside, Modified: time.Unix(st.Mtim.Unix()), Method: zip.Deflate}
-		h.SetMode(os.FileMode(st.Mode & 0o777))
-		w, err := a.z.CreateHeader(h)
+		a.count++
+		if a.count > maxArchived {
+			return &agentv1.FileRefusal{
+				Kind: agentv1.FileRefusal_KIND_REFUSED, Path: a.root,
+				Message: fmt.Sprintf("%s holds more than %d files and folders, so the archive stopped. Choose a smaller folder, or use SSH", a.root, maxArchived),
+			}, nil
+		}
+		w, err := a.z.Create(inside, time.Unix(st.Mtim.Unix()), fs.FileMode(st.Mode&0o777), zipDeflated)
 		if err != nil {
 			return nil, err
 		}
@@ -471,8 +519,12 @@ func (a *archiver) add(parent int, rel, name string, at place, dev uint64, depth
 			}
 			part = a.buf[:m]
 		}
+		a.progress()
+		return nil, nil
 	}
-	// A link, a socket, a device: left out.
+	// A link, a socket, a device: left out, and counted.
+	a.leftOut++
+	a.progress()
 	return nil, nil
 }
 

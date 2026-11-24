@@ -114,6 +114,13 @@ const (
 	// StepUpRestoreWayBackIn puts back what was deleted where that's a way back
 	// onto a server. Its target is the server's ID and the path it goes back to.
 	StepUpRestoreWayBackIn StepUpAction = "file.restore_way_back_in"
+	// StepUpCompressWayBackIn packs files into an archive where the archive path
+	// is a way back onto a server. Its target is the server's ID and the archive path.
+	StepUpCompressWayBackIn StepUpAction = "file.compress_way_back_in"
+	// StepUpExtractWayBackIn extracts an archive into a folder that's a way back
+	// onto a server. Its target is the server's ID, the archive path and the
+	// destination folder, on two lines.
+	StepUpExtractWayBackIn StepUpAction = "file.extract_way_back_in"
 	// StepUpInvite invites someone. Its target is the email, the role and the
 	// place, as InviteTarget writes them.
 	StepUpInvite StepUpAction = "member.invite"
@@ -203,6 +210,8 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpMoveWayBackIn:                     {"moving", true},
 	StepUpDeleteWayBackIn:                   {"deleting", true},
 	StepUpRestoreWayBackIn:                  {"putting back", true},
+	StepUpCompressWayBackIn:                 {"compressing into", true},
+	StepUpExtractWayBackIn:                  {"extracting", true},
 	StepUpInvite:                            {"inviting", true},
 	StepUpChangeRole:                        {"changing the role of", true},
 	StepUpRemoveMember:                      {"removing", true},
@@ -227,7 +236,11 @@ var stepUpActions = map[StepUpAction]struct {
 func doing(action StepUpAction, target string) string {
 	a := stepUpActions[action]
 	if a.targeted {
-		return a.doing + " " + strings.ReplaceAll(target, "\n", " to ")
+		sep := " to "
+		if action == StepUpExtractWayBackIn {
+			sep = " into "
+		}
+		return a.doing + " " + strings.ReplaceAll(target, "\n", sep)
 	}
 	return a.doing
 }

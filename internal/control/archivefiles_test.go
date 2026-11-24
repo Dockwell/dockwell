@@ -11,15 +11,39 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
+	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/store/storetest"
 )
+
+func waitArchiveJob(t *testing.T, c dockwellv1connect.FileServiceClient, serverID, jobID string) *dockwellv1.ArchiveJob {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		res, err := c.GetArchiveJob(t.Context(), connect.NewRequest(&dockwellv1.GetArchiveJobRequest{
+			ServerId: serverID,
+			JobId:    jobID,
+		}))
+		if err != nil {
+			t.Fatalf("GetArchiveJob(%s): %v", jobID, err)
+		}
+		job := res.Msg.GetJob()
+		if job.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_RUNNING {
+			return job
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("archive job %s did not finish in time: %v", jobID, job)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
 
 func TestCompressExtractAndDownloadSelection(t *testing.T) {
 	t.Parallel()
@@ -37,27 +61,49 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	site := filepath.Join(dir, "site")
 	writeFile(t, filepath.Join(site, "index.html"), "<h1>hi</h1>")
 	writeFile(t, filepath.Join(site, "css", "app.css"), "body{}")
+	pngBytes := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0x00, 0x01}
+	if err := os.WriteFile(filepath.Join(site, "logo.png"), pngBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	c := fileClient(b, b.origin)
 
-	// Compress selection into site/release.zip.
+	// Compress selection into site/release.zip (async job, poll via GetArchiveJob & ListArchiveJobs).
 	archive := filepath.Join(site, "release.zip")
 	comp, err := c.CompressFiles(t.Context(), connect.NewRequest(&dockwellv1.CompressFilesRequest{
 		ServerId:    id,
 		Paths:       []string{filepath.Join(site, "index.html"), filepath.Join(site, "css")},
 		ArchivePath: archive,
 	}))
-	if err != nil || comp.Msg.GetPath() != archive || comp.Msg.GetEntries() != 3 {
+	if err != nil || comp.Msg.GetJob().GetJobId() == "" {
 		t.Fatalf("CompressFiles = %v, %v", comp, err)
 	}
-	waitForFileEvent(t, b, id, "file.compress", archive)
+	compJob := waitArchiveJob(t, c, id, comp.Msg.GetJob().GetJobId())
+	if compJob.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE || compJob.GetPath() != archive || compJob.GetEntries() != 3 {
+		t.Fatalf("compress job = %v", compJob)
+	}
+	// L5: compress Activity event records source paths.
+	ce := waitForFileEvent(t, b, id, "file.compress", archive)
+	if ce.GetSubject().GetPathCount() != 2 || len(ce.GetSubject().GetPaths()) != 2 {
+		t.Errorf("file.compress paths = %v (count %d), want 2", ce.GetSubject().GetPaths(), ce.GetSubject().GetPathCount())
+	}
+
+	// ListArchiveJobs includes the finished job.
+	listed, err := c.ListArchiveJobs(t.Context(), connect.NewRequest(&dockwellv1.ListArchiveJobsRequest{ServerId: id}))
+	if err != nil || len(listed.Msg.GetJobs()) == 0 {
+		t.Fatalf("ListArchiveJobs = %v, %v", listed, err)
+	}
 
 	// Extract site/release.zip into site/release.
 	ext, err := c.ExtractArchive(t.Context(), connect.NewRequest(&dockwellv1.ExtractArchiveRequest{
 		ServerId: id,
 		Path:     archive,
 	}))
-	if err != nil || ext.Msg.GetUnpackedTo() != filepath.Join(site, "release") || ext.Msg.GetUnpackedEntries() != 3 {
+	if err != nil || ext.Msg.GetJob().GetJobId() == "" {
 		t.Fatalf("ExtractArchive = %v, %v", ext, err)
+	}
+	extJob := waitArchiveJob(t, c, id, ext.Msg.GetJob().GetJobId())
+	if extJob.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE || extJob.GetUnpackedTo() != filepath.Join(site, "release") || extJob.GetEntries() != 3 {
+		t.Fatalf("extract job = %v", extJob)
 	}
 	e := waitForFileEvent(t, b, id, "file.extract", archive)
 	if e.GetSubject().GetToPath() != filepath.Join(site, "release") {
@@ -66,6 +112,18 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	if got, _ := os.ReadFile(filepath.Join(site, "release", "css", "app.css")); string(got) != "body{}" {
 		t.Errorf("extracted css = %q", got)
 	}
+
+	// M5: image preview reads via ReadFile(allow_binary=true), recording file.read and NOT file.download.
+	logoPath := filepath.Join(site, "logo.png")
+	readImg, err := c.ReadFile(t.Context(), connect.NewRequest(&dockwellv1.ReadFileRequest{
+		ServerId:    id,
+		Path:        logoPath,
+		AllowBinary: true,
+	}))
+	if err != nil || !readImg.Msg.GetBinary() || !bytes.Equal(readImg.Msg.GetRawContent(), pngBytes) {
+		t.Fatalf("ReadFile allow_binary = %v, %v", readImg, err)
+	}
+	waitForFileEvent(t, b, id, "file.read", logoPath)
 
 	// Download multiple paths as one zip over REST.
 	q := url.Values{}
@@ -86,10 +144,29 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	if !found["index.html"] || !found["css/app.css"] {
 		t.Errorf("zip entries = %v", found)
 	}
-	waitForFileEvent(t, b, id, "file.download", filepath.Join(site, "index.html"))
-	waitForFileEvent(t, b, id, "file.download", filepath.Join(site, "css"))
+	// L2: one file.download event for the selection carrying resolved paths, and ZERO download events for logo.png.
+	dlEvent := waitForFileEvent(t, b, id, "file.download", filepath.Join(site, "index.html"))
+	if dlEvent.GetSubject().GetPathCount() != 2 || len(dlEvent.GetSubject().GetPaths()) != 2 {
+		t.Errorf("multi download event paths = %v (count %d), want 2", dlEvent.GetSubject().GetPaths(), dlEvent.GetSubject().GetPathCount())
+	}
+	eventsRes, err := eventClient(b, b.origin).ListEvents(t.Context(), connect.NewRequest(&dockwellv1.ListEventsRequest{ServerId: id, PageSize: 50}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dlCount := 0
+	for _, ev := range eventsRes.Msg.GetEvents() {
+		if ev.GetAction() == "file.download" {
+			dlCount++
+			if ev.GetSubject().GetPath() == logoPath {
+				t.Errorf("image preview recorded a file.download event for %s", logoPath)
+			}
+		}
+	}
+	if dlCount != 1 {
+		t.Errorf("file.download event count = %d, want 1", dlCount)
+	}
 
-	// Tokens are refused for compress, extract and multi-path download.
+	// Tokens are refused for compress, extract, archive job queries, and multi-path download.
 	for _, scope := range []dockwellv1.TokenScope{dockwellv1.TokenScope_TOKEN_SCOPE_READ_ONLY, dockwellv1.TokenScope_TOKEN_SCOPE_READ_WRITE} {
 		bearer := map[string]string{"Authorization": "Bearer " + createToken(t, b, scope)}
 		for _, r := range []struct {
@@ -98,6 +175,8 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 		}{
 			{http.MethodPost, "/v1/servers/" + id + "/files:compress", []byte(`{"paths":["` + filepath.Join(site, "index.html") + `"],"archivePath":"` + filepath.Join(site, "t.zip") + `"}`)},
 			{http.MethodPost, "/v1/servers/" + id + "/files:extract", []byte(`{"path":"` + archive + `"}`)},
+			{http.MethodGet, "/v1/servers/" + id + "/archive-jobs", nil},
+			{http.MethodGet, "/v1/servers/" + id + "/archive-jobs/" + compJob.GetJobId(), nil},
 			{http.MethodGet, "/v1/servers/" + id + "/files:download?" + q.Encode(), nil},
 		} {
 			extra := bearer
@@ -112,7 +191,7 @@ func testCompressExtractAndDownloadSelection(t *testing.T, backend store.Backend
 	}
 }
 
-func TestArchiveWayBackInTakesAPasskey(t *testing.T) {
+func TestArchiveWayBackInTakesDedicatedStepUp(t *testing.T) {
 	t.Parallel()
 	f := startFull(t, store.SQLite, nil)
 	b := signedIn(t, f)
@@ -134,25 +213,39 @@ func TestArchiveWayBackInTakesAPasskey(t *testing.T) {
 	})); reasonOf(err) != "needs_step_up" {
 		t.Fatalf("compress into .ssh with no proof = %v", err)
 	}
-	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN, id+":"+archive)
+	// MAKE_WAY_BACK_IN proof must NOT work for CompressFiles (M4).
+	wrongProof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN, id+":"+archive)
+	if _, err := c.CompressFiles(t.Context(), connect.NewRequest(&dockwellv1.CompressFilesRequest{
+		ServerId: id, Paths: []string{plain}, ArchivePath: archive, Proof: wrongProof,
+	})); reasonOf(err) != "needs_step_up" {
+		t.Fatalf("compress with MAKE_WAY_BACK_IN proof = %v, want needs_step_up", err)
+	}
+	proof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_COMPRESS_WAY_BACK_IN, id+":"+archive)
 	comp, err := c.CompressFiles(t.Context(), connect.NewRequest(&dockwellv1.CompressFilesRequest{
 		ServerId: id, Paths: []string{plain}, ArchivePath: archive, Proof: proof,
 	}))
-	if err != nil || !comp.Msg.GetWayBackIn() {
+	if err != nil || !comp.Msg.GetJob().GetWayBackIn() {
 		t.Fatalf("compress into .ssh with proof = %v, %v", comp, err)
 	}
+	if j := waitArchiveJob(t, c, id, comp.Msg.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
+		t.Fatalf("compress job = %v", j)
+	}
+
 	if _, err := c.ExtractArchive(t.Context(), connect.NewRequest(&dockwellv1.ExtractArchiveRequest{
 		ServerId: id, Path: archive,
 	})); reasonOf(err) != "needs_step_up" {
 		t.Fatalf("extract into .ssh with no proof = %v", err)
 	}
 	dst := filepath.Join(sshDir, "bundle")
-	eProof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_MAKE_WAY_BACK_IN, id+":"+dst)
+	eProof := stepUpFor(t, b, dockwellv1.StepUpAction_STEP_UP_ACTION_EXTRACT_WAY_BACK_IN, id+":"+archive+"\n"+dst)
 	ext, err := c.ExtractArchive(t.Context(), connect.NewRequest(&dockwellv1.ExtractArchiveRequest{
 		ServerId: id, Path: archive, Proof: eProof,
 	}))
-	if err != nil || !ext.Msg.GetWayBackIn() || ext.Msg.GetUnpackedTo() != dst {
+	if err != nil || !ext.Msg.GetJob().GetWayBackIn() || ext.Msg.GetJob().GetUnpackedTo() != dst {
 		t.Fatalf("extract into .ssh with proof = %v, %v", ext, err)
+	}
+	if j := waitArchiveJob(t, c, id, ext.Msg.GetJob().GetJobId()); j.GetState() != dockwellv1.ArchiveJobState_ARCHIVE_JOB_STATE_DONE {
+		t.Fatalf("extract job = %v", j)
 	}
 }
 

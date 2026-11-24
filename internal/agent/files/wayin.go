@@ -278,6 +278,34 @@ func (ways *waysIn) listed(where, dataDir string, inVolume bool) bool {
 	return false
 }
 
+// listedEntry reports an archive entry whose own name or relative path can let
+// someone back onto the server (keys, sudoers, shell start files, user systemd
+// units, .ssh, runtime sockets, or Dockwell's data dir). Even when extracting
+// into a way-in destination folder confirmed with a passkey, these entries are
+// never unpacked.
+func (ways *waysIn) listedEntry(parts []string, where, dataDir string) bool {
+	if len(parts) == 0 {
+		return false
+	}
+	base := parts[len(parts)-1]
+	rel := "/" + strings.Join(parts, "/") + "/"
+	switch {
+	case slices.Contains(wayInNames, base), strings.HasPrefix(base, "sudoers"):
+		return true
+	case slices.Contains(startFiles, base):
+		return true
+	case slices.Contains(parts, ".ssh"):
+		return true
+	case slices.ContainsFunc(parts, func(p string) bool { return strings.HasPrefix(p, "sudoers") }):
+		return true
+	case slices.ContainsFunc(wayInDirs, func(d string) bool { return strings.Contains(rel, "/"+d+"/") }):
+		return true
+	case dataDir != "" && mounts.Holds(dataDir, where):
+		return true
+	}
+	return false
+}
+
 // listedPath reports what's a way in by its path alone.
 func listedPath(where, dataDir string, homes []string, inVolume bool) bool {
 	base := path.Base(where)

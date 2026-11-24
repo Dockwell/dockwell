@@ -79,6 +79,9 @@ export function FileViewer({
   const [wordWrap, setWordWrap] = useState<boolean>(() => readWordWrap(viewerId));
   const [dirtyTabs, setDirtyTabs] = useState<ReadonlySet<string>>(() => new Set());
   const [erroredTabs, setErroredTabs] = useState<ReadonlySet<string>>(() => new Set());
+  const [tabSaveStates, setTabSaveStates] = useState<
+    ReadonlyMap<string, { editable: boolean; saving: boolean; blocked: boolean }>
+  >(() => new Map());
   const editorHandles = useRef(new Map<string, CodeMirrorEditorHandle | null>());
   const saveHandlers = useRef(new Map<string, () => void>());
 
@@ -86,7 +89,7 @@ export function FileViewer({
     setWordWrap(readWordWrap(viewerId));
   }, [viewerId]);
 
-  // Prune dirty/error tracking for tabs that closed.
+  // Prune dirty/error/save-state tracking for tabs that closed.
   useEffect(() => {
     const openSet = new Set(tabs);
     setDirtyTabs((was) => {
@@ -103,6 +106,15 @@ export function FileViewer({
       const next = new Set<string>();
       for (const p of was) {
         if (openSet.has(p)) next.add(p);
+        else changed = true;
+      }
+      return changed ? next : was;
+    });
+    setTabSaveStates((was) => {
+      let changed = false;
+      const next = new Map<string, { editable: boolean; saving: boolean; blocked: boolean }>();
+      for (const [p, v] of was) {
+        if (openSet.has(p)) next.set(p, v);
         else changed = true;
       }
       return changed ? next : was;
@@ -131,13 +143,15 @@ export function FileViewer({
     enableBeforeUnload: anyDirty,
   });
 
-  // Escape exits full-window mode (unless focus is inside the CodeMirror search panel).
+  // Escape exits full-window mode (unless focus is inside the CodeMirror search panel, including ShadowRoot).
   useEffect(() => {
     if (!fullWindow) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest(".cm-search")) return;
+      const inSearch =
+        (event.target instanceof Element && event.target.closest(".cm-search") !== null) ||
+        event.composedPath().some((node) => node instanceof Element && node.classList.contains("cm-search"));
+      if (inSearch) return;
       event.preventDefault();
       onToggleFullWindow();
     };
@@ -165,6 +179,26 @@ export function FileViewer({
     });
   }, []);
 
+  const setTabSaveState = useCallback(
+    (path: string, state: { editable: boolean; saving: boolean; blocked: boolean }) => {
+      setTabSaveStates((was) => {
+        const prev = was.get(path);
+        if (
+          prev &&
+          prev.editable === state.editable &&
+          prev.saving === state.saving &&
+          prev.blocked === state.blocked
+        ) {
+          return was;
+        }
+        const next = new Map(was);
+        next.set(path, state);
+        return next;
+      });
+    },
+    [],
+  );
+
   const requestCloseTab = (path: string) => {
     if (dirtyTabs.has(path)) {
       const name = nameOf(path);
@@ -186,6 +220,7 @@ export function FileViewer({
   const activeName = nameOf(activePath);
   const activeDirty = dirtyTabs.has(activePath);
   const activeErrored = erroredTabs.has(activePath);
+  const activeSaveState = tabSaveStates.get(activePath);
   const multiTab = tabs.length > 1;
   const showPanelChrome = !phone || fullWindow;
 
@@ -212,6 +247,17 @@ export function FileViewer({
         }
         actions={
           <div className="files-editor-tools">
+            {fullWindow && !activeErrored && activeSaveState?.editable ? (
+              <Button
+                variant="primary"
+                size="sm"
+                kbd={phone ? undefined : onApple() ? "⌘S" : "Ctrl S"}
+                disabled={!activeDirty || activeSaveState.saving || activeSaveState.blocked}
+                onClick={() => saveHandlers.current.get(activePath)?.()}
+              >
+                {activeSaveState.saving ? <Trans>Saving</Trans> : <Trans>Save</Trans>}
+              </Button>
+            ) : null}
             {!activeErrored ? (
               <>
                 <Button
@@ -317,12 +363,14 @@ export function FileViewer({
             serverId={serverId}
             path={tabPath}
             active={tabPath === activePath}
+            fullWindow={fullWindow}
             line={tabPath === activePath ? line : undefined}
             wordWrap={wordWrap}
             initialRead={initialReads?.get(tabPath)}
             onConsumedInitialRead={onConsumedInitialRead}
             onDirtyChange={setTabDirty}
             onErrorChange={setTabError}
+            onSaveStateChange={setTabSaveState}
             editorHandles={editorHandles}
             saveHandlers={saveHandlers}
           />
@@ -336,12 +384,14 @@ interface FileTabPaneProps {
   serverId: string;
   path: string;
   active: boolean;
+  fullWindow: boolean;
   line: number | undefined;
   wordWrap: boolean;
   initialRead?: ReadFileResponse | undefined;
   onConsumedInitialRead?: ((path: string) => void) | undefined;
   onDirtyChange: (path: string, dirty: boolean) => void;
   onErrorChange: (path: string, failed: boolean) => void;
+  onSaveStateChange: (path: string, state: { editable: boolean; saving: boolean; blocked: boolean }) => void;
   editorHandles: RefObject<Map<string, CodeMirrorEditorHandle | null>>;
   saveHandlers: RefObject<Map<string, () => void>>;
 }
@@ -350,12 +400,14 @@ function FileTabPane({
   serverId,
   path,
   active,
+  fullWindow,
   line,
   wordWrap,
   initialRead,
   onConsumedInitialRead,
   onDirtyChange,
   onErrorChange,
+  onSaveStateChange,
   editorHandles,
   saveHandlers,
 }: FileTabPaneProps) {
@@ -385,6 +437,13 @@ function FileTabPane({
   useEffect(() => {
     onErrorChange(path, Boolean(query.error));
   }, [path, query.error, onErrorChange]);
+
+  const tabEditable = Boolean(read && !query.error && !read.binary && !read.truncated && read.version);
+  useEffect(() => {
+    if (!tabEditable) {
+      onSaveStateChange(path, { editable: false, saving: false, blocked: false });
+    }
+  }, [path, tabEditable, onSaveStateChange]);
 
   const download = (
     <ButtonLink size="sm" icon="download" href={downloadFileURL({ serverId, path })} download>
@@ -496,10 +555,12 @@ function FileTabPane({
         path={path}
         name={name}
         read={read}
+        fullWindow={fullWindow}
         line={line}
         wordWrap={wordWrap}
         onSaved={setSaved}
         onEdited={(dirty) => onDirtyChange(path, dirty)}
+        onSaveStateChange={(saving, blocked) => onSaveStateChange(path, { editable: true, saving, blocked })}
         editorRef={registerHandle}
         saveHandlers={saveHandlers}
       />
@@ -536,10 +597,12 @@ interface EditorProps {
   path: string;
   name: string;
   read: ReadFileResponse;
+  fullWindow: boolean;
   line: number | undefined;
   wordWrap: boolean;
   onSaved: (file: FileEntry | undefined) => void;
   onEdited: (edited: boolean) => void;
+  onSaveStateChange: (saving: boolean, blocked: boolean) => void;
   editorRef: (handle: CodeMirrorEditorHandle | null) => void;
   saveHandlers: RefObject<Map<string, () => void>>;
 }
@@ -559,10 +622,12 @@ function Editor({
   path,
   name,
   read,
+  fullWindow,
   line,
   wordWrap,
   onSaved,
   onEdited,
+  onSaveStateChange,
   editorRef,
   saveHandlers,
 }: EditorProps) {
@@ -675,6 +740,10 @@ function Editor({
     if (edited && !saving && !conflict && !moved) void save(base.version);
   };
   saveHandlers.current.set(path, triggerSave);
+
+  useEffect(() => {
+    onSaveStateChange(saving, conflict || moved !== undefined);
+  }, [saving, conflict, moved, onSaveStateChange]);
 
   const reread = () => client.readFile({ serverId, path });
 
@@ -858,14 +927,16 @@ function Editor({
             <Button disabled={saving} onClick={discard}>
               <Trans>Discard</Trans>
             </Button>
-            <Button
-              variant="primary"
-              kbd={phone ? undefined : onApple() ? "⌘S" : "Ctrl S"}
-              disabled={saving || conflict || moved !== undefined}
-              onClick={() => void save(base.version)}
-            >
-              {saving ? <Trans>Saving</Trans> : <Trans>Save</Trans>}
-            </Button>
+            {!fullWindow ? (
+              <Button
+                variant="primary"
+                kbd={phone ? undefined : onApple() ? "⌘S" : "Ctrl S"}
+                disabled={saving || conflict || moved !== undefined}
+                onClick={() => void save(base.version)}
+              >
+                {saving ? <Trans>Saving</Trans> : <Trans>Save</Trans>}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

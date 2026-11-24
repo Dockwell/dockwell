@@ -4,6 +4,9 @@ import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { skipToken, useQuery } from "@connectrpc/connect-query";
 import {
+  type ArchiveJob,
+  ArchiveJobKind,
+  ArchiveJobState,
   downloadFileURL,
   type FileEntry,
   FileService,
@@ -33,6 +36,7 @@ import { type KeyboardEvent, type PointerEvent, useCallback, useEffect, useId, u
 
 import { isTransient } from "../../app/api";
 import { isRoleRefusal, reasonOf, sentence } from "../../lib/errors";
+import { formatBytes } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { withStepUpIfAsked } from "../auth/stepUp";
 import { useSignedInUser } from "../auth/useAuthState";
@@ -262,10 +266,19 @@ type OpenMenu =
   | { kind: "tree"; target: TreeFolderTarget; position: { x: number; y: number } };
 
 interface BannerNotice {
-  tone: "info" | "critical";
+  tone: "info" | "warning" | "critical";
   title: string;
   body: string;
+  action?: {
+    label: string;
+    icon?: IconName;
+    onClick: () => void;
+  };
 }
+
+/** Client-side cap on multi-path GET download links before offering Compress instead (L1). */
+export const MAX_MULTI_DOWNLOAD_COUNT = 1000;
+export const MAX_MULTI_DOWNLOAD_URL_LENGTH = 8000;
 
 interface FilesProps {
   server: Server;
@@ -304,6 +317,8 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   const [restoring, setRestoring] = useState(false);
   const [restoreFailure, setRestoreFailure] = useState<string>();
   const [notice, setNotice] = useState<BannerNotice>();
+  const [archiveJobs, setArchiveJobs] = useState<readonly ArchiveJob[]>([]);
+  const [archiveReconnecting, setArchiveReconnecting] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [previewFullWindow, setPreviewFullWindow] = useState(false);
   const [editorFullWindow, setEditorFullWindow] = useState(false);
@@ -352,6 +367,162 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   );
   const listing = query.data;
   const shown = listing?.path ?? folder;
+
+  const shownRef = useRef(shown);
+  shownRef.current = shown;
+
+  const presentArchiveOutcome = useCallback(
+    (job: ArchiveJob) => {
+      if (job.state === ArchiveJobState.DONE) {
+        if (job.kind === ArchiveJobKind.COMPRESS) {
+          const archiveName = nameOf(job.path);
+          if (parentOf(job.path) === shownRef.current) {
+            setSelected(new Set([archiveName]));
+            setAnchor(archiveName);
+          }
+          const packed = plural(Number(job.entries), {
+            one: "Packed # item into the archive.",
+            other: "Packed # items into the archive.",
+          });
+          const leftOutNote =
+            job.leftOut > 0n
+              ? ` ${plural(Number(job.leftOut), {
+                  one: "# item was left out.",
+                  other: "# items were left out.",
+                })}`
+              : "";
+          setNotice({
+            tone: "info",
+            title: t`Compressed ${archiveName}`,
+            body: `${packed}${leftOutNote}`,
+          });
+        } else {
+          const into = nameOf(job.unpackedTo || job.path);
+          const unpacked = plural(Number(job.entries), {
+            one: `Unpacked # item into ${into}.`,
+            other: `Unpacked # items into ${into}.`,
+          });
+          const skippedNote =
+            job.skippedLinks > 0n
+              ? ` ${plural(Number(job.skippedLinks), {
+                  one: "# link wasn't made.",
+                  other: "# links weren't made.",
+                })}`
+              : "";
+          setNotice({
+            tone: "info",
+            title: t`Extracted ${nameOf(job.path)}`,
+            body: `${unpacked}${skippedNote}`,
+          });
+        }
+      } else if (job.state === ArchiveJobState.FAILED) {
+        const msg = job.error ? sentence(new Error(job.error)) : t`Something went wrong on the server.`;
+        setNotice({
+          tone: "critical",
+          title:
+            job.kind === ArchiveJobKind.COMPRESS
+              ? t`Couldn't compress ${nameOf(job.path)}`
+              : t`Couldn't extract ${nameOf(job.path)}`,
+          body: msg,
+        });
+      }
+    },
+    [t],
+  );
+
+  const trackArchiveJob = useCallback(
+    (job: ArchiveJob) => {
+      if (job.state === ArchiveJobState.RUNNING) {
+        setArchiveJobs((was) => {
+          const idx = was.findIndex((j) => j.jobId === job.jobId);
+          if (idx >= 0) {
+            const next = [...was];
+            next[idx] = job;
+            return next;
+          }
+          return [...was, job];
+        });
+        return;
+      }
+      setArchiveJobs((was) => was.filter((j) => j.jobId !== job.jobId));
+      void changed();
+      presentArchiveOutcome(job);
+    },
+    [changed, presentArchiveOutcome],
+  );
+
+  // Restore any running archive jobs on this server after a reload or reconnect.
+  useEffect(() => {
+    const abort = new AbortController();
+    setArchiveJobs([]);
+    setArchiveReconnecting(false);
+    void (async () => {
+      try {
+        const res = await client.listArchiveJobs({ serverId }, { signal: abort.signal });
+        if (abort.signal.aborted) return;
+        const running = res.jobs.filter((j) => j.state === ArchiveJobState.RUNNING);
+        if (running.length > 0) {
+          setArchiveJobs((was) => {
+            const byId = new Map(was.map((j) => [j.jobId, j]));
+            for (const job of running) byId.set(job.jobId, job);
+            return [...byId.values()];
+          });
+        }
+      } catch {
+        // Older agents or offline servers simply have no background jobs to restore.
+      }
+    })();
+    return () => abort.abort();
+  }, [client, serverId]);
+
+  const runningJobIds = useMemo(
+    () =>
+      archiveJobs
+        .filter((j) => j.state === ArchiveJobState.RUNNING)
+        .map((j) => j.jobId)
+        .join(","),
+    [archiveJobs],
+  );
+
+  // Poll running archive jobs; transient proxy cuts or 504s never abort tracking or falsely claim failure.
+  useEffect(() => {
+    if (!runningJobIds) {
+      setArchiveReconnecting(false);
+      return;
+    }
+    const ids = runningJobIds.split(",");
+    let cancelled = false;
+    let consecutiveErrors = 0;
+    const poll = async () => {
+      let sawError = false;
+      for (const jobId of ids) {
+        if (cancelled) return;
+        try {
+          const res = await client.getArchiveJob({ serverId, jobId });
+          if (cancelled || !res.job) continue;
+          consecutiveErrors = 0;
+          setArchiveReconnecting(false);
+          trackArchiveJob(res.job);
+        } catch (err) {
+          if (cancelled) return;
+          if (reasonOf(err) === "not_found" || ConnectError.from(err).code === Code.NotFound) {
+            setArchiveJobs((was) => was.filter((j) => j.jobId !== jobId));
+          } else {
+            sawError = true;
+          }
+        }
+      }
+      if (sawError && !cancelled) {
+        consecutiveErrors++;
+        if (consecutiveErrors >= 2) setArchiveReconnecting(true);
+      }
+    };
+    const timer = setInterval(() => void poll(), 500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [client, serverId, runningJobIds, trackArchiveJob]);
 
   // Clear selection, inline rename, and preview expansion when changing folders.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset per-folder transient state whenever the folder changes
@@ -558,16 +729,8 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
   const runExtract = async (archivePath: string) => {
     setNotice(undefined);
     try {
-      const res = await extract(archivePath);
-      const into = nameOf(res.unpackedTo);
-      setNotice({
-        tone: "info",
-        title: t`Extracted ${nameOf(archivePath)}`,
-        body: plural(res.entries, {
-          one: `Unpacked # item into ${into}.`,
-          other: `Unpacked # items into ${into}.`,
-        }),
-      });
+      const job = await extract(archivePath);
+      trackArchiveJob(job);
     } catch (err) {
       setNotice({
         tone: "critical",
@@ -596,6 +759,12 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     () => selectedRows.filter((r) => downloadableEntry(r.entry)).map((r) => join(shown, r.name)),
     [selectedRows, shown],
   );
+  const multiDownloadUrl = useMemo(
+    () => (multiDownloadPaths.length > 0 ? downloadFileURL({ serverId, paths: multiDownloadPaths }) : ""),
+    [serverId, multiDownloadPaths],
+  );
+  const multiDownloadTooLong =
+    multiDownloadPaths.length > MAX_MULTI_DOWNLOAD_COUNT || multiDownloadUrl.length > MAX_MULTI_DOWNLOAD_URL_LENGTH;
   const multiChangeableTargets = useMemo(
     () => selectedRows.filter((r) => changeableEntry(r.entry)).map((r) => targetOf(shown, r.entry)),
     [selectedRows, shown],
@@ -604,6 +773,25 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
     () => selectedRows.filter((r) => downloadableEntry(r.entry)).map((r) => targetOf(shown, r.entry)),
     [selectedRows, shown],
   );
+
+  const warnTooManyToDownload = () => {
+    setNotice({
+      tone: "warning",
+      title: t`Too many items to download at once`,
+      body: t`Selecting this many items makes the download link too long. Compress them into a .zip on the server, then download that archive.`,
+      action:
+        multiCompressPaths.length > 0
+          ? {
+              label: t`Compress`,
+              icon: "archive",
+              onClick: () => {
+                setNotice(undefined);
+                setSheet({ kind: "compress", folder: shown, targets: multiCompressPaths });
+              },
+            }
+          : undefined,
+    });
+  };
 
   // Build context menu items for the active menu target.
   const menuItems: ContextMenuItem[] = (() => {
@@ -736,13 +924,22 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
       const count = selectedRows.length;
       const items: ContextMenuItem[] = [];
       if (multiDownloadPaths.length > 0) {
-        items.push({
-          id: "download",
-          label: t`Download ${count} items as a .zip`,
-          icon: "download",
-          href: downloadFileURL({ serverId, paths: multiDownloadPaths }),
-          download: true,
-        });
+        items.push(
+          multiDownloadTooLong
+            ? {
+                id: "download",
+                label: t`Download ${count} items as a .zip`,
+                icon: "download",
+                onSelect: warnTooManyToDownload,
+              }
+            : {
+                id: "download",
+                label: t`Download ${count} items as a .zip`,
+                icon: "download",
+                href: multiDownloadUrl,
+                download: true,
+              },
+        );
       }
       if (multiCompressPaths.length > 0) {
         items.push({
@@ -1013,14 +1210,60 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
         </div>
       )}
 
+      {!reading && archiveJobs.length > 0 ? (
+        <div className="files-archive-jobs" role="status" aria-live="polite">
+          {archiveJobs.map((job) => {
+            const compressing = job.kind === ArchiveJobKind.COMPRESS;
+            const entries = Number(job.entries);
+            const total = Number(job.totalEntries);
+            const bytes = formatBytes(job.bytes, i18n.locale);
+            const progressText =
+              total > 0
+                ? t`${many(entries)} of ${many(total)} items · ${bytes}`
+                : entries > 0
+                  ? plural(entries, {
+                      one: `# item · ${bytes}`,
+                      other: `# items · ${bytes}`,
+                    })
+                  : bytes;
+            return (
+              <div key={job.jobId} className="files-archive-job">
+                <div className="files-archive-job-head">
+                  <span className="files-archive-job-title">
+                    <Icon name="archive" size={15} />
+                    <span>{compressing ? t`Compressing ${nameOf(job.path)}` : t`Extracting ${nameOf(job.path)}`}</span>
+                  </span>
+                  <span className="files-archive-job-meta">
+                    {archiveReconnecting ? t`Reconnecting to check progress` : progressText}
+                  </span>
+                </div>
+                <progress
+                  className="files-progress files-archive-progress"
+                  value={total > 0 ? Math.min(entries, total) : undefined}
+                  max={total > 0 ? total : undefined}
+                  aria-label={compressing ? t`Compressing ${nameOf(job.path)}` : t`Extracting ${nameOf(job.path)}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+
       {!reading && notice ? (
         <Callout
           tone={notice.tone}
           title={notice.title}
           actions={
-            <Button size="sm" variant="ghost" onClick={() => setNotice(undefined)}>
-              <Trans>Dismiss</Trans>
-            </Button>
+            <>
+              {notice.action ? (
+                <Button size="sm" variant="secondary" icon={notice.action.icon} onClick={notice.action.onClick}>
+                  {notice.action.label}
+                </Button>
+              ) : null}
+              <Button size="sm" variant="ghost" onClick={() => setNotice(undefined)}>
+                <Trans>Dismiss</Trans>
+              </Button>
+            </>
           }
         >
           {notice.body}
@@ -1162,15 +1405,15 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
                     </span>
                     <div className="files-selection-actions">
                       {multiDownloadPaths.length > 0 ? (
-                        <ButtonLink
-                          size="sm"
-                          variant="secondary"
-                          icon="download"
-                          href={downloadFileURL({ serverId, paths: multiDownloadPaths })}
-                          download
-                        >
-                          <Trans>Download</Trans>
-                        </ButtonLink>
+                        multiDownloadTooLong ? (
+                          <Button size="sm" variant="secondary" icon="download" onClick={warnTooManyToDownload}>
+                            <Trans>Download</Trans>
+                          </Button>
+                        ) : (
+                          <ButtonLink size="sm" variant="secondary" icon="download" href={multiDownloadUrl} download>
+                            <Trans>Download</Trans>
+                          </ButtonLink>
+                        )
                       ) : null}
                       {multiCompressPaths.length > 0 ? (
                         <Button
@@ -1400,18 +1643,10 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
           folder={sheet.folder}
           targets={sheet.targets}
           onClose={() => setSheet(undefined)}
-          onDone={(archivePath, entries) => {
+          onDone={(job) => {
             setSheet(undefined);
-            setSelected(new Set([nameOf(archivePath)]));
-            setAnchor(nameOf(archivePath));
-            setNotice({
-              tone: "info",
-              title: t`Compressed ${nameOf(archivePath)}`,
-              body: plural(entries, {
-                one: "Packed # item into the archive.",
-                other: "Packed # items into the archive.",
-              }),
-            });
+            setNotice(undefined);
+            trackArchiveJob(job);
           }}
         />
       ) : null}

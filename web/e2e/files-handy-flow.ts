@@ -6,6 +6,7 @@
 // menus with inline rename / compress / extract, and the lazy-loaded CodeMirror 6
 // multi-tab editor in full-window mode.
 
+import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -65,6 +66,12 @@ export const flow: Flow = {
       writeFileSync(join(deep, "mark.svg"), SVG_ICON);
       writeFileSync(join(deep, "draft.txt"), "one\ntwo\n");
       writeFileSync(join(deep, "extra.txt"), "three\n");
+      // A small folder of incompressible chunks so compressing it stays visibly running long enough to show progress.
+      const bulk = join(deep, "bulk");
+      mkdirSync(bulk, { recursive: true });
+      for (let i = 0; i < 20; i++) {
+        writeFileSync(join(bulk, `part-${String(i).padStart(2, "0")}.bin`), randomBytes(2 * 1024 * 1024));
+      }
 
       await atWidth(page, { width: 1440, height: 900 });
       const serverPath = await ownServerPath(page, origin);
@@ -90,7 +97,7 @@ export const flow: Flow = {
       if (afterWidth <= beforeWidth) fail(`tree splitter did not widen (${beforeWidth} -> ${afterWidth})`);
       await shoot(page, "files-handy-deep-tree");
 
-      step("files-handy: single-click image preview renders strictly as <img>");
+      step("files-handy: single-click image preview renders strictly as <img> and details actions stay on one row");
       await table.getByText("mark.svg").click();
       const previewImg = page.getByRole("img", { name: "mark.svg" });
       await previewImg.waitFor();
@@ -98,6 +105,13 @@ export const flow: Flow = {
       if (!src?.startsWith("data:image/svg+xml;base64,")) fail(`expected data: SVG image src, got ${src}`);
       if ((await page.locator(".files-details-stage svg").count()) > 0) {
         fail("SVG was rendered inline instead of inside an <img>");
+      }
+      const actionsToolbar = page.getByRole("toolbar", { name: "Actions for mark.svg" });
+      const actionTops = await actionsToolbar
+        .locator(":scope > *")
+        .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+      if (actionTops.length < 3 || Math.max(...actionTops) - Math.min(...actionTops) > 4) {
+        fail(`details actions wrapped across rows: tops=${JSON.stringify(actionTops)}`);
       }
       await shoot(page, "files-handy-image-preview");
 
@@ -159,6 +173,22 @@ export const flow: Flow = {
       await table.getByText("routes-unpacked", { exact: true }).waitFor();
       if (!existsSync(join(deep, "routes-unpacked", "routes.json"))) fail("inline rename did not rename folder");
 
+      step("files-handy: compressing a larger folder shows a live running archive job");
+      await table.getByText("bulk", { exact: true }).click({ button: "right" });
+      await page.getByRole("menu", { name: "Actions for bulk" }).getByRole("menuitem", { name: "Compress" }).click();
+      const bulkSheet = page.getByRole("dialog", { name: "Compress bulk" });
+      await bulkSheet.getByRole("button", { name: "Compress" }).click();
+      await bulkSheet.waitFor({ state: "hidden" });
+      await page.locator(".files-archive-job").waitFor();
+      await page
+        .locator(".files-archive-job-meta")
+        .filter({ hasText: /items? ·/ })
+        .waitFor({ timeout: 5_000 })
+        .catch(() => {});
+      await shoot(page, "files-handy-running-job");
+      await page.getByText("Compressed bulk.zip").waitFor({ timeout: 30_000 });
+      if (!existsSync(join(deep, "bulk.zip"))) fail("bulk compress did not create bulk.zip");
+
       step("files-handy: CodeMirror 6 editor with two tabs in full-window mode");
       await table.getByText("server.ts", { exact: true }).dblclick();
       const tsBox = page.getByRole("textbox", { name: "Contents of server.ts" });
@@ -171,13 +201,20 @@ export const flow: Flow = {
       await tablist.getByRole("tab", { name: /routes\.json/ }).waitFor();
       await page.getByRole("button", { name: "Word wrap" }).click();
       await page.getByRole("button", { name: "Find and replace" }).click();
-      await page.locator(".cm-search").waitFor();
+      const searchPanel = page.locator(".cm-search");
+      await searchPanel.waitFor();
+      await searchPanel.getByRole("textbox", { name: "Find" }).fill("health");
       await page.getByRole("button", { name: "Full window editor" }).click();
       await page.locator(".files-viewer.is-fullwindow").waitFor();
+      // Clean active tab (routes.json) shows a disabled primary Save button in the header.
+      const headerSave = page.locator(".files-editor-tools").getByRole("button", { name: /^Save/ });
+      await headerSave.waitFor();
+      if (!(await headerSave.isDisabled())) fail("expected Save button to be disabled on clean tab");
       await shoot(page, "files-handy-editor-fullwindow");
 
-      // Switch back to server.ts and save via keyboard shortcut Cmd/Ctrl-S.
+      // Switch back to dirty server.ts: header Save enables, and Cmd/Ctrl-S saves.
       await tablist.getByRole("tab", { name: /server\.ts/ }).click();
+      if (await headerSave.isDisabled()) fail("expected Save button to be enabled on dirty tab");
       await tsBox.click();
       await page.keyboard.press("ControlOrMeta+s");
       await page.getByText("Saved server.ts").first().waitFor();

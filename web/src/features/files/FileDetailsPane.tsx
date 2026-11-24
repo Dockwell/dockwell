@@ -13,6 +13,7 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { useTimeWords } from "../../lib/time";
 import { CopyButton } from "../servers/CopyButton";
 import { useControlPlaneNow } from "../servers/useFleet";
+import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { IMAGE_PREVIEW_MAX_BYTES, imageMimeOf, TEXT_PREVIEW_LINES, TEXT_PREVIEW_MAX_BYTES } from "./preferences";
 import { archiveKind } from "./transfer";
 
@@ -93,8 +94,9 @@ export function FileDetailsPane({
   const [imageBroken, setImageBroken] = useState(false);
   const [textState, setTextState] = useState<TextState>({ kind: "idle" });
 
-  // Stream image bytes via the generated Connect client and display strictly as <img>
-  // using a data: URL (compatible with Dockwell's img-src 'self' data: CSP, never inline SVG).
+  // Read image bytes through the read path (allowBinary: true), never downloadFile,
+  // so previews leave no "downloaded" entry in Activity and take no download slot.
+  // Always display strictly inside <img> via a data: URL (compatible with img-src 'self' data: CSP, never inline SVG).
   useEffect(() => {
     setImageDims(undefined);
     setImageBroken(false);
@@ -106,45 +108,55 @@ export function FileDetailsPane({
       setImageState({ kind: "tooLarge" });
       return;
     }
+    const bytesToDataUrl = (bytes: Uint8Array, mime: string): string => {
+      let binary = "";
+      const step = 0x8000;
+      for (let i = 0; i < bytes.length; i += step) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + step));
+      }
+      return `data:${mime};base64,${btoa(binary)}`;
+    };
+    if (cachedRead && !cachedRead.truncated) {
+      const bytes =
+        cachedRead.rawContent.byteLength > 0 ? cachedRead.rawContent : new TextEncoder().encode(cachedRead.content);
+      if (bytes.byteLength > IMAGE_PREVIEW_MAX_BYTES) {
+        setImageState({ kind: "tooLarge" });
+        return;
+      }
+      setImageState({ kind: "ready", url: bytesToDataUrl(bytes, imageMime) });
+      return;
+    }
     const abort = new AbortController();
     setImageState({ kind: "loading" });
-    void (async () => {
-      try {
-        const chunks: Uint8Array[] = [];
-        let total = 0;
-        for await (const frame of client.downloadFile({ serverId, path }, { signal: abort.signal })) {
-          const data = frame.body?.data;
-          if (!data || data.byteLength === 0) continue;
-          total += data.byteLength;
-          if (total > IMAGE_PREVIEW_MAX_BYTES) {
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await client.readFile({ serverId, path, allowBinary: true }, { signal: abort.signal });
+          if (abort.signal.aborted) return;
+          if (res.truncated) {
             setImageState({ kind: "tooLarge" });
             return;
           }
-          chunks.push(data.slice());
+          const bytes = res.rawContent.byteLength > 0 ? res.rawContent : new TextEncoder().encode(res.content);
+          if (bytes.byteLength > IMAGE_PREVIEW_MAX_BYTES) {
+            setImageState({ kind: "tooLarge" });
+            return;
+          }
+          if (!res.binary && res.version) {
+            onPreviewRead?.(path, res);
+          }
+          setImageState({ kind: "ready", url: bytesToDataUrl(bytes, imageMime) });
+        } catch (err) {
+          if (abort.signal.aborted) return;
+          setImageState({ kind: "error", message: sentence(err) });
         }
-        if (abort.signal.aborted) return;
-        const merged = new Uint8Array(total);
-        let offset = 0;
-        for (const chunk of chunks) {
-          merged.set(chunk, offset);
-          offset += chunk.byteLength;
-        }
-        let binary = "";
-        const step = 0x8000;
-        for (let i = 0; i < merged.length; i += step) {
-          binary += String.fromCharCode(...merged.subarray(i, i + step));
-        }
-        const url = `data:${imageMime};base64,${btoa(binary)}`;
-        setImageState({ kind: "ready", url });
-      } catch (err) {
-        if (abort.signal.aborted) return;
-        setImageState({ kind: "error", message: sentence(err) });
-      }
-    })();
+      })();
+    }, 150);
     return () => {
+      clearTimeout(timer);
       abort.abort();
     };
-  }, [client, serverId, path, imageMime, changeable, entry.sizeBytes]);
+  }, [client, serverId, path, imageMime, changeable, entry.sizeBytes, cachedRead, onPreviewRead]);
 
   // Load first lines of a small text file after a brief pause so double-clicking to edit doesn't double-read.
   useEffect(() => {
@@ -205,6 +217,36 @@ export function FileDetailsPane({
 
   const showEditAction = !isFolder && changeable && (!imageMime || imageMime === "image/svg+xml");
   const showOpenAction = isFolder && changeable;
+  const mainIsExtract = !showOpenAction && !showEditAction && isArchive && Boolean(onExtract);
+  const mainIsDownload = !showOpenAction && !showEditAction && !mainIsExtract && Boolean(downloadUrl);
+  const canCompress = !isArchive && (entry.type === FileType.FILE || entry.type === FileType.DIRECTORY);
+
+  const overflowActions = useMemo<MenuAction[]>(
+    () => [
+      {
+        id: "move",
+        label: t`Move`,
+        icon: "arrow-right",
+        onSelect: onMove,
+      },
+      {
+        id: "copy-path",
+        label: t`Copy path`,
+        icon: "copy",
+        onSelect: () => {
+          void navigator.clipboard?.writeText(path).catch(() => {});
+        },
+      },
+      {
+        id: "delete",
+        label: t`Delete`,
+        icon: "trash",
+        danger: true,
+        onSelect: onDelete,
+      },
+    ],
+    [onMove, onDelete, path, t],
+  );
 
   return (
     <Panel
@@ -240,13 +282,28 @@ export function FileDetailsPane({
             <Button size="sm" variant="secondary" icon="folder" onClick={onOpen}>
               <Trans>Open</Trans>
             </Button>
-          ) : null}
-          {showEditAction ? (
+          ) : showEditAction ? (
             <Button size="sm" variant="secondary" icon="edit" onClick={onOpen}>
               <Trans>Edit</Trans>
             </Button>
+          ) : mainIsExtract && onExtract ? (
+            <Button size="sm" variant="secondary" icon="archive" onClick={onExtract}>
+              <Trans>Extract</Trans>
+            </Button>
+          ) : mainIsDownload && downloadUrl ? (
+            <ButtonLink
+              size="sm"
+              variant="secondary"
+              icon="download"
+              href={downloadUrl}
+              download
+              aria-label={t`Download ${entry.name}`}
+              title={t`Download`}
+            >
+              <Trans>Download</Trans>
+            </ButtonLink>
           ) : null}
-          {downloadUrl ? (
+          {downloadUrl && !mainIsDownload ? (
             <ButtonLink
               size="sm"
               variant="ghost"
@@ -255,33 +312,39 @@ export function FileDetailsPane({
               download
               aria-label={isFolder ? t`Download ${entry.name} as a .zip` : t`Download ${entry.name}`}
               title={isFolder ? t`Download as a .zip` : t`Download`}
-            >
-              <Trans>Download</Trans>
-            </ButtonLink>
-          ) : null}
-          <Button size="sm" variant="ghost" icon="edit" onClick={onRename} title={t`Rename`}>
-            <Trans>Rename</Trans>
-          </Button>
-          <Button size="sm" variant="ghost" icon="arrow-right" onClick={onMove} title={t`Move`}>
-            <Trans>Move</Trans>
-          </Button>
-          {isArchive && onExtract ? (
-            <Button size="sm" variant="ghost" icon="archive" onClick={onExtract} title={t`Extract`}>
-              <Trans>Extract</Trans>
-            </Button>
-          ) : entry.type === FileType.FILE || entry.type === FileType.DIRECTORY ? (
-            <Button size="sm" variant="ghost" icon="archive" onClick={onCompress} title={t`Compress`}>
-              <Trans>Compress</Trans>
-            </Button>
+            />
           ) : null}
           <Button
             size="sm"
             variant="ghost"
-            icon="trash"
-            className="files-details-danger"
-            aria-label={t`Delete ${entry.name}`}
-            title={t`Delete`}
-            onClick={onDelete}
+            icon="edit"
+            aria-label={t`Rename ${entry.name}`}
+            title={t`Rename`}
+            onClick={onRename}
+          />
+          {isArchive && onExtract && !mainIsExtract ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="archive"
+              aria-label={t`Extract ${entry.name}`}
+              title={t`Extract`}
+              onClick={onExtract}
+            />
+          ) : canCompress ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              icon="archive"
+              aria-label={t`Compress ${entry.name}`}
+              title={t`Compress`}
+              onClick={onCompress}
+            />
+          ) : null}
+          <ActionMenu
+            className="files-details-more"
+            label={t`More options for ${entry.name}`}
+            actions={overflowActions}
           />
         </div>
       ) : null}

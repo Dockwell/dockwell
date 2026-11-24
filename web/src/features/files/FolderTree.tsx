@@ -244,8 +244,15 @@ function Children({ path, depth, state }: { path: string; depth: number; state: 
         />
       ))}
       {more > 0 ? (
-        <li className="files-tree-note" style={indent}>
-          {plural(more, { one: "and # more, in its list", other: "and # more, in its list" })}
+        <li className="files-tree-more" style={indent}>
+          <Link
+            to="/servers/$serverId/files"
+            params={{ serverId: state.serverId }}
+            search={{ path }}
+            className="files-tree-more-link"
+          >
+            {plural(more, { one: "# more folder", other: "# more folders" })}
+          </Link>
         </li>
       ) : null}
     </ul>

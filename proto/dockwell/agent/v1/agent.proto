@@ -154,7 +154,17 @@ message ConnectRequest {
     // was away, sent as its stream opens (ADR 0054).
     Reconciled reconciled = 163;
     DockerInventoryChanged docker_inventory_changed = 403;
+    // An archive job (compress or extract) finished or failed on the agent.
+    // Files handy uses 420 to 429.
+    ArchiveJobEnded archive_job_ended = 420;
   }
+}
+
+// ArchiveJobEnded reports that a background compress or extract job ended on
+// the agent, so the control plane records its final Activity event even if the
+// browser left or a proxy cut the request.
+message ArchiveJobEnded {
+  dockwell.v1.ArchiveJob job = 1;
 }
 
 // BuildUpdate is how a build on the server is going, sent as it moves on, and
@@ -946,6 +956,8 @@ message Call {
     // Files handy archive calls use 420 to 429.
     CompressFilesCall compress_files = 420;
     ExtractArchiveCall extract_archive = 421;
+    GetArchiveJobCall get_archive_job = 422;
+    ListArchiveJobsCall list_archive_jobs = 423;
   }
 }
 
@@ -1814,10 +1826,14 @@ message ListFilesCall {
   string page = 231;
 }
 
-// ReadFileCall asks for a file's text.
+// ReadFileCall asks for a file's text, or capped binary bytes when allow_binary
+// is set.
 message ReadFileCall {
   // The file's absolute path.
   string path = 1;
+  // True to return capped binary bytes in ReadFileResponse.raw_content.
+  // Files handy uses 420 to 429.
+  bool allow_binary = 420;
 }
 
 // SaveFileCall replaces a file's text, if it is still as it was read.
@@ -2067,7 +2083,8 @@ message DownloadFileCall {
   repeated string paths = 420;
 }
 
-// CompressFilesCall packs paths into a new .zip file at archive_path.
+// CompressFilesCall starts a background job that packs paths into a new .zip
+// file at archive_path.
 message CompressFilesCall {
   // Absolute paths of files or folders to pack.
   repeated string paths = 1;
@@ -2076,32 +2093,60 @@ message CompressFilesCall {
   // The path a person confirmed with a passkey, where creating it is a way
   // back in.
   string confirmed_path = 3;
+  // Who started the job (user ID), so only they can query its status.
+  string owner = 4;
 }
 
 // CompressFilesResult answers a CompressFilesCall.
 message CompressFilesResult {
-  // What was created. Unset when the agent refused.
-  dockwell.v1.CompressFilesResponse compressed = 1;
-  // Why nothing was created.
+  // The started job. Unset when the agent refused during preflight.
+  dockwell.v1.ArchiveJob job = 1;
+  // Why nothing was started.
   FileRefusal refusal = 2;
 }
 
-// ExtractArchiveCall unpacks an existing archive at path into a new folder
-// beside it.
+// ExtractArchiveCall starts a background job that unpacks an existing archive
+// at path into a new folder beside it.
 message ExtractArchiveCall {
   // Absolute path of the archive to unpack.
   string path = 1;
   // The destination folder path a person confirmed with a passkey, where
   // extracting there is a way back in.
   string confirmed_path = 2;
+  // The archive path confirmed with the same passkey.
+  string confirmed_archive = 3;
+  // Who started the job (user ID), so only they can query its status.
+  string owner = 4;
 }
 
 // ExtractArchiveResult answers an ExtractArchiveCall.
 message ExtractArchiveResult {
-  // What was unpacked. Unset when the agent refused.
-  dockwell.v1.ExtractArchiveResponse extracted = 1;
-  // Why nothing was unpacked.
+  // The started job. Unset when the agent refused during preflight.
+  dockwell.v1.ArchiveJob job = 1;
+  // Why nothing was started.
   FileRefusal refusal = 2;
+}
+
+// GetArchiveJobCall asks for the current state of one archive job.
+message GetArchiveJobCall {
+  string job_id = 1;
+  string owner = 2;
+}
+
+// GetArchiveJobResult answers a GetArchiveJobCall.
+message GetArchiveJobResult {
+  dockwell.v1.ArchiveJob job = 1;
+  FileRefusal refusal = 2;
+}
+
+// ListArchiveJobsCall asks for active and recent archive jobs for owner.
+message ListArchiveJobsCall {
+  string owner = 1;
+}
+
+// ListArchiveJobsResult answers a ListArchiveJobsCall.
+message ListArchiveJobsResult {
+  repeated dockwell.v1.ArchiveJob jobs = 1;
 }
 
 // DownloadFileResult answers a DownloadFileCall, once it's all sent.
@@ -2110,6 +2155,8 @@ message DownloadFileResult {
   uint64 sent_bytes = 1;
   // Why it sent nothing, or stopped.
   FileRefusal refusal = 2;
+  // For folder or multi-path downloads: entries left out.
+  uint64 left_out = 420;
 }
 
 // ReceiveFileRequest asks for what an upload's write carries.
@@ -2140,6 +2187,9 @@ message SendFileRequest {
   bool archive = 5;
   // The next bytes, 1 MiB at most.
   bytes data = 6;
+  // For multi-path downloads, the resolved paths of the selected items, on the
+  // first message. Files handy uses 420 to 429.
+  repeated string resolved_paths = 420;
 }
 
 // SendFileResponse is empty.
@@ -2752,6 +2802,8 @@ message CallResult {
     DockerArtifactControlResult docker_artifact_control = 406;
     CompressFilesResult compress_files = 420;
     ExtractArchiveResult extract_archive = 421;
+    GetArchiveJobResult get_archive_job = 422;
+    ListArchiveJobsResult list_archive_jobs = 423;
   }
 }
 

@@ -5,6 +5,7 @@ package files
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -281,10 +282,22 @@ func (h *Handler) DownloadFile(ctx context.Context, req *connect.Request[dockwel
 		if !started {
 			started = true
 			if multi {
-				for _, item := range paths {
-					if _, err := record.record(eventDownload, item, `{"size":0}`); err != nil {
-						return h.rpcError(ctx, err)
-					}
+				resolved := m.GetResolvedPaths()
+				if len(resolved) == 0 {
+					resolved = paths
+				}
+				summary := resolved[:min(len(resolved), 10)]
+				detail, merr := json.Marshal(Told{
+					Size:      m.GetSizeBytes(),
+					Paths:     summary,
+					PathCount: len(resolved),
+				})
+				if merr != nil {
+					return h.rpcError(ctx, merr)
+				}
+				subject := cmp.Or(m.GetPath(), resolved[0])
+				if _, err := record.record(eventDownload, subject, string(detail)); err != nil {
+					return h.rpcError(ctx, err)
 				}
 			} else {
 				path = cmp.Or(m.GetPath(), path)

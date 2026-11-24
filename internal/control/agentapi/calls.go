@@ -118,10 +118,11 @@ type Agents struct {
 	ingress map[string]*dockwellv1.IngressStatus
 	// health is what each server last said of its services, and health hears
 	// each report. It outlives the stream as domains does.
-	health       map[string]health.Report
-	healthHearer func(server string, instances []*dockwellv1.InstanceHealth)
-	saveHearer   func(server string, ended *agentv1.SaveEnded)
-	buildHearer  func(server string, u *agentv1.BuildUpdate)
+	health        map[string]health.Report
+	healthHearer  func(server string, instances []*dockwellv1.InstanceHealth)
+	saveHearer    func(server string, ended *agentv1.SaveEnded)
+	archiveHearer func(server string, ended *agentv1.ArchiveJobEnded)
+	buildHearer   func(server string, u *agentv1.BuildUpdate)
 	// pace is how often agents should send stats, as last set, and paceGen counts
 	// each setting, so a stream never hears an older pace after a newer one. Zero
 	// before it's set, when the welcome's pace stands.
@@ -165,6 +166,24 @@ func (a *Agents) OnSaveEnded(fn func(server string, ended *agentv1.SaveEnded)) {
 func (a *Agents) reportSaveEnded(server string, ended *agentv1.SaveEnded) {
 	a.mu.Lock()
 	hear := a.saveHearer
+	a.mu.Unlock()
+	if hear != nil {
+		hear(server, ended)
+	}
+}
+
+// OnArchiveJobEnded calls fn when an agent reports that a background compress
+// or extract job ended.
+func (a *Agents) OnArchiveJobEnded(fn func(server string, ended *agentv1.ArchiveJobEnded)) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.archiveHearer = fn
+}
+
+// reportArchiveJobEnded passes on what an agent says of a finished archive job.
+func (a *Agents) reportArchiveJobEnded(server string, ended *agentv1.ArchiveJobEnded) {
+	a.mu.Lock()
+	hear := a.archiveHearer
 	a.mu.Unlock()
 	if hear != nil {
 		hear(server, ended)
