@@ -42,7 +42,9 @@ import { DangerZone } from "../apps/DangerZone";
 import { offered, UpdateCard } from "../apps/updates";
 import { usePlaces, useServices } from "../apps/useServices";
 import { BackUpSheet } from "../backups/BackUpSheet";
+import { useDestinations } from "../backups/DestinationsPanel";
 import { usePolicies } from "../backups/PoliciesPanel";
+import { useBackUpDaily } from "../backups/PolicySheet";
 import { useMethodWord, useScheduleWords } from "../backups/words";
 import { CompanionsPanel } from "../catalog/Companions";
 import { useUpgradeUnavailable } from "../catalog/useCatalog";
@@ -66,6 +68,7 @@ import {
   useBackupHow,
   useDatabases,
   useOwnInstall,
+  useUnreadWord,
 } from "./useDatabases";
 
 /**
@@ -85,7 +88,7 @@ export function DatabaseOverview() {
       <UpgradeNote db={db} />
       <DatabaseUpdate db={db} />
       {db.engine === DatabaseEngine.MONGODB && read ? <MongoLine read={read} /> : null}
-      <Numbers db={db} read={read} />
+      <Numbers db={db} reading={reading} read={read} />
       <div className="database-panels">
         <BackupsPanel db={db} />
         <ConnectionPanel db={db} read={read} />
@@ -327,12 +330,22 @@ export function gist(said: string): string {
 }
 
 /** Its four numbers, as it said them a moment ago. Nothing keeps their history yet, so there's no trend. */
-function Numbers({ db, read }: { db: Database; read: DatabaseReading | undefined }) {
+function Numbers({
+  db,
+  reading,
+  read,
+}: {
+  db: Database;
+  reading: DatabaseReading | undefined;
+  read: DatabaseReading | undefined;
+}) {
   const { t, i18n } = useLingui();
   const time = useTimeWords();
+  const unreadWord = useUnreadWord();
   const phone = useMediaQuery(PHONE_QUERY);
   const locale = i18n.locale;
   const none = "—";
+  const unreadCaption = read ? undefined : unreadWord(reading?.unread);
   const sql = speaksSQL(db.engine);
   const connections = Number(read?.connections ?? 0n);
   const most = Number(read?.maxConnections ?? 0n);
@@ -350,7 +363,7 @@ function Numbers({ db, read }: { db: Database; read: DatabaseReading | undefined
       label: t`Connections`,
       value: read ? connections.toLocaleString(locale) : none,
       unit: read && most > 0 ? t`of ${mostWords}` : undefined,
-      caption: read ? (most > 0 ? t`The most it takes is ${mostWords}` : t`It sets no most`) : undefined,
+      caption: read ? (most > 0 ? t`The most it takes is ${mostWords}` : t`It sets no most`) : unreadCaption,
     },
     {
       id: "size",
@@ -361,7 +374,7 @@ function Numbers({ db, read }: { db: Database; read: DatabaseReading | undefined
         ? sql
           ? plural(databases, { one: "On disk, in # database", other: "On disk, across # databases" })
           : plural(keys, { one: "In memory, with # key", other: "In memory, with # keys" })
-        : undefined,
+        : unreadCaption,
     },
     {
       id: "cache",
@@ -374,13 +387,13 @@ function Numbers({ db, read }: { db: Database; read: DatabaseReading | undefined
             ? t`Reads served from memory`
             : t`Keys asked for that were there`
           : t`Nothing read yet`
-        : undefined,
+        : unreadCaption,
     },
     {
       id: "up",
       label: t`Up for`,
       value: read ? up : none,
-      caption: started ? t`Since ${started}` : undefined,
+      caption: read ? (started ? t`Since ${started}` : undefined) : unreadCaption,
     },
   ];
   return (
@@ -404,12 +417,15 @@ function splitBytes(words: string): [string, string] {
 function BackupsPanel({ db }: { db: Database }) {
   const { t, i18n } = useLingui();
   const policies = usePolicies().data?.policies ?? [];
+  const destinations = useDestinations().data?.destinations ?? [];
+  const backUpDaily = useBackUpDaily();
   const method = useMethodWord();
   const schedule = useScheduleWords();
   const time = useTimeWords();
   const { fleet } = useFleetView();
   const [taking, setTaking] = useState(false);
   const may = useMay();
+  const mayPlan = may(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
   const whole = useRestoreWhole();
   const restore = (backup: Backup) => whole.restore(backup);
   const engine = engineName(db.engine);
@@ -457,7 +473,32 @@ function BackupsPanel({ db }: { db: Database }) {
         </div>
         <div className="databases-fact">
           <dt>{t`When`}</dt>
-          <dd>{policy?.spec ? schedule(policy.spec) : t`When you ask`}</dd>
+          <dd className="databases-fact-inline">
+            {policy?.spec ? (
+              schedule(policy.spec)
+            ) : (
+              <>
+                <span>{t`Not scheduled`}</span>
+                <span className="databases-muted" aria-hidden="true">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  className="databases-inline-act"
+                  disabled={!mayPlan.allowed}
+                  title={mayPlan.reason || undefined}
+                  onClick={() =>
+                    backUpDaily(
+                      [{ id: db.volumeId, name: db.volume, environment: db.resource?.scope ?? "" }],
+                      destinations,
+                    )
+                  }
+                >
+                  <Trans>Back up daily</Trans>
+                </button>
+              </>
+            )}
+          </dd>
         </div>
         <div className="databases-fact">
           <dt>{t`Newest`}</dt>

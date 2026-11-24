@@ -43,7 +43,6 @@ import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useTimeWords } from "../../lib/time";
 import { happenedAt, useDescribe } from "../activity/describe";
-import { StateLine } from "../apps/DomainStep";
 import { HealthBadge, useHealthWords } from "../apps/Health";
 import { type HealthView, useHealth } from "../apps/health";
 import { useShownName } from "../apps/names";
@@ -74,6 +73,7 @@ import {
   type Stranger,
   useDatabases,
   useStrangers,
+  useUnreadWord,
 } from "./useDatabases";
 import "../catalog/Catalog.css";
 import "./Databases.css";
@@ -237,7 +237,12 @@ function useBackupWords() {
       return { how, when: t`the last failed, ${ago}`, unscheduled };
     }
     const newest = db.newestBackup?.startedAt;
-    return { how, when: newest ? time.ago(timestampDate(newest), now) : t`none yet`, unscheduled };
+    // An unscheduled database with no backups yet pairs directly with "Back up daily" on one line.
+    return {
+      how,
+      when: newest ? time.ago(timestampDate(newest), now) : unscheduled ? "" : t`none yet`,
+      unscheduled,
+    };
   };
 }
 
@@ -247,13 +252,13 @@ function useColumnHeads(fleet: boolean) {
   return useMemo(() => {
     const heads: { key: string; header: string; width?: number; align?: "right" }[] = [
       { key: "name", header: t`Database` },
-      { key: "status", header: t`Status`, width: 128 },
+      { key: "status", header: t`Status`, width: 120 },
       { key: "size", header: t({ message: "Size", context: "how much data" }), width: 96, align: "right" },
       { key: "connections", header: t`Connections`, width: 176 },
-      { key: "backups", header: t`Backups`, width: 200 },
+      { key: "backups", header: t`Backups`, width: 268 },
     ];
     if (fleet) heads.push({ key: "server", header: t`Runs on`, width: 128 });
-    heads.push({ key: "beside", header: t`Beside it`, width: 220 });
+    heads.push({ key: "beside", header: t`Beside it`, width: 168 });
     return heads;
   }, [t, fleet]);
 }
@@ -289,7 +294,14 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
     status: (db) => <DatabaseHealth db={db} health={health} />,
     size: (db) => {
       const read = readOf(firstReading(db));
-      return read ? formatBytes(read.sizeBytes, i18n.locale) : <Unread db={db} />;
+      const why = firstReading(db)?.unread ?? "";
+      return read ? (
+        formatBytes(read.sizeBytes, i18n.locale)
+      ) : (
+        <span className="databases-muted" title={why || undefined} aria-hidden="true">
+          —
+        </span>
+      );
     },
     connections: (db) => {
       const read = readOf(firstReading(db));
@@ -303,15 +315,18 @@ function DatabasesTable({ databases, fleet }: { databases: readonly Database[]; 
       const { how, when, unscheduled } = backups(db, now);
       const may = mayPlan(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
       return unscheduled ? (
-        // A database with no schedule says so, with the one step that gives it one (#793).
+        // A database with no schedule says so, with the one step that gives it one, on one even line (#793).
         <span className="databases-backup-off">
           <span>
             {how}
             {when ? <span className="databases-muted">{` · ${when}`}</span> : null}
           </span>
+          <span className="databases-muted" aria-hidden="true">
+            ·
+          </span>
           <button
             type="button"
-            className="domain-step-act"
+            className="databases-inline-act"
             disabled={!may.allowed}
             title={may.reason || undefined}
             onClick={(event) => {
@@ -364,12 +379,15 @@ function DatabaseHealth({ db, health }: { db: Database; health: HealthView }) {
   return <HealthBadge health={health.of({ id: db.id })} />;
 }
 
-/** A dash for a number its database didn't say, which says why when hovered. */
+/** A short muted state for a database the agent couldn't read, with the full reason on hover and for screen readers. */
 function Unread({ db }: { db: Database }) {
+  const unreadWord = useUnreadWord();
   const why = firstReading(db)?.unread ?? "";
+  const short = unreadWord(why);
   return (
-    <span className="databases-muted" title={why}>
-      —<span className="dw-sr">{why}</span>
+    <span className="databases-muted" title={why || undefined}>
+      {short}
+      {why ? <span className="dw-sr">{why}</span> : null}
     </span>
   );
 }
@@ -378,7 +396,12 @@ function Unread({ db }: { db: Database }) {
 function Beside({ names, environment }: { names: readonly string[]; environment: string | undefined }) {
   const { t } = useLingui();
   const named = useServicesNamed(environment);
-  if (names.length === 0) return <span className="databases-muted">{t`Nothing`}</span>;
+  if (names.length === 0)
+    return (
+      <span className="databases-muted" aria-hidden="true">
+        —
+      </span>
+    );
   const shown = names.slice(0, 3);
   const left = names.length - shown.length;
   return (
@@ -627,6 +650,7 @@ function EngineTiles({ groups, pending }: { groups: readonly EngineGroup[]; pend
 /** How the databases are backed up, with the way to take one now. */
 function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const { t, i18n } = useLingui();
+  const phone = useMediaQuery(PHONE_QUERY);
   const policies = usePolicies().data?.policies ?? [];
   const method = useMethodWord();
   const schedule = useScheduleWords();
@@ -634,7 +658,8 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   const [taking, setTaking] = useState(false);
   const [addingStorage, setAddingStorage] = useState(false);
   const backUpDaily = useBackUpDaily();
-  const mayAddStorage = useMay()(ChangeService.method.proposeChange, { install: true });
+  const may = useMay();
+  const mayAddStorage = may(ChangeService.method.proposeChange, { install: true });
   const storage = useStorage();
   const allDestinations = storage.destinations;
   // Where each is, as its row says it, where they're in more than one place, as several can share a name such as db.
@@ -663,7 +688,7 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
     name: db.volume,
     environment: db.resource?.scope ?? "",
   }));
-  const unscheduled = withVolume.filter((db) => !db.volumeExternal && policiesOf(db, policies).length === 0);
+  const needsStorage = scheduled.length > 0 && destinations.length === 0 && storage.items.length === 0;
   const status =
     withVolume.length > 0 && scheduled.length === withVolume.length ? (
       <StatusBadge status="healthy" label={t`On schedule`} />
@@ -677,30 +702,57 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
   return (
     <Panel title={t`Backups`} actions={status} className="databases-backups">
       <dl className="databases-facts">
-        {databases.map((db) => {
-          const policy = policiesOf(db, policies)[0];
-          const how = !db.volume
-            ? t`No volume, so its data goes with its container`
-            : db.volumeExternal
-              ? t`In a volume Dockwell didn't make`
-              : [
-                  method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") || engineName(db.engine),
-                  policy?.spec ? schedule(policy.spec) : t`not scheduled`,
-                ].join(", ");
-          return (
-            <div key={db.id} className="databases-fact">
-              <dt>
-                <code className="databases-fact-name">{shownName(db, "database").title}</code>
-                {shownName(db, "database").app || several ? (
-                  <span className="databases-fact-place">
-                    {shownName(db, "database").app || places.label(db.resource?.scope ?? "")}
+        <div className="databases-fact">
+          <dt>{databases.length === 1 ? t`Database` : t`Databases`}</dt>
+          <dd className="databases-fact-list">
+            {databases.map((db) => {
+              const policy = policiesOf(db, policies)[0];
+              const isUnscheduled = db.volumeId !== "" && !db.volumeExternal && !policy;
+              const mayPlan = may(ChangeService.method.proposeChange, { environment: db.resource?.scope ?? "" });
+              const how = !db.volume
+                ? t`No volume, so its data goes with its container`
+                : db.volumeExternal
+                  ? t`In a volume Dockwell didn't make`
+                  : [
+                      method(db.newestBackup?.method ?? 0, db.newestBackup?.database ?? "") || engineName(db.engine),
+                      policy?.spec ? schedule(policy.spec) : t`not scheduled`,
+                    ].join(", ");
+              const place = shownName(db, "database").app || (several ? places.label(db.resource?.scope ?? "") : "");
+              return (
+                <div key={db.id} className="databases-fact-item">
+                  <code className="databases-fact-name">{shownName(db, "database").title}</code>
+                  {place ? <span className="databases-fact-place databases-muted">{place}</span> : null}
+                  <span className="databases-muted" aria-hidden="true">
+                    ·
                   </span>
-                ) : null}
-              </dt>
-              <dd>{how}</dd>
-            </div>
-          );
-        })}
+                  <span>{how}</span>
+                  {/* On desktop the table row holds "Back up daily"; on a phone there is no table, so offer it here. */}
+                  {phone && isUnscheduled ? (
+                    <>
+                      <span className="databases-muted" aria-hidden="true">
+                        ·
+                      </span>
+                      <button
+                        type="button"
+                        className="databases-inline-act"
+                        disabled={!mayPlan.allowed}
+                        title={mayPlan.reason || undefined}
+                        onClick={() =>
+                          backUpDaily(
+                            [{ id: db.volumeId, name: db.volume, environment: db.resource?.scope ?? "" }],
+                            allDestinations,
+                          )
+                        }
+                      >
+                        <Trans>Back up daily</Trans>
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
+          </dd>
+        </div>
         <div className="databases-fact">
           <dt>{t`Last run`}</dt>
           <dd>
@@ -719,56 +771,27 @@ function BackupsPanel({ databases }: { databases: readonly Database[] }) {
         </div>
         <div className="databases-fact">
           <dt>{t`Destination`}</dt>
-          <dd>{destinations.length > 0 ? destinations.join(", ") : t`Each server's disk alone, unencrypted`}</dd>
+          <dd className="databases-fact-inline">
+            <span>{destinations.length > 0 ? destinations.join(", ") : t`Each server's disk alone, unencrypted`}</span>
+            {needsStorage ? (
+              <>
+                <span className="databases-muted" aria-hidden="true">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  className="databases-inline-act"
+                  onClick={() => setAddingStorage(true)}
+                  disabled={!mayAddStorage.allowed}
+                  title={mayAddStorage.reason || undefined}
+                >
+                  <Trans>Add storage</Trans>
+                </button>
+              </>
+            ) : null}
+          </dd>
         </div>
       </dl>
-      {/* What's missing, as states with the one step that fixes each (#793). */}
-      {unscheduled.length > 0 ? (
-        <StateLine
-          status="degraded"
-          action={
-            <button
-              type="button"
-              className="domain-step-act"
-              onClick={() =>
-                backUpDaily(
-                  unscheduled.map((db) => ({
-                    id: db.volumeId,
-                    name: db.volume,
-                    environment: db.resource?.scope ?? "",
-                  })),
-                  allDestinations,
-                )
-              }
-            >
-              {unscheduled.length === 1 ? <Trans>Back it up daily</Trans> : <Trans>Back them up daily</Trans>}
-            </button>
-          }
-        >
-          {plural(unscheduled.length, {
-            one: "# isn't backed up on a schedule",
-            other: "# aren't backed up on a schedule",
-          })}
-        </StateLine>
-      ) : null}
-      {scheduled.length > 0 && destinations.length === 0 && storage.items.length === 0 ? (
-        <StateLine
-          status="degraded"
-          action={
-            <button
-              type="button"
-              className="domain-step-act"
-              onClick={() => setAddingStorage(true)}
-              disabled={!mayAddStorage.allowed}
-              title={mayAddStorage.reason || undefined}
-            >
-              <Trans>Add storage</Trans>
-            </button>
-          }
-        >
-          {t`Kept only on each server, unencrypted`}
-        </StateLine>
-      ) : null}
       <div className="databases-panel-actions">
         {volumes.length > 0 ? (
           <Button size="sm" icon="archive" onClick={() => setTaking(true)}>
@@ -849,6 +872,7 @@ function RecentActivity({ databases }: { databases: readonly Database[] }) {
   return (
     <Panel
       title={t`Recent activity`}
+      className="databases-activity"
       actions={
         <Link to="/activity" className="databases-panel-link">
           <Trans>Activity</Trans>

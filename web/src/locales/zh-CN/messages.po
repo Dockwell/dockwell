@@ -14172,6 +14172,9 @@ msgstr "请先在其中创建一个 root 用户，再设置 <0>MONGO_INITDB_ROOT
 msgid "Newest"
 msgstr "最新"
 
+msgid "Not scheduled"
+msgstr "未安排"
+
 msgid "Nothing read yet"
 msgstr "尚未读取任何数据"
 
@@ -14221,9 +14224,6 @@ msgstr "已运行"
 msgctxt "what a database or Docker said when it couldn't be read"
 msgid "What it said"
 msgstr "原始信息"
-
-msgid "When you ask"
-msgstr "手动发起时"
 
 msgid "of {mostWords}"
 msgstr "/ {mostWords}"
@@ -14348,12 +14348,6 @@ msgstr "{more, plural, other {还有 # 个数据库或用户未在此列出}}"
 msgid "+{left}"
 msgstr "+{left}"
 
-msgid "Back it up daily"
-msgstr "每天备份它"
-
-msgid "Back them up daily"
-msgstr "每天备份它们"
-
 msgid "Beside it"
 msgstr "同环境服务"
 
@@ -14375,9 +14369,6 @@ msgstr "从应用目录安装，密码保存为密钥"
 msgid "In a volume Dockwell didn't make"
 msgstr "在非 Dockwell 创建的卷中"
 
-msgid "Kept only on each server, unencrypted"
-msgstr "仅保存在各服务器上，未加密"
-
 msgid "Last run"
 msgstr "最近运行"
 
@@ -14395,9 +14386,6 @@ msgstr "没有卷"
 
 msgid "No volume, so its data goes with its container"
 msgstr "没有卷，数据会随容器一起丢失"
-
-msgid "Not scheduled"
-msgstr "未安排"
 
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "服务器上没有任何改动。页面会自动重试。"
@@ -14422,10 +14410,6 @@ msgstr "未安排"
 
 msgid "the last failed, {ago}"
 msgstr "最近一次失败，{ago}"
-
-#. placeholder {0}: unscheduled.length
-msgid "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
-msgstr "{0, plural, other {# 个没有按计划备份}}"
 
 msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
 msgstr "{count, plural, other {# 个数据库运行在非 Dockwell 创建的容器中}}"
@@ -14501,6 +14485,27 @@ msgstr "应用以 {name} 登录，通过一个跟随数据库的链接"
 
 msgid "Use {name} in an app"
 msgstr "在应用中使用 {name}"
+
+msgid "No client tool"
+msgstr "缺少客户端工具"
+
+msgid "Not read"
+msgstr "未读取"
+
+msgid "Not read yet"
+msgstr "尚未读取"
+
+msgid "Server offline"
+msgstr "服务器离线"
+
+msgid "Starting up"
+msgstr "正在启动"
+
+msgid "Timed out"
+msgstr "超时"
+
+msgid "Too old to read"
+msgstr "版本过旧，无法读取"
 
 msgid "An API token with Zone:Read and DNS:Edit for your zones."
 msgstr "一个对你的区域具有 Zone:Read 和 DNS:Edit 权限的 API 令牌。"
@@ -16767,9 +16772,6 @@ msgstr "可编辑 {zones} 个区域的 DNS"
 
 msgid "Last sync"
 msgstr "上次同步"
-
-msgid "Not read yet"
-msgstr "尚未读取"
 
 msgid "Records"
 msgstr "记录"
@@ -23189,9 +23191,6 @@ msgstr "成功"
 
 msgid "The agent stopped while it ran."
 msgstr "它运行时代理已停止。"
-
-msgid "Timed out"
-msgstr "超时"
 
 msgid "Today {time}"
 msgstr "今天 {time}"

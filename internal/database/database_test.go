@@ -292,7 +292,9 @@ func TestEachReadingAsksForWhatsTrueNowAndGivesUp(t *testing.T) {
 	// limit and 8.0.3 the cache, and a statement that's only a versioned comment fails
 	// on an older one.
 	if !strings.HasPrefix(sql, "SET @dw = 0 /*!50708 , SESSION max_execution_time = 6000 */ /*!80003 , SESSION information_schema_stats_expiry = 0 */;\n") ||
-		!strings.Contains(strings.Join(cmd, " "), "--connect-timeout=5") {
+		!strings.Contains(strings.Join(cmd, " "), "--connect-timeout=5") ||
+		!strings.Contains(strings.Join(cmd, " "), "MYSQL_ROOT_PASSWORD_FILE") ||
+		!strings.Contains(strings.Join(cmd, " "), "MARIADB_ROOT_PASSWORD_FILE") {
 		t.Errorf("MySQL reads with %q and %q", cmd, sql)
 	}
 	if _, sql := maria.reading(0); strings.Contains(sql, "information_schema_stats_expiry") || !strings.HasPrefix(sql, "SET SESSION max_statement_time = 6;") {

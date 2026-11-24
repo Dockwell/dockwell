@@ -291,7 +291,7 @@ a.databases-engine:hover .databases-engine-plus {
   }
 }
 
-/* Backups and recent activity, side by side where there's room. */
+/* Backups and recent activity, side by side where there's room, matched in height and rhythm. */
 .databases-panels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
@@ -299,18 +299,48 @@ a.databases-engine:hover .databases-engine-plus {
   align-items: stretch;
 }
 
-/* Each fact's label, at most two fifths of the row, so a long name never squeezes its value. */
+.databases-backups,
+.databases-activity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.databases-backups > .dw-panel-body,
+.databases-activity > .dw-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+/* Each fact's label, aligned in one column with hairline-divided rows matching ConnectionCard. */
 .databases-facts {
   display: grid;
   grid-template-columns: fit-content(40%) minmax(0, 1fr);
-  gap: var(--space-2) var(--space-4);
+  column-gap: var(--space-4);
   margin: 0;
   font-size: 13px;
-  line-height: 18px;
+  line-height: 20px;
 }
 
 .databases-fact {
-  display: contents;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  padding: 10px 0;
+}
+
+.databases-fact:first-child {
+  padding-top: 0;
+}
+
+.databases-fact:last-child {
+  padding-bottom: 0;
+}
+
+.databases-fact + .databases-fact {
+  border-top: 1px solid var(--line);
 }
 
 .databases-fact dt {
@@ -324,35 +354,93 @@ a.databases-engine:hover .databases-engine-plus {
 
 /* Where it is, after its name, as its row says it. */
 .databases-fact-place {
-  margin-left: var(--space-2);
+  font-size: 12px;
 }
 
 .databases-fact dd {
   margin: 0;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 
-/* On a phone, each label over its value, both the panel's width. */
+.databases-fact-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.databases-fact-item,
+.databases-fact-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+
+/* On a phone, each label over its value, both the panel's width, keeping the hairline row rhythm. */
 @media (max-width: 639.98px) {
   .databases-facts {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+  }
+
+  .databases-fact {
+    row-gap: 2px;
   }
 
   .databases-fact dt {
     font-size: 12px;
-  }
-
-  .databases-fact + .databases-fact dt {
-    margin-top: var(--space-3);
+    line-height: 16px;
   }
 }
 
 .databases-panel-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-4);
+}
+
+.databases-backups .databases-facts,
+.database-backups .databases-facts,
+.database-backups-card .databases-facts {
+  margin-bottom: var(--space-4);
+}
+
+.databases-backups .databases-panel-actions,
+.database-backups .databases-panel-actions,
+.database-backups-card .databases-panel-actions {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+}
+
+/* An inline action in a table row or fact value, aligned to the same baseline as the text beside it. */
+.databases-inline-act {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--link);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.databases-inline-act:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.databases-inline-act:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.databases-inline-act:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* The list on a phone, as M-Apps draws a list. */
@@ -480,22 +568,21 @@ a.databases-engine:hover .databases-engine-plus {
 }
 
 .database-panels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--space-4);
   align-items: stretch;
 }
 
 .database-backups {
   display: flex;
-  flex: 2 1 560px;
   flex-direction: column;
   min-width: 0;
 }
 
 /*
- * It stands as tall as Connect beside it, so its facts sit at the top and its actions at its foot over a rule, as
- * Database-Detail draws its panel, rather than leaving the space under them empty.
+ * It stands as tall as Connect beside it, so its hairline-divided facts sit at the top and its actions at its foot over
+ * a rule, matching Backups and Recent activity on the list.
  */
 .database-backups > .dw-panel-body {
   display: flex;
@@ -503,19 +590,8 @@ a.databases-engine:hover .databases-engine-plus {
   flex-direction: column;
 }
 
-.database-backups .databases-panel-actions {
-  margin-top: auto;
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--line);
-}
-
-.database-backups .databases-facts {
-  margin-bottom: var(--space-4);
-}
-
 .database-connection {
   display: flex;
-  flex: 1 1 320px;
   flex-direction: column;
   min-width: 0;
 }
@@ -599,12 +675,13 @@ a.databases-engine:hover .databases-engine-plus {
   color: var(--ink);
 }
 
-/* A database with no schedule: the state, and the one step that gives it one (#793). */
+/* A database with no schedule: the state and its inline action on one even line (#793). */
 .databases-backup-off {
   display: inline-flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
-  gap: var(--space-2);
+  gap: 6px;
+  white-space: nowrap;
 }
 
 /* Who reaches it from beyond its server, with the tunnel a step away (#798). */

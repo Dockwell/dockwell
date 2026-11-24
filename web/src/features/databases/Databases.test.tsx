@@ -1968,7 +1968,73 @@ describe("how a database is backed up (#793)", () => {
       resource: { name: "data-daily" },
       spec: { kind: { value: { destination: "" } } },
     });
+    // The Backups card keeps one clean key/value list without repeating the table row's schedule action.
     const backups = screen.getByRole("region", { name: "Backups" });
-    expect(backups).toHaveTextContent("1 isn't backed up on a schedule");
+    expect(within(backups).getByText("Database", { selector: "dt" })).toBeVisible();
+    expect(within(backups).queryByRole("button", { name: /Back (it|them|up) daily/ })).toBeNull();
+  });
+
+  it("shows a short muted state when a database couldn't be read, and a dash when nothing runs beside it", async () => {
+    const unread = aDatabase({
+      beside: [],
+      newestBackup: undefined,
+      readings: [
+        {
+          serverId: SERVER,
+          serverName: "hz-1",
+          unread:
+            "MySQL refused Dockwell's sign-in with what its environment holds. Dockwell signs in as its image does, with MYSQL_ROOT_PASSWORD",
+        },
+      ],
+    });
+    renderAt("/databases", api([unread]));
+    const table = await screen.findByRole("table", { name: "Databases" });
+    const row = within(table).getAllByRole("row")[1] as HTMLElement;
+    const cells = within(row).getAllByRole("cell");
+    expect(cells[2]).toHaveTextContent("—");
+    expect(cells[3]).toHaveTextContent("Sign-in refused");
+    expect(cells[5]).toHaveTextContent("—");
+    expect(cells[5]).not.toHaveTextContent("Nothing");
+  });
+
+  it("offers Back up daily in the Backups card on a phone, where the table isn't shown", async () => {
+    onPhone();
+    const user = userEvent.setup();
+    const { edits, changes } = proposing();
+    renderAt(
+      "/databases",
+      api([aDatabase({ newestBackup: undefined })], {
+        backups: {
+          listBackupPolicies: () => ({ policies: [] }),
+          listBackupDestinations: () => ({ destinations: [] }),
+        },
+        changes,
+      }),
+    );
+    const backups = await screen.findByRole("region", { name: "Backups" });
+    await user.click(within(backups).getByRole("button", { name: "Back up daily" }));
+    await waitFor(() => expect(edits).toHaveLength(1));
+  });
+
+  it("offers Back up daily inline on the database overview when it has no schedule", async () => {
+    const user = userEvent.setup();
+    const { edits, changes } = proposing();
+    renderAt(
+      "/databases/svc_db",
+      api([aDatabase({ newestBackup: undefined })], {
+        backups: {
+          listBackupPolicies: () => ({ policies: [] }),
+          listBackupDestinations: () => ({ destinations: [r2] }),
+        },
+        changes,
+      }),
+    );
+    const backups = await screen.findByRole("region", { name: "Backups" });
+    await user.click(within(backups).getByRole("button", { name: "Back up daily" }));
+    await waitFor(() => expect(edits).toHaveLength(1));
+    expect(edits[0]?.[0]).toMatchObject({
+      resource: { kind: "backup.policy", scope: ENV, name: "data-daily" },
+      spec: { kind: { value: { destination: "r2" } } },
+    });
   });
 });
