@@ -124,12 +124,23 @@ async function writeCode(page: Page, code: ReturnType<Page["getByRole"]>, value:
   });
   if (!value) return;
   // Dispatch a paste event so CodeMirror inserts the exact string verbatim (including newlines).
-  await code.evaluate((el, text) => {
-    const dt = new DataTransfer();
-    dt.setData("text/plain", text);
-    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, value);
-  await until("editor to accept pasted text", async () => (await readCode(code)) === value);
+  // A paste that lands before the editor is ready is lost, so clear and paste again until it holds
+  // (main's CI, 2026-11-24).
+  const paste = () =>
+    code.evaluate((el, text) => {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, value);
+  await paste();
+  await until("editor to accept pasted text", async () => {
+    if ((await readCode(code)) === value) return true;
+    await code.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Backspace");
+    await paste();
+    return (await readCode(code)) === value;
+  });
 }
 
 /** A valid 1x1 blue PNG for real image preview tests. */
