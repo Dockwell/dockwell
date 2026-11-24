@@ -7,7 +7,6 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { useState } from "react";
 
 import { sentence } from "../../lib/errors";
-import { StateLine } from "../apps/DomainStep";
 import { useShownName } from "../apps/names";
 import { useMay } from "../auth/may";
 import { BackUpSheet } from "../backups/BackUpSheet";
@@ -82,6 +81,7 @@ function VolumeBackups({ db }: { db: Database }) {
       ) : null}
       <Panel
         title={t`How it's backed up`}
+        className="database-backups-card"
         actions={
           policy?.spec ? (
             <StatusBadge status="healthy" label={schedule(policy.spec)} />
@@ -91,7 +91,25 @@ function VolumeBackups({ db }: { db: Database }) {
         }
       >
         <dl className="databases-facts">
-          {policy?.spec ? (
+          {!policy ? (
+            <div className="databases-fact">
+              <dt>{t`Schedule`}</dt>
+              <dd className="databases-fact-inline">
+                <span>{t`Not backed up on a schedule`}</span>
+                <span className="databases-muted" aria-hidden="true">
+                  ·
+                </span>
+                <button
+                  type="button"
+                  className="databases-inline-act"
+                  onClick={() => backUpDaily(volumes, destinations)}
+                  {...actOff}
+                >
+                  <Trans>Back up daily</Trans>
+                </button>
+              </dd>
+            </div>
+          ) : policy.spec ? (
             <>
               <div className="databases-fact">
                 <dt>{t`Keeps`}</dt>
@@ -107,12 +125,40 @@ function VolumeBackups({ db }: { db: Database }) {
                       : t`Never`}
                 </dd>
               </div>
-              {policy.spec.destination ? (
-                <div className="databases-fact">
-                  <dt>{t`Copies`}</dt>
-                  <dd>{t`Sent to ${sentTo}, encrypted`}</dd>
-                </div>
-              ) : null}
+              <div className="databases-fact">
+                <dt>{t`Copies`}</dt>
+                <dd className="databases-fact-inline">
+                  {policy.spec.destination ? (
+                    t`Sent to ${sentTo}, encrypted`
+                  ) : (
+                    <>
+                      <span>{t`Kept only on the server, unencrypted`}</span>
+                      <span className="databases-muted" aria-hidden="true">
+                        ·
+                      </span>
+                      {storage.items.length > 0 ? (
+                        <button
+                          type="button"
+                          className="databases-inline-act"
+                          onClick={() => setScheduling({ editing: policy })}
+                          {...actOff}
+                        >
+                          <Trans>Send copies off the server</Trans>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="databases-inline-act"
+                          onClick={() => setAddingStorage(true)}
+                          {...addOff}
+                        >
+                          <Trans>Add storage</Trans>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </dd>
+              </div>
             </>
           ) : null}
           {how.known ? (
@@ -130,46 +176,6 @@ function VolumeBackups({ db }: { db: Database }) {
             <dd>{t`A plan, which keeps what it replaces for 7 days`}</dd>
           </div>
         </dl>
-        {/* What's wrong with how it's backed up, as a state with the one thing that fixes it (#793). */}
-        {!policy ? (
-          <StateLine
-            status="degraded"
-            action={
-              <button
-                type="button"
-                className="domain-step-act"
-                onClick={() => backUpDaily(volumes, destinations)}
-                {...actOff}
-              >
-                <Trans>Back up daily</Trans>
-              </button>
-            }
-          >
-            {t`Not backed up on a schedule`}
-          </StateLine>
-        ) : policy.spec && !policy.spec.destination ? (
-          <StateLine
-            status="degraded"
-            action={
-              storage.items.length > 0 ? (
-                <button
-                  type="button"
-                  className="domain-step-act"
-                  onClick={() => setScheduling({ editing: policy })}
-                  {...actOff}
-                >
-                  <Trans>Send copies off the server</Trans>
-                </button>
-              ) : (
-                <button type="button" className="domain-step-act" onClick={() => setAddingStorage(true)} {...addOff}>
-                  <Trans>Add storage</Trans>
-                </button>
-              )
-            }
-          >
-            {t`Kept only on the server, unencrypted`}
-          </StateLine>
-        ) : null}
         <div className="databases-panel-actions">
           {takeOne}
           {policy ? (

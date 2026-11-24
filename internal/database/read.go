@@ -299,7 +299,7 @@ func withPort(variable string, port uint32, cmd []string) []string {
 // engines' own limits are shorter, so their own words come first.
 var (
 	postgresClient = []string{"sh", "-c", `export PGPASSWORD="${POSTGRES_PASSWORD:-}" PGCONNECT_TIMEOUT=5 PGOPTIONS='-c lc_messages=C -c statement_timeout=6000'; exec timeout 7 psql -X -q -A -t -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-postgres}" -d postgres -f -`}
-	mysqlClient    = []string{"sh", "-c", `export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec timeout 7 "$c" -uroot -N -B --connect-timeout=5`}
+	mysqlClient    = []string{"sh", "-c", `p="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; [ -z "$p" ] && [ -n "${MARIADB_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MARIADB_ROOT_PASSWORD_FILE")"; [ -z "$p" ] && [ -n "${MYSQL_ROOT_PASSWORD_FILE:-}" ] && p="$(cat "$MYSQL_ROOT_PASSWORD_FILE")"; [ -n "$p" ] && export MYSQL_PWD="$p"; c=mysql; command -v mariadb >/dev/null 2>&1 && c=mariadb; exec timeout 7 "$c" -uroot -N -B --connect-timeout=5`}
 	redisClient    = []string{"sh", "-c", `p="${VALKEY_PASSWORD:-${REDIS_PASSWORD:-}}"; [ -n "$p" ] && export REDISCLI_AUTH="$p"; c=redis-cli; command -v valkey-cli >/dev/null 2>&1 && c=valkey-cli; exec timeout 7 "$c" -p "${DW_PORT:-6379}"`}
 )
 

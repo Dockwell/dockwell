@@ -263,6 +263,44 @@ func postgresReading(x dockertest.Exec, file string) int {
 	return 0
 }
 
+// mysql stands in for MySQL's own tools: answers readings in batch mode, as mysql -N -B does,
+// and writes a minimal dump when mysqldump runs. When FAKEDOCKER_MYSQL_UNREAD=1 is set, it
+// refuses sign-in so stands can show an unread MySQL beside a read one.
+func mysql(x dockertest.Exec) int {
+	if os.Getenv("FAKEDOCKER_MYSQL_UNREAD") == "1" {
+		_, _ = io.WriteString(x.Stderr, "ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: NO)\n")
+		return 1
+	}
+	script := strings.Join(x.Cmd, " ")
+	switch {
+	case strings.Contains(script, "mysqldump"):
+		_, _ = io.WriteString(x.Stdout, "-- MySQL dump\n-- Dump completed\n")
+		return 0
+	case strings.Contains(script, "mysql"):
+		data, err := io.ReadAll(x.Stdin)
+		if err != nil {
+			return 1
+		}
+		if strings.Contains(string(data), "SELECT 'v', VERSION()") {
+			_, _ = io.WriteString(x.Stdout,
+				"v\t9.7.4\troot@localhost\t151\n"+
+					"Innodb_buffer_pool_read_requests\t9800\n"+
+					"Innodb_buffer_pool_reads\t200\n"+
+					"Threads_connected\t3\n"+
+					"Uptime\t3600\n"+
+					"d\tinformation_schema\t0\n"+
+					"d\tmysql\t2457600\n"+
+					"d\tperformance_schema\t0\n"+
+					"d\tsys\t16384\n"+
+					"u\tmysql.sys\tlocalhost\tN\n"+
+					"u\troot\tlocalhost\tY\n",
+			)
+		}
+		return 0
+	}
+	return 0
+}
+
 func storageFixtures(e *dockertest.Engine, dir string) {
 	const networkName = "fixture-network-with-many-attached-containers"
 	const volumeName = "fixture-volume-with-a-long-mountpoint"
@@ -363,6 +401,8 @@ func main() {
 		}
 		if strings.HasPrefix(ref, "postgres:") {
 			img.Exec = postgres
+		} else if strings.HasPrefix(ref, "mysql:") {
+			img.Exec = mysql
 		}
 		if slow := os.Getenv("FAKEDOCKER_SLOW"); slow == "" || slices.ContainsFunc(strings.Split(slow, ","), func(s string) bool { return s != "" && strings.Contains(ref, s) }) {
 			img.PullTime = pullTime

@@ -14172,6 +14172,9 @@ msgstr "Make a root user in it, then set <0>MONGO_INITDB_ROOT_USERNAME</0> and <
 msgid "Newest"
 msgstr "Newest"
 
+msgid "Not scheduled"
+msgstr "Not scheduled"
+
 msgid "Nothing read yet"
 msgstr "Nothing read yet"
 
@@ -14221,9 +14224,6 @@ msgstr "Up for"
 msgctxt "what a database or Docker said when it couldn't be read"
 msgid "What it said"
 msgstr "What it said"
-
-msgid "When you ask"
-msgstr "When you ask"
 
 msgid "of {mostWords}"
 msgstr "of {mostWords}"
@@ -14348,12 +14348,6 @@ msgstr "{more, plural, one {# more database or user isn't listed here} other {# 
 msgid "+{left}"
 msgstr "+{left}"
 
-msgid "Back it up daily"
-msgstr "Back it up daily"
-
-msgid "Back them up daily"
-msgstr "Back them up daily"
-
 msgid "Beside it"
 msgstr "Beside it"
 
@@ -14375,9 +14369,6 @@ msgstr "From the catalog, with its password kept as a secret"
 msgid "In a volume Dockwell didn't make"
 msgstr "In a volume Dockwell didn't make"
 
-msgid "Kept only on each server, unencrypted"
-msgstr "Kept only on each server, unencrypted"
-
 msgid "Last run"
 msgstr "Last run"
 
@@ -14395,9 +14386,6 @@ msgstr "No volume"
 
 msgid "No volume, so its data goes with its container"
 msgstr "No volume, so its data goes with its container"
-
-msgid "Not scheduled"
-msgstr "Not scheduled"
 
 msgid "Nothing changed on the servers. The page tries again by itself."
 msgstr "Nothing changed on the servers. The page tries again by itself."
@@ -14422,10 +14410,6 @@ msgstr "not scheduled"
 
 msgid "the last failed, {ago}"
 msgstr "the last failed, {ago}"
-
-#. placeholder {0}: unscheduled.length
-msgid "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
-msgstr "{0, plural, one {# isn't backed up on a schedule} other {# aren't backed up on a schedule}}"
 
 msgid "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
 msgstr "{count, plural, one {# database runs in a container Dockwell didn't make} other {# databases run in containers Dockwell didn't make}}"
@@ -14501,6 +14485,27 @@ msgstr "The app signs in as {name}, through a link that follows the database"
 
 msgid "Use {name} in an app"
 msgstr "Use {name} in an app"
+
+msgid "No client tool"
+msgstr "No client tool"
+
+msgid "Not read"
+msgstr "Not read"
+
+msgid "Not read yet"
+msgstr "Not read yet"
+
+msgid "Server offline"
+msgstr "Server offline"
+
+msgid "Starting up"
+msgstr "Starting up"
+
+msgid "Timed out"
+msgstr "Timed out"
+
+msgid "Too old to read"
+msgstr "Too old to read"
 
 msgid "An API token with Zone:Read and DNS:Edit for your zones."
 msgstr "An API token with Zone:Read and DNS:Edit for your zones."
@@ -16767,9 +16772,6 @@ msgstr "Edits DNS in {zones} zones"
 
 msgid "Last sync"
 msgstr "Last sync"
-
-msgid "Not read yet"
-msgstr "Not read yet"
 
 msgid "Records"
 msgstr "Records"
@@ -23189,9 +23191,6 @@ msgstr "Succeeded"
 
 msgid "The agent stopped while it ran."
 msgstr "The agent stopped while it ran."
-
-msgid "Timed out"
-msgstr "Timed out"
 
 msgid "Today {time}"
 msgstr "Today {time}"

@@ -13,6 +13,7 @@ import {
   DatabaseService,
   type ServerContainer,
 } from "@dockwell/api";
+import { useLingui } from "@lingui/react/macro";
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
@@ -89,6 +90,22 @@ export function firstReading(db: Database): DatabaseReading | undefined {
 /** What a reading says, where it could say anything. */
 export function readOf(reading: DatabaseReading | undefined): DatabaseReading | undefined {
   return reading && reading.unread === "" ? reading : undefined;
+}
+
+/** A short muted state for a database the agent couldn't read, for a table cell or metric caption. */
+export function useUnreadWord() {
+  const { t } = useLingui();
+  return (why: string | undefined): string => {
+    if (!why) return t`Not read yet`;
+    if (/refused .*sign-in/i.test(why)) return t`Sign-in refused`;
+    if (/isn't running/i.test(why)) return t`Not running`;
+    if (/isn't connected/i.test(why)) return t`Server offline`;
+    if (/isn't taking connections/i.test(why)) return t`Starting up`;
+    if (/didn't answer/i.test(why)) return t`Timed out`;
+    if (/has no /i.test(why)) return t`No client tool`;
+    if (/older than Dockwell reads/i.test(why)) return t`Too old to read`;
+    return t`Not read`;
+  };
 }
 
 /** The version a database runs: what it says, or what its image's tag names. */
