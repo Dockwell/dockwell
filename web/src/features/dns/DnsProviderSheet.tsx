@@ -106,12 +106,13 @@ export function DnsProviderSheet({
 
   const zones = picked ?? [];
   const writes = answer?.state === DnsProviderState.WRITES && !checking;
-  const namedProjects = everyProject ? [] : selected;
+  const namedProjects = everyProject ? [] : [...new Set(selected)].sort();
   const reachChanged =
     editing !== undefined &&
-    (everyProject !== editing.everyProject || namedProjects.join() !== editing.projects.join());
+    (everyProject !== editing.everyProject || namedProjects.join() !== [...new Set(editing.projects)].sort().join());
   const providerChanged = !editing || token !== "" || zones.join() !== editing.zones.join();
-  const ready = zones.length > 0 && (providerChanged ? writes : reachChanged);
+  const reachReady = everyProject || namedProjects.length > 0;
+  const ready = zones.length > 0 && reachReady && (providerChanged ? writes : reachChanged);
   const offered = [...new Set([...(answer?.reaches ?? []), ...(editing?.zones ?? [])])].sort();
   // The token reaches more than it's used for, whether or not it has written yet.
   const good = answer?.state === DnsProviderState.WRITES || answer?.state === DnsProviderState.REACHES;
@@ -272,6 +273,11 @@ export function DnsProviderSheet({
             ))}
           </fieldset>
         ) : null}
+        {reachReady ? null : (
+          <p className="dns-sheet-said">
+            <Trans>Pick a project, or serve every project.</Trans>
+          </p>
+        )}
         {failure ? (
           <Callout tone="critical" title={t`Not checked`}>
             {failure}

@@ -953,9 +953,12 @@ type WebsiteDomainFront struct {
 	// The proxies the route trusts to tell it where a visitor came from.
 	TrustedProxies []string `protobuf:"bytes,3,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
 	// How Dockwell publishes the name. Unset leaves publishing to what's in front.
-	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,4,opt,name=publish,proto3" json:"publish,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Publish *v1alpha1.RoutePublish `protobuf:"bytes,4,opt,name=publish,proto3" json:"publish,omitempty"`
+	// Whether the route answers anyone over plain HTTP. Unset keeps the choice for
+	// a route with TLS off. A route that takes a certificate does not use it.
+	PlainForAnyone *bool `protobuf:"varint,5,opt,name=plain_for_anyone,json=plainForAnyone,proto3,oneof" json:"plain_for_anyone,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *WebsiteDomainFront) Reset() {
@@ -1014,6 +1017,13 @@ func (x *WebsiteDomainFront) GetPublish() *v1alpha1.RoutePublish {
 		return x.Publish
 	}
 	return nil
+}
+
+func (x *WebsiteDomainFront) GetPlainForAnyone() bool {
+	if x != nil && x.PlainForAnyone != nil {
+		return *x.PlainForAnyone
+	}
+	return false
 }
 
 // UpdateWebsiteResponse carries the planned change.
@@ -1236,12 +1246,14 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12B\n" +
 	"\apublish\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12B\n" +
-	"\fdomain_front\x18\x06 \x01(\v2\x1f.dockwell.v1.WebsiteDomainFrontR\vdomainFront\"\xab\x01\n" +
+	"\fdomain_front\x18\x06 \x01(\v2\x1f.dockwell.v1.WebsiteDomainFrontR\vdomainFront\"\xef\x01\n" +
 	"\x12WebsiteDomainFront\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
 	"\x03tls\x18\x02 \x01(\tR\x03tls\x12'\n" +
 	"\x0ftrusted_proxies\x18\x03 \x03(\tR\x0etrustedProxies\x12B\n" +
-	"\apublish\x18\x04 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"D\n" +
+	"\apublish\x18\x04 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12-\n" +
+	"\x10plain_for_anyone\x18\x05 \x01(\bH\x00R\x0eplainForAnyone\x88\x01\x01B\x13\n" +
+	"\x11_plain_for_anyone\"D\n" +
 	"\x15UpdateWebsiteResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"@\n" +
 	"\x14DeleteWebsiteRequest\x12\x0e\n" +
@@ -1338,6 +1350,7 @@ func file_dockwell_v1_website_proto_init() {
 	}
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
+	file_dockwell_v1_website_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

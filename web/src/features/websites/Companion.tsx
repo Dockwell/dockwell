@@ -7,6 +7,7 @@ import {
   ChangeState,
   CloudflareName,
   type CompanionCheck,
+  type DomainRoute,
   DomainService,
   RouteWay,
   type Server,
@@ -23,7 +24,8 @@ import { onApple } from "../../lib/platform";
 import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord, RecordRow, useSettled } from "../apps/DomainRecord";
 import { NameState, ProviderReach, WayIn } from "../apps/DomainStep";
-import { formRefusal } from "../apps/domains";
+import { formRefusal, proxyList } from "../apps/domains";
+import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
 import {
   nameIn,
   pickedOf,
@@ -407,7 +409,14 @@ export function OtherDomains({
         </Button>
       </div>
       {asking ? (
-        <DomainSheet site={site} server={server} tunnel={tunnel} mode={asking} onClose={() => setAsking(undefined)} />
+        <DomainSheet
+          site={site}
+          server={server}
+          tunnel={tunnel}
+          mode={asking}
+          mainRoute={routes?.find((d) => d.name === main)?.routes.find((r) => r.id === site.routeId)}
+          onClose={() => setAsking(undefined)}
+        />
       ) : null}
     </div>
   );
@@ -423,12 +432,14 @@ function DomainSheet({
   server,
   tunnel,
   mode,
+  mainRoute,
   onClose,
 }: {
   site: WebsiteInfo;
   server: Server | undefined;
   tunnel: boolean;
   mode: "another" | "change";
+  mainRoute?: DomainRoute;
   onClose: () => void;
 }) {
   const { t } = useLingui();
@@ -462,6 +473,22 @@ function DomainSheet({
   const chosen =
     wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
   const wayAvailable = wayOf(cf.check, chosen.way, chosen.tunnel)?.off === "";
+  const behind = wayAvailable && chosen.way === RouteWay.FRONT;
+  const [pickedFront, setPickedFront] = useState<InFront>();
+  const [typedProxies, setTypedProxies] = useState<string>();
+  const [proxiesError, setProxiesError] = useState<string>();
+  const savedProxies = mode === "change" ? (mainRoute?.trustedProxies ?? []) : [];
+  const savedFront =
+    mode === "change" && mainRoute?.plainForAnyone
+      ? "anyone"
+      : savedProxies.length === 1 && savedProxies[0] === "cloudflare"
+        ? "cloudflare"
+        : savedProxies.length === 0 ||
+            (savedProxies.length === 1 && ["127.0.0.1", "127.0.0.1/32"].includes(savedProxies[0] ?? ""))
+          ? "tunnel"
+          : "proxy";
+  const inFront = pickedFront ?? savedFront;
+  const proxies = typedProxies ?? savedProxies.join(", ");
   const zone = cf.check?.zone ?? "";
   const useHere = () => {
     if (!provider) return;
@@ -510,10 +537,12 @@ function DomainSheet({
             summary: t`Move the website ${main} to ${typed}`,
             domain: typed,
           };
-    const route =
-      chosen.way === RouteWay.FRONT
-        ? { tls: "off", trustedProxies: ["127.0.0.1"] }
-        : routeOfWay(chosen.way, cf.check?.sslMode ?? "");
+    const named = proxyList(proxies);
+    if (behind && inFront === "proxy" && named.length === 0) {
+      setProxiesError(t`Name what connects to this server, as an address or a range.`);
+      return;
+    }
+    const route = behind ? frontOf(true, inFront, named) : routeOfWay(chosen.way, cf.check?.sslMode ?? "");
     const publish = publishOf(chosen.way, chosen.tunnel, cf.check?.provider ?? "", takesOver);
     setBusy(true);
     let change: Change | undefined;
@@ -525,7 +554,17 @@ function DomainSheet({
           summary: request.summary,
           ...("domain" in request ? { domain: request.domain } : {}),
           ...(connected
-            ? { domainFront: { domain: typed, tls: route.tls, trustedProxies: route.trustedProxies, publish } }
+            ? {
+                domainFront: {
+                  domain: typed,
+                  tls: route.tls,
+                  trustedProxies: route.trustedProxies,
+                  publish,
+                  ...(behind && (mode === "another" || pickedFront !== undefined)
+                    ? { plainForAnyone: inFront === "anyone" }
+                    : {}),
+                },
+              }
             : {}),
         })
       ).change;
@@ -625,6 +664,25 @@ function DomainSheet({
               onStrict={toStrict}
               onLeave={onClose}
             />
+            {behind ? (
+              <FrontFields
+                behind="website"
+                fixed
+                noCertificate
+                onNoCertificate={() => undefined}
+                inFront={inFront}
+                onInFront={(value) => {
+                  setPickedFront(value);
+                  setProxiesError(undefined);
+                }}
+                proxies={proxies}
+                onProxies={(value) => {
+                  setTypedProxies(value);
+                  setProxiesError(undefined);
+                }}
+                proxiesError={proxiesError}
+              />
+            ) : null}
           </>
         ) : (
           <DomainRecord server={server} domain={typed} tunnel={tunnel} tunnelName={switchName} onLeave={onClose} />

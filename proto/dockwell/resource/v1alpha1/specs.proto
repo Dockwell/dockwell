@@ -1918,7 +1918,9 @@ message DnsProvider {
   // replaced. It takes an admin, as it writes someone's record, and it's never
   // stored (ADR 0104).
   repeated string put_back = 8;
-  // Reaches every project, including future projects. Set only when projects is empty.
+  // Publishes for every project, including future projects. For unlisted
+  // projects, DNS-01 proof is limited to names their own routes publish here.
+  // Set only when projects is empty.
   bool every_project = 9;
 }
 

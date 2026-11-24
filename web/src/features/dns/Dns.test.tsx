@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { activateLocale } from "../../app/i18n";
 import { expectAccessible } from "../../test/a11y";
+import { resource } from "../../test/apps";
 import { feed, renderAt } from "../../test/render";
 import { freeProviderName } from "./dns";
 
@@ -26,6 +27,7 @@ const saved = create(DnsProviderInfoSchema, {
   zones: ["example.com"],
   projects: ["prj_1"],
   strictZones: ["example.com"],
+  revision: 7n,
 });
 
 afterEach(async () => {
@@ -107,6 +109,8 @@ describe("DNS providers", () => {
       provider: "cloudflare",
       zones: ["example.com"],
       apiToken: "right-token",
+      everyProject: true,
+      projects: [],
     });
   });
 
@@ -161,7 +165,10 @@ describe("DNS providers", () => {
     expect(await within(sheet).findByText("Can write DNS for 2 zones", {}, { timeout: 3000 })).toBeVisible();
     await user.click(within(sheet).getByRole("button", { name: "Review plan" }));
     await waitFor(() => expect(proposed).toHaveBeenCalled());
-    expect(proposed.mock.calls[0]?.[0].edits[0]?.spec?.kind.value).toMatchObject({
+    const edit = proposed.mock.calls[0]?.[0].edits[0];
+    expect(edit?.baseRevision).toBe(7n);
+    expect(edit?.spec?.kind.value).toMatchObject({
+      everyProject: false,
       zones: ["example.com", "example.org"],
       apiToken: "",
       // An edit is the whole spec, so the projects it serves, and the zones it set to
@@ -171,6 +178,50 @@ describe("DNS providers", () => {
     });
     // The saved token was checked by name; none was sent.
     expect(checks.every((c) => c.name === "cloudflare" && c.apiToken === "")).toBe(true);
+  });
+  it("requires a named project before narrowing and sends the saved revision", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    const every = create(DnsProviderInfoSchema, { ...saved, everyProject: true, projects: [] });
+    renderAt("/settings/integrations", {
+      resources: { listResources: () => ({ resources: [resource("prj_store", "project", "org_1", "store")] }) },
+      backups: { listBackupDestinations: () => ({ destinations: [] }) },
+      domains: { listDnsProviders: () => ({ providers: [every] }), checkDnsProvider: cloudflare([]) },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const card = await screen.findByRole("article", { name: "Cloudflare" });
+    await user.click(within(card).getByRole("button", { name: "Manage" }));
+    const sheet = await screen.findByRole("dialog", { name: "DNS provider cloudflare" });
+    await user.click(within(sheet).getByRole("switch", { name: "Only some projects" }));
+    expect(within(sheet).getByText("Pick a project, or serve every project.")).toBeVisible();
+    const review = within(sheet).getByRole("button", { name: "Review plan" });
+    expect(review).toBeDisabled();
+    await user.click(await within(sheet).findByRole("checkbox", { name: "store" }));
+    expect(review).toBeEnabled();
+    await user.click(review);
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]).toMatchObject({
+      baseRevision: 7n,
+      spec: { kind: { value: { everyProject: false, projects: ["prj_store"] } } },
+    });
+  });
+
+  it("offers to widen a provider that serves no project", async () => {
+    const user = userEvent.setup();
+    const proposed = planned();
+    renderAt("/settings/integrations", {
+      backups: { listBackupDestinations: () => ({ destinations: [] }) },
+      domains: { listDnsProviders: () => ({ providers: [{ ...saved, projects: [] }] }) },
+      changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+    });
+    const card = await screen.findByRole("article", { name: "Cloudflare" });
+    expect(card).toHaveTextContent("Serves no project");
+    await user.click(within(card).getByRole("button", { name: "Use it for every project" }));
+    await waitFor(() => expect(proposed).toHaveBeenCalled());
+    expect(proposed.mock.calls[0]?.[0].edits[0]).toMatchObject({
+      baseRevision: 7n,
+      spec: { kind: { value: { everyProject: true, projects: [] } } },
+    });
   });
 });
 

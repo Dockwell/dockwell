@@ -7,6 +7,7 @@ import {
   CloudflareName,
   type DnsProviderInfo,
   DomainService,
+  Role,
   RouteWay,
   type Server,
   type WayOption,
@@ -18,6 +19,7 @@ import { useState } from "react";
 import { sentence } from "../../lib/errors";
 
 import { useMay } from "../auth/may";
+import { useSignedIn } from "../auth/useAuthState";
 import { useSettled } from "./DomainRecord";
 
 /** A zone a connected DNS provider writes in, and the provider, by name. */
@@ -74,7 +76,10 @@ export function publicAddressOf(server: Server | undefined): string {
 
 /** Whether the caller is an admin of the install: one who may check a DNS provider's token. */
 export function useInstallAdmin(): boolean {
-  return useMay()(DomainService.method.checkDnsProvider).allowed;
+  const grants = useSignedIn()?.grants;
+  return (
+    grants?.some((grant) => grant.projectId === "" && (grant.role === Role.ADMIN || grant.role === Role.OWNER)) ?? false
+  );
 }
 
 /** What a connected zone and the server's tunnels say of a name, and how to read it again. */

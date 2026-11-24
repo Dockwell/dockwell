@@ -59,6 +59,9 @@ export const flow: Flow = {
     runCloudflared(proc);
     try {
       setReach();
+      if (!(await providers())[0]?.everyProject)
+        throw new Error("an update that leaves out --every-project should keep every-project reach");
+      setReach("--every-project=false");
       step("domains reach: repair a provider that serves no project in the app's sheet");
       await atWidth(page, { width: 1440, height: 900 });
       await page.goto(`${origin}/apps/${app.id}`);

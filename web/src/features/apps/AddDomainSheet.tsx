@@ -190,7 +190,9 @@ export function AddDomainSheet({
   const connectedZones = allProviders.flatMap((p) => p.zones.map((zone) => ({ zone, provider: p.name })));
   const [domain, setDomain] = useState(start?.domain ?? named ?? "");
   const [zonePicked, setZonePicked] = useState<string>();
-  const matchedZone = zoneOfName(zones, nameIn(domain, ""));
+  const whole = nameIn(domain, "");
+  const coveringZone = zoneOfName(connectedZones, whole) || zoneOfName(zones, whole);
+  const matchedZone = zones.some((z) => z.zone === coveringZone) ? coveringZone : "";
   const zone =
     start || zones.length === 0
       ? ""
@@ -684,9 +686,10 @@ export function AddDomainSheet({
             sub={subdomainOf(domain, zone)}
             onSub={(value) => {
               const low = nameIn(value, "");
-              const into = zoneOfName(zones, low);
+              const covering = zoneOfName(connectedZones, low) || zoneOfName(zones, low);
+              const into = zones.some((z) => z.zone === covering) ? covering : "";
               if (into) setZonePicked(into);
-              else if (zoneOfName(connectedZones, low)) setZonePicked("");
+              else if (covering) setZonePicked("");
               else if (zone) setZonePicked(zone);
               setDomain(into ? subdomainOf(low, into) : value);
               setDomainError(undefined);

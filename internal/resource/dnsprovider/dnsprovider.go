@@ -182,7 +182,7 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// Serves says whether a provider proves and publishes names for the project.
+// Serves says whether a provider publishes names for the project.
 func Serves(p *resourcev1.DnsProvider, project string) bool {
 	return project != "" && (p.GetEveryProject() || slices.Contains(p.GetProjects(), project))
 }

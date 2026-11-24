@@ -11616,6 +11616,9 @@ msgstr "应用前，请确认你还有其他登录途径，例如服务商的控
 msgid "Checks {domain} every minute"
 msgstr "每分钟检查一次 {domain}"
 
+msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
+msgstr "{domains} 的 DNS 记录会保留。若要编辑仍通过此提供方发布的路由，请让管理员恢复访问权限。由此提供方验证的证书可能无法续期。"
+
 #. placeholder {0}: server.serverName
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "拒绝其他一切流量会关闭 {0} 上没有规则放行的端口"
@@ -11628,6 +11631,9 @@ msgstr "依赖链接"
 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "请先部署 {writtenBy} 再恢复，或者改为恢复转储。"
+
+msgid "Developers can publish names in {zones} and prove the names they publish there by DNS."
+msgstr "开发者可以在 {zones} 发布域名，并通过 DNS 验证自己在其中发布的域名。"
 
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker 清理将永久删除所选 Docker 对象"
@@ -11860,6 +11866,9 @@ msgstr "更新 {names}，已安装的实例可以升级到新版本。"
 
 msgid "Name a network the proxy has to itself."
 msgstr "请指定一个由该代理独占的网络。"
+
+msgid "New projects need an admin to add them before they can publish names through it."
+msgstr "新项目需要由管理员添加，才能通过此提供方发布域名。"
 
 msgid "No backup is taken first"
 msgstr "升级前不会创建备份"
@@ -12336,6 +12345,12 @@ msgstr "{name} 挂载了 {heldIn} 中的 {path}，而 {heldBy} 可以写入 {hel
 msgid "{name} moves back to {to} only if its data allows"
 msgstr "只有数据允许时，{name} 才会退回 {to}"
 
+msgid "{name} no longer serves every project"
+msgstr "{name} 不再服务于所有项目"
+
+msgid "{name} no longer serves {project}"
+msgstr "{name} 不再服务于 {project}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} 在 {server} 上可访问端口 {path}"
 
@@ -12368,6 +12383,9 @@ msgstr "{name} 首次将 {path} 的证书密钥发送到 {server}"
 
 msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
 msgstr "{name} 首次将 {names} 的共享证书密钥发送到 {server}"
+
+msgid "{name} serves every project, including new ones"
+msgstr "{name} 服务于所有项目，包括新项目"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} 与 {server} 共用其自身的网络"
@@ -14551,6 +14569,9 @@ msgstr "保留原值，除非你粘贴新的"
 
 msgid "Make a token at Cloudflare"
 msgstr "在 Cloudflare 创建令牌"
+
+msgid "Pick a project, or serve every project."
+msgstr "请选择一个项目，或允许所有项目使用。"
 
 msgid "Prove names by DNS through Cloudflare"
 msgstr "通过 Cloudflare 用 DNS 证明域名"

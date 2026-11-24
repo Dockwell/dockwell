@@ -3,8 +3,10 @@
 package control
 
 import (
+	"context"
 	"encoding/base64"
 	"io/fs"
+	"net/netip"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +18,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders/cftest"
+	"github.com/dockwell/dockwell/internal/control/publish"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
@@ -480,7 +483,7 @@ func TestDNSProviderReachAndPublishing(t *testing.T) {
 		s := newPublishStandOn(t, backend)
 		noProjects := s.provider(func(p *resourcev1.DnsProvider) { p.Projects = nil })
 		s.applied(t, propose(t, s.person, "Restrict access to Cloudflare", noProjects))
-		publish := s.published("wiki", "wiki.example.com")
+		wiki := s.published("wiki", "wiki.example.com")
 		before := len(s.cf.Calls())
 		if c := s.checkWiki(t, false); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "cloudflare" || c.GetZone() != "example.com" || len(c.GetWays()) != 0 {
 			t.Fatalf("admin's check for an unserved project: %v", c)
@@ -490,7 +493,7 @@ func TestDNSProviderReachAndPublishing(t *testing.T) {
 		if c := s.checkWiki(t, false); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "" || c.GetZone() != "" || len(c.GetWays()) != 0 {
 			t.Fatalf("developer's check for an unserved project: %v", c)
 		}
-		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Publish wiki", Edits: []*dockwellv1.Edit{publish}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Publish wiki", Edits: []*dockwellv1.Edit{wiki}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
 			t.Fatalf("developer tried to publish through an unserved project: %v", err)
 		}
 		if n := len(s.cf.Calls()) - before; n != 0 {
@@ -505,10 +508,10 @@ func TestDNSProviderReachAndPublishing(t *testing.T) {
 		if !hasTunnelWay(s.checkWiki(t, false)) {
 			t.Fatal("a provider reaching every project offers no way through the tunnel")
 		}
-		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Restrict access and publish wiki", Edits: []*dockwellv1.Edit{noProjects, publish}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Restrict access and publish wiki", Edits: []*dockwellv1.Edit{noProjects, wiki}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
 			t.Fatalf("same plan narrowed provider reach and published anyway: %v", err)
 		}
-		s.applied(t, propose(t, s.person, "Publish wiki", publish))
+		s.applied(t, propose(t, s.person, "Publish wiki", wiki))
 		// The first route writes the zone rule. A developer can then plan a second
 		// name through it without seeing the provider's reach.
 		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
@@ -524,5 +527,166 @@ func TestDNSProviderReachAndPublishing(t *testing.T) {
 		if got := s.cf.Records("example.com"); len(got) != 2 {
 			t.Fatalf("published records: %v", got)
 		}
+	})
+}
+
+func TestProviderReachPlansAndUndo(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		expectNote := func(ch *dockwellv1.Change, reason string, words ...string) {
+			t.Helper()
+			for _, note := range ch.GetPlan().GetNotes() {
+				if note.GetReason() == reason && !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(note.GetMessage(), w) }) {
+					return
+				}
+			}
+			t.Fatalf("want note %s with %v, got %v", reason, words, ch.GetPlan().GetNotes())
+		}
+		noProjects := s.provider(func(p *resourcev1.DnsProvider) { p.Projects = nil })
+		s.applied(t, propose(t, s.person, "Publish wiki", s.published("wiki", "wiki.example.com")))
+		dropped := propose(t, s.person, "Remove project from Cloudflare", noProjects)
+		expectNote(dropped, "provider_stops_serving", "wiki.example.com", "stay in place", "restores access")
+		s.applied(t, dropped)
+
+		every := s.provider(func(p *resourcev1.DnsProvider) { p.EveryProject, p.Projects = true, nil })
+		widened := propose(t, s.person, "Use Cloudflare for every project", every)
+		expectNote(widened, "provider_serves_every_project", "including new ones", "publish names in example.com", "prove the names they publish")
+		done := s.applied(t, widened)
+		undo, err := s.person.UndoChange(t.Context(), connect.NewRequest(&dockwellv1.UndoChangeRequest{Id: done.GetId()}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		back := undo.Msg.GetChange()
+		expectNote(back, "provider_serves_selected_projects", "no longer serves every project")
+		expectNote(back, "provider_stops_serving", "wiki.example.com", "stay in place")
+		s.applied(t, back)
+		if info := s.providerInfo(t); info.GetEveryProject() || len(info.GetProjects()) != 0 {
+			t.Fatalf("undo should restore no reach, got %v", info)
+		}
+		if got := recordNames(s); !slices.Equal(got, []string{"wiki.example.com"}) {
+			t.Fatalf("narrowing should keep existing DNS records, got %v", got)
+		}
+		created := propose(t, s.person, "Connect another provider", dnsEdit("other", &resourcev1.DnsProvider{
+			Provider: "cloudflare", ApiToken: dnsToken, Zones: []string{"example.org"}, EveryProject: true,
+		}))
+		expectNote(created, "provider_serves_every_project", "other serves every project", "example.org")
+	})
+}
+
+func TestPublishingStepChecksReachAgain(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.applied(t, propose(t, s.person, "Widen reach", s.provider(func(p *resourcev1.DnsProvider) {
+			p.EveryProject, p.Projects = true, nil
+		})))
+		edit := s.published("wiki", "wiki.example.com")
+		ch := propose(t, s.person, "Publish wiki", edit)
+		// Capture the actual steps, then exercise them directly as well as applying
+		// through the engine, which can refuse before running any steps.
+		ref := resource.Ref{Kind: "route", Scope: s.env, Name: "wiki"}
+		r := revision.PublishRoute{Ref: ref, ID: "rte_wiki", Environment: s.env, Server: s.server, After: edit.GetSpec().GetRoute()}
+		pub := s.f.server.publisher
+		steps, err := pub.Plan(t.Context(), ch.GetId(), []revision.PublishRoute{r}, nil)
+		if err != nil || len(steps[ref]) != 2 {
+			t.Fatalf("publishing should plan a tunnel rule and a record: %v, %v", steps, err)
+		}
+		s.applied(t, propose(t, s.person, "Narrow reach", s.provider(func(p *resourcev1.DnsProvider) { p.Projects = nil })))
+		before := len(s.cf.Calls())
+		refused := func(err error) bool {
+			return err != nil && strings.Contains(err.Error(), "doesn't serve this route's project") && strings.Contains(err.Error(), "Ask an admin")
+		}
+		for _, step := range steps[ref] {
+			if _, err := pub.Apply(t.Context(), ch.GetId(), r, *step.Provider); !refused(err) {
+				t.Fatalf("publishing step %v should be refused: %v", step.Provider.Action, err)
+			}
+		}
+		if _, err := applyChange(t, s.person, &dockwellv1.ApplyChangeRequest{
+			Id: ch.GetId(), Fingerprint: ch.GetPlan().GetFingerprint(),
+		}); !refused(err) {
+			t.Fatalf("applying the plan after reach was revoked should be refused: %v", err)
+		}
+		if len(s.cf.Calls()) != before {
+			t.Fatalf("a refused plan or step contacted Cloudflare: %v", s.cf.Calls()[before:])
+		}
+	})
+}
+
+func TestCheckUsesTheMostSpecificConnectedZone(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.applied(t, propose(t, s.person, "Connect delegated zone", dnsEdit("delegated", &resourcev1.DnsProvider{
+			Provider: "cloudflare", ApiToken: dnsToken, Zones: []string{"dev.example.com"},
+		})))
+		before := len(s.cf.Calls())
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		check := func() *dockwellv1.CloudflareCheck {
+			t.Helper()
+			res, err := dc.CheckDomain(t.Context(), connect.NewRequest(&dockwellv1.CheckDomainRequest{
+				Domain: "app.dev.example.com", ServerId: s.server, ProjectId: s.project, Publish: &resourcev1.RoutePublish{},
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return res.Msg.GetCloudflare()
+		}
+		if c := check(); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "delegated" || c.GetZone() != "dev.example.com" {
+			t.Fatalf("expected refusal at the delegated zone: %v", c)
+		}
+		aMember(t, s.f)(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+		if c := check(); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "" || c.GetZone() != "" {
+			t.Fatalf("expected a trimmed refusal: %v", c)
+		}
+		if len(s.cf.Calls()) != before {
+			t.Fatalf("a name in an unserved delegated zone contacted Cloudflare: %v", s.cf.Calls()[before:])
+		}
+	})
+}
+
+func TestEveryProjectCanOnlyProveNamesItsRoutesPublish(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		s.f.server.publisher.Server = func(context.Context, string) (publish.Facts, error) {
+			return publish.Facts{Name: "hz-1", Public: []netip.Addr{netip.MustParseAddr("203.0.113.10")}}, nil
+		}
+		manual := s.route("manual", "manual.example.com")
+		s.applied(t, propose(t, s.person, "Prove a manually pointed name", manual))
+		s.applied(t, propose(t, s.person, "Use Cloudflare for every project", s.provider(func(p *resourcev1.DnsProvider) {
+			p.EveryProject, p.Projects = true, nil
+		})))
+		other := s.route("other", "other.example.com")
+		other.GetSpec().GetRoute().Publish = &resourcev1.RoutePublish{Way: resourcev1.RouteWay_ROUTE_WAY_FRONT, Provider: "cloudflare"}
+		managed := s.route("managed", "managed.example.com")
+		managed.GetSpec().GetRoute().Publish = &resourcev1.RoutePublish{Way: resourcev1.RouteWay_ROUTE_WAY_PROXY, Provider: "cloudflare"}
+		for _, edit := range []*dockwellv1.Edit{s.route("outside", "outside.example.com"), other} {
+			_, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{
+				Summary: "Prove another name by DNS", Edits: []*dockwellv1.Edit{edit},
+			}))
+			if err == nil || !strings.Contains(err.Error(), "no DNS provider proves it") {
+				t.Fatalf("a name without managed publishing should be refused: %v", err)
+			}
+		}
+		s.applied(t, propose(t, s.person, "Publish and prove the managed name", managed))
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		check := func(want ...string) {
+			t.Helper()
+			res, err := dc.ListCertificates(t.Context(), connect.NewRequest(&dockwellv1.ListCertificatesRequest{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, c := range res.Msg.GetCertificates() {
+				got = append(got, c.GetDomains()...)
+			}
+			if !slices.Equal(got, want) {
+				t.Fatalf("DNS certificate names %v, want %v", got, want)
+			}
+		}
+		check("managed.example.com")
+		s.applied(t, propose(t, s.person, "Name this project again", s.provider(func(*resourcev1.DnsProvider) {})))
+		check("managed.example.com", "manual.example.com")
 	})
 }

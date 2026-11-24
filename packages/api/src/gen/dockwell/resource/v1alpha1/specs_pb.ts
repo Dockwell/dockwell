@@ -4680,7 +4680,9 @@ export type DnsProvider = Message<"dockwell.resource.v1alpha1.DnsProvider"> & {
   putBack: string[];
 
   /**
-   * Reaches every project, including future projects. Set only when projects is empty.
+   * Publishes for every project, including future projects. For unlisted
+   * projects, DNS-01 proof is limited to names their own routes publish here.
+   * Set only when projects is empty.
    *
    * @generated from field: bool every_project = 9;
    */

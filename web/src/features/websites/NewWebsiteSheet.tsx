@@ -22,7 +22,7 @@ import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord } from "../apps/DomainRecord";
-import { DomainName, NameState, WayIn } from "../apps/DomainStep";
+import { DomainName, NameState, ProviderReach, WayIn } from "../apps/DomainStep";
 import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
 import {
@@ -138,7 +138,8 @@ export function NewWebsiteSheet({
   // A name in a zone a connected provider writes in, published for you: an admin makes a
   // website, and its plan adds the website's project to that provider (ADR 0104).
   const admin = useInstallAdmin();
-  const { zones, providers } = useZones("", mayCreate.allowed && admin);
+  const { zones: connectedZones, providers } = useZones("", true);
+  const zones = admin ? connectedZones : [];
   const [zonePicked, setZonePicked] = useState<string>();
   const zone =
     zones.length === 0
@@ -148,7 +149,8 @@ export function NewWebsiteSheet({
         : zoneOfName(zones, nameIn(domain, "")) || (domain.includes(".") ? "" : (zones[0]?.zone ?? ""));
   const typed = nameIn(domain, zone);
   const several = servers.length > 1;
-  const publishing = zone !== "" || zoneOfName(zones, typed) !== "";
+  const connected = zone !== "" || zoneOfName(connectedZones, typed) !== "";
+  const publishing = admin && connected;
   const cf = useCloudflareCheck(server, typed, "", publishing);
   const manual = !publishing;
   const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
@@ -454,7 +456,9 @@ export function NewWebsiteSheet({
             onStrict={toStrict}
             onLeave={onClose}
           />
-        ) : manual ? (
+        ) : connected ? (
+          <ProviderReach admin={false} />
+        ) : (
           <DomainRecord
             server={serverOf(fleet, server)}
             domain={typed}
@@ -462,9 +466,9 @@ export function NewWebsiteSheet({
             tunnelName={switchName}
             onLeave={onClose}
           />
-        ) : null}
+        )}
         {/* In a connected zone, the name's line says its other half, with Change one step away. */}
-        {manual || companionOpen ? (
+        {(manual && !connected) || companionOpen ? (
           <CompanionChoice
             server={serverOf(fleet, server)}
             read={companion}

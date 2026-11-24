@@ -472,11 +472,24 @@ func publishedFront(front website.Front, publish *resourcev1.RoutePublish) websi
 	return front
 }
 
-// domainFront updates just the way in, keeping the main route's sign-in settings.
+// domainFront changes the way in and keeps the settings it can still use.
 func domainFront(was website.Front, asked *dockwellv1.WebsiteDomainFront) website.Front {
-	return publishedFront(website.Front{
-		TLS: asked.GetTls(), TrustedProxies: asked.GetTrustedProxies(), Access: was.Access,
-	}, asked.GetPublish())
+	sameWay := was.TLS == asked.GetTls() && was.Publish.GetWay() == asked.GetPublish().GetWay()
+	was.TLS, was.TrustedProxies = asked.GetTls(), asked.GetTrustedProxies()
+	was.Publish = nil
+	if was.TLS == ingress.TLSOff {
+		was.Proof = ""
+		if asked.PlainForAnyone != nil {
+			was.PlainForAnyone = asked.GetPlainForAnyone()
+		}
+	} else {
+		was.PlainForAnyone = false
+	}
+	front := publishedFront(was, asked.GetPublish())
+	if sameWay {
+		front.Proof = was.Proof
+	}
+	return front
 }
 
 // keepRedirectFronts preserves the way in for each existing alias as the site is
@@ -617,7 +630,8 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		keepRedirectFronts(serving, s)
 	}
 	if requested != nil && asked != domain {
-		setRedirectFront(serving.Redirects[asked], domainFront(front, requested))
+		redirect := serving.Redirects[asked]
+		setRedirectFront(redirect, domainFront(website.FrontOf(redirect), requested))
 	}
 	keepEdits(serving, s)
 	served, err := h.servedBy(ctx, m.GetPublish(), s.project.ID)

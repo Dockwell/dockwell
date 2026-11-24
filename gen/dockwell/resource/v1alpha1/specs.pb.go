@@ -8785,7 +8785,9 @@ type DnsProvider struct {
 	// replaced. It takes an admin, as it writes someone's record, and it's never
 	// stored (ADR 0104).
 	PutBack []string `protobuf:"bytes,8,rep,name=put_back,json=putBack,proto3" json:"put_back,omitempty"`
-	// Reaches every project, including future projects. Set only when projects is empty.
+	// Publishes for every project, including future projects. For unlisted
+	// projects, DNS-01 proof is limited to names their own routes publish here.
+	// Set only when projects is empty.
 	EveryProject  bool `protobuf:"varint,9,opt,name=every_project,json=everyProject,proto3" json:"every_project,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

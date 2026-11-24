@@ -7,6 +7,7 @@ import {
   type CloudflareCheckSchema,
   CloudflareName,
   type ProposeChangeRequest,
+  Role,
   RouteWay,
   type WatchChangeResponse,
   type WatchServersResponse,
@@ -17,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import { expectAccessible } from "../../test/a11y";
 import { anApp, places, SERVER } from "../../test/apps";
+import { authState, mira } from "../../test/auth";
 import { webPlanned } from "../../test/changes";
 import { type Api, feed, renderAt } from "../../test/render";
 import { aServer, changed, snapshotComplete } from "../../test/servers";
@@ -128,6 +130,61 @@ describe("adding a domain in a connected zone (ADR 0104)", () => {
       trustedProxies: ["127.0.0.1"],
       publish: { way: RouteWay.SERVER_TUNNEL, tunnel: TUNNEL, provider: "cloudflare" },
     });
+  });
+
+  it.each([true, false])("handles an unserved zone in the shared app sheet (admin %s)", async (admin) => {
+    const edits: ProposeChangeRequest["edits"] = [];
+    const asked: CheckDomainRequest[] = [];
+    const api = publishApi(
+      () => ({
+        state: CloudflareName.OUTSIDE_PROJECT,
+        ...(admin ? { provider: "cloudflare", zone: "dev.example.com" } : {}),
+      }),
+      edits,
+      asked,
+    );
+    if (!admin) api.auth = { getAuthState: () => authState({ user: { ...mira, role: Role.DEVELOPER } }) };
+    const base = api.domains;
+    api.domains = {
+      ...base,
+      listDnsProviders: (req) => ({
+        providers: [
+          { id: "dnp_parent", name: "parent", zones: ["example.com"], everyProject: true },
+          ...(req.projectId
+            ? []
+            : [
+                {
+                  id: "dnp_child",
+                  name: "cloudflare",
+                  zones: ["dev.example.com"],
+                  provider: admin ? "cloudflare" : "",
+                  revision: 7n,
+                },
+              ]),
+        ],
+      }),
+    };
+    renderAt("/apps/svc_wordpress", api);
+    const { user, sheet } = await openSheet();
+    const subdomain = await within(sheet).findByRole("textbox", { name: "Subdomain" });
+    await user.click(subdomain);
+    await user.paste("wiki.dev.example.com");
+    const use = "Use cloudflare here";
+    if (admin) {
+      await user.click(await within(sheet).findByRole("button", { name: use }));
+      await waitFor(() => expect(edits).toHaveLength(1));
+      expect(edits[0]).toMatchObject({
+        resource: { kind: "dns.provider", name: "cloudflare" },
+        baseRevision: 7n,
+        spec: { kind: { value: { projects: ["prj_1"], everyProject: false } } },
+      });
+    } else {
+      expect(await within(sheet).findByText(/An admin can give it access/)).toBeVisible();
+      expect(within(sheet).queryByRole("button", { name: use })).toBeNull();
+      expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+    }
+    expect(asked.at(-1)).toMatchObject({ domain: "wiki.dev.example.com", projectId: "prj_1" });
+    expect(sheet).not.toHaveTextContent(/Make this record|Point an A record/);
   });
 
   it("offers the other ways one step away, each that can't be taken saying why", async () => {

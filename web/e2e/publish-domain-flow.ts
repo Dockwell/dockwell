@@ -226,6 +226,7 @@ export const flow: Flow = {
           "example.com",
           "--zones",
           "example.org",
+          "--every-project=false",
           "--projects",
           project,
           "--strict-zones",

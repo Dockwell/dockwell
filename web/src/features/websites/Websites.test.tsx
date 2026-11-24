@@ -16,6 +16,7 @@ import {
   FileType,
   HealthState,
   PlanAction,
+  type ProposeChangeRequest,
   Role,
   RouteWay,
   ServiceSchema,
@@ -1973,5 +1974,129 @@ describe("A website's other domains", () => {
     await waitFor(() => expect(asked).toHaveLength(1));
     expect(asked[0]?.domain).toBe("");
     expect(asked[0]?.website?.redirectFrom).toEqual(["www.example.com", "old-example.net"]);
+  });
+});
+
+describe("website domains in connected zones", () => {
+  const provider = { id: "dnp_1", name: "cloudflare", provider: "cloudflare", zones: ["example.org"], revision: 7n };
+
+  it.each([true, false])("shows why a connected zone cannot publish here (admin %s)", async (admin) => {
+    const user = userEvent.setup();
+    const proposed = vi.fn((_req: ProposeChangeRequest) => ({ change: planned }));
+    renderAt(
+      "/websites/prj_blog",
+      api([blog], {
+        ...(admin
+          ? {}
+          : {
+              auth: {
+                getAuthState: () =>
+                  authState({
+                    user: { ...mira, role: Role.VIEWER },
+                    grants: [{ role: Role.VIEWER }, { role: Role.ADMIN, projectId: blog.id }],
+                  }),
+              },
+            }),
+        domains: {
+          listDomains: () => ({ domains }),
+          listDnsProviders: () => ({ providers: [{ ...provider, provider: admin ? "cloudflare" : "" }] }),
+          checkDomain: (req) => ({
+            cloudflare: req.domain.endsWith(".example.org")
+              ? {
+                  state: CloudflareName.OUTSIDE_PROJECT,
+                  ...(admin ? { zone: "example.org", provider: "cloudflare" } : {}),
+                }
+              : undefined,
+          }),
+        },
+        changes: { proposeChange: proposed, watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    const add = await screen.findByRole("button", { name: "Send another domain here" });
+    await waitFor(() => expect(add).not.toHaveAttribute("aria-disabled", "true"));
+    await user.click(add);
+    const sheet = await screen.findByRole("dialog", { name: "Send another domain here" });
+    await user.type(within(sheet).getByLabelText("Domain"), "edge.example.org");
+    const use = "Use cloudflare here";
+    if (admin) {
+      await user.click(await within(sheet).findByRole("button", { name: use }));
+      await waitFor(() => expect(proposed).toHaveBeenCalled());
+      expect(proposed.mock.calls[0]?.[0].edits[0]).toMatchObject({
+        baseRevision: 7n,
+        spec: { kind: { case: "dnsProvider", value: { projects: ["prj_blog"] } } },
+      });
+    } else {
+      expect(await within(sheet).findByText(/An admin can give it access/)).toBeVisible();
+      expect(within(sheet).queryByRole("button", { name: use })).toBeNull();
+    }
+    expect(sheet).not.toHaveTextContent(/Make this record|Point an A record/);
+    expect(within(sheet).getByRole("button", { name: /Review plan/ })).toBeDisabled();
+  });
+
+  it("explains connected zones to a non-admin opening New website", async () => {
+    const user = userEvent.setup();
+    renderAt(
+      "/websites/new",
+      api([], {
+        auth: { getAuthState: () => authState({ user: { ...mira, role: Role.DEVELOPER } }) },
+        domains: {
+          listDomains: () => ({ domains: [] }),
+          listDnsProviders: () => ({ providers: [{ ...provider, provider: "" }] }),
+        },
+      }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "New website" });
+    await user.type(within(sheet).getByLabelText("Domain"), "edge.example.org");
+    expect(await within(sheet).findByText(/An admin can give it access/)).toBeVisible();
+    expect(within(sheet).queryByRole("button", { name: "Use cloudflare here" })).toBeNull();
+    expect(sheet).not.toHaveTextContent(/Make this record|Point an A record/);
+  });
+
+  it("sends the alias's chosen proxy in domainFront", async () => {
+    const user = userEvent.setup();
+    const asked: UpdateWebsiteRequest[] = [];
+    renderAt(
+      "/websites/prj_blog",
+      api([blog], {
+        websites: {
+          updateWebsite: (req) => {
+            asked.push(req);
+            return { change: planned };
+          },
+        },
+        domains: {
+          listDomains: () => ({ domains }),
+          listDnsProviders: () => ({ providers: [provider] }),
+          checkDomain: (req) => ({
+            cloudflare: req.domain.endsWith(".example.org")
+              ? {
+                  state: CloudflareName.FREE,
+                  provider: "cloudflare",
+                  zone: "example.org",
+                  way: RouteWay.FRONT,
+                  ways: [{ way: RouteWay.FRONT }],
+                }
+              : undefined,
+          }),
+        },
+        changes: { watchChange: feed<WatchChangeResponse>().stream },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "Send another domain here" }));
+    const sheet = await screen.findByRole("dialog", { name: "Send another domain here" });
+    await user.type(within(sheet).getByLabelText("Domain"), "edge.example.org");
+    await user.click(await within(sheet).findByRole("radio", { name: /Another proxy/ }));
+    const proxies = within(sheet).getByRole("textbox", { name: "What connects to this server" });
+    await user.type(proxies, "203.0.113.0/24");
+    await user.click(within(sheet).getByRole("button", { name: /Review plan/ }));
+    await waitFor(() => expect(asked).toHaveLength(1));
+    expect(asked[0]?.website?.redirectFrom).toEqual(["edge.example.org"]);
+    expect(asked[0]?.domain).toBe("");
+    expect(asked[0]?.domainFront).toMatchObject({
+      domain: "edge.example.org",
+      tls: "off",
+      trustedProxies: ["203.0.113.0/24"],
+      plainForAnyone: false,
+    });
   });
 });

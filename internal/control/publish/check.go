@@ -136,9 +136,10 @@ func readFor[T any](p *Publisher, t *target, key string, read func() (T, error))
 	return v.(T), nil //nolint:forcetypeassert // only read puts a value under key
 }
 
-// providerFor finds the most specific connected zone that serves the project, or a
-// matching zone outside its reach. With no project, an admin's new website can
-// use any provider's zone and add its project in the website's plan.
+// providerFor finds the most specific connected zone that covers the name.
+// Providers that hold that same zone are ranked by whether they serve the project.
+// With no project, an admin's new website can use any provider's zone and add
+// its project in the website's plan.
 func (p *Publisher) providerFor(ctx context.Context, project, name string) (provider, zone string, outside bool, err error) {
 	all, err := p.Providers.All(ctx)
 	if err != nil {
@@ -146,11 +147,8 @@ func (p *Publisher) providerFor(ctx context.Context, project, name string) (prov
 	}
 	for _, saved := range all {
 		unreached := project != "" && !dnsprovider.Serves(saved.Spec, project)
-		if provider != "" && !outside && unreached {
-			continue
-		}
 		for _, z := range saved.Spec.GetZones() {
-			if dnsprovider.Covers(z, name) && (outside && !unreached || len(z) > len(zone)) {
+			if dnsprovider.Covers(z, name) && (len(z) > len(zone) || z == zone && outside && !unreached) {
 				provider, zone, outside = saved.Name, z, unreached
 			}
 		}

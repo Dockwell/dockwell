@@ -11616,6 +11616,9 @@ msgstr "Check that you have another way in, such as your provider's console, bef
 msgid "Checks {domain} every minute"
 msgstr "Checks {domain} every minute"
 
+msgid "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
+msgstr "DNS records for {domains} stay in place. To edit those routes while they publish here, ask an admin to restore access. Certificates proved through this provider may stop renewing."
+
 #. placeholder {0}: server.serverName
 msgid "Deny everything else closes what no rule lets in on {0}"
 msgstr "Deny everything else closes what no rule lets in on {0}"
@@ -11628,6 +11631,9 @@ msgstr "Dependency links"
 
 msgid "Deploy {writtenBy} first, or restore a dump instead."
 msgstr "Deploy {writtenBy} first, or restore a dump instead."
+
+msgid "Developers can publish names in {zones} and prove the names they publish there by DNS."
+msgstr "Developers can publish names in {zones} and prove the names they publish there by DNS."
 
 msgid "Docker cleanup permanently removes the selected Docker artifacts"
 msgstr "Docker cleanup permanently removes the selected Docker artifacts"
@@ -11860,6 +11866,9 @@ msgstr "Moves {names} on, which an install of each can upgrade to."
 
 msgid "Name a network the proxy has to itself."
 msgstr "Name a network the proxy has to itself."
+
+msgid "New projects need an admin to add them before they can publish names through it."
+msgstr "New projects need an admin to add them before they can publish names through it."
 
 msgid "No backup is taken first"
 msgstr "No backup is taken first"
@@ -12336,6 +12345,12 @@ msgstr "{name} mounts {path}, inside {heldIn}, which {heldBy} can write."
 msgid "{name} moves back to {to} only if its data allows"
 msgstr "{name} moves back to {to} only if its data allows"
 
+msgid "{name} no longer serves every project"
+msgstr "{name} no longer serves every project"
+
+msgid "{name} no longer serves {project}"
+msgstr "{name} no longer serves {project}"
+
 msgid "{name} reaches the port {path} on {server}"
 msgstr "{name} reaches the port {path} on {server}"
 
@@ -12368,6 +12383,9 @@ msgstr "{name} sends a certificate's key for {path} to {server} for the first ti
 
 msgid "{name} sends the key of the shared certificate for {names} to {server} for the first time"
 msgstr "{name} sends the key of the shared certificate for {names} to {server} for the first time"
+
+msgid "{name} serves every project, including new ones"
+msgstr "{name} serves every project, including new ones"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
@@ -14551,6 +14569,9 @@ msgstr "Kept unless you paste one"
 
 msgid "Make a token at Cloudflare"
 msgstr "Make a token at Cloudflare"
+
+msgid "Pick a project, or serve every project."
+msgstr "Pick a project, or serve every project."
 
 msgid "Prove names by DNS through Cloudflare"
 msgstr "Prove names by DNS through Cloudflare"

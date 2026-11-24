@@ -440,6 +440,10 @@ func (p *Publisher) planRoute(ctx context.Context, r revision.PublishRoute, rule
 	return append(steps, removal...), nil
 }
 
+func outsideProject(provider, name string) error {
+	return fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. Ask an admin to add the project to the provider", provider, name)
+}
+
 // planWrites plans what a route publishes: its records, and its tunnel's rule.
 func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub *resourcev1.RoutePublish, written []store.CloudflareRecord, rules map[string]bool, inChange map[string]*resourcev1.Route, serving map[string]*resourcev1.DnsProvider) ([]resource.Step, map[string]bool, error) {
 	name := strings.ToLower(r.After.GetDomain())
@@ -461,7 +465,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 		spec = edited
 	}
 	if !dnsprovider.Serves(spec, project) {
-		return nil, nil, fmt.Errorf("the DNS provider %s doesn't serve this route's project, so %s can't be published through it. An admin adds the project to the provider", provider, name)
+		return nil, nil, outsideProject(provider, name)
 	}
 	saved.Spec = spec
 	t, err := p.targetFrom(ctx, saved, name)
@@ -535,7 +539,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			continue
 		}
 		switch {
-		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content:
+		case conflict == nil || conflict.Comment == comment && conflict.Type == d.Type && conflict.Content == d.Content && conflict.Proxied == d.Proxied:
 			// Free, or written for this route by a step a crash cut short, which
 			// writing finds and keeps. A record of Dockwell's of this type that's gone
 			// from there is written again, so it isn't removed as well.
@@ -558,7 +562,7 @@ func (p *Publisher) planWrites(ctx context.Context, r revision.PublishRoute, pub
 			base.Record.ID = conflict.ID
 			keep[conflict.ID] = true
 			steps = append(steps, step(r, resource.ActionUpdate, base))
-		case conflict.Type == d.Type && conflict.Content == d.Content:
+		case conflict.Type == d.Type && conflict.Content == d.Content && conflict.Proxied == d.Proxied:
 			// Made by hand, and pointing where Dockwell would: taken on, writing
 			// nothing, with consent.
 			if !consented(conflict.ID) {

@@ -151,7 +151,8 @@ func (e *Engine) keysWith(ctx context.Context, items []item) *keyContext {
 	k := e.keys(ctx)
 	for i := range items {
 		it := &items[i]
-		if p, ok := it.spec.(*resourcev1.DnsProvider); ok && p != nil {
+		if it.ref.Kind == dnsprovider.Kind {
+			p, _ := it.spec.(*resourcev1.DnsProvider)
 			k.providers[it.ref.Name] = p
 		}
 		if it.ref.Kind == scope.EnvironmentKind && it.id != "" {
@@ -162,13 +163,8 @@ func (e *Engine) keysWith(ctx context.Context, items []item) *keyContext {
 }
 
 // proven says whether a provider proves domain for project.
-func (k *keyContext) proven(domain, project string) bool {
-	for _, p := range k.providers {
-		if dnsprovider.Serves(p, project) && certificate.ZoneOf(p.GetZones(), domain) != "" {
-			return true
-		}
-	}
-	return false
+func (k *keyContext) proven(rt *resourcev1.Route, project string) bool {
+	return certificate.ProvingProvider(k.providers, rt.GetDomain(), project, certificate.RoutePublisher(rt)) != ""
 }
 
 // ownNames counts, for each server, the names its own certificate holds now: those
@@ -209,7 +205,7 @@ func (e *Engine) readOwnNames(ctx context.Context, tx *store.Tx, k *keyContext) 
 			project = env.Scope
 		}
 		k.projects[r.Scope] = project
-		if !k.proven(rt.GetDomain(), project) {
+		if !k.proven(rt, project) {
 			continue
 		}
 		placed, err := tx.Placement(ctx, r.ID, r.Revision)
@@ -257,7 +253,7 @@ func (e *Engine) keyFor(ctx context.Context, k *keyContext, rt *resourcev1.Route
 	if c, ok := certificate.Serving(k.shared, domain, project, server, e.controlServer, k.panels); ok {
 		holder, names = c.ID, c.Spec.GetDomains()
 	} else {
-		if !k.proven(domain, project) {
+		if !k.proven(rt, project) {
 			return nil, nil, fault.New(ErrInvalid, "%s is proven by DNS, and no DNS provider proves it for its project, so it can't get a certificate. "+
 				"Have an admin connect one whose zones hold it and that names the project, or prove it by HTTP", domain)
 		}
@@ -304,7 +300,7 @@ func (e *Engine) autoProof(ctx context.Context, k *keyContext, rt *resourcev1.Ro
 	default:
 		return "http", nil
 	}
-	if !k.proven(rt.GetDomain(), e.projectOf(ctx, k, ref.Scope)) {
+	if !k.proven(rt, e.projectOf(ctx, k, ref.Scope)) {
 		return "http", nil
 	}
 	return "dns", &Note{

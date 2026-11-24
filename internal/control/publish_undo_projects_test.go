@@ -4,6 +4,7 @@ package control
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"connectrpc.com/connect"
@@ -139,4 +140,43 @@ func TestAWebsiteAliasHasItsOwnWayIn(t *testing.T) {
 	})
 	spec.GetProxy().Port = 3001
 	update(nil)
+}
+
+func TestWebsiteDomainFrontRefusesAProviderOutsideItsProject(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		wc := websiteClient(s.b, s.b.origin)
+		spec := onPort3000()
+		made, err := wc.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+			Domain: "site.example.org", Website: spec,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := made.Msg.GetChange()
+		s.applied(t, ch)
+		var site string
+		for _, r := range ch.GetPlan().GetResources() {
+			if r.GetResource().GetKind() == "project" {
+				site = r.GetId()
+			}
+		}
+		if site == "" {
+			t.Fatal("the website has no project")
+		}
+		spec.RedirectFrom = []string{"site.example.com"}
+		before := len(s.cf.Calls())
+		_, err = wc.UpdateWebsite(t.Context(), connect.NewRequest(&dockwellv1.UpdateWebsiteRequest{
+			Id: site, Website: spec, DomainFront: &dockwellv1.WebsiteDomainFront{
+				Domain: "site.example.com", Tls: "off", TrustedProxies: []string{"127.0.0.1"}, Publish: throughWebOne(),
+			},
+		}))
+		if err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+			t.Fatalf("domainFront should be outside the provider's reach: %v", err)
+		}
+		if len(s.cf.Calls()) != before {
+			t.Fatalf("the website plan contacted Cloudflare: %v", s.cf.Calls()[before:])
+		}
+	})
 }
