@@ -2765,8 +2765,8 @@ msgstr "将 {wanted} 发送到 {name}"
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "将 {wanted} 发送到 {name}，并让 {followsApp} 指向它"
 
-msgid "Set {zone} to Full (strict)"
-msgstr "将 {zone} 设为完全（严格）"
+msgid "Set {checkedZone} to Full (strict)"
+msgstr "将 {checkedZone} 设为完全（严格）"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "<0>127.0.0.1</0> 上的隧道，用来识别访问者"
@@ -4718,6 +4718,12 @@ msgstr "Cloudflare 要求 Dockwell 稍候"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare 要求 Dockwell 稍候。将在 {at} 再次检查"
 
+msgid "Cloudflare doesn't serve this project"
+msgstr "Cloudflare 未向此项目开放"
+
+msgid "Cloudflare doesn't serve this project. An admin can give it access"
+msgstr "Cloudflare 未向此项目开放。管理员可以为此项目授权"
+
 msgid "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
 msgstr "Cloudflare 终止 HTTPS，隧道经 {reaches} 到达服务器"
 
@@ -4798,6 +4804,9 @@ msgstr "使用完全（严格）"
 
 msgid "Use {next}"
 msgstr "使用 {next}"
+
+msgid "Use {provider} here"
+msgstr "在此使用 {provider}"
 
 msgid "Use {under}"
 msgstr "使用 {under}"
@@ -8568,6 +8577,9 @@ msgstr "改为仅在服务器上"
 
 msgid "Only on the server, at its port"
 msgstr "仅在服务器上，通过它的端口访问"
+
+msgid "Set {zone} to Full (strict)"
+msgstr "将 {zone} 设为完全（严格）"
 
 msgid "Type the app's domain, or install it on the server alone."
 msgstr "请输入应用的域名，或仅在服务器上安装。"
@@ -14564,6 +14576,9 @@ msgstr "令牌错误"
 
 msgid "Zones"
 msgstr "区域"
+
+msgid "Use {name} in this project"
+msgstr "在此项目中使用 {name}"
 
 msgid "Both versions are below."
 msgstr "下方保留了两个版本。"
@@ -21636,14 +21651,30 @@ msgstr "S3 兼容存储"
 msgid "Says which record to make, then gets the certificate"
 msgstr "告诉你要添加哪条记录，然后获取证书"
 
+msgid "Serves every project"
+msgstr "服务所有项目"
+
+msgid "Serves no project"
+msgstr "未服务任何项目"
+
+msgid "Serves selected projects"
+msgstr "服务所选项目"
+
 msgid "Show {hidden} more"
 msgstr "再显示 {hidden} 条"
 
 msgid "Sign-in provider"
 msgstr "登录提供方"
 
+msgid "Use it for every project"
+msgstr "为所有项目启用"
+
 msgid "Use this login to publish reviewed images."
 msgstr "使用此登录凭据发布已审核的镜像。"
+
+#. placeholder {0}: p.name
+msgid "Use {0} for every project"
+msgstr "为所有项目启用 {0}"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "应用使用的值保存在<0>变量</0>中"

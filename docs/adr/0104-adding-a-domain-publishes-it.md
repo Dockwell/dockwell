@@ -175,7 +175,9 @@ When something is gone or changed:
 
 ### 5. Who may write at Cloudflare
 
-**Writes follow the provider's reach.** A route's `publish` is refused for a project the DNS provider doesn't name (ADR 0088's `projects`, ADR 0099's `reach`), whichever client sends it, a project-narrowed token included. The picker lists only those zones.
+**Writes follow the provider's reach.** A DNS provider can serve every project, including future projects, or the projects it names. The panel defaults new providers to every project. The `every_project` flag leaves `projects` compatible with existing revisions and clients. With the flag unset, an empty list still serves no project. An admin can grant access in Integrations or from an add-domain sheet, each through its own plan. A route's `publish` is refused outside that reach, whichever client sends it, a project-narrowed token included.
+
+The picker lists only zones the project can use. Checking a whole name in a connected zone outside the project's reach returns that state without reading Cloudflare. An admin also sees which provider and zone matched and can grant access to that project. Everyone else gets a prompt to ask an admin. For a new website, the site plan can grant its new project access to the selected provider. When adding or changing a name for an existing website, its plan can set the way in for that name. Other names keep their own ways in.
 
 **What each write needs:**
 

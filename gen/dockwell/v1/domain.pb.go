@@ -284,6 +284,8 @@ const (
 	// Cloudflare answered too many requests, so checks read nothing until
 	// checks_again, leaving the token's rate to renewals and plans.
 	CloudflareName_CLOUDFLARE_NAME_WAITING CloudflareName = 6
+	// A connected zone holds the supplied name, but none of its providers serve this project.
+	CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT CloudflareName = 7
 )
 
 // Enum value maps for CloudflareName.
@@ -296,6 +298,7 @@ var (
 		4: "CLOUDFLARE_NAME_PAST_CERTIFICATE",
 		5: "CLOUDFLARE_NAME_TAKE_ON",
 		6: "CLOUDFLARE_NAME_WAITING",
+		7: "CLOUDFLARE_NAME_OUTSIDE_PROJECT",
 	}
 	CloudflareName_value = map[string]int32{
 		"CLOUDFLARE_NAME_UNSPECIFIED":      0,
@@ -305,6 +308,7 @@ var (
 		"CLOUDFLARE_NAME_PAST_CERTIFICATE": 4,
 		"CLOUDFLARE_NAME_TAKE_ON":          5,
 		"CLOUDFLARE_NAME_WAITING":          6,
+		"CLOUDFLARE_NAME_OUTSIDE_PROJECT":  7,
 	}
 )
 
@@ -1469,7 +1473,11 @@ type DnsProviderInfo struct {
 	ManagedRecords int32 `protobuf:"varint,9,opt,name=managed_records,json=managedRecords,proto3" json:"managed_records,omitempty"`
 	// When Dockwell last read what it keeps at it, as the drift timer or Sync now
 	// does; unset before the first read: an admin's alone (#820).
-	ReadAt        *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
+	ReadAt *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
+	// Reaches every project, including future projects: an admin's alone.
+	EveryProject bool `protobuf:"varint,11,opt,name=every_project,json=everyProject,proto3" json:"every_project,omitempty"`
+	// The revision used for an edit based on this info: an admin's alone.
+	Revision      int64 `protobuf:"varint,12,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1572,6 +1580,20 @@ func (x *DnsProviderInfo) GetReadAt() *timestamppb.Timestamp {
 		return x.ReadAt
 	}
 	return nil
+}
+
+func (x *DnsProviderInfo) GetEveryProject() bool {
+	if x != nil {
+		return x.EveryProject
+	}
+	return false
+}
+
+func (x *DnsProviderInfo) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 // KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
@@ -2082,7 +2104,8 @@ type CheckDomainResponse struct {
 	// What Cloudflare holds at the name, and the ways in, where a connected DNS
 	// provider's zone holds it for the project, or, for an admin who names no project,
 	// as for a new website whose plan adds its project to the provider, where any
-	// provider's zone holds it. Unset otherwise (ADR 0104).
+	// provider's zone holds it. For a zone outside the project, only the state and,
+	// for admins, the provider and zone are returned. Unset for unconnected names (ADR 0104).
 	Cloudflare    *CloudflareCheck `protobuf:"bytes,4,opt,name=cloudflare,proto3" json:"cloudflare,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3640,7 +3663,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x16SyncDnsProviderRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"S\n" +
 	"\x17SyncDnsProviderResponse\x128\n" +
-	"\bprovider\x18\x01 \x01(\v2\x1c.dockwell.v1.DnsProviderInfoR\bprovider\"\xe2\x02\n" +
+	"\bprovider\x18\x01 \x01(\v2\x1c.dockwell.v1.DnsProviderInfoR\bprovider\"\xa3\x03\n" +
 	"\x0fDnsProviderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -3652,7 +3675,9 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\fstrict_zones\x18\b \x03(\tR\vstrictZones\x12'\n" +
 	"\x0fmanaged_records\x18\t \x01(\x05R\x0emanagedRecords\x123\n" +
 	"\aread_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\"\x9a\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\x12#\n" +
+	"\revery_project\x18\v \x01(\bR\feveryProject\x12\x1a\n" +
+	"\brevision\x18\f \x01(\x03R\brevision\"\x9a\x01\n" +
 	"\n" +
 	"KeptRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -3841,7 +3866,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x1aDNS_PROVIDER_STATE_REFUSED\x10\x02\x1a\x0f\xa2\xbb\x18\vWrong token\x126\n" +
 	"\x1dDNS_PROVIDER_STATE_CANT_WRITE\x10\x03\x1a\x13\xa2\xbb\x18\x0fCan't write DNS\x12@\n" +
 	"\x1eDNS_PROVIDER_STATE_UNREACHABLE\x10\x04\x1a\x1c\xa2\xbb\x18\x18Can't reach the provider\x12/\n" +
-	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\x8f\x03\n" +
+	"\x1aDNS_PROVIDER_STATE_REACHES\x10\x05\x1a\x0f\xa2\xbb\x18\vToken works*\xdf\x03\n" +
 	"\x0eCloudflareName\x12\x1f\n" +
 	"\x1bCLOUDFLARE_NAME_UNSPECIFIED\x10\x00\x120\n" +
 	"\x14CLOUDFLARE_NAME_FREE\x10\x01\x1a\x16\xa2\xbb\x18\x12Free at Cloudflare\x122\n" +
@@ -3849,7 +3874,8 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x14CLOUDFLARE_NAME_OURS\x10\x03\x1a\x15\xa2\xbb\x18\x11Already published\x12L\n" +
 	" CLOUDFLARE_NAME_PAST_CERTIFICATE\x10\x04\x1a&\xa2\xbb\x18\"Past Cloudflare's free certificate\x123\n" +
 	"\x17CLOUDFLARE_NAME_TAKE_ON\x10\x05\x1a\x16\xa2\xbb\x18\x12Made in Cloudflare\x12B\n" +
-	"\x17CLOUDFLARE_NAME_WAITING\x10\x06\x1a%\xa2\xbb\x18!Cloudflare asked Dockwell to wait*\xe5\x05\n" +
+	"\x17CLOUDFLARE_NAME_WAITING\x10\x06\x1a%\xa2\xbb\x18!Cloudflare asked Dockwell to wait\x12N\n" +
+	"\x1fCLOUDFLARE_NAME_OUTSIDE_PROJECT\x10\a\x1a)\xa2\xbb\x18%Cloudflare doesn't serve this project*\xe5\x05\n" +
 	"\x0ePublishedState\x12\x1f\n" +
 	"\x1bPUBLISHED_STATE_UNSPECIFIED\x10\x00\x12,\n" +
 	"\x19PUBLISHED_STATE_PUBLISHED\x10\x01\x1a\r\xa2\xbb\x18\tPublished\x12D\n" +

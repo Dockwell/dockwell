@@ -5,10 +5,10 @@ import type { RouteSchema, Server } from "@dockwell/api";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { type ReactNode, useId, useState } from "react";
 
-import { nameIn } from "../apps/AddDomainSheet";
 import { DomainRecord } from "../apps/DomainRecord";
 import { DomainName, NameState, WayIn } from "../apps/DomainStep";
 import {
+  nameIn,
   pickedOf,
   publicAddressOf,
   publishOf,
@@ -20,6 +20,7 @@ import {
   wayOf,
 } from "../apps/publish";
 import type { Opening } from "../changes/ChangeSheet";
+import { dnsProviderEdit } from "../dns/dns";
 import "../apps/Apps.css";
 import "./Catalog.css";
 
@@ -105,22 +106,7 @@ export function useInstallDomain({
     onPlan({
       kind: "propose",
       summary: t`Set ${zone} to Full (strict)`,
-      edits: [
-        {
-          resource: { kind: "dns.provider", name: p.name },
-          spec: {
-            kind: {
-              case: "dnsProvider",
-              value: {
-                provider: "cloudflare",
-                zones: p.zones,
-                projects: p.projects,
-                strictZones: [...new Set([...p.strictZones, zone])],
-              },
-            },
-          },
-        },
-      ],
+      edits: [dnsProviderEdit(p, { strictZones: [...new Set([...p.strictZones, zone])] })],
     });
   };
 

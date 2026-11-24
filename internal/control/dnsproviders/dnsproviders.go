@@ -100,11 +100,14 @@ func (p *Providers) All(ctx context.Context) ([]Saved, error) {
 // Info is a provider as anyone may see it: no token.
 type Info struct {
 	ID, Name, Provider string
+	Revision           int
 	Zones              []string
 	// TunnelTokenSet says it holds a second token, for tunnels alone.
 	TunnelTokenSet bool
 	// Projects are the projects it serves, by ID.
 	Projects []string
+	// EveryProject allows both current and future projects to use it.
+	EveryProject bool
 	// StrictZones are the zones it set to Full (strict).
 	StrictZones []string
 }
@@ -117,7 +120,7 @@ func (p *Providers) Shown(ctx context.Context) ([]Info, error) {
 	out := make([]Info, 0, len(all))
 	for i := range all {
 		s := &all[i]
-		out = append(out, Info{ID: s.ID, Name: s.Name, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones(), TunnelTokenSet: s.Spec.GetTunnelApiToken() != "", Projects: s.Spec.GetProjects(), StrictZones: s.Spec.GetStrictZones()})
+		out = append(out, Info{ID: s.ID, Name: s.Name, Revision: s.Revision, Provider: s.Spec.GetProvider(), Zones: s.Spec.GetZones(), TunnelTokenSet: s.Spec.GetTunnelApiToken() != "", Projects: s.Spec.GetProjects(), EveryProject: s.Spec.GetEveryProject(), StrictZones: s.Spec.GetStrictZones()})
 		s.Spec.ApiToken, s.Spec.TunnelApiToken = "", ""
 	}
 	return out, err

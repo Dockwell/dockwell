@@ -20,24 +20,27 @@ import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from "rea
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
-import { nameIn } from "../apps/AddDomainSheet";
 import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord } from "../apps/DomainRecord";
 import { DomainName, NameState, WayIn } from "../apps/DomainStep";
 import { formRefusal, proxyList, refusedField } from "../apps/domains";
 import { FrontFields, frontOf, type InFront } from "../apps/FrontFields";
 import {
+  nameIn,
   pickedOf,
   publicAddressOf,
   publishOf,
   routeOfWay,
+  subdomainOf,
   type TakeOverInit,
   useCloudflareCheck,
   useInstallAdmin,
   useZones,
   wayOf,
+  zoneOfName,
 } from "../apps/publish";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { dnsProviderEdit } from "../dns/dns";
 import { defaultServer } from "../servers/pick";
 import { type FleetState, useFleet, useFleetView } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "./Companion";
@@ -142,11 +145,12 @@ export function NewWebsiteSheet({
       ? ""
       : zonePicked !== undefined && (zonePicked === "" || zones.some((z) => z.zone === zonePicked))
         ? zonePicked
-        : (zones[0]?.zone ?? "");
-  const publishing = zone !== "";
+        : zoneOfName(zones, nameIn(domain, "")) || (domain.includes(".") ? "" : (zones[0]?.zone ?? ""));
   const typed = nameIn(domain, zone);
   const several = servers.length > 1;
-  const cf = useCloudflareCheck(serverOf(fleet, server)?.id ?? "", typed, "", publishing);
+  const publishing = zone !== "" || zoneOfName(zones, typed) !== "";
+  const cf = useCloudflareCheck(server, typed, "", publishing);
+  const manual = !publishing;
   const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
   const way =
     wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
@@ -163,25 +167,11 @@ export function NewWebsiteSheet({
   const toStrict = () => {
     if (!providerInfo) return;
     const p = providerInfo;
+    const checkedZone = cf.check?.zone || zone;
     setPlan({
       kind: "propose",
-      summary: t`Set ${zone} to Full (strict)`,
-      edits: [
-        {
-          resource: { kind: "dns.provider", name: p.name },
-          spec: {
-            kind: {
-              case: "dnsProvider",
-              value: {
-                provider: "cloudflare",
-                zones: p.zones,
-                projects: p.projects,
-                strictZones: [...new Set([...p.strictZones, zone])],
-              },
-            },
-          },
-        },
-      ],
+      summary: t`Set ${checkedZone} to Full (strict)`,
+      edits: [dnsProviderEdit(p, { strictZones: [...new Set([...p.strictZones, checkedZone])] })],
       retryLabel: t`Edit and try again`,
       onClose: () => {
         setPlan(undefined);
@@ -253,14 +243,12 @@ export function NewWebsiteSheet({
       revealError();
       return;
     }
-    // A name in a connected zone waits for the check, and a way that can't be taken says why.
-    // A name in a connected zone waits for the check, then plans the way it took; one
-    // that can't be taken, or a check Cloudflare couldn't answer, says why under the name.
-    if (publishing && cf.checking) {
+    // The check picks a way in or says why a connected zone can't be used.
+    if (cf.checking) {
       setWaiting(true);
       return;
     }
-    if (publishing && (cf.failed || (cf.check && !wayTakeable))) {
+    if (cf.failed || (publishing && !wayTakeable)) {
       setWaysOpen(false);
       return;
     }
@@ -384,19 +372,20 @@ export function NewWebsiteSheet({
         {zones.length > 0 ? (
           <DomainName
             field={field}
-            sub={domain}
+            sub={subdomainOf(domain, zone)}
             onSub={(value) => {
-              const low = value.trim().toLowerCase();
-              const into = zone !== "" ? zones.find((z) => low.endsWith(`.${z.zone}`)) : undefined;
-              const sub = into ? low.slice(0, -(into.zone.length + 1)) : value;
-              if (into) setZonePicked(into.zone);
+              const low = nameIn(value, "");
+              const into = zoneOfName(zones, low);
+              const sub = into ? subdomainOf(low, into) : value;
+              if (into || zone) setZonePicked(into || zone);
               setDomain(sub);
               setDomainError(undefined);
-              follow(nameIn(sub, into?.zone ?? zone));
+              follow(nameIn(sub, into || zone));
             }}
             zone={zone}
             onZone={(next) => {
-              const whole = next === "" && zone !== "" && domain.trim() !== "" ? typed : domain;
+              const whole =
+                next === "" && zone !== "" && domain.trim() !== "" ? typed : subdomainOf(domain, zone || next);
               setDomain(whole);
               setZonePicked(next);
               setWayPicked(undefined);
@@ -405,29 +394,7 @@ export function NewWebsiteSheet({
             }}
             zones={zones}
             error={domainError}
-          >
-            {publishing ? (
-              <NameState
-                check={cf.check}
-                checking={cf.checking}
-                domain={typed}
-                sub={domain.trim().toLowerCase()}
-                zone={zone}
-                companion={cf.companion}
-                companionOn={alsoCompanion}
-                onCompanion={() => setCompanionOpen(true)}
-                failed={cf.failed}
-                onAgain={cf.again}
-                takesOver={takesOver}
-                onTakesOver={(items) => setConsent({ domain: typed, items })}
-                onSub={(value) => {
-                  setDomain(value);
-                  setDomainError(undefined);
-                  follow(nameIn(value, zone));
-                }}
-              />
-            ) : null}
-          </DomainName>
+          ></DomainName>
         ) : (
           <TextField
             ref={field}
@@ -451,6 +418,28 @@ export function NewWebsiteSheet({
             }}
           />
         )}
+        {publishing || cf.checking || cf.failed ? (
+          <NameState
+            check={cf.check}
+            checking={cf.checking}
+            domain={typed}
+            sub={subdomainOf(typed, cf.check?.zone || zone)}
+            zone={cf.check?.zone || zone}
+            companion={cf.companion}
+            companionOn={alsoCompanion}
+            onCompanion={() => setCompanionOpen(true)}
+            failed={cf.failed}
+            onAgain={cf.again}
+            takesOver={takesOver}
+            onTakesOver={(items) => setConsent({ domain: typed, items })}
+            onSub={(value) => {
+              const next = zone || !cf.check?.zone ? value : nameIn(value, cf.check.zone);
+              setDomain(next);
+              setDomainError(undefined);
+              follow(nameIn(next, zone));
+            }}
+          />
+        ) : null}
         {publishing ? (
           <WayIn
             check={cf.check}
@@ -465,7 +454,7 @@ export function NewWebsiteSheet({
             onStrict={toStrict}
             onLeave={onClose}
           />
-        ) : (
+        ) : manual ? (
           <DomainRecord
             server={serverOf(fleet, server)}
             domain={typed}
@@ -473,9 +462,9 @@ export function NewWebsiteSheet({
             tunnelName={switchName}
             onLeave={onClose}
           />
-        )}
+        ) : null}
         {/* In a connected zone, the name's line says its other half, with Change one step away. */}
-        {!publishing || companionOpen ? (
+        {manual || companionOpen ? (
           <CompanionChoice
             server={serverOf(fleet, server)}
             read={companion}

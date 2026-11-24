@@ -4,8 +4,11 @@ import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
 import {
   type Change,
+  ChangeState,
+  CloudflareName,
   type CompanionCheck,
   DomainService,
+  RouteWay,
   type Server,
   type WebsiteInfo,
   WebsiteService,
@@ -13,15 +16,30 @@ import {
 import { Button, Callout, cx, Icon, PHONE_QUERY, Sheet, TextField, useMediaQuery } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { useTunnelSwitchName } from "../apps/DomainNote";
 import { DomainRecord, RecordRow, useSettled } from "../apps/DomainRecord";
+import { NameState, ProviderReach, WayIn } from "../apps/DomainStep";
 import { formRefusal } from "../apps/domains";
+import {
+  nameIn,
+  pickedOf,
+  publicAddressOf,
+  publishOf,
+  routeOfWay,
+  subdomainOf,
+  type TakeOverInit,
+  useCloudflareCheck,
+  useInstallAdmin,
+  wayOf,
+  zoneOfName,
+} from "../apps/publish";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { dnsProviderEdit, useDnsProviders, useProviderAccessPlan } from "../dns/dns";
 import { domainAdviceOf, forwardToOf } from "../servers/network";
 import "../apps/Apps.css";
 import "./Websites.css";
@@ -424,13 +442,61 @@ function DomainSheet({
   const [failure, setFailure] = useState<string>();
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  const typed = domain.trim().toLowerCase();
+  const typed = nameIn(domain, "");
+  const providers = useDnsProviders().data?.providers ?? [];
+  const connected =
+    zoneOfName(
+      providers.flatMap((p) => p.zones.map((zone) => ({ zone, provider: p.name }))),
+      typed,
+    ) !== "";
+  const cf = useCloudflareCheck(server?.id ?? "", typed, site.id, connected);
+  const outsideProject = cf.check?.state === CloudflareName.OUTSIDE_PROJECT;
+  const provider = providers.find((p) => p.name === cf.check?.provider && p.provider !== "");
+  const admin = useInstallAdmin();
+  const accessPlan = useProviderAccessPlan();
+  const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
+  const [waysOpen, setWaysOpen] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+  const [consent, setConsent] = useState<{ domain: string; items: TakeOverInit[] }>();
+  const takesOver = consent?.domain === typed ? consent.items : [];
+  const chosen =
+    wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
+  const wayAvailable = wayOf(cf.check, chosen.way, chosen.tunnel)?.off === "";
+  const zone = cf.check?.zone ?? "";
+  const useHere = () => {
+    if (!provider) return;
+    sheet.open(
+      accessPlan(provider, site.id, (change) => {
+        if (change?.state === ChangeState.APPLIED) cf.again();
+      }),
+    );
+  };
+  const toStrict = () => {
+    if (!provider || !zone) return;
+    sheet.open({
+      kind: "propose",
+      summary: t`Set ${zone} to Full (strict)`,
+      edits: [dnsProviderEdit(provider, { strictZones: [...new Set([...provider.strictZones, zone])] })],
+      onClose: cf.again,
+    });
+  };
   const main = site.domain;
   const list = site.spec?.redirectFrom ?? [];
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resume Review plan after the name is checked.
+  useEffect(() => {
+    if (!waiting || cf.checking) return;
+    setWaiting(false);
+    void submit();
+  }, [waiting, cf.checking]);
   const submit = async (event?: FormEvent) => {
     event?.preventDefault();
-    if (busy) return;
+    if (busy || outsideProject) return;
+    if (cf.checking) {
+      setWaiting(true);
+      return;
+    }
+    if (connected && !wayAvailable) return;
     if (typed === "" || /\s/.test(typed)) {
       setError(t`Name the domain, such as example.org.`);
       field.current?.focus();
@@ -444,6 +510,11 @@ function DomainSheet({
             summary: t`Move the website ${main} to ${typed}`,
             domain: typed,
           };
+    const route =
+      chosen.way === RouteWay.FRONT
+        ? { tls: "off", trustedProxies: ["127.0.0.1"] }
+        : routeOfWay(chosen.way, cf.check?.sslMode ?? "");
+    const publish = publishOf(chosen.way, chosen.tunnel, cf.check?.provider ?? "", takesOver);
     setBusy(true);
     let change: Change | undefined;
     try {
@@ -453,6 +524,9 @@ function DomainSheet({
           website: { serves: site.spec?.serves, redirectFrom: request.redirectFrom },
           summary: request.summary,
           ...("domain" in request ? { domain: request.domain } : {}),
+          ...(connected
+            ? { domainFront: { domain: typed, tls: route.tls, trustedProxies: route.trustedProxies, publish } }
+            : {}),
         })
       ).change;
     } catch (err) {
@@ -487,7 +561,8 @@ function DomainSheet({
           <Button
             variant="primary"
             size={phone ? "lg" : "md"}
-            loading={busy}
+            loading={busy || waiting}
+            disabled={outsideProject}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
           >
@@ -520,7 +595,40 @@ function DomainSheet({
             setError(undefined);
           }}
         />
-        <DomainRecord server={server} domain={typed} tunnel={tunnel} tunnelName={switchName} onLeave={onClose} />
+        {outsideProject ? (
+          <ProviderReach admin={admin} provider={provider?.name} onUse={useHere} />
+        ) : connected ? (
+          <>
+            <NameState
+              check={cf.check}
+              checking={cf.checking}
+              domain={typed}
+              sub={subdomainOf(typed, zone)}
+              zone={zone}
+              companion=""
+              failed={cf.failed}
+              onAgain={cf.again}
+              takesOver={takesOver}
+              onTakesOver={(items) => setConsent({ domain: typed, items })}
+              onSub={(sub) => setDomain(nameIn(sub, zone))}
+            />
+            <WayIn
+              check={cf.check}
+              way={chosen.way}
+              tunnel={chosen.tunnel}
+              onWay={(way, tunnel) => setWayPicked({ way, tunnel })}
+              open={waysOpen}
+              onOpen={setWaysOpen}
+              server={server?.name ?? ""}
+              address={publicAddressOf(server)}
+              admin={admin && provider !== undefined}
+              onStrict={toStrict}
+              onLeave={onClose}
+            />
+          </>
+        ) : (
+          <DomainRecord server={server} domain={typed} tunnel={tunnel} tunnelName={switchName} onLeave={onClose} />
+        )}
         {mode === "change" && !list.includes(main) ? (
           <label className="app-check">
             <input type="checkbox" checked={keepOld} onChange={(event) => setKeepOld(event.target.checked)} />

@@ -473,3 +473,56 @@ func TestDnsProvidersNarrowedToAProject(t *testing.T) {
 		}
 	})
 }
+
+func TestDNSProviderReachAndPublishing(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		s := newPublishStandOn(t, backend)
+		noProjects := s.provider(func(p *resourcev1.DnsProvider) { p.Projects = nil })
+		s.applied(t, propose(t, s.person, "Restrict access to Cloudflare", noProjects))
+		publish := s.published("wiki", "wiki.example.com")
+		before := len(s.cf.Calls())
+		if c := s.checkWiki(t, false); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "cloudflare" || c.GetZone() != "example.com" || len(c.GetWays()) != 0 {
+			t.Fatalf("admin's check for an unserved project: %v", c)
+		}
+		hold := aMember(t, s.f)
+		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+		if c := s.checkWiki(t, false); c.GetState() != dockwellv1.CloudflareName_CLOUDFLARE_NAME_OUTSIDE_PROJECT || c.GetProvider() != "" || c.GetZone() != "" || len(c.GetWays()) != 0 {
+			t.Fatalf("developer's check for an unserved project: %v", c)
+		}
+		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Publish wiki", Edits: []*dockwellv1.Edit{publish}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+			t.Fatalf("developer tried to publish through an unserved project: %v", err)
+		}
+		if n := len(s.cf.Calls()) - before; n != 0 {
+			t.Fatalf("checking and proposing a name outside reach read Cloudflare %d times", n)
+		}
+		hold(onInstall(store.RoleAdmin))
+		every := s.provider(func(p *resourcev1.DnsProvider) { p.Projects, p.EveryProject = nil, true })
+		s.applied(t, propose(t, s.person, "Use Cloudflare for every project", every))
+		if info := s.providerInfo(t); !info.GetEveryProject() || len(info.GetProjects()) != 0 {
+			t.Fatalf("admin's provider info: %v", info)
+		}
+		if !hasTunnelWay(s.checkWiki(t, false)) {
+			t.Fatal("a provider reaching every project offers no way through the tunnel")
+		}
+		if _, err := s.person.ProposeChange(t.Context(), connect.NewRequest(&dockwellv1.ProposeChangeRequest{Summary: "Restrict access and publish wiki", Edits: []*dockwellv1.Edit{noProjects, publish}})); err == nil || !strings.Contains(err.Error(), "doesn't serve this route's project") {
+			t.Fatalf("same plan narrowed provider reach and published anyway: %v", err)
+		}
+		s.applied(t, propose(t, s.person, "Publish wiki", publish))
+		// The first route writes the zone rule. A developer can then plan a second
+		// name through it without seeing the provider's reach.
+		hold(store.Grant{ProjectID: s.project, Role: store.RoleDeveloper})
+		dc := dockwellv1connect.NewDomainServiceClient(s.b, s.b.origin, connect.WithProtoJSON())
+		listed, err := dc.ListDnsProviders(t.Context(), connect.NewRequest(&dockwellv1.ListDnsProvidersRequest{ProjectId: s.project}))
+		if err != nil || len(listed.Msg.GetProviders()) != 1 || listed.Msg.GetProviders()[0].GetEveryProject() {
+			t.Fatalf("developer's provider list: %v %v", listed, err)
+		}
+		blog := propose(t, s.person, "Publish blog", s.published("blog", "blog.example.com"))
+		// This stand uses the protected production environment.
+		hold(onInstall(store.RoleAdmin))
+		s.applied(t, blog)
+		if got := s.cf.Records("example.com"); len(got) != 2 {
+			t.Fatalf("published records: %v", got)
+		}
+	})
+}

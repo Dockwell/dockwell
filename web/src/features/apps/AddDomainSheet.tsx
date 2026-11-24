@@ -7,6 +7,7 @@ import {
   type Change,
   ChangeService,
   ChangeState,
+  CloudflareName,
   type Domain,
   type DomainRoute,
   DomainService,
@@ -34,6 +35,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { reasonOf, sentence } from "../../lib/errors";
 import { onApple } from "../../lib/platform";
 import { type Opening, PlanView } from "../changes/ChangeSheet";
+import { dnsProviderEdit, useDnsProviders, useProviderAccessPlan } from "../dns/dns";
 import { type FleetState, useFleet } from "../servers/useFleet";
 import { CompanionChoice, useCompanion, useCompanionChoice } from "../websites/Companion";
 import { useWebsiteOfEnvironment } from "../websites/website";
@@ -41,7 +43,7 @@ import { appOf, environmentOf, nameOf } from "./app";
 import { appPortsOf, knownFor, usePortLabel, useServicePorts } from "./appPorts";
 import { useRouteTarget, useTunnelSwitchName } from "./DomainNote";
 import { DomainRecord } from "./DomainRecord";
-import { DomainName, NameState, StateLine, WayIn } from "./DomainStep";
+import { DomainName, NameState, ProviderReach, StateLine, WayIn } from "./DomainStep";
 import {
   formRefusal,
   freshRouteName,
@@ -56,15 +58,18 @@ import { validPort } from "./form";
 import { PortState } from "./PortState";
 import { routeAsItIs } from "./PrivateSheet";
 import {
+  nameIn,
   pickedOf,
   publicAddressOf,
   publishOf,
   routeOfWay,
+  subdomainOf,
   type TakeOverInit,
   useCloudflareCheck,
   useInstallAdmin,
   useZones,
   wayOf,
+  zoneOfName,
 } from "./publish";
 import { usePlaces } from "./useServices";
 
@@ -115,14 +120,6 @@ function portOf(service: ServiceInfo | undefined): string {
   if (service?.webPort) return String(service.webPort);
   const published = app?.ports[0]?.containerPort;
   return published ? String(published) : "80";
-}
-
-/** The whole name, from a subdomain and a zone: the zone itself where none is typed, and a name typed whole as it is. */
-export function nameIn(sub: string, zone: string): string {
-  const name = sub.trim().toLowerCase().replace(/\.+$/, "");
-  if (zone === "") return name;
-  if (name === "" || name === zone) return zone;
-  return name.endsWith(`.${zone}`) ? name : `${name}.${zone}`;
 }
 
 /** The server a route goes on: the one chosen, or the only one there is. */
@@ -189,14 +186,17 @@ export function AddDomainSheet({
   // Cloudflare is done for you; Another domain is typed whole and behaves as before (ADR 0104).
   const project = places.place(environment)?.scope ?? "";
   const { zones, providers } = useZones(start ? "" : project);
+  const allProviders = useDnsProviders(!start && project !== "").data?.providers ?? [];
+  const connectedZones = allProviders.flatMap((p) => p.zones.map((zone) => ({ zone, provider: p.name })));
+  const [domain, setDomain] = useState(start?.domain ?? named ?? "");
   const [zonePicked, setZonePicked] = useState<string>();
+  const matchedZone = zoneOfName(zones, nameIn(domain, ""));
   const zone =
     start || zones.length === 0
       ? ""
       : zonePicked !== undefined && (zonePicked === "" || zones.some((z) => z.zone === zonePicked))
         ? zonePicked
-        : (zones[0]?.zone ?? "");
-  const publishing = zone !== "";
+        : matchedZone || (domain.includes(".") ? "" : (zones[0]?.zone ?? ""));
   // A website's other domains are reached as its own is (ADR 0070): moving the site's
   // domain behind what's in front, or out, moves the redirects its list wrote with it.
   const websiteOf = useWebsiteOfEnvironment(start !== undefined);
@@ -222,17 +222,6 @@ export function AddDomainSheet({
   // What the Server field shows is what the plan sends: the one picked while it's a
   // choice there, or else the first, as the field shows it.
   const server = servers.some((s) => s.serverId === serverPicked) ? serverPicked : (servers[0]?.serverId ?? "");
-  const [domain, setDomain] = useState(start?.domain ?? named ?? "");
-  // A name given whole starts in its zone, as the subdomain under it, once the zones are read.
-  const placed = useRef(false);
-  if (named && !placed.current && zones.length > 0) {
-    placed.current = true;
-    const into = zones.find((z) => named === z.zone || named.endsWith(`.${z.zone}`));
-    if (into) {
-      setZonePicked(into.zone);
-      setDomain(named === into.zone ? "" : named.slice(0, -(into.zone.length + 1)));
-    }
-  }
   const [port, setPort] = useState(start?.port ?? portOf(service));
   // What you typed stays as you choose another app. What it started from follows.
   const portTyped = useRef(false);
@@ -287,7 +276,11 @@ export function AddDomainSheet({
   const typed = nameIn(domain, zone);
   // What the zone and the server's tunnels say of the name, and the way in it picks,
   // unless the person picked another that can still be taken.
-  const cf = useCloudflareCheck(serverOf(fleetServers, server)?.id ?? "", typed, project, publishing);
+  const connected = !start && (zone !== "" || zoneOfName(connectedZones, typed) !== "");
+  const cf = useCloudflareCheck(server, typed, project, !start && project !== "" && connected);
+  const outsideProject = cf.check?.state === CloudflareName.OUTSIDE_PROJECT;
+  const publishing = connected && !outsideProject;
+  const manual = !connected;
   const [wayPicked, setWayPicked] = useState<{ way: RouteWay; tunnel: string }>();
   const way =
     wayPicked && wayOf(cf.check, wayPicked.way, wayPicked.tunnel)?.off === "" ? wayPicked : pickedOf(cf.check);
@@ -300,7 +293,9 @@ export function AddDomainSheet({
   const takesOver = consent.domain === typed ? consent.items : [];
   const provider = cf.check?.provider || zones.find((z) => z.zone === zone)?.provider || "";
   const admin = useInstallAdmin();
-  const providerInfo = providers.find((p) => p.name === provider && p.provider !== "");
+  const providerInfo = (outsideProject ? allProviders : providers).find(
+    (p) => p.name === provider && p.provider !== "",
+  );
   // Published at Cloudflare: the way's route, and what it publishes. Anything else is
   // as it was, with what's in front said under Advanced.
   const publishes = publishing && cf.check !== undefined && wayTakeable && way.way !== RouteWay.FRONT;
@@ -363,29 +358,28 @@ export function AddDomainSheet({
     void submit();
   }, [waiting, cf.checking]);
 
+  const accessPlan = useProviderAccessPlan();
+  const useHere = () => {
+    if (!providerInfo || !project) return;
+    setPlan(
+      accessPlan(providerInfo, project, (change) => {
+        setPlan(undefined);
+        if (change?.state !== ChangeState.APPLIED) return;
+        setZonePicked(undefined);
+        cf.again();
+      }),
+    );
+  };
+
   /** Sets the zone to Full (strict) on its DNS provider's own plan, for an admin (ADR 0104, section 2). */
   const toStrict = () => {
     if (!providerInfo) return;
     const p = providerInfo;
+    const checkedZone = cf.check?.zone || zone;
     setPlan({
       kind: "propose",
-      summary: t`Set ${zone} to Full (strict)`,
-      edits: [
-        {
-          resource: { kind: "dns.provider", name: p.name },
-          spec: {
-            kind: {
-              case: "dnsProvider",
-              value: {
-                provider: "cloudflare",
-                zones: p.zones,
-                projects: p.projects,
-                strictZones: [...new Set([...p.strictZones, zone])],
-              },
-            },
-          },
-        },
-      ],
+      summary: t`Set ${checkedZone} to Full (strict)`,
+      edits: [dnsProviderEdit(p, { strictZones: [...new Set([...p.strictZones, checkedZone])] })],
       retryLabel: t`Edit and try again`,
       // Back here either way, with the check read again.
       onClose: () => {
@@ -431,7 +425,7 @@ export function AddDomainSheet({
     event?.preventDefault();
     if (busy) return;
     // A name in a connected zone waits for the check, which picks the way in.
-    if (publishing && cf.checking && typed !== "") {
+    if (cf.checking && typed !== "") {
       setWaiting(true);
       return;
     }
@@ -453,7 +447,7 @@ export function AddDomainSheet({
     // A way in that can't be taken says why, with what fixes it, under the name; so
     // does a check Cloudflare couldn't answer, with Check again. Neither plans a plain
     // route in a connected zone: Another domain is a person's own choice (the review's B-M1).
-    if (publishing && (cf.failed || (cf.check && !wayTakeable))) {
+    if (outsideProject || cf.failed || (publishing && !wayTakeable)) {
       setWaysOpen(false);
       return;
     }
@@ -664,6 +658,7 @@ export function AddDomainSheet({
             variant="primary"
             size={phone ? "lg" : "md"}
             loading={busy || waiting}
+            disabled={outsideProject}
             kbd={phone ? undefined : onApple() ? "⌘↵" : "Ctrl ↵"}
             onClick={() => void submit()}
           >
@@ -686,53 +681,28 @@ export function AddDomainSheet({
         {zones.length > 0 && !start ? (
           <DomainName
             field={field}
-            sub={domain}
+            sub={subdomainOf(domain, zone)}
             onSub={(value) => {
-              // A whole name typed or pasted in a connected zone picks that zone.
-              const low = value.trim().toLowerCase();
-              const into = zone !== "" ? zones.find((z) => low.endsWith(`.${z.zone}`)) : undefined;
-              if (into) {
-                setZonePicked(into.zone);
-                setDomain(low.slice(0, -(into.zone.length + 1)));
-              } else setDomain(value);
+              const low = nameIn(value, "");
+              const into = zoneOfName(zones, low);
+              if (into) setZonePicked(into);
+              else if (zoneOfName(connectedZones, low)) setZonePicked("");
+              else if (zone) setZonePicked(zone);
+              setDomain(into ? subdomainOf(low, into) : value);
               setDomainError(undefined);
             }}
             zone={zone}
             onZone={(next) => {
               // Another domain is typed whole: what's typed so far becomes the start of it.
               if (next === "" && zone !== "") setDomain(domain.trim() === "" ? "" : typed);
-              else if (next !== "" && zone === "")
-                setDomain(
-                  typed.endsWith(`.${next}`) ? typed.slice(0, -(next.length + 1)) : typed === next ? "" : domain,
-                );
+              else if (next !== "") setDomain(subdomainOf(domain, zone || next));
               setZonePicked(next);
               setWayPicked(undefined);
               setDomainError(undefined);
             }}
             zones={zones}
             error={domainError}
-          >
-            {publishing ? (
-              <NameState
-                check={cf.check}
-                checking={cf.checking}
-                domain={typed}
-                sub={domain.trim().toLowerCase()}
-                zone={zone}
-                companion={cf.companion}
-                companionOn={alsoCompanion}
-                onCompanion={() => setCompanionOpen(true)}
-                failed={cf.failed}
-                onAgain={cf.again}
-                takesOver={takesOver}
-                onTakesOver={(items) => setConsent({ domain: typed, items })}
-                onSub={(value) => {
-                  setDomain(value);
-                  setDomainError(undefined);
-                }}
-              />
-            ) : null}
-          </DomainName>
+          ></DomainName>
         ) : (
           <TextField
             ref={field}
@@ -745,11 +715,13 @@ export function AddDomainSheet({
             readOnly={start !== undefined}
             error={domainError}
             hint={
-              !noCertificate
-                ? t`Its certificate comes by itself once its DNS points here.`
-                : inFront === "anyone"
-                  ? t`Point its DNS at this server.`
-                  : t`Point its DNS at your tunnel or proxy.`
+              manual
+                ? !noCertificate
+                  ? t`Its certificate comes by itself once its DNS points here.`
+                  : inFront === "anyone"
+                    ? t`Point its DNS at this server.`
+                    : t`Point its DNS at your tunnel or proxy.`
+                : undefined
             }
             onChange={(event) => {
               setDomain(event.target.value);
@@ -757,6 +729,28 @@ export function AddDomainSheet({
             }}
           />
         )}
+        {outsideProject ? (
+          <ProviderReach admin={admin} provider={providerInfo?.name} onUse={useHere} />
+        ) : publishing || cf.checking || cf.failed ? (
+          <NameState
+            check={cf.check}
+            checking={cf.checking}
+            domain={typed}
+            sub={subdomainOf(typed, cf.check?.zone || zone)}
+            zone={cf.check?.zone || zone}
+            companion={cf.companion}
+            companionOn={alsoCompanion}
+            onCompanion={() => setCompanionOpen(true)}
+            failed={cf.failed}
+            onAgain={cf.again}
+            takesOver={takesOver}
+            onTakesOver={(items) => setConsent({ domain: typed, items })}
+            onSub={(value) => {
+              setDomain(zone || !cf.check?.zone ? value : nameIn(value, cf.check.zone));
+              setDomainError(undefined);
+            }}
+          />
+        ) : null}
         {offersRedirect ? (
           <fieldset className="app-front">
             <legend className="dw-field-label">
@@ -845,7 +839,7 @@ export function AddDomainSheet({
             onStrict={toStrict}
             onLeave={onClose}
           />
-        ) : (
+        ) : manual ? (
           <DomainRecord
             server={serverOf(fleet, server)}
             domain={typed}
@@ -853,9 +847,9 @@ export function AddDomainSheet({
             tunnelName={switchName}
             onLeave={onClose}
           />
-        )}
+        ) : null}
         {/* In a connected zone, the name's line says its other half, with Change one step away. */}
-        {!publishing || companionOpen ? (
+        {manual || companionOpen ? (
           <CompanionChoice
             server={serverOf(fleet, server)}
             read={companion}

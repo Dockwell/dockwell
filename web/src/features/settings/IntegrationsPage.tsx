@@ -40,7 +40,7 @@ import { useLastCheck } from "../connections/LastCheck";
 import { ConnectionMark, DestinationMark } from "../connections/ProviderMark";
 import { appsOf } from "../connections/storage";
 import { DnsProviderSheet } from "../dns/DnsProviderSheet";
-import { useDnsProviders } from "../dns/dns";
+import { dnsProviderEdit, useDnsProviders } from "../dns/dns";
 import { RegistryLoginSheet } from "../registries/RegistryLoginSheet";
 import {
   REGISTRY_NAMES,
@@ -733,23 +733,13 @@ function ProviderCard({
     sheet.open({
       kind: "propose",
       summary: t`Put the record for ${name} back at Cloudflare`,
-      edits: [
-        {
-          resource: { kind: "dns.provider", name: p.name },
-          spec: {
-            kind: {
-              case: "dnsProvider",
-              value: {
-                provider: p.provider || "cloudflare",
-                zones: p.zones,
-                projects: p.projects,
-                strictZones: p.strictZones,
-                putBack: [id],
-              },
-            },
-          },
-        },
-      ],
+      edits: [dnsProviderEdit(p, { putBack: [id] })],
+    });
+  const useEverywhere = () =>
+    sheet.open({
+      kind: "propose",
+      summary: t`Use ${p.name} for every project`,
+      edits: [dnsProviderEdit(p, { everyProject: true, projects: [] })],
     });
   return (
     <Card
@@ -765,6 +755,26 @@ function ProviderCard({
           <span className="integrations-sub">
             <code>{p.zones.join(", ")}</code>
           </span>
+          {p.provider ? (
+            p.everyProject || p.projects.length > 0 ? (
+              <span className="integrations-sub">
+                {p.everyProject ? t`Serves every project` : t`Serves selected projects`}
+              </span>
+            ) : (
+              <StateLine
+                status="unknown"
+                action={
+                  manage.disabled ? undefined : (
+                    <button type="button" className="domain-step-act" onClick={useEverywhere}>
+                      <Trans>Use it for every project</Trans>
+                    </button>
+                  )
+                }
+              >
+                <Trans>Serves no project</Trans>
+              </StateLine>
+            )
+          ) : null}
           {p.kept.length > 0 && !showKept ? (
             // The records it keeps are a line until asked for, so the card is as tall as the rest of its row.
             <StateLine

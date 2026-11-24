@@ -36,6 +36,21 @@ function Act({ onClick, children }: { onClick: () => void; children: ReactNode }
   );
 }
 
+/** A connected zone whose provider can't publish for this project yet. */
+export function ProviderReach({ admin, provider, onUse }: { admin: boolean; provider?: string; onUse: () => void }) {
+  const { t } = useLingui();
+  return (
+    <StateLine
+      status="degraded"
+      action={admin && provider ? <Act onClick={onUse}>{t`Use ${provider} here`}</Act> : undefined}
+    >
+      {admin
+        ? t`Cloudflare doesn't serve this project`
+        : t`Cloudflare doesn't serve this project. An admin can give it access`}
+    </StateLine>
+  );
+}
+
 /**
  * The name, as a subdomain and a zone a connected DNS provider writes in (ADR 0104,
  * section 1): `wiki` and `.example.com`, or a whole name typed under Another domain.

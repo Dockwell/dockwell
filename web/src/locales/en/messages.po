@@ -2765,8 +2765,8 @@ msgstr "Send {wanted} to {name}"
 msgid "Send {wanted} to {name}, and point {followsApp} at it"
 msgstr "Send {wanted} to {name}, and point {followsApp} at it"
 
-msgid "Set {zone} to Full (strict)"
-msgstr "Set {zone} to Full (strict)"
+msgid "Set {checkedZone} to Full (strict)"
+msgstr "Set {checkedZone} to Full (strict)"
 
 msgid "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
 msgstr "The tunnel on <0>127.0.0.1</0>, for who a visitor is"
@@ -4718,6 +4718,12 @@ msgstr "Cloudflare asked Dockwell to wait"
 msgid "Cloudflare asked Dockwell to wait. It checks again at {at}"
 msgstr "Cloudflare asked Dockwell to wait. It checks again at {at}"
 
+msgid "Cloudflare doesn't serve this project"
+msgstr "Cloudflare doesn't serve this project"
+
+msgid "Cloudflare doesn't serve this project. An admin can give it access"
+msgstr "Cloudflare doesn't serve this project. An admin can give it access"
+
 msgid "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
 msgstr "Cloudflare ends HTTPS, and the tunnel reaches the server at {reaches}"
 
@@ -4798,6 +4804,9 @@ msgstr "Use Full (strict)"
 
 msgid "Use {next}"
 msgstr "Use {next}"
+
+msgid "Use {provider} here"
+msgstr "Use {provider} here"
 
 msgid "Use {under}"
 msgstr "Use {under}"
@@ -8568,6 +8577,9 @@ msgstr "Only on the server instead"
 
 msgid "Only on the server, at its port"
 msgstr "Only on the server, at its port"
+
+msgid "Set {zone} to Full (strict)"
+msgstr "Set {zone} to Full (strict)"
 
 msgid "Type the app's domain, or install it on the server alone."
 msgstr "Type the app's domain, or install it on the server alone."
@@ -14564,6 +14576,9 @@ msgstr "Wrong token"
 
 msgid "Zones"
 msgstr "Zones"
+
+msgid "Use {name} in this project"
+msgstr "Use {name} in this project"
 
 msgid "Both versions are below."
 msgstr "Both versions are below."
@@ -21636,14 +21651,30 @@ msgstr "S3-compatible storage"
 msgid "Says which record to make, then gets the certificate"
 msgstr "Says which record to make, then gets the certificate"
 
+msgid "Serves every project"
+msgstr "Serves every project"
+
+msgid "Serves no project"
+msgstr "Serves no project"
+
+msgid "Serves selected projects"
+msgstr "Serves selected projects"
+
 msgid "Show {hidden} more"
 msgstr "Show {hidden} more"
 
 msgid "Sign-in provider"
 msgstr "Sign-in provider"
 
+msgid "Use it for every project"
+msgstr "Use it for every project"
+
 msgid "Use this login to publish reviewed images."
 msgstr "Use this login to publish reviewed images."
+
+#. placeholder {0}: p.name
+msgid "Use {0} for every project"
+msgstr "Use {0} for every project"
 
 msgid "Values your apps use live in <0>Variables</0>"
 msgstr "Values your apps use live in <0>Variables</0>"

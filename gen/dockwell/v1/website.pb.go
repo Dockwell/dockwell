@@ -863,7 +863,10 @@ type UpdateWebsiteRequest struct {
 	// Cloudflare (ADR 0104). Unset keeps how they're published now. Where the
 	// provider doesn't serve the website's project, the same change adds it, which
 	// takes an admin.
-	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,5,opt,name=publish,proto3" json:"publish,omitempty"`
+	Publish *v1alpha1.RoutePublish `protobuf:"bytes,5,opt,name=publish,proto3" json:"publish,omitempty"`
+	// Sets the way in for one of the website's domains. The other domains keep
+	// their own settings. Use either this or publish.
+	DomainFront   *WebsiteDomainFront `protobuf:"bytes,6,opt,name=domain_front,json=domainFront,proto3" json:"domain_front,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -933,6 +936,86 @@ func (x *UpdateWebsiteRequest) GetPublish() *v1alpha1.RoutePublish {
 	return nil
 }
 
+func (x *UpdateWebsiteRequest) GetDomainFront() *WebsiteDomainFront {
+	if x != nil {
+		return x.DomainFront
+	}
+	return nil
+}
+
+// WebsiteDomainFront is how traffic reaches one of a website's domains.
+type WebsiteDomainFront struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The website's main domain or a name in redirect_from.
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Empty gives this server its own certificate, "off" lets a proxy end HTTPS.
+	Tls string `protobuf:"bytes,2,opt,name=tls,proto3" json:"tls,omitempty"`
+	// The proxies the route trusts to tell it where a visitor came from.
+	TrustedProxies []string `protobuf:"bytes,3,rep,name=trusted_proxies,json=trustedProxies,proto3" json:"trusted_proxies,omitempty"`
+	// How Dockwell publishes the name. Unset leaves publishing to what's in front.
+	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,4,opt,name=publish,proto3" json:"publish,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebsiteDomainFront) Reset() {
+	*x = WebsiteDomainFront{}
+	mi := &file_dockwell_v1_website_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebsiteDomainFront) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebsiteDomainFront) ProtoMessage() {}
+
+func (x *WebsiteDomainFront) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_website_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebsiteDomainFront.ProtoReflect.Descriptor instead.
+func (*WebsiteDomainFront) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *WebsiteDomainFront) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *WebsiteDomainFront) GetTls() string {
+	if x != nil {
+		return x.Tls
+	}
+	return ""
+}
+
+func (x *WebsiteDomainFront) GetTrustedProxies() []string {
+	if x != nil {
+		return x.TrustedProxies
+	}
+	return nil
+}
+
+func (x *WebsiteDomainFront) GetPublish() *v1alpha1.RoutePublish {
+	if x != nil {
+		return x.Publish
+	}
+	return nil
+}
+
 // UpdateWebsiteResponse carries the planned change.
 type UpdateWebsiteResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -944,7 +1027,7 @@ type UpdateWebsiteResponse struct {
 
 func (x *UpdateWebsiteResponse) Reset() {
 	*x = UpdateWebsiteResponse{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[12]
+	mi := &file_dockwell_v1_website_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -956,7 +1039,7 @@ func (x *UpdateWebsiteResponse) String() string {
 func (*UpdateWebsiteResponse) ProtoMessage() {}
 
 func (x *UpdateWebsiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[12]
+	mi := &file_dockwell_v1_website_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -969,7 +1052,7 @@ func (x *UpdateWebsiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWebsiteResponse.ProtoReflect.Descriptor instead.
 func (*UpdateWebsiteResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{12}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateWebsiteResponse) GetChange() *Change {
@@ -992,7 +1075,7 @@ type DeleteWebsiteRequest struct {
 
 func (x *DeleteWebsiteRequest) Reset() {
 	*x = DeleteWebsiteRequest{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[13]
+	mi := &file_dockwell_v1_website_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1004,7 +1087,7 @@ func (x *DeleteWebsiteRequest) String() string {
 func (*DeleteWebsiteRequest) ProtoMessage() {}
 
 func (x *DeleteWebsiteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[13]
+	mi := &file_dockwell_v1_website_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1017,7 +1100,7 @@ func (x *DeleteWebsiteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWebsiteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWebsiteRequest) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{13}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *DeleteWebsiteRequest) GetId() string {
@@ -1045,7 +1128,7 @@ type DeleteWebsiteResponse struct {
 
 func (x *DeleteWebsiteResponse) Reset() {
 	*x = DeleteWebsiteResponse{}
-	mi := &file_dockwell_v1_website_proto_msgTypes[14]
+	mi := &file_dockwell_v1_website_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1057,7 +1140,7 @@ func (x *DeleteWebsiteResponse) String() string {
 func (*DeleteWebsiteResponse) ProtoMessage() {}
 
 func (x *DeleteWebsiteResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_dockwell_v1_website_proto_msgTypes[14]
+	mi := &file_dockwell_v1_website_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1070,7 +1153,7 @@ func (x *DeleteWebsiteResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWebsiteResponse.ProtoReflect.Descriptor instead.
 func (*DeleteWebsiteResponse) Descriptor() ([]byte, []int) {
-	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{14}
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteWebsiteResponse) GetChange() *Change {
@@ -1146,13 +1229,19 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\asummary\x18\a \x01(\tR\asummary\x12B\n" +
 	"\apublish\x18\b \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"D\n" +
 	"\x15CreateWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xdb\x01\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9f\x02\n" +
 	"\x14UpdateWebsiteRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12=\n" +
 	"\awebsite\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12B\n" +
-	"\apublish\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"D\n" +
+	"\apublish\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12B\n" +
+	"\fdomain_front\x18\x06 \x01(\v2\x1f.dockwell.v1.WebsiteDomainFrontR\vdomainFront\"\xab\x01\n" +
+	"\x12WebsiteDomainFront\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
+	"\x03tls\x18\x02 \x01(\tR\x03tls\x12'\n" +
+	"\x0ftrusted_proxies\x18\x03 \x03(\tR\x0etrustedProxies\x12B\n" +
+	"\apublish\x18\x04 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"D\n" +
 	"\x15UpdateWebsiteResponse\x12+\n" +
 	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"@\n" +
 	"\x14DeleteWebsiteRequest\x12\x0e\n" +
@@ -1182,7 +1271,7 @@ func file_dockwell_v1_website_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_website_proto_rawDescData
 }
 
-var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_dockwell_v1_website_proto_goTypes = []any{
 	(*WebsiteReach)(nil),                // 0: dockwell.v1.WebsiteReach
 	(*ListWebsitesRequest)(nil),         // 1: dockwell.v1.ListWebsitesRequest
@@ -1196,47 +1285,50 @@ var file_dockwell_v1_website_proto_goTypes = []any{
 	(*CreateWebsiteRequest)(nil),        // 9: dockwell.v1.CreateWebsiteRequest
 	(*CreateWebsiteResponse)(nil),       // 10: dockwell.v1.CreateWebsiteResponse
 	(*UpdateWebsiteRequest)(nil),        // 11: dockwell.v1.UpdateWebsiteRequest
-	(*UpdateWebsiteResponse)(nil),       // 12: dockwell.v1.UpdateWebsiteResponse
-	(*DeleteWebsiteRequest)(nil),        // 13: dockwell.v1.DeleteWebsiteRequest
-	(*DeleteWebsiteResponse)(nil),       // 14: dockwell.v1.DeleteWebsiteResponse
-	(*timestamppb.Timestamp)(nil),       // 15: google.protobuf.Timestamp
-	(*v1alpha1.Website)(nil),            // 16: dockwell.resource.v1alpha1.Website
-	(*v1alpha1.RoutePublish)(nil),       // 17: dockwell.resource.v1alpha1.RoutePublish
-	(*Change)(nil),                      // 18: dockwell.v1.Change
+	(*WebsiteDomainFront)(nil),          // 12: dockwell.v1.WebsiteDomainFront
+	(*UpdateWebsiteResponse)(nil),       // 13: dockwell.v1.UpdateWebsiteResponse
+	(*DeleteWebsiteRequest)(nil),        // 14: dockwell.v1.DeleteWebsiteRequest
+	(*DeleteWebsiteResponse)(nil),       // 15: dockwell.v1.DeleteWebsiteResponse
+	(*timestamppb.Timestamp)(nil),       // 16: google.protobuf.Timestamp
+	(*v1alpha1.Website)(nil),            // 17: dockwell.resource.v1alpha1.Website
+	(*v1alpha1.RoutePublish)(nil),       // 18: dockwell.resource.v1alpha1.RoutePublish
+	(*Change)(nil),                      // 19: dockwell.v1.Change
 }
 var file_dockwell_v1_website_proto_depIdxs = []int32{
-	15, // 0: dockwell.v1.WebsiteReach.check_time:type_name -> google.protobuf.Timestamp
+	16, // 0: dockwell.v1.WebsiteReach.check_time:type_name -> google.protobuf.Timestamp
 	3,  // 1: dockwell.v1.ListWebsitesResponse.websites:type_name -> dockwell.v1.WebsiteInfo
-	16, // 2: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
-	15, // 3: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
+	17, // 2: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
+	16, // 3: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
 	0,  // 4: dockwell.v1.WebsiteInfo.reach:type_name -> dockwell.v1.WebsiteReach
 	6,  // 5: dockwell.v1.ListWebsiteRuntimesResponse.runtimes:type_name -> dockwell.v1.WebsiteRuntime
-	16, // 6: dockwell.v1.PreviewWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	16, // 7: dockwell.v1.PreviewWebsiteResponse.website:type_name -> dockwell.resource.v1alpha1.Website
-	16, // 8: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	17, // 9: dockwell.v1.CreateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	18, // 10: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	16, // 11: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	17, // 12: dockwell.v1.UpdateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	18, // 13: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	18, // 14: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
-	1,  // 15: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
-	4,  // 16: dockwell.v1.WebsiteService.ListWebsiteRuntimes:input_type -> dockwell.v1.ListWebsiteRuntimesRequest
-	7,  // 17: dockwell.v1.WebsiteService.PreviewWebsite:input_type -> dockwell.v1.PreviewWebsiteRequest
-	9,  // 18: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
-	11, // 19: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
-	13, // 20: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
-	2,  // 21: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
-	5,  // 22: dockwell.v1.WebsiteService.ListWebsiteRuntimes:output_type -> dockwell.v1.ListWebsiteRuntimesResponse
-	8,  // 23: dockwell.v1.WebsiteService.PreviewWebsite:output_type -> dockwell.v1.PreviewWebsiteResponse
-	10, // 24: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
-	12, // 25: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
-	14, // 26: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	17, // 6: dockwell.v1.PreviewWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	17, // 7: dockwell.v1.PreviewWebsiteResponse.website:type_name -> dockwell.resource.v1alpha1.Website
+	17, // 8: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	18, // 9: dockwell.v1.CreateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	19, // 10: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	17, // 11: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	18, // 12: dockwell.v1.UpdateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	12, // 13: dockwell.v1.UpdateWebsiteRequest.domain_front:type_name -> dockwell.v1.WebsiteDomainFront
+	18, // 14: dockwell.v1.WebsiteDomainFront.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	19, // 15: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	19, // 16: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
+	1,  // 17: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
+	4,  // 18: dockwell.v1.WebsiteService.ListWebsiteRuntimes:input_type -> dockwell.v1.ListWebsiteRuntimesRequest
+	7,  // 19: dockwell.v1.WebsiteService.PreviewWebsite:input_type -> dockwell.v1.PreviewWebsiteRequest
+	9,  // 20: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
+	11, // 21: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
+	14, // 22: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
+	2,  // 23: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
+	5,  // 24: dockwell.v1.WebsiteService.ListWebsiteRuntimes:output_type -> dockwell.v1.ListWebsiteRuntimesResponse
+	8,  // 25: dockwell.v1.WebsiteService.PreviewWebsite:output_type -> dockwell.v1.PreviewWebsiteResponse
+	10, // 26: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
+	13, // 27: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
+	15, // 28: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
+	23, // [23:29] is the sub-list for method output_type
+	17, // [17:23] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_website_proto_init() }
@@ -1252,7 +1344,7 @@ func file_dockwell_v1_website_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_website_proto_rawDesc), len(file_dockwell_v1_website_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

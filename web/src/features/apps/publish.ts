@@ -47,6 +47,26 @@ export function useZones(project: string, install = false): { zones: Zone[]; pro
   return { zones: zones.filter((z, i) => zones.findIndex((o) => o.zone === z.zone) === i), providers };
 }
 
+/** The most specific connected zone holding a whole name. */
+export function zoneOfName(zones: readonly Zone[], name: string): string {
+  return zones.reduce(
+    (best, { zone }) => (zone.length > best.length && (name === zone || name.endsWith(`.${zone}`)) ? zone : best),
+    "",
+  );
+}
+
+/** The whole name, with the zone itself when the subdomain is empty. */
+export function nameIn(sub: string, zone: string): string {
+  const name = sub.trim().toLowerCase().replace(/\.+$/, "");
+  if (!zone || name === zone || name.endsWith(`.${zone}`)) return name;
+  return name ? `${name}.${zone}` : zone;
+}
+
+export function subdomainOf(name: string, zone: string): string {
+  if (!zone) return name;
+  return name === zone ? "" : name.endsWith(`.${zone}`) ? name.slice(0, -(zone.length + 1)) : name;
+}
+
 /** A server's public address, as a record would point at it, or "". */
 export function publicAddressOf(server: Server | undefined): string {
   return server?.network?.ipv4?.address || server?.network?.ipv6?.address || "";
@@ -81,10 +101,11 @@ export function useCloudflareCheck(server: string, domain: string, project: stri
   const queryClient = useQueryClient();
   const allowed = useMay()(DomainService.method.checkDomain).allowed;
   const input = { serverId: server, domain: asked, projectId: project, ...(project === "" ? { publish: {} } : {}) };
-  const enabled = on && allowed && server !== "" && asked !== "";
+  const canCheck = on && allowed && server !== "" && domain.includes(".") && !/\s/.test(domain);
+  const enabled = canCheck && asked !== "";
   const read = useQuery(DomainService.method.checkDomain, input, { enabled, retry: false });
   const [reading, setReading] = useState(false);
-  const fresh = on && asked !== "" && asked === domain;
+  const fresh = enabled && asked === domain;
   const cf = fresh ? read.data?.cloudflare : undefined;
   let failed = "";
   if (fresh && !read.isFetching && !reading) {
@@ -96,7 +117,7 @@ export function useCloudflareCheck(server: string, domain: string, project: stri
   return {
     check: cf && (cf.state !== CloudflareName.UNSPECIFIED || cf.ways.length > 0) ? cf : undefined,
     companion: fresh ? (read.data?.companion ?? "") : "",
-    checking: on && (read.isFetching || reading || asked !== domain),
+    checking: canCheck && (read.isPending || read.isFetching || reading || asked !== domain),
     failed,
     again: () => {
       if (!enabled) return;

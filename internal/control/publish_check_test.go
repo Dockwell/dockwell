@@ -153,3 +153,21 @@ func TestATunnelWayAndItsRecordReadInWords(t *testing.T) {
 		t.Fatalf("the record's words: %v", providerSteps(ch))
 	}
 }
+
+func TestCheckOffersTunnelEditForAReadOnlyTunnelToken(t *testing.T) {
+	t.Parallel()
+	s := newPublishStand(t)
+	token := s.cf.Tokens[dnsToken]
+	token.Rights = []string{"Zone Read", "DNS Write", "Cloudflare Tunnel Read", "Account API Tokens Read"}
+	s.cf.Tokens[dnsToken] = token
+	c := s.checkWiki(t, false)
+	if c.GetWay() != resourcev1.RouteWay_ROUTE_WAY_FRONT {
+		t.Fatalf("a token that can't add the zone rule picked %v", c.GetWay())
+	}
+	for _, w := range c.GetWays() {
+		if w.GetWay() == resourcev1.RouteWay_ROUTE_WAY_SERVER_TUNNEL && w.GetAction() == "Add it to this token" && w.GetActionUrl() != "" {
+			return
+		}
+	}
+	t.Fatalf("no inline action to grant tunnel edit on the token: %v", c)
+}

@@ -9,13 +9,14 @@ import {
   DnsProviderState,
   DomainService,
 } from "@dockwell/api";
-import { Advanced, Button, Callout, Sheet, StatusBadge, TextField } from "@dockwell/ui";
+import { Advanced, Button, Callout, Sheet, StatusBadge, Switch, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { useMay } from "../auth/may";
 import { useChangeSheet } from "../changes/ChangeSheet";
+import { useAllResources } from "../projects/useProjects";
 import { CLOUDFLARE_TOKENS, freeProviderName } from "./dns";
 import "./Dns.css";
 
@@ -49,6 +50,12 @@ export function DnsProviderSheet({
   const client = useMemo(() => createClient(DomainService, transport), [transport]);
   const sheet = useChangeSheet();
 
+  const resources = useAllResources();
+  const projects = (resources.data ?? [])
+    .filter((r) => r.resource?.kind === "project")
+    .map((r) => ({ id: r.id, label: r.displayName || r.resource?.name || r.id }));
+  const [everyProject, setEveryProject] = useState(editing?.everyProject ?? true);
+  const [selected, setSelected] = useState(editing?.projects ?? []);
   const [token, setToken] = useState("");
   // The zones picked, once the check has said which the token reaches: the only one
   // it reaches, or none of several, as a check writes in each one picked; until
@@ -99,8 +106,12 @@ export function DnsProviderSheet({
 
   const zones = picked ?? [];
   const writes = answer?.state === DnsProviderState.WRITES && !checking;
-  const changed = editing ? token !== "" || zones.join() !== editing.zones.join() : true;
-  const ready = writes && zones.length > 0 && changed;
+  const namedProjects = everyProject ? [] : selected;
+  const reachChanged =
+    editing !== undefined &&
+    (everyProject !== editing.everyProject || namedProjects.join() !== editing.projects.join());
+  const providerChanged = !editing || token !== "" || zones.join() !== editing.zones.join();
+  const ready = zones.length > 0 && (providerChanged ? writes : reachChanged);
   const offered = [...new Set([...(answer?.reaches ?? []), ...(editing?.zones ?? [])])].sort();
   // The token reaches more than it's used for, whether or not it has written yet.
   const good = answer?.state === DnsProviderState.WRITES || answer?.state === DnsProviderState.REACHES;
@@ -113,8 +124,8 @@ export function DnsProviderSheet({
       edits: [
         {
           resource: { kind: "dns.provider", name },
-          // An edit is the whole spec, so the projects it serves and the zones it set to
-          // Full (strict) go back as they are, a zone it no longer writes in aside.
+          baseRevision: editing?.revision,
+          // An edit is the whole spec, including each zone still set to Full (strict).
           spec: {
             kind: {
               case: "dnsProvider",
@@ -122,7 +133,8 @@ export function DnsProviderSheet({
                 provider: "cloudflare",
                 zones,
                 apiToken: token,
-                projects: editing?.projects ?? [],
+                projects: namedProjects,
+                everyProject,
                 strictZones: (editing?.strictZones ?? []).filter((z) => zones.includes(z)),
               },
             },
@@ -137,7 +149,7 @@ export function DnsProviderSheet({
     sheet.open({
       kind: "propose",
       summary: t`Remove the DNS provider ${name}`,
-      edits: [{ resource: { kind: "dns.provider", name }, delete: true }],
+      edits: [{ resource: { kind: "dns.provider", name }, baseRevision: editing?.revision, delete: true }],
       onClose: (change) => {
         if (change) onClose();
       },
@@ -238,6 +250,24 @@ export function DnsProviderSheet({
                 />
                 <span>{zone}</span>
                 {zoneSaid(zone) ? <span className="dns-zone-said">{zoneSaid(zone)}</span> : null}
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
+        <Switch checked={!everyProject} onChange={(on) => setEveryProject(!on)} label={t`Only some projects`} />
+        {!everyProject ? (
+          <fieldset className="dns-zones">
+            <legend>{t`Projects`}</legend>
+            {projects.map(({ id, label }) => (
+              <label key={id} className="dns-zone">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(id)}
+                  onChange={(event) =>
+                    setSelected(event.target.checked ? [...selected, id] : selected.filter((p) => p !== id))
+                  }
+                />
+                <span>{label}</span>
               </label>
             ))}
           </fieldset>

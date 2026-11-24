@@ -306,6 +306,10 @@ message DnsProviderInfo {
   // When Dockwell last read what it keeps at it, as the drift timer or Sync now
   // does; unset before the first read: an admin's alone (#820).
   google.protobuf.Timestamp read_at = 10;
+  // Reaches every project, including future projects: an admin's alone.
+  bool every_project = 11;
+  // The revision used for an edit based on this info: an admin's alone.
+  int64 revision = 12;
 }
 
 // KeptRecord is a copy of a record made by hand that Dockwell keeps (ADR 0104).
@@ -455,7 +459,8 @@ message CheckDomainResponse {
   // What Cloudflare holds at the name, and the ways in, where a connected DNS
   // provider's zone holds it for the project, or, for an admin who names no project,
   // as for a new website whose plan adds its project to the provider, where any
-  // provider's zone holds it. Unset otherwise (ADR 0104).
+  // provider's zone holds it. For a zone outside the project, only the state and,
+  // for admins, the provider and zone are returned. Unset for unconnected names (ADR 0104).
   CloudflareCheck cloudflare = 4;
 }
 
@@ -528,6 +533,8 @@ enum CloudflareName {
   // Cloudflare answered too many requests, so checks read nothing until
   // checks_again, leaving the token's rate to renewals and plans.
   CLOUDFLARE_NAME_WAITING = 6 [(dockwell.v1.word) = "Cloudflare asked Dockwell to wait"];
+  // A connected zone holds the supplied name, but none of its providers serve this project.
+  CLOUDFLARE_NAME_OUTSIDE_PROJECT = 7 [(dockwell.v1.word) = "Cloudflare doesn't serve this project"];
 }
 
 // WayOption is one way in for a domain, and whether it can be taken now.

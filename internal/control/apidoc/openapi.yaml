@@ -13435,7 +13435,8 @@ components:
                         What Cloudflare holds at the name, and the ways in, where a connected DNS
                          provider's zone holds it for the project, or, for an admin who names no project,
                          as for a new website whose plan adds its project to the provider, where any
-                         provider's zone holds it. Unset otherwise (ADR 0104).
+                         provider's zone holds it. For a zone outside the project, only the state and,
+                         for admins, the provider and zone are returned. Unset for unconnected names (ADR 0104).
             description: CheckDomainResponse says what DNS says of it.
         CheckInviteRequest:
             type: object
@@ -13755,6 +13756,7 @@ components:
                         - CLOUDFLARE_NAME_PAST_CERTIFICATE
                         - CLOUDFLARE_NAME_TAKE_ON
                         - CLOUDFLARE_NAME_WAITING
+                        - CLOUDFLARE_NAME_OUTSIDE_PROJECT
                     type: string
                     description: What's at the name.
                     format: enum
@@ -16263,8 +16265,8 @@ components:
                     items:
                         type: string
                     description: |-
-                        The projects whose routes' names it proves, by ID. Empty is none: proving a
-                         name by DNS works wherever it points, so an admin says which projects may.
+                        The projects whose routes it proves and publishes names for, by ID. Empty
+                         reaches none unless every_project is set.
                 tunnelApiToken:
                     type: string
                     description: |-
@@ -16298,6 +16300,9 @@ components:
                          name holds a record now isn't put back, and the plan says so; nothing is
                          replaced. It takes an admin, as it writes someone's record, and it's never
                          stored (ADR 0104).
+                everyProject:
+                    type: boolean
+                    description: Reaches every project, including future projects. Set only when projects is empty.
             description: |-
                 DnsProvider is what writes the records of one or more DNS zones through a DNS
                  provider's API, so the control plane can prove a name by DNS-01 and get its
@@ -16359,6 +16364,12 @@ components:
                         When Dockwell last read what it keeps at it, as the drift timer or Sync now
                          does; unset before the first read: an admin's alone (#820).
                     format: date-time
+                everyProject:
+                    type: boolean
+                    description: 'Reaches every project, including future projects: an admin''s alone.'
+                revision:
+                    type: string
+                    description: 'The revision used for an edit based on this info: an admin''s alone.'
             description: DnsProviderInfo is a DNS provider, without its token.
         DnsZoneCheck:
             type: object
@@ -32555,6 +32566,12 @@ components:
                          Cloudflare (ADR 0104). Unset keeps how they're published now. Where the
                          provider doesn't serve the website's project, the same change adds it, which
                          takes an admin.
+                domainFront:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteDomainFront'
+                    description: |-
+                        Sets the way in for one of the website's domains. The other domains keep
+                         their own settings. Use either this or publish.
             description: UpdateWebsiteRequest is what a website should serve now.
         UpdateWebsiteResponse:
             type: object
@@ -33063,6 +33080,25 @@ components:
                          its domain, keeping the path, reached as its own route is (ADR 0070). Removing
                          one deletes only the route this list wrote for it.
             description: Website is what a website serves at its domain, as a person chose it.
+        WebsiteDomainFront:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The website's main domain or a name in redirect_from.
+                tls:
+                    type: string
+                    description: Empty gives this server its own certificate, "off" lets a proxy end HTTPS.
+                trustedProxies:
+                    type: array
+                    items:
+                        type: string
+                    description: The proxies the route trusts to tell it where a visitor came from.
+                publish:
+                    allOf:
+                        - $ref: '#/components/schemas/RoutePublish'
+                    description: How Dockwell publishes the name. Unset leaves publishing to what's in front.
+            description: WebsiteDomainFront is how traffic reaches one of a website's domains.
         WebsiteFolder:
             type: object
             properties:

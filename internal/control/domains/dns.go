@@ -46,7 +46,7 @@ func (h *Handler) ListDnsProviders(ctx context.Context, req *connect.Request[doc
 	}
 	for i := range shown {
 		p := &shown[i]
-		if project != "" && !slices.Contains(p.Projects, project) {
+		if project != "" && !p.EveryProject && !slices.Contains(p.Projects, project) {
 			continue
 		}
 		out.Providers = append(out.Providers, h.providerInfo(ctx, p, admin))
@@ -56,7 +56,7 @@ func (h *Handler) ListDnsProviders(ctx context.Context, req *connect.Request[doc
 
 // providerInfo says what a provider is, and for an admin what Dockwell keeps at it.
 func (h *Handler) providerInfo(ctx context.Context, p *dnsproviders.Info, admin bool) *dockwellv1.DnsProviderInfo {
-	info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects, StrictZones: p.StrictZones}
+	info := &dockwellv1.DnsProviderInfo{Id: p.ID, Name: p.Name, Revision: int64(p.Revision), Provider: p.Provider, Zones: p.Zones, TunnelApiTokenSet: p.TunnelTokenSet, Projects: p.Projects, EveryProject: p.EveryProject, StrictZones: p.StrictZones}
 	// What a provider keeps is an admin's alone, as the trim below an admin drops it,
 	// so nothing is read at Cloudflare for anyone else (the review's M5).
 	if h.Cloudflare == nil || !admin {

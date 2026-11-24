@@ -8761,8 +8761,8 @@ type DnsProvider struct {
 	// DNS:Edit, scoped to its zones, not the Global API Key. Leave it out of an
 	// update to keep it.
 	ApiToken string `protobuf:"bytes,3,opt,name=api_token,json=apiToken,proto3" json:"api_token,omitempty"`
-	// The projects whose routes' names it proves, by ID. Empty is none: proving a
-	// name by DNS works wherever it points, so an admin says which projects may.
+	// The projects whose routes it proves and publishes names for, by ID. Empty
+	// reaches none unless every_project is set.
 	Projects []string `protobuf:"bytes,4,rep,name=projects,proto3" json:"projects,omitempty"`
 	// A second token for tunnels alone, for whoever wants one: Cloudflare Tunnel
 	// Edit, and API Tokens Read to check its own rights. Empty, the API token does
@@ -8784,7 +8784,9 @@ type DnsProvider struct {
 	// name holds a record now isn't put back, and the plan says so; nothing is
 	// replaced. It takes an admin, as it writes someone's record, and it's never
 	// stored (ADR 0104).
-	PutBack       []string `protobuf:"bytes,8,rep,name=put_back,json=putBack,proto3" json:"put_back,omitempty"`
+	PutBack []string `protobuf:"bytes,8,rep,name=put_back,json=putBack,proto3" json:"put_back,omitempty"`
+	// Reaches every project, including future projects. Set only when projects is empty.
+	EveryProject  bool `protobuf:"varint,9,opt,name=every_project,json=everyProject,proto3" json:"every_project,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8873,6 +8875,13 @@ func (x *DnsProvider) GetPutBack() []string {
 		return x.PutBack
 	}
 	return nil
+}
+
+func (x *DnsProvider) GetEveryProject() bool {
+	if x != nil {
+		return x.EveryProject
+	}
+	return false
 }
 
 // ConnectionSpec is one set of values of one kind that something uses, kind
@@ -12318,7 +12327,7 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x0eDnsCertificate\x12\x18\n" +
 	"\adomains\x18\x01 \x03(\tR\adomains\x12!\n" +
 	"\fdns_provider\x18\x02 \x01(\tR\vdnsProvider\x12\x1a\n" +
-	"\bprojects\x18\x03 \x03(\tR\bprojects\"\xa1\x02\n" +
+	"\bprojects\x18\x03 \x03(\tR\bprojects\"\xc6\x02\n" +
 	"\vDnsProvider\x12\x1a\n" +
 	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\x14\n" +
 	"\x05zones\x18\x02 \x03(\tR\x05zones\x12!\n" +
@@ -12327,7 +12336,8 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\x10tunnel_api_token\x18\x05 \x01(\tB\x04\xc8\xf3\x18\x01R\x0etunnelApiToken\x12!\n" +
 	"\fstrict_zones\x18\x06 \x03(\tR\vstrictZones\x123\n" +
 	"\x16clear_tunnel_api_token\x18\a \x01(\bR\x13clearTunnelApiToken\x12\x19\n" +
-	"\bput_back\x18\b \x03(\tR\aputBack\"\x90\x03\n" +
+	"\bput_back\x18\b \x03(\tR\aputBack\x12#\n" +
+	"\revery_project\x18\t \x01(\bR\feveryProject\"\x90\x03\n" +
 	"\x0eConnectionSpec\x12!\n" +
 	"\fdisplay_name\x18\x01 \x01(\tR\vdisplayName\x128\n" +
 	"\x04kind\x18\x02 \x01(\x0e2$.dockwell.resource.v1alpha1.LinkKindR\x04kind\x128\n" +
