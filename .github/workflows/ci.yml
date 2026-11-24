@@ -252,8 +252,11 @@ jobs:
                 --config-file /socket/daemon.json --storage-driver vfs --bridge none --iptables=false --ip6tables=false --ip-forward=false \
                 --registry-mirror https://mirror.gcr.io
               export DOCKWELL_TEST_DOCKER="$state/docker.sock" TMPDIR="$state"
+              # The daemon is ready once it names its storage driver: docker info
+              # can succeed with an empty driver while dockerd is still starting.
               for attempt in {1..30}; do
-                if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{.Driver}}' >"$state/driver" 2>/dev/null; then
+                if docker --host "unix://$DOCKWELL_TEST_DOCKER" info --format '{{.Driver}}' >"$state/driver" 2>/dev/null &&
+                  [[ -n "$(tr -d '[:space:]' <"$state/driver")" ]]; then
                   break
                 fi
                 if [[ "$attempt" == 30 ]]; then
@@ -262,7 +265,10 @@ jobs:
                 fi
                 sleep 1
               done
-              grep -Fxq vfs "$state/driver"
+              if ! grep -Fxq vfs "$state/driver"; then
+                echo "Docker $version runs the $(cat "$state/driver") storage driver, not vfs" >&2
+                exit 1
+              fi
               go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
               for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID KeepsAnImageWithTwoTags RemovesUnusedVolumesAndManyImages KeepsStoppedContainerVolume ProtectsComposeAndCopiedMarkerVolumes; do
                 grep -q "^--- PASS: TestCleanup${test}OnRealDocker " "$state/tests.out"
