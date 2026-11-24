@@ -2905,6 +2905,8 @@ message DockerCleanupTarget {
   string compose_project = 11;
   // Known Compose stack ID on the server when Dockwell can link to it.
   string compose_id = 12;
+  // Every reviewed RepoTags record of the image, normalized and sorted, including pinned name:tag@digest records.
+  repeated string image_records = 13;
 }
 
 // DockerMaintenance is the exact scope of an irreversible local cleanup.
@@ -2929,7 +2931,7 @@ message DockerReceipt {
   DockerReceiptReason reason = 7;
 }
 
-// DockerReceiptReason explains a removal refusal or verification failure.
+// DockerReceiptReason explains a removal refusal, change since review, or verification failure.
 enum DockerReceiptReason {
   DOCKER_RECEIPT_REASON_UNSPECIFIED = 0;
   DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED = 1;
@@ -2937,6 +2939,11 @@ enum DockerReceiptReason {
   DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED = 3;
   DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED = 4;
   DOCKER_RECEIPT_REASON_VOLUME_REPLACED = 5;
+  DOCKER_RECEIPT_REASON_IN_USE = 6;
+  DOCKER_RECEIPT_REASON_GONE = 7;
+  DOCKER_RECEIPT_REASON_REFERENCE_MOVED = 8;
+  DOCKER_RECEIPT_REASON_NEWER = 9;
+  DOCKER_RECEIPT_REASON_PROTECTED = 10;
 }
 
 // DockerReceiptState distinguishes refusals from an interrupted operation.

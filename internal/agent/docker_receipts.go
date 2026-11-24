@@ -32,8 +32,19 @@ const (
 	receiptFailed  = v1.DockerReceiptState_DOCKER_RECEIPT_STATE_FAILED
 	receiptUnknown = v1.DockerReceiptState_DOCKER_RECEIPT_STATE_UNKNOWN
 
+	receiptReasonInUse          = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IN_USE
+	receiptReasonGone           = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_GONE
+	receiptReasonReferenceMoved = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_REFERENCE_MOVED
+	receiptReasonNewer          = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_NEWER
+	receiptReasonProtected      = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_PROTECTED
+
 	maxCleanupTargetsPerServer = 200
 	legacyCleanupTargetCap     = 12
+)
+
+var (
+	errCleanupSwarm      = errors.New("volumes can't be removed while Docker Swarm is active on this server. Review cleanup again")
+	errLegacyCleanupPlan = errors.New("The cleanup was reviewed by an older agent. Review cleanup again") //nolint:staticcheck // Exact user-facing stale-plan sentence.
 )
 
 func (c *calls) checkDockerMaintenance(ref resource.Ref, maintenance *v1.DockerMaintenance) error {
@@ -58,22 +69,45 @@ func (c *calls) checkDockerMaintenance(ref resource.Ref, maintenance *v1.DockerM
 		return errors.New("this cleanup plan has no targets")
 	}
 	seen := make(map[string]bool, len(targets))
+	var hasLegacy bool
 	for _, target := range targets {
 		id := target.GetEngineId()
-		tags, digests := target.GetImageTags(), target.GetImageDigests()
+		tags, digests, records := target.GetImageTags(), target.GetImageDigests(), target.GetImageRecords()
 		var valid bool
 		switch target.GetKind() {
 		case cleanupCache:
-			valid = target.GetReason() == reasonIdle && docker.IsBuildCacheID(id) && len(tags)+len(digests) == 0
+			valid = target.GetReason() == reasonIdle && docker.IsBuildCacheID(id) && len(tags)+len(digests)+len(records) == 0
 		case cleanupImage:
-			valid = target.GetReason() == imageCleanupReason(tags, digests) && docker.IsImageID(id) && len(tags) <= 1 && reviewableImageRefs(tags, digests) && oneImageRepository(tags, digests) && target.GetEvidence() == imageCleanupEvidence(id, tags, digests)
+			if isLegacyImageCleanupTarget(target) {
+				valid = true
+				hasLegacy = true
+				break
+			}
+			baseOK := target.GetReason() == imageCleanupReason(tags, digests) && docker.IsImageID(id) && len(tags) <= 1 &&
+				reviewableImageRefs(tags, digests) && oneImageRepository(tags, digests)
+			switch {
+			case !baseOK:
+				valid = false
+			case len(records) > 0:
+				valid = reviewableImageRecords(records, tags, digests) && target.GetEvidence() == imageCleanupEvidence(id, tags, digests, records)
+			case len(tags) == 1:
+				// An older control plane can drop field 13 on JSON round-trip while keeping
+				// the v2 evidence hash; the sole record is determined by the reviewed tag.
+				valid = target.GetEvidence() == imageCleanupEvidence(id, tags, digests, []string{canonicalImageRecord(tags[0])})
+			case len(digests) == 0:
+				valid = target.GetEvidence() == imageCleanupEvidence(id, nil, nil, nil)
+			default:
+				// Pinned or digest-only image whose field 13 may have been dropped by an older
+				// control plane. Apply rebuilds current records from Engine and matches the v2 hash.
+				valid = isLowerHex64(target.GetEvidence())
+			}
 		case cleanupNetwork:
-			valid = target.GetReason() == reasonUnused && docker.IsFullID(id) && target.GetName() != "" && len(tags)+len(digests) == 0
+			valid = target.GetReason() == reasonUnused && docker.IsFullID(id) && target.GetName() != "" && len(tags)+len(digests)+len(records) == 0
 		case cleanupVolume:
 			name, ok := docker.VolumeInventoryName(id)
 			previewAt, evOK := parseVolumeCleanupEvidence(target.GetEvidence(), id, name, target.GetReason())
 			valid = (target.GetReason() == reasonAnonymous || target.GetReason() == reasonUnused) &&
-				ok && name == target.GetName() && len(tags)+len(digests) == 0 &&
+				ok && name == target.GetName() && len(tags)+len(digests)+len(records) == 0 &&
 				evOK && !previewAt.After(now) && now.Sub(previewAt) < cleanupReceiptRetention
 		default:
 		}
@@ -82,6 +116,9 @@ func (c *calls) checkDockerMaintenance(ref resource.Ref, maintenance *v1.DockerM
 			return errors.New("the reviewed cleanup contains an unsupported target")
 		}
 		seen[id] = true
+	}
+	if hasLegacy {
+		return errLegacyCleanupPlan
 	}
 	return nil
 }
@@ -181,12 +218,27 @@ func (c *calls) applyDockerMaintenance(ctx context.Context, ref resource.Ref, ma
 	if c.cleanupDisabled() {
 		return errCleanupDisabled
 	}
-	if slices.ContainsFunc(receipts, func(r *v1.DockerReceipt) bool { return r.GetState() != receiptRemoved }) {
+	if len(receipts) < len(targets) && c.cfg.disks.isFailedCleanupChange(maintenance.GetChangeId()) {
+		return errors.New("earlier Docker cleanup receipts could not be saved. Review cleanup again")
+	}
+	if slices.ContainsFunc(receipts, func(r *v1.DockerReceipt) bool {
+		return r.GetState() != receiptRemoved && r.GetState() != receiptChanged
+	}) {
 		return errors.New("some Docker artifacts could not be confirmed removed. Review their receipts and preview cleanup again")
+	}
+	if len(receipts) < len(targets) && slices.ContainsFunc(receipts, func(r *v1.DockerReceipt) bool {
+		return r.GetState() == receiptChanged
+	}) {
+		return errors.New("earlier Docker cleanup targets changed before the batch finished. Review cleanup again")
+	}
+	if len(receipts) == len(targets) {
+		return nil
 	}
 
 	// Recheck the untouched part before making any new removals. Each object
 	// is checked again immediately before dispatch using filtered Engine queries.
+	// A target that changed since review gets a Changed receipt and is skipped,
+	// while the rest of the batch continues.
 	var batchHeld *dockerOccupancy
 	if slices.ContainsFunc(targets[len(receipts):], func(t *v1.DockerCleanupTarget) bool {
 		return t.GetKind() != cleanupCache
@@ -198,40 +250,41 @@ func (c *calls) applyDockerMaintenance(ctx context.Context, ref resource.Ref, ma
 		batchHeld = &held
 	}
 	hasImageMounts := batchHeld != nil && batchHeld.hasImageMounts
-	swarmBlocked := false
 	if slices.ContainsFunc(targets[len(receipts):], func(t *v1.DockerCleanupTarget) bool {
 		return t.GetKind() == cleanupVolume
-	}) {
-		swarmBlocked = c.swarmBlocksVolumeCleanup(ctx)
+	}) && c.swarmBlocksVolumeCleanup(ctx) {
+		return errCleanupSwarm
 	}
 	var pending []*v1.DockerReceipt
-	drift := false
 	for _, target := range targets[len(receipts):] {
-		identity, state := c.recheckCleanupWithHeld(ctx, df, batchHeld, target, protection, swarmBlocked, hasImageMounts)
-		drift = drift || state != receiptUnknown
+		identity, state, reason := c.recheckCleanupWithHeld(ctx, df, batchHeld, target, protection, false, hasImageMounts)
 		pending = append(pending, &v1.DockerReceipt{
-			Target: target, State: state, RecheckedEngineId: identity,
+			Target: target, State: state, Reason: reason, RecheckedEngineId: identity,
 			BeforeBytes: cleanupObjectBytes(df, target),
 		})
 	}
 	if err := openJournal(); err != nil {
+		if slices.ContainsFunc(pending, func(r *v1.DockerReceipt) bool { return r.GetState() == receiptChanged }) {
+			c.cfg.disks.markFailedCleanupChange(maintenance.GetChangeId())
+		}
 		return err
 	}
-
-	if drift {
-		base := len(receipts)
-		for i, receipt := range pending {
-			if receipt.State == receiptUnknown {
-				receipt.State = receiptChanged
-			}
-			receipts = append(receipts, receipt)
-			if err := journal.append(base+i, receipt); err != nil {
-				return err
-			}
+	recordReceipt := func(idx int, r *v1.DockerReceipt) error {
+		if err := journal.append(idx, r); err != nil {
+			c.cfg.disks.markFailedCleanupChange(maintenance.GetChangeId())
+			return err
 		}
-		return errors.New("the Docker cleanup candidates changed. Review cleanup again")
+		saved := proto.CloneOf(r)
+		if idx == len(receipts) {
+			receipts = append(receipts, saved)
+		} else {
+			receipts[idx] = saved
+		}
+		return nil
 	}
+
 	var operationErr error
+	var dispatched bool
 	first := len(receipts)
 	for _, receipt := range pending {
 		if ctx.Err() != nil {
@@ -239,9 +292,32 @@ func (c *calls) applyDockerMaintenance(ctx context.Context, ref resource.Ref, ma
 			break
 		}
 		idx := len(receipts)
-		receipts = append(receipts, receipt)
-		writeReceipt := func() error { return journal.append(idx, receipt) }
-		prepare := writeReceipt
+		writeReceipt := func() error { return recordReceipt(idx, receipt) }
+		if receipt.GetState() == receiptChanged {
+			if err := writeReceipt(); err != nil {
+				operationErr = err
+				break
+			}
+			continue
+		}
+		if receipt.GetState() == receiptFailed {
+			writeErr := writeReceipt()
+			operationErr = errors.Join(errors.New("some Docker artifacts could not be checked. Review their receipts and preview cleanup again"), writeErr)
+			break
+		}
+		if receipt.GetTarget().GetKind() == cleanupVolume && c.swarmBlocksVolumeCleanup(ctx) {
+			operationErr = errCleanupSwarm
+			break
+		}
+		dispatched = true
+		var prepareFailed bool
+		prepare := func() error {
+			if err := writeReceipt(); err != nil {
+				prepareFailed = true
+				return err
+			}
+			return nil
+		}
 		var pause *cleanupPauseRecord
 		var paused bool
 		if target := receipt.GetTarget(); target.GetKind() == cleanupVolume {
@@ -249,6 +325,7 @@ func (c *calls) applyDockerMaintenance(ctx context.Context, ref resource.Ref, ma
 			prepare = func() error {
 				// A resume token always corresponds to a persisted receipt.
 				if err := writeReceipt(); err != nil {
+					prepareFailed = true
 					return err
 				}
 				paused = true
@@ -256,32 +333,36 @@ func (c *calls) applyDockerMaintenance(ctx context.Context, ref resource.Ref, ma
 			}
 		}
 		operationErr = c.removeCleanupTarget(ctx, receipt, protection, hasImageMounts, pause, prepare)
-		writeErr := writeReceipt()
-		operationErr = errors.Join(operationErr, writeErr)
-		if paused && receipt.GetState() != receiptUnknown && writeErr == nil {
-			operationErr = errors.Join(operationErr, c.clearCleanupPause())
+		if !prepareFailed {
+			writeErr := writeReceipt()
+			operationErr = errors.Join(operationErr, writeErr)
+			if paused && receipt.GetState() != receiptUnknown && writeErr == nil {
+				operationErr = errors.Join(operationErr, c.clearCleanupPause())
+			}
 		}
-		if operationErr != nil {
+		if operationErr != nil || receipt.GetState() == receiptFailed {
 			break
 		}
 	}
-	if len(receipts) > first {
+	if dispatched && len(receipts) > first {
 		if _, after, err := c.cfg.disks.snapshot(ctx, true); err == nil {
 			for i := first; i < len(receipts); i++ {
-				receipt := receipts[i]
-				if receipt.GetTarget().GetKind() == cleanupVolume && receipt.GetState() == receiptUnknown {
-					c.reconcileUnknownVolumeReceipt(ctx, after, receipt)
+				updated := proto.CloneOf(receipts[i])
+				if updated.GetTarget().GetKind() == cleanupVolume && updated.GetState() == receiptUnknown {
+					c.reconcileUnknownVolumeReceipt(ctx, after, updated)
 				} else {
-					receipt.AfterBytes = cleanupObjectBytes(after, receipt.GetTarget())
+					updated.AfterBytes = cleanupObjectBytes(after, updated.GetTarget())
 				}
-				operationErr = errors.Join(operationErr, journal.append(i, receipt))
+				operationErr = errors.Join(operationErr, recordReceipt(i, updated))
 			}
 		}
 	}
 	if operationErr != nil {
 		return operationErr
 	}
-	if slices.ContainsFunc(receipts, func(r *v1.DockerReceipt) bool { return r.GetState() != receiptRemoved }) {
+	if slices.ContainsFunc(receipts, func(r *v1.DockerReceipt) bool {
+		return r.GetState() != receiptRemoved && r.GetState() != receiptChanged
+	}) {
 		return errors.New("some Docker artifacts could not be confirmed removed. Review their receipts and preview cleanup again")
 	}
 	return nil
@@ -362,16 +443,28 @@ func cleanupObjectBytes(df *docker.DiskUsage, target *v1.DockerCleanupTarget) *u
 	}
 }
 
-func (c *calls) recheckCleanupWithHeld(ctx context.Context, df *docker.DiskUsage, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protection *agentv1.DockerCleanupProtection, swarmBlocked, hasImageMounts bool) (string, v1.DockerReceiptState) {
+func (c *calls) recheckCleanupWithHeld(ctx context.Context, df *docker.DiskUsage, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protection *agentv1.DockerCleanupProtection, swarmBlocked, hasImageMounts bool) (string, v1.DockerReceiptState, v1.DockerReceiptReason) {
 	id := target.GetEngineId()
 	if target.GetKind() == cleanupCache {
-		if record := cacheRecord(df, id); record != nil {
-			if sameCleanupTarget(target, cacheTarget(*record, c.cfg.Docker.ExactCacheRemoval())) {
-				return id, receiptUnknown
-			}
-			return id, receiptChanged
+		record := cacheRecord(df, id)
+		if record == nil {
+			return "", receiptChanged, receiptReasonGone
 		}
-		return "", receiptChanged
+		current := cacheTarget(*record, c.cfg.Docker.ExactCacheRemoval())
+		if sameCleanupTarget(target, current) {
+			return id, receiptUnknown, 0
+		}
+		switch current.GetReason() {
+		case reasonInUse:
+			return id, receiptChanged, receiptReasonInUse
+		case reasonIdle:
+			if cacheIsNewer(target, current) {
+				return id, receiptChanged, receiptReasonNewer
+			}
+			return id, receiptChanged, 0
+		default:
+			return id, receiptChanged, receiptReasonProtected
+		}
 	}
 	if target.GetKind() == cleanupImage {
 		return c.recheckCleanupImage(ctx, preloaded, target, protection.GetImages(), hasImageMounts)
@@ -382,11 +475,12 @@ func (c *calls) recheckCleanupWithHeld(ctx context.Context, df *docker.DiskUsage
 	return c.recheckCleanupNetwork(ctx, preloaded, target, protection.GetNetworks())
 }
 
-func (c *calls) recheckCleanupNetwork(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protected []string) (string, v1.DockerReceiptState) {
+func (c *calls) recheckCleanupNetwork(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protected []string) (string, v1.DockerReceiptState, v1.DockerReceiptReason) {
 	id := target.GetEngineId()
 	network, err := c.cfg.Docker.InspectNetwork(ctx, id)
 	if err != nil {
-		return "", cleanupCheckFailure(err)
+		state, reason := cleanupCheckFailure(err)
+		return "", state, reason
 	}
 	var held dockerOccupancy
 	if preloaded != nil {
@@ -395,43 +489,52 @@ func (c *calls) recheckCleanupNetwork(ctx context.Context, preloaded *dockerOccu
 		held = dockerOccupancy{networks: map[string]bool{}}
 		users, err := c.cfg.Docker.ListContainers(ctx, map[string][]string{"network": {id}})
 		if err != nil {
-			return network.ID, receiptFailed
+			return network.ID, receiptFailed, 0
 		}
 		if len(users) > 0 {
 			held.networks[id] = true
 		}
 	}
-	if !sameCleanupTarget(target, networkTarget(network, held, protected)) {
-		return network.ID, receiptChanged
+	current := networkTarget(network, held, protected)
+	if !sameCleanupTarget(target, current) {
+		if current.GetEngineId() != target.GetEngineId() {
+			return network.ID, receiptChanged, receiptReasonReferenceMoved
+		}
+		switch current.GetReason() {
+		case reasonInUse:
+			return network.ID, receiptChanged, receiptReasonInUse
+		case reasonDesired, reasonUnavailable:
+			return network.ID, receiptChanged, receiptReasonProtected
+		default:
+			return network.ID, receiptChanged, receiptReasonReferenceMoved
+		}
 	}
-	return network.ID, receiptUnknown
+	return network.ID, receiptUnknown, 0
 }
 
-func (c *calls) recheckCleanupVolume(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protection *agentv1.DockerCleanupProtection, swarmBlocked bool) (string, v1.DockerReceiptState) {
+func (c *calls) recheckCleanupVolume(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protection *agentv1.DockerCleanupProtection, swarmBlocked bool) (string, v1.DockerReceiptState, v1.DockerReceiptReason) {
 	name, ok := docker.VolumeInventoryName(target.GetEngineId())
 	if !ok || name != target.GetName() {
-		return "", receiptChanged
+		return "", receiptChanged, receiptReasonProtected
 	}
 	previewAt, evOK := parseVolumeCleanupEvidence(target.GetEvidence(), target.GetEngineId(), name, target.GetReason())
 	if !evOK || previewAt.After(c.cleanupNow()) {
-		return target.GetEngineId(), receiptChanged
-	}
-	if preloaded == nil {
-		swarmBlocked = c.swarmBlocksVolumeCleanup(ctx)
+		return target.GetEngineId(), receiptChanged, receiptReasonNewer
 	}
 	if swarmBlocked {
-		return target.GetEngineId(), receiptChanged
+		return target.GetEngineId(), receiptChanged, receiptReasonProtected
 	}
 	v, err := c.cfg.Docker.InspectVolume(ctx, name)
 	if err != nil {
-		return "", cleanupCheckFailure(err)
+		state, reason := cleanupCheckFailure(err)
+		return "", state, reason
 	}
 	users, err := c.cfg.Docker.ListContainers(ctx, map[string][]string{"volume": {name}})
 	if err != nil {
-		return docker.VolumeInventoryKey(v), receiptFailed
+		return docker.VolumeInventoryKey(v), receiptFailed, 0
 	}
 	if len(users) > 0 {
-		return docker.VolumeInventoryKey(v), receiptChanged
+		return docker.VolumeInventoryKey(v), receiptChanged, receiptReasonInUse
 	}
 	var held dockerOccupancy
 	if preloaded != nil {
@@ -439,30 +542,54 @@ func (c *calls) recheckCleanupVolume(ctx context.Context, preloaded *dockerOccup
 	}
 	current := c.volumeTarget(v, nil, held, protection.GetVolumes(), protection.GetBackupVolumes(), protection.GetRollbackVolumes(), previewAt, swarmBlocked)
 	if !sameCleanupTarget(target, current) {
-		return current.GetEngineId(), receiptChanged
+		if current.GetEngineId() != target.GetEngineId() {
+			return current.GetEngineId(), receiptChanged, v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_VOLUME_REPLACED
+		}
+		switch current.GetReason() {
+		case reasonInUse:
+			return current.GetEngineId(), receiptChanged, receiptReasonInUse
+		case reasonRecentlyCreated:
+			return current.GetEngineId(), receiptChanged, receiptReasonNewer
+		case reasonRetained, reasonDesired, reasonCompose, reasonBackup, reasonRollback, reasonSwarmManager, reasonUnavailable:
+			return current.GetEngineId(), receiptChanged, receiptReasonProtected
+		default:
+			return current.GetEngineId(), receiptChanged, receiptReasonReferenceMoved
+		}
 	}
-	return current.GetEngineId(), receiptUnknown
+	return current.GetEngineId(), receiptUnknown, 0
 }
 
-func (c *calls) recheckCleanupImage(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protected []string, hasImageMounts bool) (string, v1.DockerReceiptState) {
+func (c *calls) recheckCleanupImage(ctx context.Context, preloaded *dockerOccupancy, target *v1.DockerCleanupTarget, protected []string, hasImageMounts bool) (string, v1.DockerReceiptState, v1.DockerReceiptReason) {
 	id := target.GetEngineId()
 	if c.cfg.disks.imagePulls[id] > 0 {
-		return id, receiptChanged
+		return id, receiptChanged, receiptReasonInUse
 	}
+	checked := make(map[string]bool, len(target.GetImageTags())+len(target.GetImageDigests()))
 	for _, refs := range [][]string{target.GetImageTags(), target.GetImageDigests()} {
 		for _, ref := range refs {
+			if checked[ref] {
+				continue
+			}
+			checked[ref] = true
 			image, err := c.cfg.Docker.InspectImage(ctx, ref)
 			if err != nil {
-				return "", cleanupCheckFailure(err)
+				state, reason := cleanupCheckFailure(err)
+				if reason == receiptReasonGone {
+					if _, idErr := c.cfg.Docker.InspectImage(ctx, id); idErr == nil {
+						reason = receiptReasonReferenceMoved
+					}
+				}
+				return "", state, reason
 			}
 			if image.ID != id {
-				return image.ID, receiptChanged
+				return image.ID, receiptChanged, receiptReasonReferenceMoved
 			}
 		}
 	}
 	image, err := c.cfg.Docker.InspectImage(ctx, id)
 	if err != nil {
-		return "", cleanupCheckFailure(err)
+		state, reason := cleanupCheckFailure(err)
+		return "", state, reason
 	}
 	var held dockerOccupancy
 	switch {
@@ -473,14 +600,14 @@ func (c *calls) recheckCleanupImage(ctx context.Context, preloaded *dockerOccupa
 		// with a full container scan when any container mounts an image.
 		full, err := c.dockerOccupancy(ctx)
 		if err != nil {
-			return image.ID, receiptFailed
+			return image.ID, receiptFailed, 0
 		}
 		held = full
 	default:
 		held = dockerOccupancy{images: map[string]bool{}}
 		users, err := c.cfg.Docker.ListContainers(ctx, map[string][]string{"ancestor": {id}})
 		if err != nil {
-			return image.ID, receiptFailed
+			return image.ID, receiptFailed, 0
 		}
 		if len(users) > 0 {
 			held.images[id] = true
@@ -490,16 +617,33 @@ func (c *calls) recheckCleanupImage(ctx context.Context, preloaded *dockerOccupa
 		ID: image.ID, RepoTags: image.RepoTags, RepoDigests: image.RepoDigests, Labels: image.Config.Labels,
 	}, held, protected)
 	if !sameCleanupTarget(target, current) {
-		return image.ID, receiptChanged
+		switch current.GetReason() {
+		case reasonInUse:
+			return image.ID, receiptChanged, receiptReasonInUse
+		case reasonRollback, reasonDesired, reasonUnavailable,
+			v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_REPOSITORIES,
+			v1.DockerCleanupReason_DOCKER_CLEANUP_REASON_MULTIPLE_TAGS:
+			return image.ID, receiptChanged, receiptReasonProtected
+		default:
+			return image.ID, receiptChanged, receiptReasonReferenceMoved
+		}
 	}
-	return image.ID, receiptUnknown
+	return image.ID, receiptUnknown, 0
 }
 
-func cleanupCheckFailure(err error) v1.DockerReceiptState {
+func cleanupCheckFailure(err error) (v1.DockerReceiptState, v1.DockerReceiptReason) {
 	if docker.IsNotFound(err) {
-		return receiptChanged
+		return receiptChanged, receiptReasonGone
 	}
-	return receiptFailed
+	return receiptFailed, 0
+}
+
+func cacheIsNewer(reviewed, current *v1.DockerCleanupTarget) bool {
+	rev, cur := reviewed.GetLastUsedAt(), current.GetLastUsedAt()
+	if rev == nil || cur == nil {
+		return false
+	}
+	return cur.AsTime().After(rev.AsTime())
 }
 
 func (c *calls) removeCleanupTarget(ctx context.Context, receipt *v1.DockerReceipt, protection *agentv1.DockerCleanupProtection, hasImageMounts bool, pause *cleanupPauseRecord, journal func() error) error {
@@ -512,17 +656,23 @@ func (c *calls) removeCleanupTarget(ctx context.Context, receipt *v1.DockerRecei
 	if err := journal(); err != nil {
 		return err
 	}
-	receipt.RecheckedEngineId, receipt.State = c.recheckCleanupWithHeld(ctx, nil, nil, target, protection, false, hasImageMounts)
+	if target.GetKind() == cleanupVolume && c.swarmBlocksVolumeCleanup(ctx) {
+		receipt.RecheckedEngineId = target.GetEngineId()
+		receipt.State = receiptFailed
+		receipt.Reason = receiptReasonProtected
+		return errCleanupSwarm
+	}
+	receipt.RecheckedEngineId, receipt.State, receipt.Reason = c.recheckCleanupWithHeld(ctx, nil, nil, target, protection, false, hasImageMounts)
 	if receipt.State != receiptUnknown {
 		return nil
 	}
 	switch target.GetKind() {
 	case cleanupNetwork:
 		err := c.cfg.Docker.RemoveNetwork(ctx, target.GetEngineId())
-		receipt.State = removalState(err, err == nil)
+		receipt.State, receipt.Reason = removalOutcome(err, err == nil)
 	case cleanupVolume:
 		err := c.cfg.Docker.RemoveVolume(ctx, target.GetName())
-		receipt.State = removalState(err, err == nil)
+		receipt.State, receipt.Reason = removalOutcome(err, err == nil)
 		if receipt.State == receiptUnknown {
 			c.reconcileUnknownVolumeReceipt(ctx, nil, receipt)
 			reason := receipt.GetReason()
@@ -535,7 +685,7 @@ func (c *calls) removeCleanupTarget(ctx context.Context, receipt *v1.DockerRecei
 		}
 	case cleanupImage:
 		err := c.cfg.Docker.RemoveReviewedImage(ctx, target.GetEngineId())
-		receipt.State = removalState(err, err == nil)
+		receipt.State, receipt.Reason = removalOutcome(err, err == nil)
 		if docker.IsConflict(err) {
 			receipt.Reason = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_IMAGE_ID_REFUSED
 		}
@@ -695,7 +845,7 @@ func (c *calls) removeCleanupCache(ctx context.Context, receipt *v1.DockerReceip
 	}
 	id := receipt.GetTarget().GetEngineId()
 	df := &docker.DiskUsage{BuildCache: before}
-	receipt.RecheckedEngineId, receipt.State = c.recheckCleanupWithHeld(ctx, df, nil, receipt.GetTarget(), nil, false, false)
+	receipt.RecheckedEngineId, receipt.State, receipt.Reason = c.recheckCleanupWithHeld(ctx, df, nil, receipt.GetTarget(), nil, false, false)
 	if receipt.State != receiptUnknown {
 		return nil
 	}
@@ -733,7 +883,7 @@ func (c *calls) removeCleanupCache(ctx context.Context, receipt *v1.DockerReceip
 		receipt.Reason = v1.DockerReceiptReason_DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
 		return errCleanupDisabled
 	}
-	receipt.State = removalState(removeErr, !remaining[id])
+	receipt.State, receipt.Reason = removalOutcome(removeErr, !remaining[id])
 	if !remaining[id] && !slices.Contains(deleted, id) {
 		receipt.State = receiptUnknown
 	}
@@ -748,18 +898,20 @@ func (c *calls) saveCleanupPause(rec *cleanupPauseRecord) error {
 	return writeDockerCleanupFile(c.cleanupBlockFile(), data)
 }
 
-func removalState(err error, removed bool) v1.DockerReceiptState {
+func removalOutcome(err error, removed bool) (v1.DockerReceiptState, v1.DockerReceiptReason) {
 	switch {
-	case docker.IsInUse(err) || docker.IsNotFound(err):
-		return receiptChanged
+	case docker.IsInUse(err):
+		return receiptChanged, receiptReasonInUse
+	case docker.IsNotFound(err):
+		return receiptChanged, receiptReasonGone
 	case docker.IsBadRequest(err):
-		return receiptFailed
+		return receiptFailed, 0
 	case removed:
-		return receiptRemoved
+		return receiptRemoved, 0
 	case err == nil:
-		return receiptChanged
+		return receiptChanged, 0
 	default:
-		return receiptUnknown
+		return receiptUnknown, 0
 	}
 }
 
@@ -840,15 +992,16 @@ func (j *dockerReceiptJournal) append(index int, receipt *v1.DockerReceipt) erro
 
 func (j *dockerReceiptJournal) write(index int, receipt *v1.DockerReceipt) error {
 	saved := proto.CloneOf(receipt)
-	if index == len(j.last) {
-		j.last = append(j.last, saved)
+	nextLast := slices.Clone(j.last)
+	if index == len(nextLast) {
+		nextLast = append(nextLast, saved)
 	} else {
-		j.last[index] = saved
+		nextLast[index] = saved
 	}
 	if j.mirror != "" {
 		// Put the checkpoint on disk before the append so the baseline agent
 		// can see every attempted deletion if it takes over after a crash.
-		data, err := json.Marshal(j.last)
+		data, err := json.Marshal(nextLast)
 		if err != nil {
 			return err
 		}
@@ -859,7 +1012,11 @@ func (j *dockerReceiptJournal) write(index int, receipt *v1.DockerReceipt) error
 	if err := json.NewEncoder(j.file).Encode(dockerReceiptRecord{Index: index, Receipt: receipt}); err != nil {
 		return err
 	}
-	return j.file.Sync()
+	if err := j.file.Sync(); err != nil {
+		return err
+	}
+	j.last = nextLast
+	return nil
 }
 
 func (j *dockerReceiptJournal) close() error {

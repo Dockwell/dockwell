@@ -41,11 +41,12 @@ var errDiskMeasuring = resource.PlainlyBecause(resource.ReasonDiskMeasuring, "Me
 // when asked (ADR 0040). It asks Docker once at a time, as Docker refuses a
 // second count while one runs, and keeps the answer for diskUseFor.
 type diskUse struct {
-	lifetime   context.Context
-	docker     *docker.Client
-	collector  *collect.Collector
-	cleanupMu  sync.Mutex
-	imagePulls map[string]int // exact image IDs in staging, guarded by cleanupMu
+	lifetime             context.Context
+	docker               *docker.Client
+	collector            *collect.Collector
+	cleanupMu            sync.Mutex
+	imagePulls           map[string]int  // exact image IDs in staging, guarded by cleanupMu
+	failedCleanupChanges map[string]bool // changes whose cleanup journal write failed, guarded by cleanupMu
 	// logs reads Docker's data directory, for its containers' logs. Nil reads the
 	// real one.
 	logs func(root string) fs.FS
@@ -81,6 +82,27 @@ func (d *diskUse) invalidateImages() {
 	defer d.mu.Unlock()
 	d.generation++
 	d.last, d.lastDF, d.err = nil, nil, nil
+}
+
+// markFailedCleanupChange records a change whose cleanup journal write failed
+// so a replay cannot delete an unrecorded target. Caller holds cleanupMu.
+func (d *diskUse) markFailedCleanupChange(changeID string) {
+	if d == nil || changeID == "" {
+		return
+	}
+	if len(d.failedCleanupChanges) >= 1000 {
+		clear(d.failedCleanupChanges)
+	}
+	if d.failedCleanupChanges == nil {
+		d.failedCleanupChanges = map[string]bool{}
+	}
+	d.failedCleanupChanges[changeID] = true
+}
+
+// isFailedCleanupChange reports whether an earlier apply of changeID failed
+// while writing its cleanup receipt journal. Caller holds cleanupMu.
+func (d *diskUse) isFailedCleanupChange(changeID string) bool {
+	return d != nil && d.failedCleanupChanges[changeID]
 }
 
 // cached starts a shared count when needed and immediately returns its latest

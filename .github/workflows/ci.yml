@@ -270,7 +270,7 @@ jobs:
                 exit 1
               fi
               go test -race -v -count=1 -run '^Test(Cleanup.*|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
-              for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID KeepsAnImageWithTwoTags RemovesUnusedVolumesAndManyImages KeepsStoppedContainerVolume ProtectsComposeAndCopiedMarkerVolumes; do
+              for test in RemovesOneBuildCacheRecord RemovesADanglingImageByID RemovesPinnedImage KeepsAnImageWithTwoTags RemovesUnusedVolumesAndManyImages KeepsStoppedContainerVolume ProtectsComposeAndCopiedMarkerVolumes; do
                 grep -q "^--- PASS: TestCleanup${test}OnRealDocker " "$state/tests.out"
               done
               grep -q '^--- PASS: TestArchiveRoundTripAndResumeOnRealDocker ' "$state/tests.out"
@@ -313,7 +313,7 @@ jobs:
           done
           grep -Fq 'io.containerd.snapshotter.v1' "$state/driver"
           go test -race -v -count=1 -run '^Test(Cleanup.*|ReviewedImagePull|ReviewedTagMoveKeepsBothImages|ArchiveRoundTripAndResume|BuildImageFromSealedContext|ReviewedImagePush)OnRealDocker$' ./internal/agent | tee "$state/tests.out"
-          for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedImagePush ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupKeepsAnImageWithTwoTags CleanupRemovesOneBuildCacheRecord CleanupRemovesUnusedVolumesAndManyImages CleanupKeepsStoppedContainerVolume CleanupProtectsComposeAndCopiedMarkerVolumes; do
+          for test in ArchiveRoundTripAndResume BuildImageFromSealedContext ReviewedImagePull ReviewedImagePush ReviewedTagMoveKeepsBothImages CleanupRemovesADanglingImageByID CleanupRemovesPinnedImage CleanupKeepsAnImageWithTwoTags CleanupRemovesOneBuildCacheRecord CleanupRemovesUnusedVolumesAndManyImages CleanupKeepsStoppedContainerVolume CleanupProtectsComposeAndCopiedMarkerVolumes; do
             grep -q "^--- PASS: Test${test}OnRealDocker " "$state/tests.out"
           done
       # Two apps share a real PostgreSQL 14 and a real 17, each making a table in its

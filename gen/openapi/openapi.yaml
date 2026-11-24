@@ -16518,6 +16518,11 @@ components:
                         - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
                         - DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED
                         - DOCKER_RECEIPT_REASON_VOLUME_REPLACED
+                        - DOCKER_RECEIPT_REASON_IN_USE
+                        - DOCKER_RECEIPT_REASON_GONE
+                        - DOCKER_RECEIPT_REASON_REFERENCE_MOVED
+                        - DOCKER_RECEIPT_REASON_NEWER
+                        - DOCKER_RECEIPT_REASON_PROTECTED
                     type: string
                     format: enum
             description: DockerCleanupPause identifies a cache incident that must be reviewed before enabling cleanup.
@@ -16619,6 +16624,11 @@ components:
                 composeId:
                     type: string
                     description: Known Compose stack ID on the server when Dockwell can link to it.
+                imageRecords:
+                    type: array
+                    items:
+                        type: string
+                    description: Every reviewed RepoTags record of the image, normalized and sorted, including pinned name:tag@digest records.
             description: DockerCleanupTarget records the reviewed identity and its eligibility evidence.
         DockerCompose:
             type: object
@@ -17459,6 +17469,11 @@ components:
                         - DOCKER_RECEIPT_REASON_CACHE_UNVERIFIED
                         - DOCKER_RECEIPT_REASON_VOLUME_UNVERIFIED
                         - DOCKER_RECEIPT_REASON_VOLUME_REPLACED
+                        - DOCKER_RECEIPT_REASON_IN_USE
+                        - DOCKER_RECEIPT_REASON_GONE
+                        - DOCKER_RECEIPT_REASON_REFERENCE_MOVED
+                        - DOCKER_RECEIPT_REASON_NEWER
+                        - DOCKER_RECEIPT_REASON_PROTECTED
                     type: string
                     format: enum
             description: DockerReceipt reports one approved target's outcome.

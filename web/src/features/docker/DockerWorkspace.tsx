@@ -35,6 +35,7 @@ import { DockerImages } from "./DockerImages";
 import { DockerStorage } from "./DockerStorage";
 import { rowWithHealth, useDockerWatch } from "./live";
 import { Fact, LiveUpdates, Unread } from "./parts";
+import type { CleanupKindParam } from "./search";
 
 import "./Docker.css";
 
@@ -57,11 +58,15 @@ export function DockerWorkspace({
   tab,
   attention,
   group,
+  cleanupKinds,
+  cleanupServerIds,
 }: {
   serverId?: string;
   tab: DockerTab;
   attention?: boolean | undefined;
   group?: string | undefined;
+  cleanupKinds?: readonly CleanupKindParam[] | undefined;
+  cleanupServerIds?: readonly string[] | undefined;
 }) {
   const { t } = useLingui();
   const allowed = useMay()(DockerService.method.getDockerOverview).allowed;
@@ -83,6 +88,7 @@ export function DockerWorkspace({
             tab={tab}
             attention={attention}
             group={group}
+            cleanupKinds={cleanupKinds}
             servers={[{ id: server.id, name: server.name }]}
             server={server}
             multiple={servers.length > 1}
@@ -94,7 +100,13 @@ export function DockerWorkspace({
   return (
     <Page title={t`Docker`} width="wide" back="/servers">
       {servers.length ? (
-        <FleetDocker servers={servers} tab={tab} attention={attention} />
+        <FleetDocker
+          servers={servers}
+          tab={tab}
+          attention={attention}
+          cleanupKinds={cleanupKinds}
+          cleanupServerIds={cleanupServerIds}
+        />
       ) : (
         <EmptyState
           icon="server"
@@ -114,16 +126,23 @@ function FleetDocker({
   servers,
   tab,
   attention,
+  cleanupKinds,
+  cleanupServerIds,
 }: {
   servers: WorkspaceProps["servers"];
   tab: DockerTab;
   attention?: boolean | undefined;
+  cleanupKinds?: readonly CleanupKindParam[] | undefined;
+  cleanupServerIds?: readonly string[] | undefined;
 }) {
   const { t } = useLingui();
   const [page, setPage] = useState(0);
-  const pages = Math.ceil(servers.length / 32);
+  const scoped =
+    tab === "cleanup" && cleanupServerIds?.length ? servers.filter((s) => cleanupServerIds.includes(s.id)) : servers;
+  const activeServers = scoped.length > 0 ? scoped : servers;
+  const pages = Math.ceil(activeServers.length / 32);
   const start = Math.min(page, pages - 1) * 32;
-  const selected = servers.slice(start, start + 32);
+  const selected = activeServers.slice(start, start + 32);
   return (
     <>
       {pages > 1 ? (
@@ -134,13 +153,13 @@ function FleetDocker({
             onChange={(event) => setPage(Number(event.target.value))}
             options={Array.from({ length: pages }, (_, i) => {
               const first = i * 32 + 1;
-              const last = Math.min(first + 31, servers.length);
+              const last = Math.min(first + 31, activeServers.length);
               return { value: String(i), label: t`Servers ${first} to ${last}` };
             })}
           />
         </div>
       ) : null}
-      <Workspace key={start} servers={selected} tab={tab} attention={attention} multiple />
+      <Workspace key={start} servers={selected} tab={tab} attention={attention} cleanupKinds={cleanupKinds} multiple />
     </>
   );
 }
@@ -152,9 +171,10 @@ interface WorkspaceProps {
   multiple: boolean;
   attention?: boolean | undefined;
   group?: string | undefined;
+  cleanupKinds?: readonly CleanupKindParam[] | undefined;
 }
 
-function Workspace({ tab, servers, server, multiple, attention, group }: WorkspaceProps) {
+function Workspace({ tab, servers, server, multiple, attention, group, cleanupKinds }: WorkspaceProps) {
   const { t } = useLingui();
   const may = useMay();
   const canReadSettings = may(DockerService.method.getDockerSettings).allowed;
@@ -297,7 +317,7 @@ function Workspace({ tab, servers, server, multiple, attention, group }: Workspa
           <Settings serverId={server.id} />
         </Suspense>
       ) : tab === "cleanup" ? (
-        <DockerCleanup servers={servers} group={group} />
+        <DockerCleanup servers={servers} group={group} kinds={cleanupKinds} />
       ) : (
         <DockerContainers servers={servers} fleet={server === undefined} attention={attention} />
       )}
