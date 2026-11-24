@@ -256,7 +256,7 @@ func TestPuttingARuleBackLeavesOneMadeAgainByHand(t *testing.T) {
 		}
 		madeAgain := `{"ingress":[{"hostname":"panel.example.com","service":"http://127.0.0.1:7600"},{"hostname":"wiki.example.com","service":"http://192.0.2.10:3000"},{"service":"http_status:404"}]}`
 		s.cf.SetDocument(webOne, json.RawMessage(madeAgain))
-		said, err := s.f.server.publisher.Apply(t.Context(), "chg_undo", revision.PublishRoute{ID: "rte_wiki"}, resource.ProviderStep{
+		said, err := s.f.server.publisher.Apply(t.Context(), "chg_undo", revision.PublishRoute{ID: "rte_wiki", Environment: s.env}, resource.ProviderStep{
 			Provider: "cloudflare", Action: resource.ProviderRestoreRule, Target: "web-1", Name: "wiki.example.com", Account: cftest.Account, Tunnel: webOne,
 			ZoneID: cftest.ZoneID("example.com"), Mode: "hold", Rule: &resource.ProviderRule{Hostname: "wiki.example.com", Service: "http://127.0.0.1:80"},
 		})
