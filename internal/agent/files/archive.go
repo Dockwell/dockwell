@@ -745,6 +745,7 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 		// Archive permissions start at 0600 and tighten if a source folder is tighter.
 		archiveMode := uint32(0o600)
 		resolved := make([]string, 0, min(len(paths), maxJobSourcePaths))
+		var preflightBuf []byte
 		for _, p := range paths {
 			o, or := s.openDownload(ctx, t, p)
 			if or != nil {
@@ -773,19 +774,28 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 				archiveMode &= tighter
 			}
 			if !o.dir {
-				head := make([]byte, MaxFileBytes)
-				n, rerr := io.ReadFull(o.f, head)
-				if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+				if preflightBuf == nil {
+					preflightBuf = make([]byte, FrameBytes)
+				}
+				firstLen, why, seeked, _, rerr := scanFileHead(o.f, preflightBuf)
+				if rerr != nil {
 					where := o.where
 					o.close()
 					dst.w.close()
 					return denied(where, rerr), nil
 				}
-				if why := heldBack(head[:n]); why != "" {
+				if why != "" {
 					where := o.where
 					o.close()
 					dst.w.close()
 					return refused(where, why), nil
+				}
+				if !seeked && firstLen > 0 {
+					if r := (&keyScan{}).check(o.where, preflightBuf[:firstLen]); r != nil {
+						o.close()
+						dst.w.close()
+						return r, nil
+					}
 				}
 			}
 			o.close()
@@ -1073,25 +1083,47 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 			Message: fmt.Sprintf("this archive holds more than %d files and folders, so it stopped. Archive a smaller selection, or use SSH", maxArchived),
 		}, nil
 	}
-	head := make([]byte, MaxFileBytes)
-	n, err := io.ReadFull(o.f, head)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
+	firstLen, why, seeked, isBin, err := scanFileHead(o.f, a.buf)
+	if err != nil {
 		return denied(o.where, err), nil
 	}
-	head = head[:n]
-	if why := heldBack(head); why != "" {
+	if why != "" {
 		return refused(o.where, why), nil
+	}
+	if seeked {
+		if _, err := o.f.Seek(0, io.SeekStart); err != nil {
+			return denied(o.where, err), nil
+		}
+		n, rerr := io.ReadFull(o.f, a.buf)
+		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			return denied(o.where, rerr), nil
+		}
+		firstLen = n
+	}
+	scan := &keyScan{}
+	var dockerTOCTOU headScan
+	checkDocker := seeked && !isBin
+	headSeen := 0
+	if firstLen > 0 {
+		if refusal := scan.check(o.where, a.buf[:firstLen]); refusal != nil {
+			return refusal, nil
+		}
+		if checkDocker {
+			dockerTOCTOU.feedDocker(a.buf[:firstLen])
+			headSeen += firstLen
+			if dockerTOCTOU.sawDocker() {
+				return refused(o.where, whyDockerCopy), nil
+			}
+		}
 	}
 	w, err := a.z.Create(name, time.Unix(o.w.st.Mtim.Unix()), fs.FileMode(o.w.st.Mode&0o777), zipDeflated)
 	if err != nil {
 		return nil, err
 	}
-	scan := &keyScan{}
-	if refusal := scan.check(o.where, head); refusal != nil {
-		return refusal, nil
-	}
-	if _, err := w.Write(head); err != nil {
-		return nil, err
+	if firstLen > 0 {
+		if _, err := w.Write(a.buf[:firstLen]); err != nil {
+			return nil, err
+		}
 	}
 	for {
 		if err := ctx.Err(); err != nil {
@@ -1101,6 +1133,14 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 		if m > 0 {
 			if refusal := scan.check(o.where, a.buf[:m]); refusal != nil {
 				return refusal, nil
+			}
+			if checkDocker && headSeen < MaxFileBytes {
+				take := min(m, MaxFileBytes-headSeen)
+				dockerTOCTOU.feedDocker(a.buf[:take])
+				headSeen += take
+				if dockerTOCTOU.sawDocker() {
+					return refused(o.where, whyDockerCopy), nil
+				}
 			}
 			if _, werr := w.Write(a.buf[:m]); werr != nil {
 				return nil, werr
