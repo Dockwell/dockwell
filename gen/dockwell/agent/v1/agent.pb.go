@@ -21463,8 +21463,10 @@ type RenewCertificateResult struct {
 	state              protoimpl.MessageState `protogen:"open.v1"`
 	Message            string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	PreviousExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=previous_expire_time,json=previousExpireTime,proto3" json:"previous_expire_time,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// True when a renewal actually ran (not a no-op check).
+	Renewed       bool `protobuf:"varint,3,opt,name=renewed,proto3" json:"renewed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RenewCertificateResult) Reset() {
@@ -21509,6 +21511,13 @@ func (x *RenewCertificateResult) GetPreviousExpireTime() *timestamppb.Timestamp 
 		return x.PreviousExpireTime
 	}
 	return nil
+}
+
+func (x *RenewCertificateResult) GetRenewed() bool {
+	if x != nil {
+		return x.Renewed
+	}
+	return false
 }
 
 // ReadCertificateCall reads a domain's active PEM certificate chain (and optionally private key).
@@ -21575,6 +21584,9 @@ type ReadCertificateResult struct {
 	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
 	NotAfter      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
 	Custom        bool                   `protobuf:"varint,8,opt,name=custom,proto3" json:"custom,omitempty"`
+	ByDns         string                 `protobuf:"bytes,9,opt,name=by_dns,json=byDns,proto3" json:"by_dns,omitempty"`
+	DnsNames      []string               `protobuf:"bytes,10,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	DnsServes     []string               `protobuf:"bytes,11,rep,name=dns_serves,json=dnsServes,proto3" json:"dns_serves,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -21663,6 +21675,27 @@ func (x *ReadCertificateResult) GetCustom() bool {
 		return x.Custom
 	}
 	return false
+}
+
+func (x *ReadCertificateResult) GetByDns() string {
+	if x != nil {
+		return x.ByDns
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetDnsNames() []string {
+	if x != nil {
+		return x.DnsNames
+	}
+	return nil
+}
+
+func (x *ReadCertificateResult) GetDnsServes() []string {
+	if x != nil {
+		return x.DnsServes
+	}
+	return nil
 }
 
 var File_dockwell_agent_v1_agent_proto protoreflect.FileDescriptor
@@ -23125,14 +23158,15 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05error\x18\x02 \x01(\tR\x05error\"D\n" +
 	"\x14RenewCertificateCall\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x14\n" +
-	"\x05force\x18\x02 \x01(\bR\x05force\"\x80\x01\n" +
+	"\x05force\x18\x02 \x01(\bR\x05force\"\x9a\x01\n" +
 	"\x16RenewCertificateResult\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12L\n" +
-	"\x14previous_expire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x12previousExpireTime\"N\n" +
+	"\x14previous_expire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x12previousExpireTime\x12\x18\n" +
+	"\arenewed\x18\x03 \x01(\bR\arenewed\"N\n" +
 	"\x13ReadCertificateCall\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1f\n" +
 	"\vinclude_key\x18\x02 \x01(\bR\n" +
-	"includeKey\"\xa3\x02\n" +
+	"includeKey\"\xf6\x02\n" +
 	"\x15ReadCertificateResult\x12\x19\n" +
 	"\bcert_pem\x18\x01 \x01(\tR\acertPem\x12\x1d\n" +
 	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12\x18\n" +
@@ -23142,7 +23176,12 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\n" +
 	"not_before\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
 	"\tnot_after\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x12\x16\n" +
-	"\x06custom\x18\b \x01(\bR\x06custom*\x8f\x01\n" +
+	"\x06custom\x18\b \x01(\bR\x06custom\x12\x15\n" +
+	"\x06by_dns\x18\t \x01(\tR\x05byDns\x12\x1b\n" +
+	"\tdns_names\x18\n" +
+	" \x03(\tR\bdnsNames\x12\x1d\n" +
+	"\n" +
+	"dns_serves\x18\v \x03(\tR\tdnsServes*\x8f\x01\n" +
 	"\vLocalAction\x12\x1c\n" +
 	"\x18LOCAL_ACTION_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11LOCAL_ACTION_MADE\x10\x01\x12\x18\n" +

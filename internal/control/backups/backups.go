@@ -883,8 +883,16 @@ func (h *Handler) restore(ctx context.Context, b *store.Backup, ref resource.Ref
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on a server that can restore it now. Fetch it from %s onto a server that has %s, then restore it", b.ID, b.Destination, b.Volume), "fetch_first")
 		}
 	}
+	hostPath := b.WebsitePath
+	if b.WebsiteID != "" {
+		verified, err := h.verifyWebsiteRestoreTarget(ctx, b)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		hostPath = verified
+	}
 	return h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
-		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID, HostPath: b.WebsitePath}
+		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID, HostPath: hostPath}
 		return h.engine.RestoreWith(ctx, ref, source, as, who, summary)
 	})
 }

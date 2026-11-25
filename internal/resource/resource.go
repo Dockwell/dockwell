@@ -2452,6 +2452,24 @@ func (r *Registry) OnServer(kind Kind, spec proto.Message) proto.Message {
 	return spec
 }
 
+// ObservedShaper is a kind whose Observe omits a secret field (such as a custom
+// certificate's private key) and returns a fingerprint instead. Plan and Drift
+// compare against AsObserved(desired) while Apply still receives the full spec.
+type ObservedShaper interface {
+	AsObserved(spec proto.Message) proto.Message
+}
+
+// AsObserved returns spec shaped as Observe returns it, for Plan and Drift comparison.
+func (r *Registry) AsObserved(kind Kind, spec proto.Message) proto.Message {
+	if spec == nil {
+		return nil
+	}
+	if s, ok := r.types[kind].(ObservedShaper); ok {
+		return s.AsObserved(spec)
+	}
+	return spec
+}
+
 // Readopted is what a server has, with what only the control plane keeps of
 // current put back where that still holds (ControlOnly).
 func (r *Registry) Readopted(kind Kind, current, observed proto.Message) proto.Message {

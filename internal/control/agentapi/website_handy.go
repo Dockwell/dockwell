@@ -12,7 +12,7 @@ import (
 
 const (
 	validateCaddyTimeout = 30 * time.Second
-	certActionTimeout    = 30 * time.Second
+	certActionTimeout    = 45 * time.Second
 )
 
 // WebsiteHandy says whether this server's agent supports Caddyfile adapter validation,

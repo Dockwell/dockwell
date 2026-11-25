@@ -3,19 +3,13 @@
 package website
 
 import (
-	"cmp"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"net/url"
 	"path"
-	"regexp"
-	"slices"
-	"strconv"
 	"strings"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	"github.com/dockwell/dockwell/internal/ingress/caddy"
 )
 
 // MaxCustomCaddyBytes caps the size of a website's Advanced Caddy block.
@@ -35,7 +29,8 @@ var forbiddenDirectives = map[string]string{
 	"pki":        "global options aren't allowed here: write directives for this website's block alone",
 	"acme_ca":    "global options aren't allowed here: write directives for this website's block alone",
 	"email":      "global options aren't allowed here: write directives for this website's block alone",
-	"log_append": "",
+	"log":        "log isn't allowed here: Dockwell configures this website's access logging itself",
+	"log_append": "log_append isn't allowed in custom site config",
 }
 
 // AllowedRoot returns the container directory a website is allowed to serve files from,
@@ -68,8 +63,9 @@ func CheckCustomCaddy(raw, allowedRoot string) (string, error) {
 			return "", errors.New("custom Caddy config contains control characters that aren't allowed")
 		}
 	}
-	if strings.Contains(s, "{$") || strings.Contains(s, "{env.") || strings.Contains(s, "{system.") {
-		return "", errors.New("custom Caddy config can't read container environment or system placeholders")
+	lower := strings.ToLower(s)
+	if strings.Contains(lower, "{$") || strings.Contains(lower, "{env.") || strings.Contains(lower, "{system.") || strings.Contains(lower, "{file.") {
+		return "", errors.New("custom Caddy config can't read container environment, system or file placeholders")
 	}
 
 	depth := 0
@@ -82,8 +78,12 @@ func CheckCustomCaddy(raw, allowedRoot string) (string, error) {
 		if len(tokens) == 0 {
 			continue
 		}
-		// Reject closing a block we didn't open (escaping the site block).
+		// Reject heredocs (<<) so multi-line strings cannot desynchronize brace counting
+		// and escape the site's block.
 		for _, tok := range tokens {
+			if strings.HasPrefix(tok, "<<") {
+				return "", fmt.Errorf("custom Caddy line %d: heredocs (<<) aren't allowed in custom site config", lineIdx+1)
+			}
 			switch tok {
 			case "{":
 				depth++
@@ -135,6 +135,9 @@ func checkCustomRootDirective(tokens []string, allowedRoot string, lineNo int) e
 		target = tokens[2]
 	default:
 		return fmt.Errorf("custom Caddy line %d: root expects a folder inside %s", lineNo, allowedRoot)
+	}
+	if strings.ContainsAny(target, "{}") {
+		return fmt.Errorf("custom Caddy line %d: root %q can't contain Caddy placeholders", lineNo, target)
 	}
 	if !pathWithin(target, allowedRoot) {
 		return fmt.Errorf("custom Caddy line %d: root %q must stay inside %s", lineNo, target, allowedRoot)
@@ -246,184 +249,15 @@ func writeCustomCaddy(b *strings.Builder, custom, indent string) {
 	}
 }
 
-var basicAuthPlaceholderRE = regexp.MustCompile(`\{\$DW_BASIC_AUTH_HASH_\d+\}`)
-
-// dummyValidationHash is a syntactically valid 60-byte bcrypt hash used ONLY during
-// dry-run `caddy adapt` validation when site environment variables are absent.
-const dummyValidationHash = "$2a$10$00000000000000000000000000000000000000000000000000000"
-
 // ForValidation prepares a Dockwell-generated Caddyfile for dry-run adaptation on Caddy's
-// /adapt endpoint by substituting Dockwell's Basic Auth env-var placeholders with a
-// syntactically valid dummy hash. Never used to run a container.
+// /adapt endpoint. Delegates to caddy.ForValidation so control plane and agent share one copy.
 func ForValidation(config string) string {
-	return basicAuthPlaceholderRE.ReplaceAllStringFunc(config, func(string) string {
-		return dummyValidationHash
-	})
+	return caddy.ForValidation(config)
 }
 
 // ValidateAdaptedCaddyJSON inspects the canonical JSON returned by Caddy's own Caddyfile
-// adapter and verifies that custom directives never escaped the site's :8080 server block,
-// never enabled admin or TLS, never claimed another site's hostname, never escaped the
-// allowed root folder, and never targeted loopback, link-local, metadata, or Docker API upstreams.
+// adapter against the site-block allowlist. Delegates to caddy.ValidateAdaptedCaddyJSON
+// so control plane and agent share one single validator implementation.
 func ValidateAdaptedCaddyJSON(adapted []byte, allowedRoot string) error {
-	var top map[string]any
-	if err := json.Unmarshal(adapted, &top); err != nil {
-		return fmt.Errorf("adapted Caddy config isn't valid JSON: %w", err)
-	}
-	admin, _ := top["admin"].(map[string]any)
-	if disabled, _ := admin["disabled"].(bool); !disabled {
-		return errors.New("adapted config must keep Caddy's admin API disabled")
-	}
-	if listen, _ := admin["listen"].(string); listen != "" {
-		return errors.New("adapted config can't open a Caddy admin listener")
-	}
-	apps, _ := top["apps"].(map[string]any)
-	for appName := range apps {
-		if appName != "http" {
-			return fmt.Errorf("custom Caddy config can't configure Caddy's %q app; only HTTP directives for this website are allowed", appName)
-		}
-	}
-	httpApp, _ := apps["http"].(map[string]any)
-	servers, _ := httpApp["servers"].(map[string]any)
-	if len(servers) != 1 {
-		return fmt.Errorf("custom Caddy config must stay inside this website's single server block (got %d servers)", len(servers))
-	}
-	wantListen := fmt.Sprintf(":%d", Port)
-	for _, rawSrv := range servers {
-		srv, _ := rawSrv.(map[string]any)
-		listen, _ := srv["listen"].([]any)
-		if len(listen) != 1 || listen[0] != wantListen {
-			return fmt.Errorf("custom Caddy config must listen only on %s (got %v)", wantListen, listen)
-		}
-		if routes, ok := srv["routes"].([]any); ok {
-			if err := checkAdaptedRoutes(routes, allowedRoot); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func checkAdaptedRoutes(routes []any, allowedRoot string) error {
-	for _, item := range routes {
-		rt, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		if matchers, ok := rt["match"].([]any); ok {
-			for _, mItem := range matchers {
-				m, _ := mItem.(map[string]any)
-				if _, hasHost := m["host"]; hasHost {
-					return errors.New("custom Caddy config can't match another site's hostname")
-				}
-				if notList, ok := m["not"].([]any); ok {
-					for _, nItem := range notList {
-						if nm, _ := nItem.(map[string]any); nm != nil {
-							if _, hasHost := nm["host"]; hasHost {
-								return errors.New("custom Caddy config can't match another site's hostname")
-							}
-						}
-					}
-				}
-			}
-		}
-		if handlers, ok := rt["handle"].([]any); ok {
-			for _, hItem := range handlers {
-				h, ok := hItem.(map[string]any)
-				if !ok {
-					continue
-				}
-				if err := checkAdaptedHandler(h, allowedRoot); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func checkAdaptedHandler(h map[string]any, allowedRoot string) error {
-	name, _ := h["handler"].(string)
-	switch name {
-	case "subroute":
-		if routes, ok := h["routes"].([]any); ok {
-			if err := checkAdaptedRoutes(routes, allowedRoot); err != nil {
-				return err
-			}
-		}
-	case "vars":
-		if rootVal, ok := h["root"].(string); ok && rootVal != "" {
-			if !pathWithin(rootVal, allowedRoot) {
-				return fmt.Errorf("custom Caddy root %q must stay inside %s", rootVal, cmp.Or(allowedRoot, "the website's folder"))
-			}
-		}
-	case "file_server":
-		if allowedRoot == "" {
-			return errors.New("file_server isn't allowed on a proxy website that mounts no folder")
-		}
-		if rootVal, ok := h["root"].(string); ok && rootVal != "" {
-			if !pathWithin(rootVal, allowedRoot) {
-				return fmt.Errorf("file_server root %q must stay inside %s", rootVal, allowedRoot)
-			}
-		}
-	case "reverse_proxy":
-		if _, hasDyn := h["dynamic_upstreams"]; hasDyn {
-			return errors.New("dynamic_upstreams isn't allowed in custom Caddy config")
-		}
-		if ups, ok := h["upstreams"].([]any); ok {
-			for _, uItem := range ups {
-				u, _ := uItem.(map[string]any)
-				dial, _ := u["dial"].(string)
-				if err := checkAdaptedDial(dial); err != nil {
-					return err
-				}
-			}
-		}
-		if hr, ok := h["handle_response"].([]any); ok {
-			for _, rItem := range hr {
-				rm, _ := rItem.(map[string]any)
-				if routes, ok := rm["routes"].([]any); ok {
-					if err := checkAdaptedRoutes(routes, allowedRoot); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	case "templates":
-		return errors.New("caddy's templates handler isn't allowed in custom site config")
-	}
-	return nil
-}
-
-func checkAdaptedDial(dial string) error {
-	if dial == "" {
-		return nil
-	}
-	if strings.HasPrefix(dial, "unix/") || strings.HasPrefix(dial, "unixgram/") || strings.HasPrefix(dial, "unixpacket/") {
-		return fmt.Errorf("custom reverse_proxy can't dial unix socket %q", dial)
-	}
-	// Caddy dials host:port (or may carry a scheme if unparsed).
-	host, portStr, err := net.SplitHostPort(dial)
-	if err != nil {
-		if u, uerr := url.Parse(dial); uerr == nil && u.Host != "" {
-			host = u.Hostname()
-			portStr = u.Port()
-		} else {
-			host = dial
-		}
-	}
-	host = strings.ToLower(strings.Trim(host, "[]"))
-	// Allow internal website network aliases (php, subpath-N) generated by Dockwell.
-	if host == PHPService || strings.HasPrefix(host, "subpath-") {
-		return nil
-	}
-	if err := checkHost(host); err != nil {
-		return fmt.Errorf("custom reverse_proxy upstream %q: %w", dial, err)
-	}
-	if portStr != "" {
-		if n, err := strconv.Atoi(portStr); err == nil && slices.Contains(dockerPorts, n) {
-			return fmt.Errorf("custom reverse_proxy can't dial Docker's API port %d", n)
-		}
-	}
-	return nil
+	return caddy.ValidateAdaptedCaddyJSON(adapted, allowedRoot)
 }

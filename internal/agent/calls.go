@@ -2005,7 +2005,7 @@ func (c *calls) putCertificates(ctx context.Context, put *agentv1.PutCertificate
 
 type websiteIngress interface {
 	ValidateCaddyfile(ctx context.Context, caddyfile, allowedRoot string) (bool, string, error)
-	RenewCertificate(ctx context.Context, domain string, force bool) (string, error)
+	RenewCertificate(ctx context.Context, domain string, force bool) (string, bool, error)
 	ReadCertificate(ctx context.Context, domain string, includeKey bool) (*ingress.CertificateRead, error)
 }
 
@@ -2032,20 +2032,27 @@ func (c *calls) validateCaddyfile(ctx context.Context, v *agentv1.ValidateCaddyf
 }
 
 func (c *calls) renewCertificate(ctx context.Context, r *agentv1.RenewCertificateCall) *agentv1.CallResult {
+	if err := ingress.CheckDomainName(r.GetDomain()); err != nil {
+		return callFailed(err)
+	}
 	wi, err := c.websiteIngress()
 	if err != nil {
 		return callFailed(err)
 	}
-	msg, err := wi.RenewCertificate(ctx, r.GetDomain(), r.GetForce())
+	msg, renewed, err := wi.RenewCertificate(ctx, r.GetDomain(), r.GetForce())
 	if err != nil {
 		return callFailed(err)
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_RenewCertificate{RenewCertificate: &agentv1.RenewCertificateResult{
 		Message: msg,
+		Renewed: renewed,
 	}}}
 }
 
 func (c *calls) readCertificate(ctx context.Context, r *agentv1.ReadCertificateCall) *agentv1.CallResult {
+	if err := ingress.CheckDomainName(r.GetDomain()); err != nil {
+		return callFailed(err)
+	}
 	wi, err := c.websiteIngress()
 	if err != nil {
 		return callFailed(err)
@@ -2055,12 +2062,15 @@ func (c *calls) readCertificate(ctx context.Context, r *agentv1.ReadCertificateC
 		return callFailed(err)
 	}
 	out := &agentv1.ReadCertificateResult{
-		CertPem: got.CertPEM,
-		KeyPem:  got.KeyPEM,
-		Issuer:  got.Issuer,
-		Subject: got.Subject,
-		Sans:    got.SANs,
-		Custom:  got.Custom,
+		CertPem:   got.CertPEM,
+		KeyPem:    got.KeyPEM,
+		Issuer:    got.Issuer,
+		Subject:   got.Subject,
+		Sans:      got.SANs,
+		Custom:    got.Custom,
+		ByDns:     got.ByDNS,
+		DnsNames:  got.DNSNames,
+		DnsServes: got.DNSServes,
 	}
 	if !got.NotBefore.IsZero() {
 		out.NotBefore = timestamppb.New(got.NotBefore)

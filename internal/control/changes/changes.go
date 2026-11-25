@@ -253,6 +253,9 @@ type Also struct {
 	// Records go on the activity log with the planned change, in its transaction
 	// (revision.Proposal.Records).
 	Records func(change string) []store.Event
+	// WebsiteCustomCaddyValidated marks edits produced by WebsiteService after
+	// Caddy on the target server validated any custom_caddy block (M2).
+	WebsiteCustomCaddyValidated bool
 }
 
 // Adoption is a container a change takes on: its full ID, and what it is called.
@@ -292,6 +295,11 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 	}
 	caller := authapi.ClientAddress(ctx)
 	for i := range edits {
+		if p, ok := edits[i].Spec.(*resourcev1.Project); ok && !also.WebsiteCustomCaddyValidated {
+			if err := h.checkRawCustomCaddyEdit(ctx, edits[i].Ref, p); err != nil {
+				return nil, err
+			}
+		}
 		if r, ok := edits[i].Spec.(*resourcev1.FirewallRule); ok {
 			name := edits[i].Ref.Name
 			if revision.ReservedFirewallRule(name) && !also.ExternalAccess {
@@ -352,6 +360,43 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 		return nil, fail(err)
 	}
 	return h.change(ctx, plan.Change)
+}
+
+// checkRawCustomCaddyEdit refuses project edits outside WebsiteService that add or
+// modify custom_caddy (or unpause a website with custom_caddy), because WebsiteService
+// runs Caddy's adapter on the target server before proposing (M2).
+func (h *Handler) checkRawCustomCaddyEdit(ctx context.Context, ref resource.Ref, next *resourcev1.Project) error {
+	w := next.GetWebsite()
+	if w == nil || strings.TrimSpace(w.GetCustomCaddy()) == "" {
+		return nil
+	}
+	sameAndUnchangedPause := false
+	if h.db != nil {
+		_ = h.db.View(ctx, func(tx *store.Tx) error {
+			cur, err := tx.GetResource(ctx, string(scope.ProjectKind), ref.Scope, ref.Name)
+			if err != nil || cur.Spec == nil {
+				return err
+			}
+			plain, err := tx.Open(ctx, store.InRevision(cur.ID, cur.Kind, cur.Revision), cur.Spec)
+			if err != nil {
+				return err
+			}
+			decoded, err := h.engine.Kinds().Decode(scope.ProjectKind, plain)
+			if err != nil {
+				return err
+			}
+			prev, _ := decoded.(*resourcev1.Project)
+			prevW := prev.GetWebsite()
+			if prevW != nil && prevW.GetCustomCaddy() == w.GetCustomCaddy() && prevW.GetPaused() == w.GetPaused() {
+				sameAndUnchangedPause = true
+			}
+			return nil
+		})
+	}
+	if !sameAndUnchangedPause {
+		return authapi.Invalid(errors.New("custom Caddy config must be changed through WebsiteService so Caddy on the target server validates it before applying"))
+	}
+	return nil
 }
 
 // Planned plans a change with plan, for another method that plans one its

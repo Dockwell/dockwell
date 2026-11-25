@@ -7488,7 +7488,7 @@ func (e *Engine) Drift(ctx context.Context, server string) ([]Drift, error) {
 		// Agents normalize what they observe, so only real differences
 		// are unequal.
 		// What only the control plane keeps, the server never had.
-		want := e.kinds.OnServer(refs[i].Kind, desired[i])
+		want := e.kinds.AsObserved(refs[i].Kind, e.kinds.OnServer(refs[i].Kind, desired[i]))
 		if resource.Equal(want, observed[i]) {
 			continue
 		}

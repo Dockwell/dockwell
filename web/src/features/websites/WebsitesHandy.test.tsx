@@ -438,4 +438,60 @@ describe("Websites everyday depth", () => {
     expect(batchCalls[0]?.websiteIds).toHaveLength(2);
     expect(batchCalls[0]?.https).toBe(true);
   });
+
+  it("lists every covered name before passkey when downloading a shared or multi-name certificate key", async () => {
+    onWideScreen();
+    const user = userEvent.setup();
+    const downloads: DownloadCertificateRequest[] = [];
+    const sharedDomains = [
+      {
+        ...domains[0],
+        servers: [
+          {
+            serverId: SERVER,
+            serverName: "hz-1",
+            status: {
+              domain: "shop.example.com",
+              certificate: {
+                state: CertificateState.ISSUED,
+                expireTime: days(60),
+                issuer: "Let's Encrypt",
+                byDns: "cloudflare",
+                sans: ["*.example.com", "shop.example.com", "billing.example.com"],
+              },
+            },
+          },
+        ],
+      },
+    ];
+    renderAt(
+      "/websites/prj_shop/certificate",
+      api([shop], {
+        domains: {
+          listDomains: () => ({ domains: sharedDomains }),
+          downloadCertificate: (req) => {
+            downloads.push(req);
+            return {
+              certPem: "-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n",
+              keyPem: "-----BEGIN PRIVATE KEY-----\nSHARED\n-----END PRIVATE KEY-----\n",
+            };
+          },
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Let's Encrypt")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Download key" }));
+
+    // Confirmation sheet must appear BEFORE any downloadCertificate(includeKey=true) call.
+    expect(downloads).toHaveLength(0);
+    const confirmDialog = await screen.findByRole("dialog", { name: /Download shared certificate key/i });
+    expect(within(confirmDialog).getByText("*.example.com")).toBeVisible();
+    expect(within(confirmDialog).getByText("shop.example.com")).toBeVisible();
+    expect(within(confirmDialog).getByText("billing.example.com")).toBeVisible();
+
+    await user.click(within(confirmDialog).getByRole("button", { name: /Continue to passkey/i }));
+    await waitFor(() => expect(downloads).toHaveLength(1));
+    expect(downloads[0]?.includeKey).toBe(true);
+  });
 });

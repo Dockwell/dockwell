@@ -404,14 +404,67 @@ func (h *Handler) PreviewWebsite(ctx context.Context, req *connect.Request[dockw
 		return nil, authapi.Invalid(err)
 	}
 	caddyValidated := false
-	if strings.TrimSpace(spec.GetCustomCaddy()) != "" && strings.TrimSpace(req.Msg.GetServerId()) != "" {
-		ok, err := h.validateCustomCaddyOnServer(ctx, strings.TrimSpace(req.Msg.GetServerId()), spec)
+	serverID := strings.TrimSpace(req.Msg.GetServerId())
+	if strings.TrimSpace(spec.GetCustomCaddy()) != "" && serverID != "" {
+		if err := h.checkPreviewServerAccess(ctx, serverID); err != nil {
+			return nil, err
+		}
+		ok, err := h.validateCustomCaddyOnServer(ctx, serverID, spec)
 		if err != nil {
 			return nil, err
 		}
 		caddyValidated = ok
 	}
 	return connect.NewResponse(&dockwellv1.PreviewWebsiteResponse{Website: spec, Config: website.Config(spec), CaddyValidated: caddyValidated}), nil
+}
+
+// checkPreviewServerAccess checks that a caller requesting server-side Caddy adapter
+// validation holds admin access on the install or on at least one project placed on serverID (L2).
+func (h *Handler) checkPreviewServerAccess(ctx context.Context, serverID string) error {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return nil
+	}
+	if place.Holds(c.Grants, place.Install) == store.RoleAdmin {
+		return nil
+	}
+	allowed := false
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if place.Holds(c.Grants, place.Place{Project: p.ID}) != store.RoleAdmin {
+				continue
+			}
+			for _, e := range p.Environments {
+				for _, kind := range []string{string(route.Kind), string(service.Kind)} {
+					list, err := tx.ListResources(ctx, e.ID, kind)
+					if err != nil {
+						return err
+					}
+					for i := range list {
+						placed, err := tx.Placement(ctx, list[i].ID, list[i].Revision)
+						if err != nil {
+							return err
+						}
+						if slices.Contains(placed, serverID) {
+							allowed = true
+							return nil
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return h.internal(ctx, err)
+	}
+	if !allowed {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("validating custom Caddy config on a server requires admin access on a project running on that server"))
+	}
+	return nil
 }
 
 // CreateWebsite plans a new website as a project of its own.
@@ -466,6 +519,10 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
 	if refused != nil {
+		var cerr *connect.Error
+		if errors.As(refused, &cerr) {
+			return nil, cerr
+		}
 		return nil, authapi.Invalid(refused)
 	}
 	var targetServer string
@@ -475,7 +532,7 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if _, err := h.validateCustomCaddyOnServer(ctx, targetServer, spec); err != nil {
 		return nil, err
 	}
-	secretEdits, err := prepareBasicAuthSecrets(env, spec, req.Msg.GetBasicAuthPasswords(), nil)
+	secretEdits, err := prepareBasicAuthSecrets(env, nil, spec, req.Msg.GetBasicAuthPasswords(), nil)
 	if err != nil {
 		return nil, authapi.Invalid(err)
 	}
@@ -491,7 +548,7 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	edits = append(edits, served...)
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
 	notes := slices.Concat(folderNotes(env, spec), frontNotes(serving, nil), visitorNotes(env, nil, spec))
-	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes})
+	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes, WebsiteCustomCaddyValidated: true})
 	if err != nil {
 		return nil, err
 	}
@@ -664,6 +721,10 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
 	if subpathErr != nil {
+		var cerr *connect.Error
+		if errors.As(subpathErr, &cerr) {
+			return nil, cerr
+		}
 		return nil, authapi.Invalid(subpathErr)
 	}
 	root, php := folderOf(spec)
@@ -677,7 +738,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if _, err := h.validateCustomCaddyOnServer(ctx, targetServer, spec); err != nil {
 		return nil, err
 	}
-	secretEdits, err := prepareBasicAuthSecrets(s.env, spec, req.Msg.GetBasicAuthPasswords(), s.secrets)
+	secretEdits, err := prepareBasicAuthSecrets(s.env, s.spec.GetWebsite(), spec, req.Msg.GetBasicAuthPasswords(), s.secrets)
 	if err != nil {
 		return nil, authapi.Invalid(err)
 	}
@@ -749,8 +810,9 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), updateSummary(s.spec.GetWebsite(), spec, was, domain))
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
-		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
-		Notes:     slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects), leftNotes(left), visitorNotes(s.env, s.spec.GetWebsite(), spec)),
+		IfNothing:                   fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
+		Notes:                       slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects), leftNotes(left), visitorNotes(s.env, s.spec.GetWebsite(), spec)),
+		WebsiteCustomCaddyValidated: true,
 	})
 	if err != nil {
 		return nil, err

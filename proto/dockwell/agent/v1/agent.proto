@@ -3577,6 +3577,8 @@ message RenewCertificateCall {
 message RenewCertificateResult {
   string message = 1;
   google.protobuf.Timestamp previous_expire_time = 2;
+  // True when a renewal actually ran (not a no-op check).
+  bool renewed = 3;
 }
 
 // ReadCertificateCall reads a domain's active PEM certificate chain (and optionally private key).
@@ -3595,4 +3597,7 @@ message ReadCertificateResult {
   google.protobuf.Timestamp not_before = 6;
   google.protobuf.Timestamp not_after = 7;
   bool custom = 8;
+  string by_dns = 9;
+  repeated string dns_names = 10;
+  repeated string dns_serves = 11;
 }

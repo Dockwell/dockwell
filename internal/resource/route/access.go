@@ -185,6 +185,10 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 	if cc := is.GetCustomCert(); cc != nil && cc.GetKeyPem() == "" {
 		if prev := was.GetCustomCert(); prev != nil && prev.GetCertPem() == cc.GetCertPem() && prev.GetKeyPem() != "" {
 			cc.KeyPem = prev.GetKeyPem()
+			cc.KeyFingerprint = prev.GetKeyFingerprint()
+			if cc.KeyFingerprint == "" {
+				cc.KeyFingerprint = ingress.KeyFingerprint([]byte(prev.GetKeyPem()))
+			}
 			keptCertKey = true
 		} else {
 			return resource.Kept{}, fmt.Errorf("the custom certificate for %s needs its private key", Where(is))

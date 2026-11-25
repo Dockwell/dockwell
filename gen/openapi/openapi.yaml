@@ -31371,7 +31371,10 @@ components:
                     description: Full PEM certificate chain (leaf first, intermediates after).
                 keyPem:
                     type: string
-                    description: PEM private key, sealed at rest and never returned on list/read APIs.
+                    description: PEM private key, sealed at rest and never returned on list/read APIs or Observe.
+                keyFingerprint:
+                    type: string
+                    description: SHA-256 fingerprint of key_pem, set on validation and returned by Observe in place of key_pem.
             description: RouteCustomCert is a user-uploaded TLS certificate chain and private key in PEM.
         RouteGoes:
             type: object

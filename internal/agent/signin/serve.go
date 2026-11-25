@@ -74,6 +74,7 @@ func serveConn(conn net.Conn, h http.Handler, wait time.Duration, logger *slog.L
 	}()
 	head := &io.LimitedReader{R: conn}
 	r := bufio.NewReaderSize(head, 4096)
+	bw := bufio.NewWriterSize(conn, 512)
 	for {
 		head.N = maxHeader
 		_ = conn.SetReadDeadline(time.Now().Add(wait))
@@ -90,7 +91,7 @@ func serveConn(conn net.Conn, h http.Handler, wait time.Duration, logger *slog.L
 		_ = conn.SetReadDeadline(time.Now().Add(wait))
 		left, _ := io.Copy(io.Discard, io.LimitReader(req.Body, maxRequest+1))
 		_ = req.Body.Close()
-		if err := w.send(conn, req, wait); err != nil || req.Close || left > maxRequest {
+		if err := w.send(conn, bw, req, wait); err != nil || req.Close || left > maxRequest {
 			return
 		}
 	}
@@ -122,7 +123,7 @@ func (a *answer) Write(b []byte) (int, error) {
 
 // send writes the answer as HTTP/1.1, with its length, so the connection can carry
 // the next request, within wait (L2).
-func (a *answer) send(conn net.Conn, req *http.Request, wait time.Duration) error {
+func (a *answer) send(conn net.Conn, w *bufio.Writer, req *http.Request, wait time.Duration) error {
 	a.WriteHeader(http.StatusOK)
 	a.header.Set("Content-Length", strconv.Itoa(a.body.Len()))
 	res := &http.Response{
@@ -131,7 +132,7 @@ func (a *answer) send(conn net.Conn, req *http.Request, wait time.Duration) erro
 	}
 	_ = conn.SetWriteDeadline(time.Now().Add(wait))
 	defer func() { _ = conn.SetWriteDeadline(time.Time{}) }()
-	w := bufio.NewWriter(conn)
+	w.Reset(conn)
 	if err := res.Write(w); err != nil {
 		return err
 	}

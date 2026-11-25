@@ -1464,7 +1464,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		if err := s.supports(d.Ref); err != nil {
 			return nil, err
 		}
-		spec := s.agents.kinds.OnServer(d.Ref.Kind, d.Spec)
+		spec := s.agents.kinds.AsObserved(d.Ref.Kind, s.agents.kinds.OnServer(d.Ref.Kind, d.Spec))
 		if d.ExactRestart != "" {
 			spec = nil
 		}

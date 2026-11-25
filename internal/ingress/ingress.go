@@ -1160,6 +1160,9 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	if r.Setup == "" && m.SignIns != nil {
 		m.SignIns.DropSetup(r.ID)
 	}
+	if r.RateLimit == nil {
+		m.dropRateLimit(r.ID)
+	}
 	if signIn != nil {
 		if err := m.rewriteBeside(ctx, r); err != nil {
 			return err
@@ -1315,6 +1318,7 @@ func (m *Manager) remove(ctx context.Context, ref resource.Ref) error {
 	if m.SignIns != nil {
 		m.SignIns.Drop(id)
 	}
+	m.dropRateLimit(id)
 	if err := m.table.load(m.Dir); err != nil {
 		return err
 	}

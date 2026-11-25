@@ -53,13 +53,15 @@ type Server struct {
 	UseSetup func(hash string, until time.Time) (bool, error)
 	// Client reads the provider's discovery, keys and tokens, from this server.
 	Client Doer
+	// RateLimits enforces per-route visitor rate limits; if nil, Server uses its own.
+	RateLimits *RateLimiter
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 
-	mu          sync.Mutex
-	provider    *oidc.Client
-	limits      map[string]*limit
-	rateBuckets map[string]*routeBucket
+	mu            sync.Mutex
+	provider      *oidc.Client
+	limits        map[string]*limit
+	ownRateLimits *RateLimiter
 	// used are setup links' keys opened already, by hash, until their links end.
 	used map[string]time.Time
 }

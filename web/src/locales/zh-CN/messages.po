@@ -26945,6 +26945,9 @@ msgstr "证书尚未到续期时间"
 msgid "Certificate renewal has been started for {0}."
 msgstr "已开始为 {0} 续期证书。"
 
+msgid "Continue to passkey"
+msgstr "继续验证通行密钥"
+
 msgid "Could not download certificate"
 msgstr "无法下载证书"
 
@@ -26965,6 +26968,12 @@ msgstr "下载证书"
 
 msgid "Download key"
 msgstr "下载私钥"
+
+msgid "Download shared certificate key?"
+msgstr "下载共享证书私钥？"
+
+msgid "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
+msgstr "下载此密钥将授予下方列出的所有域名的 TLS 凭据，其中可能包含此服务器上的其他网站或项目。接下来将进行通行密钥验证。"
 
 msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
 msgstr "强制续期会计入证书颁发机构的重复证书速率限制。仅在更换泄露的密钥或测试续期时使用。"
@@ -27031,6 +27040,9 @@ msgstr "当前使用您上传的证书提供服务。私钥在静态存储时保
 
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS 在前面的隧道或代理处终止，因此这里没有证书。"
+
+msgid "This private key covers multiple names"
+msgstr "此私钥涵盖多个域名"
 
 msgid "Upload certificate"
 msgstr "上传证书"

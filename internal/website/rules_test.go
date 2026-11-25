@@ -198,6 +198,11 @@ func TestCustomCaddyGuards(t *testing.T) {
 		{"root * /srv/../etc", FolderTarget, "must stay inside /srv"},
 		{"@other host evil.example.com", FolderTarget, "host matchers"},
 		{"header X-Secret {$DW_BASIC_AUTH_HASH_0}", FolderTarget, "environment"},
+		{"respond \"{file./proc/self/environ}\"", FolderTarget, "file placeholders"},
+		{"respond <<EOF\n{\nEOF", FolderTarget, "heredocs"},
+		{"root * /srv/{http.request.uri.query.p}", FolderTarget, "placeholders"},
+		{"log {\n\toutput stderr\n}", FolderTarget, "log isn't allowed"},
+		{"log_append foo bar", FolderTarget, "log_append isn't allowed"},
 		{"respond \"ok\" {\n", FolderTarget, "unclosed '{'"},
 	} {
 		_, err := CheckCustomCaddy(tc.raw, tc.root)
@@ -453,6 +458,82 @@ func TestRulesAndPauseOnRealCaddy(t *testing.T) {
 	status, body = get(t, paused503, "/anything")
 	if status != 503 || body != "Service Unavailable" {
 		t.Errorf("paused plain 503 = %d %q", status, body)
+	}
+}
+
+// TestBasicAuthCannotBeBypassedByRewriteOnRealCaddy verifies L5: a rewrite from a
+// Basic-Auth-protected path (or into one) still requires credentials on real Caddy.
+func TestBasicAuthCannotBeBypassedByRewriteOnRealCaddy(t *testing.T) {
+	bin := needCaddy(t)
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"panel/page.html":   "panel page",
+		"admin/secret.html": "admin secret",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte("top-secret"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &resourcev1.Website{
+		Serves: &resourcev1.Website_Folder{Folder: &resourcev1.WebsiteFolder{Root: "/var/www/site"}},
+		Rules: &resourcev1.WebsiteRules{
+			BasicAuth: &resourcev1.WebsiteBasicAuth{
+				Path:  "/admin",
+				Realm: "Restricted",
+				Users: []*resourcev1.WebsiteBasicAuthUser{{Username: "alice", Secret: BasicAuthPasswordSecret("alice")}},
+			},
+			PathRules: []*resourcev1.WebsitePathRule{
+				// Rewrite out of protected path: must NOT bypass Basic Auth.
+				{From: "/admin/panel/*", To: "/panel/*", Kind: resourcev1.WebsitePathRuleKind_WEBSITE_PATH_RULE_KIND_REWRITE},
+				// Rewrite into protected path: must also require Basic Auth.
+				{From: "/open", To: "/admin/secret.html", Kind: resourcev1.WebsitePathRuleKind_WEBSITE_PATH_RULE_KIND_REWRITE},
+			},
+		},
+	}
+	if err := Check(w); err != nil {
+		t.Fatal(err)
+	}
+	cfg := strings.Replace(Config(w), "root * "+FolderTarget, "root * "+root, 1)
+	addr := runsWithEnv(t, bin, cfg, []string{BasicAuthEnvVar(0) + "=" + string(hash)})
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	hit := func(path, user, pass string) (int, string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+addr+path, http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if user != "" {
+			req.SetBasicAuth(user, pass)
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var b bytes.Buffer
+		_, _ = b.ReadFrom(res.Body)
+		res.Body.Close()
+		return res.StatusCode, b.String()
+	}
+
+	if code, _ := hit("/admin/panel/page.html", "", ""); code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated /admin/panel/page.html (rewritten to /panel/page.html) = %d, want 401", code)
+	}
+	if code, body := hit("/admin/panel/page.html", "alice", "top-secret"); code != http.StatusOK || body != "panel page" {
+		t.Fatalf("authenticated /admin/panel/page.html = %d %q, want 200 %q", code, body, "panel page")
+	}
+	if code, _ := hit("/open", "", ""); code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated /open (rewritten to /admin/secret.html) = %d, want 401", code)
+	}
+	if code, body := hit("/open", "alice", "top-secret"); code != http.StatusOK || body != "admin secret" {
+		t.Fatalf("authenticated /open = %d %q, want 200 %q", code, body, "admin secret")
 	}
 }
 

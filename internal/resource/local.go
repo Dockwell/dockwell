@@ -766,10 +766,14 @@ func decide(ctx context.Context, d Driver, ref Ref, actual, desired proto.Messag
 
 // judgeStep is PlanStep with a Judge, which knows the server.
 func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Message) (Step, error) {
-	if Equal(actual, desired) {
+	cmpDesired := desired
+	if s, ok := j.(ObservedShaper); ok && desired != nil {
+		cmpDesired = s.AsObserved(desired)
+	}
+	if Equal(actual, cmpDesired) {
 		return Step{Ref: ref}, nil
 	}
-	changes := Diff(actual, desired)
+	changes := Diff(actual, cmpDesired)
 	dec, err := j.Judge(ctx, ref, actual, desired, changes)
 	if err != nil {
 		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)

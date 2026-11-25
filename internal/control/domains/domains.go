@@ -83,9 +83,15 @@ type Handler struct {
 	Agents *agentapi.Agents
 	// Auth verifies passkey step-ups when downloading a certificate's private key.
 	Auth *auth.Service
+	// PanelDomains returns the control panel's own domains, whose certificate keys are
+	// never returned by DownloadCertificate.
+	PanelDomains func() []string
+	// Now returns the current time; nil uses time.Now.
+	Now func() time.Time
 
-	renewMu  sync.Mutex
-	renewLog map[string][]time.Time
+	renewMu     sync.Mutex
+	renewLoaded bool
+	renewLog    map[string][]time.Time
 }
 
 // CloudflareChecker says what a connected Cloudflare zone holds at a name, and the
@@ -111,7 +117,15 @@ var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
 // New returns a handler that reads routes from db, with kinds, what their servers
 // say from reports, and what's known of a server from servers.
 func New(kinds *resource.Registry, db *store.DB, reports Reports, servers Servers, logger *slog.Logger) *Handler {
-	return &Handler{kinds: kinds, db: db, reports: reports, servers: servers, logger: logger, callers: newCallers(checksPerMinute)}
+	return &Handler{
+		kinds:    kinds,
+		db:       db,
+		reports:  reports,
+		servers:  servers,
+		logger:   logger,
+		callers:  newCallers(checksPerMinute),
+		renewLog: map[string][]time.Time{},
+	}
 }
 
 // CheckDomain reads DNS for a name against what's known of a server. It's a read a

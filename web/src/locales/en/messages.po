@@ -26945,6 +26945,9 @@ msgstr "Certificate is not due for renewal yet"
 msgid "Certificate renewal has been started for {0}."
 msgstr "Certificate renewal has been started for {0}."
 
+msgid "Continue to passkey"
+msgstr "Continue to passkey"
+
 msgid "Could not download certificate"
 msgstr "Could not download certificate"
 
@@ -26965,6 +26968,12 @@ msgstr "Download certificate"
 
 msgid "Download key"
 msgstr "Download key"
+
+msgid "Download shared certificate key?"
+msgstr "Download shared certificate key?"
+
+msgid "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
+msgstr "Downloading this key grants TLS credentials for every name listed below, which may include other websites or projects on this server. A passkey check follows."
 
 msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
 msgstr "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
@@ -27031,6 +27040,9 @@ msgstr "Served with your uploaded certificate. Private keys stay sealed at rest 
 
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
+
+msgid "This private key covers multiple names"
+msgstr "This private key covers multiple names"
 
 msgid "Upload certificate"
 msgstr "Upload certificate"

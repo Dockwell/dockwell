@@ -18,6 +18,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -32,8 +33,6 @@ import (
 	"github.com/dockwell/dockwell/internal/store"
 	"github.com/dockwell/dockwell/internal/website"
 )
-
-const basicAuthSecretPrefix = "WEBSITE_AUTH_" //nolint:gosec // Dockwell secret name prefix, not a credential
 
 // validateCustomCaddyOnServer validates a website's custom Caddy directives using Caddy's
 // own adapter on the server that runs (or will run) the website.
@@ -55,8 +54,12 @@ func (h *Handler) validateCustomCaddyOnServer(ctx context.Context, serverID stri
 	if !ok {
 		return false, connect.NewError(connect.CodeUnavailable, errors.New("the website's server isn't connected right now, so Caddy can't validate the custom config"))
 	}
-	cfg := website.Config(spec)
-	res, err := session.ValidateCaddyfile(ctx, cfg, website.AllowedRoot(spec))
+	// Always validate the unpaused config so custom directives edited while a website is
+	// paused are still compiled and verified by Caddy's adapter (M2).
+	unpaused := proto.CloneOf(spec)
+	unpaused.Paused = false
+	cfg := website.Config(unpaused)
+	res, err := session.ValidateCaddyfile(ctx, cfg, website.AllowedRoot(unpaused))
 	if err != nil {
 		if errors.Is(err, agentapi.ErrOlderAgent) {
 			return false, connect.NewError(connect.CodeFailedPrecondition, errors.New("update the server's agent to validate custom Caddy config"))
@@ -71,11 +74,23 @@ func (h *Handler) validateCustomCaddyOnServer(ctx context.Context, serverID stri
 
 // prepareBasicAuthSecrets hashes any newly provided Basic Auth user passwords, prepares
 // Dockwell secret edits in env (password secret + bcrypt hash secret), and deletes
-// orphaned WEBSITE_AUTH_* secrets.
-func prepareBasicAuthSecrets(env string, spec *resourcev1.Website, passwords map[string]string, existingSecrets []store.Resource) ([]*dockwellv1.Edit, error) {
+// only managed Basic Auth secrets belonging to previous Basic Auth users that were removed.
+func prepareBasicAuthSecrets(env string, prev, spec *resourcev1.Website, passwords map[string]string, existingSecrets []store.Resource) ([]*dockwellv1.Edit, error) {
 	existing := map[string]bool{}
 	for i := range existingSecrets {
 		existing[existingSecrets[i].Name] = true
+	}
+	managed := map[string]bool{}
+	if prevBA := prev.GetRules().GetBasicAuth(); prevBA != nil {
+		for _, u := range prevBA.GetUsers() {
+			if u.GetUsername() != "" {
+				managed[website.BasicAuthPasswordSecret(u.GetUsername())] = true
+				managed[website.BasicAuthHashSecret(u.GetUsername())] = true
+			}
+			if u.GetSecret() != "" {
+				managed[u.GetSecret()] = true
+			}
+		}
 	}
 	keep := map[string]bool{}
 	var edits []*dockwellv1.Edit
@@ -111,7 +126,7 @@ func prepareBasicAuthSecrets(env string, spec *resourcev1.Website, passwords map
 	}
 	for i := range existingSecrets {
 		name := existingSecrets[i].Name
-		if strings.HasPrefix(name, basicAuthSecretPrefix) && !keep[name] {
+		if managed[name] && !keep[name] {
 			edits = append(edits, &dockwellv1.Edit{
 				Resource: &dockwellv1.ResourceRef{Kind: string(variable.SecretKind), Scope: env, Name: name},
 				Delete:   true,
@@ -122,8 +137,8 @@ func prepareBasicAuthSecrets(env string, spec *resourcev1.Website, passwords map
 }
 
 // resolveSubpathMembers resolves any sub-path proxy targeting a Dockwell service_id
-// into NetworkMember entries on the website's SiteNetwork, checking project access and
-// server placement.
+// into NetworkMember entries on the website's SiteNetwork, checking developer/admin
+// project access and server placement.
 func (h *Handler) resolveSubpathMembers(ctx context.Context, tx *store.Tx, tree scope.Tree, spec *resourcev1.Website, siteServers []string) ([]*resourcev1.NetworkMember, error) {
 	proxies := spec.GetRules().GetSubpathProxies()
 	if len(proxies) == 0 {
@@ -142,6 +157,7 @@ func (h *Handler) resolveSubpathMembers(ctx context.Context, tx *store.Tx, tree 
 	type svcInfo struct {
 		projectID string
 		envID     string
+		protected bool
 		name      string
 		placed    []string
 	}
@@ -157,7 +173,7 @@ func (h *Handler) resolveSubpathMembers(ctx context.Context, tx *store.Tx, tree 
 				if err != nil {
 					return nil, err
 				}
-				byID[svcs[i].ID] = svcInfo{projectID: p.ID, envID: e.ID, name: svcs[i].Name, placed: placed}
+				byID[svcs[i].ID] = svcInfo{projectID: p.ID, envID: e.ID, protected: e.Protected, name: svcs[i].Name, placed: placed}
 			}
 		}
 	}
@@ -167,8 +183,21 @@ func (h *Handler) resolveSubpathMembers(ctx context.Context, tx *store.Tx, tree 
 			continue
 		}
 		target, ok := byID[sp.GetServiceId()]
-		if !ok || !readsProject(ctx, target.projectID) {
+		if !ok {
 			return nil, fmt.Errorf("sub-path proxy %s names service %s, which doesn't exist or isn't in a project you can access", sp.GetPath(), sp.GetServiceId())
+		}
+		if c, hasCaller := place.CallerFrom(ctx); hasCaller {
+			held := place.Holds(c.Grants, place.Place{Project: target.projectID, Environment: target.envID, Protected: target.protected})
+			if held == "" {
+				return nil, fmt.Errorf("sub-path proxy %s names service %s, which doesn't exist or isn't in a project you can access", sp.GetPath(), sp.GetServiceId())
+			}
+			need := store.RoleDeveloper
+			if target.protected {
+				need = store.RoleAdmin
+			}
+			if store.RoleRank(held) < store.RoleRank(need) {
+				return nil, connect.NewError(connect.CodePermissionDenied, fmt.Errorf("sub-path proxy %s targets %s, which needs %s access in its project", sp.GetPath(), target.name, need))
+			}
 		}
 		if len(siteServers) > 0 && len(target.placed) > 0 {
 			shared := slices.ContainsFunc(siteServers, func(s string) bool { return slices.Contains(target.placed, s) })
@@ -385,6 +414,10 @@ func (h *Handler) BatchUpdateWebsites(ctx context.Context, req *connect.Request[
 			}
 			members, err := h.resolveSubpathMembers(ctx, tx, tree, item.spec.GetWebsite(), item.placed)
 			if err != nil {
+				var cerr *connect.Error
+				if errors.As(err, &cerr) {
+					return cerr
+				}
 				return authapi.Invalid(err)
 			}
 			subpathsBySite[id] = members
@@ -416,6 +449,16 @@ func (h *Handler) BatchUpdateWebsites(ctx context.Context, req *connect.Request[
 		}
 		if err := website.Check(next); err != nil {
 			return nil, authapi.Invalid(err)
+		}
+		// Run Caddy's adapter check on every site with custom_caddy before applying or resuming (M2).
+		if strings.TrimSpace(next.GetCustomCaddy()) != "" {
+			var targetServer string
+			if len(s.placed) > 0 {
+				targetServer = s.placed[0]
+			}
+			if _, err := h.validateCustomCaddyOnServer(ctx, targetServer, next); err != nil {
+				return nil, err
+			}
 		}
 		front := website.FrontOf(s.rt)
 		front.SubpathMembers = subpathsBySite[s.project.ID]
@@ -477,8 +520,9 @@ func (h *Handler) BatchUpdateWebsites(ctx context.Context, req *connect.Request[
 		summary = fmt.Sprintf("%s on %d website(s)", strings.Join(parts, ", "), len(selected))
 	}
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
-		IfNothing: fault.New(revision.ErrInvalid, "selected websites already match those settings"),
-		Notes:     notes,
+		IfNothing:                   fault.New(revision.ErrInvalid, "selected websites already match those settings"),
+		Notes:                       notes,
+		WebsiteCustomCaddyValidated: true,
 	})
 	if err != nil {
 		return nil, err

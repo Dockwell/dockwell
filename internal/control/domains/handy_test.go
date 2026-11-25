@@ -23,6 +23,7 @@ import (
 	"github.com/dockwell/dockwell/internal/auth"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/changes"
+	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
@@ -178,7 +179,7 @@ func TestSetCustomCertificateValidatesAndPlans(t *testing.T) {
 		t.Fatalf("expected expired cert error, got %v", err)
 	}
 
-	// Valid cert plans a change.
+	// Valid cert plans a change and attaches an untrusted_custom_cert note for a self-signed cert (L3).
 	okCert, okKey := selfSignedPair(t, "shop.example.com", now.Add(-time.Hour), now.Add(30*24*time.Hour))
 	resp, err := h.SetCustomCertificate(ctx, connect.NewRequest(&dockwellv1.SetCustomCertificateRequest{
 		Domain:  "shop.example.com",
@@ -190,6 +191,15 @@ func TestSetCustomCertificateValidatesAndPlans(t *testing.T) {
 	}
 	if resp.Msg.GetChange().GetId() == "" {
 		t.Fatal("expected planned change ID")
+	}
+	sawUntrustedNote := false
+	for _, n := range resp.Msg.GetChange().GetPlan().GetNotes() {
+		if n.GetReason() == "untrusted_custom_cert" {
+			sawUntrustedNote = true
+		}
+	}
+	if !sawUntrustedNote {
+		t.Fatalf("expected untrusted_custom_cert plan note for self-signed cert, got notes=%v", resp.Msg.GetChange().GetPlan().GetNotes())
 	}
 }
 
@@ -212,5 +222,135 @@ func TestDownloadCertificateKeyRequiresStepUp(t *testing.T) {
 	var cerr *connect.Error
 	if !strings.Contains(err.Error(), auth.ErrNeedsStepUp.Error()) {
 		t.Fatalf("expected step-up error, got %v (%v)", err, cerr)
+	}
+}
+
+// TestDownloadCertificateKeyScopeH1 verifies H1:
+//   - a project admin cannot download a shared/multi-name DNS-01 certificate key that covers another project,
+//   - an install admin passes the scope check on a shared certificate,
+//   - even an install admin is refused when the certificate covers the panel's own domain.
+func TestDownloadCertificateKeyScopeH1(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	rep := reports{
+		"srv_on/a.example.com": {
+			Domain: "a.example.com",
+			Certificate: &dockwellv1.Certificate{
+				State:      dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED,
+				NotBefore:  timestamppb.New(now.Add(-time.Hour)),
+				ExpireTime: timestamppb.New(now.Add(60 * 24 * time.Hour)),
+				ByDns:      "cloudflare",
+				Sans:       []string{"*.example.com", "a.example.com", "b.example.com"},
+			},
+		},
+	}
+	h := setupDomainTest(t, "a.example.com", rep)
+	h.Auth = &auth.Service{}
+
+	var projectAID string
+	if err := h.db.View(t.Context(), func(tx *store.Tx) error {
+		tr, err := scope.Load(t.Context(), tx)
+		if err != nil {
+			return err
+		}
+		projectAID = tr.Projects[0].ID
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	baseCtx := authapi.As(t.Context(), auth.Client{}, auth.Principal{User: store.User{ID: "usr_1", Email: "a@example.com"}})
+	projAdminCtx := place.WithCaller(baseCtx, place.Caller{Grants: []store.Grant{{ProjectID: projectAID, Role: store.RoleAdmin}}})
+	installAdminCtx := place.WithCaller(baseCtx, place.Caller{Grants: []store.Grant{{Role: store.RoleAdmin}}})
+
+	// 1. Project A admin (not install admin) MUST be refused for shared/wildcard cert.
+	_, err := h.DownloadCertificate(projAdminCtx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
+		Domain:     "a.example.com",
+		IncludeKey: true,
+	}))
+	if err == nil || connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "install admin") {
+		t.Fatalf("project admin on shared cert = %v, want PermissionDenied requiring install admin", err)
+	}
+
+	// 2. Install admin passes scope check on shared cert (reaches passkey step-up).
+	_, err = h.DownloadCertificate(installAdminCtx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
+		Domain:     "a.example.com",
+		IncludeKey: true,
+	}))
+	if err == nil || !strings.Contains(err.Error(), auth.ErrNeedsStepUp.Error()) {
+		t.Fatalf("install admin on shared cert = %v, want step-up prompt", err)
+	}
+
+	// 3. When the wildcard covers the panel domain, EVEN an install admin is refused.
+	h.PanelDomains = func() []string { return []string{"panel.example.com"} }
+	_, err = h.DownloadCertificate(installAdminCtx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
+		Domain:     "a.example.com",
+		IncludeKey: true,
+	}))
+	if err == nil || connect.CodeOf(err) != connect.CodePermissionDenied || !strings.Contains(err.Error(), "panel domain") {
+		t.Fatalf("install admin on cert covering panel domain = %v, want panel domain refusal", err)
+	}
+}
+
+// TestRenewLimitPersistenceAndRoleM3H2L4 verifies H2 (no nil-map panic on checkRenewLimit),
+// M3 (force requires admin, not developer), and L4 (weekly cap persists across restart).
+func TestRenewLimitPersistenceAndRoleM3H2L4(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
+	rep := reports{
+		"srv_on/cap.example.com": {
+			Domain: "cap.example.com",
+			Certificate: &dockwellv1.Certificate{
+				State:      dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED,
+				NotBefore:  timestamppb.New(now.Add(-2 * 24 * time.Hour)),
+				ExpireTime: timestamppb.New(now.Add(85 * 24 * time.Hour)),
+			},
+		},
+	}
+	h := setupDomainTest(t, "cap.example.com", rep)
+	clock := now
+	h.Now = func() time.Time { return clock }
+
+	var projID string
+	if err := h.db.View(t.Context(), func(tx *store.Tx) error {
+		tr, err := scope.Load(t.Context(), tx)
+		if err != nil {
+			return err
+		}
+		projID = tr.Projects[0].ID
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// M3: developer cannot force renewal; admin can.
+	devCtx := place.WithCaller(t.Context(), place.Caller{Grants: []store.Grant{{ProjectID: projID, Role: store.RoleDeveloper}}})
+	if _, err := h.RenewCertificate(devCtx, connect.NewRequest(&dockwellv1.RenewCertificateRequest{
+		Domain: "cap.example.com",
+		Force:  true,
+	})); err == nil || connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("developer forced renewal = %v, want PermissionDenied", err)
+	}
+
+	// H2: even on a zero-initialized renewLog, checkRenewLimit must never panic, and 4 renewals
+	// over 4 days succeed while the 5th within 7 days is refused.
+	h.renewLog = nil
+	h.renewLoaded = false
+	for i := range manualRenewWeeklyCap {
+		if err := h.checkRenewLimit(t.Context(), "cap.example.com", true); err != nil {
+			t.Fatalf("renewal %d unexpectedly refused: %v", i+1, err)
+		}
+		h.recordRenewAttempt(t.Context(), "cap.example.com")
+		clock = clock.Add(2 * time.Hour)
+	}
+	if err := h.checkRenewLimit(t.Context(), "cap.example.com", true); err == nil || connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("5th renewal in a week = %v, want ResourceExhausted", err)
+	}
+
+	// L4: a fresh Handler created on the same DB after a control-plane restart STILL enforces the cap.
+	restarted := New(h.kinds, h.db, rep, nil, h.logger)
+	restarted.Now = func() time.Time { return clock }
+	if err := restarted.checkRenewLimit(t.Context(), "cap.example.com", true); err == nil || connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("restarted handler 5th renewal = %v, want ResourceExhausted", err)
 	}
 }

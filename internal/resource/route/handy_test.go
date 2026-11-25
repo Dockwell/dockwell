@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -113,5 +114,136 @@ func TestRouteRateLimitValidation(t *testing.T) {
 	r.RateLimit.RequestsPerMinute = MaxRateLimitRPM + 1
 	if err := d.Validate(r); err == nil {
 		t.Errorf("expected refusal for rpm over max")
+	}
+}
+
+func TestCustomCertChainChecksAndObservedStripping(t *testing.T) {
+	d := &Driver{}
+	now := time.Now()
+
+	// 1. Refuse CA certificate as leaf (L3).
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caTpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(10),
+		Subject:               pkix.Name{CommonName: "ca.example.com"},
+		DNSNames:              []string{"ca.example.com"},
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              now.Add(24 * time.Hour),
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, caTpl, caTpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caCert, _ := x509.ParseCertificate(caDER)
+	caKeyDER, _ := x509.MarshalECPrivateKey(caKey)
+	caCertPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}))
+	caKeyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: caKeyDER}))
+	if _, _, err := CheckCustomCertChain("ca.example.com", caCertPEM, caKeyPEM, now); err == nil || !strings.Contains(err.Error(), "CA certificate") {
+		t.Fatalf("expected CA cert refusal, got %v", err)
+	}
+
+	// 2. Refuse certificate missing serverAuth EKU (L3).
+	clientKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	clientTpl := &x509.Certificate{
+		SerialNumber: big.NewInt(11),
+		Subject:      pkix.Name{CommonName: "client.example.com"},
+		DNSNames:     []string{"client.example.com"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+	clientDER, _ := x509.CreateCertificate(rand.Reader, clientTpl, clientTpl, &clientKey.PublicKey, clientKey)
+	clientKeyDER, _ := x509.MarshalECPrivateKey(clientKey)
+	if _, _, err := CheckCustomCertChain("client.example.com",
+		string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientDER})),
+		string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: clientKeyDER})),
+		now); err == nil || !strings.Contains(err.Error(), "serverAuth") {
+		t.Fatalf("expected missing serverAuth refusal, got %v", err)
+	}
+
+	// 3. Refuse RSA < 2048 bits (L3).
+	weakRSA, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	weakTpl := &x509.Certificate{
+		SerialNumber: big.NewInt(12),
+		Subject:      pkix.Name{CommonName: "weak.example.com"},
+		DNSNames:     []string{"weak.example.com"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	weakDER, _ := x509.CreateCertificate(rand.Reader, weakTpl, weakTpl, &weakRSA.PublicKey, weakRSA)
+	weakKeyDER := x509.MarshalPKCS1PrivateKey(weakRSA)
+	if _, _, err := CheckCustomCertChain("weak.example.com",
+		string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: weakDER})),
+		string(pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: weakKeyDER})),
+		now); err == nil || !strings.Contains(err.Error(), "2048") {
+		t.Fatalf("expected weak RSA refusal, got %v", err)
+	}
+
+	// 4. Refuse unrelated / out-of-order intermediate certificate in chain (L3).
+	leafKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	leafTpl := &x509.Certificate{
+		SerialNumber: big.NewInt(13),
+		Subject:      pkix.Name{CommonName: "chain.example.com"},
+		DNSNames:     []string{"chain.example.com"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}
+	leafDER, _ := x509.CreateCertificate(rand.Reader, leafTpl, caCert, &leafKey.PublicKey, caKey)
+	leafKeyDER, _ := x509.MarshalECPrivateKey(leafKey)
+	leafPEM := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafDER}))
+	leafKeyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: leafKeyDER}))
+
+	unrelatedCert, _ := selfSignedPair(t, []string{"unrelated.example.com"}, now.Add(-time.Hour), now.Add(24*time.Hour))
+	if _, _, err := CheckCustomCertChain("chain.example.com", leafPEM+"\n"+unrelatedCert, leafKeyPEM, now); err == nil || !strings.Contains(err.Error(), "isn't signed by") {
+		t.Fatalf("expected unrelated intermediate refusal, got %v", err)
+	}
+
+	// 5. Valid leaf -> intermediate chain passes and returns an untrusted-root warning (L3).
+	_, trustWarning, err := CheckCustomCertChain("chain.example.com", leafPEM+"\n"+caCertPEM, leafKeyPEM, now)
+	if err != nil {
+		t.Fatalf("valid leaf+CA chain failed: %v", err)
+	}
+	if !strings.Contains(strings.ToLower(trustWarning), "browsers won't trust") {
+		t.Fatalf("expected untrusted-root warning, got %q", trustWarning)
+	}
+
+	// 6. Validate populates KeyFingerprint; AsObserved strips KeyPem; Readopted restores KeyPem when fingerprint matches (N3).
+	desired := &resourcev1.Route{
+		Domain:     "chain.example.com",
+		Service:    "web",
+		Port:       8080,
+		CustomCert: &resourcev1.RouteCustomCert{CertPem: leafPEM + "\n" + caCertPEM, KeyPem: leafKeyPEM},
+	}
+	if err := d.Validate(desired); err != nil {
+		t.Fatalf("Validate(desired) = %v", err)
+	}
+	if desired.GetCustomCert().GetKeyFingerprint() == "" {
+		t.Fatal("Validate did not populate KeyFingerprint")
+	}
+	obs := d.AsObserved(desired).(*resourcev1.Route)
+	if obs.GetCustomCert().GetKeyPem() != "" {
+		t.Fatal("AsObserved leaked KeyPem")
+	}
+	if obs.GetCustomCert().GetKeyFingerprint() != desired.GetCustomCert().GetKeyFingerprint() {
+		t.Fatal("AsObserved lost KeyFingerprint")
+	}
+	readopted := d.Readopted(desired, obs).(*resourcev1.Route)
+	if readopted.GetCustomCert().GetKeyPem() != desired.GetCustomCert().GetKeyPem() {
+		t.Fatal("Readopted failed to restore KeyPem when KeyFingerprint matched")
 	}
 }

@@ -376,6 +376,7 @@ func New(cfg Config) (*Server, error) {
 	var updateKeeper *serviceupdates.Keeper
 	var autoupdates *autoupdate.Runner
 	var follower *catalogapi.Follower
+	panelDomains := panelDomainsOf(cfg)
 	// A pull signs in with the registry login its app's project may use (ADR 0086).
 	if cfg.Store != nil && cfg.Secrets != nil {
 		cfg.logins = registrylogins.New(cfg.Store, cfg.Secrets)
@@ -392,19 +393,7 @@ func New(cfg Config) (*Server, error) {
 			cfg.certificates = &certificates.Manager{
 				DB: cfg.Store, Keeper: cfg.Secrets, DNS: cfg.dns, Directory: cfg.CertificateCA, HTTP: cfg.CertificateClient,
 				Propagation: cfg.CertificatePropagation, Logger: cfg.Logger,
-				PanelDomains: func() []string {
-					var out []string
-					if cfg.Auth != nil {
-						out = append(out, cfg.Auth.Sites().Domain)
-					}
-					// And as it's saved, which the route kind holds (ADR 0024).
-					if t, err := cfg.Changes.Kinds().Type("route"); err == nil {
-						if p, ok := t.(revision.PanelDomains); ok {
-							out = append(out, p.PanelDomains()...)
-						}
-					}
-					return out
-				},
+				PanelDomains: panelDomains,
 				ControlServer: func() string {
 					if cfg.Fleet != nil {
 						if s := cfg.Fleet.ControlServer(); s != nil {
@@ -692,6 +681,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
 		domainHandler.DNS, domainHandler.Certificates = cfg.dns, cfg.certificates
 		domainHandler.Changes, domainHandler.Agents, domainHandler.Auth = ch, cfg.Agents, cfg.Auth
+		domainHandler.PanelDomains = panelDomainsOf(cfg)
 		if cfg.publisher != nil {
 			domainHandler.Cloudflare = cfg.publisher
 		}
@@ -1343,6 +1333,24 @@ func fleetOf(cfg Config) domains.Servers {
 		return nil
 	}
 	return cfg.Fleet
+}
+
+func panelDomainsOf(cfg Config) func() []string {
+	return func() []string {
+		var out []string
+		if cfg.Auth != nil {
+			out = append(out, cfg.Auth.Sites().Domain)
+		}
+		// And as it's saved, which the route kind holds (ADR 0024).
+		if cfg.Changes != nil {
+			if t, err := cfg.Changes.Kinds().Type("route"); err == nil {
+				if p, ok := t.(revision.PanelDomains); ok {
+					out = append(out, p.PanelDomains()...)
+				}
+			}
+		}
+		return out
+	}
 }
 
 // agentURLs says where agents reach the control plane, as its authority records it:

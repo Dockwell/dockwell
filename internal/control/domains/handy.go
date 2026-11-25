@@ -5,6 +5,7 @@ package domains
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,7 +16,6 @@ import (
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -25,7 +25,9 @@ import (
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/route"
+	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -39,23 +41,48 @@ const (
 	manualRenewWeeklyCap = 4
 	manualRenewWeek      = 7 * 24 * time.Hour
 
+	// renewLogSetting persists manual renewal timestamps across control-plane restarts.
+	renewLogSetting = "domains.renew_log"
+
 	// EventCertificateKeyDownloaded is the audit event recorded when an admin downloads a domain private key.
 	EventCertificateKeyDownloaded = "certificate.key_downloaded"
 )
 
 type domainBinding struct {
-	projectID   string
-	envID       string
-	protected   bool
-	routes      []boundRoute
-	serverIDs   []string
-	primarySpec *resourcev1.Route
+	projectID      string
+	envID          string
+	protected      bool
+	routes         []boundRoute
+	serverIDs      []string
+	primarySpec    *resourcev1.Route
+	projectDomains map[string]bool
 }
 
 type boundRoute struct {
 	res    store.Resource
 	spec   *resourcev1.Route
 	placed []string
+}
+
+func (h *Handler) now() time.Time {
+	if h.Now != nil {
+		return h.Now()
+	}
+	return time.Now()
+}
+
+func (h *Handler) panelDomains() []string {
+	if h.PanelDomains == nil {
+		return nil
+	}
+	var out []string
+	for _, d := range h.PanelDomains() {
+		d = strings.ToLower(strings.TrimSpace(d))
+		if d != "" && !slices.Contains(out, d) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding, error) {
@@ -85,6 +112,7 @@ func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding
 		if err != nil {
 			return err
 		}
+		projectDomains := map[string]map[string]bool{}
 		for i := range stored {
 			r := stored[i]
 			plain, err := tx.Open(ctx, store.InRevision(r.ID, r.Kind, r.Revision), r.Spec)
@@ -96,6 +124,13 @@ func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding
 				return err
 			}
 			rt := spec.(*resourcev1.Route)
+			ep := envProject[r.Scope]
+			if ep.projectID != "" && rt.GetDomain() != "" {
+				if projectDomains[ep.projectID] == nil {
+					projectDomains[ep.projectID] = map[string]bool{}
+				}
+				projectDomains[ep.projectID][strings.ToLower(rt.GetDomain())] = true
+			}
 			if rt.GetDomain() != domain {
 				continue
 			}
@@ -104,7 +139,6 @@ func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding
 				return err
 			}
 			if out == nil {
-				ep := envProject[r.Scope]
 				out = &domainBinding{
 					projectID: ep.projectID,
 					envID:     r.Scope,
@@ -120,6 +154,9 @@ func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding
 					out.serverIDs = append(out.serverIDs, sid)
 				}
 			}
+		}
+		if out != nil {
+			out.projectDomains = projectDomains[out.projectID]
 		}
 		return nil
 	})
@@ -147,6 +184,14 @@ func checkDomainRole(ctx context.Context, b *domainBinding, minRole string) erro
 	return nil
 }
 
+func callerIsInstallAdmin(ctx context.Context) bool {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return true
+	}
+	return place.Holds(c.Grants, place.Install) == store.RoleAdmin
+}
+
 // RenewCertificate requests an immediate certificate renewal for a domain, respecting
 // CA rate limits and refusing early renewal unless force is set.
 func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[dockwellv1.RenewCertificateRequest]) (*connect.Response[dockwellv1.RenewCertificateResponse], error) {
@@ -156,7 +201,7 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[doc
 		return nil, err
 	}
 	minRole := store.RoleDeveloper
-	if b.protected {
+	if b.protected || req.Msg.GetForce() {
 		minRole = store.RoleAdmin
 	}
 	if err := checkDomainRole(ctx, b, minRole); err != nil {
@@ -181,7 +226,7 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[doc
 				"rate_limited")
 		}
 		if cert.GetState() == dockwellv1.CertificateState_CERTIFICATE_STATE_ISSUED && cert.GetExpireTime() != nil && !req.Msg.GetForce() {
-			now := time.Now()
+			now := h.now()
 			notAfter := cert.GetExpireTime().AsTime()
 			remaining := notAfter.Sub(now)
 			lifetime := 90 * 24 * time.Hour
@@ -201,7 +246,7 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[doc
 	}
 
 	// Enforce per-domain manual renewal rate limits to protect CA quotas.
-	if err := h.checkRenewLimit(domain, req.Msg.GetForce()); err != nil {
+	if err := h.checkRenewLimit(ctx, domain, req.Msg.GetForce()); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +257,7 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[doc
 			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("couldn't start DNS-01 certificate renewal for %s: %w", domain, err))
 		}
 		if handled {
-			h.recordRenewAttempt(domain)
+			h.recordRenewAttempt(ctx, domain)
 			return connect.NewResponse(&dockwellv1.RenewCertificateResponse{
 				Message:            fmt.Sprintf("Queued immediate DNS-01 certificate renewal for %s.", domain),
 				PreviousExpireTime: cert.GetExpireTime(),
@@ -231,17 +276,49 @@ func (h *Handler) RenewCertificate(ctx context.Context, req *connect.Request[doc
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("couldn't renew certificate for %s: %w", domain, err))
 	}
-	h.recordRenewAttempt(domain)
+	// Only count renewals that actually ran (force or reported renewed), so a harmless
+	// check on an already-valid certificate doesn't burn the weekly quota.
+	if req.Msg.GetForce() || res.GetRenewed() {
+		h.recordRenewAttempt(ctx, domain)
+	}
 	return connect.NewResponse(&dockwellv1.RenewCertificateResponse{
 		Message:            cmp.Or(res.GetMessage(), fmt.Sprintf("Started certificate renewal for %s.", domain)),
 		PreviousExpireTime: cert.GetExpireTime(),
 	}), nil
 }
 
-func (h *Handler) checkRenewLimit(domain string, force bool) error {
+func (h *Handler) loadRenewLogLocked(ctx context.Context) {
+	if h.renewLog == nil {
+		h.renewLog = map[string][]time.Time{}
+	}
+	if h.renewLoaded || h.db == nil {
+		h.renewLoaded = true
+		return
+	}
+	h.renewLoaded = true
+	var raw []byte
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		var err error
+		raw, err = tx.GetSetting(ctx, renewLogSetting)
+		return err
+	}); err != nil || len(raw) == 0 {
+		return
+	}
+	var saved map[string][]time.Time
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		return
+	}
+	for d, times := range saved {
+		h.renewLog[d] = append(h.renewLog[d], times...)
+		slices.SortFunc(h.renewLog[d], time.Time.Compare)
+	}
+}
+
+func (h *Handler) checkRenewLimit(ctx context.Context, domain string, force bool) error {
 	h.renewMu.Lock()
 	defer h.renewMu.Unlock()
-	now := time.Now()
+	h.loadRenewLogLocked(ctx)
+	now := h.now()
 	recent := slices.DeleteFunc(h.renewLog[domain], func(t time.Time) bool { return now.Sub(t) >= manualRenewWeek })
 	h.renewLog[domain] = recent
 	if len(recent) >= manualRenewWeeklyCap {
@@ -258,13 +335,31 @@ func (h *Handler) checkRenewLimit(domain string, force bool) error {
 	return nil
 }
 
-func (h *Handler) recordRenewAttempt(domain string) {
+func (h *Handler) recordRenewAttempt(ctx context.Context, domain string) {
 	h.renewMu.Lock()
-	defer h.renewMu.Unlock()
-	if h.renewLog == nil {
-		h.renewLog = map[string][]time.Time{}
+	h.loadRenewLogLocked(ctx)
+	now := h.now()
+	h.renewLog[domain] = append(h.renewLog[domain], now)
+	// Prune stale entries across all domains before persisting.
+	pruned := make(map[string][]time.Time, len(h.renewLog))
+	for d, times := range h.renewLog {
+		keep := slices.DeleteFunc(slices.Clone(times), func(t time.Time) bool { return now.Sub(t) >= manualRenewWeek })
+		if len(keep) > 0 {
+			pruned[d] = keep
+		}
 	}
-	h.renewLog[domain] = append(h.renewLog[domain], time.Now())
+	h.renewLog = pruned
+	raw, marshalErr := json.Marshal(pruned)
+	h.renewMu.Unlock()
+
+	if marshalErr != nil || h.db == nil {
+		return
+	}
+	if err := h.db.Update(ctx, func(tx *store.Tx) error {
+		return tx.PutSetting(ctx, renewLogSetting, raw)
+	}); err != nil && h.logger != nil {
+		h.logger.WarnContext(ctx, "couldn't persist certificate renewal log", slog.String("domain", domain), slog.String("error", err.Error()))
+	}
 }
 
 // SetCustomCertificate plans uploading a custom PEM certificate and private key for a domain,
@@ -287,6 +382,7 @@ func (h *Handler) SetCustomCertificate(ctx context.Context, req *connect.Request
 	}
 
 	var custom *resourcev1.RouteCustomCert
+	var notes []revision.Note
 	summary := strings.TrimSpace(m.GetSummary())
 	if m.GetClear() {
 		if b.primarySpec.GetCustomCert() == nil {
@@ -298,10 +394,24 @@ func (h *Handler) SetCustomCertificate(ctx context.Context, req *connect.Request
 	} else {
 		certPEM := strings.TrimSpace(m.GetCertPem())
 		keyPEM := strings.TrimSpace(m.GetKeyPem())
-		if _, err := route.CheckCustomCert(domain, certPEM, keyPEM, time.Now()); err != nil {
+		_, trustWarning, err := route.CheckCustomCertChain(domain, certPEM, keyPEM, h.now())
+		if err != nil {
 			return nil, authapi.Invalid(err)
 		}
-		custom = &resourcev1.RouteCustomCert{CertPem: certPEM, KeyPem: keyPEM}
+		if trustWarning != "" {
+			ref := resource.Ref{Kind: route.Kind, Scope: b.envID, Name: b.routes[0].res.Name}
+			notes = append(notes, revision.Note{
+				Reason:  "untrusted_custom_cert",
+				Message: trustWarning,
+				Ref:     ref,
+				Names:   []string{domain},
+			})
+		}
+		custom = &resourcev1.RouteCustomCert{
+			CertPem:        certPEM,
+			KeyPem:         keyPEM,
+			KeyFingerprint: ingress.KeyFingerprint([]byte(keyPEM)),
+		}
 		if summary == "" {
 			summary = "Upload custom certificate for " + domain
 		}
@@ -321,11 +431,100 @@ func (h *Handler) SetCustomCertificate(ctx context.Context, req *connect.Request
 			Servers:  br.placed,
 		})
 	}
-	c, err := h.Changes.Propose(ctx, summary, edits, nil, changes.Also{})
+	c, err := h.Changes.Propose(ctx, summary, edits, nil, changes.Also{Notes: notes})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.SetCustomCertificateResponse{Change: c}), nil
+}
+
+// checkKeyDownloadScope enforces H1:
+//   - Never return a key whose certificate covers any panel domain.
+//   - A project admin may download a key only when the certificate is the route's own
+//     single-domain certificate (no other project's names, no wildcards, no extra SANs).
+//   - A shared or multi-name certificate's key requires an install admin.
+func (h *Handler) checkKeyDownloadScope(ctx context.Context, b *domainBinding, domain, byDNS string, sans, dnsNames, dnsServes []string) ([]string, error) {
+	covered := collectCertNames(domain, sans, dnsNames, dnsServes)
+	// Also consult the control plane's DNS-01 certificate standings when available.
+	sharedAcrossProjects := false
+	if h.Certificates != nil {
+		if standings, err := h.Certificates.List(ctx); err == nil {
+			for i := range standings {
+				st := &standings[i]
+				if certNamesCover(st.Names, domain) {
+					covered = collectCertNames(domain, covered, st.Names)
+					for _, pid := range st.Projects {
+						if pid != b.projectID {
+							sharedAcrossProjects = true
+						}
+					}
+					if len(st.Projects) > 1 {
+						sharedAcrossProjects = true
+					}
+				}
+			}
+		}
+	}
+	for _, panel := range h.panelDomains() {
+		if strings.EqualFold(domain, panel) || certNamesCover(covered, panel) {
+			return nil, authapi.ReasonError(connect.CodePermissionDenied,
+				errors.New("this certificate covers the Dockwell panel domain, so its private key can't be downloaded"),
+				"panel_certificate_key")
+		}
+	}
+
+	multiOrShared := sharedAcrossProjects
+	if byDNS != "" {
+		for _, n := range covered {
+			if strings.HasPrefix(n, "*.") || !b.projectDomains[n] || n != domain {
+				multiOrShared = true
+				break
+			}
+		}
+	}
+	if !multiOrShared {
+		for _, n := range covered {
+			if strings.HasPrefix(n, "*.") || n != domain {
+				multiOrShared = true
+				break
+			}
+		}
+	}
+	if multiOrShared && !callerIsInstallAdmin(ctx) {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied,
+			fmt.Errorf("the certificate serving %s covers multiple or shared domains (%s). Only an install admin may download its private key", domain, strings.Join(covered, ", ")),
+			"shared_certificate_key")
+	}
+	return covered, nil
+}
+
+func certNamesCover(names []string, target string) bool {
+	for _, n := range names {
+		if ingress.CertCoversName(n, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func collectCertNames(domain string, groups ...[]string) []string {
+	var out []string
+	add := func(name string) {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name != "" && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	for _, g := range groups {
+		for _, n := range g {
+			add(n)
+		}
+	}
+	if len(out) == 0 {
+		add(domain)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // DownloadCertificate returns the active PEM certificate chain for a domain, and optionally
@@ -340,15 +539,44 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 	if err := checkDomainRole(ctx, b, store.RoleViewer); err != nil {
 		return nil, err
 	}
+
+	var p auth.Principal
+	var client auth.Client
 	if m.GetIncludeKey() {
 		if err := checkDomainRole(ctx, b, store.RoleAdmin); err != nil {
 			return nil, err
 		}
-		p, ok := authapi.PrincipalFrom(ctx)
+		var ok bool
+		p, ok = authapi.PrincipalFrom(ctx)
 		if !ok || p.Token != nil || h.Auth == nil {
 			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("sign in as an admin to download a certificate's private key"))
 		}
-		client, _ := authapi.ClientFrom(ctx)
+		client, _ = authapi.ClientFrom(ctx)
+
+		// Pre-check certificate scope before prompting for passkey step-up whenever we
+		// can inspect the certificate metadata from reports or a connected agent.
+		var preByDNS string
+		var preSANs, preDNSNames, preDNSServes []string
+		if len(b.serverIDs) > 0 {
+			if status, _ := h.reports.Domain(b.serverIDs[0], domain); status != nil {
+				preByDNS = status.GetCertificate().GetByDns()
+				preSANs = status.GetCertificate().GetSans()
+			}
+			if h.Agents != nil {
+				if session, connected := h.Agents.Session(b.serverIDs[0]); connected {
+					if meta, rerr := session.ReadCertificate(ctx, domain, false); rerr == nil {
+						preByDNS = cmp.Or(meta.GetByDns(), preByDNS)
+						preSANs = meta.GetSans()
+						preDNSNames = meta.GetDnsNames()
+						preDNSServes = meta.GetDnsServes()
+					}
+				}
+			}
+		}
+		if _, err := h.checkKeyDownloadScope(ctx, b, domain, preByDNS, preSANs, preDNSNames, preDNSServes); err != nil {
+			return nil, err
+		}
+
 		stepUpOK := false
 		if m.GetProof() != "" {
 			if _, err := h.Auth.HoldStepUp(ctx, client, p, m.GetProof(), auth.StepUpDownloadCertificateKey, domain); err == nil {
@@ -364,14 +592,6 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 				err.AddDetail(detail)
 			}
 			return nil, err
-		}
-		if err := h.db.Update(ctx, func(tx *store.Tx) error {
-			return tx.RecordEvent(ctx, store.Event{
-				ID: id.New(id.Event), At: time.Now(), Actor: p.Actor(), Target: b.projectID,
-				Action: EventCertificateKeyDownloaded, Subject: domain, Detail: "downloaded TLS private key", Surface: client.Surface(p),
-			})
-		}); err != nil && h.logger != nil {
-			h.logger.ErrorContext(ctx, "couldn't record certificate key download audit event", slog.String("domain", domain), slog.String("error", err.Error()))
 		}
 	}
 
@@ -389,6 +609,26 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("couldn't read certificate for %s: %w", domain, err))
 	}
+	if m.GetIncludeKey() {
+		// Re-verify scope on the exact certificate returned by the agent before handing
+		// out its private key (guards against races or stale reports).
+		covered, err := h.checkKeyDownloadScope(ctx, b, domain, got.GetByDns(), got.GetSans(), got.GetDnsNames(), got.GetDnsServes())
+		if err != nil {
+			return nil, err
+		}
+		detail := "downloaded TLS private key"
+		if len(covered) > 1 {
+			detail = "downloaded TLS private key covering " + strings.Join(covered, ", ")
+		}
+		if err := h.db.Update(ctx, func(tx *store.Tx) error {
+			return tx.RecordEvent(ctx, store.Event{
+				ID: id.New(id.Event), At: h.now(), Actor: p.Actor(), Target: b.projectID,
+				Action: EventCertificateKeyDownloaded, Subject: domain, Detail: detail, Surface: client.Surface(p),
+			})
+		}); err != nil && h.logger != nil {
+			h.logger.ErrorContext(ctx, "couldn't record certificate key download audit event", slog.String("domain", domain), slog.String("error", err.Error()))
+		}
+	}
 	return connect.NewResponse(&dockwellv1.DownloadCertificateResponse{
 		CertPem:   got.GetCertPem(),
 		KeyPem:    got.GetKeyPem(),
@@ -400,6 +640,3 @@ func (h *Handler) DownloadCertificate(ctx context.Context, req *connect.Request[
 		Custom:    got.GetCustom(),
 	}), nil
 }
-
-// Keep timestamppb imported if needed elsewhere in package.
-var _ = timestamppb.Now

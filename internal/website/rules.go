@@ -536,29 +536,49 @@ func pausedConfig(w *resourcev1.Website) string {
 // maintenanceHTML is a calm, self-contained HTML maintenance page escaped for a Caddyfile double-quoted string.
 const maintenanceHTML = `<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Maintenance</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,-apple-system,sans-serif;background:#f8fafc;color:#0f172a}main{max-width:28rem;padding:2rem;text-align:center}h1{font-size:1.25rem;margin:0 0 .5rem}p{margin:0;color:#475569}@media(prefers-color-scheme:dark){body{background:#0b1120;color:#f1f5f9}p{color:#94a3b8}}</style></head><body><main><h1>Temporarily unavailable</h1><p>This website is paused for maintenance. Please check back shortly.</p></main></body></html>`
 
+// writeBasicAuthBlock writes the basic_auth directive with indent, using matcher.
+func writeBasicAuthBlock(b *strings.Builder, ba *resourcev1.WebsiteBasicAuth, matcher, indent string) {
+	switch {
+	case ba.GetRealm() != "":
+		fmt.Fprintf(b, "%sbasic_auth %s bcrypt \"%s\" {\n", indent, matcher, ba.GetRealm())
+	case matcher != "*":
+		fmt.Fprintf(b, "%sbasic_auth %s {\n", indent, matcher)
+	default:
+		fmt.Fprintf(b, "%sbasic_auth {\n", indent)
+	}
+	for i, u := range ba.GetUsers() {
+		fmt.Fprintf(b, "%s\t%s {$%s}\n", indent, u.GetUsername(), BasicAuthEnvVar(i))
+	}
+	fmt.Fprintf(b, "%s}\n", indent)
+}
+
 // writeRules emits the Caddyfile directives for WebsiteRules inside :8080 { ... }.
 func writeRules(b *strings.Builder, r *resourcev1.WebsiteRules) {
 	if r == nil {
 		return
 	}
-	if ba := r.GetBasicAuth(); ba != nil && len(ba.GetUsers()) > 0 {
-		matcher := "*"
+	ba := r.GetBasicAuth()
+	hasAuth := ba != nil && len(ba.GetUsers()) > 0
+	hasRewrite := false
+	for _, rule := range r.GetPathRules() {
+		if rule.GetKind() != resourcev1.WebsitePathRuleKind_WEBSITE_PATH_RULE_KIND_REDIRECT {
+			hasRewrite = true
+			break
+		}
+	}
+	if hasAuth {
+		authMatcher := "*"
 		if ba.GetPath() != "" {
 			fmt.Fprintf(b, "\t@basic_auth path %s %s/*\n", ba.GetPath(), ba.GetPath())
-			matcher = "@basic_auth"
+			authMatcher = "@basic_auth"
 		}
-		switch {
-		case ba.GetRealm() != "":
-			fmt.Fprintf(b, "\tbasic_auth %s bcrypt \"%s\" {\n", matcher, ba.GetRealm())
-		case matcher != "*":
-			fmt.Fprintf(b, "\tbasic_auth %s {\n", matcher)
-		default:
-			b.WriteString("\tbasic_auth {\n")
+		writeBasicAuthBlock(b, ba, authMatcher, "\t")
+		// Caddy runs rewrite/uri before basic_auth. Also match the original pre-rewrite
+		// path so a rewrite out of a protected prefix cannot bypass Basic Auth (L5).
+		if hasRewrite && ba.GetPath() != "" {
+			fmt.Fprintf(b, "\t@basic_auth_orig vars_regexp {http.request.orig_uri.path} ^%s(/|$)\n", regexp.QuoteMeta(ba.GetPath()))
+			writeBasicAuthBlock(b, ba, "@basic_auth_orig", "\t")
 		}
-		for i, u := range ba.GetUsers() {
-			fmt.Fprintf(b, "\t\t%s {$%s}\n", u.GetUsername(), BasicAuthEnvVar(i))
-		}
-		b.WriteString("\t}\n")
 	}
 
 	if c := r.GetCors(); c != nil && c.GetEnabled() && len(c.GetAllowedOrigins()) > 0 {

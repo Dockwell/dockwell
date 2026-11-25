@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"slices"
+	"strings"
 
 	"connectrpc.com/connect"
 
@@ -193,4 +196,99 @@ func (f *rowFacts) websiteDomain(ctx context.Context, tx *store.Tx, h *Handler, 
 	}
 	f.websiteDomains[b.EnvironmentID] = domain
 	return domain
+}
+
+// verifyWebsiteRestoreTarget checks that a website folder backup's target website still
+// exists on the same server, still serves the exact folder recorded in the backup, and
+// does not overlap with any folder mounted by another project on that server (M5).
+func (h *Handler) verifyWebsiteRestoreTarget(ctx context.Context, b *store.Backup) (string, error) {
+	var verified string
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		var proj *scope.Project
+		for i := range tree.Projects {
+			if tree.Projects[i].ID == b.WebsiteID {
+				proj = &tree.Projects[i]
+				break
+			}
+		}
+		if proj == nil || !slices.ContainsFunc(proj.Environments, func(e scope.Environment) bool { return e.ID == b.EnvironmentID }) {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("this backup belongs to a website that no longer exists, so %s can't be restored automatically", b.WebsitePath),
+				"website_gone")
+		}
+		_, placed, _, currentPath, err := h.websiteFolderInTx(ctx, tx, b.EnvironmentID)
+		if err != nil {
+			return err
+		}
+		if !slices.Contains(placed, b.ServerID) {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("this website no longer runs on the server where backup %s was taken", b.ID),
+				"website_moved_server")
+		}
+		cleanCurrent := path.Clean(currentPath)
+		cleanBackup := path.Clean(b.WebsitePath)
+		if cleanCurrent != cleanBackup {
+			return authapi.ReasonError(connect.CodeFailedPrecondition,
+				fmt.Errorf("this backup was taken of %s; the website now serves %s. Move the website back to %s or take a fresh backup of %s before restoring",
+					cleanBackup, cleanCurrent, cleanBackup, cleanCurrent),
+				"website_folder_changed")
+		}
+		// Refuse if any other project's website or service on this server mounts an
+		// overlapping host path.
+		for _, p := range tree.Projects {
+			if p.ID == b.WebsiteID {
+				continue
+			}
+			for _, e := range p.Environments {
+				svcs, err := tx.ListResources(ctx, e.ID, string(service.Kind))
+				if err != nil {
+					return err
+				}
+				for i := range svcs {
+					svcPlaced, err := tx.Placement(ctx, svcs[i].ID, svcs[i].Revision)
+					if err != nil {
+						return err
+					}
+					if !slices.Contains(svcPlaced, b.ServerID) {
+						continue
+					}
+					decoded, err := h.keeper.Decode(ctx, tx, store.InRevision(svcs[i].ID, svcs[i].Kind, svcs[i].Revision), svcs[i].Spec)
+					if err != nil {
+						continue
+					}
+					svc, ok := decoded.(*resourcev1.Service)
+					if !ok {
+						continue
+					}
+					for _, m := range svc.GetApp().GetMounts() {
+						hp := strings.TrimSpace(m.GetHostPath())
+						if hp == "" {
+							continue
+						}
+						cleanOther := path.Clean(hp)
+						if hostPathsOverlap(cleanCurrent, cleanOther) {
+							return authapi.ReasonError(connect.CodeFailedPrecondition,
+								fmt.Errorf("%s overlaps with %s used by another project on this server, so Dockwell refused to overwrite it", cleanCurrent, cleanOther),
+								"folder_shared")
+						}
+					}
+				}
+			}
+		}
+		verified = cleanCurrent
+		return nil
+	})
+	return verified, err
+}
+
+func hostPathsOverlap(a, b string) bool {
+	if a == b {
+		return true
+	}
+	return strings.HasPrefix(a, strings.TrimSuffix(b, "/")+"/") ||
+		strings.HasPrefix(b, strings.TrimSuffix(a, "/")+"/")
 }

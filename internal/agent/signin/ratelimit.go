@@ -13,21 +13,239 @@ import (
 const (
 	// RateLimitPrefix is the path prefix Caddy calls on signin.sock for per-address rate limiting.
 	RateLimitPrefix = "/ratelimit/"
-	// maxRateVisitors bounds tracked visitor buckets per route so a flood of unique IPs
-	// cannot grow agent memory unboundedly.
+	// maxRateVisitors bounds tracked visitor buckets per route.
 	maxRateVisitors = 4096
+	// maxTotalRateBuckets caps total visitor buckets across all routes on the agent
+	// so a multi-route IP flood stays well under the agent's 40 MB RSS budget (ADR 0109).
+	maxTotalRateBuckets = 8192
 )
 
-type routeBucket struct {
-	mu       sync.Mutex
-	rpm      uint32
-	burst    uint32
-	visitors map[string]*tokenBucket
+// RateLimiter enforces per-visitor-address token buckets across routes with O(1)
+// oldest-idle LRU eviction, both per-route and globally across the agent.
+type RateLimiter struct {
+	MaxPerRoute int
+	MaxTotal    int
+
+	mu      sync.Mutex
+	routes  map[string]*routeBucket
+	lruHead *rateEntry // most recently used
+	lruTail *rateEntry // oldest idle (evicted first)
+	total   int
 }
 
-type tokenBucket struct {
-	tokens float64
-	last   time.Time
+type routeBucket struct {
+	rpm      uint32
+	burst    uint32
+	visitors map[string]*rateEntry
+	rHead    *rateEntry // most recently used on this route
+	rTail    *rateEntry // oldest idle on this route
+}
+
+type rateEntry struct {
+	routeID string
+	client  string
+	tokens  float64
+	last    time.Time
+
+	prev, next   *rateEntry // global LRU list
+	rPrev, rNext *rateEntry // per-route LRU list
+}
+
+func (l *RateLimiter) maxPerRoute() int {
+	if l.MaxPerRoute > 0 {
+		return l.MaxPerRoute
+	}
+	return maxRateVisitors
+}
+
+func (l *RateLimiter) maxTotal() int {
+	if l.MaxTotal > 0 {
+		return l.MaxTotal
+	}
+	return maxTotalRateBuckets
+}
+
+// Allow checks and consumes one token for (routeID, client) at now.
+func (l *RateLimiter) Allow(routeID, client string, rpm, burst uint32, now time.Time) (allowed bool, retryAfterSec int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.routes == nil {
+		l.routes = map[string]*routeBucket{}
+	}
+	rb, ok := l.routes[routeID]
+	if !ok {
+		rb = &routeBucket{rpm: rpm, burst: burst, visitors: map[string]*rateEntry{}}
+		l.routes[routeID] = rb
+	}
+
+	ratePerSec := float64(rpm) / 60.0
+	capacity := 1.0 + float64(burst)
+
+	if rb.rpm != rpm || rb.burst != burst {
+		l.clearRouteLocked(rb)
+		rb.rpm, rb.burst = rpm, burst
+	}
+
+	e, exists := rb.visitors[client]
+	if !exists {
+		if len(rb.visitors) >= l.maxPerRoute() && rb.rTail != nil {
+			l.evictLocked(rb, rb.rTail)
+		}
+		for l.total >= l.maxTotal() && l.lruTail != nil {
+			victim := l.lruTail
+			vrb := l.routes[victim.routeID]
+			l.evictLocked(vrb, victim)
+			if vrb != nil && len(vrb.visitors) == 0 && victim.routeID != routeID {
+				delete(l.routes, victim.routeID)
+			}
+		}
+		e = &rateEntry{routeID: routeID, client: client, tokens: capacity, last: now}
+		rb.visitors[client] = e
+		l.pushFrontGlobal(e)
+		l.pushFrontRoute(rb, e)
+		l.total++
+	} else {
+		elapsed := now.Sub(e.last).Seconds()
+		if elapsed > 0 {
+			e.tokens = min(capacity, e.tokens+elapsed*ratePerSec)
+			e.last = now
+		}
+		l.moveToFrontGlobal(e)
+		l.moveToFrontRoute(rb, e)
+	}
+
+	if e.tokens >= 1.0 {
+		e.tokens -= 1.0
+		return true, 0
+	}
+	needed := (1.0 - e.tokens) / ratePerSec
+	return false, max(1, int(math.Ceil(needed)))
+}
+
+// Drop frees all buckets belonging to routeID.
+func (l *RateLimiter) Drop(routeID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	rb, ok := l.routes[routeID]
+	if !ok {
+		return
+	}
+	l.clearRouteLocked(rb)
+	delete(l.routes, routeID)
+}
+
+// Count returns the total number of tracked visitor buckets across all routes.
+func (l *RateLimiter) Count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.total
+}
+
+// Routes returns the number of routes currently holding buckets.
+func (l *RateLimiter) Routes() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.routes)
+}
+
+func (l *RateLimiter) clearRouteLocked(rb *routeBucket) {
+	for e := rb.rHead; e != nil; {
+		next := e.rNext
+		l.unlinkGlobal(e)
+		e.rPrev, e.rNext = nil, nil
+		l.total--
+		e = next
+	}
+	clear(rb.visitors)
+	rb.rHead, rb.rTail = nil, nil
+}
+
+func (l *RateLimiter) evictLocked(rb *routeBucket, e *rateEntry) {
+	l.unlinkGlobal(e)
+	if rb != nil {
+		l.unlinkRoute(rb, e)
+		delete(rb.visitors, e.client)
+	}
+	l.total--
+}
+
+func (l *RateLimiter) pushFrontGlobal(e *rateEntry) {
+	e.prev = nil
+	e.next = l.lruHead
+	if l.lruHead != nil {
+		l.lruHead.prev = e
+	} else {
+		l.lruTail = e
+	}
+	l.lruHead = e
+}
+
+func (l *RateLimiter) unlinkGlobal(e *rateEntry) {
+	if e.prev != nil {
+		e.prev.next = e.next
+	} else if l.lruHead == e {
+		l.lruHead = e.next
+	}
+	if e.next != nil {
+		e.next.prev = e.prev
+	} else if l.lruTail == e {
+		l.lruTail = e.prev
+	}
+	e.prev, e.next = nil, nil
+}
+
+func (l *RateLimiter) moveToFrontGlobal(e *rateEntry) {
+	if l.lruHead == e {
+		return
+	}
+	l.unlinkGlobal(e)
+	l.pushFrontGlobal(e)
+}
+
+func (l *RateLimiter) pushFrontRoute(rb *routeBucket, e *rateEntry) {
+	e.rPrev = nil
+	e.rNext = rb.rHead
+	if rb.rHead != nil {
+		rb.rHead.rPrev = e
+	} else {
+		rb.rTail = e
+	}
+	rb.rHead = e
+}
+
+func (l *RateLimiter) unlinkRoute(rb *routeBucket, e *rateEntry) {
+	if e.rPrev != nil {
+		e.rPrev.rNext = e.rNext
+	} else if rb.rHead == e {
+		rb.rHead = e.rNext
+	}
+	if e.rNext != nil {
+		e.rNext.rPrev = e.rPrev
+	} else if rb.rTail == e {
+		rb.rTail = e.rPrev
+	}
+	e.rPrev, e.rNext = nil, nil
+}
+
+func (l *RateLimiter) moveToFrontRoute(rb *routeBucket, e *rateEntry) {
+	if rb.rHead == e {
+		return
+	}
+	l.unlinkRoute(rb, e)
+	l.pushFrontRoute(rb, e)
+}
+
+func (s *Server) rateLimiter() *RateLimiter {
+	if s.RateLimits != nil {
+		return s.RateLimits
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ownRateLimits == nil {
+		s.ownRateLimits = &RateLimiter{}
+	}
+	return s.ownRateLimits
 }
 
 // serveRateLimit enforces a per-visitor-address token bucket for /ratelimit/<routeID>?rpm=<N>&burst=<B>.
@@ -44,7 +262,7 @@ func (s *Server) serveRateLimit(w http.ResponseWriter, r *http.Request, id strin
 	if client == "" {
 		client = "unknown"
 	}
-	ok, retryAfter := s.allowRate(id, client, uint32(rpm), uint32(burst))
+	ok, retryAfter := s.rateLimiter().Allow(id, client, uint32(rpm), uint32(burst), s.now())
 	if ok {
 		w.WriteHeader(http.StatusOK)
 		return
@@ -54,69 +272,4 @@ func (s *Server) serveRateLimit(w http.ResponseWriter, r *http.Request, id strin
 	w.Header().Set("Retry-After", strconv.Itoa(max(1, retryAfter)))
 	w.WriteHeader(http.StatusTooManyRequests)
 	_, _ = w.Write([]byte("Too Many Requests\n"))
-}
-
-func (s *Server) allowRate(routeID, client string, rpm, burst uint32) (allowed bool, retryAfterSec int) {
-	s.mu.Lock()
-	if s.rateBuckets == nil {
-		s.rateBuckets = map[string]*routeBucket{}
-	}
-	rb, ok := s.rateBuckets[routeID]
-	if !ok {
-		rb = &routeBucket{rpm: rpm, burst: burst, visitors: map[string]*tokenBucket{}}
-		s.rateBuckets[routeID] = rb
-	}
-	s.mu.Unlock()
-
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
-
-	now := s.now()
-	ratePerSec := float64(rpm) / 60.0
-	capacity := 1.0 + float64(burst)
-
-	if rb.rpm != rpm || rb.burst != burst {
-		rb.rpm, rb.burst = rpm, burst
-		clear(rb.visitors)
-	}
-
-	b, exists := rb.visitors[client]
-	if !exists {
-		if len(rb.visitors) >= maxRateVisitors {
-			// Prune idle/refilled buckets first, then evict oldest if still at cap.
-			idleAfter := time.Duration(math.Ceil(capacity/ratePerSec)) * time.Second
-			if idleAfter < time.Minute {
-				idleAfter = time.Minute
-			}
-			var oldestKey string
-			var oldestTime time.Time
-			for k, v := range rb.visitors {
-				if now.Sub(v.last) >= idleAfter {
-					delete(rb.visitors, k)
-					continue
-				}
-				if oldestKey == "" || v.last.Before(oldestTime) {
-					oldestKey, oldestTime = k, v.last
-				}
-			}
-			if len(rb.visitors) >= maxRateVisitors && oldestKey != "" {
-				delete(rb.visitors, oldestKey)
-			}
-		}
-		b = &tokenBucket{tokens: capacity, last: now}
-		rb.visitors[client] = b
-	} else {
-		elapsed := now.Sub(b.last).Seconds()
-		if elapsed > 0 {
-			b.tokens = min(capacity, b.tokens+elapsed*ratePerSec)
-			b.last = now
-		}
-	}
-
-	if b.tokens >= 1.0 {
-		b.tokens -= 1.0
-		return true, 0
-	}
-	needed := (1.0 - b.tokens) / ratePerSec
-	return false, max(1, int(math.Ceil(needed)))
 }

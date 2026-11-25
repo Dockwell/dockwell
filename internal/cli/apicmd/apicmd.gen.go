@@ -5635,7 +5635,8 @@ func Kinds() []*apicli.Kind {
 				{Path: "rate_limit.requests_per_minute", Help: "Steady rate per visitor address, in requests per minute (1 to 60000)."},
 				{Path: "rate_limit.burst", Help: "Extra burst requests allowed above the steady rate (0 to 1000)."},
 				{Path: "custom_cert.cert_pem", Help: "Full PEM certificate chain (leaf first, intermediates after)."},
-				{Path: "custom_cert.key_pem", Help: "PEM private key, sealed at rest and never returned on list/read APIs.", Sensitive: true},
+				{Path: "custom_cert.key_pem", Help: "PEM private key, sealed at rest and never returned on list/read APIs or Observe.", Sensitive: true},
+				{Path: "custom_cert.key_fingerprint", Help: "SHA-256 fingerprint of key_pem, set on validation and returned by Observe in place of key_pem."},
 			},
 		},
 		{

@@ -1747,8 +1747,10 @@ message RouteRateLimit {
 message RouteCustomCert {
   // Full PEM certificate chain (leaf first, intermediates after).
   string cert_pem = 1;
-  // PEM private key, sealed at rest and never returned on list/read APIs.
+  // PEM private key, sealed at rest and never returned on list/read APIs or Observe.
   string key_pem = 2 [(sensitive) = true];
+  // SHA-256 fingerprint of key_pem, set on validation and returned by Observe in place of key_pem.
+  string key_fingerprint = 3;
 }
 
 // How a route's domain is published at Cloudflare (ADR 0104).

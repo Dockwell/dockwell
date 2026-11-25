@@ -69,14 +69,22 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
   const tlsOff = domain.routes[0]?.tls === "off";
   const isCustom = Boolean(primaryCert?.custom);
   const isIssued = primaryCert?.state === CertificateState.ISSUED;
+  const coveredNames = primaryCert?.sans?.length ? primaryCert.sans : [domain.name];
+  const isSharedOrMultiName =
+    Boolean(primaryCert?.byDns) ||
+    coveredNames.length > 1 ||
+    coveredNames.some((n) => n.startsWith("*.") || n.toLowerCase() !== domain.name.toLowerCase());
 
   const mayRenew = may(DomainService.method.renewCertificate, { project: row.site.id });
   const mayCustom = may(DomainService.method.setCustomCertificate, { project: row.site.id });
+  const mayInstallAdmin = may(DomainService.method.setCustomCertificate, { install: true });
   const mayDownload = may(DomainService.method.downloadCertificate, { project: row.site.id });
+  const mayDownloadKey = isSharedOrMultiName ? mayInstallAdmin : mayCustom;
 
   const [busy, setBusy] = useState<"renew" | "cert" | "key" | null>(null);
   const [notice, setNotice] = useState<{ tone: "info" | "critical"; title: string; body: string }>();
   const [forcePrompt, setForcePrompt] = useState<string>();
+  const [confirmSharedKey, setConfirmSharedKey] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const renew = async (force: boolean) => {
@@ -207,8 +215,14 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
                     variant="ghost"
                     icon="key"
                     loading={busy === "key"}
-                    onClick={() => void downloadKey()}
-                    {...mayCustom.off}
+                    onClick={() => {
+                      if (isSharedOrMultiName) {
+                        setConfirmSharedKey(true);
+                      } else {
+                        void downloadKey();
+                      }
+                    }}
+                    {...mayDownloadKey.off}
                   >
                     <Trans>Download key</Trans>
                   </Button>
@@ -236,7 +250,13 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
               <Button variant="secondary" onClick={() => setForcePrompt(undefined)}>
                 <Trans>Keep current</Trans>
               </Button>
-              <Button variant="primary" icon="refresh" loading={busy === "renew"} onClick={() => void renew(true)}>
+              <Button
+                variant="primary"
+                icon="refresh"
+                loading={busy === "renew"}
+                onClick={() => void renew(true)}
+                {...mayCustom.off}
+              >
                 <Trans>Renew anyway</Trans>
               </Button>
             </>
@@ -252,6 +272,48 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
                 when replacing a compromised key or testing renewal.
               </Trans>
             </p>
+          </div>
+        </Sheet>
+      ) : null}
+
+      {confirmSharedKey ? (
+        <Sheet
+          open
+          onClose={() => setConfirmSharedKey(false)}
+          title={t`Download shared certificate key?`}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmSharedKey(false)}>
+                <Trans>Cancel</Trans>
+              </Button>
+              <Button
+                variant="primary"
+                icon="key"
+                loading={busy === "key"}
+                onClick={() => {
+                  setConfirmSharedKey(false);
+                  void downloadKey();
+                }}
+              >
+                <Trans>Continue to passkey</Trans>
+              </Button>
+            </>
+          }
+        >
+          <div className="website-fields">
+            <Callout tone="warning" title={t`This private key covers multiple names`}>
+              <Trans>
+                Downloading this key grants TLS credentials for every name listed below, which may include other
+                websites or projects on this server. A passkey check follows.
+              </Trans>
+            </Callout>
+            <ul className="website-cert-names">
+              {coveredNames.map((name) => (
+                <li key={name}>
+                  <code>{name}</code>
+                </li>
+              ))}
+            </ul>
           </div>
         </Sheet>
       ) : null}

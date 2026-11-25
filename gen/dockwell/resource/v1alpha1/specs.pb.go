@@ -8245,10 +8245,12 @@ type RouteCustomCert struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Full PEM certificate chain (leaf first, intermediates after).
 	CertPem string `protobuf:"bytes,1,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
-	// PEM private key, sealed at rest and never returned on list/read APIs.
-	KeyPem        string `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// PEM private key, sealed at rest and never returned on list/read APIs or Observe.
+	KeyPem string `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	// SHA-256 fingerprint of key_pem, set on validation and returned by Observe in place of key_pem.
+	KeyFingerprint string `protobuf:"bytes,3,opt,name=key_fingerprint,json=keyFingerprint,proto3" json:"key_fingerprint,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RouteCustomCert) Reset() {
@@ -8291,6 +8293,13 @@ func (x *RouteCustomCert) GetCertPem() string {
 func (x *RouteCustomCert) GetKeyPem() string {
 	if x != nil {
 		return x.KeyPem
+	}
+	return ""
+}
+
+func (x *RouteCustomCert) GetKeyFingerprint() string {
+	if x != nil {
+		return x.KeyFingerprint
 	}
 	return ""
 }
@@ -13526,10 +13535,11 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"customCert\"V\n" +
 	"\x0eRouteRateLimit\x12.\n" +
 	"\x13requests_per_minute\x18\x01 \x01(\rR\x11requestsPerMinute\x12\x14\n" +
-	"\x05burst\x18\x02 \x01(\rR\x05burst\"K\n" +
+	"\x05burst\x18\x02 \x01(\rR\x05burst\"t\n" +
 	"\x0fRouteCustomCert\x12\x19\n" +
 	"\bcert_pem\x18\x01 \x01(\tR\acertPem\x12\x1d\n" +
-	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\"\xbf\x01\n" +
+	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12'\n" +
+	"\x0fkey_fingerprint\x18\x03 \x01(\tR\x0ekeyFingerprint\"\xbf\x01\n" +
 	"\fRoutePublish\x126\n" +
 	"\x03way\x18\x01 \x01(\x0e2$.dockwell.resource.v1alpha1.RouteWayR\x03way\x12\x16\n" +
 	"\x06tunnel\x18\x02 \x01(\tR\x06tunnel\x12\x1a\n" +
