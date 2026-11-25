@@ -1017,6 +1017,12 @@ msgstr "Deleted {path} on {server}, which can let someone back in"
 msgid "Disconnected an SSH session on {server}"
 msgstr "Disconnected an SSH session on {server}"
 
+msgid "Downloaded a certificate's private key"
+msgstr "Downloaded a certificate's private key"
+
+msgid "Downloaded the certificate private key for {name}"
+msgstr "Downloaded the certificate private key for {name}"
+
 msgid "Downloaded {path} from {server}"
 msgstr "Downloaded {path} from {server}"
 

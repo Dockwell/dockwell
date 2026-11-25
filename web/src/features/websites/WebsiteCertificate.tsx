@@ -75,7 +75,11 @@ function Certificates({ domain, look }: { domain: Domain; look: DomainLook }) {
     coveredNames.length > 1 ||
     coveredNames.some((n) => n.startsWith("*.") || n.toLowerCase() !== domain.name.toLowerCase());
 
-  const mayRenew = may(DomainService.method.renewCertificate, { project: row.site.id });
+  const renewEnv = domain.environmentId || row.site.environmentId;
+  const mayRenew = may(
+    DomainService.method.renewCertificate,
+    renewEnv ? { environment: renewEnv } : { project: row.site.id },
+  );
   const mayCustom = may(DomainService.method.setCustomCertificate, { project: row.site.id });
   const mayInstallAdmin = may(DomainService.method.setCustomCertificate, { install: true });
   const mayDownload = may(DomainService.method.downloadCertificate, { project: row.site.id });

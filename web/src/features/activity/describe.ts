@@ -1000,6 +1000,14 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
               : t`Sent a certificate's key, proven by DNS, to a server`,
             icon: "key",
           };
+        case "certificate.key_downloaded":
+          // A domain certificate's private key downloaded by an admin after passkey step-up.
+          return {
+            title: name
+              ? t`Downloaded the certificate private key for ${name}`
+              : t`Downloaded a certificate's private key`,
+            icon: "key",
+          };
         case "certificate.revoke":
           // A key by DNS a server that's gone had, revoked with the CA once its certificate had another.
           return {

@@ -197,3 +197,23 @@ func TestADatabaseNamedForANewPasswordIsReadAsAName(t *testing.T) {
 		t.Errorf("ChangeDatabasePassword{id: db} names %+v, want the service named db", ref)
 	}
 }
+
+// Certificate calls on a domain read its domain field to place the call by that
+// domain's route, while CheckDomain leaves it out as it checks unrouted names too.
+func TestDomainCertificateCallsReadTheirDomain(t *testing.T) {
+	for _, tc := range []struct {
+		proc string
+		msg  interface{ ProtoReflect() protoreflect.Message }
+		want string
+	}{
+		{dockwellv1connect.DomainServiceRenewCertificateProcedure, &dockwellv1.RenewCertificateRequest{Domain: "shop.example.com"}, "shop.example.com"},
+		{dockwellv1connect.DomainServiceSetCustomCertificateProcedure, &dockwellv1.SetCustomCertificateRequest{Domain: "shop.example.com"}, "shop.example.com"},
+		{dockwellv1connect.DomainServiceDownloadCertificateProcedure, &dockwellv1.DownloadCertificateRequest{Domain: "shop.example.com"}, "shop.example.com"},
+		{dockwellv1connect.DomainServiceCheckDomainProcedure, &dockwellv1.CheckDomainRequest{Domain: "shop.example.com"}, ""},
+	} {
+		ref, _ := requested(tc.proc, tc.msg.ProtoReflect())
+		if ref.domain != tc.want {
+			t.Errorf("%s domain = %q, want %q", tc.proc, ref.domain, tc.want)
+		}
+	}
+}

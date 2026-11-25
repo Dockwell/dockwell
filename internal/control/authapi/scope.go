@@ -114,6 +114,15 @@ var serviceFields = map[string]bool{
 	dockwellv1connect.DomainServiceListDomainsProcedure:    true,
 }
 
+// domainFields are the calls whose domain field names an existing route's domain
+// to act on or read, placed by that route's project and environment. Elsewhere a
+// domain field names a domain to check or create.
+var domainFields = map[string]bool{
+	dockwellv1connect.DomainServiceRenewCertificateProcedure:     true,
+	dockwellv1connect.DomainServiceSetCustomCertificateProcedure: true,
+	dockwellv1connect.DomainServiceDownloadCertificateProcedure:  true,
+}
+
 // aboutTheRequest are what a response holds about the one thing its request
 // named, which checkScope checked there, or about servers, seen by name and
 // state: a change's steps, a service's log chunks and its servers, a Compose
@@ -196,6 +205,8 @@ type refs struct {
 	task string
 	// server is a server it names by name or ID.
 	server string
+	// domain is a domain whose live routes place the call.
+	domain string
 }
 
 // requestFields are the request's own fields that say where it is.
@@ -247,6 +258,10 @@ func requested(procedure string, m protoreflect.Message) (refs, requestFields) {
 				if idLike.MatchString(v) {
 					out.ids = append(out.ids, v)
 				}
+			}
+		case name == "domain" && domainFields[procedure]:
+			if len(vals) > 0 {
+				out.domain = vals[0]
 			}
 		case name == "service" && serviceFields[procedure]:
 			for _, v := range vals {
@@ -365,6 +380,13 @@ func (i *interceptor) checkScope(ctx context.Context, procedure string, msg any)
 			places = append(places, p)
 			// The handler uses this exact project after its alias has been checked.
 			m.Set(m.Descriptor().Fields().ByName("id"), protoreflect.ValueOfString(p.Project))
+		}
+		if ref.domain != "" {
+			got, err := place.Domain(ctx, tx, ref.domain)
+			if err != nil {
+				return err
+			}
+			places = append(places, got...)
 		}
 		if !byServer {
 			if err := ownProject(ctx, tx, r, grants, &ref, m, at); err != nil {

@@ -33,6 +33,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/containers"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
+	"github.com/dockwell/dockwell/internal/control/domains"
 	controlfiles "github.com/dockwell/dockwell/internal/control/files"
 	"github.com/dockwell/dockwell/internal/control/firewall"
 	"github.com/dockwell/dockwell/internal/control/fleet"
@@ -153,8 +154,9 @@ var (
 		backups.ActionTestDestination,
 		// A saved DNS provider's token, used again to write in its zones (ADR 0088).
 		dnsproviders.ActionCheck,
-		// A certificate's key by DNS going to a server, or revoked as it went (ADR 0088).
-		certificates.ActionDeliver, certificates.ActionRevoke,
+		// A certificate's key by DNS going to a server, or revoked as it went (ADR 0088),
+		// or a domain certificate's private key downloaded by an admin.
+		certificates.ActionDeliver, certificates.ActionRevoke, domains.EventCertificateKeyDownloaded,
 		// An app opened through the panel, which is as much as a secret revealed (ADR 0061).
 		"service.open",
 		// One of an app's own values that reads hidden, revealed (ADR 0081).
@@ -929,6 +931,12 @@ func FromAudit(a *store.Event, look actors.Lookup) *dockwellv1.Event {
 	}
 	if a.Action == ActionRevealServiceValue && e.Subject != nil {
 		e.Subject.ValueName = a.Subject // only ever a variable's name, as internal/control/variables writes it
+	}
+	if a.Action == domains.EventCertificateKeyDownloaded && a.Subject != "" {
+		if e.Subject == nil {
+			e.Subject = &dockwellv1.EventSubject{}
+		}
+		e.Subject.Name = a.Subject // the domain whose certificate key was downloaded
 	}
 	if strings.HasPrefix(a.Action, "file.") && e.Subject != nil {
 		e.Subject.Path = a.Subject // only ever a path, cleaned by internal/control/files

@@ -156,7 +156,7 @@ service DomainService {
     option (dockwell.v1.effect) = EFFECT_APPLY;
     option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
-    option (dockwell.v1.reach) = REACH_NAMED;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {
       noun: "domains"
       verb: "renew-certificate"
@@ -175,7 +175,7 @@ service DomainService {
     option (dockwell.v1.effect) = EFFECT_PLAN;
     option (dockwell.v1.min_role) = NEEDS_ADMIN;
     option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
-    option (dockwell.v1.reach) = REACH_NAMED;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {
       noun: "domains"
       verb: "set-certificate"
@@ -193,7 +193,7 @@ service DomainService {
     option (dockwell.v1.effect) = EFFECT_READ;
     option (dockwell.v1.min_role) = NEEDS_VIEWER;
     option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
-    option (dockwell.v1.reach) = REACH_NAMED;
+    option (dockwell.v1.reach) = REACH_PROJECT;
     option (dockwell.v1.command) = {
       noun: "domains"
       verb: "download-certificate"

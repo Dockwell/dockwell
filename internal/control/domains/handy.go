@@ -144,6 +144,8 @@ func (h *Handler) findDomain(ctx context.Context, domain string) (*domainBinding
 					envID:     r.Scope,
 					protected: ep.protected,
 				}
+			} else {
+				out.protected = out.protected || ep.protected
 			}
 			out.routes = append(out.routes, boundRoute{res: r, spec: rt, placed: placed})
 			if out.primarySpec == nil || rt.GetPath() == "" {
@@ -189,7 +191,7 @@ func callerIsInstallAdmin(ctx context.Context) bool {
 	if !ok {
 		return true
 	}
-	return place.Holds(c.Grants, place.Install) == store.RoleAdmin
+	return store.RoleRank(place.Holds(c.Grants, place.Install)) >= store.RoleRank(store.RoleAdmin)
 }
 
 // RenewCertificate requests an immediate certificate renewal for a domain, respecting

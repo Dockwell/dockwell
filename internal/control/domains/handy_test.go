@@ -3,6 +3,7 @@
 package domains
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -262,6 +263,7 @@ func TestDownloadCertificateKeyScopeH1(t *testing.T) {
 	baseCtx := authapi.As(t.Context(), auth.Client{}, auth.Principal{User: store.User{ID: "usr_1", Email: "a@example.com"}})
 	projAdminCtx := place.WithCaller(baseCtx, place.Caller{Grants: []store.Grant{{ProjectID: projectAID, Role: store.RoleAdmin}}})
 	installAdminCtx := place.WithCaller(baseCtx, place.Caller{Grants: []store.Grant{{Role: store.RoleAdmin}}})
+	ownerCtx := place.WithCaller(baseCtx, place.Caller{Grants: []store.Grant{{Role: store.RoleOwner}}})
 
 	// 1. Project A admin (not install admin) MUST be refused for shared/wildcard cert.
 	_, err := h.DownloadCertificate(projAdminCtx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
@@ -272,13 +274,15 @@ func TestDownloadCertificateKeyScopeH1(t *testing.T) {
 		t.Fatalf("project admin on shared cert = %v, want PermissionDenied requiring install admin", err)
 	}
 
-	// 2. Install admin passes scope check on shared cert (reaches passkey step-up).
-	_, err = h.DownloadCertificate(installAdminCtx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
-		Domain:     "a.example.com",
-		IncludeKey: true,
-	}))
-	if err == nil || !strings.Contains(err.Error(), auth.ErrNeedsStepUp.Error()) {
-		t.Fatalf("install admin on shared cert = %v, want step-up prompt", err)
+	// 2. Install admin and owner pass scope check on shared cert (reach passkey step-up).
+	for name, ctx := range map[string]context.Context{"install admin": installAdminCtx, "owner": ownerCtx} {
+		_, err = h.DownloadCertificate(ctx, connect.NewRequest(&dockwellv1.DownloadCertificateRequest{
+			Domain:     "a.example.com",
+			IncludeKey: true,
+		}))
+		if err == nil || !strings.Contains(err.Error(), auth.ErrNeedsStepUp.Error()) {
+			t.Fatalf("%s on shared cert = %v, want step-up prompt", name, err)
+		}
 	}
 
 	// 3. When the wildcard covers the panel domain, EVEN an install admin is refused.

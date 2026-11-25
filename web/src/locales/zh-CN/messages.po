@@ -1017,6 +1017,12 @@ msgstr "已删除 {server} 上的 {path}，这里可能让他人重新进入服�
 msgid "Disconnected an SSH session on {server}"
 msgstr "已断开 {server} 上的 SSH 会话"
 
+msgid "Downloaded a certificate's private key"
+msgstr "下载了证书私钥"
+
+msgid "Downloaded the certificate private key for {name}"
+msgstr "下载了 {name} 的证书私钥"
+
 msgid "Downloaded {path} from {server}"
 msgstr "已从 {server} 下载 {path}"
 
