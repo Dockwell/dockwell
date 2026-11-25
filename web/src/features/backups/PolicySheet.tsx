@@ -148,7 +148,11 @@ export function PolicySheet({
   const storage = useStorage(destinations);
   const seal = useBackupSeal();
   const was = editing?.spec;
-  const editedVolume = volumes.find((v) => v.name === was?.volume && v.environment === editing?.environmentId);
+  const editedVolume = volumes.find((v) =>
+    was?.websiteFolder
+      ? Boolean(v.websiteId) && v.environment === editing?.environmentId
+      : v.name === was?.volume && v.environment === editing?.environmentId,
+  );
   const [volumeId, setVolumeId] = useState(editedVolume?.id ?? volumes[0]?.id ?? "");
   const [how, setHow] = useState<How>((was && HOW_OF[was.every]) || "day");
   const [at, setAt] = useState(was?.at || "03:00");
@@ -181,7 +185,7 @@ export function PolicySheet({
   const options = useVolumeOptions(volumes);
   const preview = useQuery(
     BackupService.method.previewBackup,
-    { volumeId },
+    volume?.websiteId ? { websiteId: volume.websiteId } : { volumeId },
     { enabled: volumeId !== "", retry: false },
   );
   const said = preview.data;
@@ -214,7 +218,9 @@ export function PolicySheet({
     // A schedule changed keeps what this form doesn't say, as an app's link (ADR 0084).
     const value = was
       ? clone(BackupPolicySchema, was)
-      : create(BackupPolicySchema, { volume: volume.name, timeZone: userZone });
+      : volume.websiteId
+        ? create(BackupPolicySchema, { websiteFolder: true, timeZone: userZone })
+        : create(BackupPolicySchema, { volume: volume.name, timeZone: userZone });
     value.every = EVERY[how];
     value.at = at;
     value.weekday = Number(weekday);
@@ -256,7 +262,7 @@ export function PolicySheet({
       resource: {
         kind: "backup.policy",
         scope: editing?.environmentId ?? volume.environment,
-        name: editing?.name ?? policyName(volume.name, how),
+        name: editing?.name ?? policyName(volume.websiteId ? "website-folder" : volume.name, how),
       },
       spec: { kind: { case: "backupPolicy", value } },
     });

@@ -56,9 +56,10 @@ type Server struct {
 	// Now is the clock; nil is time.Now.
 	Now func() time.Time
 
-	mu       sync.Mutex
-	provider *oidc.Client
-	limits   map[string]*limit
+	mu          sync.Mutex
+	provider    *oidc.Client
+	limits      map[string]*limit
+	rateBuckets map[string]*routeBucket
 	// used are setup links' keys opened already, by hash, until their links end.
 	used map[string]time.Time
 }
@@ -105,6 +106,10 @@ func (s *Server) now() time.Time {
 // ServeHTTP answers forward_auth for /route/<id>, with the visitor's method and URI
 // in X-Forwarded-Method and X-Forwarded-Uri.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if id, ok := strings.CutPrefix(r.URL.Path, RateLimitPrefix); ok {
+		s.serveRateLimit(w, r, id)
+		return
+	}
 	// A held route's hold, which its setup link lifts for one browser, comes first
 	// (ADR 0105).
 	if id, ok := strings.CutPrefix(r.URL.Path, "/setup/"); ok {

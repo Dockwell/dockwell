@@ -554,7 +554,13 @@ type Backup struct {
 	Drill *BackupDrill `protobuf:"bytes,26,opt,name=drill,proto3" json:"drill,omitempty"`
 	// The one database it holds, for an app's on a server it shares, which restores
 	// alone. Empty for a backup of the whole volume (ADR 0084).
-	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	DatabaseName string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	// The website project ID when this backup is of a website's folder.
+	WebsiteId string `protobuf:"bytes,81,opt,name=website_id,json=websiteId,proto3" json:"website_id,omitempty"`
+	// The website's domain when this backup is of a website's folder.
+	WebsiteDomain string `protobuf:"bytes,82,opt,name=website_domain,json=websiteDomain,proto3" json:"website_domain,omitempty"`
+	// The folder path on the server when this backup is of a website's folder.
+	WebsitePath   string `protobuf:"bytes,83,opt,name=website_path,json=websitePath,proto3" json:"website_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -774,6 +780,27 @@ func (x *Backup) GetDrill() *BackupDrill {
 func (x *Backup) GetDatabaseName() string {
 	if x != nil {
 		return x.DatabaseName
+	}
+	return ""
+}
+
+func (x *Backup) GetWebsiteId() string {
+	if x != nil {
+		return x.WebsiteId
+	}
+	return ""
+}
+
+func (x *Backup) GetWebsiteDomain() string {
+	if x != nil {
+		return x.WebsiteDomain
+	}
+	return ""
+}
+
+func (x *Backup) GetWebsitePath() string {
+	if x != nil {
+		return x.WebsitePath
 	}
 	return ""
 }
@@ -1436,7 +1463,9 @@ type ListBackupsRequest struct {
 	// Only the backups in one environment, by ID.
 	EnvironmentId string `protobuf:"bytes,4,opt,name=environment_id,json=environmentId,proto3" json:"environment_id,omitempty"`
 	// Only the backups of this one database, by name, on the volume volume_id names.
-	DatabaseName  string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	DatabaseName string `protobuf:"bytes,80,opt,name=database_name,json=databaseName,proto3" json:"database_name,omitempty"`
+	// Only the backups of this website's folder, by website project ID.
+	WebsiteId     string `protobuf:"bytes,81,opt,name=website_id,json=websiteId,proto3" json:"website_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1502,6 +1531,13 @@ func (x *ListBackupsRequest) GetEnvironmentId() string {
 func (x *ListBackupsRequest) GetDatabaseName() string {
 	if x != nil {
 		return x.DatabaseName
+	}
+	return ""
+}
+
+func (x *ListBackupsRequest) GetWebsiteId() string {
+	if x != nil {
+		return x.WebsiteId
 	}
 	return ""
 }
@@ -1653,13 +1689,15 @@ func (x *GetBackupResponse) GetBackup() *Backup {
 	return nil
 }
 
-// PreviewBackupRequest names a volume.
+// PreviewBackupRequest names a volume or website folder.
 type PreviewBackupRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
 	VolumeId string `protobuf:"bytes,1,opt,name=volume_id,json=volumeId,proto3" json:"volume_id,omitempty"`
 	// The server, by name or ID, when the volume is on several.
-	Server        string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
+	Server string `protobuf:"bytes,2,opt,name=server,proto3" json:"server,omitempty"`
+	// The website's project ID, in place of volume_id, to preview backing up its folder.
+	WebsiteId     string `protobuf:"bytes,3,opt,name=website_id,json=websiteId,proto3" json:"website_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1704,6 +1742,13 @@ func (x *PreviewBackupRequest) GetVolumeId() string {
 func (x *PreviewBackupRequest) GetServer() string {
 	if x != nil {
 		return x.Server
+	}
+	return ""
+}
+
+func (x *PreviewBackupRequest) GetWebsiteId() string {
+	if x != nil {
+		return x.WebsiteId
 	}
 	return ""
 }
@@ -1803,7 +1848,7 @@ func (x *PreviewBackupResponse) GetReserveBytes() int64 {
 	return 0
 }
 
-// CreateBackupRequest asks to back up a volume.
+// CreateBackupRequest asks to back up a volume or website folder.
 type CreateBackupRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The volume's ID.
@@ -1814,7 +1859,9 @@ type CreateBackupRequest struct {
 	// after, whatever comes of the backup. A database's dump stops nothing.
 	Stop bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
 	// A backup destination it goes to as well, by name.
-	Destination   string `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
+	Destination string `protobuf:"bytes,4,opt,name=destination,proto3" json:"destination,omitempty"`
+	// The website's project ID, in place of volume_id, to back up its folder.
+	WebsiteId     string `protobuf:"bytes,5,opt,name=website_id,json=websiteId,proto3" json:"website_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1873,6 +1920,13 @@ func (x *CreateBackupRequest) GetStop() bool {
 func (x *CreateBackupRequest) GetDestination() string {
 	if x != nil {
 		return x.Destination
+	}
+	return ""
+}
+
+func (x *CreateBackupRequest) GetWebsiteId() string {
+	if x != nil {
+		return x.WebsiteId
 	}
 	return ""
 }
@@ -2320,7 +2374,7 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\vfinished_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishedAt\x12(\n" +
 	"\x05actor\x18\n" +
-	" \x01(\v2\x12.dockwell.v1.ActorR\x05actor\"\xc5\a\n" +
+	" \x01(\v2\x12.dockwell.v1.ActorR\x05actor\"\xae\b\n" +
 	"\x06Backup\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12%\n" +
 	"\x0eenvironment_id\x18\x02 \x01(\tR\renvironmentId\x12\x16\n" +
@@ -2356,7 +2410,11 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\n" +
 	"fetch_onto\x18\x19 \x03(\tR\tfetchOnto\x12.\n" +
 	"\x05drill\x18\x1a \x01(\v2\x18.dockwell.v1.BackupDrillR\x05drill\x12#\n" +
-	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"\x8a\x03\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\x12\x1d\n" +
+	"\n" +
+	"website_id\x18Q \x01(\tR\twebsiteId\x12%\n" +
+	"\x0ewebsite_domain\x18R \x01(\tR\rwebsiteDomain\x12!\n" +
+	"\fwebsite_path\x18S \x01(\tR\vwebsitePath\"\x8a\x03\n" +
 	"\x15BackupDestinationInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1a\n" +
@@ -2406,24 +2464,28 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"kept_bytes\x18\b \x01(\x03R\tkeptBytes\"\x1b\n" +
 	"\x19ListBackupPoliciesRequest\"W\n" +
 	"\x1aListBackupPoliciesResponse\x129\n" +
-	"\bpolicies\x18\x01 \x03(\v2\x1d.dockwell.v1.BackupPolicyInfoR\bpolicies\"\xb9\x01\n" +
+	"\bpolicies\x18\x01 \x03(\v2\x1d.dockwell.v1.BackupPolicyInfoR\bpolicies\"\xd8\x01\n" +
 	"\x12ListBackupsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1b\n" +
 	"\tvolume_id\x18\x03 \x01(\tR\bvolumeId\x12%\n" +
 	"\x0eenvironment_id\x18\x04 \x01(\tR\renvironmentId\x12#\n" +
-	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\"l\n" +
+	"\rdatabase_name\x18P \x01(\tR\fdatabaseName\x12\x1d\n" +
+	"\n" +
+	"website_id\x18Q \x01(\tR\twebsiteId\"l\n" +
 	"\x13ListBackupsResponse\x12-\n" +
 	"\abackups\x18\x01 \x03(\v2\x13.dockwell.v1.BackupR\abackups\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\"\n" +
 	"\x10GetBackupRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"@\n" +
 	"\x11GetBackupResponse\x12+\n" +
-	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"K\n" +
+	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"j\n" +
 	"\x14PreviewBackupRequest\x12\x1b\n" +
 	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
-	"\x06server\x18\x02 \x01(\tR\x06server\"\xeb\x01\n" +
+	"\x06server\x18\x02 \x01(\tR\x06server\x12\x1d\n" +
+	"\n" +
+	"website_id\x18\x03 \x01(\tR\twebsiteId\"\xeb\x01\n" +
 	"\x15PreviewBackupResponse\x121\n" +
 	"\x06method\x18\x01 \x01(\x0e2\x19.dockwell.v1.BackupMethodR\x06method\x12\x1a\n" +
 	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x18\n" +
@@ -2431,12 +2493,14 @@ const file_dockwell_v1_backup_proto_rawDesc = "" +
 	"\x0eestimate_bytes\x18\x04 \x01(\x03R\restimateBytes\x12\x1d\n" +
 	"\n" +
 	"free_bytes\x18\x05 \x01(\x03R\tfreeBytes\x12#\n" +
-	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\x80\x01\n" +
+	"\rreserve_bytes\x18\x06 \x01(\x03R\freserveBytes\"\x9f\x01\n" +
 	"\x13CreateBackupRequest\x12\x1b\n" +
 	"\tvolume_id\x18\x01 \x01(\tR\bvolumeId\x12\x16\n" +
 	"\x06server\x18\x02 \x01(\tR\x06server\x12\x12\n" +
 	"\x04stop\x18\x03 \x01(\bR\x04stop\x12 \n" +
-	"\vdestination\x18\x04 \x01(\tR\vdestination\"C\n" +
+	"\vdestination\x18\x04 \x01(\tR\vdestination\x12\x1d\n" +
+	"\n" +
+	"website_id\x18\x05 \x01(\tR\twebsiteId\"C\n" +
 	"\x14CreateBackupResponse\x12+\n" +
 	"\x06backup\x18\x01 \x01(\v2\x13.dockwell.v1.BackupR\x06backup\"F\n" +
 	"\x13DeleteBackupRequest\x12\x0e\n" +

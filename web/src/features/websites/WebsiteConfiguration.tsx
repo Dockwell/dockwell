@@ -19,8 +19,10 @@ import { CopyButton } from "../servers/CopyButton";
 import { useFleet } from "../servers/useFleet";
 import { RefLink } from "../shell/RefLink";
 import { OtherDomains } from "./Companion";
+import { RulesEditor } from "./RulesEditor";
 import { useCertificateWords } from "./Standing";
 import {
+  basicAuthPasswordsOf,
   changed,
   type Missing,
   missing,
@@ -74,7 +76,10 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
   const gap = missing(settled);
   const preview = useQuery(
     WebsiteService.method.previewWebsite,
-    { website: specOf(sendable(settled, was)) },
+    {
+      website: specOf(sendable(settled, was)),
+      ...(settled.customCaddy.trim() !== "" && site.serverId ? { serverId: site.serverId } : {}),
+    },
     { enabled: gap === undefined, retry: false },
   );
   const refusal = gap ? missingWords(gap) : preview.error ? sentence(preview.error) : "";
@@ -98,6 +103,7 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
           id: site.id,
           // What it serves changes here; the domains that redirect to it stay.
           website: { ...specOf(sendable(now, was)), redirectFrom: site.spec?.redirectFrom ?? [] },
+          basicAuthPasswords: basicAuthPasswordsOf(now),
         }),
       retryLabel: t`Edit and try again`,
       onClose: (after) => {
@@ -143,6 +149,14 @@ function ConfigurationForm({ site }: { site: WebsiteInfo }) {
               />
             </div>
           </Panel>
+          <RulesEditor
+            settings={now}
+            serverId={site.serverId}
+            rulesError={refusedAt === "rules" ? refusal : undefined}
+            customCaddyError={refusedAt === "customCaddy" ? refusal : undefined}
+            customCaddyValid={preview.data?.caddyValidated}
+            onChange={setNow}
+          />
           <DomainPanel />
         </div>
         <Panel className={cx("website-config")} flush>

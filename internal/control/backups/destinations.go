@@ -29,7 +29,6 @@ import (
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/connection"
 	"github.com/dockwell/dockwell/internal/resource/resourcepb"
-	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/store"
 )
@@ -515,9 +514,18 @@ func (h *Handler) FetchBackup(ctx context.Context, req *connect.Request[dockwell
 	if b.CopyKey == "" {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on a destination, so there's nothing to fetch", b.ID), "not_stored")
 	}
-	_, server, err := h.volumeOf(ctx, b.VolumeID, req.Msg.GetServer())
-	if err != nil {
-		return nil, h.fail(ctx, err)
+	var server store.Server
+	if b.WebsiteID != "" {
+		target, werr := h.websiteOf(ctx, b.WebsiteID, req.Msg.GetServer(), store.RoleDeveloper)
+		if werr != nil {
+			return nil, h.fail(ctx, werr)
+		}
+		server = target.server
+	} else {
+		_, server, err = h.volumeOf(ctx, b.VolumeID, req.Msg.GetServer())
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
 	}
 	s, err := h.session(server)
 	if err != nil {
@@ -561,8 +569,8 @@ func (h *Handler) fetch(s *agentapi.Session, b store.Backup, server string, dest
 		delete(h.progress, b.ID)
 		h.mu.Unlock()
 	}()
-	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
-	_, err := s.FetchBackup(ctx, &agentv1.FetchBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Key: b.CopyKey, Sha256: b.SHA256}, destination)
+	ref := backupRef(b)
+	_, err := s.FetchBackup(ctx, &agentv1.FetchBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Key: b.CopyKey, Sha256: b.SHA256, HostPath: b.WebsitePath}, destination)
 	record := context.WithoutCancel(ctx)
 	action, told := ActionFetched, Told{ID: b.ID, Volume: b.Volume, Destination: b.Destination}
 	if err != nil {

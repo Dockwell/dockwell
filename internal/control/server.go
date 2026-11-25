@@ -691,6 +691,7 @@ func apiRoutes(cfg Config, ui http.Handler, ports *PublicPorts, hist *history.Re
 		}
 		domainHandler := domains.New(cfg.Changes.Kinds(), cfg.Store, cfg.Agents, fleetOf(cfg), cfg.Logger)
 		domainHandler.DNS, domainHandler.Certificates = cfg.dns, cfg.certificates
+		domainHandler.Changes, domainHandler.Agents, domainHandler.Auth = ch, cfg.Agents, cfg.Auth
 		if cfg.publisher != nil {
 			domainHandler.Cloudflare = cfg.publisher
 		}

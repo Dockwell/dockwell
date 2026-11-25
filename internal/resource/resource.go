@@ -831,6 +831,9 @@ type RestoreSource struct {
 	ImportDatabase string `json:",omitempty"`
 	ImportFilename string `json:",omitempty"`
 	ImportFormat   string `json:",omitempty"`
+	// HostPath is the folder on the server when restoring a website's folder instead
+	// of a Docker volume.
+	HostPath string `json:",omitempty"`
 }
 
 // IntoNew says it restores into a new database's volume (From).

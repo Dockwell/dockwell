@@ -593,6 +593,11 @@ paths:
                   description: Only the backups of this one database, by name, on the volume volume_id names.
                   schema:
                     type: string
+                - name: websiteId
+                  in: query
+                  description: Only the backups of this website's folder, by website project ID.
+                  schema:
+                    type: string
             responses:
                 "200":
                     description: OK
@@ -829,6 +834,11 @@ paths:
                 - name: server
                   in: query
                   description: The server, by name or ID, when the volume is on several.
+                  schema:
+                    type: string
+                - name: websiteId
+                  in: query
+                  description: The website's project ID, in place of volume_id, to preview backing up its folder.
                   schema:
                     type: string
             responses:
@@ -4240,6 +4250,112 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/ListDomainsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/domains/{domain}:download:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                DownloadCertificate returns the active PEM certificate chain for a domain,
+                 and optionally its private key when include_key is true. Including the key
+                 requires a signed-in admin and a passkey step-up bound to the domain.
+            operationId: DomainService_DownloadCertificate
+            parameters:
+                - name: domain
+                  in: path
+                  description: The domain whose certificate to download.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DownloadCertificateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DownloadCertificateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/domains/{domain}:renew:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                RenewCertificate requests an immediate certificate renewal for a domain,
+                 respecting certificate authority rate limits. Refuses when renewal is not
+                 yet due unless force is set, explaining why.
+            operationId: DomainService_RenewCertificate
+            parameters:
+                - name: domain
+                  in: path
+                  description: The domain whose certificate to renew.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/RenewCertificateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/RenewCertificateResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/domains/{domain}:setCertificate:
+        post:
+            tags:
+                - DomainService
+            description: |-
+                SetCustomCertificate plans uploading a custom PEM certificate and private
+                 key for a domain, or clearing a custom certificate to return to automatic
+                 HTTPS. Validates that the certificate covers the domain, is not expired and
+                 matches the private key before planning.
+            operationId: DomainService_SetCustomCertificate
+            parameters:
+                - name: domain
+                  in: path
+                  description: The domain whose certificate to set or clear.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SetCustomCertificateRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SetCustomCertificateResponse'
                 default:
                     description: Default error response
                     content:
@@ -10981,6 +11097,33 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/websites:batchUpdate:
+        post:
+            tags:
+                - WebsiteService
+            description: |-
+                BatchUpdateWebsites plans changing PHP version, HTTPS, or paused state on
+                 several websites at once as a single change and plan.
+            operationId: WebsiteService_BatchUpdateWebsites
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/BatchUpdateWebsitesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/BatchUpdateWebsitesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/websites:preview:
         post:
             tags:
@@ -12412,6 +12555,15 @@ components:
                     description: |-
                         The one database it holds, for an app's on a server it shares, which restores
                          alone. Empty for a backup of the whole volume (ADR 0084).
+                websiteId:
+                    type: string
+                    description: The website project ID when this backup is of a website's folder.
+                websiteDomain:
+                    type: string
+                    description: The website's domain when this backup is of a website's folder.
+                websitePath:
+                    type: string
+                    description: The folder path on the server when this backup is of a website's folder.
             description: Backup is one backup of one volume.
         BackupDestination:
             type: object
@@ -12662,6 +12814,9 @@ components:
                          owner, on the schedule, and kept as its app's page keeps them (ADR 0084). Such
                          a policy stops nothing and has no drills. Numbered apart, as open work adds to
                          this message.
+                websiteFolder:
+                    type: boolean
+                    description: True to back up this website environment's folder in place of a volume or link.
             description: |-
                 BackupPolicy backs up a volume in its environment on a schedule, on every server
                  that has it, and keeps the newest of those backups. A backup someone takes by
@@ -12713,6 +12868,45 @@ components:
             type: object
             properties: {}
             description: BanServerSshAddressResponse confirms fail2ban accepted the ban.
+        BatchUpdateWebsitesRequest:
+            type: object
+            properties:
+                websiteIds:
+                    type: array
+                    items:
+                        type: string
+                    description: Up to 50 website project IDs to update together.
+                paused:
+                    type: boolean
+                    description: Set paused state on every selected website when present.
+                pauseMode:
+                    enum:
+                        - WEBSITE_PAUSE_MODE_UNSPECIFIED
+                        - WEBSITE_PAUSE_MODE_MAINTENANCE
+                        - WEBSITE_PAUSE_MODE_PLAIN_503
+                    type: string
+                    description: |-
+                        Maintenance page or plain 503 when pausing. Unspecified keeps each site's choice
+                         (or defaults to maintenance page).
+                    format: enum
+                phpVersion:
+                    type: string
+                    description: Switch PHP version on selected PHP websites, such as "8.4".
+                https:
+                    type: boolean
+                    description: Switch HTTPS on (true) or off (false) on selected websites' routes.
+                summary:
+                    type: string
+                    description: What the change is for, for the timeline. Empty says what it changes.
+            description: BatchUpdateWebsitesRequest plans one change across up to 50 websites.
+        BatchUpdateWebsitesResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: BatchUpdateWebsitesResponse carries the planned change.
         BeginAcceptInviteRequest:
             type: object
             properties:
@@ -12949,6 +13143,7 @@ components:
                         - STEP_UP_ACTION_DISCONNECT_SSH_SESSION
                         - STEP_UP_ACTION_BAN_SSH_ADDRESS
                         - STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS
+                        - STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY
                         - STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD
                         - STEP_UP_ACTION_REVEAL_SERVICE_VALUE
                     type: string
@@ -14188,6 +14383,24 @@ components:
                         The certificate by DNS-01 that serves it, by name, when one does (ADR 0088).
                          Unset for one Caddy got over HTTP. Numbered in the block DNS-01 holds, 120 to
                          129.
+                custom:
+                    type: boolean
+                    description: True when served by a user-uploaded custom certificate.
+                issuer:
+                    type: string
+                    description: Issuer common name or organization, when an issued certificate is read.
+                subject:
+                    type: string
+                    description: Subject common name of the leaf certificate.
+                sans:
+                    type: array
+                    items:
+                        type: string
+                    description: Subject Alternative Names covered by the certificate.
+                notBefore:
+                    type: string
+                    description: When the issued certificate became valid.
+                    format: date-time
             description: Certificate is where a domain's certificate stands on a server.
         CertificateInfo:
             type: object
@@ -16771,7 +16984,10 @@ components:
                 destination:
                     type: string
                     description: A backup destination it goes to as well, by name.
-            description: CreateBackupRequest asks to back up a volume.
+                websiteId:
+                    type: string
+                    description: The website's project ID, in place of volume_id, to back up its folder.
+            description: CreateBackupRequest asks to back up a volume or website folder.
         CreateBackupResponse:
             type: object
             properties:
@@ -17099,6 +17315,13 @@ components:
                          Cloudflare (ADR 0104), as a route's publish says. Where the provider doesn't
                          serve the website's new project yet, the same change adds it, which takes an
                          admin.
+                basicAuthPasswords:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Write-only Basic Auth passwords keyed by username, stored as Dockwell
+                         secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
             description: CreateWebsiteRequest is a website to make.
         CreateWebsiteResponse:
             type: object
@@ -19868,6 +20091,13 @@ components:
                         Says not to watch the route with an uptime check, as Add a domain's Don't
                          watch or deleting its check did (#835): a form that sends the route as it is
                          sends this back, and the offer to watch routed domains leaves it out.
+                rateLimit:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRateLimit'
+                    description: Per-visitor-address rate limit enforced on this route, if configured.
+                customCert:
+                    type: boolean
+                    description: True when this route serves a user-uploaded custom certificate.
             description: DomainRoute is one route of a domain.
         DomainServer:
             type: object
@@ -19922,6 +20152,48 @@ components:
                         What a stranger gets from each of its routes that keeps anyone out, by path,
                          as the server last asked them (ADR 0087).
             description: DomainStatus is where one domain's certificate and DNS stand on a server.
+        DownloadCertificateRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain whose certificate to download.
+                serverId:
+                    type: string
+                    description: Optional server ID when the domain runs on several servers.
+                includeKey:
+                    type: boolean
+                    description: Include the private key PEM. Requires a signed-in admin and passkey step-up.
+                proof:
+                    type: string
+                    description: Step-up proof from FinishStepUp for STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY.
+            description: DownloadCertificateRequest asks to download a domain's active certificate.
+        DownloadCertificateResponse:
+            type: object
+            properties:
+                certPem:
+                    type: string
+                    description: Full PEM certificate chain.
+                keyPem:
+                    type: string
+                    description: PEM private key, populated only when include_key is true and step-up succeeds.
+                subject:
+                    type: string
+                issuer:
+                    type: string
+                sans:
+                    type: array
+                    items:
+                        type: string
+                notBefore:
+                    type: string
+                    format: date-time
+                notAfter:
+                    type: string
+                    format: date-time
+                custom:
+                    type: boolean
+            description: DownloadCertificateResponse holds the certificate PEM and, if authorized, the private key PEM.
         DownloadDockerArtifactResponse:
             type: object
             properties:
@@ -29260,6 +29532,9 @@ components:
                     allOf:
                         - $ref: '#/components/schemas/Website'
                     description: What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
+                serverId:
+                    type: string
+                    description: Optional server ID to validate custom Caddy directives with Caddy's own adapter on that server.
             description: PreviewWebsiteRequest is what a website would serve.
         PreviewWebsiteResponse:
             type: object
@@ -29274,6 +29549,9 @@ components:
                         Its web server's config, a Caddyfile, as its service runs it. Empty for a
                          website that needs no web server of its own, as one that sends to a port on
                          the server.
+                caddyValidated:
+                    type: boolean
+                    description: True when the generated Caddyfile was validated by Caddy's own adapter on the server.
             description: PreviewWebsiteResponse is what serving it takes.
         Process:
             type: object
@@ -30084,6 +30362,30 @@ components:
             type: object
             properties: {}
             description: RemovePasskeyResponse is empty.
+        RenewCertificateRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain whose certificate to renew.
+                serverId:
+                    type: string
+                    description: Optional server ID when the domain runs on several servers.
+                force:
+                    type: boolean
+                    description: Force renewal even when the certificate is not yet within its renewal window.
+            description: RenewCertificateRequest asks to renew a domain's certificate now.
+        RenewCertificateResponse:
+            type: object
+            properties:
+                message:
+                    type: string
+                    description: Plain-language status message for the operator.
+                previousExpireTime:
+                    type: string
+                    description: When the previous certificate expires, if one was issued.
+                    format: date-time
+            description: RenewCertificateResponse says what happened to the renewal request.
         ReplaceGitHubPrivateKeyRequest:
             type: object
             properties:
@@ -30988,6 +31290,16 @@ components:
                          applies, and the one Dockwell made goes (#835). Unset, a route that serves a
                          whole domain, and isn't a redirect, gets a check on the defaults. Only the
                          control plane reads it: no server's proxy sees it.
+                rateLimit:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteRateLimit'
+                    description: Per-visitor-address rate limit enforced at the ingress before forwarding.
+                customCert:
+                    allOf:
+                        - $ref: '#/components/schemas/RouteCustomCert'
+                    description: |-
+                        User-uploaded TLS certificate and private key for this route's domain.
+                         The private key is sealed at rest on the control plane and on the agent.
             description: |-
                 Route sends a domain's traffic, or a path under it, to a port of a service
                  in the route's environment, or to a port on the server itself. It comes over
@@ -31051,6 +31363,16 @@ components:
                     type: boolean
                     description: True when it answers over plain HTTP, as tls off says.
             description: RouteAnswers is who a route answers, as its plan says.
+        RouteCustomCert:
+            type: object
+            properties:
+                certPem:
+                    type: string
+                    description: Full PEM certificate chain (leaf first, intermediates after).
+                keyPem:
+                    type: string
+                    description: PEM private key, sealed at rest and never returned on list/read APIs.
+            description: RouteCustomCert is a user-uploaded TLS certificate chain and private key in PEM.
         RouteGoes:
             type: object
             properties:
@@ -31122,6 +31444,18 @@ components:
                          an admin's, with a passkey (HOST_ACCESS_KIND_CLOUDFLARE_TAKEOVER). Anything
                          there that isn't named here stops the plan.
             description: How a route's domain is published at Cloudflare (ADR 0104).
+        RouteRateLimit:
+            type: object
+            properties:
+                requestsPerMinute:
+                    type: integer
+                    description: Steady rate per visitor address, in requests per minute (1 to 60000).
+                    format: uint32
+                burst:
+                    type: integer
+                    description: Extra burst requests allowed above the steady rate (0 to 1000).
+                    format: uint32
+            description: RouteRateLimit caps requests per minute from each believed visitor address.
         RouteRedirect:
             type: object
             properties:
@@ -33406,6 +33740,33 @@ components:
                         - $ref: '#/components/schemas/Change'
                     description: The change, planned, with its plan.
             description: SetCatalogSourceResponse is the change that sets it.
+        SetCustomCertificateRequest:
+            type: object
+            properties:
+                domain:
+                    type: string
+                    description: The domain whose certificate to set or clear.
+                certPem:
+                    type: string
+                    description: Full PEM certificate chain (leaf first). Leave empty with clear=true to return to automatic HTTPS.
+                keyPem:
+                    type: string
+                    description: PEM private key matching cert_pem. Sealed at rest.
+                clear:
+                    type: boolean
+                    description: Clear the custom certificate and return to automatic HTTPS.
+                summary:
+                    type: string
+                    description: Optional summary for the timeline.
+            description: SetCustomCertificateRequest uploads or clears a custom TLS certificate for a domain.
+        SetCustomCertificateResponse:
+            type: object
+            properties:
+                change:
+                    allOf:
+                        - $ref: '#/components/schemas/Change'
+                    description: The change, planned, with its plan.
+            description: SetCustomCertificateResponse carries the planned change.
         SetDatabaseExternalAccessRequest:
             type: object
             properties:
@@ -35602,6 +35963,13 @@ components:
                     description: |-
                         Sets the way in for one of the website's domains. The other domains keep
                          their own settings. Use either this or publish.
+                basicAuthPasswords:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: |-
+                        Write-only Basic Auth passwords keyed by username, stored as Dockwell
+                         secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
             description: UpdateWebsiteRequest is what a website should serve now.
         UpdateWebsiteResponse:
             type: object
@@ -36125,7 +36493,89 @@ components:
                          "example.com": each a route in its environment that redirects permanently to
                          its domain, keeping the path, reached as its own route is (ADR 0070). Removing
                          one deletes only the route this list wrote for it.
+                paused:
+                    type: boolean
+                    description: |-
+                        When true, visitors see a 503 maintenance page or a plain 503 response instead
+                         of what the website serves. Its domains, certificate, settings and files stay.
+                pauseMode:
+                    enum:
+                        - WEBSITE_PAUSE_MODE_UNSPECIFIED
+                        - WEBSITE_PAUSE_MODE_MAINTENANCE
+                        - WEBSITE_PAUSE_MODE_PLAIN_503
+                    type: string
+                    description: |-
+                        What visitors see while the website is paused. Chosen once and kept across
+                         resumes; unspecified defaults to the maintenance page.
+                    format: enum
+                rules:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteRules'
+                    description: |-
+                        Visitor-facing HTTP rules written into the website's config or route without
+                         writing raw Caddyfile directives.
+                customCaddy:
+                    type: string
+                    description: |-
+                        Advanced Caddy directives scoped strictly inside this site's server block.
+                         Validated by Caddy's own adapter on the server before a plan can apply.
+                         Global options, other site names and import directives are refused.
             description: Website is what a website serves at its domain, as a person chose it.
+        WebsiteBasicAuth:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Optional path prefix to protect, such as "/admin". Empty protects the whole site.
+                realm:
+                    type: string
+                    description: Optional realm shown in the browser prompt. Empty uses the website's domain.
+                users:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WebsiteBasicAuthUser'
+                    description: Users allowed to sign in. Up to 20.
+            description: WebsiteBasicAuth requires HTTP Basic authentication for the site or a path prefix.
+        WebsiteBasicAuthUser:
+            type: object
+            properties:
+                username:
+                    type: string
+                    description: 'Login username: letters, digits, dots, dashes and underscores.'
+                secret:
+                    type: string
+                    description: |-
+                        Name of the Dockwell secret in the website's environment holding the user's
+                         password. A companion hash secret holds the bcrypt hash passed to Caddy.
+            description: WebsiteBasicAuthUser is one Basic Auth user whose password is kept as a Dockwell secret.
+        WebsiteCors:
+            type: object
+            properties:
+                enabled:
+                    type: boolean
+                allowedOrigins:
+                    type: array
+                    items:
+                        type: string
+                    description: Allowed origins, such as "https://app.example.com", or "*" alone.
+                allowedMethods:
+                    type: array
+                    items:
+                        type: string
+                    description: Allowed HTTP methods. Empty defaults to GET, POST, PUT, PATCH, DELETE, OPTIONS.
+                allowedHeaders:
+                    type: array
+                    items:
+                        type: string
+                    description: Allowed request headers. Empty defaults to Content-Type, Authorization.
+                allowCredentials:
+                    type: boolean
+                    description: 'Sets Access-Control-Allow-Credentials: true. Refused when allowed_origins is "*".'
+                maxAgeSeconds:
+                    type: integer
+                    description: Preflight cache duration in seconds (0 defaults to 3600, max 86400).
+                    format: uint32
+            description: WebsiteCors sets Cross-Origin Resource Sharing response headers and handles preflight.
         WebsiteDomainFront:
             type: object
             properties:
@@ -36181,6 +36631,19 @@ components:
                 WebsiteFolder serves the files in a folder on the server, as they are. Its web
                  server mounts the folder read-only, so a person approves it, and edits to the
                  files show at once, with nothing to deploy.
+        WebsiteHeader:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Header name, such as "X-Frame-Options".
+                value:
+                    type: string
+                    description: Header value. Ignored when remove is true.
+                remove:
+                    type: boolean
+                    description: Remove the header from responses instead of setting it.
+            description: WebsiteHeader sets or removes one HTTP response header.
         WebsiteInfo:
             type: object
             properties:
@@ -36248,6 +36711,26 @@ components:
                          an older build of it, which UpdateWebsite with its settings moves to the
                          runtime's.
             description: WebsiteInfo is one website.
+        WebsitePathRule:
+            type: object
+            properties:
+                from:
+                    type: string
+                    description: Path or prefix to match, starting with "/", such as "/old" or "/blog/*".
+                to:
+                    type: string
+                    description: Target path (e.g. "/new" or "/new/*") or, for redirects, an http:// or https:// URL.
+                kind:
+                    enum:
+                        - WEBSITE_PATH_RULE_KIND_UNSPECIFIED
+                        - WEBSITE_PATH_RULE_KIND_REDIRECT
+                        - WEBSITE_PATH_RULE_KIND_REWRITE
+                    type: string
+                    format: enum
+                permanent:
+                    type: boolean
+                    description: 'For redirects: true sends 301 Moved Permanently, false sends 302 Found.'
+            description: WebsitePathRule redirects or rewrites requests matching a path or prefix.
         WebsitePhp:
             type: object
             properties:
@@ -36285,6 +36768,29 @@ components:
                          alone is taken for both. Empty is www-data, "82:82". Never root's, nor root's
                          group. PHP-FPM's master runs as it too. A folder that isn't there is made as
                          its.
+                memoryLimitMb:
+                    type: integer
+                    description: PHP memory_limit in MiB (32 to 4096). 0 uses PHP's default (128 MiB).
+                    format: uint32
+                maxExecutionTimeS:
+                    type: integer
+                    description: PHP max_execution_time in seconds (5 to 3600). 0 uses PHP's default (30 s).
+                    format: uint32
+                postMaxSizeMb:
+                    type: integer
+                    description: PHP post_max_size in MiB (1 to 4096). 0 matches upload_limit_mb.
+                    format: uint32
+                fpmMaxChildren:
+                    type: integer
+                    description: PHP-FPM pool pm.max_children (1 to 200). 0 uses the image's default (5).
+                    format: uint32
+                disabledExtensions:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        Shipped optional extensions turned off for this site, such as "imagick".
+                         Empty keeps every shipped optional extension enabled.
             description: |-
                 WebsitePhp runs the PHP in a folder on the server with PHP-FPM, of the version
                  chosen, and serves its other files as they are. Its web server mounts the folder
@@ -36315,6 +36821,20 @@ components:
             description: |-
                 WebsiteProxy sends a website's requests on, to a URL or to a port on the
                  server itself. Give one of url and port.
+        WebsiteRateLimit:
+            type: object
+            properties:
+                enabled:
+                    type: boolean
+                requestsPerMinute:
+                    type: integer
+                    description: Steady rate per visitor address, in requests per minute (1 to 60000). 0 uses 60.
+                    format: uint32
+                burst:
+                    type: integer
+                    description: Extra burst requests allowed above the steady rate (0 to 1000).
+                    format: uint32
+            description: WebsiteRateLimit caps requests per minute from each visitor address.
         WebsiteReach:
             type: object
             properties:
@@ -36335,6 +36855,43 @@ components:
             description: |-
                 WebsiteReach is whether what a website sends to answers, from its server: the
                  port, as the ingress dials it, or the URL, as its web server sends to it.
+        WebsiteRules:
+            type: object
+            properties:
+                basicAuth:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteBasicAuth'
+                    description: |-
+                        Basic authentication with users whose passwords are stored as Dockwell secrets
+                         in the website's environment and hashed with bcrypt for Caddy.
+                cors:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteCors'
+                    description: Cross-Origin Resource Sharing (CORS) rules.
+                rateLimit:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteRateLimit'
+                    description: Per-visitor-address request rate limit enforced at the ingress.
+                pathRules:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WebsitePathRule'
+                    description: Path redirects (301/302) and internal rewrites.
+                subpathProxies:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WebsiteSubpathProxy'
+                    description: Sub-path reverse proxies to another app or URL.
+                headers:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/WebsiteHeader'
+                    description: Extra HTTP response headers to set or remove.
+                staticCache:
+                    allOf:
+                        - $ref: '#/components/schemas/WebsiteStaticCache'
+                    description: Browser caching for static files.
+            description: WebsiteRules are structured HTTP rules for a website.
         WebsiteRuntime:
             type: object
             properties:
@@ -36382,7 +36939,57 @@ components:
                     description: |-
                         True when Dockwell no longer offers the version: an app on it keeps running
                          and changing, and no new app runs on it.
+                optionalExtensions:
+                    type: array
+                    items:
+                        type: string
+                    description: Shipped optional extensions that can be toggled on or off per PHP website.
             description: WebsiteRuntime is one version of a language a website or an app can run.
+        WebsiteStaticCache:
+            type: object
+            properties:
+                enabled:
+                    type: boolean
+                maxAgeSeconds:
+                    type: integer
+                    description: Cache-Control max-age in seconds (60 to 31536000). 0 uses 604800 (7 days).
+                    format: uint32
+                extensions:
+                    type: array
+                    items:
+                        type: string
+                    description: |-
+                        File extensions without leading dot, such as "css", "js", "webp".
+                         Empty uses the default set of common static web assets.
+                immutable:
+                    type: boolean
+                    description: Append ", immutable" to Cache-Control.
+            description: WebsiteStaticCache adds Cache-Control headers to static file responses.
+        WebsiteSubpathProxy:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: Path prefix to match, starting with "/", such as "/api" (not "/").
+                url:
+                    type: string
+                    description: |-
+                        Upstream URL (http:// or https://), checked with the same safety rules as WebsiteProxy.url.
+                         Leave empty when targeting a Dockwell service with service_id and service_port.
+                stripPrefix:
+                    type: boolean
+                    description: Strip the matched path prefix before forwarding to the upstream.
+                sendTargetHost:
+                    type: boolean
+                    description: Send the upstream's host as the Host header instead of the website's domain.
+                serviceId:
+                    type: string
+                    description: Target Dockwell service ID on the same server, reached over the website's network.
+                servicePort:
+                    type: integer
+                    description: Port the target service listens on inside its container.
+                    format: uint32
+            description: WebsiteSubpathProxy sends requests under a path prefix to another app or URL.
         WriteTerminalRequest:
             type: object
             properties:

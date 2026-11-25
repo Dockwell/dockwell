@@ -25,6 +25,7 @@ import { useScheduleWords, useWhen } from "./words";
 import "./Backups.css";
 import { useMay } from "../auth/may";
 import { EmptyState } from "../shell/EmptyState";
+import { useWebsiteOfEnvironment } from "../websites/website";
 
 /** How often a list of schedules is read again, for each's next run and last. */
 const REFRESH = 30_000;
@@ -102,8 +103,12 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
   const now = useControlPlaneNow(30_000);
   const storage = useStorage();
   const [addingStorage, setAddingStorage] = useState(false);
-  // An app's database alone goes by its need's link (ADR 0084).
-  const volume = policy.spec?.volume || policy.spec?.link || "";
+  const websiteOf = useWebsiteOfEnvironment(Boolean(policy.spec?.websiteFolder));
+  const website = policy.spec?.websiteFolder ? websiteOf?.(policy.environmentId) : undefined;
+  // An app's database alone goes by its need's link (ADR 0084); a website folder shows its domain.
+  const volume = policy.spec?.websiteFolder
+    ? website?.domain || website?.name || t`Website folder`
+    : policy.spec?.volume || policy.spec?.link || "";
   const failed = policy.last?.state === BackupState.FAILED;
   const copyFailed = policy.last?.copy === BackupCopy.FAILED;
   // In the schedule's own zone, as its time is, and named, as that may not be yours.
@@ -133,6 +138,7 @@ function PolicyRow({ policy, place, onEdit }: { policy: BackupPolicyInfo; place:
         </span>
         <span className="backup-why">{policy.spec ? t`${words(policy.spec)}, ${zone}` : ""}</span>
         {policy.spec?.link ? <span className="backup-why">{t`Its app's database alone`}</span> : null}
+        {policy.spec?.websiteFolder ? <span className="backup-why">{t`Website folder`}</span> : null}
         <span className="backup-why">{keeps}</span>
         <span className="backup-why">
           {policy.spec?.drill === BackupPolicy_Drill.WEEKLY

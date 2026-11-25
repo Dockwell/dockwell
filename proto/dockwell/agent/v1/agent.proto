@@ -658,6 +658,9 @@ message Hello {
   bool reads_terminal_cwd = 460;
   bool external_container_controls = 480;
   bool managed_container_pause = 482;
+  // Websites handy uses 500 to 509: Caddyfile validation, certificate renew/read,
+  // route rate limits, custom certificates and website folder backups.
+  bool website_handy = 500;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -1004,6 +1007,10 @@ message Call {
     ProcessDetailCall process_detail = 431;
     // Terminal handiness takes 460 to 469.
     TerminalCwdCall terminal_cwd = 460;
+    // Websites handy takes 500 to 509.
+    ValidateCaddyfileCall validate_caddyfile = 501;
+    RenewCertificateCall renew_certificate = 502;
+    ReadCertificateCall read_certificate = 503;
   }
 }
 
@@ -1586,13 +1593,15 @@ message AdoptionCall {
   dockwell.v1.ResourceRef resource = 2;
 }
 
-// BackupPreviewCall asks what backing up a volume would do.
+// BackupPreviewCall asks what backing up a volume or website folder would do.
 message BackupPreviewCall {
   // The volume.
   dockwell.v1.ResourceRef volume = 1;
+  // Host folder path when backing up a website's folder instead of a Docker volume.
+  string host_path = 504;
 }
 
-// BackupCall asks to back up a volume.
+// BackupCall asks to back up a volume or website folder.
 message BackupCall {
   // The backup's ID.
   string id = 1;
@@ -1603,6 +1612,8 @@ message BackupCall {
   // The one database to dump, for an app's on a server it shares, rather than the
   // whole server (ADR 0084). Empty backs up the volume as before.
   string database = 291;
+  // Host folder path when backing up a website's folder instead of a Docker volume.
+  string host_path = 504;
 }
 
 // ListUpdatesCall asks which package updates wait, read with the server's own
@@ -1789,6 +1800,8 @@ message DrillBackupCall {
   string backup = 2;
   // Its volume.
   dockwell.v1.ResourceRef volume = 3;
+  // Host folder path when drilling a website folder backup.
+  string host_path = 504;
 }
 
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
@@ -1801,6 +1814,8 @@ message SendBackupCall {
   // Where it goes, sealed to this stream's delivery key as a backup destination's
   // values are (ADR 0022).
   bytes destination = 3;
+  // Host folder path when sending a website folder backup.
+  string host_path = 504;
 }
 
 // FetchBackupCall asks to bring a backup back from where it was sent.
@@ -1816,6 +1831,8 @@ message FetchBackupCall {
   // What the control plane has on record that it hashes to, in hex. What came back
   // is checked against this, and against nothing the storage says.
   string sha256 = 5;
+  // Host folder path when fetching a website folder backup.
+  string host_path = 504;
 }
 
 // DeleteBackupCall asks to remove a backup from the disk.
@@ -1828,6 +1845,8 @@ message DeleteBackupCall {
   bytes destination = 3;
   // Its name there.
   string key = 4;
+  // Host folder path when deleting a website folder backup.
+  string host_path = 504;
 }
 
 // RestoreSource is what a step restores. Exactly one of backup_id and undoes is
@@ -1849,6 +1868,8 @@ message RestoreSource {
   string import_database = 473;
   string import_filename = 474;
   string import_format = 475;
+  // Host folder path when restoring a website's folder instead of a Docker volume.
+  string host_path = 504;
 }
 
 // DatabaseCall asks what databases say of themselves, each read in its own
@@ -2902,6 +2923,10 @@ message CallResult {
     ProcessDetailResult process_detail = 431;
     // What terminal_cwd reads (460 to 469).
     TerminalCwdResult terminal_cwd = 460;
+    // Websites handy results (500 to 509).
+    ValidateCaddyfileResult validate_caddyfile = 501;
+    RenewCertificateResult renew_certificate = 502;
+    ReadCertificateResult read_certificate = 503;
   }
 }
 
@@ -3524,4 +3549,50 @@ message CancelFileDownloadCall {
 message CancelFileDownloadResult {
   dockwell.v1.ArchiveJob job = 1;
   FileRefusal refusal = 2;
+}
+
+// ValidateCaddyfileCall asks the agent to validate a generated website Caddyfile
+// using Caddy's own Caddyfile adapter and verify site-block scoping invariants.
+message ValidateCaddyfileCall {
+  // The generated Caddyfile for one website container.
+  string caddyfile = 1;
+  // The container root folder allowed for file_server directives, if any (e.g. "/srv" or "/var/www/html").
+  string allowed_root = 2;
+}
+
+// ValidateCaddyfileResult reports whether Caddy's adapter accepted the Caddyfile.
+message ValidateCaddyfileResult {
+  bool valid = 1;
+  // Plain-language error when invalid.
+  string error = 2;
+}
+
+// RenewCertificateCall asks the agent to trigger immediate ACME certificate renewal for a domain.
+message RenewCertificateCall {
+  string domain = 1;
+  bool force = 2;
+}
+
+// RenewCertificateResult reports the outcome of a renewal request on the agent.
+message RenewCertificateResult {
+  string message = 1;
+  google.protobuf.Timestamp previous_expire_time = 2;
+}
+
+// ReadCertificateCall reads a domain's active PEM certificate chain (and optionally private key).
+message ReadCertificateCall {
+  string domain = 1;
+  bool include_key = 2;
+}
+
+// ReadCertificateResult returns the PEM certificate chain and optionally private key.
+message ReadCertificateResult {
+  string cert_pem = 1;
+  string key_pem = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+  string subject = 3;
+  string issuer = 4;
+  repeated string sans = 5;
+  google.protobuf.Timestamp not_before = 6;
+  google.protobuf.Timestamp not_after = 7;
+  bool custom = 8;
 }

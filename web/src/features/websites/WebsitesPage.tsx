@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { ChangeService, ChangeState, LogService, type WebsiteInfo, WebsiteService } from "@dockwell/api";
+import {
+  BackupService,
+  ChangeService,
+  ChangeState,
+  LogService,
+  type WebsiteInfo,
+  WebsiteSchema,
+  WebsiteService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -13,7 +22,9 @@ import {
   Loading,
   Panel,
   PHONE_QUERY,
+  SegmentedControl,
   SelectField,
+  Sheet,
   Skeleton,
   SkeletonRows,
   STATUS,
@@ -24,7 +35,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatDateTime, formatDay } from "../../lib/format";
@@ -32,11 +43,13 @@ import { RouterButtonLink } from "../../lib/links";
 import type { DomainRead } from "../apps/domains";
 import type { HealthView } from "../apps/health";
 import { useMay } from "../auth/may";
+import { BackUpSheet } from "../backups/BackUpSheet";
 import { useChangeSheet } from "../changes/ChangeSheet";
 import { useFleetView } from "../servers/useFleet";
 import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import {
+  type BatchAction,
   BatchBar,
   cardContextMenu,
   ListPager,
@@ -56,9 +69,10 @@ import {
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
+import { PauseSheet } from "./PauseSheet";
 import { Runtimes } from "./Runtimes";
 import { Certificate, CertificateCell, type Row, SiteStanding, SiteStatus, useWebsiteRows } from "./Standing";
-import { kindOf, targetOf } from "./website";
+import { kindOf, targetOf, useRuntimes } from "./website";
 import "../apps/Apps.css";
 import "./Websites.css";
 
@@ -98,7 +112,8 @@ export function WebsitesPage({
   const { servers, fleet } = useFleetView();
   const navigate = useNavigate();
   const place = useListPlace(search, onSearch, SORT_KEYS);
-  const { actionsFor, canDelete, remove } = useWebsiteActions();
+  const { actionsFor, canDelete, canBatch, remove, modals, openPause, resumeSites, batchPhp, batchHttps } =
+    useWebsiteActions();
   const target = useTargetWords();
 
   const only = !fleet && servers?.length === 1 ? servers[0] : undefined;
@@ -128,7 +143,7 @@ export function WebsitesPage({
     useMay()(ChangeService.method.proposeChange).allowed,
   );
   const selected = page.rows.filter((row) => selection.has(row.id));
-  const batch = useBatchAction<Row>()(
+  const deleteBatch = useBatchAction<Row>()(
     selected,
     (row) => {
       const permission = canDelete(row);
@@ -142,6 +157,70 @@ export function WebsitesPage({
       onSelect: (targets) => remove(targets, selection.clear),
     },
   );
+  const batchPerm = canBatch();
+  const selectedActive = selected.filter((r) => !r.site.spec?.paused);
+  const selectedPaused = selected.filter((r) => r.site.spec?.paused);
+  const selectedPhp = selected.filter((r) => kindOf(r.site.spec) === "php");
+  const batchActions: BatchAction[] = [
+    ...(batchPerm.allowed && selectedActive.length > 0
+      ? [
+          {
+            id: "pause",
+            icon: "pause" as const,
+            label: t`Pause`,
+            onSelect: () =>
+              openPause(
+                selectedActive.map((r) => r.site),
+                selection.clear,
+              ),
+          },
+        ]
+      : []),
+    ...(batchPerm.allowed && selectedPaused.length > 0
+      ? [
+          {
+            id: "resume",
+            icon: "play" as const,
+            label: t`Resume`,
+            onSelect: () =>
+              resumeSites(
+                selectedPaused.map((r) => r.site),
+                selection.clear,
+              ),
+          },
+        ]
+      : []),
+    ...(batchPerm.allowed && selectedPhp.length > 0
+      ? [
+          {
+            id: "php",
+            icon: "settings" as const,
+            label: t`Switch PHP`,
+            onSelect: () =>
+              batchPhp(
+                selectedPhp.map((r) => r.site),
+                selection.clear,
+              ),
+          },
+        ]
+      : []),
+    ...(batchPerm.allowed && selected.length > 0
+      ? [
+          {
+            id: "https",
+            icon: "lock" as const,
+            label: t`HTTPS`,
+            onSelect: () =>
+              batchHttps(
+                selected.map((r) => r.site),
+                selection.clear,
+              ),
+          },
+        ]
+      : []),
+    ...deleteBatch.actions,
+  ];
+  const batch = { actions: batchActions, notes: deleteBatch.notes };
   const lead = only
     ? plural(count, { one: `# site on ${only.name}`, other: `# sites on ${only.name}` })
     : plural(count, { one: "# site", other: "# sites" });
@@ -300,6 +379,7 @@ export function WebsitesPage({
       </section>
       {/* What code runs on, once there are websites or apps from folders, as the empty state has its own next step. */}
       {!pending && !websites.error ? <Runtimes rows={rows} health={health} /> : null}
+      {modals}
       {children}
     </Page>
   );
@@ -319,14 +399,25 @@ function kindWord(kind: string, t: ReturnType<typeof useLingui>["t"]): string {
   }
 }
 
-/** A website's menu: open it here, open the site itself, or delete it as the plan its page opens. */
+/** A website's menu and batch sheets: Files, Logs, Pause/Resume, Back up now, batch PHP/HTTPS, and delete. */
 function useWebsiteActions() {
   const { t } = useLingui();
   const navigate = useNavigate();
   const may = useMay();
   const sheet = useChangeSheet();
   const transport = useTransport();
+  const runtimes = useRuntimes();
+
+  const [pauseModal, setPauseModal] = useState<{ sites: WebsiteInfo[]; onApplied?: () => void }>();
+  const [backupSite, setBackupSite] = useState<WebsiteInfo>();
+  const [phpModal, setPhpModal] = useState<{ sites: WebsiteInfo[]; onApplied?: () => void }>();
+  const [httpsModal, setHttpsModal] = useState<{ sites: WebsiteInfo[]; onApplied?: () => void }>();
+  const [phpChoice, setPhpChoice] = useState("");
+  const [httpsChoice, setHttpsChoice] = useState<"on" | "off">("on");
+
   const canDelete = (row: Row) => may(WebsiteService.method.deleteWebsite, { project: row.site.id });
+  const canUpdate = (row: Row) => may(WebsiteService.method.updateWebsite, { project: row.site.id });
+  const canBatch = () => may(WebsiteService.method.batchUpdateWebsites);
   const remove = (rows: readonly Row[], onApplied?: () => void) => {
     const [first, ...rest] = rows;
     if (!first) return;
@@ -342,8 +433,58 @@ function useWebsiteActions() {
       },
     });
   };
+  const openPause = (sites: WebsiteInfo[], onApplied?: () => void) => setPauseModal({ sites, onApplied });
+  const resumeSites = (sites: WebsiteInfo[], onApplied?: () => void) => {
+    const client = createClient(WebsiteService, transport);
+    if (sites.length === 1 && sites[0]?.spec) {
+      const site = sites[0];
+      const spec = site.spec;
+      if (!spec) return;
+      const next = clone(WebsiteSchema, spec);
+      next.paused = false;
+      sheet.open({
+        kind: "plan",
+        make: () =>
+          client.updateWebsite({
+            id: site.id,
+            website: next,
+            summary: t`Resume ${site.domain || site.name}`,
+          }),
+        onClose: (change) => {
+          if (change?.state === ChangeState.APPLIED) onApplied?.();
+        },
+      });
+      return;
+    }
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        client.batchUpdateWebsites({
+          websiteIds: sites.map((s) => s.id),
+          paused: false,
+          summary: plural(sites.length, { one: "Resume # website", other: "Resume # websites" }),
+        }),
+      onClose: (change) => {
+        if (change?.state === ChangeState.APPLIED) onApplied?.();
+      },
+    });
+  };
+  const batchPhp = (sites: WebsiteInfo[], onApplied?: () => void) => {
+    setPhpChoice(runtimes.data?.[0]?.version ?? "8.4");
+    setPhpModal({ sites, onApplied });
+  };
+  const batchHttps = (sites: WebsiteInfo[], onApplied?: () => void) => {
+    setHttpsChoice("on");
+    setHttpsModal({ sites, onApplied });
+  };
+
   const actionsFor = (row: Row): MenuAction[] => {
     const domain = row.site.domain;
+    const kind = kindOf(row.site.spec);
+    const hasFolder = kind === "folder" || kind === "php";
+    const paused = Boolean(row.site.spec?.paused);
+    const updatePerm = canUpdate(row);
+    const mayBackUp = may(BackupService.method.createBackup, { environment: row.site.environmentId });
     return [
       {
         id: "open",
@@ -354,6 +495,21 @@ function useWebsiteActions() {
       ...(domain
         ? [{ id: "visit", icon: "external" as const, label: t`Open ${domain}`, href: `https://${domain}` }]
         : []),
+      ...(hasFolder && row.site.serverId
+        ? [
+            {
+              id: "files",
+              icon: "folder" as const,
+              label: t`Files`,
+              onSelect: () =>
+                void navigate({
+                  to: "/servers/$serverId/files",
+                  params: { serverId: row.site.serverId },
+                  search: { path: targetOf(row.site.spec) },
+                }),
+            },
+          ]
+        : []),
       ...(row.site.serviceId && may(LogService.method.watchLogs, { environment: row.site.environmentId }).allowed
         ? [
             {
@@ -361,6 +517,32 @@ function useWebsiteActions() {
               icon: "file" as const,
               label: t`Logs`,
               onSelect: () => void navigate({ to: "/websites/$websiteId/logs", params: { websiteId: row.id } }),
+            },
+          ]
+        : []),
+      paused
+        ? {
+            id: "resume",
+            icon: "play" as const,
+            label: t`Resume`,
+            ...updatePerm.off,
+            onSelect: () => resumeSites([row.site]),
+          }
+        : {
+            id: "pause",
+            icon: "pause" as const,
+            label: t`Pause`,
+            ...updatePerm.off,
+            onSelect: () => openPause([row.site]),
+          },
+      ...(hasFolder
+        ? [
+            {
+              id: "backup",
+              icon: "archive" as const,
+              label: t`Back up now`,
+              ...mayBackUp.off,
+              onSelect: () => setBackupSite(row.site),
             },
           ]
         : []),
@@ -374,7 +556,145 @@ function useWebsiteActions() {
       },
     ];
   };
-  return { actionsFor, canDelete, remove };
+
+  const modals = (
+    <>
+      {pauseModal ? (
+        <PauseSheet
+          sites={pauseModal.sites}
+          onClose={() => setPauseModal(undefined)}
+          onApplied={pauseModal.onApplied}
+        />
+      ) : null}
+      {backupSite ? (
+        <BackUpSheet
+          volumes={[
+            {
+              id: backupSite.id,
+              name: backupSite.domain || backupSite.name,
+              environment: backupSite.environmentId,
+              websiteId: backupSite.id,
+              websitePath: targetOf(backupSite.spec),
+            },
+          ]}
+          chosen={backupSite.id}
+          serverId={backupSite.serverId}
+          onClose={() => setBackupSite(undefined)}
+        />
+      ) : null}
+      {phpModal ? (
+        <Sheet
+          open
+          onClose={() => setPhpModal(undefined)}
+          title={plural(phpModal.sites.length, {
+            one: "Switch PHP version for # website",
+            other: "Switch PHP version for # websites",
+          })}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setPhpModal(undefined)}>
+                <Trans>Cancel</Trans>
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!phpChoice}
+                onClick={() => {
+                  const target = phpModal;
+                  setPhpModal(undefined);
+                  sheet.open({
+                    kind: "plan",
+                    make: () =>
+                      createClient(WebsiteService, transport).batchUpdateWebsites({
+                        websiteIds: target.sites.map((s) => s.id),
+                        phpVersion: phpChoice,
+                        summary: t`Switch ${target.sites.length} websites to PHP ${phpChoice}`,
+                      }),
+                    onClose: (change) => {
+                      if (change?.state === ChangeState.APPLIED) target.onApplied?.();
+                    },
+                  });
+                }}
+              >
+                <Trans>Review plan</Trans>
+              </Button>
+            </>
+          }
+        >
+          <div className="website-fields">
+            <SelectField
+              label={t`PHP version`}
+              value={phpChoice}
+              options={(
+                runtimes.data ?? [
+                  { version: "8.4", release: "" },
+                  { version: "8.3", release: "" },
+                ]
+              ).map((r) => ({
+                value: r.version,
+                label: r.release ? t`PHP ${r.version} · ${r.release}` : t`PHP ${r.version}`,
+              }))}
+              onChange={(e) => setPhpChoice(e.target.value)}
+            />
+          </div>
+        </Sheet>
+      ) : null}
+      {httpsModal ? (
+        <Sheet
+          open
+          onClose={() => setHttpsModal(undefined)}
+          title={plural(httpsModal.sites.length, {
+            one: "Change HTTPS for # website",
+            other: "Change HTTPS for # websites",
+          })}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setHttpsModal(undefined)}>
+                <Trans>Cancel</Trans>
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const target = httpsModal;
+                  setHttpsModal(undefined);
+                  sheet.open({
+                    kind: "plan",
+                    make: () =>
+                      createClient(WebsiteService, transport).batchUpdateWebsites({
+                        websiteIds: target.sites.map((s) => s.id),
+                        https: httpsChoice === "on",
+                        summary:
+                          httpsChoice === "on"
+                            ? t`Turn HTTPS on for ${target.sites.length} websites`
+                            : t`Turn HTTPS off for ${target.sites.length} websites`,
+                      }),
+                    onClose: (change) => {
+                      if (change?.state === ChangeState.APPLIED) target.onApplied?.();
+                    },
+                  });
+                }}
+              >
+                <Trans>Review plan</Trans>
+              </Button>
+            </>
+          }
+        >
+          <div className="website-fields">
+            <SegmentedControl<"on" | "off">
+              label={t`HTTPS`}
+              value={httpsChoice}
+              onChange={setHttpsChoice}
+              options={[
+                { value: "on", label: t`On (automatic certificate)` },
+                { value: "off", label: t`Off (TLS ends in front)` },
+              ]}
+            />
+          </div>
+        </Sheet>
+      ) : null}
+    </>
+  );
+
+  return { actionsFor, canDelete, canBatch, remove, modals, openPause, resumeSites, batchPhp, batchHttps };
 }
 
 /** What a website is, in a word or two, as the list's Type column has it. */

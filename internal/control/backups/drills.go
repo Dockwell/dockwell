@@ -145,16 +145,27 @@ func (h *Handler) startDrill(ctx context.Context, b store.Backup, server store.S
 		release()
 		return d, h.fail(ctx, err)
 	}
-	ref, _, err := h.volumeOf(ctx, b.VolumeID, b.ServerID)
-	if err != nil {
-		// Its volume's record went between the checks: what was started ends as such.
-		h.finishDrill(context.WithoutCancel(ctx), d, &b, nil, err, surface)
-		release()
-		return d, h.fail(ctx, err)
+	var ref resource.Ref
+	if b.WebsiteID != "" {
+		target, werr := h.websiteOf(ctx, b.WebsiteID, b.ServerID, store.RoleViewer)
+		if werr != nil {
+			h.finishDrill(context.WithoutCancel(ctx), d, &b, nil, werr, surface)
+			release()
+			return d, h.fail(ctx, werr)
+		}
+		ref = target.ref
+	} else {
+		ref, _, err = h.volumeOf(ctx, b.VolumeID, b.ServerID)
+		if err != nil {
+			// Its volume's record went between the checks: what was started ends as such.
+			h.finishDrill(context.WithoutCancel(ctx), d, &b, nil, err, surface)
+			release()
+			return d, h.fail(ctx, err)
+		}
 	}
 	h.wg.Go(func() {
 		defer release()
-		got, err := s.DrillBackup(h.base, &agentv1.DrillBackupCall{Id: d.ID, Backup: b.ID, Volume: resourcepb.Ref(ref)})
+		got, err := s.DrillBackup(h.base, &agentv1.DrillBackupCall{Id: d.ID, Backup: b.ID, Volume: resourcepb.Ref(ref), HostPath: b.WebsitePath})
 		h.finishDrill(context.WithoutCancel(h.base), d, &b, got, err, surface)
 	})
 	return d, nil
@@ -285,13 +296,21 @@ func (h *Handler) runDrillsDue(ctx context.Context) error {
 			if !backuppolicy.Drills(p.spec) {
 				continue
 			}
-			v, err := tx.GetResource(ctx, string(volume.Kind), p.environment, p.spec.GetVolume())
-			if err != nil || v.Spec == nil {
-				continue
-			}
-			placed, err := tx.Placement(ctx, v.ID, v.Revision)
-			if err != nil {
-				return err
+			var placed []string
+			if p.spec.GetWebsiteFolder() {
+				_, placed, _, _, err = h.websiteFolderInTx(ctx, tx, p.environment)
+				if err != nil {
+					continue
+				}
+			} else {
+				v, err := tx.GetResource(ctx, string(volume.Kind), p.environment, p.spec.GetVolume())
+				if err != nil || v.Spec == nil {
+					continue
+				}
+				placed, err = tx.Placement(ctx, v.ID, v.Revision)
+				if err != nil {
+					return err
+				}
 			}
 			for _, serverID := range placed {
 				server, err := tx.GetServer(ctx, serverID)

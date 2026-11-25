@@ -292,7 +292,7 @@ func (c *Caddy) call(ctx context.Context, method, path string, body []byte, head
 	for k, v := range header {
 		req.Header[k] = v
 	}
-	if body != nil {
+	if body != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	res, err := c.client().Do(req)
@@ -743,6 +743,9 @@ func routeJSON(r ingress.Route) route {
 	if believes(r) {
 		h.Headers = ownName(believingAddress(), r.Domain)
 		handle = append(handle, beliefOf(r.TrustedProxies, r.EdgeProxies))
+	}
+	if r.RateLimit != nil && r.RateLimit.Dial != "" && r.RateLimit.RequestsPerMinute > 0 {
+		handle = append(handle, rateLimitAsk(r))
 	}
 	if len(r.Allow) > 0 {
 		handle = append(handle, gateOf(r))
@@ -1822,7 +1825,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	out := ingress.Route{ID: id}
 	raw, out.Held, out.Setup = unheld(raw)
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 6 {
 		out.Edited = true
 		return out, true
 	}
@@ -1873,9 +1876,12 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	for i := range steps {
 		h := &steps[i]
 		users, dial, choice := readPasswordOrSignIn(*h)
+		rl, isRL := readRateLimit(*h)
 		switch status := gateStatus(*h); {
 		case choice:
 			out.Users, out.SignIn = users, dial
+		case isRL:
+			out.RateLimit = rl
 		case h.Handler == "headers":
 			// A visitor's own sign-in headers taken out (unclaimed), compared below.
 		case signInDial(*h) != "":
@@ -3117,7 +3123,7 @@ func (c *Caddy) Retry(ctx context.Context) error {
 
 // Certificates says where each domain's certificate stands: issued if one is
 // on disk and hasn't expired, and otherwise as Caddy's log says.
-func (c *Caddy) Certificates(_ context.Context, domains []string) (map[string]ingress.CertState, error) {
+func (c *Caddy) Certificates(ctx context.Context, domains []string) (map[string]ingress.CertState, error) {
 	c.logMu.Lock()
 	defer c.logMu.Unlock()
 	if err := c.log.read(filepath.Join(c.dataDir(), tlsLogName)); err != nil {
@@ -3126,8 +3132,9 @@ func (c *Caddy) Certificates(_ context.Context, domains []string) (map[string]in
 	out := make(map[string]ingress.CertState, len(domains))
 	for _, d := range domains {
 		st := c.log.state(d)
-		if notAfter, ok := c.issued(d); ok {
-			st.Phase, st.NotAfter = ingress.CertIssued, notAfter
+		if meta, ok := c.readIssuedCert(d, false); ok && meta.NotAfter.After(time.Now()) {
+			st.Phase, st.NotAfter = ingress.CertIssued, meta.NotAfter
+			st.NotBefore, st.Issuer, st.Subject, st.SANs = meta.NotBefore, meta.Issuer, meta.Subject, meta.SANs
 		}
 		out[d] = st
 	}
@@ -3142,7 +3149,7 @@ const issuerDirs = 64
 // each CA it has used, and the latest that hasn't expired. It reads through
 // nothing Caddy could have left there: only regular files, of a bounded size,
 // inside its data directory.
-func (c *Caddy) issued(domain string) (time.Time, bool) {
+func (c *Caddy) issued(domain string) (time.Time, bool) { //nolint:unparam // expiry time retained for existing signature
 	var best time.Time
 	root, err := os.OpenRoot(c.dataDir())
 	if err != nil {

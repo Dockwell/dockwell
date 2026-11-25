@@ -8428,6 +8428,9 @@ msgstr "Tests a restore monthly"
 msgid "Tests a restore weekly"
 msgstr "Tests a restore weekly"
 
+msgid "Website folder"
+msgstr "Website folder"
+
 #. placeholder {0}: words(policy.spec)
 msgid "{0}, {zone}"
 msgstr "{0}, {zone}"
@@ -26629,15 +26632,221 @@ msgstr "Such as WordPress, run by PHP-FPM of its own."
 msgid "What it serves"
 msgstr "What it serves"
 
+msgid "Answers every request with a plain 503 Service Unavailable status."
+msgstr "Answers every request with a plain 503 Service Unavailable status."
+
+msgid "Domains, certificates and files stay intact. Choose what visitors see while paused."
+msgstr "Domains, certificates and files stay intact. Choose what visitors see while paused."
+
+msgid "Maintenance page"
+msgstr "Maintenance page"
+
+#. placeholder {0}: single.domain || single.name
+msgid "Pause {0}"
+msgstr "Pause {0}"
+
+msgid "Plain 503"
+msgstr "Plain 503"
+
+msgid "Shows visitors a short maintenance page with a 503 status. Remembered for next time."
+msgstr "Shows visitors a short maintenance page with a 503 status. Remembered for next time."
+
+msgid "Visitor response"
+msgstr "Visitor response"
+
+#. placeholder {0}: sites.length
+msgid "{0, plural, one {Pause # website} other {Pause # websites}}"
+msgstr "{0, plural, one {Pause # website} other {Pause # websites}}"
+
+msgid "Add header"
+msgstr "Add header"
+
+msgid "Add immutable for fingerprinted assets that never change at the same URL."
+msgstr "Add immutable for fingerprinted assets that never change at the same URL."
+
+msgid "Add or remove HTTP response headers for visitors."
+msgstr "Add or remove HTTP response headers for visitors."
+
+msgid "Add rule"
+msgstr "Add rule"
+
+msgid "Add sub-path"
+msgstr "Add sub-path"
+
+msgid "Add user"
+msgstr "Add user"
+
+msgid "Address (URL)"
+msgstr "Address (URL)"
+
+msgid "Advanced Caddy config"
+msgstr "Advanced Caddy config"
+
+msgid "Allow credentials"
+msgstr "Allow credentials"
+
+msgid "Allow cross-origin browser requests from specific origins."
+msgstr "Allow cross-origin browser requests from specific origins."
+
+msgid "Allowed methods"
+msgstr "Allowed methods"
+
+msgid "Allowed origins"
+msgstr "Allowed origins"
+
+msgid "App on this server"
+msgstr "App on this server"
+
+msgid "Basic Auth"
+msgstr "Basic Auth"
+
+msgid "Burst"
+msgstr "Burst"
+
+msgid "CORS"
+msgstr "CORS"
+
+msgid "Caddy rejected this config"
+msgstr "Caddy rejected this config"
+
+msgid "Cap requests per minute from each visitor address, returning 429 above the limit."
+msgstr "Cap requests per minute from each visitor address, returning 429 above the limit."
+
+msgid "Custom"
+msgstr "Custom"
+
+msgid "Custom Caddy directives"
+msgstr "Custom Caddy directives"
+
+msgid "Custom Caddy directives configured"
+msgstr "Custom Caddy directives configured"
+
+msgid "Custom Caddy directives for this site block"
+msgstr "Custom Caddy directives for this site block"
+
+msgid "Empty protects the whole website."
+msgstr "Empty protects the whole website."
+
+msgid "Empty uses common web asset extensions."
+msgstr "Empty uses common web asset extensions."
+
+msgid "Enter password"
+msgstr "Enter password"
+
+msgid "Extensions"
+msgstr "Extensions"
+
+msgid "Forward a path such as /api to another app or address."
+msgstr "Forward a path such as /api to another app or address."
+
+msgid "Header name"
+msgstr "Header name"
+
+msgid "Immutable"
+msgstr "Immutable"
+
+msgid "Inserted inside this website's :8080 server block and validated by Caddy before any plan applies. Global options, other hostnames and file imports are refused."
+msgstr "Inserted inside this website's :8080 server block and validated by Caddy before any plan applies. Global options, other hostnames and file imports are refused."
+
+msgid "Invalid"
+msgstr "Invalid"
+
+msgid "Max age (seconds)"
+msgstr "Max age (seconds)"
+
+msgid "New password (optional)"
+msgstr "New password (optional)"
+
+msgid "One origin per line, or * for any origin."
+msgstr "One origin per line, or * for any origin."
+
+msgid "Path prefix"
+msgstr "Path prefix"
+
+msgid "Permanent (301)"
+msgstr "Permanent (301)"
+
+msgid "Preflight cache (seconds)"
+msgstr "Preflight cache (seconds)"
+
+msgid "Prompt label"
+msgstr "Prompt label"
+
+msgid "Rate limit"
+msgstr "Rate limit"
+
+msgid "Redirects and rewrites"
+msgstr "Redirects and rewrites"
+
+msgid "Remove header"
+msgstr "Remove header"
+
+msgid "Remove header rule"
+msgstr "Remove header rule"
+
+msgid "Remove path rule"
+msgstr "Remove path rule"
+
+msgid "Remove sub-path proxy"
+msgstr "Remove sub-path proxy"
+
+msgid "Remove user"
+msgstr "Remove user"
+
+msgid "Requests per minute"
+msgstr "Requests per minute"
+
+msgid "Require a username and password. Passwords are stored as Dockwell secrets and hashed for Caddy."
+msgstr "Require a username and password. Passwords are stored as Dockwell secrets and hashed for Caddy."
+
+msgid "Response headers"
+msgstr "Response headers"
+
+msgid "Restricted"
+msgstr "Restricted"
+
+msgid "Rewrite"
+msgstr "Rewrite"
+
+msgid "Rule needs attention"
+msgstr "Rule needs attention"
+
+msgid "Saved as Dockwell secret"
+msgstr "Saved as Dockwell secret"
+
+msgid "Send Access-Control-Allow-Credentials: true. Not allowed with *."
+msgstr "Send Access-Control-Allow-Credentials: true. Not allowed with *."
+
+msgid "Send visitors from an old path to a new path, or rewrite internally."
+msgstr "Send visitors from an old path to a new path, or rewrite internally."
+
+msgid "Set Cache-Control headers on images, stylesheets, scripts and fonts."
+msgstr "Set Cache-Control headers on images, stylesheets, scripts and fonts."
+
+msgid "Static file caching"
+msgstr "Static file caching"
+
+msgid "Strip path prefix"
+msgstr "Strip path prefix"
+
+msgid "Sub-path proxies"
+msgstr "Sub-path proxies"
+
+msgid "Temporary (302)"
+msgstr "Temporary (302)"
+
+msgid "Validated by Caddy"
+msgstr "Validated by Caddy"
+
+msgid "{activeCount} active"
+msgstr "{activeCount} active"
+
 #. placeholder {0}: runtime.version
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> runs an older build of {0}"
 
 msgid "<0>{name}</0> runs an older build of {version}"
 msgstr "<0>{name}</0> runs an older build of {version}"
-
-msgid "Extensions"
-msgstr "Extensions"
 
 #. placeholder {0}: newest.version
 msgid "New app on {language} {0}"
@@ -26726,14 +26935,63 @@ msgstr "{days, plural, one {certificate valid for # day} other {certificate vali
 msgid "{host} answers {code}"
 msgstr "{host} answers {code}"
 
+msgid "Certificate chain (PEM)"
+msgstr "Certificate chain (PEM)"
+
+msgid "Certificate is not due for renewal yet"
+msgstr "Certificate is not due for renewal yet"
+
+#. placeholder {0}: domain.name
+msgid "Certificate renewal has been started for {0}."
+msgstr "Certificate renewal has been started for {0}."
+
+msgid "Could not download certificate"
+msgstr "Could not download certificate"
+
+msgid "Could not download private key"
+msgstr "Could not download private key"
+
+msgid "Could not renew certificate"
+msgstr "Could not renew certificate"
+
+msgid "Covers"
+msgstr "Covers"
+
+msgid "Dockwell verifies that the certificate covers {domain}, is not expired, and matches the private key before planning. The private key is sealed like other secrets."
+msgstr "Dockwell verifies that the certificate covers {domain}, is not expired, and matches the private key before planning. The private key is sealed like other secrets."
+
+msgid "Download certificate"
+msgstr "Download certificate"
+
+msgid "Download key"
+msgstr "Download key"
+
+msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
+msgstr "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
+
 msgid "From Let's Encrypt once DNS points here, and renewed by itself."
 msgstr "From Let's Encrypt once DNS points here, and renewed by itself."
 
 msgid "Issued"
 msgstr "Issued"
 
+msgid "Issued (custom)"
+msgstr "Issued (custom)"
+
 msgid "It says"
 msgstr "It says"
+
+msgid "Keep current"
+msgstr "Keep current"
+
+msgid "Load certificate file"
+msgstr "Load certificate file"
+
+msgid "Load private key file"
+msgstr "Load private key file"
+
+msgid "Missing PEM data"
+msgstr "Missing PEM data"
 
 msgid "No domain, so no certificate"
 msgstr "No domain, so no certificate"
@@ -26750,8 +27008,48 @@ msgstr "On its way"
 msgid "Open its configuration"
 msgstr "Open its configuration"
 
+msgid "Private key (PEM)"
+msgstr "Private key (PEM)"
+
+msgid "Provide both a PEM certificate chain and its matching private key."
+msgstr "Provide both a PEM certificate chain and its matching private key."
+
+msgid "Renew anyway"
+msgstr "Renew anyway"
+
+msgid "Renew certificate early?"
+msgstr "Renew certificate early?"
+
+msgid "Renew now"
+msgstr "Renew now"
+
+msgid "Renewal requested"
+msgstr "Renewal requested"
+
+msgid "Served with your uploaded certificate. Private keys stay sealed at rest and require a passkey to download."
+msgstr "Served with your uploaded certificate. Private keys stay sealed at rest and require a passkey to download."
+
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
+
+msgid "Upload certificate"
+msgstr "Upload certificate"
+
+msgid "Upload certificate for {domain}"
+msgstr "Upload certificate for {domain}"
+
+msgid "Upload custom certificate for {domain}"
+msgstr "Upload custom certificate for {domain}"
+
+msgid "Use automatic certificate"
+msgstr "Use automatic certificate"
+
+#. placeholder {0}: domain.name
+msgid "Use automatic certificate for {0}"
+msgstr "Use automatic certificate for {0}"
+
+msgid "Valid from"
+msgstr "Valid from"
 
 #. placeholder {0}: server.serverName
 msgid "{state}, as {0} last said"
@@ -26847,6 +27145,9 @@ msgstr "A user and group by number, as uid:gid. Empty runs it as www-data."
 msgid "Closed to the web server ({mode}), so it would answer 403."
 msgstr "Closed to the web server ({mode}), so it would answer 403."
 
+msgid "FPM pool size"
+msgstr "FPM pool size"
+
 msgid "Files in a folder"
 msgstr "Files in a folder"
 
@@ -26858,6 +27159,9 @@ msgstr "Gets a 404"
 
 msgid "Give a number of MiB, such as 64."
 msgstr "Give a number of MiB, such as 64."
+
+msgid "Give every new Basic Auth user a password."
+msgstr "Give every new Basic Auth user a password."
 
 msgid "Give the URL to send to, such as https://backend.example.com."
 msgstr "Give the URL to send to, such as https://backend.example.com."
@@ -26889,6 +27193,9 @@ msgstr "Its owner is {theirs}."
 msgid "Make it in Files"
 msgstr "Make it in Files"
 
+msgid "Max execution time"
+msgstr "Max execution time"
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "New. Made with the site, for PHP to write in."
 
@@ -26904,8 +27211,20 @@ msgstr "No {first} here yet, so it answers 404 until there is."
 msgid "Not on the server yet."
 msgstr "Not on the server yet."
 
+msgid "Optional extensions"
+msgstr "Optional extensions"
+
 msgid "PHP"
 msgstr "PHP"
+
+msgid "PHP max_execution_time, 5 to 3600 seconds."
+msgstr "PHP max_execution_time, 5 to 3600 seconds."
+
+msgid "PHP memory_limit, 32 to 4096 MiB."
+msgstr "PHP memory_limit, 32 to 4096 MiB."
+
+msgid "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
+msgstr "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
 
 msgid "PHP runs as {user} and can't write there."
 msgstr "PHP runs as {user} and can't write there."
@@ -26922,6 +27241,12 @@ msgstr "PHP {0}"
 #. placeholder {1}: r.release
 msgid "PHP {0} · {1}"
 msgstr "PHP {0} · {1}"
+
+msgid "PHP-FPM pm.max_children worker processes, 1 to 200."
+msgstr "PHP-FPM pm.max_children worker processes, 1 to 200."
+
+msgid "Post max size"
+msgstr "Post max size"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "Root owns it, so PHP can't save uploads there."
@@ -26958,6 +27283,18 @@ msgstr "The web server can't read {name} ({fileMode})."
 
 msgid "Upload limit"
 msgstr "Upload limit"
+
+msgid "Use a PHP-FPM pool size from 1 to 200."
+msgstr "Use a PHP-FPM pool size from 1 to 200."
+
+msgid "Use a memory limit from 32 to 4096 MiB."
+msgstr "Use a memory limit from 32 to 4096 MiB."
+
+msgid "Use a post max size from 1 to 4096 MiB."
+msgstr "Use a post max size from 1 to 4096 MiB."
+
+msgid "Use an execution time from 5 to 3600 seconds."
+msgstr "Use an execution time from 5 to 3600 seconds."
 
 msgid "Was 82:82, www-data"
 msgstr "Was 82:82, www-data"
@@ -27040,6 +27377,9 @@ msgstr "No website with this ID"
 msgid "PHP {0} from {root}"
 msgstr "PHP {0} from {root}"
 
+msgid "Resume {name}"
+msgstr "Resume {name}"
+
 msgid "Reverse proxy to port {port} on the server"
 msgstr "Reverse proxy to port {port} on the server"
 
@@ -27070,8 +27410,17 @@ msgstr "What listens on port {port} keeps its own."
 msgid "Whose logs"
 msgstr "Whose logs"
 
+msgid "A folder backup is running now."
+msgstr "A folder backup is running now."
+
+msgid "Back up this website's folder on demand or on a schedule in Backups."
+msgstr "Back up this website's folder on demand or on a schedule in Backups."
+
 msgid "Change it"
 msgstr "Change it"
+
+msgid "Custom Caddy"
+msgstr "Custom Caddy"
 
 msgid "Goes to index.php"
 msgstr "Goes to index.php"
@@ -27082,15 +27431,56 @@ msgstr "How it serves"
 msgid "Kept current by Dockwell"
 msgstr "Kept current by Dockwell"
 
+msgid "Latest folder backup failed."
+msgstr "Latest folder backup failed."
+
+#. placeholder {0}: formatDateTime(timestampDate(latest.startedAt), i18n.locale)
+#. placeholder {1}: formatBytes(latest.sizeBytes, i18n.locale)
+msgid "Latest folder backup: {0} ({1})."
+msgstr "Latest folder backup: {0} ({1})."
+
+#. placeholder {0}: rules.rateLimit.requestsPerMinute || 60
+msgid "Rate limit ({0}/min)"
+msgstr "Rate limit ({0}/min)"
+
+#. placeholder {0}: site.domain || site.name
+msgid "Resume {0}"
+msgstr "Resume {0}"
+
 msgid "Sends each request straight to the port"
 msgstr "Sends each request straight to the port"
+
+msgid "Static cache"
+msgstr "Static cache"
 
 msgid "The ingress"
 msgstr "The ingress"
 
+msgid "This website is paused"
+msgstr "This website is paused"
+
+msgid "Visitors currently receive a plain 503 response. Domains, certificates and files stay intact."
+msgstr "Visitors currently receive a plain 503 response. Domains, certificates and files stay intact."
+
+msgid "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
+msgstr "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
+
+#. placeholder {0}: p.memoryLimitMb || 128
 #. placeholder {0}: p.uploadLimitMb || 64
 msgid "{0} MiB"
 msgstr "{0} MiB"
+
+#. placeholder {0}: rules.headers.length
+msgid "{0} headers"
+msgstr "{0} headers"
+
+#. placeholder {0}: rules.pathRules.length
+msgid "{0} redirect/rewrite"
+msgstr "{0} redirect/rewrite"
+
+#. placeholder {0}: rules.subpathProxies.length
+msgid "{0} sub-path"
+msgstr "{0} sub-path"
 
 msgid "Can't load the websites"
 msgstr "Can't load the websites"
@@ -27114,6 +27504,12 @@ msgstr "No website of this kind here."
 msgid "No websites yet"
 msgstr "No websites yet"
 
+msgid "Off (TLS ends in front)"
+msgstr "Off (TLS ends in front)"
+
+msgid "On (automatic certificate)"
+msgstr "On (automatic certificate)"
+
 msgid "PHP {version}"
 msgstr "PHP {version}"
 
@@ -27129,12 +27525,39 @@ msgstr "Serve a folder or a PHP app, or send a domain on to a URL or a port."
 msgid "Static files"
 msgstr "Static files"
 
+msgid "Switch PHP"
+msgstr "Switch PHP"
+
+#. placeholder {0}: target.sites.length
+msgid "Switch {0} websites to PHP {phpChoice}"
+msgstr "Switch {0} websites to PHP {phpChoice}"
+
+#. placeholder {0}: target.sites.length
+msgid "Turn HTTPS off for {0} websites"
+msgstr "Turn HTTPS off for {0} websites"
+
+#. placeholder {0}: target.sites.length
+msgid "Turn HTTPS on for {0} websites"
+msgstr "Turn HTTPS on for {0} websites"
+
 #. placeholder {0}: only.name
 msgid "Websites on {0}"
 msgstr "Websites on {0}"
 
 msgid "What your websites serve isn't affected."
 msgstr "What your websites serve isn't affected."
+
+#. placeholder {0}: httpsModal.sites.length
+msgid "{0, plural, one {Change HTTPS for # website} other {Change HTTPS for # websites}}"
+msgstr "{0, plural, one {Change HTTPS for # website} other {Change HTTPS for # websites}}"
+
+#. placeholder {0}: sites.length
+msgid "{0, plural, one {Resume # website} other {Resume # websites}}"
+msgstr "{0, plural, one {Resume # website} other {Resume # websites}}"
+
+#. placeholder {0}: phpModal.sites.length
+msgid "{0, plural, one {Switch PHP version for # website} other {Switch PHP version for # websites}}"
+msgstr "{0, plural, one {Switch PHP version for # website} other {Switch PHP version for # websites}}"
 
 #. placeholder {0}: only.name
 #. placeholder {1}: only.name

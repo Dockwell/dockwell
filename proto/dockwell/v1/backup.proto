@@ -333,6 +333,12 @@ message Backup {
   // The one database it holds, for an app's on a server it shares, which restores
   // alone. Empty for a backup of the whole volume (ADR 0084).
   string database_name = 80;
+  // The website project ID when this backup is of a website's folder.
+  string website_id = 81;
+  // The website's domain when this backup is of a website's folder.
+  string website_domain = 82;
+  // The folder path on the server when this backup is of a website's folder.
+  string website_path = 83;
 }
 
 // BackupCopy says where a backup stands on its destination.
@@ -462,6 +468,8 @@ message ListBackupsRequest {
   string environment_id = 4;
   // Only the backups of this one database, by name, on the volume volume_id names.
   string database_name = 80;
+  // Only the backups of this website's folder, by website project ID.
+  string website_id = 81;
 }
 
 // ListBackupsResponse is a page of backups.
@@ -484,12 +492,14 @@ message GetBackupResponse {
   Backup backup = 1;
 }
 
-// PreviewBackupRequest names a volume.
+// PreviewBackupRequest names a volume or website folder.
 message PreviewBackupRequest {
   // The volume's ID, such as "vol_01JD6Z3R8M9QF2K7T4XW5BNC0V".
   string volume_id = 1;
   // The server, by name or ID, when the volume is on several.
   string server = 2;
+  // The website's project ID, in place of volume_id, to preview backing up its folder.
+  string website_id = 3;
 }
 
 // PreviewBackupResponse says what backing up a volume would do.
@@ -512,7 +522,7 @@ message PreviewBackupResponse {
   int64 reserve_bytes = 6;
 }
 
-// CreateBackupRequest asks to back up a volume.
+// CreateBackupRequest asks to back up a volume or website folder.
 message CreateBackupRequest {
   // The volume's ID.
   string volume_id = 1;
@@ -523,6 +533,8 @@ message CreateBackupRequest {
   bool stop = 3;
   // A backup destination it goes to as well, by name.
   string destination = 4;
+  // The website's project ID, in place of volume_id, to back up its folder.
+  string website_id = 5;
 }
 
 // CreateBackupResponse is the backup, running.

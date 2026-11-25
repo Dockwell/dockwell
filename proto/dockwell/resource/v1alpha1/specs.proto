@@ -553,6 +553,147 @@ message Website {
   // its domain, keeping the path, reached as its own route is (ADR 0070). Removing
   // one deletes only the route this list wrote for it.
   repeated string redirect_from = 4;
+  // When true, visitors see a 503 maintenance page or a plain 503 response instead
+  // of what the website serves. Its domains, certificate, settings and files stay.
+  bool paused = 5;
+  // What visitors see while the website is paused. Chosen once and kept across
+  // resumes; unspecified defaults to the maintenance page.
+  WebsitePauseMode pause_mode = 6;
+  // Visitor-facing HTTP rules written into the website's config or route without
+  // writing raw Caddyfile directives.
+  WebsiteRules rules = 7;
+  // Advanced Caddy directives scoped strictly inside this site's server block.
+  // Validated by Caddy's own adapter on the server before a plan can apply.
+  // Global options, other site names and import directives are refused.
+  string custom_caddy = 8;
+}
+
+// WebsitePauseMode says what visitors receive while a website is paused.
+enum WebsitePauseMode {
+  WEBSITE_PAUSE_MODE_UNSPECIFIED = 0;
+  // A calm HTML maintenance page with status 503 and Retry-After.
+  WEBSITE_PAUSE_MODE_MAINTENANCE = 1;
+  // A plain 503 Service Unavailable response with no HTML page.
+  WEBSITE_PAUSE_MODE_PLAIN_503 = 2;
+}
+
+// WebsiteRules are structured HTTP rules for a website.
+message WebsiteRules {
+  // Basic authentication with users whose passwords are stored as Dockwell secrets
+  // in the website's environment and hashed with bcrypt for Caddy.
+  WebsiteBasicAuth basic_auth = 1;
+  // Cross-Origin Resource Sharing (CORS) rules.
+  WebsiteCors cors = 2;
+  // Per-visitor-address request rate limit enforced at the ingress.
+  WebsiteRateLimit rate_limit = 3;
+  // Path redirects (301/302) and internal rewrites.
+  repeated WebsitePathRule path_rules = 4;
+  // Sub-path reverse proxies to another app or URL.
+  repeated WebsiteSubpathProxy subpath_proxies = 5;
+  // Extra HTTP response headers to set or remove.
+  repeated WebsiteHeader headers = 6;
+  // Browser caching for static files.
+  WebsiteStaticCache static_cache = 7;
+}
+
+// WebsiteBasicAuth requires HTTP Basic authentication for the site or a path prefix.
+message WebsiteBasicAuth {
+  // Optional path prefix to protect, such as "/admin". Empty protects the whole site.
+  string path = 1;
+  // Optional realm shown in the browser prompt. Empty uses the website's domain.
+  string realm = 2;
+  // Users allowed to sign in. Up to 20.
+  repeated WebsiteBasicAuthUser users = 3;
+}
+
+// WebsiteBasicAuthUser is one Basic Auth user whose password is kept as a Dockwell secret.
+message WebsiteBasicAuthUser {
+  // Login username: letters, digits, dots, dashes and underscores.
+  string username = 1;
+  // Name of the Dockwell secret in the website's environment holding the user's
+  // password. A companion hash secret holds the bcrypt hash passed to Caddy.
+  string secret = 2;
+}
+
+// WebsiteCors sets Cross-Origin Resource Sharing response headers and handles preflight.
+message WebsiteCors {
+  bool enabled = 1;
+  // Allowed origins, such as "https://app.example.com", or "*" alone.
+  repeated string allowed_origins = 2;
+  // Allowed HTTP methods. Empty defaults to GET, POST, PUT, PATCH, DELETE, OPTIONS.
+  repeated string allowed_methods = 3;
+  // Allowed request headers. Empty defaults to Content-Type, Authorization.
+  repeated string allowed_headers = 4;
+  // Sets Access-Control-Allow-Credentials: true. Refused when allowed_origins is "*".
+  bool allow_credentials = 5;
+  // Preflight cache duration in seconds (0 defaults to 3600, max 86400).
+  uint32 max_age_seconds = 6;
+}
+
+// WebsiteRateLimit caps requests per minute from each visitor address.
+message WebsiteRateLimit {
+  bool enabled = 1;
+  // Steady rate per visitor address, in requests per minute (1 to 60000). 0 uses 60.
+  uint32 requests_per_minute = 2;
+  // Extra burst requests allowed above the steady rate (0 to 1000).
+  uint32 burst = 3;
+}
+
+// WebsitePathRuleKind says whether a path rule redirects visitors or rewrites internally.
+enum WebsitePathRuleKind {
+  WEBSITE_PATH_RULE_KIND_UNSPECIFIED = 0;
+  WEBSITE_PATH_RULE_KIND_REDIRECT = 1;
+  WEBSITE_PATH_RULE_KIND_REWRITE = 2;
+}
+
+// WebsitePathRule redirects or rewrites requests matching a path or prefix.
+message WebsitePathRule {
+  // Path or prefix to match, starting with "/", such as "/old" or "/blog/*".
+  string from = 1;
+  // Target path (e.g. "/new" or "/new/*") or, for redirects, an http:// or https:// URL.
+  string to = 2;
+  WebsitePathRuleKind kind = 3;
+  // For redirects: true sends 301 Moved Permanently, false sends 302 Found.
+  bool permanent = 4;
+}
+
+// WebsiteSubpathProxy sends requests under a path prefix to another app or URL.
+message WebsiteSubpathProxy {
+  // Path prefix to match, starting with "/", such as "/api" (not "/").
+  string path = 1;
+  // Upstream URL (http:// or https://), checked with the same safety rules as WebsiteProxy.url.
+  // Leave empty when targeting a Dockwell service with service_id and service_port.
+  string url = 2;
+  // Strip the matched path prefix before forwarding to the upstream.
+  bool strip_prefix = 3;
+  // Send the upstream's host as the Host header instead of the website's domain.
+  bool send_target_host = 4;
+  // Target Dockwell service ID on the same server, reached over the website's network.
+  string service_id = 5;
+  // Port the target service listens on inside its container.
+  uint32 service_port = 6;
+}
+
+// WebsiteHeader sets or removes one HTTP response header.
+message WebsiteHeader {
+  // Header name, such as "X-Frame-Options".
+  string name = 1;
+  // Header value. Ignored when remove is true.
+  string value = 2;
+  // Remove the header from responses instead of setting it.
+  bool remove = 3;
+}
+
+// WebsiteStaticCache adds Cache-Control headers to static file responses.
+message WebsiteStaticCache {
+  bool enabled = 1;
+  // Cache-Control max-age in seconds (60 to 31536000). 0 uses 604800 (7 days).
+  uint32 max_age_seconds = 2;
+  // File extensions without leading dot, such as "css", "js", "webp".
+  // Empty uses the default set of common static web assets.
+  repeated string extensions = 3;
+  // Append ", immutable" to Cache-Control.
+  bool immutable = 4;
 }
 
 // WebsitePhp runs the PHP in a folder on the server with PHP-FPM, of the version
@@ -579,6 +720,17 @@ message WebsitePhp {
   // group. PHP-FPM's master runs as it too. A folder that isn't there is made as
   // its.
   string user = 6;
+  // PHP memory_limit in MiB (32 to 4096). 0 uses PHP's default (128 MiB).
+  uint32 memory_limit_mb = 7;
+  // PHP max_execution_time in seconds (5 to 3600). 0 uses PHP's default (30 s).
+  uint32 max_execution_time_s = 8;
+  // PHP post_max_size in MiB (1 to 4096). 0 matches upload_limit_mb.
+  uint32 post_max_size_mb = 9;
+  // PHP-FPM pool pm.max_children (1 to 200). 0 uses the image's default (5).
+  uint32 fpm_max_children = 10;
+  // Shipped optional extensions turned off for this site, such as "imagick".
+  // Empty keeps every shipped optional extension enabled.
+  repeated string disabled_extensions = 11;
 }
 
 // WebsiteFolder serves the files in a folder on the server, as they are. Its web
@@ -1385,6 +1537,8 @@ message BackupPolicy {
   // a policy stops nothing and has no drills. Numbered apart, as open work adds to
   // this message.
   string link = 80;
+  // True to back up this website environment's folder in place of a volume or link.
+  bool website_folder = 81;
 }
 
 // BackupDestination is S3-compatible storage that backups go to as well as the
@@ -1574,6 +1728,27 @@ message Route {
   // whole domain, and isn't a redirect, gets a check on the defaults. Only the
   // control plane reads it: no server's proxy sees it.
   bool unwatched = 82;
+  // Per-visitor-address rate limit enforced at the ingress before forwarding.
+  RouteRateLimit rate_limit = 130;
+  // User-uploaded TLS certificate and private key for this route's domain.
+  // The private key is sealed at rest on the control plane and on the agent.
+  RouteCustomCert custom_cert = 131;
+}
+
+// RouteRateLimit caps requests per minute from each believed visitor address.
+message RouteRateLimit {
+  // Steady rate per visitor address, in requests per minute (1 to 60000).
+  uint32 requests_per_minute = 1;
+  // Extra burst requests allowed above the steady rate (0 to 1000).
+  uint32 burst = 2;
+}
+
+// RouteCustomCert is a user-uploaded TLS certificate chain and private key in PEM.
+message RouteCustomCert {
+  // Full PEM certificate chain (leaf first, intermediates after).
+  string cert_pem = 1;
+  // PEM private key, sealed at rest and never returned on list/read APIs.
+  string key_pem = 2 [(sensitive) = true];
 }
 
 // How a route's domain is published at Cloudflare (ADR 0104).

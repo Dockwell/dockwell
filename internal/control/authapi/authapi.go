@@ -454,6 +454,7 @@ var stepUpActions = map[dockwellv1.StepUpAction]auth.StepUpAction{
 	dockwellv1.StepUpAction_STEP_UP_ACTION_LINK_PROVIDER:                         auth.StepUpLinkProvider,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_CHANGE_EMAIL:                          auth.StepUpChangeEmail,
 	dockwellv1.StepUpAction_STEP_UP_ACTION_REVEAL_SERVICE_VALUE:                  auth.StepUpRevealServiceValue,
+	dockwellv1.StepUpAction_STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY:              auth.StepUpDownloadCertificateKey,
 }
 
 // GetStepUpPolicy says how often you're asked for your passkey again.

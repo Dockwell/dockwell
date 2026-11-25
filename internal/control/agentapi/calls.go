@@ -532,7 +532,7 @@ func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agen
 	s := &Session{
 		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), filesRest: hello.GetFilesRest(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), databaseConsole: hello.GetDatabaseConsole(), databaseImports: hello.GetDatabaseImports(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
-		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
+		loadsCertificates: hello.GetLoadsCertificates(), websiteHandy: hello.GetWebsiteHandy(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
 		kicked: make(chan struct{}),
 	}
@@ -736,6 +736,9 @@ type Session struct {
 	// loadsCertificates says the agent serves the certificates the control plane
 	// proves by DNS-01 (ADR 0088).
 	loadsCertificates bool
+	// websiteHandy says the agent supports Caddyfile validation, certificate renewal,
+	// certificate reading, and website folder backups.
+	websiteHandy bool
 	// followsPace says the agent sends stats at the pace each Pace says. One
 	// that doesn't is never told one.
 	followsPace bool
@@ -1708,9 +1711,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	dr.ExactRestartId = step.ExactRestart
 	dr.ScopeName = s.scopeName(ctx, step.Ref)
-	// A restore into a new database or from a staged dump upload passes its source
-	// alongside the step, as the step's plan doesn't carry From or ImportID.
-	if r, ok := resource.RestoreOf(ctx); ok && step.Restore != nil && (step.Restore.IntoNew || r.ImportID != "") {
+	// A restore into a new database, from a staged dump upload, or of a website folder
+	// passes its source alongside the step, as the step's plan doesn't carry From, ImportID or HostPath.
+	if r, ok := resource.RestoreOf(ctx); ok && step.Restore != nil && (step.Restore.IntoNew || r.ImportID != "" || r.HostPath != "") {
 		dr.Restore = restoreProto(r)
 	}
 	values, uses, err := s.values(ctx, step.Ref, desired)
@@ -2335,6 +2338,7 @@ func restoreProto(r resource.RestoreSource) *agentv1.RestoreSource {
 		ImportDatabase: r.ImportDatabase,
 		ImportFilename: r.ImportFilename,
 		ImportFormat:   r.ImportFormat,
+		HostPath:       r.HostPath,
 	}
 	if r.IntoNew() {
 		out.From = resourcepb.Ref(r.From)
@@ -2662,7 +2666,12 @@ func backupTaken(b *agentv1.BackupResult) *resource.BackupTaken {
 
 // BackupPreview asks the agent what backing up a volume would do.
 func (s *Session) BackupPreview(ctx context.Context, volume resource.Ref) (*agentv1.BackupPreviewResult, error) {
-	call := &agentv1.BackupPreviewCall{Volume: resourcepb.Ref(volume)}
+	return s.BackupPreviewHostPath(ctx, volume, "")
+}
+
+// BackupPreviewHostPath asks the agent what backing up a volume or website folder would do.
+func (s *Session) BackupPreviewHostPath(ctx context.Context, target resource.Ref, hostPath string) (*agentv1.BackupPreviewResult, error) {
+	call := &agentv1.BackupPreviewCall{Volume: resourcepb.Ref(target), HostPath: hostPath}
 	r, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_BackupPreview{BackupPreview: call}}, ObserveTimeout, nil)
 	if err != nil {
 		return nil, err

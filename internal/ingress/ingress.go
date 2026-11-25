@@ -158,6 +158,9 @@ type Route struct {
 	// isn't open; empty for none. The key's hash is the agent's to keep (SignIns), as
 	// the proxy holds none of it (ADR 0105).
 	Setup string
+	// RateLimit, when set, asks the agent's signin.sock whether the believed visitor
+	// address is within the route's requests-per-minute limit.
+	RateLimit *RateLimit
 }
 
 // Redirect is where a route sends each request instead of an upstream: To, with
@@ -449,6 +452,15 @@ func (m *Manager) Observe(ctx context.Context, ref resource.Ref) (*resourcev1.Ro
 	}
 	if r.Plain {
 		out.Tls = TLSOff
+	}
+	if r.RateLimit != nil && r.RateLimit.RequestsPerMinute > 0 {
+		out.RateLimit = &resourcev1.RouteRateLimit{
+			RequestsPerMinute: r.RateLimit.RequestsPerMinute,
+			Burst:             r.RateLimit.Burst,
+		}
+	}
+	if cc := m.customCertFor(id); cc != nil {
+		out.CustomCert = cc
 	}
 	if r.Edited {
 		out.Service = editedByHand
@@ -1082,6 +1094,17 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 		Plain: spec.GetTls() == TLSOff, TrustedProxies: named, EdgeProxies: edge, PlainForAnyone: spec.GetPlainForAnyone(), Held: spec.GetHeld(),
 		Allow: allow, Users: users, Redirect: RedirectOf(spec),
 	}
+	if rl := spec.GetRateLimit(); rl != nil && rl.GetRequestsPerMinute() > 0 {
+		dial, err := m.rateLimitDial()
+		if err != nil {
+			return fmt.Errorf("the route %s has a rate limit: %w", ref.Name, err)
+		}
+		r.RateLimit = &RateLimit{
+			RequestsPerMinute: rl.GetRequestsPerMinute(),
+			Burst:             rl.GetBurst(),
+			Dial:              dial,
+		}
+	}
 	// What a route that signs people in needs is the agent's before the proxy asks
 	// for it, and goes once the proxy no longer does.
 	signIn := spec.GetAccess().GetSignIn()
@@ -1109,9 +1132,20 @@ func (m *Manager) put(ctx context.Context, ref resource.Ref, spec *resourcev1.Ro
 	}
 	m.logReplaced(ctx, r)
 	if !r.Plain {
+		if cc := spec.GetCustomCert(); cc != nil {
+			if err := m.putCustomCert(ctx, r.ID, r.Domain, cc); err != nil {
+				return fmt.Errorf("the route %s custom certificate: %w", ref.Name, err)
+			}
+		} else {
+			if err := m.dropCustomCert(ctx, r.ID); err != nil {
+				return fmt.Errorf("the route %s clearing custom certificate: %w", ref.Name, err)
+			}
+		}
 		if err := m.noteDomain(ctx, r.Domain); err != nil {
 			return err
 		}
+	} else {
+		_ = m.dropCustomCert(ctx, r.ID)
 	}
 	if err := m.Proxy.PutRoute(ctx, r); err != nil {
 		// A port taken since the check is refused by name, as at any other time.
@@ -1274,6 +1308,7 @@ func (m *Manager) named(ctx context.Context, want []Port, startErr error) error 
 // ports.
 func (m *Manager) remove(ctx context.Context, ref resource.Ref) error {
 	id := RouteID(ref)
+	_ = m.dropCustomCert(ctx, id)
 	if err := m.Proxy.DeleteRoute(ctx, id); err != nil {
 		return fmt.Errorf("%s can't remove the route %s: %w", m.Proxy.Name(), ref.Name, err)
 	}

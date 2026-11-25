@@ -37,6 +37,11 @@ const (
 // tool runs the volume tool on a volume, in a throwaway container made for it
 // from this agent's own binary. The volume is read-only unless the tool writes.
 func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docker.Streams) (volumetool.Stats, error) {
+	return r.toolMount(ctx, docker.Mount{Type: "volume", Source: t.Name, Target: helperMount, ReadOnly: verb == "pack" || verb == "measure"}, t.Key, verb, s)
+}
+
+// toolMount runs the volume tool on a single Docker mount (volume or bind folder).
+func (r *Runner) toolMount(ctx context.Context, mount docker.Mount, label, verb string, s docker.Streams) (volumetool.Stats, error) {
 	var stats volumetool.Stats
 	run := randomHex()
 	image := helperRepository + ":" + run
@@ -60,12 +65,12 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 			NetworkMode: "none", ReadonlyRootfs: true,
 			// What it prints is an archive, and Docker would keep a copy of it.
 			LogConfig: &docker.LogConfig{Type: "none"},
-			Mounts:    []docker.Mount{{Type: "volume", Source: t.Name, Target: helperMount, ReadOnly: verb == "pack" || verb == "measure"}},
+			Mounts:    []docker.Mount{mount},
 		},
 	}
 	id, err := r.Client.CreateContainer(ctx, helperRepository+"-"+run, req)
 	if err != nil {
-		return stats, fmt.Errorf("docker can't make the helper that reads the volume: %w", err)
+		return stats, fmt.Errorf("docker can't make the helper that reads %s: %w", label, err)
 	}
 	defer func() {
 		cleanup, cancel := resource.Finishing(ctx, r.helperCleanup())
@@ -74,7 +79,7 @@ func (r *Runner) tool(ctx context.Context, t volume.Target, verb string, s docke
 			r.logger().Warn("can't remove a helper; the agent removes it when it next starts", "container", id, "error", err.Error())
 		}
 	}()
-	report := &toolReport{ctx: ctx, volume: t.Key, verb: verb}
+	report := &toolReport{ctx: ctx, volume: label, verb: verb}
 	s.Stderr = report
 	code, err := r.Client.RunAttached(ctx, id, s)
 	report.flush()

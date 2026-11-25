@@ -3,8 +3,11 @@
 package caddy
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -257,6 +260,86 @@ func (c *Container) Abandon(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// AdaptCaddyfile runs a short-lived, network-isolated Caddy container to adapt a
+// Caddyfile when the ingress container isn't running yet (e.g., creating a server's
+// first website).
+func (c *Container) AdaptCaddyfile(ctx context.Context, caddyfile []byte) ([]byte, error) {
+	if c.Client == nil {
+		return nil, errors.New("docker isn't available to run Caddy's adapter")
+	}
+	if err := c.Pull(ctx); err != nil {
+		return nil, err
+	}
+	uid, gid, _ := proxyUser()
+	name := fmt.Sprintf("dockwell-caddy-adapt-%d", time.Now().UnixNano())
+	req := &docker.CreateRequest{
+		Config: docker.Config{
+			Image:      c.Reference(),
+			Entrypoint: []string{"/bin/sh", "-c", `printf '%s\n' "$1" >/tmp/Caddyfile && exec caddy adapt --config /tmp/Caddyfile --adapter caddyfile`, "adapt"},
+			Cmd:        []string{string(caddyfile)},
+			User:       strconv.Itoa(uid) + ":" + strconv.Itoa(gid),
+			Labels:     map[string]string{docker.OwnPrefix + "helper": "caddy-adapt"},
+		},
+		HostConfig: docker.HostConfig{
+			NetworkMode:    "none",
+			CapDrop:        []string{"ALL"},
+			ReadonlyRootfs: true,
+			Tmpfs:          map[string]string{"/tmp": "rw,noexec,nosuid,size=4m"},
+			Memory:         128 << 20,
+			MemorySwap:     128 << 20,
+		},
+	}
+	id, err := c.Client.CreateContainer(ctx, name, req)
+	if err != nil {
+		return nil, fmt.Errorf("can't create Caddy validator container: %w", err)
+	}
+	defer func() {
+		_ = c.Client.RemoveContainer(context.WithoutCancel(ctx), id, true)
+	}()
+	if err := c.Client.StartContainer(ctx, id); err != nil {
+		return nil, fmt.Errorf("can't start Caddy validator container: %w", err)
+	}
+	exitCode, err := c.Client.WaitContainer(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("waiting for Caddy validator: %w", err)
+	}
+	logs, err := c.Client.ContainerLogs(ctx, id, false, docker.LogOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("reading Caddy validator output: %w", err)
+	}
+	defer logs.Close()
+	var stdout, stderr bytes.Buffer
+	for {
+		entry, lerr := logs.Next()
+		if errors.Is(lerr, io.EOF) {
+			break
+		}
+		if lerr != nil {
+			return nil, fmt.Errorf("reading Caddy validator output: %w", lerr)
+		}
+		if entry.Stream == docker.Stderr {
+			if stderr.Len() < 64<<10 {
+				stderr.Write(entry.Text)
+				stderr.WriteByte('\n')
+			}
+		} else if stdout.Len() < 512<<10 {
+			stdout.Write(entry.Text)
+			stdout.WriteByte('\n')
+		}
+	}
+	if exitCode != 0 {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			msg = fmt.Sprintf("caddy adapt exited with status %d", exitCode)
+		}
+		return nil, &adminError{Status: 400, Message: msg}
+	}
+	return stdout.Bytes(), nil
 }
 
 // Remove stops Caddy gracefully and removes its container, and its data stays.

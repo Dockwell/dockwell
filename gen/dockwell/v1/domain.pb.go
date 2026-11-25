@@ -2992,7 +2992,11 @@ type DomainRoute struct {
 	// Says not to watch the route with an uptime check, as Add a domain's Don't
 	// watch or deleting its check did (#835): a form that sends the route as it is
 	// sends this back, and the offer to watch routed domains leaves it out.
-	Unwatched     bool `protobuf:"varint,82,opt,name=unwatched,proto3" json:"unwatched,omitempty"`
+	Unwatched bool `protobuf:"varint,82,opt,name=unwatched,proto3" json:"unwatched,omitempty"`
+	// Per-visitor-address rate limit enforced on this route, if configured.
+	RateLimit *v1alpha1.RouteRateLimit `protobuf:"bytes,130,opt,name=rate_limit,json=rateLimit,proto3" json:"rate_limit,omitempty"`
+	// True when this route serves a user-uploaded custom certificate.
+	CustomCert    bool `protobuf:"varint,131,opt,name=custom_cert,json=customCert,proto3" json:"custom_cert,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3156,6 +3160,20 @@ func (x *DomainRoute) GetProof() string {
 func (x *DomainRoute) GetUnwatched() bool {
 	if x != nil {
 		return x.Unwatched
+	}
+	return false
+}
+
+func (x *DomainRoute) GetRateLimit() *v1alpha1.RouteRateLimit {
+	if x != nil {
+		return x.RateLimit
+	}
+	return nil
+}
+
+func (x *DomainRoute) GetCustomCert() bool {
+	if x != nil {
+		return x.CustomCert
 	}
 	return false
 }
@@ -3537,7 +3555,17 @@ type Certificate struct {
 	// The certificate by DNS-01 that serves it, by name, when one does (ADR 0088).
 	// Unset for one Caddy got over HTTP. Numbered in the block DNS-01 holds, 120 to
 	// 129.
-	ByDns         string `protobuf:"bytes,120,opt,name=by_dns,json=byDns,proto3" json:"by_dns,omitempty"`
+	ByDns string `protobuf:"bytes,120,opt,name=by_dns,json=byDns,proto3" json:"by_dns,omitempty"`
+	// True when served by a user-uploaded custom certificate.
+	Custom bool `protobuf:"varint,121,opt,name=custom,proto3" json:"custom,omitempty"`
+	// Issuer common name or organization, when an issued certificate is read.
+	Issuer string `protobuf:"bytes,122,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// Subject common name of the leaf certificate.
+	Subject string `protobuf:"bytes,123,opt,name=subject,proto3" json:"subject,omitempty"`
+	// Subject Alternative Names covered by the certificate.
+	Sans []string `protobuf:"bytes,124,rep,name=sans,proto3" json:"sans,omitempty"`
+	// When the issued certificate became valid.
+	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,125,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3605,6 +3633,464 @@ func (x *Certificate) GetByDns() string {
 		return x.ByDns
 	}
 	return ""
+}
+
+func (x *Certificate) GetCustom() bool {
+	if x != nil {
+		return x.Custom
+	}
+	return false
+}
+
+func (x *Certificate) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *Certificate) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *Certificate) GetSans() []string {
+	if x != nil {
+		return x.Sans
+	}
+	return nil
+}
+
+func (x *Certificate) GetNotBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotBefore
+	}
+	return nil
+}
+
+// RenewCertificateRequest asks to renew a domain's certificate now.
+type RenewCertificateRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The domain whose certificate to renew.
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Optional server ID when the domain runs on several servers.
+	ServerId string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Force renewal even when the certificate is not yet within its renewal window.
+	Force         bool `protobuf:"varint,3,opt,name=force,proto3" json:"force,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewCertificateRequest) Reset() {
+	*x = RenewCertificateRequest{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertificateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertificateRequest) ProtoMessage() {}
+
+func (x *RenewCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertificateRequest.ProtoReflect.Descriptor instead.
+func (*RenewCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *RenewCertificateRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *RenewCertificateRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *RenewCertificateRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+// RenewCertificateResponse says what happened to the renewal request.
+type RenewCertificateResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Plain-language status message for the operator.
+	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	// When the previous certificate expires, if one was issued.
+	PreviousExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=previous_expire_time,json=previousExpireTime,proto3" json:"previous_expire_time,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *RenewCertificateResponse) Reset() {
+	*x = RenewCertificateResponse{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertificateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertificateResponse) ProtoMessage() {}
+
+func (x *RenewCertificateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertificateResponse.ProtoReflect.Descriptor instead.
+func (*RenewCertificateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *RenewCertificateResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *RenewCertificateResponse) GetPreviousExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PreviousExpireTime
+	}
+	return nil
+}
+
+// SetCustomCertificateRequest uploads or clears a custom TLS certificate for a domain.
+type SetCustomCertificateRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The domain whose certificate to set or clear.
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Full PEM certificate chain (leaf first). Leave empty with clear=true to return to automatic HTTPS.
+	CertPem string `protobuf:"bytes,2,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
+	// PEM private key matching cert_pem. Sealed at rest.
+	KeyPem string `protobuf:"bytes,3,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	// Clear the custom certificate and return to automatic HTTPS.
+	Clear bool `protobuf:"varint,4,opt,name=clear,proto3" json:"clear,omitempty"`
+	// Optional summary for the timeline.
+	Summary       string `protobuf:"bytes,5,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetCustomCertificateRequest) Reset() {
+	*x = SetCustomCertificateRequest{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetCustomCertificateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetCustomCertificateRequest) ProtoMessage() {}
+
+func (x *SetCustomCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetCustomCertificateRequest.ProtoReflect.Descriptor instead.
+func (*SetCustomCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *SetCustomCertificateRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *SetCustomCertificateRequest) GetCertPem() string {
+	if x != nil {
+		return x.CertPem
+	}
+	return ""
+}
+
+func (x *SetCustomCertificateRequest) GetKeyPem() string {
+	if x != nil {
+		return x.KeyPem
+	}
+	return ""
+}
+
+func (x *SetCustomCertificateRequest) GetClear() bool {
+	if x != nil {
+		return x.Clear
+	}
+	return false
+}
+
+func (x *SetCustomCertificateRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+// SetCustomCertificateResponse carries the planned change.
+type SetCustomCertificateResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetCustomCertificateResponse) Reset() {
+	*x = SetCustomCertificateResponse{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetCustomCertificateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetCustomCertificateResponse) ProtoMessage() {}
+
+func (x *SetCustomCertificateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetCustomCertificateResponse.ProtoReflect.Descriptor instead.
+func (*SetCustomCertificateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *SetCustomCertificateResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
+// DownloadCertificateRequest asks to download a domain's active certificate.
+type DownloadCertificateRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The domain whose certificate to download.
+	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Optional server ID when the domain runs on several servers.
+	ServerId string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
+	// Include the private key PEM. Requires a signed-in admin and passkey step-up.
+	IncludeKey bool `protobuf:"varint,3,opt,name=include_key,json=includeKey,proto3" json:"include_key,omitempty"`
+	// Step-up proof from FinishStepUp for STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY.
+	Proof         string `protobuf:"bytes,4,opt,name=proof,proto3" json:"proof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadCertificateRequest) Reset() {
+	*x = DownloadCertificateRequest{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadCertificateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadCertificateRequest) ProtoMessage() {}
+
+func (x *DownloadCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadCertificateRequest.ProtoReflect.Descriptor instead.
+func (*DownloadCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *DownloadCertificateRequest) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *DownloadCertificateRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
+func (x *DownloadCertificateRequest) GetIncludeKey() bool {
+	if x != nil {
+		return x.IncludeKey
+	}
+	return false
+}
+
+func (x *DownloadCertificateRequest) GetProof() string {
+	if x != nil {
+		return x.Proof
+	}
+	return ""
+}
+
+// DownloadCertificateResponse holds the certificate PEM and, if authorized, the private key PEM.
+type DownloadCertificateResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Full PEM certificate chain.
+	CertPem string `protobuf:"bytes,1,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
+	// PEM private key, populated only when include_key is true and step-up succeeds.
+	KeyPem        string                 `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
+	Issuer        string                 `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Sans          []string               `protobuf:"bytes,5,rep,name=sans,proto3" json:"sans,omitempty"`
+	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
+	NotAfter      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	Custom        bool                   `protobuf:"varint,8,opt,name=custom,proto3" json:"custom,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DownloadCertificateResponse) Reset() {
+	*x = DownloadCertificateResponse{}
+	mi := &file_dockwell_v1_domain_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DownloadCertificateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DownloadCertificateResponse) ProtoMessage() {}
+
+func (x *DownloadCertificateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_domain_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DownloadCertificateResponse.ProtoReflect.Descriptor instead.
+func (*DownloadCertificateResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_domain_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *DownloadCertificateResponse) GetCertPem() string {
+	if x != nil {
+		return x.CertPem
+	}
+	return ""
+}
+
+func (x *DownloadCertificateResponse) GetKeyPem() string {
+	if x != nil {
+		return x.KeyPem
+	}
+	return ""
+}
+
+func (x *DownloadCertificateResponse) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *DownloadCertificateResponse) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *DownloadCertificateResponse) GetSans() []string {
+	if x != nil {
+		return x.Sans
+	}
+	return nil
+}
+
+func (x *DownloadCertificateResponse) GetNotBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotBefore
+	}
+	return nil
+}
+
+func (x *DownloadCertificateResponse) GetNotAfter() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotAfter
+	}
+	return nil
+}
+
+func (x *DownloadCertificateResponse) GetCustom() bool {
+	if x != nil {
+		return x.Custom
+	}
+	return false
 }
 
 var File_dockwell_v1_domain_proto protoreflect.FileDescriptor
@@ -3785,7 +4271,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x06tunnel\x18\x03 \x01(\tR\x06tunnel\x12\x16\n" +
 	"\x06record\x18\x04 \x01(\tR\x06record\x121\n" +
 	"\x05state\x18\x05 \x01(\x0e2\x1b.dockwell.v1.PublishedStateR\x05state\x125\n" +
-	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xe9\x04\n" +
+	"\btaken_on\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\atakenOn\"\xd7\x05\n" +
 	"\vDomainRoute\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x12\n" +
@@ -3807,7 +4293,11 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	" \x01(\v2).dockwell.resource.v1alpha1.RouteRedirectR\bredirect\x12B\n" +
 	"\apublish\x18q \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12\x14\n" +
 	"\x05proof\x18x \x01(\tR\x05proof\x12\x1c\n" +
-	"\tunwatched\x18R \x01(\bR\tunwatched\"\xf8\x01\n" +
+	"\tunwatched\x18R \x01(\bR\tunwatched\x12J\n" +
+	"\n" +
+	"rate_limit\x18\x82\x01 \x01(\v2*.dockwell.resource.v1alpha1.RouteRateLimitR\trateLimit\x12 \n" +
+	"\vcustom_cert\x18\x83\x01 \x01(\bR\n" +
+	"customCert\"\xf8\x01\n" +
 	"\fDomainServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -3835,14 +4325,51 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x126\n" +
 	"\aoutcome\x18\x02 \x01(\x0e2\x1c.dockwell.v1.StrangerOutcomeR\aoutcome\x12\x16\n" +
 	"\x06status\x18\x03 \x01(\rR\x06status\x12\x12\n" +
-	"\x04said\x18\x04 \x01(\tR\x04said\"\xeb\x01\n" +
+	"\x04said\x18\x04 \x01(\tR\x04said\"\x84\x03\n" +
 	"\vCertificate\x123\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1d.dockwell.v1.CertificateStateR\x05state\x129\n" +
 	"\aproblem\x18\x02 \x01(\x0e2\x1f.dockwell.v1.CertificateProblemR\aproblem\x12\x18\n" +
 	"\amessage\x18\x03 \x01(\tR\amessage\x12;\n" +
 	"\vexpire_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTime\x12\x15\n" +
-	"\x06by_dns\x18x \x01(\tR\x05byDns*\xa8\x01\n" +
+	"\x06by_dns\x18x \x01(\tR\x05byDns\x12\x16\n" +
+	"\x06custom\x18y \x01(\bR\x06custom\x12\x16\n" +
+	"\x06issuer\x18z \x01(\tR\x06issuer\x12\x18\n" +
+	"\asubject\x18{ \x01(\tR\asubject\x12\x12\n" +
+	"\x04sans\x18| \x03(\tR\x04sans\x129\n" +
+	"\n" +
+	"not_before\x18} \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\"d\n" +
+	"\x17RenewCertificateRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1b\n" +
+	"\tserver_id\x18\x02 \x01(\tR\bserverId\x12\x14\n" +
+	"\x05force\x18\x03 \x01(\bR\x05force\"\x82\x01\n" +
+	"\x18RenewCertificateResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\x12L\n" +
+	"\x14previous_expire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x12previousExpireTime\"\x9f\x01\n" +
+	"\x1bSetCustomCertificateRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x19\n" +
+	"\bcert_pem\x18\x02 \x01(\tR\acertPem\x12\x1d\n" +
+	"\akey_pem\x18\x03 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12\x14\n" +
+	"\x05clear\x18\x04 \x01(\bR\x05clear\x12\x18\n" +
+	"\asummary\x18\x05 \x01(\tR\asummary\"K\n" +
+	"\x1cSetCustomCertificateResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x88\x01\n" +
+	"\x1aDownloadCertificateRequest\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1b\n" +
+	"\tserver_id\x18\x02 \x01(\tR\bserverId\x12\x1f\n" +
+	"\vinclude_key\x18\x03 \x01(\bR\n" +
+	"includeKey\x12\x14\n" +
+	"\x05proof\x18\x04 \x01(\tR\x05proof\"\xa9\x02\n" +
+	"\x1bDownloadCertificateResponse\x12\x19\n" +
+	"\bcert_pem\x18\x01 \x01(\tR\acertPem\x12\x1d\n" +
+	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12\x18\n" +
+	"\asubject\x18\x03 \x01(\tR\asubject\x12\x16\n" +
+	"\x06issuer\x18\x04 \x01(\tR\x06issuer\x12\x12\n" +
+	"\x04sans\x18\x05 \x03(\tR\x04sans\x129\n" +
+	"\n" +
+	"not_before\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
+	"\tnot_after\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x12\x16\n" +
+	"\x06custom\x18\b \x01(\bR\x06custom*\xa8\x01\n" +
 	"\x13SigninProviderState\x12%\n" +
 	"!SIGNIN_PROVIDER_STATE_UNSPECIFIED\x10\x00\x12\x1f\n" +
 	"\x1bSIGNIN_PROVIDER_STATE_FOUND\x10\x01\x12%\n" +
@@ -3917,7 +4444,7 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x17CERTIFICATE_PROBLEM_CAA\x10\x05\x12\x1f\n" +
 	"\x1bCERTIFICATE_PROBLEM_REFUSED\x10\x06\x12\x1d\n" +
 	"\x19CERTIFICATE_PROBLEM_OTHER\x10\a\x12%\n" +
-	"!CERTIFICATE_PROBLEM_CANT_REACH_CA\x10\b2\x93\x15\n" +
+	"!CERTIFICATE_PROBLEM_CANT_REACH_CA\x10\b2\xe0\x19\n" +
 	"\rDomainService\x12x\n" +
 	"\vListDomains\x12\x1f.dockwell.v1.ListDomainsRequest\x1a .dockwell.v1.ListDomainsResponse\"&\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\r\x12\v/v1/domains\x90\x02\x01\x12\x81\x01\n" +
 	"\vCheckDomain\x12\x1f.dockwell.v1.CheckDomainRequest\x1a .dockwell.v1.CheckDomainResponse\"/\xa0\xbb\x18\x02\xc0\xbb\x18\x03Ȼ\x18\x03л\x18\x05\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/v1/domains:check\x90\x02\x01\x12\x8c\x01\n" +
@@ -3926,7 +4453,13 @@ const file_dockwell_v1_domain_proto_rawDesc = "" +
 	"\x0fSyncDnsProvider\x12#.dockwell.v1.SyncDnsProviderRequest\x1a$.dockwell.v1.SyncDnsProviderResponse\"5\xa0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/dnsProviders/{id}:sync\x12\x96\x01\n" +
 	"\x10CheckDnsProvider\x12$.dockwell.v1.CheckDnsProviderRequest\x1a%.dockwell.v1.CheckDnsProviderResponse\"5\xa0\xbb\x18\x02\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1b:\x01*\"\x16/v1/dnsProviders:check\x12\x98\x01\n" +
 	"\x13ListSigninProviders\x12'.dockwell.v1.ListSigninProvidersRequest\x1a(.dockwell.v1.ListSigninProvidersResponse\".\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\x15\x12\x13/v1/signinProviders\x90\x02\x01\x12\xa2\x01\n" +
-	"\x13CheckSigninProvider\x12'.dockwell.v1.CheckSigninProviderRequest\x1a(.dockwell.v1.CheckSigninProviderResponse\"8\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1b\x12\x19/v1/signinProviders:check\x90\x02\x01\x1a\xf6\v\xa2\xbb\x18\x84\x02\n" +
+	"\x13CheckSigninProvider\x12'.dockwell.v1.CheckSigninProviderRequest\x1a(.dockwell.v1.CheckSigninProviderResponse\"8\xa0\xbb\x18\x01\xb0\xbb\x18\x01\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x1b\x12\x19/v1/signinProviders:check\x90\x02\x01\x12\xb6\x01\n" +
+	"\x10RenewCertificate\x12$.dockwell.v1.RenewCertificateRequest\x1a%.dockwell.v1.RenewCertificateResponse\"U\xa0\xbb\x18\x03\xaa\xbb\x18\x1c\n" +
+	"\adomains\x12\x11renew-certificate\xc0\xbb\x18\x03Ȼ\x18\x04л\x18\x05\x82\xd3\xe4\x93\x02\x1f:\x01*\"\x1a/v1/domains/{domain}:renew\x12\xc9\x01\n" +
+	"\x14SetCustomCertificate\x12(.dockwell.v1.SetCustomCertificateRequest\x1a).dockwell.v1.SetCustomCertificateResponse\"\\\xa0\xbb\x18\x02\xaa\xbb\x18\x1a\n" +
+	"\adomains\x12\x0fset-certificate\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x05\x82\xd3\xe4\x93\x02(:\x01*\"#/v1/domains/{domain}:setCertificate\x12\xc5\x01\n" +
+	"\x13DownloadCertificate\x12'.dockwell.v1.DownloadCertificateRequest\x1a(.dockwell.v1.DownloadCertificateResponse\"[\xa0\xbb\x18\x01\xaa\xbb\x18\x1f\n" +
+	"\adomains\x12\x14download-certificate\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x05\x82\xd3\xe4\x93\x02\":\x01*\"\x1d/v1/domains/{domain}:download\x1a\xf6\v\xa2\xbb\x18\x84\x02\n" +
 	"\adomains\x12\xf8\x01Where the domains of your routes stand: what each sends where, and whether its certificate is pending, issued or failed, with what to do when it failed. Change routes with ChangeService, as kind route. See docs/adr/0024-the-caddy-ingress-driver.md.\xa2\xbb\x18\xc6\x03\n" +
 	"\fcertificates\x12\xb5\x03Certificates the control plane proves by DNS-01 through a DNS provider, and renews: for a wildcard, such as *.example.com, or for names the internet can't reach. Routes whose domains one covers, in the projects it serves, are served with it on any server, and its key goes to those servers alone. A certificate is install-wide: an admin makes it as a change, with a plan. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.\xa2\xbb\x18\xad\x03\n" +
 	"\rdns-providers\x12\x9b\x03What writes a DNS zone's records, so the control plane can prove a name by DNS-01 and get its certificate, behind NAT or for a wildcard. A provider is install-wide: an admin connects it as a change, with a plan. Its token stays on the control plane and goes to no server. CheckDnsProvider writes and deletes a TXT record without saving anything. See docs/adr/0088-certificates-by-dns-01-and-wildcard-domains.md.\xa2\xbb\x18\xeb\x02\n" +
@@ -3946,129 +4479,149 @@ func file_dockwell_v1_domain_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_domain_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_dockwell_v1_domain_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_dockwell_v1_domain_proto_goTypes = []any{
-	(SigninProviderState)(0),            // 0: dockwell.v1.SigninProviderState
-	(Capability)(0),                     // 1: dockwell.v1.Capability
-	(CapabilityState)(0),                // 2: dockwell.v1.CapabilityState
-	(DnsProviderState)(0),               // 3: dockwell.v1.DnsProviderState
-	(CloudflareName)(0),                 // 4: dockwell.v1.CloudflareName
-	(PublishedState)(0),                 // 5: dockwell.v1.PublishedState
-	(IngressProblem)(0),                 // 6: dockwell.v1.IngressProblem
-	(StrangerOutcome)(0),                // 7: dockwell.v1.StrangerOutcome
-	(CertificateState)(0),               // 8: dockwell.v1.CertificateState
-	(CertificateProblem)(0),             // 9: dockwell.v1.CertificateProblem
-	(*ListSigninProvidersRequest)(nil),  // 10: dockwell.v1.ListSigninProvidersRequest
-	(*ListSigninProvidersResponse)(nil), // 11: dockwell.v1.ListSigninProvidersResponse
-	(*SigninProviderInfo)(nil),          // 12: dockwell.v1.SigninProviderInfo
-	(*CheckSigninProviderRequest)(nil),  // 13: dockwell.v1.CheckSigninProviderRequest
-	(*CheckSigninProviderResponse)(nil), // 14: dockwell.v1.CheckSigninProviderResponse
-	(*ListCertificatesRequest)(nil),     // 15: dockwell.v1.ListCertificatesRequest
-	(*ListCertificatesResponse)(nil),    // 16: dockwell.v1.ListCertificatesResponse
-	(*CertificateInfo)(nil),             // 17: dockwell.v1.CertificateInfo
-	(*ListDnsProvidersRequest)(nil),     // 18: dockwell.v1.ListDnsProvidersRequest
-	(*ListDnsProvidersResponse)(nil),    // 19: dockwell.v1.ListDnsProvidersResponse
-	(*SyncDnsProviderRequest)(nil),      // 20: dockwell.v1.SyncDnsProviderRequest
-	(*SyncDnsProviderResponse)(nil),     // 21: dockwell.v1.SyncDnsProviderResponse
-	(*DnsProviderInfo)(nil),             // 22: dockwell.v1.DnsProviderInfo
-	(*KeptRecord)(nil),                  // 23: dockwell.v1.KeptRecord
-	(*CheckDnsProviderRequest)(nil),     // 24: dockwell.v1.CheckDnsProviderRequest
-	(*CheckDnsProviderResponse)(nil),    // 25: dockwell.v1.CheckDnsProviderResponse
-	(*ProviderCapability)(nil),          // 26: dockwell.v1.ProviderCapability
-	(*DnsZoneCheck)(nil),                // 27: dockwell.v1.DnsZoneCheck
-	(*CheckDomainRequest)(nil),          // 28: dockwell.v1.CheckDomainRequest
-	(*CheckDomainResponse)(nil),         // 29: dockwell.v1.CheckDomainResponse
-	(*CloudflareCheck)(nil),             // 30: dockwell.v1.CloudflareCheck
-	(*HandRule)(nil),                    // 31: dockwell.v1.HandRule
-	(*WayOption)(nil),                   // 32: dockwell.v1.WayOption
-	(*CompanionCheck)(nil),              // 33: dockwell.v1.CompanionCheck
-	(*ListDomainsRequest)(nil),          // 34: dockwell.v1.ListDomainsRequest
-	(*ListDomainsResponse)(nil),         // 35: dockwell.v1.ListDomainsResponse
-	(*Domain)(nil),                      // 36: dockwell.v1.Domain
-	(*DomainPublished)(nil),             // 37: dockwell.v1.DomainPublished
-	(*DomainRoute)(nil),                 // 38: dockwell.v1.DomainRoute
-	(*DomainServer)(nil),                // 39: dockwell.v1.DomainServer
-	(*IngressStatus)(nil),               // 40: dockwell.v1.IngressStatus
-	(*DomainStatus)(nil),                // 41: dockwell.v1.DomainStatus
-	(*StrangerCheck)(nil),               // 42: dockwell.v1.StrangerCheck
-	(*Certificate)(nil),                 // 43: dockwell.v1.Certificate
-	(*timestamppb.Timestamp)(nil),       // 44: google.protobuf.Timestamp
-	(*v1alpha1.RoutePublish)(nil),       // 45: dockwell.resource.v1alpha1.RoutePublish
-	(*DomainCheck)(nil),                 // 46: dockwell.v1.DomainCheck
-	(v1alpha1.RouteWay)(0),              // 47: dockwell.resource.v1alpha1.RouteWay
-	(*v1alpha1.RouteSignIn)(nil),        // 48: dockwell.resource.v1alpha1.RouteSignIn
-	(*v1alpha1.RouteRedirect)(nil),      // 49: dockwell.resource.v1alpha1.RouteRedirect
+	(SigninProviderState)(0),             // 0: dockwell.v1.SigninProviderState
+	(Capability)(0),                      // 1: dockwell.v1.Capability
+	(CapabilityState)(0),                 // 2: dockwell.v1.CapabilityState
+	(DnsProviderState)(0),                // 3: dockwell.v1.DnsProviderState
+	(CloudflareName)(0),                  // 4: dockwell.v1.CloudflareName
+	(PublishedState)(0),                  // 5: dockwell.v1.PublishedState
+	(IngressProblem)(0),                  // 6: dockwell.v1.IngressProblem
+	(StrangerOutcome)(0),                 // 7: dockwell.v1.StrangerOutcome
+	(CertificateState)(0),                // 8: dockwell.v1.CertificateState
+	(CertificateProblem)(0),              // 9: dockwell.v1.CertificateProblem
+	(*ListSigninProvidersRequest)(nil),   // 10: dockwell.v1.ListSigninProvidersRequest
+	(*ListSigninProvidersResponse)(nil),  // 11: dockwell.v1.ListSigninProvidersResponse
+	(*SigninProviderInfo)(nil),           // 12: dockwell.v1.SigninProviderInfo
+	(*CheckSigninProviderRequest)(nil),   // 13: dockwell.v1.CheckSigninProviderRequest
+	(*CheckSigninProviderResponse)(nil),  // 14: dockwell.v1.CheckSigninProviderResponse
+	(*ListCertificatesRequest)(nil),      // 15: dockwell.v1.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil),     // 16: dockwell.v1.ListCertificatesResponse
+	(*CertificateInfo)(nil),              // 17: dockwell.v1.CertificateInfo
+	(*ListDnsProvidersRequest)(nil),      // 18: dockwell.v1.ListDnsProvidersRequest
+	(*ListDnsProvidersResponse)(nil),     // 19: dockwell.v1.ListDnsProvidersResponse
+	(*SyncDnsProviderRequest)(nil),       // 20: dockwell.v1.SyncDnsProviderRequest
+	(*SyncDnsProviderResponse)(nil),      // 21: dockwell.v1.SyncDnsProviderResponse
+	(*DnsProviderInfo)(nil),              // 22: dockwell.v1.DnsProviderInfo
+	(*KeptRecord)(nil),                   // 23: dockwell.v1.KeptRecord
+	(*CheckDnsProviderRequest)(nil),      // 24: dockwell.v1.CheckDnsProviderRequest
+	(*CheckDnsProviderResponse)(nil),     // 25: dockwell.v1.CheckDnsProviderResponse
+	(*ProviderCapability)(nil),           // 26: dockwell.v1.ProviderCapability
+	(*DnsZoneCheck)(nil),                 // 27: dockwell.v1.DnsZoneCheck
+	(*CheckDomainRequest)(nil),           // 28: dockwell.v1.CheckDomainRequest
+	(*CheckDomainResponse)(nil),          // 29: dockwell.v1.CheckDomainResponse
+	(*CloudflareCheck)(nil),              // 30: dockwell.v1.CloudflareCheck
+	(*HandRule)(nil),                     // 31: dockwell.v1.HandRule
+	(*WayOption)(nil),                    // 32: dockwell.v1.WayOption
+	(*CompanionCheck)(nil),               // 33: dockwell.v1.CompanionCheck
+	(*ListDomainsRequest)(nil),           // 34: dockwell.v1.ListDomainsRequest
+	(*ListDomainsResponse)(nil),          // 35: dockwell.v1.ListDomainsResponse
+	(*Domain)(nil),                       // 36: dockwell.v1.Domain
+	(*DomainPublished)(nil),              // 37: dockwell.v1.DomainPublished
+	(*DomainRoute)(nil),                  // 38: dockwell.v1.DomainRoute
+	(*DomainServer)(nil),                 // 39: dockwell.v1.DomainServer
+	(*IngressStatus)(nil),                // 40: dockwell.v1.IngressStatus
+	(*DomainStatus)(nil),                 // 41: dockwell.v1.DomainStatus
+	(*StrangerCheck)(nil),                // 42: dockwell.v1.StrangerCheck
+	(*Certificate)(nil),                  // 43: dockwell.v1.Certificate
+	(*RenewCertificateRequest)(nil),      // 44: dockwell.v1.RenewCertificateRequest
+	(*RenewCertificateResponse)(nil),     // 45: dockwell.v1.RenewCertificateResponse
+	(*SetCustomCertificateRequest)(nil),  // 46: dockwell.v1.SetCustomCertificateRequest
+	(*SetCustomCertificateResponse)(nil), // 47: dockwell.v1.SetCustomCertificateResponse
+	(*DownloadCertificateRequest)(nil),   // 48: dockwell.v1.DownloadCertificateRequest
+	(*DownloadCertificateResponse)(nil),  // 49: dockwell.v1.DownloadCertificateResponse
+	(*timestamppb.Timestamp)(nil),        // 50: google.protobuf.Timestamp
+	(*v1alpha1.RoutePublish)(nil),        // 51: dockwell.resource.v1alpha1.RoutePublish
+	(*DomainCheck)(nil),                  // 52: dockwell.v1.DomainCheck
+	(v1alpha1.RouteWay)(0),               // 53: dockwell.resource.v1alpha1.RouteWay
+	(*v1alpha1.RouteSignIn)(nil),         // 54: dockwell.resource.v1alpha1.RouteSignIn
+	(*v1alpha1.RouteRedirect)(nil),       // 55: dockwell.resource.v1alpha1.RouteRedirect
+	(*v1alpha1.RouteRateLimit)(nil),      // 56: dockwell.resource.v1alpha1.RouteRateLimit
+	(*Change)(nil),                       // 57: dockwell.v1.Change
 }
 var file_dockwell_v1_domain_proto_depIdxs = []int32{
 	12, // 0: dockwell.v1.ListSigninProvidersResponse.providers:type_name -> dockwell.v1.SigninProviderInfo
 	0,  // 1: dockwell.v1.CheckSigninProviderResponse.state:type_name -> dockwell.v1.SigninProviderState
 	17, // 2: dockwell.v1.ListCertificatesResponse.certificates:type_name -> dockwell.v1.CertificateInfo
 	8,  // 3: dockwell.v1.CertificateInfo.state:type_name -> dockwell.v1.CertificateState
-	44, // 4: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
-	44, // 5: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
+	50, // 4: dockwell.v1.CertificateInfo.expire_time:type_name -> google.protobuf.Timestamp
+	50, // 5: dockwell.v1.CertificateInfo.next_time:type_name -> google.protobuf.Timestamp
 	22, // 6: dockwell.v1.ListDnsProvidersResponse.providers:type_name -> dockwell.v1.DnsProviderInfo
 	22, // 7: dockwell.v1.SyncDnsProviderResponse.provider:type_name -> dockwell.v1.DnsProviderInfo
 	23, // 8: dockwell.v1.DnsProviderInfo.kept:type_name -> dockwell.v1.KeptRecord
-	44, // 9: dockwell.v1.DnsProviderInfo.read_at:type_name -> google.protobuf.Timestamp
-	44, // 10: dockwell.v1.KeptRecord.kept_at:type_name -> google.protobuf.Timestamp
+	50, // 9: dockwell.v1.DnsProviderInfo.read_at:type_name -> google.protobuf.Timestamp
+	50, // 10: dockwell.v1.KeptRecord.kept_at:type_name -> google.protobuf.Timestamp
 	3,  // 11: dockwell.v1.CheckDnsProviderResponse.state:type_name -> dockwell.v1.DnsProviderState
 	27, // 12: dockwell.v1.CheckDnsProviderResponse.zones:type_name -> dockwell.v1.DnsZoneCheck
 	26, // 13: dockwell.v1.CheckDnsProviderResponse.capabilities:type_name -> dockwell.v1.ProviderCapability
 	1,  // 14: dockwell.v1.ProviderCapability.capability:type_name -> dockwell.v1.Capability
 	2,  // 15: dockwell.v1.ProviderCapability.state:type_name -> dockwell.v1.CapabilityState
-	45, // 16: dockwell.v1.CheckDomainRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	46, // 17: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
+	51, // 16: dockwell.v1.CheckDomainRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	52, // 17: dockwell.v1.CheckDomainResponse.check:type_name -> dockwell.v1.DomainCheck
 	33, // 18: dockwell.v1.CheckDomainResponse.companion_check:type_name -> dockwell.v1.CompanionCheck
 	30, // 19: dockwell.v1.CheckDomainResponse.cloudflare:type_name -> dockwell.v1.CloudflareCheck
 	4,  // 20: dockwell.v1.CloudflareCheck.state:type_name -> dockwell.v1.CloudflareName
-	47, // 21: dockwell.v1.CloudflareCheck.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	53, // 21: dockwell.v1.CloudflareCheck.way:type_name -> dockwell.resource.v1alpha1.RouteWay
 	32, // 22: dockwell.v1.CloudflareCheck.ways:type_name -> dockwell.v1.WayOption
-	44, // 23: dockwell.v1.CloudflareCheck.checks_again:type_name -> google.protobuf.Timestamp
+	50, // 23: dockwell.v1.CloudflareCheck.checks_again:type_name -> google.protobuf.Timestamp
 	31, // 24: dockwell.v1.CloudflareCheck.hand_rule:type_name -> dockwell.v1.HandRule
-	47, // 25: dockwell.v1.WayOption.way:type_name -> dockwell.resource.v1alpha1.RouteWay
-	46, // 26: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
+	53, // 25: dockwell.v1.WayOption.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	52, // 26: dockwell.v1.CompanionCheck.check:type_name -> dockwell.v1.DomainCheck
 	36, // 27: dockwell.v1.ListDomainsResponse.domains:type_name -> dockwell.v1.Domain
 	38, // 28: dockwell.v1.Domain.routes:type_name -> dockwell.v1.DomainRoute
 	39, // 29: dockwell.v1.Domain.servers:type_name -> dockwell.v1.DomainServer
 	37, // 30: dockwell.v1.Domain.published:type_name -> dockwell.v1.DomainPublished
-	46, // 31: dockwell.v1.Domain.dns:type_name -> dockwell.v1.DomainCheck
-	47, // 32: dockwell.v1.DomainPublished.way:type_name -> dockwell.resource.v1alpha1.RouteWay
+	52, // 31: dockwell.v1.Domain.dns:type_name -> dockwell.v1.DomainCheck
+	53, // 32: dockwell.v1.DomainPublished.way:type_name -> dockwell.resource.v1alpha1.RouteWay
 	5,  // 33: dockwell.v1.DomainPublished.state:type_name -> dockwell.v1.PublishedState
-	44, // 34: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
-	48, // 35: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
-	49, // 36: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
-	45, // 37: dockwell.v1.DomainRoute.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	41, // 38: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
-	40, // 39: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
-	6,  // 40: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
-	43, // 41: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
-	46, // 42: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
-	42, // 43: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
-	7,  // 44: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
-	8,  // 45: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
-	9,  // 46: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
-	44, // 47: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
-	34, // 48: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
-	28, // 49: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
-	15, // 50: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
-	18, // 51: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
-	20, // 52: dockwell.v1.DomainService.SyncDnsProvider:input_type -> dockwell.v1.SyncDnsProviderRequest
-	24, // 53: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
-	10, // 54: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
-	13, // 55: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
-	35, // 56: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
-	29, // 57: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
-	16, // 58: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
-	19, // 59: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
-	21, // 60: dockwell.v1.DomainService.SyncDnsProvider:output_type -> dockwell.v1.SyncDnsProviderResponse
-	25, // 61: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
-	11, // 62: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
-	14, // 63: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
-	56, // [56:64] is the sub-list for method output_type
-	48, // [48:56] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	50, // 34: dockwell.v1.DomainPublished.taken_on:type_name -> google.protobuf.Timestamp
+	54, // 35: dockwell.v1.DomainRoute.sign_in:type_name -> dockwell.resource.v1alpha1.RouteSignIn
+	55, // 36: dockwell.v1.DomainRoute.redirect:type_name -> dockwell.resource.v1alpha1.RouteRedirect
+	51, // 37: dockwell.v1.DomainRoute.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	56, // 38: dockwell.v1.DomainRoute.rate_limit:type_name -> dockwell.resource.v1alpha1.RouteRateLimit
+	41, // 39: dockwell.v1.DomainServer.status:type_name -> dockwell.v1.DomainStatus
+	40, // 40: dockwell.v1.DomainServer.ingress:type_name -> dockwell.v1.IngressStatus
+	6,  // 41: dockwell.v1.IngressStatus.problem:type_name -> dockwell.v1.IngressProblem
+	43, // 42: dockwell.v1.DomainStatus.certificate:type_name -> dockwell.v1.Certificate
+	52, // 43: dockwell.v1.DomainStatus.dns:type_name -> dockwell.v1.DomainCheck
+	42, // 44: dockwell.v1.DomainStatus.strangers:type_name -> dockwell.v1.StrangerCheck
+	7,  // 45: dockwell.v1.StrangerCheck.outcome:type_name -> dockwell.v1.StrangerOutcome
+	8,  // 46: dockwell.v1.Certificate.state:type_name -> dockwell.v1.CertificateState
+	9,  // 47: dockwell.v1.Certificate.problem:type_name -> dockwell.v1.CertificateProblem
+	50, // 48: dockwell.v1.Certificate.expire_time:type_name -> google.protobuf.Timestamp
+	50, // 49: dockwell.v1.Certificate.not_before:type_name -> google.protobuf.Timestamp
+	50, // 50: dockwell.v1.RenewCertificateResponse.previous_expire_time:type_name -> google.protobuf.Timestamp
+	57, // 51: dockwell.v1.SetCustomCertificateResponse.change:type_name -> dockwell.v1.Change
+	50, // 52: dockwell.v1.DownloadCertificateResponse.not_before:type_name -> google.protobuf.Timestamp
+	50, // 53: dockwell.v1.DownloadCertificateResponse.not_after:type_name -> google.protobuf.Timestamp
+	34, // 54: dockwell.v1.DomainService.ListDomains:input_type -> dockwell.v1.ListDomainsRequest
+	28, // 55: dockwell.v1.DomainService.CheckDomain:input_type -> dockwell.v1.CheckDomainRequest
+	15, // 56: dockwell.v1.DomainService.ListCertificates:input_type -> dockwell.v1.ListCertificatesRequest
+	18, // 57: dockwell.v1.DomainService.ListDnsProviders:input_type -> dockwell.v1.ListDnsProvidersRequest
+	20, // 58: dockwell.v1.DomainService.SyncDnsProvider:input_type -> dockwell.v1.SyncDnsProviderRequest
+	24, // 59: dockwell.v1.DomainService.CheckDnsProvider:input_type -> dockwell.v1.CheckDnsProviderRequest
+	10, // 60: dockwell.v1.DomainService.ListSigninProviders:input_type -> dockwell.v1.ListSigninProvidersRequest
+	13, // 61: dockwell.v1.DomainService.CheckSigninProvider:input_type -> dockwell.v1.CheckSigninProviderRequest
+	44, // 62: dockwell.v1.DomainService.RenewCertificate:input_type -> dockwell.v1.RenewCertificateRequest
+	46, // 63: dockwell.v1.DomainService.SetCustomCertificate:input_type -> dockwell.v1.SetCustomCertificateRequest
+	48, // 64: dockwell.v1.DomainService.DownloadCertificate:input_type -> dockwell.v1.DownloadCertificateRequest
+	35, // 65: dockwell.v1.DomainService.ListDomains:output_type -> dockwell.v1.ListDomainsResponse
+	29, // 66: dockwell.v1.DomainService.CheckDomain:output_type -> dockwell.v1.CheckDomainResponse
+	16, // 67: dockwell.v1.DomainService.ListCertificates:output_type -> dockwell.v1.ListCertificatesResponse
+	19, // 68: dockwell.v1.DomainService.ListDnsProviders:output_type -> dockwell.v1.ListDnsProvidersResponse
+	21, // 69: dockwell.v1.DomainService.SyncDnsProvider:output_type -> dockwell.v1.SyncDnsProviderResponse
+	25, // 70: dockwell.v1.DomainService.CheckDnsProvider:output_type -> dockwell.v1.CheckDnsProviderResponse
+	11, // 71: dockwell.v1.DomainService.ListSigninProviders:output_type -> dockwell.v1.ListSigninProvidersResponse
+	14, // 72: dockwell.v1.DomainService.CheckSigninProvider:output_type -> dockwell.v1.CheckSigninProviderResponse
+	45, // 73: dockwell.v1.DomainService.RenewCertificate:output_type -> dockwell.v1.RenewCertificateResponse
+	47, // 74: dockwell.v1.DomainService.SetCustomCertificate:output_type -> dockwell.v1.SetCustomCertificateResponse
+	49, // 75: dockwell.v1.DomainService.DownloadCertificate:output_type -> dockwell.v1.DownloadCertificateResponse
+	65, // [65:76] is the sub-list for method output_type
+	54, // [54:65] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_domain_proto_init() }
@@ -4084,7 +4637,7 @@ func file_dockwell_v1_domain_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_domain_proto_rawDesc), len(file_dockwell_v1_domain_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   34,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

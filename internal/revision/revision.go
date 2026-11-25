@@ -6974,7 +6974,7 @@ func (e *Engine) guardsAccess(kind resource.Kind) bool {
 // there is to undo of it: it made no revision. One made for a link is undone for it.
 func (e *Engine) undoRestore(ctx context.Context, c store.Change, took *planRead, ref resource.Ref, source *resource.RestoreSource, by By) (*Plan, error) {
 	_, _, _, link := restoreIn(took, ref)
-	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server}, by, "Undo: "+c.Summary, c.ID, RestoreAs{For: link})
+	return e.restore(ctx, ref, resource.RestoreSource{Undoes: c.ID, Server: source.Server, HostPath: source.HostPath}, by, "Undo: "+c.Summary, c.ID, RestoreAs{For: link})
 }
 
 // Discard drops a planned change without applying it. It stays on record

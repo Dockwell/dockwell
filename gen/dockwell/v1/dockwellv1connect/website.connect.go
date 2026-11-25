@@ -53,6 +53,9 @@ const (
 	// WebsiteServiceDeleteWebsiteProcedure is the fully-qualified name of the WebsiteService's
 	// DeleteWebsite RPC.
 	WebsiteServiceDeleteWebsiteProcedure = "/dockwell.v1.WebsiteService/DeleteWebsite"
+	// WebsiteServiceBatchUpdateWebsitesProcedure is the fully-qualified name of the WebsiteService's
+	// BatchUpdateWebsites RPC.
+	WebsiteServiceBatchUpdateWebsitesProcedure = "/dockwell.v1.WebsiteService/BatchUpdateWebsites"
 )
 
 // WebsiteServiceClient is a client for the dockwell.v1.WebsiteService service.
@@ -83,6 +86,9 @@ type WebsiteServiceClient interface {
 	// them, and their projects. Undoing it brings them all back. Their folders on
 	// the servers stay where they are.
 	DeleteWebsite(context.Context, *connect.Request[v1.DeleteWebsiteRequest]) (*connect.Response[v1.DeleteWebsiteResponse], error)
+	// BatchUpdateWebsites plans changing PHP version, HTTPS, or paused state on
+	// several websites at once as a single change and plan.
+	BatchUpdateWebsites(context.Context, *connect.Request[v1.BatchUpdateWebsitesRequest]) (*connect.Response[v1.BatchUpdateWebsitesResponse], error)
 }
 
 // NewWebsiteServiceClient constructs a client for the dockwell.v1.WebsiteService service. By
@@ -134,6 +140,12 @@ func NewWebsiteServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(websiteServiceMethods.ByName("DeleteWebsite")),
 			connect.WithClientOptions(opts...),
 		),
+		batchUpdateWebsites: connect.NewClient[v1.BatchUpdateWebsitesRequest, v1.BatchUpdateWebsitesResponse](
+			httpClient,
+			baseURL+WebsiteServiceBatchUpdateWebsitesProcedure,
+			connect.WithSchema(websiteServiceMethods.ByName("BatchUpdateWebsites")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -145,6 +157,7 @@ type websiteServiceClient struct {
 	createWebsite       *connect.Client[v1.CreateWebsiteRequest, v1.CreateWebsiteResponse]
 	updateWebsite       *connect.Client[v1.UpdateWebsiteRequest, v1.UpdateWebsiteResponse]
 	deleteWebsite       *connect.Client[v1.DeleteWebsiteRequest, v1.DeleteWebsiteResponse]
+	batchUpdateWebsites *connect.Client[v1.BatchUpdateWebsitesRequest, v1.BatchUpdateWebsitesResponse]
 }
 
 // ListWebsites calls dockwell.v1.WebsiteService.ListWebsites.
@@ -177,6 +190,11 @@ func (c *websiteServiceClient) DeleteWebsite(ctx context.Context, req *connect.R
 	return c.deleteWebsite.CallUnary(ctx, req)
 }
 
+// BatchUpdateWebsites calls dockwell.v1.WebsiteService.BatchUpdateWebsites.
+func (c *websiteServiceClient) BatchUpdateWebsites(ctx context.Context, req *connect.Request[v1.BatchUpdateWebsitesRequest]) (*connect.Response[v1.BatchUpdateWebsitesResponse], error) {
+	return c.batchUpdateWebsites.CallUnary(ctx, req)
+}
+
 // WebsiteServiceHandler is an implementation of the dockwell.v1.WebsiteService service.
 type WebsiteServiceHandler interface {
 	// ListWebsites returns every website, sorted by domain.
@@ -205,6 +223,9 @@ type WebsiteServiceHandler interface {
 	// them, and their projects. Undoing it brings them all back. Their folders on
 	// the servers stay where they are.
 	DeleteWebsite(context.Context, *connect.Request[v1.DeleteWebsiteRequest]) (*connect.Response[v1.DeleteWebsiteResponse], error)
+	// BatchUpdateWebsites plans changing PHP version, HTTPS, or paused state on
+	// several websites at once as a single change and plan.
+	BatchUpdateWebsites(context.Context, *connect.Request[v1.BatchUpdateWebsitesRequest]) (*connect.Response[v1.BatchUpdateWebsitesResponse], error)
 }
 
 // NewWebsiteServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -252,6 +273,12 @@ func NewWebsiteServiceHandler(svc WebsiteServiceHandler, opts ...connect.Handler
 		connect.WithSchema(websiteServiceMethods.ByName("DeleteWebsite")),
 		connect.WithHandlerOptions(opts...),
 	)
+	websiteServiceBatchUpdateWebsitesHandler := connect.NewUnaryHandler(
+		WebsiteServiceBatchUpdateWebsitesProcedure,
+		svc.BatchUpdateWebsites,
+		connect.WithSchema(websiteServiceMethods.ByName("BatchUpdateWebsites")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.WebsiteService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WebsiteServiceListWebsitesProcedure:
@@ -266,6 +293,8 @@ func NewWebsiteServiceHandler(svc WebsiteServiceHandler, opts ...connect.Handler
 			websiteServiceUpdateWebsiteHandler.ServeHTTP(w, r)
 		case WebsiteServiceDeleteWebsiteProcedure:
 			websiteServiceDeleteWebsiteHandler.ServeHTTP(w, r)
+		case WebsiteServiceBatchUpdateWebsitesProcedure:
+			websiteServiceBatchUpdateWebsitesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -297,4 +326,8 @@ func (UnimplementedWebsiteServiceHandler) UpdateWebsite(context.Context, *connec
 
 func (UnimplementedWebsiteServiceHandler) DeleteWebsite(context.Context, *connect.Request[v1.DeleteWebsiteRequest]) (*connect.Response[v1.DeleteWebsiteResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.WebsiteService.DeleteWebsite is not implemented"))
+}
+
+func (UnimplementedWebsiteServiceHandler) BatchUpdateWebsites(context.Context, *connect.Request[v1.BatchUpdateWebsitesRequest]) (*connect.Response[v1.BatchUpdateWebsitesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.WebsiteService.BatchUpdateWebsites is not implemented"))
 }

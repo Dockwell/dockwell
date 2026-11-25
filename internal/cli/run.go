@@ -576,7 +576,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	daemon := &dockerdaemon.Driver{Client: client, Dir: filepath.Join(dir.Agent(), "docker-settings")}
 	return agent.Config{
 		DockerSettings: daemon,
-		Drivers: resource.NewRegistry(daemon, &containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups},
+		Drivers: resource.NewRegistry(daemon, &containers, &service.Driver{Containers: containers, Builds: builder, Passwords: &database.FirstPasswords{Client: client}, Movers: backups, Restores: backups},
 			&volume.Driver{Runtime: volumes, Restores: backups, BacksUp: backups, Moves: backups}, &network.Driver{Client: client}, &route.Driver{Ingress: routes, Reserved: reserved},
 			users, logicals, tasks,
 			&firewall.Driver{Backend: firewalls}, &firewall.PolicyDriver{Backend: firewalls}, &sshconfig.Driver{Backend: firewalls},

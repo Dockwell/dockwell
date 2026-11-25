@@ -183,6 +183,9 @@ const (
 	// signing in with an authenticator code and to dockwell recover (#801). Its
 	// target is the new email, normalized. It always asks.
 	StepUpChangeEmail StepUpAction = "account.email"
+	// StepUpDownloadCertificateKey downloads the private key of a domain's active
+	// TLS certificate. Its target is the domain name.
+	StepUpDownloadCertificateKey StepUpAction = "certificate.key_download"
 )
 
 // ServiceValueTarget is what a step-up for revealing a service's own value
@@ -238,12 +241,13 @@ var stepUpActions = map[StepUpAction]struct {
 	StepUpKeepCatalogOwnerPassword:          {"keeping the owner's current password for", true},
 	StepUpSetPanelDomain:                    {"setting the panel's domain to", true},
 	// A sign-in link to the domain, for the person asking.
-	StepUpSignInOnPanelDomain: {"signing in on", true},
-	StepUpSetPolicy:           {"choosing how often to be asked for a passkey", false},
-	StepUpSetFloor:            {"setting how often everyone is asked for a passkey at least", false},
-	StepUpRevealServiceValue:  {"revealing", true},
-	StepUpLinkProvider:        {"linking an account at", true},
-	StepUpChangeEmail:         {"changing your email to", true},
+	StepUpSignInOnPanelDomain:    {"signing in on", true},
+	StepUpSetPolicy:              {"choosing how often to be asked for a passkey", false},
+	StepUpSetFloor:               {"setting how often everyone is asked for a passkey at least", false},
+	StepUpRevealServiceValue:     {"revealing", true},
+	StepUpLinkProvider:           {"linking an account at", true},
+	StepUpChangeEmail:            {"changing your email to", true},
+	StepUpDownloadCertificateKey: {"downloading the private key of", true},
 }
 
 // doing says what a step-up confirms, such as "revealing sec_…".

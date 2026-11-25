@@ -301,6 +301,12 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if err := checkPublish(r); err != nil {
 		return err
 	}
+	if err := checkRateLimit(r); err != nil {
+		return err
+	}
+	if err := checkCustomCertOnRoute(r); err != nil {
+		return err
+	}
 	if r.GetRedirect() != nil {
 		return checkRedirect(r)
 	}

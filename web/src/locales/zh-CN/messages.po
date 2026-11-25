@@ -8428,6 +8428,9 @@ msgstr "每月测试一次恢复"
 msgid "Tests a restore weekly"
 msgstr "每周测试一次恢复"
 
+msgid "Website folder"
+msgstr "网站文件夹"
+
 #. placeholder {0}: words(policy.spec)
 msgid "{0}, {zone}"
 msgstr "{0}，{zone}"
@@ -26629,15 +26632,221 @@ msgstr "例如 WordPress，由独立的 PHP-FPM 运行。"
 msgid "What it serves"
 msgstr "提供的内容"
 
+msgid "Answers every request with a plain 503 Service Unavailable status."
+msgstr "对所有请求返回纯 503 Service Unavailable 状态。"
+
+msgid "Domains, certificates and files stay intact. Choose what visitors see while paused."
+msgstr "域名、证书和文件都会保留。请选择暂停期间访客看到的内容。"
+
+msgid "Maintenance page"
+msgstr "维护页面"
+
+#. placeholder {0}: single.domain || single.name
+msgid "Pause {0}"
+msgstr "暂停 {0}"
+
+msgid "Plain 503"
+msgstr "纯 503 响应"
+
+msgid "Shows visitors a short maintenance page with a 503 status. Remembered for next time."
+msgstr "向访客显示简短的 503 维护页面，下次暂停时默认记住此选择。"
+
+msgid "Visitor response"
+msgstr "访客响应"
+
+#. placeholder {0}: sites.length
+msgid "{0, plural, one {Pause # website} other {Pause # websites}}"
+msgstr "{0, plural, other {暂停 # 个网站}}"
+
+msgid "Add header"
+msgstr "添加响应头"
+
+msgid "Add immutable for fingerprinted assets that never change at the same URL."
+msgstr "为同 URL 永不变更的指纹资源添加 immutable。"
+
+msgid "Add or remove HTTP response headers for visitors."
+msgstr "为访客添加或移除 HTTP 响应头。"
+
+msgid "Add rule"
+msgstr "添加规则"
+
+msgid "Add sub-path"
+msgstr "添加子路径"
+
+msgid "Add user"
+msgstr "添加用户"
+
+msgid "Address (URL)"
+msgstr "地址（URL）"
+
+msgid "Advanced Caddy config"
+msgstr "高级 Caddy 配置"
+
+msgid "Allow credentials"
+msgstr "允许凭据"
+
+msgid "Allow cross-origin browser requests from specific origins."
+msgstr "允许来自指定来源的浏览器跨域请求。"
+
+msgid "Allowed methods"
+msgstr "允许的方法"
+
+msgid "Allowed origins"
+msgstr "允许的来源"
+
+msgid "App on this server"
+msgstr "此服务器上的应用"
+
+msgid "Basic Auth"
+msgstr "基础认证"
+
+msgid "Burst"
+msgstr "突发上限"
+
+msgid "CORS"
+msgstr "CORS"
+
+msgid "Caddy rejected this config"
+msgstr "Caddy 拒绝了此配置"
+
+msgid "Cap requests per minute from each visitor address, returning 429 above the limit."
+msgstr "限制每个访客地址每分钟的请求数，超出时返回 429。"
+
+msgid "Custom"
+msgstr "自定义"
+
+msgid "Custom Caddy directives"
+msgstr "自定义 Caddy 指令"
+
+msgid "Custom Caddy directives configured"
+msgstr "已配置自定义 Caddy 指令"
+
+msgid "Custom Caddy directives for this site block"
+msgstr "此站点块的自定义 Caddy 指令"
+
+msgid "Empty protects the whole website."
+msgstr "留空则保护整个网站。"
+
+msgid "Empty uses common web asset extensions."
+msgstr "留空则使用常见网页静态资源扩展名。"
+
+msgid "Enter password"
+msgstr "输入密码"
+
+msgid "Extensions"
+msgstr "扩展"
+
+msgid "Forward a path such as /api to another app or address."
+msgstr "将 /api 等路径转发到另一个应用或地址。"
+
+msgid "Header name"
+msgstr "响应头名称"
+
+msgid "Immutable"
+msgstr "不可变（immutable）"
+
+msgid "Inserted inside this website's :8080 server block and validated by Caddy before any plan applies. Global options, other hostnames and file imports are refused."
+msgstr "将插入此网站的 :8080 站点块内，并在任何计划应用前由 Caddy 校验。拒绝全局选项、其他主机名和文件 import。"
+
+msgid "Invalid"
+msgstr "无效"
+
+msgid "Max age (seconds)"
+msgstr "最大缓存时长（秒）"
+
+msgid "New password (optional)"
+msgstr "新密码（可选）"
+
+msgid "One origin per line, or * for any origin."
+msgstr "每行一个来源，或填写 * 表示任意来源。"
+
+msgid "Path prefix"
+msgstr "路径前缀"
+
+msgid "Permanent (301)"
+msgstr "永久（301）"
+
+msgid "Preflight cache (seconds)"
+msgstr "预检缓存时长（秒）"
+
+msgid "Prompt label"
+msgstr "提示标签"
+
+msgid "Rate limit"
+msgstr "速率限制"
+
+msgid "Redirects and rewrites"
+msgstr "重定向与重写"
+
+msgid "Remove header"
+msgstr "移除响应头"
+
+msgid "Remove header rule"
+msgstr "移除响应头规则"
+
+msgid "Remove path rule"
+msgstr "移除路径规则"
+
+msgid "Remove sub-path proxy"
+msgstr "移除子路径代理"
+
+msgid "Remove user"
+msgstr "移除用户"
+
+msgid "Requests per minute"
+msgstr "每分钟请求数"
+
+msgid "Require a username and password. Passwords are stored as Dockwell secrets and hashed for Caddy."
+msgstr "需要用户名和密码。密码作为 Dockwell 密钥保存，并经哈希处理后提供给 Caddy。"
+
+msgid "Response headers"
+msgstr "响应头"
+
+msgid "Restricted"
+msgstr "受限区域"
+
+msgid "Rewrite"
+msgstr "重写"
+
+msgid "Rule needs attention"
+msgstr "规则需要检查"
+
+msgid "Saved as Dockwell secret"
+msgstr "已保存为 Dockwell 密钥"
+
+msgid "Send Access-Control-Allow-Credentials: true. Not allowed with *."
+msgstr "发送 Access-Control-Allow-Credentials: true。不能与 * 同时使用。"
+
+msgid "Send visitors from an old path to a new path, or rewrite internally."
+msgstr "将访客从旧路径跳转到新路径，或在内部重写路径。"
+
+msgid "Set Cache-Control headers on images, stylesheets, scripts and fonts."
+msgstr "为图片、样式表、脚本和字体设置 Cache-Control 响应头。"
+
+msgid "Static file caching"
+msgstr "静态文件缓存"
+
+msgid "Strip path prefix"
+msgstr "去除路径前缀"
+
+msgid "Sub-path proxies"
+msgstr "子路径代理"
+
+msgid "Temporary (302)"
+msgstr "临时（302）"
+
+msgid "Validated by Caddy"
+msgstr "已通过 Caddy 校验"
+
+msgid "{activeCount} active"
+msgstr "{activeCount} 项已启用"
+
 #. placeholder {0}: runtime.version
 msgid "<0>{name}</0> runs an older build of {0}"
 msgstr "<0>{name}</0> 运行的是 {0} 的旧构建"
 
 msgid "<0>{name}</0> runs an older build of {version}"
 msgstr "<0>{name}</0> 运行的是 {version} 的较旧构建"
-
-msgid "Extensions"
-msgstr "扩展"
 
 #. placeholder {0}: newest.version
 msgid "New app on {language} {0}"
@@ -26726,14 +26935,63 @@ msgstr "{days, plural, other {证书有效期还有 # 天}}"
 msgid "{host} answers {code}"
 msgstr "{host} 返回 {code}"
 
+msgid "Certificate chain (PEM)"
+msgstr "证书链（PEM）"
+
+msgid "Certificate is not due for renewal yet"
+msgstr "证书尚未到续期时间"
+
+#. placeholder {0}: domain.name
+msgid "Certificate renewal has been started for {0}."
+msgstr "已开始为 {0} 续期证书。"
+
+msgid "Could not download certificate"
+msgstr "无法下载证书"
+
+msgid "Could not download private key"
+msgstr "无法下载私钥"
+
+msgid "Could not renew certificate"
+msgstr "无法续期证书"
+
+msgid "Covers"
+msgstr "涵盖域名"
+
+msgid "Dockwell verifies that the certificate covers {domain}, is not expired, and matches the private key before planning. The private key is sealed like other secrets."
+msgstr "Dockwell 会在生成计划前验证证书涵盖 {domain}、未过期且与私钥匹配。私钥会与其他密钥一样加密封存。"
+
+msgid "Download certificate"
+msgstr "下载证书"
+
+msgid "Download key"
+msgstr "下载私钥"
+
+msgid "Forced renewals count against certificate authority duplicate-certificate rate limits. Use this only when replacing a compromised key or testing renewal."
+msgstr "强制续期会计入证书颁发机构的重复证书速率限制。仅在更换泄露的密钥或测试续期时使用。"
+
 msgid "From Let's Encrypt once DNS points here, and renewed by itself."
 msgstr "DNS 指向这里后由 Let's Encrypt 签发，并自动续期。"
 
 msgid "Issued"
 msgstr "已签发"
 
+msgid "Issued (custom)"
+msgstr "已签发（自定义）"
+
 msgid "It says"
 msgstr "它说"
+
+msgid "Keep current"
+msgstr "保留当前证书"
+
+msgid "Load certificate file"
+msgstr "加载证书文件"
+
+msgid "Load private key file"
+msgstr "加载私钥文件"
+
+msgid "Missing PEM data"
+msgstr "缺少 PEM 数据"
 
 msgid "No domain, so no certificate"
 msgstr "没有域名，因此没有证书"
@@ -26750,8 +27008,48 @@ msgstr "正在签发"
 msgid "Open its configuration"
 msgstr "打开它的配置"
 
+msgid "Private key (PEM)"
+msgstr "私钥（PEM）"
+
+msgid "Provide both a PEM certificate chain and its matching private key."
+msgstr "请同时提供 PEM 证书链和匹配的私钥。"
+
+msgid "Renew anyway"
+msgstr "仍然续期"
+
+msgid "Renew certificate early?"
+msgstr "提前续期证书？"
+
+msgid "Renew now"
+msgstr "立即续期"
+
+msgid "Renewal requested"
+msgstr "已请求续期"
+
+msgid "Served with your uploaded certificate. Private keys stay sealed at rest and require a passkey to download."
+msgstr "当前使用您上传的证书提供服务。私钥在静态存储时保持封存，下载时需要通行密钥验证。"
+
 msgid "TLS ends at a tunnel or a proxy in front, so there's no certificate here."
 msgstr "TLS 在前面的隧道或代理处终止，因此这里没有证书。"
+
+msgid "Upload certificate"
+msgstr "上传证书"
+
+msgid "Upload certificate for {domain}"
+msgstr "为 {domain} 上传证书"
+
+msgid "Upload custom certificate for {domain}"
+msgstr "为 {domain} 上传自定义证书"
+
+msgid "Use automatic certificate"
+msgstr "改用自动证书"
+
+#. placeholder {0}: domain.name
+msgid "Use automatic certificate for {0}"
+msgstr "为 {0} 改用自动证书"
+
+msgid "Valid from"
+msgstr "生效时间"
 
 #. placeholder {0}: server.serverName
 msgid "{state}, as {0} last said"
@@ -26847,6 +27145,9 @@ msgstr "用户和组的编号，格式为 uid:gid。留空则以 www-data 运行
 msgid "Closed to the web server ({mode}), so it would answer 403."
 msgstr "Web 服务器无法访问（{mode}），因此会返回 403。"
 
+msgid "FPM pool size"
+msgstr "FPM 进程池大小"
+
 msgid "Files in a folder"
 msgstr "文件夹中的文件"
 
@@ -26858,6 +27159,9 @@ msgstr "返回 404"
 
 msgid "Give a number of MiB, such as 64."
 msgstr "请填写 MiB 数，例如 64。"
+
+msgid "Give every new Basic Auth user a password."
+msgstr "请为每个新增的基础认证用户设置密码。"
 
 msgid "Give the URL to send to, such as https://backend.example.com."
 msgstr "请填写要转发到的 URL，例如 https://backend.example.com。"
@@ -26889,6 +27193,9 @@ msgstr "其所有者是 {theirs}。"
 msgid "Make it in Files"
 msgstr "在“文件”中创建"
 
+msgid "Max execution time"
+msgstr "最大执行时间"
+
 msgid "New. Made with the site, for PHP to write in."
 msgstr "新文件夹。随网站一起创建，供 PHP 写入。"
 
@@ -26904,8 +27211,20 @@ msgstr "这里还没有 {first}，在它出现之前会返回 404。"
 msgid "Not on the server yet."
 msgstr "服务器上还没有。"
 
+msgid "Optional extensions"
+msgstr "可选扩展"
+
 msgid "PHP"
 msgstr "PHP"
+
+msgid "PHP max_execution_time, 5 to 3600 seconds."
+msgstr "PHP max_execution_time，5 至 3600 秒。"
+
+msgid "PHP memory_limit, 32 to 4096 MiB."
+msgstr "PHP memory_limit，32 至 4096 MiB。"
+
+msgid "PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit."
+msgstr "PHP post_max_size，1 至 4096 MiB。留空则与上传限制一致。"
 
 msgid "PHP runs as {user} and can't write there."
 msgstr "PHP 以 {user} 运行，无法写入此处。"
@@ -26922,6 +27241,12 @@ msgstr "PHP {0}"
 #. placeholder {1}: r.release
 msgid "PHP {0} · {1}"
 msgstr "PHP {0} · {1}"
+
+msgid "PHP-FPM pm.max_children worker processes, 1 to 200."
+msgstr "PHP-FPM pm.max_children 工作进程数，1 至 200。"
+
+msgid "Post max size"
+msgstr "POST 最大提交大小"
 
 msgid "Root owns it, so PHP can't save uploads there."
 msgstr "它归 root 所有，因此 PHP 无法在此保存上传的文件。"
@@ -26958,6 +27283,18 @@ msgstr "Web 服务器无法读取 {name}（{fileMode}）。"
 
 msgid "Upload limit"
 msgstr "上传上限"
+
+msgid "Use a PHP-FPM pool size from 1 to 200."
+msgstr "请使用 1 至 200 之间的 PHP-FPM 进程池大小。"
+
+msgid "Use a memory limit from 32 to 4096 MiB."
+msgstr "请使用 32 至 4096 MiB 之间的内存限制。"
+
+msgid "Use a post max size from 1 to 4096 MiB."
+msgstr "请使用 1 至 4096 MiB 之间的 POST 最大提交大小。"
+
+msgid "Use an execution time from 5 to 3600 seconds."
+msgstr "请使用 5 至 3600 秒之间的执行时间。"
 
 msgid "Was 82:82, www-data"
 msgstr "原为 82:82（www-data）"
@@ -27040,6 +27377,9 @@ msgstr "没有此 ID 的网站"
 msgid "PHP {0} from {root}"
 msgstr "来自 {root} 的 PHP {0}"
 
+msgid "Resume {name}"
+msgstr "恢复 {name}"
+
 msgid "Reverse proxy to port {port} on the server"
 msgstr "反向代理到服务器上的端口 {port}"
 
@@ -27070,8 +27410,17 @@ msgstr "监听端口 {port} 的程序自己保存日志。"
 msgid "Whose logs"
 msgstr "谁的日志"
 
+msgid "A folder backup is running now."
+msgstr "正在进行文件夹备份。"
+
+msgid "Back up this website's folder on demand or on a schedule in Backups."
+msgstr "在“备份”中按需或定时备份此网站的文件夹。"
+
 msgid "Change it"
 msgstr "修改"
+
+msgid "Custom Caddy"
+msgstr "自定义 Caddy"
 
 msgid "Goes to index.php"
 msgstr "交给 index.php"
@@ -27082,15 +27431,56 @@ msgstr "提供方式"
 msgid "Kept current by Dockwell"
 msgstr "由 Dockwell 保持最新"
 
+msgid "Latest folder backup failed."
+msgstr "最近一次文件夹备份失败。"
+
+#. placeholder {0}: formatDateTime(timestampDate(latest.startedAt), i18n.locale)
+#. placeholder {1}: formatBytes(latest.sizeBytes, i18n.locale)
+msgid "Latest folder backup: {0} ({1})."
+msgstr "最近一次文件夹备份：{0}（{1}）。"
+
+#. placeholder {0}: rules.rateLimit.requestsPerMinute || 60
+msgid "Rate limit ({0}/min)"
+msgstr "速率限制（{0}/分钟）"
+
+#. placeholder {0}: site.domain || site.name
+msgid "Resume {0}"
+msgstr "恢复 {0}"
+
 msgid "Sends each request straight to the port"
 msgstr "将每个请求直接发送到该端口"
+
+msgid "Static cache"
+msgstr "静态缓存"
 
 msgid "The ingress"
 msgstr "入口代理"
 
+msgid "This website is paused"
+msgstr "此网站已暂停"
+
+msgid "Visitors currently receive a plain 503 response. Domains, certificates and files stay intact."
+msgstr "访客当前会收到纯 503 响应。域名、证书和文件均保持不变。"
+
+msgid "Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact."
+msgstr "访客当前会看到 503 维护页面。域名、证书和文件均保持不变。"
+
+#. placeholder {0}: p.memoryLimitMb || 128
 #. placeholder {0}: p.uploadLimitMb || 64
 msgid "{0} MiB"
 msgstr "{0} MiB"
+
+#. placeholder {0}: rules.headers.length
+msgid "{0} headers"
+msgstr "{0} 个响应头"
+
+#. placeholder {0}: rules.pathRules.length
+msgid "{0} redirect/rewrite"
+msgstr "{0} 条重定向/重写"
+
+#. placeholder {0}: rules.subpathProxies.length
+msgid "{0} sub-path"
+msgstr "{0} 个子路径代理"
 
 msgid "Can't load the websites"
 msgstr "无法加载网站"
@@ -27114,6 +27504,12 @@ msgstr "没有此类型的网站。"
 msgid "No websites yet"
 msgstr "还没有网站"
 
+msgid "Off (TLS ends in front)"
+msgstr "关闭（TLS 在前端终止）"
+
+msgid "On (automatic certificate)"
+msgstr "开启（自动证书）"
+
 msgid "PHP {version}"
 msgstr "PHP {version}"
 
@@ -27129,12 +27525,39 @@ msgstr "托管文件夹或 PHP 应用，或将域名转发到 URL 或端口。"
 msgid "Static files"
 msgstr "静态文件"
 
+msgid "Switch PHP"
+msgstr "切换 PHP"
+
+#. placeholder {0}: target.sites.length
+msgid "Switch {0} websites to PHP {phpChoice}"
+msgstr "将 {0} 个网站切换到 PHP {phpChoice}"
+
+#. placeholder {0}: target.sites.length
+msgid "Turn HTTPS off for {0} websites"
+msgstr "为 {0} 个网站关闭 HTTPS"
+
+#. placeholder {0}: target.sites.length
+msgid "Turn HTTPS on for {0} websites"
+msgstr "为 {0} 个网站开启 HTTPS"
+
 #. placeholder {0}: only.name
 msgid "Websites on {0}"
 msgstr "{0} 上的网站"
 
 msgid "What your websites serve isn't affected."
 msgstr "网站提供的服务不受影响。"
+
+#. placeholder {0}: httpsModal.sites.length
+msgid "{0, plural, one {Change HTTPS for # website} other {Change HTTPS for # websites}}"
+msgstr "{0, plural, other {更改 # 个网站的 HTTPS}}"
+
+#. placeholder {0}: sites.length
+msgid "{0, plural, one {Resume # website} other {Resume # websites}}"
+msgstr "{0, plural, other {恢复 # 个网站}}"
+
+#. placeholder {0}: phpModal.sites.length
+msgid "{0, plural, one {Switch PHP version for # website} other {Switch PHP version for # websites}}"
+msgstr "{0, plural, other {切换 # 个网站的 PHP 版本}}"
 
 #. placeholder {0}: only.name
 #. placeholder {1}: only.name
