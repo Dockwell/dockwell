@@ -362,7 +362,7 @@ func (h *Handler) connectPlan(ctx context.Context, m *dockwellv1.ConnectDatabase
 		case out.takenOn:
 			value = app.secrets[m.GetPasswordSecret()].GetValue()
 		default:
-			if value, err = generate(passwordLength); err != nil {
+			if value, err = generate(); err != nil {
 				return err
 			}
 		}

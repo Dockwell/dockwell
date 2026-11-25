@@ -3,7 +3,7 @@
 import { timestampDate } from "@bufbuild/protobuf/wkt";
 import { Code, ConnectError, createClient } from "@connectrpc/connect";
 import { useTransport } from "@connectrpc/connect-query";
-import { CatalogService, type Database } from "@dockwell/api";
+import { CatalogService, type Database, TerminalService } from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -36,7 +36,16 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { useAgoNow } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
-import { engineAndVersion, firstReading, readOf, speaksSQL, useDatabase, useOwnInstall } from "./useDatabases";
+import {
+  consoleTarget,
+  engineAndVersion,
+  firstReading,
+  makesUsers,
+  readOf,
+  speaksSQL,
+  useDatabase,
+  useOwnInstall,
+} from "./useDatabases";
 import "../apps/Apps.css";
 import "./Databases.css";
 import { useMay } from "../auth/may";
@@ -177,7 +186,10 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
           })
       : undefined;
   // An action on what you can see stays where it is, off, with why (ADR 0059).
-  const mayUpgrade = useMay()(CatalogService.method.upgradeCatalogInstall, { project: install?.projectId ?? "" });
+  const may = useMay();
+  const mayUpgrade = may(CatalogService.method.upgradeCatalogInstall, { project: install?.projectId ?? "" });
+  const mayConsole = may(TerminalService.method.openTerminal);
+  const consoleAt = consoleTarget(db, health);
   const upgradeWords =
     next && next === install?.pin?.version ? (
       <Trans>Review the change to {next}</Trans>
@@ -193,6 +205,7 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
   const read = readOf(firstReading(db));
   const place = places.place(db.resource?.scope ?? "");
   const users = read?.users.filter((u) => !u.system).length ?? 0;
+  const logicals = read?.databases.filter((d) => !d.system).length ?? 0;
   const placeName = place?.label ?? "";
   const others = db.beside.map(label).join(", ");
   const ago = newest ? time.ago(newest, now) : "";
@@ -226,6 +239,20 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
           {tool && onLocalhost ? (
             <OpenAppButton serviceId={tool.id} environment={environmentOf(tool)} app={label(nameOf(tool))} />
           ) : null}
+          {mayConsole.allowed && consoleAt ? (
+            <RouterButtonLink
+              to="/servers/$serverId/terminal"
+              params={{ serverId: consoleAt.serverId }}
+              search={{ container: consoleAt.container, console: true }}
+              icon="terminal"
+            >
+              <Trans>Open console</Trans>
+            </RouterButtonLink>
+          ) : mayConsole.allowed ? (
+            <Button icon="terminal" disabled title={t`The database container isn't running on a server yet`}>
+              <Trans>Open console</Trans>
+            </Button>
+          ) : null}
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service">
             <Trans>Open as an app</Trans>
           </RouterButtonLink>
@@ -241,6 +268,17 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
       {/* A phone has no header row for these, so they lead the page, not trail its Danger zone (#798). */}
       {phone ? (
         <div className="database-actionbar">
+          {mayConsole.allowed && consoleAt ? (
+            <RouterButtonLink
+              to="/servers/$serverId/terminal"
+              params={{ serverId: consoleAt.serverId }}
+              search={{ container: consoleAt.container, console: true }}
+              icon="terminal"
+              size="lg"
+            >
+              <Trans>Open console</Trans>
+            </RouterButtonLink>
+          ) : null}
           <RouterButtonLink to="/apps/$serviceId" params={{ serviceId: db.id }} icon="service" size="lg">
             <Trans>Open as an app</Trans>
           </RouterButtonLink>
@@ -255,6 +293,15 @@ function DatabaseFrame({ db, children }: { db: Database; children: ReactNode }) 
         <RouterTabLink to="/databases/$serviceId" params={{ serviceId: db.id }} activeOptions={{ exact: true }}>
           <Trans>Overview</Trans>
         </RouterTabLink>
+        {makesUsers(db.engine) ? (
+          <RouterTabLink
+            to="/databases/$serviceId/databases"
+            params={{ serviceId: db.id }}
+            {...(read ? { count: logicals } : {})}
+          >
+            <Trans>Databases</Trans>
+          </RouterTabLink>
+        ) : null}
         {backedUp ? (
           <RouterTabLink to="/databases/$serviceId/backups" params={{ serviceId: db.id }}>
             <Trans>Backups</Trans>

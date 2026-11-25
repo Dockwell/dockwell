@@ -306,7 +306,7 @@ func startFullConfig(t *testing.T, backend store.Backend, public https.Source, l
 	if _, err := revision.Setup(t.Context(), db, logger); err != nil {
 		t.Fatal(err)
 	}
-	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, linkkind.Type{}, appowner.Type{}, &database.UserDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &host.Driver{})
+	kinds := resource.NewRegistry(&container.Driver{}, &firewall.Driver{}, &firewall.PolicyDriver{}, &sshconfig.Driver{}, &fail2ban.Driver{}, &service.Driver{}, &volume.Driver{}, &network.Driver{}, &route.Driver{Hash: routehash.Hash}, variable.Type{}, variable.SecretType{}, backuppolicy.Type{}, backuppolicy.Destination{}, registrylogin.Type{}, connection.Type{}, signinprovider.Type{}, dnsprovider.Type{}, githubapp.Type{}, certificate.Type{}, catalogsource.Type{}, compose.TemplateType{}, linkkind.Type{}, appowner.Type{}, &database.UserDriver{}, &database.LogicalDriver{}, &task.Driver{}, alert.Rule{}, alert.Channel{}, alert.Check{}, &host.Driver{})
 	keeper := secretstest.Keeper(db, kinds)
 	agents := agentapi.NewAgents(kinds, logger)
 	engine := revision.New(db, kinds, agents, keeper, logger)

@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
 )
 
@@ -175,11 +176,31 @@ func ValidateContainerTarget(name, id string, argv []string) error {
 	return nil
 }
 
-// startInContainer runs the first shell container has, on a terminal of cols by
-// rows, once it's checked whether the container is as good as root on its server,
-// which takes confirmed. It returns the shell, who it runs as where, and the
-// container it found, which is set with ErrNeedsStepUp too.
-func (m *Manager) startInContainer(ctx context.Context, container, exact string, argv []string, confirmed bool, cols, rows uint16) (process, string, found, error) {
+// ValidateDatabaseConsole checks database console options alongside the
+// container target. A database console runs only inside a container, never
+// alongside an explicit argv.
+func ValidateDatabaseConsole(name, id string, argv []string, databaseConsole bool, dbName string) error {
+	if !databaseConsole {
+		if dbName != "" {
+			return errors.New("a database name is only valid when opening a database console")
+		}
+		return nil
+	}
+	if name == "" && id == "" {
+		return errors.New("a database console needs a container to open in")
+	}
+	if len(argv) != 0 {
+		return errors.New("a database console can't be combined with custom arguments")
+	}
+	return database.CheckConsoleDatabaseName(dbName)
+}
+
+// startInContainer runs the first shell container has, or its database client
+// when databaseConsole is true, on a terminal of cols by rows, once it's
+// checked whether the container is as good as root on its server, which takes
+// confirmed. It returns the shell, who it runs as where, and the container it
+// found, which is set with ErrNeedsStepUp too.
+func (m *Manager) startInContainer(ctx context.Context, container, exact string, argv []string, databaseConsole bool, dbName string, confirmed bool, cols, rows uint16) (process, string, found, error) {
 	d := m.opts.Docker
 	if d == nil {
 		return nil, "", found{}, errors.New("this agent can't reach Docker, so it can't open a shell in a container")
@@ -216,7 +237,36 @@ func (m *Manager) startInContainer(ctx context.Context, container, exact string,
 		return nil, "", in, ErrNeedsStepUp
 	}
 	command := argv
-	if len(command) == 0 {
+	env := []string{"TERM=xterm-256color", "COLORTERM=truecolor"}
+	var title string
+	if databaseConsole {
+		eng := database.Recognise(c.Config.Image)
+		if eng == nil {
+			return nil, "", in, fmt.Errorf("%s doesn't run a database Dockwell knows, so it can't open a database console there", name)
+		}
+		if why := eng.TooOld(c.Config.Image); why != "" {
+			return nil, "", in, errors.New(why)
+		}
+		var extraEnv []string
+		var tool string
+		command, extraEnv, tool, err = database.ConsoleCommand(eng, database.PortOf(eng, c.Config.Cmd), dbName)
+		if err != nil {
+			return nil, "", in, err
+		}
+		env = append(env, extraEnv...)
+		if eng.KeyValue() {
+			// When Redis or Valkey is configured via --requirepass in Cmd rather
+			// than an environment variable, pass it through REDISCLI_AUTH so the
+			// console signs in automatically without putting it on argv.
+			if pw := database.FlagValue(c.Config.Cmd, "--requirepass"); pw != "" {
+				env = append(env, "REDISCLI_AUTH="+pw)
+			}
+		}
+		title = tool + "@" + name
+		if dbName != "" {
+			title = tool + "/" + dbName + "@" + name
+		}
+	} else if len(command) == 0 {
 		shell := ""
 		for _, s := range shells {
 			has, err := d.HasPath(ctx, c.ID, s)
@@ -236,7 +286,7 @@ func (m *Manager) startInContainer(ctx context.Context, container, exact string,
 	}
 	// The connection outlives the call that opened it, until the terminal ends.
 	life, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	t, err := d.ExecWithTerminal(life, c.ID, command, []string{"TERM=xterm-256color", "COLORTERM=truecolor"}, cols, rows)
+	t, err := d.ExecWithTerminal(life, c.ID, command, env, cols, rows)
 	if err != nil {
 		cancel()
 		if errors.Is(err, docker.ErrExecContainerChanged) {
@@ -250,6 +300,9 @@ func (m *Manager) startInContainer(ctx context.Context, container, exact string,
 	s := &execShell{t: t, cancel: cancel, cols: cols, rows: rows}
 	// An engine older than ConsoleSize starts it at its own size.
 	_ = s.resize(cols, rows)
-	user, _, _ := strings.Cut(c.Config.User, ":")
-	return s, cmpOr(user, "root") + "@" + name, in, nil
+	if title == "" {
+		user, _, _ := strings.Cut(c.Config.User, ":")
+		title = cmpOr(user, "root") + "@" + name
+	}
+	return s, title, in, nil
 }

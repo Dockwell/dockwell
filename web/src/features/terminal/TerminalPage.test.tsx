@@ -1141,4 +1141,34 @@ describe("TerminalPage", () => {
     expect(await within(picker).findByText("beta-2")).toBeInTheDocument();
     expect(listDockerObjects).toHaveBeenCalledTimes(2);
   });
+
+  it("auto-opens a database console in one click when console=true is in the URL", async () => {
+    const sh = shell("shop=# ");
+    const openTerminal = vi.fn(() => ({
+      terminal: { ...term("trm_db", "psql/shop@pg-1"), container: "pg-1" },
+    }));
+    renderAt("/servers/srv_1/terminal?container=pg-1&console=true&database=shop", {
+      auth: { getAuthState: () => authState() },
+      servers: { watchServers },
+      terminals: {
+        listTerminals: () => ({ terminals: [] }),
+        openTerminal,
+        attachTerminal: sh.attachTerminal,
+        writeTerminal: sh.writeTerminal,
+      },
+    });
+    await waitFor(() =>
+      expect(openTerminal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          serverId: "srv_1",
+          container: "pg-1",
+          databaseConsole: true,
+          database: "shop",
+        }),
+        expect.anything(),
+      ),
+    );
+    expect(await screen.findByRole("tab", { name: "pg-1 · hz-1" })).toHaveAttribute("title", "psql/shop@pg-1 · hz-1");
+    await waitFor(() => expect(screens.all.at(-1)?.written.join("")).toBe("shop=# "));
+  });
 });

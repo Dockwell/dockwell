@@ -41,6 +41,8 @@ type Desired struct {
 	// Rollback says a rollback is planning this, which runs before anyone reads its
 	// plan, so it takes nothing only a person may approve.
 	Rollback bool
+	// Undoes is the change ID this step undoes or rolls back, if any.
+	Undoes string
 	// Restart names a restart the resource is to have, though its spec hasn't
 	// changed: the change's ID. Its kind is a Settler.
 	Restart string
@@ -362,7 +364,7 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		want := &normal[i]
 		d, spec := drivers[i], want.Spec
 		// As the step it plans will have it, once it applies.
-		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run})
+		ctx := WithDeploy(ctx, Deploy{Rollback: want.Rollback, Run: want.Run, Undoes: want.Undoes})
 		if want.Prepare != nil {
 			ctx = want.Prepare(ctx)
 		}
@@ -878,6 +880,12 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return cantApply(ctx, step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
 		}
 		source := RestoreSource{Backup: step.Restore.Backup, Undoes: step.Restore.Undoes, Change: DeployOf(ctx).Change}
+		if r, ok := RestoreOf(ctx); ok && r.ImportID != "" {
+			source.ImportID = r.ImportID
+			source.ImportDatabase = r.ImportDatabase
+			source.ImportFilename = r.ImportFilename
+			source.ImportFormat = r.ImportFormat
+		}
 		if err := r.ApplyRestore(ctx, step, source); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't restore %s: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't restore %s: %w", step.Ref, err))
 		}

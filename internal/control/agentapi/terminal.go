@@ -36,6 +36,9 @@ func (s *Session) ContainerTerminals() bool { return s.containerTerminals }
 // ReadsTerminalCwd reports an agent that reads a host terminal's working directory.
 func (s *Session) ReadsTerminalCwd() bool { return s.readsTerminalCwd }
 
+// DatabaseConsole reports an agent that opens a database client inside its container.
+func (s *Session) DatabaseConsole() bool { return s.databaseConsole }
+
 // OpenTerminals is what the agent said in its hello of the terminals it has.
 func (s *Session) OpenTerminals() []string { return slices.Clone(s.openTerminals) }
 
@@ -67,6 +70,9 @@ func (s *Session) OpenTerminal(ctx context.Context, call *agentv1.OpenTerminalCa
 		// stream so an older agent never sees an exact request as host exec.
 		if (call.GetContainerId() != "" || len(call.GetArgv()) != 0) && !current.ExactTerminal() {
 			return connect.NewError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal by Docker ID"))
+		}
+		if (call.GetDatabaseConsole() || call.GetDatabase() != "") && !current.DatabaseConsole() {
+			return connect.NewError(connect.CodeFailedPrecondition, errors.New("update the agent to open a database console"))
 		}
 		return nil
 	}

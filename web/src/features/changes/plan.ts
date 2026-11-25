@@ -17,6 +17,7 @@ import {
   type PlannedResource,
   type PlanStep,
   ProviderAction,
+  type RestorePlan,
   type ServerPlan,
   type StepProgress,
   StepState,
@@ -212,11 +213,16 @@ export function labelsOnly(plan: Plan | undefined): string[] {
 
 /**
  * Whether the server keeps the data a step removes, so undoing it brings the data back: a deleted
- * volume stays on its server for 7 days before it goes (the volume kind's KeepFor, ADR 0036).
- * Anything else that destroys data, as a database dropped with its user, is gone at once.
+ * volume or SQL database (database.logical / database.user) stays backed up on its server for 7 days
+ * before it goes (ADR 0036). Anything else that destroys data is gone at once.
  */
 export function keepsData(step: Pick<PlanStep, "destroysData" | "action" | "resource">): boolean {
-  return step.destroysData && step.action === PlanAction.DELETE && step.resource?.kind === "volume";
+  const kind = step.resource?.kind;
+  return (
+    step.destroysData &&
+    step.action === PlanAction.DELETE &&
+    (kind === "volume" || kind === "database.logical" || kind === "database.user")
+  );
 }
 
 /** Whether a step removes data that nothing brings back. */
@@ -288,6 +294,8 @@ export function diffResources(
     serverName?: (id: string) => string | undefined;
     /** A word for a resource its kind's doesn't fit, such as "database" for a service that runs one (#798). */
     kindLabel?: (resource: PlannedResource) => string | undefined;
+    /** A note for a single-database restore or dump import step on a volume. */
+    restoreNote?: (restore: RestorePlan) => string;
   } = {},
 ): PlanResource[] {
   const intent = intentOf(plan);
@@ -329,6 +337,14 @@ export function diffResources(
     if (diffKind(kind) === "resource") out.kindLabel = rows.kindWord?.(kind) ?? kindWord(kind);
     const label = options.kindLabel?.(resource);
     if (label) out.kindLabel = label;
+    const oneRestore = steps.find((s) => s.restore?.databaseName)?.restore;
+    if (oneRestore) {
+      out.name = oneRestore.databaseName;
+      out.kind = "resource";
+      out.kindLabel = rows.kindWord?.("database.logical") ?? "database";
+      out.action = "update";
+      if (options.restoreNote) out.note = options.restoreNote(oneRestore);
+    }
     if (maybe.has(resource.id)) out.ifNewer = true;
     if (steps.some((s) => s.restart !== "")) out.restart = true;
     if (intent?.resourceId === resource.id && resource.action !== PlanAction.DELETE) {

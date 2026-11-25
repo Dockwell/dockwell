@@ -23,6 +23,15 @@ export interface StreamRoute {
 
 /** The routes, by operation. */
 export const streamRoutes = {
+  DatabaseService_UploadDatabaseImport: {
+    operationId: "DatabaseService_UploadDatabaseImport",
+    stream: "request",
+    method: "PUT",
+    path: "/v1/databases/{id}/imports/{importId}",
+    query: ["offset", "project", "environment"],
+    requestType: "application/octet-stream",
+    responseTypes: ["application/json"],
+  },
   DockerService_DownloadDockerArtifact: {
     operationId: "DockerService_DownloadDockerArtifact",
     stream: "response",

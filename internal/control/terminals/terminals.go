@@ -249,11 +249,19 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 			fmt.Errorf("%s's agent is too old to open terminals. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
 	name, exact, argv := req.Msg.GetContainer(), req.Msg.GetContainerId(), req.Msg.GetArgv()
+	databaseConsole, dbName := req.Msg.GetDatabaseConsole(), req.Msg.GetDatabase()
 	if err := terminal.ValidateContainerTarget(name, exact, argv); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if err := terminal.ValidateDatabaseConsole(name, exact, argv, databaseConsole, dbName); err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	if exact != "" && !session.ExactTerminal() {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal by Docker ID"), "agent_outdated")
+	}
+	if databaseConsole && !session.DatabaseConsole() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
+			fmt.Errorf("%s's agent is too old to open a database console. Update the agent on %s, then try again", srv.GetName(), srv.GetName()), "agent_outdated")
 	}
 	container := cmp.Or(exact, name)
 	if container != "" {
@@ -333,7 +341,7 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, h.rpcError(ctx, err)
 	}
 	call := &agentv1.OpenTerminalCall{
-		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: name, ContainerId: exact, Argv: argv, Confirmed: confirmed,
+		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: name, ContainerId: exact, Argv: argv, DatabaseConsole: databaseConsole, Database: dbName, Confirmed: confirmed,
 	}
 	opened, err := session.OpenTerminal(ctx, call)
 	if err == nil && opened.GetNeedsStepUp() && !confirmed {

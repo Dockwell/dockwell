@@ -172,7 +172,7 @@ func removalEdit(it item, server, apps, moveTo string, compromised bool) Edit {
 // server's host is its settings, said once.
 var kindWords = map[resource.Kind]string{
 	"service": "the app", "container": "the container", "volume": "the volume", "route": "the route", "task": "the task",
-	"network": "the network", "link": "the link", "database.user": "the database user", "firewall.rule": "the firewall rule",
+	"network": "the network", "link": "the link", "database.user": "the database user", "database.logical": "the database", "firewall.rule": "the firewall rule",
 	"fail2ban.jail": "the jail",
 }
 

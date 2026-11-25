@@ -2416,6 +2416,10 @@ message RestorePlan {
   // nothing and nothing that runs stops, but that new database's own service while
   // the backup loads (ADR 0106).
   bool into_new = 11;
+  // Original filename when importing an uploaded dump file into database_name.
+  string import_file = 12;
+  // Normalized dump format (sql, sql.gz, dump, or tar) when importing a dump.
+  string import_format = 13;
 }
 
 // RouteRedirects is a route that answers every request with a redirect.

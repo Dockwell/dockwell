@@ -45,9 +45,10 @@ type postgresSaid struct {
 	DatabaseCount  int    `json:"database_count"`
 	UserCount      int    `json:"user_count"`
 	Databases      []struct {
-		Name  string `json:"name"`
-		Owner string `json:"owner"`
-		Size  int64  `json:"size"`
+		Name        string `json:"name"`
+		Owner       string `json:"owner"`
+		Size        int64  `json:"size"`
+		Connections int64  `json:"connections"`
 	} `json:"databases"`
 	Users []struct {
 		Name  string `json:"name"`
@@ -68,7 +69,7 @@ func parsePostgres(said []byte) (*dockwellv1.DatabaseReading, error) {
 	}
 	owns := map[string][]string{}
 	for _, d := range s.Databases {
-		r.Databases = append(r.Databases, &dockwellv1.InnerDatabase{Name: d.Name, Owner: d.Owner, SizeBytes: d.Size, System: d.Name == "postgres"})
+		r.Databases = append(r.Databases, &dockwellv1.InnerDatabase{Name: d.Name, Owner: d.Owner, SizeBytes: d.Size, System: d.Name == "postgres", Connections: d.Connections})
 		owns[d.Owner] = append(owns[d.Owner], d.Name)
 	}
 	for _, u := range s.Users {
@@ -179,7 +180,9 @@ func mysqlSystemUser(e *Engine, name string) bool {
 func parseMySQL(e *Engine, said []byte) (*dockwellv1.DatabaseReading, error) {
 	r := &dockwellv1.DatabaseReading{}
 	status := map[string]int64{}
+	conns := map[string]int64{}
 	byUser := map[string]*dockwellv1.DatabaseAccount{}
+	ownerOf := map[string]string{}
 	seenVersion := false
 	databases, users := 0, 0
 	sc := bufio.NewScanner(bytes.NewReader(said))
@@ -219,6 +222,13 @@ func parseMySQL(e *Engine, said []byte) (*dockwellv1.DatabaseReading, error) {
 			if u := byUser[f[1]+"@"+f[2]]; u != nil && !slices.Contains(u.Databases, db) {
 				u.Databases = append(u.Databases, db)
 			}
+			if !mysqlSystemUser(e, f[1]) && f[1] != "root" && ownerOf[db] == "" {
+				ownerOf[db] = f[1]
+			}
+		case f[0] == "c" && len(f) == 3:
+			if n, err := strconv.ParseInt(f[2], 10, 64); err == nil {
+				conns[f[1]] = n
+			}
 		case len(f) == 2:
 			n, err := strconv.ParseInt(f[1], 10, 64)
 			if err == nil {
@@ -231,6 +241,12 @@ func parseMySQL(e *Engine, said []byte) (*dockwellv1.DatabaseReading, error) {
 	}
 	if !seenVersion {
 		return nil, errors.New("it didn't say its version")
+	}
+	for _, d := range r.Databases {
+		d.Connections = conns[d.GetName()]
+		if d.GetOwner() == "" && ownerOf[d.GetName()] != "" {
+			d.Owner = ownerOf[d.GetName()]
+		}
 	}
 	// Of those connected, one is this reading.
 	r.Connections = max(0, status["Threads_connected"]-1)

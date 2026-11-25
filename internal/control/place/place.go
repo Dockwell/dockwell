@@ -82,6 +82,7 @@ const (
 	policyPrefix      = "bpl"
 	destinationPrefix = "bds"
 	databaseUser      = "dbu"
+	databaseLogical   = "dbl"
 	catalogSource     = "cts"
 	registryLogin     = "rgl"
 	dnsProvider       = "dnp"
@@ -164,7 +165,7 @@ func (pl *Placer) Of(ctx context.Context, objectID string) ([]Place, error) {
 		return []Place{p}, err
 	case id.Project, id.Environment, id.Service, id.Variable, id.Secret, id.Route, id.Resource, id.ComposeTemplate,
 		volumePrefix, networkPrefix, policyPrefix, destinationPrefix, (task.Type{}).IDPrefix(),
-		databaseUser, catalogSource, registryLogin, dnsProvider, certificateID, signinProvider, connectionPrefix, githubApp, id.AlertRule, id.AlertChannel, id.AlertCheck:
+		databaseUser, databaseLogical, catalogSource, registryLogin, dnsProvider, certificateID, signinProvider, connectionPrefix, githubApp, id.AlertRule, id.AlertChannel, id.AlertCheck:
 		r, err := tx.GetResourceByID(ctx, objectID)
 		if err != nil {
 			return nil, err
