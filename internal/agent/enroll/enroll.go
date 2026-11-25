@@ -428,8 +428,8 @@ func (i *Identity) Client() (client agentv1connect.AgentServiceClient, release f
 // agent reads it. Go's own is 4 MiB a stream, and three uploads at once, each
 // waiting on a disk, took an agent past its 40 MB. A frame is 128 KiB, so this
 // keeps room for one and the next frame’s header. Its parts come without gzip, and an
-// upload's in one buffer its stream keeps (transfers).
-func (i *Identity) TransferClient(artifact bool) (client agentv1connect.AgentServiceClient, release func(), err error) {
+// upload's in one buffer its stream keeps (Transfers).
+func (i *Identity) TransferClient(artifact bool) (client *Transfers, release func(), err error) {
 	cfg, err := i.ClientTLS()
 	if err != nil {
 		return nil, nil, err

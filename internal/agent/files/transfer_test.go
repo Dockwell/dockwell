@@ -766,3 +766,50 @@ func TestADownloadStopsAtWhatAReadRefusesAnywhere(t *testing.T) {
 		t.Error("a text hash line after a binary one went out")
 	}
 }
+
+// A download reads its first MiB before anything goes only when its first part
+// doesn't already show a binary file, which is most of them (ADR 0109). What it
+// refuses stays refused: a text file's hash line or key in its first MiB stops it
+// before a byte goes, a character cut at the end of the first part doesn't make
+// text binary, and a key in a binary file never goes, wherever it is.
+func TestADownloadReadsWhatItNeedsOfItsStart(t *testing.T) {
+	d := newDisk(t)
+	d.noAccounts()
+	key := "\n-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAwJh2\n"
+	binary := append(append([]byte{0}, make([]byte, 512<<10)...), key...)
+	write(t, filepath.Join(d.root, "disk.img"), string(binary))
+	if _, data, out := d.download(t, filepath.Join(d.root, "disk.img")); out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || bytes.Contains(data, []byte("MIIEowIBAAKCAQEAwJh2")) {
+		t.Errorf("a key in a binary file's first MiB went out: %v", out)
+	}
+	// é split across the end of the first part, then a hash line well inside the
+	// first MiB: text, refused before anything goes.
+	text := strings.Repeat("a", FrameBytes-1) + "é\n" + strings.Repeat("insert into t values (1);\n", 20_000) + "root:$6$saltsalt$c2VjcmV0:19000::::::\n"
+	write(t, filepath.Join(d.root, "dump.sql"), text)
+	if sent, _, out := d.download(t, filepath.Join(d.root, "dump.sql")); out.GetRefusal().GetKind() != agentv1.FileRefusal_KIND_REFUSED || len(sent) != 0 {
+		t.Errorf("a text file with a hash line in its first MiB: %v, %d parts", out, len(sent))
+	}
+	// The same file without it goes whole.
+	text = strings.Repeat("a", FrameBytes-1) + "é\n" + strings.Repeat("insert into t values (1);\n", 60_000)
+	write(t, filepath.Join(d.root, "dump.sql"), text)
+	if _, data, out := d.download(t, filepath.Join(d.root, "dump.sql")); out.GetRefusal() != nil || string(data) != text {
+		t.Errorf("a text file: %v, %d of %d bytes", out, len(data), len(text))
+	}
+}
+
+// What the first part of a file shows as binary, all of it is, as isBinary reads
+// it, wherever the part ends.
+func TestTheStartOfABinaryFileShowsIt(t *testing.T) {
+	for _, s := range []string{
+		"plain text\n", "é", "aé", "日本語", "😀", "a\x00b", "a\xffb", "\xff", "\xe6\x97", "a\xe6\x97\xa5b",
+		"ok\xf0\x9f\x98", "ok\xf0\x9f\x98\x80", "\xc3\x28", "ab\xed\xa0\x80", "\xf4\x90\x80\x80", "",
+	} {
+		for cut := range len(s) + 1 {
+			if showsBinary([]byte(s[:cut])) && !isBinary([]byte(s)) {
+				t.Errorf("%q cut at %d reads as binary, but the whole is text", s, cut)
+			}
+		}
+		if showsBinary([]byte(s)) != isBinary([]byte(s)) && !strings.HasSuffix(s, "\xe6\x97") && !strings.HasSuffix(s, "\xf0\x9f\x98") {
+			t.Errorf("%q whole: showsBinary %v, isBinary %v", s, showsBinary([]byte(s)), isBinary([]byte(s)))
+		}
+	}
+}

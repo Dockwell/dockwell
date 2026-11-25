@@ -1,6 +1,6 @@
 # 0060. What an idle agent keeps in memory
 
-- Status: Accepted
+- Status: Accepted. Amended by [ADR 0109](0109-the-agents-memory-headroom.md): an agent on its own collects at `GOGC=25`, not 50, and runs Go code on at most 4 CPUs.
 - Date: 2026-11-10
 
 ## Context
