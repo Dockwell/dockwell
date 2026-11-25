@@ -10171,9 +10171,9 @@ paths:
             tags:
                 - WebsiteService
             description: |-
-                DeleteWebsite plans deleting a website: its route, what serves it, and its
-                 project. Undoing it brings it all back. Its folder on the server, if it has
-                 one, stays where it is.
+                DeleteWebsite plans deleting selected websites: their routes, what serves
+                 them, and their projects. Undoing it brings them all back. Their folders on
+                 the servers stay where they are.
             operationId: WebsiteService_DeleteWebsite
             parameters:
                 - name: id
@@ -16664,6 +16664,11 @@ components:
                 summary:
                     type: string
                     description: What the change is for, for the timeline. Empty says what it deletes.
+                additionalIds:
+                    type: array
+                    items:
+                        type: string
+                    description: Up to 49 more website project IDs to include in the same plan.
             description: DeleteWebsiteRequest names a website to delete.
         DeleteWebsiteResponse:
             type: object
@@ -33378,6 +33383,9 @@ components:
                     items:
                         $ref: '#/components/schemas/TaskOnServer'
                     description: How it stands on each server it's placed on, by server name.
+                revision:
+                    type: string
+                    description: The revision of the task spec, to guard edits based on this read.
             description: TaskInfo is one task, as it's asked for and as it runs.
         TaskOnServer:
             type: object

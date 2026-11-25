@@ -2,7 +2,13 @@
 
 import { createClient, type Transport } from "@connectrpc/connect";
 import { useQuery as useConnectQuery, useTransport } from "@connectrpc/connect-query";
-import { ChangeService, DatabaseService, type Resource, ResourceService } from "@dockwell/api";
+import {
+  ChangeService,
+  DatabaseService,
+  type ListResourcesRequest,
+  type Resource,
+  ResourceService,
+} from "@dockwell/api";
 import { plural } from "@lingui/core/macro";
 import { useLingui } from "@lingui/react/macro";
 import { useQuery } from "@tanstack/react-query";
@@ -23,20 +29,34 @@ export async function resourcesIn(
   environments: readonly string[],
   signal?: AbortSignal,
 ): Promise<Resource[]> {
-  const client = createClient(ResourceService, transport);
-  const lists = await Promise.all(
-    environments.map(async (scope) => {
-      const out: Resource[] = [];
-      let pageToken = "";
-      do {
-        const page = await client.listResources({ scope, pageSize: PAGE_SIZE, pageToken }, { signal });
-        out.push(...page.resources);
-        pageToken = page.nextPageToken;
-      } while (pageToken !== "");
-      return out;
-    }),
-  );
+  const lists = await Promise.all(environments.map((scope) => listResources(transport, { scope }, signal)));
   return lists.flat();
+}
+
+export async function listResources(
+  transport: Transport,
+  filters: Pick<Partial<ListResourcesRequest>, "scope" | "kind">,
+  signal?: AbortSignal,
+): Promise<Resource[]> {
+  const client = createClient(ResourceService, transport);
+  const out: Resource[] = [];
+  let pageToken = "";
+  do {
+    const page = await client.listResources({ ...filters, pageSize: PAGE_SIZE, pageToken }, { signal });
+    out.push(...page.resources);
+    pageToken = page.nextPageToken;
+  } while (pageToken !== "");
+  return out;
+}
+
+export function deletingProjectEdit(project: Resource, deleteShared = false, keepSharedIn = "") {
+  return {
+    resource: { kind: "project", name: project.resource?.name ?? project.id },
+    delete: true,
+    withContents: true,
+    deleteShared,
+    keepSharedIn,
+  };
 }
 
 /**
@@ -56,15 +76,7 @@ export async function planDeletingProject(
 ) {
   return createClient(ChangeService, transport).proposeChange({
     summary,
-    edits: [
-      {
-        resource: { kind: "project", name: project.resource?.name ?? project.id },
-        delete: true,
-        withContents: true,
-        deleteShared,
-        keepSharedIn,
-      },
-    ],
+    edits: [deletingProjectEdit(project, deleteShared, keepSharedIn)],
   });
 }
 

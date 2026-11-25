@@ -341,20 +341,30 @@ func (h *Handler) find(ctx context.Context, name string) (*site, error) {
 		if err != nil {
 			return err
 		}
-		for i := range all {
-			if all[i].project.Name == name || all[i].project.ID == name || (all[i].rt != nil && all[i].rt.GetDomain() == name) {
-				out = &all[i]
-			}
-		}
+		out = findSite(all, name)
 		return nil
 	})
 	if err != nil {
 		return nil, h.internal(ctx, err)
 	}
 	if out == nil {
-		return nil, authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no website %s. Run dockwell websites list to see them", name), "not_found")
+		return nil, siteNotFound(name)
 	}
 	return out, nil
+}
+
+func findSite(all []site, name string) *site {
+	var found *site
+	for i := range all {
+		if all[i].project.Name == name || all[i].project.ID == name || (all[i].rt != nil && all[i].rt.GetDomain() == name) {
+			found = &all[i]
+		}
+	}
+	return found
+}
+
+func siteNotFound(name string) error {
+	return authapi.ReasonError(connect.CodeNotFound, fmt.Errorf("there's no website %s. Run dockwell websites list to see them", name), "not_found")
 }
 
 // ListWebsiteRuntimes says which versions of PHP a website can run.
@@ -686,13 +696,70 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 
 // DeleteWebsite plans deleting a website: its routes, its services and its project.
 func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwellv1.DeleteWebsiteRequest]) (*connect.Response[dockwellv1.DeleteWebsiteResponse], error) {
-	s, err := h.find(ctx, req.Msg.GetId())
+	m := req.Msg
+	extra := m.GetAdditionalIds()
+	if len(extra) > 49 {
+		return nil, authapi.Invalid(errors.New("select up to 50 websites"))
+	}
+	var selected []*site
+	err := h.db.View(ctx, func(tx *store.Tx) error {
+		all, err := h.sites(ctx, tx)
+		if err != nil {
+			return err
+		}
+		first := findSite(all, m.GetId())
+		if first == nil {
+			return siteNotFound(m.GetId())
+		}
+		selected = append(selected, first)
+		// Additional targets are checked by project ID by the API's scope guard.
+		byID := make(map[string]*site, len(all))
+		for i := range all {
+			byID[all[i].project.ID] = &all[i]
+		}
+		seen := map[string]bool{first.project.ID: true}
+		for _, id := range extra {
+			item, ok := byID[id]
+			if !ok {
+				return siteNotFound(id)
+			}
+			if seen[id] {
+				return authapi.Invalid(fmt.Errorf("website %s is listed twice. Select it once", id))
+			}
+			seen[id] = true
+			selected = append(selected, item)
+		}
+		return nil
+	})
+	var rpcError *connect.Error
+	if errors.As(err, &rpcError) {
+		return nil, rpcError
+	}
+	if err != nil {
+		return nil, h.internal(ctx, err)
+	}
+	var edits []*dockwellv1.Edit
+	for _, item := range selected {
+		edits = append(edits, websiteDeleteEdits(item)...)
+	}
+	summary := strings.TrimSpace(m.GetSummary())
+	if summary == "" {
+		if len(selected) == 1 {
+			first := selected[0]
+			summary = "Delete the website " + cmp.Or(first.spec.GetDisplayName(), first.project.Name)
+		} else {
+			summary = fmt.Sprintf("Delete %d websites", len(selected))
+		}
+	}
+	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{})
 	if err != nil {
 		return nil, err
 	}
-	// Deletions run in reverse, so this order has the routes go first, then what
-	// they sent to, then the networks that was on, then the project, with its
-	// environment.
+	return connect.NewResponse(&dockwellv1.DeleteWebsiteResponse{Change: c}), nil
+}
+
+func websiteDeleteEdits(s *site) []*dockwellv1.Edit {
+	// Deletions run in reverse: routes first, then services and networks, and finally the project.
 	edits := []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name}, Delete: true}}
 	for _, r := range s.networks {
 		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: s.env, Name: r.Name}, Delete: true})
@@ -703,13 +770,7 @@ func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwe
 	for _, r := range s.routes {
 		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(route.Kind), Scope: s.env, Name: r.Name}, Delete: true})
 	}
-	name := cmp.Or(s.spec.GetDisplayName(), s.project.Name)
-	summary := cmp.Or(strings.TrimSpace(req.Msg.GetSummary()), "Delete the website "+name)
-	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{})
-	if err != nil {
-		return nil, err
-	}
-	return connect.NewResponse(&dockwellv1.DeleteWebsiteResponse{Change: c}), nil
+	return edits
 }
 
 // puts are the edits that make an environment hold what serves a website: its

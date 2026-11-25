@@ -192,7 +192,7 @@ describe("a catalog install's update on the apps list", () => {
       const row = rowOf(name);
       expect(within(row).queryByTitle(/Update available/)).toBeNull();
       expect(row).not.toHaveTextContent("6.72.0 ↑");
-      expect(within(row).queryByRole("checkbox")).toBeNull();
+      expect(within(row).queryByRole("checkbox", { name: /update/ })).toBeNull();
     }
     expect(within(rowOf(/dbmysql/)).queryByText("6.72.0")).toBeNull();
     // The install's row picks the one update.

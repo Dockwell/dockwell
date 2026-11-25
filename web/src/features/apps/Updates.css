@@ -163,6 +163,7 @@ code.update-step,
 
 /* Updating several at once (ADR 0080): a box on each row with an update, and a bar once any is picked. */
 .update-pick {
+  flex: none;
   width: 16px;
   height: 16px;
   margin: 0;
@@ -171,19 +172,13 @@ code.update-step,
   cursor: pointer;
 }
 
-.apps-table.has-picks .dw-table td:first-child,
-.apps-table.has-picks .dw-table th:first-child {
-  padding-right: 0;
+.apps-table .dw-table :is(th, td):has(> .update-pick) {
+  padding-inline: 0;
+  text-align: center;
 }
 
-/* With a column to pick by, a project's app keeps its box in that column, where a
-   project's row has its own, and its name is what steps in under the project's. */
-.apps-table.has-picks .is-member td:first-child {
-  padding-left: var(--space-4);
-}
-
-.apps-table.has-picks .is-member td:nth-child(2) {
-  padding-left: calc(var(--space-3) + var(--space-5));
+.apps-phone-menurow > .update-pick {
+  margin-inline-end: var(--space-2);
 }
 
 .update-picks-bar {

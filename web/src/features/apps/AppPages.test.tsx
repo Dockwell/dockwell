@@ -474,9 +474,9 @@ describe("an app's frame", () => {
     const { container } = renderAt("/apps/svc_web", api());
     expect(await screen.findByRole("heading", { level: 1, name: "web" })).toBeVisible();
     expect(screen.getByText("r3 · Checking · web:1.5")).toBeVisible();
-    // As M-App has it, Logs first, with Restart kept between.
+    // On a phone, Stop and Restart stay beside each other in the app action bar.
     const bar = container.querySelector(".app-actionbar") as HTMLElement;
-    expect(bar).toHaveTextContent(/^LogsRestartDeploy$/);
+    expect(bar).toHaveTextContent(/^LogsStopRestartDeploy$/);
     expect(within(bar).getByRole("link", { name: "Logs" })).toHaveAttribute("href", "/apps/svc_web/logs");
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute("href", "/apps");
     await expectAccessible(container);

@@ -240,6 +240,12 @@ export interface PlanChoice {
  * without a plan at all, such as a rollback to what already runs: it has no
  * Apply, as a plan that turns out empty hasn't either.
  */
+interface PreparedPlan {
+  change?: Change | undefined;
+  choice?: PlanChoice | undefined;
+  notes?: readonly string[] | undefined;
+}
+
 export type Opening = Then &
   (
     | { kind: "propose"; summary: string; edits: MessageInitShape<typeof EditSchema>[] }
@@ -250,7 +256,7 @@ export type Opening = Then &
         witnessed?: boolean;
       }
     | { kind: "undo"; id: string }
-    | { kind: "plan"; make: () => Promise<{ change?: Change | undefined }>; planningLabel?: string }
+    | { kind: "plan"; make: () => Promise<PreparedPlan>; planningLabel?: string }
     | { kind: "nothing"; summary?: string; detail?: ReactNode }
   );
 
@@ -375,7 +381,7 @@ function PlanViews({
  * opening another in its place, leaves no plan behind.
  */
 interface Proposal {
-  change: Promise<Change | undefined>;
+  result: Promise<PreparedPlan>;
   holders: number;
   /** Set while it applies, and once it has, so it stays. */
   keep: boolean;
@@ -399,7 +405,7 @@ function hold(
         : opening.kind === "undo"
           ? client.undoChange({ id: opening.id })
           : opening.make();
-    proposal = { change: made.then((res) => res.change), holders: 0, keep: false };
+    proposal = { result: made, holders: 0, keep: false };
     proposals.set(showing, proposal);
   }
   clearTimeout(proposal.leaving);
@@ -414,8 +420,8 @@ function letGo(client: Client<typeof ChangeService>, proposal: Proposal): void {
   proposal.leaving = setTimeout(() => {
     if (proposal.holders > 0 || proposal.keep) return;
     // A failure leaves the plan planned, which Activity shows.
-    proposal.change
-      .then((change) => (change && !proposal.keep ? client.discardChange({ id: change.id }) : undefined))
+    proposal.result
+      .then(({ change }) => (change && !proposal.keep ? client.discardChange({ id: change.id }) : undefined))
       .catch(() => {});
   }, 0);
 }
@@ -541,6 +547,7 @@ function ChangeSheet({
   const away = useSheetViewAway();
   const now = useControlPlaneNow(30_000);
   const [change, setChange] = useState<Change>();
+  const [prepared, setPrepared] = useState<PreparedPlan>();
   const [failure, setFailure] = useState<unknown>();
   const [busy, setBusy] = useState<Busy>();
   const [typed, setTyped] = useState("");
@@ -572,7 +579,11 @@ function ChangeSheet({
     }
     const held = hold(client, showing, opening);
     proposal.current = held;
-    held.change.then(show, fail);
+    held.result.then((result) => {
+      if (!live) return;
+      setPrepared(result);
+      show(result.change);
+    }, fail);
     return () => {
       live = false;
       proposal.current = undefined;
@@ -1012,6 +1023,7 @@ function ChangeSheet({
   const exportServer = dockerImageAction(plan)?.export
     ? plan?.servers.find((server) => server.steps.length > 0)?.serverName
     : undefined;
+  const choice = opening.choice ?? prepared?.choice;
   const headingDetail = exportServer ? [subtitle, exportServer].filter(Boolean).join(" · ") : subtitle;
   return (
     <SheetView
@@ -1030,10 +1042,15 @@ function ChangeSheet({
       <span className="dw-sr" role="status">
         {phase === "applying" || phase === "arrived" ? title : ""}
       </span>
-      {opening.choice &&
-      !opening.choice.moot?.(plan) &&
-      (phase === "planning" || phase === "review" || phase === "unplanned") ? (
-        <PlanChoiceSwitch choice={opening.choice} onFlip={() => open(opening.choice?.flip() ?? opening)} />
+      {choice && !choice.moot?.(plan) && (phase === "planning" || phase === "review" || phase === "unplanned") ? (
+        <PlanChoiceSwitch choice={choice} onFlip={() => open(choice.flip())} />
+      ) : null}
+      {phase === "review" && prepared?.notes?.length ? (
+        <div className="plan-choice">
+          {prepared.notes.map((note) => (
+            <div key={note}>{note}</div>
+          ))}
+        </div>
       ) : null}
       {opening.pick &&
       !opening.pick.moot?.(plan) &&

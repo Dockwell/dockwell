@@ -37,6 +37,16 @@
   min-width: 0;
 }
 
+.docker-card-head > .list-select-box {
+  flex: none;
+  margin-top: var(--space-1);
+}
+
+.docker-card-head > :is(.docker-storage-name-cell, .docker-name) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .docker-card-head .dw-tag,
 .docker-card-head > :last-child {
   flex: none;
@@ -236,6 +246,18 @@
 .docker-unread .dw-link {
   color: inherit;
   text-underline-offset: 0.2em;
+}
+
+.docker-fact-link {
+  color: var(--cobalt);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.docker-fact-link:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 
 .docker-unread {

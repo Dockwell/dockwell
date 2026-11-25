@@ -3457,6 +3457,12 @@ msgstr "Start"
 msgid "Start {name}"
 msgstr "Start {name}"
 
+msgid "Stop"
+msgstr "Stop"
+
+msgid "Stop {name}"
+msgstr "Stop {name}"
+
 msgid "build cancelled {ago}"
 msgstr "build cancelled {ago}"
 
@@ -3780,7 +3786,7 @@ msgstr "Unknown, as putting it back failed"
 
 #. placeholder {0}: a.toVersion
 #. placeholder {0}: newer.release
-#. placeholder {0}: runtime.release
+#. placeholder {0}: offer.toVersion
 msgid "Update to {0}"
 msgstr "Update to {0}"
 
@@ -4317,6 +4323,18 @@ msgstr "All environments"
 msgid "All servers"
 msgstr "All servers"
 
+msgid "Already running"
+msgstr "Already running"
+
+msgid "Already stopped"
+msgstr "Already stopped"
+
+msgid "App details are unavailable"
+msgstr "App details are unavailable"
+
+msgid "App state is changing or unavailable"
+msgstr "App state is changing or unavailable"
+
 msgid "Can't load the apps"
 msgstr "Can't load the apps"
 
@@ -4328,6 +4346,9 @@ msgstr "Clear the filters"
 
 msgid "Database"
 msgstr "Database"
+
+msgid "Delete {count}"
+msgstr "Delete {count}"
 
 msgid "Export"
 msgstr "Export"
@@ -4365,14 +4386,32 @@ msgstr "No apps yet"
 msgid "Nothing matches"
 msgstr "Nothing matches"
 
+msgid "Open files"
+msgstr "Open files"
+
+msgid "Open in browser"
+msgstr "Open in browser"
+
 msgid "Runs on"
 msgstr "Runs on"
+
+msgid "Select all rows on this page"
+msgstr "Select all rows on this page"
 
 msgid "Select every update shown"
 msgstr "Select every update shown"
 
 msgid "Select the updates in {name}"
 msgstr "Select the updates in {name}"
+
+#. placeholder {0}: nameOf(task)
+#. placeholder {0}: row.name
+#. placeholder {0}: row.object.name
+msgid "Select {0}"
+msgstr "Select {0}"
+
+msgid "Select {name}"
+msgstr "Select {name}"
 
 msgid "Select {name}'s update"
 msgstr "Select {name}'s update"
@@ -4386,14 +4425,31 @@ msgstr "Show all servers"
 msgid "Show them first"
 msgstr "Show them first"
 
+msgid "Start {count}"
+msgstr "Start {count}"
+
+msgid "Stop {count}"
+msgstr "Stop {count}"
+
 msgid "Unfold {title}"
 msgstr "Unfold {title}"
+
+msgid "Update"
+msgstr "Update"
 
 msgid "What runs on your servers isn't affected."
 msgstr "What runs on your servers isn't affected."
 
 msgid "You review a plan before anything starts."
 msgstr "You review a plan before anything starts."
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Start # app} other {Start # apps}}"
+msgstr "{0, plural, one {Start # app} other {Start # apps}}"
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Stop # app} other {Stop # apps}}"
+msgstr "{0, plural, one {Stop # app} other {Stop # apps}}"
 
 msgid "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgstr "{count, plural, one {# app in {where}} other {# apps in {where}}}"
@@ -6454,6 +6510,9 @@ msgstr "nothing listens"
 msgid "web page"
 msgstr "web page"
 
+msgid "A project gained an app or domain. Nothing was deleted. Review again."
+msgstr "A project gained an app or domain. Nothing was deleted. Review again."
+
 msgid "Also delete the project {label}"
 msgstr "Also delete the project {label}"
 
@@ -6469,8 +6528,17 @@ msgstr "Leaves {leftWords} in it"
 msgid "Nothing else is in it"
 msgstr "Nothing else is in it"
 
+msgid "Review again"
+msgstr "Review again"
+
 msgid "Takes {leftWords} with it"
 msgstr "Takes {leftWords} with it"
+
+msgid "{n, plural, one {Delete # app} other {Delete # apps}}"
+msgstr "{n, plural, one {Delete # app} other {Delete # apps}}"
+
+msgid "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
+msgstr "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
 
 msgid "Add a Dockerfile, or set both a build command and a start command under Change."
 msgstr "Add a Dockerfile, or set both a build command and a start command under Change."
@@ -6885,9 +6953,6 @@ msgstr "working directory"
 
 msgid "{servers} offline"
 msgstr "{servers} offline"
-
-msgid "Stop {name}"
-msgstr "Stop {name}"
 
 msgid "Accept an invite"
 msgstr "Accept an invite"
@@ -10075,9 +10140,6 @@ msgstr "Restarting {name} on {server}"
 msgid "Result unknown"
 msgstr "Result unknown"
 
-msgid "Review again"
-msgstr "Review again"
-
 msgid "Rolling back failed"
 msgstr "Rolling back failed"
 
@@ -13077,9 +13139,6 @@ msgstr "Two containers mustn't write to the server path {paths} at once, so the 
 msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
 msgstr "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
 
-msgid "Update"
-msgstr "Update"
-
 msgid "Update to a newer build of {to}"
 msgstr "Update to a newer build of {to}"
 
@@ -15892,6 +15951,7 @@ msgstr "Written to disk"
 msgid "{0} CPUs"
 msgstr "{0} CPUs"
 
+#. placeholder {0}: ports.length - 2
 #. placeholder {0}: remaining.toLocaleString(i18n.locale)
 #. placeholder {0}: values.length - 2
 msgid "+{0} more"
@@ -15952,6 +16012,9 @@ msgstr "No containers here"
 msgid "No containers match"
 msgstr "No containers match"
 
+msgid "No managed run state"
+msgstr "No managed run state"
+
 msgid "No sample"
 msgstr "No sample"
 
@@ -15971,17 +16034,17 @@ msgstr "Restart this container"
 msgid "Search containers"
 msgstr "Search containers"
 
-msgid "Start workload"
-msgstr "Start workload"
+msgid "Select a matching replica on every server"
+msgstr "Select a matching replica on every server"
 
-msgid "Start workload on {workloadServers} servers"
-msgstr "Start workload on {workloadServers} servers"
+msgid "Service placement is unavailable"
+msgstr "Service placement is unavailable"
 
-msgid "Stop workload"
-msgstr "Stop workload"
+msgid "Start {name} on all {workloadServers} servers"
+msgstr "Start {name} on all {workloadServers} servers"
 
-msgid "Stop workload on {workloadServers} servers"
-msgstr "Stop workload on {workloadServers} servers"
+msgid "Stop {name} on all {workloadServers} servers"
+msgstr "Stop {name} on all {workloadServers} servers"
 
 msgid "Take on a container"
 msgstr "Take on a container"
@@ -15989,6 +16052,9 @@ msgstr "Take on a container"
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
 msgstr "Terminal for {0}"
+
+msgid "Update to {version}"
+msgstr "Update to {version}"
 
 msgid "Uptime"
 msgstr "Uptime"
@@ -15998,6 +16064,12 @@ msgstr "Usage"
 
 msgid "memory"
 msgstr "memory"
+
+msgid "{n, plural, one {Start # workload} other {Start # workloads}}"
+msgstr "{n, plural, one {Start # workload} other {Start # workloads}}"
+
+msgid "{n, plural, one {Stop # workload} other {Stop # workloads}}"
+msgstr "{n, plural, one {Stop # workload} other {Stop # workloads}}"
 
 msgid "Docker disk usage"
 msgstr "Docker disk usage"
@@ -16154,6 +16226,9 @@ msgstr "Refresh images"
 #. placeholder {0}: String(deployment.revision)
 msgid "Retained revision {0}"
 msgstr "Retained revision {0}"
+
+msgid "Run as an app"
+msgstr "Run as an app"
 
 msgid "Search images"
 msgstr "Search images"
@@ -16806,9 +16881,6 @@ msgstr "No containers mount this volume"
 msgid "Open current volume"
 msgstr "Open current volume"
 
-msgid "Open files"
-msgstr "Open files"
-
 msgid "Remove volume"
 msgstr "Remove volume"
 
@@ -17002,6 +17074,45 @@ msgstr "Live updates paused"
 
 msgid "Some servers didn't answer"
 msgstr "Some servers didn't answer"
+
+msgid "Containers still use this image"
+msgstr "Containers still use this image"
+
+msgid "Containers still use this volume"
+msgstr "Containers still use this volume"
+
+msgid "Docker Swarm manages volumes on this server"
+msgstr "Docker Swarm manages volumes on this server"
+
+msgid "Docker couldn't verify that this can be deleted"
+msgstr "Docker couldn't verify that this can be deleted"
+
+msgid "Docker inventory changed. Nothing was deleted. Review again."
+msgstr "Docker inventory changed. Nothing was deleted. Review again."
+
+msgid "Only local networks can be deleted"
+msgstr "Only local networks can be deleted"
+
+msgid "Only local volumes with a verified identity can be deleted"
+msgstr "Only local volumes with a verified identity can be deleted"
+
+msgid "This Docker item is no longer in the cleanup inventory"
+msgstr "This Docker item is no longer in the cleanup inventory"
+
+msgid "This plan reached the cleanup limit"
+msgstr "This plan reached the cleanup limit"
+
+msgid "This volume is gone or has been replaced"
+msgstr "This volume is gone or has been replaced"
+
+msgid "Update the agent to delete this Docker item"
+msgstr "Update the agent to delete this Docker item"
+
+msgid "{count} skipped ({reason})"
+msgstr "{count} skipped ({reason})"
+
+msgid "{detail}. Nothing was deleted. Review again."
+msgstr "{detail}. Nothing was deleted. Review again."
 
 msgid "Built in"
 msgstr "Built in"
@@ -17388,10 +17499,6 @@ msgstr "New name for {initial}"
 
 msgid "Save name"
 msgstr "Save name"
-
-#. placeholder {0}: row.name
-msgid "Select {0}"
-msgstr "Select {0}"
 
 msgid "Bring them back"
 msgstr "Bring them back"
@@ -18003,9 +18110,6 @@ msgstr "Sent of {name}"
 
 msgid "Something called {name} is in this folder already, so nothing was uploaded. Rename one of them first."
 msgstr "Something called {name} is in this folder already, so nothing was uploaded. Rename one of them first."
-
-msgid "Stop"
-msgstr "Stop"
 
 msgid "Stopped at {part} of {whole}"
 msgstr "Stopped at {part} of {whole}"
@@ -23580,11 +23684,20 @@ msgstr "{address}, private"
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 
+msgid "Actions for the rows selected"
+msgstr "Actions for the rows selected"
+
+msgid "Clear the selection"
+msgstr "Clear the selection"
+
 msgid "Default order"
 msgstr "Default order"
 
 msgid "Page {number}"
 msgstr "Page {number}"
+
+msgid "Selection cleared"
+msgstr "Selection cleared"
 
 msgid "Sort by"
 msgstr "Sort by"
@@ -24077,6 +24190,15 @@ msgstr "two retries"
 msgid "All tasks"
 msgstr "All tasks"
 
+msgid "Already active"
+msgstr "Already active"
+
+msgid "Already paused"
+msgstr "Already paused"
+
+msgid "Couldn't run the task"
+msgstr "Couldn't run the task"
+
 msgid "Dockwell can't read its scheduled tasks"
 msgstr "Dockwell can't read its scheduled tasks"
 
@@ -24103,14 +24225,30 @@ msgstr "No scheduled tasks yet"
 msgid "On its own schedule"
 msgstr "On its own schedule"
 
+msgid "Pause {count}"
+msgstr "Pause {count}"
+
+msgid "Resume {count}"
+msgstr "Resume {count}"
+
 msgid "Run a shell command, a command in an app or an HTTP request on a schedule"
 msgstr "Run a shell command, a command in an app or an HTTP request on a schedule"
+
+#. placeholder {0}: server.serverName
+msgid "Run now on {0}"
+msgstr "Run now on {0}"
 
 msgid "Task"
 msgstr "Task"
 
+msgid "Task details are unavailable"
+msgstr "Task details are unavailable"
+
 msgid "Task type"
 msgstr "Task type"
+
+msgid "This server is offline"
+msgstr "This server is offline"
 
 msgid "no failures in the last 24 h"
 msgstr "no failures in the last 24 h"
@@ -24131,6 +24269,15 @@ msgstr "{failedLately, plural, one {# failed in the last 24 h} other {# failed i
 
 msgid "{from} to {to}"
 msgstr "{from} to {to}"
+
+msgid "{n, plural, one {Delete # task} other {Delete # tasks}}"
+msgstr "{n, plural, one {Delete # task} other {Delete # tasks}}"
+
+msgid "{n, plural, one {Pause # task} other {Pause # tasks}}"
+msgstr "{n, plural, one {Pause # task} other {Pause # tasks}}"
+
+msgid "{n, plural, one {Resume # task} other {Resume # tasks}}"
+msgstr "{n, plural, one {Resume # task} other {Resume # tasks}}"
 
 msgid "{runs, plural, one {# run} other {# runs}}"
 msgstr "{runs, plural, one {# run} other {# runs}}"
@@ -24707,9 +24854,6 @@ msgstr "Security updates for {0}"
 
 msgid "Select every package in {caption}"
 msgstr "Select every package in {caption}"
-
-msgid "Select {name}"
-msgstr "Select {name}"
 
 msgid "Show all"
 msgstr "Show all"

@@ -221,7 +221,9 @@ type TaskInfo struct {
 	// What it asks for.
 	Spec *v1alpha1.Task `protobuf:"bytes,4,opt,name=spec,proto3" json:"spec,omitempty"`
 	// How it stands on each server it's placed on, by server name.
-	Servers       []*TaskOnServer `protobuf:"bytes,5,rep,name=servers,proto3" json:"servers,omitempty"`
+	Servers []*TaskOnServer `protobuf:"bytes,5,rep,name=servers,proto3" json:"servers,omitempty"`
+	// The revision of the task spec, to guard edits based on this read.
+	Revision      int64 `protobuf:"varint,6,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -289,6 +291,13 @@ func (x *TaskInfo) GetServers() []*TaskOnServer {
 		return x.Servers
 	}
 	return nil
+}
+
+func (x *TaskInfo) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 // TaskOnServer is how a task stands on one server.
@@ -1174,13 +1183,14 @@ var File_dockwell_v1_task_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_task_proto_rawDesc = "" +
 	"\n" +
-	"\x16dockwell/v1/task.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/server.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe6\x01\n" +
+	"\x16dockwell/v1/task.proto\x12\vdockwell.v1\x1a&dockwell/resource/v1alpha1/specs.proto\x1a\x18dockwell/v1/change.proto\x1a\x19dockwell/v1/options.proto\x1a\x18dockwell/v1/server.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x82\x02\n" +
 	"\bTaskInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x124\n" +
 	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\x12)\n" +
 	"\x04kind\x18\x03 \x01(\x0e2\x15.dockwell.v1.TaskKindR\x04kind\x124\n" +
 	"\x04spec\x18\x04 \x01(\v2 .dockwell.resource.v1alpha1.TaskR\x04spec\x123\n" +
-	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.TaskOnServerR\aservers\"\xd8\x02\n" +
+	"\aservers\x18\x05 \x03(\v2\x19.dockwell.v1.TaskOnServerR\aservers\x12\x1a\n" +
+	"\brevision\x18\x06 \x01(\x03R\brevision\"\xd8\x02\n" +
 	"\fTaskOnServer\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +

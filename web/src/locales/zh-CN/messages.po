@@ -3457,6 +3457,12 @@ msgstr "启动"
 msgid "Start {name}"
 msgstr "启动 {name}"
 
+msgid "Stop"
+msgstr "停止"
+
+msgid "Stop {name}"
+msgstr "停止 {name}"
+
 msgid "build cancelled {ago}"
 msgstr "构建已于{ago}取消"
 
@@ -3780,7 +3786,7 @@ msgstr "未知，因为恢复失败了"
 
 #. placeholder {0}: a.toVersion
 #. placeholder {0}: newer.release
-#. placeholder {0}: runtime.release
+#. placeholder {0}: offer.toVersion
 msgid "Update to {0}"
 msgstr "更新到 {0}"
 
@@ -4317,6 +4323,18 @@ msgstr "所有环境"
 msgid "All servers"
 msgstr "所有服务器"
 
+msgid "Already running"
+msgstr "已在运行"
+
+msgid "Already stopped"
+msgstr "已停止"
+
+msgid "App details are unavailable"
+msgstr "无法读取应用详情"
+
+msgid "App state is changing or unavailable"
+msgstr "应用状态正在变化或暂不可用"
+
 msgid "Can't load the apps"
 msgstr "无法加载应用"
 
@@ -4328,6 +4346,9 @@ msgstr "清除筛选"
 
 msgid "Database"
 msgstr "数据库"
+
+msgid "Delete {count}"
+msgstr "删除 {count} 项"
 
 msgid "Export"
 msgstr "导出"
@@ -4365,14 +4386,32 @@ msgstr "还没有应用"
 msgid "Nothing matches"
 msgstr "没有匹配项"
 
+msgid "Open files"
+msgstr "打开文件"
+
+msgid "Open in browser"
+msgstr "在浏览器中打开"
+
 msgid "Runs on"
 msgstr "运行于"
+
+msgid "Select all rows on this page"
+msgstr "选择本页所有行"
 
 msgid "Select every update shown"
 msgstr "选择显示的所有更新"
 
 msgid "Select the updates in {name}"
 msgstr "选择 {name} 中的更新"
+
+#. placeholder {0}: nameOf(task)
+#. placeholder {0}: row.name
+#. placeholder {0}: row.object.name
+msgid "Select {0}"
+msgstr "选择 {0}"
+
+msgid "Select {name}"
+msgstr "选择 {name}"
 
 msgid "Select {name}'s update"
 msgstr "选择 {name} 的更新"
@@ -4386,14 +4425,31 @@ msgstr "显示所有服务器"
 msgid "Show them first"
 msgstr "优先显示"
 
+msgid "Start {count}"
+msgstr "启动 {count} 项"
+
+msgid "Stop {count}"
+msgstr "停止 {count} 项"
+
 msgid "Unfold {title}"
 msgstr "展开 {title}"
+
+msgid "Update"
+msgstr "更新"
 
 msgid "What runs on your servers isn't affected."
 msgstr "服务器上运行的内容不受影响。"
 
 msgid "You review a plan before anything starts."
 msgstr "任何内容启动前，你都会先审阅计划。"
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Start # app} other {Start # apps}}"
+msgstr "{0, plural, other {启动 # 个应用}}"
+
+#. placeholder {0}: targets.length
+msgid "{0, plural, one {Stop # app} other {Stop # apps}}"
+msgstr "{0, plural, other {停止 # 个应用}}"
 
 msgid "{count, plural, one {# app in {where}} other {# apps in {where}}}"
 msgstr "{count, plural, other {{where} 中有 # 个应用}}"
@@ -6454,6 +6510,9 @@ msgstr "无程序监听"
 msgid "web page"
 msgstr "网页"
 
+msgid "A project gained an app or domain. Nothing was deleted. Review again."
+msgstr "某个项目新增了应用或域名。未删除任何内容。请重新审阅。"
+
 msgid "Also delete the project {label}"
 msgstr "同时删除项目 {label}"
 
@@ -6469,8 +6528,17 @@ msgstr "{leftWords} 会留在其中"
 msgid "Nothing else is in it"
 msgstr "其中没有别的内容"
 
+msgid "Review again"
+msgstr "重新审查"
+
 msgid "Takes {leftWords} with it"
 msgstr "连同 {leftWords} 一并删除"
+
+msgid "{n, plural, one {Delete # app} other {Delete # apps}}"
+msgstr "{n, plural, other {删除 # 个应用}}"
+
+msgid "{projectCount, plural, one {Also delete # project} other {Also delete # projects}}"
+msgstr "{projectCount, plural, other {同时删除 # 个项目}}"
 
 msgid "Add a Dockerfile, or set both a build command and a start command under Change."
 msgstr "添加 Dockerfile，或在“更改”中同时设置构建命令和启动命令。"
@@ -6885,9 +6953,6 @@ msgstr "工作目录"
 
 msgid "{servers} offline"
 msgstr "{servers} 离线"
-
-msgid "Stop {name}"
-msgstr "停止 {name}"
 
 msgid "Accept an invite"
 msgstr "接受邀请"
@@ -10075,9 +10140,6 @@ msgstr "正在 {server} 上重启 {name}"
 msgid "Result unknown"
 msgstr "结果未知"
 
-msgid "Review again"
-msgstr "重新审查"
-
 msgid "Rolling back failed"
 msgstr "回滚失败"
 
@@ -13077,9 +13139,6 @@ msgstr "两个容器不能同时写入服务器路径 {paths}，因此旧容器�
 msgid "Two containers mustn't write to the volume {volumes} at once, so the old one stops first"
 msgstr "两个容器不能同时写入卷 {volumes}，因此旧容器会先停止"
 
-msgid "Update"
-msgstr "更新"
-
 msgid "Update to a newer build of {to}"
 msgstr "更新到 {to} 的新构建"
 
@@ -15892,6 +15951,7 @@ msgstr "磁盘写入"
 msgid "{0} CPUs"
 msgstr "{0} 个 CPU"
 
+#. placeholder {0}: ports.length - 2
 #. placeholder {0}: remaining.toLocaleString(i18n.locale)
 #. placeholder {0}: values.length - 2
 msgid "+{0} more"
@@ -15952,6 +16012,9 @@ msgstr "没有容器"
 msgid "No containers match"
 msgstr "没有符合条件的容器"
 
+msgid "No managed run state"
+msgstr "未由 Dockwell 管理运行状态"
+
 msgid "No sample"
 msgstr "暂无采样"
 
@@ -15971,17 +16034,17 @@ msgstr "重启此容器"
 msgid "Search containers"
 msgstr "搜索容器"
 
-msgid "Start workload"
-msgstr "启动工作负载"
+msgid "Select a matching replica on every server"
+msgstr "请选中每台服务器上状态匹配的副本"
 
-msgid "Start workload on {workloadServers} servers"
-msgstr "在 {workloadServers} 台服务器上启动工作负载"
+msgid "Service placement is unavailable"
+msgstr "无法读取服务所在的服务器"
 
-msgid "Stop workload"
-msgstr "停止工作负载"
+msgid "Start {name} on all {workloadServers} servers"
+msgstr "在全部 {workloadServers} 台服务器上启动 {name}"
 
-msgid "Stop workload on {workloadServers} servers"
-msgstr "在 {workloadServers} 台服务器上停止工作负载"
+msgid "Stop {name} on all {workloadServers} servers"
+msgstr "在全部 {workloadServers} 台服务器上停止 {name}"
 
 msgid "Take on a container"
 msgstr "接管容器"
@@ -15989,6 +16052,9 @@ msgstr "接管容器"
 #. placeholder {0}: row.name
 msgid "Terminal for {0}"
 msgstr "{0} 的终端"
+
+msgid "Update to {version}"
+msgstr "更新到 {version}"
 
 msgid "Uptime"
 msgstr "运行时长"
@@ -15998,6 +16064,12 @@ msgstr "用量"
 
 msgid "memory"
 msgstr "内存"
+
+msgid "{n, plural, one {Start # workload} other {Start # workloads}}"
+msgstr "{n, plural, other {启动 # 个工作负载}}"
+
+msgid "{n, plural, one {Stop # workload} other {Stop # workloads}}"
+msgstr "{n, plural, other {停止 # 个工作负载}}"
 
 msgid "Docker disk usage"
 msgstr "Docker 磁盘用量"
@@ -16154,6 +16226,9 @@ msgstr "刷新镜像"
 #. placeholder {0}: String(deployment.revision)
 msgid "Retained revision {0}"
 msgstr "保留的修订版本 {0}"
+
+msgid "Run as an app"
+msgstr "作为应用运行"
 
 msgid "Search images"
 msgstr "搜索镜像"
@@ -16806,9 +16881,6 @@ msgstr "没有容器挂载此卷"
 msgid "Open current volume"
 msgstr "打开当前卷"
 
-msgid "Open files"
-msgstr "打开文件"
-
 msgid "Remove volume"
 msgstr "移除卷"
 
@@ -16950,7 +17022,7 @@ msgid "Now protected"
 msgstr "现已受保护"
 
 msgid "Only local volumes can be removed here"
-msgstr "此处仅支持移除本地卷"
+msgstr "此处仅可删除本地卷"
 
 msgid "Reference moved"
 msgstr "引用已变更"
@@ -16962,7 +17034,7 @@ msgid "Shared storage"
 msgstr "共享存储"
 
 msgid "Swarm manager: remove volumes with docker volume rm"
-msgstr "Swarm 管理节点：请使用 docker volume rm 移除卷"
+msgstr "Swarm 管理节点：请用 docker volume rm 删除卷"
 
 msgid "Tagged in more than one repository"
 msgstr "在多个仓库中带有标签"
@@ -17002,6 +17074,45 @@ msgstr "实时更新已暂停"
 
 msgid "Some servers didn't answer"
 msgstr "部分服务器无响应"
+
+msgid "Containers still use this image"
+msgstr "仍有容器在使用此镜像"
+
+msgid "Containers still use this volume"
+msgstr "仍有容器使用此卷"
+
+msgid "Docker Swarm manages volumes on this server"
+msgstr "此服务器上的卷由 Docker Swarm 管理"
+
+msgid "Docker couldn't verify that this can be deleted"
+msgstr "Docker 无法确认能否删除此项"
+
+msgid "Docker inventory changed. Nothing was deleted. Review again."
+msgstr "Docker 清单已更改。未删除任何内容。请重新审阅。"
+
+msgid "Only local networks can be deleted"
+msgstr "只能删除本地网络"
+
+msgid "Only local volumes with a verified identity can be deleted"
+msgstr "只能删除已验证身份的本地卷"
+
+msgid "This Docker item is no longer in the cleanup inventory"
+msgstr "此 Docker 项已不在清理清单中"
+
+msgid "This plan reached the cleanup limit"
+msgstr "此计划已达到清理数量上限"
+
+msgid "This volume is gone or has been replaced"
+msgstr "此卷已不存在或已被替换"
+
+msgid "Update the agent to delete this Docker item"
+msgstr "更新代理后即可删除此 Docker 项"
+
+msgid "{count} skipped ({reason})"
+msgstr "已跳过 {count} 项（{reason}）"
+
+msgid "{detail}. Nothing was deleted. Review again."
+msgstr "{detail}。未删除任何内容。请重新审阅。"
 
 msgid "Built in"
 msgstr "内置"
@@ -17388,10 +17499,6 @@ msgstr "{initial} 的新名称"
 
 msgid "Save name"
 msgstr "保存名称"
-
-#. placeholder {0}: row.name
-msgid "Select {0}"
-msgstr "选择 {0}"
 
 msgid "Bring them back"
 msgstr "恢复这些更改"
@@ -18003,9 +18110,6 @@ msgstr "{name} 的上传进度"
 
 msgid "Something called {name} is in this folder already, so nothing was uploaded. Rename one of them first."
 msgstr "此文件夹中已有名为 {name} 的内容，因此没有上传任何内容。请先重命名其中一个。"
-
-msgid "Stop"
-msgstr "停止"
 
 msgid "Stopped at {part} of {whole}"
 msgstr "停在 {part}，共 {whole}"
@@ -23580,11 +23684,20 @@ msgstr "{address}，私有地址"
 msgid "{name} can't be a name. Use lowercase letters, digits and dashes, starting with a letter"
 msgstr "{name} 不能用作名称。请使用小写字母、数字和连字符，并以字母开头"
 
+msgid "Actions for the rows selected"
+msgstr "所选行的操作"
+
+msgid "Clear the selection"
+msgstr "清除选择"
+
 msgid "Default order"
 msgstr "默认顺序"
 
 msgid "Page {number}"
 msgstr "第 {number} 页"
+
+msgid "Selection cleared"
+msgstr "已清除选择"
 
 msgid "Sort by"
 msgstr "排序方式"
@@ -24077,6 +24190,15 @@ msgstr "重试两次"
 msgid "All tasks"
 msgstr "全部任务"
 
+msgid "Already active"
+msgstr "已启用"
+
+msgid "Already paused"
+msgstr "已暂停"
+
+msgid "Couldn't run the task"
+msgstr "无法运行任务"
+
 msgid "Dockwell can't read its scheduled tasks"
 msgstr "Dockwell 无法读取计划任务"
 
@@ -24103,14 +24225,30 @@ msgstr "还没有计划任务"
 msgid "On its own schedule"
 msgstr "按自定义计划"
 
+msgid "Pause {count}"
+msgstr "暂停 {count} 项"
+
+msgid "Resume {count}"
+msgstr "恢复 {count} 项"
+
 msgid "Run a shell command, a command in an app or an HTTP request on a schedule"
 msgstr "按计划运行 shell 命令、应用中的命令或 HTTP 请求"
+
+#. placeholder {0}: server.serverName
+msgid "Run now on {0}"
+msgstr "立即在 {0} 上运行"
 
 msgid "Task"
 msgstr "任务"
 
+msgid "Task details are unavailable"
+msgstr "无法读取任务详情"
+
 msgid "Task type"
 msgstr "任务类型"
+
+msgid "This server is offline"
+msgstr "此服务器已离线"
 
 msgid "no failures in the last 24 h"
 msgstr "过去 24 小时没有失败"
@@ -24131,6 +24269,15 @@ msgstr "{failedLately, plural, other {过去 24 小时有 # 次失败}}"
 
 msgid "{from} to {to}"
 msgstr "{from} 至 {to}"
+
+msgid "{n, plural, one {Delete # task} other {Delete # tasks}}"
+msgstr "{n, plural, other {删除 # 个任务}}"
+
+msgid "{n, plural, one {Pause # task} other {Pause # tasks}}"
+msgstr "{n, plural, other {暂停 # 个任务}}"
+
+msgid "{n, plural, one {Resume # task} other {Resume # tasks}}"
+msgstr "{n, plural, other {恢复 # 个任务}}"
 
 msgid "{runs, plural, one {# run} other {# runs}}"
 msgstr "{runs, plural, other {# 次运行}}"
@@ -24707,9 +24854,6 @@ msgstr "{0} 的安全更新"
 
 msgid "Select every package in {caption}"
 msgstr "选择{caption}中的全部软件包"
-
-msgid "Select {name}"
-msgstr "选择 {name}"
 
 msgid "Show all"
 msgstr "显示全部"

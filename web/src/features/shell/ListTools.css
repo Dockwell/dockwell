@@ -73,8 +73,112 @@
   }
 }
 
+.list-select-region {
+  min-width: 0;
+}
+
 .list-row-actions {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-1);
+}
+
+/* Picking rows to act on together: a box at a row's start, there on hover and
+   while anything is picked, and the bar of what the picked rows can be done with. */
+.list-select-box {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--action);
+  vertical-align: middle;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.list-select-box:where(:checked, :focus-visible),
+:where(.has-selection, tr:hover, tr:focus-within, .list-select-card:hover, .list-select-card:focus-within)
+  .list-select-box {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .list-select-box {
+    opacity: 1;
+  }
+}
+
+.dw-table tr.is-checked td {
+  background: var(--selection);
+}
+
+.list-batch-bar {
+  position: sticky;
+  bottom: var(--space-4);
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.list-batch-count {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.list-batch-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.list-batch-note {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.list-batch-grow {
+  flex: 1;
+}
+
+.list-select-card > .list-select-box {
+  flex: none;
+  margin-inline: var(--space-2);
+}
+
+.list-select-card.is-checked {
+  background: var(--selection);
+}
+
+.list-row-quick {
+  opacity: 0;
+}
+
+tr:hover .list-row-quick,
+tr:focus-within .list-row-quick,
+.list-select-card:hover .list-row-quick,
+.list-select-card:focus-within .list-row-quick {
+  opacity: 1;
+}
+
+@media (hover: none), (max-width: 639.98px) {
+  .list-select-card .list-select-box {
+    opacity: 1;
+  }
+
+  .list-row-quick {
+    display: none;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .list-batch-bar {
+    bottom: calc(var(--tabbar-height) + var(--space-2));
+  }
 }

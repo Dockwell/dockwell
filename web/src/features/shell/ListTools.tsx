@@ -1,12 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { Button, cx, Icon, SelectField, Table, type TableColumn, type TableProps, TextField } from "@dockwell/ui";
+import {
+  Button,
+  cx,
+  Icon,
+  type IconName,
+  SelectField,
+  Table,
+  type TableColumn,
+  type TableProps,
+  TextField,
+} from "@dockwell/ui";
+import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   type CSSProperties,
   type FocusEvent,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
+  type RefObject,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -15,7 +28,8 @@ import {
   useState,
 } from "react";
 
-import { type MenuAction, menuItem } from "./ActionMenu";
+import type { Offer } from "../auth/may";
+import { ActionMenu, type MenuAction, menuItem } from "./ActionMenu";
 import { EmptyState } from "./EmptyState";
 import {
   type ListPage,
@@ -23,10 +37,12 @@ import {
   type ListSort,
   nextSort,
   pagedRows,
+  rangeIds,
   readSort,
   type SortValue,
   sortedRows,
   sortParam,
+  toggledIds,
 } from "./list";
 import "./ListTools.css";
 
@@ -329,7 +345,341 @@ export function ListPager<Row>({
   );
 }
 
-interface RowMenuOpen {
+/** Rows picked to act on together, by their ids in the order the list shows them. */
+export interface RowSelection {
+  enabled: boolean;
+  list: RefObject<HTMLElement | null>;
+  /** The picked ids among the rows shown, in their order. */
+  selected: string[];
+  count: number;
+  any: boolean;
+  has: (id: string) => boolean;
+  /** Picks or lets go of one row, or with shift everything from the last one picked to it. */
+  toggle: (id: string, on: boolean, range?: boolean) => void;
+  setAll: (ids: readonly string[], on: boolean) => void;
+  clear: () => void;
+  /**
+   * For the list's own element: Cmd or Ctrl+A picks every row shown, and Escape
+   * clears. Typing somewhere in the list keeps its own keys.
+   */
+  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
+}
+
+/**
+ * Which rows are picked, against the ids the list shows now in their order.
+ * The boxes show on hover and while anything is picked (ListTools.css); a page
+ * adds `has-selection` to its table and `is-checked` to a picked row.
+ */
+export function useRowSelection(
+  order: readonly string[],
+  enabled = true,
+  fallback?: RefObject<HTMLElement | null>,
+): RowSelection {
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [anchor, setAnchor] = useState<string>();
+  const list = useRef<HTMLElement>(null);
+  const selected = enabled ? order.filter((id) => picked.has(id)) : [];
+  if (selected.length < picked.size) setPicked(new Set(selected));
+  if (anchor !== undefined && (!enabled || !order.includes(anchor))) setAnchor(undefined);
+  const setAll = (ids: readonly string[], on: boolean) => {
+    if (enabled) setPicked((was) => toggledIds(was, ids, on));
+  };
+  const clear = useCallback(() => {
+    setPicked(new Set());
+    setAnchor(undefined);
+    requestAnimationFrame(() => (list.current ?? fallback?.current)?.focus({ preventScroll: true }));
+  }, [fallback]);
+  return {
+    enabled,
+    list,
+    selected,
+    count: selected.length,
+    any: selected.length > 0,
+    has: (id) => enabled && picked.has(id),
+    toggle: (id, on, range = false) => {
+      setAll(range ? rangeIds(order, anchor, id) : [id], on);
+      setAnchor(id);
+    },
+    setAll,
+    clear,
+    onKeyDown: (event) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        !enabled ||
+        event.defaultPrevented ||
+        target?.closest("input:not([type='checkbox']), textarea, select, [contenteditable], [role=dialog], [role=menu]")
+      )
+        return;
+      if (event.key === "Escape" && picked.size > 0) {
+        event.preventDefault();
+        clear();
+      } else if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === "a") {
+        if (order.length === 0) return;
+        event.preventDefault();
+        setAll(order, true);
+      }
+    },
+  };
+}
+
+/** A row's box for picking it, part-checked where some of what it stands for is picked. */
+export function SelectBox({
+  checked,
+  partly = false,
+  label,
+  onPick,
+}: {
+  checked: boolean;
+  partly?: boolean;
+  label: string;
+  onPick: (on: boolean, range: boolean) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = partly && !checked;
+  }, [partly, checked]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className="list-select-box"
+      checked={checked}
+      aria-label={label}
+      onChange={(event) =>
+        onPick(event.currentTarget.checked, (event.nativeEvent as globalThis.MouseEvent).shiftKey === true)
+      }
+    />
+  );
+}
+
+/**
+ * The column of boxes at a list's start: one a row, and the head's for every row
+ * shown. A row with no id has no box: a heading row picks its own rows instead.
+ */
+export function selectionColumn<Row>({
+  selection,
+  rows,
+  idOf,
+  labelOf,
+  allLabel,
+}: {
+  selection: RowSelection;
+  rows: readonly Row[];
+  idOf: (row: Row) => string | undefined;
+  labelOf: (row: Row) => string;
+  allLabel: string;
+}): TableColumn<Row> {
+  const ids = rows.flatMap((row) => {
+    const id = idOf(row);
+    return id === undefined ? [] : [id];
+  });
+  const on = ids.filter((id) => selection.has(id)).length;
+  return {
+    key: "select",
+    width: 36,
+    skeleton: "none",
+    header: (
+      <SelectBox
+        checked={ids.length > 0 && on === ids.length}
+        partly={on > 0}
+        label={allLabel}
+        onPick={(yes) => selection.setAll(ids, yes)}
+      />
+    ),
+    render: (row) => {
+      const id = idOf(row);
+      if (id === undefined) return null;
+      return (
+        <SelectBox
+          checked={selection.has(id)}
+          label={labelOf(row)}
+          onPick={(yes, range) => selection.toggle(id, yes, range)}
+        />
+      );
+    },
+  };
+}
+
+/** One thing the bar under a list does to every row picked. */
+export interface BatchAction {
+  id: string;
+  label: ReactNode;
+  icon?: IconName;
+  danger?: boolean;
+  /** Why it can't be done, kept on the button as its description. */
+  off?: string | undefined;
+  disabled?: boolean;
+  onSelect: () => void;
+}
+
+/** A row may be left out by its state, its scope, or a check still in progress. */
+export type BatchRefusal = { reason: string } | { permission: Offer } | { pending: true };
+
+export function combineBatchActions(...batches: { actions: BatchAction[]; notes: string[] }[]) {
+  const actions = batches.flatMap((batch) => batch.actions);
+  const notes = batches.flatMap((batch) => (actions.length === 0 || batch.actions.length > 0 ? batch.notes : []));
+  return { actions, notes: [...new Set(notes)] };
+}
+
+export function useBatchAction<Row>() {
+  const { t } = useLingui();
+  return (
+    rows: readonly Row[],
+    refusal: (row: Row) => BatchRefusal | undefined,
+    action: Omit<BatchAction, "label" | "onSelect"> & {
+      label: (count?: number) => string;
+      onSelect: (rows: Row[], notes: string[]) => void;
+    },
+  ): { actions: BatchAction[]; notes: string[] } => {
+    const targets: Row[] = [];
+    const reasons = new Map<string, number>();
+    let permission: Offer | undefined;
+    let pending = false;
+    for (const row of rows) {
+      const no = refusal(row);
+      if (!no) {
+        targets.push(row);
+        continue;
+      }
+      const reason = "permission" in no ? no.permission.reason : "reason" in no ? no.reason : "";
+      if ("permission" in no) permission ??= no.permission;
+      if (reason) reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+      else pending = true;
+    }
+    const notes = [...reasons].map(([reason, count]) => t`${count} skipped (${reason})`);
+    if (targets.length === 0 && !permission && !pending) return { actions: [], notes };
+    return {
+      actions: [
+        {
+          ...action,
+          label: action.label(targets.length || undefined),
+          ...(targets.length === 0 ? (permission?.off ?? { disabled: true }) : {}),
+          onSelect: () => action.onSelect(targets, notes),
+        },
+      ],
+      notes: targets.length > 0 ? notes : [],
+    };
+  };
+}
+
+/**
+ * What picked rows can be done with together, once any are: how many, the verbs
+ * they allow, and a line for the ones a verb leaves out ("2 of 5 can't be
+ * stopped"), which the page counts. A batch that changes managed state is one
+ * plan for all of them, which the verb opens.
+ */
+export function BatchBar({
+  count,
+  actions,
+  notes = [],
+  onClear,
+}: {
+  count: number;
+  actions: readonly BatchAction[];
+  notes?: readonly string[];
+  onClear: () => void;
+}) {
+  const { t } = useLingui();
+  const [hasSelection, setHasSelection] = useState(false);
+  if (count > 0 && !hasSelection) setHasSelection(true);
+  const countLabel = plural(count, { one: "# selected", other: "# selected" });
+  return (
+    <>
+      <span className="dw-sr" aria-live="polite" aria-atomic="true">
+        {count > 0 ? countLabel : hasSelection ? t`Selection cleared` : ""}
+      </span>
+      {count > 0 ? (
+        <div
+          className="list-batch-bar"
+          role="toolbar"
+          aria-label={t`Actions for the rows selected`}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.preventDefault();
+            event.stopPropagation();
+            onClear();
+          }}
+        >
+          <span className="list-batch-count">{countLabel}</span>
+          <span className="list-batch-actions">
+            {actions.map((action) => (
+              <Button
+                key={action.id}
+                size="sm"
+                variant={action.danger ? "danger" : "secondary"}
+                icon={action.icon}
+                // MenuItem's off, for a Button: off with why keeps it in place (ADR 0059).
+                {...(action.off ? { off: action.off } : {})}
+                disabled={action.disabled}
+                onClick={action.onSelect}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </span>
+          {notes.length > 0 ? <span className="list-batch-note">{notes.join(" · ")}</span> : null}
+          <span className="list-batch-grow" />
+          <Button size="sm" variant="ghost" icon="x" aria-label={t`Clear the selection`} onClick={onClear}>
+            <Trans>Clear</Trans>
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The same menu and optional hover shortcuts on tables and cards. */
+export function RowActions({
+  label,
+  actions,
+  quick = [],
+  onOpen,
+}: {
+  label: string;
+  actions: readonly MenuAction[];
+  quick?: readonly string[];
+  onOpen?: () => void;
+}) {
+  return (
+    <span className="list-row-actions">
+      {actions.map((action) =>
+        quick.includes(action.id) &&
+        !action.off &&
+        !action.disabled &&
+        action.onSelect &&
+        typeof action.label === "string" ? (
+          <Button
+            key={action.id}
+            className="list-row-quick"
+            icon={action.icon}
+            variant="ghost"
+            size="sm"
+            aria-label={action.label}
+            title={action.label}
+            onClick={action.onSelect}
+          />
+        ) : null,
+      )}
+      <ActionMenu label={label} actions={actions} onOpen={onOpen} />
+    </span>
+  );
+}
+
+/** Context-menu behavior for the compact layout, where there is no Table. */
+export function cardContextMenu(
+  event: MouseEvent<HTMLElement>,
+  open: (point: { x: number; y: number }, row: HTMLElement) => void,
+) {
+  const target = event.target as HTMLElement;
+  if (event.defaultPrevented || target.closest("input, [role=menu], [aria-haspopup=menu]")) return;
+  event.preventDefault();
+  const row = event.currentTarget;
+  const anchor = target.closest<HTMLElement>("a[href], button") ?? row.querySelector("a[href], button") ?? row;
+  open({ x: event.clientX, y: event.clientY }, anchor as HTMLElement);
+}
+
+interface RowMenuOpen<Row> {
+  row: Row;
   label: string;
   actions: readonly MenuAction[];
   x: number;
@@ -343,16 +693,16 @@ interface RowMenuOpen {
  * point, with the same items its ⋯ button has. Open it from a Table's
  * onRowContextMenu, and put its element anywhere on the page.
  */
-export function useRowMenu<Row>(): {
+export function useRowMenu<Row>(resolve?: (row: Row) => Pick<RowMenuOpen<Row>, "label" | "actions">): {
   open: (
     row: Row,
     at: { x: number; y: number },
     rowElement: HTMLElement,
-    menu: { label: string; actions: readonly MenuAction[] },
+    menu?: { label: string; actions: readonly MenuAction[] },
   ) => void;
   element: ReactNode;
 } {
-  const [showing, setShowing] = useState<RowMenuOpen | null>(null);
+  const [showing, setShowing] = useState<RowMenuOpen<Row> | null>(null);
   const close = useCallback(
     (back: boolean) => {
       setShowing(null);
@@ -360,25 +710,22 @@ export function useRowMenu<Row>(): {
     },
     [showing],
   );
-  const open = (
-    _row: Row,
-    at: { x: number; y: number },
-    rowElement: HTMLElement,
-    menu: { label: string; actions: readonly MenuAction[] },
-  ) => {
-    if (menu.actions.length === 0) return;
-    setShowing({ ...menu, x: at.x, y: at.y, back: rowElement });
+  const open = (row: Row, at: { x: number; y: number }, rowElement: HTMLElement, menu = resolve?.(row)) => {
+    if (!menu?.actions.length) return;
+    setShowing({ ...menu, row, x: at.x, y: at.y, back: rowElement });
   };
-  const element = showing ? (
-    <RowContextMenu
-      label={showing.label}
-      actions={showing.actions}
-      x={showing.x}
-      y={showing.y}
-      anchor={showing.back}
-      onClose={close}
-    />
-  ) : null;
+  const menu = showing ? (resolve?.(showing.row) ?? showing) : undefined;
+  const element =
+    showing && menu ? (
+      <RowContextMenu
+        label={menu.label}
+        actions={menu.actions}
+        x={showing.x}
+        y={showing.y}
+        anchor={showing.back}
+        onClose={close}
+      />
+    ) : null;
   return { open, element };
 }
 
@@ -401,6 +748,7 @@ function RowContextMenu({
 }) {
   const root = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState<CSSProperties>({ left: x, top: y });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: A live eligibility reason changes the menu height.
   useLayoutEffect(() => {
     const box = root.current?.getBoundingClientRect();
     if (!box) return;
@@ -409,7 +757,7 @@ function RowContextMenu({
       left: Math.max(gutter, Math.min(x, window.innerWidth - box.width - gutter)),
       top: Math.max(gutter, Math.min(y, window.innerHeight - box.height - gutter)),
     });
-  }, [x, y]);
+  }, [actions, x, y]);
   useEffect(() => {
     const first =
       root.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ??

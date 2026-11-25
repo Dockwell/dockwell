@@ -718,3 +718,59 @@ func testAPHPWebsite(t *testing.T, backend store.Backend) {
 		t.Errorf("after deleting, ListWebsites = %v", got)
 	}
 }
+
+func TestDeleteSelectedWebsitesInOnePlan(t *testing.T) {
+	t.Parallel()
+	storetest.Each(t, func(t *testing.T, backend store.Backend) {
+		f := startFull(t, backend, nil)
+		b := signedIn(t, f)
+		ing := &routesInMemory{routes: map[resource.Ref]*resourcev1.Route{}}
+		f.probe = connects
+		e := f.addServerWith(t, func() []resource.Type { return []resource.Type{&route.Driver{Ingress: ing}} })
+		pullsAnything(e)
+		c := changeClient(b, b.origin)
+		sites := websiteClient(b, b.origin)
+		for _, domain := range []string{"one.example.com", "two.example.com", "keep.example.com"} {
+			made, err := sites.CreateWebsite(t.Context(), connect.NewRequest(&dockwellv1.CreateWebsiteRequest{
+				Domain: domain, Website: toURL("https://backend.example.com"),
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			applyReviewed(t, c, made.Msg.GetChange())
+		}
+		ids := make(map[string]string)
+		for _, site := range listWebsites(t, sites) {
+			ids[site.GetDomain()] = site.GetId()
+		}
+		_, err := sites.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{
+			Id: "one.example.com", AdditionalIds: []string{ids["one.example.com"]},
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument || !strings.Contains(err.Error(), "listed twice") {
+			t.Fatalf("duplicate website: got %v, want invalid argument with duplicate reason", err)
+		}
+		missing := "prj_missing"
+		_, err = sites.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{
+			Id: ids["one.example.com"], AdditionalIds: []string{missing},
+		}))
+		if connect.CodeOf(err) != connect.CodeNotFound || !strings.Contains(err.Error(), missing) {
+			t.Fatalf("missing additional website: got %v, want not found naming %s", err, missing)
+		}
+		gone, err := sites.DeleteWebsite(t.Context(), connect.NewRequest(&dockwellv1.DeleteWebsiteRequest{
+			Id: ids["one.example.com"], AdditionalIds: []string{ids["two.example.com"]},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		change := gone.Msg.GetChange()
+		for _, want := range []string{"project one-example-com delete", "project two-example-com delete"} {
+			if !slices.Contains(planned(change), want) {
+				t.Errorf("plan is missing %q: %v", want, planned(change))
+			}
+		}
+		applyReviewed(t, c, change)
+		if remaining := listWebsites(t, sites); len(remaining) != 1 || remaining[0].GetDomain() != "keep.example.com" {
+			t.Fatalf("unexpected websites after the batch: %v", remaining)
+		}
+	})
+}

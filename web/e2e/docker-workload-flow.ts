@@ -123,7 +123,7 @@ export const flow: Flow = {
       await filterToWorkload();
       await actions.click();
       await shoot(page, "docker-workload-managed");
-      await page.getByRole("menuitem", { name: "Stop workload" }).click();
+      await page.getByRole("menuitem", { name: "Stop", exact: true }).click();
       await plan
         .getByText(/health checks/i)
         .first()

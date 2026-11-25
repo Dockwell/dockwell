@@ -123,19 +123,20 @@ export const flow: Flow = {
       for (const width of [1440, 390]) {
         await atWidth(page, { width, height: 900 });
         await page.goto(`${origin}/apps`);
-        const pick = page.getByRole("checkbox", { name: "Select cache's update" });
-        await pick.waitFor({ timeout: 20_000 });
-        // The box, and what holds it: its table cell wide, its row on a phone.
-        const fits = await pick.evaluate((box) => {
-          const holder = box.closest("td") ?? box.closest(".apps-phone-pickrow");
-          if (!holder) return "no cell or row holds it";
-          const b = box.getBoundingClientRect();
-          const h = holder.getBoundingClientRect();
-          return b.left >= h.left && b.right <= h.right && b.top >= h.top && b.bottom <= h.bottom
-            ? ""
-            : `its box spans ${Math.round(b.left)} to ${Math.round(b.right)} px, its holder ${Math.round(h.left)} to ${Math.round(h.right)} px`;
-        });
-        if (fits) fail(`at ${width} px, ${scheme}, cache's update box is cut off: ${fits}`);
+        for (const name of ["Select cache", "Select cache's update"]) {
+          const pick = page.getByRole("checkbox", { name, exact: true });
+          await pick.waitFor({ timeout: 20_000 });
+          const fits = await pick.evaluate((box) => {
+            const holder = box.closest("td, .apps-phone-menurow, .apps-phone-pickrow");
+            if (!holder) return "no cell or row holds it";
+            const b = box.getBoundingClientRect();
+            const h = holder.getBoundingClientRect();
+            return b.left >= h.left && b.right <= h.right && b.top >= h.top && b.bottom <= h.bottom
+              ? ""
+              : `its box spans ${Math.round(b.left)} to ${Math.round(b.right)} px, its holder ${Math.round(h.left)} to ${Math.round(h.right)} px`;
+          });
+          if (fits) fail(`at ${width} px, ${scheme}, ${name} is cut off: ${fits}`);
+        }
         await shoot(page, `app-updates-project-${width}-${scheme}`);
       }
     }

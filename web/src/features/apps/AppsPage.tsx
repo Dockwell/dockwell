@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import type { ServiceInfo } from "@dockwell/api";
+import { useQuery } from "@connectrpc/connect-query";
+import {
+  ChangeService,
+  DesiredRunState,
+  DomainService,
+  FileService,
+  LogService,
+  Protocol,
+  type ServiceInfo,
+  TerminalService,
+} from "@dockwell/api";
 import {
   Button,
   Callout,
@@ -26,25 +36,39 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { useNow, useTimeWords } from "../../lib/time";
+import { useMay } from "../auth/may";
+import { publishedPortUrl } from "../docker/publishedPort";
+import { askable } from "../files/lookup";
 import { StartChoices } from "../overview/StartChoices";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
 import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
 import {
+  BatchBar,
+  type BatchRefusal,
+  cardContextMenu,
+  combineBatchActions,
   ListPager,
   type ListPlace,
   ListSearchField,
   ListSortField,
+  RowActions,
+  type RowSelection,
+  SelectBox,
   SortHeader,
+  selectionColumn,
+  useBatchAction,
   useListPlace,
   useRowMenu,
+  useRowSelection,
 } from "../shell/ListTools";
 import { type ListSearch, pagedRows, sortedRows } from "../shell/list";
 import { Page } from "../shell/Page";
 import { useRuntimes } from "../websites/website";
 import {
   type AppGroup,
+  appOf,
   appState,
   deployedAt,
   environmentOf,
@@ -53,6 +77,7 @@ import {
   groupNeedsALook,
   groupState,
   imageOf,
+  isMoving,
   keepOrder,
   matches,
   nameOf,
@@ -62,18 +87,20 @@ import {
   shortImage,
   sortGroups,
 } from "./app";
-import { useDomainNames } from "./domains";
+import { useDeleteApps } from "./deleteApp";
+import { useDomainNames, visitorUrl } from "./domains";
 import { ExportSheet } from "./ExportSheet";
 import { HealthBadge, phoneWordClass, useHealthWords } from "./Health";
 import { type AppHealth, type HealthView, healthNeedsALook, type Unread, useHealth, worstHealth } from "./health";
 import { WhatRuns } from "./ImageName";
 import { MoveSheet } from "./MoveSheet";
 import { runtimeOf, runtimeWords } from "./runtime";
-import { PrepareServiceDelete, useServiceRowActions } from "./ServiceRowActions";
+import { PrepareServiceDelete, PrepareServiceUpdate, useServiceRowActions } from "./ServiceRowActions";
 import { PickBox, SelectPatches, type UpdatePicks, UpdatePicksBar, useUpdatePicks } from "./UpdateSeveral";
-import { counts, ofInstall, StackUpdates, UpdateMark, updateCount } from "./updates";
+import { counts, offered, ofInstall, StackUpdates, UpdateMark, updateCount, useMayUpdate } from "./updates";
 import { useApps, usePlaces } from "./useServices";
 import { useAppWords } from "./words";
+import { useWorkloadControls } from "./workload";
 import "./Apps.css";
 import { useDatabases } from "../databases/useDatabases";
 import { ReadFailed } from "../shell/ReadFailed";
@@ -321,10 +348,184 @@ export function AppsPage({
 
   const open = (id: string) => void navigate({ to: "/apps/$serviceId", params: { serviceId: id } });
   const manage = useServiceRowActions(environmentOf);
-  const actionsFor = (service: ServiceInfo): MenuAction[] => [
-    { id: "open", icon: "service", label: t`Open`, onSelect: () => open(service.id) },
-    ...manage.actionsFor(service),
-  ];
+  // What a row does without opening the app: the everyday verbs, each through the
+  // plan or page the app's own screen uses, and only what the reader may do.
+  const may = useMay();
+  const deleteApps = useDeleteApps();
+  const mayUpdate = useMayUpdate();
+  const { changeRun, changeRunMany, restart: restartApp } = useWorkloadControls();
+  const [updatingApp, setUpdatingApp] = useState<ServiceInfo>();
+  const selection = useRowSelection(
+    rows.flatMap(({ service }) => (service ? [service.id] : [])),
+    may(ChangeService.method.proposeChange).allowed,
+  );
+  const isStoppedApp = (service: ServiceInfo) => appOf(service)?.desiredRunState === DesiredRunState.STOPPED;
+  const domains = useQuery(DomainService.method.listDomains, {}, { staleTime: Number.POSITIVE_INFINITY }).data?.domains;
+  const visitFor = (service: ServiceInfo): { label: string; href: string } | undefined => {
+    if (isStoppedApp(service)) return undefined;
+    const environment = environmentOf(service);
+    const name = nameOf(service);
+    for (const domain of domains ?? []) {
+      if (domain.environmentId !== environment) continue;
+      const route = domain.routes.find((route) => route.service === name && !route.held);
+      if (route) return { label: t`Open in browser`, href: visitorUrl(domain, route) };
+    }
+    const address = servers?.find((s) => s.id === service.deployments[0]?.serverId)?.address;
+    for (const port of appOf(service)?.ports ?? []) {
+      if (port.protocol === Protocol.UDP) continue;
+      const href = publishedPortUrl(port.hostIp, port.hostPort, address);
+      if (href) return { label: t`Open in browser`, href };
+    }
+    return undefined;
+  };
+  const settledApp = (service: ServiceInfo) => {
+    const state = appState(service, servers);
+    return !isMoving(state) && state.kind !== "unplaced" && state.kind !== "unreadable";
+  };
+  const actionsFor = (service: ServiceInfo): MenuAction[] => {
+    const where = { environment: environmentOf(service) };
+    const stopped = isStoppedApp(service);
+    const settled = settledApp(service);
+    const visit = visitFor(service);
+    const offer = counts(service.update, updatesNow) ? offered(service.update) : undefined;
+    const shell = health
+      .of(service)
+      .servers.find((s) => s.container && s.kind !== "not-running" && s.kind !== "paused" && s.kind !== "unknown");
+    const runtime = runtimeOf(service);
+    const fileServer = service.deployments[0]?.serverId;
+    const folder =
+      runtime?.folder ?? appOf(service)?.mounts.find((mount) => mount.source.case === "hostPath")?.source.value;
+    const filePath = typeof folder === "string" && fileServer && askable(fileServer, folder) ? folder : undefined;
+    return [
+      { id: "open", icon: "service", label: t`Open`, onSelect: () => open(service.id) },
+      ...(visit ? [{ id: "visit", icon: "external" as const, label: visit.label, href: visit.href }] : []),
+      ...(settled && service.resource
+        ? [
+            stopped
+              ? {
+                  id: "start",
+                  icon: "play" as const,
+                  label: t`Start`,
+                  ...may(ChangeService.method.proposeChange, where).off,
+                  onSelect: () => service.resource && changeRun(service.resource, service.revision, true),
+                }
+              : {
+                  id: "stop",
+                  icon: "stop" as const,
+                  label: t`Stop`,
+                  ...may(ChangeService.method.proposeChange, where).off,
+                  onSelect: () => service.resource && changeRun(service.resource, service.revision, false),
+                },
+          ]
+        : []),
+      ...(settled && !stopped
+        ? [
+            {
+              id: "restart",
+              icon: "refresh" as const,
+              label: t`Restart`,
+              ...may(ChangeService.method.restartService, where).off,
+              onSelect: () => restartApp(service.id),
+            },
+          ]
+        : []),
+      ...(may(LogService.method.watchLogs, where).allowed
+        ? [
+            {
+              id: "logs",
+              icon: "file" as const,
+              label: t`Logs`,
+              onSelect: () => void navigate({ to: "/apps/$serviceId/logs", params: { serviceId: service.id } }),
+            },
+          ]
+        : []),
+      ...(shell && may(TerminalService.method.openTerminal).allowed
+        ? [
+            {
+              id: "shell",
+              icon: "terminal" as const,
+              label: t`Terminal`,
+              onSelect: () =>
+                void navigate({
+                  to: "/servers/$serverId/terminal",
+                  params: { serverId: shell.serverId },
+                  search: { containerId: shell.container, containerTitle: nameOf(service) },
+                }),
+            },
+          ]
+        : []),
+      ...(filePath && fileServer && may(FileService.method.listFiles).allowed
+        ? [
+            {
+              id: "files",
+              icon: "folder" as const,
+              label: t`Open files`,
+              onSelect: () =>
+                void navigate({
+                  to: "/servers/$serverId/files",
+                  params: { serverId: fileServer },
+                  search: { path: filePath },
+                }),
+            },
+          ]
+        : []),
+      ...(offer
+        ? [
+            {
+              id: "update",
+              icon: "arrow-up" as const,
+              label: offer.toVersion ? t`Update to ${offer.toVersion}` : t`Update`,
+              ...mayUpdate(service).off,
+              onSelect: () => setUpdatingApp(service),
+            },
+          ]
+        : []),
+      ...manage.actionsFor(service),
+    ];
+  };
+  // Picked rows act together: stopping or starting several is one plan with an
+  // edit for each, and the bar says how many a verb leaves out.
+  const selectedApps = rows.flatMap(({ service }) => (service && selection.has(service.id) ? [service] : []));
+  const batchAction = useBatchAction<ServiceInfo>();
+  const editRefusal = (app: ServiceInfo): BatchRefusal | undefined => {
+    if (!app.resource) return { reason: t`App details are unavailable` };
+    const permission = may(ChangeService.method.proposeChange, { environment: environmentOf(app) });
+    return permission.allowed ? undefined : { permission };
+  };
+  const runBatch = (start: boolean) =>
+    batchAction(
+      selectedApps,
+      (app) => {
+        if (!settledApp(app)) return { reason: t`App state is changing or unavailable` };
+        if (start !== isStoppedApp(app)) return { reason: start ? t`Already running` : t`Already stopped` };
+        return editRefusal(app);
+      },
+      {
+        id: start ? "start" : "stop",
+        icon: start ? "play" : "stop",
+        label: (count) => (start ? (count ? t`Start ${count}` : t`Start`) : count ? t`Stop ${count}` : t`Stop`),
+        onSelect: (targets) =>
+          changeRunMany(
+            targets.flatMap((app) => (app.resource ? [{ resource: app.resource, baseRevision: app.revision }] : [])),
+            start,
+            start
+              ? plural(targets.length, { one: "Start # app", other: "Start # apps" })
+              : plural(targets.length, { one: "Stop # app", other: "Stop # apps" }),
+            selection.clear,
+          ),
+      },
+    );
+  const batch = combineBatchActions(
+    runBatch(true),
+    runBatch(false),
+    batchAction(selectedApps, editRefusal, {
+      id: "delete",
+      icon: "trash",
+      danger: true,
+      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+      onSelect: (targets) => deleteApps(targets, selection.clear),
+    }),
+  );
   // The filter's words, or what the list is narrowed to: each clears what kept everything out.
   const clearFilters = (what: "q" | "rest") => {
     if (what === "q") place.clearQuery();
@@ -410,6 +611,7 @@ export function AppsPage({
           health={health}
           picks={picks}
           actionsFor={actionsFor}
+          selection={selection}
         />
         <ListPager page={listPage} onPage={place.setPage} />
       </>
@@ -428,6 +630,7 @@ export function AppsPage({
           picks={picks}
           place={place}
           actionsFor={actionsFor}
+          selection={selection}
         />
         <ListPager page={listPage} onPage={place.setPage} />
       </>
@@ -463,7 +666,13 @@ export function AppsPage({
         </>
       }
     >
-      <section className={cx("apps-section", filters && "has-filters")} aria-label={t`Apps`}>
+      <section
+        className={cx("apps-section", filters && "has-filters")}
+        aria-label={t`Apps`}
+        ref={selection.list}
+        tabIndex={-1}
+        onKeyDown={selection.onKeyDown}
+      >
         {choosing || fleet || filters || updates > 0 || (phone && count > 0) ? (
           <div className="apps-filters">
             {filters ? (
@@ -557,6 +766,7 @@ export function AppsPage({
           <UnreadNote why={health.unread.why} heard={health.unread.heard} />
         ) : null}
         {body}
+        <BatchBar count={selectedApps.length} onClear={selection.clear} {...batch} />
         <UpdatePicksBar picks={picks} className="apps-picks-bar" />
         {elsewhere > 0 && all ? (
           <p className="apps-note">
@@ -580,6 +790,7 @@ export function AppsPage({
       {manage.selected?.action === "delete" ? (
         <PrepareServiceDelete service={manage.selected.service} onClose={manage.close} />
       ) : null}
+      {updatingApp ? <PrepareServiceUpdate service={updatingApp} onClose={() => setUpdatingApp(undefined)} /> : null}
     </Page>
   );
 }
@@ -708,13 +919,13 @@ function useColumnHeads(fleet: boolean, wide: boolean) {
     ];
     heads.push(
       { key: "status", header: t`Status`, width: 128 },
-      { key: "revision", header: t`Revision`, width: REVISION_WIDTH },
+      { key: "revision", header: t`Revision`, width: fleet ? 140 : REVISION_WIDTH },
     );
-    if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 168 });
+    if (fleet) heads.push({ key: "servers", header: t`Runs on`, width: 144 });
     // A fixed width on a fleet, where Runs on takes room too: a share of the row left a name 27 px at 1280.
-    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 144 : "24%", muted: true });
-    heads.push({ key: "deployed", header: t`Deployed`, width: 116, align: "right" });
-    heads.push({ key: "actions", header: <span className="dw-sr">{t`Actions`}</span>, width: 40, align: "right" });
+    if (wide) heads.push({ key: "domain", header: t`Domain`, width: fleet ? 120 : "24%", muted: true });
+    heads.push({ key: "deployed", header: t`Deployed`, width: fleet ? 100 : 116, align: "right" });
+    heads.push({ key: "actions", header: <span className="dw-sr">{t`Actions`}</span>, width: 80, align: "right" });
     return heads;
   }, [t, fleet, wide]);
 }
@@ -730,6 +941,7 @@ interface TableProps {
   picks: UpdatePicks;
   place: ListPlace;
   actionsFor: (service: ServiceInfo) => MenuAction[];
+  selection: RowSelection;
 }
 
 /**
@@ -800,6 +1012,7 @@ function AppsTable({
   picks,
   place,
   actionsFor,
+  selection,
 }: TableProps) {
   const { t, i18n } = useLingui();
   const { servers } = useFleetView();
@@ -857,7 +1070,7 @@ function AppsTable({
         const service = row.service as ServiceInfo;
         const name = row.kind === "app" && row.group.name ? row.group.name : nameOf(service);
         return (
-          <span className="dw-cell">
+          <span className="dw-cell apps-name-cell">
             {/* The row takes the keyboard; the link is for a new tab, and for screen readers' lists of links. */}
             <span className="apps-name-line">
               <Link
@@ -928,10 +1141,12 @@ function AppsTable({
           </time>
         );
       },
-      actions: (row) =>
-        row.service ? (
-          <ActionMenu label={t`Actions for ${nameOf(row.service)}`} actions={actionsFor(row.service)} />
-        ) : null,
+      actions: (row) => {
+        if (!row.service) return null;
+        const service = row.service;
+        const name = nameOf(service);
+        return <RowActions label={t`Actions for ${name}`} actions={actionsFor(service)} quick={["start", "stop"]} />;
+      },
     };
     return heads.map((head) => ({
       ...head,
@@ -989,12 +1204,30 @@ function AppsTable({
   return (
     <>
       <Table<Row>
-        className={cx("apps-table", shownPicks.length > 0 && "has-picks")}
-        columns={withPicks}
+        className={cx("apps-table", selection.any && "has-selection")}
+        columns={[
+          ...(selection.enabled
+            ? [
+                selectionColumn({
+                  selection,
+                  rows,
+                  idOf: (row) => row.service?.id,
+                  labelOf: (row) => t`Select ${row.service ? nameOf(row.service) : row.group.name}`,
+                  allLabel: t`Select all rows on this page`,
+                }),
+              ]
+            : []),
+          ...withPicks,
+        ]}
         rows={rows}
         caption={caption}
         rowClassName={(row) =>
-          cx(row.kind === "stack" && "is-stack", row.kind === "member" && "is-member", row.last && "is-last")
+          cx(
+            row.kind === "stack" && "is-stack",
+            row.kind === "member" && "is-member",
+            row.last && "is-last",
+            selection.has(row.id) && "is-checked",
+          )
         }
         onRowClick={(row) => {
           if (row.kind === "stack") onToggle(row.group.key);
@@ -1056,6 +1289,7 @@ function PhoneList({
   health,
   picks,
   actionsFor,
+  selection,
 }: {
   rows: readonly Row[];
   collapsed: ReadonlySet<string>;
@@ -1063,6 +1297,7 @@ function PhoneList({
   health: HealthView;
   picks: UpdatePicks;
   actionsFor: (service: ServiceInfo) => MenuAction[];
+  selection: RowSelection;
 }) {
   const { t } = useLingui();
   const { servers, fleet } = useFleetView();
@@ -1071,9 +1306,10 @@ function PhoneList({
   const runtimes = useRuntimes().data;
   const databases = useDatabaseIds();
   const now = useNow(UPDATES_TICK_MS);
+  const context = useRowMenu<Row>();
   const phoneOrder = rows.filter((r) => r.kind !== "stack").flatMap((r) => picksOf(r, picks));
   return (
-    <Panel flush className="apps-phone">
+    <Panel flush className={cx("apps-phone", selection.any && "has-selection")}>
       {rows.map((row) => {
         if (row.kind === "stack") {
           const state = groupState(row.group, servers);
@@ -1161,23 +1397,33 @@ function PhoneList({
             <Icon name="chevron-right" size={16} className="apps-phone-chevron" />
           </Link>
         );
-        // A box to pick its update by, and its menu, sit beside the row, as a link holds nothing else that acts.
-        const menu = <ActionMenu label={t`Actions for ${nameOf(service)}`} actions={actionsFor(service)} />;
-        if (!picks.can(service.id) || picksOf(row, picks).length === 0)
-          return (
-            <div key={row.id} className="apps-phone-menurow">
-              {link}
-              {menu}
-            </div>
-          );
+        const name = nameOf(service);
+        const label = t`Actions for ${name}`;
         return (
-          <div key={row.id} className="apps-phone-pickrow apps-phone-menurow">
-            <RowPick row={row} picks={picks} order={phoneOrder} />
+          // biome-ignore lint/a11y/noStaticElementInteractions: The row link and menu button provide keyboard access.
+          <div
+            key={row.id}
+            className={cx("apps-phone-menurow list-select-card", selection.has(row.id) && "is-checked")}
+            onContextMenu={(event) =>
+              cardContextMenu(event, (at, el) => context.open(row, at, el, { label, actions: actionsFor(service) }))
+            }
+          >
+            {selection.enabled ? (
+              <SelectBox
+                label={t`Select ${name}`}
+                checked={selection.has(row.id)}
+                onPick={(on, range) => selection.toggle(row.id, on, range)}
+              />
+            ) : null}
+            {picks.can(service.id) && picksOf(row, picks).length > 0 ? (
+              <RowPick row={row} picks={picks} order={phoneOrder} />
+            ) : null}
             {link}
-            {menu}
+            <ActionMenu label={label} actions={actionsFor(service)} />
           </div>
         );
       })}
+      {context.element}
     </Panel>
   );
 }

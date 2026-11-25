@@ -10,6 +10,7 @@ import type { MenuAction } from "../shell/ActionMenu";
 import { ReadFailed } from "../shell/ReadFailed";
 import { environmentOf, nameOf } from "./app";
 import { useDeleteAppPlan } from "./deleteApp";
+import { offered, useUpdateAction } from "./updates";
 
 export function useServiceRowActions<Service>(environment: (service: Service) => string) {
   const { t } = useLingui();
@@ -36,6 +37,20 @@ export function useServiceRowActions<Service>(environment: (service: Service) =>
     ];
   };
   return { actionsFor, selected, close: () => setSelected(undefined) };
+}
+
+/** Opens a service's update from its row, as its own page's Update does, then steps aside. */
+export function PrepareServiceUpdate({ service, onClose }: { service: ServiceInfo; onClose: () => void }) {
+  const action = useUpdateAction(service);
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    const offer = offered(service.update);
+    if (offer) action.run(offer);
+    onClose();
+  }, [action, onClose, service]);
+  return null;
 }
 
 export function PreparingServiceAction({

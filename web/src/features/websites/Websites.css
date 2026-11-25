@@ -45,6 +45,12 @@
   padding: 0 2px;
 }
 
+.websites-phone-head h2 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .websites-phone .websites-domain {
   font-size: 14px;
   line-height: 20px;

@@ -40,13 +40,23 @@ async function writeCode(page: Page, code: ReturnType<Page["getByRole"]>, value:
     await page.waitForTimeout(50);
   }
   if (!value) return;
-  await code.evaluate((el, text) => {
-    const dt = new DataTransfer();
-    dt.setData("text/plain", text);
-    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-  }, value);
-  for (let i = 0; i < 40; i++) {
+  const paste = () =>
+    code.evaluate((el, text) => {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    }, value);
+  await paste();
+  // A paste that lands before the editor is ready is lost, so clear and paste again
+  // until it holds, as files.ts does (#916).
+  for (let i = 0; i < 300; i++) {
     if ((await readCode(code)) === value) return;
+    if (i % 20 === 19) {
+      await code.click();
+      await page.keyboard.press("ControlOrMeta+a");
+      await page.keyboard.press("Backspace");
+      await paste();
+    }
     await page.waitForTimeout(50);
   }
   fail(`editor did not receive pasted text: got ${JSON.stringify(await readCode(code))}`);

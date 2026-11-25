@@ -77,7 +77,7 @@ export function TaskPanel({ task }: { task: TaskInfo }) {
   };
 
   const may = useMay();
-  const mayRun = may(TaskService.method.runTask);
+  const mayRun = may(TaskService.method.runTask, { environment: task.resource?.scope ?? "" });
   const runNow = async () => {
     setRunning(true);
     setRunFailure(undefined);

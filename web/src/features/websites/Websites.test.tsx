@@ -332,6 +332,32 @@ describe("The websites", () => {
     await expectAccessible(container);
   });
 
+  it.each([Role.VIEWER, Role.DEVELOPER])("offers the right batch controls for role %s", async (role) => {
+    onWideScreen();
+    const deleteWebsite = vi.fn(() => ({ change: planned }));
+    renderAt(
+      "/websites",
+      api([blog], {
+        auth: { getAuthState: () => authState({ user: { ...mira, role } }) },
+        websites: { deleteWebsite },
+      }),
+    );
+    const row = await rowOf(/blog\.example\.com/);
+    const name = "Select blog.example.com";
+    if (role === Role.VIEWER) {
+      expect(within(row).queryByRole("checkbox", { name })).toBeNull();
+      return;
+    }
+    const user = userEvent.setup();
+    await user.click(within(row).getByRole("checkbox", { name }));
+    const bar = screen.getByRole("toolbar", { name: "Actions for the rows selected" });
+    const remove = within(bar).getByRole("button", { name: "Delete" });
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).toHaveAccessibleDescription(/Only an admin or the owner/);
+    await user.click(remove);
+    expect(deleteWebsite).not.toHaveBeenCalled();
+  });
+
   it("gives up what a website is before its domain, on a narrower screen", async () => {
     renderAt("/websites", api([blog]));
     const row = await rowOf(/blog\.example\.com/);

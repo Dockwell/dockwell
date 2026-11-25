@@ -8,11 +8,13 @@ import {
   DockerObjectKind,
   DockerOwnership,
   DockerService,
+  FileService,
   type Server,
 } from "@dockwell/api";
 import {
   Button,
   Callout,
+  cx,
   Icon,
   Loading,
   Panel,
@@ -27,20 +29,33 @@ import {
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
 import { useHeldRows } from "../../lib/loading";
 import { useMay } from "../auth/may";
+import { askable } from "../files/lookup";
 import { CopyButton } from "../servers/CopyButton";
+import type { MenuAction } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
-import { useListSearchShortcut } from "../shell/ListTools";
+import {
+  BatchBar,
+  cardContextMenu,
+  RowActions,
+  SelectBox,
+  selectionColumn,
+  useBatchAction,
+  useListSearchShortcut,
+  useRowMenu,
+  useRowSelection,
+} from "../shell/ListTools";
 import { isHex64VolumeName, shortAnonymousVolumeName } from "./cleanupHelpers";
 import { DockerPruneSheet } from "./DockerPruneSheet";
 import { DockerStorageCreate } from "./DockerStorageCreate";
 import { useDockerWatch } from "./live";
 import { LiveUpdates, MeasuringSize, Unread } from "./parts";
+import { useSelectedCleanup } from "./selectedCleanup";
 import { StorageOwnership } from "./storageParts";
 import { useVolumeMeasurements } from "./volumeMeasurements";
 import "./DockerStorage.css";
@@ -86,7 +101,7 @@ function StorageMountpoint({ path }: { path: string }) {
   );
 }
 
-type StorageRow = DockerObject & { id: string };
+type StorageRow = DockerObject & { id: string; key: NonNullable<DockerObject["key"]> };
 
 export function DockerStorage({
   servers,
@@ -103,7 +118,10 @@ export function DockerStorage({
   const kind = volumes ? DockerObjectKind.VOLUME : DockerObjectKind.NETWORK;
   const may = useMay();
   const mayCreate = may(ChangeService.method.proposeChange).allowed;
-  const mayPrune = may(DockerService.method.planDockerMaintenance).allowed;
+  const maintenance = may(DockerService.method.planDockerMaintenance);
+  const mayPrune = maintenance.allowed;
+  const mayFiles = may(FileService.method.listFiles).allowed;
+  const navigate = useNavigate();
   const [pruning, setPruning] = useState(false);
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
@@ -136,11 +154,101 @@ export function DockerStorage({
     if (token) setPages([""]);
     else void query.refetch();
   };
-  const watch = useDockerWatch(ids, [], refresh, kind);
-  const rows = (query.data?.objects ?? []).flatMap((row) =>
+  const rows: StorageRow[] = (query.data?.objects ?? []).flatMap((row) =>
     row.key && (row.detail.case === "network" || row.detail.case === "volume")
-      ? [{ ...row, id: `${row.key.serverId}/${row.key.engineId}` }]
+      ? [{ ...row, key: row.key, id: `${row.key.serverId}/${row.key.engineId}` }]
       : [],
+  );
+  const selection = useRowSelection(query.isPlaceholderData ? [] : rows.map((row) => row.id), true, searchInput);
+  const selected = rows.filter((row) => selection.selected.includes(row.id));
+  const cleanup = useSelectedCleanup(
+    volumes ? DockerCleanupKind.VOLUME : DockerCleanupKind.NETWORK,
+    selected.map((row) => row.key),
+    maintenance.allowed,
+  );
+  const watch = useDockerWatch(
+    ids,
+    [],
+    () => {
+      refresh();
+      cleanup.refresh();
+    },
+    kind,
+  );
+  const batch = useBatchAction<StorageRow>()(
+    selected,
+    (row) => (maintenance.allowed ? cleanup.batchStatus(row.key) : { permission: maintenance }),
+    {
+      id: "delete",
+      label: (count) => (count ? t`Delete ${count}` : t`Delete`),
+      icon: "trash",
+      danger: true,
+      onSelect: (targets, notes) =>
+        cleanup.remove(
+          targets.map((row) => row.key),
+          () => {
+            selection.clear();
+            refresh();
+          },
+          notes,
+        ),
+    },
+  );
+  const filePath = (row: StorageRow) =>
+    mayFiles &&
+    row.key &&
+    row.detail.case === "volume" &&
+    row.detail.value.driver === "local" &&
+    askable(row.key.serverId, row.detail.value.mountpoint)
+      ? row.detail.value.mountpoint
+      : undefined;
+  const openRow = (row: StorageRow) => {
+    if (!row.key) return;
+    const { serverId, engineId } = row.key;
+    if (volumes)
+      void navigate({ to: "/servers/$serverId/docker/volumes/$volumeKey", params: { serverId, volumeKey: engineId } });
+    else
+      void navigate({ to: "/servers/$serverId/docker/networks/$networkId", params: { serverId, networkId: engineId } });
+  };
+  const actionsFor = (row: StorageRow): MenuAction[] => {
+    const path = filePath(row);
+    return [
+      { id: "open", label: t`Open`, icon: "eye", onSelect: () => openRow(row) },
+      ...(path && row.key
+        ? [
+            {
+              id: "files",
+              label: t`Open files`,
+              icon: "folder" as const,
+              onSelect: () =>
+                void navigate({
+                  to: "/servers/$serverId/files",
+                  params: { serverId: row.key?.serverId ?? "" },
+                  search: { path },
+                }),
+            },
+          ]
+        : []),
+      {
+        id: "delete",
+        label: t`Delete`,
+        icon: "trash",
+        danger: true,
+        ...maintenance.off,
+        ...(maintenance.allowed ? cleanup.rowOff(row.key) : {}),
+        ...(query.isPlaceholderData ? { disabled: true } : {}),
+        onSelect: () => cleanup.remove([row.key], refresh),
+      },
+    ];
+  };
+  const rowMenu = (row: StorageRow) => ({ label: t`Actions for ${row.name}`, actions: actionsFor(row) });
+  const context = useRowMenu(rowMenu);
+  const openContext = (row: StorageRow, at: { x: number; y: number }, el: HTMLElement) => {
+    cleanup.checkMenu(row.key);
+    context.open(row, at, el);
+  };
+  const dots = (row: StorageRow) => (
+    <RowActions {...rowMenu(row)} quick={["files"]} onOpen={() => cleanup.checkMenu(row.key)} />
   );
   const measurement = useVolumeMeasurements(rows);
   const measuring = volumes && rows.some((row) => measurement(row) === "pending");
@@ -225,12 +333,23 @@ export function DockerStorage({
   };
   const driverOf = (row: StorageRow) =>
     row.detail.case === "network" || row.detail.case === "volume" ? row.detail.value.driver : "";
-  const locationOf = (row: StorageRow) =>
-    row.detail.case === "volume" ? (
-      <StorageMountpoint path={row.detail.value.mountpoint} />
+  const locationOf = (row: StorageRow) => {
+    if (row.detail.case !== "volume") return <NetworkPools row={row} summary />;
+    const content = <StorageMountpoint path={row.detail.value.mountpoint} />;
+    const path = filePath(row);
+    return path && row.key ? (
+      <Link
+        className="docker-fact-link docker-storage-mount-link"
+        to="/servers/$serverId/files"
+        params={{ serverId: row.key.serverId }}
+        search={{ path }}
+      >
+        {content}
+      </Link>
     ) : (
-      <NetworkPools row={row} summary />
+      content
     );
+  };
   const metricOf = (row: StorageRow) => {
     if (row.detail.case === "network") return row.detail.value.ipv6Enabled ? t`On` : t`Off`;
     const measured = measurement(row);
@@ -249,12 +368,26 @@ export function DockerStorage({
         : facts.attachmentCount;
   };
   const columns: TableColumn<StorageRow>[] = [
+    selectionColumn({
+      selection,
+      rows,
+      idOf: (row) => (query.isPlaceholderData ? undefined : row.id),
+      labelOf: (row) => t`Select ${row.name}`,
+      allLabel: t`Select all rows on this page`,
+    }),
     { key: "name", header: volumes ? t`Volume` : t`Network`, width: "25%", skeleton: "titled", render: nameOf },
     { key: "driver", header: t`Driver`, width: 88, render: (row) => <code>{driverOf(row)}</code> },
     { key: "location", header: mountOrPools, render: locationOf },
     { key: "metric", header: sizeOrIPv6, width: volumes ? 112 : 72, render: metricOf },
     { key: "count", header: t`Containers`, width: 108, align: "right", render: countOf },
     { key: "owner", header: t`Ownership`, width: 168, render: (row) => <StorageOwnership row={row} /> },
+    {
+      key: "actions",
+      header: <span className="dw-sr">{t`Actions`}</span>,
+      width: volumes ? 80 : 48,
+      align: "right",
+      render: dots,
+    },
   ];
   return (
     <>
@@ -387,37 +520,66 @@ export function DockerStorage({
         />
       ) : null}
       {rows.length ? (
-        <Panel className="docker-storage-list" flush>
-          {compact ? (
-            <ul className="docker-card-list" aria-label={title}>
-              {rows.map((row) => (
-                <li key={row.id} className="docker-card">
-                  <div className="docker-card-head">
-                    {nameOf(row)}
-                    <StorageOwnership row={row} />
-                  </div>
-                  <div className="docker-storage-attachment-meta">
-                    <code>{driverOf(row)}</code>
-                    <span>
-                      {sizeOrIPv6} · {metricOf(row)}
-                    </span>
-                    <span>
-                      {t`Containers`} · {countOf(row)}
-                    </span>
-                  </div>
-                  {locationOf(row)}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Table className="docker-storage-list-table" caption={title} rows={rows} columns={columns} />
-          )}
-        </Panel>
+        <section
+          aria-label={title}
+          className={cx("list-select-region", selection.any && "has-selection")}
+          ref={selection.list}
+          tabIndex={-1}
+          onKeyDown={selection.onKeyDown}
+        >
+          <Panel className="docker-storage-list" flush>
+            {compact ? (
+              <ul className="docker-card-list" aria-label={title}>
+                {rows.map((row) => (
+                  <li
+                    key={row.id}
+                    className={cx("docker-card list-select-card", selection.has(row.id) && "is-checked")}
+                    onContextMenu={(event) => cardContextMenu(event, (at, el) => openContext(row, at, el))}
+                  >
+                    <div className="docker-card-head">
+                      <SelectBox
+                        label={t`Select ${row.name}`}
+                        checked={selection.has(row.id)}
+                        onPick={(on, range) => !query.isPlaceholderData && selection.toggle(row.id, on, range)}
+                      />
+                      {nameOf(row)}
+                      {dots(row)}
+                    </div>
+                    <div className="docker-storage-attachment-meta">
+                      <StorageOwnership row={row} />
+                      <code>{driverOf(row)}</code>
+                      <span>
+                        {sizeOrIPv6} · {metricOf(row)}
+                      </span>
+                      <span>
+                        {t`Containers`} · {countOf(row)}
+                      </span>
+                    </div>
+                    {locationOf(row)}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Table
+                className="docker-storage-list-table"
+                caption={title}
+                rows={rows}
+                columns={columns}
+                rowKey="id"
+                rowClassName={(row) => (selection.has(row.id) ? "is-checked" : "")}
+                onRowClick={openRow}
+                onRowContextMenu={(row, at, el) => openContext(row, at, el)}
+              />
+            )}
+          </Panel>
+        </section>
       ) : null}
       <div className="docker-storage-actions">
         {token ? <Button variant="secondary" onClick={() => setPages(pages.slice(0, -1))}>{t`Previous`}</Button> : null}
         {next ? <Button variant="secondary" onClick={() => setPages([...pages, next])}>{t`Next`}</Button> : null}
       </div>
+      {context.element}
+      <BatchBar count={selected.length} onClear={selection.clear} {...batch} />
       {creating ? (
         <DockerStorageCreate volumes={volumes} servers={servers} onClose={() => setCreating(false)} refresh={refresh} />
       ) : null}
