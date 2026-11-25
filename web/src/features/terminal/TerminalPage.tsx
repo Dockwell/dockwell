@@ -84,6 +84,15 @@ export interface TerminalSearch {
   container?: string;
   containerId?: string;
   containerTitle?: string;
+  /** Open the container's database client (psql, mysql, mariadb, redis-cli, valkey-cli, mongosh) directly. */
+  console?: boolean;
+  /** The logical database to connect to when console is true. */
+  database?: string;
+}
+
+interface ConsoleOptions {
+  databaseConsole: true;
+  database?: string | undefined;
 }
 
 interface ExactTerminal {
@@ -109,6 +118,11 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
   const phone = useMediaQuery(PHONE_QUERY);
   const { t } = useLingui();
   const [title, setTitle] = useState<string>();
+  const key = search.containerId
+    ? `${search.containerId}:${search.console ? "console" : "shell"}:${search.database ?? ""}`
+    : search.console
+      ? `console:${search.container ?? ""}:${search.database ?? ""}`
+      : "terminal";
   return (
     <ServerFrame
       id={serverId}
@@ -133,10 +147,12 @@ export function TerminalPage({ serverId, search = {} }: { serverId: string; sear
     >
       {(server) => (
         <Terminals
-          key={search.containerId ?? "terminal"}
+          key={key}
           server={server}
           phone={phone}
           container={search.container}
+          consoleMode={Boolean(search.console)}
+          database={search.database}
           exact={
             search.containerId
               ? { id: search.containerId, name: search.containerTitle || search.containerId.slice(0, 12) }
@@ -171,11 +187,25 @@ interface TerminalsProps {
   phone: boolean;
   /** A container a shell is wanted in, from the page's URL. */
   container: string | undefined;
+  /** True when the URL asked to open a database console straight away. */
+  consoleMode?: boolean;
+  /** The logical database inside container when consoleMode is true. */
+  database?: string | undefined;
   exact?: ExactTerminal | undefined;
   onTitle: (title: string | undefined) => void;
 }
 
-function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps) {
+/** Whether a terminal tab's title is a database client opened by Dockwell. */
+const CONSOLE_TITLE = /^(psql|mysql|mariadb|redis-cli|valkey-cli|mongosh)(?:\/([^@]+))?@/;
+
+function matchesConsole(tab: Terminal, container: string, database: string | undefined): boolean {
+  if (tab.container !== container) return false;
+  const match = CONSOLE_TITLE.exec(tab.title);
+  if (!match) return false;
+  return database ? match[2] === database : !match[2];
+}
+
+function Terminals({ server, phone, container, consoleMode = false, database, exact, onTitle }: TerminalsProps) {
   const { t, i18n } = useLingui();
   const transport = useTransport();
   const queryClient = useQueryClient();
@@ -213,7 +243,11 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   const [openingFiles, setOpeningFiles] = useState(false);
   const [problem, setProblem] = useState<string>();
   // A terminal took a passkey and there's none for this address: for which shell.
-  const [noPasskey, setNoPasskey] = useState<{ container?: string; exact?: ExactTerminal }>();
+  const [noPasskey, setNoPasskey] = useState<{
+    container?: string;
+    exact?: ExactTerminal;
+    consoleOpts?: ConsoleOptions;
+  }>();
   // A container's shell that the agent found as good as root, waiting for the person
   // to go on to the passkey, or not, once they've read why.
   const [asking, setAsking] = useState<{ container: string; go: (yes: boolean) => void }>();
@@ -253,6 +287,87 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   const tabTargets = useRef(new Map<string, ExactTerminal>());
   // Tabs opened specifically for the URL's exact container (not other containers opened from +).
   const urlExactTabs = useRef(new Set<string>());
+  const autoOpened = useRef(false);
+  const consoleTabs = useRef(new Map<string, ConsoleOptions>());
+
+  /** Opens the server's own terminal, a shell in a container, or a database console in it. */
+  const open = useCallback(
+    async (inContainer?: string, targetContainer?: ExactTerminal, consoleOpts?: ConsoleOptions) => {
+      setOpening(true);
+      setProblem(undefined);
+      setNoPasskey(undefined);
+      const want = size ?? { columns: 80, rows: 24 };
+      // A container's shell asks for a passkey only where the agent finds it as good as root.
+      const ref = targetContainer?.id ?? inContainer;
+      const name = targetContainer?.name ?? inContainer;
+      const target = ref ? `${serverId}:${ref}` : serverId;
+      try {
+        const res = await withStepUpIfAsked(
+          transport,
+          StepUpAction.OPEN_TERMINAL,
+          target,
+          (proof) =>
+            client.openTerminal({
+              serverId,
+              columns: want.columns,
+              rows: want.rows,
+              proof,
+              container: inContainer ?? "",
+              ...(consoleOpts ? { databaseConsole: true, database: consoleOpts.database ?? "" } : {}),
+              ...(targetContainer ? { containerId: targetContainer.id, argv: targetContainer.argv ?? [] } : {}),
+            }),
+          // Only the agent can tell a container reaches as far as root, so the page says
+          // that before the browser asks. A server's terminal said so in its offer.
+          name
+            ? () =>
+                new Promise<boolean>((resolve) =>
+                  setAsking({
+                    container: name,
+                    go: (yes) => {
+                      setAsking(undefined);
+                      resolve(yes);
+                    },
+                  }),
+                )
+            : undefined,
+        );
+        const opened = res.terminal;
+        if (opened) {
+          if (targetContainer) {
+            tabTargets.current.set(opened.id, targetContainer);
+            if (exact && targetContainer.id === exact.id) {
+              urlExactTabs.current.add(opened.id);
+            }
+          }
+          if (consoleOpts) consoleTabs.current.set(opened.id, consoleOpts);
+          setTabs((now) => [...now, opened]);
+          setActive(opened.id);
+        }
+        void queryClient.invalidateQueries({
+          queryKey: createConnectQueryKey({ schema: TerminalService.method.listTerminals, cardinality: "finite" }),
+        });
+      } catch (err) {
+        const reason = reasonOf(err);
+        if (err instanceof StepUpDeclined) {
+          // They read why, and chose not to: nothing to say.
+        } else if (reason === "no_passkey_here") {
+          // Adding one here opens what was asked for once it's made.
+          setNoPasskey(
+            targetContainer
+              ? { container: targetContainer.name, exact: targetContainer, ...(consoleOpts ? { consoleOpts } : {}) }
+              : { container: inContainer, ...(consoleOpts ? { consoleOpts } : {}) },
+          );
+        } else if (err instanceof PasskeyError && err.problem === "cancelled") {
+          setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
+        } else {
+          setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
+        }
+      } finally {
+        setOpening(false);
+      }
+    },
+    [client, exact, explain, queryClient, serverId, size, t, transport],
+  );
 
   // The tabs come back from what the control plane lists once it has answered since the page
   // came back, not from what was kept before: a terminal that ended since isn't listed (#652).
@@ -260,14 +375,31 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   useEffect(() => {
     if (merged.current || !listed.data || !listed.isFetchedAfterMount) return;
     merged.current = true;
-    const open = listed.data.terminals;
-    setTabs((now) => [...open.filter((o) => !now.some((n) => n.id === o.id)), ...now]);
+    const existing = listed.data.terminals;
+    setTabs((now) => [...existing.filter((o) => !now.some((n) => n.id === o.id)), ...now]);
+    if (consoleMode && (exact || container)) {
+      const targetName = exact?.name ?? container ?? "";
+      const existingConsole = targetName
+        ? existing.findLast((o) => matchesConsole(o, targetName, database))
+        : undefined;
+      if (existingConsole) {
+        consoleTabs.current.set(existingConsole.id, { databaseConsole: true, database });
+        setActive((now) => now ?? existingConsole.id);
+        autoOpened.current = true;
+        return;
+      }
+      if (!autoOpened.current) {
+        autoOpened.current = true;
+        void open(exact ? undefined : container, exact, { databaseConsole: true, database });
+        return;
+      }
+    }
     // A shell asked for in a container shows that container's, or the offer to open one.
     setActive(
       (now) =>
-        now ?? (exact ? undefined : container ? open.findLast((o) => o.container === container)?.id : open.at(-1)?.id),
+        now ?? (exact ? undefined : container ? existing.findLast((o) => o.container === container)?.id : existing.at(-1)?.id),
     );
-  }, [listed.data, listed.isFetchedAfterMount, container, exact]);
+  }, [listed.data, listed.isFetchedAfterMount, container, exact, consoleMode, database, open]);
 
   // Lock page scrolling while fullscreen is active. Shift+Esc leaves fullscreen from anywhere;
   // bare Esc leaves only when focus is outside the terminal so Esc always reaches the shell.
@@ -332,12 +464,12 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
   );
 
   const displays = useMemo(() => buildTabDisplays(tabs, server.name, t`Host`), [tabs, server.name, t]);
-  // A container in the page's address with no shell open in it yet.
+  // A container in the page's address with no shell or console open in it yet.
   const wanted = exact
     ? tabs.some((tab) => urlExactTabs.current.has(tab.id))
       ? undefined
       : exact.name
-    : container && !tabs.some((tab) => tab.container === container)
+    : container && !tabs.some((tab) => (consoleMode ? matchesConsole(tab, container, database) : tab.container === container))
       ? container
       : undefined;
   const current = tabs.find((tab) => tab.id === active);
@@ -393,86 +525,12 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     void savePreferences(create(TerminalPreferencesSchema, {}));
   }, [savePreferences]);
 
-  /** Opens the server's own terminal, or a shell in a container on it. */
-  const open = useCallback(
-    async (inContainer?: string, targetContainer?: ExactTerminal) => {
-      setOpening(true);
-      setProblem(undefined);
-      setNoPasskey(undefined);
-      const want = size ?? { columns: 80, rows: 24 };
-      // A container's shell asks for a passkey only where the agent finds it as good as root.
-      const ref = targetContainer?.id ?? inContainer;
-      const name = targetContainer?.name ?? inContainer;
-      const target = ref ? `${serverId}:${ref}` : serverId;
-      try {
-        const res = await withStepUpIfAsked(
-          transport,
-          StepUpAction.OPEN_TERMINAL,
-          target,
-          (proof) =>
-            client.openTerminal({
-              serverId,
-              columns: want.columns,
-              rows: want.rows,
-              proof,
-              container: inContainer ?? "",
-              ...(targetContainer ? { containerId: targetContainer.id, argv: targetContainer.argv ?? [] } : {}),
-            }),
-          // Only the agent can tell a container reaches as far as root, so the page says
-          // that before the browser asks. A server's terminal said so in its offer.
-          name
-            ? () =>
-                new Promise<boolean>((resolve) =>
-                  setAsking({
-                    container: name,
-                    go: (yes) => {
-                      setAsking(undefined);
-                      resolve(yes);
-                    },
-                  }),
-                )
-            : undefined,
-        );
-        const opened = res.terminal;
-        if (opened) {
-          if (targetContainer) {
-            tabTargets.current.set(opened.id, targetContainer);
-            if (exact && targetContainer.id === exact.id) {
-              urlExactTabs.current.add(opened.id);
-            }
-          }
-          setTabs((now) => [...now, opened]);
-          setActive(opened.id);
-        }
-        void queryClient.invalidateQueries({
-          queryKey: createConnectQueryKey({ schema: TerminalService.method.listTerminals, cardinality: "finite" }),
-        });
-      } catch (err) {
-        const reason = reasonOf(err);
-        if (err instanceof StepUpDeclined) {
-          // They read why, and chose not to: nothing to say.
-        } else if (reason === "no_passkey_here") {
-          // Adding one here opens what was asked for once it's made.
-          setNoPasskey(
-            targetContainer ? { container: targetContainer.name, exact: targetContainer } : { container: inContainer },
-          );
-        } else if (err instanceof PasskeyError && err.problem === "cancelled") {
-          setProblem(t`The passkey prompt closed, so no terminal opened. Open one when you're ready.`);
-        } else {
-          setProblem(err instanceof PasskeyError ? explain(err) : sentence(err));
-        }
-      } finally {
-        setOpening(false);
-      }
-    },
-    [client, exact, explain, queryClient, serverId, size, t, transport],
-  );
-
   const forget = (id: string) => {
     handles.current.delete(id);
     oscCwds.current.delete(id);
     tabTargets.current.delete(id);
     urlExactTabs.current.delete(id);
+    consoleTabs.current.delete(id);
     setTabs((now) => {
       const at = now.findIndex((tab) => tab.id === id);
       const rest = now.filter((tab) => tab.id !== id);
@@ -703,7 +761,10 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
       onBringBack={() => handle()?.bringBack()}
       onOpen={() => {
         const savedTarget = tabTargets.current.get(current.id);
-        void (savedTarget ? open(undefined, savedTarget) : open(current.container || undefined));
+        const consoleOpts = consoleTabs.current.get(current.id);
+        void (savedTarget
+          ? open(undefined, savedTarget, consoleOpts)
+          : open(current.container || undefined, undefined, consoleOpts));
       }}
       onClose={() => void close(current.id)}
       opening={opening}
@@ -714,9 +775,15 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
     <EmptyState
       icon="terminal"
       title={
-        <Trans>
-          No shell open in <code>{wanted}</code>
-        </Trans>
+        consoleMode ? (
+          <Trans>
+            No console open in <code>{wanted}</code>
+          </Trans>
+        ) : (
+          <Trans>
+            No shell open in <code>{wanted}</code>
+          </Trans>
+        )
       }
       action={
         <Button
@@ -724,13 +791,24 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
           size="lg"
           icon="terminal"
           loading={opening}
-          onClick={() => void (exact ? open(undefined, exact) : open(wanted))}
+          onClick={() =>
+            void (exact
+              ? open(undefined, exact, consoleMode ? { databaseConsole: true, database } : undefined)
+              : open(wanted, undefined, consoleMode ? { databaseConsole: true, database } : undefined))
+          }
         >
-          <Trans>Open a shell</Trans>
+          {consoleMode ? <Trans>Open console</Trans> : <Trans>Open a shell</Trans>}
         </Button>
       }
     >
-      {exact ? (
+      {consoleMode ? (
+        <p>
+          <Trans>
+            Opens the database client inside <code>{wanted}</code> as its admin user, signing in from the container's
+            environment.
+          </Trans>
+        </p>
+      ) : exact ? (
         <ExecForm opening={opening} run={(argv) => void open(undefined, { ...exact, argv })} />
       ) : (
         <p>
@@ -794,7 +872,11 @@ function Terminals({ server, phone, container, exact, onTitle }: TerminalsProps)
           ? t`A shell in ${shellIn} takes a passkey, and there's none for this address`
           : t`A terminal takes a passkey, and there's none for this address`
       }
-      onAdded={() => void (noPasskey.exact ? open(undefined, noPasskey.exact) : open(noPasskey.container))}
+      onAdded={() =>
+        void (noPasskey.exact
+          ? open(undefined, noPasskey.exact, noPasskey.consoleOpts)
+          : open(noPasskey.container, undefined, noPasskey.consoleOpts))
+      }
     />
   ) : problem ? (
     <Callout tone="critical" title={<Trans>No terminal opened</Trans>}>

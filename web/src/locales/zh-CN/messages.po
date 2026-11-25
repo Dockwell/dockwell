@@ -14517,8 +14517,14 @@ msgstr "服务器上没有任何改动。页面会自动重试。"
 msgid "Open as an app"
 msgstr "以应用打开"
 
+msgid "Open console"
+msgstr "打开控制台"
+
 msgid "Review the change to {next}"
 msgstr "查看 {next} 的更新"
+
+msgid "The database container isn't running on a server yet"
+msgstr "此数据库容器尚未在服务器上运行"
 
 msgid "Users"
 msgstr "用户"
@@ -25236,6 +25242,9 @@ msgstr "查找上一个"
 msgid "Fullscreen"
 msgstr "全屏"
 
+msgid "No console open in <0>{wanted}</0>"
+msgstr "<0>{wanted}</0> 中尚未打开控制台"
+
 msgid "No shell open in <0>{wanted}</0>"
 msgstr "<0>{wanted}</0> 中没有打开的 shell"
 
@@ -25265,6 +25274,9 @@ msgstr "请先打开终端会话。"
 
 msgid "Open somewhere else"
 msgstr "已在别处打开"
+
+msgid "Opens the database client inside <0>{wanted}</0> as its admin user, signing in from the container's environment."
+msgstr "以管理员用户在 <0>{wanted}</0> 容器内启动数据库客户端，使用容器环境变量自动登录。"
 
 #. placeholder {0}: index + 1
 msgid "Remove argument {0}"

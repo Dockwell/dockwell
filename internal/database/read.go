@@ -78,21 +78,32 @@ func (r Reader) one(ctx context.Context, asked *agentv1.DatabaseAsked) *dockwell
 		return unread("Its container isn't on this server")
 	case err != nil:
 		return unread("Dockwell can't read its container: " + clause(err))
-	case !c.State.Running || c.State.Restarting:
-		return unread(e.Name + " isn't running, so it can't say how it is")
+	}
+	containerName := strings.TrimPrefix(c.Name, "/")
+	if !c.State.Running || c.State.Restarting {
+		r := unread(e.Name + " isn't running, so it can't say how it is")
+		r.Container = containerName
+		return r
 	}
 	if why := e.TooOld(c.Config.Image); why != "" {
-		return unread(why)
+		r := unread(why)
+		r.Container = containerName
+		return r
 	}
 	cmd, input := e.reading(PortOf(e, c.Config.Cmd))
 	said, err := r.ask(ctx, c.ID, e, cmd, input)
 	if err != nil {
-		return unread(err.Error())
+		r := unread(err.Error())
+		r.Container = containerName
+		return r
 	}
 	reading, err := e.parse(said)
 	if err != nil {
-		return unread(fmt.Sprintf("Dockwell can't read what %s said: %s", e.Name, clause(err)))
+		r := unread(fmt.Sprintf("Dockwell can't read what %s said: %s", e.Name, clause(err)))
+		r.Container = containerName
+		return r
 	}
+	reading.Container = containerName
 	return reading
 }
 

@@ -16739,6 +16739,11 @@ components:
                     description: |-
                         True when it checks no one, as MongoDB does without --auth: anything that
                          reaches its port signs in as anyone.
+                container:
+                    type: string
+                    description: |-
+                        The container running this database on the server, by name, for opening a
+                         console in it.
             description: DatabaseReading is what a database said of itself on one server.
         DatabaseUser:
             type: object
@@ -26171,6 +26176,18 @@ components:
                     description: |-
                         A container on the server, by name or full ID, to open a shell in, in place of
                          the server's own.
+                databaseConsole:
+                    type: boolean
+                    description: |-
+                        Open the container's database client (psql, mysql, mariadb, redis-cli,
+                         valkey-cli, or mongosh) as its admin user, signing in with what its
+                         environment holds so no password appears on a command line. Needs container
+                         or container_id, and cannot be combined with argv.
+                database:
+                    type: string
+                    description: |-
+                        The database inside the container to connect to when database_console is
+                         set. Empty uses the engine's default.
                 containerId:
                     type: string
                     description: Full Engine ID in place of container. The passkey target includes this ID.

@@ -12,6 +12,7 @@ import {
   EventKind,
   EventService,
   type ServiceInfo,
+  TerminalService,
 } from "@dockwell/api";
 import {
   Button,
@@ -80,6 +81,7 @@ import { Page } from "../shell/Page";
 import { RefLink } from "../shell/RefLink";
 import { Meter } from "./Meter";
 import {
+  consoleTarget,
   engineAndVersion,
   engineName,
   firstReading,
@@ -369,33 +371,57 @@ function useColumnHeads(fleet: boolean) {
 }
 
 /**
- * A database's menu: its page, its users and its backups. Deleting one stays on its
+ * A database's menu: its page, console, users and backups. Deleting one stays on its
  * page, where the users Dockwell made in it go with it in the same plan.
  */
 function useDatabaseActions(manage: (db: Database) => MenuAction[]): (db: Database) => MenuAction[] {
   const { t } = useLingui();
   const navigate = useNavigate();
-  return (db) => [
-    {
-      id: "open",
-      icon: "database",
-      label: t`Open`,
-      onSelect: () => void navigate({ to: "/databases/$serviceId", params: { serviceId: db.id } }),
-    },
-    {
-      id: "users",
-      icon: "user",
-      label: t`Users`,
-      onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
-    },
-    {
-      id: "backups",
-      icon: "archive",
-      label: t`Backups`,
-      onSelect: () => void navigate({ to: "/databases/$serviceId/backups", params: { serviceId: db.id } }),
-    },
-    ...manage(db),
-  ];
+  const health = useHealth();
+  const mayConsole = useMay()(TerminalService.method.openTerminal);
+  return (db) => {
+    const target = consoleTarget(db, health.of({ id: db.id }));
+    return [
+      {
+        id: "open",
+        icon: "database",
+        label: t`Open`,
+        onSelect: () => void navigate({ to: "/databases/$serviceId", params: { serviceId: db.id } }),
+      },
+      ...(mayConsole.allowed
+        ? [
+            {
+              id: "console",
+              icon: "terminal" as const,
+              label: t`Open console`,
+              disabled: !target,
+              ...(target ? {} : { title: t`The database container isn't running on a server yet` }),
+              onSelect: () => {
+                if (!target) return;
+                void navigate({
+                  to: "/servers/$serverId/terminal",
+                  params: { serverId: target.serverId },
+                  search: { container: target.container, console: true },
+                });
+              },
+            },
+          ]
+        : []),
+      {
+        id: "users",
+        icon: "user",
+        label: t`Users`,
+        onSelect: () => void navigate({ to: "/databases/$serviceId/users", params: { serviceId: db.id } }),
+      },
+      {
+        id: "backups",
+        icon: "archive",
+        label: t`Backups`,
+        onSelect: () => void navigate({ to: "/databases/$serviceId/backups", params: { serviceId: db.id } }),
+      },
+      ...manage(db),
+    ];
+  };
 }
 
 function DatabaseRowPlan({ db, action, onClose }: { db: Database; action: "move" | "delete"; onClose: () => void }) {

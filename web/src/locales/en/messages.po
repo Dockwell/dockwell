@@ -14517,8 +14517,14 @@ msgstr "Nothing changed on the server. The page tries again by itself."
 msgid "Open as an app"
 msgstr "Open as an app"
 
+msgid "Open console"
+msgstr "Open console"
+
 msgid "Review the change to {next}"
 msgstr "Review the change to {next}"
+
+msgid "The database container isn't running on a server yet"
+msgstr "The database container isn't running on a server yet"
 
 msgid "Users"
 msgstr "Users"
@@ -25236,6 +25242,9 @@ msgstr "Find the one before"
 msgid "Fullscreen"
 msgstr "Fullscreen"
 
+msgid "No console open in <0>{wanted}</0>"
+msgstr "No console open in <0>{wanted}</0>"
+
 msgid "No shell open in <0>{wanted}</0>"
 msgstr "No shell open in <0>{wanted}</0>"
 
@@ -25265,6 +25274,9 @@ msgstr "Open a terminal session first."
 
 msgid "Open somewhere else"
 msgstr "Open somewhere else"
+
+msgid "Opens the database client inside <0>{wanted}</0> as its admin user, signing in from the container's environment."
+msgstr "Opens the database client inside <0>{wanted}</0> as its admin user, signing in from the container's environment."
 
 #. placeholder {0}: index + 1
 msgid "Remove argument {0}"

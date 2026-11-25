@@ -2056,4 +2056,38 @@ describe("how a database is backed up (#793)", () => {
       spec: { kind: { value: { destination: "r2" } } },
     });
   });
+
+  it("offers Open console on the database page and in its row menu", async () => {
+    const user = userEvent.setup();
+    const db = aDatabase({
+      readings: [
+        {
+          serverId: SERVER,
+          serverName: "hz-1",
+          container: "default-db-1",
+          version: "17.2",
+          user: "postgres",
+          sizeBytes: 9_400_000n,
+          connections: 2n,
+          maxConnections: 100n,
+        },
+      ],
+    });
+    const { router } = renderAt("/databases/svc_db", api([db]));
+    const consoleLink = await screen.findByRole("link", { name: "Open console" });
+    expect(consoleLink).toHaveAttribute("href", expect.stringContaining(`/servers/${SERVER}/terminal`));
+    expect(consoleLink).toHaveAttribute("href", expect.stringContaining("container=default-db-1"));
+    expect(consoleLink).toHaveAttribute("href", expect.stringContaining("console=true"));
+
+    await router.navigate({ to: "/databases" });
+    const table = await screen.findByRole("table", { name: "Databases" });
+    await user.click(within(table).getByRole("button", { name: "Actions for db" }));
+    const consoleItem = await screen.findByRole("menuitem", { name: "Open console" });
+    expect(consoleItem).not.toBeDisabled();
+    await user.click(consoleItem);
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/servers/${SERVER}/terminal`);
+      expect(router.state.location.search).toMatchObject({ container: "default-db-1", console: true });
+    });
+  });
 });

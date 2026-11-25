@@ -228,3 +228,35 @@ func TestExactTerminalRejectsAnExecBoundToADifferentContainer(t *testing.T) {
 		t.Fatalf("a terminal must open in the instance whose access was checked: %v", err)
 	}
 }
+
+func TestDatabaseConsoleValidatesAndOpensRecognisedEngine(t *testing.T) {
+	e := dockertest.New(t)
+	e.AddLocalImage("postgres:17", dockertest.Image{Shell: "/bin/sh"})
+	e.AddLocalImage("nginx:1.27", dockertest.Image{Shell: "/bin/sh"})
+	e.AddContainer(docker.Container{Name: "/pg-1", Config: docker.Config{Image: "postgres:17"}})
+	e.AddContainer(docker.Container{Name: "/web-1", Config: docker.Config{Image: "nginx:1.27"}})
+	m := New(Options{
+		Docker: e.Client(),
+		AsGoodAsRoot: func(_ context.Context, _ string) (bool, error) {
+			return false, nil
+		},
+	})
+	t.Cleanup(m.closeAll)
+
+	// Host terminal cannot request database_console.
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_host", DatabaseConsole: true}); err == nil {
+		t.Fatal("host terminal accepted database_console")
+	}
+	// Non-database container is refused.
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_web", Container: "web-1", DatabaseConsole: true}); err == nil {
+		t.Fatal("non-database container opened a database console")
+	}
+	// Recognised database container opens with client title.
+	res, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_pg", Container: "pg-1", DatabaseConsole: true, Database: "shop", Columns: 80, Rows: 24})
+	if err != nil {
+		t.Fatalf("database console failed: %v", err)
+	}
+	if res.GetTitle() != "psql/shop@pg-1" {
+		t.Errorf("title = %q, want %q", res.GetTitle(), "psql/shop@pg-1")
+	}
+}

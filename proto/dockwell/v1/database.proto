@@ -274,6 +274,9 @@ message DatabaseReading {
   // True when it checks no one, as MongoDB does without --auth: anything that
   // reaches its port signs in as anyone.
   bool checks_no_one = 18;
+  // The container running this database on the server, by name, for opening a
+  // console in it.
+  string container = 19;
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has

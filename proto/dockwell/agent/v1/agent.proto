@@ -479,6 +479,9 @@ message Hello {
   // take a call for a container as one for the server, so the control plane sends it
   // none.
   bool container_terminals = 52;
+  // True when the agent opens a database's interactive client inside its container
+  // (OpenTerminalCall.database_console). Database tools use 470 to 479.
+  bool database_console = 470;
   // True when the agent's proxy keeps out who a route's access doesn't let in,
   // and asks each private route what a stranger gets (ADR 0087). The control
   // plane plans no route with access on an agent that doesn't say so, which
@@ -1404,6 +1407,10 @@ message OpenTerminalCall {
   string container_id = 400;
   // An explicit container executable and arguments. Empty selects a shell.
   repeated string argv = 401;
+  // Open the container's database client as its admin user. Database tools use 470 to 479.
+  bool database_console = 470;
+  // The database inside the container to connect to when database_console is set.
+  string database = 471;
 }
 
 // OpenTerminalResult is the terminal, running.

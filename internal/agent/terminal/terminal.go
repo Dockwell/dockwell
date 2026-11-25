@@ -249,6 +249,9 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 	if err := ValidateContainerTarget(call.GetContainer(), call.GetContainerId(), call.GetArgv()); err != nil {
 		return nil, err
 	}
+	if err := ValidateDatabaseConsole(call.GetContainer(), call.GetContainerId(), call.GetArgv(), call.GetDatabaseConsole(), call.GetDatabase()); err != nil {
+		return nil, err
+	}
 	id := call.GetId()
 	if id == "" {
 		return nil, errors.New("a terminal needs an ID; the control plane gives it one")
@@ -279,7 +282,7 @@ func (m *Manager) Open(ctx context.Context, call *agentv1.OpenTerminalCall) (*ag
 		err   error
 	)
 	if container, exact := call.GetContainer(), call.GetContainerId(); container != "" || exact != "" {
-		proc, title, in, err = m.startInContainer(ctx, container, exact, call.GetArgv(), call.GetConfirmed(), cols, rows)
+		proc, title, in, err = m.startInContainer(ctx, container, exact, call.GetArgv(), call.GetDatabaseConsole(), call.GetDatabase(), call.GetConfirmed(), cols, rows)
 	} else {
 		proc, title, err = m.startOnServer(cols, rows)
 	}

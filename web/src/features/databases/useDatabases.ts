@@ -18,6 +18,7 @@ import { useLingui } from "@lingui/react/macro";
 import { useQueries } from "@tanstack/react-query";
 
 import { READ_EVERY_MS } from "../../lib/standing";
+import type { AppHealth } from "../apps/health";
 import { useMay } from "../auth/may";
 import { installIn, useCatalog, useInstalls } from "../catalog/useCatalog";
 import { useFleetView } from "../servers/useFleet";
@@ -113,6 +114,20 @@ export function firstReading(db: Database): DatabaseReading | undefined {
 /** What a reading says, where it could say anything. */
 export function readOf(reading: DatabaseReading | undefined): DatabaseReading | undefined {
   return reading && reading.unread === "" ? reading : undefined;
+}
+
+/** Where a database's interactive console opens: its server and container name, when known. */
+export function consoleTarget(
+  db: Database,
+  health?: AppHealth,
+): { serverId: string; container: string } | undefined {
+  const runningReading = db.readings.find((r) => r.serverId !== "" && r.container !== "" && r.unread === "");
+  if (runningReading) return { serverId: runningReading.serverId, container: runningReading.container };
+  const anyReading = db.readings.find((r) => r.serverId !== "" && r.container !== "");
+  if (anyReading) return { serverId: anyReading.serverId, container: anyReading.container };
+  const server = health?.servers.find((s) => s.serverId !== "" && s.container !== "");
+  if (server) return { serverId: server.serverId, container: server.container };
+  return undefined;
 }
 
 /** A short muted state for a database the agent couldn't read, for a table cell or metric caption. */

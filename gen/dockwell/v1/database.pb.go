@@ -404,7 +404,10 @@ type DatabaseReading struct {
 	ReplicaSet string `protobuf:"bytes,17,opt,name=replica_set,json=replicaSet,proto3" json:"replica_set,omitempty"`
 	// True when it checks no one, as MongoDB does without --auth: anything that
 	// reaches its port signs in as anyone.
-	ChecksNoOne   bool `protobuf:"varint,18,opt,name=checks_no_one,json=checksNoOne,proto3" json:"checks_no_one,omitempty"`
+	ChecksNoOne bool `protobuf:"varint,18,opt,name=checks_no_one,json=checksNoOne,proto3" json:"checks_no_one,omitempty"`
+	// The container running this database on the server, by name, for opening a
+	// console in it.
+	Container     string `protobuf:"bytes,19,opt,name=container,proto3" json:"container,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -563,6 +566,13 @@ func (x *DatabaseReading) GetChecksNoOne() bool {
 		return x.ChecksNoOne
 	}
 	return false
+}
+
+func (x *DatabaseReading) GetContainer() string {
+	if x != nil {
+		return x.Container
+	}
+	return ""
 }
 
 // InnerDatabase is one database inside a database server, as PostgreSQL has
@@ -1793,7 +1803,7 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x16DatabaseExternalAccess\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x1d\n" +
 	"\n" +
-	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\xa7\x05\n" +
+	"allow_from\x18\x02 \x03(\tR\tallowFrom\"\xc5\x05\n" +
 	"\x0fDatabaseReading\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -1816,7 +1826,8 @@ const file_dockwell_v1_database_proto_rawDesc = "" +
 	"\x15feature_compatibility\x18\x10 \x01(\tR\x14featureCompatibility\x12\x1f\n" +
 	"\vreplica_set\x18\x11 \x01(\tR\n" +
 	"replicaSet\x12\"\n" +
-	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOneB\f\n" +
+	"\rchecks_no_one\x18\x12 \x01(\bR\vchecksNoOne\x12\x1c\n" +
+	"\tcontainer\x18\x13 \x01(\tR\tcontainerB\f\n" +
 	"\n" +
 	"_cache_hit\"p\n" +
 	"\rInnerDatabase\x12\x12\n" +
