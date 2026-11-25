@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* The mock's terminal panel: a strip of session tabs, the well, and its foot. */
+/* The terminal workspace: session tabs, output well, foot, saved commands aside, and popovers. */
 
 .terminal-layout {
   display: flex;
@@ -9,11 +9,19 @@
   min-width: 0;
 }
 
+.terminal-workspace {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .terminal-panel {
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .terminal-head {
@@ -22,6 +30,7 @@
   gap: var(--space-1);
   padding: var(--space-2) var(--space-2) 0;
   border-bottom: 1px solid var(--line);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   min-width: 0;
 }
 
@@ -34,12 +43,17 @@
   scrollbar-width: none;
 }
 
+.terminal-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .terminal-tab {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
   height: 36px;
+  max-width: 280px;
   padding: 0 var(--space-2) 0 var(--space-3);
   margin-bottom: -1px;
   border: 1px solid transparent;
@@ -66,6 +80,25 @@
   font-weight: 550;
 }
 
+.terminal-tab-broadcast {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
+  background: var(--warning-soft);
+  color: var(--ink);
+}
+
+.terminal-tab-broadcast[aria-selected="true"] {
+  border-color: var(--warning);
+  background: var(--surface-sunken);
+}
+
+.terminal-tab-broadcast-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--warning);
+}
+
 .terminal-tab:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
@@ -73,11 +106,36 @@
 
 .terminal-tab-icon {
   display: flex;
+  flex: none;
   color: var(--ink-muted);
+}
+
+.terminal-tab-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tab-sep {
+  flex: none;
+  color: var(--ink-muted);
+  font-family: var(--font-sans);
+}
+
+.terminal-tab-server {
+  flex: 0 2 auto;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-weight: 400;
 }
 
 .terminal-tab-close {
   display: flex;
+  flex: none;
   padding: 3px;
   border-radius: var(--radius-xs);
   color: var(--ink-muted);
@@ -91,6 +149,7 @@
 
 .terminal-head-tool {
   display: flex;
+  flex: none;
   align-items: center;
   height: 36px;
 }
@@ -101,6 +160,67 @@
 
 .terminal-head-space {
   flex: 1 1 auto;
+  min-width: var(--space-1);
+}
+
+/* Broadcast bar: unmistakably marks opted-in tabs while active. */
+.terminal-broadcast-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
+  background: var(--warning-soft);
+  font-size: 13px;
+}
+
+.terminal-broadcast-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-broadcast-state {
+  font-weight: 550;
+  color: var(--ink);
+}
+
+.terminal-broadcast-state.is-live {
+  color: var(--warning);
+}
+
+.terminal-broadcast-choices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.terminal-broadcast-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font: 500 12px / 1 var(--font-mono);
+  cursor: pointer;
+  user-select: none;
+}
+
+.terminal-broadcast-chip.is-selected {
+  border-color: var(--warning);
+  color: var(--ink);
+}
+
+.terminal-broadcast-chip input {
+  margin: 0;
+  accent-color: var(--cobalt);
 }
 
 /* The well: ink on the sunken surface, as logs and code are. */
@@ -192,6 +312,7 @@
   gap: var(--space-2);
   padding: 9px var(--space-4);
   border-top: 1px solid var(--line);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   font-size: 13px;
   line-height: 18px;
   color: var(--ink-muted);
@@ -246,11 +367,12 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  z-index: 3;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   min-width: 180px;
   padding: var(--space-1);
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   box-shadow: var(--shadow-float);
@@ -284,8 +406,438 @@
   color: var(--critical);
 }
 
+/* + New session picker (Host shell + running containers). */
+.terminal-picker {
+  width: min(320px, calc(100vw - 24px));
+  padding: var(--space-1);
+}
+
+.terminal-picker-start {
+  left: 0;
+  right: auto;
+}
+
+.terminal-picker-end {
+  right: 0;
+  left: auto;
+}
+
+.terminal-picker-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.terminal-picker-item:hover,
+.terminal-picker-item:focus-visible {
+  outline: none;
+  background: var(--surface-sunken);
+}
+
+.terminal-picker-item:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.terminal-picker-icon {
+  display: flex;
+  flex: none;
+  color: var(--ink-muted);
+}
+
+.terminal-picker-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.terminal-picker-title {
+  font: 550 13px / 18px var(--font-sans);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-picker-sub {
+  font: 400 12px / 16px var(--font-mono);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-picker-sep {
+  height: 1px;
+  margin: var(--space-1) 0;
+  border: 0;
+  background: var(--line);
+}
+
+.terminal-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+  font: 500 12px / 16px var(--font-sans);
+  color: var(--ink-muted);
+}
+
+.terminal-picker-count {
+  font-family: var(--font-mono);
+}
+
+.terminal-picker-search {
+  padding: 0 var(--space-1) var(--space-1);
+}
+
+.terminal-picker-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.terminal-picker-note {
+  padding: var(--space-2);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
+/* Display settings popover on desktop (updates live right beside the terminal). */
+.terminal-settings-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 25;
+  width: 310px;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-float);
+}
+
+.terminal-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.terminal-settings-title {
+  margin: 0;
+  font: 600 14px / 20px var(--font-sans);
+  color: var(--ink);
+}
+
+.terminal-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.terminal-settings-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.terminal-settings-field {
+  min-width: 0;
+}
+
+.terminal-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.terminal-settings-label {
+  font: 500 13px / 18px var(--font-sans);
+  color: var(--ink);
+}
+
+.terminal-settings-switch {
+  padding-top: 2px;
+}
+
+.terminal-settings-error {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--critical);
+}
+
+.terminal-settings-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.terminal-settings-status {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Saved commands right-hand panel (matches Server-Terminal.dc.html). */
+.terminal-commands-aside {
+  display: flex;
+  flex: 0 0 340px;
+  flex-direction: column;
+  min-width: 300px;
+  max-height: calc(max(320px, calc(100dvh - 330px)) + 86px);
+  overflow: hidden;
+}
+
+.terminal-commands-head {
+  padding-right: var(--space-2);
+}
+
+.terminal-commands-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.terminal-commands-inner {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.terminal-sr-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.terminal-commands-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.terminal-commands-callout {
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.terminal-commands-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.terminal-commands-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-5) var(--space-4);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-muted);
+}
+
+.terminal-commands-empty p {
+  margin: 0;
+}
+
+.terminal-commands-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.terminal-commands-group + .terminal-commands-group {
+  border-top: 1px solid var(--line);
+}
+
+.terminal-commands-group-head {
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--line);
+  font: 550 12px / 16px var(--font-sans);
+  color: var(--ink-muted);
+}
+
+.terminal-commands-ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.terminal-command-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 10px var(--space-2) 10px var(--space-4);
+}
+
+.terminal-command-row + .terminal-command-row {
+  border-top: 1px solid var(--line);
+}
+
+.terminal-command-info {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.terminal-command-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.terminal-command-name {
+  font: 550 13.5px / 18px var(--font-sans);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-command-by {
+  font: 400 12px / 16px var(--font-sans);
+  color: var(--ink-muted);
+}
+
+.terminal-command-code {
+  font: 400 12px / 18px var(--font-mono);
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 7.5em;
+  overflow-y: auto;
+}
+
+.terminal-confirm-copy {
+  margin: 0;
+  font: 400 13.5px / 20px var(--font-sans);
+  color: var(--ink);
+}
+
+.terminal-confirm-code {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  font: 400 12px / 18px var(--font-mono);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.terminal-command-btns {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.terminal-commands-foot {
+  margin: 0;
+  padding: 10px var(--space-4);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.terminal-commands-foot code {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.terminal-cmd-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.terminal-secret-warn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.terminal-secret-warn p {
+  margin: 0;
+}
+
+.terminal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: 500 13px / 18px var(--font-sans);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.terminal-checkbox input {
+  margin: 0;
+  accent-color: var(--cobalt);
+}
+
+.terminal-import-preview {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.terminal-import-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.terminal-import-item + .terminal-import-item {
+  border-top: 1px solid var(--line);
+}
+
+.terminal-import-group {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.terminal-import-more {
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+}
+
 /* On a phone the terminal takes the screen under its header, as M-Terminal has it:
-   the output, then its keys, with no tab bar, as the keyboard comes up under them. */
+   a slim tool strip, the output, foot, then its keys, with no tablist. */
 .shell-column:has(.terminal-phone) > .tabbar {
   display: none;
 }
@@ -297,9 +849,47 @@
   margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4));
 }
 
+.terminal-phone .terminal-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
 .terminal-phone .terminal-panel {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.terminal-phone-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.terminal-phone-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 var(--space-1);
+  font: 500 12.5px / 1 var(--font-mono);
+  color: var(--ink-muted);
+}
+
+.terminal-phone-select {
+  max-width: 170px;
+  height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 12.5px / 1 var(--font-mono);
 }
 
 .terminal-phone .terminal-body {
@@ -480,4 +1070,36 @@
 .terminal-exec-argument > :first-child {
   min-width: 0;
   flex: 1;
+}
+
+/* Fullscreen covers the viewport so the terminal gets every column and row. */
+.terminal-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  gap: 0;
+  width: 100vw;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: var(--canvas);
+}
+
+.terminal-fullscreen .terminal-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
+}
+
+.terminal-fullscreen .terminal-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.terminal-fullscreen .terminal-body {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }

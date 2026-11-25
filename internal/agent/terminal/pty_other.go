@@ -22,4 +22,6 @@ func (*pty) resize(uint16, uint16) error { return nil }
 
 func (*pty) redraw() {}
 
+func (*pty) cwd(*os.Process) string { return "" }
+
 func isHangUp(err error) bool { return errors.Is(err, os.ErrClosed) }

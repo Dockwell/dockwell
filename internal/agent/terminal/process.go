@@ -23,12 +23,16 @@ type process interface {
 	wait(read <-chan struct{}) (code int, err error)
 	// signal sends sig to the process, and what it started, where it can.
 	signal(sig syscall.Signal)
+	// cwd returns the shell's current working directory on the host when known,
+	// and the account's home directory as a fallback.
+	cwd() (path, home string)
 }
 
 // ptyShell is a shell on a pseudo-terminal the agent holds.
 type ptyShell struct {
-	pty *pty
-	cmd *exec.Cmd
+	pty  *pty
+	cmd  *exec.Cmd
+	home string
 }
 
 func (s *ptyShell) Read(p []byte) (int, error)     { return s.pty.Read(p) }
@@ -36,6 +40,7 @@ func (s *ptyShell) Write(p []byte) (int, error)    { return s.pty.Write(p) }
 func (s *ptyShell) resize(cols, rows uint16) error { return s.pty.resize(cols, rows) }
 func (s *ptyShell) redraw()                        { s.pty.redraw() }
 func (s *ptyShell) close() error                   { return s.pty.Close() }
+func (s *ptyShell) cwd() (string, string)          { return s.pty.cwd(s.cmd.Process), s.home }
 
 func (s *ptyShell) wait(<-chan struct{}) (int, error) {
 	err := s.cmd.Wait()

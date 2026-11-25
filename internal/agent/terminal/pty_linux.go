@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -101,4 +103,74 @@ func (p *pty) redraw() {
 // isHangUp reports the read that ends a terminal: the shell's side has closed.
 func isHangUp(err error) bool {
 	return errors.Is(err, unix.EIO) || errors.Is(err, os.ErrClosed)
+}
+
+// cwd reads the foreground process group's working directory from /proc, falling
+// back to the shell process itself. Before trusting pgrp as a PID, it checks
+// /proc/<pgrp>/stat to confirm that process still belongs to the same process
+// group and the shell's session, guarding against PID reuse after a pipeline
+// leader exits. Returns empty when neither can be read.
+func (p *pty) cwd(proc *os.Process) string {
+	var pgrp int
+	_ = p.control(func(fd int) error {
+		g, err := unix.IoctlGetInt(fd, unix.TIOCGPGRP)
+		if err != nil {
+			return err
+		}
+		pgrp = g
+		return nil
+	})
+	var shellSid int
+	if proc != nil && proc.Pid > 1 {
+		if sid, err := unix.Getsid(proc.Pid); err == nil && sid > 0 {
+			shellSid = sid
+		}
+	}
+	if pgrp > 1 && shellSid > 0 {
+		if gotPgrp, gotSid, ok := readProcPgrpSid(pgrp); ok && gotPgrp == pgrp && gotSid == shellSid {
+			if dir := readProcCwd(pgrp); dir != "" {
+				return dir
+			}
+		}
+	}
+	if proc != nil && proc.Pid > 1 {
+		return readProcCwd(proc.Pid)
+	}
+	return ""
+}
+
+func readProcPgrpSid(pid int) (pgrp, sid int, ok bool) {
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return 0, 0, false
+	}
+	return parseProcStatPgrpSid(string(raw))
+}
+
+// parseProcStatPgrpSid extracts pgrp (field 5) and session (field 6) from a
+// /proc/<pid>/stat line, handling comm fields that contain spaces or ')'.
+func parseProcStatPgrpSid(stat string) (pgrp, sid int, ok bool) {
+	end := strings.LastIndexByte(stat, ')')
+	if end < 0 || end+1 >= len(stat) {
+		return 0, 0, false
+	}
+	fields := strings.Fields(stat[end+1:])
+	// After "(comm)", fields[0]=state, [1]=ppid, [2]=pgrp, [3]=session.
+	if len(fields) < 4 {
+		return 0, 0, false
+	}
+	g, err1 := strconv.Atoi(fields[2])
+	s, err2 := strconv.Atoi(fields[3])
+	if err1 != nil || err2 != nil {
+		return 0, 0, false
+	}
+	return g, s, true
+}
+
+func readProcCwd(pid int) string {
+	target, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
+	if err != nil || !strings.HasPrefix(target, "/") || strings.HasSuffix(target, " (deleted)") {
+		return ""
+	}
+	return filepath.Clean(target)
 }

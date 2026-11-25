@@ -13,7 +13,7 @@ export const LINE_PX = 20;
  * line box, as xterm measures it, so that's measured the same way: by the canvas's
  * text metrics where there are any.
  */
-export function lineHeightFor(fontSize: number, family = TERMINAL_FONT): number {
+export function lineHeightFor(fontSize: number, family: string = TERMINAL_FONT): number {
   let natural = 0;
   try {
     const ctx = typeof OffscreenCanvas === "undefined" ? null : new OffscreenCanvas(1, 1).getContext("2d");

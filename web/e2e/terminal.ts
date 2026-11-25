@@ -245,7 +245,7 @@ async function main() {
     .getByRole("link", { name: /^Server/ })
     .first()
     .click();
-  await page.getByRole("link", { name: "Terminal" }).click();
+  await page.getByRole("link", { name: "Terminal", exact: true }).click();
   await page.getByText("No terminal open").first().waitFor();
   const serverId = new URL(page.url()).pathname.split("/")[2] ?? fail(`no server in ${page.url()}`);
   await shoot(page, "empty");
@@ -371,19 +371,172 @@ async function main() {
   await other.getByText("This terminal is open somewhere else").waitFor({ timeout: 15_000 });
   await other.close();
 
-  step("a second session, with a passkey of its own, then closed");
+  step("a second session via +, broadcast typing to opted-in tabs, then closed");
   const second = await asserted();
   await page.getByRole("button", { name: "New session" }).click();
+  await page.getByRole("button", { name: /Host shell/ }).click();
   await until("a second tab", async () => (await page.getByRole("tab").count()) === 2);
   if ((await asserted()) <= second) fail("a second terminal opened without the passkey");
   await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
   await typeLine(page, "echo second-$((1+1))");
   await shows(page, "second-2");
   await shoot(page, "two-sessions");
+
+  // Broadcast: opt in both tabs, type once, verify output in both, and verify closing a tab turns it off.
+  await page.getByRole("button", { name: "Type into several tabs" }).click();
+  const broadcastBar = page.getByRole("region", { name: "Type into several tabs" });
+  await broadcastBar.waitFor();
+  await broadcastBar.getByRole("checkbox").first().check();
+  await broadcastBar.getByText("Typing into 2 tabs").waitFor();
+  await shoot(page, "broadcast");
+  await typeLine(page, "echo multi-$((7*7))");
+  await shows(page, "multi-49");
+  await page.getByRole("tab").first().click();
+  await shows(page, "multi-49");
+  await page.getByRole("tab").nth(1).click();
+
   await page.getByRole("button", { name: "Session options" }).click();
   await page.getByRole("menuitem", { name: "Close terminal" }).click();
   await until("one tab", async () => (await page.getByRole("tab").count()) === 1);
-  await shows(page, "typed-offline-9");
+  if ((await page.getByRole("region", { name: "Type into several tabs" }).count()) !== 0) {
+    fail("broadcast stayed on after a tab closed");
+  }
+  await shows(page, "multi-49");
+
+  step("saved commands: grouped personal and shared, secret warning, insert without Enter, run with Enter");
+  await page.getByRole("button", { name: "Commands" }).click();
+  const commandsPanel = page.getByRole("complementary", { name: "Saved commands" });
+  await commandsPanel.waitFor();
+  await commandsPanel.getByRole("button", { name: "Add command" }).click();
+  let editor = page.getByRole("dialog", { name: "Add saved command" });
+  await editor.getByLabel("Name").fill("Disk usage");
+  await editor.getByLabel("Group").fill("Disk");
+  await editor.getByLabel("Command").fill("echo saved-disk-$((3+4))");
+  await editor.getByRole("button", { name: "Save command" }).click();
+  await commandsPanel.getByText("Disk usage").waitFor();
+
+  await commandsPanel.getByRole("button", { name: "Add" }).click();
+  editor = page.getByRole("dialog", { name: "Add saved command" });
+  await editor.getByLabel("Name").fill("Shared check");
+  await editor.getByLabel("Group").fill("System");
+  await editor.getByLabel("Command").fill("echo saved-shared-$((5+5))");
+  await editor.getByRole("radio", { name: /Shared/ }).click();
+  await editor.getByRole("button", { name: "Save command" }).click();
+  await commandsPanel.getByText("Shared check").waitFor();
+
+  // Secret warning blocks saving plain-text secrets until acknowledged.
+  await commandsPanel.getByRole("button", { name: "Add" }).click();
+  editor = page.getByRole("dialog", { name: "Add saved command" });
+  await editor.getByLabel("Name").fill("Token test");
+  await editor.getByLabel("Command").fill("export API_TOKEN=sk_live_1234567890abcdef");
+  await editor.getByText("This looks like a secret").waitFor();
+  if (!(await editor.getByRole("button", { name: "Save command" }).isDisabled())) {
+    fail("saved command allowed saving a secret without acknowledgement");
+  }
+  await editor.getByRole("button", { name: "Cancel" }).click();
+
+  await shoot(page, "commands");
+  // Insert never presses Enter; Run executes immediately.
+  await commandsPanel.getByRole("button", { name: "Insert Disk usage" }).click();
+  await shows(page, "echo saved-disk-$((3+4))");
+  if ((await screenText(page)).includes("saved-disk-7")) fail("Insert pressed Enter");
+  await page.keyboard.press("Enter");
+  await shows(page, "saved-disk-7");
+  await commandsPanel.getByRole("button", { name: "Run Shared check" }).click();
+  await shows(page, "saved-shared-10");
+
+  // Multi-line saved command: Insert uses bracketed paste so no line runs until Enter; Run asks first naming the line count.
+  await commandsPanel.getByRole("button", { name: "Add" }).click();
+  editor = page.getByRole("dialog", { name: "Add saved command" });
+  await editor.getByLabel("Name").fill("Two step");
+  await editor.getByLabel("Command").fill("echo multi-a-$((1+1))\necho multi-b-$((2+2))");
+  await editor.getByRole("button", { name: "Save command" }).click();
+  await commandsPanel.getByText("Two step").waitFor();
+
+  await commandsPanel.getByRole("button", { name: "Insert Two step" }).click();
+  await shows(page, "echo multi-b-$((2+2))");
+  if ((await screenText(page)).includes("multi-a-2") || (await screenText(page)).includes("multi-b-4")) {
+    fail("Multi-line Insert executed a line before Enter");
+  }
+  await page.keyboard.press("Enter");
+  await shows(page, "multi-a-2");
+  await shows(page, "multi-b-4");
+
+  await commandsPanel.getByRole("button", { name: "Run Two step" }).click();
+  const confirmMulti = page.getByRole("dialog", { name: "Run 2 lines?" });
+  await confirmMulti.waitFor();
+  await confirmMulti.getByRole("button", { name: "Run 2 lines" }).click();
+  await until(
+    "multi-line Run executed both lines again",
+    async () => (await screenText(page)).split("multi-b-4").length - 1 >= 2,
+  );
+  await page.getByRole("button", { name: "Close saved commands" }).click();
+
+  step("display settings apply live and are remembered across reloads");
+  await page.getByRole("button", { name: "Terminal settings" }).click();
+  const settings = page.getByRole("region", { name: "Terminal settings" });
+  await settings.waitFor();
+  await settings.getByLabel("Font size").selectOption("16");
+  await settings.getByRole("radio", { name: "Bar" }).click();
+  await until(
+    "terminal font size 16px",
+    async () =>
+      (await page.evaluate(
+        () =>
+          getComputedStyle(document.querySelector(".terminal-screen:not([hidden]) .xterm-rows") ?? document.body)
+            .fontSize,
+      )) === "16px",
+  );
+  await shoot(page, "settings");
+  await page.getByRole("button", { name: "Close settings" }).click();
+
+  await page.reload();
+  await page.getByRole("tab", { selected: true }).waitFor();
+  await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
+  await until(
+    "remembered font size 16px after reload",
+    async () =>
+      (await page.evaluate(
+        () =>
+          getComputedStyle(document.querySelector(".terminal-screen:not([hidden]) .xterm-rows") ?? document.body)
+            .fontSize,
+      )) === "16px",
+  );
+  // Reset preferences back to defaults for subsequent phone checks.
+  await page.getByRole("button", { name: "Terminal settings" }).click();
+  await page.getByRole("button", { name: "Reset to defaults" }).click();
+  await page.getByRole("button", { name: "Close settings" }).click();
+
+  step(
+    "fullscreen keeps bare Escape for the shell (vim-style) and Shift+Escape leaves it; Open Files here opens the shell's folder",
+  );
+  await page.getByRole("button", { name: "Fullscreen" }).click();
+  await page.locator(".terminal-fullscreen").waitFor();
+  await typeLine(page, "cat -v");
+  await sleep(200);
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Enter");
+  await shows(page, "^[");
+  if ((await page.locator(".terminal-fullscreen").count()) !== 1) {
+    fail("bare Escape stole focus from the shell and exited fullscreen");
+  }
+  await page.keyboard.press("Control+C");
+  await sleep(150);
+  await page.keyboard.press("Shift+Escape");
+  await until(
+    "fullscreen exited on Shift+Escape",
+    async () => (await page.locator(".terminal-fullscreen").count()) === 0,
+  );
+
+  await typeLine(page, "cd /tmp && echo cwd-moved-$((1+1))");
+  await shows(page, "cwd-moved-2");
+  await page.getByRole("button", { name: "Open Files here" }).click();
+  await until(
+    "Files page at /tmp",
+    () => page.url().includes(`/servers/${serverId}/files`) && page.url().includes("tmp"),
+  );
+  await page.getByRole("link", { name: "Terminal", exact: true }).click();
+  await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
 
   step("on a phone it takes the screen, with the keys a phone's keyboard hasn't");
   await atWidth(page, { width: 390, height: 844 });
@@ -489,6 +642,8 @@ async function main() {
     await runByHand("web-1", "acme/web:1", { User: "node" });
     await runByHand("admin-1", "acme/web:1", { HostConfig: { Privileged: true } });
     await runByHand("bare-1", "acme/web:distroless");
+    await runByHand("cache-1", "redis:7", { User: "node" });
+    await runByHand("worker-1", "acme/worker:2", { User: "node" });
     await page.goto(`${origin}/servers/${serverId}`);
     await page
       .getByRole("link", { name: /^web-1/ })
@@ -499,13 +654,24 @@ async function main() {
     await shoot(page, "container-offer");
     const before = await asserted();
     await page.getByRole("button", { name: "Open a shell" }).click();
-    await page.getByRole("tab", { name: "node@web-1", selected: true }).waitFor({ timeout: 15_000 });
+    await page.getByRole("tab", { name: /^web-1 · /, selected: true }).waitFor({ timeout: 15_000 });
     await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
     await typeLine(page, "echo in-a-container-$((6*7))");
     await shows(page, "in-a-container-42");
     if ((await asserted()) !== before)
       fail("a shell in a container that reaches no further than itself asked for the passkey");
     await shoot(page, "container-shell");
+
+    step("+ picks a running container with search when there are many");
+    await page.getByRole("button", { name: "New session" }).click();
+    const picker = page.getByRole("dialog", { name: "New session" });
+    await picker.waitFor();
+    await picker.getByText("acme/worker:2").waitFor({ timeout: 15_000 });
+    await shoot(page, "picker");
+    await picker.getByRole("textbox", { name: "Filter containers" }).fill("worker");
+    await picker.getByRole("button", { name: /worker-1/ }).click();
+    await page.getByRole("tab", { name: /^worker-1 · /, selected: true }).waitFor({ timeout: 15_000 });
+    await page.getByText("Connected through the agent").waitFor({ timeout: 15_000 });
 
     step("one that's as good as root asks for the passkey, and one with no shell says so");
     await page.goto(`${origin}/servers/${serverId}/terminal?container=admin-1`);
@@ -515,7 +681,7 @@ async function main() {
     if ((await asserted()) !== before) fail("the passkey was asked for before the page said why");
     await shoot(page, "container-why");
     await page.getByRole("button", { name: "Confirm with your passkey" }).click();
-    await page.getByRole("tab", { name: "root@admin-1", selected: true }).waitFor({ timeout: 15_000 });
+    await page.getByRole("tab", { name: /^admin-1 · /, selected: true }).waitFor({ timeout: 15_000 });
     if ((await asserted()) <= before) fail("a shell in a privileged container opened without the passkey");
     await page.goto(`${origin}/servers/${serverId}/terminal?container=bare-1`);
     await page.getByRole("button", { name: "Open a shell" }).click();
@@ -542,6 +708,7 @@ async function main() {
   await zhPage.goto(`${origin}/servers/${serverId}/terminal`);
   // New session, which is there whether or not a terminal is open already.
   await zhPage.locator(".terminal-head-tool").first().locator("button").click();
+  await zhPage.locator(".terminal-picker button").first().click();
   await zhPage.locator(".terminal-screen:not([hidden]) .xterm").waitFor({ timeout: 15_000 });
   await shows(zhPage, "$");
   await typeLine(zhPage, "echo 你好-$((1+1))");

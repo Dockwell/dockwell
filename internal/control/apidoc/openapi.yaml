@@ -9653,6 +9653,196 @@ paths:
                         application/json:
                             schema:
                                 $ref: '#/components/schemas/Status'
+    /v1/terminal/commands:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                ListSavedCommands returns your personal saved terminal commands and the
+                 install's shared commands. No API token can call it.
+            operationId: TerminalService_ListSavedCommands
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ListSavedCommandsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                SaveCommand creates or updates a saved terminal command, either personal to
+                 you or shared across admins on the install. A command that looks like it
+                 contains a secret is refused with the reason looks_like_secret unless
+                 allow_plain_text_secret is set. No API token can call it.
+            operationId: TerminalService_SaveCommand
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/SaveCommandRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/SaveCommandResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminal/commands/{id}:delete:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                DeleteSavedCommand removes a personal or shared saved terminal command. No
+                 API token can call it.
+            operationId: TerminalService_DeleteSavedCommand
+            parameters:
+                - name: id
+                  in: path
+                  description: The command's ID.
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/DeleteSavedCommandRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DeleteSavedCommandResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminal/commands:import:
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                ImportSavedCommands adds a batch of saved terminal commands from a file. If
+                 any command looks like it contains a secret, the import is refused with the
+                 reason looks_like_secret unless allow_plain_text_secret is set. No API
+                 token can call it.
+            operationId: TerminalService_ImportSavedCommands
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/ImportSavedCommandsRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ImportSavedCommandsResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminal/preferences:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                GetTerminalPreferences returns your saved terminal display settings. No API
+                 token can call it.
+            operationId: TerminalService_GetTerminalPreferences
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTerminalPreferencesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+        post:
+            tags:
+                - TerminalService
+            description: |-
+                UpdateTerminalPreferences saves your terminal display settings. No API
+                 token can call it.
+            operationId: TerminalService_UpdateTerminalPreferences
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            $ref: '#/components/schemas/UpdateTerminalPreferencesRequest'
+                required: true
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UpdateTerminalPreferencesResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
+    /v1/terminals/{terminalId}/workingDirectory:
+        get:
+            tags:
+                - TerminalService
+            description: |-
+                GetTerminalWorkingDirectory returns a host terminal's current working
+                 directory on the server when the agent can read it from /proc, and its home
+                 folder as a fallback. For a container shell or an older agent, known is
+                 false and home is empty so the panel falls back to Files' own default. No
+                 API token can call it.
+            operationId: TerminalService_GetTerminalWorkingDirectory
+            parameters:
+                - name: terminalId
+                  in: path
+                  description: The terminal's ID.
+                  required: true
+                  schema:
+                    type: string
+            responses:
+                "200":
+                    description: OK
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/GetTerminalWorkingDirectoryResponse'
+                default:
+                    description: Default error response
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Status'
     /v1/terminals/{terminalId}:close:
         post:
             tags:
@@ -16694,6 +16884,20 @@ components:
             type: object
             properties: {}
             description: DeleteProviderLinkResponse is empty.
+        DeleteSavedCommandRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: The command's ID.
+                shared:
+                    type: boolean
+                    description: True when deleting a shared install command; false for a personal command.
+            description: DeleteSavedCommandRequest names a saved command to remove.
+        DeleteSavedCommandResponse:
+            type: object
+            properties: {}
+            description: DeleteSavedCommandResponse is empty.
         DeleteWebsiteRequest:
             type: object
             properties:
@@ -21314,6 +21518,29 @@ components:
                 task:
                     $ref: '#/components/schemas/TaskInfo'
             description: GetTaskResponse is the task.
+        GetTerminalPreferencesResponse:
+            type: object
+            properties:
+                preferences:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalPreferences'
+                    description: The saved preferences.
+            description: GetTerminalPreferencesResponse carries the caller's terminal settings.
+        GetTerminalWorkingDirectoryResponse:
+            type: object
+            properties:
+                path:
+                    type: string
+                    description: The shell's current working directory on the server, when known.
+                home:
+                    type: string
+                    description: The fallback home directory on the server, such as "/root".
+                known:
+                    type: boolean
+                    description: True when path is the shell's live working directory rather than a fallback.
+            description: |-
+                GetTerminalWorkingDirectoryResponse reports where the terminal's shell is
+                 working on the server, or its fallback home directory.
         GetTotpResponse:
             type: object
             properties:
@@ -22635,6 +22862,35 @@ components:
             description: |-
                 ImportOnePanelResponse is what 1Panel keeps on the server, and what an import
                  would do with each.
+        ImportSavedCommandsRequest:
+            type: object
+            properties:
+                commands:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SavedCommandInput'
+                    description: Commands to import, at most 200 per call.
+                allowPlainTextSecret:
+                    type: boolean
+                    description: |-
+                        Set true to acknowledge plain-text storage when any imported command looks
+                         like a secret.
+            description: ImportSavedCommandsRequest adds a batch of commands from an exported file.
+        ImportSavedCommandsResponse:
+            type: object
+            properties:
+                commands:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SavedCommand'
+                    description: All saved commands now available to the caller.
+                imported:
+                    type: integer
+                    description: How many commands were added by this import.
+                    format: uint32
+            description: |-
+                ImportSavedCommandsResponse reports how many commands were imported and
+                 returns the full list.
         ImportStep:
             type: object
             properties:
@@ -24213,6 +24469,15 @@ components:
                     type: string
                     description: Pass it as page_token for the next page. Empty on the last page.
             description: ListResourcesResponse is a page of resources.
+        ListSavedCommandsResponse:
+            type: object
+            properties:
+                commands:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/SavedCommand'
+                    description: Personal commands and shared install commands.
+            description: ListSavedCommandsResponse carries personal and shared saved commands.
         ListServerSshKeysResponse:
             type: object
             properties:
@@ -30053,6 +30318,38 @@ components:
             description: |-
                 Runtime is an app from a folder on the server, run in a language's official
                  image of the version chosen, as a person who edits it there wants it.
+        SaveCommandRequest:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Existing command ID to edit, or empty to create a new command.
+                name:
+                    type: string
+                    description: Short label, 1 to 80 characters.
+                command:
+                    type: string
+                    description: Command text, 1 to 4096 characters.
+                group:
+                    type: string
+                    description: Optional group name, at most 64 characters.
+                shared:
+                    type: boolean
+                    description: True to store as a shared install command; false for personal.
+                allowPlainTextSecret:
+                    type: boolean
+                    description: |-
+                        Set true to acknowledge plain-text storage when the command looks like a
+                         secret.
+            description: SaveCommandRequest creates or updates a saved terminal command.
+        SaveCommandResponse:
+            type: object
+            properties:
+                command:
+                    allOf:
+                        - $ref: '#/components/schemas/SavedCommand'
+                    description: The created or updated command.
+            description: SaveCommandResponse carries the saved command.
         SaveFileRequest:
             type: object
             properties:
@@ -30099,6 +30396,57 @@ components:
                     type: boolean
                     description: True when the file is a way back onto the server, which took a passkey.
             description: SaveFileResponse is the file as saved.
+        SavedCommand:
+            type: object
+            properties:
+                id:
+                    type: string
+                    description: Its ID, such as "tcm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+                name:
+                    type: string
+                    description: Short label shown in the saved commands list, at most 80 characters.
+                command:
+                    type: string
+                    description: Command text typed into the terminal, at most 4096 characters.
+                group:
+                    type: string
+                    description: Optional group name for organizing commands, at most 64 characters.
+                shared:
+                    type: boolean
+                    description: True when shared across admins on the install; false when personal.
+                createTime:
+                    type: string
+                    description: When it was created.
+                    format: date-time
+                updateTime:
+                    type: string
+                    description: When it was last edited.
+                    format: date-time
+                createdBy:
+                    type: string
+                    description: Who created this command, for shared commands.
+                updatedBy:
+                    type: string
+                    description: Who last edited this command, for shared commands.
+            description: |-
+                SavedCommand is a reusable terminal command stored in plain text for one
+                 person or shared across admins on the install.
+        SavedCommandInput:
+            type: object
+            properties:
+                name:
+                    type: string
+                    description: Short label shown in the saved commands list.
+                command:
+                    type: string
+                    description: Command text typed into the terminal.
+                group:
+                    type: string
+                    description: Optional group name.
+                shared:
+                    type: boolean
+                    description: True to store as a shared install command; false for personal.
+            description: SavedCommandInput describes one command to create during import.
         Screenshot:
             type: object
             properties:
@@ -33735,6 +34083,47 @@ components:
                     type: string
                     description: What happened, for people, such as "The shell exited with code 0".
             description: TerminalEnd says how a terminal ended.
+        TerminalPreferences:
+            type: object
+            properties:
+                fontSize:
+                    type: number
+                    description: |-
+                        Font size in pixels, from 10 to 24. Zero uses Dockwell's default (12.5 on
+                         desktop, 13 on a phone).
+                    format: double
+                fontFamily:
+                    type: string
+                    description: |-
+                        Named font preset: empty or "default" for JetBrains Mono (panel mono), or
+                         "system-mono", "fira-code", "ibm-plex-mono", "source-code-pro".
+                lineHeight:
+                    type: number
+                    description: |-
+                        Line height multiplier, from 1.0 to 2.0. Zero matches Dockwell's default
+                         row spacing.
+                    format: double
+                cursorStyle:
+                    enum:
+                        - TERMINAL_CURSOR_STYLE_UNSPECIFIED
+                        - TERMINAL_CURSOR_STYLE_BLOCK
+                        - TERMINAL_CURSOR_STYLE_UNDERLINE
+                        - TERMINAL_CURSOR_STYLE_BAR
+                    type: string
+                    description: Cursor shape. Unspecified uses block.
+                    format: enum
+                cursorBlink:
+                    type: boolean
+                    description: Whether the cursor blinks. Unset defaults to true.
+                scrollback:
+                    type: integer
+                    description: |-
+                        Number of scrollback lines kept in the browser, from 500 to 50000. Zero
+                         uses the default (5000).
+                    format: uint32
+            description: |-
+                TerminalPreferences holds a person's terminal display settings. Zero or unset
+                 fields use Dockwell's defaults.
         TestAlertChannelRequest:
             type: object
             properties:
@@ -34069,6 +34458,22 @@ components:
                 user:
                     $ref: '#/components/schemas/User'
             description: UpdateProfileResponse is your account as it now is.
+        UpdateTerminalPreferencesRequest:
+            type: object
+            properties:
+                preferences:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalPreferences'
+                    description: The settings to store.
+            description: UpdateTerminalPreferencesRequest updates the caller's terminal settings.
+        UpdateTerminalPreferencesResponse:
+            type: object
+            properties:
+                preferences:
+                    allOf:
+                        - $ref: '#/components/schemas/TerminalPreferences'
+                    description: The stored preferences.
+            description: UpdateTerminalPreferencesResponse carries the saved terminal settings.
         UpdateWebsiteRequest:
             type: object
             properties:

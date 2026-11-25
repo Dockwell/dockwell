@@ -74,7 +74,7 @@ This supersedes what ADR 0003 and ADR 0015 said of the terminal:
 
 ### What the mock has that this leaves out
 
-The mock's side column shares a session with a teammate, who can watch and type if allowed. Dockwell has one person per install so far, so there's nobody to share with, and the column's saved commands come in a change of their own. Each takes its own care: someone watching a root shell sees what it prints.
+The mock's side column shares a session with a teammate, who can watch and type if allowed. Dockwell has one person per install so far, so there's nobody to share with; saved commands, display settings, working directory lookup and typing into several tabs are decided in [ADR 0108](0108-terminal-saved-commands-settings-and-broadcast.md). Each takes its own care: someone watching a root shell sees what it prints.
 
 ## Consequences
 

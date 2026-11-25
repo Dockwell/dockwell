@@ -183,7 +183,13 @@ function apiWrapper(api: Api, cache: CacheOptions = {}) {
         listAlertDeliveries: () => ({}),
         ...api.alerts,
       });
-      service(TerminalService, { listTerminals: () => ({}), ...api.terminals });
+      service(TerminalService, {
+        listTerminals: () => ({}),
+        getTerminalPreferences: () => ({}),
+        listSavedCommands: () => ({}),
+        getTerminalWorkingDirectory: () => ({ home: "/root", known: false }),
+        ...api.terminals,
+      });
       service(BackupService, {
         listBackups: () => ({}),
         listBackupPolicies: () => ({}),

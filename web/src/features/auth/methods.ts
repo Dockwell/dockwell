@@ -342,8 +342,15 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
 
   "TerminalService.attachTerminal": { within: "TerminalService.listTerminals" },
   "TerminalService.closeTerminal": { within: "TerminalService.listTerminals" },
+  "TerminalService.deleteSavedCommand": { within: "TerminalService.listTerminals" },
+  "TerminalService.getTerminalPreferences": { within: "TerminalService.listTerminals" },
+  "TerminalService.getTerminalWorkingDirectory": { within: "TerminalService.listTerminals" },
+  "TerminalService.importSavedCommands": { within: "TerminalService.listTerminals" },
+  "TerminalService.listSavedCommands": { within: "TerminalService.listTerminals" },
   "TerminalService.listTerminals": "may",
   "TerminalService.openTerminal": { within: "TerminalService.listTerminals" },
+  "TerminalService.saveCommand": { within: "TerminalService.listTerminals" },
+  "TerminalService.updateTerminalPreferences": { within: "TerminalService.listTerminals" },
   "TerminalService.writeTerminal": { within: "TerminalService.listTerminals" },
 
   "TokenService.createToken": "open",

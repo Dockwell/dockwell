@@ -279,8 +279,15 @@ TaskService.ListTasks                          read         viewer     viewer   
 TaskService.RunTask                            apply        admin      admin      project
 TerminalService.AttachTerminal                 read         admin      admin      install  session
 TerminalService.CloseTerminal                  destructive  admin      admin      install  session
+TerminalService.DeleteSavedCommand             destructive  admin      admin      install  session
+TerminalService.GetTerminalPreferences         read         admin      admin      install  session
+TerminalService.GetTerminalWorkingDirectory    read         admin      admin      install  session
+TerminalService.ImportSavedCommands            apply        admin      admin      install  session
+TerminalService.ListSavedCommands              read         admin      admin      install  session
 TerminalService.ListTerminals                  read         admin      admin      install  session
 TerminalService.OpenTerminal                   destructive  admin      admin      install  session
+TerminalService.SaveCommand                    apply        admin      admin      install  session
+TerminalService.UpdateTerminalPreferences      apply        admin      admin      install  session
 TerminalService.WriteTerminal                  destructive  admin      admin      install  session
 TokenService.CreateToken                       apply        viewer     viewer     self
 TokenService.ListTokens                        read         viewer     viewer     self

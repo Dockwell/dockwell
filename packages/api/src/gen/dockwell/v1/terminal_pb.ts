@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/terminal.proto.
  */
 export const file_dockwell_v1_terminal: GenFile = /*@__PURE__*/
-  fileDesc("Chpkb2Nrd2VsbC92MS90ZXJtaW5hbC5wcm90bxILZG9ja3dlbGwudjEimQEKCFRlcm1pbmFsEgoKAmlkGAEgASgJEhEKCXNlcnZlcl9pZBgCIAEoCRINCgV0aXRsZRgDIAEoCRItCglvcGVuX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB2NvbHVtbnMYBSABKA0SDAoEcm93cxgGIAEoDRIRCgljb250YWluZXIYByABKAkijwEKE09wZW5UZXJtaW5hbFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg8KB2NvbHVtbnMYAiABKA0SDAoEcm93cxgDIAEoDRINCgVwcm9vZhgEIAEoCRIRCgljb250YWluZXIYBSABKAkSFQoMY29udGFpbmVyX2lkGJADIAEoCRINCgRhcmd2GJEDIAMoCSI/ChRPcGVuVGVybWluYWxSZXNwb25zZRInCgh0ZXJtaW5hbBgBIAEoCzIVLmRvY2t3ZWxsLnYxLlRlcm1pbmFsIikKFExpc3RUZXJtaW5hbHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJBChVMaXN0VGVybWluYWxzUmVzcG9uc2USKAoJdGVybWluYWxzGAEgAygLMhUuZG9ja3dlbGwudjEuVGVybWluYWwiWwoVQXR0YWNoVGVybWluYWxSZXF1ZXN0EhMKC3Rlcm1pbmFsX2lkGAEgASgJEg4KBm9mZnNldBgCIAEoBBIPCgdjb2x1bW5zGAMgASgNEgwKBHJvd3MYBCABKA0ipwEKFkF0dGFjaFRlcm1pbmFsUmVzcG9uc2USDgoGb2Zmc2V0GAEgASgEEgwKBGRhdGEYAiABKAwSFAoMaW5wdXRfb2Zmc2V0GAMgASgEEhAKCGF0dGFjaGVkGAQgASgIEhEKCWhlYXJ0YmVhdBgFIAEoCBINCgVtb3ZlZBgGIAEoCBIlCgNlbmQYByABKAsyGC5kb2Nrd2VsbC52MS5UZXJtaW5hbEVuZCKLAQoLVGVybWluYWxFbmQSLgoGcmVhc29uGAEgASgOMh4uZG9ja3dlbGwudjEuVGVybWluYWxFbmRSZWFzb24SEQoJZXhpdF9jb2RlGAIgASgFEigKBHRpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB21lc3NhZ2UYBCABKAkiaAoUV3JpdGVUZXJtaW5hbFJlcXVlc3QSEwoLdGVybWluYWxfaWQYASABKAkSDgoGb2Zmc2V0GAIgASgEEgwKBGRhdGEYAyABKAwSDwoHY29sdW1ucxgEIAEoDRIMCgRyb3dzGAUgASgNIicKFVdyaXRlVGVybWluYWxSZXNwb25zZRIOCgZvZmZzZXQYASABKAQiKwoUQ2xvc2VUZXJtaW5hbFJlcXVlc3QSEwoLdGVybWluYWxfaWQYASABKAkiPgoVQ2xvc2VUZXJtaW5hbFJlc3BvbnNlEiUKA2VuZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLlRlcm1pbmFsRW5kKv4CChFUZXJtaW5hbEVuZFJlYXNvbhIjCh9URVJNSU5BTF9FTkRfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaVEVSTUlOQUxfRU5EX1JFQVNPTl9FWElURUQQARIeChpURVJNSU5BTF9FTkRfUkVBU09OX0NMT1NFRBACEiAKHFRFUk1JTkFMX0VORF9SRUFTT05fREVUQUNIRUQQAxIcChhURVJNSU5BTF9FTkRfUkVBU09OX0lETEUQBBIiCh5URVJNSU5BTF9FTkRfUkVBU09OX1NJR05FRF9PVVQQBRInCiNURVJNSU5BTF9FTkRfUkVBU09OX0FHRU5UX1JFU1RBUlRFRBAGEi8KK1RFUk1JTkFMX0VORF9SRUFTT05fQ09OVFJPTF9QTEFORV9SRVNUQVJURUQQBxImCiJURVJNSU5BTF9FTkRfUkVBU09OX1NFUlZFUl9SRU1PVkVEEAgSHgoaVEVSTUlOQUxfRU5EX1JFQVNPTl9GQUlMRUQQCTLbBgoPVGVybWluYWxTZXJ2aWNlEqoBCgxPcGVuVGVybWluYWwSIC5kb2Nrd2VsbC52MS5PcGVuVGVybWluYWxSZXF1ZXN0GiEuZG9ja3dlbGwudjEuT3BlblRlcm1pbmFsUmVzcG9uc2UiVaC7GASquxgRCgl0ZXJtaW5hbHMSBG9wZW6wuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvc2VydmVycy97c2VydmVyX2lkfS90ZXJtaW5hbHMSrQEKDUxpc3RUZXJtaW5hbHMSIS5kb2Nrd2VsbC52MS5MaXN0VGVybWluYWxzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3RUZXJtaW5hbHNSZXNwb25zZSJVkAIBoLsYAaq7GBEKCXRlcm1pbmFscxIEbGlzdLC7GAHAuxgEyLsYBNC7GAaC0+STAiMSIS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3Rlcm1pbmFscxKIAQoOQXR0YWNoVGVybWluYWwSIi5kb2Nrd2VsbC52MS5BdHRhY2hUZXJtaW5hbFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5BdHRhY2hUZXJtaW5hbFJlc3BvbnNlIiuguxgBqrsYEwoJdGVybWluYWxzEgZhdHRhY2iwuxgBwLsYBMi7GATQuxgGMAESrgEKDVdyaXRlVGVybWluYWwSIS5kb2Nrd2VsbC52MS5Xcml0ZVRlcm1pbmFsUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLldyaXRlVGVybWluYWxSZXNwb25zZSJWoLsYBKq7GBIKCXRlcm1pbmFscxIFd3JpdGWwuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvdGVybWluYWxzL3t0ZXJtaW5hbF9pZH06d3JpdGUSrgEKDUNsb3NlVGVybWluYWwSIS5kb2Nrd2VsbC52MS5DbG9zZVRlcm1pbmFsUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkNsb3NlVGVybWluYWxSZXNwb25zZSJWoLsYBKq7GBIKCXRlcm1pbmFscxIFY2xvc2WwuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvdGVybWluYWxzL3t0ZXJtaW5hbF9pZH06Y2xvc2VCpgEKD2NvbS5kb2Nrd2VsbC52MUINVGVybWluYWxQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chpkb2Nrd2VsbC92MS90ZXJtaW5hbC5wcm90bxILZG9ja3dlbGwudjEimQEKCFRlcm1pbmFsEgoKAmlkGAEgASgJEhEKCXNlcnZlcl9pZBgCIAEoCRINCgV0aXRsZRgDIAEoCRItCglvcGVuX3RpbWUYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB2NvbHVtbnMYBSABKA0SDAoEcm93cxgGIAEoDRIRCgljb250YWluZXIYByABKAkijwEKE09wZW5UZXJtaW5hbFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg8KB2NvbHVtbnMYAiABKA0SDAoEcm93cxgDIAEoDRINCgVwcm9vZhgEIAEoCRIRCgljb250YWluZXIYBSABKAkSFQoMY29udGFpbmVyX2lkGJADIAEoCRINCgRhcmd2GJEDIAMoCSI/ChRPcGVuVGVybWluYWxSZXNwb25zZRInCgh0ZXJtaW5hbBgBIAEoCzIVLmRvY2t3ZWxsLnYxLlRlcm1pbmFsIikKFExpc3RUZXJtaW5hbHNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCSJBChVMaXN0VGVybWluYWxzUmVzcG9uc2USKAoJdGVybWluYWxzGAEgAygLMhUuZG9ja3dlbGwudjEuVGVybWluYWwiWwoVQXR0YWNoVGVybWluYWxSZXF1ZXN0EhMKC3Rlcm1pbmFsX2lkGAEgASgJEg4KBm9mZnNldBgCIAEoBBIPCgdjb2x1bW5zGAMgASgNEgwKBHJvd3MYBCABKA0ipwEKFkF0dGFjaFRlcm1pbmFsUmVzcG9uc2USDgoGb2Zmc2V0GAEgASgEEgwKBGRhdGEYAiABKAwSFAoMaW5wdXRfb2Zmc2V0GAMgASgEEhAKCGF0dGFjaGVkGAQgASgIEhEKCWhlYXJ0YmVhdBgFIAEoCBINCgVtb3ZlZBgGIAEoCBIlCgNlbmQYByABKAsyGC5kb2Nrd2VsbC52MS5UZXJtaW5hbEVuZCKLAQoLVGVybWluYWxFbmQSLgoGcmVhc29uGAEgASgOMh4uZG9ja3dlbGwudjEuVGVybWluYWxFbmRSZWFzb24SEQoJZXhpdF9jb2RlGAIgASgFEigKBHRpbWUYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg8KB21lc3NhZ2UYBCABKAkiaAoUV3JpdGVUZXJtaW5hbFJlcXVlc3QSEwoLdGVybWluYWxfaWQYASABKAkSDgoGb2Zmc2V0GAIgASgEEgwKBGRhdGEYAyABKAwSDwoHY29sdW1ucxgEIAEoDRIMCgRyb3dzGAUgASgNIicKFVdyaXRlVGVybWluYWxSZXNwb25zZRIOCgZvZmZzZXQYASABKAQiKwoUQ2xvc2VUZXJtaW5hbFJlcXVlc3QSEwoLdGVybWluYWxfaWQYASABKAkiPgoVQ2xvc2VUZXJtaW5hbFJlc3BvbnNlEiUKA2VuZBgBIAEoCzIYLmRvY2t3ZWxsLnYxLlRlcm1pbmFsRW5kIjkKIkdldFRlcm1pbmFsV29ya2luZ0RpcmVjdG9yeVJlcXVlc3QSEwoLdGVybWluYWxfaWQYASABKAkiUAojR2V0VGVybWluYWxXb3JraW5nRGlyZWN0b3J5UmVzcG9uc2USDAoEcGF0aBgBIAEoCRIMCgRob21lGAIgASgJEg0KBWtub3duGAMgASgIIsoBChNUZXJtaW5hbFByZWZlcmVuY2VzEhEKCWZvbnRfc2l6ZRgBIAEoARITCgtmb250X2ZhbWlseRgCIAEoCRITCgtsaW5lX2hlaWdodBgDIAEoARI2CgxjdXJzb3Jfc3R5bGUYBCABKA4yIC5kb2Nrd2VsbC52MS5UZXJtaW5hbEN1cnNvclN0eWxlEhkKDGN1cnNvcl9ibGluaxgFIAEoCEgAiAEBEhIKCnNjcm9sbGJhY2sYBiABKA1CDwoNX2N1cnNvcl9ibGluayIfCh1HZXRUZXJtaW5hbFByZWZlcmVuY2VzUmVxdWVzdCJXCh5HZXRUZXJtaW5hbFByZWZlcmVuY2VzUmVzcG9uc2USNQoLcHJlZmVyZW5jZXMYASABKAsyIC5kb2Nrd2VsbC52MS5UZXJtaW5hbFByZWZlcmVuY2VzIlkKIFVwZGF0ZVRlcm1pbmFsUHJlZmVyZW5jZXNSZXF1ZXN0EjUKC3ByZWZlcmVuY2VzGAEgASgLMiAuZG9ja3dlbGwudjEuVGVybWluYWxQcmVmZXJlbmNlcyJaCiFVcGRhdGVUZXJtaW5hbFByZWZlcmVuY2VzUmVzcG9uc2USNQoLcHJlZmVyZW5jZXMYASABKAsyIC5kb2Nrd2VsbC52MS5UZXJtaW5hbFByZWZlcmVuY2VzIuIBCgxTYXZlZENvbW1hbmQSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIPCgdjb21tYW5kGAMgASgJEg0KBWdyb3VwGAQgASgJEg4KBnNoYXJlZBgFIAEoCBIvCgtjcmVhdGVfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLdXBkYXRlX3RpbWUYByABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhIKCmNyZWF0ZWRfYnkYCCABKAkSEgoKdXBkYXRlZF9ieRgJIAEoCSJRChFTYXZlZENvbW1hbmRJbnB1dBIMCgRuYW1lGAEgASgJEg8KB2NvbW1hbmQYAiABKAkSDQoFZ3JvdXAYAyABKAkSDgoGc2hhcmVkGAQgASgIIhoKGExpc3RTYXZlZENvbW1hbmRzUmVxdWVzdCJIChlMaXN0U2F2ZWRDb21tYW5kc1Jlc3BvbnNlEisKCGNvbW1hbmRzGAEgAygLMhkuZG9ja3dlbGwudjEuU2F2ZWRDb21tYW5kIn8KElNhdmVDb21tYW5kUmVxdWVzdBIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEg8KB2NvbW1hbmQYAyABKAkSDQoFZ3JvdXAYBCABKAkSDgoGc2hhcmVkGAUgASgIEh8KF2FsbG93X3BsYWluX3RleHRfc2VjcmV0GAYgASgIIkEKE1NhdmVDb21tYW5kUmVzcG9uc2USKgoHY29tbWFuZBgBIAEoCzIZLmRvY2t3ZWxsLnYxLlNhdmVkQ29tbWFuZCI3ChlEZWxldGVTYXZlZENvbW1hbmRSZXF1ZXN0EgoKAmlkGAEgASgJEg4KBnNoYXJlZBgCIAEoCCIcChpEZWxldGVTYXZlZENvbW1hbmRSZXNwb25zZSJvChpJbXBvcnRTYXZlZENvbW1hbmRzUmVxdWVzdBIwCghjb21tYW5kcxgBIAMoCzIeLmRvY2t3ZWxsLnYxLlNhdmVkQ29tbWFuZElucHV0Eh8KF2FsbG93X3BsYWluX3RleHRfc2VjcmV0GAIgASgIIlwKG0ltcG9ydFNhdmVkQ29tbWFuZHNSZXNwb25zZRIrCghjb21tYW5kcxgBIAMoCzIZLmRvY2t3ZWxsLnYxLlNhdmVkQ29tbWFuZBIQCghpbXBvcnRlZBgCIAEoDSr+AgoRVGVybWluYWxFbmRSZWFzb24SIwofVEVSTUlOQUxfRU5EX1JFQVNPTl9VTlNQRUNJRklFRBAAEh4KGlRFUk1JTkFMX0VORF9SRUFTT05fRVhJVEVEEAESHgoaVEVSTUlOQUxfRU5EX1JFQVNPTl9DTE9TRUQQAhIgChxURVJNSU5BTF9FTkRfUkVBU09OX0RFVEFDSEVEEAMSHAoYVEVSTUlOQUxfRU5EX1JFQVNPTl9JRExFEAQSIgoeVEVSTUlOQUxfRU5EX1JFQVNPTl9TSUdORURfT1VUEAUSJwojVEVSTUlOQUxfRU5EX1JFQVNPTl9BR0VOVF9SRVNUQVJURUQQBhIvCitURVJNSU5BTF9FTkRfUkVBU09OX0NPTlRST0xfUExBTkVfUkVTVEFSVEVEEAcSJgoiVEVSTUlOQUxfRU5EX1JFQVNPTl9TRVJWRVJfUkVNT1ZFRBAIEh4KGlRFUk1JTkFMX0VORF9SRUFTT05fRkFJTEVEEAkqoQEKE1Rlcm1pbmFsQ3Vyc29yU3R5bGUSJQohVEVSTUlOQUxfQ1VSU09SX1NUWUxFX1VOU1BFQ0lGSUVEEAASHwobVEVSTUlOQUxfQ1VSU09SX1NUWUxFX0JMT0NLEAESIwofVEVSTUlOQUxfQ1VSU09SX1NUWUxFX1VOREVSTElORRACEh0KGVRFUk1JTkFMX0NVUlNPUl9TVFlMRV9CQVIQAzLSEQoPVGVybWluYWxTZXJ2aWNlEqoBCgxPcGVuVGVybWluYWwSIC5kb2Nrd2VsbC52MS5PcGVuVGVybWluYWxSZXF1ZXN0GiEuZG9ja3dlbGwudjEuT3BlblRlcm1pbmFsUmVzcG9uc2UiVaC7GASquxgRCgl0ZXJtaW5hbHMSBG9wZW6wuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvc2VydmVycy97c2VydmVyX2lkfS90ZXJtaW5hbHMSrQEKDUxpc3RUZXJtaW5hbHMSIS5kb2Nrd2VsbC52MS5MaXN0VGVybWluYWxzUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkxpc3RUZXJtaW5hbHNSZXNwb25zZSJVkAIBoLsYAaq7GBEKCXRlcm1pbmFscxIEbGlzdLC7GAHAuxgEyLsYBNC7GAaC0+STAiMSIS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3Rlcm1pbmFscxKIAQoOQXR0YWNoVGVybWluYWwSIi5kb2Nrd2VsbC52MS5BdHRhY2hUZXJtaW5hbFJlcXVlc3QaIy5kb2Nrd2VsbC52MS5BdHRhY2hUZXJtaW5hbFJlc3BvbnNlIiuguxgBqrsYEwoJdGVybWluYWxzEgZhdHRhY2iwuxgBwLsYBMi7GATQuxgGMAESrgEKDVdyaXRlVGVybWluYWwSIS5kb2Nrd2VsbC52MS5Xcml0ZVRlcm1pbmFsUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLldyaXRlVGVybWluYWxSZXNwb25zZSJWoLsYBKq7GBIKCXRlcm1pbmFscxIFd3JpdGWwuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvdGVybWluYWxzL3t0ZXJtaW5hbF9pZH06d3JpdGUSrgEKDUNsb3NlVGVybWluYWwSIS5kb2Nrd2VsbC52MS5DbG9zZVRlcm1pbmFsUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkNsb3NlVGVybWluYWxSZXNwb25zZSJWoLsYBKq7GBIKCXRlcm1pbmFscxIFY2xvc2WwuxgBwLsYBMi7GATQuxgGgtPkkwImOgEqIiEvdjEvdGVybWluYWxzL3t0ZXJtaW5hbF9pZH06Y2xvc2US4QEKG0dldFRlcm1pbmFsV29ya2luZ0RpcmVjdG9yeRIvLmRvY2t3ZWxsLnYxLkdldFRlcm1pbmFsV29ya2luZ0RpcmVjdG9yeVJlcXVlc3QaMC5kb2Nrd2VsbC52MS5HZXRUZXJtaW5hbFdvcmtpbmdEaXJlY3RvcnlSZXNwb25zZSJfkAIBoLsYAaq7GBAKCXRlcm1pbmFscxIDY3dksLsYAcC7GATIuxgE0LsYBoLT5JMCLhIsL3YxL3Rlcm1pbmFscy97dGVybWluYWxfaWR9L3dvcmtpbmdEaXJlY3RvcnkSygEKFkdldFRlcm1pbmFsUHJlZmVyZW5jZXMSKi5kb2Nrd2VsbC52MS5HZXRUZXJtaW5hbFByZWZlcmVuY2VzUmVxdWVzdBorLmRvY2t3ZWxsLnYxLkdldFRlcm1pbmFsUHJlZmVyZW5jZXNSZXNwb25zZSJXkAIBoLsYAaq7GBwKCXRlcm1pbmFscxIPZ2V0LXByZWZlcmVuY2VzsLsYAcC7GATIuxgE0LsYBoLT5JMCGhIYL3YxL3Rlcm1pbmFsL3ByZWZlcmVuY2VzEtMBChlVcGRhdGVUZXJtaW5hbFByZWZlcmVuY2VzEi0uZG9ja3dlbGwudjEuVXBkYXRlVGVybWluYWxQcmVmZXJlbmNlc1JlcXVlc3QaLi5kb2Nrd2VsbC52MS5VcGRhdGVUZXJtaW5hbFByZWZlcmVuY2VzUmVzcG9uc2UiV6C7GAOquxgcCgl0ZXJtaW5hbHMSD3NldC1wcmVmZXJlbmNlc7C7GAHAuxgEyLsYBNC7GAaC0+STAh06ASoiGC92MS90ZXJtaW5hbC9wcmVmZXJlbmNlcxK2AQoRTGlzdFNhdmVkQ29tbWFuZHMSJS5kb2Nrd2VsbC52MS5MaXN0U2F2ZWRDb21tYW5kc1JlcXVlc3QaJi5kb2Nrd2VsbC52MS5MaXN0U2F2ZWRDb21tYW5kc1Jlc3BvbnNlIlKQAgGguxgBqrsYGgoJdGVybWluYWxzEg1saXN0LWNvbW1hbmRzsLsYAcC7GATIuxgE0LsYBoLT5JMCFxIVL3YxL3Rlcm1pbmFsL2NvbW1hbmRzEqMBCgtTYXZlQ29tbWFuZBIfLmRvY2t3ZWxsLnYxLlNhdmVDb21tYW5kUmVxdWVzdBogLmRvY2t3ZWxsLnYxLlNhdmVDb21tYW5kUmVzcG9uc2UiUaC7GAOquxgZCgl0ZXJtaW5hbHMSDHNhdmUtY29tbWFuZLC7GAHAuxgEyLsYBNC7GAaC0+STAho6ASoiFS92MS90ZXJtaW5hbC9jb21tYW5kcxLGAQoSRGVsZXRlU2F2ZWRDb21tYW5kEiYuZG9ja3dlbGwudjEuRGVsZXRlU2F2ZWRDb21tYW5kUmVxdWVzdBonLmRvY2t3ZWxsLnYxLkRlbGV0ZVNhdmVkQ29tbWFuZFJlc3BvbnNlIl+guxgEqrsYGwoJdGVybWluYWxzEg5kZWxldGUtY29tbWFuZLC7GAHAuxgEyLsYBNC7GAaC0+STAiY6ASoiIS92MS90ZXJtaW5hbC9jb21tYW5kcy97aWR9OmRlbGV0ZRLFAQoTSW1wb3J0U2F2ZWRDb21tYW5kcxInLmRvY2t3ZWxsLnYxLkltcG9ydFNhdmVkQ29tbWFuZHNSZXF1ZXN0GiguZG9ja3dlbGwudjEuSW1wb3J0U2F2ZWRDb21tYW5kc1Jlc3BvbnNlIluguxgDqrsYHAoJdGVybWluYWxzEg9pbXBvcnQtY29tbWFuZHOwuxgBwLsYBMi7GATQuxgGgtPkkwIhOgEqIhwvdjEvdGVybWluYWwvY29tbWFuZHM6aW1wb3J0QqYBCg9jb20uZG9ja3dlbGwudjFCDVRlcm1pbmFsUHJvdG9QAVo3Z2l0aHViLmNvbS9kb2Nrd2VsbC9kb2Nrd2VsbC9nZW4vZG9ja3dlbGwvdjE7ZG9ja3dlbGx2MaICA0RYWKoCC0RvY2t3ZWxsLlYxygILRG9ja3dlbGxcVjHiAhdEb2Nrd2VsbFxWMVxHUEJNZXRhZGF0YeoCDERvY2t3ZWxsOjpWMWIGcHJvdG8z", [file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * Terminal is a shell on a server.
@@ -473,6 +473,537 @@ export const CloseTerminalResponseSchema: GenMessage<CloseTerminalResponse> = /*
   messageDesc(file_dockwell_v1_terminal, 11);
 
 /**
+ * GetTerminalWorkingDirectoryRequest names a terminal.
+ *
+ * @generated from message dockwell.v1.GetTerminalWorkingDirectoryRequest
+ */
+export type GetTerminalWorkingDirectoryRequest = Message<"dockwell.v1.GetTerminalWorkingDirectoryRequest"> & {
+  /**
+   * The terminal's ID.
+   *
+   * @generated from field: string terminal_id = 1;
+   */
+  terminalId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.GetTerminalWorkingDirectoryRequest.
+ * Use `create(GetTerminalWorkingDirectoryRequestSchema)` to create a new message.
+ */
+export const GetTerminalWorkingDirectoryRequestSchema: GenMessage<GetTerminalWorkingDirectoryRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 12);
+
+/**
+ * GetTerminalWorkingDirectoryResponse reports where the terminal's shell is
+ * working on the server, or its fallback home directory.
+ *
+ * @generated from message dockwell.v1.GetTerminalWorkingDirectoryResponse
+ */
+export type GetTerminalWorkingDirectoryResponse = Message<"dockwell.v1.GetTerminalWorkingDirectoryResponse"> & {
+  /**
+   * The shell's current working directory on the server, when known.
+   *
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * The fallback home directory on the server, such as "/root".
+   *
+   * @generated from field: string home = 2;
+   */
+  home: string;
+
+  /**
+   * True when path is the shell's live working directory rather than a fallback.
+   *
+   * @generated from field: bool known = 3;
+   */
+  known: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.GetTerminalWorkingDirectoryResponse.
+ * Use `create(GetTerminalWorkingDirectoryResponseSchema)` to create a new message.
+ */
+export const GetTerminalWorkingDirectoryResponseSchema: GenMessage<GetTerminalWorkingDirectoryResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 13);
+
+/**
+ * TerminalPreferences holds a person's terminal display settings. Zero or unset
+ * fields use Dockwell's defaults.
+ *
+ * @generated from message dockwell.v1.TerminalPreferences
+ */
+export type TerminalPreferences = Message<"dockwell.v1.TerminalPreferences"> & {
+  /**
+   * Font size in pixels, from 10 to 24. Zero uses Dockwell's default (12.5 on
+   * desktop, 13 on a phone).
+   *
+   * @generated from field: double font_size = 1;
+   */
+  fontSize: number;
+
+  /**
+   * Named font preset: empty or "default" for JetBrains Mono (panel mono), or
+   * "system-mono", "fira-code", "ibm-plex-mono", "source-code-pro".
+   *
+   * @generated from field: string font_family = 2;
+   */
+  fontFamily: string;
+
+  /**
+   * Line height multiplier, from 1.0 to 2.0. Zero matches Dockwell's default
+   * row spacing.
+   *
+   * @generated from field: double line_height = 3;
+   */
+  lineHeight: number;
+
+  /**
+   * Cursor shape. Unspecified uses block.
+   *
+   * @generated from field: dockwell.v1.TerminalCursorStyle cursor_style = 4;
+   */
+  cursorStyle: TerminalCursorStyle;
+
+  /**
+   * Whether the cursor blinks. Unset defaults to true.
+   *
+   * @generated from field: optional bool cursor_blink = 5;
+   */
+  cursorBlink?: boolean | undefined;
+
+  /**
+   * Number of scrollback lines kept in the browser, from 500 to 50000. Zero
+   * uses the default (5000).
+   *
+   * @generated from field: uint32 scrollback = 6;
+   */
+  scrollback: number;
+};
+
+/**
+ * Describes the message dockwell.v1.TerminalPreferences.
+ * Use `create(TerminalPreferencesSchema)` to create a new message.
+ */
+export const TerminalPreferencesSchema: GenMessage<TerminalPreferences> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 14);
+
+/**
+ * GetTerminalPreferencesRequest asks for the caller's terminal settings.
+ *
+ * @generated from message dockwell.v1.GetTerminalPreferencesRequest
+ */
+export type GetTerminalPreferencesRequest = Message<"dockwell.v1.GetTerminalPreferencesRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.GetTerminalPreferencesRequest.
+ * Use `create(GetTerminalPreferencesRequestSchema)` to create a new message.
+ */
+export const GetTerminalPreferencesRequestSchema: GenMessage<GetTerminalPreferencesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 15);
+
+/**
+ * GetTerminalPreferencesResponse carries the caller's terminal settings.
+ *
+ * @generated from message dockwell.v1.GetTerminalPreferencesResponse
+ */
+export type GetTerminalPreferencesResponse = Message<"dockwell.v1.GetTerminalPreferencesResponse"> & {
+  /**
+   * The saved preferences.
+   *
+   * @generated from field: dockwell.v1.TerminalPreferences preferences = 1;
+   */
+  preferences?: TerminalPreferences | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.GetTerminalPreferencesResponse.
+ * Use `create(GetTerminalPreferencesResponseSchema)` to create a new message.
+ */
+export const GetTerminalPreferencesResponseSchema: GenMessage<GetTerminalPreferencesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 16);
+
+/**
+ * UpdateTerminalPreferencesRequest updates the caller's terminal settings.
+ *
+ * @generated from message dockwell.v1.UpdateTerminalPreferencesRequest
+ */
+export type UpdateTerminalPreferencesRequest = Message<"dockwell.v1.UpdateTerminalPreferencesRequest"> & {
+  /**
+   * The settings to store.
+   *
+   * @generated from field: dockwell.v1.TerminalPreferences preferences = 1;
+   */
+  preferences?: TerminalPreferences | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.UpdateTerminalPreferencesRequest.
+ * Use `create(UpdateTerminalPreferencesRequestSchema)` to create a new message.
+ */
+export const UpdateTerminalPreferencesRequestSchema: GenMessage<UpdateTerminalPreferencesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 17);
+
+/**
+ * UpdateTerminalPreferencesResponse carries the saved terminal settings.
+ *
+ * @generated from message dockwell.v1.UpdateTerminalPreferencesResponse
+ */
+export type UpdateTerminalPreferencesResponse = Message<"dockwell.v1.UpdateTerminalPreferencesResponse"> & {
+  /**
+   * The stored preferences.
+   *
+   * @generated from field: dockwell.v1.TerminalPreferences preferences = 1;
+   */
+  preferences?: TerminalPreferences | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.UpdateTerminalPreferencesResponse.
+ * Use `create(UpdateTerminalPreferencesResponseSchema)` to create a new message.
+ */
+export const UpdateTerminalPreferencesResponseSchema: GenMessage<UpdateTerminalPreferencesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 18);
+
+/**
+ * SavedCommand is a reusable terminal command stored in plain text for one
+ * person or shared across admins on the install.
+ *
+ * @generated from message dockwell.v1.SavedCommand
+ */
+export type SavedCommand = Message<"dockwell.v1.SavedCommand"> & {
+  /**
+   * Its ID, such as "tcm_01JD6Z3R8M9QF2K7T4XW5BNC0V".
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Short label shown in the saved commands list, at most 80 characters.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * Command text typed into the terminal, at most 4096 characters.
+   *
+   * @generated from field: string command = 3;
+   */
+  command: string;
+
+  /**
+   * Optional group name for organizing commands, at most 64 characters.
+   *
+   * @generated from field: string group = 4;
+   */
+  group: string;
+
+  /**
+   * True when shared across admins on the install; false when personal.
+   *
+   * @generated from field: bool shared = 5;
+   */
+  shared: boolean;
+
+  /**
+   * When it was created.
+   *
+   * @generated from field: google.protobuf.Timestamp create_time = 6;
+   */
+  createTime?: Timestamp | undefined;
+
+  /**
+   * When it was last edited.
+   *
+   * @generated from field: google.protobuf.Timestamp update_time = 7;
+   */
+  updateTime?: Timestamp | undefined;
+
+  /**
+   * Who created this command, for shared commands.
+   *
+   * @generated from field: string created_by = 8;
+   */
+  createdBy: string;
+
+  /**
+   * Who last edited this command, for shared commands.
+   *
+   * @generated from field: string updated_by = 9;
+   */
+  updatedBy: string;
+};
+
+/**
+ * Describes the message dockwell.v1.SavedCommand.
+ * Use `create(SavedCommandSchema)` to create a new message.
+ */
+export const SavedCommandSchema: GenMessage<SavedCommand> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 19);
+
+/**
+ * SavedCommandInput describes one command to create during import.
+ *
+ * @generated from message dockwell.v1.SavedCommandInput
+ */
+export type SavedCommandInput = Message<"dockwell.v1.SavedCommandInput"> & {
+  /**
+   * Short label shown in the saved commands list.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Command text typed into the terminal.
+   *
+   * @generated from field: string command = 2;
+   */
+  command: string;
+
+  /**
+   * Optional group name.
+   *
+   * @generated from field: string group = 3;
+   */
+  group: string;
+
+  /**
+   * True to store as a shared install command; false for personal.
+   *
+   * @generated from field: bool shared = 4;
+   */
+  shared: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SavedCommandInput.
+ * Use `create(SavedCommandInputSchema)` to create a new message.
+ */
+export const SavedCommandInputSchema: GenMessage<SavedCommandInput> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 20);
+
+/**
+ * ListSavedCommandsRequest lists the caller's personal and shared commands.
+ *
+ * @generated from message dockwell.v1.ListSavedCommandsRequest
+ */
+export type ListSavedCommandsRequest = Message<"dockwell.v1.ListSavedCommandsRequest"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.ListSavedCommandsRequest.
+ * Use `create(ListSavedCommandsRequestSchema)` to create a new message.
+ */
+export const ListSavedCommandsRequestSchema: GenMessage<ListSavedCommandsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 21);
+
+/**
+ * ListSavedCommandsResponse carries personal and shared saved commands.
+ *
+ * @generated from message dockwell.v1.ListSavedCommandsResponse
+ */
+export type ListSavedCommandsResponse = Message<"dockwell.v1.ListSavedCommandsResponse"> & {
+  /**
+   * Personal commands and shared install commands.
+   *
+   * @generated from field: repeated dockwell.v1.SavedCommand commands = 1;
+   */
+  commands: SavedCommand[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListSavedCommandsResponse.
+ * Use `create(ListSavedCommandsResponseSchema)` to create a new message.
+ */
+export const ListSavedCommandsResponseSchema: GenMessage<ListSavedCommandsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 22);
+
+/**
+ * SaveCommandRequest creates or updates a saved terminal command.
+ *
+ * @generated from message dockwell.v1.SaveCommandRequest
+ */
+export type SaveCommandRequest = Message<"dockwell.v1.SaveCommandRequest"> & {
+  /**
+   * Existing command ID to edit, or empty to create a new command.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * Short label, 1 to 80 characters.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * Command text, 1 to 4096 characters.
+   *
+   * @generated from field: string command = 3;
+   */
+  command: string;
+
+  /**
+   * Optional group name, at most 64 characters.
+   *
+   * @generated from field: string group = 4;
+   */
+  group: string;
+
+  /**
+   * True to store as a shared install command; false for personal.
+   *
+   * @generated from field: bool shared = 5;
+   */
+  shared: boolean;
+
+  /**
+   * Set true to acknowledge plain-text storage when the command looks like a
+   * secret.
+   *
+   * @generated from field: bool allow_plain_text_secret = 6;
+   */
+  allowPlainTextSecret: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SaveCommandRequest.
+ * Use `create(SaveCommandRequestSchema)` to create a new message.
+ */
+export const SaveCommandRequestSchema: GenMessage<SaveCommandRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 23);
+
+/**
+ * SaveCommandResponse carries the saved command.
+ *
+ * @generated from message dockwell.v1.SaveCommandResponse
+ */
+export type SaveCommandResponse = Message<"dockwell.v1.SaveCommandResponse"> & {
+  /**
+   * The created or updated command.
+   *
+   * @generated from field: dockwell.v1.SavedCommand command = 1;
+   */
+  command?: SavedCommand | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.SaveCommandResponse.
+ * Use `create(SaveCommandResponseSchema)` to create a new message.
+ */
+export const SaveCommandResponseSchema: GenMessage<SaveCommandResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 24);
+
+/**
+ * DeleteSavedCommandRequest names a saved command to remove.
+ *
+ * @generated from message dockwell.v1.DeleteSavedCommandRequest
+ */
+export type DeleteSavedCommandRequest = Message<"dockwell.v1.DeleteSavedCommandRequest"> & {
+  /**
+   * The command's ID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * True when deleting a shared install command; false for a personal command.
+   *
+   * @generated from field: bool shared = 2;
+   */
+  shared: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteSavedCommandRequest.
+ * Use `create(DeleteSavedCommandRequestSchema)` to create a new message.
+ */
+export const DeleteSavedCommandRequestSchema: GenMessage<DeleteSavedCommandRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 25);
+
+/**
+ * DeleteSavedCommandResponse is empty.
+ *
+ * @generated from message dockwell.v1.DeleteSavedCommandResponse
+ */
+export type DeleteSavedCommandResponse = Message<"dockwell.v1.DeleteSavedCommandResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.DeleteSavedCommandResponse.
+ * Use `create(DeleteSavedCommandResponseSchema)` to create a new message.
+ */
+export const DeleteSavedCommandResponseSchema: GenMessage<DeleteSavedCommandResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 26);
+
+/**
+ * ImportSavedCommandsRequest adds a batch of commands from an exported file.
+ *
+ * @generated from message dockwell.v1.ImportSavedCommandsRequest
+ */
+export type ImportSavedCommandsRequest = Message<"dockwell.v1.ImportSavedCommandsRequest"> & {
+  /**
+   * Commands to import, at most 200 per call.
+   *
+   * @generated from field: repeated dockwell.v1.SavedCommandInput commands = 1;
+   */
+  commands: SavedCommandInput[];
+
+  /**
+   * Set true to acknowledge plain-text storage when any imported command looks
+   * like a secret.
+   *
+   * @generated from field: bool allow_plain_text_secret = 2;
+   */
+  allowPlainTextSecret: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.ImportSavedCommandsRequest.
+ * Use `create(ImportSavedCommandsRequestSchema)` to create a new message.
+ */
+export const ImportSavedCommandsRequestSchema: GenMessage<ImportSavedCommandsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 27);
+
+/**
+ * ImportSavedCommandsResponse reports how many commands were imported and
+ * returns the full list.
+ *
+ * @generated from message dockwell.v1.ImportSavedCommandsResponse
+ */
+export type ImportSavedCommandsResponse = Message<"dockwell.v1.ImportSavedCommandsResponse"> & {
+  /**
+   * All saved commands now available to the caller.
+   *
+   * @generated from field: repeated dockwell.v1.SavedCommand commands = 1;
+   */
+  commands: SavedCommand[];
+
+  /**
+   * How many commands were added by this import.
+   *
+   * @generated from field: uint32 imported = 2;
+   */
+  imported: number;
+};
+
+/**
+ * Describes the message dockwell.v1.ImportSavedCommandsResponse.
+ * Use `create(ImportSavedCommandsResponseSchema)` to create a new message.
+ */
+export const ImportSavedCommandsResponseSchema: GenMessage<ImportSavedCommandsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_terminal, 28);
+
+/**
  * TerminalEndReason is why a terminal ended.
  *
  * @generated from enum dockwell.v1.TerminalEndReason
@@ -552,6 +1083,47 @@ export enum TerminalEndReason {
  */
 export const TerminalEndReasonSchema: GenEnum<TerminalEndReason> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_terminal, 0);
+
+/**
+ * TerminalCursorStyle chooses the terminal cursor shape.
+ *
+ * @generated from enum dockwell.v1.TerminalCursorStyle
+ */
+export enum TerminalCursorStyle {
+  /**
+   * Default cursor style (block).
+   *
+   * @generated from enum value: TERMINAL_CURSOR_STYLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A filled block cursor.
+   *
+   * @generated from enum value: TERMINAL_CURSOR_STYLE_BLOCK = 1;
+   */
+  BLOCK = 1,
+
+  /**
+   * An underline cursor.
+   *
+   * @generated from enum value: TERMINAL_CURSOR_STYLE_UNDERLINE = 2;
+   */
+  UNDERLINE = 2,
+
+  /**
+   * A vertical bar cursor.
+   *
+   * @generated from enum value: TERMINAL_CURSOR_STYLE_BAR = 3;
+   */
+  BAR = 3,
+}
+
+/**
+ * Describes the enum dockwell.v1.TerminalCursorStyle.
+ */
+export const TerminalCursorStyleSchema: GenEnum<TerminalCursorStyle> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_terminal, 1);
 
 /**
  * TerminalService opens a shell on a server, through its agent, and carries
@@ -637,6 +1209,90 @@ export const TerminalService: GenService<{
     methodKind: "unary";
     input: typeof CloseTerminalRequestSchema;
     output: typeof CloseTerminalResponseSchema;
+  },
+  /**
+   * GetTerminalWorkingDirectory returns a host terminal's current working
+   * directory on the server when the agent can read it from /proc, and its home
+   * folder as a fallback. For a container shell or an older agent, known is
+   * false and home is empty so the panel falls back to Files' own default. No
+   * API token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.GetTerminalWorkingDirectory
+   */
+  getTerminalWorkingDirectory: {
+    methodKind: "unary";
+    input: typeof GetTerminalWorkingDirectoryRequestSchema;
+    output: typeof GetTerminalWorkingDirectoryResponseSchema;
+  },
+  /**
+   * GetTerminalPreferences returns your saved terminal display settings. No API
+   * token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.GetTerminalPreferences
+   */
+  getTerminalPreferences: {
+    methodKind: "unary";
+    input: typeof GetTerminalPreferencesRequestSchema;
+    output: typeof GetTerminalPreferencesResponseSchema;
+  },
+  /**
+   * UpdateTerminalPreferences saves your terminal display settings. No API
+   * token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.UpdateTerminalPreferences
+   */
+  updateTerminalPreferences: {
+    methodKind: "unary";
+    input: typeof UpdateTerminalPreferencesRequestSchema;
+    output: typeof UpdateTerminalPreferencesResponseSchema;
+  },
+  /**
+   * ListSavedCommands returns your personal saved terminal commands and the
+   * install's shared commands. No API token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.ListSavedCommands
+   */
+  listSavedCommands: {
+    methodKind: "unary";
+    input: typeof ListSavedCommandsRequestSchema;
+    output: typeof ListSavedCommandsResponseSchema;
+  },
+  /**
+   * SaveCommand creates or updates a saved terminal command, either personal to
+   * you or shared across admins on the install. A command that looks like it
+   * contains a secret is refused with the reason looks_like_secret unless
+   * allow_plain_text_secret is set. No API token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.SaveCommand
+   */
+  saveCommand: {
+    methodKind: "unary";
+    input: typeof SaveCommandRequestSchema;
+    output: typeof SaveCommandResponseSchema;
+  },
+  /**
+   * DeleteSavedCommand removes a personal or shared saved terminal command. No
+   * API token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.DeleteSavedCommand
+   */
+  deleteSavedCommand: {
+    methodKind: "unary";
+    input: typeof DeleteSavedCommandRequestSchema;
+    output: typeof DeleteSavedCommandResponseSchema;
+  },
+  /**
+   * ImportSavedCommands adds a batch of saved terminal commands from a file. If
+   * any command looks like it contains a secret, the import is refused with the
+   * reason looks_like_secret unless allow_plain_text_secret is set. No API
+   * token can call it.
+   *
+   * @generated from rpc dockwell.v1.TerminalService.ImportSavedCommands
+   */
+  importSavedCommands: {
+    methodKind: "unary";
+    input: typeof ImportSavedCommandsRequestSchema;
+    output: typeof ImportSavedCommandsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_terminal, 0);

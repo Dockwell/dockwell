@@ -978,6 +978,9 @@ msgstr "创建了 API 令牌 {name}"
 msgid "Deleted a backup of {volume}"
 msgstr "已删除 {volume} 的一份备份"
 
+msgid "Deleted shared terminal command {name}"
+msgstr "已删除共享终端命令 {name}"
+
 msgid "Deleted {path} on {server}"
 msgstr "已删除 {server} 上的 {path}"
 
@@ -1292,6 +1295,9 @@ msgstr "轮换了加密所有密钥的密钥"
 msgid "SSH operation unconfirmed on {server}"
 msgstr "{server} 上的 SSH 操作结果尚未确认"
 
+msgid "Saved shared terminal command {name}"
+msgstr "已保存共享终端命令 {name}"
+
 msgid "Saved {path} on {server}"
 msgstr "已保存 {server} 上的 {path}"
 
@@ -1492,6 +1498,12 @@ msgstr "为 {name} 解锁了验证码"
 
 msgid "Unlocked codes from an authenticator app"
 msgstr "解锁了身份验证器应用验证码"
+
+msgid "Updated shared terminal command {name}"
+msgstr "已更新共享终端命令 {name}"
+
+msgid "Updated shared terminal command {name}, which was {previous}"
+msgstr "已更新共享终端命令 {name}（原为 {previous}）"
 
 msgid "Uploaded {path} to {server}, which can let someone back in"
 msgstr "已上传 {path} 到 {server}，这里可能让他人重新进入服务器"
@@ -24593,6 +24605,344 @@ msgstr "波浪号"
 msgid "Up arrow"
 msgstr "上箭头"
 
+#. placeholder {0}: server.name
+msgid "Docker isn't reachable on {0}."
+msgstr "无法在 {0} 上访问 Docker。"
+
+msgid "Filter by name or image"
+msgstr "按名称或镜像筛选"
+
+msgid "Host shell"
+msgstr "宿主机 Shell"
+
+msgid "Loading running containers…"
+msgstr "正在加载运行中的容器…"
+
+msgid "New session"
+msgstr "新会话"
+
+msgid "No running container matches \"{trimmedSearch}\"."
+msgstr "没有正在运行的容器匹配“{trimmedSearch}”。"
+
+#. placeholder {0}: server.name
+msgid "No running containers on {0}."
+msgstr "{0} 上没有运行中的容器。"
+
+msgid "Running containers"
+msgstr "运行中的容器"
+
+msgid "Add command"
+msgstr "添加命令"
+
+msgid "Add saved command"
+msgstr "添加已保存命令"
+
+msgid "All personal"
+msgstr "全部设为个人"
+
+msgid "All shared"
+msgstr "全部设为共享"
+
+msgid "Close saved commands"
+msgstr "关闭已保存命令"
+
+msgid "Command scope"
+msgstr "命令范围"
+
+msgid "Control characters aren't allowed"
+msgstr "不允许包含控制字符"
+
+msgid "Couldn't import commands"
+msgstr "无法导入命令"
+
+msgid "Couldn't read that file."
+msgstr "无法读取该文件。"
+
+msgid "Couldn't save command"
+msgstr "无法保存命令"
+
+#. placeholder {0}: cmd.createdBy
+#. placeholder {1}: cmd.updatedBy
+msgid "Created by {0}, updated by {1}"
+msgstr "由 {0} 创建，由 {1} 更新"
+
+msgid "Delete command"
+msgstr "删除命令"
+
+msgid "Delete shared command?"
+msgstr "删除共享命令？"
+
+#. placeholder {0}: undoDeleted.name
+msgid "Deleted \"{0}\""
+msgstr "已删除“{0}”"
+
+#. placeholder {0}: confirmDelete.name
+msgid "Deleting <0>{0}</0> removes it for every admin on this install and is recorded on Activity."
+msgstr "删除 <0>{0}</0> 会为本安装中的所有管理员移除它，并记录到动态中。"
+
+msgid "Diagnostics"
+msgstr "诊断"
+
+msgid "Edit saved command"
+msgstr "编辑已保存命令"
+
+msgid "Export to file"
+msgstr "导出到文件"
+
+msgid "Filter commands"
+msgstr "筛选命令"
+
+msgid "Filter saved commands"
+msgstr "筛选已保存命令"
+
+msgid "Group"
+msgstr "分组"
+
+msgid "Import at most 200 commands per file."
+msgstr "每个文件最多导入 200 条命令。"
+
+msgid "Import from file"
+msgstr "从文件导入"
+
+msgid "Import into"
+msgstr "导入到"
+
+msgid "Import or export commands"
+msgstr "导入或导出命令"
+
+msgid "Import saved commands"
+msgstr "导入已保存命令"
+
+msgid "Import saved commands file"
+msgstr "导入已保存命令文件"
+
+msgid "Import these commands in plain text anyway"
+msgstr "仍以明文导入这些命令"
+
+#. placeholder {0}: items.length
+msgid "Import {0} commands"
+msgstr "导入 {0} 条命令"
+
+msgid "Insert"
+msgstr "插入"
+
+msgid "Insert types this text without Enter; Run types it and presses Enter."
+msgstr "“插入”只输入文本不按回车；“运行”会输入并按回车执行。"
+
+#. placeholder {0}: cmd.name
+msgid "Insert {0}"
+msgstr "插入 {0}"
+
+msgid "Keep file scope"
+msgstr "保留文件中的范围"
+
+msgid "Kept in plain text in Dockwell's database."
+msgstr "以明文保存在 Dockwell 数据库中。"
+
+#. placeholder {0}: secretItems.map((i) => i.name).join(", ")
+msgid "Kept in plain text in Dockwell's database: {0}."
+msgstr "以明文保存在 Dockwell 数据库中：{0}。"
+
+msgid "Loading saved commands…"
+msgstr "正在加载已保存命令…"
+
+#. placeholder {0}: filter.trim()
+msgid "No saved command matches \"{0}\"."
+msgstr "没有已保存命令匹配“{0}”。"
+
+msgid "No saved commands yet. Save commands you run often to insert or run them in one click."
+msgstr "还没有已保存命令。保存常用命令，即可一键插入或运行。"
+
+msgid "Open a terminal first"
+msgstr "请先打开一个终端"
+
+msgid "Open a terminal session to insert or run saved commands."
+msgstr "打开终端会话后即可插入或运行已保存命令。"
+
+msgid "Optional. Commands with the same group appear together."
+msgstr "可选。同一分组的命令会归类显示在一起。"
+
+#. placeholder {0}: cmd.name
+msgid "Options for {0}"
+msgstr "{0} 的选项"
+
+msgid "Personal"
+msgstr "个人"
+
+msgid "Personal (only you)"
+msgstr "个人（仅自己可见）"
+
+msgid "Remove control characters (only printable text, newlines and tabs are allowed)."
+msgstr "请移除控制字符（仅允许可打印文本、换行符和制表符）。"
+
+msgid "Run"
+msgstr "运行"
+
+#. placeholder {0}: cmd.name
+msgid "Run {0}"
+msgstr "运行 {0}"
+
+#. placeholder {0}: confirmRun.lines
+msgid "Run {0} lines"
+msgstr "运行这 {0} 行"
+
+#. placeholder {0}: confirmRun.lines
+msgid "Run {0} lines?"
+msgstr "运行这 {0} 行？"
+
+msgid "Save changes"
+msgstr "保存更改"
+
+msgid "Save command"
+msgstr "保存命令"
+
+msgid "Saved commands"
+msgstr "已保存命令"
+
+msgid "Select at least one tab to insert or run saved commands."
+msgstr "至少选择一个标签页以插入或运行已保存命令。"
+
+msgid "Shared"
+msgstr "共享"
+
+msgid "Shared (all admins)"
+msgstr "共享（所有管理员）"
+
+msgid "Shared commands apply to every admin"
+msgstr "共享命令适用于所有管理员"
+
+msgid "Shared in file"
+msgstr "文件中标记为共享"
+
+msgid "Some imported commands look like secrets"
+msgstr "部分导入命令疑似包含密钥"
+
+msgid "Store this command in plain text anyway"
+msgstr "仍以明文保存此命令"
+
+msgid "Tail API logs"
+msgstr "查看 API 实时日志"
+
+msgid "Target: <0>{targetLabel}</0>. Insert types without Enter; Run executes immediately."
+msgstr "目标：<0>{targetLabel}</0>。插入不按回车；运行会立即执行。"
+
+msgid "That file contains disallowed control characters. Remove them and try importing again."
+msgstr "该文件包含不允许的控制字符。请移除后重新导入。"
+
+msgid "That file doesn't match the saved commands format. Each item needs a name and a command."
+msgstr "该文件不符合已保存命令格式。每条记录都需要名称和命令。"
+
+msgid "That file has no commands to import."
+msgstr "该文件中没有可导入的命令。"
+
+msgid "That file isn't valid JSON. Choose a JSON file exported from Dockwell."
+msgstr "该文件不是有效的 JSON。请选择从 Dockwell 导出的 JSON 文件。"
+
+msgid "This looks like a secret"
+msgstr "这看起来像是密钥"
+
+#. placeholder {0}: confirmRun.lines
+#. placeholder {1}: confirmRun.command.name
+msgid "This runs all {0} lines of <0>{1}</0> in <1>{targetLabel}</1> right away."
+msgstr "这会立即在 <1>{targetLabel}</1> 中运行 <0>{1}</0> 的全部 {0} 行。"
+
+#. placeholder {0}: confirmRun.lines
+#. placeholder {1}: confirmRun.command.name
+msgid "This runs all {0} lines of <0>{1}</0> right away."
+msgstr "这会立即运行 <0>{1}</0> 的全部 {0} 行。"
+
+msgid "Type into terminal and press Enter"
+msgstr "输入到终端并按回车"
+
+msgid "Type into terminal without pressing Enter"
+msgstr "输入到终端但不按回车"
+
+msgid "Who can use it"
+msgstr "可见范围"
+
+msgid "by {author}"
+msgstr "由 {author}"
+
+#. placeholder {0}: items.length
+msgid "{0} commands from {filename}"
+msgstr "来自 {filename} 的 {0} 条命令"
+
+msgid "{willShareCount, plural, one {# command will be added to the shared list and recorded on Activity.} other {# commands will be added to the shared list and recorded on Activity.}}"
+msgstr "{willShareCount, plural, other {将有 # 条命令添加到共享列表并记录到动态中。}}"
+
+msgid "{willShareCount, plural, one {Share # command with all admins on this install} other {Share # commands with all admins on this install}}"
+msgstr "{willShareCount, plural, other {与本安装中的所有管理员共享这 # 条命令}}"
+
+msgid "Applied live"
+msgstr "实时生效"
+
+msgid "Bar"
+msgstr "竖线"
+
+msgid "Blink cursor"
+msgstr "光标闪烁"
+
+msgid "Block"
+msgstr "方块"
+
+msgid "Close settings"
+msgstr "关闭设置"
+
+msgid "Cursor style"
+msgstr "光标样式"
+
+msgid "Default ({defaultFontPx} px)"
+msgstr "默认（{defaultFontPx} px）"
+
+msgid "Display settings"
+msgstr "显示设置"
+
+msgid "Fira Code"
+msgstr "Fira Code"
+
+msgid "Font family"
+msgstr "字体"
+
+msgid "Font size"
+msgstr "字号"
+
+msgid "IBM Plex Mono"
+msgstr "IBM Plex Mono"
+
+msgid "JetBrains Mono (panel mono)"
+msgstr "JetBrains Mono（面板等宽字体）"
+
+msgid "Line height"
+msgstr "行高"
+
+msgid "Reset to defaults"
+msgstr "恢复默认"
+
+msgid "Saving…"
+msgstr "正在保存…"
+
+msgid "Scrollback lines"
+msgstr "回滚行数"
+
+msgid "Source Code Pro"
+msgstr "Source Code Pro"
+
+msgid "System monospace"
+msgstr "系统等宽字体"
+
+msgid "Terminal settings"
+msgstr "终端设置"
+
+msgid "Underline"
+msgstr "下划线"
+
+#. placeholder {0}: n.toLocaleString()
+msgid "{0} (default)"
+msgstr "{0}（默认）"
+
+msgid "{sz} px"
+msgstr "{sz} px"
+
 #. placeholder {0}: asking.container
 #. placeholder {1}: server.name
 msgid "<0>{0}</0> reaches as far as root on <1>{1}</1>: it's privileged, holds Docker's socket, shares the server's network, or mounts a system path, through a volume or a link too. A shell in it is as good as root there, so it takes your passkey."
@@ -24628,6 +24978,12 @@ msgstr "无法连接终端"
 msgid "Can't reach this terminal"
 msgstr "无法连接这个终端"
 
+msgid "Can't safely insert this {lines}-line command because bracketed paste isn't enabled in {names}. Use Run to confirm and run all {lines} lines."
+msgstr "无法安全插入此 {lines} 行命令，因为 {names} 未启用括号粘贴模式。请使用“运行”确认后执行全部 {lines} 行。"
+
+msgid "Can't safely insert this {lines}-line command because this shell doesn't have bracketed paste enabled. Use Run to confirm and run all {lines} lines."
+msgstr "无法安全插入此 {lines} 行命令，因为当前 Shell 未启用括号粘贴模式。请使用“运行”确认后执行全部 {lines} 行。"
+
 msgid "Clear scrollback"
 msgstr "清空回滚记录"
 
@@ -24636,6 +24992,12 @@ msgstr "关闭终端"
 
 msgid "Close this tab"
 msgstr "关闭这个标签"
+
+msgid "Close {full}"
+msgstr "关闭 {full}"
+
+msgid "Commands"
+msgstr "命令"
 
 msgid "Connected through the agent"
 msgstr "已通过代理连接"
@@ -24652,6 +25014,17 @@ msgstr "已结束"
 msgid "Executable"
 msgstr "可执行文件"
 
+msgid "Exit fullscreen"
+msgstr "退出全屏"
+
+msgid "Exit fullscreen (Shift+Esc)"
+msgstr "退出全屏（Shift+Esc）"
+
+#. placeholder {0}: server.name
+#. placeholder {1}: current.container
+msgid "Files shows {0}, not files inside {1}"
+msgstr "“文件”显示的是 {0} 上的文件，而不是 {1} 容器内的文件"
+
 msgid "Find in scrollback"
 msgstr "在回滚记录中查找"
 
@@ -24661,8 +25034,8 @@ msgstr "查找下一个"
 msgid "Find the one before"
 msgstr "查找上一个"
 
-msgid "New session"
-msgstr "新会话"
+msgid "Fullscreen"
+msgstr "全屏"
 
 msgid "No shell open in <0>{wanted}</0>"
 msgstr "<0>{wanted}</0> 中没有打开的 shell"
@@ -24676,11 +25049,20 @@ msgstr "没有打开终端"
 msgid "Not in what it keeps"
 msgstr "保留的记录中没有找到"
 
+msgid "Open Files at this shell's folder"
+msgstr "在当前目录打开文件"
+
+msgid "Open Files here"
+msgstr "在此处打开文件"
+
 msgid "Open a new terminal"
 msgstr "打开新终端"
 
 msgid "Open a terminal"
 msgstr "打开终端"
+
+msgid "Open a terminal session first."
+msgstr "请先打开终端会话。"
 
 msgid "Open somewhere else"
 msgstr "已在别处打开"
@@ -24695,8 +25077,20 @@ msgstr "运行命令"
 msgid "Run command"
 msgstr "运行命令"
 
+msgid "Select at least one tab to send this command to."
+msgstr "请至少选择一个要发送命令的标签页。"
+
+msgid "Select tabs to type into at once"
+msgstr "选择要同时输入的标签页"
+
 msgid "Select text in the terminal to copy it"
 msgstr "在终端中选中文字即可复制"
+
+msgid "Selected to type into"
+msgstr "已选中同时输入"
+
+msgid "Send what you type to selected tabs"
+msgstr "将输入内容同时发送到选中的标签页"
 
 msgid "Session options"
 msgstr "会话选项"
@@ -24707,11 +25101,17 @@ msgstr "在这里显示"
 msgid "Stop finding"
 msgstr "停止查找"
 
+msgid "Switch terminal session"
+msgstr "切换终端会话"
+
 msgid "Terminal sessions"
 msgstr "终端会话"
 
 msgid "The passkey prompt closed, so no terminal opened. Open one when you're ready."
 msgstr "通行密钥提示已关闭，所以没有打开终端。准备好后再打开。"
+
+msgid "This command contains disallowed control characters and wasn't sent."
+msgstr "此命令包含不允许的控制字符，未发送。"
 
 msgid "This shell takes your passkey"
 msgstr "这个 shell 需要你的通行密钥"
@@ -24722,12 +25122,30 @@ msgstr "这个终端已在别处打开"
 msgid "Through the agent"
 msgstr "通过代理"
 
+msgid "Type into several"
+msgstr "同时输入多个"
+
+#. placeholder {0}: broadcastTargets.length
+msgid "Type into several ({0})"
+msgstr "同时输入多个（{0}）"
+
+msgid "Type into several tabs"
+msgstr "同时输入多个标签页"
+
+#. placeholder {0}: broadcastTargets.length
+msgid "Typing into {0} tabs"
+msgstr "正在同时输入 {0} 个标签页"
+
 msgid "what you type waits"
 msgstr "你输入的内容会等待发送"
 
-#. placeholder {0}: names.get(tab.id) ?? tab.title
+#. placeholder {0}: info?.full ?? tab.title
 msgid "{0} output"
 msgstr "{0} 的输出"
+
+#. placeholder {0}: commandTargets.length
+msgid "{0} tabs: {names}"
+msgstr "{0} 个标签页：{names}"
 
 msgid "{title} · through the agent"
 msgstr "{title} · 通过代理"
@@ -25313,9 +25731,6 @@ msgstr "在应用上设置"
 
 msgid "Set on the app"
 msgstr "在应用上设置"
-
-msgid "Shared"
-msgstr "共享"
 
 msgctxt "values the environment shares"
 msgid "Shared"

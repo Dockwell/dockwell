@@ -162,6 +162,8 @@
   "terminal.open_failed",
   "terminal.open_unconfirmed",
   "terminal.opening",
+  "terminal_command.delete",
+  "terminal_command.save",
   "token.create",
   "token.refuse",
   "token.revoke",

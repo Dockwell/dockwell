@@ -753,7 +753,7 @@ func session(ctx context.Context, cfg Config) (err error) {
 	}
 	hello.Kinds, hello.Unavailable = offered.proto()
 	if cfg.Terminals != nil {
-		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals = true, cfg.Terminals.Known(), true
+		hello.Terminals, hello.OpenTerminals, hello.ContainerTerminals, hello.ReadsTerminalCwd = true, cfg.Terminals.Known(), true, true
 	}
 	if cfg.Desired != nil {
 		hello.Desired = cfg.Desired.Holds()

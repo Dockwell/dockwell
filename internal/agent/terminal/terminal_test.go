@@ -559,3 +559,30 @@ func TestClosingSignalsOnlyTheShell(t *testing.T) {
 		t.Fatal("the shell wasn't signalled")
 	}
 }
+
+func TestWorkingDirectory(t *testing.T) {
+	home := t.TempDir()
+	realHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sub := filepath.Join(realHome, "work")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := New(Options{Shell: []string{"/bin/sh"}, Home: realHome})
+	t.Cleanup(func() { _, _ = m.Close("trm_1", dockwellv1.TerminalEndReason_TERMINAL_END_REASON_CLOSED) })
+	if _, err := m.Open(t.Context(), &agentv1.OpenTerminalCall{Id: "trm_1", Columns: 80, Rows: 24}); err != nil {
+		t.Fatal(err)
+	}
+	a := attach(t, m, 0)
+	a.typed("cd " + sub + " && echo moved-$((1+1))\n")
+	a.waitFor("moved-2")
+	got, err := m.WorkingDirectory("trm_1")
+	if err != nil {
+		t.Fatalf("WorkingDirectory: %v", err)
+	}
+	if got.GetCwd() != sub || got.GetHome() != realHome {
+		t.Errorf("WorkingDirectory = %+v, want cwd=%q home=%q", got, sub, realHome)
+	}
+}

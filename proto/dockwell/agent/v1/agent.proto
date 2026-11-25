@@ -645,6 +645,8 @@ message Hello {
   bool archives_files = 420;
   // True when the agent reads live sockets and process details (430 to 439).
   bool reads_sockets = 430;
+  // True when the agent reads a host terminal's working directory (460 to 469).
+  bool reads_terminal_cwd = 460;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -979,6 +981,8 @@ message Call {
     // Live sockets and process details take 430 to 439.
     ListSocketsCall list_sockets = 430;
     ProcessDetailCall process_detail = 431;
+    // Terminal handiness takes 460 to 469.
+    TerminalCwdCall terminal_cwd = 460;
   }
 }
 
@@ -2848,6 +2852,8 @@ message CallResult {
     // What list_sockets and process_detail read (430 to 439).
     ListSocketsResult list_sockets = 430;
     ProcessDetailResult process_detail = 431;
+    // What terminal_cwd reads (460 to 469).
+    TerminalCwdResult terminal_cwd = 460;
   }
 }
 
@@ -3310,4 +3316,20 @@ message ProcessDetailCall {
 message ProcessDetailResult {
   // The process detail, without environment variables.
   dockwell.v1.ProcessDetail detail = 1;
+}
+
+// TerminalCwdCall asks the agent for a host terminal's current working
+// directory on the server, read from /proc on Linux, and its home directory.
+message TerminalCwdCall {
+  // The terminal's ID.
+  string id = 1;
+}
+
+// TerminalCwdResult reports a host terminal's current working directory and
+// fallback home folder.
+message TerminalCwdResult {
+  // The shell's current working directory on the server, when known.
+  string cwd = 1;
+  // The shell account's home directory on the server, as a fallback.
+  string home = 2;
 }

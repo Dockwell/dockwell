@@ -97,6 +97,12 @@ func (t *Tx) RemoveUser(ctx context.Context, userID, by string, at time.Time) (E
 		return Ended{}, fmt.Errorf("can't delete the provider links of %s: %w", userID, err)
 	}
 	links, _ := res.RowsAffected()
+	// Personal terminal preferences and saved commands belong to the removed user alone (ADR 0108).
+	for _, key := range []string{SettingUserTerminalPreferences(userID), SettingUserTerminalCommands(userID)} {
+		if err := t.DeleteSetting(ctx, key); err != nil {
+			return Ended{}, fmt.Errorf("can't remove terminal settings of %s: %w", userID, err)
+		}
+	}
 	ended, err := t.EndAccess(ctx, userID, at)
 	ended.Links = int(links)
 	return ended, err
