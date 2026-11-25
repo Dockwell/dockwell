@@ -375,6 +375,154 @@ service FileService {
     };
     option (google.api.http) = {get: "/v1/servers/{server_id}/archive-jobs"};
   }
+
+  // ListFileAccounts lists users and groups on the server.
+  rpc ListFileAccounts(ListFileAccountsRequest) returns (ListFileAccountsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "accounts"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/files/accounts"};
+  }
+
+  // ChangeFileAccess changes mode or ownership on a file or folder.
+  rpc ChangeFileAccess(ChangeFileAccessRequest) returns (ChangeFileAccessResponse) {
+    option (dockwell.v1.effect) = EFFECT_DESTRUCTIVE;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "change-access"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:changeAccess"
+      body: "*"
+    };
+  }
+
+  // CalculateFolderSize calculates the logical size visible under a folder, up to the scan limits.
+  rpc CalculateFolderSize(CalculateFolderSizeRequest) returns (CalculateFolderSizeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "folder-size"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/files/folderSize"};
+  }
+
+  // SearchFiles finds matching names or text below a folder, up to the scan limits.
+  // Search terms may contain file text, so they go in the body of a POST.
+  rpc SearchFiles(SearchFilesRequest) returns (SearchFilesResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "search"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:search"
+      body: "*"
+    };
+  }
+
+  // DownloadFileFromURL starts a server-side URL download into a new file.
+  rpc DownloadFileFromURL(DownloadFileFromURLRequest) returns (DownloadFileFromURLResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "download-from-url"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/files:downloadFromUrl"
+      body: "*"
+    };
+  }
+
+  // CancelFileDownload stops a URL download started by this session.
+  rpc CancelFileDownload(CancelFileDownloadRequest) returns (CancelFileDownloadResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "cancel-download"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/archive-jobs/{job_id}:cancelDownload"
+      body: "*"
+    };
+  }
+
+  // ListPinnedFolders lists the caller's pinned folders on a server.
+  rpc ListPinnedFolders(ListPinnedFoldersRequest) returns (ListPinnedFoldersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "list-pins"
+    };
+    option (google.api.http) = {get: "/v1/servers/{server_id}/pinned-folders"};
+  }
+
+  // PinFolder pins a folder for the caller on this server.
+  rpc PinFolder(PinFolderRequest) returns (PinFolderResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "pin"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/pinned-folders"
+      body: "*"
+    };
+  }
+
+  // UnpinFolder removes the caller's pin for a folder on this server.
+  rpc UnpinFolder(UnpinFolderRequest) returns (UnpinFolderResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_INSTALL;
+    option (dockwell.v1.needs_session) = true;
+    option (dockwell.v1.command) = {
+      noun: "files"
+      verb: "unpin"
+    };
+    option (google.api.http) = {
+      post: "/v1/servers/{server_id}/pinned-folders:unpin"
+      body: "*"
+    };
+  }
 }
 
 // ListFilesRequest names a directory on a server.
@@ -822,13 +970,15 @@ message ListArchiveJobsResponse {
   repeated ArchiveJob jobs = 1;
 }
 
-// ArchiveJobKind says whether a job compresses or extracts an archive.
+// ArchiveJobKind says whether a job compresses, extracts or downloads.
 enum ArchiveJobKind {
   ARCHIVE_JOB_KIND_UNSPECIFIED = 0;
   // Packing selected paths into a new .zip archive.
   ARCHIVE_JOB_KIND_COMPRESS = 1;
   // Extracting an existing .zip, .tar.gz or .tgz archive.
   ARCHIVE_JOB_KIND_EXTRACT = 2;
+  // Fetching a URL into a new file on the server.
+  ARCHIVE_JOB_KIND_URL_DOWNLOAD = 3;
 }
 
 // ArchiveJobState is where an archive job stands.
@@ -840,16 +990,18 @@ enum ArchiveJobState {
   ARCHIVE_JOB_STATE_DONE = 2;
   // Stopped with an error; nothing partial was left behind.
   ARCHIVE_JOB_STATE_FAILED = 3;
+  // The caller cancelled a URL download before it was put in place.
+  ARCHIVE_JOB_STATE_CANCELLED = 4;
 }
 
-// ArchiveJob is one server-side compress or extract job, which outlives the
-// request that started it so long archives survive proxy request timeouts.
+// ArchiveJob is one server-side compress, extract or URL download job. It
+// outlives the request that started it so long jobs survive proxy timeouts.
 message ArchiveJob {
   // Its ID, which GetArchiveJob takes.
   string job_id = 1;
-  // Whether it compresses or extracts.
+  // Whether it compresses, extracts or downloads.
   ArchiveJobKind kind = 2;
-  // Running, done or failed.
+  // Running, done, failed or cancelled.
   ArchiveJobState state = 3;
   // The archive's path on the server, with every symlink in its folder's path
   // followed.
@@ -883,6 +1035,8 @@ message ArchiveJob {
   google.protobuf.Timestamp start_time = 17;
   // When the job finished or failed. Unset while running.
   google.protobuf.Timestamp finish_time = 18;
+  // Expected bytes for a URL download, or zero if the length is unknown.
+  uint64 total_bytes = 19;
 }
 
 // FileType says what an entry in a directory is.
@@ -931,3 +1085,180 @@ message FileEntry {
   uint32 uid = 60;
   uint32 gid = 61;
 }
+
+// FileAccount is a local user or group and its numeric ID.
+message FileAccount {
+  string name = 1;
+  uint32 id = 2;
+}
+
+// ListFileAccountsRequest names a server whose users and groups to list.
+message ListFileAccountsRequest {
+  string server_id = 1;
+}
+
+// ListFileAccountsResponse lists the local users and groups the server reported.
+message ListFileAccountsResponse {
+  repeated FileAccount users = 1;
+  repeated FileAccount groups = 2;
+}
+
+// FileAccessChange leaves each omitted value as it was.
+message FileAccessChange {
+  // The nine permission bits and, when acknowledged, the special bits.
+  optional uint32 mode = 1;
+  optional uint32 uid = 2;
+  optional uint32 gid = 3;
+  bool recursive = 4;
+  bool allow_set_id = 5;
+  // For recursive changes, mode applies to folders and file_mode to files.
+  optional uint32 file_mode = 6;
+  // Also keep execute bits that were already set on a file.
+  bool keep_file_execute = 7;
+  // Restore an earlier change only where the inode and current access still match.
+  repeated FileAccessUndoEntry restore = 8;
+}
+
+// FileAccessState holds a file or folder's permissions and numeric ownership.
+message FileAccessState {
+  uint32 mode = 1;
+  uint32 uid = 2;
+  uint32 gid = 3;
+}
+
+// FileAccessUndoEntry identifies an inode and the access change made to it.
+message FileAccessUndoEntry {
+  string path = 1;
+  uint64 device = 2;
+  uint64 inode = 3;
+  FileAccessState before = 4;
+  FileAccessState after = 5;
+  // The inode change time after the operation, to detect a stale undo.
+  int64 change_time_ns = 6;
+}
+
+// ChangeFileAccessRequest names a path and its requested permission or ownership changes.
+message ChangeFileAccessRequest {
+  string server_id = 1;
+  string path = 2;
+  FileAccessChange change = 3;
+  string proof = 4;
+  // The target returned with needs_step_up, alongside its proof.
+  string confirmation_target = 5;
+}
+
+// ChangeFileAccessResponse includes partial progress if a recursive change stopped.
+message ChangeFileAccessResponse {
+  string path = 1;
+  uint64 changed = 2;
+  uint64 skipped = 3;
+  bool way_back_in = 4;
+  // A failure after at least one entry changed.
+  string stopped = 5;
+  repeated FileAccessUndoEntry undo = 6;
+}
+
+// CalculateFolderSizeRequest names the folder whose visible files to count.
+message CalculateFolderSizeRequest {
+  string server_id = 1;
+  string path = 2;
+}
+
+// CalculateFolderSizeResponse returns the logical size of the files counted.
+message CalculateFolderSizeResponse {
+  uint64 size_bytes = 1;
+  // True when only a lower bound could be counted.
+  bool partial = 2;
+  repeated FolderSizeOmission omissions = 3;
+}
+
+// FolderSizeOmission explains why the size is a lower bound.
+enum FolderSizeOmission {
+  FOLDER_SIZE_OMISSION_UNSPECIFIED = 0;
+  FOLDER_SIZE_OMISSION_DOCKER_DATA = 1;
+  FOLDER_SIZE_OMISSION_HARD_LINKS = 2;
+  FOLDER_SIZE_OMISSION_REFUSED_ENTRIES = 3;
+  FOLDER_SIZE_OMISSION_SCAN_LIMIT = 4;
+}
+
+// SearchFilesRequest names a folder and a literal term to find below it.
+message SearchFilesRequest {
+  string server_id = 1;
+  string path = 2;
+  string query = 3;
+  // Also match the contents of small text files, without returning the text.
+  bool text = 4;
+}
+
+// FileSearchMatch identifies a matching path and, when found, its first matching line.
+message FileSearchMatch {
+  string path = 1;
+  FileType type = 2;
+  // The first matching line, or zero when only the name matched.
+  uint32 line = 3;
+}
+
+// SearchFilesResponse returns the paths found within the search limits.
+message SearchFilesResponse {
+  repeated FileSearchMatch matches = 1;
+  bool partial = 2;
+}
+
+// DownloadFileFromURLRequest names a URL and where to put the bytes on the server.
+message DownloadFileFromURLRequest {
+  string server_id = 1;
+  string folder = 2;
+  string url = 3 [
+    (dockwell.v1.flag) = "download-url",
+    (dockwell.v1.from_file) = true
+  ];
+  // A single filename. Empty uses the last component of the original URL.
+  string name = 4;
+  string proof = 5;
+  // The target returned with needs_step_up, alongside its proof.
+  string confirmation_target = 6;
+}
+
+// DownloadFileFromURLResponse returns the background download job.
+message DownloadFileFromURLResponse {
+  ArchiveJob job = 1;
+}
+
+// CancelFileDownloadRequest names a download job to stop.
+message CancelFileDownloadRequest {
+  string server_id = 1;
+  string job_id = 2;
+}
+
+// CancelFileDownloadResponse returns the state of the download after cancellation was requested.
+message CancelFileDownloadResponse {
+  ArchiveJob job = 1;
+}
+
+// ListPinnedFoldersRequest names a server whose pins to list.
+message ListPinnedFoldersRequest {
+  string server_id = 1;
+}
+
+// ListPinnedFoldersResponse lists the caller's pinned paths on the server.
+message ListPinnedFoldersResponse {
+  repeated string paths = 1;
+}
+
+// PinFolderRequest names a folder to pin.
+message PinFolderRequest {
+  string server_id = 1;
+  string path = 2;
+}
+
+// PinFolderResponse is empty once the folder is pinned.
+message PinFolderResponse {}
+
+// UnpinFolderRequest names the pinned path to remove.
+message UnpinFolderRequest {
+  string server_id = 1;
+  string path = 2;
+}
+
+// UnpinFolderResponse is empty once the pin is gone.
+message UnpinFolderResponse {}

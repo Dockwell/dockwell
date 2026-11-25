@@ -18,7 +18,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/file.proto.
  */
 export const file_dockwell_v1_file: GenFile = /*@__PURE__*/
-  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iSAoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhQKDGFsbG93X2JpbmFyeRgDIAEoCCK1AQoQUmVhZEZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHY29udGVudBgDIAEoCRIOCgZiaW5hcnkYBCABKAgSEQoJdHJ1bmNhdGVkGAUgASgIEg8KB3ZlcnNpb24YBiABKAkSEwoLd2F5X2JhY2tfaW4YByABKAgSEwoLcmF3X2NvbnRlbnQYCCABKAwiewoPU2F2ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg8KB2NvbnRlbnQYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIWCg5jb25maXJtZWRfcGF0aBgFIAEoCRINCgVwcm9vZhgGIAEoCSJsChBTYXZlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgd2ZXJzaW9uGAMgASgJEhMKC3dheV9iYWNrX2luGAQgASgIImYKD01ha2VGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDQoFcHJvb2YYBCABKAkiWwoQTWFrZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YAyABKAgiTQoPTW92ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRmcm9tGAIgASgJEgoKAnRvGAMgASgJEg0KBXByb29mGAQgASgJImcKEE1vdmVGaWxlUmVzcG9uc2USDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRIkCgRmaWxlGAMgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAQgASgIIlUKEURlbGV0ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhAKCGZvcl9nb29kGAMgASgIEg0KBXByb29mGAQgASgJImIKEkRlbGV0ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKB2RlbGV0ZWQYAiABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZRITCgt3YXlfYmFja19pbhgDIAEoCCIsChdMaXN0RGVsZXRlZEZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiRQoYTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlEikKB2RlbGV0ZWQYASADKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSLBAQoLRGVsZXRlZEZpbGUSCgoCaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgEIAEoBBIvCgtkZWxldGVfdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcHVyZ2VfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoSUmVzdG9yZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCRINCgVwcm9vZhgDIAEoCSJeChNSZXN0b3JlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCI4ChdQdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSCgoCaWQYAiABKAkiRQoYUHVyZ2VEZWxldGVkRmlsZVJlc3BvbnNlEikKB2RlbGV0ZWQYASABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSKQAQoSQmVnaW5VcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAQSIwoGdW5wYWNrGAQgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhEKCXVwbG9hZF9pZBgFIAEoCRINCgVwcm9vZhgGIAEoCSI6ChNCZWdpblVwbG9hZFJlc3BvbnNlEiMKBnVwbG9hZBgBIAEoCzITLmRvY2t3ZWxsLnYxLlVwbG9hZCI5ChJVcGxvYWRGaWxlUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjoKFERvd25sb2FkRmlsZVJlc3BvbnNlEiIKBGJvZHkYASABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IqIBCgZVcGxvYWQSEQoJdXBsb2FkX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIWCg5yZWNlaXZlZF9ieXRlcxgEIAEoBBIRCgltYXhfYnl0ZXMYBSABKAQSIwoGdW5wYWNrGAYgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhMKC3dheV9iYWNrX2luGAcgASgIInAKEVVwbG9hZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkSDgoGb2Zmc2V0GAMgASgEEiUKB2NvbnRlbnQYBCABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IjsKE0ZpbmlzaFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSI7ChNDYW5jZWxVcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkiFgoUQ2FuY2VsVXBsb2FkUmVzcG9uc2UijgEKFEZpbmlzaFVwbG9hZFJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCBITCgt1bnBhY2tlZF90bxgEIAEoCRIYChB1bnBhY2tlZF9lbnRyaWVzGAUgASgEIkUKE0Rvd25sb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcGF0aHMYAyADKAkiXQoUQ29tcHJlc3NGaWxlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg0KBXBhdGhzGAIgAygJEhQKDGFyY2hpdmVfcGF0aBgDIAEoCRINCgVwcm9vZhgEIAEoCSI9ChVDb21wcmVzc0ZpbGVzUmVzcG9uc2USJAoDam9iGAEgASgLMhcuZG9ja3dlbGwudjEuQXJjaGl2ZUpvYiJHChVFeHRyYWN0QXJjaGl2ZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcHJvb2YYAyABKAkiPgoWRXh0cmFjdEFyY2hpdmVSZXNwb25zZRIkCgNqb2IYASABKAsyFy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iIjkKFEdldEFyY2hpdmVKb2JSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiPQoVR2V0QXJjaGl2ZUpvYlJlc3BvbnNlEiQKA2pvYhgBIAEoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2IiKwoWTGlzdEFyY2hpdmVKb2JzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQAoXTGlzdEFyY2hpdmVKb2JzUmVzcG9uc2USJQoEam9icxgBIAMoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2Ii5AMKCkFyY2hpdmVKb2ISDgoGam9iX2lkGAEgASgJEikKBGtpbmQYAiABKA4yGy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iS2luZBIrCgVzdGF0ZRgDIAEoDjIcLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2JTdGF0ZRIMCgRwYXRoGAQgASgJEhMKC3VucGFja2VkX3RvGAUgASgJEhQKDHNvdXJjZV9wYXRocxgGIAMoCRIUCgxzb3VyY2VfY291bnQYByABKA0SDwoHZW50cmllcxgIIAEoBBIVCg10b3RhbF9lbnRyaWVzGAkgASgEEg0KBWJ5dGVzGAogASgEEhUKDXNraXBwZWRfbGlua3MYCyABKAQSEAoIbGVmdF9vdXQYDCABKAQSJAoEZmlsZRgNIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgOIAEoCBINCgVlcnJvchgPIAEoCRIUCgxlcnJvcl9yZWFzb24YECABKAkSLgoKc3RhcnRfdGltZRgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoX3RpbWUYEiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIrICCglGaWxlRW50cnkSDAoEbmFtZRgBIAEoCRIjCgR0eXBlGAIgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgDIAEoBBIvCgttb2RpZnlfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEbW9kZRgFIAEoCRINCgVvd25lchgGIAEoCRINCgVncm91cBgHIAEoCRITCgtsaW5rX3RhcmdldBgIIAEoCRIoCglsaW5rX3R5cGUYCSABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIPCgdyZWZ1c2VkGAogASgIEhcKD3VucmVhZGFibGVfbmFtZRgLIAEoCBILCgN1aWQYPCABKA0SCwoDZ2lkGD0gASgNKkMKBlVucGFjaxIWChJVTlBBQ0tfVU5TUEVDSUZJRUQQABIOCgpVTlBBQ0tfWklQEAESEQoNVU5QQUNLX1RBUl9HWhACKm8KDkFyY2hpdmVKb2JLaW5kEiAKHEFSQ0hJVkVfSk9CX0tJTkRfVU5TUEVDSUZJRUQQABIdChlBUkNISVZFX0pPQl9LSU5EX0NPTVBSRVNTEAESHAoYQVJDSElWRV9KT0JfS0lORF9FWFRSQUNUEAIqjQEKD0FyY2hpdmVKb2JTdGF0ZRIhCh1BUkNISVZFX0pPQl9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUFSQ0hJVkVfSk9CX1NUQVRFX1JVTk5JTkcQARIaChZBUkNISVZFX0pPQl9TVEFURV9ET05FEAISHAoYQVJDSElWRV9KT0JfU1RBVEVfRkFJTEVEEAMqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBDKAGQoLRmlsZVNlcnZpY2USmQEKCUxpc3RGaWxlcxIdLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1JlcXVlc3QaHi5kb2Nrd2VsbC52MS5MaXN0RmlsZXNSZXNwb25zZSJNkAIBoLsYAaq7GA0KBWZpbGVzEgRsaXN0sLsYAcC7GATIuxgE0LsYBoLT5JMCHxIdL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMSmwEKCFJlYWRGaWxlEhwuZG9ja3dlbGwudjEuUmVhZEZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuUmVhZEZpbGVSZXNwb25zZSJSoLsYAaq7GA0KBWZpbGVzEgRyZWFksLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6cmVhZBKbAQoIU2F2ZUZpbGUSHC5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5TYXZlRmlsZVJlc3BvbnNlIlKguxgEqrsYDQoFZmlsZXMSBHNhdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpzYXZlEpsBCghNYWtlRmlsZRIcLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLk1ha2VGaWxlUmVzcG9uc2UiUqC7GAOquxgNCgVmaWxlcxIEbWFrZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOm1ha2USmwEKCE1vdmVGaWxlEhwuZG9ja3dlbGwudjEuTW92ZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTW92ZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtb3ZlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bW92ZRKlAQoKRGVsZXRlRmlsZRIeLmRvY2t3ZWxsLnYxLkRlbGV0ZUZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlc3BvbnNlIlaguxgEqrsYDwoFZmlsZXMSBmRlbGV0ZbC7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOmRlbGV0ZRK+AQoQTGlzdERlbGV0ZWRGaWxlcxIkLmRvY2t3ZWxsLnYxLkxpc3REZWxldGVkRmlsZXNSZXF1ZXN0GiUuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlIl2QAgGguxgBqrsYFQoFZmlsZXMSDGxpc3QtZGVsZXRlZLC7GAHAuxgEyLsYBNC7GAaC0+STAicSJS92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMStwEKC1Jlc3RvcmVGaWxlEh8uZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXF1ZXN0GiAuZG9ja3dlbGwudjEuUmVzdG9yZUZpbGVSZXNwb25zZSJloLsYA6q7GBAKBWZpbGVzEgdyZXN0b3JlsLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9OnJlc3RvcmUSuQEKEFB1cmdlRGVsZXRlZEZpbGUSJC5kb2Nrd2VsbC52MS5QdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBolLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXNwb25zZSJYoLsYBKq7GA4KBWZpbGVzEgVwdXJnZbC7GAHAuxgEyLsYBNC7GAaC0+STAiwqKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2RlbGV0ZWQtZmlsZXMve2lkfRKpAQoLQmVnaW5VcGxvYWQSHy5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlcXVlc3QaIC5kb2Nrd2VsbC52MS5CZWdpblVwbG9hZFJlc3BvbnNlIleguxgDqrsYFQoFZmlsZXMSDGJlZ2luLXVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAiQ6ASoiHy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMStAEKClVwbG9hZEZpbGUSHi5kb2Nrd2VsbC52MS5VcGxvYWRGaWxlUmVxdWVzdBofLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXNwb25zZSJjoLsYA6q7GA8KBWZpbGVzEgZ1cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI2Ogdjb250ZW50GisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9KAESwAEKDEZpbmlzaFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5GaW5pc2hVcGxvYWRSZXNwb25zZSJroLsYA6q7GBYKBWZpbGVzEg1maW5pc2gtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCNzoBKiIyL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfTpmaW5pc2gStgEKDENhbmNlbFVwbG9hZBIgLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlcXVlc3QaIS5kb2Nrd2VsbC52MS5DYW5jZWxVcGxvYWRSZXNwb25zZSJhoLsYBKq7GBYKBWZpbGVzEg1jYW5jZWwtdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLSorL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2Fkcy97dXBsb2FkX2lkfRK3AQoMRG93bmxvYWRGaWxlEiAuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkRvd25sb2FkRmlsZVJlc3BvbnNlImCQAgGguxgBqrsYEQoFZmlsZXMSCGRvd25sb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCLmIEYm9keRImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZG93bmxvYWQwARKyAQoNQ29tcHJlc3NGaWxlcxIhLmRvY2t3ZWxsLnYxLkNvbXByZXNzRmlsZXNSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ29tcHJlc3NGaWxlc1Jlc3BvbnNlIlqguxgDqrsYEQoFZmlsZXMSCGNvbXByZXNzsLsYAcC7GATIuxgE0LsYBoLT5JMCKzoBKiImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6Y29tcHJlc3MSswEKDkV4dHJhY3RBcmNoaXZlEiIuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuRXh0cmFjdEFyY2hpdmVSZXNwb25zZSJYoLsYA6q7GBAKBWZpbGVzEgdleHRyYWN0sLsYAcC7GATIuxgE0LsYBoLT5JMCKjoBKiIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZXh0cmFjdBK8AQoNR2V0QXJjaGl2ZUpvYhIhLmRvY2t3ZWxsLnYxLkdldEFyY2hpdmVKb2JSZXF1ZXN0GiIuZG9ja3dlbGwudjEuR2V0QXJjaGl2ZUpvYlJlc3BvbnNlImSQAgGguxgBqrsYFAoFZmlsZXMSC2FyY2hpdmUtam9isLsYAcC7GATIuxgE0LsYBoLT5JMCLxItL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vYXJjaGl2ZS1qb2JzL3tqb2JfaWR9EroBCg9MaXN0QXJjaGl2ZUpvYnMSIy5kb2Nrd2VsbC52MS5MaXN0QXJjaGl2ZUpvYnNSZXF1ZXN0GiQuZG9ja3dlbGwudjEuTGlzdEFyY2hpdmVKb2JzUmVzcG9uc2UiXJACAaC7GAGquxgVCgVmaWxlcxIMYXJjaGl2ZS1qb2JzsLsYAcC7GATIuxgE0LsYBoLT5JMCJhIkL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vYXJjaGl2ZS1qb2JzQqIBCg9jb20uZG9ja3dlbGwudjFCCUZpbGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
+  fileDesc("ChZkb2Nrd2VsbC92MS9maWxlLnByb3RvEgtkb2Nrd2VsbC52MSJiChBMaXN0RmlsZXNSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg4KBmxvb2t1cBg8IAEoCBIOCgVtYXRjaBjmASABKAkSDQoEcGFnZRjnASABKAkiqwEKEUxpc3RGaWxlc1Jlc3BvbnNlEgwKBHBhdGgYASABKAkSKQoJZGlyZWN0b3J5GAIgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EicKB2VudHJpZXMYAyADKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEQoJdHJ1bmNhdGVkGAQgASgIEhIKCW5leHRfcGFnZRjmASABKAkSDQoFdG90YWwYPCABKA0iSAoPUmVhZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhQKDGFsbG93X2JpbmFyeRgDIAEoCCK1AQoQUmVhZEZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSDwoHY29udGVudBgDIAEoCRIOCgZiaW5hcnkYBCABKAgSEQoJdHJ1bmNhdGVkGAUgASgIEg8KB3ZlcnNpb24YBiABKAkSEwoLd2F5X2JhY2tfaW4YByABKAgSEwoLcmF3X2NvbnRlbnQYCCABKAwiewoPU2F2ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEg8KB2NvbnRlbnQYAyABKAkSDwoHdmVyc2lvbhgEIAEoCRIWCg5jb25maXJtZWRfcGF0aBgFIAEoCRINCgVwcm9vZhgGIAEoCSJsChBTYXZlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRIPCgd2ZXJzaW9uGAMgASgJEhMKC3dheV9iYWNrX2luGAQgASgIImYKD01ha2VGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSDQoFcHJvb2YYBCABKAkiWwoQTWFrZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEiQKBGZpbGUYAiABKAsyFi5kb2Nrd2VsbC52MS5GaWxlRW50cnkSEwoLd2F5X2JhY2tfaW4YAyABKAgiTQoPTW92ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRmcm9tGAIgASgJEgoKAnRvGAMgASgJEg0KBXByb29mGAQgASgJImcKEE1vdmVGaWxlUmVzcG9uc2USDAoEZnJvbRgBIAEoCRIKCgJ0bxgCIAEoCRIkCgRmaWxlGAMgASgLMhYuZG9ja3dlbGwudjEuRmlsZUVudHJ5EhMKC3dheV9iYWNrX2luGAQgASgIIlUKEURlbGV0ZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhAKCGZvcl9nb29kGAMgASgIEg0KBXByb29mGAQgASgJImIKEkRlbGV0ZUZpbGVSZXNwb25zZRIMCgRwYXRoGAEgASgJEikKB2RlbGV0ZWQYAiABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZRITCgt3YXlfYmFja19pbhgDIAEoCCIsChdMaXN0RGVsZXRlZEZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiRQoYTGlzdERlbGV0ZWRGaWxlc1Jlc3BvbnNlEikKB2RlbGV0ZWQYASADKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSLBAQoLRGVsZXRlZEZpbGUSCgoCaWQYASABKAkSDAoEcGF0aBgCIAEoCRIjCgR0eXBlGAMgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgEIAEoBBIvCgtkZWxldGVfdGltZRgFIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLgoKcHVyZ2VfdGltZRgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiQgoSUmVzdG9yZUZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIKCgJpZBgCIAEoCRINCgVwcm9vZhgDIAEoCSJeChNSZXN0b3JlRmlsZVJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCCI4ChdQdXJnZURlbGV0ZWRGaWxlUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSCgoCaWQYAiABKAkiRQoYUHVyZ2VEZWxldGVkRmlsZVJlc3BvbnNlEikKB2RlbGV0ZWQYASABKAsyGC5kb2Nrd2VsbC52MS5EZWxldGVkRmlsZSKQAQoSQmVnaW5VcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJEhIKCnNpemVfYnl0ZXMYAyABKAQSIwoGdW5wYWNrGAQgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhEKCXVwbG9hZF9pZBgFIAEoCRINCgVwcm9vZhgGIAEoCSI6ChNCZWdpblVwbG9hZFJlc3BvbnNlEiMKBnVwbG9hZBgBIAEoCzITLmRvY2t3ZWxsLnYxLlVwbG9hZCI5ChJVcGxvYWRGaWxlUmVzcG9uc2USIwoGdXBsb2FkGAEgASgLMhMuZG9ja3dlbGwudjEuVXBsb2FkIjoKFERvd25sb2FkRmlsZVJlc3BvbnNlEiIKBGJvZHkYASABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IqIBCgZVcGxvYWQSEQoJdXBsb2FkX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSEgoKc2l6ZV9ieXRlcxgDIAEoBBIWCg5yZWNlaXZlZF9ieXRlcxgEIAEoBBIRCgltYXhfYnl0ZXMYBSABKAQSIwoGdW5wYWNrGAYgASgOMhMuZG9ja3dlbGwudjEuVW5wYWNrEhMKC3dheV9iYWNrX2luGAcgASgIInAKEVVwbG9hZEZpbGVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkSDgoGb2Zmc2V0GAMgASgEEiUKB2NvbnRlbnQYBCABKAsyFC5nb29nbGUuYXBpLkh0dHBCb2R5IjsKE0ZpbmlzaFVwbG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEhEKCXVwbG9hZF9pZBgCIAEoCSI7ChNDYW5jZWxVcGxvYWRSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIRCgl1cGxvYWRfaWQYAiABKAkiFgoUQ2FuY2VsVXBsb2FkUmVzcG9uc2UijgEKFEZpbmlzaFVwbG9hZFJlc3BvbnNlEgwKBHBhdGgYASABKAkSJAoEZmlsZRgCIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgDIAEoCBITCgt1bnBhY2tlZF90bxgEIAEoCRIYChB1bnBhY2tlZF9lbnRyaWVzGAUgASgEIkUKE0Rvd25sb2FkRmlsZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcGF0aHMYAyADKAkiXQoUQ29tcHJlc3NGaWxlc1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg0KBXBhdGhzGAIgAygJEhQKDGFyY2hpdmVfcGF0aBgDIAEoCRINCgVwcm9vZhgEIAEoCSI9ChVDb21wcmVzc0ZpbGVzUmVzcG9uc2USJAoDam9iGAEgASgLMhcuZG9ja3dlbGwudjEuQXJjaGl2ZUpvYiJHChVFeHRyYWN0QXJjaGl2ZVJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEgwKBHBhdGgYAiABKAkSDQoFcHJvb2YYAyABKAkiPgoWRXh0cmFjdEFyY2hpdmVSZXNwb25zZRIkCgNqb2IYASABKAsyFy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iIjkKFEdldEFyY2hpdmVKb2JSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIOCgZqb2JfaWQYAiABKAkiPQoVR2V0QXJjaGl2ZUpvYlJlc3BvbnNlEiQKA2pvYhgBIAEoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2IiKwoWTGlzdEFyY2hpdmVKb2JzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiQAoXTGlzdEFyY2hpdmVKb2JzUmVzcG9uc2USJQoEam9icxgBIAMoCzIXLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2Ii+QMKCkFyY2hpdmVKb2ISDgoGam9iX2lkGAEgASgJEikKBGtpbmQYAiABKA4yGy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iS2luZBIrCgVzdGF0ZRgDIAEoDjIcLmRvY2t3ZWxsLnYxLkFyY2hpdmVKb2JTdGF0ZRIMCgRwYXRoGAQgASgJEhMKC3VucGFja2VkX3RvGAUgASgJEhQKDHNvdXJjZV9wYXRocxgGIAMoCRIUCgxzb3VyY2VfY291bnQYByABKA0SDwoHZW50cmllcxgIIAEoBBIVCg10b3RhbF9lbnRyaWVzGAkgASgEEg0KBWJ5dGVzGAogASgEEhUKDXNraXBwZWRfbGlua3MYCyABKAQSEAoIbGVmdF9vdXQYDCABKAQSJAoEZmlsZRgNIAEoCzIWLmRvY2t3ZWxsLnYxLkZpbGVFbnRyeRITCgt3YXlfYmFja19pbhgOIAEoCBINCgVlcnJvchgPIAEoCRIUCgxlcnJvcl9yZWFzb24YECABKAkSLgoKc3RhcnRfdGltZRgRIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASLwoLZmluaXNoX3RpbWUYEiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhMKC3RvdGFsX2J5dGVzGBMgASgEIrICCglGaWxlRW50cnkSDAoEbmFtZRgBIAEoCRIjCgR0eXBlGAIgASgOMhUuZG9ja3dlbGwudjEuRmlsZVR5cGUSEgoKc2l6ZV9ieXRlcxgDIAEoBBIvCgttb2RpZnlfdGltZRgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASDAoEbW9kZRgFIAEoCRINCgVvd25lchgGIAEoCRINCgVncm91cBgHIAEoCRITCgtsaW5rX3RhcmdldBgIIAEoCRIoCglsaW5rX3R5cGUYCSABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIPCgdyZWZ1c2VkGAogASgIEhcKD3VucmVhZGFibGVfbmFtZRgLIAEoCBILCgN1aWQYPCABKA0SCwoDZ2lkGD0gASgNIicKC0ZpbGVBY2NvdW50EgwKBG5hbWUYASABKAkSCgoCaWQYAiABKA0iLAoXTGlzdEZpbGVBY2NvdW50c1JlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJIm0KGExpc3RGaWxlQWNjb3VudHNSZXNwb25zZRInCgV1c2VycxgBIAMoCzIYLmRvY2t3ZWxsLnYxLkZpbGVBY2NvdW50EigKBmdyb3VwcxgCIAMoCzIYLmRvY2t3ZWxsLnYxLkZpbGVBY2NvdW50Iv8BChBGaWxlQWNjZXNzQ2hhbmdlEhEKBG1vZGUYASABKA1IAIgBARIQCgN1aWQYAiABKA1IAYgBARIQCgNnaWQYAyABKA1IAogBARIRCglyZWN1cnNpdmUYBCABKAgSFAoMYWxsb3dfc2V0X2lkGAUgASgIEhYKCWZpbGVfbW9kZRgGIAEoDUgDiAEBEhkKEWtlZXBfZmlsZV9leGVjdXRlGAcgASgIEjEKB3Jlc3RvcmUYCCADKAsyIC5kb2Nrd2VsbC52MS5GaWxlQWNjZXNzVW5kb0VudHJ5QgcKBV9tb2RlQgYKBF91aWRCBgoEX2dpZEIMCgpfZmlsZV9tb2RlIjkKD0ZpbGVBY2Nlc3NTdGF0ZRIMCgRtb2RlGAEgASgNEgsKA3VpZBgCIAEoDRILCgNnaWQYAyABKA0itQEKE0ZpbGVBY2Nlc3NVbmRvRW50cnkSDAoEcGF0aBgBIAEoCRIOCgZkZXZpY2UYAiABKAQSDQoFaW5vZGUYAyABKAQSLAoGYmVmb3JlGAQgASgLMhwuZG9ja3dlbGwudjEuRmlsZUFjY2Vzc1N0YXRlEisKBWFmdGVyGAUgASgLMhwuZG9ja3dlbGwudjEuRmlsZUFjY2Vzc1N0YXRlEhYKDmNoYW5nZV90aW1lX25zGAYgASgDIpUBChdDaGFuZ2VGaWxlQWNjZXNzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRItCgZjaGFuZ2UYAyABKAsyHS5kb2Nrd2VsbC52MS5GaWxlQWNjZXNzQ2hhbmdlEg0KBXByb29mGAQgASgJEhsKE2NvbmZpcm1hdGlvbl90YXJnZXQYBSABKAkioAEKGENoYW5nZUZpbGVBY2Nlc3NSZXNwb25zZRIMCgRwYXRoGAEgASgJEg8KB2NoYW5nZWQYAiABKAQSDwoHc2tpcHBlZBgDIAEoBBITCgt3YXlfYmFja19pbhgEIAEoCBIPCgdzdG9wcGVkGAUgASgJEi4KBHVuZG8YBiADKAsyIC5kb2Nrd2VsbC52MS5GaWxlQWNjZXNzVW5kb0VudHJ5Ij0KGkNhbGN1bGF0ZUZvbGRlclNpemVSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJInYKG0NhbGN1bGF0ZUZvbGRlclNpemVSZXNwb25zZRISCgpzaXplX2J5dGVzGAEgASgEEg8KB3BhcnRpYWwYAiABKAgSMgoJb21pc3Npb25zGAMgAygOMh8uZG9ja3dlbGwudjEuRm9sZGVyU2l6ZU9taXNzaW9uIlIKElNlYXJjaEZpbGVzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCRINCgVxdWVyeRgDIAEoCRIMCgR0ZXh0GAQgASgIIlIKD0ZpbGVTZWFyY2hNYXRjaBIMCgRwYXRoGAEgASgJEiMKBHR5cGUYAiABKA4yFS5kb2Nrd2VsbC52MS5GaWxlVHlwZRIMCgRsaW5lGAMgASgNIlUKE1NlYXJjaEZpbGVzUmVzcG9uc2USLQoHbWF0Y2hlcxgBIAMoCzIcLmRvY2t3ZWxsLnYxLkZpbGVTZWFyY2hNYXRjaBIPCgdwYXJ0aWFsGAIgASgIIpwBChpEb3dubG9hZEZpbGVGcm9tVVJMUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDgoGZm9sZGVyGAIgASgJEiEKA3VybBgDIAEoCUIUorsYDGRvd25sb2FkLXVybKi7GAESDAoEbmFtZRgEIAEoCRINCgVwcm9vZhgFIAEoCRIbChNjb25maXJtYXRpb25fdGFyZ2V0GAYgASgJIkMKG0Rvd25sb2FkRmlsZUZyb21VUkxSZXNwb25zZRIkCgNqb2IYASABKAsyFy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iIj4KGUNhbmNlbEZpbGVEb3dubG9hZFJlcXVlc3QSEQoJc2VydmVyX2lkGAEgASgJEg4KBmpvYl9pZBgCIAEoCSJCChpDYW5jZWxGaWxlRG93bmxvYWRSZXNwb25zZRIkCgNqb2IYASABKAsyFy5kb2Nrd2VsbC52MS5BcmNoaXZlSm9iIi0KGExpc3RQaW5uZWRGb2xkZXJzUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkiKgoZTGlzdFBpbm5lZEZvbGRlcnNSZXNwb25zZRINCgVwYXRocxgBIAMoCSIzChBQaW5Gb2xkZXJSZXF1ZXN0EhEKCXNlcnZlcl9pZBgBIAEoCRIMCgRwYXRoGAIgASgJIhMKEVBpbkZvbGRlclJlc3BvbnNlIjUKElVucGluRm9sZGVyUmVxdWVzdBIRCglzZXJ2ZXJfaWQYASABKAkSDAoEcGF0aBgCIAEoCSIVChNVbnBpbkZvbGRlclJlc3BvbnNlKkMKBlVucGFjaxIWChJVTlBBQ0tfVU5TUEVDSUZJRUQQABIOCgpVTlBBQ0tfWklQEAESEQoNVU5QQUNLX1RBUl9HWhACKpIBCg5BcmNoaXZlSm9iS2luZBIgChxBUkNISVZFX0pPQl9LSU5EX1VOU1BFQ0lGSUVEEAASHQoZQVJDSElWRV9KT0JfS0lORF9DT01QUkVTUxABEhwKGEFSQ0hJVkVfSk9CX0tJTkRfRVhUUkFDVBACEiEKHUFSQ0hJVkVfSk9CX0tJTkRfVVJMX0RPV05MT0FEEAMqrgEKD0FyY2hpdmVKb2JTdGF0ZRIhCh1BUkNISVZFX0pPQl9TVEFURV9VTlNQRUNJRklFRBAAEh0KGUFSQ0hJVkVfSk9CX1NUQVRFX1JVTk5JTkcQARIaChZBUkNISVZFX0pPQl9TVEFURV9ET05FEAISHAoYQVJDSElWRV9KT0JfU1RBVEVfRkFJTEVEEAMSHwobQVJDSElWRV9KT0JfU1RBVEVfQ0FOQ0VMTEVEEAQqfgoIRmlsZVR5cGUSGQoVRklMRV9UWVBFX1VOU1BFQ0lGSUVEEAASEgoORklMRV9UWVBFX0ZJTEUQARIXChNGSUxFX1RZUEVfRElSRUNUT1JZEAISFQoRRklMRV9UWVBFX1NZTUxJTksQAxITCg9GSUxFX1RZUEVfT1RIRVIQBCrUAQoSRm9sZGVyU2l6ZU9taXNzaW9uEiQKIEZPTERFUl9TSVpFX09NSVNTSU9OX1VOU1BFQ0lGSUVEEAASJAogRk9MREVSX1NJWkVfT01JU1NJT05fRE9DS0VSX0RBVEEQARIjCh9GT0xERVJfU0laRV9PTUlTU0lPTl9IQVJEX0xJTktTEAISKAokRk9MREVSX1NJWkVfT01JU1NJT05fUkVGVVNFRF9FTlRSSUVTEAMSIwofRk9MREVSX1NJWkVfT01JU1NJT05fU0NBTl9MSU1JVBAEMswmCgtGaWxlU2VydmljZRKZAQoJTGlzdEZpbGVzEh0uZG9ja3dlbGwudjEuTGlzdEZpbGVzUmVxdWVzdBoeLmRvY2t3ZWxsLnYxLkxpc3RGaWxlc1Jlc3BvbnNlIk2QAgGguxgBqrsYDQoFZmlsZXMSBGxpc3SwuxgBwLsYBMi7GATQuxgGgtPkkwIfEh0vdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlcxKbAQoIUmVhZEZpbGUSHC5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5SZWFkRmlsZVJlc3BvbnNlIlKguxgBqrsYDQoFZmlsZXMSBHJlYWSwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpyZWFkEpsBCghTYXZlRmlsZRIcLmRvY2t3ZWxsLnYxLlNhdmVGaWxlUmVxdWVzdBodLmRvY2t3ZWxsLnYxLlNhdmVGaWxlUmVzcG9uc2UiUqC7GASquxgNCgVmaWxlcxIEc2F2ZbC7GAHAuxgEyLsYBNC7GAaC0+STAic6ASoiIi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOnNhdmUSmwEKCE1ha2VGaWxlEhwuZG9ja3dlbGwudjEuTWFrZUZpbGVSZXF1ZXN0Gh0uZG9ja3dlbGwudjEuTWFrZUZpbGVSZXNwb25zZSJSoLsYA6q7GA0KBWZpbGVzEgRtYWtlsLsYAcC7GATIuxgE0LsYBoLT5JMCJzoBKiIiL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6bWFrZRKbAQoITW92ZUZpbGUSHC5kb2Nrd2VsbC52MS5Nb3ZlRmlsZVJlcXVlc3QaHS5kb2Nrd2VsbC52MS5Nb3ZlRmlsZVJlc3BvbnNlIlKguxgDqrsYDQoFZmlsZXMSBG1vdmWwuxgBwLsYBMi7GATQuxgGgtPkkwInOgEqIiIvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczptb3ZlEqUBCgpEZWxldGVGaWxlEh4uZG9ja3dlbGwudjEuRGVsZXRlRmlsZVJlcXVlc3QaHy5kb2Nrd2VsbC52MS5EZWxldGVGaWxlUmVzcG9uc2UiVqC7GASquxgPCgVmaWxlcxIGZGVsZXRlsLsYAcC7GATIuxgE0LsYBoLT5JMCKToBKiIkL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZGVsZXRlEr4BChBMaXN0RGVsZXRlZEZpbGVzEiQuZG9ja3dlbGwudjEuTGlzdERlbGV0ZWRGaWxlc1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5MaXN0RGVsZXRlZEZpbGVzUmVzcG9uc2UiXZACAaC7GAGquxgVCgVmaWxlcxIMbGlzdC1kZWxldGVksLsYAcC7GATIuxgE0LsYBoLT5JMCJxIlL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcxK3AQoLUmVzdG9yZUZpbGUSHy5kb2Nrd2VsbC52MS5SZXN0b3JlRmlsZVJlcXVlc3QaIC5kb2Nrd2VsbC52MS5SZXN0b3JlRmlsZVJlc3BvbnNlImWguxgDqrsYEAoFZmlsZXMSB3Jlc3RvcmWwuxgBwLsYBMi7GATQuxgGgtPkkwI3OgEqIjIvdjEvc2VydmVycy97c2VydmVyX2lkfS9kZWxldGVkLWZpbGVzL3tpZH06cmVzdG9yZRK5AQoQUHVyZ2VEZWxldGVkRmlsZRIkLmRvY2t3ZWxsLnYxLlB1cmdlRGVsZXRlZEZpbGVSZXF1ZXN0GiUuZG9ja3dlbGwudjEuUHVyZ2VEZWxldGVkRmlsZVJlc3BvbnNlIliguxgEqrsYDgoFZmlsZXMSBXB1cmdlsLsYAcC7GATIuxgE0LsYBoLT5JMCLCoqL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZGVsZXRlZC1maWxlcy97aWR9EqkBCgtCZWdpblVwbG9hZBIfLmRvY2t3ZWxsLnYxLkJlZ2luVXBsb2FkUmVxdWVzdBogLmRvY2t3ZWxsLnYxLkJlZ2luVXBsb2FkUmVzcG9uc2UiV6C7GAOquxgVCgVmaWxlcxIMYmVnaW4tdXBsb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCJDoBKiIfL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vdXBsb2FkcxK0AQoKVXBsb2FkRmlsZRIeLmRvY2t3ZWxsLnYxLlVwbG9hZEZpbGVSZXF1ZXN0Gh8uZG9ja3dlbGwudjEuVXBsb2FkRmlsZVJlc3BvbnNlImOguxgDqrsYDwoFZmlsZXMSBnVwbG9hZLC7GAHAuxgEyLsYBNC7GAaC0+STAjY6B2NvbnRlbnQaKy92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L3VwbG9hZHMve3VwbG9hZF9pZH0oARLAAQoMRmluaXNoVXBsb2FkEiAuZG9ja3dlbGwudjEuRmluaXNoVXBsb2FkUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkZpbmlzaFVwbG9hZFJlc3BvbnNlImuguxgDqrsYFgoFZmlsZXMSDWZpbmlzaC11cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwI3OgEqIjIvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9OmZpbmlzaBK2AQoMQ2FuY2VsVXBsb2FkEiAuZG9ja3dlbGwudjEuQ2FuY2VsVXBsb2FkUmVxdWVzdBohLmRvY2t3ZWxsLnYxLkNhbmNlbFVwbG9hZFJlc3BvbnNlImGguxgEqrsYFgoFZmlsZXMSDWNhbmNlbC11cGxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwItKisvdjEvc2VydmVycy97c2VydmVyX2lkfS91cGxvYWRzL3t1cGxvYWRfaWR9ErcBCgxEb3dubG9hZEZpbGUSIC5kb2Nrd2VsbC52MS5Eb3dubG9hZEZpbGVSZXF1ZXN0GiEuZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlUmVzcG9uc2UiYJACAaC7GAGquxgRCgVmaWxlcxIIZG93bmxvYWSwuxgBwLsYBMi7GATQuxgGgtPkkwIuYgRib2R5EiYvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpkb3dubG9hZDABErIBCg1Db21wcmVzc0ZpbGVzEiEuZG9ja3dlbGwudjEuQ29tcHJlc3NGaWxlc1JlcXVlc3QaIi5kb2Nrd2VsbC52MS5Db21wcmVzc0ZpbGVzUmVzcG9uc2UiWqC7GAOquxgRCgVmaWxlcxIIY29tcHJlc3OwuxgBwLsYBMi7GATQuxgGgtPkkwIrOgEqIiYvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpjb21wcmVzcxKzAQoORXh0cmFjdEFyY2hpdmUSIi5kb2Nrd2VsbC52MS5FeHRyYWN0QXJjaGl2ZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5FeHRyYWN0QXJjaGl2ZVJlc3BvbnNlIliguxgDqrsYEAoFZmlsZXMSB2V4dHJhY3SwuxgBwLsYBMi7GATQuxgGgtPkkwIqOgEqIiUvdjEvc2VydmVycy97c2VydmVyX2lkfS9maWxlczpleHRyYWN0ErwBCg1HZXRBcmNoaXZlSm9iEiEuZG9ja3dlbGwudjEuR2V0QXJjaGl2ZUpvYlJlcXVlc3QaIi5kb2Nrd2VsbC52MS5HZXRBcmNoaXZlSm9iUmVzcG9uc2UiZJACAaC7GAGquxgUCgVmaWxlcxILYXJjaGl2ZS1qb2KwuxgBwLsYBMi7GATQuxgGgtPkkwIvEi0vdjEvc2VydmVycy97c2VydmVyX2lkfS9hcmNoaXZlLWpvYnMve2pvYl9pZH0SugEKD0xpc3RBcmNoaXZlSm9icxIjLmRvY2t3ZWxsLnYxLkxpc3RBcmNoaXZlSm9ic1JlcXVlc3QaJC5kb2Nrd2VsbC52MS5MaXN0QXJjaGl2ZUpvYnNSZXNwb25zZSJckAIBoLsYAaq7GBUKBWZpbGVzEgxhcmNoaXZlLWpvYnOwuxgBwLsYBMi7GATQuxgGgtPkkwImEiQvdjEvc2VydmVycy97c2VydmVyX2lkfS9hcmNoaXZlLWpvYnMSuwEKEExpc3RGaWxlQWNjb3VudHMSJC5kb2Nrd2VsbC52MS5MaXN0RmlsZUFjY291bnRzUmVxdWVzdBolLmRvY2t3ZWxsLnYxLkxpc3RGaWxlQWNjb3VudHNSZXNwb25zZSJakAIBoLsYAaq7GBEKBWZpbGVzEghhY2NvdW50c7C7GAHAuxgEyLsYBNC7GAaC0+STAigSJi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzL2FjY291bnRzEsQBChBDaGFuZ2VGaWxlQWNjZXNzEiQuZG9ja3dlbGwudjEuQ2hhbmdlRmlsZUFjY2Vzc1JlcXVlc3QaJS5kb2Nrd2VsbC52MS5DaGFuZ2VGaWxlQWNjZXNzUmVzcG9uc2UiY6C7GASquxgWCgVmaWxlcxINY2hhbmdlLWFjY2Vzc7C7GAHAuxgEyLsYBNC7GAaC0+STAi86ASoiKi92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOmNoYW5nZUFjY2VzcxLJAQoTQ2FsY3VsYXRlRm9sZGVyU2l6ZRInLmRvY2t3ZWxsLnYxLkNhbGN1bGF0ZUZvbGRlclNpemVSZXF1ZXN0GiguZG9ja3dlbGwudjEuQ2FsY3VsYXRlRm9sZGVyU2l6ZVJlc3BvbnNlIl+QAgGguxgBqrsYFAoFZmlsZXMSC2ZvbGRlci1zaXplsLsYAcC7GATIuxgE0LsYBoLT5JMCKhIoL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXMvZm9sZGVyU2l6ZRKoAQoLU2VhcmNoRmlsZXMSHy5kb2Nrd2VsbC52MS5TZWFyY2hGaWxlc1JlcXVlc3QaIC5kb2Nrd2VsbC52MS5TZWFyY2hGaWxlc1Jlc3BvbnNlIlaguxgBqrsYDwoFZmlsZXMSBnNlYXJjaLC7GAHAuxgEyLsYBNC7GAaC0+STAik6ASoiJC92MS9zZXJ2ZXJzL3tzZXJ2ZXJfaWR9L2ZpbGVzOnNlYXJjaBLUAQoTRG93bmxvYWRGaWxlRnJvbVVSTBInLmRvY2t3ZWxsLnYxLkRvd25sb2FkRmlsZUZyb21VUkxSZXF1ZXN0GiguZG9ja3dlbGwudjEuRG93bmxvYWRGaWxlRnJvbVVSTFJlc3BvbnNlImqguxgDqrsYGgoFZmlsZXMSEWRvd25sb2FkLWZyb20tdXJssLsYAcC7GATIuxgE0LsYBoLT5JMCMjoBKiItL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vZmlsZXM6ZG93bmxvYWRGcm9tVXJsEt4BChJDYW5jZWxGaWxlRG93bmxvYWQSJi5kb2Nrd2VsbC52MS5DYW5jZWxGaWxlRG93bmxvYWRSZXF1ZXN0GicuZG9ja3dlbGwudjEuQ2FuY2VsRmlsZURvd25sb2FkUmVzcG9uc2Uid6C7GAOquxgYCgVmaWxlcxIPY2FuY2VsLWRvd25sb2FksLsYAcC7GATIuxgE0LsYBoLT5JMCQToBKiI8L3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vYXJjaGl2ZS1qb2JzL3tqb2JfaWR9OmNhbmNlbERvd25sb2FkEr8BChFMaXN0UGlubmVkRm9sZGVycxIlLmRvY2t3ZWxsLnYxLkxpc3RQaW5uZWRGb2xkZXJzUmVxdWVzdBomLmRvY2t3ZWxsLnYxLkxpc3RQaW5uZWRGb2xkZXJzUmVzcG9uc2UiW5ACAaC7GAGquxgSCgVmaWxlcxIJbGlzdC1waW5zsLsYAcC7GATIuxgE0LsYBoLT5JMCKBImL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vcGlubmVkLWZvbGRlcnMSoQEKCVBpbkZvbGRlchIdLmRvY2t3ZWxsLnYxLlBpbkZvbGRlclJlcXVlc3QaHi5kb2Nrd2VsbC52MS5QaW5Gb2xkZXJSZXNwb25zZSJVoLsYA6q7GAwKBWZpbGVzEgNwaW6wuxgBwLsYBMi7GATQuxgGgtPkkwIrOgEqIiYvdjEvc2VydmVycy97c2VydmVyX2lkfS9waW5uZWQtZm9sZGVycxKvAQoLVW5waW5Gb2xkZXISHy5kb2Nrd2VsbC52MS5VbnBpbkZvbGRlclJlcXVlc3QaIC5kb2Nrd2VsbC52MS5VbnBpbkZvbGRlclJlc3BvbnNlIl2guxgDqrsYDgoFZmlsZXMSBXVucGlusLsYAcC7GATIuxgE0LsYBoLT5JMCMToBKiIsL3YxL3NlcnZlcnMve3NlcnZlcl9pZH0vcGlubmVkLWZvbGRlcnM6dW5waW5CogEKD2NvbS5kb2Nrd2VsbC52MUIJRmlsZVByb3RvUAFaN2dpdGh1Yi5jb20vZG9ja3dlbGwvZG9ja3dlbGwvZ2VuL2RvY2t3ZWxsL3YxO2RvY2t3ZWxsdjGiAgNEWFiqAgtEb2Nrd2VsbC5WMcoCC0RvY2t3ZWxsXFYx4gIXRG9ja3dlbGxcVjFcR1BCTWV0YWRhdGHqAgxEb2Nrd2VsbDo6VjFiBnByb3RvMw", [file_dockwell_v1_options, file_google_api_annotations, file_google_api_httpbody, file_google_protobuf_timestamp]);
 
 /**
  * ListFilesRequest names a directory on a server.
@@ -1423,8 +1423,8 @@ export const ListArchiveJobsResponseSchema: GenMessage<ListArchiveJobsResponse> 
   messageDesc(file_dockwell_v1_file, 37);
 
 /**
- * ArchiveJob is one server-side compress or extract job, which outlives the
- * request that started it so long archives survive proxy request timeouts.
+ * ArchiveJob is one server-side compress, extract or URL download job. It
+ * outlives the request that started it so long jobs survive proxy timeouts.
  *
  * @generated from message dockwell.v1.ArchiveJob
  */
@@ -1437,14 +1437,14 @@ export type ArchiveJob = Message<"dockwell.v1.ArchiveJob"> & {
   jobId: string;
 
   /**
-   * Whether it compresses or extracts.
+   * Whether it compresses, extracts or downloads.
    *
    * @generated from field: dockwell.v1.ArchiveJobKind kind = 2;
    */
   kind: ArchiveJobKind;
 
   /**
-   * Running, done or failed.
+   * Running, done, failed or cancelled.
    *
    * @generated from field: dockwell.v1.ArchiveJobState state = 3;
    */
@@ -1556,6 +1556,13 @@ export type ArchiveJob = Message<"dockwell.v1.ArchiveJob"> & {
    * @generated from field: google.protobuf.Timestamp finish_time = 18;
    */
   finishTime?: Timestamp | undefined;
+
+  /**
+   * Expected bytes for a URL download, or zero if the length is unknown.
+   *
+   * @generated from field: uint64 total_bytes = 19;
+   */
+  totalBytes: bigint;
 };
 
 /**
@@ -1674,6 +1681,669 @@ export const FileEntrySchema: GenMessage<FileEntry> = /*@__PURE__*/
   messageDesc(file_dockwell_v1_file, 39);
 
 /**
+ * FileAccount is a local user or group and its numeric ID.
+ *
+ * @generated from message dockwell.v1.FileAccount
+ */
+export type FileAccount = Message<"dockwell.v1.FileAccount"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * @generated from field: uint32 id = 2;
+   */
+  id: number;
+};
+
+/**
+ * Describes the message dockwell.v1.FileAccount.
+ * Use `create(FileAccountSchema)` to create a new message.
+ */
+export const FileAccountSchema: GenMessage<FileAccount> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 40);
+
+/**
+ * ListFileAccountsRequest names a server whose users and groups to list.
+ *
+ * @generated from message dockwell.v1.ListFileAccountsRequest
+ */
+export type ListFileAccountsRequest = Message<"dockwell.v1.ListFileAccountsRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListFileAccountsRequest.
+ * Use `create(ListFileAccountsRequestSchema)` to create a new message.
+ */
+export const ListFileAccountsRequestSchema: GenMessage<ListFileAccountsRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 41);
+
+/**
+ * ListFileAccountsResponse lists the local users and groups the server reported.
+ *
+ * @generated from message dockwell.v1.ListFileAccountsResponse
+ */
+export type ListFileAccountsResponse = Message<"dockwell.v1.ListFileAccountsResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.FileAccount users = 1;
+   */
+  users: FileAccount[];
+
+  /**
+   * @generated from field: repeated dockwell.v1.FileAccount groups = 2;
+   */
+  groups: FileAccount[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListFileAccountsResponse.
+ * Use `create(ListFileAccountsResponseSchema)` to create a new message.
+ */
+export const ListFileAccountsResponseSchema: GenMessage<ListFileAccountsResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 42);
+
+/**
+ * FileAccessChange leaves each omitted value as it was.
+ *
+ * @generated from message dockwell.v1.FileAccessChange
+ */
+export type FileAccessChange = Message<"dockwell.v1.FileAccessChange"> & {
+  /**
+   * The nine permission bits and, when acknowledged, the special bits.
+   *
+   * @generated from field: optional uint32 mode = 1;
+   */
+  mode?: number | undefined;
+
+  /**
+   * @generated from field: optional uint32 uid = 2;
+   */
+  uid?: number | undefined;
+
+  /**
+   * @generated from field: optional uint32 gid = 3;
+   */
+  gid?: number | undefined;
+
+  /**
+   * @generated from field: bool recursive = 4;
+   */
+  recursive: boolean;
+
+  /**
+   * @generated from field: bool allow_set_id = 5;
+   */
+  allowSetId: boolean;
+
+  /**
+   * For recursive changes, mode applies to folders and file_mode to files.
+   *
+   * @generated from field: optional uint32 file_mode = 6;
+   */
+  fileMode?: number | undefined;
+
+  /**
+   * Also keep execute bits that were already set on a file.
+   *
+   * @generated from field: bool keep_file_execute = 7;
+   */
+  keepFileExecute: boolean;
+
+  /**
+   * Restore an earlier change only where the inode and current access still match.
+   *
+   * @generated from field: repeated dockwell.v1.FileAccessUndoEntry restore = 8;
+   */
+  restore: FileAccessUndoEntry[];
+};
+
+/**
+ * Describes the message dockwell.v1.FileAccessChange.
+ * Use `create(FileAccessChangeSchema)` to create a new message.
+ */
+export const FileAccessChangeSchema: GenMessage<FileAccessChange> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 43);
+
+/**
+ * FileAccessState holds a file or folder's permissions and numeric ownership.
+ *
+ * @generated from message dockwell.v1.FileAccessState
+ */
+export type FileAccessState = Message<"dockwell.v1.FileAccessState"> & {
+  /**
+   * @generated from field: uint32 mode = 1;
+   */
+  mode: number;
+
+  /**
+   * @generated from field: uint32 uid = 2;
+   */
+  uid: number;
+
+  /**
+   * @generated from field: uint32 gid = 3;
+   */
+  gid: number;
+};
+
+/**
+ * Describes the message dockwell.v1.FileAccessState.
+ * Use `create(FileAccessStateSchema)` to create a new message.
+ */
+export const FileAccessStateSchema: GenMessage<FileAccessState> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 44);
+
+/**
+ * FileAccessUndoEntry identifies an inode and the access change made to it.
+ *
+ * @generated from message dockwell.v1.FileAccessUndoEntry
+ */
+export type FileAccessUndoEntry = Message<"dockwell.v1.FileAccessUndoEntry"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint64 device = 2;
+   */
+  device: bigint;
+
+  /**
+   * @generated from field: uint64 inode = 3;
+   */
+  inode: bigint;
+
+  /**
+   * @generated from field: dockwell.v1.FileAccessState before = 4;
+   */
+  before?: FileAccessState | undefined;
+
+  /**
+   * @generated from field: dockwell.v1.FileAccessState after = 5;
+   */
+  after?: FileAccessState | undefined;
+
+  /**
+   * The inode change time after the operation, to detect a stale undo.
+   *
+   * @generated from field: int64 change_time_ns = 6;
+   */
+  changeTimeNs: bigint;
+};
+
+/**
+ * Describes the message dockwell.v1.FileAccessUndoEntry.
+ * Use `create(FileAccessUndoEntrySchema)` to create a new message.
+ */
+export const FileAccessUndoEntrySchema: GenMessage<FileAccessUndoEntry> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 45);
+
+/**
+ * ChangeFileAccessRequest names a path and its requested permission or ownership changes.
+ *
+ * @generated from message dockwell.v1.ChangeFileAccessRequest
+ */
+export type ChangeFileAccessRequest = Message<"dockwell.v1.ChangeFileAccessRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * @generated from field: dockwell.v1.FileAccessChange change = 3;
+   */
+  change?: FileAccessChange | undefined;
+
+  /**
+   * @generated from field: string proof = 4;
+   */
+  proof: string;
+
+  /**
+   * The target returned with needs_step_up, alongside its proof.
+   *
+   * @generated from field: string confirmation_target = 5;
+   */
+  confirmationTarget: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ChangeFileAccessRequest.
+ * Use `create(ChangeFileAccessRequestSchema)` to create a new message.
+ */
+export const ChangeFileAccessRequestSchema: GenMessage<ChangeFileAccessRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 46);
+
+/**
+ * ChangeFileAccessResponse includes partial progress if a recursive change stopped.
+ *
+ * @generated from message dockwell.v1.ChangeFileAccessResponse
+ */
+export type ChangeFileAccessResponse = Message<"dockwell.v1.ChangeFileAccessResponse"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: uint64 changed = 2;
+   */
+  changed: bigint;
+
+  /**
+   * @generated from field: uint64 skipped = 3;
+   */
+  skipped: bigint;
+
+  /**
+   * @generated from field: bool way_back_in = 4;
+   */
+  wayBackIn: boolean;
+
+  /**
+   * A failure after at least one entry changed.
+   *
+   * @generated from field: string stopped = 5;
+   */
+  stopped: string;
+
+  /**
+   * @generated from field: repeated dockwell.v1.FileAccessUndoEntry undo = 6;
+   */
+  undo: FileAccessUndoEntry[];
+};
+
+/**
+ * Describes the message dockwell.v1.ChangeFileAccessResponse.
+ * Use `create(ChangeFileAccessResponseSchema)` to create a new message.
+ */
+export const ChangeFileAccessResponseSchema: GenMessage<ChangeFileAccessResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 47);
+
+/**
+ * CalculateFolderSizeRequest names the folder whose visible files to count.
+ *
+ * @generated from message dockwell.v1.CalculateFolderSizeRequest
+ */
+export type CalculateFolderSizeRequest = Message<"dockwell.v1.CalculateFolderSizeRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CalculateFolderSizeRequest.
+ * Use `create(CalculateFolderSizeRequestSchema)` to create a new message.
+ */
+export const CalculateFolderSizeRequestSchema: GenMessage<CalculateFolderSizeRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 48);
+
+/**
+ * CalculateFolderSizeResponse returns the logical size of the files counted.
+ *
+ * @generated from message dockwell.v1.CalculateFolderSizeResponse
+ */
+export type CalculateFolderSizeResponse = Message<"dockwell.v1.CalculateFolderSizeResponse"> & {
+  /**
+   * @generated from field: uint64 size_bytes = 1;
+   */
+  sizeBytes: bigint;
+
+  /**
+   * True when only a lower bound could be counted.
+   *
+   * @generated from field: bool partial = 2;
+   */
+  partial: boolean;
+
+  /**
+   * @generated from field: repeated dockwell.v1.FolderSizeOmission omissions = 3;
+   */
+  omissions: FolderSizeOmission[];
+};
+
+/**
+ * Describes the message dockwell.v1.CalculateFolderSizeResponse.
+ * Use `create(CalculateFolderSizeResponseSchema)` to create a new message.
+ */
+export const CalculateFolderSizeResponseSchema: GenMessage<CalculateFolderSizeResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 49);
+
+/**
+ * SearchFilesRequest names a folder and a literal term to find below it.
+ *
+ * @generated from message dockwell.v1.SearchFilesRequest
+ */
+export type SearchFilesRequest = Message<"dockwell.v1.SearchFilesRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+
+  /**
+   * @generated from field: string query = 3;
+   */
+  query: string;
+
+  /**
+   * Also match the contents of small text files, without returning the text.
+   *
+   * @generated from field: bool text = 4;
+   */
+  text: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SearchFilesRequest.
+ * Use `create(SearchFilesRequestSchema)` to create a new message.
+ */
+export const SearchFilesRequestSchema: GenMessage<SearchFilesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 50);
+
+/**
+ * FileSearchMatch identifies a matching path and, when found, its first matching line.
+ *
+ * @generated from message dockwell.v1.FileSearchMatch
+ */
+export type FileSearchMatch = Message<"dockwell.v1.FileSearchMatch"> & {
+  /**
+   * @generated from field: string path = 1;
+   */
+  path: string;
+
+  /**
+   * @generated from field: dockwell.v1.FileType type = 2;
+   */
+  type: FileType;
+
+  /**
+   * The first matching line, or zero when only the name matched.
+   *
+   * @generated from field: uint32 line = 3;
+   */
+  line: number;
+};
+
+/**
+ * Describes the message dockwell.v1.FileSearchMatch.
+ * Use `create(FileSearchMatchSchema)` to create a new message.
+ */
+export const FileSearchMatchSchema: GenMessage<FileSearchMatch> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 51);
+
+/**
+ * SearchFilesResponse returns the paths found within the search limits.
+ *
+ * @generated from message dockwell.v1.SearchFilesResponse
+ */
+export type SearchFilesResponse = Message<"dockwell.v1.SearchFilesResponse"> & {
+  /**
+   * @generated from field: repeated dockwell.v1.FileSearchMatch matches = 1;
+   */
+  matches: FileSearchMatch[];
+
+  /**
+   * @generated from field: bool partial = 2;
+   */
+  partial: boolean;
+};
+
+/**
+ * Describes the message dockwell.v1.SearchFilesResponse.
+ * Use `create(SearchFilesResponseSchema)` to create a new message.
+ */
+export const SearchFilesResponseSchema: GenMessage<SearchFilesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 52);
+
+/**
+ * DownloadFileFromURLRequest names a URL and where to put the bytes on the server.
+ *
+ * @generated from message dockwell.v1.DownloadFileFromURLRequest
+ */
+export type DownloadFileFromURLRequest = Message<"dockwell.v1.DownloadFileFromURLRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string folder = 2;
+   */
+  folder: string;
+
+  /**
+   * @generated from field: string url = 3;
+   */
+  url: string;
+
+  /**
+   * A single filename. Empty uses the last component of the original URL.
+   *
+   * @generated from field: string name = 4;
+   */
+  name: string;
+
+  /**
+   * @generated from field: string proof = 5;
+   */
+  proof: string;
+
+  /**
+   * The target returned with needs_step_up, alongside its proof.
+   *
+   * @generated from field: string confirmation_target = 6;
+   */
+  confirmationTarget: string;
+};
+
+/**
+ * Describes the message dockwell.v1.DownloadFileFromURLRequest.
+ * Use `create(DownloadFileFromURLRequestSchema)` to create a new message.
+ */
+export const DownloadFileFromURLRequestSchema: GenMessage<DownloadFileFromURLRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 53);
+
+/**
+ * DownloadFileFromURLResponse returns the background download job.
+ *
+ * @generated from message dockwell.v1.DownloadFileFromURLResponse
+ */
+export type DownloadFileFromURLResponse = Message<"dockwell.v1.DownloadFileFromURLResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.ArchiveJob job = 1;
+   */
+  job?: ArchiveJob | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.DownloadFileFromURLResponse.
+ * Use `create(DownloadFileFromURLResponseSchema)` to create a new message.
+ */
+export const DownloadFileFromURLResponseSchema: GenMessage<DownloadFileFromURLResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 54);
+
+/**
+ * CancelFileDownloadRequest names a download job to stop.
+ *
+ * @generated from message dockwell.v1.CancelFileDownloadRequest
+ */
+export type CancelFileDownloadRequest = Message<"dockwell.v1.CancelFileDownloadRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string job_id = 2;
+   */
+  jobId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.CancelFileDownloadRequest.
+ * Use `create(CancelFileDownloadRequestSchema)` to create a new message.
+ */
+export const CancelFileDownloadRequestSchema: GenMessage<CancelFileDownloadRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 55);
+
+/**
+ * CancelFileDownloadResponse returns the state of the download after cancellation was requested.
+ *
+ * @generated from message dockwell.v1.CancelFileDownloadResponse
+ */
+export type CancelFileDownloadResponse = Message<"dockwell.v1.CancelFileDownloadResponse"> & {
+  /**
+   * @generated from field: dockwell.v1.ArchiveJob job = 1;
+   */
+  job?: ArchiveJob | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.CancelFileDownloadResponse.
+ * Use `create(CancelFileDownloadResponseSchema)` to create a new message.
+ */
+export const CancelFileDownloadResponseSchema: GenMessage<CancelFileDownloadResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 56);
+
+/**
+ * ListPinnedFoldersRequest names a server whose pins to list.
+ *
+ * @generated from message dockwell.v1.ListPinnedFoldersRequest
+ */
+export type ListPinnedFoldersRequest = Message<"dockwell.v1.ListPinnedFoldersRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+};
+
+/**
+ * Describes the message dockwell.v1.ListPinnedFoldersRequest.
+ * Use `create(ListPinnedFoldersRequestSchema)` to create a new message.
+ */
+export const ListPinnedFoldersRequestSchema: GenMessage<ListPinnedFoldersRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 57);
+
+/**
+ * ListPinnedFoldersResponse lists the caller's pinned paths on the server.
+ *
+ * @generated from message dockwell.v1.ListPinnedFoldersResponse
+ */
+export type ListPinnedFoldersResponse = Message<"dockwell.v1.ListPinnedFoldersResponse"> & {
+  /**
+   * @generated from field: repeated string paths = 1;
+   */
+  paths: string[];
+};
+
+/**
+ * Describes the message dockwell.v1.ListPinnedFoldersResponse.
+ * Use `create(ListPinnedFoldersResponseSchema)` to create a new message.
+ */
+export const ListPinnedFoldersResponseSchema: GenMessage<ListPinnedFoldersResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 58);
+
+/**
+ * PinFolderRequest names a folder to pin.
+ *
+ * @generated from message dockwell.v1.PinFolderRequest
+ */
+export type PinFolderRequest = Message<"dockwell.v1.PinFolderRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message dockwell.v1.PinFolderRequest.
+ * Use `create(PinFolderRequestSchema)` to create a new message.
+ */
+export const PinFolderRequestSchema: GenMessage<PinFolderRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 59);
+
+/**
+ * PinFolderResponse is empty once the folder is pinned.
+ *
+ * @generated from message dockwell.v1.PinFolderResponse
+ */
+export type PinFolderResponse = Message<"dockwell.v1.PinFolderResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.PinFolderResponse.
+ * Use `create(PinFolderResponseSchema)` to create a new message.
+ */
+export const PinFolderResponseSchema: GenMessage<PinFolderResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 60);
+
+/**
+ * UnpinFolderRequest names the pinned path to remove.
+ *
+ * @generated from message dockwell.v1.UnpinFolderRequest
+ */
+export type UnpinFolderRequest = Message<"dockwell.v1.UnpinFolderRequest"> & {
+  /**
+   * @generated from field: string server_id = 1;
+   */
+  serverId: string;
+
+  /**
+   * @generated from field: string path = 2;
+   */
+  path: string;
+};
+
+/**
+ * Describes the message dockwell.v1.UnpinFolderRequest.
+ * Use `create(UnpinFolderRequestSchema)` to create a new message.
+ */
+export const UnpinFolderRequestSchema: GenMessage<UnpinFolderRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 61);
+
+/**
+ * UnpinFolderResponse is empty once the pin is gone.
+ *
+ * @generated from message dockwell.v1.UnpinFolderResponse
+ */
+export type UnpinFolderResponse = Message<"dockwell.v1.UnpinFolderResponse"> & {
+};
+
+/**
+ * Describes the message dockwell.v1.UnpinFolderResponse.
+ * Use `create(UnpinFolderResponseSchema)` to create a new message.
+ */
+export const UnpinFolderResponseSchema: GenMessage<UnpinFolderResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_file, 62);
+
+/**
  * What to unpack an upload as, once it's all there.
  *
  * @generated from enum dockwell.v1.Unpack
@@ -1708,7 +2378,7 @@ export const UnpackSchema: GenEnum<Unpack> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_file, 0);
 
 /**
- * ArchiveJobKind says whether a job compresses or extracts an archive.
+ * ArchiveJobKind says whether a job compresses, extracts or downloads.
  *
  * @generated from enum dockwell.v1.ArchiveJobKind
  */
@@ -1731,6 +2401,13 @@ export enum ArchiveJobKind {
    * @generated from enum value: ARCHIVE_JOB_KIND_EXTRACT = 2;
    */
   EXTRACT = 2,
+
+  /**
+   * Fetching a URL into a new file on the server.
+   *
+   * @generated from enum value: ARCHIVE_JOB_KIND_URL_DOWNLOAD = 3;
+   */
+  URL_DOWNLOAD = 3,
 }
 
 /**
@@ -1770,6 +2447,13 @@ export enum ArchiveJobState {
    * @generated from enum value: ARCHIVE_JOB_STATE_FAILED = 3;
    */
   FAILED = 3,
+
+  /**
+   * The caller cancelled a URL download before it was put in place.
+   *
+   * @generated from enum value: ARCHIVE_JOB_STATE_CANCELLED = 4;
+   */
+  CANCELLED = 4,
 }
 
 /**
@@ -1823,6 +2507,44 @@ export enum FileType {
  */
 export const FileTypeSchema: GenEnum<FileType> = /*@__PURE__*/
   enumDesc(file_dockwell_v1_file, 3);
+
+/**
+ * FolderSizeOmission explains why the size is a lower bound.
+ *
+ * @generated from enum dockwell.v1.FolderSizeOmission
+ */
+export enum FolderSizeOmission {
+  /**
+   * @generated from enum value: FOLDER_SIZE_OMISSION_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: FOLDER_SIZE_OMISSION_DOCKER_DATA = 1;
+   */
+  DOCKER_DATA = 1,
+
+  /**
+   * @generated from enum value: FOLDER_SIZE_OMISSION_HARD_LINKS = 2;
+   */
+  HARD_LINKS = 2,
+
+  /**
+   * @generated from enum value: FOLDER_SIZE_OMISSION_REFUSED_ENTRIES = 3;
+   */
+  REFUSED_ENTRIES = 3,
+
+  /**
+   * @generated from enum value: FOLDER_SIZE_OMISSION_SCAN_LIMIT = 4;
+   */
+  SCAN_LIMIT = 4,
+}
+
+/**
+ * Describes the enum dockwell.v1.FolderSizeOmission.
+ */
+export const FolderSizeOmissionSchema: GenEnum<FolderSizeOmission> = /*@__PURE__*/
+  enumDesc(file_dockwell_v1_file, 4);
 
 /**
  * FileService browses, reads, saves, makes, moves and deletes the files on a
@@ -2081,6 +2803,97 @@ export const FileService: GenService<{
     methodKind: "unary";
     input: typeof ListArchiveJobsRequestSchema;
     output: typeof ListArchiveJobsResponseSchema;
+  },
+  /**
+   * ListFileAccounts lists users and groups on the server.
+   *
+   * @generated from rpc dockwell.v1.FileService.ListFileAccounts
+   */
+  listFileAccounts: {
+    methodKind: "unary";
+    input: typeof ListFileAccountsRequestSchema;
+    output: typeof ListFileAccountsResponseSchema;
+  },
+  /**
+   * ChangeFileAccess changes mode or ownership on a file or folder.
+   *
+   * @generated from rpc dockwell.v1.FileService.ChangeFileAccess
+   */
+  changeFileAccess: {
+    methodKind: "unary";
+    input: typeof ChangeFileAccessRequestSchema;
+    output: typeof ChangeFileAccessResponseSchema;
+  },
+  /**
+   * CalculateFolderSize calculates the logical size visible under a folder, up to the scan limits.
+   *
+   * @generated from rpc dockwell.v1.FileService.CalculateFolderSize
+   */
+  calculateFolderSize: {
+    methodKind: "unary";
+    input: typeof CalculateFolderSizeRequestSchema;
+    output: typeof CalculateFolderSizeResponseSchema;
+  },
+  /**
+   * SearchFiles finds matching names or text below a folder, up to the scan limits.
+   * Search terms may contain file text, so they go in the body of a POST.
+   *
+   * @generated from rpc dockwell.v1.FileService.SearchFiles
+   */
+  searchFiles: {
+    methodKind: "unary";
+    input: typeof SearchFilesRequestSchema;
+    output: typeof SearchFilesResponseSchema;
+  },
+  /**
+   * DownloadFileFromURL starts a server-side URL download into a new file.
+   *
+   * @generated from rpc dockwell.v1.FileService.DownloadFileFromURL
+   */
+  downloadFileFromURL: {
+    methodKind: "unary";
+    input: typeof DownloadFileFromURLRequestSchema;
+    output: typeof DownloadFileFromURLResponseSchema;
+  },
+  /**
+   * CancelFileDownload stops a URL download started by this session.
+   *
+   * @generated from rpc dockwell.v1.FileService.CancelFileDownload
+   */
+  cancelFileDownload: {
+    methodKind: "unary";
+    input: typeof CancelFileDownloadRequestSchema;
+    output: typeof CancelFileDownloadResponseSchema;
+  },
+  /**
+   * ListPinnedFolders lists the caller's pinned folders on a server.
+   *
+   * @generated from rpc dockwell.v1.FileService.ListPinnedFolders
+   */
+  listPinnedFolders: {
+    methodKind: "unary";
+    input: typeof ListPinnedFoldersRequestSchema;
+    output: typeof ListPinnedFoldersResponseSchema;
+  },
+  /**
+   * PinFolder pins a folder for the caller on this server.
+   *
+   * @generated from rpc dockwell.v1.FileService.PinFolder
+   */
+  pinFolder: {
+    methodKind: "unary";
+    input: typeof PinFolderRequestSchema;
+    output: typeof PinFolderResponseSchema;
+  },
+  /**
+   * UnpinFolder removes the caller's pin for a folder on this server.
+   *
+   * @generated from rpc dockwell.v1.FileService.UnpinFolder
+   */
+  unpinFolder: {
+    methodKind: "unary";
+    input: typeof UnpinFolderRequestSchema;
+    output: typeof UnpinFolderResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_file, 0);

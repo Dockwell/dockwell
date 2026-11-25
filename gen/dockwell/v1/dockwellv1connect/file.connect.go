@@ -80,6 +80,30 @@ const (
 	// FileServiceListArchiveJobsProcedure is the fully-qualified name of the FileService's
 	// ListArchiveJobs RPC.
 	FileServiceListArchiveJobsProcedure = "/dockwell.v1.FileService/ListArchiveJobs"
+	// FileServiceListFileAccountsProcedure is the fully-qualified name of the FileService's
+	// ListFileAccounts RPC.
+	FileServiceListFileAccountsProcedure = "/dockwell.v1.FileService/ListFileAccounts"
+	// FileServiceChangeFileAccessProcedure is the fully-qualified name of the FileService's
+	// ChangeFileAccess RPC.
+	FileServiceChangeFileAccessProcedure = "/dockwell.v1.FileService/ChangeFileAccess"
+	// FileServiceCalculateFolderSizeProcedure is the fully-qualified name of the FileService's
+	// CalculateFolderSize RPC.
+	FileServiceCalculateFolderSizeProcedure = "/dockwell.v1.FileService/CalculateFolderSize"
+	// FileServiceSearchFilesProcedure is the fully-qualified name of the FileService's SearchFiles RPC.
+	FileServiceSearchFilesProcedure = "/dockwell.v1.FileService/SearchFiles"
+	// FileServiceDownloadFileFromURLProcedure is the fully-qualified name of the FileService's
+	// DownloadFileFromURL RPC.
+	FileServiceDownloadFileFromURLProcedure = "/dockwell.v1.FileService/DownloadFileFromURL"
+	// FileServiceCancelFileDownloadProcedure is the fully-qualified name of the FileService's
+	// CancelFileDownload RPC.
+	FileServiceCancelFileDownloadProcedure = "/dockwell.v1.FileService/CancelFileDownload"
+	// FileServiceListPinnedFoldersProcedure is the fully-qualified name of the FileService's
+	// ListPinnedFolders RPC.
+	FileServiceListPinnedFoldersProcedure = "/dockwell.v1.FileService/ListPinnedFolders"
+	// FileServicePinFolderProcedure is the fully-qualified name of the FileService's PinFolder RPC.
+	FileServicePinFolderProcedure = "/dockwell.v1.FileService/PinFolder"
+	// FileServiceUnpinFolderProcedure is the fully-qualified name of the FileService's UnpinFolder RPC.
+	FileServiceUnpinFolderProcedure = "/dockwell.v1.FileService/UnpinFolder"
 )
 
 // FileServiceClient is a client for the dockwell.v1.FileService service.
@@ -182,6 +206,25 @@ type FileServiceClient interface {
 	// ListArchiveJobs returns active and recently finished compress and extract
 	// jobs started by the caller on a server. No API token can call it.
 	ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error)
+	// ListFileAccounts lists users and groups on the server.
+	ListFileAccounts(context.Context, *connect.Request[v1.ListFileAccountsRequest]) (*connect.Response[v1.ListFileAccountsResponse], error)
+	// ChangeFileAccess changes mode or ownership on a file or folder.
+	ChangeFileAccess(context.Context, *connect.Request[v1.ChangeFileAccessRequest]) (*connect.Response[v1.ChangeFileAccessResponse], error)
+	// CalculateFolderSize calculates the logical size visible under a folder, up to the scan limits.
+	CalculateFolderSize(context.Context, *connect.Request[v1.CalculateFolderSizeRequest]) (*connect.Response[v1.CalculateFolderSizeResponse], error)
+	// SearchFiles finds matching names or text below a folder, up to the scan limits.
+	// Search terms may contain file text, so they go in the body of a POST.
+	SearchFiles(context.Context, *connect.Request[v1.SearchFilesRequest]) (*connect.Response[v1.SearchFilesResponse], error)
+	// DownloadFileFromURL starts a server-side URL download into a new file.
+	DownloadFileFromURL(context.Context, *connect.Request[v1.DownloadFileFromURLRequest]) (*connect.Response[v1.DownloadFileFromURLResponse], error)
+	// CancelFileDownload stops a URL download started by this session.
+	CancelFileDownload(context.Context, *connect.Request[v1.CancelFileDownloadRequest]) (*connect.Response[v1.CancelFileDownloadResponse], error)
+	// ListPinnedFolders lists the caller's pinned folders on a server.
+	ListPinnedFolders(context.Context, *connect.Request[v1.ListPinnedFoldersRequest]) (*connect.Response[v1.ListPinnedFoldersResponse], error)
+	// PinFolder pins a folder for the caller on this server.
+	PinFolder(context.Context, *connect.Request[v1.PinFolderRequest]) (*connect.Response[v1.PinFolderResponse], error)
+	// UnpinFolder removes the caller's pin for a folder on this server.
+	UnpinFolder(context.Context, *connect.Request[v1.UnpinFolderRequest]) (*connect.Response[v1.UnpinFolderResponse], error)
 }
 
 // NewFileServiceClient constructs a client for the dockwell.v1.FileService service. By default, it
@@ -308,29 +351,95 @@ func NewFileServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		listFileAccounts: connect.NewClient[v1.ListFileAccountsRequest, v1.ListFileAccountsResponse](
+			httpClient,
+			baseURL+FileServiceListFileAccountsProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ListFileAccounts")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		changeFileAccess: connect.NewClient[v1.ChangeFileAccessRequest, v1.ChangeFileAccessResponse](
+			httpClient,
+			baseURL+FileServiceChangeFileAccessProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ChangeFileAccess")),
+			connect.WithClientOptions(opts...),
+		),
+		calculateFolderSize: connect.NewClient[v1.CalculateFolderSizeRequest, v1.CalculateFolderSizeResponse](
+			httpClient,
+			baseURL+FileServiceCalculateFolderSizeProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("CalculateFolderSize")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		searchFiles: connect.NewClient[v1.SearchFilesRequest, v1.SearchFilesResponse](
+			httpClient,
+			baseURL+FileServiceSearchFilesProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("SearchFiles")),
+			connect.WithClientOptions(opts...),
+		),
+		downloadFileFromURL: connect.NewClient[v1.DownloadFileFromURLRequest, v1.DownloadFileFromURLResponse](
+			httpClient,
+			baseURL+FileServiceDownloadFileFromURLProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("DownloadFileFromURL")),
+			connect.WithClientOptions(opts...),
+		),
+		cancelFileDownload: connect.NewClient[v1.CancelFileDownloadRequest, v1.CancelFileDownloadResponse](
+			httpClient,
+			baseURL+FileServiceCancelFileDownloadProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("CancelFileDownload")),
+			connect.WithClientOptions(opts...),
+		),
+		listPinnedFolders: connect.NewClient[v1.ListPinnedFoldersRequest, v1.ListPinnedFoldersResponse](
+			httpClient,
+			baseURL+FileServiceListPinnedFoldersProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("ListPinnedFolders")),
+			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+			connect.WithClientOptions(opts...),
+		),
+		pinFolder: connect.NewClient[v1.PinFolderRequest, v1.PinFolderResponse](
+			httpClient,
+			baseURL+FileServicePinFolderProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("PinFolder")),
+			connect.WithClientOptions(opts...),
+		),
+		unpinFolder: connect.NewClient[v1.UnpinFolderRequest, v1.UnpinFolderResponse](
+			httpClient,
+			baseURL+FileServiceUnpinFolderProcedure,
+			connect.WithSchema(fileServiceMethods.ByName("UnpinFolder")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // fileServiceClient implements FileServiceClient.
 type fileServiceClient struct {
-	listFiles        *connect.Client[v1.ListFilesRequest, v1.ListFilesResponse]
-	readFile         *connect.Client[v1.ReadFileRequest, v1.ReadFileResponse]
-	saveFile         *connect.Client[v1.SaveFileRequest, v1.SaveFileResponse]
-	makeFile         *connect.Client[v1.MakeFileRequest, v1.MakeFileResponse]
-	moveFile         *connect.Client[v1.MoveFileRequest, v1.MoveFileResponse]
-	deleteFile       *connect.Client[v1.DeleteFileRequest, v1.DeleteFileResponse]
-	listDeletedFiles *connect.Client[v1.ListDeletedFilesRequest, v1.ListDeletedFilesResponse]
-	restoreFile      *connect.Client[v1.RestoreFileRequest, v1.RestoreFileResponse]
-	purgeDeletedFile *connect.Client[v1.PurgeDeletedFileRequest, v1.PurgeDeletedFileResponse]
-	beginUpload      *connect.Client[v1.BeginUploadRequest, v1.BeginUploadResponse]
-	uploadFile       *connect.Client[v1.UploadFileRequest, v1.UploadFileResponse]
-	finishUpload     *connect.Client[v1.FinishUploadRequest, v1.FinishUploadResponse]
-	cancelUpload     *connect.Client[v1.CancelUploadRequest, v1.CancelUploadResponse]
-	downloadFile     *connect.Client[v1.DownloadFileRequest, v1.DownloadFileResponse]
-	compressFiles    *connect.Client[v1.CompressFilesRequest, v1.CompressFilesResponse]
-	extractArchive   *connect.Client[v1.ExtractArchiveRequest, v1.ExtractArchiveResponse]
-	getArchiveJob    *connect.Client[v1.GetArchiveJobRequest, v1.GetArchiveJobResponse]
-	listArchiveJobs  *connect.Client[v1.ListArchiveJobsRequest, v1.ListArchiveJobsResponse]
+	listFiles           *connect.Client[v1.ListFilesRequest, v1.ListFilesResponse]
+	readFile            *connect.Client[v1.ReadFileRequest, v1.ReadFileResponse]
+	saveFile            *connect.Client[v1.SaveFileRequest, v1.SaveFileResponse]
+	makeFile            *connect.Client[v1.MakeFileRequest, v1.MakeFileResponse]
+	moveFile            *connect.Client[v1.MoveFileRequest, v1.MoveFileResponse]
+	deleteFile          *connect.Client[v1.DeleteFileRequest, v1.DeleteFileResponse]
+	listDeletedFiles    *connect.Client[v1.ListDeletedFilesRequest, v1.ListDeletedFilesResponse]
+	restoreFile         *connect.Client[v1.RestoreFileRequest, v1.RestoreFileResponse]
+	purgeDeletedFile    *connect.Client[v1.PurgeDeletedFileRequest, v1.PurgeDeletedFileResponse]
+	beginUpload         *connect.Client[v1.BeginUploadRequest, v1.BeginUploadResponse]
+	uploadFile          *connect.Client[v1.UploadFileRequest, v1.UploadFileResponse]
+	finishUpload        *connect.Client[v1.FinishUploadRequest, v1.FinishUploadResponse]
+	cancelUpload        *connect.Client[v1.CancelUploadRequest, v1.CancelUploadResponse]
+	downloadFile        *connect.Client[v1.DownloadFileRequest, v1.DownloadFileResponse]
+	compressFiles       *connect.Client[v1.CompressFilesRequest, v1.CompressFilesResponse]
+	extractArchive      *connect.Client[v1.ExtractArchiveRequest, v1.ExtractArchiveResponse]
+	getArchiveJob       *connect.Client[v1.GetArchiveJobRequest, v1.GetArchiveJobResponse]
+	listArchiveJobs     *connect.Client[v1.ListArchiveJobsRequest, v1.ListArchiveJobsResponse]
+	listFileAccounts    *connect.Client[v1.ListFileAccountsRequest, v1.ListFileAccountsResponse]
+	changeFileAccess    *connect.Client[v1.ChangeFileAccessRequest, v1.ChangeFileAccessResponse]
+	calculateFolderSize *connect.Client[v1.CalculateFolderSizeRequest, v1.CalculateFolderSizeResponse]
+	searchFiles         *connect.Client[v1.SearchFilesRequest, v1.SearchFilesResponse]
+	downloadFileFromURL *connect.Client[v1.DownloadFileFromURLRequest, v1.DownloadFileFromURLResponse]
+	cancelFileDownload  *connect.Client[v1.CancelFileDownloadRequest, v1.CancelFileDownloadResponse]
+	listPinnedFolders   *connect.Client[v1.ListPinnedFoldersRequest, v1.ListPinnedFoldersResponse]
+	pinFolder           *connect.Client[v1.PinFolderRequest, v1.PinFolderResponse]
+	unpinFolder         *connect.Client[v1.UnpinFolderRequest, v1.UnpinFolderResponse]
 }
 
 // ListFiles calls dockwell.v1.FileService.ListFiles.
@@ -421,6 +530,51 @@ func (c *fileServiceClient) GetArchiveJob(ctx context.Context, req *connect.Requ
 // ListArchiveJobs calls dockwell.v1.FileService.ListArchiveJobs.
 func (c *fileServiceClient) ListArchiveJobs(ctx context.Context, req *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error) {
 	return c.listArchiveJobs.CallUnary(ctx, req)
+}
+
+// ListFileAccounts calls dockwell.v1.FileService.ListFileAccounts.
+func (c *fileServiceClient) ListFileAccounts(ctx context.Context, req *connect.Request[v1.ListFileAccountsRequest]) (*connect.Response[v1.ListFileAccountsResponse], error) {
+	return c.listFileAccounts.CallUnary(ctx, req)
+}
+
+// ChangeFileAccess calls dockwell.v1.FileService.ChangeFileAccess.
+func (c *fileServiceClient) ChangeFileAccess(ctx context.Context, req *connect.Request[v1.ChangeFileAccessRequest]) (*connect.Response[v1.ChangeFileAccessResponse], error) {
+	return c.changeFileAccess.CallUnary(ctx, req)
+}
+
+// CalculateFolderSize calls dockwell.v1.FileService.CalculateFolderSize.
+func (c *fileServiceClient) CalculateFolderSize(ctx context.Context, req *connect.Request[v1.CalculateFolderSizeRequest]) (*connect.Response[v1.CalculateFolderSizeResponse], error) {
+	return c.calculateFolderSize.CallUnary(ctx, req)
+}
+
+// SearchFiles calls dockwell.v1.FileService.SearchFiles.
+func (c *fileServiceClient) SearchFiles(ctx context.Context, req *connect.Request[v1.SearchFilesRequest]) (*connect.Response[v1.SearchFilesResponse], error) {
+	return c.searchFiles.CallUnary(ctx, req)
+}
+
+// DownloadFileFromURL calls dockwell.v1.FileService.DownloadFileFromURL.
+func (c *fileServiceClient) DownloadFileFromURL(ctx context.Context, req *connect.Request[v1.DownloadFileFromURLRequest]) (*connect.Response[v1.DownloadFileFromURLResponse], error) {
+	return c.downloadFileFromURL.CallUnary(ctx, req)
+}
+
+// CancelFileDownload calls dockwell.v1.FileService.CancelFileDownload.
+func (c *fileServiceClient) CancelFileDownload(ctx context.Context, req *connect.Request[v1.CancelFileDownloadRequest]) (*connect.Response[v1.CancelFileDownloadResponse], error) {
+	return c.cancelFileDownload.CallUnary(ctx, req)
+}
+
+// ListPinnedFolders calls dockwell.v1.FileService.ListPinnedFolders.
+func (c *fileServiceClient) ListPinnedFolders(ctx context.Context, req *connect.Request[v1.ListPinnedFoldersRequest]) (*connect.Response[v1.ListPinnedFoldersResponse], error) {
+	return c.listPinnedFolders.CallUnary(ctx, req)
+}
+
+// PinFolder calls dockwell.v1.FileService.PinFolder.
+func (c *fileServiceClient) PinFolder(ctx context.Context, req *connect.Request[v1.PinFolderRequest]) (*connect.Response[v1.PinFolderResponse], error) {
+	return c.pinFolder.CallUnary(ctx, req)
+}
+
+// UnpinFolder calls dockwell.v1.FileService.UnpinFolder.
+func (c *fileServiceClient) UnpinFolder(ctx context.Context, req *connect.Request[v1.UnpinFolderRequest]) (*connect.Response[v1.UnpinFolderResponse], error) {
+	return c.unpinFolder.CallUnary(ctx, req)
 }
 
 // FileServiceHandler is an implementation of the dockwell.v1.FileService service.
@@ -523,6 +677,25 @@ type FileServiceHandler interface {
 	// ListArchiveJobs returns active and recently finished compress and extract
 	// jobs started by the caller on a server. No API token can call it.
 	ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error)
+	// ListFileAccounts lists users and groups on the server.
+	ListFileAccounts(context.Context, *connect.Request[v1.ListFileAccountsRequest]) (*connect.Response[v1.ListFileAccountsResponse], error)
+	// ChangeFileAccess changes mode or ownership on a file or folder.
+	ChangeFileAccess(context.Context, *connect.Request[v1.ChangeFileAccessRequest]) (*connect.Response[v1.ChangeFileAccessResponse], error)
+	// CalculateFolderSize calculates the logical size visible under a folder, up to the scan limits.
+	CalculateFolderSize(context.Context, *connect.Request[v1.CalculateFolderSizeRequest]) (*connect.Response[v1.CalculateFolderSizeResponse], error)
+	// SearchFiles finds matching names or text below a folder, up to the scan limits.
+	// Search terms may contain file text, so they go in the body of a POST.
+	SearchFiles(context.Context, *connect.Request[v1.SearchFilesRequest]) (*connect.Response[v1.SearchFilesResponse], error)
+	// DownloadFileFromURL starts a server-side URL download into a new file.
+	DownloadFileFromURL(context.Context, *connect.Request[v1.DownloadFileFromURLRequest]) (*connect.Response[v1.DownloadFileFromURLResponse], error)
+	// CancelFileDownload stops a URL download started by this session.
+	CancelFileDownload(context.Context, *connect.Request[v1.CancelFileDownloadRequest]) (*connect.Response[v1.CancelFileDownloadResponse], error)
+	// ListPinnedFolders lists the caller's pinned folders on a server.
+	ListPinnedFolders(context.Context, *connect.Request[v1.ListPinnedFoldersRequest]) (*connect.Response[v1.ListPinnedFoldersResponse], error)
+	// PinFolder pins a folder for the caller on this server.
+	PinFolder(context.Context, *connect.Request[v1.PinFolderRequest]) (*connect.Response[v1.PinFolderResponse], error)
+	// UnpinFolder removes the caller's pin for a folder on this server.
+	UnpinFolder(context.Context, *connect.Request[v1.UnpinFolderRequest]) (*connect.Response[v1.UnpinFolderResponse], error)
 }
 
 // NewFileServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -645,6 +818,63 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	fileServiceListFileAccountsHandler := connect.NewUnaryHandler(
+		FileServiceListFileAccountsProcedure,
+		svc.ListFileAccounts,
+		connect.WithSchema(fileServiceMethods.ByName("ListFileAccounts")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceChangeFileAccessHandler := connect.NewUnaryHandler(
+		FileServiceChangeFileAccessProcedure,
+		svc.ChangeFileAccess,
+		connect.WithSchema(fileServiceMethods.ByName("ChangeFileAccess")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceCalculateFolderSizeHandler := connect.NewUnaryHandler(
+		FileServiceCalculateFolderSizeProcedure,
+		svc.CalculateFolderSize,
+		connect.WithSchema(fileServiceMethods.ByName("CalculateFolderSize")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceSearchFilesHandler := connect.NewUnaryHandler(
+		FileServiceSearchFilesProcedure,
+		svc.SearchFiles,
+		connect.WithSchema(fileServiceMethods.ByName("SearchFiles")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceDownloadFileFromURLHandler := connect.NewUnaryHandler(
+		FileServiceDownloadFileFromURLProcedure,
+		svc.DownloadFileFromURL,
+		connect.WithSchema(fileServiceMethods.ByName("DownloadFileFromURL")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceCancelFileDownloadHandler := connect.NewUnaryHandler(
+		FileServiceCancelFileDownloadProcedure,
+		svc.CancelFileDownload,
+		connect.WithSchema(fileServiceMethods.ByName("CancelFileDownload")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceListPinnedFoldersHandler := connect.NewUnaryHandler(
+		FileServiceListPinnedFoldersProcedure,
+		svc.ListPinnedFolders,
+		connect.WithSchema(fileServiceMethods.ByName("ListPinnedFolders")),
+		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServicePinFolderHandler := connect.NewUnaryHandler(
+		FileServicePinFolderProcedure,
+		svc.PinFolder,
+		connect.WithSchema(fileServiceMethods.ByName("PinFolder")),
+		connect.WithHandlerOptions(opts...),
+	)
+	fileServiceUnpinFolderHandler := connect.NewUnaryHandler(
+		FileServiceUnpinFolderProcedure,
+		svc.UnpinFolder,
+		connect.WithSchema(fileServiceMethods.ByName("UnpinFolder")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.FileService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case FileServiceListFilesProcedure:
@@ -683,6 +913,24 @@ func NewFileServiceHandler(svc FileServiceHandler, opts ...connect.HandlerOption
 			fileServiceGetArchiveJobHandler.ServeHTTP(w, r)
 		case FileServiceListArchiveJobsProcedure:
 			fileServiceListArchiveJobsHandler.ServeHTTP(w, r)
+		case FileServiceListFileAccountsProcedure:
+			fileServiceListFileAccountsHandler.ServeHTTP(w, r)
+		case FileServiceChangeFileAccessProcedure:
+			fileServiceChangeFileAccessHandler.ServeHTTP(w, r)
+		case FileServiceCalculateFolderSizeProcedure:
+			fileServiceCalculateFolderSizeHandler.ServeHTTP(w, r)
+		case FileServiceSearchFilesProcedure:
+			fileServiceSearchFilesHandler.ServeHTTP(w, r)
+		case FileServiceDownloadFileFromURLProcedure:
+			fileServiceDownloadFileFromURLHandler.ServeHTTP(w, r)
+		case FileServiceCancelFileDownloadProcedure:
+			fileServiceCancelFileDownloadHandler.ServeHTTP(w, r)
+		case FileServiceListPinnedFoldersProcedure:
+			fileServiceListPinnedFoldersHandler.ServeHTTP(w, r)
+		case FileServicePinFolderProcedure:
+			fileServicePinFolderHandler.ServeHTTP(w, r)
+		case FileServiceUnpinFolderProcedure:
+			fileServiceUnpinFolderHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -762,4 +1010,40 @@ func (UnimplementedFileServiceHandler) GetArchiveJob(context.Context, *connect.R
 
 func (UnimplementedFileServiceHandler) ListArchiveJobs(context.Context, *connect.Request[v1.ListArchiveJobsRequest]) (*connect.Response[v1.ListArchiveJobsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ListArchiveJobs is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ListFileAccounts(context.Context, *connect.Request[v1.ListFileAccountsRequest]) (*connect.Response[v1.ListFileAccountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ListFileAccounts is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ChangeFileAccess(context.Context, *connect.Request[v1.ChangeFileAccessRequest]) (*connect.Response[v1.ChangeFileAccessResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ChangeFileAccess is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) CalculateFolderSize(context.Context, *connect.Request[v1.CalculateFolderSizeRequest]) (*connect.Response[v1.CalculateFolderSizeResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.CalculateFolderSize is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) SearchFiles(context.Context, *connect.Request[v1.SearchFilesRequest]) (*connect.Response[v1.SearchFilesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.SearchFiles is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) DownloadFileFromURL(context.Context, *connect.Request[v1.DownloadFileFromURLRequest]) (*connect.Response[v1.DownloadFileFromURLResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.DownloadFileFromURL is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) CancelFileDownload(context.Context, *connect.Request[v1.CancelFileDownloadRequest]) (*connect.Response[v1.CancelFileDownloadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.CancelFileDownload is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) ListPinnedFolders(context.Context, *connect.Request[v1.ListPinnedFoldersRequest]) (*connect.Response[v1.ListPinnedFoldersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.ListPinnedFolders is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) PinFolder(context.Context, *connect.Request[v1.PinFolderRequest]) (*connect.Response[v1.PinFolderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.PinFolder is not implemented"))
+}
+
+func (UnimplementedFileServiceHandler) UnpinFolder(context.Context, *connect.Request[v1.UnpinFolderRequest]) (*connect.Response[v1.UnpinFolderResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.FileService.UnpinFolder is not implemented"))
 }

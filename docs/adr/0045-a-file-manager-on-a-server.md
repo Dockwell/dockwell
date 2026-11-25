@@ -144,12 +144,31 @@ A browser can't stream a request's body over Connect, and a download is a link t
 - **The OpenAPI document says they stream.** `protoc-gen-openapi` writes an `HttpBody` route as JSON, so `make generate` rewrites each method whose REST body or answer is one (`scripts/openapistreams`, which finds them in the schema): the upload takes `application/octet-stream` and answers JSON, and the download answers `application/octet-stream` or `application/zip`, with `Content-Disposition` and, for a file, `Content-Length`. Each is marked `x-dockwell-stream`, `request` or `response`.
 - **Clients reach them through `@dockwell/api`,** as they reach the rest. The same step writes their method, path, query and media types from the document to `packages/api/src/gen/streams.ts`, and `uploadFilePart` and `downloadFileURL`, beside the generated client, are built on that and nothing written by hand. The panel calls those two, and `client.test.ts` holds that they're the only network calls in the API package's own source, and the only way the panel reaches these routes.
 
-### Owner and mode, and several at once
+### Owner, group and permissions
 
-These come in the next slices, and each amends this record when it lands. What's settled now:
+Files shows read, write and run for the owner, group and others, with the octal mode beside them. It offers the server's local users and groups and accepts a numeric ID for accounts the local lists don't hold. A field left alone keeps its value on every selected item. A folder can include its descendants, with separate modes for folders and files. The presets keep folders enterable and preserve existing file execute bits where the folder mode allows traversal. Batch changes run one selected path at a time, with a separate Activity event for each.
 
-- **Owner and mode** ask for a passkey by the same rule, and name the common choices in words beside the octal.
-- **Several at once** is each one done in turn, each on record, and each asked about as above.
+The server checks the existing ways-in list, the system paths and the current and requested owner and group. An operation involving root or setting set-user-ID or set-group-ID also takes a passkey. A confirmation names the requested modes, ownership and scope, and binds them to the resolved path, device and inode. Setting either set-ID bit takes an explicit acknowledgment.
+
+Recursive changes check the tree before writing and check each item again as it is written. They use descriptors, skip links, special files and refused paths, and stay on the starting mount. For a regular file gaining permissions or changing owner or group, the agent checks its name and, if needed, reads the first 4 KiB. A private key, a password hash list or an unreadable file takes a passkey for those changes. Removing permission bits needs no content check.
+
+A scan is bounded to 24 levels, 20,000 descendants and the Files operation time limit. The agent counts changed paths before writing and refuses the change if their total exceeds 512 KiB. Activity counts completed entries even when a change stops partway through. The control plane stores their old access as a separate binary record keyed by the Activity event. Undo restores entries whose inode, change time and access still match the completed change.
+
+### Download from a URL
+
+An HTTP or HTTPS URL starts one of the background jobs used by Compress and Extract. With no name given, the agent uses a conventional filename from the original URL or falls back to `download`. Signed or opaque path segments use the fallback. It streams up to 1 GiB, checks free space before and during the write, and reports bytes so far. The job belongs to the session that started it. That session can cancel before publication.
+
+Every connection, including up to five redirects, uses the outbound guard. A server administrator can set `DOCKWELL_FILES_DOWNLOAD_HOSTS` to a comma-separated list of exact hostnames or IP addresses in the agent's service environment to permit private, loopback and server-local addresses for a URL explicitly addressed to that host. A redirect can use that exception only on the original host. Metadata and link-local addresses remain refused. HTTPS redirects stay on HTTPS. Activity records the destination, outcome and source origin.
+
+The bytes stay in an agent-owned, mode-0700 staging directory on the destination filesystem. Publication rechecks the folder, its identity and the ways-in rule, then places the complete file without replacing anything. A protected destination takes a confirmation bound to the resolved path, parent identity and URL digest. A staging note lets a restarted agent clean up.
+
+### Size, search, pins and the terminal
+
+Folder size counts logical file bytes only when asked. It counts a hard-linked inode once and reports a lower bound with the reasons whenever it leaves entries out. Recursive search finds names and can search UTF-8 text, returning matching paths and line numbers. It checks the read guard and the same sensitive-content rules as a file read or download. Each read scan is limited to 24 levels, 20,000 entries and four seconds. Search also stops at 32 MiB read or 200 results.
+
+Pinned folders live in the control server's database, with up to 50 pins per user on each server. A pin can be removed after its folder has gone.
+
+Open in terminal starts the usual host terminal through its passkey flow, setting the shell's starting directory directly. Shell startup has a five-second bound, including when the mount stops answering. The panel then opens that terminal's tab.
 
 ## Consequences
 

@@ -1350,3 +1350,126 @@ button.files-tree-toggle:hover {
   line-height: 18px;
   color: var(--critical);
 }
+
+.files-access-fields {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.files-access-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.files-permissions {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.files-permissions :is(th, td) {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.files-permissions th[scope="row"] {
+  text-align: left;
+}
+
+.files-access-check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.files-ownership {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.files-special-mode > summary {
+  cursor: pointer;
+}
+
+.files-special-mode .files-access-check {
+  margin-top: var(--space-2);
+}
+
+.files-search-fields {
+  display: flex;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.files-search-fields > .dw-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.files-result-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.files-search-results {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.files-search-results .dw-btn {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  padding-block: var(--space-2);
+  text-align: left;
+  white-space: normal;
+}
+
+.files-search-match {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.files-search-match > span,
+.files-download-folder {
+  color: var(--ink-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.files-pin-row {
+  display: flex;
+  min-width: 0;
+}
+
+.files-places .files-pin-row a.dw-btn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-places .files-pin-row > button.dw-btn {
+  flex: none;
+  width: auto;
+}
+
+.files-size {
+  display: inline-grid;
+  justify-items: start;
+  color: var(--ink-muted);
+}
+
+.files-permissions caption {
+  text-align: left;
+}

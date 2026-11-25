@@ -56,6 +56,10 @@ type archiveJob struct {
 	entries      uint64
 	totalEntries uint64
 	bytes        uint64
+	totalBytes   uint64
+	cancel       context.CancelFunc
+	cancelled    bool
+	committing   bool
 	skippedLinks uint64
 	leftOut      uint64
 	file         *dockwellv1.FileEntry
@@ -79,6 +83,7 @@ func (j *archiveJob) proto() *dockwellv1.ArchiveJob {
 		Entries:      j.entries,
 		TotalEntries: j.totalEntries,
 		Bytes:        j.bytes,
+		TotalBytes:   j.totalBytes,
 		SkippedLinks: j.skippedLinks,
 		LeftOut:      j.leftOut,
 		File:         j.file,
@@ -339,15 +344,22 @@ func (s *Server) updateArchiveJob(mutate func()) {
 	s.mu.Unlock()
 }
 
+func (j *archiveJob) ownedBy(owner, downloadOwner string) bool {
+	if j.kind == dockwellv1.ArchiveJobKind_ARCHIVE_JOB_KIND_URL_DOWNLOAD {
+		owner = downloadOwner
+	}
+	return subtle.ConstantTimeCompare([]byte(j.owner), []byte(owner)) == 1
+}
+
 // GetArchiveJob returns the current state of one archive job owned by owner.
-func (s *Server) GetArchiveJob(id, owner string) (*agentv1.GetArchiveJobResult, error) {
+func (s *Server) GetArchiveJob(id, owner, downloadOwner string) (*agentv1.GetArchiveJobResult, error) {
 	if owner == "" {
 		return nil, errNoOwner
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	j, ok := s.archiveJobs[id]
-	if !ok || subtle.ConstantTimeCompare([]byte(j.owner), []byte(owner)) != 1 {
+	if !ok || !j.ownedBy(owner, downloadOwner) {
 		return &agentv1.GetArchiveJobResult{Refusal: &agentv1.FileRefusal{
 			Kind:    agentv1.FileRefusal_KIND_NOT_FOUND,
 			Message: fmt.Sprintf("there's no archive job %s on this server. It may have finished earlier", id),
@@ -357,7 +369,7 @@ func (s *Server) GetArchiveJob(id, owner string) (*agentv1.GetArchiveJobResult, 
 }
 
 // ListArchiveJobs returns active and recent archive jobs owned by owner, newest first.
-func (s *Server) ListArchiveJobs(owner string) (*agentv1.ListArchiveJobsResult, error) {
+func (s *Server) ListArchiveJobs(owner, downloadOwner string) (*agentv1.ListArchiveJobsResult, error) {
 	if owner == "" {
 		return nil, errNoOwner
 	}
@@ -366,7 +378,7 @@ func (s *Server) ListArchiveJobs(owner string) (*agentv1.ListArchiveJobsResult, 
 	s.pruneArchiveJobsLocked()
 	var jobs []*dockwellv1.ArchiveJob
 	for _, j := range s.archiveJobs {
-		if subtle.ConstantTimeCompare([]byte(j.owner), []byte(owner)) != 1 {
+		if !j.ownedBy(owner, downloadOwner) {
 			continue
 		}
 		jobs = append(jobs, j.proto())
@@ -968,7 +980,9 @@ type boundedZipWriter struct {
 	tooBig  bool
 }
 
-func (b *boundedZipWriter) checkRoom() error {
+func (b *boundedZipWriter) checkRoom() error { return b.checkRoomFor(0) }
+
+func (b *boundedZipWriter) checkRoomFor(needed uint64) error {
 	b.checked = b.written
 	var st unix.Statfs_t
 	if err := b.statfs(b.fd, &st); err != nil {
@@ -976,7 +990,7 @@ func (b *boundedZipWriter) checkRoom() error {
 	}
 	bsize := uint64(st.Bsize) //nolint:gosec // a block size is positive
 	margin := min(uint64(1)<<30, st.Blocks*bsize/20)
-	if free := st.Bavail * bsize; free < margin {
+	if free := st.Bavail * bsize; free < margin || free-margin < needed {
 		b.full = fmt.Errorf("the disk %s is on has %s free now, so it stopped short of filling it", path.Dir(b.where), sizeOf(free))
 		return b.full
 	}

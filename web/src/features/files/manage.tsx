@@ -8,7 +8,7 @@ import { Button, Callout, Icon, Loading, Sheet, SkeletonRows, Switch, TextField 
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useMemo, useRef, useState } from "react";
 
 import { reasonOf, sentence } from "../../lib/errors";
 import { formatBytes } from "../../lib/format";
@@ -46,19 +46,22 @@ export function useFiles(serverId: string) {
   const queryClient = useQueryClient();
   const explain = useAuthError();
   const { t } = useLingui();
-  const changed = () =>
-    Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: createConnectQueryKey({ schema: FileService.method.listFiles, cardinality: "finite" }),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: createConnectQueryKey({
-          schema: FileService.method.listDeletedFiles,
-          input: { serverId },
-          cardinality: "finite",
+  const changed = useCallback(
+    () =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: createConnectQueryKey({ schema: FileService.method.listFiles, cardinality: "finite" }),
         }),
-      }),
-    ]);
+        queryClient.invalidateQueries({
+          queryKey: createConnectQueryKey({
+            schema: FileService.method.listDeletedFiles,
+            input: { serverId },
+            cardinality: "finite",
+          }),
+        }),
+      ]),
+    [queryClient, serverId],
+  );
   const noPasskey = t`That takes a passkey, and there's none for this address yet.`;
   const problem = (err: unknown, _where: string): string => {
     if (reasonOf(err) === "no_passkey_here") return noPasskey;

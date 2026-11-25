@@ -1654,13 +1654,16 @@ func busy(call *agentv1.Call) *agentv1.CallResult {
 func isFileCall(call *agentv1.Call) bool {
 	return call.GetListFiles() != nil || call.GetReadFile() != nil || call.GetSaveFile() != nil || call.GetMakeFile() != nil ||
 		call.GetMoveFile() != nil || call.GetDeleteFile() != nil || call.GetListDeleted() != nil || call.GetRestoreFile() != nil ||
-		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil
+		call.GetPurgeDeleted() != nil || call.GetBeginUpload() != nil || call.GetFinishUpload() != nil ||
+		call.GetListFileAccounts() != nil || call.GetChangeFileAccess() != nil ||
+		call.GetCalculateFolderSize() != nil || call.GetSearchFiles() != nil || call.GetDownloadFileFromUrl() != nil
 }
 
 // isArchiveJobCall reports a call that starts or queries a background archive job.
 func isArchiveJobCall(call *agentv1.Call) bool {
 	return call.GetCompressFiles() != nil || call.GetExtractArchive() != nil ||
-		call.GetGetArchiveJob() != nil || call.GetListArchiveJobs() != nil
+		call.GetGetArchiveJob() != nil || call.GetListArchiveJobs() != nil ||
+		call.GetDownloadFileFromUrl() != nil || call.GetCancelFileDownload() != nil
 }
 
 // manageFiles makes, moves, deletes and puts back files, and says what's in Recently
@@ -1711,12 +1714,32 @@ func manageFiles(ctx context.Context, f *files.Server, call *agentv1.Call) (*age
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ExtractArchive{ExtractArchive: out}}, err
 	case call.GetGetArchiveJob() != nil:
 		gj := call.GetGetArchiveJob()
-		out, err := f.GetArchiveJob(gj.GetJobId(), gj.GetOwner())
+		out, err := f.GetArchiveJob(gj.GetJobId(), gj.GetOwner(), gj.GetDownloadOwner())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_GetArchiveJob{GetArchiveJob: out}}, err
 	case call.GetListArchiveJobs() != nil:
 		lj := call.GetListArchiveJobs()
-		out, err := f.ListArchiveJobs(lj.GetOwner())
+		out, err := f.ListArchiveJobs(lj.GetOwner(), lj.GetDownloadOwner())
 		return &agentv1.CallResult{Result: &agentv1.CallResult_ListArchiveJobs{ListArchiveJobs: out}}, err
+	case call.GetListFileAccounts() != nil:
+		out, err := f.ListFileAccounts(ctx)
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ListFileAccounts{ListFileAccounts: out}}, err
+	case call.GetChangeFileAccess() != nil:
+		out, err := f.ChangeFileAccess(ctx, call.GetChangeFileAccess())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_ChangeFileAccess{ChangeFileAccess: out}}, err
+	case call.GetCalculateFolderSize() != nil:
+		out, err := f.CalculateFolderSize(ctx, call.GetCalculateFolderSize().GetPath())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CalculateFolderSize{CalculateFolderSize: out}}, err
+	case call.GetSearchFiles() != nil:
+		q := call.GetSearchFiles()
+		out, err := f.SearchFiles(ctx, q.GetPath(), q.GetQuery(), q.GetText())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_SearchFiles{SearchFiles: out}}, err
+	case call.GetDownloadFileFromUrl() != nil:
+		out, err := f.DownloadFileFromURL(ctx, call.GetDownloadFileFromUrl())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DownloadFileFromUrl{DownloadFileFromUrl: out}}, err
+	case call.GetCancelFileDownload() != nil:
+		q := call.GetCancelFileDownload()
+		out, err := f.CancelFileDownload(q.GetJobId(), q.GetOwner())
+		return &agentv1.CallResult{Result: &agentv1.CallResult_CancelFileDownload{CancelFileDownload: out}}, err
 	}
 	return nil, errors.New("this isn't a call about files")
 }

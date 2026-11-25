@@ -79,17 +79,16 @@ const (
 	// settleAfter is how long after the last transfer the agent hands back the
 	// memory transfers used, as an upload's next part may follow at once.
 	settleAfter = 2 * time.Second
-	// transferGC is the collector's target while transfers run, as GOGC says it:
-	// the heap grows to a quarter past what's live, not twice. Transfers make
-	// little garbage, as each keeps its buffers from part to part (#883), and
-	// what's live is small, so collecting this often costs little and keeps the
-	// agent within its budget on a busy server. At 50, four uploads and four
-	// downloads at once peaked about 2 MB higher, and at 10 no lower than at 25.
+	// transferGC keeps file and Docker archive transfers at the standalone
+	// agent's collector target (ADR 0109) within the same 40 MB budget.
 	transferGC = 25
 )
 
 // Server reads a server's files.
 type Server struct {
+	// DownloadHosts allows private and loopback addresses for these exact hostnames.
+	DownloadHosts []string
+
 	// Embedded leaves process-wide GC tuning to the control plane.
 	Embedded bool
 
@@ -131,6 +130,7 @@ type Server struct {
 	savesEnded chan *agentv1.SaveEnded
 	// archiveJobs holds active and recent background compress/extract jobs.
 	archiveJobs    map[string]*archiveJob
+	downloadStages map[identity]bool
 	archiveEnded   []*agentv1.ArchiveJobEnded
 	archiveEndedCh chan struct{}
 	// mounts reads what's mounted, as /proc/self/mountinfo has it.
@@ -173,7 +173,7 @@ func New(dataDir string, logger *slog.Logger, dockerRoot func(context.Context) (
 	s := &Server{
 		dataDir: dataDir, logger: logger, dockerRoot: dockerRoot, slots: make(chan struct{}, slots), previews: make(chan struct{}, 1), transfers: make(chan struct{}, transfers), archives: make(chan struct{}, maxArchiveJobs),
 		stuck: map[*trail]string{}, mounts: mounts.Read, savesEnded: make(chan *agentv1.SaveEnded, maxStuck),
-		archiveJobs: map[string]*archiveJob{}, archiveEndedCh: make(chan struct{}, 1),
+		archiveJobs: map[string]*archiveJob{}, downloadStages: map[identity]bool{}, archiveEndedCh: make(chan struct{}, 1),
 		systemPlaces: resource.SystemPlaces, listedFiles: listedFiles, accounts: readAccounts, homeRoot: "/home", identityOf: statIdentity,
 		claimed: map[string]bool{}, pruneNow: make(chan struct{}, 1), now: time.Now,
 	}
@@ -620,6 +620,11 @@ func (s *Server) read(ctx context.Context, t *trail, p string, allowBinary bool)
 	limit := MaxFileBytes
 	if allowBinary {
 		limit = MaxPreviewBytes
+		// A large preview holds its read buffer and a wire frame at once.
+		// Release freed transfer buffers before adding those to the peak.
+		if !s.Embedded && w.st.Size >= MaxPreviewBytes/2 {
+			debug.FreeOSMemory()
+		}
 	}
 	data, truncated, refusal := readBytes(t, w, limit)
 	if refusal != nil {
@@ -685,6 +690,10 @@ const hardLinkedFile = "a hard link, a file with another name"
 // opens as what the walk checked: a FIFO swapped in would hang a read, and
 // O_NONBLOCK and the check below keep it from being read at all.
 func readBytes(t *trail, w *walked, limit int) ([]byte, bool, *agentv1.FileRefusal) {
+	return readBytesInto(t, w, limit, nil)
+}
+
+func readBytesInto(t *trail, w *walked, limit int, scratch []byte) ([]byte, bool, *agentv1.FileRefusal) {
 	where, parent, name := w.path(), w.steps[len(w.steps)-2].fd, w.last().name
 	if refusal := t.touch(where); refusal != nil {
 		return nil, false, refusal
@@ -713,6 +722,17 @@ func readBytes(t *trail, w *walked, limit int) ([]byte, bool, *agentv1.FileRefus
 	want := limit + 1
 	if st.Size >= 0 && st.Size < int64(limit) {
 		want = int(st.Size) + 1
+	}
+	if scratch != nil {
+		n, err := io.ReadFull(f, scratch[:limit+1])
+		switch {
+		case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+			return scratch[:n], false, nil
+		case err != nil:
+			return nil, false, denied(where, err)
+		default:
+			return scratch[:limit], true, nil
+		}
 	}
 	buf := make([]byte, want)
 	n, err := io.ReadFull(f, buf)

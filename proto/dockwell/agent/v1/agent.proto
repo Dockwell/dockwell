@@ -650,6 +650,8 @@ message Hello {
   // True when the Docker guard leaves UDP open unless requested.
   bool guards_docker_udp = 452;
   bool archives_files = 420;
+  // File access, size and search, URL downloads and host terminal directories.
+  bool files_rest = 490;
   // True when the agent reads live sockets and process details (430 to 439).
   bool reads_sockets = 430;
   // True when the agent reads a host terminal's working directory (460 to 469).
@@ -990,6 +992,13 @@ message Call {
     dockwell.v1.BanServerSshAddressRequest ban_ssh_address = 445;
     dockwell.v1.SetFail2banAddressBanRequest set_fail2ban_address_ban = 450;
     ListArchiveJobsCall list_archive_jobs = 423;
+    // Everyday file tools use 490 to 499.
+    ListFileAccountsCall list_file_accounts = 491;
+    ChangeFileAccessCall change_file_access = 492;
+    CalculateFolderSizeCall calculate_folder_size = 493;
+    SearchFilesCall search_files = 494;
+    DownloadFileFromURLCall download_file_from_url = 495;
+    CancelFileDownloadCall cancel_file_download = 496;
     // Live sockets and process details take 430 to 439.
     ListSocketsCall list_sockets = 430;
     ProcessDetailCall process_detail = 431;
@@ -1415,6 +1424,7 @@ message OpenTerminalCall {
   bool database_console = 470;
   // The database inside the container to connect to when database_console is set.
   string database = 471;
+  string working_directory = 497;
 }
 
 // OpenTerminalResult is the terminal, running.
@@ -2190,6 +2200,7 @@ message ExtractArchiveResult {
 message GetArchiveJobCall {
   string job_id = 1;
   string owner = 2;
+  string download_owner = 498;
 }
 
 // GetArchiveJobResult answers a GetArchiveJobCall.
@@ -2201,6 +2212,7 @@ message GetArchiveJobResult {
 // ListArchiveJobsCall asks for active and recent archive jobs for owner.
 message ListArchiveJobsCall {
   string owner = 1;
+  string download_owner = 499;
 }
 
 // ListArchiveJobsResult answers a ListArchiveJobsCall.
@@ -2878,6 +2890,13 @@ message CallResult {
     dockwell.v1.BanServerSshAddressResponse ban_ssh_address = 445;
     dockwell.v1.SetFail2banAddressBanResponse set_fail2ban_address_ban = 450;
     ListArchiveJobsResult list_archive_jobs = 423;
+    // Everyday file tools use 490 to 499.
+    ListFileAccountsResult list_file_accounts = 491;
+    ChangeFileAccessResult change_file_access = 492;
+    CalculateFolderSizeResult calculate_folder_size = 493;
+    SearchFilesResult search_files = 494;
+    DownloadFileFromURLResult download_file_from_url = 495;
+    CancelFileDownloadResult cancel_file_download = 496;
     // What list_sockets and process_detail read (430 to 439).
     ListSocketsResult list_sockets = 430;
     ProcessDetailResult process_detail = 431;
@@ -3429,4 +3448,80 @@ message DatabaseImportControlResult {
   uint64 part_bytes = 10;
   string error = 11;
   string reason = 12;
+}
+
+// ListFileAccountsCall asks for local users and groups.
+message ListFileAccountsCall {}
+
+// ListFileAccountsResult returns the accounts or a refusal.
+message ListFileAccountsResult {
+  dockwell.v1.ListFileAccountsResponse response = 1;
+  FileRefusal refusal = 2;
+}
+
+// ChangeFileAccessCall names the path, changes and confirmed operation if any.
+message ChangeFileAccessCall {
+  string path = 1;
+  dockwell.v1.FileAccessChange change = 2;
+  string confirmed = 3;
+}
+
+// ChangeFileAccessResult returns changed and skipped counts or a refusal.
+message ChangeFileAccessResult {
+  dockwell.v1.ChangeFileAccessResponse response = 1;
+  FileRefusal refusal = 2;
+  string confirmation = 3;
+}
+
+// CalculateFolderSizeCall asks for a bounded count of logical file bytes.
+message CalculateFolderSizeCall {
+  string path = 1;
+}
+
+// CalculateFolderSizeResult returns the bytes counted or a refusal.
+message CalculateFolderSizeResult {
+  dockwell.v1.CalculateFolderSizeResponse response = 1;
+  FileRefusal refusal = 2;
+}
+
+// SearchFilesCall asks for names and optionally text matching a literal term.
+message SearchFilesCall {
+  string path = 1;
+  string query = 2;
+  bool text = 3;
+}
+
+// SearchFilesResult returns matching paths and line numbers or a refusal.
+message SearchFilesResult {
+  dockwell.v1.SearchFilesResponse response = 1;
+  FileRefusal refusal = 2;
+}
+
+// DownloadFileFromURLCall starts a guarded download into a new file.
+message DownloadFileFromURLCall {
+  string path = 1;
+  string url = 2;
+  string confirmed = 3;
+  string owner = 4;
+  string job_id = 5;
+  string record = 6;
+}
+
+// DownloadFileFromURLResult returns a background job or a refusal.
+message DownloadFileFromURLResult {
+  dockwell.v1.ArchiveJob job = 1;
+  FileRefusal refusal = 2;
+  string confirmation = 3;
+}
+
+// CancelFileDownloadCall asks to stop a download owned by the calling session.
+message CancelFileDownloadCall {
+  string job_id = 1;
+  string owner = 2;
+}
+
+// CancelFileDownloadResult returns the job or a refusal.
+message CancelFileDownloadResult {
+  dockwell.v1.ArchiveJob job = 1;
+  FileRefusal refusal = 2;
 }

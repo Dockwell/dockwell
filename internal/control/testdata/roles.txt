@@ -169,22 +169,31 @@ EventService.CountEvents                       read         viewer     viewer   
 EventService.ListEvents                        read         viewer     viewer     project
 EventService.WatchEvents                       read         viewer     viewer     project
 FileService.BeginUpload                        apply        admin      admin      install  session
+FileService.CalculateFolderSize                read         admin      admin      install  session
+FileService.CancelFileDownload                 apply        admin      admin      install  session
 FileService.CancelUpload                       destructive  admin      admin      install  session
+FileService.ChangeFileAccess                   destructive  admin      admin      install  session
 FileService.CompressFiles                      apply        admin      admin      install  session
 FileService.DeleteFile                         destructive  admin      admin      install  session
 FileService.DownloadFile                       read         admin      admin      install  session
+FileService.DownloadFileFromURL                apply        admin      admin      install  session
 FileService.ExtractArchive                     apply        admin      admin      install  session
 FileService.FinishUpload                       apply        admin      admin      install  session
 FileService.GetArchiveJob                      read         admin      admin      install  session
 FileService.ListArchiveJobs                    read         admin      admin      install  session
 FileService.ListDeletedFiles                   read         admin      admin      install  session
+FileService.ListFileAccounts                   read         admin      admin      install  session
 FileService.ListFiles                          read         admin      admin      install  session
+FileService.ListPinnedFolders                  read         admin      admin      install  session
 FileService.MakeFile                           apply        admin      admin      install  session
 FileService.MoveFile                           apply        admin      admin      install  session
+FileService.PinFolder                          apply        admin      admin      install  session
 FileService.PurgeDeletedFile                   destructive  admin      admin      install  session
 FileService.ReadFile                           read         admin      admin      install  session
 FileService.RestoreFile                        apply        admin      admin      install  session
 FileService.SaveFile                           destructive  admin      admin      install  session
+FileService.SearchFiles                        read         admin      admin      install  session
+FileService.UnpinFolder                        apply        admin      admin      install  session
 FileService.UploadFile                         apply        admin      admin      install  session
 FirewallService.BanServerSshAddress            destructive  admin      admin      install  session
 FirewallService.DisconnectServerSshSession     destructive  admin      admin      install  session

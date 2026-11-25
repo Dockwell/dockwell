@@ -36,6 +36,7 @@ export interface MenuTrigger {
 
 export interface FileTableProps {
   rows: readonly FileRow[];
+  folderSize?: (row: FileRow) => ReactNode;
   caption: string;
   phone: boolean;
   /** Compact column defaults when a side pane is open and the user hasn't resized columns. */
@@ -108,6 +109,7 @@ function defaultWidth(column: ResizableColumn, tight: boolean): number | undefin
  */
 export function FileTable({
   rows,
+  folderSize,
   caption,
   phone,
   tight,
@@ -468,7 +470,7 @@ export function FileTable({
                     </td>
                     <td className="is-num is-muted">
                       {row.folder || row.entry.type === FileType.SYMLINK
-                        ? "—"
+                        ? (folderSize?.(row) ?? "—")
                         : formatBytes(row.entry.sizeBytes, i18n.locale)}
                     </td>
                     {phone ? null : (

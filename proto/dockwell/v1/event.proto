@@ -555,6 +555,12 @@ message EventSubject {
   repeated string paths = 104;
   // How many paths were downloaded or compressed when paths is populated.
   uint32 path_count = 105;
+  // Progress from a permission or ownership change.
+  uint64 entries_changed = 106;
+  uint64 entries_skipped = 107;
+  string stopped = 108;
+  // Scheme and host of a URL download.
+  string source_origin = 109;
   // For service.value_reveal, which of the service's own environment variables
   // was revealed, by name; never its value. Numbered apart, as open work adds to
   // this message.

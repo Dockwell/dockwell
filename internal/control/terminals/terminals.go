@@ -256,6 +256,13 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	if err := terminal.ValidateDatabaseConsole(name, exact, argv, databaseConsole, dbName); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	directory := req.Msg.GetWorkingDirectory()
+	if err := terminal.ValidateWorkingDirectory(directory, name, exact); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	if directory != "" && !session.FilesRest() {
+		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal in a folder"), "agent_outdated")
+	}
 	if exact != "" && !session.ExactTerminal() {
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("update the agent to open a terminal by Docker ID"), "agent_outdated")
 	}
@@ -283,6 +290,8 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	target := srv.GetId()
 	if container != "" {
 		target += ":" + container
+	} else if directory != "" {
+		target += ":" + directory
 	}
 	// asked says a passkey is needed, and records it if none follows, naming the
 	// container the agent found, where it found one.
@@ -333,6 +342,8 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 	what := "a terminal on " + srv.GetName()
 	if container != "" {
 		what = "a shell in " + container + " on " + srv.GetName()
+	} else if directory != "" {
+		what += " in " + directory
 	}
 	opening, err := rec.record(eventOpening, termID, "opening "+what)
 	if err != nil {
@@ -341,7 +352,8 @@ func (h *Handler) OpenTerminal(ctx context.Context, req *connect.Request[dockwel
 		return nil, h.rpcError(ctx, err)
 	}
 	call := &agentv1.OpenTerminalCall{
-		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: name, ContainerId: exact, Argv: argv, DatabaseConsole: databaseConsole, Database: dbName, Confirmed: confirmed,
+		Id: termID, Columns: cols, Rows: rows, Record: opening, Container: name, ContainerId: exact, Argv: argv, Confirmed: confirmed, WorkingDirectory: directory,
+		DatabaseConsole: databaseConsole, Database: dbName,
 	}
 	opened, err := session.OpenTerminal(ctx, call)
 	if err == nil && opened.GetNeedsStepUp() && !confirmed {

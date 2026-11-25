@@ -905,7 +905,9 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
     event.action === "file.restore" ||
     event.action === "file.upload" ||
     event.action === "file.compress" ||
-    event.action === "file.extract"
+    event.action === "file.extract" ||
+    event.action === "file.access" ||
+    event.action === "file.fetch"
       ? event.subject
       : undefined;
   const placedAt = placed ? placed.toPath || placed.path : "";
@@ -1013,6 +1015,32 @@ function Detail({ event, repeats, folded, described, now, time, onClose, onSelec
                 <dt>{t`About`}</dt>
                 <dd>
                   <Subject id={event.subject.id} name={event.subject.name} />
+                </dd>
+              </>
+            ) : null}
+            {event.action === "file.access" && event.subject && event.subject.entriesChanged > 0n ? (
+              <>
+                <dt>{t`Entries changed`}</dt>
+                <dd>{event.subject.entriesChanged.toLocaleString(i18n.locale)}</dd>
+                {event.subject.entriesSkipped > 0n ? (
+                  <>
+                    <dt>{t`Entries skipped`}</dt>
+                    <dd>{event.subject.entriesSkipped.toLocaleString(i18n.locale)}</dd>
+                  </>
+                ) : null}
+                {event.subject.stopped ? (
+                  <>
+                    <dt>{t`Where it stopped`}</dt>
+                    <dd>{event.subject.stopped}</dd>
+                  </>
+                ) : null}
+              </>
+            ) : null}
+            {event.subject?.sourceOrigin ? (
+              <>
+                <dt>{t`Download source`}</dt>
+                <dd>
+                  <code className="activity-code">{event.subject.sourceOrigin}</code>
                 </dd>
               </>
             ) : null}

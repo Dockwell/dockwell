@@ -9,7 +9,7 @@ const containerName = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$/;
 /** A logical database name inside a container, matching the backend check. */
 const databaseName = /^[A-Za-z0-9_.][A-Za-z0-9_.-]{0,127}$/;
 
-/** Reads which container a shell or database console is for, leaving out what can't be one. */
+/** Reads a container target or an existing terminal ID from the URL. */
 function readSearch(search: Record<string, unknown>): TerminalSearch {
   const isConsole = search["console"] === true || search["console"] === "true" || search["console"] === "1";
   const db =
@@ -27,7 +27,9 @@ function readSearch(search: Record<string, unknown>): TerminalSearch {
     };
   }
   const container = search["container"];
-  return typeof container === "string" && containerName.test(container) ? { container, ...consoleFields } : {};
+  if (typeof container === "string" && containerName.test(container)) return { container, ...consoleFields };
+  const terminalId = search["terminalId"];
+  return typeof terminalId === "string" && /^trm_[0-9A-Z]{26}$/.test(terminalId) ? { terminalId } : {};
 }
 
 /** A server's terminal: root's shell, or a shell in one of its containers, through its agent. */

@@ -401,7 +401,7 @@ describe("FilesPage", () => {
   it("searches what the folder holds, and says when nothing matches", async () => {
     await renderFiles("/servers/srv_1/files?path=/var/www", { listFiles: () => site });
     const search = await screen.findByRole("textbox", { name: "Search in www" });
-    await within(screen.getByRole("table")).findByText("wp-admin");
+    await within(await screen.findByRole("table")).findByText("wp-admin");
     await userEvent.type(search, "INDEX");
     expect(rowNames()).toEqual(["index.php"]);
     await userEvent.clear(search);

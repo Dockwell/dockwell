@@ -103,6 +103,9 @@ func (t *Tx) RemoveUser(ctx context.Context, userID, by string, at time.Time) (E
 			return Ended{}, fmt.Errorf("can't remove terminal settings of %s: %w", userID, err)
 		}
 	}
+	if _, err := t.exec(ctx, `DELETE FROM pinned_folders WHERE user_id = ?`, userID); err != nil {
+		return Ended{}, fmt.Errorf("can't remove pinned folders of %s: %w", userID, err)
+	}
 	ended, err := t.EndAccess(ctx, userID, at)
 	ended.Links = int(links)
 	return ended, err

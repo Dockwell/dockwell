@@ -123,6 +123,17 @@ A person uploads an archive they got from a vendor, a backup or a theme site, an
 | Fill the disk or the agent's memory, with a hundred thousand files or a zip bomb | It stops past 100,000 entries, 64 folders deep or 16 GB unpacked, and what it made goes. A zip that says it holds more entries is refused before anything is read or made. A zip's directory is read a record at a time, and a file's bytes a part at a time, so the agent holds about as much for an archive of 99,000 entries as for one of a few, and what it used goes back once it's done. Each entry is checked against its size and CRC-32. Tested for entries, depth, and memory over 99,000 entries |
 | Run as root, with a set-user-ID file | Extracted files and folders drop setuid, setgid, sticky, group-write and other-write bits, keep only bits allowed by the archive file's own permissions (masking group/other out when the archive is private), and take the folder's owner and group. Links and special files are skipped and reported in `skipped_links`. Tested |
 
+### Permissions, searches and URL downloads
+
+| It tries to | What happens |
+| --- | --- |
+| Use a recursive change to reach a path outside the folder | The agent walks through open descriptors, skips symbolic and hard links and does not cross into nested mounts. Each target is checked again before writing. |
+| Reuse confirmation for a different path, file or change | The permission proof is for the resolved path, its device and inode and the requested values. Protected paths, root ownership or group, and setting set-ID bits take confirmation. Setting set-ID bits requires an explicit choice. |
+| Widen permissions on a key or password list | The agent checks credential names and the ways-in list. When a regular file gains permissions or changes owner or group, the agent also checks its first 4 KiB for a private key or password hash list. A match or an unreadable file takes a passkey. Removing permission bits needs no content check. |
+| Find a key or password list through search | Search checks the guarded path and reads only bounded prefixes. It omits files that hold refused material and returns paths and line numbers. |
+| Use a download or its redirect to reach a private service | The outbound guard checks the destination when it connects. Private addresses, loopback and the server's own interface addresses require the original URL to name an exact host in the agent administrator's allowlist. A redirect to a different host has no allowlist exception. The guard refuses cloud metadata and link-local addresses. |
+| Read under another name, replace or publish part of a download | The agent protects the staging directory by name and by identity while the download is active. It publishes through the completed file descriptor after rechecking the destination. Publication cannot replace a file, and cancellation belongs to the session that started the job. |
+
 ### A mount that stops answering
 
 A network mount or FUSE file system whose far end is down holds a system call for as long as it stays down, and nothing can stop one. Anyone who can reach Files can walk into one, by opening it, or a folder with a link into it.

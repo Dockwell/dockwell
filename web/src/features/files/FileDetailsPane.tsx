@@ -6,7 +6,7 @@ import { useTransport } from "@connectrpc/connect-query";
 import { type FileEntry, FileService, FileType, type ReadFileResponse } from "@dockwell/api";
 import { Button, ButtonLink, Callout, cx, Icon, Loading, Panel, Skeleton } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { formatBytes, formatDateTime } from "../../lib/format";
@@ -22,6 +22,8 @@ export interface FileDetailsPaneProps {
   entry: FileEntry;
   path: string;
   isFolder: boolean;
+  folderSize?: ReactNode;
+  onPermissions?: (() => void) | undefined;
   /** Download URL for a file or directory, passed from FilesPage. */
   downloadUrl?: string;
   fullWindow?: boolean;
@@ -59,6 +61,8 @@ export function FileDetailsPane({
   entry,
   path,
   isFolder,
+  folderSize,
+  onPermissions,
   downloadUrl,
   fullWindow = false,
   onToggleFullWindow,
@@ -237,6 +241,9 @@ export function FileDetailsPane({
           void navigator.clipboard?.writeText(path).catch(() => {});
         },
       },
+      ...(onPermissions
+        ? [{ id: "permissions", label: t`Permissions and owner`, icon: "lock" as const, onSelect: onPermissions }]
+        : []),
       {
         id: "delete",
         label: t`Delete`,
@@ -245,7 +252,7 @@ export function FileDetailsPane({
         onSelect: onDelete,
       },
     ],
-    [onMove, onDelete, path, t],
+    [onMove, onDelete, onPermissions, path, t],
   );
 
   return (
@@ -451,12 +458,12 @@ export function FileDetailsPane({
               ) : null}
             </dd>
           </div>
-          {!isFolder && entry.type !== FileType.SYMLINK ? (
+          {folderSize || (!isFolder && entry.type !== FileType.SYMLINK) ? (
             <div className="files-details-row">
               <dt>
                 <Trans>Size</Trans>
               </dt>
-              <dd>{formatBytes(entry.sizeBytes, i18n.locale)}</dd>
+              <dd>{folderSize ?? formatBytes(entry.sizeBytes, i18n.locale)}</dd>
             </div>
           ) : null}
           {modifiedDate ? (
