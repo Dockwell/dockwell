@@ -567,12 +567,25 @@ function Files({ server, folder, file, line, reading }: FilesProps) {
             one: "Packed # item into the archive.",
             other: "Packed # items into the archive.",
           });
+          const shownLeftOut = job.leftOutPaths.slice(0, 3);
+          const leftOutNames = shownLeftOut.join(", ");
+          const moreLeftOut = Math.max(0, Number(job.leftOut) - shownLeftOut.length);
           const leftOutNote =
             job.leftOut > 0n
-              ? ` ${plural(Number(job.leftOut), {
-                  one: "# item was left out.",
-                  other: "# items were left out.",
-                })}`
+              ? shownLeftOut.length === 0
+                ? ` ${plural(Number(job.leftOut), {
+                    one: "# item was left out.",
+                    other: "# items were left out.",
+                  })}`
+                : moreLeftOut > 0
+                  ? ` ${plural(Number(job.leftOut), {
+                      one: `# item was left out: ${leftOutNames}, and ${moreLeftOut} more.`,
+                      other: `# items were left out: ${leftOutNames}, and ${moreLeftOut} more.`,
+                    })}`
+                  : ` ${plural(Number(job.leftOut), {
+                      one: `# item was left out: ${leftOutNames}.`,
+                      other: `# items were left out: ${leftOutNames}.`,
+                    })}`
               : "";
           setNotice({
             tone: "info",

@@ -12288,7 +12288,9 @@ type DownloadFileResult struct {
 	// Why it sent nothing, or stopped.
 	Refusal *FileRefusal `protobuf:"bytes,2,opt,name=refusal,proto3" json:"refusal,omitempty"`
 	// For folder or multi-path downloads: entries left out.
-	LeftOut       uint64 `protobuf:"varint,420,opt,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
+	LeftOut uint64 `protobuf:"varint,420,opt,name=left_out,json=leftOut,proto3" json:"left_out,omitempty"`
+	// For folder or multi-path downloads: archive paths left out (first 10 when many).
+	LeftOutPaths  []string `protobuf:"bytes,421,rep,name=left_out_paths,json=leftOutPaths,proto3" json:"left_out_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -12342,6 +12344,13 @@ func (x *DownloadFileResult) GetLeftOut() uint64 {
 		return x.LeftOut
 	}
 	return 0
+}
+
+func (x *DownloadFileResult) GetLeftOutPaths() []string {
+	if x != nil {
+		return x.LeftOutPaths
+	}
+	return nil
 }
 
 // ReceiveFileRequest asks for what an upload's write carries.
@@ -22602,12 +22611,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05owner\x18\x01 \x01(\tR\x05owner\x12&\n" +
 	"\x0edownload_owner\x18\xf3\x03 \x01(\tR\rdownloadOwner\"D\n" +
 	"\x15ListArchiveJobsResult\x12+\n" +
-	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\x89\x01\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\xb0\x01\n" +
 	"\x12DownloadFileResult\x12\x1d\n" +
 	"\n" +
 	"sent_bytes\x18\x01 \x01(\x04R\tsentBytes\x128\n" +
 	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\x12\x1a\n" +
-	"\bleft_out\x18\xa4\x03 \x01(\x04R\aleftOut\",\n" +
+	"\bleft_out\x18\xa4\x03 \x01(\x04R\aleftOut\x12%\n" +
+	"\x0eleft_out_paths\x18\xa5\x03 \x03(\tR\fleftOutPaths\",\n" +
 	"\x12ReceiveFileRequest\x12\x16\n" +
 	"\x06stream\x18\x01 \x01(\x04R\x06stream\")\n" +
 	"\x13ReceiveFileResponse\x12\x12\n" +

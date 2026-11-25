@@ -56,8 +56,22 @@ type zipWriter struct {
 	flate   *flate.Writer
 	crc     hash.Hash32
 	cur     *zipEntryWriter
+	comment string
 	closed  bool
 	aborted bool
+}
+
+// SetComment sets the archive-level zip comment written into the end-of-central-directory
+// record on Close (clamped to the zip 16-bit comment limit on a UTF-8 rune boundary).
+func (z *zipWriter) SetComment(comment string) {
+	if len(comment) > zip16 {
+		cut := zip16
+		for cut > 0 && !utf8.RuneStart(comment[cut]) {
+			cut--
+		}
+		comment = comment[:cut]
+	}
+	z.comment = comment
 }
 
 // zipEntryWriter tracks the one active entry being written to a zipWriter.
@@ -378,9 +392,15 @@ func (z *zipWriter) Close() error {
 	binary.LittleEndian.PutUint16(eocd[10:], eocdCount)
 	binary.LittleEndian.PutUint32(eocd[12:], uint32(min(z.cdBytes, zip32)))
 	binary.LittleEndian.PutUint32(eocd[16:], uint32(min(cdStart, zip32)))
-	binary.LittleEndian.PutUint16(eocd[20:], 0)
-	_, err := cw.Write(eocd[:])
-	return err
+	binary.LittleEndian.PutUint16(eocd[20:], uint16(len(z.comment))) //nolint:gosec // clamped <= zip16 in SetComment
+	if _, err := cw.Write(eocd[:]); err != nil {
+		return err
+	}
+	if z.comment != "" {
+		_, err := io.WriteString(cw, z.comment)
+		return err
+	}
+	return nil
 }
 
 // Abort releases the temporary central-directory file when an archive stops early.

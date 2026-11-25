@@ -2863,7 +2863,9 @@ type ArchiveJob struct {
 	// When the job finished or failed. Unset while running.
 	FinishTime *timestamppb.Timestamp `protobuf:"bytes,18,opt,name=finish_time,json=finishTime,proto3" json:"finish_time,omitempty"`
 	// Expected bytes for a URL download, or zero if the length is unknown.
-	TotalBytes    uint64 `protobuf:"varint,19,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	TotalBytes uint64 `protobuf:"varint,19,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	// For compress: archive paths left out (first 10 when many).
+	LeftOutPaths  []string `protobuf:"bytes,20,rep,name=left_out_paths,json=leftOutPaths,proto3" json:"left_out_paths,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3029,6 +3031,13 @@ func (x *ArchiveJob) GetTotalBytes() uint64 {
 		return x.TotalBytes
 	}
 	return 0
+}
+
+func (x *ArchiveJob) GetLeftOutPaths() []string {
+	if x != nil {
+		return x.LeftOutPaths
+	}
+	return nil
 }
 
 // FileEntry is one file or directory on a server.
@@ -4722,7 +4731,7 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\x16ListArchiveJobsRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\"F\n" +
 	"\x17ListArchiveJobsResponse\x12+\n" +
-	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\xb6\x05\n" +
+	"\x04jobs\x18\x01 \x03(\v2\x17.dockwell.v1.ArchiveJobR\x04jobs\"\xdc\x05\n" +
 	"\n" +
 	"ArchiveJob\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12/\n" +
@@ -4748,7 +4757,8 @@ const file_dockwell_v1_file_proto_rawDesc = "" +
 	"\vfinish_time\x18\x12 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishTime\x12\x1f\n" +
 	"\vtotal_bytes\x18\x13 \x01(\x04R\n" +
-	"totalBytes\"\xa2\x03\n" +
+	"totalBytes\x12$\n" +
+	"\x0eleft_out_paths\x18\x14 \x03(\tR\fleftOutPaths\"\xa2\x03\n" +
 	"\tFileEntry\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.dockwell.v1.FileTypeR\x04type\x12\x1d\n" +

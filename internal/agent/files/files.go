@@ -644,7 +644,7 @@ func (s *Server) read(ctx context.Context, t *trail, p string, allowBinary bool)
 		if truncated {
 			return &agentv1.ReadFileResult{File: out}
 		}
-		if r := (&keyScan{}).check(where, data); r != nil {
+		if r := (&keyScan{}).checkAll(where, data); r != nil {
 			r.Message = where + " holds sensitive key material, so Dockwell doesn't open it. Connect to the server over SSH to work with it"
 			return &agentv1.ReadFileResult{Refusal: r}
 		}
@@ -807,23 +807,6 @@ func whatItHolds(text []byte) string {
 		return whyDockerCopy
 	}
 	return ""
-}
-
-// beforeKey is what can come before a key on its line: an indent, as in YAML, and
-// the byte order mark at the start of a file.
-const beforeKey = " \t\ufeff"
-
-// holdsPrivateKey finds a PEM private key on a line of its own, indented or not,
-// which is how every tool writes one, and which a document that only mentions one
-// isn't.
-func holdsPrivateKey(text []byte) bool {
-	for line := range bytes.Lines(text) {
-		line = bytes.TrimRight(bytes.TrimLeft(line, beforeKey), " \t\r\n")
-		if bytes.HasPrefix(line, []byte("-----BEGIN ")) && bytes.HasSuffix(line, []byte("PRIVATE KEY-----")) {
-			return true
-		}
-	}
-	return false
 }
 
 // hashLine is a line of a password file, as /etc/shadow and its copies have it,

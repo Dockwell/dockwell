@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestZipWriterRoundTripsWithStdlibAndStreamReader(t *testing.T) {
@@ -272,5 +273,63 @@ func TestZipWriterUTF8FlagOnlyForValidUTF8(t *testing.T) {
 		if err != nil || string(gotBody) != tc.body {
 			t.Errorf("%q body = %q, %v; want %q", tc.name, gotBody, err, tc.body)
 		}
+	}
+}
+
+func TestZipWriterComment(t *testing.T) {
+	var buf bytes.Buffer
+	zw, err := newZipWriter(&buf, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zw.Abort()
+
+	w, err := zw.Create("ok.txt", time.Unix(1_700_000_000, 0), 0o644, zipDeflated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := io.WriteString(w, "hello"); err != nil {
+		t.Fatal(err)
+	}
+	const want = "Left out (2): .env, backup.tar"
+	zw.SetComment(want)
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+	if zr.Comment != want {
+		t.Errorf("zip comment = %q, want %q", zr.Comment, want)
+	}
+}
+
+func TestZipWriterCommentTruncatesOnUTF8Boundary(t *testing.T) {
+	var buf bytes.Buffer
+	zw, err := newZipWriter(&buf, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zw.Abort()
+
+	if _, err := zw.Create("ok.txt", time.Unix(1_700_000_000, 0), 0o644, zipDeflated); err != nil {
+		t.Fatal(err)
+	}
+	// Make a comment whose byte 65535 lands in the middle of a 3-byte UTF-8 rune.
+	huge := "a" + strings.Repeat("中", 25_000)
+	zw.SetComment(huge)
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("zip.NewReader: %v", err)
+	}
+	if len(zr.Comment) > zip16 || len(zr.Comment) < zip16-4 {
+		t.Errorf("truncated comment len = %d, want near %d", len(zr.Comment), zip16)
+	}
+	if !utf8.ValidString(zr.Comment) {
+		t.Error("truncated zip comment split a UTF-8 character")
 	}
 }

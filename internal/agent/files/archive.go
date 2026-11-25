@@ -62,6 +62,7 @@ type archiveJob struct {
 	committing   bool
 	skippedLinks uint64
 	leftOut      uint64
+	leftOutPaths []string
 	file         *dockwellv1.FileEntry
 	wayBackIn    bool
 	errMsg       string
@@ -86,6 +87,7 @@ func (j *archiveJob) proto() *dockwellv1.ArchiveJob {
 		TotalBytes:   j.totalBytes,
 		SkippedLinks: j.skippedLinks,
 		LeftOut:      j.leftOut,
+		LeftOutPaths: slices.Clone(j.leftOutPaths),
 		File:         j.file,
 		WayBackIn:    j.wayBackIn,
 		Error:        j.errMsg,
@@ -705,9 +707,16 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 		wayIn       bool
 		sources     []string
 		sourceCount uint32
+		single      *preflightedFile
 	}
 	var prep *prepared
 	refusal, err := attempt(ctx, s, archivePath, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
+		var single *preflightedFile
+		defer func() {
+			if prep == nil {
+				single.close()
+			}
+		}()
 		g := s.guard(ctx)
 		dst, r := s.targetOf(t, g, archivePath)
 		if r != nil {
@@ -745,7 +754,6 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 		// Archive permissions start at 0600 and tighten if a source folder is tighter.
 		archiveMode := uint32(0o600)
 		resolved := make([]string, 0, min(len(paths), maxJobSourcePaths))
-		var preflightBuf []byte
 		for _, p := range paths {
 			o, or := s.openDownload(ctx, t, p)
 			if or != nil {
@@ -773,30 +781,20 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 				}
 				archiveMode &= tighter
 			}
-			if !o.dir {
-				if preflightBuf == nil {
-					preflightBuf = make([]byte, FrameBytes)
-				}
-				firstLen, why, seeked, _, rerr := scanFileHead(o.f, preflightBuf)
-				if rerr != nil {
-					where := o.where
+			if !o.dir && len(paths) == 1 {
+				pf, ref, perr := preflightSingleFile(ctx, o, archiveEntryName(p, o.w.last().name), make([]byte, FrameBytes))
+				if perr != nil {
 					o.close()
 					dst.w.close()
-					return denied(where, rerr), nil
+					return nil, perr
 				}
-				if why != "" {
-					where := o.where
+				if ref != nil {
 					o.close()
 					dst.w.close()
-					return refused(where, why), nil
+					return ref, nil
 				}
-				if !seeked && firstLen > 0 {
-					if r := (&keyScan{}).check(o.where, preflightBuf[:firstLen]); r != nil {
-						o.close()
-						dst.w.close()
-						return r, nil
-					}
-				}
+				single = pf
+				continue
 			}
 			o.close()
 		}
@@ -831,7 +829,7 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 			_ = removeAll(dst.dir(), tmpName, tmpSt.Dev, tmpSt.Ino, 0)
 			where := dst.where
 			dst.w.close()
-			return &agentv1.FileRefusal{ //nolint:nilerr // refusal is returned to caller
+			return &agentv1.FileRefusal{
 				Kind: agentv1.FileRefusal_KIND_NO_SPACE, Path: where,
 				Message: rerr.Error() + ". Free some space first",
 			}, nil
@@ -850,6 +848,7 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 			dst: dst, tmpName: tmpName, tmpFd: tmpFd, tmpSt: tmpSt, tmpFile: tmpFile,
 			bw: bw, archiveMode: archiveMode, wayIn: wayIn,
 			sources: resolved, sourceCount: uint32(len(paths)), //nolint:gosec // <= MaxCompressPaths
+			single: single,
 		}
 		return nil, nil
 	}, func(r *agentv1.FileRefusal) *agentv1.FileRefusal {
@@ -857,10 +856,16 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 		return r
 	})
 	if err != nil {
+		if prep != nil {
+			prep.single.close()
+		}
 		release()
 		return nil, err
 	}
 	if refusal != nil {
+		if prep != nil {
+			prep.single.close()
+		}
 		release()
 		return &agentv1.CompressFilesResult{Refusal: refusal}, nil
 	}
@@ -884,6 +889,7 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 
 	go func() { //nolint:gosec // G118: background archive job intentionally outlives the request context
 		defer release()
+		defer prep.single.close()
 		defer prep.dst.w.close()
 		placed := false
 		defer func() {
@@ -912,12 +918,18 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 
 		t := &trail{s: s}
 		g := s.guard(bgCtx)
+		var buf []byte
+		if prep.single != nil {
+			buf = prep.single.buf
+		} else {
+			buf = make([]byte, FrameBytes)
+		}
 		a := &archiver{
 			ctx:  bgCtx,
 			z:    zw,
 			g:    g,
 			root: path.Dir(prep.dst.where),
-			buf:  make([]byte, FrameBytes),
+			buf:  buf,
 			onProgress: func(entries, leftOut uint64) {
 				s.updateArchiveJob(func() {
 					job.entries = entries
@@ -926,8 +938,8 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 				})
 			},
 		}
-		for _, p := range pathsCopy {
-			r, perr := s.archivePath(bgCtx, t, a, p)
+		if prep.single != nil {
+			r, perr := a.packPreflightedFile(prep.single)
 			if r != nil {
 				failJob(r)
 				return
@@ -936,6 +948,21 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 				failJob(compressError(prep.dst.where, prep.bw, perr))
 				return
 			}
+		} else {
+			for _, p := range pathsCopy {
+				r, perr := s.archivePath(bgCtx, t, a, p)
+				if r != nil {
+					failJob(r)
+					return
+				}
+				if perr != nil {
+					failJob(compressError(prep.dst.where, prep.bw, perr))
+					return
+				}
+			}
+		}
+		if a.leftOut > 0 {
+			zw.SetComment(leftOutComment(a.leftOut, a.leftOutPaths))
 		}
 		if cerr := zw.Close(); cerr != nil {
 			failJob(compressError(prep.dst.where, prep.bw, cerr))
@@ -970,6 +997,7 @@ func (s *Server) CompressWithRecord(ctx context.Context, paths []string, archive
 			job.file = fe
 			job.entries = uint64(max(a.count, 0))
 			job.leftOut = a.leftOut
+			job.leftOutPaths = slices.Clone(a.leftOutPaths)
 			job.bytes = uint64(max(finalSt.Size, 0))
 		})
 	}()
@@ -1050,10 +1078,7 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 		return refusal, nil
 	}
 	defer o.close()
-	name := path.Base(strings.TrimRight(p, "/"))
-	if name == "/" || name == "." || name == "" {
-		name = o.w.last().name
-	}
+	name := archiveEntryName(p, o.w.last().name)
 	a.root = o.where
 	if o.dir {
 		a.count++
@@ -1076,82 +1101,5 @@ func (s *Server) archivePath(ctx context.Context, t *trail, a *archiver, p strin
 		// credential paths are never doubled (e.g. /etc/shadow, never /etc/etc/shadow).
 		return a.folder(fd, o.where, name, o.w.last().place, o.w.st.Dev, 0)
 	}
-	a.count++
-	if a.count > maxArchived {
-		return &agentv1.FileRefusal{
-			Kind: agentv1.FileRefusal_KIND_REFUSED, Path: o.where,
-			Message: fmt.Sprintf("this archive holds more than %d files and folders, so it stopped. Archive a smaller selection, or use SSH", maxArchived),
-		}, nil
-	}
-	firstLen, why, seeked, isBin, err := scanFileHead(o.f, a.buf)
-	if err != nil {
-		return denied(o.where, err), nil
-	}
-	if why != "" {
-		return refused(o.where, why), nil
-	}
-	if seeked {
-		if _, err := o.f.Seek(0, io.SeekStart); err != nil {
-			return denied(o.where, err), nil
-		}
-		n, rerr := io.ReadFull(o.f, a.buf)
-		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
-			return denied(o.where, rerr), nil
-		}
-		firstLen = n
-	}
-	scan := &keyScan{}
-	var dockerTOCTOU headScan
-	checkDocker := seeked && !isBin
-	headSeen := 0
-	if firstLen > 0 {
-		if refusal := scan.check(o.where, a.buf[:firstLen]); refusal != nil {
-			return refusal, nil
-		}
-		if checkDocker {
-			dockerTOCTOU.feedDocker(a.buf[:firstLen])
-			headSeen += firstLen
-			if dockerTOCTOU.sawDocker() {
-				return refused(o.where, whyDockerCopy), nil
-			}
-		}
-	}
-	w, err := a.z.Create(name, time.Unix(o.w.st.Mtim.Unix()), fs.FileMode(o.w.st.Mode&0o777), zipDeflated)
-	if err != nil {
-		return nil, err
-	}
-	if firstLen > 0 {
-		if _, err := w.Write(a.buf[:firstLen]); err != nil {
-			return nil, err
-		}
-	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		m, err := o.f.Read(a.buf)
-		if m > 0 {
-			if refusal := scan.check(o.where, a.buf[:m]); refusal != nil {
-				return refusal, nil
-			}
-			if checkDocker && headSeen < MaxFileBytes {
-				take := min(m, MaxFileBytes-headSeen)
-				dockerTOCTOU.feedDocker(a.buf[:take])
-				headSeen += take
-				if dockerTOCTOU.sawDocker() {
-					return refused(o.where, whyDockerCopy), nil
-				}
-			}
-			if _, werr := w.Write(a.buf[:m]); werr != nil {
-				return nil, werr
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			a.progress()
-			return nil, nil
-		}
-		if err != nil {
-			return denied(o.where, err), nil
-		}
-	}
+	return a.addFile(o.f, o.where, name, &o.w.st)
 }

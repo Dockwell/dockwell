@@ -11,11 +11,10 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
-
-	"github.com/dockwell/dockwell/internal/lazyre"
 
 	"golang.org/x/sys/unix"
 
@@ -26,19 +25,34 @@ import (
 // any size, or a folder as a zip archive. So it goes by what a read refuses, by where
 // it is and by its name, and by what a file's first MiB holds, and it stops where a
 // private key starts anywhere in what it sends, before the key itself goes. A folder
-// leaves out what a read would refuse in it, and doesn't follow a link or cross into
-// another filesystem. It sends a part at a time, so the agent holds a part.
+// or selection zip leaves out what a read or key check refuses in it and lists those
+// paths, and doesn't follow a link or cross into another filesystem. It sends a part
+// at a time, so the agent holds a part.
 
-// keyStarts is where a private key starts, with what follows its first line
-// (base64 body or RFC 1421 encryption headers), so a program that only names
-// one doesn't stop a download.
-var keyStarts = lazyre.Regexp(`-{5}BEGIN [A-Z0-9 -]*PRIVATE KEY-{5}[ \t]*\r?\n(?:[ \t]*\r?\n)?[ \t]*(?:[A-Za-z0-9+/=]{16}|(?i:Proc-Type|DEK-Info):[ \t]*\S)`)
+// maxLeftOutPaths is how many left-out archive paths are listed in a result,
+// job, or zip comment so memory stays flat when a folder skips many entries.
+const (
+	maxLeftOutPaths     = 10
+	maxLeftOutPathBytes = 200
+)
 
-var beginKeyMark = []byte("-----BEGIN ")
+// seekFile rewinds an open file to its start after scanning. Tests replace it
+// to stand in for a FUSE mount that refuses lseek.
+var seekFile = func(f *os.File) error {
+	_, err := f.Seek(0, io.SeekStart)
+	return err
+}
 
-// keyTail is how much of what went before a part is kept, to find a key that
-// starts across two.
-const keyTail = 256
+func seekRefused(where string, err error) *agentv1.FileRefusal {
+	cause := err
+	if unwrapped := errors.Unwrap(err); unwrapped != nil {
+		cause = unwrapped
+	}
+	return &agentv1.FileRefusal{
+		Kind: agentv1.FileRefusal_KIND_REFUSED, Path: where,
+		Message: fmt.Sprintf("%s is on a mount that can't seek (%v), so Dockwell can't rewind it after checking its start. Copy it over SSH", where, cause),
+	}
+}
 
 // Download sends what's at p: a file as it is, or a folder as a zip archive. send
 // takes each part, the first saying what it is.
@@ -67,19 +81,20 @@ func (s *Server) Download(ctx context.Context, p string, send func(*agentv1.Send
 }
 
 // DownloadMany streams several files and folders together as one zip archive
-// over send. Each top-level path is checked before any byte goes out.
+// over send. Each top-level path is checked before any byte goes out; a
+// single-file selection that trips the key check is refused cleanly, while a
+// multi-item selection or folder leaves offending files out and lists them.
 func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*agentv1.SendFileRequest) error) (*agentv1.DownloadFileResult, error) {
 	if err := CheckPaths(paths); err != nil {
 		return nil, err
 	}
-	// Check every top-level path before sending the archive header, so a refused
-	// or missing path answers cleanly with a refusal rather than a cut stream.
 	parent := ""
 	sameParent := true
 	resolved := make([]string, 0, len(paths))
 	var knownBytes uint64
 	hasDir := false
-	var preflightBuf []byte
+	var single *preflightedFile
+	defer func() { single.close() }()
 	for i, p := range paths {
 		var o *opened
 		refusal, err := attempt(ctx, s, p, func(ctx context.Context, t *trail) (*agentv1.FileRefusal, error) {
@@ -98,28 +113,23 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 			hasDir = true
 		} else {
 			knownBytes += uint64(max(o.w.st.Size, 0))
-			if preflightBuf == nil {
-				preflightBuf = make([]byte, FrameBytes)
-			}
-			firstLen, why, seeked, _, rerr := scanFileHead(o.f, preflightBuf)
-			if rerr != nil {
-				where := o.where
-				o.close()
-				return &agentv1.DownloadFileResult{Refusal: denied(where, rerr)}, nil
-			}
-			if why != "" {
-				where := o.where
-				o.close()
-				return &agentv1.DownloadFileResult{Refusal: refused(where, why)}, nil
-			}
-			if !seeked && firstLen > 0 {
-				if r := (&keyScan{}).check(o.where, preflightBuf[:firstLen]); r != nil {
+			if len(paths) == 1 {
+				pf, ref, perr := preflightSingleFile(ctx, o, archiveEntryName(p, o.w.last().name), make([]byte, FrameBytes))
+				if perr != nil {
 					o.close()
-					return &agentv1.DownloadFileResult{Refusal: r}, nil
+					return nil, perr
 				}
+				if ref != nil {
+					o.close()
+					return &agentv1.DownloadFileResult{Refusal: ref}, nil
+				}
+				single = pf
+				o = nil
 			}
 		}
-		o.close()
+		if o != nil {
+			o.close()
+		}
 		dir := path.Dir(strings.TrimRight(p, "/"))
 		if i == 0 {
 			parent = dir
@@ -145,18 +155,37 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	defer z.Abort()
 	g := s.guard(ctx)
 	t := &trail{s: s}
-	a := &archiver{ctx: ctx, z: z, g: g, root: parent, buf: make([]byte, FrameBytes)}
-	for _, p := range paths {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		refusal, err := s.archivePath(ctx, t, a, p)
+	var buf []byte
+	if single != nil {
+		buf = single.buf
+	} else {
+		buf = make([]byte, FrameBytes)
+	}
+	a := &archiver{ctx: ctx, z: z, g: g, root: parent, buf: buf}
+	if single != nil {
+		refusal, err := a.packPreflightedFile(single)
 		if err != nil {
 			return nil, err
 		}
 		if refusal != nil {
-			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut}, nil
+			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut, LeftOutPaths: slices.Clone(a.leftOutPaths)}, nil
 		}
+	} else {
+		for _, p := range paths {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			refusal, err := s.archivePath(ctx, t, a, p)
+			if err != nil {
+				return nil, err
+			}
+			if refusal != nil {
+				return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut, LeftOutPaths: slices.Clone(a.leftOutPaths)}, nil
+			}
+		}
+	}
+	if a.leftOut > 0 {
+		z.SetComment(leftOutComment(a.leftOut, a.leftOutPaths))
 	}
 	if err := z.Close(); err != nil {
 		return nil, err
@@ -164,7 +193,92 @@ func (s *Server) DownloadMany(ctx context.Context, paths []string, send func(*ag
 	if err := out.flush(); err != nil {
 		return nil, err
 	}
-	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut}, nil
+	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut, LeftOutPaths: slices.Clone(a.leftOutPaths)}, nil
+}
+
+// preflightedFile holds a single selected file already opened and scanned by
+// preflightSingleFile so DownloadMany and Compress pack it without re-opening
+// or scanning its start again.
+type preflightedFile struct {
+	o           *opened
+	name        string
+	buf         []byte
+	firstLen    int
+	eof         bool
+	checkDocker bool
+	headSeen    int
+	scan        keyScan
+	docker      headScan
+}
+
+func (p *preflightedFile) close() {
+	if p != nil && p.o != nil {
+		p.o.close()
+		p.o = nil
+	}
+}
+
+func archiveEntryName(p, fallback string) string {
+	name := path.Base(strings.TrimRight(p, "/"))
+	if name == "/" || name == "." || name == "" {
+		return fallback
+	}
+	return name
+}
+
+// preflightSingleFile scans a single selected file's start (first part for
+// binaries, first MiB for text) before any archive header or staging file is
+// created, so a refused single-file selection fails cleanly while a passing
+// file is handed straight to archiver without extra passes.
+func preflightSingleFile(ctx context.Context, o *opened, name string, buf []byte) (*preflightedFile, *agentv1.FileRefusal, error) {
+	pf := &preflightedFile{o: o, name: name, buf: buf}
+	sc, err := scanFileHead(ctx, o.f, buf, &pf.docker)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, nil, ctx.Err()
+		}
+		return nil, denied(o.where, err), nil
+	}
+	if sc.why != "" {
+		return nil, refused(o.where, sc.why), nil
+	}
+	firstLen, eof := sc.firstLen, sc.eof
+	if sc.seeked {
+		if err := seekFile(o.f); err != nil {
+			return nil, seekRefused(o.where, err), nil
+		}
+		n, rerr := io.ReadFull(o.f, buf)
+		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			return nil, denied(o.where, rerr), nil
+		}
+		firstLen = n
+		eof = errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF)
+	}
+	checkDocker := sc.seeked && !sc.isBin
+	pf.docker.reset()
+	headSeen := 0
+	if firstLen > 0 {
+		if why := pf.scan.scan(buf[:firstLen], true); why != "" {
+			return nil, refused(o.where, why), nil
+		}
+		if eof {
+			if why := pf.scan.finishWhy(true); why != "" {
+				return nil, refused(o.where, why), nil
+			}
+		}
+		if checkDocker {
+			pf.docker.feedDocker(buf[:firstLen])
+			headSeen += firstLen
+			if pf.docker.sawDocker() {
+				return nil, refused(o.where, whyDockerCopy), nil
+			}
+		}
+	}
+	pf.firstLen = firstLen
+	pf.eof = eof
+	pf.checkDocker = checkDocker
+	pf.headSeen = headSeen
+	return pf, nil, nil
 }
 
 // opened is what a download opened.
@@ -256,17 +370,27 @@ type headScan struct {
 	binary        bool
 	utf8Carry     [utf8.UTFMax]byte
 	utf8CarryLen  int
-	line          [lineHead]byte
-	lineLen       int
-	lineOverflow  bool
-	afterNul      nulLine
+	keys          keyScan
 	dockerTail    [dockerTailLen]byte
 	dockerTailLen int
+	dockerJoin    [dockerTailLen * 2]byte
 	sawKey        bool
 	sawHash       bool
 	sawMountOpts  bool
 	sawResolvConf bool
 	sawEnv        bool
+}
+
+func (h *headScan) reset() {
+	h.binary = false
+	h.utf8CarryLen = 0
+	h.keys.reset()
+	h.dockerTailLen = 0
+	h.sawKey = false
+	h.sawHash = false
+	h.sawMountOpts = false
+	h.sawResolvConf = false
+	h.sawEnv = false
 }
 
 func (h *headScan) feedDocker(part []byte) {
@@ -289,7 +413,14 @@ func (h *headScan) feed(part []byte) {
 		return
 	}
 	h.checkDocker(part)
-	h.checkLines(part)
+	if !h.sawKey {
+		switch h.keys.scan(part, !h.sawHash) {
+		case whyPrivateKey:
+			h.sawKey = true
+		case whyHashes:
+			h.sawHash = true
+		}
+	}
 }
 
 func (h *headScan) checkUTF8(part []byte) bool {
@@ -326,10 +457,9 @@ func (h *headScan) checkDocker(part []byte) {
 	if h.sawMountOpts || h.sawResolvConf && h.sawEnv {
 		return
 	}
-	var joinBuf [dockerTailLen * 2]byte
-	jn := copy(joinBuf[:], h.dockerTail[:h.dockerTailLen])
-	jn += copy(joinBuf[jn:], part[:min(len(part), dockerTailLen)])
-	join := joinBuf[:jn]
+	jn := copy(h.dockerJoin[:], h.dockerTail[:h.dockerTailLen])
+	jn += copy(h.dockerJoin[jn:], part[:min(len(part), dockerTailLen)])
+	join := h.dockerJoin[:jn]
 	if !h.sawMountOpts && (bytes.Contains(join, dockerMountOpts) || bytes.Contains(part, dockerMountOpts)) {
 		h.sawMountOpts = true
 	}
@@ -351,51 +481,6 @@ func (h *headScan) checkDocker(part []byte) {
 	}
 }
 
-func (h *headScan) checkLines(part []byte) {
-	if h.sawKey && h.sawHash {
-		return
-	}
-	for rest := part; len(rest) > 0; {
-		seg, more, ended := bytes.Cut(rest, []byte{'\n'})
-		rest = more
-		if h.afterNul.feed(seg, ended) {
-			h.sawHash = true
-		}
-		if room := lineHead - h.lineLen; room > 0 {
-			take := min(len(seg), room)
-			copy(h.line[h.lineLen:], seg[:take])
-			h.lineLen += take
-			seg = seg[take:]
-		}
-		if len(seg) > 0 && !h.lineOverflow {
-			if len(bytes.TrimRight(seg, " \t\r")) > 0 {
-				h.lineOverflow = true
-			}
-		}
-		if ended {
-			h.finishLine()
-			if h.sawKey && h.sawHash {
-				return
-			}
-		}
-	}
-}
-
-func (h *headScan) finishLine() {
-	if h.lineLen == 0 {
-		return
-	}
-	line := h.line[:h.lineLen]
-	if !h.sawKey && !h.lineOverflow && bytes.Contains(line, beginKeyMark) && holdsPrivateKey(line) {
-		h.sawKey = true
-	}
-	if !h.sawHash && bytes.IndexByte(line, '$') >= 0 && hashLine().Match(line) {
-		h.sawHash = true
-	}
-	h.lineLen = 0
-	h.lineOverflow = false
-}
-
 func (h *headScan) sawDocker() bool {
 	return !h.binary && (h.sawMountOpts || h.sawResolvConf && h.sawEnv)
 }
@@ -404,7 +489,14 @@ func (h *headScan) why(truncated bool) string {
 	if h.binary || (!truncated && h.utf8CarryLen > 0) {
 		return ""
 	}
-	h.finishLine()
+	if !h.sawKey {
+		switch h.keys.finishWhy(!h.sawHash) {
+		case whyPrivateKey:
+			h.sawKey = true
+		case whyHashes:
+			h.sawHash = true
+		}
+	}
 	switch {
 	case h.sawKey:
 		return whyPrivateKey
@@ -416,34 +508,49 @@ func (h *headScan) why(truncated bool) string {
 	return ""
 }
 
+// fileScan summarizes what scanFileHead learned of a file.
+type fileScan struct {
+	firstLen int
+	why      string
+	seeked   bool
+	isBin    bool
+	eof      bool
+}
+
 // scanFileHead checks a file's first MaxFileBytes with heldBack's rules using
-// only buf (FrameBytes), so no per-file MiB buffer is allocated (ADR 0109).
-// When the file fits in buf or its first part already shows a binary file, it
-// returns with buf[:firstLen] ready to stream and seeked == false. Otherwise it
-// reads up to MaxFileBytes into buf and returns seeked == true so the caller
-// can rewind f to 0 before streaming.
-func scanFileHead(f io.Reader, buf []byte) (firstLen int, why string, seeked, isBin bool, err error) {
+// only buf (FrameBytes) and caller-owned hs, so no per-file MiB buffer or
+// per-file scanner is allocated (ADR 0109). When the file fits in buf or its
+// first part already shows a binary file, it returns with buf[:firstLen] ready
+// to stream and seeked == false (with eof true when the whole file fit in buf).
+// Otherwise it reads up to MaxFileBytes into buf and returns seeked == true so
+// the caller can rewind f to 0 before streaming.
+func scanFileHead(ctx context.Context, f io.Reader, buf []byte, hs *headScan) (fileScan, error) {
 	n, err := io.ReadFull(f, buf)
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return 0, "", false, false, err
+		return fileScan{}, err
 	}
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || len(buf) >= MaxFileBytes {
+		eof := errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 		if isBinary(buf[:n]) {
-			return n, "", false, true, nil
+			return fileScan{firstLen: n, isBin: true, eof: eof}, nil
 		}
-		return n, whatItHolds(buf[:n]), false, false, nil
+		return fileScan{firstLen: n, why: whatItHolds(buf[:n]), eof: eof}, nil
 	}
 	if showsBinary(buf[:n]) {
-		return n, "", false, true, nil
+		return fileScan{firstLen: n, isBin: true}, nil
 	}
-	var hs headScan
+	hs.reset()
 	hs.feed(buf[:n])
 	total := n
+	seeked := false
 	for total < MaxFileBytes && !hs.binary {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return fileScan{seeked: seeked}, ctxErr
+		}
 		want := min(len(buf), MaxFileBytes-total)
 		m, rerr := io.ReadFull(f, buf[:want])
 		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
-			return 0, "", true, false, rerr
+			return fileScan{seeked: true}, rerr
 		}
 		if m > 0 {
 			seeked = true
@@ -451,11 +558,11 @@ func scanFileHead(f io.Reader, buf []byte) (firstLen int, why string, seeked, is
 			total += m
 		}
 		if errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF) {
-			return n, hs.why(false), seeked, hs.binary || hs.utf8CarryLen > 0, nil
+			return fileScan{firstLen: n, why: hs.why(false), seeked: seeked, isBin: hs.binary || hs.utf8CarryLen > 0, eof: !seeked}, nil
 		}
 	}
 	if hs.binary {
-		return n, "", seeked, true, nil
+		return fileScan{firstLen: n, seeked: seeked, isBin: true}, nil
 	}
 	// At MaxFileBytes with a trailing incomplete UTF-8 rune, peek one byte to
 	// tell whether the file continues (valid rune split by the cap) or ended.
@@ -464,11 +571,11 @@ func scanFileHead(f io.Reader, buf []byte) (firstLen int, why string, seeked, is
 		var one [1]byte
 		m, rerr := f.Read(one[:])
 		if rerr != nil && !errors.Is(rerr, io.EOF) {
-			return 0, "", seeked, false, rerr
+			return fileScan{seeked: seeked}, rerr
 		}
 		truncated = m > 0
 	}
-	return n, hs.why(truncated), seeked, !truncated && hs.utf8CarryLen > 0, nil
+	return fileScan{firstLen: n, why: hs.why(truncated), seeked: seeked, isBin: !truncated && hs.utf8CarryLen > 0}, nil
 }
 
 // showsBinary says whether the start of a file is enough to tell that isBinary
@@ -495,37 +602,105 @@ func heldBack(head []byte) string {
 	return whatItHolds(head)
 }
 
+// streamFileBody streams the remainder of f after its first chunk, checking
+// every part with scan (and dockerTOCTOU within MaxFileBytes when checkDocker)
+// before passing it to write.
+func streamFileBody(
+	ctx context.Context,
+	f io.Reader,
+	where string,
+	nextBuf func() []byte,
+	write func([]byte) error,
+	scan *keyScan,
+	dockerTOCTOU *headScan,
+	checkDocker bool,
+	headSeen int,
+) (*agentv1.FileRefusal, error) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		part := nextBuf()
+		n, err := f.Read(part)
+		if n > 0 {
+			if refusal := scan.check(where, part[:n]); refusal != nil {
+				return refusal, nil
+			}
+			if errors.Is(err, io.EOF) {
+				if refusal := scan.finish(where); refusal != nil {
+					return refusal, nil
+				}
+			}
+			if checkDocker && headSeen < MaxFileBytes {
+				take := min(n, MaxFileBytes-headSeen)
+				dockerTOCTOU.feedDocker(part[:take])
+				headSeen += take
+				if dockerTOCTOU.sawDocker() {
+					return refused(where, whyDockerCopy), nil
+				}
+			}
+			if werr := write(part[:n]); werr != nil {
+				return nil, werr
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			if n == 0 {
+				if refusal := scan.finish(where); refusal != nil {
+					return refusal, nil
+				}
+			}
+			return nil, nil
+		}
+		if err != nil {
+			return denied(where, err), nil
+		}
+	}
+}
+
 func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1.DownloadFileResult, error) {
 	buf := out.spare()
-	firstLen, why, seeked, isBin, err := scanFileHead(o.f, buf)
+	var hs headScan
+	sc, err := scanFileHead(ctx, o.f, buf, &hs)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
 	}
-	if why != "" {
-		return &agentv1.DownloadFileResult{Refusal: refused(o.where, why)}, nil
+	if sc.why != "" {
+		return &agentv1.DownloadFileResult{Refusal: refused(o.where, sc.why)}, nil
 	}
-	if seeked {
-		if _, err := o.f.Seek(0, io.SeekStart); err != nil {
-			return &agentv1.DownloadFileResult{Refusal: denied(o.where, err)}, nil
+	firstLen, eof := sc.firstLen, sc.eof
+	if sc.seeked {
+		if err := seekFile(o.f); err != nil {
+			return &agentv1.DownloadFileResult{Refusal: seekRefused(o.where, err)}, nil
 		}
 		n, rerr := io.ReadFull(o.f, buf)
 		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
 			return &agentv1.DownloadFileResult{Refusal: denied(o.where, rerr)}, nil
 		}
 		firstLen = n
+		eof = errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF)
 	}
-	scan := &keyScan{}
-	var dockerTOCTOU headScan
-	checkDocker := seeked && !isBin
+	var scan keyScan
+	checkDocker := sc.seeked && !sc.isBin
+	if checkDocker {
+		hs.reset()
+	}
 	headSeen := 0
 	if firstLen > 0 {
 		if refusal := scan.check(o.where, buf[:firstLen]); refusal != nil {
 			return &agentv1.DownloadFileResult{Refusal: refusal}, nil
 		}
+		if eof {
+			if refusal := scan.finish(o.where); refusal != nil {
+				return &agentv1.DownloadFileResult{Refusal: refusal}, nil
+			}
+		}
 		if checkDocker {
-			dockerTOCTOU.feedDocker(buf[:firstLen])
+			hs.feedDocker(buf[:firstLen])
 			headSeen += firstLen
-			if dockerTOCTOU.sawDocker() {
+			if hs.sawDocker() {
 				return &agentv1.DownloadFileResult{Refusal: refused(o.where, whyDockerCopy)}, nil
 			}
 		}
@@ -538,109 +713,24 @@ func (s *Server) sendFile(ctx context.Context, o *opened, out *frames) (*agentv1
 			return nil, err
 		}
 	}
-	// The rest a part at a time, each looked at before it goes, read straight into
-	// the part on its way.
-	for {
-		if err := ctx.Err(); err != nil {
+	if !eof {
+		refusal, err := streamFileBody(
+			ctx, o.f, o.where,
+			out.spare,
+			func(p []byte) error { return out.took(len(p)) },
+			&scan, &hs, checkDocker, headSeen,
+		)
+		if err != nil {
 			return nil, err
 		}
-		part := out.spare()
-		n, err := o.f.Read(part)
-		if n > 0 {
-			if refusal := scan.check(o.where, part[:n]); refusal != nil {
-				return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
-			}
-			if checkDocker && headSeen < MaxFileBytes {
-				take := min(n, MaxFileBytes-headSeen)
-				dockerTOCTOU.feedDocker(part[:take])
-				headSeen += take
-				if dockerTOCTOU.sawDocker() {
-					return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refused(o.where, whyDockerCopy)}, nil
-				}
-			}
-			if err := out.took(n); err != nil {
-				return nil, err
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: denied(o.where, err)}, nil
+		if refusal != nil {
+			return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal}, nil
 		}
 	}
 	if err := out.flush(); err != nil {
 		return nil, err
 	}
 	return &agentv1.DownloadFileResult{SentBytes: out.sent}, nil
-}
-
-// keyScan finds where a private key or a password hash starts in what's sent,
-// across parts, by the rules a read goes by in a file's first MiB: a PEM key's
-// first line on a line of its own, encrypted or not, or anywhere in binary data
-// followed by its body or encryption headers, and a line of a password file. It
-// keeps the start of the line a part ends in, as the next part goes on with it.
-type keyScan struct {
-	tail     []byte
-	line     []byte
-	afterNul nulLine
-}
-
-// lineHead is how much of a line's start keyScan keeps, which is all the line
-// rules look at.
-const lineHead = 512
-
-func (k *keyScan) check(where string, part []byte) *agentv1.FileRefusal {
-	why := ""
-	if len(k.tail) > 0 && len(part) > 0 {
-		var lookBuf [keyTail + keyTail*2]byte
-		n := copy(lookBuf[:], k.tail)
-		n += copy(lookBuf[n:], part[:min(len(part), keyTail*2)])
-		look := lookBuf[:n]
-		if bytes.Contains(look, beginKeyMark) && keyStarts().Match(look) {
-			why = whyPrivateKey
-		}
-	}
-	if why == "" && bytes.Contains(part, beginKeyMark) && keyStarts().Match(part) {
-		why = whyPrivateKey
-	}
-	if len(part) >= keyTail {
-		k.tail = append(k.tail[:0], part[len(part)-keyTail:]...)
-	} else if len(part) > 0 {
-		keep := min(len(k.tail), keyTail-len(part))
-		if keep < len(k.tail) {
-			copy(k.tail, k.tail[len(k.tail)-keep:])
-			k.tail = k.tail[:keep]
-		}
-		k.tail = append(k.tail, part...)
-	}
-	for rest := part; why == "" && len(rest) > 0; {
-		seg, more, ended := bytes.Cut(rest, []byte{'\n'})
-		rest = more
-		if k.afterNul.feed(seg, ended) {
-			why = whyHashes
-		}
-		if room := lineHead - len(k.line); room > 0 {
-			k.line = append(k.line, seg[:min(len(seg), room)]...)
-		}
-		// Most lines have neither's marks, and a large file has many lines.
-		switch {
-		case bytes.Contains(k.line, beginKeyMark) && holdsPrivateKey(k.line):
-			why = whyPrivateKey
-		case bytes.IndexByte(k.line, '$') >= 0 && textLine(k.line) && hashLine().Match(k.line):
-			why = whyHashes
-		}
-		if ended {
-			k.line = k.line[:0]
-		}
-	}
-	if why == "" {
-		return nil
-	}
-	return &agentv1.FileRefusal{
-		Kind: agentv1.FileRefusal_KIND_REFUSED, Path: where,
-		Message: where + " holds " + why + ", so the download stopped before it, and is cut short. Connect to the server over SSH to work with it",
-	}
 }
 
 func (s *Server) sendFolder(ctx context.Context, o *opened, out *frames) (*agentv1.DownloadFileResult, error) {
@@ -667,7 +757,10 @@ func (s *Server) sendFolder(ctx context.Context, o *opened, out *frames) (*agent
 		return nil, err
 	}
 	if refusal != nil {
-		return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut}, nil
+		return &agentv1.DownloadFileResult{SentBytes: out.sent, Refusal: refusal, LeftOut: a.leftOut, LeftOutPaths: slices.Clone(a.leftOutPaths)}, nil
+	}
+	if a.leftOut > 0 {
+		z.SetComment(leftOutComment(a.leftOut, a.leftOutPaths))
 	}
 	if err := z.Close(); err != nil {
 		return nil, err
@@ -675,19 +768,22 @@ func (s *Server) sendFolder(ctx context.Context, o *opened, out *frames) (*agent
 	if err := out.flush(); err != nil {
 		return nil, err
 	}
-	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut}, nil
+	return &agentv1.DownloadFileResult{SentBytes: out.sent, LeftOut: a.leftOut, LeftOutPaths: slices.Clone(a.leftOutPaths)}, nil
 }
 
 // archiver writes a folder or selection into a streaming zip archive, a file at a time.
 type archiver struct {
-	ctx        context.Context //nolint:containedctx // it lives as long as one archive
-	z          *zipWriter
-	g          *guard
-	root       string
-	buf        []byte
-	count      int
-	leftOut    uint64
-	onProgress func(entries, leftOut uint64)
+	ctx          context.Context //nolint:containedctx // it lives as long as one archive
+	z            *zipWriter
+	g            *guard
+	root         string
+	buf          []byte
+	scan         keyScan
+	hs           headScan
+	count        int
+	leftOut      uint64
+	leftOutPaths []string
+	onProgress   func(entries, leftOut uint64)
 }
 
 func (a *archiver) progress() {
@@ -696,14 +792,61 @@ func (a *archiver) progress() {
 	}
 }
 
+func (a *archiver) noteLeftOut(inside string) {
+	a.leftOut++
+	if len(a.leftOutPaths) < maxLeftOutPaths && inside != "" {
+		a.leftOutPaths = append(a.leftOutPaths, shortLeftOutPath(inside))
+	}
+	a.progress()
+}
+
+// shortLeftOutPath cleans inside and caps it to maxLeftOutPathBytes with a
+// middle ellipsis on UTF-8 rune boundaries so zip comments and job records stay
+// compact and valid UTF-8 even for deep paths.
+func shortLeftOutPath(inside string) string {
+	s := Printable(inside)
+	if len(s) <= maxLeftOutPathBytes {
+		return s
+	}
+	const ellipsis = "…"
+	budget := maxLeftOutPathBytes - len(ellipsis)
+	headMax := budget / 2
+	tailMax := budget - headMax
+	headEnd := headMax
+	for headEnd > 0 && !utf8.RuneStart(s[headEnd]) {
+		headEnd--
+	}
+	tailStart := len(s) - tailMax
+	for tailStart < len(s) && !utf8.RuneStart(s[tailStart]) {
+		tailStart++
+	}
+	if headEnd >= tailStart {
+		return s
+	}
+	return s[:headEnd] + ellipsis + s[tailStart:]
+}
+
+func leftOutComment(total uint64, paths []string) string {
+	if total == 0 {
+		return ""
+	}
+	if len(paths) == 0 {
+		return fmt.Sprintf("Left out: %d", total)
+	}
+	listed := strings.Join(paths, ", ")
+	if uint64(len(paths)) < total {
+		return fmt.Sprintf("Left out (%d), including: %s", total, listed)
+	}
+	return fmt.Sprintf("Left out (%d): %s", total, listed)
+}
+
 // folder adds what's in the folder fd (at diskDir on disk, as rel inside the
 // archive), at place in Docker's data, on the filesystem dev. Keeping diskDir
 // separate from rel ensures credential rules match the true disk path even when
 // rel starts with the selected folder's name.
 func (a *archiver) folder(fd int, diskDir, rel string, at place, dev uint64, depth int) (*agentv1.FileRefusal, error) {
 	if depth > maxDepth {
-		a.leftOut++
-		a.progress()
+		a.noteLeftOut(rel)
 		return nil, nil // deeper than a removal goes: left out
 	}
 	dup, err := unix.Dup(fd)
@@ -741,30 +884,26 @@ func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint
 	if rel != "" {
 		inside = rel + "/" + name
 	}
-	// What a read refuses stays out, and is counted.
+	// What a read refuses stays out, and is counted and listed.
 	into, why := a.g.enter(at, name, &st)
 	if why != "" || checkCredentials(where) != "" {
-		a.leftOut++
-		a.progress()
+		a.noteLeftOut(inside)
 		return nil, nil
 	}
 	switch st.Mode & unix.S_IFMT {
 	case unix.S_IFDIR:
 		if st.Dev != dev {
-			a.leftOut++
-			a.progress()
+			a.noteLeftOut(inside)
 			return nil, nil // another filesystem, mounted here: left out
 		}
 		fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 		if err != nil {
-			a.leftOut++
-			a.progress()
+			a.noteLeftOut(inside)
 			return nil, nil
 		}
 		defer unix.Close(fd)
 		if !sameAs(fd, &st, unix.S_IFDIR) {
-			a.leftOut++
-			a.progress()
+			a.noteLeftOut(inside)
 			return nil, nil // it changed as it was opened: left out
 		}
 		a.count++
@@ -782,8 +921,7 @@ func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint
 	case unix.S_IFREG:
 		fd, err := unix.Openat(parent, name, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
 		if err != nil {
-			a.leftOut++
-			a.progress()
+			a.noteLeftOut(inside)
 			return nil, nil
 		}
 		f := os.NewFile(uintptr(fd), where)
@@ -791,89 +929,122 @@ func (a *archiver) add(parent int, diskDir, rel, name string, at place, dev uint
 		// What was checked is what's read: a FIFO or a device put in its place
 		// between the two is left out, as one there before is.
 		if !sameAs(fd, &st, unix.S_IFREG) {
-			a.leftOut++
-			a.progress()
+			a.noteLeftOut(inside)
 			return nil, nil
 		}
-		firstLen, why, seeked, isBin, err := scanFileHead(f, a.buf)
-		if err != nil || why != "" {
-			a.leftOut++
-			a.progress()
+		return a.addFile(f, where, inside, &st)
+	}
+	// A link, a socket, a device: left out, counted and listed.
+	a.noteLeftOut(inside)
+	return nil, nil
+}
+
+// addFile scans a file's start (first part for binaries, first MiB for text)
+// before creating its zip entry, leaving out files that trip the check without
+// writing a byte of them. Binaries and files <= FrameBytes are read once with
+// no rewind; text files over FrameBytes scan their first MiB, rewind, and
+// stream with a TOCTOU check. If a key or hash appears past the initial scan,
+// the archive stops before it goes in.
+func (a *archiver) addFile(f *os.File, where, inside string, st *unix.Stat_t) (*agentv1.FileRefusal, error) {
+	sc, err := scanFileHead(a.ctx, f, a.buf, &a.hs)
+	if err != nil {
+		if a.ctx.Err() != nil {
+			return nil, a.ctx.Err()
+		}
+		a.noteLeftOut(inside)
+		return nil, nil
+	}
+	if sc.why != "" {
+		a.noteLeftOut(inside)
+		return nil, nil
+	}
+	firstLen, eof := sc.firstLen, sc.eof
+	if sc.seeked {
+		if err := seekFile(f); err != nil {
+			a.noteLeftOut(inside)
+			return nil, nil //nolint:nilerr // non-seekable text file over FrameBytes is left out of the archive
+		}
+		n, rerr := io.ReadFull(f, a.buf)
+		if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
+			a.noteLeftOut(inside)
 			return nil, nil
 		}
-		if seeked {
-			if _, err := f.Seek(0, io.SeekStart); err != nil {
-				a.leftOut++
-				a.progress()
+		firstLen = n
+		eof = errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF)
+	}
+	a.scan.reset()
+	checkDocker := sc.seeked && !sc.isBin
+	if checkDocker {
+		a.hs.reset()
+	}
+	headSeen := 0
+	if firstLen > 0 {
+		if a.scan.scan(a.buf[:firstLen], true) != "" || (eof && a.scan.finishWhy(true) != "") {
+			a.noteLeftOut(inside)
+			return nil, nil
+		}
+		if checkDocker {
+			a.hs.feedDocker(a.buf[:firstLen])
+			headSeen += firstLen
+			if a.hs.sawDocker() {
+				a.noteLeftOut(inside)
 				return nil, nil
 			}
-			n, rerr := io.ReadFull(f, a.buf)
-			if rerr != nil && !errors.Is(rerr, io.EOF) && !errors.Is(rerr, io.ErrUnexpectedEOF) {
-				a.leftOut++
-				a.progress()
-				return nil, nil
-			}
-			firstLen = n
 		}
-		scan := &keyScan{}
-		var dockerTOCTOU headScan
-		checkDocker := seeked && !isBin
-		headSeen := 0
-		if firstLen > 0 {
-			if refusal := scan.check(where, a.buf[:firstLen]); refusal != nil {
-				return refusal, nil
-			}
-			if checkDocker {
-				dockerTOCTOU.feedDocker(a.buf[:firstLen])
-				headSeen += firstLen
-				if dockerTOCTOU.sawDocker() {
-					return refused(where, whyDockerCopy), nil
-				}
-			}
+	}
+	return a.writeFileEntry(f, where, inside, st, a.buf, firstLen, eof, &a.scan, &a.hs, checkDocker, headSeen)
+}
+
+func (a *archiver) packPreflightedFile(pf *preflightedFile) (*agentv1.FileRefusal, error) {
+	a.root = pf.o.where
+	return a.writeFileEntry(pf.o.f, pf.o.where, pf.name, &pf.o.w.st, pf.buf, pf.firstLen, pf.eof, &pf.scan, &pf.docker, pf.checkDocker, pf.headSeen)
+}
+
+func (a *archiver) writeFileEntry(
+	f *os.File,
+	where, inside string,
+	st *unix.Stat_t,
+	buf []byte,
+	firstLen int,
+	eof bool,
+	scan *keyScan,
+	dockerTOCTOU *headScan,
+	checkDocker bool,
+	headSeen int,
+) (*agentv1.FileRefusal, error) {
+	a.count++
+	if a.count > maxArchived {
+		return &agentv1.FileRefusal{
+			Kind: agentv1.FileRefusal_KIND_REFUSED, Path: a.root,
+			Message: fmt.Sprintf("%s holds more than %d files and folders, so the archive stopped. Choose a smaller folder, or use SSH", a.root, maxArchived),
+		}, nil
+	}
+	w, err := a.z.Create(inside, time.Unix(st.Mtim.Unix()), fs.FileMode(st.Mode&0o777), zipDeflated)
+	if err != nil {
+		return nil, err
+	}
+	if firstLen > 0 {
+		if _, err := w.Write(buf[:firstLen]); err != nil {
+			return nil, err
 		}
-		a.count++
-		if a.count > maxArchived {
-			return &agentv1.FileRefusal{
-				Kind: agentv1.FileRefusal_KIND_REFUSED, Path: a.root,
-				Message: fmt.Sprintf("%s holds more than %d files and folders, so the archive stopped. Choose a smaller folder, or use SSH", a.root, maxArchived),
-			}, nil
-		}
-		w, err := a.z.Create(inside, time.Unix(st.Mtim.Unix()), fs.FileMode(st.Mode&0o777), zipDeflated)
+	}
+	if !eof {
+		refusal, err := streamFileBody(
+			a.ctx, f, where,
+			func() []byte { return buf },
+			func(p []byte) error {
+				_, werr := w.Write(p)
+				return werr
+			},
+			scan, dockerTOCTOU, checkDocker, headSeen,
+		)
 		if err != nil {
 			return nil, err
 		}
-		if firstLen > 0 {
-			if _, err := w.Write(a.buf[:firstLen]); err != nil {
-				return nil, err
-			}
+		if refusal != nil {
+			return refusal, nil
 		}
-		for {
-			m, rerr := f.Read(a.buf)
-			if m > 0 {
-				if refusal := scan.check(where, a.buf[:m]); refusal != nil {
-					return refusal, nil
-				}
-				if checkDocker && headSeen < MaxFileBytes {
-					take := min(m, MaxFileBytes-headSeen)
-					dockerTOCTOU.feedDocker(a.buf[:take])
-					headSeen += take
-					if dockerTOCTOU.sawDocker() {
-						return refused(where, whyDockerCopy), nil
-					}
-				}
-				if _, werr := w.Write(a.buf[:m]); werr != nil {
-					return nil, werr
-				}
-			}
-			if m == 0 && rerr != nil {
-				break
-			}
-		}
-		a.progress()
-		return nil, nil
 	}
-	// A link, a socket, a device: left out, and counted.
-	a.leftOut++
 	a.progress()
 	return nil, nil
 }
@@ -926,62 +1097,4 @@ func (f *frames) flush() error {
 	// A send has marshalled the part by the time it returns, so the buffer is free.
 	f.buf = f.buf[:0]
 	return nil
-}
-
-// textLine says whether a line's start reads as text: UTF-8 with no control
-// bytes but tabs and a carriage return. A password file is text, and a run of
-// random bytes in an image or an archive that happens to look like one of its
-// lines isn't (CI on #921: random 2 MiB files tripped hashLine). The start is
-// cut at lineHead, so a rune cut there still counts as text.
-func textLine(line []byte) bool {
-	for _, b := range line {
-		if b < 0x20 && b != '\t' && b != '\r' || b == 0x7f {
-			return false
-		}
-	}
-	if utf8.Valid(line) {
-		return true
-	}
-	if len(line) < lineHead {
-		return false
-	}
-	for cut := 1; cut < utf8.UTFMax && cut < len(line); cut++ {
-		if utf8.Valid(line[:len(line)-cut]) {
-			return true
-		}
-	}
-	return false
-}
-
-// nulLine keeps the text of a line after its last NUL: a password file's first
-// line, inside a tar, starts right after its member header's NUL padding, which
-// the line before it never ends with a newline (the key-scan review's M1). It's
-// read as a password file's line only when it reads as text, so binary data
-// that holds a NUL isn't mistaken for one.
-type nulLine struct {
-	buf   [lineHead]byte
-	n     int
-	after bool
-}
-
-// feed takes a newline-free segment of a line, and whether the line ends with
-// it, and says whether the text after the line's last NUL is a hash line.
-func (l *nulLine) feed(seg []byte, ended bool) bool {
-	if i := bytes.LastIndexByte(seg, 0); i >= 0 {
-		l.n, l.after, seg = 0, true, seg[i+1:]
-	}
-	if l.after {
-		l.n += copy(l.buf[l.n:], seg)
-	}
-	if !ended {
-		return false
-	}
-	found := l.after && holdsHashLine(l.buf[:l.n])
-	l.n, l.after = 0, false
-	return found
-}
-
-// holdsHashLine says whether a line reads as text and is a password file's line.
-func holdsHashLine(line []byte) bool {
-	return bytes.IndexByte(line, '$') >= 0 && textLine(line) && hashLine().Match(line)
 }

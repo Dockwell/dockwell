@@ -1037,6 +1037,8 @@ message ArchiveJob {
   google.protobuf.Timestamp finish_time = 18;
   // Expected bytes for a URL download, or zero if the length is unknown.
   uint64 total_bytes = 19;
+  // For compress: archive paths left out (first 10 when many).
+  repeated string left_out_paths = 20;
 }
 
 // FileType says what an entry in a directory is.
