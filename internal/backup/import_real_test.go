@@ -75,7 +75,7 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 		userDriver := &engines.UserDriver{Client: client, Dir: dbDir, Wait: time.Minute, Every: time.Second}
 		userRef := resource.Ref{Kind: engines.UserKind, Scope: env, Name: "shop"}
 		userSpec := &resourcev1.DatabaseUser{Service: "pg", Password: "SHOP_PASSWORD"}
-		applyCtx := resource.WithValues(t.Context(), map[string]string{"secret:SHOP_PASSWORD": "shop-app-secret"})
+		applyCtx := resource.WithValues(t.Context(), map[string]string{"PASSWORD": "shop-app-secret"})
 		if err := userDriver.Apply(applyCtx, resource.Step{Ref: userRef, Action: resource.ActionCreate}, userSpec); err != nil {
 			t.Fatalf("UserDriver create shop: %v", err)
 		}
@@ -290,7 +290,7 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 		userDriver := &engines.UserDriver{Client: client, Dir: dbDir, Wait: time.Minute, Every: time.Second}
 		userRef := resource.Ref{Kind: engines.UserKind, Scope: env, Name: "shop"}
 		userSpec := &resourcev1.DatabaseUser{Service: "maria", Password: "SHOP_PASSWORD"}
-		applyCtx := resource.WithValues(t.Context(), map[string]string{"secret:SHOP_PASSWORD": "shop-app-secret"})
+		applyCtx := resource.WithValues(t.Context(), map[string]string{"PASSWORD": "shop-app-secret"})
 		if err := userDriver.Apply(applyCtx, resource.Step{Ref: userRef, Action: resource.ActionCreate}, userSpec); err != nil {
 			t.Fatalf("UserDriver create MariaDB shop: %v", err)
 		}
