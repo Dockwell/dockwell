@@ -5,9 +5,12 @@ package database
 import (
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
@@ -27,6 +30,7 @@ func TestLogicalDriverPostgresLifecycleKeepsOwner(t *testing.T) {
 	dumpFail := false
 	dumpData := "CREATE TABLE reports_tbl (id int);\n"
 	restoredSQL := ""
+	activeUsers := ""
 	e.AddLocalImage("postgres:17", dockertest.Image{
 		Config: docker.Config{Cmd: []string{"postgres"}},
 		Exec: func(x dockertest.Exec) int {
@@ -51,6 +55,10 @@ func TestLogicalDriverPostgresLifecycleKeepsOwner(t *testing.T) {
 			sql := string(raw)
 			if strings.Contains(script, `-d "$d"`) {
 				restoredSQL = sql
+				return 0
+			}
+			if strings.Contains(sql, "SELECT DISTINCT usename FROM pg_stat_activity") {
+				_, _ = io.WriteString(x.Stdout, activeUsers)
 				return 0
 			}
 			if strings.Contains(sql, "'login', r.rolcanlogin") {
@@ -150,9 +158,17 @@ func TestLogicalDriverPostgresLifecycleKeepsOwner(t *testing.T) {
 		t.Fatalf("Observe = %v, %v", got, err)
 	}
 
+	// H3: Delete is refused at Judge while active sessions are connected.
+	activeUsers = "alice\n"
+	if _, err := d.Judge(t.Context(), ref, desired, nil, nil); err == nil || !strings.Contains(err.Error(), "active connections from alice") {
+		t.Fatalf("H3: Judge delete with active session = %v, want refusal naming alice", err)
+	}
+	activeUsers = ""
+
 	// H4: if pre-delete backup fails, Delete is refused and database stays untouched.
+	delCtx1 := resource.WithDeploy(t.Context(), resource.Deploy{Change: "chg_del_1"})
 	dumpFail = true
-	if err := d.Apply(t.Context(), resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err == nil {
+	if err := d.Apply(delCtx1, resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err == nil {
 		t.Fatal("H4: Delete succeeded even though backup failed")
 	}
 	if _, exists := dbs["analytics"]; !exists {
@@ -160,13 +176,13 @@ func TestLogicalDriverPostgresLifecycleKeepsOwner(t *testing.T) {
 	}
 	dumpFail = false
 
-	// H4: Delete backs up first, drops database, keeps role, and Undo restores that backup.
+	// H4/N3/N4: Delete backs up keyed to chg_del_1, drops database, keeps role.
 	delDec, err := d.Judge(t.Context(), ref, desired, nil, nil)
 	if err != nil || delDec.Action != resource.ActionDelete || !delDec.Destroys {
 		t.Fatalf("Judge delete = %v, %v", delDec, err)
 	}
-	if err := d.Apply(t.Context(), resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err != nil {
-		t.Fatalf("Apply delete: %v", err)
+	if err := d.Apply(delCtx1, resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err != nil {
+		t.Fatalf("Apply delete 1: %v", err)
 	}
 	if _, exists := dbs["analytics"]; exists {
 		t.Fatal("analytics database still exists after delete")
@@ -174,15 +190,89 @@ func TestLogicalDriverPostgresLifecycleKeepsOwner(t *testing.T) {
 	if !roles["alice"] {
 		t.Fatal("owner role alice should remain after logical database delete")
 	}
-	undoDec, err := d.Judge(t.Context(), ref, nil, desired, nil)
-	if err != nil || undoDec.Action != resource.ActionCreate || !undoDec.Restores {
-		t.Fatalf("H4: Judge after delete = %+v, %v, want ActionCreate with Restores=true", undoDec, err)
+
+	// N3: A plain New database / reinstall with the same name (no Undoes) must NOT restore backup A.
+	plainDec, err := d.Judge(t.Context(), ref, nil, desired, nil)
+	if err != nil || plainDec.Action != resource.ActionCreate || plainDec.Restores {
+		t.Fatalf("N3: plain Judge after delete = %+v, %v, want ActionCreate with Restores=false", plainDec, err)
 	}
-	if err := d.Apply(t.Context(), resource.Step{Ref: ref, Decision: undoDec}, desired); err != nil {
-		t.Fatalf("H4: Apply undo create+restore: %v", err)
+	restoredSQL = ""
+	if err := d.Apply(t.Context(), resource.Step{Ref: ref, Decision: plainDec}, desired); err != nil {
+		t.Fatalf("N3: plain Apply create after delete: %v", err)
+	}
+	if restoredSQL != "" {
+		t.Fatalf("N3: plain create unexpectedly restored deleted backup: %q", restoredSQL)
+	}
+
+	// N4: A second delete (chg_del_2) keeps its own backup B without overwriting chg_del_1's backup A.
+	dumpData = "CREATE TABLE second_version (id int);\n"
+	delCtx2 := resource.WithDeploy(t.Context(), resource.Deploy{Change: "chg_del_2"})
+	if err := d.Apply(delCtx2, resource.Step{Ref: ref, Action: resource.ActionDelete}, nil); err != nil {
+		t.Fatalf("Apply delete 2: %v", err)
+	}
+
+	// Undo of chg_del_1 specifically restores backup A (reports_tbl), not backup B!
+	undoCtx1 := resource.WithDeploy(t.Context(), resource.Deploy{Undoes: "chg_del_1"})
+	undoDec1, err := d.Judge(undoCtx1, ref, nil, desired, nil)
+	if err != nil || undoDec1.Action != resource.ActionCreate || !undoDec1.Restores {
+		t.Fatalf("H4/N3: Judge undo chg_del_1 = %+v, %v, want ActionCreate with Restores=true", undoDec1, err)
+	}
+	if err := d.Apply(undoCtx1, resource.Step{Ref: ref, Decision: undoDec1}, desired); err != nil {
+		t.Fatalf("H4/N3: Apply undo chg_del_1: %v", err)
 	}
 	if !strings.Contains(restoredSQL, "CREATE TABLE reports_tbl (id int);") {
-		t.Errorf("H4: Undo did not restore deleted backup SQL; got %q", restoredSQL)
+		t.Errorf("N4: Undo of chg_del_1 restored wrong backup; got %q", restoredSQL)
+	}
+	// Backup B for chg_del_2 is still intact.
+	if !hasDeletedBackup(d.Dir, time.Now(), "chg_del_2", ref.Scope, "db", "analytics") {
+		t.Error("N4: chg_del_2 backup disappeared after undoing chg_del_1")
+	}
+}
+
+func TestPruneDeletedBackupsRemovesCrashLeftovers(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deletedDir := deletedBackupsDir(dir)
+	if err := os.MkdirAll(deletedDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
+	oldTime := now.Add(-2 * time.Hour)
+	freshTime := now.Add(-10 * time.Minute)
+
+	// Crash leftover .tmp and orphan .sql.gz older than 1 hour -> pruned.
+	oldTmp := filepath.Join(deletedDir, "deadbeef.sql.gz.tmp")
+	oldOrphan := filepath.Join(deletedDir, "orphan123456.sql.gz")
+	// Fresh .tmp and orphan .sql.gz younger than 1 hour -> kept (might be in flight).
+	freshTmp := filepath.Join(deletedDir, "inflight.sql.gz.tmp")
+	freshOrphan := filepath.Join(deletedDir, "fresh123456.sql.gz")
+	for _, p := range []string{oldTmp, oldOrphan, freshTmp, freshOrphan} {
+		if err := os.WriteFile(p, []byte("data"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{oldTmp, oldOrphan} {
+		if err := os.Chtimes(p, oldTime, oldTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{freshTmp, freshOrphan} {
+		if err := os.Chtimes(p, freshTime, freshTime); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := PruneDeletedBackups(dir, now); err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{oldTmp, oldOrphan} {
+		if _, err := os.Stat(gone); !os.IsNotExist(err) {
+			t.Errorf("N4: old leftover %s was not pruned", filepath.Base(gone))
+		}
+	}
+	for _, kept := range []string{freshTmp, freshOrphan} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Errorf("N4: recent file %s was pruned too early: %v", filepath.Base(kept), err)
+		}
 	}
 }
 

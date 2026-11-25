@@ -228,6 +228,10 @@ func (s *pgState) image() dockertest.Image {
 	return dockertest.Image{
 		Volumes: []string{"/var/lib/postgresql/data"}, Config: docker.Config{Cmd: []string{"postgres"}},
 		Exec: func(x dockertest.Exec) int {
+			if len(x.Cmd) >= 2 && x.Cmd[0] == "psql" && x.Cmd[1] == "-V" {
+				_, _ = io.WriteString(x.Stdout, "psql (PostgreSQL) 17.6\n")
+				return 0
+			}
 			// Anyone signing in from another host needs a password, as the official
 			// image's pg_hba.conf has it.
 			if script := strings.Join(x.Cmd, " "); strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1") && x.Cmd[len(x.Cmd)-2] != "127.0.0.1" {

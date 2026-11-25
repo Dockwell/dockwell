@@ -246,6 +246,11 @@ type Load struct {
 	Prelude                  string
 	// LockTimeout bounds how long statements wait on locks (e.g. "30s").
 	LockTimeout string
+	// RequireRefusals refuses to load when the image's client lacks a built-in
+	// client-command refusal guard (\restrict on psql, --sandbox or
+	// --skip-system-command on MariaDB/MySQL) so the SQL pre-scanner is never
+	// the only guard on untrusted dump imports (N1).
+	RequireRefusals bool
 }
 
 // LoadError is a load the server's client stopped, with what it said.
@@ -280,7 +285,10 @@ func (ld Loader) Load(ctx context.Context, l Load, dump io.Reader) error {
 		return fmt.Errorf("%s lets anyone on its networks sign in as its administrator with no password, so a dump loaded into it could take the whole server, and nothing was loaded. "+
 			"Have it ask for passwords, as POSTGRES_HOST_AUTH_METHOD=scram-sha-256 or a root password does, then try again", serviceOf(to))
 	}
-	first, options := ld.refusals(ctx, to, e)
+	first, options, refuseErr := ld.refusalsWithReason(ctx, to, e)
+	if l.RequireRefusals && refuseErr != nil {
+		return refuseErr
+	}
 	cmd := append(slices.Clone(load), l.User, l.Database, port, addr)
 	cmd = append(cmd, options...)
 	prelude := l.Prelude
@@ -513,31 +521,65 @@ func envOf(env []string, name string) string {
 	return ""
 }
 
-// refusals is what the new server's client is told to refuse client commands
-// with: a first line for psql, from 17.6, 16.10, 15.14, 14.19 and 13.22 on, which
-// takes no backslash command after it but one with a key no dump can know, or
-// options for a MySQL or MariaDB client that has them.
-func (ld Loader) refusals(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string) {
+// CheckClientRefusals verifies that to's database client can refuse client
+// commands on its own:
+//   - PostgreSQL: psql -X (--no-psqlrc) plus \restrict (13.22+, 14.19+, 15.14+, 16.10+, 17.6+, 18+)
+//   - MariaDB: --sandbox (10.5.25+, 10.6.18+, 10.11.8+, 11.4.2+) or --skip-system-command
+//   - MySQL: --skip-system-command (8.0.21+, 8.4+, 9.x) or --sandbox
+func (ld Loader) CheckClientRefusals(ctx context.Context, to *docker.Container, e *Engine) error {
+	_, _, err := ld.refusalsWithReason(ctx, to, e)
+	return err
+}
+
+// refusalsWithReason is what the new server's client is told to refuse client
+// commands with: a first line for psql, from 17.6, 16.10, 15.14, 14.19 and 13.22
+// on, which takes no backslash command after it but one with a key no dump can
+// know (alongside -X / --no-psqlrc in loadOne), or options for a MySQL (8.0.21+)
+// or MariaDB (10.5.25+/10.6.18+/10.11.8+/11.4.2+) client that has them.
+func (ld Loader) refusalsWithReason(ctx context.Context, to *docker.Container, e *Engine) (first string, options []string, unsupported error) {
 	said := &capped{max: 256 << 10}
 	if code, err := ld.Client.Exec(ctx, to.ID, clientSays[e.Kind], docker.Streams{Stdin: strings.NewReader(""), Stdout: said}); err != nil || code != 0 {
-		return "", nil
+		return "", nil, fmt.Errorf("can't check whether the %s client in %s can refuse client commands, so a dump isn't imported", e.Name, to.Config.Image)
 	}
+	out := said.String()
 	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
-		if restricts(said.String()) {
-			return `\restrict ` + randomHex(16) + "\n", nil
+		if restricts(out) {
+			return `\restrict ` + randomHex(16) + "\n", nil, nil
 		}
-		return "", nil
+		return "", nil, fmt.Errorf("psql in %s can't refuse client commands, so a dump could run them. Update the image to %s or later", to.Config.Image, pgMinRestrictRelease(out))
 	}
-	if strings.Contains(said.String(), "--sandbox") {
+	hasGuard := false
+	if strings.Contains(out, "--sandbox") {
 		options = append(options, "--sandbox")
+		hasGuard = true
 	}
-	if strings.Contains(said.String(), "--system-command") {
+	if strings.Contains(out, "--system-command") {
 		options = append(options, "--skip-system-command")
+		hasGuard = true
 	}
-	if strings.Contains(said.String(), "--init-command") {
+	if strings.Contains(out, "--init-command") {
 		options = append(options, "--init-command=SET SESSION lock_wait_timeout=30")
 	}
-	return "", options
+	if !hasGuard {
+		if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB {
+			return "", options, fmt.Errorf("the MariaDB client in %s doesn't support --sandbox, so a dump could run client commands. Update the image to MariaDB 10.5.25, 10.6.18, 10.11.8, 11.4.2 or later", to.Config.Image)
+		}
+		return "", options, fmt.Errorf("the MySQL client in %s doesn't support --skip-system-command, so a dump could run shell commands. Update the image to MySQL 8.0.21 or later", to.Config.Image)
+	}
+	return "", options, nil
+}
+
+// pgMinRestrictRelease returns the minimum patched release for the major version
+// reported by psql -V that supports \restrict.
+func pgMinRestrictRelease(version string) string {
+	fixed := map[int]string{17: "17.6", 16: "16.10", 15: "15.14", 14: "14.19", 13: "13.22"}
+	if m := psqlRelease().FindStringSubmatch(version); m != nil {
+		major, _ := strconv.Atoi(m[1])
+		if target, ok := fixed[major]; ok {
+			return target
+		}
+	}
+	return "13.22"
 }
 
 // restricts reports a psql that takes \restrict, as psql -V says its release.

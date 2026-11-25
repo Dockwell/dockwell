@@ -2407,13 +2407,14 @@ describe("how a database is backed up (#793)", () => {
     }
   });
 
-  it("disables external connection string copy when the server has no public address (L4)", async () => {
+  it("disables external connection string copy when the server has no public address using shown server name (L4, N8)", async () => {
     const user = userEvent.setup();
     const dbExternal = aDatabase({
       id: "svc_ext_noaddr",
       resource: { kind: "service", scope: ENV, name: "extnoaddr" },
       host: "extnoaddr",
       externalAccess: { port: 5432, allowFrom: ["203.0.113.7"] },
+      readings: [{ serverId: SERVER, serverName: "raw-host-id" }],
     });
     const watch = feed<WatchServersResponse>();
     watch.push(changed(aServer({ id: SERVER, name: "hz-1", inventory: { addresses: [] } })), snapshotComplete);
@@ -2424,5 +2425,98 @@ describe("how a database is backed up (#793)", () => {
     const extCopy = await screen.findByRole("menuitem", { name: /^Copy external connection string/ });
     expect(extCopy).toHaveAttribute("aria-disabled", "true");
     expect(extCopy).toHaveTextContent("No public address known for hz-1");
+    expect(extCopy).not.toHaveTextContent("raw-host-id");
+  });
+
+  it("leaves an applying import alone when leaving the page (N5)", async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    const canceledCalls: { id: string; importId: string }[] = [];
+    const discardedCalls: string[] = [];
+    const appliedCalls: string[] = [];
+
+    const OrigXHR = globalThis.XMLHttpRequest;
+    class FakeXHR {
+      status = 200;
+      responseText = "";
+      upload: { onprogress?: (e: { loaded: number }) => void } = {};
+      onload?: () => void;
+      onerror?: () => void;
+      onabort?: () => void;
+      open() {}
+      setRequestHeader() {}
+      getResponseHeader() {
+        return null;
+      }
+      abort() {
+        this.onabort?.();
+      }
+      send(body: Blob) {
+        this.upload.onprogress?.({ loaded: body.size });
+        this.responseText = JSON.stringify({
+          importId: "imp_01APPLYINGIMPORT12",
+          offset: String(body.size),
+          sizeBytes: String(body.size),
+          complete: true,
+        });
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    globalThis.XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest;
+
+    try {
+      const db = aDatabase();
+      const base = api([db]);
+      const planned = webPlanned();
+      const applying = { ...planned, state: ChangeState.APPLYING };
+      const { router } = renderAt("/databases/svc_db/databases", {
+        ...base,
+        databases: {
+          ...base.databases,
+          beginDatabaseImport: () => ({
+            importId: "imp_01APPLYINGIMPORT12",
+            offset: 0n,
+            partBytes: 8_388_608n,
+            maxBytes: 17_179_869_184n,
+            serverId: SERVER,
+            format: "sql",
+          }),
+          planDatabaseImport: () => ({ change: planned }),
+          cancelDatabaseImport: (req) => {
+            canceledCalls.push({ id: req.id, importId: req.importId });
+            return {};
+          },
+        },
+        changes: {
+          watchChange: feed<WatchChangeResponse>().stream,
+          applyChange: (req) => {
+            appliedCalls.push(req.id);
+            return { change: applying };
+          },
+          discardChange: (req) => {
+            discardedCalls.push(req.id);
+            return {};
+          },
+        },
+      });
+
+      await user.click(await screen.findByRole("button", { name: "Import dump" }));
+      const dialog = await screen.findByRole("dialog", { name: "Import dump into db" });
+      const fileInput = within(dialog).getByLabelText("Dump file") as HTMLInputElement;
+      const sqlFile = new File(["CREATE TABLE t(id int);"], "seed.sql", { type: "application/sql" });
+      await user.upload(fileInput, sqlFile);
+      await user.click(within(dialog).getByRole("button", { name: "Upload and review plan" }));
+
+      const planDialog = await screen.findByRole("dialog", { name: "Review plan" });
+      await user.click(within(planDialog).getByRole("button", { name: /Apply plan/ }));
+      await waitFor(() => expect(appliedCalls).toEqual([planned.id]));
+
+      // Navigate away while the import is applying: sheet unmounts and must NOT cancel or discard.
+      await router.navigate({ to: "/databases" });
+      await waitFor(() => expect(screen.queryByRole("dialog", { name: "Review plan" })).not.toBeInTheDocument());
+      expect(discardedCalls).toEqual([]);
+      expect(canceledCalls).toEqual([]);
+    } finally {
+      globalThis.XMLHttpRequest = OrigXHR;
+    }
   });
 });

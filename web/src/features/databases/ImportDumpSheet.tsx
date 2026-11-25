@@ -79,6 +79,8 @@ export function ImportDumpSheet({
   const abortRef = useRef<AbortController | null>(null);
   const stagedIdRef = useRef<string>("");
   const plannedChangeIdRef = useRef<string>("");
+  const changeStateRef = useRef<ChangeState | undefined>(undefined);
+  const applyingRef = useRef(false);
   const transportRef = useRef(transport);
   transportRef.current = transport;
   const mayCancelRef = useRef(mayCancel.allowed);
@@ -105,15 +107,33 @@ export function ImportDumpSheet({
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
-      if (plannedChangeIdRef.current) discardPlanned(plannedChangeIdRef.current);
+      // Never cancel or discard an import once Apply has started or finished (N5).
+      if (applyingRef.current) return;
+      const state = changeStateRef.current;
+      if (state === ChangeState.APPLYING || state === ChangeState.APPLIED) return;
+      if (plannedChangeIdRef.current) {
+        if (!state || state === ChangeState.PLANNED) {
+          discardPlanned(plannedChangeIdRef.current);
+          if (stagedIdRef.current) cancelStaged(stagedIdRef.current);
+        }
+        return;
+      }
       if (stagedIdRef.current) cancelStaged(stagedIdRef.current);
     };
   }, [cancelStaged, discardPlanned]);
 
   const handleClose = () => {
     abortRef.current?.abort();
-    if (plannedChangeIdRef.current) discardPlanned(plannedChangeIdRef.current);
-    if (stagedIdRef.current) cancelStaged(stagedIdRef.current);
+    const state = changeStateRef.current;
+    const active = applyingRef.current || state === ChangeState.APPLYING || state === ChangeState.APPLIED;
+    if (!active) {
+      if (plannedChangeIdRef.current && (!state || state === ChangeState.PLANNED)) {
+        discardPlanned(plannedChangeIdRef.current);
+      }
+      if (stagedIdRef.current && (!plannedChangeIdRef.current || !state || state === ChangeState.PLANNED)) {
+        cancelStaged(stagedIdRef.current);
+      }
+    }
     onClose();
   };
 
@@ -192,31 +212,51 @@ export function ImportDumpSheet({
       const planned = await client.planDatabaseImport({ id: db.id, importId }, { signal: controller.signal });
       const change: Change | undefined = planned.change;
       plannedChangeIdRef.current = change?.id ?? "";
+      changeStateRef.current = change?.state ?? ChangeState.PLANNED;
+      applyingRef.current = false;
       setUploading(false);
       abortRef.current = null;
       setPlan({
         kind: "plan",
         make: () => Promise.resolve({ change }),
         retryLabel: t`Choose another file`,
+        onApplying: () => {
+          applyingRef.current = true;
+          changeStateRef.current = ChangeState.APPLYING;
+        },
+        onChange: (next) => {
+          if (!next) return;
+          changeStateRef.current = next.state;
+          if (next.state === ChangeState.APPLYING || next.state === ChangeState.APPLIED) {
+            applyingRef.current = true;
+          } else if (next.state === ChangeState.PLANNED) {
+            applyingRef.current = false;
+          }
+        },
         onDone: () => {
           stagedIdRef.current = "";
           plannedChangeIdRef.current = "";
+          changeStateRef.current = undefined;
+          applyingRef.current = false;
           onClose();
         },
         onClose: (after) => {
-          if (!after || after.state === ChangeState.PLANNED || after.state === ChangeState.FAILED) {
+          const state = after?.state ?? changeStateRef.current;
+          if (!after || state === ChangeState.PLANNED || state === ChangeState.FAILED) {
             setPlan(undefined);
-            if ((!after || after.state === ChangeState.PLANNED) && plannedChangeIdRef.current) {
+            applyingRef.current = false;
+            changeStateRef.current = undefined;
+            if ((!after || state === ChangeState.PLANNED) && plannedChangeIdRef.current) {
               discardPlanned(plannedChangeIdRef.current);
             } else {
               plannedChangeIdRef.current = "";
             }
-            if (stagedIdRef.current && after?.state !== ChangeState.APPLIED) {
+            if (stagedIdRef.current && state !== ChangeState.APPLIED && state !== ChangeState.APPLYING) {
               cancelStaged(stagedIdRef.current);
             }
           } else {
             plannedChangeIdRef.current = "";
-            if (after.state === ChangeState.DISCARDED && stagedIdRef.current) {
+            if (state === ChangeState.DISCARDED && stagedIdRef.current) {
               cancelStaged(stagedIdRef.current);
             } else {
               stagedIdRef.current = "";

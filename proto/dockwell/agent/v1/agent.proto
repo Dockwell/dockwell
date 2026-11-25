@@ -2493,6 +2493,9 @@ message Deploy {
   // be confirmed, or its timer to run out, before the step ends (ADR 0052).
   // Numbered in the server overview's block, as open work adds here.
   bool last_access_step = 45;
+  // The change ID this step undoes or rolls back, if any, so an Undo of a
+  // deleted database restores only that change's pre-delete backup (470-479).
+  string undoes = 476;
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -2548,6 +2551,8 @@ message DesiredResource {
   // Says a rollback is planning it, which runs before anyone reads its plan, so it
   // takes nothing only a person may approve.
   bool rollback = 6;
+  // The change ID this step undoes or rolls back, if any (470-479).
+  string undoes = 476;
   // Takes on this container, by its full ID, as what the resource runs, in place
   // of making one.
   string adopt = 7;

@@ -201,15 +201,36 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 			t.Fatalf("after .dump import, app user read = (%q, %t), want before-import", said, ok)
 		}
 
-		// 5. Delete backs up first, and Undo restores the deleted database's rows (H4).
-		if err := userDriver.Apply(t.Context(), resource.Step{Ref: userRef, Action: resource.ActionDelete}, nil); err != nil {
+		// 4b. Real pg_dump of a plpgsql function followed by \! is caught by the scanner (N1).
+		if said, ok := pgExecAs("shop", "shop", "CREATE FUNCTION greet_shop() RETURNS text LANGUAGE plpgsql AS $fn$ BEGIN RETURN 'ok'; END; $fn$;"); !ok {
+			t.Fatalf("create plpgsql function: %s", said)
+		}
+		var fnDump bytes.Buffer
+		code, err = client.Exec(t.Context(), cid, []string{"pg_dump", "-U", "shop", "--no-owner", "--no-acl", "-d", "shop"}, docker.Streams{Stdout: &fnDump})
+		if err != nil || code != 0 {
+			t.Fatalf("pg_dump plpgsql failed: code=%d err=%v", code, err)
+		}
+		fnDump.WriteString("\n\\! id\n")
+		if err := scanSQLDump(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, bytes.NewReader(fnDump.Bytes())); err == nil || !strings.Contains(err.Error(), "shell command") {
+			t.Fatalf("N1: real pg_dump with plpgsql function + \\! was not refused: %v", err)
+		}
+
+		// 5. Delete backs up keyed to chg_del_pg, plain create starts empty (N3),
+		// and Undo restores the deleted database's rows (H4, N3).
+		delCtx := resource.WithDeploy(t.Context(), resource.Deploy{Change: "chg_del_pg"})
+		if err := userDriver.Apply(delCtx, resource.Step{Ref: userRef, Action: resource.ActionDelete}, nil); err != nil {
 			t.Fatalf("UserDriver delete shop: %v", err)
 		}
-		undoUserDec, err := userDriver.Judge(t.Context(), userRef, nil, userSpec, nil)
+		plainUserDec, err := userDriver.Judge(t.Context(), userRef, nil, userSpec, nil)
+		if err != nil || plainUserDec.Restores {
+			t.Fatalf("N3: plain Judge after delete = (%+v, %v), want Restores=false", plainUserDec, err)
+		}
+		undoCtx := resource.WithDeploy(applyCtx, resource.Deploy{Undoes: "chg_del_pg"})
+		undoUserDec, err := userDriver.Judge(undoCtx, userRef, nil, userSpec, nil)
 		if err != nil || !undoUserDec.Restores {
 			t.Fatalf("Judge after delete = (%+v, %v), want Restores=true", undoUserDec, err)
 		}
-		if err := userDriver.Apply(applyCtx, resource.Step{Ref: userRef, Decision: undoUserDec}, userSpec); err != nil {
+		if err := userDriver.Apply(undoCtx, resource.Step{Ref: userRef, Decision: undoUserDec}, userSpec); err != nil {
 			t.Fatalf("UserDriver undo create+restore: %v", err)
 		}
 		if said, ok := pgExecAs("shop", "shop", "SELECT note FROM orders WHERE id = 1;"); !ok || said != "before-import" {
@@ -367,15 +388,17 @@ func TestDatabaseToolsOnRealDocker(t *testing.T) {
 			t.Fatalf("H2: MariaDB after Undo, shop read = (%q, %t), want before-import", said, ok)
 		}
 
-		// 4. Delete with backup + Undo restores rows (H4).
-		if err := userDriver.Apply(t.Context(), resource.Step{Ref: userRef, Action: resource.ActionDelete}, nil); err != nil {
+		// 4. Delete with backup + Undo restores rows (H4, N3).
+		myDelCtx := resource.WithDeploy(t.Context(), resource.Deploy{Change: "chg_del_my"})
+		if err := userDriver.Apply(myDelCtx, resource.Step{Ref: userRef, Action: resource.ActionDelete}, nil); err != nil {
 			t.Fatalf("MariaDB UserDriver delete: %v", err)
 		}
-		undoUserDec, err := userDriver.Judge(t.Context(), userRef, nil, userSpec, nil)
+		myUndoCtx := resource.WithDeploy(applyCtx, resource.Deploy{Undoes: "chg_del_my"})
+		undoUserDec, err := userDriver.Judge(myUndoCtx, userRef, nil, userSpec, nil)
 		if err != nil || !undoUserDec.Restores {
 			t.Fatalf("MariaDB Judge after delete = (%+v, %v), want Restores=true", undoUserDec, err)
 		}
-		if err := userDriver.Apply(applyCtx, resource.Step{Ref: userRef, Decision: undoUserDec}, userSpec); err != nil {
+		if err := userDriver.Apply(myUndoCtx, resource.Step{Ref: userRef, Decision: undoUserDec}, userSpec); err != nil {
 			t.Fatalf("MariaDB UserDriver undo: %v", err)
 		}
 		if said, ok := myExecAs("shop", "shop-app-secret", "shop", "SELECT note FROM orders WHERE id = 1;"); !ok || said != "before-import" {

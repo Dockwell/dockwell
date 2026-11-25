@@ -13483,8 +13483,11 @@ type Deploy struct {
 	// be confirmed, or its timer to run out, before the step ends (ADR 0052).
 	// Numbered in the server overview's block, as open work adds here.
 	LastAccessStep bool `protobuf:"varint,45,opt,name=last_access_step,json=lastAccessStep,proto3" json:"last_access_step,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The change ID this step undoes or rolls back, if any, so an Undo of a
+	// deleted database restores only that change's pre-delete backup (470-479).
+	Undoes        string `protobuf:"bytes,476,opt,name=undoes,proto3" json:"undoes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Deploy) Reset() {
@@ -13543,6 +13546,13 @@ func (x *Deploy) GetLastAccessStep() bool {
 		return x.LastAccessStep
 	}
 	return false
+}
+
+func (x *Deploy) GetUndoes() string {
+	if x != nil {
+		return x.Undoes
+	}
+	return ""
 }
 
 // Values are what a service's variables and secrets resolve to on the
@@ -13754,6 +13764,8 @@ type DesiredResource struct {
 	// Says a rollback is planning it, which runs before anyone reads its plan, so it
 	// takes nothing only a person may approve.
 	Rollback bool `protobuf:"varint,6,opt,name=rollback,proto3" json:"rollback,omitempty"`
+	// The change ID this step undoes or rolls back, if any (470-479).
+	Undoes string `protobuf:"bytes,476,opt,name=undoes,proto3" json:"undoes,omitempty"`
 	// Takes on this container, by its full ID, as what the resource runs, in place
 	// of making one.
 	Adopt string `protobuf:"bytes,7,opt,name=adopt,proto3" json:"adopt,omitempty"`
@@ -13903,6 +13915,13 @@ func (x *DesiredResource) GetRollback() bool {
 		return x.Rollback
 	}
 	return false
+}
+
+func (x *DesiredResource) GetUndoes() string {
+	if x != nil {
+		return x.Undoes
+	}
+	return ""
 }
 
 func (x *DesiredResource) GetAdopt() string {
@@ -21094,12 +21113,13 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rplanned_leads\x18\a \x03(\v2..dockwell.agent.v1.ApplyCall.PlannedLeadsEntryR\fplannedLeads\x1a?\n" +
 	"\x11PlannedLeadsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x87\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa0\x01\n" +
 	"\x06Deploy\x12\x1a\n" +
 	"\brevision\x18\x01 \x01(\x03R\brevision\x12\x1b\n" +
 	"\tchange_id\x18\x02 \x01(\tR\bchangeId\x12\x1a\n" +
 	"\brollback\x18\x03 \x01(\bR\brollback\x12(\n" +
-	"\x10last_access_step\x18- \x01(\bR\x0elastAccessStep\"\x82\x01\n" +
+	"\x10last_access_step\x18- \x01(\bR\x0elastAccessStep\x12\x17\n" +
+	"\x06undoes\x18\xdc\x03 \x01(\tR\x06undoes\"\x82\x01\n" +
 	"\x06Values\x12=\n" +
 	"\x06values\x18\x01 \x03(\v2%.dockwell.agent.v1.Values.ValuesEntryR\x06values\x1a9\n" +
 	"\vValuesEntry\x12\x10\n" +
@@ -21113,7 +21133,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x06script\x18\x03 \x01(\fR\x06script\x12#\n" +
 	"\rscript_sha256\x18\x04 \x01(\tR\fscriptSha256\x12\x16\n" +
 	"\x06mirror\x18\x05 \x01(\tR\x06mirror\x12#\n" +
-	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\xf8\b\n" +
+	"\rcosign_mirror\x18\x06 \x01(\tR\fcosignMirror\"\x91\t\n" +
 	"\x0fDesiredResource\x12N\n" +
 	"\x12docker_maintenance\x18\x90\x03 \x01(\v2\x1e.dockwell.v1.DockerMaintenanceR\x11dockerMaintenance\x121\n" +
 	"\x14docker_registry_auth\x18\x91\x03 \x01(\fR\x12dockerRegistryAuth\x124\n" +
@@ -21122,7 +21142,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04pull\x18\x03 \x01(\bR\x04pull\x12\x10\n" +
 	"\x03run\x18\x04 \x01(\bR\x03run\x12\x18\n" +
 	"\arestart\x18\x05 \x01(\tR\arestart\x12\x1a\n" +
-	"\brollback\x18\x06 \x01(\bR\brollback\x12\x14\n" +
+	"\brollback\x18\x06 \x01(\bR\brollback\x12\x17\n" +
+	"\x06undoes\x18\xdc\x03 \x01(\tR\x06undoes\x12\x14\n" +
 	"\x05adopt\x18\a \x01(\tR\x05adopt\x12:\n" +
 	"\arestore\x18\b \x01(\v2 .dockwell.agent.v1.RestoreSourceR\arestore\x12\x1d\n" +
 	"\n" +

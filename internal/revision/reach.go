@@ -6,16 +6,21 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
+	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/fault"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/alert"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
@@ -337,9 +342,12 @@ func (e *Engine) checkConnectionLinks(ctx context.Context, tx *store.Tx, items [
 // checkDatabaseLinks refuses a change that deletes a logical database (or a
 // database user whose owned database is in use) while any app still uses that
 // database via a link, via the user's password secret (directly or through a
-// derived secret/variable), or via a secret, variable, or environment value
-// whose connection string names the database, unless its database server is
-// deleted in the same change or those references are removed in the same change.
+// derived secret/variable), via the engine's admin credentials, via a secret,
+// variable, or environment value whose connection string names the database on
+// the engine (by service name, alias, container name, or published address), or
+// via a plain variable/env value naming the database on an app that links to or
+// reaches the engine, unless its database server is deleted in the same change
+// or those references are removed in the same change (H3).
 func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []item, it *item) error {
 	if it.spec != nil || it.current == nil {
 		return nil
@@ -364,27 +372,38 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 	}
 	// If the database server service itself is deleted in the same change,
 	// sharedgoing/refuseLinkedGoing handles server-level link rules.
-	if svcAfter, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: it.ref.Scope, Name: svc}); err != nil {
+	svcAfter, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: it.ref.Scope, Name: svc})
+	if err != nil {
 		return err
-	} else if svcAfter == nil {
+	}
+	if svcAfter == nil {
 		return nil
 	}
+	dbSvc, _ := svcAfter.(*resourcev1.Service)
+	env := it.ref.Scope
 
-	// 1. Refuse while any link names this database.
+	hosts, adminSecret := e.engineHostsAndAdmin(ctx, tx, env, svc, dbSvc)
+
+	// 1. Refuse while any link names this database; also collect services linked to svc.
 	links, err := e.allLinks(ctx, tx, items)
 	if err != nil {
 		return err
 	}
+	linkedToEngine := map[string]bool{}
 	for i := range links {
 		l := &links[i]
-		if l.meets() == it.ref.Scope && l.GetService() == svc && l.GetDatabaseName() == dbName {
+		if l.meets() != env || l.GetService() != svc {
+			continue
+		}
+		if l.GetDatabaseName() == dbName {
 			where := whichScope(ctx, tx, l.ref.Scope)
 			return fault.New(ErrInvalid, "link %s in %s still uses the database %s on %s, which this change deletes. Disconnect that app first",
 				l.ref.Name, where, dbName, svc)
 		}
+		if l.ref.Scope == env {
+			linkedToEngine[l.ref.Name] = true
+		}
 	}
-
-	env := it.ref.Scope
 
 	// 2. When deleting a database.user, refuse while any app uses its password
 	// secret (directly or through a derived secret/variable template).
@@ -400,7 +419,7 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 	}
 
 	// 3. Refuse while any app uses a secret or variable whose value/template names
-	// this database on svc, or has a literal environment value naming it.
+	// this database on svc (by service name, alias, container name, or address).
 	for _, kind := range []resource.Kind{variable.SecretKind, variable.VariableKind} {
 		stored, err := tx.ListResources(ctx, env, string(kind))
 		if err != nil {
@@ -420,7 +439,7 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 			if err != nil {
 				return err
 			}
-			if spec == nil || !specNamesDatabase(spec, svc, dbName) {
+			if spec == nil || !specNamesDatabaseHosts(spec, hosts, dbName) {
 				continue
 			}
 			apps, err := e.appsUsingValue(ctx, tx, items, ref, svc)
@@ -434,6 +453,18 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 		}
 	}
 
+	// 4. Find apps signing in with the engine's admin password secret (if any).
+	var adminApps []string
+	if adminSecret != "" {
+		if adminApps, err = e.appsUsingValue(ctx, tx, items, resource.Ref{Kind: variable.SecretKind, Scope: env, Name: adminSecret}, svc); err != nil {
+			return err
+		}
+	}
+
+	// 5. Inspect every other service in the environment for:
+	//    (a) literal/resolved URLs or DSNs naming dbName on any host/alias/address of svc,
+	//    (b) plain env/variable/secret values equal to dbName on a service that links to or reaches svc,
+	//    (c) apps signing in as the engine's admin without explicitly targeting another database.
 	svcs, err := tx.ListResources(ctx, env, string(serviceKind))
 	if err != nil {
 		return err
@@ -447,6 +478,8 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 			svcRefs = append(svcRefs, items[i].ref)
 		}
 	}
+	slices.SortFunc(svcRefs, func(a, b resource.Ref) int { return cmp.Compare(a.Name, b.Name) })
+	var adminRefusal error
 	for _, ref := range svcRefs {
 		if ref.Name == svc {
 			continue
@@ -459,32 +492,346 @@ func (e *Engine) checkDatabaseLinks(ctx context.Context, tx *store.Tx, items []i
 		if !ok {
 			continue
 		}
-		for k, v := range s.GetApp().GetEnv() {
-			if database.ValueNamesDatabase(v, svc, dbName) {
+		entries, err := e.serviceResolvedEnv(ctx, tx, items, env, s)
+		if err != nil {
+			return err
+		}
+		usesAdmin := slices.Contains(adminApps, ref.Name)
+		reachesEngine := usesAdmin || linkedToEngine[ref.Name]
+		namesOtherDB := false
+		var plainDBKey string
+		for _, kv := range entries {
+			if database.ValueNamesDatabaseHosts(kv.val, hosts, dbName) {
 				return fault.New(ErrInvalid, "service %s sets %s to the database %s on %s, which this change deletes. Update %s first",
-					ref.Name, k, dbName, svc, ref.Name)
+					ref.Name, kv.key, dbName, svc, ref.Name)
+			}
+			if database.ValueReachesHost(kv.val, hosts) {
+				reachesEngine = true
+			}
+			trimmed := strings.TrimSpace(kv.val)
+			if trimmed == dbName && plainDBKey == "" {
+				plainDBKey = kv.key
+			}
+			if database.ValueNamesOtherDatabase(kv.val, hosts, dbName) ||
+				(database.IsDBNameEnvKey(kv.key) && trimmed != "" && trimmed != dbName) {
+				namesOtherDB = true
 			}
 		}
+		if reachesEngine && plainDBKey != "" {
+			return fault.New(ErrInvalid, "service %s sets %s to %s while reaching %s, which this change deletes. Update %s first",
+				ref.Name, plainDBKey, dbName, svc, ref.Name)
+		}
+		if usesAdmin && !namesOtherDB && adminRefusal == nil {
+			adminRefusal = fault.New(ErrInvalid, "service %s signs in to %s with its admin password (%s), so deleting %s could break it. Switch %s to its own database user or remove %s first",
+				ref.Name, svc, adminSecret, dbName, ref.Name, adminSecret)
+		}
+	}
+	if adminRefusal != nil {
+		return adminRefusal
 	}
 	return nil
 }
 
-// specNamesDatabase reports whether a secret or variable spec's literal value
-// or template text contains a connection string targeting (svc, dbName).
-func specNamesDatabase(spec proto.Message, svc, dbName string) bool {
+// databaseDeleteNotes warns in the plan when a database deletion passes static
+// checks but Dockwell can't verify every app that reaches the engine (for
+// example, an app that connects to the engine without naming a database in its
+// variables, or a logical database whose apps may read their database name from
+// a config file) (H3).
+func (e *Engine) databaseDeleteNotes(ctx context.Context, tx *store.Tx, items []item) ([]Note, error) {
+	var notes []Note
+	for i := range items {
+		it := &items[i]
+		if it.spec != nil || it.current == nil {
+			continue
+		}
+		var svc, dbName, owner string
+		isLogical := false
+		switch cur := it.current.(type) {
+		case *resourcev1.LogicalDatabase:
+			svc = cur.GetService()
+			dbName = database.LogicalName(it.ref.Name, cur)
+			owner = cur.GetOwner()
+			isLogical = true
+		case *resourcev1.DatabaseUser:
+			if cur.GetTakenOn() {
+				continue
+			}
+			svc = cur.GetService()
+			dbName = database.Owned(it.ref.Name, cur)
+		default:
+			continue
+		}
+		if svc == "" || dbName == "" {
+			continue
+		}
+		svcAfter, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: serviceKind, Scope: it.ref.Scope, Name: svc})
+		if err != nil {
+			return nil, err
+		}
+		if svcAfter == nil {
+			continue
+		}
+		dbSvc, _ := svcAfter.(*resourcev1.Service)
+		env := it.ref.Scope
+		hosts, _ := e.engineHostsAndAdmin(ctx, tx, env, svc, dbSvc)
+		// If deleting a logical database whose owner is a managed database.user,
+		// apps using that owner's password secret can reach this database too.
+		var ownerApps []string
+		if isLogical && owner != "" {
+			if ownerSpec, oerr := e.specAfter(ctx, tx, items, resource.Ref{Kind: database.UserKind, Scope: env, Name: owner}); oerr == nil {
+				if u, ok := ownerSpec.(*resourcev1.DatabaseUser); ok && u.GetService() == svc && u.GetPassword() != "" {
+					if apps, aerr := e.appsUsingValue(ctx, tx, items, resource.Ref{Kind: variable.SecretKind, Scope: env, Name: u.GetPassword()}, svc); aerr == nil {
+						ownerApps = apps
+					}
+				}
+			}
+		}
+		links, err := e.allLinks(ctx, tx, items)
+		if err != nil {
+			return nil, err
+		}
+		linkedWithoutDB := map[string]bool{}
+		for j := range links {
+			l := &links[j]
+			if l.meets() == env && l.GetService() == svc && l.GetDatabaseName() == "" && l.ref.Scope == env {
+				linkedWithoutDB[l.ref.Name] = true
+			}
+		}
+		svcs, err := tx.ListResources(ctx, env, string(serviceKind))
+		if err != nil {
+			return nil, err
+		}
+		svcRefs := make([]resource.Ref, 0, len(svcs))
+		for j := range svcs {
+			svcRefs = append(svcRefs, resource.Ref{Kind: serviceKind, Scope: env, Name: svcs[j].Name})
+		}
+		for j := range items {
+			if items[j].ref.Kind == serviceKind && items[j].ref.Scope == env && !slices.Contains(svcRefs, items[j].ref) {
+				svcRefs = append(svcRefs, items[j].ref)
+			}
+		}
+		slices.SortFunc(svcRefs, func(a, b resource.Ref) int { return cmp.Compare(a.Name, b.Name) })
+		var uncertain []string
+		otherApps := 0
+		for _, ref := range svcRefs {
+			if ref.Name == svc {
+				continue
+			}
+			spec, err := e.specAfter(ctx, tx, items, ref)
+			if err != nil {
+				return nil, err
+			}
+			s, ok := spec.(*resourcev1.Service)
+			if !ok {
+				continue
+			}
+			otherApps++
+			entries, err := e.serviceResolvedEnv(ctx, tx, items, env, s)
+			if err != nil {
+				return nil, err
+			}
+			reaches := linkedWithoutDB[ref.Name] || slices.Contains(ownerApps, ref.Name)
+			namesOtherDB := false
+			for _, kv := range entries {
+				if database.ValueReachesHost(kv.val, hosts) {
+					reaches = true
+				}
+				trimmed := strings.TrimSpace(kv.val)
+				if database.ValueNamesOtherDatabase(kv.val, hosts, dbName) ||
+					(database.IsDBNameEnvKey(kv.key) && trimmed != "" && trimmed != dbName) {
+					namesOtherDB = true
+				}
+			}
+			if reaches && !namesOtherDB {
+				uncertain = append(uncertain, ref.Name)
+			}
+		}
+		if len(uncertain) > 0 {
+			notes = append(notes, Note{
+				Reason: "database_delete_unverified",
+				Ref:    it.ref,
+				Names:  uncertain,
+				Message: fmt.Sprintf("%s can reach %s without naming a database in its variables, so Dockwell can't tell whether it uses %s. Check before applying; Undo brings %s back for 7 days",
+					human.List(uncertain), svc, dbName, dbName),
+			})
+		} else if isLogical && otherApps > 0 {
+			notes = append(notes, Note{
+				Reason: "database_delete_unverified",
+				Ref:    it.ref,
+				Message: fmt.Sprintf("Dockwell checked links, variables, and active connections for %s on %s, but can't see database names kept in app config files. Undo brings %s back for 7 days",
+					dbName, svc, dbName),
+			})
+		}
+	}
+	return notes, nil
+}
+
+type envEntry struct {
+	key string
+	val string
+}
+
+func (e *Engine) serviceResolvedEnv(ctx context.Context, tx *store.Tx, items []item, env string, s *resourcev1.Service) ([]envEntry, error) {
+	var out []envEntry
+	for k, v := range s.GetApp().GetEnv() {
+		out = append(out, envEntry{key: k, val: v})
+	}
+	for envKey, varName := range s.GetVariables() {
+		name := cmp.Or(varName, envKey)
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.VariableKind, Scope: env, Name: name})
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := spec.(*resourcev1.Variable); ok {
+			if val := v.GetValue(); val != "" {
+				out = append(out, envEntry{key: envKey, val: val})
+			}
+			if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+				out = append(out, envEntry{key: envKey, val: t.GetText()})
+			}
+		}
+	}
+	for envKey, secName := range s.GetSecrets() {
+		name := cmp.Or(secName, envKey)
+		spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: variable.SecretKind, Scope: env, Name: name})
+		if err != nil {
+			return nil, err
+		}
+		if v, ok := spec.(*resourcev1.Secret); ok {
+			if val := v.GetValue(); val != "" {
+				out = append(out, envEntry{key: envKey, val: val})
+			}
+			if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+				out = append(out, envEntry{key: envKey, val: t.GetText()})
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b envEntry) int {
+		if c := cmp.Compare(a.key, b.key); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.val, b.val)
+	})
+	return out, nil
+}
+
+func (e *Engine) engineHostsAndAdmin(ctx context.Context, tx *store.Tx, env, svc string, dbSvc *resourcev1.Service) (hosts []string, adminSecret string) {
+	add := func(h string) {
+		h = strings.TrimSpace(h)
+		if h != "" && !slices.Contains(hosts, h) {
+			hosts = append(hosts, h)
+		}
+	}
+	add(svc)
+	add(svc + "-1")
+	add(env + "-" + svc + "-1")
+	if dbSvc == nil {
+		return hosts, ""
+	}
+	app := dbSvc.GetApp()
+	for _, a := range app.GetAliases() {
+		add(a)
+	}
+	for _, a := range app.GetNetworkAliases() {
+		add(a)
+	}
+	add(app.GetHostname())
+	if tree, serr := scope.Load(ctx, tx); serr == nil {
+		for _, p := range tree.Projects {
+			for _, envItem := range p.Environments {
+				if envItem.ID == env && p.Name != "" && envItem.Name != "" {
+					add(p.Name + "." + envItem.Name + "." + svc + "-1")
+				}
+			}
+		}
+	}
+	// Collect admin password secret name from the database service spec.
+	for _, key := range []string{"POSTGRES_PASSWORD", "MARIADB_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD"} {
+		if secName, ok := dbSvc.GetSecrets()[key]; ok {
+			adminSecret = cmp.Or(secName, key)
+			break
+		}
+	}
+	// Include published port host:port addresses (and bare IPs when published on default engine port).
+	var defaultPort uint32
+	if eng := database.Recognise(app.GetImage()); eng != nil {
+		defaultPort = eng.Port
+	}
+	ports := app.GetPorts()
+	if len(ports) > 0 {
+		var serverAddrs []string
+		addAddr := func(a string) {
+			a = strings.TrimSpace(a)
+			if a != "" && a != "0.0.0.0" && a != "::" && !slices.Contains(serverAddrs, a) {
+				serverAddrs = append(serverAddrs, a)
+			}
+		}
+		addAddr("127.0.0.1")
+		addAddr("localhost")
+		addAddr("host.docker.internal")
+		if r, rerr := tx.GetResource(ctx, string(serviceKind), env, svc); rerr == nil && r.ID != "" {
+			if deps, derr := tx.Deployments(ctx, r.ID, r.Revision); derr == nil {
+				reports, _ := tx.ServerReports(ctx)
+				for i := range deps {
+					d := &deps[i]
+					if raw, perr := tx.GetSetting(ctx, store.SettingPublicAddress(d.Server)); perr == nil && len(raw) > 0 {
+						var netCfg dockwellv1.ServerNetwork
+						if protojson.Unmarshal(raw, &netCfg) == nil {
+							addAddr(netCfg.GetIpv4().GetAddress())
+							addAddr(netCfg.GetIpv6().GetAddress())
+						}
+					}
+					if rep, ok := reports[d.Server]; ok && len(rep.Inventory) > 0 {
+						var inv dockwellv1.ServerInventory
+						if proto.Unmarshal(rep.Inventory, &inv) == nil {
+							addAddr(inv.GetOutboundAddress())
+							for _, a := range inv.GetAddresses() {
+								addAddr(a)
+							}
+						}
+					}
+				}
+			}
+		}
+		for _, p := range ports {
+			hp := p.GetHostPort()
+			if hp == 0 {
+				continue
+			}
+			ps := strconv.FormatUint(uint64(hp), 10)
+			if hip := strings.TrimSpace(p.GetHostIp()); hip != "" && hip != "0.0.0.0" && hip != "::" {
+				add(hip + ":" + ps)
+				if defaultPort > 0 && hp == defaultPort {
+					add(hip)
+				}
+			}
+			for _, a := range serverAddrs {
+				add(a + ":" + ps)
+				if defaultPort > 0 && hp == defaultPort {
+					add(a)
+				}
+			}
+		}
+	}
+	return hosts, adminSecret
+}
+
+// specNamesDatabaseHosts reports whether a secret or variable spec's literal
+// value or template text contains a connection string targeting (hosts, dbName).
+func specNamesDatabaseHosts(spec proto.Message, hosts []string, dbName string) bool {
 	switch v := spec.(type) {
 	case *resourcev1.Secret:
-		if database.ValueNamesDatabase(v.GetValue(), svc, dbName) {
+		if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
 			return true
 		}
-		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svc, dbName) {
+		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
 			return true
 		}
 	case *resourcev1.Variable:
-		if database.ValueNamesDatabase(v.GetValue(), svc, dbName) {
+		if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
 			return true
 		}
-		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svc, dbName) {
+		if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
 			return true
 		}
 	}

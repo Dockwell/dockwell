@@ -74,6 +74,9 @@ type Deploy struct {
 	Revision int
 	Change   string
 	Rollback bool
+	// Undoes is the change ID this step undoes or rolls back, if any, so an Undo
+	// of a deleted database restores only that change's pre-delete backup.
+	Undoes string
 	// Run says, as a plan judges it, that someone asked for this resource to run, as
 	// a deploy or a rollback does, and it isn't only part of a file (Desired.Run).
 	Run bool

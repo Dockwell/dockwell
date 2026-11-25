@@ -130,6 +130,9 @@ func postgres(x dockertest.Exec) int {
 			return 3
 		case askedLockout.MatchString(sql):
 			return postgresLockout(x, filepath.Dir(file), sql)
+		case strings.HasPrefix(strings.TrimSpace(sql), "SELECT DISTINCT usename FROM pg_stat_activity"):
+			// Active session check on database delete: no active sessions in fake DB.
+			return 0
 		case strings.Contains(sql, "FROM pg_extension x WHERE x.oid >= 16384"):
 			// PgNotOwned check: everything in the fake DB belongs to its owner.
 			return 0
@@ -378,6 +381,9 @@ func mysql(x dockertest.Exec) int {
 	switch {
 	case strings.Contains(script, "mysqldump"):
 		_, _ = io.WriteString(x.Stdout, "-- MySQL dump\n-- Dump completed\n")
+		return 0
+	case strings.Contains(script, "--help"):
+		_, _ = io.WriteString(x.Stdout, "  --system-command    Enable system command.\n  --init-command=name\n")
 		return 0
 	case strings.Contains(script, "mysql"):
 		data, err := io.ReadAll(x.Stdin)

@@ -142,6 +142,7 @@ type Runner struct {
 
 	importMu       sync.Mutex
 	importBusy     map[string]bool
+	importInUse    map[string]int
 	importCancel   map[string]context.CancelFunc
 	importCanceled map[string]bool
 }

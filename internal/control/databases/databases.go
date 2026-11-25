@@ -1077,24 +1077,71 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 					}
 				}
 			}
-			valNamesDB := func(spec proto.Message, svcName, dbName string) bool {
+			valNamesDB := func(spec proto.Message, hosts []string, dbName string) bool {
 				switch v := spec.(type) {
 				case *resourcev1.Secret:
-					if database.ValueNamesDatabase(v.GetValue(), svcName, dbName) {
+					if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
 						return true
 					}
-					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svcName, dbName) {
+					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
 						return true
 					}
 				case *resourcev1.Variable:
-					if database.ValueNamesDatabase(v.GetValue(), svcName, dbName) {
+					if database.ValueNamesDatabaseHosts(v.GetValue(), hosts, dbName) {
 						return true
 					}
-					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabase(t.GetText(), svcName, dbName) {
+					if t := v.GetFrom().GetTemplate(); t != nil && database.ValueNamesDatabaseHosts(t.GetText(), hosts, dbName) {
 						return true
 					}
 				}
 				return false
+			}
+			// Decode services in env so plain env vars (DB_NAME, POSTGRES_DB, MYSQL_DATABASE),
+			// aliases, and admin-credential apps also surface in LinkedBy (H3).
+			type decodedSvc struct {
+				name string
+				spec *resourcev1.Service
+			}
+			var envSvcs []decodedSvc
+			if rawSvcs, serr := tx.ListResources(ctx, env, string(service.Kind)); serr == nil {
+				var stored []store.StoredSpec
+				var live []store.Resource
+				for j := range rawSvcs {
+					if rawSvcs[j].Spec != nil {
+						stored = append(stored, store.StoredSpec{At: store.InRevision(rawSvcs[j].ID, rawSvcs[j].Kind, rawSvcs[j].Revision), Spec: rawSvcs[j].Spec})
+						live = append(live, rawSvcs[j])
+					}
+				}
+				if len(stored) > 0 {
+					if decoded, _, derr := h.keeper.DecodeEach(ctx, tx, stored); derr == nil {
+						for j, sp := range decoded {
+							if s, ok := sp.(*resourcev1.Service); ok {
+								envSvcs = append(envSvcs, decodedSvc{name: live[j].Name, spec: s})
+							}
+						}
+					}
+				}
+			}
+			valByKey := map[string][]string{} // "secret/name" or "variable/name" -> values/templates
+			for _, nv := range envVals {
+				var vals []string
+				switch v := nv.spec.(type) {
+				case *resourcev1.Secret:
+					if v.GetValue() != "" {
+						vals = append(vals, v.GetValue())
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+						vals = append(vals, t.GetText())
+					}
+				case *resourcev1.Variable:
+					if v.GetValue() != "" {
+						vals = append(vals, v.GetValue())
+					}
+					if t := v.GetFrom().GetTemplate(); t != nil && t.GetText() != "" {
+						vals = append(vals, t.GetText())
+					}
+				}
+				valByKey[nv.kind+"/"+nv.name] = vals
 			}
 			appendUnique := func(dst *[]string, items []string) {
 				for _, item := range items {
@@ -1105,21 +1152,84 @@ func (h *Handler) made(ctx context.Context, list []*placed) error {
 			}
 			for _, p := range dbs {
 				secret := p.db.GetPasswordSecret()
+				hosts := []string{p.ref.Name, p.ref.Name + "-1", env + "-" + p.ref.Name + "-1"}
+				for _, sv := range envSvcs {
+					if sv.name != p.ref.Name {
+						continue
+					}
+					app := sv.spec.GetApp()
+					for _, a := range app.GetAliases() {
+						appendUnique(&hosts, []string{a})
+					}
+					for _, a := range app.GetNetworkAliases() {
+						appendUnique(&hosts, []string{a})
+					}
+					if hn := app.GetHostname(); hn != "" {
+						appendUnique(&hosts, []string{hn})
+					}
+				}
+				var adminApps []string
+				if secret != "" {
+					adminApps = usedBy(secret, p.ref.Name)
+				}
 				for _, r := range p.db.GetReadings() {
 					if secret != "" {
 						for _, a := range r.GetUsers() {
 							if r.GetUser() != "" && a.GetName() == r.GetUser() && a.GetSecret() == "" {
-								a.Secret, a.UsedBy = secret, usedBy(secret, p.ref.Name)
+								a.Secret, a.UsedBy = secret, adminApps
 							}
 						}
 					}
 					for _, d := range r.GetDatabases() {
-						if linked := linkedBy[env+"/"+p.ref.Name+"/"+d.GetName()]; len(linked) > 0 {
+						dbName := d.GetName()
+						if linked := linkedBy[env+"/"+p.ref.Name+"/"+dbName]; len(linked) > 0 {
 							d.LinkedBy = slices.Clone(linked)
 						}
 						for _, nv := range envVals {
-							if valNamesDB(nv.spec, p.ref.Name, d.GetName()) {
+							if valNamesDB(nv.spec, hosts, dbName) {
 								appendUnique(&d.LinkedBy, usedByKind(nv.kind, nv.name, p.ref.Name))
+							}
+						}
+						for _, sv := range envSvcs {
+							if sv.name == p.ref.Name {
+								continue
+							}
+							usesAdmin := slices.Contains(adminApps, sv.name)
+							reaches := usesAdmin
+							namesDB := false
+							namesOther := false
+							checkVal := func(k, v string) {
+								if database.ValueNamesDatabaseHosts(v, hosts, dbName) {
+									namesDB = true
+									reaches = true
+								}
+								if database.ValueReachesHost(v, hosts) {
+									reaches = true
+								}
+								trimmed := strings.TrimSpace(v)
+								if trimmed == dbName {
+									namesDB = true
+								}
+								if database.ValueNamesOtherDatabase(v, hosts, dbName) ||
+									(database.IsDBNameEnvKey(k) && trimmed != "" && trimmed != dbName) {
+									namesOther = true
+								}
+							}
+							for k, v := range sv.spec.GetApp().GetEnv() {
+								checkVal(k, v)
+							}
+							for k, vn := range sv.spec.GetVariables() {
+								for _, v := range valByKey[string(variable.VariableKind)+"/"+cmp.Or(vn, k)] {
+									checkVal(k, v)
+								}
+							}
+							for k, sn := range sv.spec.GetSecrets() {
+								for _, v := range valByKey[string(variable.SecretKind)+"/"+cmp.Or(sn, k)] {
+									checkVal(k, v)
+								}
+							}
+							if (reaches && namesDB) || (usesAdmin && !namesOther) {
+								appendUnique(&d.LinkedBy, []string{sv.name})
 							}
 						}
 					}

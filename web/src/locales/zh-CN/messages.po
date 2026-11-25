@@ -12099,6 +12099,9 @@ msgstr "如果你的地址不在其中，或以后不再是其中之一，SSH �
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "如果回滚 {name}，{names} 会保持原样：新版本写入的内容不会被撤销。"
 
+msgid "Importing {size}. The pre-import backup stays on {server} for 7 days, and undoing restores it."
+msgstr "正在导入 {size}。导入前备份会在 {server} 上保留 7 天，撤销后可恢复。"
+
 msgid "Imports {file} into {target} on {server}"
 msgstr "将 {file} 导入 {server} 上的 {target}"
 
@@ -12422,9 +12425,6 @@ msgstr "{name} 备份的一小时时限只是估计"
 
 msgid "The old version may not read its data"
 msgstr "旧版本可能无法读取它的数据"
-
-msgid "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
-msgstr "导入前备份（待导入 {size}）会在 {server} 上保留 7 天，撤销后可恢复。"
 
 msgid "The registry can accept another write between the final check and publication."
 msgstr "从最后检查到发布期间，其他发布者仍可写入此标签。"
@@ -14947,7 +14947,7 @@ msgstr "没有使用此引擎的数据库。"
 msgid "No databases yet"
 msgstr "还没有数据库"
 
-#. placeholder {0}: firstReading(db)?.serverName || t`its server`
+#. placeholder {0}: shownServerOf(db) || t`its server`
 msgid "No public address known for {0}"
 msgstr "未配置 {0} 的公网地址"
 

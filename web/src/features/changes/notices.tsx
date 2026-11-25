@@ -740,7 +740,7 @@ function useRestoreNotices(): (restore: RestorePlan, name: string, key: string, 
         key: `restore-${key}`,
         title: t`Imports ${file} into ${target} on ${server}`,
         detail: t`${target} is backed up first and put back if the import fails.`,
-        more: t`The pre-import backup (${size} to import) stays on ${server} for 7 days, and undoing restores it.`,
+        more: t`Importing ${size}. The pre-import backup stays on ${server} for 7 days, and undoing restores it.`,
       });
     } else if (restore.intoNew) {
       // A new database, filled before it first starts: nothing that runs is touched (ADR 0106).

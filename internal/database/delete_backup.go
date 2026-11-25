@@ -33,6 +33,7 @@ const (
 )
 
 type deletedBackupMeta struct {
+	ChangeID string                    `json:"change_id"`
 	Scope    string                    `json:"scope"`
 	Service  string                    `json:"service"`
 	Database string                    `json:"database"`
@@ -47,14 +48,42 @@ func deletedBackupsDir(dir string) string {
 	return filepath.Join(dir, "deleted")
 }
 
-func deletedBackupKey(scope, service, db string) string {
-	sum := sha256.Sum256([]byte(scope + "\x00" + service + "\x00" + db))
+func deletedBackupKey(changeID, scope, service, db string) string {
+	sum := sha256.Sum256([]byte(changeID + "\x00" + scope + "\x00" + service + "\x00" + db))
 	return hex.EncodeToString(sum[:12])
 }
 
-func deletedBackupPaths(dir, scope, service, db string) (metaPath, dataPath string) {
-	base := filepath.Join(deletedBackupsDir(dir), deletedBackupKey(scope, service, db))
+func deletedBackupPaths(dir, changeID, scope, service, db string) (metaPath, dataPath string) {
+	base := filepath.Join(deletedBackupsDir(dir), deletedBackupKey(changeID, scope, service, db))
 	return base + ".json", base + ".sql.gz"
+}
+
+// activeDatabaseUsers asks the running SQL server which users currently have
+// active sessions connected to db.
+func activeDatabaseUsers(ctx context.Context, client *docker.Client, c *docker.Container, e *Engine, db string) ([]string, error) {
+	if err := CheckSQLName("database", db); err != nil {
+		return nil, err
+	}
+	cmd, _ := e.reading(PortOf(e, c.Config.Cmd))
+	var sql string
+	if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
+		sql = "SELECT DISTINCT usename FROM pg_stat_activity WHERE datname = '" + db + "' AND pid <> pg_backend_pid() AND usename IS NOT NULL ORDER BY usename;\n"
+	} else {
+		sql = "SELECT DISTINCT USER FROM information_schema.PROCESSLIST WHERE DB = '" + db + "' AND ID <> CONNECTION_ID() AND USER IS NOT NULL ORDER BY USER;\n"
+	}
+	said, err := Reader{Client: client}.ask(ctx, c.ID, e, cmd, sql)
+	if err != nil {
+		return nil, err
+	}
+	var users []string
+	for line := range strings.SplitSeq(strings.TrimSpace(string(said)), "\n") {
+		u := strings.TrimSpace(line)
+		if u != "" && !slices.Contains(users, u) {
+			users = append(users, u)
+		}
+	}
+	slices.Sort(users)
+	return users, nil
 }
 
 func dumpCompleteMarker(kind dockwellv1.DatabaseEngine) string {
@@ -64,11 +93,11 @@ func dumpCompleteMarker(kind dockwellv1.DatabaseEngine) string {
 	return "Dump completed"
 }
 
-// backupBeforeDrop dumps db from c into dir/deleted/ before DROP DATABASE runs.
-// If the dump fails or doesn't finish cleanly, it returns an error so the caller
-// refuses to drop the database.
-func backupBeforeDrop(ctx context.Context, client *docker.Client, dir string, now time.Time, c *docker.Container, e *Engine, scope, service, db, owner string) error {
-	if dir == "" || !e.SQL() {
+// backupBeforeDrop dumps db from c into dir/deleted/ keyed by the deleting
+// change's ID before DROP DATABASE runs. If the dump fails or doesn't finish
+// cleanly, it returns an error so the caller refuses to drop the database.
+func backupBeforeDrop(ctx context.Context, client *docker.Client, dir string, now time.Time, changeID string, c *docker.Container, e *Engine, scope, service, db, owner string) error {
+	if dir == "" || !e.SQL() || changeID == "" {
 		return nil
 	}
 	dumpCmd := dumpOne[e.Kind]
@@ -98,7 +127,7 @@ func backupBeforeDrop(ctx context.Context, client *docker.Client, dir string, no
 	if err := os.MkdirAll(deletedBackupsDir(dir), 0o700); err != nil {
 		return fmt.Errorf("can't make a place to back up %s before deleting it, so nothing was dropped: %w", db, err)
 	}
-	metaPath, dataPath := deletedBackupPaths(dir, scope, service, db)
+	metaPath, dataPath := deletedBackupPaths(dir, changeID, scope, service, db)
 	tmpData := dataPath + ".tmp"
 	f, err := os.OpenFile(tmpData, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // under agent databases dir
 	if err != nil {
@@ -163,6 +192,7 @@ func backupBeforeDrop(ctx context.Context, client *docker.Client, dir string, no
 		return err
 	}
 	meta := deletedBackupMeta{
+		ChangeID: changeID,
 		Scope:    scope,
 		Service:  service,
 		Database: db,
@@ -191,12 +221,13 @@ func backupBeforeDrop(ctx context.Context, client *docker.Client, dir string, no
 }
 
 // hasDeletedBackup reports whether a valid, non-expired pre-delete backup exists
-// for (scope, service, db) so Undo of a delete can restore it.
-func hasDeletedBackup(dir string, now time.Time, scope, service, db string) bool {
-	if dir == "" {
+// for (changeID, scope, service, db) so Undo of that deleting change restores it.
+// A plain create or reinstall has an empty changeID and never restores a kept backup.
+func hasDeletedBackup(dir string, now time.Time, changeID, scope, service, db string) bool {
+	if dir == "" || changeID == "" {
 		return false
 	}
-	meta, dataPath, err := readDeletedBackup(dir, now, scope, service, db)
+	meta, dataPath, err := readDeletedBackup(dir, now, changeID, scope, service, db)
 	if err != nil || meta == nil {
 		return false
 	}
@@ -204,8 +235,11 @@ func hasDeletedBackup(dir string, now time.Time, scope, service, db string) bool
 	return err == nil && fi.Size() == meta.Size
 }
 
-func readDeletedBackup(dir string, now time.Time, scope, service, db string) (*deletedBackupMeta, string, error) {
-	metaPath, dataPath := deletedBackupPaths(dir, scope, service, db)
+func readDeletedBackup(dir string, now time.Time, changeID, scope, service, db string) (*deletedBackupMeta, string, error) {
+	if changeID == "" {
+		return nil, "", nil
+	}
+	metaPath, dataPath := deletedBackupPaths(dir, changeID, scope, service, db)
 	b, err := os.ReadFile(metaPath) //nolint:gosec // under agent databases dir
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, "", nil
@@ -217,17 +251,20 @@ func readDeletedBackup(dir string, now time.Time, scope, service, db string) (*d
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, "", fmt.Errorf("can't read kept backup metadata for %s: %w", db, err)
 	}
+	if m.ChangeID != "" && m.ChangeID != changeID {
+		return nil, "", nil
+	}
 	if now.Sub(m.TakenAt) > deletedKeepFor+deletedKeepPast {
 		return nil, "", nil
 	}
 	return &m, dataPath, nil
 }
 
-// restoreDeletedBackup verifies and loads the pre-delete backup for db back into
-// the freshly recreated database, as the database's owner whenever possible,
-// and removes the kept backup once restored.
-func restoreDeletedBackup(ctx context.Context, client *docker.Client, dir string, now time.Time, c *docker.Container, e *Engine, scope, service, db, owner, password string) error {
-	meta, dataPath, err := readDeletedBackup(dir, now, scope, service, db)
+// restoreDeletedBackup verifies and loads the pre-delete backup for db from
+// changeID back into the freshly recreated database, as the database's owner
+// whenever possible, and removes that change's kept backup once restored.
+func restoreDeletedBackup(ctx context.Context, client *docker.Client, dir string, now time.Time, changeID string, c *docker.Container, e *Engine, scope, service, db, owner, password string) error {
+	meta, dataPath, err := readDeletedBackup(dir, now, changeID, scope, service, db)
 	if err != nil {
 		return err
 	}
@@ -313,31 +350,35 @@ func restoreDeletedBackup(ctx context.Context, client *docker.Client, dir string
 		}
 	}
 
-	metaPath, _ := deletedBackupPaths(dir, scope, service, db)
+	metaPath, _ := deletedBackupPaths(dir, changeID, scope, service, db)
 	_ = os.Remove(dataPath)
 	_ = os.Remove(metaPath)
 	return nil
 }
 
-// PruneDeletedBackups removes pre-delete database backups kept past 7 days.
+// PruneDeletedBackups removes pre-delete database backups kept past 7 days,
+// along with crash-leftover .tmp files and orphan .sql.gz files older than an hour.
 func PruneDeletedBackups(dir string, now time.Time) error {
 	if dir == "" {
 		return nil
 	}
-	entries, err := os.ReadDir(deletedBackupsDir(dir))
+	deletedDir := deletedBackupsDir(dir)
+	entries, err := os.ReadDir(deletedDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	live := map[string]bool{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		metaPath := filepath.Join(deletedBackupsDir(dir), name)
-		dataPath := strings.TrimSuffix(metaPath, ".json") + ".sql.gz"
+		key := strings.TrimSuffix(name, ".json")
+		metaPath := filepath.Join(deletedDir, name)
+		dataPath := filepath.Join(deletedDir, key+".sql.gz")
 		b, err := os.ReadFile(metaPath) //nolint:gosec // under agent databases dir
 		if err != nil {
 			continue
@@ -346,6 +387,25 @@ func PruneDeletedBackups(dir string, now time.Time) error {
 		if err := json.Unmarshal(b, &m); err != nil || now.Sub(m.TakenAt) >= deletedKeepFor+deletedKeepPast {
 			_ = os.Remove(dataPath)
 			_ = os.Remove(metaPath)
+			continue
+		}
+		live[key] = true
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		full := filepath.Join(deletedDir, name)
+		switch {
+		case strings.HasSuffix(name, ".tmp"):
+			if fi, err := entry.Info(); err == nil && now.Sub(fi.ModTime()) >= time.Hour {
+				_ = os.Remove(full)
+			}
+		case strings.HasSuffix(name, ".sql.gz"):
+			key := strings.TrimSuffix(name, ".sql.gz")
+			if !live[key] {
+				if fi, err := entry.Info(); err == nil && now.Sub(fi.ModTime()) >= time.Hour {
+					_ = os.Remove(full)
+				}
+			}
 		}
 	}
 	return nil

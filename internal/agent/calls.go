@@ -546,7 +546,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 			if err != nil {
 				return fail(err)
 			}
-			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), ExactRestart: d.GetExactRestartId(), Rollback: d.GetRollback(), Adopt: d.GetAdopt()}
+			want := resource.Desired{Ref: ref, Spec: spec, Pull: d.GetPull(), Run: d.GetRun(), Restart: d.GetRestart(), ExactRestart: d.GetExactRestartId(), Rollback: d.GetRollback(), Undoes: d.GetUndoes(), Adopt: d.GetAdopt()}
 			if id := d.GetBackupId(); id != "" {
 				want.Backup = &resource.BackupAsked{ID: id, Database: d.GetBackupDatabase()}
 				for _, also := range d.GetBackupAlso() {
@@ -711,7 +711,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		})
 		if d := call.GetApply().GetDeploy(); d != nil {
 			ctx = resource.WithDeploy(ctx, resource.Deploy{
-				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(), LastAccess: d.GetLastAccessStep(),
+				Revision: int(d.GetRevision()), Change: d.GetChangeId(), Rollback: d.GetRollback(), Undoes: d.GetUndoes(), LastAccess: d.GetLastAccessStep(),
 			})
 			ctx = resource.WithBuilds(ctx, c.buildUpdates(d.GetChangeId(), ref))
 		}

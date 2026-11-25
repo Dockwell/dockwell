@@ -133,12 +133,27 @@ func (*LogicalDriver) Plan(actual, desired proto.Message, changes []resource.Cha
 	return resource.Decision{Action: resource.ActionUpdate}, nil
 }
 
-// Judge checks the server on create, refusing a database that already exists
-// or an owner user that doesn't exist on the server.
+// Judge checks the server on create (refusing a database that already exists or
+// a missing owner) and on delete (refusing while active sessions are connected).
 func (d *LogicalDriver) Judge(ctx context.Context, ref resource.Ref, actual, desired proto.Message, changes []resource.Change) (resource.Decision, error) {
 	dec, err := d.Plan(actual, desired, changes)
-	if err != nil || dec.Action != resource.ActionCreate {
+	if err != nil {
 		return dec, err
+	}
+	if dec.Action == resource.ActionDelete {
+		s, _ := actual.(*resourcev1.LogicalDatabase)
+		if s != nil && !deletedHere(ctx, ref.Scope, s.GetService()) {
+			db := LogicalName(ref.Name, s)
+			if c, e, err := d.server(ctx, ref, s.GetService()); err == nil && e.SQL() {
+				if users, uerr := activeDatabaseUsers(ctx, d.Client, c, e, db); uerr == nil && len(users) > 0 {
+					return resource.Decision{}, fmt.Errorf("%s on %s still has active connections from %s, so it can't be deleted while apps are connected. Stop or disconnect them first", db, s.GetService(), strings.Join(users, ", "))
+				}
+			}
+		}
+		return dec, nil
+	}
+	if dec.Action != resource.ActionCreate {
+		return dec, nil
 	}
 	s := desired.(*resourcev1.LogicalDatabase)
 	db := LogicalName(ref.Name, s)
@@ -174,7 +189,7 @@ func (d *LogicalDriver) Judge(ctx context.Context, ref resource.Ref, actual, des
 	if s.GetOwner() != "" && !ownerExists {
 		return resource.Decision{}, fmt.Errorf("%s has no user %s to own %s. Pick an existing user, or make a new one", s.GetService(), s.GetOwner(), db)
 	}
-	if hasDeletedBackup(d.Dir, time.Now(), ref.Scope, s.GetService(), db) {
+	if undoes := resource.DeployOf(ctx).Undoes; undoes != "" && hasDeletedBackup(d.Dir, time.Now(), undoes, ref.Scope, s.GetService(), db) {
 		dec.Restores = true
 	}
 	return dec, nil
@@ -463,8 +478,8 @@ func (d *LogicalDriver) Apply(ctx context.Context, step resource.Step, desired p
 			return err
 		}
 	}
-	if step.Action == resource.ActionCreate && (step.Restores || hasDeletedBackup(d.Dir, time.Now(), ref.Scope, s.GetService(), db)) {
-		if err := restoreDeletedBackup(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, s.GetService(), db, owner, ""); err != nil {
+	if step.Action == resource.ActionCreate && step.Restores {
+		if err := restoreDeletedBackup(ctx, d.Client, d.Dir, time.Now(), resource.DeployOf(ctx).Undoes, c, e, ref.Scope, s.GetService(), db, owner, ""); err != nil {
 			// Undo failed to restore the kept backup: drop the empty database we just made.
 			if e.Kind == dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL {
 				_ = d.run(context.WithoutCancel(ctx), c, e, "DROP DATABASE IF EXISTS "+pgName(db)+";\n")
@@ -506,7 +521,7 @@ func (d *LogicalDriver) drop(ctx context.Context, ref resource.Ref) error {
 		return err
 	}
 	// Back up the database before dropping so Undo restores its data; refuse if backup fails.
-	if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), c, e, ref.Scope, g.Service, db, g.Owner); err != nil {
+	if err := backupBeforeDrop(ctx, d.Client, d.Dir, time.Now(), resource.DeployOf(ctx).Change, c, e, ref.Scope, g.Service, db, g.Owner); err != nil {
 		return err
 	}
 	var sql string

@@ -177,4 +177,127 @@ func testDeleteDatabaseRefusedAcrossAllAppUsagePaths(t *testing.T, backend store
 	}}); err != nil {
 		t.Fatalf("deleting pg-secret_db after detaching worker-app failed: %v", err)
 	}
+
+	// H3's rest: plain DB_NAME/MYSQL_DATABASE/POSTGRES_DB on a service reaching pg,
+	// apps signing in as the engine's admin, aliases/published ports, and warning
+	// in the plan when Dockwell can't tell.
+	pgWithAliasAndPort := Edit{
+		Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "pg"},
+		Spec: &resourcev1.Service{
+			Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+				Image:            "postgres:17",
+				Env:              map[string]string{"POSTGRES_USER": "postgres"},
+				ExternalNetworks: []string{"shared-net"},
+				Aliases:          []string{"pg-primary"},
+				Ports:            []*resourcev1.PortMapping{{HostPort: 15432, ContainerPort: 5432}},
+			}},
+			Secrets: map[string]string{"POSTGRES_PASSWORD": "PG_ADMIN_PASSWORD"},
+		},
+		Servers: []string{"srv_A"},
+	}
+	apply(t, e, propose(t, e, "Add H3 round-3 database usage paths",
+		pgWithAliasAndPort,
+		// (a) Plain env var DB_NAME on a service reaching pg via DB_HOST.
+		Edit{
+			Ref:     resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-plain_db"},
+			Spec:    &resourcev1.LogicalDatabase{Service: "pg", DatabaseName: "plain_db", Owner: "postgres"},
+			Servers: []string{"srv_A"},
+		},
+		Edit{
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "plain-app"},
+			Spec: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "nginx:1",
+					Env:   map[string]string{"DB_HOST": "pg", "DB_NAME": "plain_db"},
+				}},
+			},
+			Servers: []string{"srv_A"},
+		},
+		// (b) URL targeting an alias and published port of pg.
+		Edit{
+			Ref:     resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-alias_db"},
+			Spec:    &resourcev1.LogicalDatabase{Service: "pg", DatabaseName: "alias_db", Owner: "postgres"},
+			Servers: []string{"srv_A"},
+		},
+		Edit{
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "alias-app"},
+			Spec: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "nginx:1",
+					Env:   map[string]string{"DATABASE_URL": "postgres://u:p@pg-primary:5432/alias_db"},
+				}},
+			},
+			Servers: []string{"srv_A"},
+		},
+		Edit{
+			Ref:     resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-port_db"},
+			Spec:    &resourcev1.LogicalDatabase{Service: "pg", DatabaseName: "port_db", Owner: "postgres"},
+			Servers: []string{"srv_A"},
+		},
+		Edit{
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "port-app"},
+			Spec: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "nginx:1",
+					Env:   map[string]string{"DATABASE_URL": "postgres://u:p@127.0.0.1:15432/port_db"},
+				}},
+			},
+			Servers: []string{"srv_A"},
+		},
+		// (c) App signing in as engine admin (PG_ADMIN_PASSWORD) with no other DB named.
+		Edit{
+			Ref:     resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-admin_db"},
+			Spec:    &resourcev1.LogicalDatabase{Service: "pg", DatabaseName: "admin_db", Owner: "postgres"},
+			Servers: []string{"srv_A"},
+		},
+		user(env, "admin-tool", "srv_A", map[string]string{"POSTGRES_PASSWORD": "PG_ADMIN_PASSWORD"}, nil),
+	))
+
+	// Refuses plain env var DB_NAME on a service reaching pg.
+	if _, err := e.Propose(t.Context(), Proposal{Summary: "Delete plain_db", Edits: []Edit{{Ref: resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-plain_db"}}}}); err == nil || !strings.Contains(err.Error(), "plain-app") {
+		t.Fatalf("H3 plain DB_NAME: got %v, want refusal naming plain-app", err)
+	}
+	// Refuses URL naming engine alias pg-primary.
+	if _, err := e.Propose(t.Context(), Proposal{Summary: "Delete alias_db", Edits: []Edit{{Ref: resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-alias_db"}}}}); err == nil || !strings.Contains(err.Error(), "alias-app") {
+		t.Fatalf("H3 alias URL: got %v, want refusal naming alias-app", err)
+	}
+	// Refuses URL naming engine published port 127.0.0.1:15432.
+	if _, err := e.Propose(t.Context(), Proposal{Summary: "Delete port_db", Edits: []Edit{{Ref: resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-port_db"}}}}); err == nil || !strings.Contains(err.Error(), "port-app") {
+		t.Fatalf("H3 published port URL: got %v, want refusal naming port-app", err)
+	}
+	// Refuses while admin-tool signs in with engine admin secret.
+	if _, err := e.Propose(t.Context(), Proposal{Summary: "Delete admin_db", Edits: []Edit{{Ref: resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-admin_db"}}}}); err == nil || !strings.Contains(err.Error(), "admin-tool") {
+		t.Fatalf("H3 admin secret app: got %v, want refusal naming admin-tool", err)
+	}
+
+	// Remove admin-tool and add an app that reaches pg via DB_HOST=pg without naming any DB:
+	// deleting pg-admin_db is allowed, and the plan warns rather than staying silent.
+	apply(t, e, propose(t, e, "Replace admin-tool with opaque-app",
+		Edit{Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "admin-tool"}},
+		Edit{
+			Ref: resource.Ref{Kind: service.Kind, Scope: env, Name: "opaque-app"},
+			Spec: &resourcev1.Service{
+				Runs: &resourcev1.Service_App{App: &resourcev1.Container{
+					Image: "nginx:1",
+					Env:   map[string]string{"DB_HOST": "pg"},
+				}},
+			},
+			Servers: []string{"srv_A"},
+		},
+	))
+	plan, err := e.Propose(t.Context(), Proposal{Summary: "Delete admin_db", Edits: []Edit{{Ref: resource.Ref{Kind: database.LogicalKind, Scope: env, Name: "pg-admin_db"}}}})
+	if err != nil {
+		t.Fatalf("H3 delete with opaque-app failed: %v", err)
+	}
+	foundWarn := false
+	for i := range plan.Notes {
+		n := &plan.Notes[i]
+		if n.Reason == "database_delete_unverified" && strings.Contains(n.Message, "opaque-app") {
+			foundWarn = true
+			break
+		}
+	}
+	if !foundWarn {
+		t.Fatalf("H3: expected database_delete_unverified plan warning naming opaque-app, got notes=%+v", plan.Notes)
+	}
 }

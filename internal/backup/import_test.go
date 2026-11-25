@@ -72,12 +72,19 @@ func TestScanSQLDumpRefusesDangerousCommandsAndAllowsRealDumps(t *testing.T) {
 	my := dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB
 
 	// Real PostgreSQL pg_dump output (including \restrict/\unrestrict, COPY FROM stdin
-	// containing \! inside data rows, and string literals mentioning CREATE ROLE) passes.
+	// containing \! inside data rows, dollar-quoted plpgsql function with nested tags
+	// and string literals mentioning CREATE ROLE) passes.
 	validPG := strings.Join([]string{
 		`\restrict abcdef123456`,
 		`-- PostgreSQL database dump`,
 		`SET statement_timeout = 0;`,
 		`CREATE TABLE public.notes (id int, body text);`,
+		`CREATE FUNCTION public.greet() RETURNS text LANGUAGE plpgsql AS $outer$`,
+		`BEGIN`,
+		`  RETURN $inner$CREATE ROLE fake; \! echo harmless$inner$;`,
+		`END;`,
+		`$outer$;`,
+		`CREATE FUNCTION public.noop() RETURNS int LANGUAGE sql AS $$ SELECT 1 $$;`,
 		`INSERT INTO public.notes VALUES (1, 'CREATE ROLE admin; \! rm -rf /');`,
 		`COPY public.notes (id, body) FROM stdin;`,
 		`2	\! echo inside copy data is harmless`,
@@ -100,6 +107,7 @@ func TestScanSQLDumpRefusesDangerousCommandsAndAllowsRealDumps(t *testing.T) {
 		{"connect switch", "-- ok\n\n\\connect other\n", "line 3", "switches databases"},
 		{"short connect", "\\c other\n", "line 1", "switches databases"},
 		{"client copy", "SELECT 1;\n\\copy t TO PROGRAM 'id'\n", "line 2", `\copy`},
+		{"password meta", "\\password app\n", "line 1", `\password`},
 		{"other meta", "\\i /etc/passwd\n", "line 1", "psql meta-command"},
 		{"copy to program", "SELECT 1;\nCOPY t TO PROGRAM 'id';\n", "line 2", "COPY TO PROGRAM"},
 		{"copy from program", "COPY t FROM PROGRAM 'cat /etc/passwd';\n", "line 1", "COPY FROM PROGRAM"},
@@ -108,6 +116,19 @@ func TestScanSQLDumpRefusesDangerousCommandsAndAllowsRealDumps(t *testing.T) {
 		{"drop database", "DROP DATABASE other;\n", "line 1", "modifies a database"},
 		{"pg_dumpall header", "--\n-- PostgreSQL database cluster dump\n--\n", "line 2", "pg_dumpall"},
 		{"mismatched unrestrict", "\\restrict k1\n\\unrestrict wrong\n", "line 2", "psql meta-command"},
+		// N1: dollar-quoted function bodies (untagged, tagged, nested tags, adjacent $) must close!
+		{"after untagged dollar quote shell", "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;\n\\! id\n", "line 2", "shell command"},
+		{"after untagged dollar quote connect", "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;\n\\c other\n", "line 2", "switches databases"},
+		{"after untagged dollar quote copy program", "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;\nCOPY t TO PROGRAM 'id';\n", "line 2", "COPY TO PROGRAM"},
+		{"after untagged dollar quote alter role", "CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql;\nALTER ROLE app PASSWORD 'x';\n", "line 2", "database roles"},
+		{"after tagged dollar quote $_$", "CREATE FUNCTION f() RETURNS int AS $_$ SELECT 1 $_$ LANGUAGE sql;\n\\! id\n", "line 2", "shell command"},
+		{"after nested dollar quote tags", "CREATE FUNCTION f() RETURNS text AS $outer$ BEGIN RETURN $inner$hi$inner$; END; $outer$ LANGUAGE plpgsql;\n\\! id\n", "line 2", "shell command"},
+		{"after adjacent dollar close $$a$", "CREATE FUNCTION f() RETURNS text AS $a$ SELECT $$a$ LANGUAGE sql;\n\\! id\n", "line 2", "shell command"},
+		// N1: backslash commands anywhere on a line after a statement.
+		{"same-line shell after stmt", "SELECT 1; \\! id\n", "line 1", "shell command"},
+		{"same-line gexec", "SELECT 1 \\gexec\n", "line 1", "psql meta-command"},
+		{"same-line mid-line restrict", "SELECT 1; \\restrict k1\n", "line 1", "psql meta-command"},
+		{"same-line password", "SELECT 1; \\password app\n", "line 1", `\password`},
 	}
 	for _, tc := range pgRefusals {
 		err := scanSQLDump(pg, strings.NewReader(tc.sql))
@@ -131,7 +152,7 @@ func TestScanSQLDumpRefusesDangerousCommandsAndAllowsRealDumps(t *testing.T) {
 		`  system VARCHAR(64),`,
 		`  note TEXT`,
 		`);`,
-		`INSERT INTO items VALUES (1, 'ok', 'USE mysql; CREATE USER x;');`,
+		`INSERT INTO items VALUES (1, 'ok', 'USE mysql; CREATE USER x; /*M!100100 USE other */');`,
 		`DELIMITER ;;`,
 		`CREATE TRIGGER t1 AFTER INSERT ON items FOR EACH ROW BEGIN SET @x = 1; END;;`,
 		`DELIMITER ;`,
@@ -161,6 +182,23 @@ func TestScanSQLDumpRefusesDangerousCommandsAndAllowsRealDumps(t *testing.T) {
 		{"load_file", "SELECT LOAD_FILE('/etc/passwd');\n", "line 1", "LOAD_FILE"},
 		{"mysql.user write", "UPDATE `mysql`.`user` SET password = 'x';\n", "line 1", "mysql.user"},
 		{"all-databases header", "--\n-- Current Database: `other`\n--\n", "line 2", "Current Database"},
+		// N1: backslash and client commands after a statement on the same line.
+		{"same-line backslash shell", "SELECT 1; \\! id\n", "line 1", "shell command"},
+		{"same-line system after semicolon", "SELECT 1; system id\n", "line 1", "shell command"},
+		{"same-line source after semicolon", "SELECT 1; source /etc/passwd\n", "line 1", "external file"},
+		{"same-line connect after semicolon", "SELECT 1; connect other\n", "line 1", "switches databases"},
+		{"same-line backslash use", "SELECT 1; \\u other\n", "line 1", "switches databases"},
+		// N1: DELIMITER tracking must reset statement boundaries on custom delimiters.
+		{"after delimiter grant", "DELIMITER //\nGRANT ALL ON *.* TO x//\nDELIMITER ;\n", "line 2", "privileges"},
+		{"after delimiter use", "DELIMITER //\nUSE other//\nDELIMITER ;\n", "line 2", "switches databases"},
+		{"after custom delimiter second stmt use", "DELIMITER //\nSELECT 1//\nUSE other//\nDELIMITER ;\n", "line 3", "switches databases"},
+		{"after custom delimiter same-line system", "DELIMITER //\nSELECT 1// system id\n", "line 2", "shell command"},
+		// N1: MariaDB /*M! and MySQL /*! executable comments (single-line and multi-line).
+		{"mariadb exec comment use", "/*M!100100 USE other */\n", "line 1", "switches databases"},
+		{"mariadb exec comment multiline", "/*M!100100\nUSE other\n*/\n", "line 2", "switches databases"},
+		{"mariadb exec comment grant", "/*M!100100 GRANT ALL ON *.* TO 'x'@'%' */;\n", "line 1", "privileges"},
+		{"mariadb exec comment shell", "/*M!100100 \\! id */\n", "line 1", "shell command"},
+		{"mysql exec comment multiline", "/*!40101\nCREATE USER 'evil'@'%'\n*/;\n", "line 2", "users or roles"},
 	}
 	for _, tc := range myRefusals {
 		err := scanSQLDump(my, strings.NewReader(tc.sql))
@@ -734,4 +772,282 @@ func TestMySQLFilePasswordCredsInDatabaseKinds(t *testing.T) {
 		t.Errorf("admin password snippets missing _FILE support")
 	}
 	_ = fmt.Sprintf // keep fmt imported if needed
+}
+
+func TestImportRound3GuardsExpansionLockoutAndRollbackSanitization(t *testing.T) {
+	t.Parallel()
+	e := dockertest.New(t)
+	client := e.Client()
+
+	var mu sync.Mutex
+	psqlVersion := "psql (PostgreSQL) 17.6\n"
+	lockoutJSON := `{"owner":"shop","login":true,"super":false,"loader":"","verifier":"SCRAM-SHA-256$4096:origsalt$origkey:origserv"}`
+	notOwnedOut := ""
+	failRollback := false
+	failLoad := false
+	blockLoad := make(chan struct{})
+	loadStarted := make(chan struct{})
+	blockOnLoad := false
+	ownerLockedOut := false
+	var letInSQLs []string
+
+	e.AddLocalImage("postgres:15.4", dockertest.Image{
+		Volumes: []string{"/var/lib/postgresql/data"},
+		Config:  docker.Config{Cmd: []string{"postgres"}},
+		Exec: func(x dockertest.Exec) int {
+			script := strings.Join(x.Cmd, " ")
+			switch {
+			case len(x.Cmd) >= 2 && x.Cmd[0] == "psql" && x.Cmd[1] == "-V":
+				mu.Lock()
+				v := psqlVersion
+				mu.Unlock()
+				_, _ = io.WriteString(x.Stdout, v)
+				return 0
+			case strings.Contains(script, " -w ") && strings.Contains(script, "SELECT 1"):
+				_, _ = io.WriteString(x.Stderr, "psql: error: fe_sendauth: no password supplied\n")
+				return 2
+			case strings.Contains(script, "pg_dump "):
+				_, _ = io.WriteString(x.Stdout, "CREATE TABLE kept (id int);\n-- PostgreSQL database dump complete\n")
+				return 0
+			case strings.Contains(script, `-d "$d"`):
+				mu.Lock()
+				shouldBlock := blockOnLoad
+				if shouldBlock {
+					blockOnLoad = false
+				}
+				shouldFailLoad := failLoad
+				shouldFailRollback := failRollback
+				mu.Unlock()
+				if shouldBlock {
+					close(loadStarted)
+					<-blockLoad
+				}
+				b, _ := io.ReadAll(x.Stdin)
+				sql := string(b)
+				if strings.Contains(sql, "$dw_empty$") && shouldFailRollback {
+					_, _ = io.WriteString(x.Stderr, "psql:<stdin>:7: ERROR:  relation \"kept\" already exists\nDETAIL:  Key (secret)=(rollback-secret-value-42) failed.\nLINE 7: INSERT INTO kept VALUES ('rollback-secret-value-42');\n")
+					return 3
+				}
+				if !strings.Contains(sql, "$dw_empty$") && shouldFailLoad {
+					_, _ = io.WriteString(x.Stderr, "psql:<stdin>:1: ERROR:  syntax error\nLINE 1: BAD 'import-secret';\n")
+					return 3
+				}
+				return 0
+			case strings.Contains(script, "psql"):
+				b, _ := io.ReadAll(x.Stdin)
+				sql := string(b)
+				switch {
+				case strings.Contains(sql, "SELECT 1 FROM pg_database WHERE datname = 'shop'"):
+					_, _ = io.WriteString(x.Stdout, "1\n")
+					return 0
+				case strings.Contains(sql, "'login', r.rolcanlogin"):
+					mu.Lock()
+					j := lockoutJSON
+					mu.Unlock()
+					_, _ = io.WriteString(x.Stdout, j+"\n")
+					return 0
+				case strings.Contains(sql, "FROM pg_extension x WHERE x.oid >= 16384"):
+					mu.Lock()
+					o := notOwnedOut
+					mu.Unlock()
+					_, _ = io.WriteString(x.Stdout, o)
+					return 0
+				case strings.Contains(sql, `ALTER ROLE "shop" NOLOGIN`):
+					mu.Lock()
+					ownerLockedOut = true
+					mu.Unlock()
+					return 0
+				case strings.Contains(sql, `ALTER ROLE "shop" LOGIN`):
+					mu.Lock()
+					ownerLockedOut = false
+					letInSQLs = append(letInSQLs, sql)
+					mu.Unlock()
+					return 0
+				}
+				return 0
+			}
+			return 0
+		},
+	})
+
+	ref := resource.Ref{Kind: "volume", Scope: "env_r3", Name: "data"}
+	volName := volume.TargetOf(ref).Name
+	if _, err := client.CreateVolume(t.Context(), &docker.VolumeCreate{Name: volName}); err != nil {
+		t.Fatal(err)
+	}
+	cid, err := client.CreateContainer(t.Context(), "dockwell-env_r3-db", &docker.CreateRequest{
+		Config: docker.Config{
+			Image:  "postgres:15.4",
+			Labels: map[string]string{docker.LabelProject: "env_r3", docker.LabelService: "db"},
+		},
+		HostConfig: docker.HostConfig{
+			Mounts: []docker.Mount{{Type: "volume", Source: volName, Target: "/var/lib/postgresql/data"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.StartContainer(t.Context(), cid); err != nil {
+		t.Fatal(err)
+	}
+
+	now := time.Date(2026, 11, 25, 12, 0, 0, 0, time.UTC)
+	var freeBytes int64 = 100 << 20
+	var reserveBytes int64 = 20 << 20
+	r := &Runner{
+		Client: client,
+		Root:   t.TempDir(),
+		Now:    func() time.Time { return now },
+		Disk:   func() disk { return disk{free: freeBytes, reserve: reserveBytes} },
+	}
+
+	// N1: Old psql (15.4) without \restrict is refused with fact and fix (15.14 or later).
+	smallSQL := []byte("SELECT 1;\n")
+	m1, err := r.BeginImport("user:u1", "", "svc_db", "shop", "ok.sql", "", uint64(len(smallSQL)), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageBytes(t, r, m1.ID, smallSQL)
+	mu.Lock()
+	psqlVersion = "psql (PostgreSQL) 15.4\n"
+	mu.Unlock()
+	if _, _, err := r.JudgeRestore(t.Context(), ref, resource.RestoreSource{
+		Change: "chg_old", ImportID: m1.ID, ImportDatabase: "shop", ImportFilename: "ok.sql", ImportFormat: ImportFormatSQL,
+	}); err == nil || !strings.Contains(err.Error(), "can't refuse client commands") || !strings.Contains(err.Error(), "15.14") {
+		t.Fatalf("N1 old psql refusal = %v, want fact + 15.14 fix", err)
+	}
+	mu.Lock()
+	psqlVersion = "psql (PostgreSQL) 17.6\n"
+	mu.Unlock()
+
+	// N8(c): Lockout refusal through judgeImport says "so a dump can't be imported into it as its owner"
+	// and names the object in the way, never "Restore the whole server instead".
+	mu.Lock()
+	notOwnedOut = "the extension dblink\n"
+	mu.Unlock()
+	if _, _, err := r.JudgeRestore(t.Context(), ref, resource.RestoreSource{
+		Change: "chg_ext", ImportID: m1.ID, ImportDatabase: "shop", ImportFilename: "ok.sql", ImportFormat: ImportFormatSQL,
+	}); err == nil || !strings.Contains(err.Error(), "the extension dblink") || !strings.Contains(err.Error(), "so a dump can't be imported into it as its owner") || strings.Contains(err.Error(), "Restore the whole server instead") {
+		t.Fatalf("N8(c) pgOwnsAll import refusal = %v", err)
+	}
+	mu.Lock()
+	notOwnedOut = ""
+	mu.Unlock()
+
+	// N6: Compressed dump expanding past free - reserve is refused at JudgeRestore with the fact.
+	var bombBuf bytes.Buffer
+	gzw := gzip.NewWriter(&bombBuf)
+	// 256 KiB of repetitive valid SQL compresses to ~1 KiB.
+	line := strings.Repeat("SELECT 1;\n", 1024)
+	for range 26 {
+		_, _ = io.WriteString(gzw, line)
+	}
+	_ = gzw.Close()
+	// Make free - reserve = 64 KiB so compressed upload (~1 KiB) passes BeginImport,
+	// while expanded SQL (~260 KiB) passes free - reserve at JudgeRestore.
+	freeBytes = 128 << 10
+	reserveBytes = 64 << 10
+	mBomb, err := r.BeginImport("user:u1", "", "svc_db", "shop", "bomb.sql.gz", "", uint64(bombBuf.Len()), 0)
+	if err != nil {
+		t.Fatalf("BeginImport(bomb): %v", err)
+	}
+	stageBytes(t, r, mBomb.ID, bombBuf.Bytes())
+	if _, _, err := r.JudgeRestore(t.Context(), ref, resource.RestoreSource{
+		Change: "chg_bomb", ImportID: mBomb.ID, ImportDatabase: "shop", ImportFilename: "bomb.sql.gz", ImportFormat: ImportFormatSQLGZ,
+	}); err == nil || !strings.Contains(err.Error(), "expands past") || !strings.Contains(err.Error(), "free-space reservation") {
+		t.Fatalf("N6 expansion refusal = %v, want expands past free-space reservation", err)
+	}
+	freeBytes = 100 << 20
+	reserveBytes = 20 << 20
+
+	// N2: Successful import restores PostgreSQL owner's original password verifier on LetIn.
+	srcOK := resource.RestoreSource{Change: "chg_n2", ImportID: m1.ID, ImportDatabase: "shop", ImportFilename: "ok.sql", ImportFormat: ImportFormatSQL}
+	decOK, _, err := r.JudgeRestore(t.Context(), ref, srcOK)
+	if err != nil {
+		t.Fatalf("JudgeRestore(ok): %v", err)
+	}
+	if err := r.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: decOK}, srcOK); err != nil {
+		t.Fatalf("ApplyRestore(ok): %v", err)
+	}
+	mu.Lock()
+	foundVerifier := false
+	for _, sql := range letInSQLs {
+		if strings.Contains(sql, `ALTER ROLE "shop" PASSWORD 'SCRAM-SHA-256$4096:origsalt$origkey:origserv'`) {
+			foundVerifier = true
+			break
+		}
+	}
+	mu.Unlock()
+	if !foundVerifier {
+		t.Errorf("N2: LetIn did not restore owner's pg_authid verifier; letInSQLs=%v", letInSQLs)
+	}
+
+	// N5: While applyImport is running, CancelImport refuses with import_in_use, SweepImports
+	// leaves the files alone, and cancelling ctx rolls back and lets the app back in.
+	mBusy, err := r.BeginImport("user:u1", "", "svc_db", "shop", "busy.sql", "", uint64(len(smallSQL)), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageBytes(t, r, mBusy.ID, smallSQL)
+	srcBusy := resource.RestoreSource{Change: "chg_n5", ImportID: mBusy.ID, ImportDatabase: "shop", ImportFilename: "busy.sql", ImportFormat: ImportFormatSQL}
+	decBusy, _, err := r.JudgeRestore(t.Context(), ref, srcBusy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	blockOnLoad = true
+	failLoad = true
+	mu.Unlock()
+	applyCtx, cancelApply := context.WithCancel(t.Context())
+	applyDone := make(chan error, 1)
+	go func() {
+		applyDone <- r.ApplyRestore(applyCtx, resource.Step{Ref: ref, Decision: decBusy}, srcBusy)
+	}()
+	<-loadStarted
+	if err := r.CancelImport(mBusy.ID, "user:u1"); err == nil || !strings.Contains(err.Error(), "importing now") {
+		t.Errorf("N5: CancelImport during apply = %v, want import_in_use", err)
+	}
+	now = now.Add(48 * time.Hour)
+	r.SweepImports()
+	if _, err := os.Stat(r.importDataPath(mBusy.ID)); err != nil {
+		t.Errorf("N5: SweepImports deleted staged file while applying: %v", err)
+	}
+	// Cancel ctx while load is blocked and fail load -> rollback + letIn must let app back in.
+	cancelApply()
+	close(blockLoad)
+	if err := <-applyDone; err == nil {
+		t.Error("N5: cancelled/failed import succeeded")
+	}
+	mu.Lock()
+	lockedAfterCancel := ownerLockedOut
+	blockOnLoad = false
+	mu.Unlock()
+	if lockedAfterCancel {
+		t.Error("N5: owner stayed locked out after cancelled/failed import")
+	}
+
+	// N7: When rollback also fails, rollback error is sanitized (no LINE/DETAIL/secret leaked).
+	mRollFail, err := r.BeginImport("user:u1", "", "svc_db", "shop", "rf.sql", "", uint64(len(smallSQL)), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageBytes(t, r, mRollFail.ID, smallSQL)
+	srcRF := resource.RestoreSource{Change: "chg_n7", ImportID: mRollFail.ID, ImportDatabase: "shop", ImportFilename: "rf.sql", ImportFormat: ImportFormatSQL}
+	decRF, _, err := r.JudgeRestore(t.Context(), ref, srcRF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	failLoad = true
+	failRollback = true
+	mu.Unlock()
+	rfErr := r.ApplyRestore(t.Context(), resource.Step{Ref: ref, Decision: decRF}, srcRF)
+	if rfErr == nil || !strings.Contains(rfErr.Error(), "Putting back what was there failed too") {
+		t.Fatalf("N7 rollback failure err = %v", rfErr)
+	}
+	for _, leak := range []string{"rollback-secret-value-42", "LINE 7:", "DETAIL:"} {
+		if strings.Contains(rfErr.Error(), leak) {
+			t.Errorf("N7: rollback failure leaked %q: %v", leak, rfErr)
+		}
+	}
 }

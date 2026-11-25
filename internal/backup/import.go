@@ -4,7 +4,6 @@ package backup
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -20,6 +19,7 @@ import (
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
+	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
 	"github.com/dockwell/dockwell/internal/lazyre"
 	"github.com/dockwell/dockwell/internal/resource"
@@ -185,6 +185,29 @@ func (r *Runner) SweepImports() {
 	r.sweepExpiredImportsLocked()
 }
 
+// acquireImport marks a staged import as in use by Judge or Apply so neither
+// CancelImport nor the background sweeper can delete its files underneath it (N5).
+func (r *Runner) acquireImport(importID string) func() {
+	if importID == "" {
+		return func() {}
+	}
+	r.importMu.Lock()
+	if r.importInUse == nil {
+		r.importInUse = map[string]int{}
+	}
+	r.importInUse[importID]++
+	r.importMu.Unlock()
+	return func() {
+		r.importMu.Lock()
+		if n := r.importInUse[importID]; n <= 1 {
+			delete(r.importInUse, importID)
+		} else {
+			r.importInUse[importID] = n - 1
+		}
+		r.importMu.Unlock()
+	}
+}
+
 func (r *Runner) sweepExpiredImportsLocked() {
 	entries, err := os.ReadDir(r.importsDir())
 	if err != nil {
@@ -199,7 +222,7 @@ func (r *Runner) sweepExpiredImportsLocked() {
 		}
 		importID := strings.TrimSuffix(name, ".json")
 		seenJSON[importID] = true
-		if r.importBusy[importID] {
+		if r.importBusy[importID] || r.importInUse[importID] > 0 {
 			continue
 		}
 		m, err := r.readImportMeta(importID)
@@ -222,7 +245,7 @@ func (r *Runner) sweepExpiredImportsLocked() {
 			continue
 		}
 		importID := strings.TrimSuffix(name, ".part")
-		if seenJSON[importID] || r.importBusy[importID] {
+		if seenJSON[importID] || r.importBusy[importID] || r.importInUse[importID] > 0 {
 			continue
 		}
 		_ = os.Remove(filepath.Join(r.importsDir(), name))
@@ -522,6 +545,9 @@ func (r *Runner) CancelImport(importID, owner string) error {
 	if owner != "" && meta.Owner != owner {
 		return &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or belongs to another user"}
 	}
+	if r.importInUse[importID] > 0 {
+		return &ImportError{Reason: "import_in_use", Message: "this dump is importing now and can't be cancelled"}
+	}
 	if r.importBusy[importID] {
 		if r.importCanceled == nil {
 			r.importCanceled = map[string]bool{}
@@ -596,9 +622,51 @@ func validateImportHeader(path, format string) error {
 	}
 }
 
+// importExpansionLimit returns the maximum expanded SQL byte count allowed for
+// an import before it would pass this server's free-space reservation (N6).
+func (r *Runner) importExpansionLimit() (uint64, bool) {
+	d, err := r.disk()
+	if err != nil || d.free <= 0 {
+		return 0, false
+	}
+	avail := d.free - d.reserve
+	if avail <= 0 {
+		return 0, true
+	}
+	return uint64(avail), true
+}
+
+type expansionLimitReader struct {
+	r        io.Reader
+	limit    uint64
+	read     uint64
+	filename string
+	onTrip   func()
+	err      error
+}
+
+func (e *expansionLimitReader) Read(p []byte) (int, error) {
+	if e.err != nil {
+		return 0, e.err
+	}
+	n, err := e.r.Read(p)
+	if n > 0 {
+		e.read += uint64(n)
+		if e.read > e.limit {
+			e.err = fmt.Errorf("%s expands past %s, which would pass this server's free-space reservation. Free up disk space or trim the dump, then try again",
+				e.filename, human.Size(int64(e.limit))) //nolint:gosec // bounded by disk free space
+			if e.onTrip != nil {
+				e.onTrip()
+			}
+			return 0, e.err
+		}
+	}
+	return n, err
+}
+
 // scanImportFile scans a staged plain or gzipped SQL dump for refused commands
-// and statements.
-func scanImportFile(engine dockwellv1.DatabaseEngine, path, format string) error {
+// and statements, stopping if expanded SQL passes limit (when hasLimit is true).
+func scanImportFile(engine dockwellv1.DatabaseEngine, path, format, filename string, limit uint64, hasLimit bool) error {
 	f, err := os.Open(path) //nolint:gosec // validated staged dump path
 	if err != nil {
 		return err
@@ -613,27 +681,45 @@ func scanImportFile(engine dockwellv1.DatabaseEngine, path, format string) error
 		defer gz.Close()
 		src = gz
 	}
+	if hasLimit {
+		src = &expansionLimitReader{r: src, limit: limit, filename: filename}
+	}
 	return scanSQLDump(engine, src)
 }
 
 // scanImportArchive converts a PostgreSQL .dump/.tar archive to SQL in a
-// networkless throwaway container and scans the resulting SQL stream.
-func (r *Runner) scanImportArchive(ctx context.Context, c *docker.Container, path, format string) error {
+// networkless throwaway container and scans the resulting SQL stream, stopping
+// if the expanded SQL passes limit (when hasLimit is true).
+func (r *Runner) scanImportArchive(ctx context.Context, c *docker.Container, path, format, filename string, limit uint64, hasLimit bool) error {
 	f, err := os.Open(path) //nolint:gosec // validated staged dump path
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	convCtx, cancelConv := context.WithCancel(ctx)
+	defer cancelConv()
 	pr, pw := io.Pipe()
 	convDone := make(chan error, 1)
 	go func() {
-		err := engines.Loader{Client: r.Client}.PGArchiveToSQL(ctx, c, format, true, f, pw)
+		err := engines.Loader{Client: r.Client}.PGArchiveToSQL(convCtx, c, format, true, f, pw)
 		_ = pw.CloseWithError(err)
 		convDone <- err
 	}()
-	scanErr := scanSQLDump(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, pr)
+	var src io.Reader = pr
+	var limiter *expansionLimitReader
+	if hasLimit {
+		limiter = &expansionLimitReader{r: pr, limit: limit, filename: filename, onTrip: cancelConv}
+		src = limiter
+	}
+	scanErr := scanSQLDump(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, src)
+	if scanErr != nil {
+		cancelConv()
+	}
 	_ = pr.CloseWithError(scanErr)
 	convErr := <-convDone
+	if limiter != nil && limiter.err != nil {
+		return limiter.err
+	}
 	if scanErr != nil {
 		return scanErr
 	}
@@ -647,44 +733,10 @@ func (r *Runner) scanImportArchive(ctx context.Context, c *docker.Container, pat
 	return nil
 }
 
-// mysqlVersionUnwrapper wraps a MySQL/MariaDB SQL stream line-by-line so
-// versioned comments (/*!40101 ... */) are scanned as SQL while MariaDB's
-// sandbox pragma (/*!999999\- ... */) is skipped.
-type mysqlVersionUnwrapper struct {
-	br  *bufio.Reader
-	buf []byte
-	eof bool
-}
-
-func newMySQLVersionUnwrapper(r io.Reader) *mysqlVersionUnwrapper {
-	return &mysqlVersionUnwrapper{br: bufio.NewReaderSize(r, 32<<10)}
-}
-
-func (u *mysqlVersionUnwrapper) Read(p []byte) (int, error) {
-	for len(u.buf) == 0 {
-		if u.eof {
-			return 0, io.EOF
-		}
-		line, err := u.br.ReadBytes('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				u.eof = true
-				if len(line) == 0 {
-					return 0, io.EOF
-				}
-			} else {
-				return 0, err
-			}
-		}
-		u.buf = unwrapMySQLVersionedComments(line)
-	}
-	n := copy(p, u.buf)
-	u.buf = u.buf[n:]
-	return n, nil
-}
-
 // judgeImport plans importing a staged dump into one logical database.
 func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource.RestoreSource) (resource.Decision, bool, error) {
+	release := r.acquireImport(src.ImportID)
+	defer release()
 	meta, err := r.InspectImport(src.ImportID, "")
 	if err != nil {
 		return resource.Decision{}, false, err
@@ -723,22 +775,28 @@ func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource
 	if e == nil {
 		return resource.Decision{}, false, fmt.Errorf("%s doesn't run %s from its official image, so %s can't be imported into", db.name, db.kind.name, dbName)
 	}
+	// Require a client that refuses client commands on its own so the scanner is
+	// never the sole guard (N1).
+	if err := (engines.Loader{Client: r.Client}).CheckClientRefusals(ctx, c, e); err != nil {
+		return resource.Decision{}, false, err
+	}
 	// Verify ADR 0084 owner-role lockout is possible so imports never run as superuser.
 	if l, err := r.readLockout(ref, dbName); err != nil {
 		return resource.Decision{}, false, err
 	} else if l == nil {
 		if _, err := engines.ReadLockout(ctx, r.Client, c, e, dbName); err != nil {
-			return resource.Decision{}, false, fmt.Errorf("can't import into %s as its owner: %w", dbName, err)
+			return resource.Decision{}, false, engines.FormatImportLockoutError(dbName, err)
 		}
 	}
-	// Pre-scan the staged dump before creating a plan.
+	// Pre-scan the staged dump before creating a plan, bounding expanded SQL against free space (N6).
 	stagedPath := r.importDataPath(meta.ID)
+	limit, hasLimit := r.importExpansionLimit()
 	if meta.Format == ImportFormatDump || meta.Format == ImportFormatTar {
-		if err := r.scanImportArchive(ctx, c, stagedPath, meta.Format); err != nil {
+		if err := r.scanImportArchive(ctx, c, stagedPath, meta.Format, meta.Filename, limit, hasLimit); err != nil {
 			return resource.Decision{}, false, err
 		}
 	} else {
-		if err := scanImportFile(engineKind, stagedPath, meta.Format); err != nil {
+		if err := scanImportFile(engineKind, stagedPath, meta.Format, meta.Filename, limit, hasLimit); err != nil {
 			return resource.Decision{}, false, err
 		}
 	}
@@ -764,6 +822,8 @@ func (r *Runner) judgeImport(ctx context.Context, ref resource.Ref, src resource
 // dump strictly as the owner through engines.Loader, and rolls back cleanly by
 // emptying and restoring on failure before letting the app back in.
 func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Target, st *state, src resource.RestoreSource) error {
+	release := r.acquireImport(src.ImportID)
+	defer release()
 	meta, err := r.InspectImport(src.ImportID, "")
 	if err != nil {
 		return err
@@ -795,12 +855,16 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 	if e == nil {
 		return fmt.Errorf("%s doesn't run %s from its official image, so %s can't be imported into", db.name, db.kind.name, dbName)
 	}
+	if err := (engines.Loader{Client: r.Client}).CheckClientRefusals(ctx, c, e); err != nil {
+		return err
+	}
 
 	// Re-scan plain/gzipped dumps before locking out the app or touching the database.
 	stagedPath := r.importDataPath(meta.ID)
+	limit, hasLimit := r.importExpansionLimit()
 	if meta.Format == ImportFormatSQL || meta.Format == ImportFormatSQLGZ {
 		resource.Progress(ctx, "Checking "+meta.Filename+" before importing")
-		if err := scanImportFile(engineKind, stagedPath, meta.Format); err != nil {
+		if err := scanImportFile(engineKind, stagedPath, meta.Format, meta.Filename, limit, hasLimit); err != nil {
 			return err
 		}
 	}
@@ -813,7 +877,7 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 	took := lockout != nil
 	if !took {
 		if lockout, err = engines.ReadLockout(ctx, r.Client, c, e, dbName); err != nil {
-			return fmt.Errorf("can't keep %s's user out, so nothing was changed: %w", dbName, err)
+			return fmt.Errorf("can't keep %s's user out, so nothing was changed: %w", dbName, engines.FormatImportLockoutError(dbName, err))
 		}
 		if err := os.MkdirAll(r.dir(ref), 0o700); err != nil {
 			return fmt.Errorf("can't make a place for %s's import state, so nothing was changed: %w", dbName, err)
@@ -878,9 +942,17 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 		if err := r.saveState(ref, st, stageReplacing); err != nil {
 			return unloaded(err)
 		}
+		// Refresh expansion limit after the pre-import backup took disk space (N6).
+		applyLimit, hasApplyLimit := r.importExpansionLimit()
 		resource.Progress(ctx, fmt.Sprintf("Importing %s into %s", meta.Filename, dbName))
-		if err := r.runDumpImport(ctx, c, e, dbName, lockout, password, stagedPath, meta.Format, meta.Filename, meta.SizeBytes); err != nil {
+		touched, err := r.runDumpImport(ctx, c, e, dbName, lockout, password, stagedPath, meta.Format, meta.Filename, meta.SizeBytes, applyLimit, hasApplyLimit)
+		if err != nil {
 			failed := fmt.Errorf("importing %s into %s failed: %w", meta.Filename, dbName, err)
+			if !touched {
+				// Nothing reached the database yet (e.g. file open/decompress error):
+				// let the app back in without emptying and reloading the database (N5).
+				return unloaded(failed)
+			}
 			// Empty and restore the pre-import backup as owner so extra tables added
 			// before failure are removed and ownership stays intact (H2, M2).
 			putCtx, cancel := resource.Finishing(ctx, putBackWait)
@@ -889,7 +961,7 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 			if perr := r.loadInto(putCtx, c, e, dbName, lockout, password, before); perr != nil {
 				return fmt.Errorf("%w. Putting back what was there failed too: %w. %s stays kept out of %s, as what's in it may not be whole. "+
 					"A dump of what was there is at %s on this server. Run dockwell changes undo %s to try again",
-					failed, perr, lockout.Owner, dbName, before, st.Change)
+					failed, formatImportLoadError(e.Name, perr), lockout.Owner, dbName, before, st.Change)
 			}
 			_ = r.saveState(ref, st, stageUndone)
 			if lerr := r.letIn(ctx, ref, c, e, dbName, lockout); lerr != nil {
@@ -898,7 +970,7 @@ func (r *Runner) applyImport(ctx context.Context, ref resource.Ref, t volume.Tar
 			return fmt.Errorf("%w. What was in %s before the import is back, and its user signs in again", failed, dbName)
 		}
 		if err := r.saveState(ref, st, stageReplaced); err != nil {
-			return err
+			return errors.Join(err, r.letIn(ctx, ref, c, e, dbName, lockout))
 		}
 	}
 	r.removeImportFiles(meta.ID)
@@ -954,12 +1026,13 @@ func (r *Runner) checkLogicalExists(ctx context.Context, db *database, dbName st
 }
 
 // runDumpImport loads a staged dump into dbName strictly as the database's
-// owner through engines.Loader, with lock_timeout and sanitized tool error
-// output (H1, H2, M1, M4).
-func (r *Runner) runDumpImport(ctx context.Context, c *docker.Container, e *engines.Engine, dbName string, lockout *engines.Lockout, password, path, format, filename string, sizeBytes uint64) error {
+// owner through engines.Loader, with lock_timeout, client refusal guards,
+// expansion cap, and sanitized tool error output (H1, H2, M1, M4, N1, N6).
+// touched reports whether the database load actually started.
+func (r *Runner) runDumpImport(ctx context.Context, c *docker.Container, e *engines.Engine, dbName string, lockout *engines.Lockout, password, path, format, filename string, sizeBytes, limit uint64, hasLimit bool) (touched bool, err error) {
 	f, err := os.Open(path) //nolint:gosec // validated staged dump path
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer f.Close()
 
@@ -976,52 +1049,74 @@ func (r *Runner) runDumpImport(ctx context.Context, c *docker.Container, e *engi
 
 	user, prelude := lockout.Signer(password)
 	loadReq := engines.Load{
-		To:          c,
-		Engine:      e,
-		User:        user,
-		Password:    password,
-		Database:    dbName,
-		Prelude:     prelude,
-		LockTimeout: importLockTimeout,
+		To:              c,
+		Engine:          e,
+		User:            user,
+		Password:        password,
+		Database:        dbName,
+		Prelude:         prelude,
+		LockTimeout:     importLockTimeout,
+		RequireRefusals: true,
 	}
+
+	loadCtx, cancelLoad := context.WithCancel(ctx)
+	defer cancelLoad()
 
 	if format == ImportFormatDump || format == ImportFormatTar {
 		pr, pw := io.Pipe()
 		convDone := make(chan error, 1)
 		go func() {
-			cerr := engines.Loader{Client: r.Client}.PGArchiveToSQL(ctx, c, format, true, prog, pw)
+			cerr := engines.Loader{Client: r.Client}.PGArchiveToSQL(loadCtx, c, format, true, prog, pw)
 			_ = pw.CloseWithError(cerr)
 			convDone <- cerr
 		}()
-		scanned := newSQLScanReader(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, pr)
-		loadErr := engines.Loader{Client: r.Client}.Load(ctx, loadReq, scanned)
+		var src io.Reader = pr
+		var limiter *expansionLimitReader
+		if hasLimit {
+			limiter = &expansionLimitReader{r: pr, limit: limit, filename: filename, onTrip: cancelLoad}
+			src = limiter
+		}
+		scanned := newSQLScanReader(dockwellv1.DatabaseEngine_DATABASE_ENGINE_POSTGRESQL, src)
+		loadErr := engines.Loader{Client: r.Client}.Load(loadCtx, loadReq, scanned)
 		_ = pr.CloseWithError(loadErr)
 		convErr := <-convDone
+		if limiter != nil && limiter.err != nil {
+			return true, limiter.err
+		}
 		if scanned.err != nil {
-			return scanned.err
+			return true, scanned.err
 		}
 		if convErr != nil && !errors.Is(convErr, io.ErrClosedPipe) {
-			return formatImportLoadError(e.Name, convErr)
+			return true, formatImportLoadError(e.Name, convErr)
 		}
 		if loadErr != nil {
-			return formatImportLoadError(e.Name, loadErr)
+			return true, formatImportLoadError(e.Name, loadErr)
 		}
-		return nil
+		return true, nil
 	}
 
 	var sqlStream io.Reader = prog
 	if format == ImportFormatSQLGZ {
 		gz, err := gzip.NewReader(prog)
 		if err != nil {
-			return fmt.Errorf("can't decompress %s: %w", filename, err)
+			return false, fmt.Errorf("can't decompress %s: %w", filename, err)
 		}
 		defer gz.Close()
 		sqlStream = gz
 	}
-	if err := (engines.Loader{Client: r.Client}).Load(ctx, loadReq, sqlStream); err != nil {
-		return formatImportLoadError(e.Name, err)
+	var limiter *expansionLimitReader
+	if hasLimit {
+		limiter = &expansionLimitReader{r: sqlStream, limit: limit, filename: filename, onTrip: cancelLoad}
+		sqlStream = limiter
 	}
-	return nil
+	loadErr := (engines.Loader{Client: r.Client}).Load(loadCtx, loadReq, sqlStream)
+	if limiter != nil && limiter.err != nil {
+		return true, limiter.err
+	}
+	if loadErr != nil {
+		return true, formatImportLoadError(e.Name, loadErr)
+	}
+	return true, nil
 }
 
 func formatImportLoadError(engineName string, err error) error {

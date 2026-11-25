@@ -3,7 +3,6 @@
 package backup
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -18,9 +17,6 @@ import (
 // escapes, cross-database switches, cluster/multi-database dump headers, role
 // changes, and server-side file/program access before it is loaded.
 func scanSQLDump(engine dockwellv1.DatabaseEngine, r io.Reader) error {
-	if engine == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MYSQL || engine == dockwellv1.DatabaseEngine_DATABASE_ENGINE_MARIADB {
-		r = newMySQLVersionUnwrapper(r)
-	}
 	sc := newSQLScanner(engine)
 	if _, err := io.Copy(sc, r); err != nil {
 		return err
@@ -67,13 +63,16 @@ type sqlScanner struct {
 
 	lineNo      int
 	atLineStart bool
-	lineBuf     []byte // buffered prefix of current line (for headers / client commands)
-	lineTrimmed bool   // saw first non-whitespace on current line
+	lineTrimmed bool // saw first non-whitespace on current line
 
 	// Lexer states.
 	inLineComment     bool
 	lineCommentBuf    []byte
 	blockCommentDepth int
+	inCommentSniff    bool // sniffing /* to detect MySQL /*! or MariaDB /*M! executable comments
+	commentSniffExec  bool // saw /*! or /*M!, now reading optional version digits
+	commentSniffBuf   []byte
+	inExecComment     bool // currently inside /*! ... */ or /*M! ... */
 	inSingleQuote     bool
 	singleQuoteEscape bool // backslash escape active inside '...'
 	inDoubleQuote     bool
@@ -82,7 +81,12 @@ type sqlScanner struct {
 	dollarTag         string
 	dollarMatch       []byte
 
-	// Pending 2-char lookahead / token buffers.
+	// Backslash client command buffering (psql \..., mysql/mariadb \!, \., \u, etc.).
+	inBackslash          bool
+	backslashAtLineStart bool
+	backslashBuf         []byte
+
+	// Pending 2-char lookahead.
 	prevByte byte
 	hasPrev  bool
 
@@ -93,9 +97,10 @@ type sqlScanner struct {
 	restrictKey     string
 
 	// MySQL custom DELIMITER support.
-	delim          string
-	delimMatchBuf  []byte
-	skipRestOfLine bool
+	readingDelimiter bool
+	delimArgBuf      []byte
+	delim            string
+	delimMatchBuf    []byte
 
 	// Current SQL statement tracking (bounded to O(1) memory).
 	stmtLine      int
@@ -169,18 +174,6 @@ func (s *sqlScanner) isPG() bool {
 }
 
 func (s *sqlScanner) step(b, next byte, hasNext bool) error {
-	// Handle skipping rest of a DELIMITER or validated \restrict line.
-	if s.skipRestOfLine {
-		if b == '\n' {
-			s.skipRestOfLine = false
-			s.lineNo++
-			s.atLineStart = true
-			s.lineBuf = s.lineBuf[:0]
-			s.lineTrimmed = false
-		}
-		return nil
-	}
-
 	// Inside PostgreSQL COPY ... FROM stdin data block: only "\." on its own line ends it.
 	if s.inCopyData {
 		if b == '\n' {
@@ -190,13 +183,43 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 			if line == `\.` {
 				s.inCopyData = false
 				s.atLineStart = true
-				s.lineBuf = s.lineBuf[:0]
 				s.lineTrimmed = false
 			}
 			return nil
 		}
 		if len(s.copyLineBuf) < 8 {
 			s.copyLineBuf = append(s.copyLineBuf, b)
+		}
+		return nil
+	}
+
+	// Reading MySQL DELIMITER argument until newline.
+	if s.readingDelimiter {
+		if b == '\n' {
+			s.finishDelimiter()
+			s.onNewline()
+			return nil
+		}
+		if len(s.delimArgBuf) < 64 {
+			s.delimArgBuf = append(s.delimArgBuf, b)
+		}
+		return nil
+	}
+
+	// Buffering a backslash command until end of line so we can inspect it whole.
+	if s.inBackslash {
+		if b == '\n' {
+			line := strings.TrimRight(string(s.backslashBuf), "\r")
+			atStart := s.backslashAtLineStart
+			s.inBackslash = false
+			s.backslashAtLineStart = false
+			s.backslashBuf = s.backslashBuf[:0]
+			err := s.checkBackslashLine(line, atStart)
+			s.onNewline()
+			return err
+		}
+		if len(s.backslashBuf) < 256 {
+			s.backslashBuf = append(s.backslashBuf, b)
 		}
 		return nil
 	}
@@ -214,6 +237,50 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 			s.lineCommentBuf = append(s.lineCommentBuf, b)
 		}
 		return nil
+	}
+
+	// Sniffing MySQL/MariaDB block comment opening: /*! or /*M! executable comments
+	// are unwrapped as SQL, while MariaDB's sandbox pragma (/*M!999999\- ... */)
+	// and normal /* ... */ comments stay comments.
+	if s.inCommentSniff {
+		if !s.commentSniffExec {
+			switch {
+			case len(s.commentSniffBuf) == 0 && b == '!':
+				s.commentSniffExec = true
+				return nil
+			case len(s.commentSniffBuf) == 0 && b == 'M':
+				s.commentSniffBuf = append(s.commentSniffBuf, 'M')
+				return nil
+			case len(s.commentSniffBuf) == 1 && b == '!':
+				s.commentSniffExec = true
+				s.commentSniffBuf = s.commentSniffBuf[:0]
+				return nil
+			default:
+				// Plain /* ... */ block comment; process current byte in block comment state.
+				s.inCommentSniff = false
+				s.commentSniffBuf = s.commentSniffBuf[:0]
+				s.blockCommentDepth = 1
+			}
+		} else {
+			if b >= '0' && b <= '9' && len(s.commentSniffBuf) < 10 {
+				s.commentSniffBuf = append(s.commentSniffBuf, b)
+				return nil
+			}
+			// MariaDB 11 dumps emit /*M!999999\- enable the sandbox mode */ or /*!999999\- ... */.
+			if len(s.commentSniffBuf) > 0 && b == '\\' && hasNext && next == '-' {
+				s.inCommentSniff = false
+				s.commentSniffExec = false
+				s.commentSniffBuf = s.commentSniffBuf[:0]
+				s.blockCommentDepth = 1
+				s.hasPrev = false
+				return nil
+			}
+			// Executable comment body begins at b: unwrap and continue normal scanning.
+			s.inCommentSniff = false
+			s.commentSniffExec = false
+			s.commentSniffBuf = s.commentSniffBuf[:0]
+			s.inExecComment = true
+		}
 	}
 
 	// Block comment /* ... */.
@@ -258,22 +325,33 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		return nil
 	}
 
-	// PostgreSQL dollar-quoted string $tag$...$tag$.
+	// PostgreSQL dollar-quoted string $tag$...$tag$ (tagged, untagged, or containing nested tags).
 	if s.inDollarQuote {
 		if b == '\n' {
 			s.lineNo++
 		}
+		if len(s.dollarMatch) > 0 {
+			if b == '$' {
+				if len(s.dollarMatch)+1 == len(s.dollarTag) && string(s.dollarMatch)+"$" == s.dollarTag {
+					s.inDollarQuote = false
+					s.dollarTag = ""
+					s.dollarMatch = s.dollarMatch[:0]
+					return nil
+				}
+				// Did not close s.dollarTag, but this '$' could itself start the closing tag (e.g. $$tag$).
+				s.dollarMatch = append(s.dollarMatch[:0], '$')
+				return nil
+			}
+			idx := len(s.dollarMatch)
+			if idx < len(s.dollarTag)-1 && b == s.dollarTag[idx] {
+				s.dollarMatch = append(s.dollarMatch, b)
+			} else {
+				s.dollarMatch = s.dollarMatch[:0]
+			}
+			return nil
+		}
 		if b == '$' {
 			s.dollarMatch = append(s.dollarMatch[:0], '$')
-		} else if len(s.dollarMatch) > 0 {
-			s.dollarMatch = append(s.dollarMatch, b)
-		}
-		if len(s.dollarMatch) > 0 && len(s.dollarMatch) == len(s.dollarTag) && string(s.dollarMatch) == s.dollarTag {
-			s.inDollarQuote = false
-			s.dollarTag = ""
-			s.dollarMatch = s.dollarMatch[:0]
-		} else if len(s.dollarMatch) >= len(s.dollarTag) {
-			s.dollarMatch = s.dollarMatch[:0]
 		}
 		return nil
 	}
@@ -328,92 +406,44 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		return nil
 	}
 
-	// Track leading line text for client commands (\!, \connect, DELIMITER, etc.).
-	if s.atLineStart {
-		if !s.lineTrimmed {
-			if b == ' ' || b == '\t' || b == '\r' {
-				return nil
-			}
-			if b == '\n' {
-				s.onNewline()
-				return nil
-			}
-			s.lineTrimmed = true
+	// End of an unwrapped MySQL/MariaDB executable comment (/*! ... */ or /*M! ... */).
+	if s.inExecComment && b == '*' && hasNext && next == '/' {
+		if err := s.flushWord(); err != nil {
+			return err
 		}
-		// Buffer backslash commands until end of line so we can inspect them whole.
-		if len(s.lineBuf) == 0 && b == '\\' {
-			s.lineBuf = append(s.lineBuf, b)
-			return nil
-		}
-		if len(s.lineBuf) > 0 && s.lineBuf[0] == '\\' {
-			if b == '\n' {
-				line := strings.TrimRight(string(s.lineBuf), "\r")
-				err := s.checkBackslashLine(line)
-				s.onNewline()
-				return err
-			}
-			if len(s.lineBuf) < 256 {
-				s.lineBuf = append(s.lineBuf, b)
-			}
-			return nil
-		}
-		// MySQL line-start client commands (system, source, connect, delimiter) at statement boundary.
-		if !s.isPG() && len(s.stmtFirst) == 0 && (len(s.lineBuf) > 0 || len(s.curWord) == 0) {
-			switch {
-			case len(s.lineBuf) == 0 && isASCIIAlpha(b):
-				s.lineBuf = append(s.lineBuf, b)
-				// Also fall through to normal tokenization unless we detect a client command.
-			case len(s.lineBuf) > 0:
-				switch {
-				case isASCIIAlpha(b) && len(s.lineBuf) < 16:
-					s.lineBuf = append(s.lineBuf, b)
-				case b == ' ' || b == '\t' || b == '\r' || b == '\n':
-					word := strings.ToLower(string(s.lineBuf))
-					switch word {
-					case "system":
-						return fmt.Errorf("line %d runs a shell command (system), which Dockwell refuses in dump imports. Remove it from the dump and upload again", s.lineNo)
-					case "source":
-						return fmt.Errorf("line %d includes an external file (source), which Dockwell refuses in dump imports. Inline the SQL or remove the directive and upload again", s.lineNo)
-					case "connect":
-						return fmt.Errorf("line %d switches databases or connections (connect), which Dockwell refuses in dump imports. Export only the target database and upload again", s.lineNo)
-					case "delimiter":
-						s.curWord = s.curWord[:0]
-						s.lineBuf = s.lineBuf[:0]
-						if b != '\n' {
-							s.lineBuf = append(s.lineBuf, 'D') // sentinel: reading delimiter arg
-						} else {
-							s.onNewline()
-						}
-						return nil
-					}
-					s.atLineStart = false
-					s.lineBuf = s.lineBuf[:0]
-				default:
-					s.atLineStart = false
-					s.lineBuf = s.lineBuf[:0]
-				}
-			default:
-				s.atLineStart = false
-			}
-		} else {
-			s.atLineStart = false
-		}
+		s.inExecComment = false
+		s.delimMatchBuf = s.delimMatchBuf[:0]
+		s.hasPrev = false
+		return nil
 	}
 
-	// Reading MySQL DELIMITER argument until newline.
-	if !s.isPG() && len(s.lineBuf) > 0 && s.lineBuf[0] == 'D' && s.atLineStart {
+	// Backslash client commands anywhere on a line outside quotes, comments, and COPY data.
+	// PostgreSQL treats any '\' as a psql meta-command; MySQL/MariaDB treat '\' plus '!', '.', '?', or a letter.
+	if b == '\\' && (s.isPG() || (hasNext && (next == '!' || next == '.' || next == '?' || isASCIIAlpha(next)))) {
+		atStart := s.atLineStart && !s.lineTrimmed && len(s.stmtFirst) == 0 && len(s.curWord) == 0
+		if err := s.flushWord(); err != nil {
+			return err
+		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
+		s.inBackslash = true
+		s.backslashAtLineStart = atStart
+		s.backslashBuf = append(s.backslashBuf[:0], '\\')
+		s.atLineStart = false
+		s.lineTrimmed = true
+		return nil
+	}
+
+	// Track whether we have seen any non-whitespace on this line.
+	if s.atLineStart && !s.lineTrimmed {
+		if b == ' ' || b == '\t' || b == '\r' {
+			return nil
+		}
 		if b == '\n' {
-			arg := strings.TrimSpace(string(s.lineBuf[1:]))
-			if arg != "" {
-				s.delim = arg
-			}
 			s.onNewline()
 			return nil
 		}
-		if len(s.lineBuf) < 32 {
-			s.lineBuf = append(s.lineBuf, b)
-		}
-		return nil
+		s.lineTrimmed = true
+		s.atLineStart = false
 	}
 
 	// Start line comment (-- or MySQL #).
@@ -421,6 +451,7 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		if err := s.flushWord(); err != nil {
 			return err
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.inLineComment = true
 		s.lineCommentBuf = s.lineCommentBuf[:0]
 		s.hasPrev = false
@@ -430,17 +461,25 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		if err := s.flushWord(); err != nil {
 			return err
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.inLineComment = true
 		s.lineCommentBuf = s.lineCommentBuf[:0]
 		return nil
 	}
 
-	// Start block comment /* ... */.
+	// Start block comment /* ... */ (or MySQL/MariaDB /*! / /*M! executable comment).
 	if b == '/' && hasNext && next == '*' {
 		if err := s.flushWord(); err != nil {
 			return err
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.hasPrev = false
+		if !s.isPG() {
+			s.inCommentSniff = true
+			s.commentSniffExec = false
+			s.commentSniffBuf = s.commentSniffBuf[:0]
+			return nil
+		}
 		s.blockCommentDepth = 1
 		return nil
 	}
@@ -455,6 +494,7 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		} else {
 			s.curWord = s.curWord[:0]
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.inSingleQuote = true
 		s.singleQuoteEscape = !s.isPG() || ePrefix
 		if s.stmtLine == 0 {
@@ -468,6 +508,7 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		if err := s.flushWord(); err != nil {
 			return err
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.inDoubleQuote = true
 		s.curWord = s.curWord[:0]
 		s.curWordQuoted = true
@@ -482,6 +523,7 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 		if err := s.flushWord(); err != nil {
 			return err
 		}
+		s.delimMatchBuf = s.delimMatchBuf[:0]
 		s.inBacktick = true
 		s.curWord = s.curWord[:0]
 		s.curWordQuoted = true
@@ -504,7 +546,7 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 			s.dollarMatch = s.dollarMatch[:0]
 			return nil
 		}
-		if isIdentChar(b) && len(s.curWord) < 32 {
+		if isIdentChar(b) && len(s.curWord) < 64 {
 			s.curWord = append(s.curWord, b)
 			return nil
 		}
@@ -524,6 +566,9 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 	if b == '\n' {
 		if err := s.flushWord(); err != nil {
 			return err
+		}
+		if s.readingDelimiter {
+			s.finishDelimiter()
 		}
 		s.onNewline()
 		return nil
@@ -555,13 +600,24 @@ func (s *sqlScanner) step(b, next byte, hasNext bool) error {
 func (s *sqlScanner) onNewline() {
 	s.lineNo++
 	s.atLineStart = true
-	s.lineBuf = s.lineBuf[:0]
 	s.lineTrimmed = false
+	s.delimMatchBuf = s.delimMatchBuf[:0]
 	if s.pendingCopyData {
 		s.pendingCopyData = false
 		s.inCopyData = true
 		s.copyLineBuf = s.copyLineBuf[:0]
 	}
+}
+
+func (s *sqlScanner) finishDelimiter() {
+	fields := strings.Fields(string(s.delimArgBuf))
+	if len(fields) > 0 {
+		s.delim = fields[0]
+	}
+	s.readingDelimiter = false
+	s.delimArgBuf = s.delimArgBuf[:0]
+	s.delimMatchBuf = s.delimMatchBuf[:0]
+	_ = s.finishStmt()
 }
 
 func (s *sqlScanner) matchDelimiter(b byte) bool {
@@ -588,21 +644,16 @@ func (s *sqlScanner) finishLine() error {
 			return err
 		}
 	}
-	if s.atLineStart && len(s.lineBuf) > 0 && s.lineBuf[0] == '\\' {
-		line := strings.TrimRight(string(s.lineBuf), "\r")
-		s.lineBuf = s.lineBuf[:0]
-		return s.checkBackslashLine(line)
+	if s.readingDelimiter {
+		s.finishDelimiter()
 	}
-	if !s.isPG() && s.atLineStart && len(s.lineBuf) > 0 && len(s.stmtFirst) == 0 {
-		word := strings.ToLower(string(s.lineBuf))
-		switch word {
-		case "system":
-			return fmt.Errorf("line %d runs a shell command (system), which Dockwell refuses in dump imports. Remove it from the dump and upload again", s.lineNo)
-		case "source":
-			return fmt.Errorf("line %d includes an external file (source), which Dockwell refuses in dump imports. Inline the SQL or remove the directive and upload again", s.lineNo)
-		case "connect":
-			return fmt.Errorf("line %d switches databases or connections (connect), which Dockwell refuses in dump imports. Export only the target database and upload again", s.lineNo)
-		}
+	if s.inBackslash {
+		line := strings.TrimRight(string(s.backslashBuf), "\r")
+		atStart := s.backslashAtLineStart
+		s.inBackslash = false
+		s.backslashAtLineStart = false
+		s.backslashBuf = s.backslashBuf[:0]
+		return s.checkBackslashLine(line, atStart)
 	}
 	return nil
 }
@@ -620,19 +671,32 @@ func (s *sqlScanner) checkCommentHeader(comment string) error {
 	return nil
 }
 
-func (s *sqlScanner) checkBackslashLine(line string) error {
+func isAlnumKey(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := range len(s) {
+		c := s[i]
+		if !isASCIIAlpha(c) && (c < '0' || c > '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *sqlScanner) checkBackslashLine(line string, atLineStart bool) error {
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return nil
 	}
 	cmd := fields[0]
 	if s.isPG() {
-		// Allow PostgreSQL 16.10+/17.6+ pg_dump's matching \restrict / \unrestrict pair.
-		if cmd == `\restrict` && len(fields) == 2 && s.restrictKey == "" && s.lineNo <= 30 {
+		// Allow PostgreSQL 16.10+/17.6+ pg_dump's matching line-start \restrict / \unrestrict pair.
+		if atLineStart && cmd == `\restrict` && len(fields) == 2 && isAlnumKey(fields[1]) && s.restrictKey == "" && s.lineNo <= 30 {
 			s.restrictKey = fields[1]
 			return nil
 		}
-		if cmd == `\unrestrict` && len(fields) == 2 && s.restrictKey != "" && fields[1] == s.restrictKey {
+		if atLineStart && cmd == `\unrestrict` && len(fields) == 2 && s.restrictKey != "" && fields[1] == s.restrictKey {
 			s.restrictKey = ""
 			return nil
 		}
@@ -644,6 +708,9 @@ func (s *sqlScanner) checkBackslashLine(line string) error {
 		}
 		if strings.EqualFold(cmd, `\copy`) {
 			return fmt.Errorf("line %d uses client-side \\copy, which Dockwell refuses in dump imports. Use SQL COPY FROM stdin or INSERT statements instead", s.lineNo)
+		}
+		if cmd == `\password` {
+			return fmt.Errorf("line %d changes a role's password (\\password), which Dockwell refuses in dump imports. Remove it from the dump and upload again", s.lineNo)
 		}
 		return fmt.Errorf("line %d runs a psql meta-command (%s), which Dockwell refuses in dump imports. Remove client meta-commands and upload again", s.lineNo, cmd)
 	}
@@ -665,8 +732,28 @@ func (s *sqlScanner) flushWord() error {
 		return nil
 	}
 	w := strings.ToUpper(string(s.curWord))
+	quoted := s.curWordQuoted
 	s.curWord = s.curWord[:0]
 	s.curWordQuoted = false
+
+	// Check MySQL/MariaDB client commands at any statement start (line start or after a delimiter).
+	if !s.isPG() && len(s.stmtFirst) == 0 && !quoted {
+		switch w {
+		case "SYSTEM":
+			return fmt.Errorf("line %d runs a shell command (system), which Dockwell refuses in dump imports. Remove it from the dump and upload again", s.lineNo)
+		case "SOURCE":
+			return fmt.Errorf("line %d includes an external file (source), which Dockwell refuses in dump imports. Inline the SQL or remove the directive and upload again", s.lineNo)
+		case "CONNECT":
+			return fmt.Errorf("line %d switches databases or connections (connect), which Dockwell refuses in dump imports. Export only the target database and upload again", s.lineNo)
+		case "TEE":
+			return fmt.Errorf("line %d writes client output to a file (tee), which Dockwell refuses in dump imports. Remove client commands and upload again", s.lineNo)
+		case "DELIMITER":
+			s.readingDelimiter = true
+			s.delimArgBuf = s.delimArgBuf[:0]
+			s.delimMatchBuf = s.delimMatchBuf[:0]
+			return nil
+		}
+	}
 	return s.recordToken(w)
 }
 
@@ -813,48 +900,4 @@ func sanitizeImportError(raw string) string {
 		joined = joined[:importTailBytes]
 	}
 	return joined
-}
-
-// unwrapMySQLVersionedComments strips /*!NNNNN ... */ wrappers into plain SQL
-// while ignoring MariaDB's own sandbox pragma /*!999999\- ... */.
-func unwrapMySQLVersionedComments(in []byte) []byte {
-	if !bytes.Contains(in, []byte("/*!")) {
-		return in
-	}
-	var out bytes.Buffer
-	out.Grow(len(in))
-	i := 0
-	for i < len(in) {
-		idx := bytes.Index(in[i:], []byte("/*!"))
-		if idx < 0 {
-			out.Write(in[i:])
-			break
-		}
-		out.Write(in[i : i+idx])
-		i += idx + 3
-		// Skip optional 5-6 digit version number.
-		vStart := i
-		for i < len(in) && in[i] >= '0' && in[i] <= '9' {
-			i++
-		}
-		// MariaDB 11 dumps emit /*!999999\- enable the sandbox mode */.
-		if i > vStart && i+1 < len(in) && in[i] == '\\' && in[i+1] == '-' {
-			end := bytes.Index(in[i:], []byte("*/"))
-			if end < 0 {
-				break
-			}
-			i += end + 2
-			continue
-		}
-		end := bytes.Index(in[i:], []byte("*/"))
-		if end < 0 {
-			out.Write(in[i:])
-			break
-		}
-		out.WriteByte(' ')
-		out.Write(in[i : i+end])
-		out.WriteByte(' ')
-		i += end + 2
-	}
-	return out.Bytes()
 }

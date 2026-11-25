@@ -12099,6 +12099,9 @@ msgstr "If your address isn't one of these, or stops being one, SSH closes to yo
 msgid "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 msgstr "If {name} is rolled back, {names} stays as it is: what the new version writes there isn't undone."
 
+msgid "Importing {size}. The pre-import backup stays on {server} for 7 days, and undoing restores it."
+msgstr "Importing {size}. The pre-import backup stays on {server} for 7 days, and undoing restores it."
+
 msgid "Imports {file} into {target} on {server}"
 msgstr "Imports {file} into {target} on {server}"
 
@@ -12422,9 +12425,6 @@ msgstr "The hour {name}'s backup gets is a guess"
 
 msgid "The old version may not read its data"
 msgstr "The old version may not read its data"
-
-msgid "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
-msgstr "The pre-import backup ({size} to import) stays on {server} for 7 days, and undoing restores it."
 
 msgid "The registry can accept another write between the final check and publication."
 msgstr "The registry can accept another write between the final check and publication."
@@ -14947,7 +14947,7 @@ msgstr "No database of this engine here."
 msgid "No databases yet"
 msgstr "No databases yet"
 
-#. placeholder {0}: firstReading(db)?.serverName || t`its server`
+#. placeholder {0}: shownServerOf(db) || t`its server`
 msgid "No public address known for {0}"
 msgstr "No public address known for {0}"
 

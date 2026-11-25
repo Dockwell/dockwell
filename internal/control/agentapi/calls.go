@@ -1475,7 +1475,7 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 		}
 		dr.Pull, dr.Run = d.Pull, d.Run
 		dr.Restart, dr.ExactRestartId = d.Restart, d.ExactRestart
-		dr.Rollback = d.Rollback
+		dr.Rollback, dr.Undoes = d.Rollback, d.Undoes
 		dr.Adopt = d.Adopt
 		if r := d.Restore; r != nil {
 			dr.Restore = restoreProto(*r)
@@ -1748,7 +1748,7 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	}
 	call := &agentv1.ApplyCall{Step: resourcepb.Step(step, ""), Desired: dr, Pulled: step.Pulled, PlannedLeads: step.PlannedLeads, Finishing: step.Finishing}
 	if d := resource.DeployOf(ctx); d != (resource.Deploy{}) {
-		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, LastAccessStep: d.LastAccess}
+		call.Deploy = &agentv1.Deploy{Revision: int64(d.Revision), ChangeId: d.Change, Rollback: d.Rollback, Undoes: d.Undoes, LastAccessStep: d.LastAccess}
 	}
 	var seal func(*Session) error
 	if workload || logging || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
