@@ -1368,11 +1368,20 @@ func (d *Docker) StartAt(ctx context.Context, t Target) error {
 		return fmt.Errorf("there's no container for %s to start", t.Name)
 	}
 	// Docker quotes what it couldn't run, which can be a value's (ADR 0096).
-	return d.WithRunIntent(c.ID, func(stopped bool) error {
-		if stopped {
+	return d.WithDesiredRunState(c.ID, func(state resourcev1.DesiredRunState) error {
+		if state == stopped {
 			return fmt.Errorf("%s is stopped by its revision", t.Name)
 		}
-		return hideIn(d.Client.StartContainer(ctx, c.ID), valuesInContainer(c))
+		if state == paused && c.State.Paused {
+			return nil
+		}
+		if err := d.Client.StartContainer(ctx, c.ID); err != nil {
+			return hideIn(err, valuesInContainer(c))
+		}
+		if state == paused {
+			return hideIn(d.Client.PauseContainer(ctx, c.ID), valuesInContainer(c))
+		}
+		return nil
 	})
 }
 
@@ -1569,10 +1578,16 @@ func (d *Docker) writeFiles(spec *resourcev1.Container) error {
 func (d *Docker) ensureImage(ctx context.Context, ref string) error {
 	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	if err == nil {
+		if docker.IsImageID(ref) && img.ID != ref {
+			return fmt.Errorf("Docker did not confirm local image %s. Load it before deploying", ref)
+		}
 		return d.mayReuse(ctx, ref, img.ID, "")
 	}
 	if !docker.IsNotFound(err) {
 		return err
+	}
+	if docker.IsImageID(ref) {
+		return fmt.Errorf("the local image %s is missing from this server. Load it before deploying", ref)
 	}
 	if docker.IsBuilt(ref) {
 		return resource.PlainlyBecause(resource.ReasonBuild, "This server hasn't the image "+ref+", which Dockwell builds, and nothing pulls one. Deploy again to build it",
@@ -1612,7 +1627,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 			previous = img.Digest(ref)
 		}
 	}
-	if !pulled {
+	if !pulled && !docker.IsImageID(ref) {
 		if err := d.pullAgain(ctx, t, old, ref); err != nil {
 			return false, err
 		}
@@ -1629,7 +1644,7 @@ func (d *Docker) PullAgain(ctx context.Context, t Target, spec *resourcev1.Conta
 	// A rollout stopped partway reads as its new container, with the old one still
 	// there or a name still to give: that isn't done, however it reads.
 	finished := len(all) == 1 && !all[0].temp && !all[0].stopping
-	if finished && old.Image == img.ID && (notRunning(old) == "" || IsStopped(spec)) {
+	if finished && old.Image == img.ID && (notRunning(old) == "" || IsStopped(spec) || spec.GetDesiredRunState() == paused && old.State.Paused) {
 		resource.Report(ctx, resource.Outcome{Digest: digest})
 		return true, nil
 	}
@@ -1805,9 +1820,15 @@ func (d *Docker) checkImage(ctx context.Context, t Target, ref string) error {
 	img, err := d.Client.InspectImage(ctx, docker.WithTag(ref))
 	switch {
 	case err == nil:
+		if docker.IsImageID(ref) && img.ID != ref {
+			return fmt.Errorf("Docker did not confirm local image %s. Load it before reviewing the app", ref)
+		}
 		return d.mayReuse(ctx, ref, img.ID, t.Service)
 	case !docker.IsNotFound(err):
 		return err
+	}
+	if docker.IsImageID(ref) {
+		return fmt.Errorf("the local image %s is missing from this server. Load it before reviewing the app", ref)
 	}
 	if d.askRegistry(ctx, ref) == cantPull {
 		if login := loginOf(ctx); login != "" {
@@ -2597,7 +2618,7 @@ func (d *Docker) mayReuse(ctx context.Context, ref, id, service string) error {
 	if !known || who == "" || who == pullIdentity(registry.AuthOf(ctx)) {
 		return nil
 	}
-	if d.askRegistry(ctx, ref) != cantPull {
+	if !docker.IsImageID(ref) && d.askRegistry(ctx, ref) != cantPull {
 		return nil
 	}
 	if service == "" {

@@ -76,9 +76,10 @@ type Adopted struct {
 	// Path is the file. Empty keeps it in memory, as in tests.
 	Path string
 
-	mu     sync.Mutex
-	loaded bool
-	byID   map[string]Taken
+	operations [32]sync.Mutex
+	mu         sync.Mutex
+	loaded     bool
+	byID       map[string]Taken
 }
 
 func (a *Adopted) load() error {
@@ -123,8 +124,43 @@ func (a *Adopted) save(next map[string]Taken) error {
 	return nil
 }
 
+// ErrContainerAdopted is returned when a direct action targets a managed container.
+var ErrContainerAdopted = errors.New("this container is managed by Dockwell. Use its workload controls")
+
+// WithExternal holds the adoption record stable while the agent acts on an external container.
+func (a *Adopted) WithExternal(id string, action func() error) error {
+	if a == nil {
+		return action()
+	}
+	unlock := a.lockIdentity(id)
+	defer unlock()
+	a.mu.Lock()
+	err := a.load()
+	_, found := a.byID[id]
+	a.mu.Unlock()
+	if err != nil {
+		return err
+	}
+	if found {
+		return ErrContainerAdopted
+	}
+	return action()
+}
+
+func (a *Adopted) lockIdentity(id string) func() {
+	var n uint
+	for i := range len(id) {
+		n = n*31 + uint(id[i])
+	}
+	lock := &a.operations[n%uint(len(a.operations))]
+	lock.Lock()
+	return lock.Unlock
+}
+
 // Take records the container id as what a service runs.
 func (a *Adopted) Take(id string, t Taken) error {
+	unlock := a.lockIdentity(id)
+	defer unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := a.load(); err != nil {
@@ -137,6 +173,8 @@ func (a *Adopted) Take(id string, t Taken) error {
 
 // Forget lets go of the container id.
 func (a *Adopted) Forget(id string) error {
+	unlock := a.lockIdentity(id)
+	defer unlock()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if err := a.load(); err != nil {

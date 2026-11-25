@@ -112,7 +112,7 @@ var (
 	serverActions = slices.Concat([]string{
 		"server.join", "server.renew", "server.revoke", fileSave, fileSaveWayBackIn, fileSaveFailed, fileSaveUnknown, fileSaveUnconfirmed, fleet.ActionPublicAddress, fleet.ActionPublicAddressClear,
 		firewall.EventSSHKeyAdded, firewall.EventSSHKeyRemoved, firewall.EventSSHDisconnected, firewall.EventSSHAddressBanned, firewall.EventSSHUnconfirmed, processes.EventEnd, processes.EventEndFailed, processes.EventEndUnconfirmed, revision.ActionDesiredSent, revision.ActionDesiredUnknown,
-		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionWaiting, reconciled.ActionDropped,
+		reconciled.ActionMade, reconciled.ActionStarted, reconciled.ActionPaused, reconciled.ActionWaiting, reconciled.ActionDropped,
 	},
 		// Who had a root shell on a server, and when (ADR 0037).
 		terminals.Actions, fileWrites, jailActions)

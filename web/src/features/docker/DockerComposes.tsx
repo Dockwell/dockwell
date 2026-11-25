@@ -13,6 +13,7 @@ import {
 import {
   Button,
   Callout,
+  cx,
   Icon,
   Loading,
   Panel,
@@ -35,9 +36,10 @@ import { useTickingNow, useTimeWords } from "../../lib/time";
 import { useMay } from "../auth/may";
 import { ActionMenu } from "../shell/ActionMenu";
 import { EmptyState } from "../shell/EmptyState";
-import { useListSearchShortcut } from "../shell/ListTools";
+import { BatchBar, SelectBox, selectionColumn, useListSearchShortcut, useRowSelection } from "../shell/ListTools";
 import { ComposeOperations } from "./ComposeOperations";
 import { type ComposeSource, ComposeSourceSheet } from "./ComposeSourceSheet";
+import { useDockerLifecycle } from "./DockerLifecycle";
 import { useDockerWatch } from "./live";
 import { LiveUpdates } from "./parts";
 
@@ -128,6 +130,14 @@ export function DockerComposes({
     DockerObjectKind.COMPOSE,
   );
   const rows = query.data?.objects.filter((row) => row.key !== undefined) ?? [];
+  const tableRows = rows.map((row) => ({ ...row, tableId: `${row.key?.serverId}/${row.key?.engineId}` }));
+  const selection = useRowSelection(
+    query.isPlaceholderData ? [] : tableRows.map((row) => row.tableId),
+    true,
+    searchInput,
+  );
+  const lifecycle = useDockerLifecycle();
+  const selected = tableRows.filter((row) => selection.has(row.tableId));
   const held = useHeldRows("docker.composes", query.isSuccess && !query.isPlaceholderData ? rows.length : undefined);
   const now = useTickingNow(
     rows.reduce((last, row) => Math.max(last, row.observedAt ? timestampMs(row.observedAt) : 0), 0),
@@ -137,6 +147,10 @@ export function DockerComposes({
     reset();
     if (tokens.length === 1) void query.refetch();
   };
+  const batch = lifecycle.batch(selected, () => {
+    selection.clear();
+    refresh();
+  });
   const nameOfServer = (id: string | undefined) => servers.find((item) => item.id === id)?.name ?? "";
   const link = (row: DockerObject) => (
     <Link
@@ -181,6 +195,7 @@ export function DockerComposes({
     return (
       <ComposeOperations
         row={row}
+        externalActions={lifecycle.actionsFor(row, refresh)}
         open={() => void navigate({ to: stackPath, params })}
         takeOn={
           row.ownership === DockerOwnership.EXTERNAL && canTake
@@ -360,36 +375,61 @@ export function DockerComposes({
         </Callout>
       ) : null}
       {rows.length ? (
-        compact ? (
-          <ul className="compose-cards">
-            {rows.map((row) => (
-              <li key={`${row.key?.serverId}/${row.key?.engineId}`}>
-                <div className="compose-card-title">
-                  {link(row)}
-                  {operations(row)}
-                </div>
-                <div className="compose-row-meta">
-                  <ComposeStatus row={row} />
-                  <span>{counts(row)}</span>
-                </div>
-                <div className="compose-row-meta">
-                  <ComposeOwnership row={row} />
-                  {!serverId ? <span>{nameOfServer(row.key?.serverId)}</span> : null}
-                  {changed(row)}
-                </div>
-                {directory(row)}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <Table
-            className="compose-table"
-            columns={columns}
-            rows={rows.map((row) => ({ ...row, tableId: `${row.key?.serverId}/${row.key?.engineId}` }))}
-            rowKey="tableId"
-            caption={t`Compose projects`}
-          />
-        )
+        <section
+          aria-label={t`Compose projects`}
+          className={cx("list-select-region", selection.any && "has-selection")}
+          ref={selection.list}
+          tabIndex={-1}
+          onKeyDown={selection.onKeyDown}
+        >
+          {compact ? (
+            <ul className="compose-cards">
+              {tableRows.map((row) => (
+                <li key={row.tableId} className={cx("list-select-card", selection.has(row.tableId) && "is-checked")}>
+                  <div className="compose-card-title">
+                    <SelectBox
+                      label={t`Select ${row.name}`}
+                      checked={selection.has(row.tableId)}
+                      onPick={(on, range) => selection.toggle(row.tableId, on, range)}
+                    />
+                    {link(row)}
+                    {operations(row)}
+                  </div>
+                  <div className="compose-row-meta">
+                    <ComposeStatus row={row} />
+                    <span>{counts(row)}</span>
+                  </div>
+                  <div className="compose-row-meta">
+                    <ComposeOwnership row={row} />
+                    {!serverId ? <span>{nameOfServer(row.key?.serverId)}</span> : null}
+                    {changed(row)}
+                  </div>
+                  {directory(row)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <Table
+              className="compose-table"
+              columns={[
+                selectionColumn({
+                  selection,
+                  rows: tableRows,
+                  idOf: (row) => row.tableId,
+                  labelOf: (row) => t`Select ${row.name}`,
+                  allLabel: t`Select all rows on this page`,
+                }),
+                ...columns,
+              ]}
+              rows={tableRows}
+              rowClassName={(row) => (selection.has(row.tableId) ? "is-checked" : "")}
+              rowKey="tableId"
+              caption={t`Compose projects`}
+            />
+          )}
+          <BatchBar count={selected.length} onClear={selection.clear} {...batch} />
+          {lifecycle.editor}
+        </section>
       ) : query.isPending ? (
         compact ? (
           <Loading label={t`Loading Compose projects`} slow={t`Docker is slow to answer on this server`}>

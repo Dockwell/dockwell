@@ -466,7 +466,7 @@ message Edit {
   // first. Those apps stop working. Numbered in the block connectable apps hold in
   // other messages, 80 to 89.
   bool delete_shared = 81;
-  // Require a new resource name for a firewall rule, network or volume.
+  // Require a new resource name for an app, firewall rule, network or volume.
   // A network or volume also needs an unoccupied Docker Engine name.
   bool must_create = 400;
 }
@@ -2924,13 +2924,14 @@ message DockerCleanupTarget {
   repeated string image_records = 13;
 }
 
-// DockerMaintenance is the exact scope of an irreversible local cleanup.
+// DockerMaintenance is the exact scope of a reviewed local Docker action.
 message DockerMaintenance {
   repeated DockerCleanupTarget targets = 1;
   string change_id = 2;
   // The reviewed pause to clear. Empty when this plan removes artifacts.
   string resume_cleanup_token = 3;
   DockerImageAction image_action = 4;
+  DockerContainerLifecycle lifecycle = 5;
 }
 
 // DockerReceipt reports one approved target's outcome.
@@ -2944,6 +2945,7 @@ message DockerReceipt {
   reserved 6;
   reserved "detail";
   DockerReceiptReason reason = 7;
+  DockerContainerTarget container_target = 8;
 }
 
 // DockerReceiptReason explains a removal refusal, change since review, or verification failure.
@@ -2968,6 +2970,7 @@ enum DockerReceiptState {
   DOCKER_RECEIPT_STATE_CHANGED = 2;
   DOCKER_RECEIPT_STATE_FAILED = 3;
   DOCKER_RECEIPT_STATE_UNKNOWN = 4;
+  DOCKER_RECEIPT_STATE_APPLIED = 5;
 }
 
 // DockerImageSourceKey identifies one image on one Engine.
@@ -3189,4 +3192,39 @@ message DockerDaemonPlan {
   DockerDaemonImpact impact = 1;
   string evidence = 2;
   repeated FieldChange file_changes = 3;
+}
+
+// DockerContainerAction names one direct Engine lifecycle operation.
+enum DockerContainerAction {
+  DOCKER_CONTAINER_ACTION_UNSPECIFIED = 0;
+  DOCKER_CONTAINER_ACTION_START = 1;
+  DOCKER_CONTAINER_ACTION_STOP = 2;
+  DOCKER_CONTAINER_ACTION_RESTART = 3;
+  DOCKER_CONTAINER_ACTION_PAUSE = 4;
+  DOCKER_CONTAINER_ACTION_UNPAUSE = 5;
+  DOCKER_CONTAINER_ACTION_KILL = 6;
+  DOCKER_CONTAINER_ACTION_REMOVE = 7;
+  DOCKER_CONTAINER_ACTION_RENAME = 8;
+}
+
+// DockerContainerTarget records the container and observed state reviewed on one Engine.
+message DockerContainerTarget {
+  string engine_id = 1;
+  string name = 2;
+  string compose_project = 3;
+  string compose_service = 4;
+  string state = 5;
+  string evidence = 6;
+  bool host_access = 7;
+  string new_name = 8;
+  repeated string anonymous_volumes = 9;
+}
+
+// DockerContainerLifecycle freezes the options and exact targets of a revisionless change.
+message DockerContainerLifecycle {
+  DockerContainerAction action = 1;
+  string signal = 2;
+  uint32 timeout_seconds = 3;
+  bool remove_anonymous_volumes = 4;
+  repeated DockerContainerTarget targets = 5;
 }

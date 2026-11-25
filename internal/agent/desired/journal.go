@@ -32,6 +32,8 @@ const (
 	Made = "made"
 	// Started says it started the resource, which Docker couldn't.
 	Started = "started"
+	// Paused says Docker was running a container its revision had paused.
+	Paused = "paused"
 	// Waiting says it couldn't put the resource back, and why: it waits for the
 	// control plane.
 	Waiting = "waiting"

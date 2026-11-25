@@ -878,6 +878,12 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		return &agentv1.CallResult{Result: &agentv1.CallResult_CheckDockerNetwork{CheckDockerNetwork: out}}
 	case call.GetDockerArtifactControl() != nil:
 		return c.dockerArtifact(ctx, call.GetDockerArtifactControl())
+	case call.GetDockerLifecyclePreview() != nil:
+		out, err := c.dockerLifecyclePreview(ctx, call.GetDockerLifecyclePreview())
+		if err != nil {
+			return callFailed(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_DockerLifecyclePreview{DockerLifecyclePreview: out}}
 	case call.GetDockerMaintenancePreview() != nil:
 		out, err := c.dockerCleanupPreview(ctx, call.GetDockerMaintenancePreview())
 		if err != nil {

@@ -669,6 +669,7 @@ message PlanDockerMaintenanceRequest {
     DockerImagePush push = 15;
     DockerImageExport export = 17;
     DockerImagePull pull = 18;
+    DockerLifecycleSelection lifecycle = 19;
   }
 }
 
@@ -1044,4 +1045,14 @@ message WatchDockerImageBuildRequest {
 message CancelDockerImageBuildRequest {
   string server_id = 1;
   string change_id = 2;
+}
+
+// DockerLifecycleSelection selects existing containers or external Compose projects.
+message DockerLifecycleSelection {
+  repeated DockerObjectKey keys = 1;
+  DockerContainerAction action = 2;
+  string signal = 3;
+  uint32 timeout_seconds = 4;
+  bool remove_anonymous_volumes = 5;
+  string new_name = 6;
 }

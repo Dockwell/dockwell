@@ -47,9 +47,13 @@ func (c *calls) ownedImage(image docker.DiskUsageImage) bool {
 
 func infrastructureRepository(ref string) bool {
 	repo := docker.Repository(ref)
+	return dockwellRepository(ref) || slices.Contains(infrastructureRepositories, repo)
+}
+
+func dockwellRepository(ref string) bool {
+	repo := docker.Repository(ref)
 	return repo == "dockwell" || strings.HasPrefix(repo, "dockwell/") ||
-		strings.HasPrefix(repo, "dockwell-") || strings.HasPrefix(repo, "ghcr.io/dockwell/") ||
-		slices.Contains(infrastructureRepositories, repo)
+		strings.HasPrefix(repo, "dockwell-") || strings.HasPrefix(repo, "ghcr.io/dockwell/")
 }
 
 func (c *calls) infrastructureImageAlias(ref string) bool {

@@ -106,7 +106,7 @@ export function useDockerArtifactWords() {
         case DockerCleanupReason.DESIRED:
           return kind === DockerCleanupKind.VOLUME ? t`Managed by Dockwell` : t`Managed or built-in`;
         case DockerCleanupReason.TAKE_ON:
-          return t`Take on before deletion`;
+          return t`Review removal in Containers`;
         case DockerCleanupReason.RETAINED:
           return kind === DockerCleanupKind.LOG ? t`Logs are never removed here` : t`Retained for recovery`;
         case DockerCleanupReason.EXACT_REMOVAL_UNAVAILABLE:

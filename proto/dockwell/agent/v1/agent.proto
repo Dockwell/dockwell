@@ -411,6 +411,8 @@ enum LocalAction {
   LOCAL_ACTION_STARTED = 2;
   // It couldn't put the resource back, and waits for the control plane.
   LOCAL_ACTION_WAITING = 3;
+  // It restored the pause of a workload that Docker was running.
+  LOCAL_ACTION_PAUSED = 4;
 }
 
 // Heard says the control plane has what an agent did on its own, up to and
@@ -647,6 +649,8 @@ message Hello {
   bool reads_sockets = 430;
   // True when the agent reads a host terminal's working directory (460 to 469).
   bool reads_terminal_cwd = 460;
+  bool external_container_controls = 480;
+  bool managed_container_pause = 482;
 }
 
 // DesiredHeld is what an agent keeps of what its server should run.
@@ -961,6 +965,7 @@ message Call {
     AppPortsCall app_ports = 390;
     DockerSettingsCall docker_settings = 407;
     DockerInventoryListCall docker_inventory_list = 400;
+    DockerLifecyclePreviewCall docker_lifecycle_preview = 481;
     DockerInventoryDetailCall docker_inventory_detail = 401;
     DockerInventoryWatchCall docker_inventory_watch = 402;
     DockerMaintenancePreviewCall docker_maintenance_preview = 404;
@@ -2833,6 +2838,7 @@ message CallResult {
     AppPortsResult app_ports = 391;
     DockerSettingsResult docker_settings = 407;
     DockerInventoryListResult docker_inventory_list = 400;
+    DockerLifecyclePreviewResult docker_lifecycle_preview = 481;
     DockerInventoryDetailResult docker_inventory_detail = 401;
     DockerInventoryWatchResult docker_inventory_watch = 402;
     DockerMaintenancePreviewResult docker_maintenance_preview = 404;
@@ -3332,4 +3338,17 @@ message TerminalCwdResult {
   string cwd = 1;
   // The shell account's home directory on the server, as a fallback.
   string home = 2;
+}
+
+// DockerLifecyclePreviewCall resolves selected Engine objects into immutable container targets.
+message DockerLifecyclePreviewCall {
+  repeated dockwell.v1.DockerObjectKey keys = 1;
+  dockwell.v1.DockerContainerAction action = 2;
+  string new_name = 3;
+  bool remove_anonymous_volumes = 4;
+}
+
+// DockerLifecyclePreviewResult holds the bounded, reviewed external targets.
+message DockerLifecyclePreviewResult {
+  repeated dockwell.v1.DockerContainerTarget targets = 1;
 }

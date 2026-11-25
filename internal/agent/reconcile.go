@@ -144,6 +144,12 @@ func (p *presence) down() bool {
 	return !p.up && !p.removed
 }
 
+func (p *presence) active() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return !p.removed
+}
+
 // remove notes the control plane said this server was removed, and says whether
 // that's news.
 func (p *presence) remove() bool {
@@ -217,12 +223,12 @@ func (r *reconciler) run(ctx context.Context) {
 }
 
 func (r *reconciler) pruneRunState(ctx context.Context) {
-	if r.cfg.PruneRunState == nil {
+	if r.cfg.RunControl == nil {
 		return
 	}
 	look, cancel := context.WithTimeout(ctx, lookTimeout)
 	defer cancel()
-	if err := r.cfg.PruneRunState(look); err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
+	if err := r.cfg.RunControl.PruneRunState(look); err != nil && !docker.IsUnavailable(err) && ctx.Err() == nil {
 		r.cfg.Logger.Warn("can't forget run state for removed containers yet", "error", err)
 	}
 }
@@ -514,7 +520,8 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		pick docker.Pick
 		c    *docker.ContainerSummary
 		// others are the rest that answer to the service and aren't leaving.
-		others []string
+		others  []string
+		running []string
 	}
 	byLabels := make(map[[2]string]*stood, len(list))
 	for i := range list {
@@ -527,6 +534,9 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 		if s == nil {
 			s = &stood{}
 			byLabels[key] = s
+		}
+		if r.cfg.RunControl != nil && c.State == "running" && r.cfg.RunControl.HasSavedPause(c.ID) {
+			s.running = append(s.running, c.ID)
 		}
 		switch {
 		case c.Stand().Leaving():
@@ -545,6 +555,9 @@ func (r *reconciler) noted(ctx context.Context, at time.Time, list []docker.Cont
 			continue
 		}
 		of := byLabels[[2]string{docker.Project(ref.Scope), ref.Name}]
+		if of != nil && len(of.running) > 0 {
+			r.restorePauses(ctx, ref, of.running)
+		}
 		was, ok := r.cfg.Desired.Stands(ref)
 		if of == nil || of.c == nil || !ok {
 			// Gone, or with nothing but a container on its way out, as a forced
@@ -877,7 +890,7 @@ func (r *reconciler) journal(ref resource.Ref, what, reason string) {
 // localActions are what the journal's entries say, as the stream carries them.
 var localActions = map[string]agentv1.LocalAction{
 	desired.Made: agentv1.LocalAction_LOCAL_ACTION_MADE, desired.Started: agentv1.LocalAction_LOCAL_ACTION_STARTED,
-	desired.Waiting: agentv1.LocalAction_LOCAL_ACTION_WAITING,
+	desired.Waiting: agentv1.LocalAction_LOCAL_ACTION_WAITING, desired.Paused: agentv1.LocalAction_LOCAL_ACTION_PAUSED,
 }
 
 // reconciledProto is the journal as the stream carries it.

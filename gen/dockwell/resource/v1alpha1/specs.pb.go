@@ -36,6 +36,7 @@ const (
 	DesiredRunState_DESIRED_RUN_STATE_UNSPECIFIED DesiredRunState = 0
 	DesiredRunState_DESIRED_RUN_STATE_RUNNING     DesiredRunState = 1
 	DesiredRunState_DESIRED_RUN_STATE_STOPPED     DesiredRunState = 2
+	DesiredRunState_DESIRED_RUN_STATE_PAUSED      DesiredRunState = 3
 )
 
 // Enum value maps for DesiredRunState.
@@ -44,11 +45,13 @@ var (
 		0: "DESIRED_RUN_STATE_UNSPECIFIED",
 		1: "DESIRED_RUN_STATE_RUNNING",
 		2: "DESIRED_RUN_STATE_STOPPED",
+		3: "DESIRED_RUN_STATE_PAUSED",
 	}
 	DesiredRunState_value = map[string]int32{
 		"DESIRED_RUN_STATE_UNSPECIFIED": 0,
 		"DESIRED_RUN_STATE_RUNNING":     1,
 		"DESIRED_RUN_STATE_STOPPED":     2,
+		"DESIRED_RUN_STATE_PAUSED":      3,
 	}
 )
 
@@ -12742,11 +12745,12 @@ const file_dockwell_resource_v1alpha1_specs_proto_rawDesc = "" +
 	"\rprefix_length\x18\x02 \x01(\rR\fprefixLength\"\xa1\x01\n" +
 	"\x10ContainerLogging\x12D\n" +
 	"\x04mode\x18\x01 \x01(\x0e20.dockwell.resource.v1alpha1.ContainerLoggingModeR\x04mode\x12G\n" +
-	"\x06limits\x18\x02 \x01(\v2/.dockwell.resource.v1alpha1.DockerDaemonLoggingR\x06limits*r\n" +
+	"\x06limits\x18\x02 \x01(\v2/.dockwell.resource.v1alpha1.DockerDaemonLoggingR\x06limits*\x90\x01\n" +
 	"\x0fDesiredRunState\x12!\n" +
 	"\x1dDESIRED_RUN_STATE_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19DESIRED_RUN_STATE_RUNNING\x10\x01\x12\x1d\n" +
-	"\x19DESIRED_RUN_STATE_STOPPED\x10\x02*j\n" +
+	"\x19DESIRED_RUN_STATE_STOPPED\x10\x02\x12\x1c\n" +
+	"\x18DESIRED_RUN_STATE_PAUSED\x10\x03*j\n" +
 	"\fRolloutOrder\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19ROLLOUT_ORDER_START_FIRST\x10\x01\x12\x1c\n" +

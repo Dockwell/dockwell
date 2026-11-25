@@ -4,7 +4,6 @@ import { toJson } from "@bufbuild/protobuf";
 import { timestampDate, timestampMs } from "@bufbuild/protobuf/wkt";
 import { useQuery } from "@connectrpc/connect-query";
 import {
-  ContainerService,
   ContainerState,
   type DockerContainer,
   type DockerObject,
@@ -46,6 +45,7 @@ import { useControlPlaneNow, useFleetView } from "../servers/useFleet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
 import { ContainerActions, ContainerStatus, dockerPort, Ownership, portUrl } from "./DockerContainers";
+import { useDockerLifecycle } from "./DockerLifecycle";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, Fact, LiveUpdates } from "./parts";
@@ -107,12 +107,13 @@ export function DockerContainerDetail({
     (object.ownership !== DockerOwnership.MANAGED ||
       (object.managedResource?.kind === "service" && !!object.managedResourceId));
   const view = search.view;
-  const canTake = object?.ownership === DockerOwnership.EXTERNAL && may(ContainerService.method.adoptContainer).allowed;
+  const lifecycle = useDockerLifecycle();
   const container = containerOf(object);
   const replacement = query.data?.replacementKey;
   const hint = object ? { name: object.name } : search.name ? { name: search.name } : {};
   return (
     <LogsSearchButton value={searchButton}>
+      {lifecycle.editor}
       {takeOn ? <DockerTakeOn row={takeOn} onClose={() => setTakeOn(undefined)} /> : null}
       <Page
         title={label}
@@ -146,6 +147,7 @@ export function DockerContainerDetail({
           object ? (
             <ContainerActions
               row={object}
+              lifecycle={lifecycle}
               address={server?.address}
               takeOnMode="primary"
               onApplied={() => void query.refetch()}
@@ -163,15 +165,15 @@ export function DockerContainerDetail({
             >
               <Icon name="search" size={20} />
             </button>
-          ) : canTake ? (
-            <button
-              type="button"
-              className="mobile-header-button"
-              aria-label={t`Take on`}
-              onClick={() => setTakeOn(object)}
-            >
-              <Icon name="plus" size={20} />
-            </button>
+          ) : object ? (
+            <ContainerActions
+              row={object}
+              lifecycle={lifecycle}
+              shortcuts={false}
+              address={server?.address}
+              onApplied={() => void query.refetch()}
+              onTakeOn={setTakeOn}
+            />
           ) : undefined
         }
         fullBody={view === "logs" && !!supportedLogs}

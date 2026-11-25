@@ -23,6 +23,7 @@ import (
 const (
 	running = resourcev1.DesiredRunState_DESIRED_RUN_STATE_RUNNING
 	stopped = resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED
+	paused  = resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 )
 
 type runRecord struct {
@@ -63,16 +64,28 @@ func (d *Docker) lockRun(id string) func() {
 	}
 }
 
-// WithRunIntent reads the saved intent by full Engine ID and holds it stable
-// while another operation starts or stops that container.
+// WithRunIntent keeps a saved stop stable while an operation would start Docker.
 func (d *Docker) WithRunIntent(id string, action func(stopped bool) error) error {
+	return d.WithDesiredRunState(id, func(state resourcev1.DesiredRunState) error {
+		return action(state == stopped)
+	})
+}
+
+// WithDesiredRunState holds the saved intent stable by full Engine ID.
+func (d *Docker) WithDesiredRunState(id string, action func(resourcev1.DesiredRunState) error) error {
 	unlock := d.lockRun(id)
 	defer unlock()
 	record, err := d.runRecord(id)
 	if err != nil {
 		return err
 	}
-	return action(record.State == stopped)
+	return action(record.State)
+}
+
+// HasSavedPause reports whether this Engine ID has an explicit managed pause.
+func (d *Docker) HasSavedPause(id string) bool {
+	record, err := d.runRecord(id)
+	return err == nil && record.State == paused
 }
 
 func (d *Docker) runRecord(id string) (runRecord, error) {
@@ -199,8 +212,12 @@ func (d *Docker) projectRun(c *docker.Container, out *resourcev1.Container) erro
 			out.DesiredRunState = stopped
 		}
 	case running:
-		if c.State.Running && !c.State.Restarting {
+		if c.State.Running && !c.State.Restarting && !c.State.Paused {
 			out.DesiredRunState = running
+		}
+	case paused:
+		if c.State.Paused {
+			out.DesiredRunState = paused
 		}
 	}
 	return nil
@@ -216,12 +233,15 @@ func (d *Docker) updateRun(ctx context.Context, t Target, c *instance, spec *res
 		return err
 	}
 	want := spec.GetDesiredRunState()
-	if want != 0 || record.State == stopped {
+	if want != 0 || record.State == stopped || record.State == paused {
 		// A backup may have restarted it since the rollout read its instances.
 		c.Container, err = d.Client.InspectContainer(ctx, c.ID)
 		if err != nil {
 			return err
 		}
+	}
+	if want == paused && record.State != paused && (!c.State.Running || c.State.Restarting) {
+		return errors.New("only a running workload can be paused. Start it before reviewing Pause")
 	}
 	if want == stopped {
 		next := runRecord{State: want, Policy: spec.GetRestart(), Retries: spec.GetRestartRetries()}
@@ -238,7 +258,7 @@ func (d *Docker) updateRun(ctx context.Context, t Target, c *instance, spec *res
 			}()
 		}
 	}
-	start := want != stopped && (want == running || record.State == stopped)
+	start := want != stopped && (want != 0 || record.State == stopped || record.State == paused)
 	if start && !c.State.Running {
 		if err := d.startsAsPlanned(ctx, t, spec, dec, c.ID); err != nil {
 			return err
@@ -268,7 +288,20 @@ func (d *Docker) updateRun(ctx context.Context, t Target, c *instance, spec *res
 		}
 		return nil
 	}
+	if want == paused {
+		if record.State != paused {
+			if err := d.rememberRun(c.ID, runRecord{State: paused}); err != nil {
+				return err
+			}
+		}
+		return d.pauseInstance(ctx, t, c)
+	}
 	if start {
+		if c.State.Paused {
+			if err := d.Client.UnpauseContainer(ctx, c.ID); err != nil {
+				return hideIn(err, valuesInContainer(c.Container))
+			}
+		}
 		if err := d.startInstance(ctx, t, c); err != nil {
 			return err
 		}
@@ -291,7 +324,29 @@ func (d *Docker) undoFailedStop(ctx context.Context, before *docker.Container, r
 	if err := d.Client.UpdateRestartPolicy(ctx, before.ID, before.HostConfig.RestartPolicy); err != nil {
 		return hideIn(err, valuesInContainer(before))
 	}
+	if before.State.Paused && !after.State.Paused {
+		if err := d.Client.PauseContainer(ctx, before.ID); err != nil {
+			return hideIn(err, valuesInContainer(before))
+		}
+	}
 	return d.rememberRun(before.ID, record)
+}
+
+func (d *Docker) pauseInstance(ctx context.Context, t Target, c *instance) error {
+	if !c.State.Running {
+		if err := d.Client.StartContainer(ctx, c.ID); err != nil {
+			return hideIn(err, valuesInContainer(c.Container))
+		}
+	}
+	if !c.State.Paused {
+		if err := d.Client.PauseContainer(ctx, c.ID); err != nil {
+			return hideIn(err, valuesInContainer(c.Container))
+		}
+	}
+	if d.Ingress != nil && t.Scoped {
+		return d.Ingress.RemoveUpstream(ctx, t.instance(c.number))
+	}
+	return nil
 }
 
 func (d *Docker) startInstance(ctx context.Context, t Target, c *instance) error {
@@ -312,6 +367,22 @@ func IsStopped(spec proto.Message) bool { return resource.RunIntent(spec) == sto
 // verifyRun verifies a start against the usual health gate and a stop
 // against Docker's effective policy and process state.
 func (d *Docker) verifyRun(ctx context.Context, t Target, spec proto.Message) error {
+	if resource.RunIntent(spec) == paused {
+		all, err := d.instances(ctx, t)
+		if err != nil {
+			return err
+		}
+		if len(all) == 0 {
+			return fmt.Errorf("%s is missing. Deploy it again", t.Service)
+		}
+		for _, i := range all {
+			if !i.State.Paused {
+				return fmt.Errorf("%s hasn't settled in the paused state", t.Service)
+			}
+		}
+		d.reportRan(ctx, all[0].Container)
+		return nil
+	}
 	if !IsStopped(spec) {
 		return d.Healthy(ctx, t)
 	}

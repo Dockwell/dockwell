@@ -90,8 +90,17 @@ export function reboots(plan: Plan | undefined): boolean {
 export function cleansDocker(plan: Plan | undefined): boolean {
   return (
     !!plan?.resources.length &&
-    plan.resources.every((item) => item.dockerMaintenance !== undefined && !item.dockerMaintenance.imageAction)
+    plan.resources.every(
+      (item) =>
+        item.dockerMaintenance !== undefined &&
+        !item.dockerMaintenance.imageAction &&
+        !item.dockerMaintenance.lifecycle,
+    )
   );
+}
+
+export function dockerLifecycle(plan: Plan | undefined) {
+  return plan?.resources.find((resource) => resource.dockerMaintenance?.lifecycle)?.dockerMaintenance?.lifecycle;
 }
 
 export function dockerImageAction(plan: Plan | undefined) {

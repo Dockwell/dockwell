@@ -27,7 +27,8 @@ type Desired struct {
 	Spec                  proto.Message
 	// NeedsRunControl gates a write whose previous revision had explicit run intent.
 	// The control plane uses it to choose a compatible agent.
-	NeedsRunControl bool `json:"-"`
+	NeedsRunControl   bool `json:"-"`
+	NeedsPauseControl bool `json:"-"`
 	// Pull asks the server for the resource's image again as the step applies,
 	// and to replace what runs only if that's newer. It says what a request asks
 	// for, not what the spec is, so it isn't kept.
@@ -574,7 +575,9 @@ func (l Local) Plan(ctx context.Context, desired []Desired) ([]Step, error) {
 		// or a restart does, or is replacing it anyway. The plan says which, and nothing
 		// is up for that to take down. What a crash left is work to finish, not
 		// something stopped, so it has no such word.
-		if r, ok := d.(Runner); ok && spec != nil && !step.ChangesRunIntent() && RunIntent(spec) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED && actual != nil && (want.Run || want.Restart != "" || step.Action == ActionReplace && !settling) {
+		intent := RunIntent(spec)
+		idle := intent == resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED || intent == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
+		if r, ok := d.(Runner); ok && spec != nil && !step.ChangesRunIntent() && !idle && actual != nil && (want.Run || want.Restart != "" || step.Action == ActionReplace && !settling) {
 			state, err := r.NotRunning(ctx, want.Ref)
 			if err != nil {
 				return nil, fmt.Errorf("can't read %s: %w", want.Ref, err)

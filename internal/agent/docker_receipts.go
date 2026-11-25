@@ -1163,6 +1163,13 @@ func (c *calls) planDockerMaintenance(ctx context.Context, ask *agentv1.PlanCall
 			return c.planImageAction(ctx, desired)
 		}
 		ref := resourcepb.FromRef(desired.GetResource())
+		if life := plan.GetLifecycle(); life != nil {
+			if err := c.checkDockerLifecycle(ref, plan); err != nil {
+				return callFailed(err), true
+			}
+			step := resource.Step{Ref: ref, Decision: resource.Decision{Action: resource.ActionUpdate, Destroys: life.GetAction() == lifecycleRemove, DockerMaintenance: plan}}
+			return &agentv1.CallResult{Result: &agentv1.CallResult_Plan{Plan: &agentv1.PlanResult{Steps: []*v1.PlanStep{resourcepb.Step(step, "")}}}}, true
+		}
 		if err := c.checkDockerMaintenance(ref, plan); err != nil {
 			return callFailed(err), true
 		}
@@ -1178,6 +1185,12 @@ func (c *calls) runDockerMaintenance(ctx context.Context, callID uint64, ref res
 			Id: callID, Outcome: &agentv1.StepOutcome{DockerReceipt: out.DockerReceipts},
 		}}})
 	})
+	if plan.GetLifecycle() != nil {
+		if err := c.runDockerLifecycle(ctx, ref, plan, protection); err != nil {
+			return callFailed(err)
+		}
+		return &agentv1.CallResult{Result: &agentv1.CallResult_Apply{Apply: &agentv1.ApplyResult{}}}
+	}
 	if err := c.applyDockerMaintenance(ctx, ref, plan, protection); err != nil {
 		return callFailed(err)
 	}

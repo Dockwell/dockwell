@@ -271,6 +271,9 @@ func (h *Handler) PreviewDockerCleanup(ctx context.Context, req *connect.Request
 // PlanDockerMaintenance freezes the selected candidate evidence in a regular change.
 func (h *Handler) PlanDockerMaintenance(ctx context.Context, req *connect.Request[v1.PlanDockerMaintenanceRequest]) (*connect.Response[v1.PlanDockerMaintenanceResponse], error) {
 	m := req.Msg
+	if m.GetLifecycle() != nil {
+		return h.planDockerLifecycle(ctx, m.GetLifecycle())
+	}
 	if _, ok := m.GetOperation().(*v1.PlanDockerMaintenanceRequest_ResumeCleanupToken); ok {
 		return h.planResumeDockerCleanup(ctx, m)
 	}

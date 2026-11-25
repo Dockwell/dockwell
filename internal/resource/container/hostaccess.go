@@ -4,6 +4,7 @@ package container
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -427,4 +428,86 @@ func rootSubsystem(root, p string, rdev uint64) (bool, error) {
 	}
 	sub := filepath.Base(link)
 	return slices.Contains(rootSubsystems, sub) || sub == "mem" && slices.Contains(rootMem, unix.Minor(rdev)), nil
+}
+
+// ExternalHostAccess applies the workload access rules to an Engine container
+// that may also use settings Dockwell can't put in a managed spec.
+func ExternalHostAccess(ctx context.Context, client *docker.Client, c *docker.Container) bool {
+	spec := Project(c, nil, Target{Scoped: true})
+	spec.CapAdd = slices.Clone(spec.GetCapAdd())
+	for i, capability := range spec.CapAdd {
+		spec.CapAdd[i] = strings.TrimPrefix(strings.ToUpper(capability), "CAP_")
+	}
+	if slices.ContainsFunc(ServiceAccess(spec), func(a resource.Access) bool {
+		return a.AsGoodAsRoot() || a.Kind == resource.AccessCapability || a.Kind == resource.AccessDevice ||
+			a.Kind == resource.AccessGPUs || a.Kind == resource.AccessSecurityOption
+	}) {
+		return true
+	}
+	h := &c.HostConfig
+	// More than one device request, shared IPC, and an explicit host user
+	// namespace aren't representable by the managed container spec.
+	if len(h.DeviceRequests) > 0 || len(h.DeviceCgroupRules) > 0 || h.IpcMode == "host" || h.UsernsMode == "host" {
+		return true
+	}
+	if sharesHostNamespace(ctx, client, c, func(h *docker.HostConfig) string { return h.NetworkMode }) ||
+		sharesHostNamespace(ctx, client, c, func(h *docker.HostConfig) string { return h.PidMode }) ||
+		sharesHostNamespace(ctx, client, c, func(h *docker.HostConfig) string { return h.IpcMode }) {
+		return true
+	}
+	for _, mount := range c.Mounts {
+		source, readOnly := mount.Source, !mount.RW
+		switch mount.Type {
+		case "bind":
+		case "volume":
+			v, err := client.InspectVolume(ctx, mount.Name)
+			if err != nil {
+				return true // the volume's backing path could not be verified
+			}
+			var binds bool
+			source, binds = BindDevice(v.Driver, v.Options)
+			if !binds {
+				if v.Driver != "local" || v.Options["type"] != "" && !LocalMountType(v.Options["type"]) {
+					return true
+				}
+				continue
+			}
+			readOnly = readOnly || ReadMountOptions(v.Options["o"]).ReadOnly
+		default:
+			continue
+		}
+		if harmlessDevice(source, readOnly) {
+			continue
+		}
+		access := PathAccess(source, readOnly)
+		if resolved, err := filepath.EvalSymlinks(source); err == nil {
+			source = resolved
+		}
+		if access.Leading(source).AsGoodAsRoot() || strings.EqualFold(filepath.Base(mount.Destination), "docker.sock") || filepath.Base(mount.Destination) == "containerd.sock" {
+			return true
+		}
+		if socket, err := filepath.EvalSymlinks(client.Socket()); err == nil && resource.Within(socket, source) {
+			return true
+		}
+		if info, err := os.Stat(source); err == nil && info.Mode()&os.ModeSocket != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func sharesHostNamespace(ctx context.Context, client *docker.Client, c *docker.Container, mode func(*docker.HostConfig) string) bool {
+	for range 16 {
+		value := mode(&c.HostConfig)
+		id, shared := strings.CutPrefix(value, "container:")
+		if !shared {
+			return value == "host"
+		}
+		parent, err := client.InspectExternalContainer(ctx, id)
+		if err != nil {
+			return true
+		}
+		c = parent
+	}
+	return true // the Engine could not confirm where an unusually long chain leads
 }

@@ -865,7 +865,7 @@ func TestWhatTheListSaysReachesTheStateWhenAReadFails(t *testing.T) {
 		to    func(e *dockertest.Engine, name string)
 	}{
 		{"exited", dockwellv1.HealthState_HEALTH_STATE_NOT_RUNNING, "it is exited", func(e *dockertest.Engine, name string) { e.Stop(name) }},
-		{"paused", dockwellv1.HealthState_HEALTH_STATE_PAUSED, "it serves nothing and no check runs", func(e *dockertest.Engine, name string) {
+		{"paused", dockwellv1.HealthState_HEALTH_STATE_PAUSED, "Use Unpause in Docker", func(e *dockertest.Engine, name string) {
 			e.Edit(name, func(c *docker.Container) { c.State.Paused, c.State.Status = true, "paused" })
 		}},
 	} {

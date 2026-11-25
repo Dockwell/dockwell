@@ -33,6 +33,7 @@ import {
   cleansDocker,
   dockerImageAction,
   dockerImagePasskey,
+  dockerLifecycle,
   factAndRest,
   installs,
   keepsData,
@@ -86,7 +87,7 @@ function accessOf(plan: Plan): HostAccess[] {
  */
 export function needsConfirming(plan: Plan | undefined): boolean {
   if (!plan) return false;
-  if (cleansDocker(plan) || dockerImageAction(plan)) return false;
+  if (cleansDocker(plan) || dockerImageAction(plan) || dockerLifecycle(plan)) return false;
   const access = accessOf(plan);
   // A removal that destroys nothing more is confirmed by its passkey alone, which it always asks (#800):
   // the plan says it's for good, and a second code to type says nothing more.
@@ -149,6 +150,10 @@ export function needsPasskey(plan: Plan | undefined): boolean {
       plan.removes !== undefined ||
       cleansDocker(plan) ||
       dockerImagePasskey(plan) ||
+      plan.resources.some((r) => {
+        const lifecycle = r.dockerMaintenance?.lifecycle;
+        return lifecycle?.removeAnonymousVolumes || lifecycle?.targets.some((target) => target.hostAccess);
+      }) ||
       plan.resources.some(
         (r) => r.resource?.kind === "registry.login" && r.changes.some((c) => c.path === "allow_push"),
       ) ||
@@ -830,6 +835,17 @@ export function useRisks(plan: Plan | undefined, applied = false): Notice[] {
         ]
       : [];
   }
+  const lifecycle = dockerLifecycle(plan);
+  if (lifecycle) {
+    return applied || !lifecycle.removeAnonymousVolumes
+      ? []
+      : [
+          {
+            key: "container-volumes",
+            title: t`Anonymous volume data is deleted permanently`,
+          },
+        ];
+  }
   if (cleansDocker(plan)) {
     if (applied || resumesDockerCleanup(plan)) return [];
     const removesVolumes = plan.resources.some((resource) =>
@@ -1120,6 +1136,18 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
           title: t`Starts on every placed server`,
           detail: t`Health checks resume and routes can serve the workload again. Dependent apps keep running.`,
         };
+      case "workload_pauses":
+        return {
+          key,
+          title: t`Pauses on every placed server`,
+          detail: t`Health checks pause and routes lose their backend. Existing connections may stall.`,
+        };
+      case "workload_unpauses":
+        return {
+          key,
+          title: t`Unpauses on every placed server`,
+          detail: t`Health checks resume and routes can serve the workload again.`,
+        };
       case "workload_routes":
         return { key, title: t`Routes`, detail: list(note.names) };
       case "workload_dependants":
@@ -1127,6 +1155,10 @@ export function useWarnings(plan: Plan | undefined, applied = false, serving: re
       case "restore_stopped_database": {
         const database = note.names[0] ?? "";
         return { key, title: t`${database} runs only while the dump loads, then stops again.` };
+      }
+      case "stays_paused": {
+        const name = note.resource?.name ?? "";
+        return { key, title: t`${name} stays paused`, detail: t`Use Unpause to run it.` };
       }
       case "restart_instance": {
         const id = note.names[0] ?? "";

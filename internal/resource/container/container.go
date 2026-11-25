@@ -436,7 +436,7 @@ func validateWords(c *resourcev1.Container) error {
 // validateRestart refuses a count of restarts on a policy with none, which
 // Docker refuses as it makes the container, so only once the change is applied.
 func validateRestart(c *resourcev1.Container) error {
-	if state := c.GetDesiredRunState(); state < 0 || state > stopped {
+	if state := c.GetDesiredRunState(); state < 0 || state > paused {
 		return fmt.Errorf("unknown desired run state %d", state)
 	}
 	if c.GetRestartRetries() > 0 && c.GetRestart() != resourcev1.RestartPolicy_RESTART_POLICY_ON_FAILURE {

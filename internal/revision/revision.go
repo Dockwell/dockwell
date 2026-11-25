@@ -793,6 +793,9 @@ func (p *Plan) Counts() Counts {
 // HasDockerMaintenance reports whether applying the plan needs an exact cleanup approval.
 func (p *Plan) HasDockerMaintenance() bool {
 	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool {
+		if life := r.DockerMaintenance.GetLifecycle(); life != nil {
+			return life.GetRemoveAnonymousVolumes() || slices.ContainsFunc(life.GetTargets(), (*dockwellv1.DockerContainerTarget).GetHostAccess)
+		}
 		return r.DockerMaintenance != nil && r.DockerMaintenance.GetImageAction() == nil ||
 			resource.DockerImageNeedsPasskey(r.DockerMaintenance.GetImageAction())
 	})
@@ -805,6 +808,11 @@ func (p *Plan) ChangesRegistryPushPermission() bool {
 			return c.Path == "allow_push"
 		})
 	})
+}
+
+// HasDockerLifecycle identifies direct external container operations.
+func (p *Plan) HasDockerLifecycle() bool {
+	return slices.ContainsFunc(p.Resources, func(r ResourcePlan) bool { return r.DockerMaintenance.GetLifecycle() != nil })
 }
 
 // HasDockerImageAction identifies the install's reviewed image operations.
@@ -1336,6 +1344,13 @@ func (e *Engine) propose(ctx context.Context, p Proposal, reverts string, rotate
 	p.Notes = append(slices.Clone(p.Notes), plan.Notes...)
 	for i := range items {
 		it := &items[i]
+		paused := resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
+		if resource.RunIntent(it.current) == paused && resource.RunIntent(it.spec) == paused {
+			p.Notes = append(p.Notes, Note{
+				Reason: "stays_paused", Ref: it.ref, IfItChanges: true,
+				Message: it.ref.Name + " stays paused. Use Unpause to run it.",
+			})
+		}
 		before, _ := it.current.(*resourcev1.FirewallRule)
 		after, _ := it.spec.(*resourcev1.FirewallRule)
 		if before.GetPort() != 0 && after != nil && after.GetPort() == 0 {
@@ -3608,6 +3623,9 @@ func (e *Engine) plan(ctx context.Context, changeID string, items []item, rollba
 		rp.DockerStorageGuard = items[i].dockerStorageGuard
 		if rp.DockerMaintenance = items[i].dockerMaintenance; rp.DockerMaintenance != nil {
 			rp.NoUndo = "Docker cleanup removes the selected artifacts permanently."
+			if rp.DockerMaintenance.GetLifecycle() != nil {
+				rp.NoUndo = "External container actions do not make a revision."
+			}
 			if rp.DockerMaintenance.GetImageAction() != nil {
 				rp.NoUndo = "This image action does not make a revision."
 			}
@@ -3857,6 +3875,7 @@ func (e *Engine) planOn(ctx context.Context, agent resource.Agent, server, name 
 		}
 		desired[i] = resource.Desired{Ref: it.ref, DockerMaintenance: it.dockerMaintenance, Spec: it.desiredOn(server), Pull: it.pull, Run: it.runsOn(server), Restart: it.restart, Rollback: it.rollback, Adopt: it.adopt, Restore: it.restoreOn(server), Backup: it.backupOn(server), Move: it.moveOn(server), Install: it.install, Reboot: it.rebootAsked(), Unit: it.unit, Panel: it.panel, Upgrade: it.upgrade, MoveVolumeFrom: it.moveFromOn(server)}
 		desired[i].NeedsRunControl = resource.RunIntent(it.currentOn(server)) != 0
+		desired[i].NeedsPauseControl = resource.RunIntent(it.currentOn(server)) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 		desired[i].DockerStorageGuard = guards[it.ref]
 		desired[i].RetryDockerAttachment = retrying[it.ref] && guards[it.ref].GetAttachment() != nil
 		if target := it.restartTarget; target != nil && target.Container != "" {
@@ -5197,6 +5216,7 @@ func (e *Engine) run(ctx context.Context, r *committed) error {
 		// once the lock is let go.
 		step, desired := *q.step, it.desiredOn(q.server)
 		step.NeedsRunControl = step.NeedsRunControl || resource.RunIntent(it.currentOn(q.server)) != 0
+		step.NeedsPauseControl = resource.RunIntent(it.currentOn(q.server)) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 		if q.backupOnly {
 			// A deletion's backup reads the volume as it is.
 			desired = it.current
@@ -6437,13 +6457,14 @@ func (e *Engine) RestartInstance(ctx context.Context, ref resource.Ref, by By, s
 }
 
 // RestartEnvironment plans a single restart of the environment's placed
-// services. Services saved as stopped retain that intent.
+// services. Services saved as stopped or paused retain that intent.
 func (e *Engine) RestartEnvironment(ctx context.Context, environmentID, serverID string, by By, summary string) (*Plan, error) {
 	var target *RestartTarget
 	if serverID != "" {
 		target = &RestartTarget{Server: serverID}
 	}
 	var edits []Edit
+	var notes []Note
 	if err := e.db.View(ctx, func(tx *store.Tx) error {
 		services, err := tx.ListResources(ctx, environmentID, "service")
 		if err != nil {
@@ -6455,7 +6476,14 @@ func (e *Engine) RestartEnvironment(ctx context.Context, environmentID, serverID
 			if err != nil {
 				return err
 			}
-			if it.current != nil && len(it.placed) > 0 && (target == nil || slices.Contains(it.placed, serverID)) && resource.RunIntent(it.current) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
+			if it.current == nil || len(it.placed) == 0 || target != nil && !slices.Contains(it.placed, serverID) {
+				continue
+			}
+			switch resource.RunIntent(it.current) {
+			case resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED:
+			case resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED:
+				notes = append(notes, Note{Reason: "stays_paused", Ref: ref, Message: ref.Name + " stays paused. Use Unpause to run it."})
+			default:
 				edits = append(edits, Edit{Ref: ref, Spec: it.current, Base: it.base, Restart: true, RestartTarget: target})
 			}
 		}
@@ -6464,9 +6492,12 @@ func (e *Engine) RestartEnvironment(ctx context.Context, environmentID, serverID
 		return nil, err
 	}
 	if len(edits) == 0 {
+		if len(notes) > 0 {
+			return nil, fault.New(ErrInvalid, "%s is paused. Use Unpause first", notes[0].Ref.Name)
+		}
 		return nil, fault.New(ErrInvalid, "this stack has no services to restart. Use Start for services saved as stopped")
 	}
-	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits}, "", false)
+	return e.propose(ctx, Proposal{Summary: summary, Actor: by.Actor, Via: by.Via, Edits: edits, Notes: notes}, "", false)
 }
 
 func (e *Engine) restart(ctx context.Context, ref resource.Ref, by By, summary string, target *RestartTarget) (*Plan, error) {
@@ -6490,8 +6521,12 @@ func (e *Engine) restart(ctx context.Context, ref resource.Ref, by By, summary s
 	if it.current == nil {
 		return nil, fault.New(ErrInvalid, "there's no %s to restart. Check its name and environment", ref)
 	}
-	if resource.RunIntent(it.current) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
+	switch resource.RunIntent(it.current) {
+	case resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED:
 		return nil, fault.New(ErrInvalid, "%s is stopped by its revision. Use Start", ref.Name)
+	case resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED:
+		return nil, fault.New(ErrInvalid, "%s is paused. Use Unpause first", ref.Name)
+	default:
 	}
 	if target != nil && !slices.Contains(it.placed, target.Server) {
 		return nil, fault.New(ErrInvalid, "%s is not placed on the selected server", ref.Name)

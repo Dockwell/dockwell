@@ -320,7 +320,15 @@ func (e *Engine) applyStep(ctx context.Context, agent resource.Agent, server str
 	if step.DockerMaintenance != nil && step.DockerMaintenance.GetResumeCleanupToken() == "" && step.DockerMaintenance.GetImageAction().GetPush() == nil {
 		var wantImages, wantNetworks, wantVolumes bool
 		var onlyVolumes map[string]bool
-		if step.DockerMaintenance.GetImageAction() != nil {
+		if life := step.DockerMaintenance.GetLifecycle(); life != nil && life.GetRemoveAnonymousVolumes() {
+			wantVolumes = true
+			onlyVolumes = map[string]bool{}
+			for _, target := range life.GetTargets() {
+				for _, volume := range target.GetAnonymousVolumes() {
+					onlyVolumes[volume] = true
+				}
+			}
+		} else if step.DockerMaintenance.GetImageAction() != nil {
 			wantImages = true
 		} else {
 			for _, t := range step.DockerMaintenance.GetTargets() {

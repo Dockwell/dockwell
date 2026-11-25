@@ -20,6 +20,7 @@ import { type Browser, chromium } from "playwright-core";
 import { appsFlow } from "./apps-flow.ts";
 import { containersFlow } from "./containers-flow.ts";
 import { dockerMade, dockerProbe, removeMade } from "./docker-probe.ts";
+import { dockerUnmanagedOnRealDocker } from "./docker-unmanaged-real.ts";
 import { healthFlow } from "./health-flow.ts";
 import { describePages, watchBrowser } from "./report.ts";
 import { LONG_HOSTNAME } from "./sheets.ts";
@@ -201,6 +202,7 @@ try {
       browser: browser as Browser,
       context,
     });
+    await dockerUnmanagedOnRealDocker(page, origin, socket);
     await containersFlow(page, {
       origin,
       step: (what) => console.log(`e2e: ${what}`),

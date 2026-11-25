@@ -113,8 +113,9 @@ type HostConfig struct {
 	SecurityOpt []string `json:"SecurityOpt,omitempty"`
 	// Devices are the server's devices it reaches, and DeviceRequests what it asks
 	// of a device driver, as --gpus does.
-	Devices        []DeviceMapping `json:"Devices,omitempty"`
-	DeviceRequests []DeviceRequest `json:"DeviceRequests,omitempty"`
+	Devices           []DeviceMapping `json:"Devices,omitempty"`
+	DeviceRequests    []DeviceRequest `json:"DeviceRequests,omitempty"`
+	DeviceCgroupRules []string        `json:"DeviceCgroupRules,omitempty"`
 	// PidMode "host" shares the server's processes, and IpcMode "host" its shared
 	// memory, which Docker reports and a spec doesn't hold.
 	PidMode string `json:"PidMode,omitempty"`
@@ -289,12 +290,20 @@ type HealthRun struct {
 // an error that IsNotFound reports. The engine takes any reference here,
 // so to find a container by name, use ContainerNamed.
 func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, error) {
+	out, err := c.InspectExternalContainer(ctx, id)
+	if err == nil {
+		if t, ok := c.Adopted.snapshot()[out.ID]; ok {
+			out.Config.Labels = asTaken(out.Config.Labels, t, out.Name)
+		}
+	}
+	return out, err
+}
+
+// InspectExternalContainer reads raw Engine facts without acquiring the adoption lock.
+func (c *Client) InspectExternalContainer(ctx context.Context, id string) (*Container, error) {
 	var out Container
 	if err := c.do(ctx, http.MethodGet, "/containers/"+esc(id)+"/json", nil, nil, &out); err != nil {
 		return nil, err
-	}
-	if t, ok := c.Adopted.snapshot()[out.ID]; ok {
-		out.Config.Labels = asTaken(out.Config.Labels, t, out.Name)
 	}
 	return &out, nil
 }
@@ -578,6 +587,70 @@ func (c *Client) CreateContainer(ctx context.Context, name string, req *CreateRe
 // StartContainer starts a container; one already running is left be.
 func (c *Client) StartContainer(ctx context.Context, id string) error {
 	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/start", nil, nil, nil)
+}
+
+// PauseContainer freezes a running container.
+func (c *Client) PauseContainer(ctx context.Context, id string) error {
+	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/pause", nil, nil, nil)
+}
+
+// SignalContainer delivers one signal to the container's first process.
+func (c *Client) SignalContainer(ctx context.Context, id, signal string) error {
+	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/kill", url.Values{"signal": {signal}}, nil, nil)
+}
+
+// TerminateContainer lets the Engine send SIGTERM followed by SIGKILL after grace.
+func (c *Client) TerminateContainer(ctx context.Context, id string, grace time.Duration) error {
+	if !c.AtLeast("1.42") {
+		return c.terminateLegacyContainer(ctx, id, grace)
+	}
+	q := url.Values{"signal": {"SIGTERM"}, "t": {strconv.Itoa(int(grace / time.Second))}}
+	return c.do(ctx, http.MethodPost, "/containers/"+esc(id)+"/stop", q, nil, nil)
+}
+
+// Docker 20.10's stop endpoint only takes the image's configured stop signal.
+func (c *Client) terminateLegacyContainer(ctx context.Context, id string, grace time.Duration) error {
+	before, err := c.InspectExternalContainer(ctx, id)
+	if err != nil {
+		return err
+	}
+	if err := c.SignalContainer(ctx, id, "SIGTERM"); err != nil {
+		return err
+	}
+	tick := time.NewTicker(200 * time.Millisecond)
+	defer tick.Stop()
+	deadline := time.NewTimer(grace)
+	defer deadline.Stop()
+	for {
+		escalate := false
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-tick.C:
+		case <-deadline.C:
+			escalate = true
+		}
+		current, err := c.InspectExternalContainer(ctx, id)
+		if IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !current.State.Running || current.State.Restarting || !current.State.StartedAt.Equal(before.State.StartedAt) {
+			return nil
+		}
+		if escalate {
+			return c.SignalContainer(ctx, id, "SIGKILL")
+		}
+	}
+}
+
+// RemoveExternalContainer removes a stopped container, optionally with its anonymous volumes.
+// Call it while holding the adoption guard so the name cannot be taken on during deletion.
+func (c *Client) RemoveExternalContainer(ctx context.Context, id string, volumes bool) error {
+	q := url.Values{"v": {strconv.FormatBool(volumes)}}
+	return c.do(ctx, http.MethodDelete, "/containers/"+esc(id), q, nil, nil)
 }
 
 // UnpauseContainer allows Docker to send the stop signal to a paused instance.

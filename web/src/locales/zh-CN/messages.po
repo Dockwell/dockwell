@@ -1635,6 +1635,9 @@ msgstr "控制平面离线期间，{server} 重新创建了 {resourceName}"
 msgid "{server} renewed its certificate"
 msgstr "{server} 更新了证书"
 
+msgid "{server} restored the pause on {resourceName}"
+msgstr "{server} 已重新暂停 {resourceName}"
+
 msgid "{server} started {resourceName} again on its own"
 msgstr "{server} 自行重新启动了 {resourceName}"
 
@@ -3467,6 +3470,12 @@ msgstr "会打开计划"
 msgid "Overview"
 msgstr "概览"
 
+msgid "Pause workload"
+msgstr "暂停工作负载"
+
+msgid "Pause {name}"
+msgstr "暂停 {name}"
+
 msgid "Putting <0>{image}</0> back failed, {ago}"
 msgstr "恢复 <0>{image}</0> 失败，{ago}"
 
@@ -3493,6 +3502,12 @@ msgstr "停止"
 
 msgid "Stop {name}"
 msgstr "停止 {name}"
+
+msgid "Unpause workload"
+msgstr "取消暂停工作负载"
+
+msgid "Unpause {name}"
+msgstr "取消暂停 {name}"
 
 msgid "build cancelled {ago}"
 msgstr "构建已于{ago}取消"
@@ -3646,8 +3661,8 @@ msgstr "它的访问地址可能不止这里所示。没有任何内容发生变
 msgid "It said"
 msgstr "检查结果"
 
-msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
-msgstr "在有人恢复它之前，它不提供任何服务。重启或部署也能解决这个问题。"
+msgid "It serves no traffic while paused."
+msgstr "暂停期间不处理流量。"
 
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "在有人做出更改之前，它会一直保持运行。请修复检查报告的问题或检查本身，然后部署。"
@@ -4465,6 +4480,9 @@ msgstr "停止 {count} 项"
 msgid "Unfold {title}"
 msgstr "展开 {title}"
 
+msgid "Unpause"
+msgstr "取消暂停"
+
 msgid "Update"
 msgstr "更新"
 
@@ -5235,14 +5253,14 @@ msgstr "现在无法确定 {name} 的运行情况。"
 msgid "Open a shell in {0} on {1}"
 msgstr "在 {1} 上的 {0} 中打开 shell"
 
+msgid "Paused by its revision. Unpause it from the app."
+msgstr "此应用已按修订暂停。请在应用页面取消暂停。"
+
 msgid "Reading how it runs"
 msgstr "正在读取它的运行情况"
 
 msgid "Shell"
 msgstr "Shell"
-
-msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
-msgstr "有人暂停了它，因此它不提供服务，也不会运行检查。请用 {command} 恢复。"
 
 msgid "Starting"
 msgstr "正在启动"
@@ -5261,6 +5279,9 @@ msgstr "{name} 上的代理没有连接，因此现在无法确定它的运行�
 
 msgid "The agent on {name} isn't connected, so it can't say how this runs now. It last read {word}, {ago}."
 msgstr "{name} 上的代理没有连接，因此现在无法确定它的运行情况。上次的状态是{word}，{ago}。"
+
+msgid "The container is paused. Use Unpause in Docker."
+msgstr "容器已暂停。请在 Docker 页面取消暂停。"
 
 msgid "The panel can't reach the control plane, so it can't say how this runs. It keeps trying."
 msgstr "面板无法连接控制平面，因此无法确定它的运行情况。面板会继续尝试。"
@@ -6745,6 +6766,9 @@ msgstr "正在把它从 {left} 上移走"
 
 msgid "Took it off {left}"
 msgstr "已把它从 {left} 上移走"
+
+msgid "Unpaused"
+msgstr "已取消暂停"
 
 msgid "deployed {ago}"
 msgstr "部署于 {ago}"
@@ -9914,6 +9938,9 @@ msgstr "应用计划"
 msgid "Apply this only if you trust what it runs."
 msgstr "只有信任它运行的内容时才应用。"
 
+msgid "Applying Docker actions"
+msgstr "正在执行 Docker 操作"
+
 msgid "Applying this approves a change a push planned, with your passkey"
 msgstr "应用此计划即批准一次推送计划的变更，需要验证你的通行密钥"
 
@@ -9963,6 +9990,12 @@ msgstr "正在取消 {name} 在 {server} 上的开机启动"
 
 msgid "Discarded"
 msgstr "已丢弃"
+
+msgid "Docker actions applied"
+msgstr "Docker 操作已执行"
+
+msgid "Docker actions ended with errors"
+msgstr "部分 Docker 操作失败"
 
 msgid "Docker cleanup complete"
 msgstr "Docker 清理完成"
@@ -10300,8 +10333,14 @@ msgstr "滚动发布，不停止任何内容"
 msgid "starts and verifies health"
 msgstr "启动并验证健康状态"
 
+msgid "stays paused until unpaused"
+msgstr "保持暂停，直到取消暂停"
+
 msgid "stays stopped until started"
 msgstr "保持停止，直到手动启动"
+
+msgid "unpauses and verifies health"
+msgstr "取消暂停并验证运行状态"
 
 #. placeholder {0}: going.length
 msgid "visitors lose {0} addresses"
@@ -10792,6 +10831,12 @@ msgstr "约 {span} 不可用，最多 {bound} 后恢复健康"
 msgid "About {stepSpan} down"
 msgstr "约 {stepSpan} 不可用"
 
+msgid "Act on containers"
+msgstr "管理容器"
+
+msgid "Also remove the listed anonymous volumes"
+msgstr "同时删除列出的匿名卷"
+
 msgid "An upgrade can't be undone"
 msgstr "升级无法撤销"
 
@@ -10807,6 +10852,9 @@ msgstr "备份 <0>{name}</0>：停止 {stops} 以获得精确副本，之后重�
 
 msgid "Brings back the data the server kept"
 msgstr "恢复服务器保留的数据"
+
+msgid "Changed since review"
+msgstr "审阅后已变更"
 
 msgid "Changes in daemon.json"
 msgstr "daemon.json 中的更改"
@@ -10850,6 +10898,9 @@ msgstr "从 <1>{name}</1> 单独转储 <0>{0}</0>，不停止任何服务"
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "从 <0>{name}</0> 分别单独转储 {databases}，各自作为一份备份，不停止任何服务"
 
+msgid "Host access"
+msgstr "主机访问权限"
+
 msgid "If Docker fails its health check, Dockwell reloads the previous settings."
 msgstr "如果 Docker 未通过健康检查，Dockwell 会重新加载之前的设置。"
 
@@ -10870,6 +10921,9 @@ msgstr "此后无法读取它保留的日志，7 天后删除"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "此后无法读取它保留的日志，这些日志会在 7 天后删除。撤销此操作可恢复它们"
+
+msgid "Keep all volumes"
+msgstr "保留所有卷"
 
 msgid "Keeps its data for 7 days, then deletes it"
 msgstr "保留其数据 7 天，然后删除"
@@ -10902,6 +10956,10 @@ msgstr "新镜像 ID"
 
 msgid "New image config digest"
 msgstr "新镜像配置摘要"
+
+#. placeholder {0}: target.newName
+msgid "New name <0>{0}</0>"
+msgstr "新名称 <0>{0}</0>"
 
 msgid "New platform manifest digest"
 msgstr "新平台清单摘要"
@@ -10968,6 +11026,14 @@ msgctxt "a package update"
 msgid "Security fix"
 msgstr "安全修复"
 
+#. placeholder {0}: action.signal
+msgid "Send <0>{0}</0>"
+msgstr "发送 <0>{0}</0>"
+
+#. placeholder {0}: action.timeoutSeconds || 10
+msgid "Send SIGTERM, then SIGKILL after {0} s"
+msgstr "发送 SIGTERM，等待 {0} 秒后发送 SIGKILL"
+
 msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 msgstr "这些软件包运行的服务可能会在安装时重启。此操作无法撤销：已安装的内容会保留"
 
@@ -11024,6 +11090,9 @@ msgstr "{n, plural, other {安装 # 个软件包到}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} 需要重启才能生效，重启是另一项单独的变更"
+
+msgid "{verb} on <0>{server}</0>"
+msgstr "在 <0>{server}</0> 上{verb}"
 
 msgid "{waves}, one after another"
 msgstr "{waves}，依次进行"
@@ -11791,6 +11860,9 @@ msgstr "SSH 隧道是更安全的方式"
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "放行本服务器或私有网络的地址限制无法从这里看出。"
 
+msgid "Anonymous volume data is deleted permanently"
+msgstr "匿名卷中的数据将被永久删除"
+
 msgid "Another writer can claim this tag"
 msgstr "其他发布者可能抢先使用此标签"
 
@@ -11971,8 +12043,14 @@ msgstr "用于 {what}。"
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "请设置大小，例如 {target}:size=64m，或者为 {name} 设置内存上限。"
 
+msgid "Health checks pause and routes lose their backend. Existing connections may stall."
+msgstr "健康检查暂停，路由失去后端。已有连接可能会停滞。"
+
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "健康检查将暂停，路由将没有可用的后端。依赖此工作负载的应用可能无法访问它。"
+
+msgid "Health checks resume and routes can serve the workload again."
+msgstr "健康检查恢复，路由可重新提供此工作负载的服务。"
 
 msgid "Health checks resume and routes can serve the workload again. Dependent apps keep running."
 msgstr "健康检查将恢复，路由可重新转发流量。依赖此工作负载的应用继续运行。"
@@ -12183,6 +12261,9 @@ msgstr "{0} 上没有规则允许 WireGuard 隧道 {tunnels}"
 
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "从此目录安装的应用不会升级到它们。"
+
+msgid "Pauses on every placed server"
+msgstr "在每台已部署的服务器上暂停"
 
 #. placeholder {0}: server.serverName
 msgid "Ports this plan would close on {0}"
@@ -12421,11 +12502,17 @@ msgstr "撤销会放回 {from}。更早的版本无法运行这些数据。"
 msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 msgstr "撤销此变更或移除这个 jail，都不会解除已经生效的封禁：请从其他地址或服务商的控制台登录，然后运行 fail2ban-client unban 加上该地址。"
 
+msgid "Unpauses on every placed server"
+msgstr "在每台已部署的服务器上取消暂停"
+
 msgid "Upgrade each by running the install script on it once."
 msgstr "请在每台服务器上运行一次安装脚本来升级。"
 
 msgid "Upgrade it by running the install script on it once."
 msgstr "请在其上运行一次安装脚本来升级。"
+
+msgid "Use Unpause to run it."
+msgstr "取消暂停即可继续运行。"
 
 msgid "Volume data is deleted permanently and cannot be undone."
 msgstr "卷数据将被永久删除且无法撤销。"
@@ -12688,6 +12775,9 @@ msgstr "{name} 服务于所有项目，包括新项目"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} 与 {server} 共用其自身的网络"
+
+msgid "{name} stays paused"
+msgstr "{name} 将保持暂停"
 
 msgid "{name} stops HTTPS on {path} on {server}"
 msgstr "{name} 在 {server} 上停止 {path} 的 HTTPS"
@@ -16072,6 +16162,9 @@ msgstr "暂无采样"
 msgid "Page {0}"
 msgstr "第 {0} 页"
 
+msgid "Paste docker run"
+msgstr "粘贴 docker run 命令"
+
 msgid "Refresh containers"
 msgstr "刷新容器"
 
@@ -16112,14 +16205,26 @@ msgstr "运行时长"
 msgid "Usage"
 msgstr "用量"
 
+msgid "Workload state doesn't match"
+msgstr "工作负载状态不适用"
+
 msgid "memory"
 msgstr "内存"
+
+msgid "{label} {count}"
+msgstr "{label} {count} 个"
+
+msgid "{n, plural, one {Pause # workload} other {Pause # workloads}}"
+msgstr "{n, plural, other {暂停 # 个工作负载}}"
 
 msgid "{n, plural, one {Start # workload} other {Start # workloads}}"
 msgstr "{n, plural, other {启动 # 个工作负载}}"
 
 msgid "{n, plural, one {Stop # workload} other {Stop # workloads}}"
 msgstr "{n, plural, other {停止 # 个工作负载}}"
+
+msgid "{n, plural, one {Unpause # workload} other {Unpause # workloads}}"
+msgstr "{n, plural, other {取消暂停 # 个工作负载}}"
 
 msgid "Docker disk usage"
 msgstr "Docker 磁盘用量"
@@ -16185,6 +16290,12 @@ msgstr "推送镜像"
 
 msgid "Review pull"
 msgstr "查看拉取计划"
+
+msgid "Run image"
+msgstr "运行镜像"
+
+msgid "Search registries"
+msgstr "搜索镜像仓库"
 
 msgid "Tag to move"
 msgstr "要移动的标签"
@@ -16320,6 +16431,61 @@ msgstr "未使用"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, other {还有 # 个标签}}"
 
+msgid "Already running or unavailable"
+msgstr "已在运行或不可用"
+
+msgid "Anonymous volumes"
+msgstr "匿名卷"
+
+msgid "Being removed"
+msgstr "正在移除"
+
+msgid "Container name prefix"
+msgstr "容器名称前缀"
+
+msgid "Keep anonymous volumes"
+msgstr "保留匿名卷"
+
+msgid "Kill"
+msgstr "终止"
+
+msgid "Managed or system container"
+msgstr "受管理的容器或系统容器"
+
+msgid "New container name"
+msgstr "新容器名称"
+
+msgid "Not paused"
+msgstr "未暂停"
+
+msgid "Not running or already paused"
+msgstr "未运行或已暂停"
+
+msgid "Not running or paused"
+msgstr "未运行或已暂停"
+
+msgid "Remove container and its anonymous volumes"
+msgstr "删除容器及其匿名卷"
+
+msgid "Rename"
+msgstr "重命名"
+
+msgid "SIGTERM, then SIGKILL"
+msgstr "先发送 SIGTERM，再发送 SIGKILL"
+
+msgid "Seconds before SIGKILL"
+msgstr "发送 SIGKILL 前等待的秒数"
+
+msgid "Signal"
+msgstr "信号"
+
+msgid "Stop the container first"
+msgstr "请先停止容器"
+
+#. placeholder {0}: verb.label
+msgid "{0} {count}"
+msgstr "{0} {count} 个"
+
 msgid "Address pools"
 msgstr "地址池"
 
@@ -16404,9 +16570,6 @@ msgstr "此网络是共享链接"
 msgid "This network is gone"
 msgstr "此网络已不存在"
 
-msgid "Anonymous volumes"
-msgstr "匿名卷"
-
 msgid "Dangling images"
 msgstr "悬空镜像"
 
@@ -16482,6 +16645,9 @@ msgstr "本地状态不可用"
 msgid "Manage logins"
 msgstr "管理登录凭据"
 
+msgid "No repositories match"
+msgstr "没有匹配的镜像仓库"
+
 msgid "No repositories on this page"
 msgstr "此页没有镜像仓库"
 
@@ -16500,6 +16666,9 @@ msgstr "其他镜像仓库…"
 msgid "Registry address"
 msgstr "镜像仓库地址"
 
+msgid "Registry search unavailable"
+msgstr "无法搜索镜像仓库"
+
 msgid "Repository list unavailable"
 msgstr "无法列出仓库"
 
@@ -16508,6 +16677,12 @@ msgstr "镜像仓库标签"
 
 msgid "Retry registry logins"
 msgstr "重试加载仓库登录凭据"
+
+msgid "Search Docker Hub"
+msgstr "搜索 Docker Hub"
+
+msgid "Searching registry"
+msgstr "正在搜索镜像仓库"
 
 msgid "Show more tags"
 msgstr "显示更多标签"
@@ -16546,6 +16721,39 @@ msgstr "审核推送"
 
 msgid "This destination serves a different digest."
 msgstr "此目标已提供不同的摘要。"
+
+msgid "Add the image name after the options."
+msgstr "在选项后添加镜像名称。"
+
+msgid "Anonymous mounts get new managed volumes"
+msgstr "匿名挂载将使用新建的托管卷"
+
+msgid "App name"
+msgstr "应用名称"
+
+msgid "Close the quote or complete the line continuation."
+msgstr "补全引号或续行。"
+
+msgid "Docker couldn't verify existing volumes. Refresh the server and review again."
+msgstr "Docker 无法验证现有卷。刷新服务器信息后重新审阅。"
+
+msgid "Docker run command"
+msgstr "Docker run 命令"
+
+msgid "Options that need editing"
+msgstr "需要修改的选项"
+
+msgid "Paste a docker run command."
+msgstr "粘贴一条 docker run 命令。"
+
+msgid "Run {appName} as a Dockwell app"
+msgstr "将 {appName} 作为 Dockwell 应用运行"
+
+msgid "Shell syntax or expansion. Use literal Docker arguments."
+msgstr "检测到 Shell 语法或变量展开。请使用字面参数。"
+
+msgid "Use a command under 32 KB."
+msgstr "使用小于 32 KB 的命令。"
 
 msgid "API version"
 msgstr "API 版本"
@@ -16888,9 +17096,6 @@ msgstr "此网络名称已被使用"
 msgid "Volume name"
 msgstr "卷名称"
 
-msgid "App name"
-msgstr "应用名称"
-
 msgid "Keeps the current container, mounts, network connections and environment."
 msgstr "保留当前容器、挂载、网络连接和环境变量。"
 
@@ -17080,6 +17285,9 @@ msgstr "引用已变更"
 msgid "Retained for recovery"
 msgstr "保留以供恢复"
 
+msgid "Review removal in Containers"
+msgstr "在容器页审阅删除计划"
+
 msgid "Shared storage"
 msgstr "共享存储"
 
@@ -17088,9 +17296,6 @@ msgstr "Swarm 管理节点：请用 docker volume rm 删除卷"
 
 msgid "Tagged in more than one repository"
 msgstr "在多个仓库中带有标签"
-
-msgid "Take on before deletion"
-msgstr "删除前先接管"
 
 msgid "The build cache removal could not be verified"
 msgstr "无法验证构建缓存的删除结果"
@@ -17522,9 +17727,6 @@ msgstr "权限"
 #. placeholder {0}: entry.name
 msgid "Previewing {0}"
 msgstr "正在预览 {0}"
-
-msgid "Rename"
-msgstr "重命名"
 
 #. placeholder {0}: entry.name
 #. placeholder {0}: view.label
@@ -21961,9 +22163,6 @@ msgstr "{failedCount, plural, other {无法停止 # 条加入命令：{failedWhy
 
 msgid "{n, plural, other {# join commands waiting · the first expires in {first}}}"
 msgstr "{n, plural, other {# 条加入命令等待中 · 最早的 {first}后过期}}"
-
-msgid "Being removed"
-msgstr "正在移除"
 
 msgid "Dead"
 msgstr "已失效"

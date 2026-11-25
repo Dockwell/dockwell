@@ -3193,6 +3193,7 @@ type PlanDockerMaintenanceRequest struct {
 	//	*PlanDockerMaintenanceRequest_Push
 	//	*PlanDockerMaintenanceRequest_Export
 	//	*PlanDockerMaintenanceRequest_Pull
+	//	*PlanDockerMaintenanceRequest_Lifecycle
 	Operation     isPlanDockerMaintenanceRequest_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3328,6 +3329,15 @@ func (x *PlanDockerMaintenanceRequest) GetPull() *DockerImagePull {
 	return nil
 }
 
+func (x *PlanDockerMaintenanceRequest) GetLifecycle() *DockerLifecycleSelection {
+	if x != nil {
+		if x, ok := x.Operation.(*PlanDockerMaintenanceRequest_Lifecycle); ok {
+			return x.Lifecycle
+		}
+	}
+	return nil
+}
+
 type isPlanDockerMaintenanceRequest_Operation interface {
 	isPlanDockerMaintenanceRequest_Operation()
 }
@@ -3364,6 +3374,10 @@ type PlanDockerMaintenanceRequest_Pull struct {
 	Pull *DockerImagePull `protobuf:"bytes,18,opt,name=pull,proto3,oneof"`
 }
 
+type PlanDockerMaintenanceRequest_Lifecycle struct {
+	Lifecycle *DockerLifecycleSelection `protobuf:"bytes,19,opt,name=lifecycle,proto3,oneof"`
+}
+
 func (*PlanDockerMaintenanceRequest_Cleanup) isPlanDockerMaintenanceRequest_Operation() {}
 
 func (*PlanDockerMaintenanceRequest_ResumeCleanupToken) isPlanDockerMaintenanceRequest_Operation() {}
@@ -3379,6 +3393,8 @@ func (*PlanDockerMaintenanceRequest_Push) isPlanDockerMaintenanceRequest_Operati
 func (*PlanDockerMaintenanceRequest_Export) isPlanDockerMaintenanceRequest_Operation() {}
 
 func (*PlanDockerMaintenanceRequest_Pull) isPlanDockerMaintenanceRequest_Operation() {}
+
+func (*PlanDockerMaintenanceRequest_Lifecycle) isPlanDockerMaintenanceRequest_Operation() {}
 
 // DockerCleanupSelection is the user's selection from a cleanup preview.
 type DockerCleanupSelection struct {
@@ -6028,6 +6044,91 @@ func (x *CancelDockerImageBuildRequest) GetChangeId() string {
 	return ""
 }
 
+// DockerLifecycleSelection selects existing containers or external Compose projects.
+type DockerLifecycleSelection struct {
+	state                  protoimpl.MessageState `protogen:"open.v1"`
+	Keys                   []*DockerObjectKey     `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
+	Action                 DockerContainerAction  `protobuf:"varint,2,opt,name=action,proto3,enum=dockwell.v1.DockerContainerAction" json:"action,omitempty"`
+	Signal                 string                 `protobuf:"bytes,3,opt,name=signal,proto3" json:"signal,omitempty"`
+	TimeoutSeconds         uint32                 `protobuf:"varint,4,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	RemoveAnonymousVolumes bool                   `protobuf:"varint,5,opt,name=remove_anonymous_volumes,json=removeAnonymousVolumes,proto3" json:"remove_anonymous_volumes,omitempty"`
+	NewName                string                 `protobuf:"bytes,6,opt,name=new_name,json=newName,proto3" json:"new_name,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *DockerLifecycleSelection) Reset() {
+	*x = DockerLifecycleSelection{}
+	mi := &file_dockwell_v1_docker_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DockerLifecycleSelection) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DockerLifecycleSelection) ProtoMessage() {}
+
+func (x *DockerLifecycleSelection) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_docker_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DockerLifecycleSelection.ProtoReflect.Descriptor instead.
+func (*DockerLifecycleSelection) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_docker_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *DockerLifecycleSelection) GetKeys() []*DockerObjectKey {
+	if x != nil {
+		return x.Keys
+	}
+	return nil
+}
+
+func (x *DockerLifecycleSelection) GetAction() DockerContainerAction {
+	if x != nil {
+		return x.Action
+	}
+	return DockerContainerAction_DOCKER_CONTAINER_ACTION_UNSPECIFIED
+}
+
+func (x *DockerLifecycleSelection) GetSignal() string {
+	if x != nil {
+		return x.Signal
+	}
+	return ""
+}
+
+func (x *DockerLifecycleSelection) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
+func (x *DockerLifecycleSelection) GetRemoveAnonymousVolumes() bool {
+	if x != nil {
+		return x.RemoveAnonymousVolumes
+	}
+	return false
+}
+
+func (x *DockerLifecycleSelection) GetNewName() string {
+	if x != nil {
+		return x.NewName
+	}
+	return ""
+}
+
 var File_dockwell_v1_docker_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_docker_proto_rawDesc = "" +
@@ -6280,7 +6381,7 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"\x12DockerCleanupPause\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05token\x128\n" +
-	"\x06reason\x18\x03 \x01(\x0e2 .dockwell.v1.DockerReceiptReasonR\x06reason\"\xc4\x04\n" +
+	"\x06reason\x18\x03 \x01(\x0e2 .dockwell.v1.DockerReceiptReasonR\x06reason\"\x8b\x05\n" +
 	"\x1cPlanDockerMaintenanceRequest\x12\x18\n" +
 	"\asummary\x18\x01 \x01(\tR\asummary\x12\x1d\n" +
 	"\n" +
@@ -6294,7 +6395,8 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"\x05build\x18\x0e \x01(\v2\x1d.dockwell.v1.DockerImageBuildH\x00R\x05build\x122\n" +
 	"\x04push\x18\x0f \x01(\v2\x1c.dockwell.v1.DockerImagePushH\x00R\x04push\x128\n" +
 	"\x06export\x18\x11 \x01(\v2\x1e.dockwell.v1.DockerImageExportH\x00R\x06export\x122\n" +
-	"\x04pull\x18\x12 \x01(\v2\x1c.dockwell.v1.DockerImagePullH\x00R\x04pullB\v\n" +
+	"\x04pull\x18\x12 \x01(\v2\x1c.dockwell.v1.DockerImagePullH\x00R\x04pull\x12E\n" +
+	"\tlifecycle\x18\x13 \x01(\v2%.dockwell.v1.DockerLifecycleSelectionH\x00R\tlifecycleB\v\n" +
 	"\toperation\"\x91\x01\n" +
 	"\x16DockerCleanupSelection\x12;\n" +
 	"\afilters\x18\x01 \x01(\v2!.dockwell.v1.DockerCleanupFiltersR\afilters\x12:\n" +
@@ -6537,7 +6639,14 @@ const file_dockwell_v1_docker_proto_rawDesc = "" +
 	"after_line\x18\x03 \x01(\x03R\tafterLine\"Y\n" +
 	"\x1dCancelDockerImageBuildRequest\x12\x1b\n" +
 	"\tserver_id\x18\x01 \x01(\tR\bserverId\x12\x1b\n" +
-	"\tchange_id\x18\x02 \x01(\tR\bchangeId*\xd5\x01\n" +
+	"\tchange_id\x18\x02 \x01(\tR\bchangeId\"\x9e\x02\n" +
+	"\x18DockerLifecycleSelection\x120\n" +
+	"\x04keys\x18\x01 \x03(\v2\x1c.dockwell.v1.DockerObjectKeyR\x04keys\x12:\n" +
+	"\x06action\x18\x02 \x01(\x0e2\".dockwell.v1.DockerContainerActionR\x06action\x12\x16\n" +
+	"\x06signal\x18\x03 \x01(\tR\x06signal\x12'\n" +
+	"\x0ftimeout_seconds\x18\x04 \x01(\rR\x0etimeoutSeconds\x128\n" +
+	"\x18remove_anonymous_volumes\x18\x05 \x01(\bR\x16removeAnonymousVolumes\x12\x19\n" +
+	"\bnew_name\x18\x06 \x01(\tR\anewName*\xd5\x01\n" +
 	"\x10DockerObjectKind\x12\"\n" +
 	"\x1eDOCKER_OBJECT_KIND_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cDOCKER_OBJECT_KIND_CONTAINER\x10\x01\x12\x1e\n" +
@@ -6657,7 +6766,7 @@ func file_dockwell_v1_docker_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_v1_docker_proto_enumTypes = make([]protoimpl.EnumInfo, 12)
-var file_dockwell_v1_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
+var file_dockwell_v1_docker_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
 var file_dockwell_v1_docker_proto_goTypes = []any{
 	(DockerObjectKind)(0),                       // 0: dockwell.v1.DockerObjectKind
 	(DockerOwnership)(0),                        // 1: dockwell.v1.DockerOwnership
@@ -6739,68 +6848,70 @@ var file_dockwell_v1_docker_proto_goTypes = []any{
 	(*PlanDockerContainerLoggingResponse)(nil),  // 77: dockwell.v1.PlanDockerContainerLoggingResponse
 	(*WatchDockerImageBuildRequest)(nil),        // 78: dockwell.v1.WatchDockerImageBuildRequest
 	(*CancelDockerImageBuildRequest)(nil),       // 79: dockwell.v1.CancelDockerImageBuildRequest
-	nil,                                         // 80: dockwell.v1.DockerSettings.KnownFeaturesEntry
-	(*timestamppb.Timestamp)(nil),               // 81: google.protobuf.Timestamp
-	(*ResourceRef)(nil),                         // 82: dockwell.v1.ResourceRef
-	(ContainerState)(0),                         // 83: dockwell.v1.ContainerState
-	(*ContainerPort)(nil),                       // 84: dockwell.v1.ContainerPort
-	(*ContainerMount)(nil),                      // 85: dockwell.v1.ContainerMount
-	(DockerCleanupKind)(0),                      // 86: dockwell.v1.DockerCleanupKind
-	(*DockerCleanupTarget)(nil),                 // 87: dockwell.v1.DockerCleanupTarget
-	(DockerReceiptReason)(0),                    // 88: dockwell.v1.DockerReceiptReason
-	(*DockerImageTag)(nil),                      // 89: dockwell.v1.DockerImageTag
-	(*DockerImageLoad)(nil),                     // 90: dockwell.v1.DockerImageLoad
-	(*DockerImageBuild)(nil),                    // 91: dockwell.v1.DockerImageBuild
-	(*DockerImagePush)(nil),                     // 92: dockwell.v1.DockerImagePush
-	(*DockerImageExport)(nil),                   // 93: dockwell.v1.DockerImageExport
-	(*DockerImagePull)(nil),                     // 94: dockwell.v1.DockerImagePull
-	(*Change)(nil),                              // 95: dockwell.v1.Change
-	(*DockerRegistryDescriptor)(nil),            // 96: dockwell.v1.DockerRegistryDescriptor
-	(*v1alpha1.NetworkIPAMPool)(nil),            // 97: dockwell.resource.v1alpha1.NetworkIPAMPool
-	(*v1alpha1.Network)(nil),                    // 98: dockwell.resource.v1alpha1.Network
-	(DockerNetworkAttachmentAction)(0),          // 99: dockwell.v1.DockerNetworkAttachmentAction
-	(DockerImageReason)(0),                      // 100: dockwell.v1.DockerImageReason
-	(*httpbody.HttpBody)(nil),                   // 101: google.api.HttpBody
-	(*v1alpha1.DockerDaemonLogging)(nil),        // 102: dockwell.resource.v1alpha1.DockerDaemonLogging
-	(*v1alpha1.DockerAddressPool)(nil),          // 103: dockwell.resource.v1alpha1.DockerAddressPool
-	(*v1alpha1.DockerDaemon)(nil),               // 104: dockwell.resource.v1alpha1.DockerDaemon
-	(*DockerDaemonImpact)(nil),                  // 105: dockwell.v1.DockerDaemonImpact
-	(*v1alpha1.ContainerLogging)(nil),           // 106: dockwell.resource.v1alpha1.ContainerLogging
-	(*WatchBuildResponse)(nil),                  // 107: dockwell.v1.WatchBuildResponse
-	(*CancelBuildResponse)(nil),                 // 108: dockwell.v1.CancelBuildResponse
+	(*DockerLifecycleSelection)(nil),            // 80: dockwell.v1.DockerLifecycleSelection
+	nil,                                         // 81: dockwell.v1.DockerSettings.KnownFeaturesEntry
+	(*timestamppb.Timestamp)(nil),               // 82: google.protobuf.Timestamp
+	(*ResourceRef)(nil),                         // 83: dockwell.v1.ResourceRef
+	(ContainerState)(0),                         // 84: dockwell.v1.ContainerState
+	(*ContainerPort)(nil),                       // 85: dockwell.v1.ContainerPort
+	(*ContainerMount)(nil),                      // 86: dockwell.v1.ContainerMount
+	(DockerCleanupKind)(0),                      // 87: dockwell.v1.DockerCleanupKind
+	(*DockerCleanupTarget)(nil),                 // 88: dockwell.v1.DockerCleanupTarget
+	(DockerReceiptReason)(0),                    // 89: dockwell.v1.DockerReceiptReason
+	(*DockerImageTag)(nil),                      // 90: dockwell.v1.DockerImageTag
+	(*DockerImageLoad)(nil),                     // 91: dockwell.v1.DockerImageLoad
+	(*DockerImageBuild)(nil),                    // 92: dockwell.v1.DockerImageBuild
+	(*DockerImagePush)(nil),                     // 93: dockwell.v1.DockerImagePush
+	(*DockerImageExport)(nil),                   // 94: dockwell.v1.DockerImageExport
+	(*DockerImagePull)(nil),                     // 95: dockwell.v1.DockerImagePull
+	(*Change)(nil),                              // 96: dockwell.v1.Change
+	(*DockerRegistryDescriptor)(nil),            // 97: dockwell.v1.DockerRegistryDescriptor
+	(*v1alpha1.NetworkIPAMPool)(nil),            // 98: dockwell.resource.v1alpha1.NetworkIPAMPool
+	(*v1alpha1.Network)(nil),                    // 99: dockwell.resource.v1alpha1.Network
+	(DockerNetworkAttachmentAction)(0),          // 100: dockwell.v1.DockerNetworkAttachmentAction
+	(DockerImageReason)(0),                      // 101: dockwell.v1.DockerImageReason
+	(*httpbody.HttpBody)(nil),                   // 102: google.api.HttpBody
+	(*v1alpha1.DockerDaemonLogging)(nil),        // 103: dockwell.resource.v1alpha1.DockerDaemonLogging
+	(*v1alpha1.DockerAddressPool)(nil),          // 104: dockwell.resource.v1alpha1.DockerAddressPool
+	(*v1alpha1.DockerDaemon)(nil),               // 105: dockwell.resource.v1alpha1.DockerDaemon
+	(*DockerDaemonImpact)(nil),                  // 106: dockwell.v1.DockerDaemonImpact
+	(*v1alpha1.ContainerLogging)(nil),           // 107: dockwell.resource.v1alpha1.ContainerLogging
+	(DockerContainerAction)(0),                  // 108: dockwell.v1.DockerContainerAction
+	(*WatchBuildResponse)(nil),                  // 109: dockwell.v1.WatchBuildResponse
+	(*CancelBuildResponse)(nil),                 // 110: dockwell.v1.CancelBuildResponse
 }
 var file_dockwell_v1_docker_proto_depIdxs = []int32{
 	0,   // 0: dockwell.v1.DockerObjectKey.kind:type_name -> dockwell.v1.DockerObjectKind
 	12,  // 1: dockwell.v1.DockerObject.key:type_name -> dockwell.v1.DockerObjectKey
 	1,   // 2: dockwell.v1.DockerObject.ownership:type_name -> dockwell.v1.DockerOwnership
-	81,  // 3: dockwell.v1.DockerObject.observed_at:type_name -> google.protobuf.Timestamp
-	82,  // 4: dockwell.v1.DockerObject.managed_resource:type_name -> dockwell.v1.ResourceRef
-	83,  // 5: dockwell.v1.DockerObject.state:type_name -> dockwell.v1.ContainerState
+	82,  // 3: dockwell.v1.DockerObject.observed_at:type_name -> google.protobuf.Timestamp
+	83,  // 4: dockwell.v1.DockerObject.managed_resource:type_name -> dockwell.v1.ResourceRef
+	84,  // 5: dockwell.v1.DockerObject.state:type_name -> dockwell.v1.ContainerState
 	14,  // 6: dockwell.v1.DockerObject.container:type_name -> dockwell.v1.DockerContainer
 	16,  // 7: dockwell.v1.DockerObject.compose:type_name -> dockwell.v1.DockerCompose
 	31,  // 8: dockwell.v1.DockerObject.image:type_name -> dockwell.v1.DockerImage
 	46,  // 9: dockwell.v1.DockerObject.network:type_name -> dockwell.v1.DockerNetwork
 	48,  // 10: dockwell.v1.DockerObject.volume:type_name -> dockwell.v1.DockerVolume
-	81,  // 11: dockwell.v1.DockerContainer.created_at:type_name -> google.protobuf.Timestamp
-	81,  // 12: dockwell.v1.DockerContainer.started_at:type_name -> google.protobuf.Timestamp
-	81,  // 13: dockwell.v1.DockerContainer.finished_at:type_name -> google.protobuf.Timestamp
+	82,  // 11: dockwell.v1.DockerContainer.created_at:type_name -> google.protobuf.Timestamp
+	82,  // 12: dockwell.v1.DockerContainer.started_at:type_name -> google.protobuf.Timestamp
+	82,  // 13: dockwell.v1.DockerContainer.finished_at:type_name -> google.protobuf.Timestamp
 	2,   // 14: dockwell.v1.DockerContainer.health:type_name -> dockwell.v1.DockerHealth
-	84,  // 15: dockwell.v1.DockerContainer.ports:type_name -> dockwell.v1.ContainerPort
+	85,  // 15: dockwell.v1.DockerContainer.ports:type_name -> dockwell.v1.ContainerPort
 	15,  // 16: dockwell.v1.DockerContainer.endpoints:type_name -> dockwell.v1.DockerEndpoint
-	85,  // 17: dockwell.v1.DockerContainer.mounts:type_name -> dockwell.v1.ContainerMount
-	84,  // 18: dockwell.v1.DockerContainer.configured_ports:type_name -> dockwell.v1.ContainerPort
+	86,  // 17: dockwell.v1.DockerContainer.mounts:type_name -> dockwell.v1.ContainerMount
+	85,  // 18: dockwell.v1.DockerContainer.configured_ports:type_name -> dockwell.v1.ContainerPort
 	50,  // 19: dockwell.v1.DockerContainer.volume_mounts:type_name -> dockwell.v1.DockerVolumeMountRef
 	9,   // 20: dockwell.v1.DockerContainer.log_rotation:type_name -> dockwell.v1.DockerLogRotationState
 	12,  // 21: dockwell.v1.DockerSample.key:type_name -> dockwell.v1.DockerObjectKey
-	81,  // 22: dockwell.v1.DockerSample.observed_at:type_name -> google.protobuf.Timestamp
+	82,  // 22: dockwell.v1.DockerSample.observed_at:type_name -> google.protobuf.Timestamp
 	3,   // 23: dockwell.v1.DockerUnavailable.state:type_name -> dockwell.v1.DockerReadState
-	81,  // 24: dockwell.v1.DockerServerSummary.observed_at:type_name -> google.protobuf.Timestamp
+	82,  // 24: dockwell.v1.DockerServerSummary.observed_at:type_name -> google.protobuf.Timestamp
 	13,  // 25: dockwell.v1.DockerServerSummary.attention:type_name -> dockwell.v1.DockerObject
 	44,  // 26: dockwell.v1.DockerServerSummary.image_operations:type_name -> dockwell.v1.DockerImageSupport
 	19,  // 27: dockwell.v1.GetDockerOverviewResponse.server_summaries:type_name -> dockwell.v1.DockerServerSummary
 	18,  // 28: dockwell.v1.GetDockerOverviewResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
 	9,   // 29: dockwell.v1.DockerObjectFilter.log_rotation:type_name -> dockwell.v1.DockerLogRotationState
-	83,  // 30: dockwell.v1.DockerObjectFilter.state:type_name -> dockwell.v1.ContainerState
+	84,  // 30: dockwell.v1.DockerObjectFilter.state:type_name -> dockwell.v1.ContainerState
 	1,   // 31: dockwell.v1.DockerObjectFilter.ownership:type_name -> dockwell.v1.DockerOwnership
 	4,   // 32: dockwell.v1.DockerObjectFilter.image_state:type_name -> dockwell.v1.DockerImageState
 	0,   // 33: dockwell.v1.ListDockerObjectsRequest.kind:type_name -> dockwell.v1.DockerObjectKind
@@ -6814,131 +6925,134 @@ var file_dockwell_v1_docker_proto_depIdxs = []int32{
 	12,  // 41: dockwell.v1.WatchDockerObjectsRequest.visible_keys:type_name -> dockwell.v1.DockerObjectKey
 	12,  // 42: dockwell.v1.DockerHealthUpdate.key:type_name -> dockwell.v1.DockerObjectKey
 	2,   // 43: dockwell.v1.DockerHealthUpdate.health:type_name -> dockwell.v1.DockerHealth
-	81,  // 44: dockwell.v1.DockerHealthUpdate.observed_at:type_name -> google.protobuf.Timestamp
+	82,  // 44: dockwell.v1.DockerHealthUpdate.observed_at:type_name -> google.protobuf.Timestamp
 	12,  // 45: dockwell.v1.WatchDockerObjectsResponse.changed_keys:type_name -> dockwell.v1.DockerObjectKey
 	17,  // 46: dockwell.v1.WatchDockerObjectsResponse.samples:type_name -> dockwell.v1.DockerSample
 	18,  // 47: dockwell.v1.WatchDockerObjectsResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
 	28,  // 48: dockwell.v1.WatchDockerObjectsResponse.health_updates:type_name -> dockwell.v1.DockerHealthUpdate
 	29,  // 49: dockwell.v1.WatchDockerObjectsResponse.watch_status:type_name -> dockwell.v1.DockerWatchStatus
-	81,  // 50: dockwell.v1.DockerImage.created_at:type_name -> google.protobuf.Timestamp
+	82,  // 50: dockwell.v1.DockerImage.created_at:type_name -> google.protobuf.Timestamp
 	4,   // 51: dockwell.v1.DockerImage.state:type_name -> dockwell.v1.DockerImageState
 	32,  // 52: dockwell.v1.DockerImage.containers:type_name -> dockwell.v1.DockerImageContainer
 	34,  // 53: dockwell.v1.DockerImage.deployments:type_name -> dockwell.v1.DockerImageDeployment
 	33,  // 54: dockwell.v1.DockerImage.layers:type_name -> dockwell.v1.DockerImageLayer
 	35,  // 55: dockwell.v1.DockerImage.history:type_name -> dockwell.v1.DockerImageHistory
 	12,  // 56: dockwell.v1.DockerImageContainer.key:type_name -> dockwell.v1.DockerObjectKey
-	81,  // 57: dockwell.v1.DockerImageHistory.created_at:type_name -> google.protobuf.Timestamp
-	86,  // 58: dockwell.v1.DockerCleanupFilters.kinds:type_name -> dockwell.v1.DockerCleanupKind
+	82,  // 57: dockwell.v1.DockerImageHistory.created_at:type_name -> google.protobuf.Timestamp
+	87,  // 58: dockwell.v1.DockerCleanupFilters.kinds:type_name -> dockwell.v1.DockerCleanupKind
 	36,  // 59: dockwell.v1.PreviewDockerCleanupRequest.filters:type_name -> dockwell.v1.DockerCleanupFilters
-	87,  // 60: dockwell.v1.PreviewDockerCleanupResponse.candidates:type_name -> dockwell.v1.DockerCleanupTarget
-	87,  // 61: dockwell.v1.PreviewDockerCleanupResponse.exclusions:type_name -> dockwell.v1.DockerCleanupTarget
+	88,  // 60: dockwell.v1.PreviewDockerCleanupResponse.candidates:type_name -> dockwell.v1.DockerCleanupTarget
+	88,  // 61: dockwell.v1.PreviewDockerCleanupResponse.exclusions:type_name -> dockwell.v1.DockerCleanupTarget
 	18,  // 62: dockwell.v1.PreviewDockerCleanupResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
 	40,  // 63: dockwell.v1.PreviewDockerCleanupResponse.pauses:type_name -> dockwell.v1.DockerCleanupPause
 	39,  // 64: dockwell.v1.PreviewDockerCleanupResponse.server_limits:type_name -> dockwell.v1.DockerCleanupServerLimits
-	86,  // 65: dockwell.v1.DockerCleanupServerLimits.supported_kinds:type_name -> dockwell.v1.DockerCleanupKind
-	88,  // 66: dockwell.v1.DockerCleanupPause.reason:type_name -> dockwell.v1.DockerReceiptReason
+	87,  // 65: dockwell.v1.DockerCleanupServerLimits.supported_kinds:type_name -> dockwell.v1.DockerCleanupKind
+	89,  // 66: dockwell.v1.DockerCleanupPause.reason:type_name -> dockwell.v1.DockerReceiptReason
 	42,  // 67: dockwell.v1.PlanDockerMaintenanceRequest.cleanup:type_name -> dockwell.v1.DockerCleanupSelection
-	89,  // 68: dockwell.v1.PlanDockerMaintenanceRequest.tag:type_name -> dockwell.v1.DockerImageTag
-	90,  // 69: dockwell.v1.PlanDockerMaintenanceRequest.load:type_name -> dockwell.v1.DockerImageLoad
-	91,  // 70: dockwell.v1.PlanDockerMaintenanceRequest.build:type_name -> dockwell.v1.DockerImageBuild
-	92,  // 71: dockwell.v1.PlanDockerMaintenanceRequest.push:type_name -> dockwell.v1.DockerImagePush
-	93,  // 72: dockwell.v1.PlanDockerMaintenanceRequest.export:type_name -> dockwell.v1.DockerImageExport
-	94,  // 73: dockwell.v1.PlanDockerMaintenanceRequest.pull:type_name -> dockwell.v1.DockerImagePull
-	36,  // 74: dockwell.v1.DockerCleanupSelection.filters:type_name -> dockwell.v1.DockerCleanupFilters
-	87,  // 75: dockwell.v1.DockerCleanupSelection.targets:type_name -> dockwell.v1.DockerCleanupTarget
-	95,  // 76: dockwell.v1.PlanDockerMaintenanceResponse.change:type_name -> dockwell.v1.Change
-	45,  // 77: dockwell.v1.PlanDockerMaintenanceResponse.digest_check:type_name -> dockwell.v1.DockerImageDigestCheck
-	96,  // 78: dockwell.v1.DockerImageDigestCheck.current:type_name -> dockwell.v1.DockerRegistryDescriptor
-	96,  // 79: dockwell.v1.DockerImageDigestCheck.candidate:type_name -> dockwell.v1.DockerRegistryDescriptor
-	97,  // 80: dockwell.v1.DockerNetwork.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
-	81,  // 81: dockwell.v1.DockerNetwork.created_at:type_name -> google.protobuf.Timestamp
-	47,  // 82: dockwell.v1.DockerNetwork.attachments:type_name -> dockwell.v1.DockerNetworkEndpoint
-	5,   // 83: dockwell.v1.DockerNetwork.protection:type_name -> dockwell.v1.DockerStorageProtection
-	83,  // 84: dockwell.v1.DockerNetworkEndpoint.state:type_name -> dockwell.v1.ContainerState
-	81,  // 85: dockwell.v1.DockerVolume.size_observed_at:type_name -> google.protobuf.Timestamp
-	81,  // 86: dockwell.v1.DockerVolume.created_at:type_name -> google.protobuf.Timestamp
-	49,  // 87: dockwell.v1.DockerVolume.attachments:type_name -> dockwell.v1.DockerVolumeAttachment
-	5,   // 88: dockwell.v1.DockerVolume.protection:type_name -> dockwell.v1.DockerStorageProtection
-	83,  // 89: dockwell.v1.DockerVolumeAttachment.state:type_name -> dockwell.v1.ContainerState
-	12,  // 90: dockwell.v1.DockerVolumeMountRef.volume_key:type_name -> dockwell.v1.DockerObjectKey
-	98,  // 91: dockwell.v1.DockerNetworkCandidate.spec:type_name -> dockwell.resource.v1alpha1.Network
-	51,  // 92: dockwell.v1.CheckDockerNetworkRequest.candidate:type_name -> dockwell.v1.DockerNetworkCandidate
-	54,  // 93: dockwell.v1.CheckDockerNetworkResponse.findings:type_name -> dockwell.v1.DockerNetworkFinding
-	18,  // 94: dockwell.v1.CheckDockerNetworkResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
-	6,   // 95: dockwell.v1.DockerNetworkFinding.code:type_name -> dockwell.v1.DockerNetworkCheckCode
-	12,  // 96: dockwell.v1.PlanDockerNetworkAttachmentRequest.network:type_name -> dockwell.v1.DockerObjectKey
-	12,  // 97: dockwell.v1.PlanDockerNetworkAttachmentRequest.container:type_name -> dockwell.v1.DockerObjectKey
-	99,  // 98: dockwell.v1.PlanDockerNetworkAttachmentRequest.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
-	95,  // 99: dockwell.v1.PlanDockerNetworkAttachmentResponse.change:type_name -> dockwell.v1.Change
-	7,   // 100: dockwell.v1.DockerArtifactInfo.kind:type_name -> dockwell.v1.DockerArtifactKind
-	8,   // 101: dockwell.v1.DockerArtifactInfo.state:type_name -> dockwell.v1.DockerArtifactState
-	81,  // 102: dockwell.v1.DockerArtifactInfo.expires_at:type_name -> google.protobuf.Timestamp
-	59,  // 103: dockwell.v1.DockerArtifactInfo.images:type_name -> dockwell.v1.DockerArchiveImage
-	100, // 104: dockwell.v1.DockerArtifactInfo.failure:type_name -> dockwell.v1.DockerImageReason
-	58,  // 105: dockwell.v1.DockerArtifactInfo.failure_space:type_name -> dockwell.v1.DockerArtifactSpace
-	7,   // 106: dockwell.v1.BeginDockerArtifactUploadRequest.kind:type_name -> dockwell.v1.DockerArtifactKind
-	57,  // 107: dockwell.v1.ListDockerArtifactsResponse.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
-	101, // 108: dockwell.v1.UploadDockerArtifactRequest.content:type_name -> google.api.HttpBody
-	101, // 109: dockwell.v1.DownloadDockerArtifactResponse.body:type_name -> google.api.HttpBody
-	81,  // 110: dockwell.v1.DockerSettings.observed_at:type_name -> google.protobuf.Timestamp
-	102, // 111: dockwell.v1.DockerSettings.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
-	103, // 112: dockwell.v1.DockerSettings.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
-	80,  // 113: dockwell.v1.DockerSettings.known_features:type_name -> dockwell.v1.DockerSettings.KnownFeaturesEntry
-	70,  // 114: dockwell.v1.DockerSettings.provenance:type_name -> dockwell.v1.DockerSettingSource
-	10,  // 115: dockwell.v1.DockerSettingsFinding.reason:type_name -> dockwell.v1.DockerSettingsFindingReason
-	69,  // 116: dockwell.v1.GetDockerSettingsResponse.settings:type_name -> dockwell.v1.DockerSettings
-	104, // 117: dockwell.v1.CheckDockerSettingsRequest.draft:type_name -> dockwell.resource.v1alpha1.DockerDaemon
-	71,  // 118: dockwell.v1.CheckDockerSettingsResponse.findings:type_name -> dockwell.v1.DockerSettingsFinding
-	105, // 119: dockwell.v1.CheckDockerSettingsResponse.impact:type_name -> dockwell.v1.DockerDaemonImpact
-	11,  // 120: dockwell.v1.CheckDockerSettingsResponse.mirror_reachability:type_name -> dockwell.v1.DockerMirrorReachability
-	12,  // 121: dockwell.v1.PlanDockerContainerLoggingRequest.container:type_name -> dockwell.v1.DockerObjectKey
-	106, // 122: dockwell.v1.PlanDockerContainerLoggingRequest.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
-	95,  // 123: dockwell.v1.PlanDockerContainerLoggingResponse.change:type_name -> dockwell.v1.Change
-	20,  // 124: dockwell.v1.DockerService.GetDockerOverview:input_type -> dockwell.v1.GetDockerOverviewRequest
-	23,  // 125: dockwell.v1.DockerService.ListDockerObjects:input_type -> dockwell.v1.ListDockerObjectsRequest
-	25,  // 126: dockwell.v1.DockerService.GetDockerObject:input_type -> dockwell.v1.GetDockerObjectRequest
-	37,  // 127: dockwell.v1.DockerService.PreviewDockerCleanup:input_type -> dockwell.v1.PreviewDockerCleanupRequest
-	41,  // 128: dockwell.v1.DockerService.PlanDockerMaintenance:input_type -> dockwell.v1.PlanDockerMaintenanceRequest
-	78,  // 129: dockwell.v1.DockerService.WatchDockerImageBuild:input_type -> dockwell.v1.WatchDockerImageBuildRequest
-	79,  // 130: dockwell.v1.DockerService.CancelDockerImageBuild:input_type -> dockwell.v1.CancelDockerImageBuildRequest
-	52,  // 131: dockwell.v1.DockerService.CheckDockerNetwork:input_type -> dockwell.v1.CheckDockerNetworkRequest
-	55,  // 132: dockwell.v1.DockerService.PlanDockerNetworkAttachment:input_type -> dockwell.v1.PlanDockerNetworkAttachmentRequest
-	60,  // 133: dockwell.v1.DockerService.BeginDockerArtifactUpload:input_type -> dockwell.v1.BeginDockerArtifactUploadRequest
-	63,  // 134: dockwell.v1.DockerService.GetDockerArtifact:input_type -> dockwell.v1.GetDockerArtifactRequest
-	61,  // 135: dockwell.v1.DockerService.ListDockerArtifacts:input_type -> dockwell.v1.ListDockerArtifactsRequest
-	64,  // 136: dockwell.v1.DockerService.FinishDockerArtifactUpload:input_type -> dockwell.v1.FinishDockerArtifactUploadRequest
-	65,  // 137: dockwell.v1.DockerService.AbortDockerArtifact:input_type -> dockwell.v1.AbortDockerArtifactRequest
-	66,  // 138: dockwell.v1.DockerService.UploadDockerArtifact:input_type -> dockwell.v1.UploadDockerArtifactRequest
-	67,  // 139: dockwell.v1.DockerService.DownloadDockerArtifact:input_type -> dockwell.v1.DownloadDockerArtifactRequest
-	72,  // 140: dockwell.v1.DockerService.GetDockerSettings:input_type -> dockwell.v1.GetDockerSettingsRequest
-	74,  // 141: dockwell.v1.DockerService.CheckDockerSettings:input_type -> dockwell.v1.CheckDockerSettingsRequest
-	76,  // 142: dockwell.v1.DockerService.PlanDockerContainerLogging:input_type -> dockwell.v1.PlanDockerContainerLoggingRequest
-	27,  // 143: dockwell.v1.DockerService.WatchDockerObjects:input_type -> dockwell.v1.WatchDockerObjectsRequest
-	21,  // 144: dockwell.v1.DockerService.GetDockerOverview:output_type -> dockwell.v1.GetDockerOverviewResponse
-	24,  // 145: dockwell.v1.DockerService.ListDockerObjects:output_type -> dockwell.v1.ListDockerObjectsResponse
-	26,  // 146: dockwell.v1.DockerService.GetDockerObject:output_type -> dockwell.v1.GetDockerObjectResponse
-	38,  // 147: dockwell.v1.DockerService.PreviewDockerCleanup:output_type -> dockwell.v1.PreviewDockerCleanupResponse
-	43,  // 148: dockwell.v1.DockerService.PlanDockerMaintenance:output_type -> dockwell.v1.PlanDockerMaintenanceResponse
-	107, // 149: dockwell.v1.DockerService.WatchDockerImageBuild:output_type -> dockwell.v1.WatchBuildResponse
-	108, // 150: dockwell.v1.DockerService.CancelDockerImageBuild:output_type -> dockwell.v1.CancelBuildResponse
-	53,  // 151: dockwell.v1.DockerService.CheckDockerNetwork:output_type -> dockwell.v1.CheckDockerNetworkResponse
-	56,  // 152: dockwell.v1.DockerService.PlanDockerNetworkAttachment:output_type -> dockwell.v1.PlanDockerNetworkAttachmentResponse
-	57,  // 153: dockwell.v1.DockerService.BeginDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
-	57,  // 154: dockwell.v1.DockerService.GetDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	62,  // 155: dockwell.v1.DockerService.ListDockerArtifacts:output_type -> dockwell.v1.ListDockerArtifactsResponse
-	57,  // 156: dockwell.v1.DockerService.FinishDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
-	57,  // 157: dockwell.v1.DockerService.AbortDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	57,  // 158: dockwell.v1.DockerService.UploadDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
-	68,  // 159: dockwell.v1.DockerService.DownloadDockerArtifact:output_type -> dockwell.v1.DownloadDockerArtifactResponse
-	73,  // 160: dockwell.v1.DockerService.GetDockerSettings:output_type -> dockwell.v1.GetDockerSettingsResponse
-	75,  // 161: dockwell.v1.DockerService.CheckDockerSettings:output_type -> dockwell.v1.CheckDockerSettingsResponse
-	77,  // 162: dockwell.v1.DockerService.PlanDockerContainerLogging:output_type -> dockwell.v1.PlanDockerContainerLoggingResponse
-	30,  // 163: dockwell.v1.DockerService.WatchDockerObjects:output_type -> dockwell.v1.WatchDockerObjectsResponse
-	144, // [144:164] is the sub-list for method output_type
-	124, // [124:144] is the sub-list for method input_type
-	124, // [124:124] is the sub-list for extension type_name
-	124, // [124:124] is the sub-list for extension extendee
-	0,   // [0:124] is the sub-list for field type_name
+	90,  // 68: dockwell.v1.PlanDockerMaintenanceRequest.tag:type_name -> dockwell.v1.DockerImageTag
+	91,  // 69: dockwell.v1.PlanDockerMaintenanceRequest.load:type_name -> dockwell.v1.DockerImageLoad
+	92,  // 70: dockwell.v1.PlanDockerMaintenanceRequest.build:type_name -> dockwell.v1.DockerImageBuild
+	93,  // 71: dockwell.v1.PlanDockerMaintenanceRequest.push:type_name -> dockwell.v1.DockerImagePush
+	94,  // 72: dockwell.v1.PlanDockerMaintenanceRequest.export:type_name -> dockwell.v1.DockerImageExport
+	95,  // 73: dockwell.v1.PlanDockerMaintenanceRequest.pull:type_name -> dockwell.v1.DockerImagePull
+	80,  // 74: dockwell.v1.PlanDockerMaintenanceRequest.lifecycle:type_name -> dockwell.v1.DockerLifecycleSelection
+	36,  // 75: dockwell.v1.DockerCleanupSelection.filters:type_name -> dockwell.v1.DockerCleanupFilters
+	88,  // 76: dockwell.v1.DockerCleanupSelection.targets:type_name -> dockwell.v1.DockerCleanupTarget
+	96,  // 77: dockwell.v1.PlanDockerMaintenanceResponse.change:type_name -> dockwell.v1.Change
+	45,  // 78: dockwell.v1.PlanDockerMaintenanceResponse.digest_check:type_name -> dockwell.v1.DockerImageDigestCheck
+	97,  // 79: dockwell.v1.DockerImageDigestCheck.current:type_name -> dockwell.v1.DockerRegistryDescriptor
+	97,  // 80: dockwell.v1.DockerImageDigestCheck.candidate:type_name -> dockwell.v1.DockerRegistryDescriptor
+	98,  // 81: dockwell.v1.DockerNetwork.pools:type_name -> dockwell.resource.v1alpha1.NetworkIPAMPool
+	82,  // 82: dockwell.v1.DockerNetwork.created_at:type_name -> google.protobuf.Timestamp
+	47,  // 83: dockwell.v1.DockerNetwork.attachments:type_name -> dockwell.v1.DockerNetworkEndpoint
+	5,   // 84: dockwell.v1.DockerNetwork.protection:type_name -> dockwell.v1.DockerStorageProtection
+	84,  // 85: dockwell.v1.DockerNetworkEndpoint.state:type_name -> dockwell.v1.ContainerState
+	82,  // 86: dockwell.v1.DockerVolume.size_observed_at:type_name -> google.protobuf.Timestamp
+	82,  // 87: dockwell.v1.DockerVolume.created_at:type_name -> google.protobuf.Timestamp
+	49,  // 88: dockwell.v1.DockerVolume.attachments:type_name -> dockwell.v1.DockerVolumeAttachment
+	5,   // 89: dockwell.v1.DockerVolume.protection:type_name -> dockwell.v1.DockerStorageProtection
+	84,  // 90: dockwell.v1.DockerVolumeAttachment.state:type_name -> dockwell.v1.ContainerState
+	12,  // 91: dockwell.v1.DockerVolumeMountRef.volume_key:type_name -> dockwell.v1.DockerObjectKey
+	99,  // 92: dockwell.v1.DockerNetworkCandidate.spec:type_name -> dockwell.resource.v1alpha1.Network
+	51,  // 93: dockwell.v1.CheckDockerNetworkRequest.candidate:type_name -> dockwell.v1.DockerNetworkCandidate
+	54,  // 94: dockwell.v1.CheckDockerNetworkResponse.findings:type_name -> dockwell.v1.DockerNetworkFinding
+	18,  // 95: dockwell.v1.CheckDockerNetworkResponse.unavailable:type_name -> dockwell.v1.DockerUnavailable
+	6,   // 96: dockwell.v1.DockerNetworkFinding.code:type_name -> dockwell.v1.DockerNetworkCheckCode
+	12,  // 97: dockwell.v1.PlanDockerNetworkAttachmentRequest.network:type_name -> dockwell.v1.DockerObjectKey
+	12,  // 98: dockwell.v1.PlanDockerNetworkAttachmentRequest.container:type_name -> dockwell.v1.DockerObjectKey
+	100, // 99: dockwell.v1.PlanDockerNetworkAttachmentRequest.action:type_name -> dockwell.v1.DockerNetworkAttachmentAction
+	96,  // 100: dockwell.v1.PlanDockerNetworkAttachmentResponse.change:type_name -> dockwell.v1.Change
+	7,   // 101: dockwell.v1.DockerArtifactInfo.kind:type_name -> dockwell.v1.DockerArtifactKind
+	8,   // 102: dockwell.v1.DockerArtifactInfo.state:type_name -> dockwell.v1.DockerArtifactState
+	82,  // 103: dockwell.v1.DockerArtifactInfo.expires_at:type_name -> google.protobuf.Timestamp
+	59,  // 104: dockwell.v1.DockerArtifactInfo.images:type_name -> dockwell.v1.DockerArchiveImage
+	101, // 105: dockwell.v1.DockerArtifactInfo.failure:type_name -> dockwell.v1.DockerImageReason
+	58,  // 106: dockwell.v1.DockerArtifactInfo.failure_space:type_name -> dockwell.v1.DockerArtifactSpace
+	7,   // 107: dockwell.v1.BeginDockerArtifactUploadRequest.kind:type_name -> dockwell.v1.DockerArtifactKind
+	57,  // 108: dockwell.v1.ListDockerArtifactsResponse.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
+	102, // 109: dockwell.v1.UploadDockerArtifactRequest.content:type_name -> google.api.HttpBody
+	102, // 110: dockwell.v1.DownloadDockerArtifactResponse.body:type_name -> google.api.HttpBody
+	82,  // 111: dockwell.v1.DockerSettings.observed_at:type_name -> google.protobuf.Timestamp
+	103, // 112: dockwell.v1.DockerSettings.logging:type_name -> dockwell.resource.v1alpha1.DockerDaemonLogging
+	104, // 113: dockwell.v1.DockerSettings.pools:type_name -> dockwell.resource.v1alpha1.DockerAddressPool
+	81,  // 114: dockwell.v1.DockerSettings.known_features:type_name -> dockwell.v1.DockerSettings.KnownFeaturesEntry
+	70,  // 115: dockwell.v1.DockerSettings.provenance:type_name -> dockwell.v1.DockerSettingSource
+	10,  // 116: dockwell.v1.DockerSettingsFinding.reason:type_name -> dockwell.v1.DockerSettingsFindingReason
+	69,  // 117: dockwell.v1.GetDockerSettingsResponse.settings:type_name -> dockwell.v1.DockerSettings
+	105, // 118: dockwell.v1.CheckDockerSettingsRequest.draft:type_name -> dockwell.resource.v1alpha1.DockerDaemon
+	71,  // 119: dockwell.v1.CheckDockerSettingsResponse.findings:type_name -> dockwell.v1.DockerSettingsFinding
+	106, // 120: dockwell.v1.CheckDockerSettingsResponse.impact:type_name -> dockwell.v1.DockerDaemonImpact
+	11,  // 121: dockwell.v1.CheckDockerSettingsResponse.mirror_reachability:type_name -> dockwell.v1.DockerMirrorReachability
+	12,  // 122: dockwell.v1.PlanDockerContainerLoggingRequest.container:type_name -> dockwell.v1.DockerObjectKey
+	107, // 123: dockwell.v1.PlanDockerContainerLoggingRequest.logging:type_name -> dockwell.resource.v1alpha1.ContainerLogging
+	96,  // 124: dockwell.v1.PlanDockerContainerLoggingResponse.change:type_name -> dockwell.v1.Change
+	12,  // 125: dockwell.v1.DockerLifecycleSelection.keys:type_name -> dockwell.v1.DockerObjectKey
+	108, // 126: dockwell.v1.DockerLifecycleSelection.action:type_name -> dockwell.v1.DockerContainerAction
+	20,  // 127: dockwell.v1.DockerService.GetDockerOverview:input_type -> dockwell.v1.GetDockerOverviewRequest
+	23,  // 128: dockwell.v1.DockerService.ListDockerObjects:input_type -> dockwell.v1.ListDockerObjectsRequest
+	25,  // 129: dockwell.v1.DockerService.GetDockerObject:input_type -> dockwell.v1.GetDockerObjectRequest
+	37,  // 130: dockwell.v1.DockerService.PreviewDockerCleanup:input_type -> dockwell.v1.PreviewDockerCleanupRequest
+	41,  // 131: dockwell.v1.DockerService.PlanDockerMaintenance:input_type -> dockwell.v1.PlanDockerMaintenanceRequest
+	78,  // 132: dockwell.v1.DockerService.WatchDockerImageBuild:input_type -> dockwell.v1.WatchDockerImageBuildRequest
+	79,  // 133: dockwell.v1.DockerService.CancelDockerImageBuild:input_type -> dockwell.v1.CancelDockerImageBuildRequest
+	52,  // 134: dockwell.v1.DockerService.CheckDockerNetwork:input_type -> dockwell.v1.CheckDockerNetworkRequest
+	55,  // 135: dockwell.v1.DockerService.PlanDockerNetworkAttachment:input_type -> dockwell.v1.PlanDockerNetworkAttachmentRequest
+	60,  // 136: dockwell.v1.DockerService.BeginDockerArtifactUpload:input_type -> dockwell.v1.BeginDockerArtifactUploadRequest
+	63,  // 137: dockwell.v1.DockerService.GetDockerArtifact:input_type -> dockwell.v1.GetDockerArtifactRequest
+	61,  // 138: dockwell.v1.DockerService.ListDockerArtifacts:input_type -> dockwell.v1.ListDockerArtifactsRequest
+	64,  // 139: dockwell.v1.DockerService.FinishDockerArtifactUpload:input_type -> dockwell.v1.FinishDockerArtifactUploadRequest
+	65,  // 140: dockwell.v1.DockerService.AbortDockerArtifact:input_type -> dockwell.v1.AbortDockerArtifactRequest
+	66,  // 141: dockwell.v1.DockerService.UploadDockerArtifact:input_type -> dockwell.v1.UploadDockerArtifactRequest
+	67,  // 142: dockwell.v1.DockerService.DownloadDockerArtifact:input_type -> dockwell.v1.DownloadDockerArtifactRequest
+	72,  // 143: dockwell.v1.DockerService.GetDockerSettings:input_type -> dockwell.v1.GetDockerSettingsRequest
+	74,  // 144: dockwell.v1.DockerService.CheckDockerSettings:input_type -> dockwell.v1.CheckDockerSettingsRequest
+	76,  // 145: dockwell.v1.DockerService.PlanDockerContainerLogging:input_type -> dockwell.v1.PlanDockerContainerLoggingRequest
+	27,  // 146: dockwell.v1.DockerService.WatchDockerObjects:input_type -> dockwell.v1.WatchDockerObjectsRequest
+	21,  // 147: dockwell.v1.DockerService.GetDockerOverview:output_type -> dockwell.v1.GetDockerOverviewResponse
+	24,  // 148: dockwell.v1.DockerService.ListDockerObjects:output_type -> dockwell.v1.ListDockerObjectsResponse
+	26,  // 149: dockwell.v1.DockerService.GetDockerObject:output_type -> dockwell.v1.GetDockerObjectResponse
+	38,  // 150: dockwell.v1.DockerService.PreviewDockerCleanup:output_type -> dockwell.v1.PreviewDockerCleanupResponse
+	43,  // 151: dockwell.v1.DockerService.PlanDockerMaintenance:output_type -> dockwell.v1.PlanDockerMaintenanceResponse
+	109, // 152: dockwell.v1.DockerService.WatchDockerImageBuild:output_type -> dockwell.v1.WatchBuildResponse
+	110, // 153: dockwell.v1.DockerService.CancelDockerImageBuild:output_type -> dockwell.v1.CancelBuildResponse
+	53,  // 154: dockwell.v1.DockerService.CheckDockerNetwork:output_type -> dockwell.v1.CheckDockerNetworkResponse
+	56,  // 155: dockwell.v1.DockerService.PlanDockerNetworkAttachment:output_type -> dockwell.v1.PlanDockerNetworkAttachmentResponse
+	57,  // 156: dockwell.v1.DockerService.BeginDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 157: dockwell.v1.DockerService.GetDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	62,  // 158: dockwell.v1.DockerService.ListDockerArtifacts:output_type -> dockwell.v1.ListDockerArtifactsResponse
+	57,  // 159: dockwell.v1.DockerService.FinishDockerArtifactUpload:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 160: dockwell.v1.DockerService.AbortDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	57,  // 161: dockwell.v1.DockerService.UploadDockerArtifact:output_type -> dockwell.v1.DockerArtifactInfo
+	68,  // 162: dockwell.v1.DockerService.DownloadDockerArtifact:output_type -> dockwell.v1.DownloadDockerArtifactResponse
+	73,  // 163: dockwell.v1.DockerService.GetDockerSettings:output_type -> dockwell.v1.GetDockerSettingsResponse
+	75,  // 164: dockwell.v1.DockerService.CheckDockerSettings:output_type -> dockwell.v1.CheckDockerSettingsResponse
+	77,  // 165: dockwell.v1.DockerService.PlanDockerContainerLogging:output_type -> dockwell.v1.PlanDockerContainerLoggingResponse
+	30,  // 166: dockwell.v1.DockerService.WatchDockerObjects:output_type -> dockwell.v1.WatchDockerObjectsResponse
+	147, // [147:167] is the sub-list for method output_type
+	127, // [127:147] is the sub-list for method input_type
+	127, // [127:127] is the sub-list for extension type_name
+	127, // [127:127] is the sub-list for extension extendee
+	0,   // [0:127] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_docker_proto_init() }
@@ -6972,6 +7086,7 @@ func file_dockwell_v1_docker_proto_init() {
 		(*PlanDockerMaintenanceRequest_Push)(nil),
 		(*PlanDockerMaintenanceRequest_Export)(nil),
 		(*PlanDockerMaintenanceRequest_Pull)(nil),
+		(*PlanDockerMaintenanceRequest_Lifecycle)(nil),
 	}
 	file_dockwell_v1_docker_proto_msgTypes[34].OneofWrappers = []any{}
 	file_dockwell_v1_docker_proto_msgTypes[36].OneofWrappers = []any{}
@@ -6982,7 +7097,7 @@ func file_dockwell_v1_docker_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_docker_proto_rawDesc), len(file_dockwell_v1_docker_proto_rawDesc)),
 			NumEnums:      12,
-			NumMessages:   69,
+			NumMessages:   70,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

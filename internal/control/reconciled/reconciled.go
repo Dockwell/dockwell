@@ -21,12 +21,13 @@ import (
 const (
 	ActionMade    = "server.reconciled_made"
 	ActionStarted = "server.reconciled_started"
+	ActionPaused  = "server.reconciled_paused"
 	ActionWaiting = "server.reconciled_waiting"
 	ActionDropped = "server.reconciled_dropped"
 )
 
 // Actions are all of them.
-var Actions = []string{ActionMade, ActionStarted, ActionWaiting, ActionDropped}
+var Actions = []string{ActionMade, ActionStarted, ActionPaused, ActionWaiting, ActionDropped}
 
 // Told is what an event of these keeps: the resource, and why, never a value or a
 // spec.
@@ -98,6 +99,8 @@ func (r *Recorder) Heard(ctx context.Context, server string, rec *agentv1.Reconc
 				err = record(ctx, tx, server, eventID, at(sent), ActionMade, told)
 			case agentv1.LocalAction_LOCAL_ACTION_STARTED:
 				err = record(ctx, tx, server, eventID, at(sent), ActionStarted, told)
+			case agentv1.LocalAction_LOCAL_ACTION_PAUSED:
+				err = record(ctx, tx, server, eventID, at(sent), ActionPaused, told)
 			case agentv1.LocalAction_LOCAL_ACTION_WAITING:
 				err = record(ctx, tx, server, eventID, at(sent), ActionWaiting, told)
 			case agentv1.LocalAction_LOCAL_ACTION_UNSPECIFIED:

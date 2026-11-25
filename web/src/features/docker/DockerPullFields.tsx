@@ -66,11 +66,18 @@ export function useDockerPull(
   comparing: boolean,
   field: RefObject<HTMLInputElement | null>,
   edited: () => void,
+  searching = false,
 ) {
   const { t } = useLingui();
   const transport = useTransport();
   const [serverId, setServerId] = useState(servers[0]?.id ?? "");
   const [reference, setReference] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [settledSearch, setSettledSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledSearch(searchTerm.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [selected, setSelected] = useState<string>();
   const [other, setOther] = useState("");
   const [browse, setBrowse] = useState(false);
@@ -87,6 +94,19 @@ export function useDockerPull(
   const fallback = eligible.filter((item) => item.registry === host);
   const fallbackName = !login && fallback.length === 1 ? fallback[0]?.name : undefined;
   const may = useMay();
+  const search = useQuery(
+    ImageService.method.searchImages,
+    { term: settledSearch, server: serverId },
+    {
+      enabled:
+        searching &&
+        host === HUB &&
+        !!serverId &&
+        settledSearch.length >= 2 &&
+        may(ImageService.method.searchImages).allowed,
+      retry: false,
+    },
+  );
 
   const repository = host && REPOSITORY.test(image.repository) ? image.canonical : "";
   const [settled, setSettled] = useState("");
@@ -246,6 +266,56 @@ export function useDockerPull(
               resetBrowse();
             }}
           />
+        ) : null}
+        {searching && host === HUB ? (
+          <>
+            <TextField
+              label={t`Search Docker Hub`}
+              icon="search"
+              value={searchTerm}
+              maxLength={100}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
+            {settledSearch.length >= 2 && settledSearch === searchTerm.trim() ? (
+              search.isFetching ? (
+                <Loading label={t`Searching registry`}>
+                  <SkeletonRows rows={3} dense />
+                </Loading>
+              ) : search.isError ? (
+                <Callout
+                  tone="warning"
+                  title={t`Registry search unavailable`}
+                  actions={
+                    <Button size="sm" onClick={() => void search.refetch()}>
+                      <Trans>Try again</Trans>
+                    </Button>
+                  }
+                />
+              ) : search.data?.matches.length ? (
+                <div className="docker-repository-choices">
+                  {search.data.matches.slice(0, 12).map(({ name }) => (
+                    <Button
+                      key={name}
+                      className="docker-repository-choice"
+                      icon="archive"
+                      variant="ghost"
+                      onClick={() => {
+                        editReference(name);
+                        setSearchTerm("");
+                        field.current?.focus();
+                      }}
+                    >
+                      {name}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <span className="docker-muted">
+                  <Trans>No repositories match</Trans>
+                </span>
+              )
+            ) : null}
+          </>
         ) : null}
         <div className="docker-pull-reference">
           <TextField

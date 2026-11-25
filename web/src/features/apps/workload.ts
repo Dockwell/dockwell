@@ -7,8 +7,10 @@ import { useLingui } from "@lingui/react/macro";
 
 import { useChangeSheet } from "../changes/ChangeSheet";
 
-export function runStateEdit(resource: ResourceRef, baseRevision: bigint, start: boolean) {
-  const app = { desiredRunState: start ? DesiredRunState.RUNNING : DesiredRunState.STOPPED };
+export function runStateEdit(resource: ResourceRef, baseRevision: bigint, start: boolean | DesiredRunState) {
+  const app = {
+    desiredRunState: typeof start === "boolean" ? (start ? DesiredRunState.RUNNING : DesiredRunState.STOPPED) : start,
+  };
   const kind =
     resource.kind === "container"
       ? { case: "container" as const, value: app }
@@ -51,7 +53,7 @@ export function useWorkloadControls() {
   /** Starts or stops several workloads as one plan with an edit for each, never a change apiece. */
   const changeRunMany = (
     targets: readonly { resource: ResourceRef; baseRevision: bigint }[],
-    start: boolean,
+    start: boolean | DesiredRunState,
     summary: string,
     onApplied?: () => void,
   ) => {
@@ -65,5 +67,14 @@ export function useWorkloadControls() {
       },
     });
   };
-  return { changeRun, restartInstance, changeRunMany, restart };
+  const changePause = (resource: ResourceRef, baseRevision: bigint, pause: boolean, onApplied?: () => void) => {
+    const { name } = resource;
+    changeRunMany(
+      [{ resource, baseRevision }],
+      pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING,
+      pause ? t`Pause ${name}` : t`Unpause ${name}`,
+      onApplied,
+    );
+  };
+  return { changeRun, changePause, restartInstance, changeRunMany, restart };
 }

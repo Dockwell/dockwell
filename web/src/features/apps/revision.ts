@@ -158,6 +158,8 @@ export function useRevisionTitle() {
       const runState = rev.changes[0];
       if (!failed && !moving && rev.changes.length === 1 && runState && fields[0] === "desired_run_state") {
         if (runState.to === "stopped") return plain(t`Stopped`);
+        if (runState.to === "paused") return plain(t`Paused`);
+        if (runState.from === "paused") return plain(t`Unpaused`);
         if (runState.to === "running" || runState.from === "stopped") return plain(t`Started`);
       }
       const [first] = fields;

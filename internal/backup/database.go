@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -346,6 +347,7 @@ type user struct {
 	id, name  string
 	container string // what Docker calls it, which docker start takes
 	running   bool
+	paused    bool
 	stopWait  time.Duration
 }
 
@@ -398,6 +400,11 @@ func (u *users) running() []*user {
 	return out
 }
 
+// writing leaves frozen containers out of a file backup's stop and start list.
+func (u *users) writing() []*user {
+	return slices.DeleteFunc(u.running(), func(c *user) bool { return c.paused })
+}
+
 // users reads what has a volume mounted.
 func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 	found, err := r.Client.ListContainers(ctx, map[string][]string{"volume": {t.Name}})
@@ -436,12 +443,16 @@ func (r *Runner) users(ctx context.Context, t volume.Target) (*users, error) {
 // dumpable says a running database's dump keeps what it holds, as its probe says;
 // one with no probe, or not running, does as far as a dump can tell.
 func (r *Runner) dumpable(ctx context.Context, k *databaseKind, c *docker.Container) bool {
-	if k.probe == nil || !c.State.Running {
+	if k.probe == nil || !c.State.Running || c.State.Paused || r.hasSavedPause(c.ID) {
 		return true
 	}
 	out := &tail{}
 	code, err := r.Client.Exec(ctx, c.ID, k.probe, docker.Streams{Stdout: out})
 	return err == nil && code == 0 && strings.TrimSpace(out.String()) == "ok"
+}
+
+func (r *Runner) hasSavedPause(id string) bool {
+	return r.RunControl != nil && r.RunControl.HasSavedPause(id)
 }
 
 // userOf is a container as a plan names it: by its service, or its own name.
@@ -454,7 +465,7 @@ func userOf(c *docker.Container) *user {
 	if t := c.Config.StopTimeout; t != nil {
 		wait = max(wait, time.Duration(*t)*time.Second)
 	}
-	return &user{id: c.ID, name: name, container: strings.TrimPrefix(c.Name, "/"), running: c.State.Running, stopWait: wait}
+	return &user{id: c.ID, name: name, container: strings.TrimPrefix(c.Name, "/"), running: c.State.Running, paused: c.State.Paused, stopWait: wait}
 }
 
 // namesOf lists names, sorted, each once.
@@ -494,7 +505,23 @@ func (t *tail) String() string {
 // dump writes a database's own dump to w, gzipped, and says how large it is unzipped:
 // the whole server's, or where one names a database, that database's alone.
 func (r *Runner) dump(ctx context.Context, ref resource.Ref, db *database, one string, w io.Writer) (int64, error) {
-	return r.dumpAs(ctx, ref, db, one, nil, w)
+	var written int64
+	err := r.withRunState(db.id, func(state resourcev1.DesiredRunState) error {
+		c, err := r.Client.InspectContainer(ctx, db.id)
+		if err != nil {
+			return err
+		}
+		if c.State.Paused || state == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED {
+			return db.pausedDump()
+		}
+		written, err = r.dumpAs(ctx, ref, db, one, nil, w)
+		return err
+	})
+	return written, err
+}
+
+func (d *database) pausedDump() error {
+	return fmt.Errorf("%s is paused. Unpause it before backing up its database", d.name)
 }
 
 // dumpAs is dump, of one database as a user and role a restore has it dump as, where

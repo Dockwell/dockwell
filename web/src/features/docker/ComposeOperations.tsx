@@ -76,6 +76,7 @@ export function ComposeOperations({
   takeOn,
   remove,
   onWorkload,
+  externalActions = [],
 }: {
   row: DockerObject;
   showText?: boolean;
@@ -83,12 +84,13 @@ export function ComposeOperations({
   takeOn?: (() => void) | undefined;
   remove?: (() => void) | undefined;
   onWorkload?: ((action: ComposeRunAction) => void) | undefined;
+  externalActions?: readonly MenuAction[];
 }) {
   const { t } = useLingui();
   const may = useMay();
   const environment = row.detail.case === "compose" ? row.detail.value.environmentId : "";
   const canPlan = environment && may(ChangeService.method.proposeChange, { environment }).allowed;
-  const actions: MenuAction[] = [];
+  const actions = [...externalActions];
   if (open) actions.push({ id: "open", label: t`Open`, icon: "arrow-right", onSelect: open });
   if (takeOn) actions.push({ id: "take", label: t`Take on`, icon: "download", onSelect: takeOn });
   if (onWorkload && canPlan && may(ServiceService.method.listServices, { environment }).allowed) {

@@ -194,7 +194,9 @@ jobs:
             TestDockerNetworkAttachmentRevisionOnRealDocker \
             TestDockerVolumeGuardedCreateAndInventoryOnRealDocker \
             TestDockerVolumeInventoryMountsAndBackupOnRealDocker \
-            TestComposeTemplateDeploysPinnedRevisionOnRealDocker; do
+            TestComposeTemplateDeploysPinnedRevisionOnRealDocker \
+            TestExternalContainerLifecycleOnRealDocker \
+            TestDockerExternalLifecycleAndRunImportOnRealDocker; do
             if grep -q "^--- PASS: $test " "$log"; then
               continue
             fi
@@ -227,6 +229,18 @@ jobs:
             --entrypoint /docker-settings.test docker:29.4.1-dind \
             -test.v -test.timeout=3m -test.run '^TestDockerDaemonMirrorsReloadOnRealDocker$' | tee "$RUNNER_TEMP/docker-settings-29.out"
           grep -q '^--- PASS: TestDockerDaemonMirrorsReloadOnRealDocker ' "$RUNNER_TEMP/docker-settings-29.out"
+      - name: Managed pause survives a private Docker restart
+        if: steps.pick.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          state=$(mktemp -d "$RUNNER_TEMP/dw-pause.XXXXXX")
+          trap 'rm -rf "$state"' EXIT
+          CGO_ENABLED=0 go test -c -o "$state/agent.test" ./internal/agent
+          docker run --rm --privileged -e DOCKWELL_TEST_ISOLATED_DOCKER=1 \
+            --mount "type=bind,src=$state/agent.test,dst=/agent.test,readonly" \
+            --entrypoint /agent.test docker:28.5.2-dind \
+            -test.v -test.timeout=4m -test.run '^TestManagedPauseSurvivesDaemonRestartOnRealDocker$' | tee "$state/pause.out"
+          grep -q '^--- PASS: TestManagedPauseSurvivesDaemonRestartOnRealDocker ' "$state/pause.out"
       # The runner's Docker version changes. Exercise exact cache removal on
       # both releases Dockwell enables it for, using a fresh private daemon.
       - name: Docker cleanup on the supported Engines

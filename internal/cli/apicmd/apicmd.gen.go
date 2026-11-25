@@ -1885,6 +1885,7 @@ func Methods() []*apicli.Method {
 				{Path: "push"},
 				{Path: "export"},
 				{Path: "pull"},
+				{Path: "lifecycle"},
 			},
 			Call: apicli.Unary[v1.PlanDockerMaintenanceRequest, v1.PlanDockerMaintenanceResponse](dockwellv1connect.DockerServicePlanDockerMaintenanceProcedure),
 		},

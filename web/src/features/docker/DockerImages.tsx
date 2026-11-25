@@ -380,6 +380,11 @@ export function DockerImages({ servers, fleet }: { servers: readonly Pick<Server
             aria-label={t`Refresh images`}
             title={t`Refresh images`}
           />
+          {actions.openSearch ? (
+            <Button variant="secondary" size="sm" icon="search" onClick={actions.openSearch}>
+              <Trans>Search registries</Trans>
+            </Button>
+          ) : null}
           {actions.canPull ? (
             <Button variant="primary" size="sm" icon="download" onClick={actions.openPull}>
               <Trans>Pull image</Trans>
