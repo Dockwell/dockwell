@@ -148,6 +148,61 @@ service DomainService {
     option (dockwell.v1.needs_session) = true;
     option (google.api.http) = {get: "/v1/signinProviders:check"};
   }
+
+  // RenewCertificate requests an immediate certificate renewal for a domain,
+  // respecting certificate authority rate limits. Refuses when renewal is not
+  // yet due unless force is set, explaining why.
+  rpc RenewCertificate(RenewCertificateRequest) returns (RenewCertificateResponse) {
+    option (dockwell.v1.effect) = EFFECT_APPLY;
+    option (dockwell.v1.min_role) = NEEDS_DEVELOPER;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "domains"
+      verb: "renew-certificate"
+    };
+    option (google.api.http) = {
+      post: "/v1/domains/{domain}:renew"
+      body: "*"
+    };
+  }
+
+  // SetCustomCertificate plans uploading a custom PEM certificate and private
+  // key for a domain, or clearing a custom certificate to return to automatic
+  // HTTPS. Validates that the certificate covers the domain, is not expired and
+  // matches the private key before planning.
+  rpc SetCustomCertificate(SetCustomCertificateRequest) returns (SetCustomCertificateResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "domains"
+      verb: "set-certificate"
+    };
+    option (google.api.http) = {
+      post: "/v1/domains/{domain}:setCertificate"
+      body: "*"
+    };
+  }
+
+  // DownloadCertificate returns the active PEM certificate chain for a domain,
+  // and optionally its private key when include_key is true. Including the key
+  // requires a signed-in admin and a passkey step-up bound to the domain.
+  rpc DownloadCertificate(DownloadCertificateRequest) returns (DownloadCertificateResponse) {
+    option (dockwell.v1.effect) = EFFECT_READ;
+    option (dockwell.v1.min_role) = NEEDS_VIEWER;
+    option (dockwell.v1.min_role_protected) = NEEDS_VIEWER;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "domains"
+      verb: "download-certificate"
+    };
+    option (google.api.http) = {
+      post: "/v1/domains/{domain}:download"
+      body: "*"
+    };
+  }
 }
 
 // ListSigninProvidersRequest asks for the sign-in providers the caller may use.
@@ -732,6 +787,10 @@ message DomainRoute {
   // watch or deleting its check did (#835): a form that sends the route as it is
   // sends this back, and the offer to watch routed domains leaves it out.
   bool unwatched = 82;
+  // Per-visitor-address rate limit enforced on this route, if configured.
+  dockwell.resource.v1alpha1.RouteRateLimit rate_limit = 130;
+  // True when this route serves a user-uploaded custom certificate.
+  bool custom_cert = 131;
 }
 
 // DomainServer is where a domain stands on one server.
@@ -859,6 +918,16 @@ message Certificate {
   // Unset for one Caddy got over HTTP. Numbered in the block DNS-01 holds, 120 to
   // 129.
   string by_dns = 120;
+  // True when served by a user-uploaded custom certificate.
+  bool custom = 121;
+  // Issuer common name or organization, when an issued certificate is read.
+  string issuer = 122;
+  // Subject common name of the leaf certificate.
+  string subject = 123;
+  // Subject Alternative Names covered by the certificate.
+  repeated string sans = 124;
+  // When the issued certificate became valid.
+  google.protobuf.Timestamp not_before = 125;
 }
 
 // CertificateState is where a domain's certificate stands.
@@ -899,4 +968,71 @@ enum CertificateProblem {
   // The server couldn't reach the certificate authority at all, as when its
   // own resolver or outbound network fails. Nothing is known of the domain.
   CERTIFICATE_PROBLEM_CANT_REACH_CA = 8;
+}
+
+// RenewCertificateRequest asks to renew a domain's certificate now.
+message RenewCertificateRequest {
+  // The domain whose certificate to renew.
+  string domain = 1;
+  // Optional server ID when the domain runs on several servers.
+  string server_id = 2;
+  // Force renewal even when the certificate is not yet within its renewal window.
+  bool force = 3;
+}
+
+// RenewCertificateResponse says what happened to the renewal request.
+message RenewCertificateResponse {
+  // Plain-language status message for the operator.
+  string message = 1;
+  // When the previous certificate expires, if one was issued.
+  google.protobuf.Timestamp previous_expire_time = 2;
+}
+
+// SetCustomCertificateRequest uploads or clears a custom TLS certificate for a domain.
+message SetCustomCertificateRequest {
+  // The domain whose certificate to set or clear.
+  string domain = 1;
+  // Full PEM certificate chain (leaf first). Leave empty with clear=true to return to automatic HTTPS.
+  string cert_pem = 2;
+  // PEM private key matching cert_pem. Sealed at rest.
+  string key_pem = 3 [(dockwell.resource.v1alpha1.sensitive) = true];
+  // Clear the custom certificate and return to automatic HTTPS.
+  bool clear = 4;
+  // Optional summary for the timeline.
+  string summary = 5;
+}
+
+// SetCustomCertificateResponse carries the planned change.
+message SetCustomCertificateResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// DownloadCertificateRequest asks to download a domain's active certificate.
+message DownloadCertificateRequest {
+  // The domain whose certificate to download.
+  string domain = 1;
+  // Optional server ID when the domain runs on several servers.
+  string server_id = 2;
+  // Include the private key PEM. Requires a signed-in admin and passkey step-up.
+  bool include_key = 3;
+  // Step-up proof from FinishStepUp for STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY.
+  string proof = 4;
+}
+
+// DownloadCertificateResponse holds the certificate PEM and, if authorized, the private key PEM.
+message DownloadCertificateResponse {
+  // Full PEM certificate chain.
+  string cert_pem = 1;
+  // PEM private key, populated only when include_key is true and step-up succeeds.
+  string key_pem = 2 [(dockwell.resource.v1alpha1.sensitive) = true];
+  string subject = 3;
+  string issuer = 4;
+  repeated string sans = 5;
+  google.protobuf.Timestamp not_before = 6;
+  google.protobuf.Timestamp not_after = 7;
+  bool custom = 8;
+  // Every name covered by this certificate as evaluated by the server (SANs plus
+  // DNS-01 certificate names, served domains, and manager standings).
+  repeated string covered_names = 9;
 }

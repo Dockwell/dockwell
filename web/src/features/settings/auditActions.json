@@ -35,6 +35,7 @@
   "backup_destination.test",
   "build.cancel",
   "certificate.deliver",
+  "certificate.key_downloaded",
   "certificate.revoke",
   "change.applied",
   "change.apply_unconfirmed",

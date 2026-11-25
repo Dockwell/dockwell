@@ -20,7 +20,6 @@ import (
 	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/id"
-	"github.com/dockwell/dockwell/internal/resource"
 	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/volume"
 	"github.com/dockwell/dockwell/internal/revision"
@@ -81,13 +80,15 @@ func (h *Handler) policies(ctx context.Context, tx *store.Tx) ([]policy, error) 
 	return out, nil
 }
 
-// due is one run of a policy on one server: of a whole volume, or of one app's
-// database on it, taken for its link (ADR 0084).
+// due is one run of a policy on one server: of a whole volume, a website folder, or
+// of one app's database on it, taken for its link (ADR 0084).
 type due struct {
 	policy       policy
 	volume       store.Resource
 	server       store.Server
 	one, forLink string
+	websiteID    string
+	websitePath  string
 }
 
 // RunDue starts what's due now. A run missed while the control plane was down
@@ -103,21 +104,34 @@ func (h *Handler) RunDue(ctx context.Context) error {
 		}
 		for i := range list {
 			p := list[i]
-			var one, forLink string
-			name, env := p.spec.GetVolume(), p.environment
-			if p.spec.GetLink() != "" {
-				var ok bool
-				if env, name, one, forLink, ok = h.linkedDatabase(ctx, tx, p.environment, p.spec.GetLink()); !ok {
-					continue // nothing to dump, which its app's page says
+			var one, forLink, websiteID, websitePath string
+			var target store.Resource
+			var placed []string
+			if p.spec.GetWebsiteFolder() {
+				webSvc, webPlaced, _, hostPath, werr := h.websiteFolderInTx(ctx, tx, p.environment)
+				if werr != nil {
+					continue
 				}
-			}
-			v, err := tx.GetResource(ctx, string(volume.Kind), env, name)
-			if err != nil || v.Spec == nil {
-				continue // the volume's gone: a change would have had to delete the policy first
-			}
-			placed, err := tx.Placement(ctx, v.ID, v.Revision)
-			if err != nil {
-				return err
+				target, placed = webSvc, webPlaced
+				websiteID = websiteProjectForEnv(ctx, tx, p.environment)
+				websitePath = hostPath
+			} else {
+				name, env := p.spec.GetVolume(), p.environment
+				if p.spec.GetLink() != "" {
+					var ok bool
+					if env, name, one, forLink, ok = h.linkedDatabase(ctx, tx, p.environment, p.spec.GetLink()); !ok {
+						continue // nothing to dump, which its app's page says
+					}
+				}
+				v, err := tx.GetResource(ctx, string(volume.Kind), env, name)
+				if err != nil || v.Spec == nil {
+					continue // the volume's gone: a change would have had to delete the policy first
+				}
+				target = v
+				placed, err = tx.Placement(ctx, v.ID, v.Revision)
+				if err != nil {
+					return err
+				}
 			}
 			for _, serverID := range placed {
 				server, err := tx.GetServer(ctx, serverID)
@@ -129,7 +143,7 @@ func (h *Handler) RunDue(ctx context.Context) error {
 					return err
 				}
 				if ready {
-					runs = append(runs, due{policy: p, volume: v, server: server, one: one, forLink: forLink})
+					runs = append(runs, due{policy: p, volume: target, server: server, one: one, forLink: forLink, websiteID: websiteID, websitePath: websitePath})
 				}
 			}
 		}
@@ -172,7 +186,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 	b := store.Backup{
 		ID: id.New(id.Backup), EnvironmentID: run.volume.Scope, Volume: run.volume.Name, VolumeID: run.volume.ID, ServerID: run.server.ID,
 		State: store.BackupRunning, Actor: revision.SystemActor, StartedAt: h.now(), PolicyID: run.policy.id, Destination: run.policy.spec.GetDestination(),
-		OneDatabase: run.one, ForLink: run.forLink,
+		OneDatabase: run.one, ForLink: run.forLink, WebsiteID: run.websiteID, WebsitePath: run.websitePath,
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		h.logger.ErrorContext(ctx, "can't record a backup", slog.String("error", err.Error()))
@@ -211,7 +225,7 @@ func (h *Handler) start(ctx context.Context, run due) {
 		}
 		sendCopy = b.CopyError == ""
 	}
-	ref := resource.Ref{Kind: volume.Kind, Scope: run.volume.Scope, Name: run.volume.Name}
+	ref := backupRef(b)
 	keep := int(run.policy.spec.GetKeep())
 	stop := run.policy.spec.GetStop()
 	turn := h.turnOn(run.server.ID)

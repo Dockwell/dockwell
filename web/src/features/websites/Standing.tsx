@@ -102,6 +102,9 @@ export function SiteStanding({
 }) {
   const { t } = useLingui();
   const unreachable = useUnreachable(row.site);
+  if (row.site.spec?.paused) {
+    return children({ status: "stopped", word: t`Paused` });
+  }
   // A folder or PHP sends nowhere, so what its web server says is all there is to check.
   const checked = !!row.site.reach || row.site.spec?.serves.case !== "proxy";
   if (row.service || row.site.serviceId) {

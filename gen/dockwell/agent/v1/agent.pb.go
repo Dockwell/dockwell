@@ -2238,8 +2238,11 @@ type Hello struct {
 	ReadsTerminalCwd          bool `protobuf:"varint,460,opt,name=reads_terminal_cwd,json=readsTerminalCwd,proto3" json:"reads_terminal_cwd,omitempty"`
 	ExternalContainerControls bool `protobuf:"varint,480,opt,name=external_container_controls,json=externalContainerControls,proto3" json:"external_container_controls,omitempty"`
 	ManagedContainerPause     bool `protobuf:"varint,482,opt,name=managed_container_pause,json=managedContainerPause,proto3" json:"managed_container_pause,omitempty"`
-	unknownFields             protoimpl.UnknownFields
-	sizeCache                 protoimpl.SizeCache
+	// Websites handy uses 500 to 509: Caddyfile validation, certificate renew/read,
+	// route rate limits, custom certificates and website folder backups.
+	WebsiteHandy  bool `protobuf:"varint,500,opt,name=website_handy,json=websiteHandy,proto3" json:"website_handy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Hello) Reset() {
@@ -2681,6 +2684,13 @@ func (x *Hello) GetExternalContainerControls() bool {
 func (x *Hello) GetManagedContainerPause() bool {
 	if x != nil {
 		return x.ManagedContainerPause
+	}
+	return false
+}
+
+func (x *Hello) GetWebsiteHandy() bool {
+	if x != nil {
+		return x.WebsiteHandy
 	}
 	return false
 }
@@ -3696,6 +3706,9 @@ type Call struct {
 	//	*Call_ListSockets
 	//	*Call_ProcessDetail
 	//	*Call_TerminalCwd
+	//	*Call_ValidateCaddyfile
+	//	*Call_RenewCertificate
+	//	*Call_ReadCertificate
 	Call          isCall_Call `protobuf_oneof:"call"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4562,6 +4575,33 @@ func (x *Call) GetTerminalCwd() *TerminalCwdCall {
 	return nil
 }
 
+func (x *Call) GetValidateCaddyfile() *ValidateCaddyfileCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_ValidateCaddyfile); ok {
+			return x.ValidateCaddyfile
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetRenewCertificate() *RenewCertificateCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_RenewCertificate); ok {
+			return x.RenewCertificate
+		}
+	}
+	return nil
+}
+
+func (x *Call) GetReadCertificate() *ReadCertificateCall {
+	if x != nil {
+		if x, ok := x.Call.(*Call_ReadCertificate); ok {
+			return x.ReadCertificate
+		}
+	}
+	return nil
+}
+
 type isCall_Call interface {
 	isCall_Call()
 }
@@ -5013,6 +5053,19 @@ type Call_TerminalCwd struct {
 	TerminalCwd *TerminalCwdCall `protobuf:"bytes,460,opt,name=terminal_cwd,json=terminalCwd,proto3,oneof"`
 }
 
+type Call_ValidateCaddyfile struct {
+	// Websites handy takes 500 to 509.
+	ValidateCaddyfile *ValidateCaddyfileCall `protobuf:"bytes,501,opt,name=validate_caddyfile,json=validateCaddyfile,proto3,oneof"`
+}
+
+type Call_RenewCertificate struct {
+	RenewCertificate *RenewCertificateCall `protobuf:"bytes,502,opt,name=renew_certificate,json=renewCertificate,proto3,oneof"`
+}
+
+type Call_ReadCertificate struct {
+	ReadCertificate *ReadCertificateCall `protobuf:"bytes,503,opt,name=read_certificate,json=readCertificate,proto3,oneof"`
+}
+
 func (*Call_Plan) isCall_Call() {}
 
 func (*Call_Apply) isCall_Call() {}
@@ -5192,6 +5245,12 @@ func (*Call_ListSockets) isCall_Call() {}
 func (*Call_ProcessDetail) isCall_Call() {}
 
 func (*Call_TerminalCwd) isCall_Call() {}
+
+func (*Call_ValidateCaddyfile) isCall_Call() {}
+
+func (*Call_RenewCertificate) isCall_Call() {}
+
+func (*Call_ReadCertificate) isCall_Call() {}
 
 // ReadTunnelsCall asks which Cloudflare tunnels cloudflared runs on the server now,
 // each with the connector ID of its run, which changes as cloudflared restarts.
@@ -8485,11 +8544,13 @@ func (x *AdoptionCall) GetResource() *v1.ResourceRef {
 	return nil
 }
 
-// BackupPreviewCall asks what backing up a volume would do.
+// BackupPreviewCall asks what backing up a volume or website folder would do.
 type BackupPreviewCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The volume.
-	Volume        *v1.ResourceRef `protobuf:"bytes,1,opt,name=volume,proto3" json:"volume,omitempty"`
+	Volume *v1.ResourceRef `protobuf:"bytes,1,opt,name=volume,proto3" json:"volume,omitempty"`
+	// Host folder path when backing up a website's folder instead of a Docker volume.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8531,7 +8592,14 @@ func (x *BackupPreviewCall) GetVolume() *v1.ResourceRef {
 	return nil
 }
 
-// BackupCall asks to back up a volume.
+func (x *BackupPreviewCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
+// BackupCall asks to back up a volume or website folder.
 type BackupCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The backup's ID.
@@ -8542,7 +8610,9 @@ type BackupCall struct {
 	Stop bool `protobuf:"varint,3,opt,name=stop,proto3" json:"stop,omitempty"`
 	// The one database to dump, for an app's on a server it shares, rather than the
 	// whole server (ADR 0084). Empty backs up the volume as before.
-	Database      string `protobuf:"bytes,291,opt,name=database,proto3" json:"database,omitempty"`
+	Database string `protobuf:"bytes,291,opt,name=database,proto3" json:"database,omitempty"`
+	// Host folder path when backing up a website's folder instead of a Docker volume.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -8601,6 +8671,13 @@ func (x *BackupCall) GetStop() bool {
 func (x *BackupCall) GetDatabase() string {
 	if x != nil {
 		return x.Database
+	}
+	return ""
+}
+
+func (x *BackupCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
 	}
 	return ""
 }
@@ -9738,7 +9815,9 @@ type DrillBackupCall struct {
 	// The backup's ID.
 	Backup string `protobuf:"bytes,2,opt,name=backup,proto3" json:"backup,omitempty"`
 	// Its volume.
-	Volume        *v1.ResourceRef `protobuf:"bytes,3,opt,name=volume,proto3" json:"volume,omitempty"`
+	Volume *v1.ResourceRef `protobuf:"bytes,3,opt,name=volume,proto3" json:"volume,omitempty"`
+	// Host folder path when drilling a website folder backup.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9794,6 +9873,13 @@ func (x *DrillBackupCall) GetVolume() *v1.ResourceRef {
 	return nil
 }
 
+func (x *DrillBackupCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
 // SendBackupCall asks to send a backup that's on the server to its destination, as a
 // step of its own once it's whole, so an upload holds nothing up.
 type SendBackupCall struct {
@@ -9804,7 +9890,9 @@ type SendBackupCall struct {
 	Volume *v1.ResourceRef `protobuf:"bytes,2,opt,name=volume,proto3" json:"volume,omitempty"`
 	// Where it goes, sealed to this stream's delivery key as a backup destination's
 	// values are (ADR 0022).
-	Destination   []byte `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	Destination []byte `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	// Host folder path when sending a website folder backup.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9860,6 +9948,13 @@ func (x *SendBackupCall) GetDestination() []byte {
 	return nil
 }
 
+func (x *SendBackupCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
 // FetchBackupCall asks to bring a backup back from where it was sent.
 type FetchBackupCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -9873,7 +9968,9 @@ type FetchBackupCall struct {
 	Key string `protobuf:"bytes,4,opt,name=key,proto3" json:"key,omitempty"`
 	// What the control plane has on record that it hashes to, in hex. What came back
 	// is checked against this, and against nothing the storage says.
-	Sha256        string `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	Sha256 string `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	// Host folder path when fetching a website folder backup.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -9943,6 +10040,13 @@ func (x *FetchBackupCall) GetSha256() string {
 	return ""
 }
 
+func (x *FetchBackupCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
 // DeleteBackupCall asks to remove a backup from the disk.
 type DeleteBackupCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -9953,7 +10057,9 @@ type DeleteBackupCall struct {
 	// Where it was sent, sealed as in BackupCall, to remove it from there too.
 	Destination []byte `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
 	// Its name there.
-	Key           string `protobuf:"bytes,4,opt,name=key,proto3" json:"key,omitempty"`
+	Key string `protobuf:"bytes,4,opt,name=key,proto3" json:"key,omitempty"`
+	// Host folder path when deleting a website folder backup.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10016,6 +10122,13 @@ func (x *DeleteBackupCall) GetKey() string {
 	return ""
 }
 
+func (x *DeleteBackupCall) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
+	}
+	return ""
+}
+
 // RestoreSource is what a step restores. Exactly one of backup_id and undoes is
 // set.
 type RestoreSource struct {
@@ -10036,8 +10149,10 @@ type RestoreSource struct {
 	ImportDatabase string `protobuf:"bytes,473,opt,name=import_database,json=importDatabase,proto3" json:"import_database,omitempty"`
 	ImportFilename string `protobuf:"bytes,474,opt,name=import_filename,json=importFilename,proto3" json:"import_filename,omitempty"`
 	ImportFormat   string `protobuf:"bytes,475,opt,name=import_format,json=importFormat,proto3" json:"import_format,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Host folder path when restoring a website's folder instead of a Docker volume.
+	HostPath      string `protobuf:"bytes,504,opt,name=host_path,json=hostPath,proto3" json:"host_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RestoreSource) Reset() {
@@ -10122,6 +10237,13 @@ func (x *RestoreSource) GetImportFilename() string {
 func (x *RestoreSource) GetImportFormat() string {
 	if x != nil {
 		return x.ImportFormat
+	}
+	return ""
+}
+
+func (x *RestoreSource) GetHostPath() string {
+	if x != nil {
+		return x.HostPath
 	}
 	return ""
 }
@@ -14938,6 +15060,9 @@ type CallResult struct {
 	//	*CallResult_ListSockets
 	//	*CallResult_ProcessDetail
 	//	*CallResult_TerminalCwd
+	//	*CallResult_ValidateCaddyfile
+	//	*CallResult_RenewCertificate
+	//	*CallResult_ReadCertificate
 	Result        isCallResult_Result `protobuf_oneof:"result"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -15806,6 +15931,33 @@ func (x *CallResult) GetTerminalCwd() *TerminalCwdResult {
 	return nil
 }
 
+func (x *CallResult) GetValidateCaddyfile() *ValidateCaddyfileResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_ValidateCaddyfile); ok {
+			return x.ValidateCaddyfile
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetRenewCertificate() *RenewCertificateResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_RenewCertificate); ok {
+			return x.RenewCertificate
+		}
+	}
+	return nil
+}
+
+func (x *CallResult) GetReadCertificate() *ReadCertificateResult {
+	if x != nil {
+		if x, ok := x.Result.(*CallResult_ReadCertificate); ok {
+			return x.ReadCertificate
+		}
+	}
+	return nil
+}
+
 type isCallResult_Result interface {
 	isCallResult_Result()
 }
@@ -16233,6 +16385,19 @@ type CallResult_TerminalCwd struct {
 	TerminalCwd *TerminalCwdResult `protobuf:"bytes,460,opt,name=terminal_cwd,json=terminalCwd,proto3,oneof"`
 }
 
+type CallResult_ValidateCaddyfile struct {
+	// Websites handy results (500 to 509).
+	ValidateCaddyfile *ValidateCaddyfileResult `protobuf:"bytes,501,opt,name=validate_caddyfile,json=validateCaddyfile,proto3,oneof"`
+}
+
+type CallResult_RenewCertificate struct {
+	RenewCertificate *RenewCertificateResult `protobuf:"bytes,502,opt,name=renew_certificate,json=renewCertificate,proto3,oneof"`
+}
+
+type CallResult_ReadCertificate struct {
+	ReadCertificate *ReadCertificateResult `protobuf:"bytes,503,opt,name=read_certificate,json=readCertificate,proto3,oneof"`
+}
+
 func (*CallResult_Error) isCallResult_Result() {}
 
 func (*CallResult_Plan) isCallResult_Result() {}
@@ -16414,6 +16579,12 @@ func (*CallResult_ListSockets) isCallResult_Result() {}
 func (*CallResult_ProcessDetail) isCallResult_Result() {}
 
 func (*CallResult_TerminalCwd) isCallResult_Result() {}
+
+func (*CallResult_ValidateCaddyfile) isCallResult_Result() {}
+
+func (*CallResult_RenewCertificate) isCallResult_Result() {}
+
+func (*CallResult_ReadCertificate) isCallResult_Result() {}
 
 // ProbeResult says whether what a probe asked answered.
 type ProbeResult struct {
@@ -21124,6 +21295,409 @@ func (x *CancelFileDownloadResult) GetRefusal() *FileRefusal {
 	return nil
 }
 
+// ValidateCaddyfileCall asks the agent to validate a generated website Caddyfile
+// using Caddy's own Caddyfile adapter and verify site-block scoping invariants.
+type ValidateCaddyfileCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The generated Caddyfile for one website container.
+	Caddyfile string `protobuf:"bytes,1,opt,name=caddyfile,proto3" json:"caddyfile,omitempty"`
+	// The container root folder allowed for file_server directives, if any (e.g. "/srv" or "/var/www/html").
+	AllowedRoot   string `protobuf:"bytes,2,opt,name=allowed_root,json=allowedRoot,proto3" json:"allowed_root,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateCaddyfileCall) Reset() {
+	*x = ValidateCaddyfileCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[247]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateCaddyfileCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCaddyfileCall) ProtoMessage() {}
+
+func (x *ValidateCaddyfileCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[247]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCaddyfileCall.ProtoReflect.Descriptor instead.
+func (*ValidateCaddyfileCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{247}
+}
+
+func (x *ValidateCaddyfileCall) GetCaddyfile() string {
+	if x != nil {
+		return x.Caddyfile
+	}
+	return ""
+}
+
+func (x *ValidateCaddyfileCall) GetAllowedRoot() string {
+	if x != nil {
+		return x.AllowedRoot
+	}
+	return ""
+}
+
+// ValidateCaddyfileResult reports whether Caddy's adapter accepted the Caddyfile.
+type ValidateCaddyfileResult struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Valid bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
+	// Plain-language error when invalid.
+	Error         string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateCaddyfileResult) Reset() {
+	*x = ValidateCaddyfileResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[248]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateCaddyfileResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateCaddyfileResult) ProtoMessage() {}
+
+func (x *ValidateCaddyfileResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[248]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateCaddyfileResult.ProtoReflect.Descriptor instead.
+func (*ValidateCaddyfileResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{248}
+}
+
+func (x *ValidateCaddyfileResult) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
+func (x *ValidateCaddyfileResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+// RenewCertificateCall asks the agent to trigger immediate ACME certificate renewal for a domain.
+type RenewCertificateCall struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Force         bool                   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewCertificateCall) Reset() {
+	*x = RenewCertificateCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[249]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertificateCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertificateCall) ProtoMessage() {}
+
+func (x *RenewCertificateCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[249]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertificateCall.ProtoReflect.Descriptor instead.
+func (*RenewCertificateCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{249}
+}
+
+func (x *RenewCertificateCall) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *RenewCertificateCall) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+// RenewCertificateResult reports the outcome of a renewal request on the agent.
+type RenewCertificateResult struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Message            string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	PreviousExpireTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=previous_expire_time,json=previousExpireTime,proto3" json:"previous_expire_time,omitempty"`
+	// True when a renewal actually ran (not a no-op check).
+	Renewed       bool `protobuf:"varint,3,opt,name=renewed,proto3" json:"renewed,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RenewCertificateResult) Reset() {
+	*x = RenewCertificateResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[250]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RenewCertificateResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RenewCertificateResult) ProtoMessage() {}
+
+func (x *RenewCertificateResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[250]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RenewCertificateResult.ProtoReflect.Descriptor instead.
+func (*RenewCertificateResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{250}
+}
+
+func (x *RenewCertificateResult) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *RenewCertificateResult) GetPreviousExpireTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PreviousExpireTime
+	}
+	return nil
+}
+
+func (x *RenewCertificateResult) GetRenewed() bool {
+	if x != nil {
+		return x.Renewed
+	}
+	return false
+}
+
+// ReadCertificateCall reads a domain's active PEM certificate chain (and optionally private key).
+type ReadCertificateCall struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Domain        string                 `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	IncludeKey    bool                   `protobuf:"varint,2,opt,name=include_key,json=includeKey,proto3" json:"include_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadCertificateCall) Reset() {
+	*x = ReadCertificateCall{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[251]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadCertificateCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadCertificateCall) ProtoMessage() {}
+
+func (x *ReadCertificateCall) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[251]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadCertificateCall.ProtoReflect.Descriptor instead.
+func (*ReadCertificateCall) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{251}
+}
+
+func (x *ReadCertificateCall) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *ReadCertificateCall) GetIncludeKey() bool {
+	if x != nil {
+		return x.IncludeKey
+	}
+	return false
+}
+
+// ReadCertificateResult returns the PEM certificate chain and optionally private key.
+type ReadCertificateResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CertPem       string                 `protobuf:"bytes,1,opt,name=cert_pem,json=certPem,proto3" json:"cert_pem,omitempty"`
+	KeyPem        string                 `protobuf:"bytes,2,opt,name=key_pem,json=keyPem,proto3" json:"key_pem,omitempty"`
+	Subject       string                 `protobuf:"bytes,3,opt,name=subject,proto3" json:"subject,omitempty"`
+	Issuer        string                 `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Sans          []string               `protobuf:"bytes,5,rep,name=sans,proto3" json:"sans,omitempty"`
+	NotBefore     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
+	NotAfter      *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	Custom        bool                   `protobuf:"varint,8,opt,name=custom,proto3" json:"custom,omitempty"`
+	ByDns         string                 `protobuf:"bytes,9,opt,name=by_dns,json=byDns,proto3" json:"by_dns,omitempty"`
+	DnsNames      []string               `protobuf:"bytes,10,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	DnsServes     []string               `protobuf:"bytes,11,rep,name=dns_serves,json=dnsServes,proto3" json:"dns_serves,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadCertificateResult) Reset() {
+	*x = ReadCertificateResult{}
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[252]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadCertificateResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadCertificateResult) ProtoMessage() {}
+
+func (x *ReadCertificateResult) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_agent_v1_agent_proto_msgTypes[252]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadCertificateResult.ProtoReflect.Descriptor instead.
+func (*ReadCertificateResult) Descriptor() ([]byte, []int) {
+	return file_dockwell_agent_v1_agent_proto_rawDescGZIP(), []int{252}
+}
+
+func (x *ReadCertificateResult) GetCertPem() string {
+	if x != nil {
+		return x.CertPem
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetKeyPem() string {
+	if x != nil {
+		return x.KeyPem
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetSubject() string {
+	if x != nil {
+		return x.Subject
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetSans() []string {
+	if x != nil {
+		return x.Sans
+	}
+	return nil
+}
+
+func (x *ReadCertificateResult) GetNotBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotBefore
+	}
+	return nil
+}
+
+func (x *ReadCertificateResult) GetNotAfter() *timestamppb.Timestamp {
+	if x != nil {
+		return x.NotAfter
+	}
+	return nil
+}
+
+func (x *ReadCertificateResult) GetCustom() bool {
+	if x != nil {
+		return x.Custom
+	}
+	return false
+}
+
+func (x *ReadCertificateResult) GetByDns() string {
+	if x != nil {
+		return x.ByDns
+	}
+	return ""
+}
+
+func (x *ReadCertificateResult) GetDnsNames() []string {
+	if x != nil {
+		return x.DnsNames
+	}
+	return nil
+}
+
+func (x *ReadCertificateResult) GetDnsServes() []string {
+	if x != nil {
+		return x.DnsServes
+	}
+	return nil
+}
+
 var File_dockwell_agent_v1_agent_proto protoreflect.FileDescriptor
 
 const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
@@ -21255,7 +21829,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05Heard\x12\x12\n" +
 	"\x04last\x18\x01 \x01(\tR\x04last\"\n" +
 	"\n" +
-	"\bDraining\"\xae\x13\n" +
+	"\bDraining\"\xd4\x13\n" +
 	"\x05Hello\x12,\n" +
 	"\x05build\x18\x01 \x01(\v2\x16.dockwell.v1.BuildInfoR\x05build\x12:\n" +
 	"\tinventory\x18\x02 \x01(\v2\x1c.dockwell.v1.ServerInventoryR\tinventory\x12\x14\n" +
@@ -21317,7 +21891,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rreads_sockets\x18\xae\x03 \x01(\bR\freadsSockets\x12-\n" +
 	"\x12reads_terminal_cwd\x18\xcc\x03 \x01(\bR\x10readsTerminalCwd\x12?\n" +
 	"\x1bexternal_container_controls\x18\xe0\x03 \x01(\bR\x19externalContainerControls\x127\n" +
-	"\x17managed_container_pause\x18\xe2\x03 \x01(\bR\x15managedContainerPause\"r\n" +
+	"\x17managed_container_pause\x18\xe2\x03 \x01(\bR\x15managedContainerPause\x12$\n" +
+	"\rwebsite_handy\x18\xf4\x03 \x01(\bR\fwebsiteHandy\"r\n" +
 	"\vDesiredHeld\x123\n" +
 	"\x04held\x18\x01 \x03(\v2\x1f.dockwell.agent.v1.HeldResourceR\x04held\x12\x18\n" +
 	"\adamaged\x18\x02 \x01(\rR\adamaged\x12\x14\n" +
@@ -21373,7 +21948,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x17RenewCertificateRequest\x12\x10\n" +
 	"\x03csr\x18\x01 \x01(\fR\x03csr\"<\n" +
 	"\x18RenewCertificateResponse\x12 \n" +
-	"\vcertificate\x18\x01 \x01(\fR\vcertificate\"\xb36\n" +
+	"\vcertificate\x18\x01 \x01(\fR\vcertificate\"\xbe8\n" +
 	"\x04Call\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x121\n" +
@@ -21477,7 +22052,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x14cancel_file_download\x18\xf0\x03 \x01(\v2).dockwell.agent.v1.CancelFileDownloadCallH\x00R\x12cancelFileDownload\x12H\n" +
 	"\flist_sockets\x18\xae\x03 \x01(\v2\".dockwell.agent.v1.ListSocketsCallH\x00R\vlistSockets\x12N\n" +
 	"\x0eprocess_detail\x18\xaf\x03 \x01(\v2$.dockwell.agent.v1.ProcessDetailCallH\x00R\rprocessDetail\x12H\n" +
-	"\fterminal_cwd\x18\xcc\x03 \x01(\v2\".dockwell.agent.v1.TerminalCwdCallH\x00R\vterminalCwdB\x06\n" +
+	"\fterminal_cwd\x18\xcc\x03 \x01(\v2\".dockwell.agent.v1.TerminalCwdCallH\x00R\vterminalCwd\x12Z\n" +
+	"\x12validate_caddyfile\x18\xf5\x03 \x01(\v2(.dockwell.agent.v1.ValidateCaddyfileCallH\x00R\x11validateCaddyfile\x12W\n" +
+	"\x11renew_certificate\x18\xf6\x03 \x01(\v2'.dockwell.agent.v1.RenewCertificateCallH\x00R\x10renewCertificate\x12T\n" +
+	"\x10read_certificate\x18\xf7\x03 \x01(\v2&.dockwell.agent.v1.ReadCertificateCallH\x00R\x0freadCertificateB\x06\n" +
 	"\x04call\"\x11\n" +
 	"\x0fReadTunnelsCall\"M\n" +
 	"\x11ReadTunnelsResult\x128\n" +
@@ -21676,15 +22254,17 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x04kept\x18\x01 \x01(\bR\x04kept\"b\n" +
 	"\fAdoptionCall\x12\x1c\n" +
 	"\tcontainer\x18\x01 \x01(\tR\tcontainer\x124\n" +
-	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\"E\n" +
+	"\bresource\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\bresource\"c\n" +
 	"\x11BackupPreviewCall\x120\n" +
-	"\x06volume\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\"\x7f\n" +
+	"\x06volume\x18\x01 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"\x9d\x01\n" +
 	"\n" +
 	"BackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x06volume\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12\x12\n" +
 	"\x04stop\x18\x03 \x01(\bR\x04stop\x12\x1b\n" +
-	"\bdatabase\x18\xa3\x02 \x01(\tR\bdatabase\"A\n" +
+	"\bdatabase\x18\xa3\x02 \x01(\tR\bdatabase\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"A\n" +
 	"\x0fListUpdatesCall\x12\x18\n" +
 	"\arefresh\x18\x01 \x01(\bR\arefresh\x12\x14\n" +
 	"\x05force\x18\x02 \x01(\bR\x05force\"I\n" +
@@ -21752,26 +22332,30 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\rcheck_domains\x18\x02 \x01(\bR\fcheckDomains\"V\n" +
 	"\x0fReadPanelResult\x12(\n" +
 	"\x05found\x18\x01 \x01(\v2\x12.dockwell.v1.PanelR\x05found\x12\x19\n" +
-	"\bnot_here\x18\x02 \x01(\tR\anotHere\"k\n" +
+	"\bnot_here\x18\x02 \x01(\tR\anotHere\"\x89\x01\n" +
 	"\x0fDrillBackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x16\n" +
 	"\x06backup\x18\x02 \x01(\tR\x06backup\x120\n" +
-	"\x06volume\x18\x03 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\"t\n" +
+	"\x06volume\x18\x03 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"\x92\x01\n" +
 	"\x0eSendBackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x06volume\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12 \n" +
-	"\vdestination\x18\x03 \x01(\fR\vdestination\"\x9f\x01\n" +
+	"\vdestination\x18\x03 \x01(\fR\vdestination\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"\xbd\x01\n" +
 	"\x0fFetchBackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x06volume\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12 \n" +
 	"\vdestination\x18\x03 \x01(\fR\vdestination\x12\x10\n" +
 	"\x03key\x18\x04 \x01(\tR\x03key\x12\x16\n" +
-	"\x06sha256\x18\x05 \x01(\tR\x06sha256\"\x88\x01\n" +
+	"\x06sha256\x18\x05 \x01(\tR\x06sha256\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"\xa6\x01\n" +
 	"\x10DeleteBackupCall\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x120\n" +
 	"\x06volume\x18\x02 \x01(\v2\x18.dockwell.v1.ResourceRefR\x06volume\x12 \n" +
 	"\vdestination\x18\x03 \x01(\fR\vdestination\x12\x10\n" +
-	"\x03key\x18\x04 \x01(\tR\x03key\"\xa7\x02\n" +
+	"\x03key\x18\x04 \x01(\tR\x03key\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"\xc5\x02\n" +
 	"\rRestoreSource\x12\x1b\n" +
 	"\tbackup_id\x18\x01 \x01(\tR\bbackupId\x12\x16\n" +
 	"\x06undoes\x18\x02 \x01(\tR\x06undoes\x12\x1b\n" +
@@ -21780,7 +22364,8 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\timport_id\x18\xd8\x03 \x01(\tR\bimportId\x12(\n" +
 	"\x0fimport_database\x18\xd9\x03 \x01(\tR\x0eimportDatabase\x12(\n" +
 	"\x0fimport_filename\x18\xda\x03 \x01(\tR\x0eimportFilename\x12$\n" +
-	"\rimport_format\x18\xdb\x03 \x01(\tR\fimportFormat\"N\n" +
+	"\rimport_format\x18\xdb\x03 \x01(\tR\fimportFormat\x12\x1c\n" +
+	"\thost_path\x18\xf8\x03 \x01(\tR\bhostPath\"N\n" +
 	"\fDatabaseCall\x12>\n" +
 	"\tdatabases\x18\x01 \x03(\v2 .dockwell.agent.v1.DatabaseAskedR\tdatabases\"x\n" +
 	"\rDatabaseAsked\x122\n" +
@@ -22124,7 +22709,7 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\bstopping\x18\x01 \x01(\bR\bstopping\"\x1c\n" +
 	"\n" +
 	"CancelCall\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id\"\xc27\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"\xd39\n" +
 	"\n" +
 	"CallResult\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x124\n" +
@@ -22229,7 +22814,10 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x14cancel_file_download\x18\xf0\x03 \x01(\v2+.dockwell.agent.v1.CancelFileDownloadResultH\x00R\x12cancelFileDownload\x12J\n" +
 	"\flist_sockets\x18\xae\x03 \x01(\v2$.dockwell.agent.v1.ListSocketsResultH\x00R\vlistSockets\x12P\n" +
 	"\x0eprocess_detail\x18\xaf\x03 \x01(\v2&.dockwell.agent.v1.ProcessDetailResultH\x00R\rprocessDetail\x12J\n" +
-	"\fterminal_cwd\x18\xcc\x03 \x01(\v2$.dockwell.agent.v1.TerminalCwdResultH\x00R\vterminalCwdB\b\n" +
+	"\fterminal_cwd\x18\xcc\x03 \x01(\v2$.dockwell.agent.v1.TerminalCwdResultH\x00R\vterminalCwd\x12\\\n" +
+	"\x12validate_caddyfile\x18\xf5\x03 \x01(\v2*.dockwell.agent.v1.ValidateCaddyfileResultH\x00R\x11validateCaddyfile\x12Y\n" +
+	"\x11renew_certificate\x18\xf6\x03 \x01(\v2).dockwell.agent.v1.RenewCertificateResultH\x00R\x10renewCertificate\x12V\n" +
+	"\x10read_certificate\x18\xf7\x03 \x01(\v2(.dockwell.agent.v1.ReadCertificateResultH\x00R\x0freadCertificateB\b\n" +
 	"\x06result\"=\n" +
 	"\vProbeResult\x12\x1a\n" +
 	"\banswered\x18\x01 \x01(\bR\banswered\x12\x12\n" +
@@ -22561,7 +23149,39 @@ const file_dockwell_agent_v1_agent_proto_rawDesc = "" +
 	"\x05owner\x18\x02 \x01(\tR\x05owner\"\x7f\n" +
 	"\x18CancelFileDownloadResult\x12)\n" +
 	"\x03job\x18\x01 \x01(\v2\x17.dockwell.v1.ArchiveJobR\x03job\x128\n" +
-	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal*\x8f\x01\n" +
+	"\arefusal\x18\x02 \x01(\v2\x1e.dockwell.agent.v1.FileRefusalR\arefusal\"X\n" +
+	"\x15ValidateCaddyfileCall\x12\x1c\n" +
+	"\tcaddyfile\x18\x01 \x01(\tR\tcaddyfile\x12!\n" +
+	"\fallowed_root\x18\x02 \x01(\tR\vallowedRoot\"E\n" +
+	"\x17ValidateCaddyfileResult\x12\x14\n" +
+	"\x05valid\x18\x01 \x01(\bR\x05valid\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"D\n" +
+	"\x14RenewCertificateCall\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x14\n" +
+	"\x05force\x18\x02 \x01(\bR\x05force\"\x9a\x01\n" +
+	"\x16RenewCertificateResult\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\x12L\n" +
+	"\x14previous_expire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x12previousExpireTime\x12\x18\n" +
+	"\arenewed\x18\x03 \x01(\bR\arenewed\"N\n" +
+	"\x13ReadCertificateCall\x12\x16\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x1f\n" +
+	"\vinclude_key\x18\x02 \x01(\bR\n" +
+	"includeKey\"\xf6\x02\n" +
+	"\x15ReadCertificateResult\x12\x19\n" +
+	"\bcert_pem\x18\x01 \x01(\tR\acertPem\x12\x1d\n" +
+	"\akey_pem\x18\x02 \x01(\tB\x04\xc8\xf3\x18\x01R\x06keyPem\x12\x18\n" +
+	"\asubject\x18\x03 \x01(\tR\asubject\x12\x16\n" +
+	"\x06issuer\x18\x04 \x01(\tR\x06issuer\x12\x12\n" +
+	"\x04sans\x18\x05 \x03(\tR\x04sans\x129\n" +
+	"\n" +
+	"not_before\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
+	"\tnot_after\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x12\x16\n" +
+	"\x06custom\x18\b \x01(\bR\x06custom\x12\x15\n" +
+	"\x06by_dns\x18\t \x01(\tR\x05byDns\x12\x1b\n" +
+	"\tdns_names\x18\n" +
+	" \x03(\tR\bdnsNames\x12\x1d\n" +
+	"\n" +
+	"dns_serves\x18\v \x03(\tR\tdnsServes*\x8f\x01\n" +
 	"\vLocalAction\x12\x1c\n" +
 	"\x18LOCAL_ACTION_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11LOCAL_ACTION_MADE\x10\x01\x12\x18\n" +
@@ -22601,7 +23221,7 @@ func file_dockwell_agent_v1_agent_proto_rawDescGZIP() []byte {
 }
 
 var file_dockwell_agent_v1_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 249)
+var file_dockwell_agent_v1_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 255)
 var file_dockwell_agent_v1_agent_proto_goTypes = []any{
 	(LocalAction)(0),                              // 0: dockwell.agent.v1.LocalAction
 	(AccessVerdict)(0),                            // 1: dockwell.agent.v1.AccessVerdict
@@ -22853,133 +23473,139 @@ var file_dockwell_agent_v1_agent_proto_goTypes = []any{
 	(*DownloadFileFromURLResult)(nil),             // 247: dockwell.agent.v1.DownloadFileFromURLResult
 	(*CancelFileDownloadCall)(nil),                // 248: dockwell.agent.v1.CancelFileDownloadCall
 	(*CancelFileDownloadResult)(nil),              // 249: dockwell.agent.v1.CancelFileDownloadResult
-	nil,                                           // 250: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	nil,                                           // 251: dockwell.agent.v1.Values.ValuesEntry
-	(*v1.ServerStats)(nil),                        // 252: dockwell.v1.ServerStats
-	(*v1.ArchiveJob)(nil),                         // 253: dockwell.v1.ArchiveJob
-	(*v1.ResourceRef)(nil),                        // 254: dockwell.v1.ResourceRef
-	(v1.BuildState)(0),                            // 255: dockwell.v1.BuildState
-	(*v1.BuildLine)(nil),                          // 256: dockwell.v1.BuildLine
-	(*timestamppb.Timestamp)(nil),                 // 257: google.protobuf.Timestamp
-	(*v1.BuildDetection)(nil),                     // 258: dockwell.v1.BuildDetection
-	(*v1.TerminalEnd)(nil),                        // 259: dockwell.v1.TerminalEnd
-	(v1.CloudProvider)(0),                         // 260: dockwell.v1.CloudProvider
-	(*v1.InstanceHealth)(nil),                     // 261: dockwell.v1.InstanceHealth
-	(*v1.DomainStatus)(nil),                       // 262: dockwell.v1.DomainStatus
-	(*v1.IngressStatus)(nil),                      // 263: dockwell.v1.IngressStatus
-	(v1.StepPhase)(0),                             // 264: dockwell.v1.StepPhase
-	(*v1.DockerReceipt)(nil),                      // 265: dockwell.v1.DockerReceipt
-	(*v1.DockerImageReceipt)(nil),                 // 266: dockwell.v1.DockerImageReceipt
-	(v1.PlanAction)(0),                            // 267: dockwell.v1.PlanAction
-	(*durationpb.Duration)(nil),                   // 268: google.protobuf.Duration
-	(*v1.BuildInfo)(nil),                          // 269: dockwell.v1.BuildInfo
-	(*v1.ServerInventory)(nil),                    // 270: dockwell.v1.ServerInventory
-	(*v1.ListServerSshKeysRequest)(nil),           // 271: dockwell.v1.ListServerSshKeysRequest
-	(*v1.EditServerSshKeyRequest)(nil),            // 272: dockwell.v1.EditServerSshKeyRequest
-	(*v1.ListServerSshSessionsRequest)(nil),       // 273: dockwell.v1.ListServerSshSessionsRequest
-	(*v1.DisconnectServerSshSessionRequest)(nil),  // 274: dockwell.v1.DisconnectServerSshSessionRequest
-	(*v1.ListServerSshLoginsRequest)(nil),         // 275: dockwell.v1.ListServerSshLoginsRequest
-	(*v1.BanServerSshAddressRequest)(nil),         // 276: dockwell.v1.BanServerSshAddressRequest
-	(*v1.SetFail2BanAddressBanRequest)(nil),       // 277: dockwell.v1.SetFail2banAddressBanRequest
-	(*v1.CloudflaredTunnel)(nil),                  // 278: dockwell.v1.CloudflaredTunnel
-	(*v1alpha1.OwnerRun)(nil),                     // 279: dockwell.resource.v1alpha1.OwnerRun
-	(*v1.ServicePortCheck)(nil),                   // 280: dockwell.v1.ServicePortCheck
-	(*v1.ProcessList)(nil),                        // 281: dockwell.v1.ProcessList
-	(v1.RegistryLoginState)(0),                    // 282: dockwell.v1.RegistryLoginState
-	(*v1.SystemServiceList)(nil),                  // 283: dockwell.v1.SystemServiceList
-	(v1.LogLevel)(0),                              // 284: dockwell.v1.LogLevel
-	(*v1.SystemLogLine)(nil),                      // 285: dockwell.v1.SystemLogLine
-	(v1.SystemLogSource)(0),                       // 286: dockwell.v1.SystemLogSource
-	(*v1.Process)(nil),                            // 287: dockwell.v1.Process
-	(*v1.TaskRun)(nil),                            // 288: dockwell.v1.TaskRun
-	(v1.TerminalEndReason)(0),                     // 289: dockwell.v1.TerminalEndReason
-	(*v1.ServerUpdates)(nil),                      // 290: dockwell.v1.ServerUpdates
-	(*v1.ServerPortAsk)(nil),                      // 291: dockwell.v1.ServerPortAsk
-	(*v1.ServerPortHeld)(nil),                     // 292: dockwell.v1.ServerPortHeld
-	(*v1.SearchImagesRequest)(nil),                // 293: dockwell.v1.SearchImagesRequest
-	(*v1.ListImageTagsRequest)(nil),               // 294: dockwell.v1.ListImageTagsRequest
-	(*v1.GetImageRequest)(nil),                    // 295: dockwell.v1.GetImageRequest
-	(*v1.ListRegistryRepositoriesRequest)(nil),    // 296: dockwell.v1.ListRegistryRepositoriesRequest
-	(v1.ImageAnswer)(0),                           // 297: dockwell.v1.ImageAnswer
-	(*v1.SearchImagesResponse)(nil),               // 298: dockwell.v1.SearchImagesResponse
-	(*v1.ListImageTagsResponse)(nil),              // 299: dockwell.v1.ListImageTagsResponse
-	(*v1.GetImageResponse)(nil),                   // 300: dockwell.v1.GetImageResponse
-	(*v1.ListRegistryRepositoriesResponse)(nil),   // 301: dockwell.v1.ListRegistryRepositoriesResponse
-	(v1.UpdateKind)(0),                            // 302: dockwell.v1.UpdateKind
-	(*v1.OnePanel)(nil),                           // 303: dockwell.v1.OnePanel
-	(v1.PanelKind)(0),                             // 304: dockwell.v1.PanelKind
-	(*v1.Panel)(nil),                              // 305: dockwell.v1.Panel
-	(v1.DatabaseEngine)(0),                        // 306: dockwell.v1.DatabaseEngine
-	(v1.FileType)(0),                              // 307: dockwell.v1.FileType
-	(*v1.MakeFileResponse)(nil),                   // 308: dockwell.v1.MakeFileResponse
-	(*v1.MoveFileResponse)(nil),                   // 309: dockwell.v1.MoveFileResponse
-	(*v1.DeleteFileResponse)(nil),                 // 310: dockwell.v1.DeleteFileResponse
-	(*v1.ListDeletedFilesResponse)(nil),           // 311: dockwell.v1.ListDeletedFilesResponse
-	(*v1.RestoreFileResponse)(nil),                // 312: dockwell.v1.RestoreFileResponse
-	(*v1.DeletedFile)(nil),                        // 313: dockwell.v1.DeletedFile
-	(v1.Unpack)(0),                                // 314: dockwell.v1.Unpack
-	(*v1.Upload)(nil),                             // 315: dockwell.v1.Upload
-	(*v1.FinishUploadResponse)(nil),               // 316: dockwell.v1.FinishUploadResponse
-	(*v1.ListFilesResponse)(nil),                  // 317: dockwell.v1.ListFilesResponse
-	(*v1.ReadFileResponse)(nil),                   // 318: dockwell.v1.ReadFileResponse
-	(*v1.SaveFileResponse)(nil),                   // 319: dockwell.v1.SaveFileResponse
-	(*v1.LogSource)(nil),                          // 320: dockwell.v1.LogSource
-	(*v1.LogChunk)(nil),                           // 321: dockwell.v1.LogChunk
-	(*v1.PlanStep)(nil),                           // 322: dockwell.v1.PlanStep
-	(*v1.DockerMaintenance)(nil),                  // 323: dockwell.v1.DockerMaintenance
-	(*v1.HostPanelPart)(nil),                      // 324: dockwell.v1.HostPanelPart
-	(v1.SystemServiceAction)(0),                   // 325: dockwell.v1.SystemServiceAction
-	(*v1.PackageUpdate)(nil),                      // 326: dockwell.v1.PackageUpdate
-	(*v1alpha1.ImageBuild)(nil),                   // 327: dockwell.resource.v1alpha1.ImageBuild
-	(*v1.ServerFirewall)(nil),                     // 328: dockwell.v1.ServerFirewall
-	(*v1.ServerSsh)(nil),                          // 329: dockwell.v1.ServerSsh
-	(*v1.ServerFail2Ban)(nil),                     // 330: dockwell.v1.ServerFail2ban
-	(*v1.ServerDiskUse)(nil),                      // 331: dockwell.v1.ServerDiskUse
-	(*v1.ListServerSshKeysResponse)(nil),          // 332: dockwell.v1.ListServerSshKeysResponse
-	(*v1.EditServerSshKeyResponse)(nil),           // 333: dockwell.v1.EditServerSshKeyResponse
-	(*v1.ListServerSshSessionsResponse)(nil),      // 334: dockwell.v1.ListServerSshSessionsResponse
-	(*v1.DisconnectServerSshSessionResponse)(nil), // 335: dockwell.v1.DisconnectServerSshSessionResponse
-	(*v1.ListServerSshLoginsResponse)(nil),        // 336: dockwell.v1.ListServerSshLoginsResponse
-	(*v1.BanServerSshAddressResponse)(nil),        // 337: dockwell.v1.BanServerSshAddressResponse
-	(*v1.SetFail2BanAddressBanResponse)(nil),      // 338: dockwell.v1.SetFail2banAddressBanResponse
-	(v1.BackupMethod)(0),                          // 339: dockwell.v1.BackupMethod
-	(v1.DrillResult)(0),                           // 340: dockwell.v1.DrillResult
-	(*v1.DatabaseReading)(nil),                    // 341: dockwell.v1.DatabaseReading
-	(*v1.ServerContainer)(nil),                    // 342: dockwell.v1.ServerContainer
-	(*v1.DockerObjectFilter)(nil),                 // 343: dockwell.v1.DockerObjectFilter
-	(v1.DockerObjectKind)(0),                      // 344: dockwell.v1.DockerObjectKind
-	(*v1.DockerObject)(nil),                       // 345: dockwell.v1.DockerObject
-	(*v1.DockerServerSummary)(nil),                // 346: dockwell.v1.DockerServerSummary
-	(*v1.DockerObjectKey)(nil),                    // 347: dockwell.v1.DockerObjectKey
-	(*v1.DockerSample)(nil),                       // 348: dockwell.v1.DockerSample
-	(*v1.DockerHealthUpdate)(nil),                 // 349: dockwell.v1.DockerHealthUpdate
-	(*v1.DockerCleanupFilters)(nil),               // 350: dockwell.v1.DockerCleanupFilters
-	(*v1.DockerCleanupTarget)(nil),                // 351: dockwell.v1.DockerCleanupTarget
-	(*v1.DockerCleanupPause)(nil),                 // 352: dockwell.v1.DockerCleanupPause
-	(*v1alpha1.Network)(nil),                      // 353: dockwell.resource.v1alpha1.Network
-	(*v1.DockerNetworkFinding)(nil),               // 354: dockwell.v1.DockerNetworkFinding
-	(*v1.DockerImageExport)(nil),                  // 355: dockwell.v1.DockerImageExport
-	(v1.DockerArtifactKind)(0),                    // 356: dockwell.v1.DockerArtifactKind
-	(*v1.DockerArtifactInfo)(nil),                 // 357: dockwell.v1.DockerArtifactInfo
-	(*v1.DockerRegistryDescriptor)(nil),           // 358: dockwell.v1.DockerRegistryDescriptor
-	(v1.DockerImageReason)(0),                     // 359: dockwell.v1.DockerImageReason
-	(*v1.DockerArtifactSpace)(nil),                // 360: dockwell.v1.DockerArtifactSpace
-	(*v1alpha1.DockerDaemon)(nil),                 // 361: dockwell.resource.v1alpha1.DockerDaemon
-	(*v1.DockerSettings)(nil),                     // 362: dockwell.v1.DockerSettings
-	(*v1.CheckDockerSettingsResponse)(nil),        // 363: dockwell.v1.CheckDockerSettingsResponse
-	(*v1.SocketConnection)(nil),                   // 364: dockwell.v1.SocketConnection
-	(*v1.ProcessDetail)(nil),                      // 365: dockwell.v1.ProcessDetail
-	(v1.DockerContainerAction)(0),                 // 366: dockwell.v1.DockerContainerAction
-	(*v1.DockerContainerTarget)(nil),              // 367: dockwell.v1.DockerContainerTarget
-	(*v1.ListFileAccountsResponse)(nil),           // 368: dockwell.v1.ListFileAccountsResponse
-	(*v1.FileAccessChange)(nil),                   // 369: dockwell.v1.FileAccessChange
-	(*v1.ChangeFileAccessResponse)(nil),           // 370: dockwell.v1.ChangeFileAccessResponse
-	(*v1.CalculateFolderSizeResponse)(nil),        // 371: dockwell.v1.CalculateFolderSizeResponse
-	(*v1.SearchFilesResponse)(nil),                // 372: dockwell.v1.SearchFilesResponse
+	(*ValidateCaddyfileCall)(nil),                 // 250: dockwell.agent.v1.ValidateCaddyfileCall
+	(*ValidateCaddyfileResult)(nil),               // 251: dockwell.agent.v1.ValidateCaddyfileResult
+	(*RenewCertificateCall)(nil),                  // 252: dockwell.agent.v1.RenewCertificateCall
+	(*RenewCertificateResult)(nil),                // 253: dockwell.agent.v1.RenewCertificateResult
+	(*ReadCertificateCall)(nil),                   // 254: dockwell.agent.v1.ReadCertificateCall
+	(*ReadCertificateResult)(nil),                 // 255: dockwell.agent.v1.ReadCertificateResult
+	nil,                                           // 256: dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	nil,                                           // 257: dockwell.agent.v1.Values.ValuesEntry
+	(*v1.ServerStats)(nil),                        // 258: dockwell.v1.ServerStats
+	(*v1.ArchiveJob)(nil),                         // 259: dockwell.v1.ArchiveJob
+	(*v1.ResourceRef)(nil),                        // 260: dockwell.v1.ResourceRef
+	(v1.BuildState)(0),                            // 261: dockwell.v1.BuildState
+	(*v1.BuildLine)(nil),                          // 262: dockwell.v1.BuildLine
+	(*timestamppb.Timestamp)(nil),                 // 263: google.protobuf.Timestamp
+	(*v1.BuildDetection)(nil),                     // 264: dockwell.v1.BuildDetection
+	(*v1.TerminalEnd)(nil),                        // 265: dockwell.v1.TerminalEnd
+	(v1.CloudProvider)(0),                         // 266: dockwell.v1.CloudProvider
+	(*v1.InstanceHealth)(nil),                     // 267: dockwell.v1.InstanceHealth
+	(*v1.DomainStatus)(nil),                       // 268: dockwell.v1.DomainStatus
+	(*v1.IngressStatus)(nil),                      // 269: dockwell.v1.IngressStatus
+	(v1.StepPhase)(0),                             // 270: dockwell.v1.StepPhase
+	(*v1.DockerReceipt)(nil),                      // 271: dockwell.v1.DockerReceipt
+	(*v1.DockerImageReceipt)(nil),                 // 272: dockwell.v1.DockerImageReceipt
+	(v1.PlanAction)(0),                            // 273: dockwell.v1.PlanAction
+	(*durationpb.Duration)(nil),                   // 274: google.protobuf.Duration
+	(*v1.BuildInfo)(nil),                          // 275: dockwell.v1.BuildInfo
+	(*v1.ServerInventory)(nil),                    // 276: dockwell.v1.ServerInventory
+	(*v1.ListServerSshKeysRequest)(nil),           // 277: dockwell.v1.ListServerSshKeysRequest
+	(*v1.EditServerSshKeyRequest)(nil),            // 278: dockwell.v1.EditServerSshKeyRequest
+	(*v1.ListServerSshSessionsRequest)(nil),       // 279: dockwell.v1.ListServerSshSessionsRequest
+	(*v1.DisconnectServerSshSessionRequest)(nil),  // 280: dockwell.v1.DisconnectServerSshSessionRequest
+	(*v1.ListServerSshLoginsRequest)(nil),         // 281: dockwell.v1.ListServerSshLoginsRequest
+	(*v1.BanServerSshAddressRequest)(nil),         // 282: dockwell.v1.BanServerSshAddressRequest
+	(*v1.SetFail2BanAddressBanRequest)(nil),       // 283: dockwell.v1.SetFail2banAddressBanRequest
+	(*v1.CloudflaredTunnel)(nil),                  // 284: dockwell.v1.CloudflaredTunnel
+	(*v1alpha1.OwnerRun)(nil),                     // 285: dockwell.resource.v1alpha1.OwnerRun
+	(*v1.ServicePortCheck)(nil),                   // 286: dockwell.v1.ServicePortCheck
+	(*v1.ProcessList)(nil),                        // 287: dockwell.v1.ProcessList
+	(v1.RegistryLoginState)(0),                    // 288: dockwell.v1.RegistryLoginState
+	(*v1.SystemServiceList)(nil),                  // 289: dockwell.v1.SystemServiceList
+	(v1.LogLevel)(0),                              // 290: dockwell.v1.LogLevel
+	(*v1.SystemLogLine)(nil),                      // 291: dockwell.v1.SystemLogLine
+	(v1.SystemLogSource)(0),                       // 292: dockwell.v1.SystemLogSource
+	(*v1.Process)(nil),                            // 293: dockwell.v1.Process
+	(*v1.TaskRun)(nil),                            // 294: dockwell.v1.TaskRun
+	(v1.TerminalEndReason)(0),                     // 295: dockwell.v1.TerminalEndReason
+	(*v1.ServerUpdates)(nil),                      // 296: dockwell.v1.ServerUpdates
+	(*v1.ServerPortAsk)(nil),                      // 297: dockwell.v1.ServerPortAsk
+	(*v1.ServerPortHeld)(nil),                     // 298: dockwell.v1.ServerPortHeld
+	(*v1.SearchImagesRequest)(nil),                // 299: dockwell.v1.SearchImagesRequest
+	(*v1.ListImageTagsRequest)(nil),               // 300: dockwell.v1.ListImageTagsRequest
+	(*v1.GetImageRequest)(nil),                    // 301: dockwell.v1.GetImageRequest
+	(*v1.ListRegistryRepositoriesRequest)(nil),    // 302: dockwell.v1.ListRegistryRepositoriesRequest
+	(v1.ImageAnswer)(0),                           // 303: dockwell.v1.ImageAnswer
+	(*v1.SearchImagesResponse)(nil),               // 304: dockwell.v1.SearchImagesResponse
+	(*v1.ListImageTagsResponse)(nil),              // 305: dockwell.v1.ListImageTagsResponse
+	(*v1.GetImageResponse)(nil),                   // 306: dockwell.v1.GetImageResponse
+	(*v1.ListRegistryRepositoriesResponse)(nil),   // 307: dockwell.v1.ListRegistryRepositoriesResponse
+	(v1.UpdateKind)(0),                            // 308: dockwell.v1.UpdateKind
+	(*v1.OnePanel)(nil),                           // 309: dockwell.v1.OnePanel
+	(v1.PanelKind)(0),                             // 310: dockwell.v1.PanelKind
+	(*v1.Panel)(nil),                              // 311: dockwell.v1.Panel
+	(v1.DatabaseEngine)(0),                        // 312: dockwell.v1.DatabaseEngine
+	(v1.FileType)(0),                              // 313: dockwell.v1.FileType
+	(*v1.MakeFileResponse)(nil),                   // 314: dockwell.v1.MakeFileResponse
+	(*v1.MoveFileResponse)(nil),                   // 315: dockwell.v1.MoveFileResponse
+	(*v1.DeleteFileResponse)(nil),                 // 316: dockwell.v1.DeleteFileResponse
+	(*v1.ListDeletedFilesResponse)(nil),           // 317: dockwell.v1.ListDeletedFilesResponse
+	(*v1.RestoreFileResponse)(nil),                // 318: dockwell.v1.RestoreFileResponse
+	(*v1.DeletedFile)(nil),                        // 319: dockwell.v1.DeletedFile
+	(v1.Unpack)(0),                                // 320: dockwell.v1.Unpack
+	(*v1.Upload)(nil),                             // 321: dockwell.v1.Upload
+	(*v1.FinishUploadResponse)(nil),               // 322: dockwell.v1.FinishUploadResponse
+	(*v1.ListFilesResponse)(nil),                  // 323: dockwell.v1.ListFilesResponse
+	(*v1.ReadFileResponse)(nil),                   // 324: dockwell.v1.ReadFileResponse
+	(*v1.SaveFileResponse)(nil),                   // 325: dockwell.v1.SaveFileResponse
+	(*v1.LogSource)(nil),                          // 326: dockwell.v1.LogSource
+	(*v1.LogChunk)(nil),                           // 327: dockwell.v1.LogChunk
+	(*v1.PlanStep)(nil),                           // 328: dockwell.v1.PlanStep
+	(*v1.DockerMaintenance)(nil),                  // 329: dockwell.v1.DockerMaintenance
+	(*v1.HostPanelPart)(nil),                      // 330: dockwell.v1.HostPanelPart
+	(v1.SystemServiceAction)(0),                   // 331: dockwell.v1.SystemServiceAction
+	(*v1.PackageUpdate)(nil),                      // 332: dockwell.v1.PackageUpdate
+	(*v1alpha1.ImageBuild)(nil),                   // 333: dockwell.resource.v1alpha1.ImageBuild
+	(*v1.ServerFirewall)(nil),                     // 334: dockwell.v1.ServerFirewall
+	(*v1.ServerSsh)(nil),                          // 335: dockwell.v1.ServerSsh
+	(*v1.ServerFail2Ban)(nil),                     // 336: dockwell.v1.ServerFail2ban
+	(*v1.ServerDiskUse)(nil),                      // 337: dockwell.v1.ServerDiskUse
+	(*v1.ListServerSshKeysResponse)(nil),          // 338: dockwell.v1.ListServerSshKeysResponse
+	(*v1.EditServerSshKeyResponse)(nil),           // 339: dockwell.v1.EditServerSshKeyResponse
+	(*v1.ListServerSshSessionsResponse)(nil),      // 340: dockwell.v1.ListServerSshSessionsResponse
+	(*v1.DisconnectServerSshSessionResponse)(nil), // 341: dockwell.v1.DisconnectServerSshSessionResponse
+	(*v1.ListServerSshLoginsResponse)(nil),        // 342: dockwell.v1.ListServerSshLoginsResponse
+	(*v1.BanServerSshAddressResponse)(nil),        // 343: dockwell.v1.BanServerSshAddressResponse
+	(*v1.SetFail2BanAddressBanResponse)(nil),      // 344: dockwell.v1.SetFail2banAddressBanResponse
+	(v1.BackupMethod)(0),                          // 345: dockwell.v1.BackupMethod
+	(v1.DrillResult)(0),                           // 346: dockwell.v1.DrillResult
+	(*v1.DatabaseReading)(nil),                    // 347: dockwell.v1.DatabaseReading
+	(*v1.ServerContainer)(nil),                    // 348: dockwell.v1.ServerContainer
+	(*v1.DockerObjectFilter)(nil),                 // 349: dockwell.v1.DockerObjectFilter
+	(v1.DockerObjectKind)(0),                      // 350: dockwell.v1.DockerObjectKind
+	(*v1.DockerObject)(nil),                       // 351: dockwell.v1.DockerObject
+	(*v1.DockerServerSummary)(nil),                // 352: dockwell.v1.DockerServerSummary
+	(*v1.DockerObjectKey)(nil),                    // 353: dockwell.v1.DockerObjectKey
+	(*v1.DockerSample)(nil),                       // 354: dockwell.v1.DockerSample
+	(*v1.DockerHealthUpdate)(nil),                 // 355: dockwell.v1.DockerHealthUpdate
+	(*v1.DockerCleanupFilters)(nil),               // 356: dockwell.v1.DockerCleanupFilters
+	(*v1.DockerCleanupTarget)(nil),                // 357: dockwell.v1.DockerCleanupTarget
+	(*v1.DockerCleanupPause)(nil),                 // 358: dockwell.v1.DockerCleanupPause
+	(*v1alpha1.Network)(nil),                      // 359: dockwell.resource.v1alpha1.Network
+	(*v1.DockerNetworkFinding)(nil),               // 360: dockwell.v1.DockerNetworkFinding
+	(*v1.DockerImageExport)(nil),                  // 361: dockwell.v1.DockerImageExport
+	(v1.DockerArtifactKind)(0),                    // 362: dockwell.v1.DockerArtifactKind
+	(*v1.DockerArtifactInfo)(nil),                 // 363: dockwell.v1.DockerArtifactInfo
+	(*v1.DockerRegistryDescriptor)(nil),           // 364: dockwell.v1.DockerRegistryDescriptor
+	(v1.DockerImageReason)(0),                     // 365: dockwell.v1.DockerImageReason
+	(*v1.DockerArtifactSpace)(nil),                // 366: dockwell.v1.DockerArtifactSpace
+	(*v1alpha1.DockerDaemon)(nil),                 // 367: dockwell.resource.v1alpha1.DockerDaemon
+	(*v1.DockerSettings)(nil),                     // 368: dockwell.v1.DockerSettings
+	(*v1.CheckDockerSettingsResponse)(nil),        // 369: dockwell.v1.CheckDockerSettingsResponse
+	(*v1.SocketConnection)(nil),                   // 370: dockwell.v1.SocketConnection
+	(*v1.ProcessDetail)(nil),                      // 371: dockwell.v1.ProcessDetail
+	(v1.DockerContainerAction)(0),                 // 372: dockwell.v1.DockerContainerAction
+	(*v1.DockerContainerTarget)(nil),              // 373: dockwell.v1.DockerContainerTarget
+	(*v1.ListFileAccountsResponse)(nil),           // 374: dockwell.v1.ListFileAccountsResponse
+	(*v1.FileAccessChange)(nil),                   // 375: dockwell.v1.FileAccessChange
+	(*v1.ChangeFileAccessResponse)(nil),           // 376: dockwell.v1.ChangeFileAccessResponse
+	(*v1.CalculateFolderSizeResponse)(nil),        // 377: dockwell.v1.CalculateFolderSizeResponse
+	(*v1.SearchFilesResponse)(nil),                // 378: dockwell.v1.SearchFilesResponse
 }
 var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	22,  // 0: dockwell.agent.v1.ConnectRequest.hello:type_name -> dockwell.agent.v1.Hello
-	252, // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
+	258, // 1: dockwell.agent.v1.ConnectRequest.stats:type_name -> dockwell.v1.ServerStats
 	180, // 2: dockwell.agent.v1.ConnectRequest.result:type_name -> dockwell.agent.v1.CallResult
 	21,  // 3: dockwell.agent.v1.ConnectRequest.draining:type_name -> dockwell.agent.v1.Draining
 	13,  // 4: dockwell.agent.v1.ConnectRequest.progress:type_name -> dockwell.agent.v1.CallProgress
@@ -22995,45 +23621,45 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	18,  // 14: dockwell.agent.v1.ConnectRequest.reconciled:type_name -> dockwell.agent.v1.Reconciled
 	207, // 15: dockwell.agent.v1.ConnectRequest.docker_inventory_changed:type_name -> dockwell.agent.v1.DockerInventoryChanged
 	4,   // 16: dockwell.agent.v1.ConnectRequest.archive_job_ended:type_name -> dockwell.agent.v1.ArchiveJobEnded
-	253, // 17: dockwell.agent.v1.ArchiveJobEnded.job:type_name -> dockwell.v1.ArchiveJob
-	254, // 18: dockwell.agent.v1.BuildUpdate.resource:type_name -> dockwell.v1.ResourceRef
-	255, // 19: dockwell.agent.v1.BuildUpdate.state:type_name -> dockwell.v1.BuildState
-	256, // 20: dockwell.agent.v1.BuildUpdate.lines:type_name -> dockwell.v1.BuildLine
-	257, // 21: dockwell.agent.v1.BuildUpdate.start_time:type_name -> google.protobuf.Timestamp
-	257, // 22: dockwell.agent.v1.BuildUpdate.end_time:type_name -> google.protobuf.Timestamp
-	258, // 23: dockwell.agent.v1.BuildUpdate.detection:type_name -> dockwell.v1.BuildDetection
-	259, // 24: dockwell.agent.v1.TerminalEnded.end:type_name -> dockwell.v1.TerminalEnd
-	257, // 25: dockwell.agent.v1.TerminalEnded.opened:type_name -> google.protobuf.Timestamp
-	260, // 26: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
-	257, // 27: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
-	260, // 28: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
-	261, // 29: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
-	257, // 30: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
-	257, // 31: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
-	257, // 32: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
-	262, // 33: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
-	263, // 34: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
+	259, // 17: dockwell.agent.v1.ArchiveJobEnded.job:type_name -> dockwell.v1.ArchiveJob
+	260, // 18: dockwell.agent.v1.BuildUpdate.resource:type_name -> dockwell.v1.ResourceRef
+	261, // 19: dockwell.agent.v1.BuildUpdate.state:type_name -> dockwell.v1.BuildState
+	262, // 20: dockwell.agent.v1.BuildUpdate.lines:type_name -> dockwell.v1.BuildLine
+	263, // 21: dockwell.agent.v1.BuildUpdate.start_time:type_name -> google.protobuf.Timestamp
+	263, // 22: dockwell.agent.v1.BuildUpdate.end_time:type_name -> google.protobuf.Timestamp
+	264, // 23: dockwell.agent.v1.BuildUpdate.detection:type_name -> dockwell.v1.BuildDetection
+	265, // 24: dockwell.agent.v1.TerminalEnded.end:type_name -> dockwell.v1.TerminalEnd
+	263, // 25: dockwell.agent.v1.TerminalEnded.opened:type_name -> google.protobuf.Timestamp
+	266, // 26: dockwell.agent.v1.Network.provider:type_name -> dockwell.v1.CloudProvider
+	263, // 27: dockwell.agent.v1.Network.looked_up_time:type_name -> google.protobuf.Timestamp
+	266, // 28: dockwell.agent.v1.Network.machine_provider:type_name -> dockwell.v1.CloudProvider
+	267, // 29: dockwell.agent.v1.Health.instances:type_name -> dockwell.v1.InstanceHealth
+	263, // 30: dockwell.agent.v1.Health.scanned_at:type_name -> google.protobuf.Timestamp
+	263, // 31: dockwell.agent.v1.Health.reported_at:type_name -> google.protobuf.Timestamp
+	263, // 32: dockwell.agent.v1.Health.docker_unreadable_since:type_name -> google.protobuf.Timestamp
+	268, // 33: dockwell.agent.v1.Domains.domains:type_name -> dockwell.v1.DomainStatus
+	269, // 34: dockwell.agent.v1.Domains.ingress:type_name -> dockwell.v1.IngressStatus
 	14,  // 35: dockwell.agent.v1.CallProgress.outcome:type_name -> dockwell.agent.v1.StepOutcome
-	264, // 36: dockwell.agent.v1.CallProgress.phase:type_name -> dockwell.v1.StepPhase
-	265, // 37: dockwell.agent.v1.StepOutcome.docker_receipt:type_name -> dockwell.v1.DockerReceipt
-	266, // 38: dockwell.agent.v1.StepOutcome.docker_image_receipt:type_name -> dockwell.v1.DockerImageReceipt
-	267, // 39: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
+	270, // 36: dockwell.agent.v1.CallProgress.phase:type_name -> dockwell.v1.StepPhase
+	271, // 37: dockwell.agent.v1.StepOutcome.docker_receipt:type_name -> dockwell.v1.DockerReceipt
+	272, // 38: dockwell.agent.v1.StepOutcome.docker_image_receipt:type_name -> dockwell.v1.DockerImageReceipt
+	273, // 39: dockwell.agent.v1.StepOutcome.did:type_name -> dockwell.v1.PlanAction
 	185, // 40: dockwell.agent.v1.StepOutcome.backup:type_name -> dockwell.agent.v1.BackupResult
 	15,  // 41: dockwell.agent.v1.StepOutcome.waits:type_name -> dockwell.agent.v1.AccessWait
-	257, // 42: dockwell.agent.v1.AccessWait.deadline:type_name -> google.protobuf.Timestamp
-	268, // 43: dockwell.agent.v1.AccessWait.left:type_name -> google.protobuf.Duration
+	263, // 42: dockwell.agent.v1.AccessWait.deadline:type_name -> google.protobuf.Timestamp
+	274, // 43: dockwell.agent.v1.AccessWait.left:type_name -> google.protobuf.Duration
 	17,  // 44: dockwell.agent.v1.Kinds.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
 	19,  // 45: dockwell.agent.v1.Reconciled.entries:type_name -> dockwell.agent.v1.LocalEntry
-	254, // 46: dockwell.agent.v1.LocalEntry.resource:type_name -> dockwell.v1.ResourceRef
+	260, // 46: dockwell.agent.v1.LocalEntry.resource:type_name -> dockwell.v1.ResourceRef
 	0,   // 47: dockwell.agent.v1.LocalEntry.action:type_name -> dockwell.agent.v1.LocalAction
-	257, // 48: dockwell.agent.v1.LocalEntry.time:type_name -> google.protobuf.Timestamp
-	269, // 49: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
-	270, // 50: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
+	263, // 48: dockwell.agent.v1.LocalEntry.time:type_name -> google.protobuf.Timestamp
+	275, // 49: dockwell.agent.v1.Hello.build:type_name -> dockwell.v1.BuildInfo
+	276, // 50: dockwell.agent.v1.Hello.inventory:type_name -> dockwell.v1.ServerInventory
 	17,  // 51: dockwell.agent.v1.Hello.unavailable:type_name -> dockwell.agent.v1.UnavailableKind
 	23,  // 52: dockwell.agent.v1.Hello.desired:type_name -> dockwell.agent.v1.DesiredHeld
 	200, // 53: dockwell.agent.v1.Hello.docker_capabilities:type_name -> dockwell.agent.v1.DockerCapabilities
 	24,  // 54: dockwell.agent.v1.DesiredHeld.held:type_name -> dockwell.agent.v1.HeldResource
-	254, // 55: dockwell.agent.v1.HeldResource.resource:type_name -> dockwell.v1.ResourceRef
+	260, // 55: dockwell.agent.v1.HeldResource.resource:type_name -> dockwell.v1.ResourceRef
 	30,  // 56: dockwell.agent.v1.ConnectResponse.welcome:type_name -> dockwell.agent.v1.Welcome
 	36,  // 57: dockwell.agent.v1.ConnectResponse.call:type_name -> dockwell.agent.v1.Call
 	179, // 58: dockwell.agent.v1.ConnectResponse.cancel:type_name -> dockwell.agent.v1.CancelCall
@@ -23041,12 +23667,12 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	27,  // 60: dockwell.agent.v1.ConnectResponse.public_address:type_name -> dockwell.agent.v1.PublicAddress
 	26,  // 61: dockwell.agent.v1.ConnectResponse.pace:type_name -> dockwell.agent.v1.Pace
 	20,  // 62: dockwell.agent.v1.ConnectResponse.heard:type_name -> dockwell.agent.v1.Heard
-	268, // 63: dockwell.agent.v1.Pace.stats_interval:type_name -> google.protobuf.Duration
+	274, // 63: dockwell.agent.v1.Pace.stats_interval:type_name -> google.protobuf.Duration
 	28,  // 64: dockwell.agent.v1.PublicAddress.addresses:type_name -> dockwell.agent.v1.KnownAddress
-	260, // 65: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
-	268, // 66: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
-	269, // 67: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
-	268, // 68: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
+	266, // 65: dockwell.agent.v1.PublicAddress.provider:type_name -> dockwell.v1.CloudProvider
+	274, // 66: dockwell.agent.v1.Welcome.stats_interval:type_name -> google.protobuf.Duration
+	275, // 67: dockwell.agent.v1.JoinRequest.build:type_name -> dockwell.v1.BuildInfo
+	274, // 68: dockwell.agent.v1.Call.timeout:type_name -> google.protobuf.Duration
 	163, // 69: dockwell.agent.v1.Call.plan:type_name -> dockwell.agent.v1.PlanCall
 	164, // 70: dockwell.agent.v1.Call.apply:type_name -> dockwell.agent.v1.ApplyCall
 	167, // 71: dockwell.agent.v1.Call.observe:type_name -> dockwell.agent.v1.ObserveCall
@@ -23119,14 +23745,14 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	137, // 138: dockwell.agent.v1.Call.compress_files:type_name -> dockwell.agent.v1.CompressFilesCall
 	139, // 139: dockwell.agent.v1.Call.extract_archive:type_name -> dockwell.agent.v1.ExtractArchiveCall
 	141, // 140: dockwell.agent.v1.Call.get_archive_job:type_name -> dockwell.agent.v1.GetArchiveJobCall
-	271, // 141: dockwell.agent.v1.Call.list_ssh_keys:type_name -> dockwell.v1.ListServerSshKeysRequest
-	272, // 142: dockwell.agent.v1.Call.edit_ssh_key:type_name -> dockwell.v1.EditServerSshKeyRequest
+	277, // 141: dockwell.agent.v1.Call.list_ssh_keys:type_name -> dockwell.v1.ListServerSshKeysRequest
+	278, // 142: dockwell.agent.v1.Call.edit_ssh_key:type_name -> dockwell.v1.EditServerSshKeyRequest
 	232, // 143: dockwell.agent.v1.Call.database_import:type_name -> dockwell.agent.v1.DatabaseImportControlCall
-	273, // 144: dockwell.agent.v1.Call.list_ssh_sessions:type_name -> dockwell.v1.ListServerSshSessionsRequest
-	274, // 145: dockwell.agent.v1.Call.disconnect_ssh_session:type_name -> dockwell.v1.DisconnectServerSshSessionRequest
-	275, // 146: dockwell.agent.v1.Call.list_ssh_logins:type_name -> dockwell.v1.ListServerSshLoginsRequest
-	276, // 147: dockwell.agent.v1.Call.ban_ssh_address:type_name -> dockwell.v1.BanServerSshAddressRequest
-	277, // 148: dockwell.agent.v1.Call.set_fail2ban_address_ban:type_name -> dockwell.v1.SetFail2banAddressBanRequest
+	279, // 144: dockwell.agent.v1.Call.list_ssh_sessions:type_name -> dockwell.v1.ListServerSshSessionsRequest
+	280, // 145: dockwell.agent.v1.Call.disconnect_ssh_session:type_name -> dockwell.v1.DisconnectServerSshSessionRequest
+	281, // 146: dockwell.agent.v1.Call.list_ssh_logins:type_name -> dockwell.v1.ListServerSshLoginsRequest
+	282, // 147: dockwell.agent.v1.Call.ban_ssh_address:type_name -> dockwell.v1.BanServerSshAddressRequest
+	283, // 148: dockwell.agent.v1.Call.set_fail2ban_address_ban:type_name -> dockwell.v1.SetFail2banAddressBanRequest
 	143, // 149: dockwell.agent.v1.Call.list_archive_jobs:type_name -> dockwell.agent.v1.ListArchiveJobsCall
 	238, // 150: dockwell.agent.v1.Call.list_file_accounts:type_name -> dockwell.agent.v1.ListFileAccountsCall
 	240, // 151: dockwell.agent.v1.Call.change_file_access:type_name -> dockwell.agent.v1.ChangeFileAccessCall
@@ -23137,334 +23763,343 @@ var file_dockwell_agent_v1_agent_proto_depIdxs = []int32{
 	224, // 156: dockwell.agent.v1.Call.list_sockets:type_name -> dockwell.agent.v1.ListSocketsCall
 	226, // 157: dockwell.agent.v1.Call.process_detail:type_name -> dockwell.agent.v1.ProcessDetailCall
 	228, // 158: dockwell.agent.v1.Call.terminal_cwd:type_name -> dockwell.agent.v1.TerminalCwdCall
-	278, // 159: dockwell.agent.v1.ReadTunnelsResult.tunnels:type_name -> dockwell.v1.CloudflaredTunnel
-	279, // 160: dockwell.agent.v1.MakeAppOwnerCall.owner:type_name -> dockwell.resource.v1alpha1.OwnerRun
-	279, // 161: dockwell.agent.v1.ReadAppOwnerCall.owner:type_name -> dockwell.resource.v1alpha1.OwnerRun
-	280, // 162: dockwell.agent.v1.AppPortsResult.ports:type_name -> dockwell.v1.ServicePortCheck
-	1,   // 163: dockwell.agent.v1.ConfirmAccessResult.verdict:type_name -> dockwell.agent.v1.AccessVerdict
-	281, // 164: dockwell.agent.v1.ProcessesResult.list:type_name -> dockwell.v1.ProcessList
-	56,  // 165: dockwell.agent.v1.PutCertificatesCall.certificates:type_name -> dockwell.agent.v1.PutCertificate
-	282, // 166: dockwell.agent.v1.CheckRegistryLoginResult.state:type_name -> dockwell.v1.RegistryLoginState
-	283, // 167: dockwell.agent.v1.SystemServicesResult.list:type_name -> dockwell.v1.SystemServiceList
-	284, // 168: dockwell.agent.v1.SystemLogCall.level:type_name -> dockwell.v1.LogLevel
-	257, // 169: dockwell.agent.v1.SystemLogCall.since:type_name -> google.protobuf.Timestamp
-	257, // 170: dockwell.agent.v1.SystemLogCall.until:type_name -> google.protobuf.Timestamp
-	285, // 171: dockwell.agent.v1.SystemLogResult.lines:type_name -> dockwell.v1.SystemLogLine
-	286, // 172: dockwell.agent.v1.SystemLogResult.source:type_name -> dockwell.v1.SystemLogSource
-	257, // 173: dockwell.agent.v1.SystemLogResult.searched_to:type_name -> google.protobuf.Timestamp
-	287, // 174: dockwell.agent.v1.EndProcessResult.process:type_name -> dockwell.v1.Process
-	210, // 175: dockwell.agent.v1.DiskUseCall.docker_cleanup_protection:type_name -> dockwell.agent.v1.DockerCleanupProtection
-	71,  // 176: dockwell.agent.v1.TaskRunsResult.runs:type_name -> dockwell.agent.v1.AgentTaskRun
-	254, // 177: dockwell.agent.v1.AgentTaskRun.task:type_name -> dockwell.v1.ResourceRef
-	288, // 178: dockwell.agent.v1.AgentTaskRun.run:type_name -> dockwell.v1.TaskRun
-	254, // 179: dockwell.agent.v1.RunTaskCall.task:type_name -> dockwell.v1.ResourceRef
-	288, // 180: dockwell.agent.v1.RunTaskResult.run:type_name -> dockwell.v1.TaskRun
-	257, // 181: dockwell.agent.v1.OpenTerminalResult.opened:type_name -> google.protobuf.Timestamp
-	259, // 182: dockwell.agent.v1.AttachTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
-	289, // 183: dockwell.agent.v1.CloseTerminalCall.reason:type_name -> dockwell.v1.TerminalEndReason
-	259, // 184: dockwell.agent.v1.CloseTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
-	169, // 185: dockwell.agent.v1.RememberCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	165, // 186: dockwell.agent.v1.RememberCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	254, // 187: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
-	254, // 188: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
-	254, // 189: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	290, // 190: dockwell.agent.v1.ListUpdatesResult.updates:type_name -> dockwell.v1.ServerUpdates
-	291, // 191: dockwell.agent.v1.PortsCall.ports:type_name -> dockwell.v1.ServerPortAsk
-	292, // 192: dockwell.agent.v1.PortsResult.ports:type_name -> dockwell.v1.ServerPortHeld
-	293, // 193: dockwell.agent.v1.ImageCall.search:type_name -> dockwell.v1.SearchImagesRequest
-	294, // 194: dockwell.agent.v1.ImageCall.tags:type_name -> dockwell.v1.ListImageTagsRequest
-	295, // 195: dockwell.agent.v1.ImageCall.image:type_name -> dockwell.v1.GetImageRequest
-	296, // 196: dockwell.agent.v1.ImageCall.repositories:type_name -> dockwell.v1.ListRegistryRepositoriesRequest
-	96,  // 197: dockwell.agent.v1.ImageCall.digests:type_name -> dockwell.agent.v1.ImageDigestsCall
-	98,  // 198: dockwell.agent.v1.ImageDigests.digests:type_name -> dockwell.agent.v1.ImageDigest
-	297, // 199: dockwell.agent.v1.ImageDigest.answer:type_name -> dockwell.v1.ImageAnswer
-	298, // 200: dockwell.agent.v1.ImageResult.search:type_name -> dockwell.v1.SearchImagesResponse
-	299, // 201: dockwell.agent.v1.ImageResult.tags:type_name -> dockwell.v1.ListImageTagsResponse
-	300, // 202: dockwell.agent.v1.ImageResult.image:type_name -> dockwell.v1.GetImageResponse
-	301, // 203: dockwell.agent.v1.ImageResult.repositories:type_name -> dockwell.v1.ListRegistryRepositoriesResponse
-	97,  // 204: dockwell.agent.v1.ImageResult.digests:type_name -> dockwell.agent.v1.ImageDigests
-	297, // 205: dockwell.agent.v1.ImageUpdatesResult.answer:type_name -> dockwell.v1.ImageAnswer
-	257, // 206: dockwell.agent.v1.ImageUpdatesResult.push_time:type_name -> google.protobuf.Timestamp
-	102, // 207: dockwell.agent.v1.ImageUpdatesResult.newer:type_name -> dockwell.agent.v1.NewerTag
-	297, // 208: dockwell.agent.v1.ImageUpdatesResult.tags_answer:type_name -> dockwell.v1.ImageAnswer
-	257, // 209: dockwell.agent.v1.ImageUpdatesResult.running_build_time:type_name -> google.protobuf.Timestamp
-	257, // 210: dockwell.agent.v1.ImageUpdatesResult.build_time:type_name -> google.protobuf.Timestamp
-	302, // 211: dockwell.agent.v1.NewerTag.kind:type_name -> dockwell.v1.UpdateKind
-	257, // 212: dockwell.agent.v1.NewerTag.push_time:type_name -> google.protobuf.Timestamp
-	303, // 213: dockwell.agent.v1.ReadOnePanelResult.found:type_name -> dockwell.v1.OnePanel
-	304, // 214: dockwell.agent.v1.ReadPanelCall.panel:type_name -> dockwell.v1.PanelKind
-	305, // 215: dockwell.agent.v1.ReadPanelResult.found:type_name -> dockwell.v1.Panel
-	254, // 216: dockwell.agent.v1.DrillBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	254, // 217: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	254, // 218: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	254, // 219: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
-	254, // 220: dockwell.agent.v1.RestoreSource.from:type_name -> dockwell.v1.ResourceRef
-	113, // 221: dockwell.agent.v1.DatabaseCall.databases:type_name -> dockwell.agent.v1.DatabaseAsked
-	254, // 222: dockwell.agent.v1.DatabaseAsked.service:type_name -> dockwell.v1.ResourceRef
-	306, // 223: dockwell.agent.v1.DatabaseAsked.engine:type_name -> dockwell.v1.DatabaseEngine
-	2,   // 224: dockwell.agent.v1.FileRefusal.kind:type_name -> dockwell.agent.v1.FileRefusal.Kind
-	307, // 225: dockwell.agent.v1.MakeFileCall.type:type_name -> dockwell.v1.FileType
-	308, // 226: dockwell.agent.v1.MakeFileResult.made:type_name -> dockwell.v1.MakeFileResponse
-	118, // 227: dockwell.agent.v1.MakeFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	309, // 228: dockwell.agent.v1.MoveFileResult.moved:type_name -> dockwell.v1.MoveFileResponse
-	118, // 229: dockwell.agent.v1.MoveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	310, // 230: dockwell.agent.v1.DeleteFileResult.deleted:type_name -> dockwell.v1.DeleteFileResponse
-	118, // 231: dockwell.agent.v1.DeleteFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	311, // 232: dockwell.agent.v1.ListDeletedResult.listing:type_name -> dockwell.v1.ListDeletedFilesResponse
-	312, // 233: dockwell.agent.v1.RestoreFileResult.restored:type_name -> dockwell.v1.RestoreFileResponse
-	118, // 234: dockwell.agent.v1.RestoreFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	313, // 235: dockwell.agent.v1.PurgeDeletedResult.purged:type_name -> dockwell.v1.DeletedFile
-	118, // 236: dockwell.agent.v1.PurgeDeletedResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	314, // 237: dockwell.agent.v1.BeginUploadCall.unpack:type_name -> dockwell.v1.Unpack
-	315, // 238: dockwell.agent.v1.UploadResult.upload:type_name -> dockwell.v1.Upload
-	118, // 239: dockwell.agent.v1.UploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	316, // 240: dockwell.agent.v1.FinishUploadResult.finished:type_name -> dockwell.v1.FinishUploadResponse
-	118, // 241: dockwell.agent.v1.FinishUploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 242: dockwell.agent.v1.CompressFilesResult.job:type_name -> dockwell.v1.ArchiveJob
-	118, // 243: dockwell.agent.v1.CompressFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 244: dockwell.agent.v1.ExtractArchiveResult.job:type_name -> dockwell.v1.ArchiveJob
-	118, // 245: dockwell.agent.v1.ExtractArchiveResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 246: dockwell.agent.v1.GetArchiveJobResult.job:type_name -> dockwell.v1.ArchiveJob
-	118, // 247: dockwell.agent.v1.GetArchiveJobResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 248: dockwell.agent.v1.ListArchiveJobsResult.jobs:type_name -> dockwell.v1.ArchiveJob
-	118, // 249: dockwell.agent.v1.DownloadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	317, // 250: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
-	118, // 251: dockwell.agent.v1.ListFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	318, // 252: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
-	118, // 253: dockwell.agent.v1.ReadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	319, // 254: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
-	118, // 255: dockwell.agent.v1.SaveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	254, // 256: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
-	155, // 257: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
-	254, // 258: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
-	254, // 259: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
-	257, // 260: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
-	257, // 261: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
-	284, // 262: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
-	159, // 263: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
-	159, // 264: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
-	257, // 265: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
-	268, // 266: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
-	158, // 267: dockwell.agent.v1.LogsCall.system:type_name -> dockwell.agent.v1.SystemLogFollow
-	284, // 268: dockwell.agent.v1.SystemLogFollow.level:type_name -> dockwell.v1.LogLevel
-	257, // 269: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
-	257, // 270: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
-	320, // 271: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
-	321, // 272: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
-	160, // 273: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
-	257, // 274: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
-	285, // 275: dockwell.agent.v1.SendLogsRequest.system_lines:type_name -> dockwell.v1.SystemLogLine
-	169, // 276: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	210, // 277: dockwell.agent.v1.ApplyCall.docker_cleanup_protection:type_name -> dockwell.agent.v1.DockerCleanupProtection
-	322, // 278: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
-	169, // 279: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
-	165, // 280: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
-	250, // 281: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
-	251, // 282: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
-	254, // 283: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
-	323, // 284: dockwell.agent.v1.DesiredResource.docker_maintenance:type_name -> dockwell.v1.DockerMaintenance
-	254, // 285: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
-	111, // 286: dockwell.agent.v1.DesiredResource.restore:type_name -> dockwell.agent.v1.RestoreSource
-	171, // 287: dockwell.agent.v1.DesiredResource.backup_also:type_name -> dockwell.agent.v1.DatabaseDump
-	174, // 288: dockwell.agent.v1.DesiredResource.install_updates:type_name -> dockwell.agent.v1.InstallUpdates
-	173, // 289: dockwell.agent.v1.DesiredResource.move_database:type_name -> dockwell.agent.v1.MoveDatabase
-	172, // 290: dockwell.agent.v1.DesiredResource.unit:type_name -> dockwell.agent.v1.UnitAction
-	170, // 291: dockwell.agent.v1.DesiredResource.panel:type_name -> dockwell.agent.v1.PanelAction
-	168, // 292: dockwell.agent.v1.DesiredResource.upgrade_agent:type_name -> dockwell.agent.v1.UpgradeAgent
-	304, // 293: dockwell.agent.v1.PanelAction.panel:type_name -> dockwell.v1.PanelKind
-	324, // 294: dockwell.agent.v1.PanelAction.parts:type_name -> dockwell.v1.HostPanelPart
-	325, // 295: dockwell.agent.v1.UnitAction.action:type_name -> dockwell.v1.SystemServiceAction
-	326, // 296: dockwell.agent.v1.InstallUpdates.packages:type_name -> dockwell.v1.PackageUpdate
-	254, // 297: dockwell.agent.v1.CancelBuildCall.resource:type_name -> dockwell.v1.ResourceRef
-	327, // 298: dockwell.agent.v1.DetectBuildCall.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
-	258, // 299: dockwell.agent.v1.DetectBuildResult.detection:type_name -> dockwell.v1.BuildDetection
-	193, // 300: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
-	194, // 301: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
-	197, // 302: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
-	198, // 303: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
-	191, // 304: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
-	192, // 305: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
-	156, // 306: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
-	190, // 307: dockwell.agent.v1.CallResult.containers:type_name -> dockwell.agent.v1.ContainersResult
-	150, // 308: dockwell.agent.v1.CallResult.list_files:type_name -> dockwell.agent.v1.ListFilesResult
-	151, // 309: dockwell.agent.v1.CallResult.read_file:type_name -> dockwell.agent.v1.ReadFileResult
-	152, // 310: dockwell.agent.v1.CallResult.save_file:type_name -> dockwell.agent.v1.SaveFileResult
-	182, // 311: dockwell.agent.v1.CallResult.adoption:type_name -> dockwell.agent.v1.AdoptionResult
-	184, // 312: dockwell.agent.v1.CallResult.backup_preview:type_name -> dockwell.agent.v1.BackupPreviewResult
-	185, // 313: dockwell.agent.v1.CallResult.backup:type_name -> dockwell.agent.v1.BackupResult
-	188, // 314: dockwell.agent.v1.CallResult.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupResult
-	185, // 315: dockwell.agent.v1.CallResult.fetch_backup:type_name -> dockwell.agent.v1.BackupResult
-	187, // 316: dockwell.agent.v1.CallResult.send_backup:type_name -> dockwell.agent.v1.SendBackupResult
-	186, // 317: dockwell.agent.v1.CallResult.drill_backup:type_name -> dockwell.agent.v1.DrillBackupResult
-	92,  // 318: dockwell.agent.v1.CallResult.list_updates:type_name -> dockwell.agent.v1.ListUpdatesResult
-	189, // 319: dockwell.agent.v1.CallResult.database:type_name -> dockwell.agent.v1.DatabaseResult
-	328, // 320: dockwell.agent.v1.CallResult.firewall:type_name -> dockwell.v1.ServerFirewall
-	52,  // 321: dockwell.agent.v1.CallResult.confirm_access:type_name -> dockwell.agent.v1.ConfirmAccessResult
-	329, // 322: dockwell.agent.v1.CallResult.ssh:type_name -> dockwell.v1.ServerSsh
-	330, // 323: dockwell.agent.v1.CallResult.fail2ban:type_name -> dockwell.v1.ServerFail2ban
-	181, // 324: dockwell.agent.v1.CallResult.probe:type_name -> dockwell.agent.v1.ProbeResult
-	178, // 325: dockwell.agent.v1.CallResult.cancel_build:type_name -> dockwell.agent.v1.CancelBuildResult
-	177, // 326: dockwell.agent.v1.CallResult.detect_build:type_name -> dockwell.agent.v1.DetectBuildResult
-	331, // 327: dockwell.agent.v1.CallResult.disk_use:type_name -> dockwell.v1.ServerDiskUse
-	54,  // 328: dockwell.agent.v1.CallResult.processes:type_name -> dockwell.agent.v1.ProcessesResult
-	67,  // 329: dockwell.agent.v1.CallResult.end_process:type_name -> dockwell.agent.v1.EndProcessResult
-	75,  // 330: dockwell.agent.v1.CallResult.open_terminal:type_name -> dockwell.agent.v1.OpenTerminalResult
-	77,  // 331: dockwell.agent.v1.CallResult.attach_terminal:type_name -> dockwell.agent.v1.AttachTerminalResult
-	79,  // 332: dockwell.agent.v1.CallResult.close_terminal:type_name -> dockwell.agent.v1.CloseTerminalResult
-	70,  // 333: dockwell.agent.v1.CallResult.task_runs:type_name -> dockwell.agent.v1.TaskRunsResult
-	73,  // 334: dockwell.agent.v1.CallResult.run_task:type_name -> dockwell.agent.v1.RunTaskResult
-	104, // 335: dockwell.agent.v1.CallResult.read_onepanel:type_name -> dockwell.agent.v1.ReadOnePanelResult
-	99,  // 336: dockwell.agent.v1.CallResult.image:type_name -> dockwell.agent.v1.ImageResult
-	94,  // 337: dockwell.agent.v1.CallResult.ports:type_name -> dockwell.agent.v1.PortsResult
-	81,  // 338: dockwell.agent.v1.CallResult.forward:type_name -> dockwell.agent.v1.ForwardResult
-	120, // 339: dockwell.agent.v1.CallResult.make_file:type_name -> dockwell.agent.v1.MakeFileResult
-	122, // 340: dockwell.agent.v1.CallResult.move_file:type_name -> dockwell.agent.v1.MoveFileResult
-	124, // 341: dockwell.agent.v1.CallResult.delete_file:type_name -> dockwell.agent.v1.DeleteFileResult
-	126, // 342: dockwell.agent.v1.CallResult.list_deleted:type_name -> dockwell.agent.v1.ListDeletedResult
-	128, // 343: dockwell.agent.v1.CallResult.restore_file:type_name -> dockwell.agent.v1.RestoreFileResult
-	130, // 344: dockwell.agent.v1.CallResult.purge_deleted:type_name -> dockwell.agent.v1.PurgeDeletedResult
-	132, // 345: dockwell.agent.v1.CallResult.begin_upload:type_name -> dockwell.agent.v1.UploadResult
-	132, // 346: dockwell.agent.v1.CallResult.write_upload:type_name -> dockwell.agent.v1.UploadResult
-	135, // 347: dockwell.agent.v1.CallResult.finish_upload:type_name -> dockwell.agent.v1.FinishUploadResult
-	145, // 348: dockwell.agent.v1.CallResult.download_file:type_name -> dockwell.agent.v1.DownloadFileResult
-	87,  // 349: dockwell.agent.v1.CallResult.remember:type_name -> dockwell.agent.v1.RememberResult
-	63,  // 350: dockwell.agent.v1.CallResult.system_services:type_name -> dockwell.agent.v1.SystemServicesResult
-	65,  // 351: dockwell.agent.v1.CallResult.system_log:type_name -> dockwell.agent.v1.SystemLogResult
-	61,  // 352: dockwell.agent.v1.CallResult.check_registry_login:type_name -> dockwell.agent.v1.CheckRegistryLoginResult
-	59,  // 353: dockwell.agent.v1.CallResult.check_database_sign_in:type_name -> dockwell.agent.v1.CheckDatabaseSignInResult
-	57,  // 354: dockwell.agent.v1.CallResult.put_certificates:type_name -> dockwell.agent.v1.PutCertificatesResult
-	106, // 355: dockwell.agent.v1.CallResult.read_panel:type_name -> dockwell.agent.v1.ReadPanelResult
-	101, // 356: dockwell.agent.v1.CallResult.image_updates:type_name -> dockwell.agent.v1.ImageUpdatesResult
-	46,  // 357: dockwell.agent.v1.CallResult.probe_connection:type_name -> dockwell.agent.v1.ProbeConnectionResult
-	38,  // 358: dockwell.agent.v1.CallResult.read_tunnels:type_name -> dockwell.agent.v1.ReadTunnelsResult
-	40,  // 359: dockwell.agent.v1.CallResult.make_app_owner:type_name -> dockwell.agent.v1.MakeAppOwnerResult
-	42,  // 360: dockwell.agent.v1.CallResult.read_app_owner:type_name -> dockwell.agent.v1.ReadAppOwnerResult
-	44,  // 361: dockwell.agent.v1.CallResult.app_ports:type_name -> dockwell.agent.v1.AppPortsResult
-	223, // 362: dockwell.agent.v1.CallResult.docker_settings:type_name -> dockwell.agent.v1.DockerSettingsResult
-	202, // 363: dockwell.agent.v1.CallResult.docker_inventory_list:type_name -> dockwell.agent.v1.DockerInventoryListResult
-	231, // 364: dockwell.agent.v1.CallResult.docker_lifecycle_preview:type_name -> dockwell.agent.v1.DockerLifecyclePreviewResult
-	204, // 365: dockwell.agent.v1.CallResult.docker_inventory_detail:type_name -> dockwell.agent.v1.DockerInventoryDetailResult
-	206, // 366: dockwell.agent.v1.CallResult.docker_inventory_watch:type_name -> dockwell.agent.v1.DockerInventoryWatchResult
-	209, // 367: dockwell.agent.v1.CallResult.docker_maintenance_preview:type_name -> dockwell.agent.v1.DockerMaintenancePreviewResult
-	212, // 368: dockwell.agent.v1.CallResult.check_docker_network:type_name -> dockwell.agent.v1.CheckDockerNetworkResult
-	218, // 369: dockwell.agent.v1.CallResult.docker_artifact_control:type_name -> dockwell.agent.v1.DockerArtifactControlResult
-	138, // 370: dockwell.agent.v1.CallResult.compress_files:type_name -> dockwell.agent.v1.CompressFilesResult
-	140, // 371: dockwell.agent.v1.CallResult.extract_archive:type_name -> dockwell.agent.v1.ExtractArchiveResult
-	142, // 372: dockwell.agent.v1.CallResult.get_archive_job:type_name -> dockwell.agent.v1.GetArchiveJobResult
-	332, // 373: dockwell.agent.v1.CallResult.list_ssh_keys:type_name -> dockwell.v1.ListServerSshKeysResponse
-	333, // 374: dockwell.agent.v1.CallResult.edit_ssh_key:type_name -> dockwell.v1.EditServerSshKeyResponse
-	237, // 375: dockwell.agent.v1.CallResult.database_import:type_name -> dockwell.agent.v1.DatabaseImportControlResult
-	334, // 376: dockwell.agent.v1.CallResult.list_ssh_sessions:type_name -> dockwell.v1.ListServerSshSessionsResponse
-	335, // 377: dockwell.agent.v1.CallResult.disconnect_ssh_session:type_name -> dockwell.v1.DisconnectServerSshSessionResponse
-	336, // 378: dockwell.agent.v1.CallResult.list_ssh_logins:type_name -> dockwell.v1.ListServerSshLoginsResponse
-	337, // 379: dockwell.agent.v1.CallResult.ban_ssh_address:type_name -> dockwell.v1.BanServerSshAddressResponse
-	338, // 380: dockwell.agent.v1.CallResult.set_fail2ban_address_ban:type_name -> dockwell.v1.SetFail2banAddressBanResponse
-	144, // 381: dockwell.agent.v1.CallResult.list_archive_jobs:type_name -> dockwell.agent.v1.ListArchiveJobsResult
-	239, // 382: dockwell.agent.v1.CallResult.list_file_accounts:type_name -> dockwell.agent.v1.ListFileAccountsResult
-	241, // 383: dockwell.agent.v1.CallResult.change_file_access:type_name -> dockwell.agent.v1.ChangeFileAccessResult
-	243, // 384: dockwell.agent.v1.CallResult.calculate_folder_size:type_name -> dockwell.agent.v1.CalculateFolderSizeResult
-	245, // 385: dockwell.agent.v1.CallResult.search_files:type_name -> dockwell.agent.v1.SearchFilesResult
-	247, // 386: dockwell.agent.v1.CallResult.download_file_from_url:type_name -> dockwell.agent.v1.DownloadFileFromURLResult
-	249, // 387: dockwell.agent.v1.CallResult.cancel_file_download:type_name -> dockwell.agent.v1.CancelFileDownloadResult
-	225, // 388: dockwell.agent.v1.CallResult.list_sockets:type_name -> dockwell.agent.v1.ListSocketsResult
-	227, // 389: dockwell.agent.v1.CallResult.process_detail:type_name -> dockwell.agent.v1.ProcessDetailResult
-	229, // 390: dockwell.agent.v1.CallResult.terminal_cwd:type_name -> dockwell.agent.v1.TerminalCwdResult
-	183, // 391: dockwell.agent.v1.AdoptionResult.link_aliases:type_name -> dockwell.agent.v1.LinkAlias
-	339, // 392: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
-	339, // 393: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
-	340, // 394: dockwell.agent.v1.DrillBackupResult.result:type_name -> dockwell.v1.DrillResult
-	341, // 395: dockwell.agent.v1.DatabaseResult.readings:type_name -> dockwell.v1.DatabaseReading
-	342, // 396: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
-	320, // 397: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
-	322, // 398: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
-	196, // 399: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
-	195, // 400: dockwell.agent.v1.PlanResult.via:type_name -> dockwell.agent.v1.PathVia
-	199, // 401: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
-	343, // 402: dockwell.agent.v1.DockerInventoryListCall.filter:type_name -> dockwell.v1.DockerObjectFilter
-	344, // 403: dockwell.agent.v1.DockerInventoryListCall.kind:type_name -> dockwell.v1.DockerObjectKind
-	345, // 404: dockwell.agent.v1.DockerInventoryListResult.objects:type_name -> dockwell.v1.DockerObject
-	346, // 405: dockwell.agent.v1.DockerInventoryListResult.overview:type_name -> dockwell.v1.DockerServerSummary
-	345, // 406: dockwell.agent.v1.DockerInventoryDetailResult.object:type_name -> dockwell.v1.DockerObject
-	347, // 407: dockwell.agent.v1.DockerInventoryDetailResult.replacement_key:type_name -> dockwell.v1.DockerObjectKey
-	344, // 408: dockwell.agent.v1.DockerInventoryWatchCall.kind:type_name -> dockwell.v1.DockerObjectKind
-	347, // 409: dockwell.agent.v1.DockerInventoryChanged.changed_keys:type_name -> dockwell.v1.DockerObjectKey
-	348, // 410: dockwell.agent.v1.DockerInventoryChanged.samples:type_name -> dockwell.v1.DockerSample
-	349, // 411: dockwell.agent.v1.DockerInventoryChanged.health_updates:type_name -> dockwell.v1.DockerHealthUpdate
-	350, // 412: dockwell.agent.v1.DockerMaintenancePreviewCall.filters:type_name -> dockwell.v1.DockerCleanupFilters
-	351, // 413: dockwell.agent.v1.DockerMaintenancePreviewResult.targets:type_name -> dockwell.v1.DockerCleanupTarget
-	352, // 414: dockwell.agent.v1.DockerMaintenancePreviewResult.pause:type_name -> dockwell.v1.DockerCleanupPause
-	353, // 415: dockwell.agent.v1.CheckDockerNetworkCall.spec:type_name -> dockwell.resource.v1alpha1.Network
-	354, // 416: dockwell.agent.v1.CheckDockerNetworkResult.findings:type_name -> dockwell.v1.DockerNetworkFinding
-	215, // 417: dockwell.agent.v1.DockerArtifactControlCall.begin_upload:type_name -> dockwell.agent.v1.BeginDockerArtifactCall
-	214, // 418: dockwell.agent.v1.DockerArtifactControlCall.status:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	217, // 419: dockwell.agent.v1.DockerArtifactControlCall.receive:type_name -> dockwell.agent.v1.DockerArtifactStream
-	214, // 420: dockwell.agent.v1.DockerArtifactControlCall.seal:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	217, // 421: dockwell.agent.v1.DockerArtifactControlCall.send:type_name -> dockwell.agent.v1.DockerArtifactStream
-	214, // 422: dockwell.agent.v1.DockerArtifactControlCall.abort:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	216, // 423: dockwell.agent.v1.DockerArtifactControlCall.snapshot_folder:type_name -> dockwell.agent.v1.DockerArtifactFolder
-	355, // 424: dockwell.agent.v1.DockerArtifactControlCall.prepare_push:type_name -> dockwell.v1.DockerImageExport
-	214, // 425: dockwell.agent.v1.DockerArtifactControlCall.list:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	214, // 426: dockwell.agent.v1.DockerArtifactControlCall.discard_export:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
-	219, // 427: dockwell.agent.v1.DockerArtifactControlCall.pin:type_name -> dockwell.agent.v1.DockerArtifactPin
-	219, // 428: dockwell.agent.v1.DockerArtifactControlCall.release_pin:type_name -> dockwell.agent.v1.DockerArtifactPin
-	356, // 429: dockwell.agent.v1.BeginDockerArtifactCall.kind:type_name -> dockwell.v1.DockerArtifactKind
-	357, // 430: dockwell.agent.v1.DockerArtifactControlResult.artifact:type_name -> dockwell.v1.DockerArtifactInfo
-	358, // 431: dockwell.agent.v1.DockerArtifactControlResult.descriptor:type_name -> dockwell.v1.DockerRegistryDescriptor
-	359, // 432: dockwell.agent.v1.DockerArtifactControlResult.reason:type_name -> dockwell.v1.DockerImageReason
-	357, // 433: dockwell.agent.v1.DockerArtifactControlResult.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
-	360, // 434: dockwell.agent.v1.DockerArtifactControlResult.space:type_name -> dockwell.v1.DockerArtifactSpace
-	219, // 435: dockwell.agent.v1.CheckDockerArtifactPinsRequest.pins:type_name -> dockwell.agent.v1.DockerArtifactPin
-	219, // 436: dockwell.agent.v1.CheckDockerArtifactPinsResponse.ended:type_name -> dockwell.agent.v1.DockerArtifactPin
-	219, // 437: dockwell.agent.v1.CheckDockerArtifactPinsResponse.absent:type_name -> dockwell.agent.v1.DockerArtifactPin
-	361, // 438: dockwell.agent.v1.DockerSettingsCall.check:type_name -> dockwell.resource.v1alpha1.DockerDaemon
-	362, // 439: dockwell.agent.v1.DockerSettingsResult.settings:type_name -> dockwell.v1.DockerSettings
-	363, // 440: dockwell.agent.v1.DockerSettingsResult.checked:type_name -> dockwell.v1.CheckDockerSettingsResponse
-	257, // 441: dockwell.agent.v1.ListSocketsResult.time:type_name -> google.protobuf.Timestamp
-	364, // 442: dockwell.agent.v1.ListSocketsResult.connections:type_name -> dockwell.v1.SocketConnection
-	365, // 443: dockwell.agent.v1.ProcessDetailResult.detail:type_name -> dockwell.v1.ProcessDetail
-	347, // 444: dockwell.agent.v1.DockerLifecyclePreviewCall.keys:type_name -> dockwell.v1.DockerObjectKey
-	366, // 445: dockwell.agent.v1.DockerLifecyclePreviewCall.action:type_name -> dockwell.v1.DockerContainerAction
-	367, // 446: dockwell.agent.v1.DockerLifecyclePreviewResult.targets:type_name -> dockwell.v1.DockerContainerTarget
-	233, // 447: dockwell.agent.v1.DatabaseImportControlCall.begin:type_name -> dockwell.agent.v1.DatabaseImportBegin
-	234, // 448: dockwell.agent.v1.DatabaseImportControlCall.receive:type_name -> dockwell.agent.v1.DatabaseImportReceive
-	235, // 449: dockwell.agent.v1.DatabaseImportControlCall.inspect:type_name -> dockwell.agent.v1.DatabaseImportInspect
-	236, // 450: dockwell.agent.v1.DatabaseImportControlCall.cancel:type_name -> dockwell.agent.v1.DatabaseImportCancel
-	368, // 451: dockwell.agent.v1.ListFileAccountsResult.response:type_name -> dockwell.v1.ListFileAccountsResponse
-	118, // 452: dockwell.agent.v1.ListFileAccountsResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	369, // 453: dockwell.agent.v1.ChangeFileAccessCall.change:type_name -> dockwell.v1.FileAccessChange
-	370, // 454: dockwell.agent.v1.ChangeFileAccessResult.response:type_name -> dockwell.v1.ChangeFileAccessResponse
-	118, // 455: dockwell.agent.v1.ChangeFileAccessResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	371, // 456: dockwell.agent.v1.CalculateFolderSizeResult.response:type_name -> dockwell.v1.CalculateFolderSizeResponse
-	118, // 457: dockwell.agent.v1.CalculateFolderSizeResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	372, // 458: dockwell.agent.v1.SearchFilesResult.response:type_name -> dockwell.v1.SearchFilesResponse
-	118, // 459: dockwell.agent.v1.SearchFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 460: dockwell.agent.v1.DownloadFileFromURLResult.job:type_name -> dockwell.v1.ArchiveJob
-	118, // 461: dockwell.agent.v1.DownloadFileFromURLResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	253, // 462: dockwell.agent.v1.CancelFileDownloadResult.job:type_name -> dockwell.v1.ArchiveJob
-	118, // 463: dockwell.agent.v1.CancelFileDownloadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
-	32,  // 464: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
-	34,  // 465: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
-	3,   // 466: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
-	161, // 467: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
-	84,  // 468: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
-	146, // 469: dockwell.agent.v1.AgentService.ReceiveFile:input_type -> dockwell.agent.v1.ReceiveFileRequest
-	148, // 470: dockwell.agent.v1.AgentService.SendFile:input_type -> dockwell.agent.v1.SendFileRequest
-	82,  // 471: dockwell.agent.v1.AgentService.Forward:input_type -> dockwell.agent.v1.ForwardRequest
-	220, // 472: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:input_type -> dockwell.agent.v1.CheckDockerArtifactPinsRequest
-	33,  // 473: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
-	35,  // 474: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
-	25,  // 475: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
-	162, // 476: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
-	85,  // 477: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
-	147, // 478: dockwell.agent.v1.AgentService.ReceiveFile:output_type -> dockwell.agent.v1.ReceiveFileResponse
-	149, // 479: dockwell.agent.v1.AgentService.SendFile:output_type -> dockwell.agent.v1.SendFileResponse
-	83,  // 480: dockwell.agent.v1.AgentService.Forward:output_type -> dockwell.agent.v1.ForwardResponse
-	221, // 481: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:output_type -> dockwell.agent.v1.CheckDockerArtifactPinsResponse
-	473, // [473:482] is the sub-list for method output_type
-	464, // [464:473] is the sub-list for method input_type
-	464, // [464:464] is the sub-list for extension type_name
-	464, // [464:464] is the sub-list for extension extendee
-	0,   // [0:464] is the sub-list for field type_name
+	250, // 159: dockwell.agent.v1.Call.validate_caddyfile:type_name -> dockwell.agent.v1.ValidateCaddyfileCall
+	252, // 160: dockwell.agent.v1.Call.renew_certificate:type_name -> dockwell.agent.v1.RenewCertificateCall
+	254, // 161: dockwell.agent.v1.Call.read_certificate:type_name -> dockwell.agent.v1.ReadCertificateCall
+	284, // 162: dockwell.agent.v1.ReadTunnelsResult.tunnels:type_name -> dockwell.v1.CloudflaredTunnel
+	285, // 163: dockwell.agent.v1.MakeAppOwnerCall.owner:type_name -> dockwell.resource.v1alpha1.OwnerRun
+	285, // 164: dockwell.agent.v1.ReadAppOwnerCall.owner:type_name -> dockwell.resource.v1alpha1.OwnerRun
+	286, // 165: dockwell.agent.v1.AppPortsResult.ports:type_name -> dockwell.v1.ServicePortCheck
+	1,   // 166: dockwell.agent.v1.ConfirmAccessResult.verdict:type_name -> dockwell.agent.v1.AccessVerdict
+	287, // 167: dockwell.agent.v1.ProcessesResult.list:type_name -> dockwell.v1.ProcessList
+	56,  // 168: dockwell.agent.v1.PutCertificatesCall.certificates:type_name -> dockwell.agent.v1.PutCertificate
+	288, // 169: dockwell.agent.v1.CheckRegistryLoginResult.state:type_name -> dockwell.v1.RegistryLoginState
+	289, // 170: dockwell.agent.v1.SystemServicesResult.list:type_name -> dockwell.v1.SystemServiceList
+	290, // 171: dockwell.agent.v1.SystemLogCall.level:type_name -> dockwell.v1.LogLevel
+	263, // 172: dockwell.agent.v1.SystemLogCall.since:type_name -> google.protobuf.Timestamp
+	263, // 173: dockwell.agent.v1.SystemLogCall.until:type_name -> google.protobuf.Timestamp
+	291, // 174: dockwell.agent.v1.SystemLogResult.lines:type_name -> dockwell.v1.SystemLogLine
+	292, // 175: dockwell.agent.v1.SystemLogResult.source:type_name -> dockwell.v1.SystemLogSource
+	263, // 176: dockwell.agent.v1.SystemLogResult.searched_to:type_name -> google.protobuf.Timestamp
+	293, // 177: dockwell.agent.v1.EndProcessResult.process:type_name -> dockwell.v1.Process
+	210, // 178: dockwell.agent.v1.DiskUseCall.docker_cleanup_protection:type_name -> dockwell.agent.v1.DockerCleanupProtection
+	71,  // 179: dockwell.agent.v1.TaskRunsResult.runs:type_name -> dockwell.agent.v1.AgentTaskRun
+	260, // 180: dockwell.agent.v1.AgentTaskRun.task:type_name -> dockwell.v1.ResourceRef
+	294, // 181: dockwell.agent.v1.AgentTaskRun.run:type_name -> dockwell.v1.TaskRun
+	260, // 182: dockwell.agent.v1.RunTaskCall.task:type_name -> dockwell.v1.ResourceRef
+	294, // 183: dockwell.agent.v1.RunTaskResult.run:type_name -> dockwell.v1.TaskRun
+	263, // 184: dockwell.agent.v1.OpenTerminalResult.opened:type_name -> google.protobuf.Timestamp
+	265, // 185: dockwell.agent.v1.AttachTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
+	295, // 186: dockwell.agent.v1.CloseTerminalCall.reason:type_name -> dockwell.v1.TerminalEndReason
+	265, // 187: dockwell.agent.v1.CloseTerminalResult.end:type_name -> dockwell.v1.TerminalEnd
+	169, // 188: dockwell.agent.v1.RememberCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	165, // 189: dockwell.agent.v1.RememberCall.deploy:type_name -> dockwell.agent.v1.Deploy
+	260, // 190: dockwell.agent.v1.AdoptionCall.resource:type_name -> dockwell.v1.ResourceRef
+	260, // 191: dockwell.agent.v1.BackupPreviewCall.volume:type_name -> dockwell.v1.ResourceRef
+	260, // 192: dockwell.agent.v1.BackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	296, // 193: dockwell.agent.v1.ListUpdatesResult.updates:type_name -> dockwell.v1.ServerUpdates
+	297, // 194: dockwell.agent.v1.PortsCall.ports:type_name -> dockwell.v1.ServerPortAsk
+	298, // 195: dockwell.agent.v1.PortsResult.ports:type_name -> dockwell.v1.ServerPortHeld
+	299, // 196: dockwell.agent.v1.ImageCall.search:type_name -> dockwell.v1.SearchImagesRequest
+	300, // 197: dockwell.agent.v1.ImageCall.tags:type_name -> dockwell.v1.ListImageTagsRequest
+	301, // 198: dockwell.agent.v1.ImageCall.image:type_name -> dockwell.v1.GetImageRequest
+	302, // 199: dockwell.agent.v1.ImageCall.repositories:type_name -> dockwell.v1.ListRegistryRepositoriesRequest
+	96,  // 200: dockwell.agent.v1.ImageCall.digests:type_name -> dockwell.agent.v1.ImageDigestsCall
+	98,  // 201: dockwell.agent.v1.ImageDigests.digests:type_name -> dockwell.agent.v1.ImageDigest
+	303, // 202: dockwell.agent.v1.ImageDigest.answer:type_name -> dockwell.v1.ImageAnswer
+	304, // 203: dockwell.agent.v1.ImageResult.search:type_name -> dockwell.v1.SearchImagesResponse
+	305, // 204: dockwell.agent.v1.ImageResult.tags:type_name -> dockwell.v1.ListImageTagsResponse
+	306, // 205: dockwell.agent.v1.ImageResult.image:type_name -> dockwell.v1.GetImageResponse
+	307, // 206: dockwell.agent.v1.ImageResult.repositories:type_name -> dockwell.v1.ListRegistryRepositoriesResponse
+	97,  // 207: dockwell.agent.v1.ImageResult.digests:type_name -> dockwell.agent.v1.ImageDigests
+	303, // 208: dockwell.agent.v1.ImageUpdatesResult.answer:type_name -> dockwell.v1.ImageAnswer
+	263, // 209: dockwell.agent.v1.ImageUpdatesResult.push_time:type_name -> google.protobuf.Timestamp
+	102, // 210: dockwell.agent.v1.ImageUpdatesResult.newer:type_name -> dockwell.agent.v1.NewerTag
+	303, // 211: dockwell.agent.v1.ImageUpdatesResult.tags_answer:type_name -> dockwell.v1.ImageAnswer
+	263, // 212: dockwell.agent.v1.ImageUpdatesResult.running_build_time:type_name -> google.protobuf.Timestamp
+	263, // 213: dockwell.agent.v1.ImageUpdatesResult.build_time:type_name -> google.protobuf.Timestamp
+	308, // 214: dockwell.agent.v1.NewerTag.kind:type_name -> dockwell.v1.UpdateKind
+	263, // 215: dockwell.agent.v1.NewerTag.push_time:type_name -> google.protobuf.Timestamp
+	309, // 216: dockwell.agent.v1.ReadOnePanelResult.found:type_name -> dockwell.v1.OnePanel
+	310, // 217: dockwell.agent.v1.ReadPanelCall.panel:type_name -> dockwell.v1.PanelKind
+	311, // 218: dockwell.agent.v1.ReadPanelResult.found:type_name -> dockwell.v1.Panel
+	260, // 219: dockwell.agent.v1.DrillBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	260, // 220: dockwell.agent.v1.SendBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	260, // 221: dockwell.agent.v1.FetchBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	260, // 222: dockwell.agent.v1.DeleteBackupCall.volume:type_name -> dockwell.v1.ResourceRef
+	260, // 223: dockwell.agent.v1.RestoreSource.from:type_name -> dockwell.v1.ResourceRef
+	113, // 224: dockwell.agent.v1.DatabaseCall.databases:type_name -> dockwell.agent.v1.DatabaseAsked
+	260, // 225: dockwell.agent.v1.DatabaseAsked.service:type_name -> dockwell.v1.ResourceRef
+	312, // 226: dockwell.agent.v1.DatabaseAsked.engine:type_name -> dockwell.v1.DatabaseEngine
+	2,   // 227: dockwell.agent.v1.FileRefusal.kind:type_name -> dockwell.agent.v1.FileRefusal.Kind
+	313, // 228: dockwell.agent.v1.MakeFileCall.type:type_name -> dockwell.v1.FileType
+	314, // 229: dockwell.agent.v1.MakeFileResult.made:type_name -> dockwell.v1.MakeFileResponse
+	118, // 230: dockwell.agent.v1.MakeFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	315, // 231: dockwell.agent.v1.MoveFileResult.moved:type_name -> dockwell.v1.MoveFileResponse
+	118, // 232: dockwell.agent.v1.MoveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	316, // 233: dockwell.agent.v1.DeleteFileResult.deleted:type_name -> dockwell.v1.DeleteFileResponse
+	118, // 234: dockwell.agent.v1.DeleteFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	317, // 235: dockwell.agent.v1.ListDeletedResult.listing:type_name -> dockwell.v1.ListDeletedFilesResponse
+	318, // 236: dockwell.agent.v1.RestoreFileResult.restored:type_name -> dockwell.v1.RestoreFileResponse
+	118, // 237: dockwell.agent.v1.RestoreFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	319, // 238: dockwell.agent.v1.PurgeDeletedResult.purged:type_name -> dockwell.v1.DeletedFile
+	118, // 239: dockwell.agent.v1.PurgeDeletedResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	320, // 240: dockwell.agent.v1.BeginUploadCall.unpack:type_name -> dockwell.v1.Unpack
+	321, // 241: dockwell.agent.v1.UploadResult.upload:type_name -> dockwell.v1.Upload
+	118, // 242: dockwell.agent.v1.UploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	322, // 243: dockwell.agent.v1.FinishUploadResult.finished:type_name -> dockwell.v1.FinishUploadResponse
+	118, // 244: dockwell.agent.v1.FinishUploadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 245: dockwell.agent.v1.CompressFilesResult.job:type_name -> dockwell.v1.ArchiveJob
+	118, // 246: dockwell.agent.v1.CompressFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 247: dockwell.agent.v1.ExtractArchiveResult.job:type_name -> dockwell.v1.ArchiveJob
+	118, // 248: dockwell.agent.v1.ExtractArchiveResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 249: dockwell.agent.v1.GetArchiveJobResult.job:type_name -> dockwell.v1.ArchiveJob
+	118, // 250: dockwell.agent.v1.GetArchiveJobResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 251: dockwell.agent.v1.ListArchiveJobsResult.jobs:type_name -> dockwell.v1.ArchiveJob
+	118, // 252: dockwell.agent.v1.DownloadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	323, // 253: dockwell.agent.v1.ListFilesResult.listing:type_name -> dockwell.v1.ListFilesResponse
+	118, // 254: dockwell.agent.v1.ListFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	324, // 255: dockwell.agent.v1.ReadFileResult.file:type_name -> dockwell.v1.ReadFileResponse
+	118, // 256: dockwell.agent.v1.ReadFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	325, // 257: dockwell.agent.v1.SaveFileResult.saved:type_name -> dockwell.v1.SaveFileResponse
+	118, // 258: dockwell.agent.v1.SaveFileResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	260, // 259: dockwell.agent.v1.LogSourcesCall.resource:type_name -> dockwell.v1.ResourceRef
+	155, // 260: dockwell.agent.v1.ForgottenCall.services:type_name -> dockwell.agent.v1.ForgottenService
+	260, // 261: dockwell.agent.v1.ForgottenService.resource:type_name -> dockwell.v1.ResourceRef
+	260, // 262: dockwell.agent.v1.LogsCall.resource:type_name -> dockwell.v1.ResourceRef
+	263, // 263: dockwell.agent.v1.LogsCall.since:type_name -> google.protobuf.Timestamp
+	263, // 264: dockwell.agent.v1.LogsCall.until:type_name -> google.protobuf.Timestamp
+	290, // 265: dockwell.agent.v1.LogsCall.levels:type_name -> dockwell.v1.LogLevel
+	159, // 266: dockwell.agent.v1.LogsCall.after:type_name -> dockwell.agent.v1.LogCursor
+	159, // 267: dockwell.agent.v1.LogsCall.before:type_name -> dockwell.agent.v1.LogCursor
+	263, // 268: dockwell.agent.v1.LogsCall.resume_from:type_name -> google.protobuf.Timestamp
+	274, // 269: dockwell.agent.v1.LogsCall.last:type_name -> google.protobuf.Duration
+	158, // 270: dockwell.agent.v1.LogsCall.system:type_name -> dockwell.agent.v1.SystemLogFollow
+	290, // 271: dockwell.agent.v1.SystemLogFollow.level:type_name -> dockwell.v1.LogLevel
+	263, // 272: dockwell.agent.v1.LogCursor.time:type_name -> google.protobuf.Timestamp
+	263, // 273: dockwell.agent.v1.LogScan.oldest_time:type_name -> google.protobuf.Timestamp
+	326, // 274: dockwell.agent.v1.SendLogsRequest.sources:type_name -> dockwell.v1.LogSource
+	327, // 275: dockwell.agent.v1.SendLogsRequest.chunks:type_name -> dockwell.v1.LogChunk
+	160, // 276: dockwell.agent.v1.SendLogsRequest.scans:type_name -> dockwell.agent.v1.LogScan
+	263, // 277: dockwell.agent.v1.SendLogsRequest.started:type_name -> google.protobuf.Timestamp
+	291, // 278: dockwell.agent.v1.SendLogsRequest.system_lines:type_name -> dockwell.v1.SystemLogLine
+	169, // 279: dockwell.agent.v1.PlanCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	210, // 280: dockwell.agent.v1.ApplyCall.docker_cleanup_protection:type_name -> dockwell.agent.v1.DockerCleanupProtection
+	328, // 281: dockwell.agent.v1.ApplyCall.step:type_name -> dockwell.v1.PlanStep
+	169, // 282: dockwell.agent.v1.ApplyCall.desired:type_name -> dockwell.agent.v1.DesiredResource
+	165, // 283: dockwell.agent.v1.ApplyCall.deploy:type_name -> dockwell.agent.v1.Deploy
+	256, // 284: dockwell.agent.v1.ApplyCall.planned_leads:type_name -> dockwell.agent.v1.ApplyCall.PlannedLeadsEntry
+	257, // 285: dockwell.agent.v1.Values.values:type_name -> dockwell.agent.v1.Values.ValuesEntry
+	260, // 286: dockwell.agent.v1.ObserveCall.resources:type_name -> dockwell.v1.ResourceRef
+	329, // 287: dockwell.agent.v1.DesiredResource.docker_maintenance:type_name -> dockwell.v1.DockerMaintenance
+	260, // 288: dockwell.agent.v1.DesiredResource.resource:type_name -> dockwell.v1.ResourceRef
+	111, // 289: dockwell.agent.v1.DesiredResource.restore:type_name -> dockwell.agent.v1.RestoreSource
+	171, // 290: dockwell.agent.v1.DesiredResource.backup_also:type_name -> dockwell.agent.v1.DatabaseDump
+	174, // 291: dockwell.agent.v1.DesiredResource.install_updates:type_name -> dockwell.agent.v1.InstallUpdates
+	173, // 292: dockwell.agent.v1.DesiredResource.move_database:type_name -> dockwell.agent.v1.MoveDatabase
+	172, // 293: dockwell.agent.v1.DesiredResource.unit:type_name -> dockwell.agent.v1.UnitAction
+	170, // 294: dockwell.agent.v1.DesiredResource.panel:type_name -> dockwell.agent.v1.PanelAction
+	168, // 295: dockwell.agent.v1.DesiredResource.upgrade_agent:type_name -> dockwell.agent.v1.UpgradeAgent
+	310, // 296: dockwell.agent.v1.PanelAction.panel:type_name -> dockwell.v1.PanelKind
+	330, // 297: dockwell.agent.v1.PanelAction.parts:type_name -> dockwell.v1.HostPanelPart
+	331, // 298: dockwell.agent.v1.UnitAction.action:type_name -> dockwell.v1.SystemServiceAction
+	332, // 299: dockwell.agent.v1.InstallUpdates.packages:type_name -> dockwell.v1.PackageUpdate
+	260, // 300: dockwell.agent.v1.CancelBuildCall.resource:type_name -> dockwell.v1.ResourceRef
+	333, // 301: dockwell.agent.v1.DetectBuildCall.build:type_name -> dockwell.resource.v1alpha1.ImageBuild
+	264, // 302: dockwell.agent.v1.DetectBuildResult.detection:type_name -> dockwell.v1.BuildDetection
+	193, // 303: dockwell.agent.v1.CallResult.error:type_name -> dockwell.agent.v1.CallError
+	194, // 304: dockwell.agent.v1.CallResult.plan:type_name -> dockwell.agent.v1.PlanResult
+	197, // 305: dockwell.agent.v1.CallResult.apply:type_name -> dockwell.agent.v1.ApplyResult
+	198, // 306: dockwell.agent.v1.CallResult.observe:type_name -> dockwell.agent.v1.ObserveResult
+	191, // 307: dockwell.agent.v1.CallResult.log_sources:type_name -> dockwell.agent.v1.LogSourcesResult
+	192, // 308: dockwell.agent.v1.CallResult.logs:type_name -> dockwell.agent.v1.LogsResult
+	156, // 309: dockwell.agent.v1.CallResult.forgotten:type_name -> dockwell.agent.v1.ForgottenResult
+	190, // 310: dockwell.agent.v1.CallResult.containers:type_name -> dockwell.agent.v1.ContainersResult
+	150, // 311: dockwell.agent.v1.CallResult.list_files:type_name -> dockwell.agent.v1.ListFilesResult
+	151, // 312: dockwell.agent.v1.CallResult.read_file:type_name -> dockwell.agent.v1.ReadFileResult
+	152, // 313: dockwell.agent.v1.CallResult.save_file:type_name -> dockwell.agent.v1.SaveFileResult
+	182, // 314: dockwell.agent.v1.CallResult.adoption:type_name -> dockwell.agent.v1.AdoptionResult
+	184, // 315: dockwell.agent.v1.CallResult.backup_preview:type_name -> dockwell.agent.v1.BackupPreviewResult
+	185, // 316: dockwell.agent.v1.CallResult.backup:type_name -> dockwell.agent.v1.BackupResult
+	188, // 317: dockwell.agent.v1.CallResult.delete_backup:type_name -> dockwell.agent.v1.DeleteBackupResult
+	185, // 318: dockwell.agent.v1.CallResult.fetch_backup:type_name -> dockwell.agent.v1.BackupResult
+	187, // 319: dockwell.agent.v1.CallResult.send_backup:type_name -> dockwell.agent.v1.SendBackupResult
+	186, // 320: dockwell.agent.v1.CallResult.drill_backup:type_name -> dockwell.agent.v1.DrillBackupResult
+	92,  // 321: dockwell.agent.v1.CallResult.list_updates:type_name -> dockwell.agent.v1.ListUpdatesResult
+	189, // 322: dockwell.agent.v1.CallResult.database:type_name -> dockwell.agent.v1.DatabaseResult
+	334, // 323: dockwell.agent.v1.CallResult.firewall:type_name -> dockwell.v1.ServerFirewall
+	52,  // 324: dockwell.agent.v1.CallResult.confirm_access:type_name -> dockwell.agent.v1.ConfirmAccessResult
+	335, // 325: dockwell.agent.v1.CallResult.ssh:type_name -> dockwell.v1.ServerSsh
+	336, // 326: dockwell.agent.v1.CallResult.fail2ban:type_name -> dockwell.v1.ServerFail2ban
+	181, // 327: dockwell.agent.v1.CallResult.probe:type_name -> dockwell.agent.v1.ProbeResult
+	178, // 328: dockwell.agent.v1.CallResult.cancel_build:type_name -> dockwell.agent.v1.CancelBuildResult
+	177, // 329: dockwell.agent.v1.CallResult.detect_build:type_name -> dockwell.agent.v1.DetectBuildResult
+	337, // 330: dockwell.agent.v1.CallResult.disk_use:type_name -> dockwell.v1.ServerDiskUse
+	54,  // 331: dockwell.agent.v1.CallResult.processes:type_name -> dockwell.agent.v1.ProcessesResult
+	67,  // 332: dockwell.agent.v1.CallResult.end_process:type_name -> dockwell.agent.v1.EndProcessResult
+	75,  // 333: dockwell.agent.v1.CallResult.open_terminal:type_name -> dockwell.agent.v1.OpenTerminalResult
+	77,  // 334: dockwell.agent.v1.CallResult.attach_terminal:type_name -> dockwell.agent.v1.AttachTerminalResult
+	79,  // 335: dockwell.agent.v1.CallResult.close_terminal:type_name -> dockwell.agent.v1.CloseTerminalResult
+	70,  // 336: dockwell.agent.v1.CallResult.task_runs:type_name -> dockwell.agent.v1.TaskRunsResult
+	73,  // 337: dockwell.agent.v1.CallResult.run_task:type_name -> dockwell.agent.v1.RunTaskResult
+	104, // 338: dockwell.agent.v1.CallResult.read_onepanel:type_name -> dockwell.agent.v1.ReadOnePanelResult
+	99,  // 339: dockwell.agent.v1.CallResult.image:type_name -> dockwell.agent.v1.ImageResult
+	94,  // 340: dockwell.agent.v1.CallResult.ports:type_name -> dockwell.agent.v1.PortsResult
+	81,  // 341: dockwell.agent.v1.CallResult.forward:type_name -> dockwell.agent.v1.ForwardResult
+	120, // 342: dockwell.agent.v1.CallResult.make_file:type_name -> dockwell.agent.v1.MakeFileResult
+	122, // 343: dockwell.agent.v1.CallResult.move_file:type_name -> dockwell.agent.v1.MoveFileResult
+	124, // 344: dockwell.agent.v1.CallResult.delete_file:type_name -> dockwell.agent.v1.DeleteFileResult
+	126, // 345: dockwell.agent.v1.CallResult.list_deleted:type_name -> dockwell.agent.v1.ListDeletedResult
+	128, // 346: dockwell.agent.v1.CallResult.restore_file:type_name -> dockwell.agent.v1.RestoreFileResult
+	130, // 347: dockwell.agent.v1.CallResult.purge_deleted:type_name -> dockwell.agent.v1.PurgeDeletedResult
+	132, // 348: dockwell.agent.v1.CallResult.begin_upload:type_name -> dockwell.agent.v1.UploadResult
+	132, // 349: dockwell.agent.v1.CallResult.write_upload:type_name -> dockwell.agent.v1.UploadResult
+	135, // 350: dockwell.agent.v1.CallResult.finish_upload:type_name -> dockwell.agent.v1.FinishUploadResult
+	145, // 351: dockwell.agent.v1.CallResult.download_file:type_name -> dockwell.agent.v1.DownloadFileResult
+	87,  // 352: dockwell.agent.v1.CallResult.remember:type_name -> dockwell.agent.v1.RememberResult
+	63,  // 353: dockwell.agent.v1.CallResult.system_services:type_name -> dockwell.agent.v1.SystemServicesResult
+	65,  // 354: dockwell.agent.v1.CallResult.system_log:type_name -> dockwell.agent.v1.SystemLogResult
+	61,  // 355: dockwell.agent.v1.CallResult.check_registry_login:type_name -> dockwell.agent.v1.CheckRegistryLoginResult
+	59,  // 356: dockwell.agent.v1.CallResult.check_database_sign_in:type_name -> dockwell.agent.v1.CheckDatabaseSignInResult
+	57,  // 357: dockwell.agent.v1.CallResult.put_certificates:type_name -> dockwell.agent.v1.PutCertificatesResult
+	106, // 358: dockwell.agent.v1.CallResult.read_panel:type_name -> dockwell.agent.v1.ReadPanelResult
+	101, // 359: dockwell.agent.v1.CallResult.image_updates:type_name -> dockwell.agent.v1.ImageUpdatesResult
+	46,  // 360: dockwell.agent.v1.CallResult.probe_connection:type_name -> dockwell.agent.v1.ProbeConnectionResult
+	38,  // 361: dockwell.agent.v1.CallResult.read_tunnels:type_name -> dockwell.agent.v1.ReadTunnelsResult
+	40,  // 362: dockwell.agent.v1.CallResult.make_app_owner:type_name -> dockwell.agent.v1.MakeAppOwnerResult
+	42,  // 363: dockwell.agent.v1.CallResult.read_app_owner:type_name -> dockwell.agent.v1.ReadAppOwnerResult
+	44,  // 364: dockwell.agent.v1.CallResult.app_ports:type_name -> dockwell.agent.v1.AppPortsResult
+	223, // 365: dockwell.agent.v1.CallResult.docker_settings:type_name -> dockwell.agent.v1.DockerSettingsResult
+	202, // 366: dockwell.agent.v1.CallResult.docker_inventory_list:type_name -> dockwell.agent.v1.DockerInventoryListResult
+	231, // 367: dockwell.agent.v1.CallResult.docker_lifecycle_preview:type_name -> dockwell.agent.v1.DockerLifecyclePreviewResult
+	204, // 368: dockwell.agent.v1.CallResult.docker_inventory_detail:type_name -> dockwell.agent.v1.DockerInventoryDetailResult
+	206, // 369: dockwell.agent.v1.CallResult.docker_inventory_watch:type_name -> dockwell.agent.v1.DockerInventoryWatchResult
+	209, // 370: dockwell.agent.v1.CallResult.docker_maintenance_preview:type_name -> dockwell.agent.v1.DockerMaintenancePreviewResult
+	212, // 371: dockwell.agent.v1.CallResult.check_docker_network:type_name -> dockwell.agent.v1.CheckDockerNetworkResult
+	218, // 372: dockwell.agent.v1.CallResult.docker_artifact_control:type_name -> dockwell.agent.v1.DockerArtifactControlResult
+	138, // 373: dockwell.agent.v1.CallResult.compress_files:type_name -> dockwell.agent.v1.CompressFilesResult
+	140, // 374: dockwell.agent.v1.CallResult.extract_archive:type_name -> dockwell.agent.v1.ExtractArchiveResult
+	142, // 375: dockwell.agent.v1.CallResult.get_archive_job:type_name -> dockwell.agent.v1.GetArchiveJobResult
+	338, // 376: dockwell.agent.v1.CallResult.list_ssh_keys:type_name -> dockwell.v1.ListServerSshKeysResponse
+	339, // 377: dockwell.agent.v1.CallResult.edit_ssh_key:type_name -> dockwell.v1.EditServerSshKeyResponse
+	237, // 378: dockwell.agent.v1.CallResult.database_import:type_name -> dockwell.agent.v1.DatabaseImportControlResult
+	340, // 379: dockwell.agent.v1.CallResult.list_ssh_sessions:type_name -> dockwell.v1.ListServerSshSessionsResponse
+	341, // 380: dockwell.agent.v1.CallResult.disconnect_ssh_session:type_name -> dockwell.v1.DisconnectServerSshSessionResponse
+	342, // 381: dockwell.agent.v1.CallResult.list_ssh_logins:type_name -> dockwell.v1.ListServerSshLoginsResponse
+	343, // 382: dockwell.agent.v1.CallResult.ban_ssh_address:type_name -> dockwell.v1.BanServerSshAddressResponse
+	344, // 383: dockwell.agent.v1.CallResult.set_fail2ban_address_ban:type_name -> dockwell.v1.SetFail2banAddressBanResponse
+	144, // 384: dockwell.agent.v1.CallResult.list_archive_jobs:type_name -> dockwell.agent.v1.ListArchiveJobsResult
+	239, // 385: dockwell.agent.v1.CallResult.list_file_accounts:type_name -> dockwell.agent.v1.ListFileAccountsResult
+	241, // 386: dockwell.agent.v1.CallResult.change_file_access:type_name -> dockwell.agent.v1.ChangeFileAccessResult
+	243, // 387: dockwell.agent.v1.CallResult.calculate_folder_size:type_name -> dockwell.agent.v1.CalculateFolderSizeResult
+	245, // 388: dockwell.agent.v1.CallResult.search_files:type_name -> dockwell.agent.v1.SearchFilesResult
+	247, // 389: dockwell.agent.v1.CallResult.download_file_from_url:type_name -> dockwell.agent.v1.DownloadFileFromURLResult
+	249, // 390: dockwell.agent.v1.CallResult.cancel_file_download:type_name -> dockwell.agent.v1.CancelFileDownloadResult
+	225, // 391: dockwell.agent.v1.CallResult.list_sockets:type_name -> dockwell.agent.v1.ListSocketsResult
+	227, // 392: dockwell.agent.v1.CallResult.process_detail:type_name -> dockwell.agent.v1.ProcessDetailResult
+	229, // 393: dockwell.agent.v1.CallResult.terminal_cwd:type_name -> dockwell.agent.v1.TerminalCwdResult
+	251, // 394: dockwell.agent.v1.CallResult.validate_caddyfile:type_name -> dockwell.agent.v1.ValidateCaddyfileResult
+	253, // 395: dockwell.agent.v1.CallResult.renew_certificate:type_name -> dockwell.agent.v1.RenewCertificateResult
+	255, // 396: dockwell.agent.v1.CallResult.read_certificate:type_name -> dockwell.agent.v1.ReadCertificateResult
+	183, // 397: dockwell.agent.v1.AdoptionResult.link_aliases:type_name -> dockwell.agent.v1.LinkAlias
+	345, // 398: dockwell.agent.v1.BackupPreviewResult.method:type_name -> dockwell.v1.BackupMethod
+	345, // 399: dockwell.agent.v1.BackupResult.method:type_name -> dockwell.v1.BackupMethod
+	346, // 400: dockwell.agent.v1.DrillBackupResult.result:type_name -> dockwell.v1.DrillResult
+	347, // 401: dockwell.agent.v1.DatabaseResult.readings:type_name -> dockwell.v1.DatabaseReading
+	348, // 402: dockwell.agent.v1.ContainersResult.containers:type_name -> dockwell.v1.ServerContainer
+	326, // 403: dockwell.agent.v1.LogSourcesResult.sources:type_name -> dockwell.v1.LogSource
+	328, // 404: dockwell.agent.v1.PlanResult.steps:type_name -> dockwell.v1.PlanStep
+	196, // 405: dockwell.agent.v1.PlanResult.unmanaged:type_name -> dockwell.agent.v1.UnmanagedMounts
+	195, // 406: dockwell.agent.v1.PlanResult.via:type_name -> dockwell.agent.v1.PathVia
+	199, // 407: dockwell.agent.v1.ObserveResult.resources:type_name -> dockwell.agent.v1.ObservedResource
+	349, // 408: dockwell.agent.v1.DockerInventoryListCall.filter:type_name -> dockwell.v1.DockerObjectFilter
+	350, // 409: dockwell.agent.v1.DockerInventoryListCall.kind:type_name -> dockwell.v1.DockerObjectKind
+	351, // 410: dockwell.agent.v1.DockerInventoryListResult.objects:type_name -> dockwell.v1.DockerObject
+	352, // 411: dockwell.agent.v1.DockerInventoryListResult.overview:type_name -> dockwell.v1.DockerServerSummary
+	351, // 412: dockwell.agent.v1.DockerInventoryDetailResult.object:type_name -> dockwell.v1.DockerObject
+	353, // 413: dockwell.agent.v1.DockerInventoryDetailResult.replacement_key:type_name -> dockwell.v1.DockerObjectKey
+	350, // 414: dockwell.agent.v1.DockerInventoryWatchCall.kind:type_name -> dockwell.v1.DockerObjectKind
+	353, // 415: dockwell.agent.v1.DockerInventoryChanged.changed_keys:type_name -> dockwell.v1.DockerObjectKey
+	354, // 416: dockwell.agent.v1.DockerInventoryChanged.samples:type_name -> dockwell.v1.DockerSample
+	355, // 417: dockwell.agent.v1.DockerInventoryChanged.health_updates:type_name -> dockwell.v1.DockerHealthUpdate
+	356, // 418: dockwell.agent.v1.DockerMaintenancePreviewCall.filters:type_name -> dockwell.v1.DockerCleanupFilters
+	357, // 419: dockwell.agent.v1.DockerMaintenancePreviewResult.targets:type_name -> dockwell.v1.DockerCleanupTarget
+	358, // 420: dockwell.agent.v1.DockerMaintenancePreviewResult.pause:type_name -> dockwell.v1.DockerCleanupPause
+	359, // 421: dockwell.agent.v1.CheckDockerNetworkCall.spec:type_name -> dockwell.resource.v1alpha1.Network
+	360, // 422: dockwell.agent.v1.CheckDockerNetworkResult.findings:type_name -> dockwell.v1.DockerNetworkFinding
+	215, // 423: dockwell.agent.v1.DockerArtifactControlCall.begin_upload:type_name -> dockwell.agent.v1.BeginDockerArtifactCall
+	214, // 424: dockwell.agent.v1.DockerArtifactControlCall.status:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	217, // 425: dockwell.agent.v1.DockerArtifactControlCall.receive:type_name -> dockwell.agent.v1.DockerArtifactStream
+	214, // 426: dockwell.agent.v1.DockerArtifactControlCall.seal:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	217, // 427: dockwell.agent.v1.DockerArtifactControlCall.send:type_name -> dockwell.agent.v1.DockerArtifactStream
+	214, // 428: dockwell.agent.v1.DockerArtifactControlCall.abort:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	216, // 429: dockwell.agent.v1.DockerArtifactControlCall.snapshot_folder:type_name -> dockwell.agent.v1.DockerArtifactFolder
+	361, // 430: dockwell.agent.v1.DockerArtifactControlCall.prepare_push:type_name -> dockwell.v1.DockerImageExport
+	214, // 431: dockwell.agent.v1.DockerArtifactControlCall.list:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	214, // 432: dockwell.agent.v1.DockerArtifactControlCall.discard_export:type_name -> dockwell.agent.v1.DockwellDockerArtifactEmpty
+	219, // 433: dockwell.agent.v1.DockerArtifactControlCall.pin:type_name -> dockwell.agent.v1.DockerArtifactPin
+	219, // 434: dockwell.agent.v1.DockerArtifactControlCall.release_pin:type_name -> dockwell.agent.v1.DockerArtifactPin
+	362, // 435: dockwell.agent.v1.BeginDockerArtifactCall.kind:type_name -> dockwell.v1.DockerArtifactKind
+	363, // 436: dockwell.agent.v1.DockerArtifactControlResult.artifact:type_name -> dockwell.v1.DockerArtifactInfo
+	364, // 437: dockwell.agent.v1.DockerArtifactControlResult.descriptor:type_name -> dockwell.v1.DockerRegistryDescriptor
+	365, // 438: dockwell.agent.v1.DockerArtifactControlResult.reason:type_name -> dockwell.v1.DockerImageReason
+	363, // 439: dockwell.agent.v1.DockerArtifactControlResult.artifacts:type_name -> dockwell.v1.DockerArtifactInfo
+	366, // 440: dockwell.agent.v1.DockerArtifactControlResult.space:type_name -> dockwell.v1.DockerArtifactSpace
+	219, // 441: dockwell.agent.v1.CheckDockerArtifactPinsRequest.pins:type_name -> dockwell.agent.v1.DockerArtifactPin
+	219, // 442: dockwell.agent.v1.CheckDockerArtifactPinsResponse.ended:type_name -> dockwell.agent.v1.DockerArtifactPin
+	219, // 443: dockwell.agent.v1.CheckDockerArtifactPinsResponse.absent:type_name -> dockwell.agent.v1.DockerArtifactPin
+	367, // 444: dockwell.agent.v1.DockerSettingsCall.check:type_name -> dockwell.resource.v1alpha1.DockerDaemon
+	368, // 445: dockwell.agent.v1.DockerSettingsResult.settings:type_name -> dockwell.v1.DockerSettings
+	369, // 446: dockwell.agent.v1.DockerSettingsResult.checked:type_name -> dockwell.v1.CheckDockerSettingsResponse
+	263, // 447: dockwell.agent.v1.ListSocketsResult.time:type_name -> google.protobuf.Timestamp
+	370, // 448: dockwell.agent.v1.ListSocketsResult.connections:type_name -> dockwell.v1.SocketConnection
+	371, // 449: dockwell.agent.v1.ProcessDetailResult.detail:type_name -> dockwell.v1.ProcessDetail
+	353, // 450: dockwell.agent.v1.DockerLifecyclePreviewCall.keys:type_name -> dockwell.v1.DockerObjectKey
+	372, // 451: dockwell.agent.v1.DockerLifecyclePreviewCall.action:type_name -> dockwell.v1.DockerContainerAction
+	373, // 452: dockwell.agent.v1.DockerLifecyclePreviewResult.targets:type_name -> dockwell.v1.DockerContainerTarget
+	233, // 453: dockwell.agent.v1.DatabaseImportControlCall.begin:type_name -> dockwell.agent.v1.DatabaseImportBegin
+	234, // 454: dockwell.agent.v1.DatabaseImportControlCall.receive:type_name -> dockwell.agent.v1.DatabaseImportReceive
+	235, // 455: dockwell.agent.v1.DatabaseImportControlCall.inspect:type_name -> dockwell.agent.v1.DatabaseImportInspect
+	236, // 456: dockwell.agent.v1.DatabaseImportControlCall.cancel:type_name -> dockwell.agent.v1.DatabaseImportCancel
+	374, // 457: dockwell.agent.v1.ListFileAccountsResult.response:type_name -> dockwell.v1.ListFileAccountsResponse
+	118, // 458: dockwell.agent.v1.ListFileAccountsResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	375, // 459: dockwell.agent.v1.ChangeFileAccessCall.change:type_name -> dockwell.v1.FileAccessChange
+	376, // 460: dockwell.agent.v1.ChangeFileAccessResult.response:type_name -> dockwell.v1.ChangeFileAccessResponse
+	118, // 461: dockwell.agent.v1.ChangeFileAccessResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	377, // 462: dockwell.agent.v1.CalculateFolderSizeResult.response:type_name -> dockwell.v1.CalculateFolderSizeResponse
+	118, // 463: dockwell.agent.v1.CalculateFolderSizeResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	378, // 464: dockwell.agent.v1.SearchFilesResult.response:type_name -> dockwell.v1.SearchFilesResponse
+	118, // 465: dockwell.agent.v1.SearchFilesResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 466: dockwell.agent.v1.DownloadFileFromURLResult.job:type_name -> dockwell.v1.ArchiveJob
+	118, // 467: dockwell.agent.v1.DownloadFileFromURLResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	259, // 468: dockwell.agent.v1.CancelFileDownloadResult.job:type_name -> dockwell.v1.ArchiveJob
+	118, // 469: dockwell.agent.v1.CancelFileDownloadResult.refusal:type_name -> dockwell.agent.v1.FileRefusal
+	263, // 470: dockwell.agent.v1.RenewCertificateResult.previous_expire_time:type_name -> google.protobuf.Timestamp
+	263, // 471: dockwell.agent.v1.ReadCertificateResult.not_before:type_name -> google.protobuf.Timestamp
+	263, // 472: dockwell.agent.v1.ReadCertificateResult.not_after:type_name -> google.protobuf.Timestamp
+	32,  // 473: dockwell.agent.v1.AgentService.Join:input_type -> dockwell.agent.v1.JoinRequest
+	34,  // 474: dockwell.agent.v1.AgentService.RenewCertificate:input_type -> dockwell.agent.v1.RenewCertificateRequest
+	3,   // 475: dockwell.agent.v1.AgentService.Connect:input_type -> dockwell.agent.v1.ConnectRequest
+	161, // 476: dockwell.agent.v1.AgentService.SendLogs:input_type -> dockwell.agent.v1.SendLogsRequest
+	84,  // 477: dockwell.agent.v1.AgentService.Terminal:input_type -> dockwell.agent.v1.TerminalRequest
+	146, // 478: dockwell.agent.v1.AgentService.ReceiveFile:input_type -> dockwell.agent.v1.ReceiveFileRequest
+	148, // 479: dockwell.agent.v1.AgentService.SendFile:input_type -> dockwell.agent.v1.SendFileRequest
+	82,  // 480: dockwell.agent.v1.AgentService.Forward:input_type -> dockwell.agent.v1.ForwardRequest
+	220, // 481: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:input_type -> dockwell.agent.v1.CheckDockerArtifactPinsRequest
+	33,  // 482: dockwell.agent.v1.AgentService.Join:output_type -> dockwell.agent.v1.JoinResponse
+	35,  // 483: dockwell.agent.v1.AgentService.RenewCertificate:output_type -> dockwell.agent.v1.RenewCertificateResponse
+	25,  // 484: dockwell.agent.v1.AgentService.Connect:output_type -> dockwell.agent.v1.ConnectResponse
+	162, // 485: dockwell.agent.v1.AgentService.SendLogs:output_type -> dockwell.agent.v1.SendLogsResponse
+	85,  // 486: dockwell.agent.v1.AgentService.Terminal:output_type -> dockwell.agent.v1.TerminalResponse
+	147, // 487: dockwell.agent.v1.AgentService.ReceiveFile:output_type -> dockwell.agent.v1.ReceiveFileResponse
+	149, // 488: dockwell.agent.v1.AgentService.SendFile:output_type -> dockwell.agent.v1.SendFileResponse
+	83,  // 489: dockwell.agent.v1.AgentService.Forward:output_type -> dockwell.agent.v1.ForwardResponse
+	221, // 490: dockwell.agent.v1.AgentService.CheckDockerArtifactPins:output_type -> dockwell.agent.v1.CheckDockerArtifactPinsResponse
+	482, // [482:491] is the sub-list for method output_type
+	473, // [473:482] is the sub-list for method input_type
+	473, // [473:473] is the sub-list for extension type_name
+	473, // [473:473] is the sub-list for extension extendee
+	0,   // [0:473] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_agent_v1_agent_proto_init() }
@@ -23591,6 +24226,9 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*Call_ListSockets)(nil),
 		(*Call_ProcessDetail)(nil),
 		(*Call_TerminalCwd)(nil),
+		(*Call_ValidateCaddyfile)(nil),
+		(*Call_RenewCertificate)(nil),
+		(*Call_ReadCertificate)(nil),
 	}
 	file_dockwell_agent_v1_agent_proto_msgTypes[44].OneofWrappers = []any{
 		(*ProbeCall_Port)(nil),
@@ -23703,6 +24341,9 @@ func file_dockwell_agent_v1_agent_proto_init() {
 		(*CallResult_ListSockets)(nil),
 		(*CallResult_ProcessDetail)(nil),
 		(*CallResult_TerminalCwd)(nil),
+		(*CallResult_ValidateCaddyfile)(nil),
+		(*CallResult_RenewCertificate)(nil),
+		(*CallResult_ReadCertificate)(nil),
 	}
 	file_dockwell_agent_v1_agent_proto_msgTypes[196].OneofWrappers = []any{}
 	file_dockwell_agent_v1_agent_proto_msgTypes[204].OneofWrappers = []any{}
@@ -23740,7 +24381,7 @@ func file_dockwell_agent_v1_agent_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_agent_v1_agent_proto_rawDesc), len(file_dockwell_agent_v1_agent_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   249,
+			NumMessages:   255,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

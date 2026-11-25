@@ -34,7 +34,7 @@ import {
 import { plural } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { sentence } from "../../lib/errors";
@@ -111,6 +111,8 @@ export function BackupsPage({
         (!search.state || stateKey(b.state) === search.state) &&
         (q === "" ||
           b.volume.toLowerCase().includes(q) ||
+          b.websiteDomain.toLowerCase().includes(q) ||
+          b.websitePath.toLowerCase().includes(q) ||
           b.destination.toLowerCase().includes(q) ||
           b.serverName.toLowerCase().includes(q)),
     );
@@ -667,7 +669,7 @@ function BackupsList({
       header: place ? <SortHeader label={t`Volume`} sortKey="volume" place={place} /> : t`Volume`,
       sort: place?.sortOf("volume"),
       render: (b) => {
-        const under = [method(b.method, b.database), where(b)].filter(Boolean).join(" · ");
+        const under = [b.websitePath, method(b.method, b.database), where(b)].filter(Boolean).join(" · ");
         return (
           <div className="backup-state">
             <code>
@@ -740,8 +742,15 @@ function BackupsList({
   );
 }
 
-/** A backup's volume, as a link to its page. */
+/** A backup's volume or website folder, as a link to its page. */
 function VolumeName({ backup }: { backup: Backup }) {
+  if (backup.websiteId) {
+    return (
+      <Link to="/websites/$websiteId" params={{ websiteId: backup.websiteId }} className="dw-ref-plain">
+        {backup.websiteDomain || backup.volume}
+      </Link>
+    );
+  }
   return backup.volumeId ? (
     <RefLink kind="volume" id={backup.volumeId} look="plain">
       {backup.volume}

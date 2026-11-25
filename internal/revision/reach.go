@@ -253,6 +253,9 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 				met = met || l.GetMeetsEnvironment() == m.GetEnvironment() && l.GetService() == m.GetService()
 			}
 			if !met {
+				met = e.metByWebsiteSubpath(ctx, tx, items, it.ref, m)
+			}
+			if !met {
 				return fault.New(ErrInvalid, "network %s takes in %s of another environment, which no link of its environment meets. A network takes in another environment's service only for a link to it, which Dockwell makes as an app is linked to it",
 					it.ref.Name, m.GetService())
 			}
@@ -266,6 +269,59 @@ func (e *Engine) checkReaches(ctx context.Context, tx *store.Tx, items []item, i
 		return e.checkServiceSecrets(ctx, tx, items, it, s)
 	}
 	return nil
+}
+
+// metByWebsiteSubpath reports whether a cross-environment member on a website's "site"
+// network corresponds to one of that website's rules.subpath_proxies service_id entries
+// in the state after this change (L1).
+func (e *Engine) metByWebsiteSubpath(ctx context.Context, tx *store.Tx, items []item, netRef resource.Ref, m *resourcev1.NetworkMember) bool {
+	if netRef.Name != "site" {
+		return false
+	}
+	idxStr, ok := strings.CutPrefix(m.GetAlias(), "subpath-")
+	if !ok {
+		return false
+	}
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil || idx < 0 {
+		return false
+	}
+	projectID := projectOfScope(ctx, tx, items, netRef.Scope)
+	if projectID == "" {
+		return false
+	}
+	var projSpec *resourcev1.Project
+	for i := range items {
+		if items[i].id == projectID && items[i].ref.Kind == scope.ProjectKind {
+			projSpec, _ = items[i].spec.(*resourcev1.Project)
+			break
+		}
+	}
+	if projSpec == nil {
+		if pr, err := tx.GetResourceByID(ctx, projectID); err == nil && pr.Kind == string(scope.ProjectKind) && pr.Spec != nil {
+			if spec, err := e.specAfter(ctx, tx, items, resource.Ref{Kind: scope.ProjectKind, Scope: pr.Scope, Name: pr.Name}); err == nil {
+				projSpec, _ = spec.(*resourcev1.Project)
+			}
+		}
+	}
+	proxies := projSpec.GetWebsite().GetRules().GetSubpathProxies()
+	if idx >= len(proxies) {
+		return false
+	}
+	targetID := proxies[idx].GetServiceId()
+	if targetID == "" {
+		return false
+	}
+	for i := range items {
+		if items[i].id == targetID && items[i].ref.Kind == serviceKind {
+			return items[i].spec != nil && items[i].ref.Scope == m.GetEnvironment() && items[i].ref.Name == m.GetService()
+		}
+	}
+	svc, err := tx.GetResourceByID(ctx, targetID)
+	if err != nil || svc.Kind != string(serviceKind) || svc.Spec == nil {
+		return false
+	}
+	return svc.Scope == m.GetEnvironment() && svc.Name == m.GetService()
 }
 
 // checkConnectionReached refuses a link to a connection that isn't there, or doesn't

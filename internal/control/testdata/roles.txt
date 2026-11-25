@@ -160,10 +160,13 @@ DockerService.WatchDockerObjects               read         admin      admin    
 DomainService.CheckDnsProvider                 plan         admin      admin      install  session
 DomainService.CheckDomain                      plan         developer  developer  named
 DomainService.CheckSigninProvider              read         admin      admin      install  session
+DomainService.DownloadCertificate              read         viewer     viewer     project
 DomainService.ListCertificates                 read         viewer     viewer     named
 DomainService.ListDnsProviders                 read         viewer     viewer     named
 DomainService.ListDomains                      read         viewer     viewer     project
 DomainService.ListSigninProviders              read         viewer     viewer     named
+DomainService.RenewCertificate                 apply        developer  admin      project
+DomainService.SetCustomCertificate             plan         admin      admin      project
 DomainService.SyncDnsProvider                  read         admin      admin      install
 EventService.CountEvents                       read         viewer     viewer     project
 EventService.ListEvents                        read         viewer     viewer     project
@@ -313,6 +316,7 @@ VariableService.ListVariables                  read         viewer     viewer   
 VariableService.RevealSecret                   read         developer  admin      project  session
 VariableService.RevealServiceValue             read         developer  admin      project  session
 VolumeService.GetVolume                        read         viewer     viewer     project
+WebsiteService.BatchUpdateWebsites             plan         admin      admin      project
 WebsiteService.CreateWebsite                   plan         admin      admin      install
 WebsiteService.DeleteWebsite                   plan         admin      admin      project
 WebsiteService.ListWebsiteRuntimes             read         viewer     viewer     shared

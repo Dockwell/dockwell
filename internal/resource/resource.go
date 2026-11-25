@@ -831,6 +831,9 @@ type RestoreSource struct {
 	ImportDatabase string `json:",omitempty"`
 	ImportFilename string `json:",omitempty"`
 	ImportFormat   string `json:",omitempty"`
+	// HostPath is the folder on the server when restoring a website's folder instead
+	// of a Docker volume.
+	HostPath string `json:",omitempty"`
 }
 
 // IntoNew says it restores into a new database's volume (From).
@@ -2445,6 +2448,24 @@ func (r *Registry) OnServer(kind Kind, spec proto.Message) proto.Message {
 	}
 	if c, ok := r.types[kind].(ControlOnly); ok {
 		return c.OnServer(spec)
+	}
+	return spec
+}
+
+// ObservedShaper is a kind whose Observe omits a secret field (such as a custom
+// certificate's private key) and returns a fingerprint instead. Plan and Drift
+// compare against AsObserved(desired) while Apply still receives the full spec.
+type ObservedShaper interface {
+	AsObserved(spec proto.Message) proto.Message
+}
+
+// AsObserved returns spec shaped as Observe returns it, for Plan and Drift comparison.
+func (r *Registry) AsObserved(kind Kind, spec proto.Message) proto.Message {
+	if spec == nil {
+		return nil
+	}
+	if s, ok := r.types[kind].(ObservedShaper); ok {
+		return s.AsObserved(spec)
 	}
 	return spec
 }

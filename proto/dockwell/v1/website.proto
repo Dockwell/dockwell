@@ -102,6 +102,23 @@ service WebsiteService {
       body: "*"
     };
   }
+
+  // BatchUpdateWebsites plans changing PHP version, HTTPS, or paused state on
+  // several websites at once as a single change and plan.
+  rpc BatchUpdateWebsites(BatchUpdateWebsitesRequest) returns (BatchUpdateWebsitesResponse) {
+    option (dockwell.v1.effect) = EFFECT_PLAN;
+    option (dockwell.v1.min_role) = NEEDS_ADMIN;
+    option (dockwell.v1.min_role_protected) = NEEDS_ADMIN;
+    option (dockwell.v1.reach) = REACH_PROJECT;
+    option (dockwell.v1.command) = {
+      noun: "websites"
+      verb: "batch-update"
+    };
+    option (google.api.http) = {
+      post: "/v1/websites:batchUpdate"
+      body: "*"
+    };
+  }
 }
 
 // WebsiteReach is whether what a website sends to answers, from its server: the
@@ -204,12 +221,16 @@ message WebsiteRuntime {
   // True when Dockwell no longer offers the version: an app on it keeps running
   // and changing, and no new app runs on it.
   bool retired = 11;
+  // Shipped optional extensions that can be toggled on or off per PHP website.
+  repeated string optional_extensions = 12;
 }
 
 // PreviewWebsiteRequest is what a website would serve.
 message PreviewWebsiteRequest {
   // What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
   dockwell.resource.v1alpha1.Website website = 1;
+  // Optional server ID to validate custom Caddy directives with Caddy's own adapter on that server.
+  string server_id = 2;
 }
 
 // PreviewWebsiteResponse is what serving it takes.
@@ -220,6 +241,8 @@ message PreviewWebsiteResponse {
   // website that needs no web server of its own, as one that sends to a port on
   // the server.
   string config = 2;
+  // True when the generated Caddyfile was validated by Caddy's own adapter on the server.
+  bool caddy_validated = 3;
 }
 
 // CreateWebsiteRequest is a website to make.
@@ -247,6 +270,9 @@ message CreateWebsiteRequest {
   // serve the website's new project yet, the same change adds it, which takes an
   // admin.
   dockwell.resource.v1alpha1.RoutePublish publish = 8;
+  // Write-only Basic Auth passwords keyed by username, stored as Dockwell
+  // secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+  map<string, string> basic_auth_passwords = 20 [(dockwell.resource.v1alpha1.sensitive) = true];
 }
 
 // CreateWebsiteResponse carries the planned change.
@@ -276,6 +302,9 @@ message UpdateWebsiteRequest {
   // Sets the way in for one of the website's domains. The other domains keep
   // their own settings. Use either this or publish.
   WebsiteDomainFront domain_front = 6;
+  // Write-only Basic Auth passwords keyed by username, stored as Dockwell
+  // secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+  map<string, string> basic_auth_passwords = 20 [(dockwell.resource.v1alpha1.sensitive) = true];
 }
 
 // WebsiteDomainFront is how traffic reaches one of a website's domains.
@@ -311,6 +340,29 @@ message DeleteWebsiteRequest {
 
 // DeleteWebsiteResponse carries the planned change.
 message DeleteWebsiteResponse {
+  // The change, planned, with its plan.
+  Change change = 1;
+}
+
+// BatchUpdateWebsitesRequest plans one change across up to 50 websites.
+message BatchUpdateWebsitesRequest {
+  // Up to 50 website project IDs to update together.
+  repeated string website_ids = 1;
+  // Set paused state on every selected website when present.
+  optional bool paused = 2;
+  // Maintenance page or plain 503 when pausing. Unspecified keeps each site's choice
+  // (or defaults to maintenance page).
+  dockwell.resource.v1alpha1.WebsitePauseMode pause_mode = 3;
+  // Switch PHP version on selected PHP websites, such as "8.4".
+  string php_version = 4;
+  // Switch HTTPS on (true) or off (false) on selected websites' routes.
+  optional bool https = 5;
+  // What the change is for, for the timeline. Empty says what it changes.
+  string summary = 6;
+}
+
+// BatchUpdateWebsitesResponse carries the planned change.
+message BatchUpdateWebsitesResponse {
   // The change, planned, with its plan.
   Change change = 1;
 }

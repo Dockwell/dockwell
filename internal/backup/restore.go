@@ -290,6 +290,9 @@ func (r *Runner) ApplyBackup(ctx context.Context, step resource.Step) error {
 
 // JudgeRestore plans a restore, and reports false if the change did it already.
 func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resource.RestoreSource) (resource.Decision, bool, error) {
+	if src.HostPath != "" {
+		return r.judgeRestoreHostPath(ctx, ref, src)
+	}
 	if s, err := r.stageOf(ref, src.Change); err != nil {
 		return resource.Decision{}, false, err
 	} else if s.Stage == stageFinished {
@@ -351,6 +354,9 @@ func (r *Runner) JudgeRestore(ctx context.Context, ref resource.Ref, src resourc
 // puts that back and starts what it stopped, as a failed deploy rolls back. One cut
 // short does the same, and its change starts it over from that copy.
 func (r *Runner) ApplyRestore(ctx context.Context, step resource.Step, src resource.RestoreSource) error {
+	if src.HostPath != "" {
+		return r.applyRestoreHostPath(ctx, step, src)
+	}
 	ref, t := step.Ref, volume.TargetOf(step.Ref)
 	release, err := r.hold(t)
 	if err != nil {

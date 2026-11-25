@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -32,6 +33,7 @@ import (
 	"time"
 
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/netguard"
 )
 
 // Name is the proxy's name, for people.
@@ -135,6 +137,9 @@ type Caddy struct {
 	// ACMEDirectory is the ACME CA's directory, and ACMERoots a PEM file of
 	// roots to trust for it, on the server. Empty means Let's Encrypt.
 	ACMEDirectory, ACMERoots string
+	// ACMEAccounts keeps one sealed ACME account key per CA on disk so forced
+	// HTTP-01 renewals reuse an account instead of registering a new one each time.
+	ACMEAccounts ingress.ACMEAccountKeeper
 	// HTTPPort and HTTPSPort are the public ports. Zero means 80 and 443.
 	HTTPPort, HTTPSPort int
 
@@ -152,12 +157,21 @@ type Caddy struct {
 	adminUIDForTest *int
 	// startWaitForTest replaces startWait, for a test of what comes after it.
 	startWaitForTest time.Duration
+	// nowForTest overrides time.Now in certificate pin-pruning tests.
+	nowForTest func() time.Time
+	// lookupForTest overrides DNS resolution in upstream validation tests.
+	lookupForTest netguard.LookupFunc
 
 	once  sync.Once
 	admin *http.Client
 
 	logMu sync.Mutex
 	log   logReader
+
+	// acmeMu protects per-CA ACME account keys loaded from ACMEAccounts or kept in memory.
+	acmeMu       sync.Mutex
+	acmeAccounts map[string]*ecdsa.PrivateKey
+	acmeLoaded   bool
 
 	// good is the config last written to goodFile, so a config that hasn't
 	// changed isn't written again each minute.
@@ -292,7 +306,7 @@ func (c *Caddy) call(ctx context.Context, method, path string, body []byte, head
 	for k, v := range header {
 		req.Header[k] = v
 	}
-	if body != nil {
+	if body != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	res, err := c.client().Do(req)
@@ -743,6 +757,9 @@ func routeJSON(r ingress.Route) route {
 	if believes(r) {
 		h.Headers = ownName(believingAddress(), r.Domain)
 		handle = append(handle, beliefOf(r.TrustedProxies, r.EdgeProxies))
+	}
+	if r.RateLimit != nil && r.RateLimit.Dial != "" && r.RateLimit.RequestsPerMinute > 0 {
+		handle = append(handle, rateLimitAsk(r))
 	}
 	if len(r.Allow) > 0 {
 		handle = append(handle, gateOf(r))
@@ -1822,7 +1839,7 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	out := ingress.Route{ID: id}
 	raw, out.Held, out.Setup = unheld(raw)
 	var r route
-	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 5 {
+	if err := json.Unmarshal(raw, &r); err != nil || len(r.Match) == 0 || len(r.Match) > 2 || len(r.Match[0].Host) != 1 || len(r.Handle) == 0 || len(r.Handle) > 6 {
 		out.Edited = true
 		return out, true
 	}
@@ -1873,9 +1890,12 @@ func readRoute(raw json.RawMessage) (ingress.Route, bool) {
 	for i := range steps {
 		h := &steps[i]
 		users, dial, choice := readPasswordOrSignIn(*h)
+		rl, isRL := readRateLimit(*h)
 		switch status := gateStatus(*h); {
 		case choice:
 			out.Users, out.SignIn = users, dial
+		case isRL:
+			out.RateLimit = rl
 		case h.Handler == "headers":
 			// A visitor's own sign-in headers taken out (unclaimed), compared below.
 		case signInDial(*h) != "":
@@ -2749,6 +2769,17 @@ func (c *Caddy) DeleteRoute(ctx context.Context, id string) error {
 	if err == nil {
 		// Nothing dials it now, and a route of its name writes it anew.
 		_ = removeIn(c.runDir(), filepath.Join(upstreamsDir, id))
+		// Drop any temporary forced-renewal certificate pin whose domain has no
+		// remaining HTTPS route on this server (N1).
+		if routes, rerr := c.Routes(ctx); rerr == nil {
+			var activeHTTPS []string
+			for i := range routes {
+				if !routes[i].Plain && !slices.Contains(activeHTTPS, routes[i].Domain) {
+					activeHTTPS = append(activeHTTPS, routes[i].Domain)
+				}
+			}
+			_ = c.PruneRenewedCerts(ctx, activeHTTPS)
+		}
 	}
 	return err
 }
@@ -2973,9 +3004,24 @@ const dnsCertTag = "dockwell.dns"
 // those (ADR 0088). Caddy keeps both in its last config, and the agent's copy of it
 // follows.
 func (c *Caddy) SetCertificates(ctx context.Context, certs []ingress.DNSCert, skip []string) error {
+	skipSet := make(map[string]bool, len(skip))
+	for _, s := range skip {
+		skipSet[strings.ToLower(strings.TrimSpace(s))] = true
+	}
 	isOurs := func(cert map[string]any) bool { return tagged(cert, dnsCertTag) }
+	isOverriddenRenewed := func(cert map[string]any) bool {
+		if len(skipSet) == 0 || !tagged(cert, renewedCertTag) {
+			return false
+		}
+		if dom := renewedTagDomain(cert); dom != "" && skipSet[dom] {
+			return true
+		}
+		return false
+	}
 	loadedChanged, err := c.editLoaded(ctx, func(loaded []map[string]any) []map[string]any {
-		loaded = slices.DeleteFunc(loaded, isOurs)
+		loaded = slices.DeleteFunc(loaded, func(cert map[string]any) bool {
+			return isOurs(cert) || isOverriddenRenewed(cert)
+		})
 		for i := range certs {
 			loaded = append(loaded, map[string]any{
 				"certificate": string(certs[i].Chain), "key": string(certs[i].Key),
@@ -2991,7 +3037,15 @@ func (c *Caddy) SetCertificates(ctx context.Context, certs []ingress.DNSCert, sk
 	if err != nil {
 		return fmt.Errorf("can't have Caddy leave the names served by DNS to their certificates: %w", err)
 	}
-	if loadedChanged || skipChanged {
+	policyChanged := false
+	if len(skipSet) > 0 {
+		if changed, perr := c.dropRenewedPolicies(ctx, skipSet); perr != nil {
+			return fmt.Errorf("can't clear forced-renewal certificate selection for custom/DNS-01 domains: %w", perr)
+		} else {
+			policyChanged = changed
+		}
+	}
+	if loadedChanged || skipChanged || policyChanged {
 		c.keepRunning(ctx)
 	}
 	return nil
@@ -3117,7 +3171,7 @@ func (c *Caddy) Retry(ctx context.Context) error {
 
 // Certificates says where each domain's certificate stands: issued if one is
 // on disk and hasn't expired, and otherwise as Caddy's log says.
-func (c *Caddy) Certificates(_ context.Context, domains []string) (map[string]ingress.CertState, error) {
+func (c *Caddy) Certificates(ctx context.Context, domains []string) (map[string]ingress.CertState, error) {
 	c.logMu.Lock()
 	defer c.logMu.Unlock()
 	if err := c.log.read(filepath.Join(c.dataDir(), tlsLogName)); err != nil {
@@ -3126,8 +3180,9 @@ func (c *Caddy) Certificates(_ context.Context, domains []string) (map[string]in
 	out := make(map[string]ingress.CertState, len(domains))
 	for _, d := range domains {
 		st := c.log.state(d)
-		if notAfter, ok := c.issued(d); ok {
-			st.Phase, st.NotAfter = ingress.CertIssued, notAfter
+		if meta, ok := c.readIssuedCert(d, false); ok && meta.NotAfter.After(time.Now()) {
+			st.Phase, st.NotAfter = ingress.CertIssued, meta.NotAfter
+			st.NotBefore, st.Issuer, st.Subject, st.SANs = meta.NotBefore, meta.Issuer, meta.Subject, meta.SANs
 		}
 		out[d] = st
 	}
@@ -3142,7 +3197,7 @@ const issuerDirs = 64
 // each CA it has used, and the latest that hasn't expired. It reads through
 // nothing Caddy could have left there: only regular files, of a bounded size,
 // inside its data directory.
-func (c *Caddy) issued(domain string) (time.Time, bool) {
+func (c *Caddy) issued(domain string) (time.Time, bool) { //nolint:unparam // expiry time retained for existing signature
 	var best time.Time
 	root, err := os.OpenRoot(c.dataDir())
 	if err != nil {

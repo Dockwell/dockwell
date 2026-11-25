@@ -291,11 +291,25 @@ func (h *Handler) session(server store.Server) (*agentapi.Session, error) {
 	return s, nil
 }
 
-// PreviewBackup says what backing up a volume would do.
+// PreviewBackup says what backing up a volume or website folder would do.
 func (h *Handler) PreviewBackup(ctx context.Context, req *connect.Request[dockwellv1.PreviewBackupRequest]) (*connect.Response[dockwellv1.PreviewBackupResponse], error) {
-	ref, server, err := h.volumeOf(ctx, req.Msg.GetVolumeId(), req.Msg.GetServer())
-	if err != nil {
-		return nil, h.fail(ctx, err)
+	var (
+		ref      resource.Ref
+		server   store.Server
+		hostPath string
+		err      error
+	)
+	if wid := req.Msg.GetWebsiteId(); wid != "" {
+		target, werr := h.websiteOf(ctx, wid, req.Msg.GetServer(), store.RoleViewer)
+		if werr != nil {
+			return nil, h.fail(ctx, werr)
+		}
+		ref, server, hostPath = target.ref, target.server, target.hostPath
+	} else {
+		ref, server, err = h.volumeOf(ctx, req.Msg.GetVolumeId(), req.Msg.GetServer())
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
 	}
 	s, err := h.session(server)
 	if err != nil {
@@ -303,7 +317,7 @@ func (h *Handler) PreviewBackup(ctx context.Context, req *connect.Request[dockwe
 	}
 	ctx, cancel := context.WithTimeout(ctx, previewWait)
 	defer cancel()
-	p, err := s.BackupPreview(ctx, ref)
+	p, err := s.BackupPreviewHostPath(ctx, ref, hostPath)
 	if err != nil {
 		return nil, h.agentError(server, err)
 	}
@@ -313,21 +327,21 @@ func (h *Handler) PreviewBackup(ctx context.Context, req *connect.Request[dockwe
 	}), nil
 }
 
-// CreateBackup starts a backup of a whole volume, and returns it running.
+// CreateBackup starts a backup of a whole volume or website folder, and returns it running.
 func (h *Handler) CreateBackup(ctx context.Context, req *connect.Request[dockwellv1.CreateBackupRequest]) (*connect.Response[dockwellv1.CreateBackupResponse], error) {
 	m := req.Msg
-	out, err := h.begin(ctx, taking{volumeID: m.GetVolumeId(), server: m.GetServer(), destination: m.GetDestination(), stop: m.GetStop()})
+	out, err := h.begin(ctx, taking{volumeID: m.GetVolumeId(), websiteID: m.GetWebsiteId(), server: m.GetServer(), destination: m.GetDestination(), stop: m.GetStop()})
 	if err != nil {
 		return nil, err
 	}
 	return connect.NewResponse(&dockwellv1.CreateBackupResponse{Backup: out}), nil
 }
 
-// taking is a backup to start: of a whole volume, or of one database on it, taken
+// taking is a backup to start: of a whole volume, a website's folder, or of one database on it, taken
 // for an app's link.
 type taking struct {
-	volumeID, server, destination string
-	stop                          bool
+	volumeID, websiteID, server, destination string
+	stop                                     bool
 	// one is the one database to dump, and forLink the link, by ID, of the app it's
 	// taken for (ADR 0084).
 	one, forLink string
@@ -340,9 +354,25 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 		return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("sign in first"))
 	}
 	client, _ := authapi.ClientFrom(ctx)
-	ref, server, err := h.volumeOf(ctx, t.volumeID, t.server)
-	if err != nil {
-		return nil, h.fail(ctx, err)
+	var (
+		ref         resource.Ref
+		server      store.Server
+		volumeID    = t.volumeID
+		websiteID   = t.websiteID
+		websitePath string
+		err         error
+	)
+	if websiteID != "" {
+		target, werr := h.websiteOf(ctx, websiteID, t.server, store.RoleDeveloper)
+		if werr != nil {
+			return nil, h.fail(ctx, werr)
+		}
+		ref, server, volumeID, websitePath = target.ref, target.server, target.webSvcID, target.hostPath
+	} else {
+		ref, server, err = h.volumeOf(ctx, t.volumeID, t.server)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
 	}
 	s, err := h.session(server)
 	if err != nil {
@@ -371,8 +401,9 @@ func (h *Handler) begin(ctx context.Context, t taking) (*dockwellv1.Backup, erro
 		}
 	}
 	b := store.Backup{
-		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: t.volumeID, ServerID: server.ID,
+		ID: id.New(id.Backup), EnvironmentID: ref.Scope, Volume: ref.Name, VolumeID: volumeID, ServerID: server.ID,
 		State: store.BackupRunning, Actor: p.Actor(), StartedAt: h.now(), Destination: t.destination, OneDatabase: t.one, ForLink: t.forLink,
+		WebsiteID: websiteID, WebsitePath: websitePath,
 	}
 	if err := h.db.Update(ctx, func(tx *store.Tx) error { return tx.CreateBackup(ctx, b) }); err != nil {
 		return nil, h.fail(ctx, err)
@@ -409,7 +440,7 @@ func (h *Handler) run(s *agentapi.Session, b store.Backup, ref resource.Ref, sto
 	if b.PolicyID != "" {
 		h.prune(ctx, s, b, keep)
 	}
-	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop, Database: b.OneDatabase})
+	got, err := s.Backup(ctx, &agentv1.BackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), Stop: stop, Database: b.OneDatabase, HostPath: b.WebsitePath})
 	done := h.finish(context.WithoutCancel(ctx), b, got, err, surface)
 	// It's on record and the volume is free before this starts, however long it takes.
 	// One recorded as failed, such as the whole volume where one database was asked,
@@ -563,7 +594,7 @@ func (h *Handler) backup(ctx context.Context, backupID string) (store.Backup, er
 // ListBackups returns a page of backups, newest first.
 func (h *Handler) ListBackups(ctx context.Context, req *connect.Request[dockwellv1.ListBackupsRequest]) (*connect.Response[dockwellv1.ListBackupsResponse], error) {
 	m := req.Msg
-	out, err := h.list(ctx, store.BackupFilter{VolumeID: m.GetVolumeId(), EnvironmentID: m.GetEnvironmentId(), OneDatabase: m.GetDatabaseName()}, m.GetPageSize(), m.GetPageToken(), "ListBackups")
+	out, err := h.list(ctx, store.BackupFilter{VolumeID: m.GetVolumeId(), EnvironmentID: m.GetEnvironmentId(), OneDatabase: m.GetDatabaseName(), WebsiteID: m.GetWebsiteId()}, m.GetPageSize(), m.GetPageToken(), "ListBackups")
 	if err != nil {
 		return nil, err
 	}
@@ -756,8 +787,8 @@ func (h *Handler) removeFromServer(ctx context.Context, b store.Backup, serverOn
 // destination if it went to one that's still there. It says why the destination kept
 // it, if it did.
 func (h *Handler) deleteOn(ctx context.Context, s *agentapi.Session, b *store.Backup, serverOnly bool) (string, error) {
-	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
-	call := &agentv1.DeleteBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref)}
+	ref := backupRef(*b)
+	call := &agentv1.DeleteBackupCall{Id: b.ID, Volume: resourcepb.Ref(ref), HostPath: b.WebsitePath}
 	var destination map[string]string
 	if b.CopyKey != "" && !serverOnly {
 		var err error
@@ -796,16 +827,22 @@ func (h *Handler) RestoreBackup(ctx context.Context, req *connect.Request[dockwe
 	}
 	// Into a new database: the one it was taken of is left as it is (ADR 0106).
 	if into := strings.TrimSpace(req.Msg.GetInto()); into != "" {
+		if b.WebsiteID != "" {
+			return nil, authapi.Invalid(errors.New("a website folder backup restores to its website folder, not into a new database"))
+		}
 		c, err := h.restoreInto(ctx, &b, into, strings.TrimSpace(req.Msg.GetSummary()))
 		if err != nil {
 			return nil, err
 		}
 		return connect.NewResponse(&dockwellv1.RestoreBackupResponse{Change: c}), nil
 	}
-	ref := resource.Ref{Kind: volume.Kind, Scope: b.EnvironmentID, Name: b.Volume}
-	notes, err := h.wholeServer(ctx, ref, &b, req.Msg.GetConfirm())
-	if err != nil {
-		return nil, err
+	ref := backupRef(b)
+	var notes []revision.Note
+	if b.WebsiteID == "" {
+		notes, err = h.wholeServer(ctx, ref, &b, req.Msg.GetConfirm())
+		if err != nil {
+			return nil, err
+		}
 	}
 	c, err := h.restore(ctx, &b, ref, revision.RestoreAs{Notes: notes}, strings.TrimSpace(req.Msg.GetSummary()))
 	if err != nil {
@@ -846,8 +883,16 @@ func (h *Handler) restore(ctx context.Context, b *store.Backup, ref resource.Ref
 			return nil, authapi.ReasonError(connect.CodeFailedPrecondition, fmt.Errorf("%s isn't on a server that can restore it now. Fetch it from %s onto a server that has %s, then restore it", b.ID, b.Destination, b.Volume), "fetch_first")
 		}
 	}
+	hostPath := b.WebsitePath
+	if b.WebsiteID != "" {
+		verified, err := h.verifyWebsiteRestoreTarget(ctx, b)
+		if err != nil {
+			return nil, h.fail(ctx, err)
+		}
+		hostPath = verified
+	}
 	return h.changes.Planned(ctx, func(who revision.By) (*revision.Plan, error) {
-		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID}
+		source := resource.RestoreSource{Backup: b.ID, Server: b.ServerID, HostPath: hostPath}
 		return h.engine.RestoreWith(ctx, ref, source, as, who, summary)
 	})
 }
@@ -884,6 +929,8 @@ type rowFacts struct {
 	// drills are each backup's newest drill, by its ID, read for a page. Nil reads
 	// each row's own.
 	drills map[string]store.Drill
+	// websiteDomains caches each website environment's primary domain.
+	websiteDomains map[string]string
 }
 
 func (h *Handler) facts(ctx context.Context, tx *store.Tx) (*rowFacts, error) {
@@ -1008,6 +1055,7 @@ func (h *Handler) protoIn(ctx context.Context, tx *store.Tx, f *rowFacts, b *sto
 		Id: b.ID, EnvironmentId: b.EnvironmentID, Volume: b.Volume, VolumeId: b.VolumeID, ServerId: b.ServerID, ServerName: f.look.Name(b.ServerID),
 		State: states[b.State], Method: resourcepb.BackupMethod(b.Method), Database: b.Database, DatabaseName: b.OneDatabase, SizeBytes: b.SizeBytes, Sha256: b.SHA256,
 		StartedAt: timestamppb.New(b.StartedAt), Actor: f.look.Actor(b.Actor), Error: b.Error, FilesChanged: b.FilesChanged, PolicyId: b.PolicyID,
+		WebsiteId: b.WebsiteID, WebsiteDomain: f.websiteDomain(ctx, tx, h, b), WebsitePath: b.WebsitePath,
 	}
 	if b.CopyKey != "" && !here {
 		if out.FetchOnto, err = f.onto(ctx, tx, b); err != nil {

@@ -34,6 +34,16 @@ export function useMissingWords(): (m: Missing) => string {
         return t`Give the user and group by number, such as 1000:1000.`;
       case "upload":
         return t`Give a number of MiB, such as 64.`;
+      case "memoryLimit":
+        return t`Use a memory limit from 32 to 4096 MiB.`;
+      case "maxExecutionTime":
+        return t`Use an execution time from 5 to 3600 seconds.`;
+      case "postMaxSize":
+        return t`Use a post max size from 1 to 4096 MiB.`;
+      case "fpmMaxChildren":
+        return t`Use a PHP-FPM pool size from 1 to 200.`;
+      case "basicAuthPassword":
+        return t`Give every new Basic Auth user a password.`;
     }
   };
 }
@@ -95,8 +105,27 @@ export function hasAdvanced(serves: Serves): boolean {
 }
 
 /** The settings Advanced holds, as changed() names them, and the fields of them a form can refuse. */
-const ADVANCED_SETTINGS = new Set(["index", "singlePageApp", "user", "uploadMB", "filesOnly", "targetHost"]);
-const ADVANCED_FIELDS: readonly Missing["field"][] = ["user", "uploadMB"];
+const ADVANCED_SETTINGS = new Set([
+  "index",
+  "singlePageApp",
+  "user",
+  "uploadMB",
+  "filesOnly",
+  "targetHost",
+  "memoryLimitMB",
+  "maxExecutionTimeS",
+  "postMaxSizeMB",
+  "fpmMaxChildren",
+  "disabledExtensions",
+]);
+const ADVANCED_FIELDS: readonly Missing["field"][] = [
+  "user",
+  "uploadMB",
+  "memoryLimitMB",
+  "maxExecutionTimeS",
+  "postMaxSizeMB",
+  "fpmMaxChildren",
+];
 
 /** What a kind's Advanced holds, in one line, so nobody opens it to find out. */
 function useAdvancedSummary(): (s: Settings) => string {
@@ -283,6 +312,71 @@ export function WebsiteFields({
               }
               onChange={(event) => onChange({ ...s, user: event.target.value })}
             />
+            <TextField
+              label={t`Memory limit`}
+              inputMode="numeric"
+              placeholder="128"
+              suffix="MiB"
+              value={s.memoryLimitMB}
+              error={errors.memoryLimitMB}
+              hint={t`PHP memory_limit, 32 to 4096 MiB.`}
+              onChange={(event) => onChange({ ...s, memoryLimitMB: event.target.value })}
+            />
+            <TextField
+              label={t`Max execution time`}
+              inputMode="numeric"
+              placeholder="30"
+              suffix="s"
+              value={s.maxExecutionTimeS}
+              error={errors.maxExecutionTimeS}
+              hint={t`PHP max_execution_time, 5 to 3600 seconds.`}
+              onChange={(event) => onChange({ ...s, maxExecutionTimeS: event.target.value })}
+            />
+            <TextField
+              label={t`Post max size`}
+              inputMode="numeric"
+              placeholder={s.uploadMB || "64"}
+              suffix="MiB"
+              value={s.postMaxSizeMB}
+              error={errors.postMaxSizeMB}
+              hint={t`PHP post_max_size, 1 to 4096 MiB. Empty matches upload limit.`}
+              onChange={(event) => onChange({ ...s, postMaxSizeMB: event.target.value })}
+            />
+            <TextField
+              label={t`FPM pool size`}
+              inputMode="numeric"
+              placeholder="5"
+              value={s.fpmMaxChildren}
+              error={errors.fpmMaxChildren}
+              hint={t`PHP-FPM pm.max_children worker processes, 1 to 200.`}
+              onChange={(event) => onChange({ ...s, fpmMaxChildren: event.target.value })}
+            />
+            {(() => {
+              const runtime = runtimes.data?.find((r) => r.version === version);
+              const optional = runtime?.optionalExtensions ?? [];
+              if (optional.length === 0) return null;
+              return (
+                <div className="website-php-extensions">
+                  <span className="dw-label">{t`Optional extensions`}</span>
+                  {optional.map((ext) => {
+                    const enabled = !s.disabledExtensions.includes(ext);
+                    return (
+                      <Switch
+                        key={ext}
+                        label={ext}
+                        checked={enabled}
+                        onChange={(on) => {
+                          const next = on
+                            ? s.disabledExtensions.filter((e) => e !== ext)
+                            : [...s.disabledExtensions, ext];
+                          onChange({ ...s, disabledExtensions: next });
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </>
         ) : null}
       </>

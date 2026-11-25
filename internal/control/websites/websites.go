@@ -35,11 +35,14 @@ import (
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/ingress"
+	"github.com/dockwell/dockwell/internal/netguard"
 	"github.com/dockwell/dockwell/internal/resource"
+	"github.com/dockwell/dockwell/internal/resource/backuppolicy"
 	"github.com/dockwell/dockwell/internal/resource/dnsprovider"
 	"github.com/dockwell/dockwell/internal/resource/network"
 	"github.com/dockwell/dockwell/internal/resource/route"
 	"github.com/dockwell/dockwell/internal/resource/service"
+	"github.com/dockwell/dockwell/internal/resource/variable"
 	"github.com/dockwell/dockwell/internal/revision"
 	"github.com/dockwell/dockwell/internal/scope"
 	"github.com/dockwell/dockwell/internal/secrets"
@@ -58,6 +61,8 @@ type Handler struct {
 	// DNS are the connected DNS providers, which a website's domain is published
 	// through (ADR 0104); nil publishes nothing.
 	DNS *dnsproviders.Providers
+	// lookupIP overrides DNS resolution for sub-path upstream checks in tests.
+	lookupIP netguard.LookupFunc
 
 	// What each server last found of what its websites send to, by server and
 	// target, so a list asks no server more than once in reachFresh.
@@ -114,6 +119,8 @@ type site struct {
 	specs    map[string]*resourcev1.Route
 	services []store.Resource
 	networks []store.Resource
+	secrets  []store.Resource
+	policies []store.Resource
 	// placed is where its route runs, by server ID.
 	placed []string
 	// web is what its web server runs, when it has one, and php what its PHP runs.
@@ -275,6 +282,12 @@ func (h *Handler) sites(ctx context.Context, tx *store.Tx) ([]site, error) {
 		if s.networks, err = tx.ListResources(ctx, s.env, string(network.Kind)); err != nil {
 			return nil, err
 		}
+		if s.secrets, err = tx.ListResources(ctx, s.env, string(variable.SecretKind)); err != nil {
+			return nil, err
+		}
+		if s.policies, err = tx.ListResources(ctx, s.env, string(backuppolicy.Kind)); err != nil {
+			return nil, err
+		}
 		for i := range s.services {
 			name := s.services[i].Name
 			if name != website.WebService && name != website.PHPService {
@@ -372,7 +385,8 @@ func (h *Handler) ListWebsiteRuntimes(context.Context, *connect.Request[dockwell
 	res := &dockwellv1.ListWebsiteRuntimesResponse{}
 	for _, r := range website.PHPRuntimes() {
 		res.Runtimes = append(res.Runtimes, &dockwellv1.WebsiteRuntime{
-			Id: "php", Language: "PHP", Version: r.Version, Release: r.Release, Image: r.Image, Extensions: slices.Clone(website.PHPExtensions),
+			Id: "php", Language: "PHP", Version: r.Version, Release: r.Release, Image: r.Image,
+			Extensions: slices.Clone(website.PHPExtensions), OptionalExtensions: slices.Clone(website.PHPExtensions),
 		})
 	}
 	// And the languages an app from a folder runs on (ADR 0058).
@@ -387,12 +401,76 @@ func (h *Handler) ListWebsiteRuntimes(context.Context, *connect.Request[dockwell
 }
 
 // PreviewWebsite says what a website's web server would run, planning nothing.
-func (h *Handler) PreviewWebsite(_ context.Context, req *connect.Request[dockwellv1.PreviewWebsiteRequest]) (*connect.Response[dockwellv1.PreviewWebsiteResponse], error) {
+func (h *Handler) PreviewWebsite(ctx context.Context, req *connect.Request[dockwellv1.PreviewWebsiteRequest]) (*connect.Response[dockwellv1.PreviewWebsiteResponse], error) {
 	spec := proto.CloneOf(req.Msg.GetWebsite())
 	if err := website.Check(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
-	return connect.NewResponse(&dockwellv1.PreviewWebsiteResponse{Website: spec, Config: website.Config(spec)}), nil
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	caddyValidated := false
+	serverID := strings.TrimSpace(req.Msg.GetServerId())
+	if strings.TrimSpace(spec.GetCustomCaddy()) != "" && serverID != "" {
+		if err := h.checkPreviewServerAccess(ctx, serverID); err != nil {
+			return nil, err
+		}
+		ok, err := h.validateCustomCaddyOnServer(ctx, serverID, spec)
+		if err != nil {
+			return nil, err
+		}
+		caddyValidated = ok
+	}
+	return connect.NewResponse(&dockwellv1.PreviewWebsiteResponse{Website: spec, Config: website.Config(spec), CaddyValidated: caddyValidated}), nil
+}
+
+// checkPreviewServerAccess checks that a caller requesting server-side Caddy adapter
+// validation holds admin access on the install or on at least one project placed on serverID (L2).
+func (h *Handler) checkPreviewServerAccess(ctx context.Context, serverID string) error {
+	c, ok := place.CallerFrom(ctx)
+	if !ok {
+		return nil
+	}
+	if place.Holds(c.Grants, place.Install) == store.RoleAdmin {
+		return nil
+	}
+	allowed := false
+	if err := h.db.View(ctx, func(tx *store.Tx) error {
+		tree, err := scope.Load(ctx, tx)
+		if err != nil {
+			return err
+		}
+		for _, p := range tree.Projects {
+			if place.Holds(c.Grants, place.Place{Project: p.ID}) != store.RoleAdmin {
+				continue
+			}
+			for _, e := range p.Environments {
+				for _, kind := range []string{string(route.Kind), string(service.Kind)} {
+					list, err := tx.ListResources(ctx, e.ID, kind)
+					if err != nil {
+						return err
+					}
+					for i := range list {
+						placed, err := tx.Placement(ctx, list[i].ID, list[i].Revision)
+						if err != nil {
+							return err
+						}
+						if slices.Contains(placed, serverID) {
+							allowed = true
+							return nil
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return h.internal(ctx, err)
+	}
+	if !allowed {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("validating custom Caddy config on a server requires admin access on a project running on that server"))
+	}
+	return nil
 }
 
 // CreateWebsite plans a new website as a project of its own.
@@ -406,12 +484,16 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := website.Check(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	if err := website.CheckRedirects(spec, domain); err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	var made []revision.Edit
 	var env, name, taken string
 	var refused error
+	var subpathMembers []*resourcev1.NetworkMember
 	err := h.db.View(ctx, func(tx *store.Tx) error {
 		tree, err := scope.Load(ctx, tx)
 		if err != nil {
@@ -430,6 +512,9 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		if refused = overlaps(all, "", root, php, m.GetServers()); refused != nil {
 			return nil //nolint:nilerr // the caller's mistake, which goes back to it as one, and not the store's
 		}
+		if subpathMembers, refused = h.resolveSubpathMembers(ctx, tx, tree, spec, m.GetServers()); refused != nil {
+			return nil //nolint:nilerr // caller's mistake returned as Invalid below
+		}
 		if name, err = h.freeName(ctx, tx, tree.Organization.ID, website.ProjectName(domain)); err != nil {
 			return err
 		}
@@ -443,12 +528,27 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
 	if refused != nil {
+		var cerr *connect.Error
+		if errors.As(refused, &cerr) {
+			return nil, cerr
+		}
 		return nil, authapi.Invalid(refused)
 	}
+	var targetServer string
+	if len(m.GetServers()) > 0 {
+		targetServer = m.GetServers()[0]
+	}
+	if _, err := h.validateCustomCaddyOnServer(ctx, targetServer, spec); err != nil {
+		return nil, err
+	}
+	secretEdits, err := prepareBasicAuthSecrets(env, nil, spec, req.Msg.GetBasicAuthPasswords(), nil)
+	if err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	made[0].Spec = &resourcev1.Project{DisplayName: domain, Website: spec}
-	front := publishedFront(website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone()}, m.GetPublish())
+	front := publishedFront(website.Front{TLS: m.GetTls(), TrustedProxies: m.GetTrustedProxies(), PlainForAnyone: m.GetPlainForAnyone(), SubpathMembers: subpathMembers}, m.GetPublish())
 	serving := website.Resources(spec, domain, front)
-	edits := puts(env, serving, m.GetServers(), redirectNames(serving, nil, nil))
+	edits := slices.Concat(secretEdits, puts(env, serving, m.GetServers(), redirectNames(serving, nil, nil)))
 	// A provider that doesn't serve the new project yet serves it from this change.
 	served, err := h.servedBy(ctx, m.GetPublish(), made[0].ID)
 	if err != nil {
@@ -456,8 +556,8 @@ func (h *Handler) CreateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}
 	edits = append(edits, served...)
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), "Add the website "+domain)
-	notes := append(folderNotes(env, spec), frontNotes(serving, nil)...)
-	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes})
+	notes := slices.Concat(folderNotes(env, spec), frontNotes(serving, nil), visitorNotes(env, nil, spec))
+	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{Edits: made, Notes: notes, WebsiteCustomCaddyValidated: true})
 	if err != nil {
 		return nil, err
 	}
@@ -523,7 +623,7 @@ func keepRedirectFronts(serving website.Serving, s *site) {
 
 func setRedirectFront(r *resourcev1.Route, front website.Front) {
 	r.Tls, r.TrustedProxies, r.PlainForAnyone = front.TLS, front.TrustedProxies, front.PlainForAnyone
-	r.Publish, r.Proof = front.Publish, front.Proof
+	r.Publish, r.Proof, r.CustomCert = front.Publish, front.Proof, proto.CloneOf(front.CustomCert)
 }
 
 // servedBy is the edit that has publish's DNS provider serve project, where it
@@ -569,6 +669,9 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if err := website.Check(spec); err != nil {
 		return nil, authapi.Invalid(err)
 	}
+	if err := h.checkSubpathUpstreams(ctx, spec); err != nil {
+		return nil, authapi.Invalid(err)
+	}
 	s, err := h.find(ctx, m.GetId())
 	if err != nil {
 		return nil, err
@@ -596,6 +699,8 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	spec.RedirectFrom = slices.DeleteFunc(spec.RedirectFrom, func(d string) bool { _, gone := left[d]; return gone })
 	var all []site
 	var taken string
+	var subpathMembers []*resourcev1.NetworkMember
+	var subpathErr error
 	if err := h.db.View(ctx, func(tx *store.Tx) error {
 		if all, err = h.sites(ctx, tx); err != nil {
 			return err
@@ -617,6 +722,9 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 				return err
 			}
 		}
+		if subpathMembers, subpathErr = h.resolveSubpathMembers(ctx, tx, tree, spec, s.placed); subpathErr != nil {
+			return nil //nolint:nilerr // returned as Invalid below
+		}
 		return nil
 	}); err != nil {
 		return nil, h.internal(ctx, err)
@@ -624,8 +732,26 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	if taken != "" {
 		return nil, authapi.ReasonError(connect.CodeAlreadyExists, errors.New(taken), "domain_taken")
 	}
+	if subpathErr != nil {
+		var cerr *connect.Error
+		if errors.As(subpathErr, &cerr) {
+			return nil, cerr
+		}
+		return nil, authapi.Invalid(subpathErr)
+	}
 	root, php := folderOf(spec)
 	if err := overlaps(all, s.project.ID, root, php, s.placed); err != nil {
+		return nil, authapi.Invalid(err)
+	}
+	var targetServer string
+	if len(s.placed) > 0 {
+		targetServer = s.placed[0]
+	}
+	if _, err := h.validateCustomCaddyOnServer(ctx, targetServer, spec); err != nil {
+		return nil, err
+	}
+	secretEdits, err := prepareBasicAuthSecrets(s.env, s.spec.GetWebsite(), spec, req.Msg.GetBasicAuthPasswords(), s.secrets)
+	if err != nil {
 		return nil, authapi.Invalid(err)
 	}
 	requested := m.GetDomainFront()
@@ -637,6 +763,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		return nil, authapi.Invalid(errors.New("the domain with its own way in needs to be the website's main domain or one of its redirects"))
 	}
 	front := publishedFront(website.FrontOf(s.rt), m.GetPublish())
+	front.SubpathMembers = subpathMembers
 	if requested != nil && asked == domain {
 		front = domainFront(front, requested)
 	}
@@ -662,6 +789,15 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 		Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name},
 		Spec:     &resourcev1.Spec{Kind: &resourcev1.Spec_Project{Project: &resourcev1.Project{DisplayName: display, Catalog: s.spec.GetCatalog(), Website: spec}}},
 	}}
+	// Secrets added/updated go before services that reference them; deleted secrets go at the end.
+	var deleteSecrets []*dockwellv1.Edit
+	for _, se := range secretEdits {
+		if se.GetDelete() {
+			deleteSecrets = append(deleteSecrets, se)
+		} else {
+			edits = append(edits, se)
+		}
+	}
 	// What it makes runs where its route does, and what it has stays there.
 	edits = append(edits, puts(s.env, serving, s.placed, redirectNames(serving, s.redirects, s.routes))...)
 	edits = append(edits, served...)
@@ -672,6 +808,7 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: s.env, Name: r.Name}, Delete: true})
 		}
 	}
+	edits = append(edits, deleteSecrets...)
 	for _, r := range s.services {
 		if serving.Services[r.Name] == nil {
 			edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(service.Kind), Scope: s.env, Name: r.Name}, Delete: true})
@@ -685,8 +822,9 @@ func (h *Handler) UpdateWebsite(ctx context.Context, req *connect.Request[dockwe
 	}
 	summary := cmp.Or(strings.TrimSpace(m.GetSummary()), updateSummary(s.spec.GetWebsite(), spec, was, domain))
 	c, err := h.changes.Propose(ctx, summary, edits, serversField, changes.Also{
-		IfNothing: fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
-		Notes:     slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects), leftNotes(left)),
+		IfNothing:                   fault.New(revision.ErrInvalid, "%s serves that already, so there's nothing to change", domain),
+		Notes:                       slices.Concat(folderNotes(s.env, spec), scriptsStop(s.env, s.spec.GetWebsite(), spec), frontNotes(serving, s.redirects), leftNotes(left), visitorNotes(s.env, s.spec.GetWebsite(), spec)),
+		WebsiteCustomCaddyValidated: true,
 	})
 	if err != nil {
 		return nil, err
@@ -759,8 +897,9 @@ func (h *Handler) DeleteWebsite(ctx context.Context, req *connect.Request[dockwe
 }
 
 func websiteDeleteEdits(s *site) []*dockwellv1.Edit {
-	// Deletions run in reverse: routes first, then services and networks, and finally the project.
+	// Deletions run in reverse: routes first, then services, networks, secrets/policies, and finally the project.
 	edits := []*dockwellv1.Edit{{Resource: &dockwellv1.ResourceRef{Kind: string(scope.ProjectKind), Scope: s.org, Name: s.project.Name}, Delete: true}}
+	edits = append(edits, deleteSiteExtras(s)...)
 	for _, r := range s.networks {
 		edits = append(edits, &dockwellv1.Edit{Resource: &dockwellv1.ResourceRef{Kind: string(network.Kind), Scope: s.env, Name: r.Name}, Delete: true})
 	}
@@ -981,7 +1120,7 @@ func (h *Handler) reach(ctx context.Context, sites []*dockwellv1.WebsiteInfo) {
 // probeOf is what a website's server would ask, and the key its answer is kept
 // by.
 func probeOf(w *dockwellv1.WebsiteInfo) (*agentv1.ProbeCall, reachKey, bool) {
-	if w.GetServerId() == "" {
+	if w.GetServerId() == "" || w.GetSpec().GetPaused() {
 		return nil, reachKey{}, false
 	}
 	p := w.GetSpec().GetProxy()

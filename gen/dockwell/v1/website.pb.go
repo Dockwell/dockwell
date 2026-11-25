@@ -468,9 +468,11 @@ type WebsiteRuntime struct {
 	Env []string `protobuf:"bytes,10,rep,name=env,proto3" json:"env,omitempty"`
 	// True when Dockwell no longer offers the version: an app on it keeps running
 	// and changing, and no new app runs on it.
-	Retired       bool `protobuf:"varint,11,opt,name=retired,proto3" json:"retired,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Retired bool `protobuf:"varint,11,opt,name=retired,proto3" json:"retired,omitempty"`
+	// Shipped optional extensions that can be toggled on or off per PHP website.
+	OptionalExtensions []string `protobuf:"bytes,12,rep,name=optional_extensions,json=optionalExtensions,proto3" json:"optional_extensions,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *WebsiteRuntime) Reset() {
@@ -580,11 +582,20 @@ func (x *WebsiteRuntime) GetRetired() bool {
 	return false
 }
 
+func (x *WebsiteRuntime) GetOptionalExtensions() []string {
+	if x != nil {
+		return x.OptionalExtensions
+	}
+	return nil
+}
+
 // PreviewWebsiteRequest is what a website would serve.
 type PreviewWebsiteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What it serves, as JSON, such as {"proxy":{"url":"https://backend.example.com"}}, or {"proxy":{"port":3000}} for a port on the server.
-	Website       *v1alpha1.Website `protobuf:"bytes,1,opt,name=website,proto3" json:"website,omitempty"`
+	Website *v1alpha1.Website `protobuf:"bytes,1,opt,name=website,proto3" json:"website,omitempty"`
+	// Optional server ID to validate custom Caddy directives with Caddy's own adapter on that server.
+	ServerId      string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -626,6 +637,13 @@ func (x *PreviewWebsiteRequest) GetWebsite() *v1alpha1.Website {
 	return nil
 }
 
+func (x *PreviewWebsiteRequest) GetServerId() string {
+	if x != nil {
+		return x.ServerId
+	}
+	return ""
+}
+
 // PreviewWebsiteResponse is what serving it takes.
 type PreviewWebsiteResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -634,9 +652,11 @@ type PreviewWebsiteResponse struct {
 	// Its web server's config, a Caddyfile, as its service runs it. Empty for a
 	// website that needs no web server of its own, as one that sends to a port on
 	// the server.
-	Config        string `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Config string `protobuf:"bytes,2,opt,name=config,proto3" json:"config,omitempty"`
+	// True when the generated Caddyfile was validated by Caddy's own adapter on the server.
+	CaddyValidated bool `protobuf:"varint,3,opt,name=caddy_validated,json=caddyValidated,proto3" json:"caddy_validated,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *PreviewWebsiteResponse) Reset() {
@@ -683,6 +703,13 @@ func (x *PreviewWebsiteResponse) GetConfig() string {
 	return ""
 }
 
+func (x *PreviewWebsiteResponse) GetCaddyValidated() bool {
+	if x != nil {
+		return x.CaddyValidated
+	}
+	return false
+}
+
 // CreateWebsiteRequest is a website to make.
 type CreateWebsiteRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -708,9 +735,12 @@ type CreateWebsiteRequest struct {
 	// Cloudflare (ADR 0104), as a route's publish says. Where the provider doesn't
 	// serve the website's new project yet, the same change adds it, which takes an
 	// admin.
-	Publish       *v1alpha1.RoutePublish `protobuf:"bytes,8,opt,name=publish,proto3" json:"publish,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Publish *v1alpha1.RoutePublish `protobuf:"bytes,8,opt,name=publish,proto3" json:"publish,omitempty"`
+	// Write-only Basic Auth passwords keyed by username, stored as Dockwell
+	// secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+	BasicAuthPasswords map[string]string `protobuf:"bytes,20,rep,name=basic_auth_passwords,json=basicAuthPasswords,proto3" json:"basic_auth_passwords,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *CreateWebsiteRequest) Reset() {
@@ -799,6 +829,13 @@ func (x *CreateWebsiteRequest) GetPublish() *v1alpha1.RoutePublish {
 	return nil
 }
 
+func (x *CreateWebsiteRequest) GetBasicAuthPasswords() map[string]string {
+	if x != nil {
+		return x.BasicAuthPasswords
+	}
+	return nil
+}
+
 // CreateWebsiteResponse carries the planned change.
 type CreateWebsiteResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -866,9 +903,12 @@ type UpdateWebsiteRequest struct {
 	Publish *v1alpha1.RoutePublish `protobuf:"bytes,5,opt,name=publish,proto3" json:"publish,omitempty"`
 	// Sets the way in for one of the website's domains. The other domains keep
 	// their own settings. Use either this or publish.
-	DomainFront   *WebsiteDomainFront `protobuf:"bytes,6,opt,name=domain_front,json=domainFront,proto3" json:"domain_front,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DomainFront *WebsiteDomainFront `protobuf:"bytes,6,opt,name=domain_front,json=domainFront,proto3" json:"domain_front,omitempty"`
+	// Write-only Basic Auth passwords keyed by username, stored as Dockwell
+	// secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+	BasicAuthPasswords map[string]string `protobuf:"bytes,20,rep,name=basic_auth_passwords,json=basicAuthPasswords,proto3" json:"basic_auth_passwords,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *UpdateWebsiteRequest) Reset() {
@@ -939,6 +979,13 @@ func (x *UpdateWebsiteRequest) GetPublish() *v1alpha1.RoutePublish {
 func (x *UpdateWebsiteRequest) GetDomainFront() *WebsiteDomainFront {
 	if x != nil {
 		return x.DomainFront
+	}
+	return nil
+}
+
+func (x *UpdateWebsiteRequest) GetBasicAuthPasswords() map[string]string {
+	if x != nil {
+		return x.BasicAuthPasswords
 	}
 	return nil
 }
@@ -1182,6 +1229,144 @@ func (x *DeleteWebsiteResponse) GetChange() *Change {
 	return nil
 }
 
+// BatchUpdateWebsitesRequest plans one change across up to 50 websites.
+type BatchUpdateWebsitesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Up to 50 website project IDs to update together.
+	WebsiteIds []string `protobuf:"bytes,1,rep,name=website_ids,json=websiteIds,proto3" json:"website_ids,omitempty"`
+	// Set paused state on every selected website when present.
+	Paused *bool `protobuf:"varint,2,opt,name=paused,proto3,oneof" json:"paused,omitempty"`
+	// Maintenance page or plain 503 when pausing. Unspecified keeps each site's choice
+	// (or defaults to maintenance page).
+	PauseMode v1alpha1.WebsitePauseMode `protobuf:"varint,3,opt,name=pause_mode,json=pauseMode,proto3,enum=dockwell.resource.v1alpha1.WebsitePauseMode" json:"pause_mode,omitempty"`
+	// Switch PHP version on selected PHP websites, such as "8.4".
+	PhpVersion string `protobuf:"bytes,4,opt,name=php_version,json=phpVersion,proto3" json:"php_version,omitempty"`
+	// Switch HTTPS on (true) or off (false) on selected websites' routes.
+	Https *bool `protobuf:"varint,5,opt,name=https,proto3,oneof" json:"https,omitempty"`
+	// What the change is for, for the timeline. Empty says what it changes.
+	Summary       string `protobuf:"bytes,6,opt,name=summary,proto3" json:"summary,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchUpdateWebsitesRequest) Reset() {
+	*x = BatchUpdateWebsitesRequest{}
+	mi := &file_dockwell_v1_website_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchUpdateWebsitesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchUpdateWebsitesRequest) ProtoMessage() {}
+
+func (x *BatchUpdateWebsitesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_website_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchUpdateWebsitesRequest.ProtoReflect.Descriptor instead.
+func (*BatchUpdateWebsitesRequest) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *BatchUpdateWebsitesRequest) GetWebsiteIds() []string {
+	if x != nil {
+		return x.WebsiteIds
+	}
+	return nil
+}
+
+func (x *BatchUpdateWebsitesRequest) GetPaused() bool {
+	if x != nil && x.Paused != nil {
+		return *x.Paused
+	}
+	return false
+}
+
+func (x *BatchUpdateWebsitesRequest) GetPauseMode() v1alpha1.WebsitePauseMode {
+	if x != nil {
+		return x.PauseMode
+	}
+	return v1alpha1.WebsitePauseMode(0)
+}
+
+func (x *BatchUpdateWebsitesRequest) GetPhpVersion() string {
+	if x != nil {
+		return x.PhpVersion
+	}
+	return ""
+}
+
+func (x *BatchUpdateWebsitesRequest) GetHttps() bool {
+	if x != nil && x.Https != nil {
+		return *x.Https
+	}
+	return false
+}
+
+func (x *BatchUpdateWebsitesRequest) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+// BatchUpdateWebsitesResponse carries the planned change.
+type BatchUpdateWebsitesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The change, planned, with its plan.
+	Change        *Change `protobuf:"bytes,1,opt,name=change,proto3" json:"change,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchUpdateWebsitesResponse) Reset() {
+	*x = BatchUpdateWebsitesResponse{}
+	mi := &file_dockwell_v1_website_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchUpdateWebsitesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchUpdateWebsitesResponse) ProtoMessage() {}
+
+func (x *BatchUpdateWebsitesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_dockwell_v1_website_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchUpdateWebsitesResponse.ProtoReflect.Descriptor instead.
+func (*BatchUpdateWebsitesResponse) Descriptor() ([]byte, []int) {
+	return file_dockwell_v1_website_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *BatchUpdateWebsitesResponse) GetChange() *Change {
+	if x != nil {
+		return x.Change
+	}
+	return nil
+}
+
 var File_dockwell_v1_website_proto protoreflect.FileDescriptor
 
 const file_dockwell_v1_website_proto_rawDesc = "" +
@@ -1217,7 +1402,7 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\tphp_image\x18\x17 \x01(\tR\bphpImage\"\x1c\n" +
 	"\x1aListWebsiteRuntimesRequest\"V\n" +
 	"\x1bListWebsiteRuntimesResponse\x127\n" +
-	"\bruntimes\x18\x01 \x03(\v2\x1b.dockwell.v1.WebsiteRuntimeR\bruntimes\"\x96\x02\n" +
+	"\bruntimes\x18\x01 \x03(\v2\x1b.dockwell.v1.WebsiteRuntimeR\bruntimes\"\xc7\x02\n" +
 	"\x0eWebsiteRuntime\x12\x1a\n" +
 	"\blanguage\x18\x01 \x01(\tR\blanguage\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x18\n" +
@@ -1232,12 +1417,15 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x04port\x18\t \x01(\rR\x04port\x12\x10\n" +
 	"\x03env\x18\n" +
 	" \x03(\tR\x03env\x12\x18\n" +
-	"\aretired\x18\v \x01(\bR\aretired\"V\n" +
+	"\aretired\x18\v \x01(\bR\aretired\x12/\n" +
+	"\x13optional_extensions\x18\f \x03(\tR\x12optionalExtensions\"s\n" +
 	"\x15PreviewWebsiteRequest\x12=\n" +
-	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\"o\n" +
+	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x1b\n" +
+	"\tserver_id\x18\x02 \x01(\tR\bserverId\"\x98\x01\n" +
 	"\x16PreviewWebsiteResponse\x12=\n" +
 	"\awebsite\x18\x01 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x16\n" +
-	"\x06config\x18\x02 \x01(\tR\x06config\"\xca\x02\n" +
+	"\x06config\x18\x02 \x01(\tR\x06config\x12'\n" +
+	"\x0fcaddy_validated\x18\x03 \x01(\bR\x0ecaddyValidated\"\x84\x04\n" +
 	"\x14CreateWebsiteRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12=\n" +
 	"\awebsite\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x10\n" +
@@ -1246,16 +1434,24 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x10plain_for_anyone\x18\x05 \x01(\bR\x0eplainForAnyone\x12\x18\n" +
 	"\aservers\x18\x06 \x03(\tR\aservers\x12\x18\n" +
 	"\asummary\x18\a \x01(\tR\asummary\x12B\n" +
-	"\apublish\x18\b \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\"D\n" +
+	"\apublish\x18\b \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12q\n" +
+	"\x14basic_auth_passwords\x18\x14 \x03(\v29.dockwell.v1.CreateWebsiteRequest.BasicAuthPasswordsEntryB\x04\xc8\xf3\x18\x01R\x12basicAuthPasswords\x1aE\n" +
+	"\x17BasicAuthPasswordsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"D\n" +
 	"\x15CreateWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x9f\x02\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\xd9\x03\n" +
 	"\x14UpdateWebsiteRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12=\n" +
 	"\awebsite\x18\x02 \x01(\v2#.dockwell.resource.v1alpha1.WebsiteR\awebsite\x12\x18\n" +
 	"\asummary\x18\x03 \x01(\tR\asummary\x12\x16\n" +
 	"\x06domain\x18\x04 \x01(\tR\x06domain\x12B\n" +
 	"\apublish\x18\x05 \x01(\v2(.dockwell.resource.v1alpha1.RoutePublishR\apublish\x12B\n" +
-	"\fdomain_front\x18\x06 \x01(\v2\x1f.dockwell.v1.WebsiteDomainFrontR\vdomainFront\"\xef\x01\n" +
+	"\fdomain_front\x18\x06 \x01(\v2\x1f.dockwell.v1.WebsiteDomainFrontR\vdomainFront\x12q\n" +
+	"\x14basic_auth_passwords\x18\x14 \x03(\v29.dockwell.v1.UpdateWebsiteRequest.BasicAuthPasswordsEntryB\x04\xc8\xf3\x18\x01R\x12basicAuthPasswords\x1aE\n" +
+	"\x17BasicAuthPasswordsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xef\x01\n" +
 	"\x12WebsiteDomainFront\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x12\x10\n" +
 	"\x03tls\x18\x02 \x01(\tR\x03tls\x12'\n" +
@@ -1270,7 +1466,21 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\asummary\x18\x02 \x01(\tR\asummary\x12%\n" +
 	"\x0eadditional_ids\x18\x03 \x03(\tR\radditionalIds\"D\n" +
 	"\x15DeleteWebsiteResponse\x12+\n" +
-	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xed\x06\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change\"\x92\x02\n" +
+	"\x1aBatchUpdateWebsitesRequest\x12\x1f\n" +
+	"\vwebsite_ids\x18\x01 \x03(\tR\n" +
+	"websiteIds\x12\x1b\n" +
+	"\x06paused\x18\x02 \x01(\bH\x00R\x06paused\x88\x01\x01\x12K\n" +
+	"\n" +
+	"pause_mode\x18\x03 \x01(\x0e2,.dockwell.resource.v1alpha1.WebsitePauseModeR\tpauseMode\x12\x1f\n" +
+	"\vphp_version\x18\x04 \x01(\tR\n" +
+	"phpVersion\x12\x19\n" +
+	"\x05https\x18\x05 \x01(\bH\x01R\x05https\x88\x01\x01\x12\x18\n" +
+	"\asummary\x18\x06 \x01(\tR\asummaryB\t\n" +
+	"\a_pausedB\b\n" +
+	"\x06_https\"J\n" +
+	"\x1bBatchUpdateWebsitesResponse\x12+\n" +
+	"\x06change\x18\x01 \x01(\v2\x13.dockwell.v1.ChangeR\x06change2\xa9\b\n" +
 	"\x0eWebsiteService\x12|\n" +
 	"\fListWebsites\x12 .dockwell.v1.ListWebsitesRequest\x1a!.dockwell.v1.ListWebsitesResponse\"'\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x04\x82\xd3\xe4\x93\x02\x0e\x12\f/v1/websites\x90\x02\x01\x12\xb2\x01\n" +
 	"\x13ListWebsiteRuntimes\x12'.dockwell.v1.ListWebsiteRuntimesRequest\x1a(.dockwell.v1.ListWebsiteRuntimesResponse\"H\xa0\xbb\x18\x01\xaa\xbb\x18\x14\n" +
@@ -1278,7 +1488,9 @@ const file_dockwell_v1_website_proto_rawDesc = "" +
 	"\x0ePreviewWebsite\x12\".dockwell.v1.PreviewWebsiteRequest\x1a#.dockwell.v1.PreviewWebsiteResponse\"/\xa0\xbb\x18\x01\xc0\xbb\x18\x02Ȼ\x18\x02л\x18\x03\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/websites:preview\x12\x7f\n" +
 	"\rCreateWebsite\x12!.dockwell.v1.CreateWebsiteRequest\x1a\".dockwell.v1.CreateWebsiteResponse\"'\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x06\x82\xd3\xe4\x93\x02\x11:\x01*\"\f/v1/websites\x12\x8b\x01\n" +
 	"\rUpdateWebsite\x12!.dockwell.v1.UpdateWebsiteRequest\x1a\".dockwell.v1.UpdateWebsiteResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:update\x12\x8b\x01\n" +
-	"\rDeleteWebsite\x12!.dockwell.v1.DeleteWebsiteRequest\x1a\".dockwell.v1.DeleteWebsiteResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:deleteB\xa5\x01\n" +
+	"\rDeleteWebsite\x12!.dockwell.v1.DeleteWebsiteRequest\x1a\".dockwell.v1.DeleteWebsiteResponse\"3\xa0\xbb\x18\x02\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites/{id}:delete\x12\xb9\x01\n" +
+	"\x13BatchUpdateWebsites\x12'.dockwell.v1.BatchUpdateWebsitesRequest\x1a(.dockwell.v1.BatchUpdateWebsitesResponse\"O\xa0\xbb\x18\x02\xaa\xbb\x18\x18\n" +
+	"\bwebsites\x12\fbatch-update\xc0\xbb\x18\x04Ȼ\x18\x04л\x18\x04\x82\xd3\xe4\x93\x02\x1d:\x01*\"\x18/v1/websites:batchUpdateB\xa5\x01\n" +
 	"\x0fcom.dockwell.v1B\fWebsiteProtoP\x01Z7github.com/dockwell/dockwell/gen/dockwell/v1;dockwellv1\xa2\x02\x03DXX\xaa\x02\vDockwell.V1\xca\x02\vDockwell\\V1\xe2\x02\x17Dockwell\\V1\\GPBMetadata\xea\x02\fDockwell::V1b\x06proto3"
 
 var (
@@ -1293,7 +1505,7 @@ func file_dockwell_v1_website_proto_rawDescGZIP() []byte {
 	return file_dockwell_v1_website_proto_rawDescData
 }
 
-var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_dockwell_v1_website_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_dockwell_v1_website_proto_goTypes = []any{
 	(*WebsiteReach)(nil),                // 0: dockwell.v1.WebsiteReach
 	(*ListWebsitesRequest)(nil),         // 1: dockwell.v1.ListWebsitesRequest
@@ -1311,46 +1523,57 @@ var file_dockwell_v1_website_proto_goTypes = []any{
 	(*UpdateWebsiteResponse)(nil),       // 13: dockwell.v1.UpdateWebsiteResponse
 	(*DeleteWebsiteRequest)(nil),        // 14: dockwell.v1.DeleteWebsiteRequest
 	(*DeleteWebsiteResponse)(nil),       // 15: dockwell.v1.DeleteWebsiteResponse
-	(*timestamppb.Timestamp)(nil),       // 16: google.protobuf.Timestamp
-	(*v1alpha1.Website)(nil),            // 17: dockwell.resource.v1alpha1.Website
-	(*v1alpha1.RoutePublish)(nil),       // 18: dockwell.resource.v1alpha1.RoutePublish
-	(*Change)(nil),                      // 19: dockwell.v1.Change
+	(*BatchUpdateWebsitesRequest)(nil),  // 16: dockwell.v1.BatchUpdateWebsitesRequest
+	(*BatchUpdateWebsitesResponse)(nil), // 17: dockwell.v1.BatchUpdateWebsitesResponse
+	nil,                                 // 18: dockwell.v1.CreateWebsiteRequest.BasicAuthPasswordsEntry
+	nil,                                 // 19: dockwell.v1.UpdateWebsiteRequest.BasicAuthPasswordsEntry
+	(*timestamppb.Timestamp)(nil),       // 20: google.protobuf.Timestamp
+	(*v1alpha1.Website)(nil),            // 21: dockwell.resource.v1alpha1.Website
+	(*v1alpha1.RoutePublish)(nil),       // 22: dockwell.resource.v1alpha1.RoutePublish
+	(*Change)(nil),                      // 23: dockwell.v1.Change
+	(v1alpha1.WebsitePauseMode)(0),      // 24: dockwell.resource.v1alpha1.WebsitePauseMode
 }
 var file_dockwell_v1_website_proto_depIdxs = []int32{
-	16, // 0: dockwell.v1.WebsiteReach.check_time:type_name -> google.protobuf.Timestamp
+	20, // 0: dockwell.v1.WebsiteReach.check_time:type_name -> google.protobuf.Timestamp
 	3,  // 1: dockwell.v1.ListWebsitesResponse.websites:type_name -> dockwell.v1.WebsiteInfo
-	17, // 2: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
-	16, // 3: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
+	21, // 2: dockwell.v1.WebsiteInfo.spec:type_name -> dockwell.resource.v1alpha1.Website
+	20, // 3: dockwell.v1.WebsiteInfo.update_time:type_name -> google.protobuf.Timestamp
 	0,  // 4: dockwell.v1.WebsiteInfo.reach:type_name -> dockwell.v1.WebsiteReach
 	6,  // 5: dockwell.v1.ListWebsiteRuntimesResponse.runtimes:type_name -> dockwell.v1.WebsiteRuntime
-	17, // 6: dockwell.v1.PreviewWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	17, // 7: dockwell.v1.PreviewWebsiteResponse.website:type_name -> dockwell.resource.v1alpha1.Website
-	17, // 8: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	18, // 9: dockwell.v1.CreateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	19, // 10: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	17, // 11: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
-	18, // 12: dockwell.v1.UpdateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	12, // 13: dockwell.v1.UpdateWebsiteRequest.domain_front:type_name -> dockwell.v1.WebsiteDomainFront
-	18, // 14: dockwell.v1.WebsiteDomainFront.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
-	19, // 15: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
-	19, // 16: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
-	1,  // 17: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
-	4,  // 18: dockwell.v1.WebsiteService.ListWebsiteRuntimes:input_type -> dockwell.v1.ListWebsiteRuntimesRequest
-	7,  // 19: dockwell.v1.WebsiteService.PreviewWebsite:input_type -> dockwell.v1.PreviewWebsiteRequest
-	9,  // 20: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
-	11, // 21: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
-	14, // 22: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
-	2,  // 23: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
-	5,  // 24: dockwell.v1.WebsiteService.ListWebsiteRuntimes:output_type -> dockwell.v1.ListWebsiteRuntimesResponse
-	8,  // 25: dockwell.v1.WebsiteService.PreviewWebsite:output_type -> dockwell.v1.PreviewWebsiteResponse
-	10, // 26: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
-	13, // 27: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
-	15, // 28: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
-	23, // [23:29] is the sub-list for method output_type
-	17, // [17:23] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	21, // 6: dockwell.v1.PreviewWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	21, // 7: dockwell.v1.PreviewWebsiteResponse.website:type_name -> dockwell.resource.v1alpha1.Website
+	21, // 8: dockwell.v1.CreateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	22, // 9: dockwell.v1.CreateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	18, // 10: dockwell.v1.CreateWebsiteRequest.basic_auth_passwords:type_name -> dockwell.v1.CreateWebsiteRequest.BasicAuthPasswordsEntry
+	23, // 11: dockwell.v1.CreateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	21, // 12: dockwell.v1.UpdateWebsiteRequest.website:type_name -> dockwell.resource.v1alpha1.Website
+	22, // 13: dockwell.v1.UpdateWebsiteRequest.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	12, // 14: dockwell.v1.UpdateWebsiteRequest.domain_front:type_name -> dockwell.v1.WebsiteDomainFront
+	19, // 15: dockwell.v1.UpdateWebsiteRequest.basic_auth_passwords:type_name -> dockwell.v1.UpdateWebsiteRequest.BasicAuthPasswordsEntry
+	22, // 16: dockwell.v1.WebsiteDomainFront.publish:type_name -> dockwell.resource.v1alpha1.RoutePublish
+	23, // 17: dockwell.v1.UpdateWebsiteResponse.change:type_name -> dockwell.v1.Change
+	23, // 18: dockwell.v1.DeleteWebsiteResponse.change:type_name -> dockwell.v1.Change
+	24, // 19: dockwell.v1.BatchUpdateWebsitesRequest.pause_mode:type_name -> dockwell.resource.v1alpha1.WebsitePauseMode
+	23, // 20: dockwell.v1.BatchUpdateWebsitesResponse.change:type_name -> dockwell.v1.Change
+	1,  // 21: dockwell.v1.WebsiteService.ListWebsites:input_type -> dockwell.v1.ListWebsitesRequest
+	4,  // 22: dockwell.v1.WebsiteService.ListWebsiteRuntimes:input_type -> dockwell.v1.ListWebsiteRuntimesRequest
+	7,  // 23: dockwell.v1.WebsiteService.PreviewWebsite:input_type -> dockwell.v1.PreviewWebsiteRequest
+	9,  // 24: dockwell.v1.WebsiteService.CreateWebsite:input_type -> dockwell.v1.CreateWebsiteRequest
+	11, // 25: dockwell.v1.WebsiteService.UpdateWebsite:input_type -> dockwell.v1.UpdateWebsiteRequest
+	14, // 26: dockwell.v1.WebsiteService.DeleteWebsite:input_type -> dockwell.v1.DeleteWebsiteRequest
+	16, // 27: dockwell.v1.WebsiteService.BatchUpdateWebsites:input_type -> dockwell.v1.BatchUpdateWebsitesRequest
+	2,  // 28: dockwell.v1.WebsiteService.ListWebsites:output_type -> dockwell.v1.ListWebsitesResponse
+	5,  // 29: dockwell.v1.WebsiteService.ListWebsiteRuntimes:output_type -> dockwell.v1.ListWebsiteRuntimesResponse
+	8,  // 30: dockwell.v1.WebsiteService.PreviewWebsite:output_type -> dockwell.v1.PreviewWebsiteResponse
+	10, // 31: dockwell.v1.WebsiteService.CreateWebsite:output_type -> dockwell.v1.CreateWebsiteResponse
+	13, // 32: dockwell.v1.WebsiteService.UpdateWebsite:output_type -> dockwell.v1.UpdateWebsiteResponse
+	15, // 33: dockwell.v1.WebsiteService.DeleteWebsite:output_type -> dockwell.v1.DeleteWebsiteResponse
+	17, // 34: dockwell.v1.WebsiteService.BatchUpdateWebsites:output_type -> dockwell.v1.BatchUpdateWebsitesResponse
+	28, // [28:35] is the sub-list for method output_type
+	21, // [21:28] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_dockwell_v1_website_proto_init() }
@@ -1361,13 +1584,14 @@ func file_dockwell_v1_website_proto_init() {
 	file_dockwell_v1_change_proto_init()
 	file_dockwell_v1_options_proto_init()
 	file_dockwell_v1_website_proto_msgTypes[12].OneofWrappers = []any{}
+	file_dockwell_v1_website_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_dockwell_v1_website_proto_rawDesc), len(file_dockwell_v1_website_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

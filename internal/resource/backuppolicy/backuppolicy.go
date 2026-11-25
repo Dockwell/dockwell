@@ -66,11 +66,21 @@ var clock = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 // Validate fills in its defaults, and refuses what can't run.
 func (Type) Validate(spec proto.Message) error {
 	p := spec.(*resourcev1.BackupPolicy)
+	targets := 0
+	if p.GetVolume() != "" {
+		targets++
+	}
+	if p.GetLink() != "" {
+		targets++
+	}
+	if p.GetWebsiteFolder() {
+		targets++
+	}
 	switch {
-	case p.GetVolume() == "" && p.GetLink() == "":
-		return errors.New("a backup policy needs a volume, by name, or an app's link, for its database alone")
-	case p.GetVolume() != "" && p.GetLink() != "":
-		return errors.New("a backup policy backs up a volume or an app's database alone, not both. Make one of each")
+	case targets == 0:
+		return errors.New("a backup policy needs a volume, by name, an app's link, or website_folder")
+	case targets > 1:
+		return errors.New("a backup policy backs up one target: a volume, an app's database link, or a website folder. Make one of each")
 	case p.GetLink() != "":
 		// A database alone is dumped, which stops nothing, and isn't drilled yet.
 		p.Stop, p.Drill = false, resourcev1.BackupPolicy_DRILL_NEVER
@@ -105,18 +115,21 @@ func (Type) Validate(spec proto.Message) error {
 	return nil
 }
 
-// References names the volume, or the link of an app's database, so it can't go
-// while a policy backs it up.
+// References names the volume, the link of an app's database, or the website's web
+// service, so it can't go while a policy backs it up.
 func (Type) References(spec proto.Message) []resource.Reference {
 	p := spec.(*resourcev1.BackupPolicy)
 	if p.GetLink() != "" {
 		return []resource.Reference{{Kind: "link", Name: p.GetLink(), Verb: "back up the database of", Apart: true}}
 	}
+	if p.GetWebsiteFolder() {
+		return []resource.Reference{{Kind: "service", Name: "web", Verb: "back up the folder of", Apart: true}}
+	}
 	return []resource.Reference{{Kind: "volume", Name: p.GetVolume(), Verb: "back up", Apart: true}}
 }
 
-// ReferenceKinds is volumes and links.
-func (Type) ReferenceKinds() []resource.Kind { return []resource.Kind{"volume", "link"} }
+// ReferenceKinds is volumes, links, and website web services.
+func (Type) ReferenceKinds() []resource.Kind { return []resource.Kind{"volume", "link", "service"} }
 
 // Next is the first time a policy runs after a moment.
 func Next(p *resourcev1.BackupPolicy, after time.Time) time.Time {

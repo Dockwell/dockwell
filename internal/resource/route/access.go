@@ -181,6 +181,19 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 	if err := keepRedirect(was, is); err != nil {
 		return resource.Kept{}, err
 	}
+	keptCertKey := false
+	if cc := is.GetCustomCert(); cc != nil && cc.GetKeyPem() == "" {
+		if prev := was.GetCustomCert(); prev != nil && prev.GetCertPem() == cc.GetCertPem() && prev.GetKeyPem() != "" {
+			cc.KeyPem = prev.GetKeyPem()
+			cc.KeyFingerprint = prev.GetKeyFingerprint()
+			if cc.KeyFingerprint == "" {
+				cc.KeyFingerprint = ingress.KeyFingerprint([]byte(prev.GetKeyPem()))
+			}
+			keptCertKey = true
+		} else {
+			return resource.Kept{}, fmt.Errorf("the custom certificate for %s needs its private key", Where(is))
+		}
+	}
 	var kept []string
 	for _, u := range is.GetAccess().GetUsers() {
 		if u.GetPasswordHash() != "" {
@@ -193,8 +206,14 @@ func (*Driver) Keep(current, desired proto.Message) (resource.Kept, error) {
 		u.PasswordHash = was.GetAccess().GetUsers()[i].GetPasswordHash()
 		kept = append(kept, u.GetName())
 	}
-	if len(kept) == 0 {
+	if len(kept) == 0 && !keptCertKey {
 		return resource.Kept{}, nil
+	}
+	if len(kept) == 0 && keptCertKey {
+		return resource.Kept{
+			Reason: "kept_certificate_key", Words: "keeps the custom certificate's private key, as the edit gave none",
+			Stays: "the custom certificate's private key stays on the server it runs on. Upload the certificate and key again to move it",
+		}, nil
 	}
 	// A plan sends the spec to each server it would run on as it's made, so what was
 	// kept would reach a new server on a proposal alone (ADR 0022).
@@ -210,6 +229,9 @@ func (*Driver) CheckNew(spec proto.Message) error {
 	r := spec.(*resourcev1.Route) //nolint:forcetypeassert // Validate saw it
 	if err := checkNewTarget(r); err != nil {
 		return err
+	}
+	if cc := r.GetCustomCert(); cc != nil && cc.GetKeyPem() == "" {
+		return fmt.Errorf("the custom certificate for %s needs its private key", Where(r))
 	}
 	for _, u := range r.GetAccess().GetUsers() {
 		if u.GetPasswordHash() == "" {

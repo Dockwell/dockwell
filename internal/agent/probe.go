@@ -18,30 +18,22 @@ import (
 	"time"
 
 	agentv1 "github.com/dockwell/dockwell/gen/dockwell/agent/v1"
+	"github.com/dockwell/dockwell/internal/netguard"
 )
 
 // ProbeTimeout is how long a probe waits for an answer: what a visitor would wait,
 // and no more.
 const ProbeTimeout = 5 * time.Second
 
-// errLinkLocal refuses an address where a cloud keeps its metadata service.
+// errLinkLocal refuses an address where a cloud keeps its metadata service (also used by app_ports.go).
 var errLinkLocal = errors.New("that's a link-local address, where a cloud keeps its metadata service, so Dockwell doesn't ask it")
 
-// probeDialer dials as a probe does: to no link-local address, whatever a name
-// resolves to.
-var probeDialer = &net.Dialer{
-	Timeout: ProbeTimeout,
-	Control: func(_, address string, _ syscall.RawConn) error {
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			return err
-		}
-		if ip, err := netip.ParseAddr(host); err == nil && (ip.Unmap().IsLinkLocalUnicast() || ip.Unmap().IsLinkLocalMulticast()) {
-			return errLinkLocal
-		}
-		return nil
-	},
-}
+// probeDialer dials through the outbound guard at connect time so names that resolve
+// to cloud metadata services, link-local, multicast, unspecified, broadcast, reserved
+// or NAT64-encapsulated forbidden addresses are refused (N3). Private and loopback
+// stay allowed here because Probe checks operator-named proxy URLs on private networks
+// and local ports.
+var probeDialer = netguard.Dialer(netguard.Options{Private: true, Loopback: true})
 
 // Probe asks whether what a website sends to answers, from this server: a port as
 // the ingress dials it, or a URL as a website's web server sends to it. It reads
@@ -50,7 +42,7 @@ func Probe(ctx context.Context, call *agentv1.ProbeCall) *agentv1.ProbeResult {
 	ctx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
 	if port := call.GetPort(); port != 0 {
-		conn, err := probeDialer.DialContext(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port))))
+		conn, err := probeDialer(ctx, "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port))))
 		if err != nil {
 			if errors.Is(err, syscall.ECONNREFUSED) {
 				return &agentv1.ProbeResult{Said: fmt.Sprintf("nothing listens on port %d", port)}
@@ -67,7 +59,7 @@ func Probe(ctx context.Context, call *agentv1.ProbeCall) *agentv1.ProbeResult {
 	req.Header.Set("User-Agent", "dockwell-probe")
 	client := &http.Client{
 		Transport: &http.Transport{
-			DialContext:         probeDialer.DialContext,
+			DialContext:         probeDialer,
 			TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
 			TLSHandshakeTimeout: ProbeTimeout,
 			DisableKeepAlives:   true,
@@ -85,10 +77,11 @@ func Probe(ctx context.Context, call *agentv1.ProbeCall) *agentv1.ProbeResult {
 
 // probeWords says why a probe found nothing, in a few words.
 func probeWords(err error) string {
+	var refused *netguard.Refused
 	var dns *net.DNSError
 	switch {
-	case errors.Is(err, errLinkLocal):
-		return errLinkLocal.Error()
+	case errors.As(err, &refused):
+		return refused.Error()
 	case errors.As(err, &dns) && dns.IsNotFound:
 		return "no such host: " + dns.Name
 	case errors.Is(err, syscall.ECONNREFUSED):

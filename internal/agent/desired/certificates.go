@@ -49,3 +49,39 @@ func (s *Store) KeptCertificates() ([]byte, error) {
 	}
 	return r.Spec, nil
 }
+
+// acmeAccountsFile holds the agent's per-CA ACME account private keys used for
+// forced HTTP-01 renewals, sealed with the agent's sealing key.
+const acmeAccountsFile = "acme-accounts.sealed"
+
+// KeepACMEAccounts seals the per-CA ACME account keys on the agent's disk.
+func (s *Store) KeepACMEAccounts(plain []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	b, err := s.seal(resource.ACMEAccountsRef, sealed{Spec: plain})
+	if err != nil {
+		return err
+	}
+	return writeDurably(filepath.Join(s.dir, acmeAccountsFile), b)
+}
+
+// KeptACMEAccounts opens the sealed per-CA ACME account keys, or returns nil if none exist.
+func (s *Store) KeptACMEAccounts() ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	path := filepath.Join(s.dir, acmeAccountsFile)
+	r, _, err := s.read(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case errors.Is(err, errDamaged):
+		s.putAside(path, err)
+		return nil, nil
+	case err != nil:
+		return nil, err
+	case r.Ref != resource.ACMEAccountsRef:
+		s.putAside(path, fmt.Errorf("%w: it holds %s", errDamaged, r.Ref))
+		return nil, nil
+	}
+	return r.Spec, nil
+}

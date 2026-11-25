@@ -55,15 +55,19 @@ type Backup struct {
 	// whether a destination of that name still has it, and nothing of what it is.
 	SealedWith string
 	FetchError string
+	// WebsiteID and WebsitePath are set when this backup is of a website's folder
+	// rather than a Docker volume.
+	WebsiteID   string
+	WebsitePath string
 }
 
-const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server, sealed_with, fetch_error, one_database, for_link`
+const backupColumns = `id, environment_id, volume, volume_id, server_id, state, method, database_name, size_bytes, sha256, files_changed, actor, error, started_at, finished_at, policy_id, destination, copy_key, copy_bytes, copy_error, off_server, sealed_with, fetch_error, one_database, for_link, website_id, website_path`
 
 func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 	var b Backup
 	var started int64
 	var finished sql.NullInt64
-	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer, &b.SealedWith, &b.FetchError, &b.OneDatabase, &b.ForLink)
+	err := row.Scan(&b.ID, &b.EnvironmentID, &b.Volume, &b.VolumeID, &b.ServerID, &b.State, &b.Method, &b.Database, &b.SizeBytes, &b.SHA256, &b.FilesChanged, &b.Actor, &b.Error, &started, &finished, &b.PolicyID, &b.Destination, &b.CopyKey, &b.CopyBytes, &b.CopyError, &b.OffServer, &b.SealedWith, &b.FetchError, &b.OneDatabase, &b.ForLink, &b.WebsiteID, &b.WebsitePath)
 	if err != nil {
 		return Backup{}, err
 	}
@@ -73,8 +77,8 @@ func scanBackup(row interface{ Scan(...any) error }) (Backup, error) {
 
 // CreateBackup records a backup that's starting.
 func (t *Tx) CreateBackup(ctx context.Context, b Backup) error {
-	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at, policy_id, destination, one_database, for_link) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt), b.PolicyID, b.Destination, b.OneDatabase, b.ForLink)
+	_, err := t.exec(ctx, `INSERT INTO backups (id, environment_id, volume, volume_id, server_id, state, actor, started_at, policy_id, destination, one_database, for_link, website_id, website_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		b.ID, b.EnvironmentID, b.Volume, b.VolumeID, b.ServerID, b.State, b.Actor, millis(b.StartedAt), b.PolicyID, b.Destination, b.OneDatabase, b.ForLink, b.WebsiteID, b.WebsitePath)
 	if err != nil {
 		return fmt.Errorf("can't record backup %s: %w", b.ID, err)
 	}
@@ -205,6 +209,8 @@ type BackupFilter struct {
 	OneDatabase string
 	// ForLink keeps only the backups taken for that link, by ID.
 	ForLink string
+	// WebsiteID keeps only the backups of that website's folder, by website project ID.
+	WebsiteID string
 	// After is the last backup of the page before, by time and ID.
 	AfterAt *time.Time
 	AfterID string
@@ -217,6 +223,9 @@ func (t *Tx) ListBackups(ctx context.Context, f BackupFilter) ([]Backup, error) 
 	var args []any
 	if f.VolumeID != "" {
 		where, args = append(where, "volume_id = ?"), append(args, f.VolumeID)
+	}
+	if f.WebsiteID != "" {
+		where, args = append(where, "website_id = ?"), append(args, f.WebsiteID)
 	}
 	switch f.OneDatabase {
 	case "":

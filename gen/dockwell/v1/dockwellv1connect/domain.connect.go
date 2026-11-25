@@ -59,6 +59,15 @@ const (
 	// DomainServiceCheckSigninProviderProcedure is the fully-qualified name of the DomainService's
 	// CheckSigninProvider RPC.
 	DomainServiceCheckSigninProviderProcedure = "/dockwell.v1.DomainService/CheckSigninProvider"
+	// DomainServiceRenewCertificateProcedure is the fully-qualified name of the DomainService's
+	// RenewCertificate RPC.
+	DomainServiceRenewCertificateProcedure = "/dockwell.v1.DomainService/RenewCertificate"
+	// DomainServiceSetCustomCertificateProcedure is the fully-qualified name of the DomainService's
+	// SetCustomCertificate RPC.
+	DomainServiceSetCustomCertificateProcedure = "/dockwell.v1.DomainService/SetCustomCertificate"
+	// DomainServiceDownloadCertificateProcedure is the fully-qualified name of the DomainService's
+	// DownloadCertificate RPC.
+	DomainServiceDownloadCertificateProcedure = "/dockwell.v1.DomainService/DownloadCertificate"
 )
 
 // DomainServiceClient is a client for the dockwell.v1.DomainService service.
@@ -110,6 +119,19 @@ type DomainServiceClient interface {
 	// S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
 	// provider is install-wide. See docs/adr/0087-private-routes.md.
 	CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error)
+	// RenewCertificate requests an immediate certificate renewal for a domain,
+	// respecting certificate authority rate limits. Refuses when renewal is not
+	// yet due unless force is set, explaining why.
+	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
+	// SetCustomCertificate plans uploading a custom PEM certificate and private
+	// key for a domain, or clearing a custom certificate to return to automatic
+	// HTTPS. Validates that the certificate covers the domain, is not expired and
+	// matches the private key before planning.
+	SetCustomCertificate(context.Context, *connect.Request[v1.SetCustomCertificateRequest]) (*connect.Response[v1.SetCustomCertificateResponse], error)
+	// DownloadCertificate returns the active PEM certificate chain for a domain,
+	// and optionally its private key when include_key is true. Including the key
+	// requires a signed-in admin and a passkey step-up bound to the domain.
+	DownloadCertificate(context.Context, *connect.Request[v1.DownloadCertificateRequest]) (*connect.Response[v1.DownloadCertificateResponse], error)
 }
 
 // NewDomainServiceClient constructs a client for the dockwell.v1.DomainService service. By default,
@@ -177,19 +199,40 @@ func NewDomainServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 			connect.WithClientOptions(opts...),
 		),
+		renewCertificate: connect.NewClient[v1.RenewCertificateRequest, v1.RenewCertificateResponse](
+			httpClient,
+			baseURL+DomainServiceRenewCertificateProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("RenewCertificate")),
+			connect.WithClientOptions(opts...),
+		),
+		setCustomCertificate: connect.NewClient[v1.SetCustomCertificateRequest, v1.SetCustomCertificateResponse](
+			httpClient,
+			baseURL+DomainServiceSetCustomCertificateProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("SetCustomCertificate")),
+			connect.WithClientOptions(opts...),
+		),
+		downloadCertificate: connect.NewClient[v1.DownloadCertificateRequest, v1.DownloadCertificateResponse](
+			httpClient,
+			baseURL+DomainServiceDownloadCertificateProcedure,
+			connect.WithSchema(domainServiceMethods.ByName("DownloadCertificate")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // domainServiceClient implements DomainServiceClient.
 type domainServiceClient struct {
-	listDomains         *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
-	checkDomain         *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
-	listCertificates    *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
-	listDnsProviders    *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
-	syncDnsProvider     *connect.Client[v1.SyncDnsProviderRequest, v1.SyncDnsProviderResponse]
-	checkDnsProvider    *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
-	listSigninProviders *connect.Client[v1.ListSigninProvidersRequest, v1.ListSigninProvidersResponse]
-	checkSigninProvider *connect.Client[v1.CheckSigninProviderRequest, v1.CheckSigninProviderResponse]
+	listDomains          *connect.Client[v1.ListDomainsRequest, v1.ListDomainsResponse]
+	checkDomain          *connect.Client[v1.CheckDomainRequest, v1.CheckDomainResponse]
+	listCertificates     *connect.Client[v1.ListCertificatesRequest, v1.ListCertificatesResponse]
+	listDnsProviders     *connect.Client[v1.ListDnsProvidersRequest, v1.ListDnsProvidersResponse]
+	syncDnsProvider      *connect.Client[v1.SyncDnsProviderRequest, v1.SyncDnsProviderResponse]
+	checkDnsProvider     *connect.Client[v1.CheckDnsProviderRequest, v1.CheckDnsProviderResponse]
+	listSigninProviders  *connect.Client[v1.ListSigninProvidersRequest, v1.ListSigninProvidersResponse]
+	checkSigninProvider  *connect.Client[v1.CheckSigninProviderRequest, v1.CheckSigninProviderResponse]
+	renewCertificate     *connect.Client[v1.RenewCertificateRequest, v1.RenewCertificateResponse]
+	setCustomCertificate *connect.Client[v1.SetCustomCertificateRequest, v1.SetCustomCertificateResponse]
+	downloadCertificate  *connect.Client[v1.DownloadCertificateRequest, v1.DownloadCertificateResponse]
 }
 
 // ListDomains calls dockwell.v1.DomainService.ListDomains.
@@ -230,6 +273,21 @@ func (c *domainServiceClient) ListSigninProviders(ctx context.Context, req *conn
 // CheckSigninProvider calls dockwell.v1.DomainService.CheckSigninProvider.
 func (c *domainServiceClient) CheckSigninProvider(ctx context.Context, req *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error) {
 	return c.checkSigninProvider.CallUnary(ctx, req)
+}
+
+// RenewCertificate calls dockwell.v1.DomainService.RenewCertificate.
+func (c *domainServiceClient) RenewCertificate(ctx context.Context, req *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error) {
+	return c.renewCertificate.CallUnary(ctx, req)
+}
+
+// SetCustomCertificate calls dockwell.v1.DomainService.SetCustomCertificate.
+func (c *domainServiceClient) SetCustomCertificate(ctx context.Context, req *connect.Request[v1.SetCustomCertificateRequest]) (*connect.Response[v1.SetCustomCertificateResponse], error) {
+	return c.setCustomCertificate.CallUnary(ctx, req)
+}
+
+// DownloadCertificate calls dockwell.v1.DomainService.DownloadCertificate.
+func (c *domainServiceClient) DownloadCertificate(ctx context.Context, req *connect.Request[v1.DownloadCertificateRequest]) (*connect.Response[v1.DownloadCertificateResponse], error) {
+	return c.downloadCertificate.CallUnary(ctx, req)
 }
 
 // DomainServiceHandler is an implementation of the dockwell.v1.DomainService service.
@@ -281,6 +339,19 @@ type DomainServiceHandler interface {
 	// S256, or no signing algorithm Dockwell takes. An admin's, signed in, as a
 	// provider is install-wide. See docs/adr/0087-private-routes.md.
 	CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error)
+	// RenewCertificate requests an immediate certificate renewal for a domain,
+	// respecting certificate authority rate limits. Refuses when renewal is not
+	// yet due unless force is set, explaining why.
+	RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error)
+	// SetCustomCertificate plans uploading a custom PEM certificate and private
+	// key for a domain, or clearing a custom certificate to return to automatic
+	// HTTPS. Validates that the certificate covers the domain, is not expired and
+	// matches the private key before planning.
+	SetCustomCertificate(context.Context, *connect.Request[v1.SetCustomCertificateRequest]) (*connect.Response[v1.SetCustomCertificateResponse], error)
+	// DownloadCertificate returns the active PEM certificate chain for a domain,
+	// and optionally its private key when include_key is true. Including the key
+	// requires a signed-in admin and a passkey step-up bound to the domain.
+	DownloadCertificate(context.Context, *connect.Request[v1.DownloadCertificateRequest]) (*connect.Response[v1.DownloadCertificateResponse], error)
 }
 
 // NewDomainServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -344,6 +415,24 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 		connect.WithIdempotency(connect.IdempotencyNoSideEffects),
 		connect.WithHandlerOptions(opts...),
 	)
+	domainServiceRenewCertificateHandler := connect.NewUnaryHandler(
+		DomainServiceRenewCertificateProcedure,
+		svc.RenewCertificate,
+		connect.WithSchema(domainServiceMethods.ByName("RenewCertificate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	domainServiceSetCustomCertificateHandler := connect.NewUnaryHandler(
+		DomainServiceSetCustomCertificateProcedure,
+		svc.SetCustomCertificate,
+		connect.WithSchema(domainServiceMethods.ByName("SetCustomCertificate")),
+		connect.WithHandlerOptions(opts...),
+	)
+	domainServiceDownloadCertificateHandler := connect.NewUnaryHandler(
+		DomainServiceDownloadCertificateProcedure,
+		svc.DownloadCertificate,
+		connect.WithSchema(domainServiceMethods.ByName("DownloadCertificate")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/dockwell.v1.DomainService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DomainServiceListDomainsProcedure:
@@ -362,6 +451,12 @@ func NewDomainServiceHandler(svc DomainServiceHandler, opts ...connect.HandlerOp
 			domainServiceListSigninProvidersHandler.ServeHTTP(w, r)
 		case DomainServiceCheckSigninProviderProcedure:
 			domainServiceCheckSigninProviderHandler.ServeHTTP(w, r)
+		case DomainServiceRenewCertificateProcedure:
+			domainServiceRenewCertificateHandler.ServeHTTP(w, r)
+		case DomainServiceSetCustomCertificateProcedure:
+			domainServiceSetCustomCertificateHandler.ServeHTTP(w, r)
+		case DomainServiceDownloadCertificateProcedure:
+			domainServiceDownloadCertificateHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -401,4 +496,16 @@ func (UnimplementedDomainServiceHandler) ListSigninProviders(context.Context, *c
 
 func (UnimplementedDomainServiceHandler) CheckSigninProvider(context.Context, *connect.Request[v1.CheckSigninProviderRequest]) (*connect.Response[v1.CheckSigninProviderResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.CheckSigninProvider is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) RenewCertificate(context.Context, *connect.Request[v1.RenewCertificateRequest]) (*connect.Response[v1.RenewCertificateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.RenewCertificate is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) SetCustomCertificate(context.Context, *connect.Request[v1.SetCustomCertificateRequest]) (*connect.Response[v1.SetCustomCertificateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.SetCustomCertificate is not implemented"))
+}
+
+func (UnimplementedDomainServiceHandler) DownloadCertificate(context.Context, *connect.Request[v1.DownloadCertificateRequest]) (*connect.Response[v1.DownloadCertificateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("dockwell.v1.DomainService.DownloadCertificate is not implemented"))
 }

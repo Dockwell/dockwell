@@ -576,6 +576,7 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 					ImportDatabase: r.GetImportDatabase(),
 					ImportFilename: r.GetImportFilename(),
 					ImportFormat:   r.GetImportFormat(),
+					HostPath:       r.GetHostPath(),
 				}
 				if r.GetFrom() != nil {
 					want.Restore.From = resourcepb.FromRef(r.GetFrom())
@@ -675,18 +676,22 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 		}
 		step.PlannedLeads = call.GetApply().GetPlannedLeads()
 		// A restore into a new database reads its backup from the volume the call
-		// names (ADR 0106). A staged dump import carries its import source through ctx.
+		// names (ADR 0106), a staged dump import carries its import source through ctx,
+		// and a website folder restore carries its server folder path.
 		if r := call.GetApply().GetDesired().GetRestore(); r != nil {
 			if r.GetFrom() != nil && step.Restore != nil && step.Restore.IntoNew {
 				step.Restore.From = resourcepb.FromRef(r.GetFrom())
 			}
-			if r.GetImportId() != "" {
+			if r.GetImportId() != "" || (step.Restore != nil && r.GetHostPath() != "") {
 				ctx = resource.WithRestore(ctx, resource.RestoreSource{
+					Backup:         r.GetBackupId(),
+					Undoes:         r.GetUndoes(),
 					Change:         r.GetChangeId(),
 					ImportID:       r.GetImportId(),
 					ImportDatabase: r.GetImportDatabase(),
 					ImportFilename: r.GetImportFilename(),
 					ImportFormat:   r.GetImportFormat(),
+					HostPath:       r.GetHostPath(),
 				})
 			}
 		}
@@ -1339,6 +1344,15 @@ func (c *calls) run(ctx context.Context, call *agentv1.Call) *agentv1.CallResult
 	if put := call.GetPutCertificates(); put != nil {
 		return c.putCertificates(ctx, put)
 	}
+	if v := call.GetValidateCaddyfile(); v != nil {
+		return c.validateCaddyfile(ctx, v)
+	}
+	if r := call.GetRenewCertificate(); r != nil {
+		return c.renewCertificate(ctx, r)
+	}
+	if r := call.GetReadCertificate(); r != nil {
+		return c.readCertificate(ctx, r)
+	}
 	if call.GetReadOnepanel() != nil {
 		if c.cfg.OnePanel == nil {
 			return fail(errors.New("this agent doesn't read 1Panel's records"))
@@ -1987,4 +2001,82 @@ func (c *calls) putCertificates(ctx context.Context, put *agentv1.PutCertificate
 		return fail(err)
 	}
 	return &agentv1.CallResult{Result: &agentv1.CallResult_PutCertificates{PutCertificates: &agentv1.PutCertificatesResult{Loaded: int32(min(loaded, math.MaxInt32))}}} //nolint:gosec // bounded above
+}
+
+type websiteIngress interface {
+	ValidateCaddyfile(ctx context.Context, caddyfile, allowedRoot string) (bool, string, error)
+	RenewCertificate(ctx context.Context, domain string, force bool) (string, bool, error)
+	ReadCertificate(ctx context.Context, domain string, includeKey bool) (*ingress.CertificateRead, error)
+}
+
+func (c *calls) websiteIngress() (websiteIngress, error) {
+	if wi, ok := c.cfg.Certificates.(websiteIngress); ok {
+		return wi, nil
+	}
+	return nil, errors.New("this agent has no ingress configured for website operations")
+}
+
+func (c *calls) validateCaddyfile(ctx context.Context, v *agentv1.ValidateCaddyfileCall) *agentv1.CallResult {
+	wi, err := c.websiteIngress()
+	if err != nil {
+		return callFailed(err)
+	}
+	valid, msg, err := wi.ValidateCaddyfile(ctx, v.GetCaddyfile(), v.GetAllowedRoot())
+	if err != nil {
+		return callFailed(err)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_ValidateCaddyfile{ValidateCaddyfile: &agentv1.ValidateCaddyfileResult{
+		Valid: valid,
+		Error: msg,
+	}}}
+}
+
+func (c *calls) renewCertificate(ctx context.Context, r *agentv1.RenewCertificateCall) *agentv1.CallResult {
+	if err := ingress.CheckDomainName(r.GetDomain()); err != nil {
+		return callFailed(err)
+	}
+	wi, err := c.websiteIngress()
+	if err != nil {
+		return callFailed(err)
+	}
+	msg, renewed, err := wi.RenewCertificate(ctx, r.GetDomain(), r.GetForce())
+	if err != nil {
+		return callFailed(err)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_RenewCertificate{RenewCertificate: &agentv1.RenewCertificateResult{
+		Message: msg,
+		Renewed: renewed,
+	}}}
+}
+
+func (c *calls) readCertificate(ctx context.Context, r *agentv1.ReadCertificateCall) *agentv1.CallResult {
+	if err := ingress.CheckDomainName(r.GetDomain()); err != nil {
+		return callFailed(err)
+	}
+	wi, err := c.websiteIngress()
+	if err != nil {
+		return callFailed(err)
+	}
+	got, err := wi.ReadCertificate(ctx, r.GetDomain(), r.GetIncludeKey())
+	if err != nil {
+		return callFailed(err)
+	}
+	out := &agentv1.ReadCertificateResult{
+		CertPem:   got.CertPEM,
+		KeyPem:    got.KeyPEM,
+		Issuer:    got.Issuer,
+		Subject:   got.Subject,
+		Sans:      got.SANs,
+		Custom:    got.Custom,
+		ByDns:     got.ByDNS,
+		DnsNames:  got.DNSNames,
+		DnsServes: got.DNSServes,
+	}
+	if !got.NotBefore.IsZero() {
+		out.NotBefore = timestamppb.New(got.NotBefore)
+	}
+	if !got.NotAfter.IsZero() {
+		out.NotAfter = timestamppb.New(got.NotAfter)
+	}
+	return &agentv1.CallResult{Result: &agentv1.CallResult_ReadCertificate{ReadCertificate: out}}
 }

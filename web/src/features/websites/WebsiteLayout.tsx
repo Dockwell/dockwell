@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone } from "@bufbuild/protobuf";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import { WebsiteSchema, WebsiteService } from "@dockwell/api";
 import {
+  Button,
   ButtonLink,
   Callout,
   Icon,
@@ -15,15 +20,18 @@ import {
 } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link, useMatch } from "@tanstack/react-router";
-import { createContext, type ReactNode, useContext } from "react";
+import { createContext, type ReactNode, useContext, useState } from "react";
 
 import { sentence } from "../../lib/errors";
 import { RouterButtonLink, RouterTabLink } from "../../lib/links";
 import type { DomainRead } from "../apps/domains";
 import { visitorUrl } from "../apps/domains";
 import type { HealthView } from "../apps/health";
+import { useMay } from "../auth/may";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
+import { PauseSheet } from "./PauseSheet";
 import { type Row, SiteStanding, useCertificateWords, useWebsiteRows } from "./Standing";
 import { kindOf, targetOf } from "./website";
 import "../apps/Apps.css";
@@ -53,8 +61,12 @@ export function useWebsiteValue(): WebsiteValue {
 export function WebsiteLayout({ websiteId, children }: { websiteId: string; children: ReactNode }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
+  const transport = useTransport();
+  const sheet = useChangeSheet();
+  const [pausing, setPausing] = useState(false);
   const { websites, rows, read, health } = useWebsiteRows();
   const row = rows.find((r) => r.id === websiteId);
+  const mayUpdate = useMay()(WebsiteService.method.updateWebsite, { project: websiteId });
   const certificate = useCertificateWords();
   const onLogs = useMatch({ from: "/_shell/websites/$websiteId/logs", shouldThrow: false }) !== undefined;
   const backLink = (
@@ -129,6 +141,21 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
     .filter(Boolean)
     .join(" · ");
   const visit = domain ? visitorUrl(domain) : site.domain ? `https://${site.domain}` : "";
+  const paused = Boolean(site.spec?.paused);
+  const resume = () => {
+    if (!site.spec) return;
+    const next = clone(WebsiteSchema, site.spec);
+    next.paused = false;
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        createClient(WebsiteService, transport).updateWebsite({
+          id: site.id,
+          website: next,
+          summary: t`Resume ${name}`,
+        }),
+    });
+  };
   return (
     <WebsiteContext value={{ row, health, read }}>
       <Page
@@ -145,6 +172,15 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
         phoneSub={what}
         actions={
           <>
+            {paused ? (
+              <Button variant="primary" icon="play" onClick={resume} {...mayUpdate.off}>
+                <Trans>Resume</Trans>
+              </Button>
+            ) : (
+              <Button variant="secondary" icon="pause" onClick={() => setPausing(true)} {...mayUpdate.off}>
+                <Trans>Pause</Trans>
+              </Button>
+            )}
             {/* A folder's files are edited where every file on its server is, at the folder. */}
             {(kind === "folder" || kind === "php") && site.serverId ? (
               <RouterButtonLink
@@ -187,6 +223,7 @@ export function WebsiteLayout({ websiteId, children }: { websiteId: string; chil
           </RouterTabLink>
         </TabNav>
         {children}
+        {pausing ? <PauseSheet sites={[site]} onClose={() => setPausing(false)} /> : null}
       </Page>
     </WebsiteContext>
   );

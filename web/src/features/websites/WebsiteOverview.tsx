@@ -1,18 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { clone } from "@bufbuild/protobuf";
 import { timestampDate } from "@bufbuild/protobuf/wkt";
-import { type ServiceInfo, UpdateProblem } from "@dockwell/api";
-import { Panel, StatusBadge } from "@dockwell/ui";
+import { createClient } from "@connectrpc/connect";
+import { useTransport } from "@connectrpc/connect-query";
+import {
+  BackupState,
+  type ServiceInfo,
+  UpdateProblem,
+  WebsitePauseMode,
+  WebsiteSchema,
+  WebsiteService,
+} from "@dockwell/api";
+import { Button, Callout, Panel, StatusBadge } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
-import { formatDateTime } from "../../lib/format";
+import { formatBytes, formatDateTime } from "../../lib/format";
 import { RouterButtonLink } from "../../lib/links";
 import { WatchAddress } from "../alerts/WatchAddress";
 import { useDomainState, useSilent } from "../apps/DomainNote";
 import { visitorUrl } from "../apps/domains";
 import { useHealthWords } from "../apps/Health";
+import { useMay } from "../auth/may";
+import { BackUpSheet } from "../backups/BackUpSheet";
+import { useWebsiteBackups } from "../backups/useBackups";
+import { useChangeSheet } from "../changes/ChangeSheet";
 import { RefLink } from "../shell/RefLink";
 import { DomainPanel } from "./WebsiteConfiguration";
 import { useServesWords } from "./WebsiteFields";
@@ -26,12 +40,49 @@ import { kindOf, targetOf } from "./website";
  */
 export function WebsiteOverview() {
   const { t } = useLingui();
+  const transport = useTransport();
+  const sheet = useChangeSheet();
   const { row } = useWebsiteValue();
   const { site } = row;
   const kind = kindOf(site.spec);
   const php = site.spec?.serves.case === "php" ? site.spec.serves.value : undefined;
+  const paused = Boolean(site.spec?.paused);
+  const mayUpdate = useMay()(WebsiteService.method.updateWebsite, { project: site.id });
+
+  const resume = () => {
+    if (!site.spec) return;
+    const next = clone(WebsiteSchema, site.spec);
+    next.paused = false;
+    sheet.open({
+      kind: "plan",
+      make: () =>
+        createClient(WebsiteService, transport).updateWebsite({
+          id: site.id,
+          website: next,
+          summary: t`Resume ${site.domain || site.name}`,
+        }),
+    });
+  };
+
   return (
     <div className="website-tab">
+      {paused ? (
+        <Callout
+          tone="warning"
+          title={t`This website is paused`}
+          actions={
+            <Button size="sm" variant="primary" icon="play" onClick={resume} {...mayUpdate.off}>
+              <Trans>Resume</Trans>
+            </Button>
+          }
+        >
+          {site.spec?.pauseMode === WebsitePauseMode.PLAIN_503 ? (
+            <Trans>Visitors currently receive a plain 503 response. Domains, certificates and files stay intact.</Trans>
+          ) : (
+            <Trans>Visitors currently see a 503 maintenance page. Domains, certificates and files stay intact.</Trans>
+          )}
+        </Callout>
+      ) : null}
       <div className="website-columns">
         <div className="website-settings">
           <Panel title={<Trans>How it serves</Trans>} flush>
@@ -67,10 +118,66 @@ export function WebsiteOverview() {
             </ul>
           </Panel>
           <DomainPanel />
+          {kind === "folder" || kind === "php" ? <WebsiteBackupsCard /> : null}
         </div>
         <WhatItServes kind={kind} />
       </div>
     </div>
+  );
+}
+
+function WebsiteBackupsCard() {
+  const { t, i18n } = useLingui();
+  const { row } = useWebsiteValue();
+  const { site } = row;
+  const [backingUp, setBackingUp] = useState(false);
+  const backups = useWebsiteBackups(site.id);
+  const latest = backups.data?.backups[0];
+  const root = targetOf(site.spec);
+  return (
+    <Panel
+      title={<Trans>Backups</Trans>}
+      actions={
+        <Button size="sm" variant="secondary" icon="archive" onClick={() => setBackingUp(true)}>
+          <Trans>Back up now</Trans>
+        </Button>
+      }
+    >
+      <div className="website-fields">
+        {latest ? (
+          <p className="websites-muted">
+            {latest.state === BackupState.DONE && latest.startedAt
+              ? t`Latest folder backup: ${formatDateTime(timestampDate(latest.startedAt), i18n.locale)} (${formatBytes(latest.sizeBytes, i18n.locale)}).`
+              : latest.state === BackupState.RUNNING
+                ? t`A folder backup is running now.`
+                : t`Latest folder backup failed.`}
+          </p>
+        ) : (
+          <p className="websites-muted">
+            <Trans>Back up this website's folder on demand or on a schedule in Backups.</Trans>
+          </p>
+        )}
+        <RouterButtonLink to="/backups" size="sm" variant="ghost">
+          <Trans>Open Backups</Trans>
+        </RouterButtonLink>
+      </div>
+      {backingUp ? (
+        <BackUpSheet
+          volumes={[
+            {
+              id: site.id,
+              name: site.domain || site.name,
+              environment: site.environmentId,
+              websiteId: site.id,
+              websitePath: root,
+            },
+          ]}
+          chosen={site.id}
+          serverId={site.serverId}
+          onClose={() => setBackingUp(false)}
+        />
+      ) : null}
+    </Panel>
   );
 }
 
@@ -178,8 +285,23 @@ function WhatItServes({ kind }: { kind: ReturnType<typeof kindOf> }) {
         </span>,
       ],
       [t`Upload limit`, t`${p.uploadLimitMb || 64} MiB`],
+      [t`Memory limit`, t`${p.memoryLimitMb || 128} MiB`],
       [t`What isn't a file`, p.filesOnly ? t`Gets a 404` : t`Goes to index.php`],
     );
+  }
+  const rules = site.spec?.rules;
+  const activeRules = [
+    rules?.basicAuth?.users.length ? t`Basic Auth` : "",
+    rules?.cors?.enabled ? t`CORS` : "",
+    rules?.rateLimit?.enabled ? t`Rate limit (${rules.rateLimit.requestsPerMinute || 60}/min)` : "",
+    rules?.pathRules.length ? t`${rules.pathRules.length} redirect/rewrite` : "",
+    rules?.subpathProxies.length ? t`${rules.subpathProxies.length} sub-path` : "",
+    rules?.headers.length ? t`${rules.headers.length} headers` : "",
+    rules?.staticCache?.enabled ? t`Static cache` : "",
+    site.spec?.customCaddy ? t`Custom Caddy` : "",
+  ].filter(Boolean);
+  if (activeRules.length > 0) {
+    facts.push([t`Rules`, activeRules.join(" · ")]);
   }
   if (site.serverName)
     facts.push([

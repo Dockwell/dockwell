@@ -301,6 +301,12 @@ func (d *Driver) Validate(spec proto.Message) error {
 	if err := checkPublish(r); err != nil {
 		return err
 	}
+	if err := checkRateLimit(r); err != nil {
+		return err
+	}
+	if err := checkCustomCertOnRoute(r); err != nil {
+		return err
+	}
 	if r.GetRedirect() != nil {
 		return checkRedirect(r)
 	}
@@ -712,16 +718,43 @@ func (*Driver) OnServer(spec proto.Message) proto.Message {
 }
 
 // Readopted keeps how a route is published and whether it's watched, which its
-// server never had, on what the server has read back.
+// server never had, on what the server has read back, and restores the stored
+// custom certificate private key when the observed fingerprint matches.
 func (*Driver) Readopted(current, observed proto.Message) proto.Message {
 	cur, _ := current.(*resourcev1.Route)
 	obs, ok := observed.(*resourcev1.Route)
-	if !ok || cur.GetPublish() == nil && !cur.GetUnwatched() {
+	if !ok {
+		return observed
+	}
+	restoreKey := obs.GetCustomCert() != nil && obs.GetCustomCert().GetKeyPem() == "" &&
+		cur.GetCustomCert() != nil && cur.GetCustomCert().GetKeyPem() != "" &&
+		obs.GetCustomCert().GetKeyFingerprint() != "" &&
+		obs.GetCustomCert().GetKeyFingerprint() == cur.GetCustomCert().GetKeyFingerprint()
+	if cur.GetPublish() == nil && !cur.GetUnwatched() && !restoreKey {
 		return observed
 	}
 	out := proto.CloneOf(obs)
 	out.Publish = proto.CloneOf(cur.GetPublish())
 	out.Unwatched = cur.GetUnwatched()
+	if restoreKey {
+		out.CustomCert.KeyPem = cur.GetCustomCert().GetKeyPem()
+	}
+	return out
+}
+
+// AsObserved strips custom_cert.key_pem while keeping cert_pem and key_fingerprint
+// so Plan and Drift comparisons match Observe without sending the private key back
+// from the agent or over Plan calls.
+func (*Driver) AsObserved(spec proto.Message) proto.Message {
+	r, ok := spec.(*resourcev1.Route)
+	if !ok || r.GetCustomCert() == nil || r.GetCustomCert().GetKeyPem() == "" {
+		return spec
+	}
+	out := proto.CloneOf(r)
+	if out.CustomCert.KeyFingerprint == "" {
+		out.CustomCert.KeyFingerprint = ingress.KeyFingerprint([]byte(out.CustomCert.KeyPem))
+	}
+	out.CustomCert.KeyPem = ""
 	return out
 }
 

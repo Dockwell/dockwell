@@ -193,9 +193,12 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "DockerService.watchDockerObjects": { within: "DockerService.getDockerOverview" },
 
   "DomainService.checkDnsProvider": "may",
+  "DomainService.downloadCertificate": "may",
   "DomainService.listCertificates": "unused",
   "DomainService.checkDomain": "may",
   "DomainService.listDnsProviders": "read",
+  "DomainService.renewCertificate": "may",
+  "DomainService.setCustomCertificate": "may",
   "DomainService.syncDnsProvider": "may",
   "DomainService.checkSigninProvider": "may",
   "DomainService.listDomains": "read",
@@ -381,6 +384,7 @@ export const PANEL_METHODS: Record<string, PanelUse> = {
   "VariableService.revealServiceValue": "may",
   "VolumeService.getVolume": "read",
 
+  "WebsiteService.batchUpdateWebsites": "may",
   "WebsiteService.createWebsite": "may",
   "WebsiteService.deleteWebsite": "may",
   "WebsiteService.listWebsiteRuntimes": "read",

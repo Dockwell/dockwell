@@ -168,3 +168,34 @@ describe("someone's own name and email on Activity (#801's review, M1)", () => {
     );
   });
 });
+
+describe("certificate private key download", () => {
+  it.each([
+    ["en", "Downloaded the certificate private key for shop.example.com", "Downloaded a certificate's private key"],
+    ["zh-CN", "下载了 shop.example.com 的证书私钥", "下载了证书私钥"],
+  ] as const)("names the domain when known in %s", async (locale, named, bare) => {
+    await activateLocale(locale);
+    const say = renderHookWithApi(useAuditWords, {}).result.current;
+    expect(
+      say(
+        create(AuditEventSchema, {
+          action: "certificate.key_downloaded",
+          subject: "shop.example.com",
+          event: {
+            action: "certificate.key_downloaded",
+            kind: EventKind.ACCESS,
+            subject: { name: "shop.example.com" },
+          },
+        }),
+      ).title,
+    ).toBe(named);
+    expect(
+      say(
+        create(AuditEventSchema, {
+          action: "certificate.key_downloaded",
+          event: { action: "certificate.key_downloaded", kind: EventKind.ACCESS },
+        }),
+      ).title,
+    ).toBe(bare);
+  });
+});

@@ -113,7 +113,28 @@ func Check(w *resourcev1.Website) error {
 	}
 	// Its other domains, as far as they can be checked without its own, which the
 	// route holds: however it's written, as a project's edit can write it too.
-	return CheckRedirects(w, "")
+	if err := CheckRedirects(w, ""); err != nil {
+		return err
+	}
+	switch w.GetPauseMode() {
+	case resourcev1.WebsitePauseMode_WEBSITE_PAUSE_MODE_UNSPECIFIED,
+		resourcev1.WebsitePauseMode_WEBSITE_PAUSE_MODE_MAINTENANCE,
+		resourcev1.WebsitePauseMode_WEBSITE_PAUSE_MODE_PLAIN_503:
+	default:
+		return errors.New("pause mode must be maintenance page or plain 503")
+	}
+	if err := checkRules(w); err != nil {
+		return err
+	}
+	if KindOf(w) == ProxyToPort && strings.TrimSpace(w.GetCustomCaddy()) != "" {
+		return errors.New("a port on the server is served straight from the ingress without a web server of its own, so custom Caddy config applies to URL, folder and PHP websites")
+	}
+	custom, err := CheckCustomCaddy(w.GetCustomCaddy(), AllowedRoot(w))
+	if err != nil {
+		return err
+	}
+	w.CustomCaddy = custom
+	return nil
 }
 
 // MaxRedirects is how many other domains a website sends to itself, which covers
@@ -365,13 +386,18 @@ type Front struct {
 	// DNS provider that proves its certificate (ADR 0088), if either is set.
 	Publish *resourcev1.RoutePublish
 	Proof   string
+	// CustomCert is a custom PEM certificate and key uploaded for the route, if any.
+	CustomCert *resourcev1.RouteCustomCert
+	// SubpathMembers are other Dockwell services attached to the website's network
+	// for sub-path reverse proxies targeting service_id.
+	SubpathMembers []*resourcev1.NetworkMember
 }
 
 // FrontOf is the front a route has.
 func FrontOf(r *resourcev1.Route) Front {
 	return Front{
 		TLS: r.GetTls(), TrustedProxies: r.GetTrustedProxies(), PlainForAnyone: r.GetPlainForAnyone(), Access: proto.CloneOf(r.GetAccess()),
-		Publish: proto.CloneOf(r.GetPublish()), Proof: r.GetProof(),
+		Publish: proto.CloneOf(r.GetPublish()), Proof: r.GetProof(), CustomCert: proto.CloneOf(r.GetCustomCert()),
 	}
 }
 
@@ -391,6 +417,8 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 	r := &resourcev1.Route{
 		Domain: domain, Tls: front.TLS, TrustedProxies: front.TrustedProxies, PlainForAnyone: front.PlainForAnyone, Access: front.Access,
 		Publish: proto.CloneOf(front.Publish), Proof: front.Proof,
+		RateLimit:  RouteRateLimit(w.GetRules().GetRateLimit()),
+		CustomCert: proto.CloneOf(front.CustomCert),
 	}
 	out := Serving{Route: r, Redirects: map[string]*resourcev1.Route{}, Services: map[string]*resourcev1.Service{}, Networks: map[string]*resourcev1.Network{}}
 	// Visitors reach a site behind a tunnel over HTTPS too, so only a site served
@@ -405,16 +433,45 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 			Redirect: &resourcev1.RouteRedirect{To: scheme + domain}, Publish: redirectPublish(front.Publish), Proof: front.Proof,
 		}
 	}
+	if w.GetPaused() {
+		r.Service, r.Port = WebService, Port
+		web := webService(pausedConfig(w))
+		switch KindOf(w) {
+		case Folder:
+			web.GetApp().Mounts = []*resourcev1.Mount{{
+				Source:    &resourcev1.Mount_HostPath{HostPath: w.GetFolder().GetRoot()},
+				Target:    FolderTarget,
+				ReadOnly:  true,
+				MakeOwner: w.GetFolder().GetOwner(),
+			}}
+		case PHP:
+			user := w.GetPhp().GetUser()
+			if user == "" {
+				user = DefaultPHPUser
+			}
+			web.GetApp().Mounts = []*resourcev1.Mount{{
+				Source:    &resourcev1.Mount_HostPath{HostPath: w.GetPhp().GetRoot()},
+				Target:    PHPTarget,
+				ReadOnly:  true,
+				MakeOwner: user,
+			}}
+		case ProxyToURL, ProxyToPort:
+			// Proxied sites have no host folder to keep mounted while paused.
+		}
+		out.Services[WebService] = web
+		out.Networks[SiteNetwork] = &resourcev1.Network{}
+		return out
+	}
 	switch KindOf(w) {
 	case ProxyToPort:
 		r.HostPort = w.GetProxy().GetPort()
 	case ProxyToURL:
 		r.Service, r.Port = WebService, Port
-		out.Services[WebService] = webService(proxyConfig(w.GetProxy()))
+		out.Services[WebService] = webService(proxyConfig(w))
 		out.Networks[SiteNetwork] = &resourcev1.Network{}
 	case Folder:
 		r.Service, r.Port = WebService, Port
-		web := webService(folderConfig(w.GetFolder()))
+		web := webService(folderConfig(w))
 		// Read-only, as serving a site writes nothing, and what's served can't be
 		// changed through it.
 		web.GetApp().Mounts = []*resourcev1.Mount{{
@@ -428,7 +485,19 @@ func Resources(w *resourcev1.Website, domain string, front Front) Serving {
 		out.Services[WebService] = web
 		out.Networks[SiteNetwork] = &resourcev1.Network{}
 	case PHP:
-		phpServing(w.GetPhp(), &out)
+		phpServing(w, &out)
+	}
+	if web := out.Services[WebService]; web != nil {
+		if env := basicAuthEnv(w); len(env) > 0 {
+			web.GetApp().Env = env
+		}
+	}
+	if net := out.Networks[SiteNetwork]; net != nil && len(front.SubpathMembers) > 0 {
+		members := make([]*resourcev1.NetworkMember, len(front.SubpathMembers))
+		for i, m := range front.SubpathMembers {
+			members[i] = proto.CloneOf(m)
+		}
+		net.Members = members
 	}
 	return out
 }
@@ -464,36 +533,70 @@ func webService(config string) *resourcev1.Service {
 // Config is the web server's config for a website, as its service runs it. Empty
 // for a website that needs no web server.
 func Config(w *resourcev1.Website) string {
+	if w.GetPaused() {
+		return pausedConfig(w)
+	}
 	switch KindOf(w) {
 	case ProxyToURL:
-		return proxyConfig(w.GetProxy())
+		return proxyConfig(w)
 	case Folder:
-		return folderConfig(w.GetFolder())
+		return folderConfig(w)
 	case PHP:
-		return phpConfig(w.GetPhp())
+		return phpConfig(w)
 	case ProxyToPort:
 		// The ingress sends it straight to the port.
 	}
 	return ""
 }
 
+// writeWellKnown writes the /.well-known/ handler indented by baseIndent.
+func writeWellKnown(b *strings.Builder, baseIndent string) {
+	fmt.Fprintf(b, "%s@hidden path_regexp ^/\\.well-known/(.*/)?\\.\n", baseIndent)
+	fmt.Fprintf(b, "%shandle /.well-known/* {\n", baseIndent)
+	fmt.Fprintf(b, "%s\trespond @hidden 404\n", baseIndent)
+	fmt.Fprintf(b, "%s\tfile_server {\n%s\t\thide %s\n%s\t}\n", baseIndent, baseIndent, strings.Join(Hidden, " "), baseIndent)
+	fmt.Fprintf(b, "%s}\n", baseIndent)
+}
+
 // folderConfig serves the folder as it is, with its index for a folder, and for a
 // single-page app, the top index for a path with no file.
-func folderConfig(f *resourcev1.WebsiteFolder) string {
+func folderConfig(w *resourcev1.Website) string {
+	f := w.GetFolder()
 	var b strings.Builder
 	b.WriteString(globals)
 	fmt.Fprintf(&b, "\n:%d {\n", Port)
 	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
 	fmt.Fprintf(&b, "\troot * %s\n", FolderTarget)
 	b.WriteString("\tencode zstd gzip\n")
-	b.WriteString(wellKnown)
-	b.WriteString("\thandle {\n")
+	ordered := needsOrderedAuthRoute(w.GetRules())
+	baseIndent := "\t"
+	if ordered {
+		b.WriteString("\troute {\n")
+		baseIndent = "\t\t"
+	}
+	writeRules(&b, w.GetRules(), baseIndent)
+	writeWellKnown(&b, baseIndent)
+	fmt.Fprintf(&b, "%shandle {\n", baseIndent)
+	custom := strings.TrimSpace(w.GetCustomCaddy()) != ""
+	indent := baseIndent + "\t"
+	if custom {
+		fmt.Fprintf(&b, "%s\troute {\n", baseIndent)
+		writeCustomCaddy(&b, w.GetCustomCaddy(), baseIndent+"\t\t")
+		indent = baseIndent + "\t\t"
+	}
 	index := Index(f)
 	if f.GetSinglePageApp() {
-		fmt.Fprintf(&b, "\t\ttry_files {path} {path}/ /%s\n", index[0])
+		fmt.Fprintf(&b, "%stry_files {path} {path}/ /%s\n", indent, index[0])
 	}
-	fmt.Fprintf(&b, "\t\tfile_server {\n\t\t\tindex %s\n\t\t\thide .* %s\n\t\t}\n", strings.Join(index, " "), strings.Join(Hidden, " "))
-	b.WriteString("\t}\n}\n")
+	fmt.Fprintf(&b, "%sfile_server {\n%s\tindex %s\n%s\thide .* %s\n%s}\n", indent, indent, strings.Join(index, " "), indent, strings.Join(Hidden, " "), indent)
+	if custom {
+		fmt.Fprintf(&b, "%s\t}\n", baseIndent)
+	}
+	fmt.Fprintf(&b, "%s}\n", baseIndent)
+	if ordered {
+		b.WriteString("\t}\n")
+	}
+	b.WriteString("}\n")
 	return b.String()
 }
 
@@ -502,15 +605,6 @@ func folderConfig(f *resourcev1.WebsiteFolder) string {
 // visitors, such as wp-config.php's password, and the copies editors and tools leave
 // of them. A PHP website runs its scripts, and hides the rest.
 var Hidden = []string{"*.php", "*.phtml", "*.phar", "*.php~", "*.php.*", "*.bak", "*.save", "*.orig", "*.swp"}
-
-// wellKnown serves /.well-known/ from the folder, for what looks for a site's own
-// files there, such as a security.txt or a domain's proof, though it starts with a
-// dot. What starts with a dot below it is still hidden, as are scripts.
-var wellKnown = "\t@hidden path_regexp ^/\\.well-known/(.*/)?\\.\n" +
-	"\thandle /.well-known/* {\n" +
-	"\t\trespond @hidden 404\n" +
-	"\t\tfile_server {\n\t\t\thide " + strings.Join(Hidden, " ") + "\n\t\t}\n" +
-	"\t}\n"
 
 // globals is what every website's web server says first: no admin API, as nothing
 // changes it but a deploy; no automatic HTTPS, as TLS ends at the ingress; and the
@@ -527,7 +621,8 @@ const globals = `{
 `
 
 // proxyConfig sends every request to a URL, with its path in front.
-func proxyConfig(p *resourcev1.WebsiteProxy) string {
+func proxyConfig(w *resourcev1.Website) string {
+	p := w.GetProxy()
 	target := p.GetUrl()
 	var prefix string
 	if u, err := url.Parse(target); err == nil && u.Path != "" {
@@ -538,14 +633,42 @@ func proxyConfig(p *resourcev1.WebsiteProxy) string {
 	b.WriteString(globals)
 	fmt.Fprintf(&b, "\n:%d {\n", Port)
 	b.WriteString("\tlog {\n\t\toutput stderr\n\t\tformat console\n\t}\n")
-	if prefix != "" {
-		fmt.Fprintf(&b, "\trewrite * %s{uri}\n", prefix)
+	ordered := needsOrderedAuthRoute(w.GetRules())
+	baseIndent := "\t"
+	if ordered {
+		b.WriteString("\troute {\n")
+		baseIndent = "\t\t"
 	}
-	fmt.Fprintf(&b, "\treverse_proxy %s", target)
+	writeRules(&b, w.GetRules(), baseIndent)
+	custom := strings.TrimSpace(w.GetCustomCaddy()) != ""
+	wrap := ordered || len(w.GetRules().GetSubpathProxies()) > 0 || w.GetRules().GetCors().GetEnabled() || custom
+	indent := baseIndent
+	if wrap {
+		fmt.Fprintf(&b, "%shandle {\n", baseIndent)
+		indent = baseIndent + "\t"
+	}
+	if custom {
+		fmt.Fprintf(&b, "%s\troute {\n", baseIndent)
+		writeCustomCaddy(&b, w.GetCustomCaddy(), baseIndent+"\t\t")
+		indent = baseIndent + "\t\t"
+	}
+	if prefix != "" {
+		fmt.Fprintf(&b, "%srewrite * %s{uri}\n", indent, prefix)
+	}
+	fmt.Fprintf(&b, "%sreverse_proxy %s", indent, target)
 	if p.GetSendTargetHost() {
-		b.WriteString(" {\n\t\theader_up Host {upstream_hostport}\n\t}\n")
+		fmt.Fprintf(&b, " {\n%s\theader_up Host {upstream_hostport}\n%s}\n", indent, indent)
 	} else {
 		b.WriteString("\n")
+	}
+	if custom {
+		fmt.Fprintf(&b, "%s\t}\n", baseIndent)
+	}
+	if wrap {
+		fmt.Fprintf(&b, "%s}\n", baseIndent)
+	}
+	if ordered {
+		b.WriteString("\t}\n")
 	}
 	b.WriteString("}\n")
 	return b.String()

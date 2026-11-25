@@ -254,11 +254,17 @@ type Take struct {
 	// Database is the one database to dump, for an app's on a server it shares,
 	// rather than the whole server (ADR 0084).
 	Database string
+	// HostPath is the website folder on the server when backing up a website folder
+	// instead of a Docker volume.
+	HostPath string
 }
 
 // Take takes a backup, and says what it is once it's whole on the disk. Nothing
 // shows as a backup until it has been read back to its end.
 func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
+	if take.HostPath != "" {
+		return r.takeHostPath(ctx, take)
+	}
 	t := volume.TargetOf(take.Ref)
 	release, err := r.hold(t)
 	if err != nil {

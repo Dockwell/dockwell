@@ -62,6 +62,13 @@ type CertState struct {
 	Detail  string
 	// NotAfter is when an issued certificate expires.
 	NotAfter time.Time
+	// NotBefore is when an issued certificate became valid.
+	NotBefore time.Time
+	// Issuer, Subject and SANs describe the active leaf certificate.
+	Issuer, Subject string
+	SANs            []string
+	// Custom is true when an operator uploaded a custom certificate for this domain.
+	Custom bool
 	// None says it has no certificate and asks for none, as TLS ends before this
 	// server. Phase says nothing then.
 	None bool
@@ -562,6 +569,13 @@ func (m *Manager) watchOnce(ctx context.Context) (waiting bool) {
 		m.watchNow()
 	}
 	m.reportPanel(ctx)
+	if pruner, ok := m.Proxy.(RenewedCertPruner); ok && m.mu.lock(ctx) == nil {
+		err := pruner.PruneRenewedCerts(ctx, names)
+		m.mu.unlock()
+		if err != nil && ctx.Err() == nil {
+			m.logger().WarnContext(ctx, "can't clean up temporary forced-renewal certificate pins; it tries again", slog.String("error", err.Error()))
+		}
+	}
 	if retry {
 		m.logger().InfoContext(ctx, "a domain's DNS now points here, so the ingress tries for its certificate at once")
 		if err := m.Proxy.Retry(ctx); err != nil && ctx.Err() == nil {
@@ -635,12 +649,24 @@ func (m *Manager) domainCheck(ctx context.Context, name string, st CertState, re
 }
 
 func certProto(domain string, st CertState, check *resource.DomainCheck) *dockwellv1.Certificate {
-	out := &dockwellv1.Certificate{State: phases[st.Phase], Problem: problems[st.Problem], Message: routeCertMessage(domain, st, check), ByDns: st.ByDNS}
+	out := &dockwellv1.Certificate{
+		State:   phases[st.Phase],
+		Problem: problems[st.Problem],
+		Message: routeCertMessage(domain, st, check),
+		ByDns:   st.ByDNS,
+		Custom:  st.Custom,
+		Issuer:  st.Issuer,
+		Subject: st.Subject,
+		Sans:    slices.Clone(st.SANs),
+	}
 	if st.None {
 		out.State = dockwellv1.CertificateState_CERTIFICATE_STATE_NONE
 	}
 	if !st.NotAfter.IsZero() {
 		out.ExpireTime = timestamppb.New(st.NotAfter)
+	}
+	if !st.NotBefore.IsZero() {
+		out.NotBefore = timestamppb.New(st.NotBefore)
 	}
 	return out
 }

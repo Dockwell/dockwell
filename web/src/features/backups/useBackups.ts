@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePlaces } from "../apps/useServices";
 import { useSignedIn } from "../auth/useAuthState";
 import { LIST_PAGE_SIZE } from "../shell/list";
+import { kindOf, targetOf, useWebsites } from "../websites/website";
 
 /** How often a list with a backup under way is read again. */
 const WHILE_RUNNING = 2_000;
@@ -41,6 +42,18 @@ export function useBackups(volumeId = "") {
     BackupService.method.listBackups,
     { pageSize: PAGE_SIZE, volumeId },
     {
+      refetchInterval: (query) => (query.state.data?.backups.some(underWay) ? WHILE_RUNNING : false),
+    },
+  );
+}
+
+/** The backups, newest first, of one website's folder. */
+export function useWebsiteBackups(websiteId: string) {
+  return useQuery(
+    BackupService.method.listBackups,
+    { pageSize: 20, websiteId },
+    {
+      enabled: websiteId !== "",
       refetchInterval: (query) => (query.state.data?.backups.some(underWay) ? WHILE_RUNNING : false),
     },
   );
@@ -181,14 +194,17 @@ export function useRefreshOlderBackup() {
   };
 }
 
-/** A volume someone can back up. */
+/** A volume or website folder someone can back up. */
 export interface VolumeChoice {
   id: string;
   name: string;
   environment: string;
+  /** Set when this target is a website's folder rather than a Docker volume. */
+  websiteId?: string;
+  websitePath?: string;
 }
 
-/** Every volume there is, by name, with whether that's known yet and why not. */
+/** Every volume and folder/PHP website there is, by name, with whether that's known yet and why not. */
 export function useVolumesRead(): {
   volumes: VolumeChoice[];
   isPending: boolean;
@@ -197,20 +213,37 @@ export function useVolumesRead(): {
   refetch: () => void;
 } {
   const query = useQuery(ResourceService.method.listResources, { kind: "volume" });
+  const websites = useWebsites();
   const resources = query.data?.resources;
-  const volumes = useMemo(
-    () =>
-      (resources ?? [])
-        .map((r) => ({ id: r.id, name: r.resource?.name ?? r.id, environment: r.resource?.scope ?? "" }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [resources],
-  );
+  const siteList = websites.data;
+  const volumes = useMemo(() => {
+    const out: VolumeChoice[] = (resources ?? []).map((r) => ({
+      id: r.id,
+      name: r.resource?.name ?? r.id,
+      environment: r.resource?.scope ?? "",
+    }));
+    for (const w of siteList ?? []) {
+      const kind = kindOf(w.spec);
+      if (kind !== "folder" && kind !== "php") continue;
+      out.push({
+        id: w.id,
+        name: w.domain || w.name,
+        environment: w.environmentId,
+        websiteId: w.id,
+        websitePath: targetOf(w.spec),
+      });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }, [resources, siteList]);
   return {
     volumes,
     isPending: query.isPending,
     isFetching: query.isFetching,
     error: query.error,
-    refetch: () => void query.refetch(),
+    refetch: () => {
+      void query.refetch();
+      void websites.refetch();
+    },
   };
 }
 
@@ -219,10 +252,13 @@ export function useVolumes(): VolumeChoice[] {
   return useVolumesRead().volumes;
 }
 
-/** What a list of volumes offers: each by its name, and where that's not enough, its app too. */
+/** What a list of volumes and website folders offers: each by its name, and where that's not enough, its app too. */
 export function useVolumeOptions(volumes: readonly VolumeChoice[]): { value: string; label: string }[] {
   const places = usePlaces();
   return volumes.map((v) => {
+    if (v.websiteId) {
+      return { value: v.id, label: v.websitePath ? `${v.name} (${v.websitePath})` : v.name };
+    }
     const shared = volumes.some((other) => other.id !== v.id && other.name === v.name);
     const place = places.label(v.environment);
     return { value: v.id, label: shared && place ? `${v.name} (${place})` : v.name };

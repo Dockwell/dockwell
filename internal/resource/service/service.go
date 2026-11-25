@@ -58,6 +58,9 @@ type Driver struct {
 	// Movers moves a database to a newer release by a dump into a new volume, as the
 	// step that replaces its container does (ADR 0080). Only the agent has one.
 	Movers Movers
+	// Restores restores a website's folder backup into the host folder mounted by
+	// this service (backup.Runner). Only the agent has one.
+	Restores resource.Restorer
 }
 
 // Movers moves the database a service runs to a newer release (backup.Runner).
@@ -97,7 +100,30 @@ var (
 	_ resource.Adopter  = (*Driver)(nil)
 	_ resource.Imaged   = (*Driver)(nil)
 	_ resource.Reviver  = (*Driver)(nil)
+	_ resource.Restorer = (*Driver)(nil)
 )
+
+// JudgeRestore plans restoring a website folder backup mounted by this service.
+func (d *Driver) JudgeRestore(ctx context.Context, ref resource.Ref, source resource.RestoreSource) (resource.Decision, bool, error) {
+	if d.Restores == nil {
+		return resource.Decision{}, false, errors.New("this agent can't restore website folders, as it has no backup runner")
+	}
+	if source.HostPath == "" {
+		return resource.Decision{}, false, errors.New("restoring a service requires a website folder path")
+	}
+	return d.Restores.JudgeRestore(ctx, ref, source)
+}
+
+// ApplyRestore restores a website folder backup mounted by this service.
+func (d *Driver) ApplyRestore(ctx context.Context, step resource.Step, source resource.RestoreSource) error {
+	if d.Restores == nil {
+		return errors.New("this agent can't restore website folders, as it has no backup runner")
+	}
+	if source.HostPath == "" {
+		return errors.New("restoring a service requires a website folder path")
+	}
+	return d.Restores.ApplyRestore(ctx, step, source)
+}
 
 // Kind returns "service".
 func (*Driver) Kind() resource.Kind { return Kind }

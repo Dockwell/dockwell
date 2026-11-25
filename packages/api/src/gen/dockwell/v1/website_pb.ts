@@ -6,7 +6,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { RoutePublish, Website } from "../resource/v1alpha1/specs_pb";
+import type { RoutePublish, Website, WebsitePauseMode } from "../resource/v1alpha1/specs_pb";
 import { file_dockwell_resource_v1alpha1_specs } from "../resource/v1alpha1/specs_pb";
 import type { Change } from "./change_pb";
 import { file_dockwell_v1_change } from "./change_pb";
@@ -20,7 +20,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file dockwell/v1/website.proto.
  */
 export const file_dockwell_v1_website: GenFile = /*@__PURE__*/
-  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSJeCgxXZWJzaXRlUmVhY2gSEAoIYW5zd2VyZWQYASABKAgSDAoEc2FpZBgCIAEoCRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8i/gIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCRIWCg5waHBfc2VydmljZV9pZBgLIAEoCRIOCgZjb25maWcYFCABKAkSFgoOY29uZmlnX2RpZmZlcnMYFSABKAgSKAoFcmVhY2gYFiABKAsyGS5kb2Nrd2VsbC52MS5XZWJzaXRlUmVhY2gSEQoJcGhwX2ltYWdlGBcgASgJIhwKGkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0IkwKG0xpc3RXZWJzaXRlUnVudGltZXNSZXNwb25zZRItCghydW50aW1lcxgBIAMoCzIbLmRvY2t3ZWxsLnYxLldlYnNpdGVSdW50aW1lIr8BCg5XZWJzaXRlUnVudGltZRIQCghsYW5ndWFnZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB3JlbGVhc2UYAyABKAkSDQoFaW1hZ2UYBCABKAkSEgoKZXh0ZW5zaW9ucxgFIAMoCRIKCgJpZBgGIAEoCRIPCgdpbnN0YWxsGAcgASgJEg0KBXN0YXJ0GAggASgJEgwKBHBvcnQYCSABKA0SCwoDZW52GAogAygJEg8KB3JldGlyZWQYCyABKAgiTQoVUHJldmlld1dlYnNpdGVSZXF1ZXN0EjQKB3dlYnNpdGUYASABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlIl4KFlByZXZpZXdXZWJzaXRlUmVzcG9uc2USNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDgoGY29uZmlnGAIgASgJIvkBChRDcmVhdGVXZWJzaXRlUmVxdWVzdBIOCgZkb21haW4YASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSCwoDdGxzGAMgASgJEhcKD3RydXN0ZWRfcHJveGllcxgEIAMoCRIYChBwbGFpbl9mb3JfYW55b25lGAUgASgIEg8KB3NlcnZlcnMYBiADKAkSDwoHc3VtbWFyeRgHIAEoCRI5CgdwdWJsaXNoGAggASgLMiguZG9ja3dlbGwucmVzb3VyY2UudjFhbHBoYTEuUm91dGVQdWJsaXNoIjwKFUNyZWF0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Ui6wEKFFVwZGF0ZVdlYnNpdGVSZXF1ZXN0EgoKAmlkGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEg8KB3N1bW1hcnkYAyABKAkSDgoGZG9tYWluGAQgASgJEjkKB3B1Ymxpc2gYBSABKAsyKC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5Sb3V0ZVB1Ymxpc2gSNQoMZG9tYWluX2Zyb250GAYgASgLMh8uZG9ja3dlbGwudjEuV2Vic2l0ZURvbWFpbkZyb250IrkBChJXZWJzaXRlRG9tYWluRnJvbnQSDgoGZG9tYWluGAEgASgJEgsKA3RscxgCIAEoCRIXCg90cnVzdGVkX3Byb3hpZXMYAyADKAkSOQoHcHVibGlzaBgEIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJvdXRlUHVibGlzaBIdChBwbGFpbl9mb3JfYW55b25lGAUgASgISACIAQFCEwoRX3BsYWluX2Zvcl9hbnlvbmUiPAoVVXBkYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJLChREZWxldGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJEhYKDmFkZGl0aW9uYWxfaWRzGAMgAygJIjwKFURlbGV0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Uy7QYKDldlYnNpdGVTZXJ2aWNlEnwKDExpc3RXZWJzaXRlcxIgLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlc1JlcXVlc3QaIS5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXNwb25zZSInkAIBoLsYAcC7GALIuxgC0LsYBILT5JMCDhIML3YxL3dlYnNpdGVzErIBChNMaXN0V2Vic2l0ZVJ1bnRpbWVzEicuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVSdW50aW1lc1JlcXVlc3QaKC5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZVJ1bnRpbWVzUmVzcG9uc2UiSJACAaC7GAGquxgUCgh3ZWJzaXRlcxIIcnVudGltZXPAuxgCyLsYAtC7GAOC0+STAhcSFS92MS93ZWJzaXRlcy9ydW50aW1lcxKKAQoOUHJldmlld1dlYnNpdGUSIi5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlcXVlc3QaIy5kb2Nrd2VsbC52MS5QcmV2aWV3V2Vic2l0ZVJlc3BvbnNlIi+guxgBwLsYAsi7GALQuxgDgtPkkwIZOgEqIhQvdjEvd2Vic2l0ZXM6cHJldmlldxJ/Cg1DcmVhdGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5DcmVhdGVXZWJzaXRlUmVzcG9uc2UiJ6C7GALAuxgEyLsYBNC7GAaC0+STAhE6ASoiDC92MS93ZWJzaXRlcxKLAQoNVXBkYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLlVwZGF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuVXBkYXRlV2Vic2l0ZVJlc3BvbnNlIjOguxgCwLsYBMi7GATQuxgEgtPkkwIdOgEqIhgvdjEvd2Vic2l0ZXMve2lkfTp1cGRhdGUSiwEKDURlbGV0ZVdlYnNpdGUSIS5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLkRlbGV0ZVdlYnNpdGVSZXNwb25zZSIzoLsYAsC7GATIuxgE0LsYBILT5JMCHToBKiIYL3YxL3dlYnNpdGVzL3tpZH06ZGVsZXRlQqUBCg9jb20uZG9ja3dlbGwudjFCDFdlYnNpdGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
+  fileDesc("Chlkb2Nrd2VsbC92MS93ZWJzaXRlLnByb3RvEgtkb2Nrd2VsbC52MSJeCgxXZWJzaXRlUmVhY2gSEAoIYW5zd2VyZWQYASABKAgSDAoEc2FpZBgCIAEoCRIuCgpjaGVja190aW1lGAMgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIVChNMaXN0V2Vic2l0ZXNSZXF1ZXN0IkIKFExpc3RXZWJzaXRlc1Jlc3BvbnNlEioKCHdlYnNpdGVzGAEgAygLMhguZG9ja3dlbGwudjEuV2Vic2l0ZUluZm8i/gIKC1dlYnNpdGVJbmZvEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSDgoGZG9tYWluGAMgASgJEjEKBHNwZWMYBCABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEhYKDmVudmlyb25tZW50X2lkGAUgASgJEhIKCnNlcnZpY2VfaWQYBiABKAkSEAoIcm91dGVfaWQYByABKAkSLwoLdXBkYXRlX3RpbWUYCCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhEKCXNlcnZlcl9pZBgJIAEoCRITCgtzZXJ2ZXJfbmFtZRgKIAEoCRIWCg5waHBfc2VydmljZV9pZBgLIAEoCRIOCgZjb25maWcYFCABKAkSFgoOY29uZmlnX2RpZmZlcnMYFSABKAgSKAoFcmVhY2gYFiABKAsyGS5kb2Nrd2VsbC52MS5XZWJzaXRlUmVhY2gSEQoJcGhwX2ltYWdlGBcgASgJIhwKGkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0IkwKG0xpc3RXZWJzaXRlUnVudGltZXNSZXNwb25zZRItCghydW50aW1lcxgBIAMoCzIbLmRvY2t3ZWxsLnYxLldlYnNpdGVSdW50aW1lItwBCg5XZWJzaXRlUnVudGltZRIQCghsYW5ndWFnZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEg8KB3JlbGVhc2UYAyABKAkSDQoFaW1hZ2UYBCABKAkSEgoKZXh0ZW5zaW9ucxgFIAMoCRIKCgJpZBgGIAEoCRIPCgdpbnN0YWxsGAcgASgJEg0KBXN0YXJ0GAggASgJEgwKBHBvcnQYCSABKA0SCwoDZW52GAogAygJEg8KB3JldGlyZWQYCyABKAgSGwoTb3B0aW9uYWxfZXh0ZW5zaW9ucxgMIAMoCSJgChVQcmV2aWV3V2Vic2l0ZVJlcXVlc3QSNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSEQoJc2VydmVyX2lkGAIgASgJIncKFlByZXZpZXdXZWJzaXRlUmVzcG9uc2USNAoHd2Vic2l0ZRgBIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDgoGY29uZmlnGAIgASgJEhcKD2NhZGR5X3ZhbGlkYXRlZBgDIAEoCCKTAwoUQ3JlYXRlV2Vic2l0ZVJlcXVlc3QSDgoGZG9tYWluGAEgASgJEjQKB3dlYnNpdGUYAiABKAsyIy5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlEgsKA3RscxgDIAEoCRIXCg90cnVzdGVkX3Byb3hpZXMYBCADKAkSGAoQcGxhaW5fZm9yX2FueW9uZRgFIAEoCBIPCgdzZXJ2ZXJzGAYgAygJEg8KB3N1bW1hcnkYByABKAkSOQoHcHVibGlzaBgIIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJvdXRlUHVibGlzaBJdChRiYXNpY19hdXRoX3Bhc3N3b3JkcxgUIAMoCzI5LmRvY2t3ZWxsLnYxLkNyZWF0ZVdlYnNpdGVSZXF1ZXN0LkJhc2ljQXV0aFBhc3N3b3Jkc0VudHJ5QgTI8xgBGjkKF0Jhc2ljQXV0aFBhc3N3b3Jkc0VudHJ5EgsKA2tleRgBIAEoCRINCgV2YWx1ZRgCIAEoCToCOAEiPAoVQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSKFAwoUVXBkYXRlV2Vic2l0ZVJlcXVlc3QSCgoCaWQYASABKAkSNAoHd2Vic2l0ZRgCIAEoCzIjLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLldlYnNpdGUSDwoHc3VtbWFyeRgDIAEoCRIOCgZkb21haW4YBCABKAkSOQoHcHVibGlzaBgFIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJvdXRlUHVibGlzaBI1Cgxkb21haW5fZnJvbnQYBiABKAsyHy5kb2Nrd2VsbC52MS5XZWJzaXRlRG9tYWluRnJvbnQSXQoUYmFzaWNfYXV0aF9wYXNzd29yZHMYFCADKAsyOS5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVxdWVzdC5CYXNpY0F1dGhQYXNzd29yZHNFbnRyeUIEyPMYARo5ChdCYXNpY0F1dGhQYXNzd29yZHNFbnRyeRILCgNrZXkYASABKAkSDQoFdmFsdWUYAiABKAk6AjgBIrkBChJXZWJzaXRlRG9tYWluRnJvbnQSDgoGZG9tYWluGAEgASgJEgsKA3RscxgCIAEoCRIXCg90cnVzdGVkX3Byb3hpZXMYAyADKAkSOQoHcHVibGlzaBgEIAEoCzIoLmRvY2t3ZWxsLnJlc291cmNlLnYxYWxwaGExLlJvdXRlUHVibGlzaBIdChBwbGFpbl9mb3JfYW55b25lGAUgASgISACIAQFCEwoRX3BsYWluX2Zvcl9hbnlvbmUiPAoVVXBkYXRlV2Vic2l0ZVJlc3BvbnNlEiMKBmNoYW5nZRgBIAEoCzITLmRvY2t3ZWxsLnYxLkNoYW5nZSJLChREZWxldGVXZWJzaXRlUmVxdWVzdBIKCgJpZBgBIAEoCRIPCgdzdW1tYXJ5GAIgASgJEhYKDmFkZGl0aW9uYWxfaWRzGAMgAygJIjwKFURlbGV0ZVdlYnNpdGVSZXNwb25zZRIjCgZjaGFuZ2UYASABKAsyEy5kb2Nrd2VsbC52MS5DaGFuZ2Ui1wEKGkJhdGNoVXBkYXRlV2Vic2l0ZXNSZXF1ZXN0EhMKC3dlYnNpdGVfaWRzGAEgAygJEhMKBnBhdXNlZBgCIAEoCEgAiAEBEkAKCnBhdXNlX21vZGUYAyABKA4yLC5kb2Nrd2VsbC5yZXNvdXJjZS52MWFscGhhMS5XZWJzaXRlUGF1c2VNb2RlEhMKC3BocF92ZXJzaW9uGAQgASgJEhIKBWh0dHBzGAUgASgISAGIAQESDwoHc3VtbWFyeRgGIAEoCUIJCgdfcGF1c2VkQggKBl9odHRwcyJCChtCYXRjaFVwZGF0ZVdlYnNpdGVzUmVzcG9uc2USIwoGY2hhbmdlGAEgASgLMhMuZG9ja3dlbGwudjEuQ2hhbmdlMqkICg5XZWJzaXRlU2VydmljZRJ8CgxMaXN0V2Vic2l0ZXMSIC5kb2Nrd2VsbC52MS5MaXN0V2Vic2l0ZXNSZXF1ZXN0GiEuZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVzUmVzcG9uc2UiJ5ACAaC7GAHAuxgCyLsYAtC7GASC0+STAg4SDC92MS93ZWJzaXRlcxKyAQoTTGlzdFdlYnNpdGVSdW50aW1lcxInLmRvY2t3ZWxsLnYxLkxpc3RXZWJzaXRlUnVudGltZXNSZXF1ZXN0GiguZG9ja3dlbGwudjEuTGlzdFdlYnNpdGVSdW50aW1lc1Jlc3BvbnNlIkiQAgGguxgBqrsYFAoId2Vic2l0ZXMSCHJ1bnRpbWVzwLsYAsi7GALQuxgDgtPkkwIXEhUvdjEvd2Vic2l0ZXMvcnVudGltZXMSigEKDlByZXZpZXdXZWJzaXRlEiIuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXF1ZXN0GiMuZG9ja3dlbGwudjEuUHJldmlld1dlYnNpdGVSZXNwb25zZSIvoLsYAcC7GALIuxgC0LsYA4LT5JMCGToBKiIUL3YxL3dlYnNpdGVzOnByZXZpZXcSfwoNQ3JlYXRlV2Vic2l0ZRIhLmRvY2t3ZWxsLnYxLkNyZWF0ZVdlYnNpdGVSZXF1ZXN0GiIuZG9ja3dlbGwudjEuQ3JlYXRlV2Vic2l0ZVJlc3BvbnNlIieguxgCwLsYBMi7GATQuxgGgtPkkwIROgEqIgwvdjEvd2Vic2l0ZXMSiwEKDVVwZGF0ZVdlYnNpdGUSIS5kb2Nrd2VsbC52MS5VcGRhdGVXZWJzaXRlUmVxdWVzdBoiLmRvY2t3ZWxsLnYxLlVwZGF0ZVdlYnNpdGVSZXNwb25zZSIzoLsYAsC7GATIuxgE0LsYBILT5JMCHToBKiIYL3YxL3dlYnNpdGVzL3tpZH06dXBkYXRlEosBCg1EZWxldGVXZWJzaXRlEiEuZG9ja3dlbGwudjEuRGVsZXRlV2Vic2l0ZVJlcXVlc3QaIi5kb2Nrd2VsbC52MS5EZWxldGVXZWJzaXRlUmVzcG9uc2UiM6C7GALAuxgEyLsYBNC7GASC0+STAh06ASoiGC92MS93ZWJzaXRlcy97aWR9OmRlbGV0ZRK5AQoTQmF0Y2hVcGRhdGVXZWJzaXRlcxInLmRvY2t3ZWxsLnYxLkJhdGNoVXBkYXRlV2Vic2l0ZXNSZXF1ZXN0GiguZG9ja3dlbGwudjEuQmF0Y2hVcGRhdGVXZWJzaXRlc1Jlc3BvbnNlIk+guxgCqrsYGAoId2Vic2l0ZXMSDGJhdGNoLXVwZGF0ZcC7GATIuxgE0LsYBILT5JMCHToBKiIYL3YxL3dlYnNpdGVzOmJhdGNoVXBkYXRlQqUBCg9jb20uZG9ja3dlbGwudjFCDFdlYnNpdGVQcm90b1ABWjdnaXRodWIuY29tL2RvY2t3ZWxsL2RvY2t3ZWxsL2dlbi9kb2Nrd2VsbC92MTtkb2Nrd2VsbHYxogIDRFhYqgILRG9ja3dlbGwuVjHKAgtEb2Nrd2VsbFxWMeICF0RvY2t3ZWxsXFYxXEdQQk1ldGFkYXRh6gIMRG9ja3dlbGw6OlYxYgZwcm90bzM", [file_dockwell_resource_v1alpha1_specs, file_dockwell_v1_change, file_dockwell_v1_options, file_google_api_annotations, file_google_protobuf_timestamp]);
 
 /**
  * WebsiteReach is whether what a website sends to answers, from its server: the
@@ -342,6 +342,13 @@ export type WebsiteRuntime = Message<"dockwell.v1.WebsiteRuntime"> & {
    * @generated from field: bool retired = 11;
    */
   retired: boolean;
+
+  /**
+   * Shipped optional extensions that can be toggled on or off per PHP website.
+   *
+   * @generated from field: repeated string optional_extensions = 12;
+   */
+  optionalExtensions: string[];
 };
 
 /**
@@ -363,6 +370,13 @@ export type PreviewWebsiteRequest = Message<"dockwell.v1.PreviewWebsiteRequest">
    * @generated from field: dockwell.resource.v1alpha1.Website website = 1;
    */
   website?: Website | undefined;
+
+  /**
+   * Optional server ID to validate custom Caddy directives with Caddy's own adapter on that server.
+   *
+   * @generated from field: string server_id = 2;
+   */
+  serverId: string;
 };
 
 /**
@@ -393,6 +407,13 @@ export type PreviewWebsiteResponse = Message<"dockwell.v1.PreviewWebsiteResponse
    * @generated from field: string config = 2;
    */
   config: string;
+
+  /**
+   * True when the generated Caddyfile was validated by Caddy's own adapter on the server.
+   *
+   * @generated from field: bool caddy_validated = 3;
+   */
+  caddyValidated: boolean;
 };
 
 /**
@@ -470,6 +491,14 @@ export type CreateWebsiteRequest = Message<"dockwell.v1.CreateWebsiteRequest"> &
    * @generated from field: dockwell.resource.v1alpha1.RoutePublish publish = 8;
    */
   publish?: RoutePublish | undefined;
+
+  /**
+   * Write-only Basic Auth passwords keyed by username, stored as Dockwell
+   * secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+   *
+   * @generated from field: map<string, string> basic_auth_passwords = 20;
+   */
+  basicAuthPasswords: { [key: string]: string };
 };
 
 /**
@@ -554,6 +583,14 @@ export type UpdateWebsiteRequest = Message<"dockwell.v1.UpdateWebsiteRequest"> &
    * @generated from field: dockwell.v1.WebsiteDomainFront domain_front = 6;
    */
   domainFront?: WebsiteDomainFront | undefined;
+
+  /**
+   * Write-only Basic Auth passwords keyed by username, stored as Dockwell
+   * secrets and hashed with bcrypt for Caddy. Never stored on the project spec.
+   *
+   * @generated from field: map<string, string> basic_auth_passwords = 20;
+   */
+  basicAuthPasswords: { [key: string]: string };
 };
 
 /**
@@ -691,6 +728,84 @@ export const DeleteWebsiteResponseSchema: GenMessage<DeleteWebsiteResponse> = /*
   messageDesc(file_dockwell_v1_website, 15);
 
 /**
+ * BatchUpdateWebsitesRequest plans one change across up to 50 websites.
+ *
+ * @generated from message dockwell.v1.BatchUpdateWebsitesRequest
+ */
+export type BatchUpdateWebsitesRequest = Message<"dockwell.v1.BatchUpdateWebsitesRequest"> & {
+  /**
+   * Up to 50 website project IDs to update together.
+   *
+   * @generated from field: repeated string website_ids = 1;
+   */
+  websiteIds: string[];
+
+  /**
+   * Set paused state on every selected website when present.
+   *
+   * @generated from field: optional bool paused = 2;
+   */
+  paused?: boolean | undefined;
+
+  /**
+   * Maintenance page or plain 503 when pausing. Unspecified keeps each site's choice
+   * (or defaults to maintenance page).
+   *
+   * @generated from field: dockwell.resource.v1alpha1.WebsitePauseMode pause_mode = 3;
+   */
+  pauseMode: WebsitePauseMode;
+
+  /**
+   * Switch PHP version on selected PHP websites, such as "8.4".
+   *
+   * @generated from field: string php_version = 4;
+   */
+  phpVersion: string;
+
+  /**
+   * Switch HTTPS on (true) or off (false) on selected websites' routes.
+   *
+   * @generated from field: optional bool https = 5;
+   */
+  https?: boolean | undefined;
+
+  /**
+   * What the change is for, for the timeline. Empty says what it changes.
+   *
+   * @generated from field: string summary = 6;
+   */
+  summary: string;
+};
+
+/**
+ * Describes the message dockwell.v1.BatchUpdateWebsitesRequest.
+ * Use `create(BatchUpdateWebsitesRequestSchema)` to create a new message.
+ */
+export const BatchUpdateWebsitesRequestSchema: GenMessage<BatchUpdateWebsitesRequest> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_website, 16);
+
+/**
+ * BatchUpdateWebsitesResponse carries the planned change.
+ *
+ * @generated from message dockwell.v1.BatchUpdateWebsitesResponse
+ */
+export type BatchUpdateWebsitesResponse = Message<"dockwell.v1.BatchUpdateWebsitesResponse"> & {
+  /**
+   * The change, planned, with its plan.
+   *
+   * @generated from field: dockwell.v1.Change change = 1;
+   */
+  change?: Change | undefined;
+};
+
+/**
+ * Describes the message dockwell.v1.BatchUpdateWebsitesResponse.
+ * Use `create(BatchUpdateWebsitesResponseSchema)` to create a new message.
+ */
+export const BatchUpdateWebsitesResponseSchema: GenMessage<BatchUpdateWebsitesResponse> = /*@__PURE__*/
+  messageDesc(file_dockwell_v1_website, 17);
+
+/**
  * WebsiteService lists your websites, and plans making one, changing what it
  * serves and deleting it, each as a change to apply or discard. A website is a
  * project of its own: Dockwell writes its route, and the service that serves
@@ -774,6 +889,17 @@ export const WebsiteService: GenService<{
     methodKind: "unary";
     input: typeof DeleteWebsiteRequestSchema;
     output: typeof DeleteWebsiteResponseSchema;
+  },
+  /**
+   * BatchUpdateWebsites plans changing PHP version, HTTPS, or paused state on
+   * several websites at once as a single change and plan.
+   *
+   * @generated from rpc dockwell.v1.WebsiteService.BatchUpdateWebsites
+   */
+  batchUpdateWebsites: {
+    methodKind: "unary";
+    input: typeof BatchUpdateWebsitesRequestSchema;
+    output: typeof BatchUpdateWebsitesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_dockwell_v1_website, 0);

@@ -160,10 +160,50 @@ func Forbidden(host string, o Options) string {
 			return whyMetadata
 		}
 	}
-	if (host == "localhost" || strings.HasSuffix(host, ".localhost")) && !o.Loopback {
+	if (host == "localhost" || strings.HasSuffix(host, ".localhost") ||
+		host == "ip6-localhost" || host == "ip6-loopback" || host == "localhost.localdomain") && !o.Loopback {
 		return whyLoopback
 	}
 	return ""
+}
+
+// LookupFunc resolves a hostname to IP addresses, matching net.Resolver.LookupNetIP.
+type LookupFunc func(ctx context.Context, network, host string) ([]netip.Addr, error)
+
+// CheckResolved checks host both lexically (via Forbidden) and by resolving it to
+// IP addresses (using lookup, or net.DefaultResolver.LookupNetIP when nil), refusing
+// any address that options forbid (such as metadata, loopback, link-local or private
+// networks). When DNS resolution returns no addresses (for example in an offline
+// environment before DNS exists), lexical checks still apply and no error is returned.
+func CheckResolved(ctx context.Context, host string, o Options, lookup LookupFunc) error {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.ToLower(strings.Trim(host, "[]")), ".")
+	if why := Forbidden(host, o); why != "" {
+		if addr, err := netip.ParseAddr(host); err == nil {
+			return &Refused{Addr: addr.Unmap().WithZone(""), Why: why}
+		}
+		return fmt.Errorf("%s is %s, so Dockwell sends nothing there: %w", host, why, ErrForbidden)
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return nil
+	}
+	if lookup == nil {
+		lookup = net.DefaultResolver.LookupNetIP
+	}
+	resolveCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	addrs, err := lookup(resolveCtx, "ip", host)
+	if err != nil {
+		return nil
+	}
+	for _, addr := range addrs {
+		if why := refuses(addr, o); why != "" {
+			return &Refused{Addr: addr.Unmap().WithZone(""), Why: why}
+		}
+	}
+	return nil
 }
 
 // refuses says why options refuse an address, or "".

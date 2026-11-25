@@ -15,6 +15,7 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"connectrpc.com/connect"
@@ -24,8 +25,11 @@ import (
 	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	"github.com/dockwell/dockwell/gen/dockwell/v1/dockwellv1connect"
+	"github.com/dockwell/dockwell/internal/auth"
+	"github.com/dockwell/dockwell/internal/control/agentapi"
 	"github.com/dockwell/dockwell/internal/control/authapi"
 	"github.com/dockwell/dockwell/internal/control/certificates"
+	"github.com/dockwell/dockwell/internal/control/changes"
 	"github.com/dockwell/dockwell/internal/control/dnsproviders"
 	"github.com/dockwell/dockwell/internal/control/fleet"
 	"github.com/dockwell/dockwell/internal/control/publish"
@@ -73,6 +77,21 @@ type Handler struct {
 	// Cloudflare says what a connected Cloudflare zone holds at a name, and the ways
 	// in (ADR 0104); nil says nothing of it.
 	Cloudflare CloudflareChecker
+	// Changes plans route edits for custom certificate upload/clear.
+	Changes *changes.Handler
+	// Agents reaches connected server agents for certificate renewal and download.
+	Agents *agentapi.Agents
+	// Auth verifies passkey step-ups when downloading a certificate's private key.
+	Auth *auth.Service
+	// PanelDomains returns the control panel's own domains, whose certificate keys are
+	// never returned by DownloadCertificate.
+	PanelDomains func() []string
+	// Now returns the current time; nil uses time.Now.
+	Now func() time.Time
+
+	renewMu     sync.Mutex
+	renewLoaded bool
+	renewLog    map[string][]time.Time
 }
 
 // CloudflareChecker says what a connected Cloudflare zone holds at a name, and the
@@ -98,7 +117,15 @@ var _ dockwellv1connect.DomainServiceHandler = (*Handler)(nil)
 // New returns a handler that reads routes from db, with kinds, what their servers
 // say from reports, and what's known of a server from servers.
 func New(kinds *resource.Registry, db *store.DB, reports Reports, servers Servers, logger *slog.Logger) *Handler {
-	return &Handler{kinds: kinds, db: db, reports: reports, servers: servers, logger: logger, callers: newCallers(checksPerMinute)}
+	return &Handler{
+		kinds:    kinds,
+		db:       db,
+		reports:  reports,
+		servers:  servers,
+		logger:   logger,
+		callers:  newCallers(checksPerMinute),
+		renewLog: map[string][]time.Time{},
+	}
 }
 
 // CheckDomain reads DNS for a name against what's known of a server. It's a read a
@@ -268,6 +295,7 @@ func (h *Handler) add(ctx context.Context, tx *store.Tx, r *store.Resource, byNa
 		Tls: rt.GetTls(), HostPort: rt.GetHostPort(), PlainForAnyone: rt.GetPlainForAnyone(), Held: rt.GetHeld(), TrustedProxies: rt.GetTrustedProxies(), Redirect: rt.GetRedirect(),
 		Allow: rt.GetAccess().GetAllow(), Users: users, SignIn: withoutProvider(rt.GetAccess().GetSignIn()),
 		SetupUntil: setupUntil(rt), Publish: rt.GetPublish(), Proof: rt.GetProof(), Unwatched: rt.GetUnwatched(),
+		RateLimit: rt.GetRateLimit(), CustomCert: rt.GetCustomCert() != nil,
 	})
 	placed, err := tx.Placement(ctx, r.ID, r.Revision)
 	if err != nil {

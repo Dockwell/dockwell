@@ -79,18 +79,21 @@ export function BackUpSheet({
   const [connModal, setConnModal] = useState<ConnectionModal>();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string>();
+  const choice = volumes.find((v) => v.id === volumeId);
   const preview = useQuery(
     BackupService.method.previewBackup,
-    { volumeId, ...(serverId ? { server: serverId } : {}) },
+    choice?.websiteId
+      ? { websiteId: choice.websiteId, ...(serverId ? { server: serverId } : {}) }
+      : { volumeId, ...(serverId ? { server: serverId } : {}) },
     { enabled: volumeId !== "", retry: false },
   );
   const said = preview.data;
   const running = said?.running ?? [];
   const list = new Intl.ListFormat(undefined, { style: "long", type: "conjunction" }).format(running);
-  const name = volumes.find((v) => v.id === volumeId)?.name ?? "";
+  const name = choice?.name ?? "";
   // Backing up is a developer's, and an admin's in a protected environment (ADR 0049): off, with why, otherwise.
   const mayBackUp = may(BackupService.method.createBackup, {
-    environment: volumes.find((v) => v.id === volumeId)?.environment ?? "",
+    environment: choice?.environment ?? "",
   });
   const options = useVolumeOptions(volumes);
   const risky = said?.method === BackupMethod.COPY_RUNNING;
@@ -113,7 +116,7 @@ export function BackUpSheet({
     setFailure(undefined);
     try {
       await client.createBackup({
-        volumeId,
+        ...(choice?.websiteId ? { websiteId: choice.websiteId } : { volumeId }),
         ...(serverId ? { server: serverId } : {}),
         stop: risky && stop,
         destination: destinationName,

@@ -766,10 +766,14 @@ func decide(ctx context.Context, d Driver, ref Ref, actual, desired proto.Messag
 
 // judgeStep is PlanStep with a Judge, which knows the server.
 func judgeStep(ctx context.Context, j Judge, ref Ref, actual, desired proto.Message) (Step, error) {
-	if Equal(actual, desired) {
+	cmpDesired := desired
+	if s, ok := j.(ObservedShaper); ok && desired != nil {
+		cmpDesired = s.AsObserved(desired)
+	}
+	if Equal(actual, cmpDesired) {
 		return Step{Ref: ref}, nil
 	}
-	changes := Diff(actual, desired)
+	changes := Diff(actual, cmpDesired)
 	dec, err := j.Judge(ctx, ref, actual, desired, changes)
 	if err != nil {
 		return Step{}, fmt.Errorf("can't plan %s: %w", ref, err)
@@ -880,11 +884,16 @@ func (l Local) Apply(ctx context.Context, step Step, desired proto.Message) erro
 			return cantApply(ctx, step, fmt.Errorf("this agent can't restore a %s from a backup", step.Ref.Kind))
 		}
 		source := RestoreSource{Backup: step.Restore.Backup, Undoes: step.Restore.Undoes, Change: DeployOf(ctx).Change}
-		if r, ok := RestoreOf(ctx); ok && r.ImportID != "" {
-			source.ImportID = r.ImportID
-			source.ImportDatabase = r.ImportDatabase
-			source.ImportFilename = r.ImportFilename
-			source.ImportFormat = r.ImportFormat
+		if r, ok := RestoreOf(ctx); ok {
+			if r.ImportID != "" {
+				source.ImportID = r.ImportID
+				source.ImportDatabase = r.ImportDatabase
+				source.ImportFilename = r.ImportFilename
+				source.ImportFormat = r.ImportFormat
+			}
+			if r.HostPath != "" {
+				source.HostPath = r.HostPath
+			}
 		}
 		if err := r.ApplyRestore(ctx, step, source); err != nil {
 			return Plainly(fmt.Sprintf("Dockwell can't restore %s: %s.", step.Ref.Name, clause(err)), fmt.Errorf("can't restore %s: %w", step.Ref, err))
@@ -1091,6 +1100,10 @@ func AppOwnerRef(environment string) Ref {
 // a server are sealed to on their way to its agent, apart from any resource's
 // values, and to in the agent's keeping (ADR 0088).
 var CertificatesRef = Ref{Kind: "certificate", Name: "put"}
+
+// ACMEAccountsRef is what the agent's per-CA ACME account private keys for forced
+// HTTP-01 renewals are sealed to in the agent's keeping.
+var ACMEAccountsRef = Ref{Kind: "acme.account", Name: "keys"}
 
 // BuildLoginRef is what the registry logins sent with ref's build are sealed to,
 // apart from its pull's login and its values (ADR 0086).

@@ -1164,6 +1164,9 @@ enum StepUpAction {
   STEP_UP_ACTION_BAN_SSH_ADDRESS = 266;
   // Ban a specific address in a fail2ban jail.
   STEP_UP_ACTION_BAN_FAIL2BAN_ADDRESS = 267;
+  // Downloading a domain certificate's private key, with
+  // DomainService.DownloadCertificate. The target is the domain name.
+  STEP_UP_ACTION_DOWNLOAD_CERTIFICATE_KEY = 268;
   STEP_UP_ACTION_KEEP_CATALOG_OWNER_PASSWORD = 263;
   // Reveals one of a service's own environment variables that reads hidden.
   // Its target is the service's ID and the name, as "svc_…:NAME". Numbered

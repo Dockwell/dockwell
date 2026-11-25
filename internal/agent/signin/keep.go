@@ -36,8 +36,31 @@ type Keep struct {
 	setups map[string]keptSetup
 	// used are setup links' keys used already, by hash, where there's no Dir.
 	used map[string]time.Time
+	// rateLimits tracks per-route visitor buckets so DropRateLimit frees them.
+	rateLimits *RateLimiter
 	// Now is the clock, time.Now unless set.
 	Now func() time.Time
+}
+
+// RateLimiter returns the shared per-route rate limiter for this server.
+func (k *Keep) RateLimiter() *RateLimiter {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.rateLimits == nil {
+		k.rateLimits = &RateLimiter{}
+	}
+	return k.rateLimits
+}
+
+// DropRateLimit frees the rate-limit buckets for a route whose rate limit or route
+// was removed.
+func (k *Keep) DropRateLimit(id string) {
+	k.mu.Lock()
+	rl := k.rateLimits
+	k.mu.Unlock()
+	if rl != nil {
+		rl.Drop(id)
+	}
 }
 
 // kept is a route as Put was given it, and as Server reads it.

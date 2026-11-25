@@ -1,0 +1,363 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+
+package signin
+
+import (
+	"math"
+	"net/http"
+	"net/netip"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+const (
+	// RateLimitPrefix is the path prefix Caddy calls on signin.sock for per-address rate limiting.
+	RateLimitPrefix = "/ratelimit/"
+	// maxRateVisitors bounds tracked visitor buckets per route.
+	maxRateVisitors = 512
+	// maxTotalRateBuckets caps total visitor buckets across all routes on the agent
+	// so a multi-route IP flood concurrent with file/artifact transfers stays well
+	// under the agent's 40 MB RSS budget (ADR 0109, M4).
+	maxTotalRateBuckets = 1024
+)
+
+// RateLimiter enforces per-visitor-address token buckets across routes with O(1)
+// oldest-idle LRU eviction, both per-route and globally across the agent.
+type RateLimiter struct {
+	MaxPerRoute int
+	MaxTotal    int
+
+	mu      sync.Mutex
+	routes  map[string]*routeBucket
+	lruHead *rateEntry // most recently used
+	lruTail *rateEntry // oldest idle (evicted first)
+	total   int
+}
+
+type routeBucket struct {
+	id       string
+	rpm      uint32
+	burst    uint32
+	visitors map[netip.Addr]*rateEntry
+	rHead    *rateEntry // most recently used on this route
+	rTail    *rateEntry // oldest idle on this route
+}
+
+type rateEntry struct {
+	route        *routeBucket
+	client       netip.Addr
+	tokens       float64
+	lastUnixNano int64
+
+	prev, next   *rateEntry // global LRU list
+	rPrev, rNext *rateEntry // per-route LRU list
+}
+
+func parseRateClient(raw string) netip.Addr {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return netip.Addr{}
+	}
+	if a, err := netip.ParseAddr(s); err == nil {
+		a = a.Unmap()
+		if a.Is6() {
+			p, _ := a.WithZone("").Prefix(64)
+			return p.Addr()
+		}
+		return a
+	}
+	if p, err := netip.ParsePrefix(s); err == nil {
+		return p.Masked().Addr()
+	}
+	return netip.Addr{}
+}
+
+func (l *RateLimiter) maxPerRoute() int {
+	if l.MaxPerRoute > 0 {
+		return l.MaxPerRoute
+	}
+	return maxRateVisitors
+}
+
+func (l *RateLimiter) maxTotal() int {
+	if l.MaxTotal > 0 {
+		return l.MaxTotal
+	}
+	return maxTotalRateBuckets
+}
+
+// Allow checks and consumes one token for (routeID, client) at now.
+func (l *RateLimiter) Allow(routeID, client string, rpm, burst uint32, now time.Time) (allowed bool, retryAfterSec int) {
+	return l.AllowAddr(routeID, parseRateClient(client), rpm, burst, now)
+}
+
+// AllowBytes checks and consumes one token for (routeID, client) without allocating
+// when routeID already exists in the limiter (M4).
+func (l *RateLimiter) AllowBytes(routeID []byte, client netip.Addr, rpm, burst uint32, now time.Time) (allowed bool, retryAfterSec int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.routes == nil {
+		l.routes = map[string]*routeBucket{}
+	}
+	rb, ok := l.routes[string(routeID)]
+	if !ok {
+		id := string(routeID)
+		rb = &routeBucket{id: id, rpm: rpm, burst: burst, visitors: map[netip.Addr]*rateEntry{}}
+		l.routes[id] = rb
+	}
+	return l.allowLocked(rb, client, rpm, burst, now)
+}
+
+// AllowAddr checks and consumes one token for (routeID, client) at now.
+func (l *RateLimiter) AllowAddr(routeID string, client netip.Addr, rpm, burst uint32, now time.Time) (allowed bool, retryAfterSec int) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.routes == nil {
+		l.routes = map[string]*routeBucket{}
+	}
+	rb, ok := l.routes[routeID]
+	if !ok {
+		rb = &routeBucket{id: routeID, rpm: rpm, burst: burst, visitors: map[netip.Addr]*rateEntry{}}
+		l.routes[routeID] = rb
+	}
+	return l.allowLocked(rb, client, rpm, burst, now)
+}
+
+func (l *RateLimiter) allowLocked(rb *routeBucket, client netip.Addr, rpm, burst uint32, now time.Time) (allowed bool, retryAfterSec int) {
+	ratePerSec := float64(rpm) / 60.0
+	capacity := 1.0 + float64(burst)
+	nowNano := now.UnixNano()
+
+	if rb.rpm != rpm || rb.burst != burst {
+		l.clearRouteLocked(rb)
+		rb.rpm, rb.burst = rpm, burst
+	}
+
+	e, exists := rb.visitors[client]
+	if !exists {
+		var reused *rateEntry
+		if len(rb.visitors) >= l.maxPerRoute() && rb.rTail != nil {
+			reused = rb.rTail
+			l.evictLocked(rb, reused)
+		}
+		for l.total >= l.maxTotal() && l.lruTail != nil {
+			victim := l.lruTail
+			vrb := victim.route
+			l.evictLocked(vrb, victim)
+			if vrb != nil && len(vrb.visitors) == 0 && vrb != rb {
+				delete(l.routes, vrb.id)
+			}
+			if reused == nil {
+				reused = victim
+			}
+		}
+		if reused != nil {
+			*reused = rateEntry{route: rb, client: client, tokens: capacity, lastUnixNano: nowNano}
+			e = reused
+		} else {
+			e = &rateEntry{route: rb, client: client, tokens: capacity, lastUnixNano: nowNano}
+		}
+		rb.visitors[client] = e
+		l.pushFrontGlobal(e)
+		l.pushFrontRoute(rb, e)
+		l.total++
+	} else {
+		if delta := nowNano - e.lastUnixNano; delta > 0 {
+			e.tokens = min(capacity, e.tokens+(float64(delta)/1e9)*ratePerSec)
+			e.lastUnixNano = nowNano
+		}
+		l.moveToFrontGlobal(e)
+		l.moveToFrontRoute(rb, e)
+	}
+
+	if e.tokens >= 1.0 {
+		e.tokens -= 1.0
+		return true, 0
+	}
+	needed := (1.0 - e.tokens) / ratePerSec
+	return false, max(1, int(math.Ceil(needed)))
+}
+
+// Drop frees all buckets belonging to routeID.
+func (l *RateLimiter) Drop(routeID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	rb, ok := l.routes[routeID]
+	if !ok {
+		return
+	}
+	l.clearRouteLocked(rb)
+	delete(l.routes, routeID)
+}
+
+// Count returns the total number of tracked visitor buckets across all routes.
+func (l *RateLimiter) Count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.total
+}
+
+// Routes returns the number of routes currently holding buckets.
+func (l *RateLimiter) Routes() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.routes)
+}
+
+func (l *RateLimiter) clearRouteLocked(rb *routeBucket) {
+	for e := rb.rHead; e != nil; {
+		next := e.rNext
+		l.unlinkGlobal(e)
+		e.rPrev, e.rNext = nil, nil
+		l.total--
+		e = next
+	}
+	clear(rb.visitors)
+	rb.rHead, rb.rTail = nil, nil
+}
+
+func (l *RateLimiter) evictLocked(rb *routeBucket, e *rateEntry) {
+	l.unlinkGlobal(e)
+	if rb != nil {
+		l.unlinkRoute(rb, e)
+		delete(rb.visitors, e.client)
+	}
+	l.total--
+}
+
+func (l *RateLimiter) pushFrontGlobal(e *rateEntry) {
+	e.prev = nil
+	e.next = l.lruHead
+	if l.lruHead != nil {
+		l.lruHead.prev = e
+	} else {
+		l.lruTail = e
+	}
+	l.lruHead = e
+}
+
+func (l *RateLimiter) unlinkGlobal(e *rateEntry) {
+	if e.prev != nil {
+		e.prev.next = e.next
+	} else if l.lruHead == e {
+		l.lruHead = e.next
+	}
+	if e.next != nil {
+		e.next.prev = e.prev
+	} else if l.lruTail == e {
+		l.lruTail = e.prev
+	}
+	e.prev, e.next = nil, nil
+}
+
+func (l *RateLimiter) moveToFrontGlobal(e *rateEntry) {
+	if l.lruHead == e {
+		return
+	}
+	l.unlinkGlobal(e)
+	l.pushFrontGlobal(e)
+}
+
+func (l *RateLimiter) pushFrontRoute(rb *routeBucket, e *rateEntry) {
+	e.rPrev = nil
+	e.rNext = rb.rHead
+	if rb.rHead != nil {
+		rb.rHead.rPrev = e
+	} else {
+		rb.rTail = e
+	}
+	rb.rHead = e
+}
+
+func (l *RateLimiter) unlinkRoute(rb *routeBucket, e *rateEntry) {
+	if e.rPrev != nil {
+		e.rPrev.rNext = e.rNext
+	} else if rb.rHead == e {
+		rb.rHead = e.rNext
+	}
+	if e.rNext != nil {
+		e.rNext.rPrev = e.rPrev
+	} else if rb.rTail == e {
+		rb.rTail = e.rPrev
+	}
+	e.rPrev, e.rNext = nil, nil
+}
+
+func (l *RateLimiter) moveToFrontRoute(rb *routeBucket, e *rateEntry) {
+	if rb.rHead == e {
+		return
+	}
+	l.unlinkRoute(rb, e)
+	l.pushFrontRoute(rb, e)
+}
+
+func (s *Server) rateLimiter() *RateLimiter {
+	if s.RateLimits != nil {
+		return s.RateLimits
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ownRateLimits == nil {
+		s.ownRateLimits = &RateLimiter{}
+	}
+	return s.ownRateLimits
+}
+
+// parseRateQuery parses rpm and burst directly from raw query string without
+// allocating a url.Values map on every rate-limit check (M4).
+func parseRateQuery(raw string) (rpm, burst uint32, ok bool) {
+	for raw != "" {
+		part := raw
+		if i := strings.IndexByte(raw, '&'); i >= 0 {
+			part, raw = raw[:i], raw[i+1:]
+		} else {
+			raw = ""
+		}
+		k, v, hasEq := strings.Cut(part, "=")
+		if !hasEq {
+			continue
+		}
+		switch k {
+		case "rpm":
+			n, err := strconv.ParseUint(v, 10, 32)
+			if err != nil || n == 0 {
+				return 0, 0, false
+			}
+			rpm = uint32(n)
+			ok = true
+		case "burst":
+			if n, err := strconv.ParseUint(v, 10, 32); err == nil {
+				burst = uint32(n)
+			}
+		}
+	}
+	return rpm, burst, ok
+}
+
+var tooManyRequestsBody = []byte("Too Many Requests\n")
+
+// serveRateLimit enforces a per-visitor-address token bucket for /ratelimit/<routeID>?rpm=<N>&burst=<B>.
+// Only Caddy on the server's root/proxy-only unix socket reaches this endpoint.
+func (s *Server) serveRateLimit(w http.ResponseWriter, r *http.Request, id string) {
+	rpm, burst, ok := parseRateQuery(r.URL.RawQuery)
+	if !ok {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	client := clientOf(r)
+	if client == "" {
+		client = "unknown"
+	}
+	allowed, retryAfter := s.rateLimiter().Allow(id, client, rpm, burst, s.now())
+	if allowed {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Retry-After", strconv.Itoa(max(1, retryAfter)))
+	w.WriteHeader(http.StatusTooManyRequests)
+	_, _ = w.Write(tooManyRequestsBody)
+}

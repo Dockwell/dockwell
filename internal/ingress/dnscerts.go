@@ -32,6 +32,10 @@ type DNSCert struct {
 	Key    []byte   `json:"key"`
 	// NotAfter is when it ends, from its chain.
 	NotAfter time.Time `json:"not_after"`
+	// Custom is true for a certificate uploaded for a route (not proved by DNS-01),
+	// and RouteID is the proxy route ID that owns it.
+	Custom  bool   `json:"custom,omitempty"`
+	RouteID string `json:"route_id,omitempty"`
 }
 
 // CertKeeper keeps the certificates by DNS on the server's disk, sealed, so the
@@ -100,7 +104,14 @@ func (m *Manager) PutCertificates(ctx context.Context, certs []DNSCert) (int, er
 	now := m.now()
 	b := &m.bydns
 	b.mu.Lock()
-	b.certs = certs
+	var merged []DNSCert
+	for i := range b.certs {
+		if b.certs[i].Custom {
+			merged = append(merged, b.certs[i])
+		}
+	}
+	merged = append(merged, certs...)
+	b.certs = merged
 	// A name the control plane renewed goes back to its certificate.
 	for name := range b.fallback {
 		if c, ok := servedBy(certs, name); !ok || c.NotAfter.Sub(now) > FallBackBefore {
@@ -108,7 +119,7 @@ func (m *Manager) PutCertificates(ctx context.Context, certs []DNSCert) (int, er
 		}
 	}
 	b.mu.Unlock()
-	if err := m.keepCertificates(certs); err != nil {
+	if err := m.keepCertificates(merged); err != nil {
 		return 0, err
 	}
 	st, err := m.Proxy.Status(ctx)
@@ -237,15 +248,36 @@ func (m *Manager) servedByDNS() map[string]DNSCert {
 	return out
 }
 
-// dnsState is where a name a certificate by DNS serves stands: issued until its
-// end, and, from WarnBefore, saying the control plane hasn't renewed it.
+// dnsState is where a name a certificate by DNS or a custom certificate serves stands:
+// issued until its end, and, from WarnBefore, warning that it nears expiry.
 func dnsState(c DNSCert, now time.Time) CertState {
-	st := CertState{Phase: CertIssued, NotAfter: c.NotAfter, ByDNS: c.Name}
-	left := c.NotAfter.Sub(now)
+	st := CertState{Phase: CertIssued, NotAfter: c.NotAfter, Custom: c.Custom}
+	if !c.Custom {
+		st.ByDNS = c.Name
+	}
+	if leaf := parseLeafPEM(c.Chain); leaf != nil {
+		st.NotBefore = leaf.NotBefore
+		st.NotAfter = leaf.NotAfter
+		st.Issuer = leaf.Issuer.CommonName
+		if st.Issuer == "" && len(leaf.Issuer.Organization) > 0 {
+			st.Issuer = strings.Join(leaf.Issuer.Organization, ", ")
+		}
+		st.Subject = leaf.Subject.CommonName
+		if st.Subject == "" && len(leaf.DNSNames) > 0 {
+			st.Subject = leaf.DNSNames[0]
+		}
+		st.SANs = slices.Clone(leaf.DNSNames)
+	}
+	left := st.NotAfter.Sub(now)
 	switch {
+	case left <= 0 && c.Custom:
+		st.Phase, st.Problem = CertFailed, ProblemOther
+		st.Warning = fmt.Sprintf("Custom certificate expired on %s. Upload a new certificate or switch back to automatic HTTPS.", st.NotAfter.UTC().Format("2 January 2006"))
+	case left <= WarnBefore && c.Custom:
+		st.Warning = fmt.Sprintf("Custom certificate expires in %s. Upload a new certificate before it expires.", daysLeft(left))
 	case left <= 0:
 		st.Phase, st.Problem = CertFailed, ProblemOther
-		st.Warning = fmt.Sprintf("Expired on %s, and the control plane hasn't renewed it, so it doesn't answer over HTTPS. Check that the control plane runs and reaches this server.", c.NotAfter.UTC().Format("2 January 2006"))
+		st.Warning = fmt.Sprintf("Expired on %s, and the control plane hasn't renewed it, so it doesn't answer over HTTPS. Check that the control plane runs and reaches this server.", st.NotAfter.UTC().Format("2 January 2006"))
 	case left <= WarnBefore:
 		st.Warning = fmt.Sprintf("Expires in %s, and the control plane hasn't renewed it. Check that the control plane runs and reaches this server.", daysLeft(left))
 	}
@@ -277,6 +309,9 @@ func (m *Manager) watchCertificates(ctx context.Context, checks map[string]*reso
 	back := false
 	for i := range b.certs {
 		c := &b.certs[i]
+		if c.Custom {
+			continue
+		}
 		left := c.NotAfter.Sub(now)
 		if left > WarnBefore {
 			continue
