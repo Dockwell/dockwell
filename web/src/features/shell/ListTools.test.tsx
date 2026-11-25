@@ -140,12 +140,17 @@ describe("clearing a selection", () => {
         <button type="button" onClick={selection.clear}>
           Clear
         </button>
-        <button type="button">Menu item</button>
+        <div role="menu" aria-label="Row menu">
+          <button type="button" role="menuitem">
+            Menu item
+          </button>
+        </div>
+        <button type="button">Elsewhere</button>
       </>
     );
   }
 
-  it("gives focus back to the list, unless something took it first", async () => {
+  it("gives focus back to the list, unless a menu took it first", async () => {
     const frames: FrameRequestCallback[] = [];
     const raf = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => frames.push(cb));
     plainRender(<Picked />);
@@ -157,9 +162,16 @@ describe("clearing a selection", () => {
 
     clear.focus();
     fireEvent.click(clear);
-    screen.getByRole("button", { name: "Menu item" }).focus();
+    screen.getByRole("menuitem", { name: "Menu item" }).focus();
     for (const cb of frames.splice(0)) cb(0);
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Menu item" }));
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Menu item" }));
+
+    // Focus that lands anywhere else, as a closing sheet gives it back, still goes to the list.
+    clear.focus();
+    fireEvent.click(clear);
+    screen.getByRole("button", { name: "Elsewhere" }).focus();
+    for (const cb of frames.splice(0)) cb(0);
+    expect(document.activeElement).toBe(screen.getByLabelText("List"));
     raf.mockRestore();
   });
 });
