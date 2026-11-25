@@ -136,7 +136,7 @@ func (r *Runner) readImportMeta(importID string) (*ImportMeta, error) {
 	if !ValidImportID(importID) {
 		return nil, &ImportError{Reason: "invalid", Message: "invalid import ID"}
 	}
-	b, err := os.ReadFile(r.importMetaPath(importID)) //nolint:gosec // validated ID under agent backup root
+	b, err := os.ReadFile(r.importMetaPath(importID))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, &ImportError{Reason: "import_gone", Message: "that staged dump upload wasn't found or has expired. Upload the file again"}
 	}
@@ -229,7 +229,7 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 		return nil, &ImportError{Reason: "invalid_database", Message: err.Error()}
 	}
 	if engines.SystemDatabase(database) {
-		return nil, &ImportError{Reason: "invalid_database", Message: fmt.Sprintf("%s is a system database and can't be imported into. Choose one of your own databases", database)}
+		return nil, &ImportError{Reason: "invalid_database", Message: database + " is a system database and can't be imported into. Choose one of your own databases"}
 	}
 	detected, err := DetectImportFormat(filename)
 	if err != nil {
@@ -254,7 +254,7 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 	if r.Disk != nil {
 		d := r.Disk()
 		// Need room for the staged file plus a safety margin for the pre-import backup.
-		need := int64(sizeBytes) + d.reserve //nolint:gosec // bounded by MaxImportBytes (16 GiB)
+		need := int64(sizeBytes) + d.reserve
 		if d.free > 0 && d.free < need {
 			return nil, &ImportError{Reason: "no_space", Message: "this server doesn't have enough free disk space to stage this dump and back up the database first"}
 		}
@@ -272,7 +272,7 @@ func (r *Runner) BeginImport(owner, importID, serviceID, database, filename, for
 		Complete:  false,
 		CreatedAt: r.now().UTC(),
 	}
-	f, err := os.OpenFile(r.importDataPath(meta.ID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // validated ID under agent backup root
+	f, err := os.OpenFile(r.importDataPath(meta.ID), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +315,7 @@ func (r *Runner) WriteImport(ctx context.Context, importID, owner string, offset
 		r.importMu.Unlock()
 	}()
 
-	f, err := os.OpenFile(r.importDataPath(importID), os.O_WRONLY, 0o600) //nolint:gosec // validated ID under agent backup root
+	f, err := os.OpenFile(r.importDataPath(importID), os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, &ImportError{Reason: "import_gone", Message: "the staged dump file is missing on the server. Upload the file again"}
 	}
@@ -746,11 +746,15 @@ func (r *Runner) checkLogicalExists(ctx context.Context, db *database, dbName st
 func (r *Runner) dumpOneAdmin(ctx context.Context, db *database, dbName string, w io.Writer) (int64, error) {
 	var cmd []string
 	if db.kind.name == "PostgreSQL" {
-		cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-			`exec pg_dump --clean --if-exists --no-owner --no-acl -U "${POSTGRES_USER:-postgres}" -- "$DW_DB"`}
+		cmd = []string{
+			"env", "DW_DB=" + dbName, "sh", "-c",
+			`exec pg_dump --clean --if-exists --no-owner --no-acl -U "${POSTGRES_USER:-postgres}" -- "$DW_DB"`,
+		}
 	} else {
-		cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb-dump || command -v mysqldump); exec "$t" -uroot --single-transaction --routines --triggers --events --add-drop-table -- "$DW_DB"`}
+		cmd = []string{
+			"env", "DW_DB=" + dbName, "sh", "-c",
+			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb-dump || command -v mysqldump); exec "$t" -uroot --single-transaction --routines --triggers --events --add-drop-table -- "$DW_DB"`,
+		}
 	}
 	gz, err := gzip.NewWriterLevel(w, gzip.BestSpeed)
 	if err != nil {
@@ -816,14 +820,20 @@ func (r *Runner) runDumpImport(ctx context.Context, db *database, dbName, path, 
 		_, _ = r.Client.Exec(ctx, db.id, db.tool([]string{"sh", "-c", `exec psql -XAt -U "${POSTGRES_USER:-postgres}" -d postgres`}), docker.Streams{Stdin: strings.NewReader(termSQL)})
 		switch format {
 		case ImportFormatSQL, ImportFormatSQLGZ:
-			cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec psql -X -v ON_ERROR_STOP=1 --single-transaction -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`}
+			cmd = []string{
+				"env", "DW_DB=" + dbName, "sh", "-c",
+				`exec psql -X -v ON_ERROR_STOP=1 --single-transaction -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
+			}
 		case ImportFormatDump:
-			cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Fc -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`}
+			cmd = []string{
+				"env", "DW_DB=" + dbName, "sh", "-c",
+				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Fc -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
+			}
 		case ImportFormatTar:
-			cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Ft -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`}
+			cmd = []string{
+				"env", "DW_DB=" + dbName, "sh", "-c",
+				`exec pg_restore --no-owner --no-acl --clean --if-exists -e -Ft -U "${POSTGRES_USER:-postgres}" -d "$DW_DB"`,
+			}
 		default:
 			return fmt.Errorf("unsupported PostgreSQL import format %q", format)
 		}
@@ -831,8 +841,10 @@ func (r *Runner) runDumpImport(ctx context.Context, db *database, dbName, path, 
 		if format != ImportFormatSQL && format != ImportFormatSQLGZ {
 			return fmt.Errorf("unsupported %s import format %q", db.kind.name, format)
 		}
-		cmd = []string{"env", "DW_DB=" + dbName, "sh", "-c",
-			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb || command -v mysql); exec "$t" -uroot --binary-mode=1 -- "$DW_DB"`}
+		cmd = []string{
+			"env", "DW_DB=" + dbName, "sh", "-c",
+			`export MYSQL_PWD="${MARIADB_ROOT_PASSWORD:-${MYSQL_ROOT_PASSWORD:-}}"; t=$(command -v mariadb || command -v mysql); exec "$t" -uroot --binary-mode=1 -- "$DW_DB"`,
+		}
 	}
 
 	outTail := &tail{}
@@ -890,7 +902,7 @@ type progressReader struct {
 func (p *progressReader) Read(b []byte) (int, error) {
 	n, err := p.r.Read(b)
 	if n > 0 {
-		p.read += uint64(n) //nolint:gosec // n > 0
+		p.read += uint64(n)
 		now := time.Now()
 		if p.say != nil && (p.lastAt.IsZero() || now.Sub(p.lastAt) >= 250*time.Millisecond || p.read-p.lastN >= 2<<20 || p.read >= p.total) {
 			p.lastAt = now

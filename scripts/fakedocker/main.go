@@ -193,8 +193,8 @@ func postgresAnswer(x dockertest.Exec, file string) int {
 }
 
 var (
-	dumpedDB    = regexp.MustCompile(`(?m)^(?:CREATE DATABASE |\\connect (?:-reuse-previous=on "dbname=)?)("?[^" ;]+"?|'[^']+')`)
-	dumpedTable = regexp.MustCompile(`(?m)^CREATE TABLE ("?[^". ]+"?)\.("?[^". (]+"?) \(`)
+	dumpedDB     = regexp.MustCompile(`(?m)^(?:CREATE DATABASE |\\connect (?:-reuse-previous=on "dbname=)?)("?[^" ;]+"?|'[^']+')`)
+	dumpedTable  = regexp.MustCompile(`(?m)^CREATE TABLE ("?[^". ]+"?)\.("?[^". (]+"?) \(`)
 	madeRole     = regexp.MustCompile(`ALTER ROLE "([a-z0-9_]+)" LOGIN PASSWORD '([^']*)'`)
 	madeDB       = regexp.MustCompile(`SELECT 'CREATE DATABASE "([a-z0-9_]+)"(?: OWNER "([a-z0-9_]+)")?' WHERE NOT EXISTS`)
 	alteredDB    = regexp.MustCompile(`ALTER DATABASE "([a-z0-9_]+)" OWNER TO "([a-z0-9_]+)"`)

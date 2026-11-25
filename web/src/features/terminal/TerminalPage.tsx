@@ -397,7 +397,8 @@ function Terminals({ server, phone, container, consoleMode = false, database, ex
     // A shell asked for in a container shows that container's, or the offer to open one.
     setActive(
       (now) =>
-        now ?? (exact ? undefined : container ? existing.findLast((o) => o.container === container)?.id : existing.at(-1)?.id),
+        now ??
+        (exact ? undefined : container ? existing.findLast((o) => o.container === container)?.id : existing.at(-1)?.id),
     );
   }, [listed.data, listed.isFetchedAfterMount, container, exact, consoleMode, database, open]);
 
@@ -469,7 +470,8 @@ function Terminals({ server, phone, container, consoleMode = false, database, ex
     ? tabs.some((tab) => urlExactTabs.current.has(tab.id))
       ? undefined
       : exact.name
-    : container && !tabs.some((tab) => (consoleMode ? matchesConsole(tab, container, database) : tab.container === container))
+    : container &&
+        !tabs.some((tab) => (consoleMode ? matchesConsole(tab, container, database) : tab.container === container))
       ? container
       : undefined;
   const current = tabs.find((tab) => tab.id === active);

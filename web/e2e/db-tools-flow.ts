@@ -81,15 +81,24 @@ export async function dbToolsFlow(page: Page, { origin, step, shoot }: FlowRun) 
   await page.waitForURL(/\/servers\/[^/]+\/terminal\?.*console=true/, { timeout: 20_000 });
   await snap("database-console-terminal-1440");
 
-  step("db-tools: Databases tab lists logical databases and creates one with a new owner and one with an existing owner");
+  step(
+    "db-tools: Databases tab lists logical databases and creates one with a new owner and one with an existing owner",
+  );
   await page.goto(`${origin}/databases`);
-  const rowAgain = page.getByRole("table", { name: "Databases" }).getByRole("row").filter({ hasText: "adminer" }).first();
+  const rowAgain = page
+    .getByRole("table", { name: "Databases" })
+    .getByRole("row")
+    .filter({ hasText: "adminer" })
+    .first();
   await rowAgain.waitFor({ timeout: 20_000 });
   await rowAgain.click();
   await page.getByRole("link", { name: "Open console" }).waitFor({ timeout: 20_000 });
   const dbPath = new URL(page.url()).pathname;
 
-  await page.getByRole("navigation", { name: "Database sections" }).getByRole("link", { name: /Databases/ }).click();
+  await page
+    .getByRole("navigation", { name: "Database sections" })
+    .getByRole("link", { name: /Databases/ })
+    .click();
   const schemasTable = page.getByRole("table", { name: /Databases in / });
   await schemasTable.waitFor({ timeout: 20_000 });
   await fitsItsWidth(page, "the Databases tab");
@@ -134,7 +143,12 @@ export async function dbToolsFlow(page: Page, { origin, step, shoot }: FlowRun) 
   await applyPlan(page);
 
   step("db-tools: Delete logical database drops reports through a plan while keeping analytics");
-  await schemasTable.getByRole("row").filter({ hasText: "reports" }).first().getByRole("button", { name: "Actions for reports" }).click();
+  await schemasTable
+    .getByRole("row")
+    .filter({ hasText: "reports" })
+    .first()
+    .getByRole("button", { name: "Actions for reports" })
+    .click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await applyPlan(page);
   await page.waitForFunction(

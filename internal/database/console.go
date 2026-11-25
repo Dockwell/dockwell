@@ -107,5 +107,5 @@ func ConsoleCommand(e *Engine, port uint32, dbName string) (cmd, env []string, t
 
 	case dockwellv1.DatabaseEngine_DATABASE_ENGINE_UNSPECIFIED:
 	}
-	return nil, nil, "", fmt.Errorf("Dockwell has no console for %s", e.Name)
+	return nil, nil, "", fmt.Errorf("no interactive console is available for %s", e.Name)
 }

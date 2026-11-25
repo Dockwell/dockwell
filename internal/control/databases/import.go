@@ -99,9 +99,9 @@ func (h *Handler) pickImportTarget(ctx context.Context, id, project, environment
 	srv := one.servers[0]
 	if serverWanted != "" {
 		found := false
-		for _, cand := range one.servers {
-			if cand.ID == serverWanted || cand.Name == serverWanted {
-				srv = cand
+		for i := range one.servers {
+			if one.servers[i].ID == serverWanted || one.servers[i].Name == serverWanted {
+				srv = one.servers[i]
 				found = true
 				break
 			}

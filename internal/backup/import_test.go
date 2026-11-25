@@ -129,7 +129,7 @@ func TestStagedImportUploadResumeAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stageBytes(t, r, badSQL.ID, "session:s1", gzBuf.Bytes())
+	stageBytes(t, r, badSQL.ID, gzBuf.Bytes())
 	if _, err := r.InspectImport(badSQL.ID, "session:s1"); err == nil || !strings.Contains(err.Error(), "gzip-compressed") {
 		t.Errorf("gzip bytes in .sql = %v, want gzip hint", err)
 	}
@@ -138,7 +138,7 @@ func TestStagedImportUploadResumeAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stageBytes(t, r, goodDump.ID, "session:s1", []byte("PGDMP01234567890"))
+	stageBytes(t, r, goodDump.ID, []byte("PGDMP01234567890"))
 	if _, err := r.InspectImport(goodDump.ID, "session:s1"); err != nil {
 		t.Errorf("valid PGDMP .dump rejected: %v", err)
 	}
@@ -152,16 +152,16 @@ func TestStagedImportUploadResumeAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stageBytes(t, r, goodTar.ID, "session:s1", tarBuf.Bytes())
+	stageBytes(t, r, goodTar.ID, tarBuf.Bytes())
 	if _, err := r.InspectImport(goodTar.ID, "session:s1"); err != nil {
 		t.Errorf("valid .tar rejected: %v", err)
 	}
 }
 
-func stageBytes(t *testing.T, r *Runner, importID, owner string, data []byte) {
+func stageBytes(t *testing.T, r *Runner, importID string, data []byte) {
 	t.Helper()
 	sent := false
-	_, err := r.WriteImport(t.Context(), importID, owner, 0, func() ([]byte, error) {
+	_, err := r.WriteImport(t.Context(), importID, "session:s1", 0, func() ([]byte, error) {
 		if sent {
 			return nil, io.EOF
 		}
@@ -257,7 +257,7 @@ func TestImportDumpBacksUpFirstRollsBackOnFailureAndUndoes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stageBytes(t, r, badMeta.ID, "session:s1", badSQL)
+	stageBytes(t, r, badMeta.ID, badSQL)
 	badSrc := resource.RestoreSource{
 		Change:         "chg_fail",
 		ImportID:       badMeta.ID,
@@ -298,7 +298,7 @@ func TestImportDumpBacksUpFirstRollsBackOnFailureAndUndoes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stageBytes(t, r, goodMeta.ID, "session:s1", gzBuf.Bytes())
+	stageBytes(t, r, goodMeta.ID, gzBuf.Bytes())
 	goodSrc := resource.RestoreSource{
 		Change:         "chg_ok",
 		ImportID:       goodMeta.ID,

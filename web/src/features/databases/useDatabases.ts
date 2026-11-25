@@ -131,10 +131,7 @@ export function readOf(reading: DatabaseReading | undefined): DatabaseReading | 
 }
 
 /** Where a database's interactive console opens: its server and container name, when known. */
-export function consoleTarget(
-  db: Database,
-  health?: AppHealth,
-): { serverId: string; container: string } | undefined {
+export function consoleTarget(db: Database, health?: AppHealth): { serverId: string; container: string } | undefined {
   const runningReading = db.readings.find((r) => r.serverId !== "" && r.container !== "" && r.unread === "");
   if (runningReading) return { serverId: runningReading.serverId, container: runningReading.container };
   const anyReading = db.readings.find((r) => r.serverId !== "" && r.container !== "");

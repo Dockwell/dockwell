@@ -39,22 +39,22 @@ import "../apps/Apps.css";
 /** What a user's or a database's name takes, as the control plane checks it. */
 const SQL_NAME = /^[a-z][a-z0-9_]{0,31}$/;
 const SECRET_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,254}$/;
-const SYSTEM_DBS = new Set(["postgres", "template0", "template1", "mysql", "information_schema", "performance_schema", "sys"]);
+const SYSTEM_DBS = new Set([
+  "postgres",
+  "template0",
+  "template1",
+  "mysql",
+  "information_schema",
+  "performance_schema",
+  "sys",
+]);
 
 /**
  * Plans a new logical database inside a PostgreSQL, MySQL or MariaDB engine:
  * defaults first (database name + a new owner user with a generated password
  * kept as a secret), or pick an existing user on the server.
  */
-export function NewDatabaseSheet({
-  db,
-  read,
-  onClose,
-}: {
-  db: Database;
-  read: DatabaseReading;
-  onClose: () => void;
-}) {
+export function NewDatabaseSheet({ db, read, onClose }: { db: Database; read: DatabaseReading; onClose: () => void }) {
   const { t } = useLingui();
   const phone = useMediaQuery(PHONE_QUERY);
   const transport = useTransport();

@@ -2214,33 +2214,30 @@ describe("how a database is backed up (#793)", () => {
     });
 
     const base = api([db]);
-    const { router } = renderAt(
-      "/databases/svc_db/databases",
-      {
-        ...base,
-        databases: {
-          ...base.databases,
-          createLogicalDatabase: (req) => {
-            created.push({
-              id: req.id,
-              database: req.database,
-              owner: req.owner,
-              user: req.user,
-              secret: req.secret,
-            });
-            return { change: webPlanned() };
-          },
-          deleteLogicalDatabase: (req) => {
-            deleted.push({ id: req.id, database: req.database });
-            return { change: webPlanned() };
-          },
+    const { router } = renderAt("/databases/svc_db/databases", {
+      ...base,
+      databases: {
+        ...base.databases,
+        createLogicalDatabase: (req) => {
+          created.push({
+            id: req.id,
+            database: req.database,
+            owner: req.owner,
+            user: req.user,
+            secret: req.secret,
+          });
+          return { change: webPlanned() };
         },
-        changes: {
-          watchChange: feed<WatchChangeResponse>().stream,
-          discardChange: () => ({}),
+        deleteLogicalDatabase: (req) => {
+          deleted.push({ id: req.id, database: req.database });
+          return { change: webPlanned() };
         },
       },
-    );
+      changes: {
+        watchChange: feed<WatchChangeResponse>().stream,
+        discardChange: () => ({}),
+      },
+    });
 
     const table = await screen.findByRole("table", { name: "Databases in db" });
     expect(within(table).getAllByText("shop").length).toBeGreaterThanOrEqual(2);

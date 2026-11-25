@@ -261,7 +261,7 @@ func (h *Handler) CreateDatabaseUser(ctx context.Context, req *connect.Request[d
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	password, err := generate(passwordLength)
+	password, err := generate()
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -416,7 +416,7 @@ func (h *Handler) CreateLogicalDatabase(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
-	password, err := generate(passwordLength)
+	password, err := generate()
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -516,7 +516,7 @@ func (h *Handler) DeleteLogicalDatabase(ctx context.Context, req *connect.Reques
 		return nil, h.fail(ctx, err)
 	}
 	if target == nil {
-		return nil, authapi.Invalid(fmt.Errorf("Dockwell didn't make the database %s on %s, so it doesn't delete it", dbName, server.ref.Name))
+		return nil, authapi.Invalid(fmt.Errorf("no managed database %s on %s to delete, as Dockwell didn't make it", dbName, server.ref.Name))
 	}
 	edits := []*dockwellv1.Edit{{Resource: target, Delete: true}}
 	change, err := h.changes.Propose(ctx, summary, edits, nil, changes.Also{})
@@ -582,7 +582,7 @@ func (h *Handler) ChangeDatabasePassword(ctx context.Context, req *connect.Reque
 			return nil, h.fail(ctx, err)
 		}
 	}
-	password, err := generate(passwordLength)
+	password, err := generate()
 	if err != nil {
 		return nil, h.fail(ctx, err)
 	}
@@ -654,11 +654,11 @@ func invalidField(field string, err error) *connect.Error {
 	return authapi.ReasonError(connect.CodeInvalidArgument, err, "invalid_"+field)
 }
 
-// generate makes a password of n characters, each as likely as any other.
-func generate(n int) (string, error) {
+// generate makes a password of passwordLength characters, each as likely as any other.
+func generate() (string, error) {
 	var b strings.Builder
 	size := big.NewInt(int64(len(passwordAlphabet)))
-	for range n {
+	for range passwordLength {
 		i, err := rand.Int(rand.Reader, size)
 		if err != nil {
 			return "", fmt.Errorf("generating a password: %w", err)

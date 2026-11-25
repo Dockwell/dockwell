@@ -9,10 +9,7 @@
 
 import { fromJson, type JsonValue } from "@bufbuild/protobuf";
 
-import {
-  type UploadDatabaseImportResponse,
-  UploadDatabaseImportResponseSchema,
-} from "./gen/dockwell/v1/database_pb";
+import { type UploadDatabaseImportResponse, UploadDatabaseImportResponseSchema } from "./gen/dockwell/v1/database_pb";
 import { type DockerArtifactInfo, DockerArtifactInfoSchema } from "./gen/dockwell/v1/docker_pb";
 import { type UploadFileResponse, UploadFileResponseSchema } from "./gen/dockwell/v1/file_pb";
 import { type StreamRoute, streamRoutes } from "./gen/streams";

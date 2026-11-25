@@ -54,14 +54,19 @@ export function ImportDumpSheet({
   const transport = useTransport();
   const may = useMay();
   const environment = db.resource?.scope ?? "";
-  const mayImport = may(DatabaseService.method.beginDatabaseImport, { environment });
+  const mayBegin = may(DatabaseService.method.beginDatabaseImport, { environment });
+  const mayUpload = may(DatabaseService.method.uploadDatabaseImport, { environment });
+  const mayPlan = may(DatabaseService.method.planDatabaseImport, { environment });
+  const mayCancel = may(DatabaseService.method.cancelDatabaseImport, { environment });
+  const mayImport = !mayBegin.allowed ? mayBegin : !mayUpload.allowed ? mayUpload : mayPlan;
   const name = useShownName()(db, "database").title;
   const engine = engineName(db.engine);
   const extensions = acceptedExtensions(db.engine);
   const ownDatabases = read.databases.filter((d) => !d.system);
   const defaultDB =
-    (initialDatabase && ownDatabases.some((d) => d.name === initialDatabase) ? initialDatabase : ownDatabases[0]?.name) ??
-    "";
+    (initialDatabase && ownDatabases.some((d) => d.name === initialDatabase)
+      ? initialDatabase
+      : ownDatabases[0]?.name) ?? "";
 
   const [database, setDatabase] = useState(defaultDB);
   const [file, setFile] = useState<File>();
@@ -74,7 +79,7 @@ export function ImportDumpSheet({
   const stagedIdRef = useRef<string>("");
 
   const cancelStaged = (importId: string) => {
-    if (!importId) return;
+    if (!importId || !mayCancel.allowed) return;
     stagedIdRef.current = "";
     void createClient(DatabaseService, transport)
       .cancelDatabaseImport({ id: db.id, importId })
@@ -165,10 +170,7 @@ export function ImportDumpSheet({
         if (ack.complete) break;
       }
 
-      const planned = await client.planDatabaseImport(
-        { id: db.id, importId },
-        { signal: controller.signal },
-      );
+      const planned = await client.planDatabaseImport({ id: db.id, importId }, { signal: controller.signal });
       const change: Change | undefined = planned.change;
       setUploading(false);
       abortRef.current = null;

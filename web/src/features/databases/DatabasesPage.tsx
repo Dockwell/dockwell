@@ -427,9 +427,7 @@ function useDatabaseRowTools(manage: (db: Database) => MenuAction[]) {
     const environment = db.resource?.scope ?? "";
     const externalHost = mode === "external" ? externalAddressOf(db) : "";
     const build = (password: string | undefined) =>
-      mode === "external"
-        ? externalConnectionURL(db, read, externalHost, password)
-        : connectionURL(db, read, password);
+      mode === "external" ? externalConnectionURL(db, read, externalHost, password) : connectionURL(db, read, password);
     const hasSecret = db.passwordSecret !== "" && !read?.checksNoOne;
     const mayReveal = may(VariableService.method.revealSecret, { environment });
 
