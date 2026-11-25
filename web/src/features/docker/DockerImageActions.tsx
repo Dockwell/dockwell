@@ -3,7 +3,14 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { createClient } from "@connectrpc/connect";
 import { useQuery, useTransport } from "@connectrpc/connect-query";
-import { type Change, DockerService, type PlanDockerMaintenanceRequestSchema, type Server } from "@dockwell/api";
+import {
+  type Change,
+  ChangeService,
+  DockerService,
+  ImageService,
+  type PlanDockerMaintenanceRequestSchema,
+  type Server,
+} from "@dockwell/api";
 import { Button, Callout, Loading, Sheet, Skeleton, SkeletonFacts, StatusBadge, TextField } from "@dockwell/ui";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useRef, useState } from "react";
@@ -16,9 +23,10 @@ import { ActionMenu, type MenuAction } from "../shell/ActionMenu";
 import { type ArchiveImageChoice, useArchiveActions } from "./DockerArchiveActions";
 import { type ImageServer, useDockerPull } from "./DockerPullFields";
 import { DockerPushSheet } from "./DockerPushSheet";
+import { DockerRunSheet } from "./DockerRunSheet";
 
 type Selection = ArchiveImageChoice & { alias: string };
-type Editor = { kind: "pull" } | { kind: "add" | "move" | "push"; image: Selection };
+type Editor = { kind: "pull" | "search"; image?: never } | { kind: "add" | "move" | "push" | "run"; image: Selection };
 type PlanInput = MessageInitShape<typeof PlanDockerMaintenanceRequestSchema>;
 
 function pullRequest(serverId: string, reference: string, loginId = "", imageId?: string): PlanInput {
@@ -31,7 +39,10 @@ function pullRequest(serverId: string, reference: string, loginId = "", imageId?
 /** Shared by the list and image detail so each action stays on the selected Engine. */
 export function useImageActions(servers: readonly Pick<Server, "id" | "name">[], refresh: () => void) {
   const { t } = useLingui();
-  const mayPlan = useMay()(DockerService.method.planDockerMaintenance).allowed;
+  const may = useMay();
+  const mayPlan = may(DockerService.method.planDockerMaintenance).allowed;
+  const canRun = may(ChangeService.method.proposeChange).allowed;
+  const canSearch = may(ImageService.method.searchImages).allowed;
   const transport = useTransport();
   const sheets = useChangeSheet();
   const client = createClient(DockerService, transport);
@@ -90,12 +101,21 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
 
   const actionsFor = (image: Selection, detail = false): MenuAction[] => {
     const capabilities = mayPlan ? support.get(image.serverId) : undefined;
-    if (!capabilities) return [];
     return [
-      ...(capabilities.canPull && image.alias
+      ...(canRun
+        ? [
+            {
+              id: "run-image",
+              label: t`Run image`,
+              icon: "play" as const,
+              onSelect: () => openEditor({ kind: "run", image }),
+            },
+          ]
+        : []),
+      ...(capabilities?.canPull && image.alias
         ? [{ id: "pull", label: t`Pull again`, icon: "download" as const, onSelect: () => void pullAgain(image) }]
         : []),
-      ...(capabilities.canTag
+      ...(capabilities?.canTag
         ? [
             {
               id: "add",
@@ -111,7 +131,7 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
             },
           ]
         : []),
-      ...(capabilities.canPush
+      ...(capabilities?.canPush
         ? [
             {
               id: "push",
@@ -180,6 +200,7 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
       if (mayPlan && servers.length > 0) void overview.refetch();
     },
     openPull: () => openEditor({ kind: "pull" }),
+    openSearch: canSearch && pullServers.length ? () => openEditor({ kind: "search" }) : undefined,
     sheets: (
       <>
         {archives.sheets}
@@ -190,6 +211,13 @@ export function useImageActions(servers: readonly Pick<Server, "id" | "name">[],
         ) : null}
         {editor?.kind === "push" ? (
           <DockerPushSheet image={editor.image} onReview={openReview} onClose={() => setEditor(undefined)} />
+        ) : editor?.kind === "run" ? (
+          <DockerRunSheet
+            servers={servers.filter(({ id }) => id === editor.image.serverId)}
+            imageId={editor.image.imageId}
+            imageLabel={editor.image.alias}
+            onClose={() => setEditor(undefined)}
+          />
         ) : editor ? (
           <DockerImageActionSheet
             editor={editor}
@@ -239,13 +267,14 @@ function DockerImageActionSheet({
   const request = useRef<AbortController | undefined>(undefined);
   useEffect(() => () => request.current?.abort(), []);
 
-  const pulling = editor.kind === "pull";
+  const searching = editor.kind === "search";
+  const pulling = editor.kind === "pull" || searching;
   const busy = result === "pending";
   const edited = () => {
     setResult(undefined);
     setFailure("");
   };
-  const pull = useDockerPull(servers, pulling, busy, field, edited);
+  const pull = useDockerPull(servers, pulling, busy, field, edited, searching);
   const valid = pulling
     ? pull.valid
     : !!reference.trim() && !/[:/@]$/.test(reference.trim()) && !reference.includes("@");
@@ -258,7 +287,7 @@ function DockerImageActionSheet({
     setFailure("");
     try {
       const response = await review(
-        editor.kind === "pull"
+        !editor.image
           ? pullRequest(pull.serverId, pull.reference, pull.loginId)
           : {
               serverIds: [editor.image.serverId],
@@ -283,12 +312,18 @@ function DockerImageActionSheet({
     }
   };
 
-  const title = pulling ? t`Pull image` : editor.kind === "add" ? t`Add tag` : t`Move tag`;
+  const title = searching
+    ? t`Search registries`
+    : pulling
+      ? t`Pull image`
+      : editor.kind === "add"
+        ? t`Add tag`
+        : t`Move tag`;
   return (
     <Sheet
       open
       title={title}
-      subtitle={editor.kind === "pull" ? undefined : editor.image.alias || editor.image.imageId}
+      subtitle={editor.image ? editor.image.alias || editor.image.imageId : undefined}
       onClose={onClose}
       initialFocusRef={field}
       footer={

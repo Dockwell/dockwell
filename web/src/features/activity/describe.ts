@@ -182,6 +182,11 @@ export function useDescribe(): (event: Event, summaries: ReadonlyMap<string, str
             title: t`${server} started ${resourceName} again on its own`,
             icon: "server",
           };
+        case "server.reconciled_paused":
+          return {
+            title: t`${server} restored the pause on ${resourceName}`,
+            icon: "pause",
+          };
         case "server.reconciled_waiting":
           return {
             // With no resource, it's the whole server's, as when Docker doesn't answer.

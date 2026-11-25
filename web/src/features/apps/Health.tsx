@@ -110,10 +110,10 @@ export function useHealthWords(): HealthWords {
             return said ? asSentence(said) : t`It has no container on this server.`;
           case "finished":
             return t`It ran to its end and exited 0, as a one-shot job does, so nothing restarts it.`;
-          case "paused": {
-            const command = `docker unpause ${server.container}`;
-            return t`Someone paused it, so it serves nothing and no check runs. Unpause it with ${command}.`;
-          }
+          case "paused":
+            return said.startsWith("paused by its revision")
+              ? t`Paused by its revision. Unpause it from the app.`
+              : t`The container is paused. Use Unpause in Docker.`;
           case "unknown": {
             const name = server.serverName;
             if (server.dockerUnreadableSince) {

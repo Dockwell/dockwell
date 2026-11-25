@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	"github.com/dockwell/dockwell/internal/agent/desired"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/resource"
 )
 
@@ -82,6 +84,16 @@ func (r *reconciler) recoverAction(ctx context.Context, e desired.Entry) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, lookTimeout)
 	defer cancel()
+	if e.What == desired.Paused && r.cfg.Docker != nil {
+		c, err := r.cfg.Docker.InspectContainer(ctx, e.Target)
+		switch {
+		case err == nil && c.State.Paused:
+			r.endAction(e, desired.Paused, e.Reason)
+		case err == nil || docker.IsNotFound(err):
+			r.endAction(e, desired.Waiting, "The earlier pause could not be confirmed. The agent checks the workload again")
+		}
+		return
+	}
 	if rv := r.local.Reviver(e.Ref); rv != nil {
 		if st, err := rv.RunState(ctx, e.Ref); err == nil {
 			if !st.Exists && e.What == desired.Started {
@@ -138,4 +150,69 @@ func (r *reconciler) finishAction(ctx context.Context, rv resource.Reviver, ref 
 		r.endAction(e, desired.Waiting, "The agent stopped during this action and another container is there now. Check it from the control plane; the agent leaves it alone")
 	}
 	return false
+}
+
+// restorePauses runs from the shared Docker inventory scan, including while the
+// control plane is connected. An operator has already approved this run state.
+func (r *reconciler) restorePauses(ctx context.Context, ref resource.Ref, ids []string) {
+	if !r.presence.active() {
+		return
+	}
+	mark, ok := r.held.claim(ref)
+	if !ok {
+		return
+	}
+	defer r.held.end(mark)
+	if r.cfg.Journal != nil {
+		if _, pending := r.cfg.Journal.Action(ref); pending {
+			return
+		}
+	}
+	rec, ok, err := r.cfg.Desired.Read(ref)
+	if err != nil || !ok {
+		return
+	}
+	spec, err := r.cfg.Drivers.Decode(ref.Kind, rec.Spec)
+	if err != nil || resource.RunIntent(spec) != resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED {
+		return
+	}
+	look, cancel := context.WithTimeout(ctx, lookTimeout)
+	defer cancel()
+	for _, id := range ids {
+		err := r.cfg.RunControl.WithDesiredRunState(id, func(state resourcev1.DesiredRunState) error {
+			if state != resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED {
+				return nil
+			}
+			c, err := r.cfg.Docker.InspectContainer(look, id)
+			if docker.IsNotFound(err) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if !c.State.Running || c.State.Paused || c.State.Restarting {
+				return nil
+			}
+			const note = "Docker was running a workload its revision had paused. The agent paused it again"
+			entry, ok := r.beginAction(ref, desired.Paused, note, id)
+			if !ok {
+				return nil
+			}
+			if err := r.cfg.Docker.PauseContainer(look, id); err != nil {
+				// The Engine may have paused it before losing its reply. The
+				// next pass checks the existing receipt before trying again.
+				return err
+			}
+			r.endAction(entry, desired.Paused, note)
+			return nil
+		})
+		if err != nil {
+			select {
+			case r.lost <- struct{}{}:
+			default:
+			}
+			r.journal(ref, desired.Waiting, "The agent could not restore the approved pause. It checks again on the next Docker scan")
+			break
+		}
+	}
 }

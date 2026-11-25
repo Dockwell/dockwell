@@ -221,8 +221,9 @@ func inventoryKey(id string) *v1.DockerObjectKey {
 }
 
 func inventorySummary(s *docker.ContainerSummary) *v1.DockerObject {
-	_, system := s.Labels[docker.LabelIngress]
+	_, ingress := s.Labels[docker.LabelIngress]
 	old := serverContainer(s)
+	system := ingress || reservedLifecycleName(old.GetName()) || dockwellRepository(s.Image)
 	body := &v1.DockerContainer{
 		Image: bounded(s.Image, 512), ImageId: bounded(s.ImageID, 128), CreatedAt: old.GetCreateTime(),
 		ComposeProject: composeIdentity(old.GetComposeProject()), ComposeService: composeIdentity(old.GetComposeService()), OneOff: old.GetOneOff(),

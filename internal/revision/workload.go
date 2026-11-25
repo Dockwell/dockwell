@@ -18,10 +18,12 @@ import (
 
 func (e *Engine) workloadNotes(ctx context.Context, items []item, notes []Note) ([]Note, error) {
 	stopped := resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED
+	paused := resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
 	for i := range items {
 		it := &items[i]
 		before, after := resource.RunIntent(it.current), resource.RunIntent(it.spec)
-		if (before == stopped) == (after == stopped) || it.spec == nil || it.current == nil || resource.Workload(it.current) == nil {
+		if it.spec == nil || it.current == nil || resource.Workload(it.current) == nil ||
+			(before == stopped) == (after == stopped) && (before == paused) == (after == paused) {
 			continue
 		}
 		var routes, dependants []string
@@ -54,9 +56,16 @@ func (e *Engine) workloadNotes(ctx context.Context, items []item, notes []Note) 
 		}
 		reason := "workload_starts"
 		message := "Starts this workload on all its placed servers and resumes its health checks. Existing routes can serve it again, and dependent workloads keep running."
-		if after == stopped {
+		switch {
+		case after == stopped:
 			reason = "workload_stops"
 			message = "Stops this workload on all its placed servers and pauses its container health checks. Its routes have no running backend. Dependent workloads stay up and may lose access to it."
+		case after == paused:
+			reason = "workload_pauses"
+			message = "Pauses this workload on all its placed servers. Existing connections may stall and its routes have no running backend."
+		case before == paused:
+			reason = "workload_unpauses"
+			message = "Unpauses this workload on all its placed servers and resumes its health checks. Existing routes can serve it again."
 		}
 		notes = append(notes, Note{Reason: reason, Ref: it.ref, Message: message})
 		if len(routes) > 0 {
@@ -115,6 +124,10 @@ func (e *Engine) SpecWithRunIntent(ctx context.Context, tx *store.Tx, ref resour
 	}
 	if it.base != base || resource.Workload(it.current) == nil {
 		return nil, fault.New(ErrStale, "%s changed. Refresh the workload and plan again", ref.Name)
+	}
+	if intent == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED &&
+		resource.RunIntent(it.current) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
+		return nil, fault.New(ErrInvalid, "%s is stopped. Start it before pausing it", ref.Name)
 	}
 	out := proto.Clone(it.current)
 	resource.Workload(out).DesiredRunState = intent

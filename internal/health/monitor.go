@@ -74,6 +74,8 @@ type Monitor struct {
 	Workers                    int
 	// Probe makes a check. Nil means Run.
 	Probe func(ctx context.Context, c *Check, address string) (Result, error)
+	// ManagedPause says whether the agent has saved a pause for this Engine ID.
+	ManagedPause func(id string) bool
 
 	mu      sync.Mutex
 	watched map[string]*watched // by container ID
@@ -531,6 +533,10 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 	if err != nil {
 		return // the next list says whether it has gone
 	}
+	pause := pausedWords
+	if c.State.Paused && m.ManagedPause != nil && m.ManagedPause(id) {
+		pause = managedPausedWords
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.watched[id] != w {
@@ -561,7 +567,7 @@ func (m *Monitor) read(ctx context.Context, id string, w *watched) {
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_UNHEALTHY)
 	case s.Paused:
 		w.failing = 0
-		m.foundOut(w, pausedWords)
+		m.foundOut(w, pause)
 		m.setState(w, dockwellv1.HealthState_HEALTH_STATE_PAUSED)
 	case !s.Running:
 		w.failing = 0
@@ -613,7 +619,10 @@ func finished(c *docker.Container) bool {
 
 // pausedWords is what a paused container comes to. Docker counts it as running and
 // stops its checks, so what they last said is as it left it, and says nothing.
-const pausedWords = "the container is paused, so it serves nothing and no check runs. Unpause it with docker unpause"
+const (
+	pausedWords        = "the container is paused. Use Unpause in Docker"
+	managedPausedWords = "paused by its revision. Unpause it from the app"
+)
 
 // listed reads what the list says of a container that doesn't run. That stands
 // whether or not a read gets through, which only says more about it. What runs, or

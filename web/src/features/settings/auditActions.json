@@ -129,6 +129,7 @@
   "server.public_address_clear",
   "server.reconciled_dropped",
   "server.reconciled_made",
+  "server.reconciled_paused",
   "server.reconciled_started",
   "server.reconciled_waiting",
   "server.renew",

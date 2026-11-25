@@ -193,13 +193,13 @@ func (d *Docker) matches(ctx context.Context, t Target, c *docker.Container, spe
 		return false, err
 	}
 	Normalize(got)
-	if c.State.Status == neverStarted && spec.GetDesiredRunState() == running {
+	if want := spec.GetDesiredRunState(); c.State.Status == neverStarted && (want == running || want == paused) {
 		record, err := d.runRecord(c.ID)
 		if err != nil {
 			return false, err
 		}
-		if record.State == running {
-			got.DesiredRunState = running
+		if record.State == want {
+			got.DesiredRunState = want
 		}
 	}
 	leaveOutValues(got, spec)
@@ -561,7 +561,7 @@ func (d *Docker) judgeRollout(ctx context.Context, t Target, desired *resourcev1
 		return err
 	}
 	dec.Rollout = p
-	if IsStopped(desired) {
+	if IsStopped(desired) || desired.GetDesiredRunState() == paused {
 		p.Rolling = false
 		dec.Effect, dec.Downtime, dec.UntilHealthy = resource.EffectRecreate, 0, 0
 		return nil
@@ -706,7 +706,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 	}
 	// One that's stuck restarting or paused reads as running, and doesn't serve, and
 	// nothing short of a new one puts that right.
-	if !IsStopped(spec) && keep != nil && stuck(keep) {
+	if !IsStopped(spec) && spec.GetDesiredRunState() != paused && keep != nil && stuck(keep) {
 		others, keep = withNewestFirst(others, keep), nil
 	}
 	// A tag that moved names a new image, and a container of its old one still reads
@@ -721,7 +721,7 @@ func (d *Docker) roll(ctx context.Context, t Target, spec *resourcev1.Container,
 			return err
 		}
 	}
-	if IsStopped(spec) {
+	if IsStopped(spec) || spec.GetDesiredRunState() == paused {
 		return d.stopFirst(ctx, t, spec, dec, keep, others)
 	}
 	plan, err := d.decide(ctx, t, spec, keep, others)
@@ -990,15 +990,21 @@ func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(
 	defer cancel()
 	// What this step made hasn't run, and has nothing to say a mark doesn't.
 	_ = made(nil)
-	leftStopped := false
-	err := d.WithRunIntent(o.ID, func(stopped bool) error {
-		leftStopped = stopped
-		if stopped {
+	var intent resourcev1.DesiredRunState
+	err := d.WithDesiredRunState(o.ID, func(state resourcev1.DesiredRunState) error {
+		intent = state
+		if state == stopped {
 			return nil
 		}
-		return d.bringBack(ctx, t, o, planned)
+		if err := d.bringBack(ctx, t, o, planned); err != nil {
+			return err
+		}
+		if state == paused {
+			return hideIn(d.Client.PauseContainer(ctx, o.ID), valuesInContainer(o.Container))
+		}
+		return nil
 	})
-	if leftStopped {
+	if intent == stopped {
 		return cause
 	}
 	if err != nil {
@@ -1007,6 +1013,9 @@ func (d *Docker) takeBack(ctx context.Context, t Target, o *instance, made func(
 			return fmt.Errorf("%w. The old %s had begun to stop, and can't be started again, so nothing of it may be running: %w", cause, t.Service, err)
 		}
 		return fmt.Errorf("%w. The old %s had begun to stop, and can't be started again, so nothing of it may be running: %w. The next change to it finishes this, or start it with docker start %s", cause, t.Service, err, o.ID[:12])
+	}
+	if intent == paused {
+		return fmt.Errorf("%w. The old %s is paused again", cause, t.Service)
 	}
 	return fmt.Errorf("%w. The old %s is running again", cause, t.Service)
 }
@@ -1174,6 +1183,21 @@ func (d *Docker) stopFirst(ctx context.Context, t Target, spec *resourcev1.Conta
 		}
 	}
 	d.Points.Reach(PointStarted)
+	if spec.GetDesiredRunState() == paused {
+		held, err := d.Client.InspectContainer(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !held.State.Paused {
+			if err := d.Client.PauseContainer(ctx, id); err != nil {
+				return hideIn(err, valuesInContainer(held))
+			}
+		}
+		if d.Ingress != nil && t.Scoped {
+			return d.Ingress.RemoveUpstream(ctx, t.instance(number))
+		}
+		return nil
+	}
 	if d.Ingress != nil && t.Scoped {
 		if err := d.Ingress.AddUpstream(ctx, t.instance(number)); err != nil {
 			return fmt.Errorf("can't send traffic to the new %s: %w", t.Service, err)
@@ -1275,6 +1299,12 @@ func (d *Docker) make(ctx context.Context, t Target, spec *resourcev1.Container,
 		d.discard(ctx, id, name)
 		undo()
 		return err
+	}
+	if pin := spec.GetImage(); docker.IsImageID(pin) {
+		observed, err := d.Client.InspectContainer(ctx, id)
+		if err != nil || observed.Image != pin {
+			return "", nil, discard(fmt.Errorf("Docker did not create the container with local image %s. Load it before deploying", pin))
+		}
 	}
 	if want := spec.GetDesiredRunState(); want != 0 {
 		record := runRecord{State: want, Policy: spec.GetRestart(), Retries: spec.GetRestartRetries()}

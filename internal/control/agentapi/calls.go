@@ -530,7 +530,7 @@ type sessionPeer struct {
 // the stream; Session.close ends the session when the stream does.
 func (a *Agents) open(server, name string, hello *agentv1.Hello, send func(*agentv1.ConnectResponse) error, peers ...sessionPeer) *Session {
 	s := &Session{
-		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
+		agents: a, guardsWaysIn: hello.GetGuardsWaysIn(), readsUpdates: hello.GetUpdates(), managesFiles: hello.GetManagesFiles(), transfersFiles: hello.GetTransfersFiles(), archivesFiles: hello.GetArchivesFiles(), managesSSH: hello.GetManagesSsh(), managesFirewall: hello.GetManagesFirewall(), guardsDockerUDP: hello.GetGuardsDockerUdp(), readsTerminalCwd: hello.GetReadsTerminalCwd(), externalContainerControls: hello.GetExternalContainerControls(), managedContainerPause: hello.GetManagedContainerPause(), pagesListings: hello.GetPagesListings(), firstPasswords: hello.GetFirstPasswords(), forwards: hello.GetForwards(), drills: hello.GetDrills(), readsOnePanel: hello.GetReadsOnepanel(), terminals: hello.GetTerminals(), containerTerminals: hello.GetContainerTerminals(), openTerminals: slices.Clone(hello.GetOpenTerminals()), opened: time.Now(), server: server, name: name, version: hello.GetBuild().GetVersion(), send: send, deliveryKey: slices.Clone(hello.GetDeliveryKey()), writesReferences: hello.GetWritesReferences(), makesFolders: hello.GetMakesFolders(), keepsRoutesPrivate: hello.GetKeepsRoutesPrivate(),
 		ownSettings: hello.GetOwnSettings(), writesFiles: hello.GetWritesFiles(), ownsVolumes: hello.GetOwnsVolumes(), followsPace: hello.GetFollowsPace(), bootID: hello.GetBootId(), actsOnUnits: hello.GetActsOnUnits(), upgradesItself: hello.GetUpgradesItself(), probesConnections: hello.GetProbesConnections(), readsTunnels: hello.GetReadsTunnels(), makesAppOwners: hello.GetMakesAppOwners(), readsAppPorts: hello.GetReadsAppPorts(), readsSockets: hello.GetReadsSockets(), dockerCapabilities: hello.GetDockerCapabilities(), signsIn: hello.GetSignsIn(), registryLogins: hello.GetRegistryLogins(), handsBuildLogins: hello.GetBuildLogins(), handsGitAuth: hello.GetBuildGitAuth(), links: hello.GetLinks(), oneDatabaseBackups: hello.GetOneDatabaseBackups(),
 		loadsCertificates: hello.GetLoadsCertificates(), readsPanels: hello.GetReadsPanels(), stopsPanels: hello.GetStopsPanels(), remakesSwarmApps: hello.GetRemakesSwarmApps(), runsHostAccess: hello.GetRunsHostAccess(), servesRedirects: hello.GetServesRedirects(), checksPanelDomains: hello.GetChecksPanelDomains(), readsTakenReferences: hello.GetReadsTakenReferences(), volumeMoves: hello.GetVolumeMoves(),
 		pending: map[uint64]chan *agentv1.CallResult{}, progress: map[uint64]func(resource.Activity){}, outcomes: map[uint64]func(resource.Outcome){}, done: make(chan struct{}),
@@ -717,8 +717,10 @@ type Session struct {
 	// readsAppPorts says the agent reads a service's ports and asks each (#791).
 	readsAppPorts bool
 	// readsSockets says the agent lists live sockets and reads process details.
-	readsSockets       bool
-	dockerCapabilities *agentv1.DockerCapabilities
+	readsSockets              bool
+	dockerCapabilities        *agentv1.DockerCapabilities
+	externalContainerControls bool
+	managedContainerPause     bool
 	// registryLogins says the agent signs in to registries with the logins it's
 	// sent (ADR 0086).
 	registryLogins bool
@@ -1528,6 +1530,12 @@ func (s *Session) Plan(ctx context.Context, desired []resource.Desired) ([]resou
 	if workload || logging || maintenance || len(logins) > 0 {
 		seal = func(on *Session) error {
 			for i := range desired {
+				if desired[i].NeedsPauseControl && !on.managedContainerPause {
+					return on.managedPauseError()
+				}
+				if err := on.checkWorkloadControls(desired[i].Spec, desired[i].ExactRestart); err != nil {
+					return err
+				}
 				if err := on.checkDockerMaintenanceSupport(desired[i].DockerMaintenance); err != nil {
 					return err
 				}
@@ -1642,6 +1650,12 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	if logging && !s.DockerContainerLogging() {
 		return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
 	}
+	pause := step.NeedsPauseControl || isPausedWorkload(desired) || slices.ContainsFunc(step.Changes, func(c resource.Change) bool {
+		return strings.TrimPrefix(c.Path, "app.") == "desired_run_state" && (c.From == "paused" || c.To == "paused")
+	})
+	if pause && !s.managedContainerPause {
+		return s.managedPauseError()
+	}
 	workload := step.NeedsRunControl || step.ChangesRunIntent() || step.ExactRestart != "" || resource.RunIntent(desired) != 0
 	if workload && !s.DockerWorkloadControls() {
 		return s.workloadControlsError()
@@ -1735,6 +1749,9 @@ func (s *Session) Apply(ctx context.Context, step resource.Step, desired proto.M
 	var seal func(*Session) error
 	if workload || logging || uses || login.Registry != "" || len(builds) > 0 || gitAuth != "" {
 		seal = func(on *Session) error {
+			if pause && !on.managedContainerPause {
+				return on.managedPauseError()
+			}
 			if logging && !on.DockerContainerLogging() {
 				return fault.New(ErrOlderAgent, "update the agent before applying workload logging settings")
 			}
@@ -2085,6 +2102,9 @@ func (s *Session) checkRedirect(spec proto.Message) error {
 func (s *Session) checkAllWrites(desired []resource.Desired) error {
 	for di := range desired {
 		d := &desired[di]
+		if d.NeedsPauseControl && !s.managedContainerPause {
+			return s.managedPauseError()
+		}
 		if d.NeedsRunControl && !s.DockerWorkloadControls() {
 			return s.workloadControlsError()
 		}
@@ -2768,10 +2788,21 @@ func (s *Session) Forgotten(ctx context.Context, services []*agentv1.ForgottenSe
 
 // Old agents must never discard stop intent or perform a whole-workload restart.
 func (s *Session) checkWorkloadControls(spec proto.Message, exactRestart string) error {
+	if isPausedWorkload(spec) && !s.managedContainerPause {
+		return s.managedPauseError()
+	}
 	if s.dockerCapabilities.GetWorkloadControls() || resource.RunIntent(spec) == 0 && exactRestart == "" {
 		return nil
 	}
 	return s.workloadControlsError()
+}
+
+func isPausedWorkload(spec proto.Message) bool {
+	return resource.RunIntent(spec) == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED
+}
+
+func (s *Session) managedPauseError() error {
+	return fmt.Errorf("%w: update the agent on %s to pause or unpause a managed workload", resource.ErrAgentTooOld, s.name)
 }
 
 func (s *Session) workloadControlsError() error {

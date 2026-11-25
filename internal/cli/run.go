@@ -469,7 +469,7 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 	go archive.KeepPruned(ctx)
 	go routes.KeepReconciled(ctx, ingressEvery)
 	go routes.Watch(ctx)
-	monitor := &health.Monitor{Client: client, Logger: logger}
+	monitor := &health.Monitor{Client: client, Logger: logger, ManagedPause: runtime.HasSavedPause}
 	go monitor.Run(ctx)
 	// Each sample carries what running containers use, read from their cgroups (#797):
 	// Dockwell's health monitor lists managed services, and DiscoverDockerCgroups adds
@@ -579,8 +579,8 @@ func agentDrivers(ctx context.Context, stdio IO, logger *slog.Logger, dir datadi
 		Updates:        packages,
 		UpgradesItself: true,
 		Collector:      collector, Domains: routes, Public: routes, Certificates: routes, Logs: &logs.Reader{Client: client, Archive: archive, Logger: logger, Journal: units}, Docker: client, Probes: probes, Tunnels: tunnelFinder(stdio, logger), Health: monitor,
-		PruneRunState: runtime.PruneRunState,
-		Backups:       backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
+		RunControl: runtime,
+		Backups:    backup.Calls{Runner: backups}, Databases: database.Reader{Client: client}, Builds: builder, Tasks: tasks, Tools: tools, Access: firewalls,
 		Jails: jailed.Stored, Fail2banProtected: jailed.Control, SSHSessions: sessions, DockerIngressImage: proxy.Reference(), DockerVolumeKept: kept.Has,
 		System: units,
 	}

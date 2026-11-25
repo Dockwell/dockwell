@@ -463,6 +463,15 @@ function CleanupLabel({
           <code title={fullName}>{name}</code>
           <CopyButton text={fullName} label={t`Copy volume name`} />
         </span>
+      ) : target.kind === DockerCleanupKind.CONTAINER && target.reason === DockerCleanupReason.TAKE_ON ? (
+        <Link
+          className="dw-link"
+          to="/servers/$serverId/docker/containers/$containerId"
+          params={{ serverId: target.serverId, containerId: target.engineId }}
+          search={{ name }}
+        >
+          <code>{name}</code>
+        </Link>
       ) : (
         <code title={fullName !== name ? fullName : undefined}>{name}</code>
       )}

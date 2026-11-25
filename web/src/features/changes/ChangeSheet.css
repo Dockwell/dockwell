@@ -1063,6 +1063,12 @@ code.plan-server-chip .middle-name-head {
   overflow-wrap: anywhere;
 }
 
+.plan-docker-target {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+}
+
 .plan-image-evidence dt {
   color: var(--ink-muted);
   font-size: var(--type-caption-size);

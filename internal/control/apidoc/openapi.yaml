@@ -15892,6 +15892,7 @@ components:
                         - DESIRED_RUN_STATE_UNSPECIFIED
                         - DESIRED_RUN_STATE_RUNNING
                         - DESIRED_RUN_STATE_STOPPED
+                        - DESIRED_RUN_STATE_PAUSED
                     type: string
                     description: The workload's durable run intent. Unspecified preserves legacy behavior.
                     format: enum
@@ -17731,6 +17732,58 @@ components:
             description: |-
                 DockerContainer is a projection of Engine facts. It omits environment,
                  commands, raw labels, health check output and arbitrary driver options.
+        DockerContainerLifecycle:
+            type: object
+            properties:
+                action:
+                    enum:
+                        - DOCKER_CONTAINER_ACTION_UNSPECIFIED
+                        - DOCKER_CONTAINER_ACTION_START
+                        - DOCKER_CONTAINER_ACTION_STOP
+                        - DOCKER_CONTAINER_ACTION_RESTART
+                        - DOCKER_CONTAINER_ACTION_PAUSE
+                        - DOCKER_CONTAINER_ACTION_UNPAUSE
+                        - DOCKER_CONTAINER_ACTION_KILL
+                        - DOCKER_CONTAINER_ACTION_REMOVE
+                        - DOCKER_CONTAINER_ACTION_RENAME
+                    type: string
+                    format: enum
+                signal:
+                    type: string
+                timeoutSeconds:
+                    type: integer
+                    format: uint32
+                removeAnonymousVolumes:
+                    type: boolean
+                targets:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerContainerTarget'
+            description: DockerContainerLifecycle freezes the options and exact targets of a revisionless change.
+        DockerContainerTarget:
+            type: object
+            properties:
+                engineId:
+                    type: string
+                name:
+                    type: string
+                composeProject:
+                    type: string
+                composeService:
+                    type: string
+                state:
+                    type: string
+                evidence:
+                    type: string
+                hostAccess:
+                    type: boolean
+                newName:
+                    type: string
+                anonymousVolumes:
+                    type: array
+                    items:
+                        type: string
+            description: DockerContainerTarget records the container and observed state reviewed on one Engine.
         DockerDaemon:
             type: object
             properties:
@@ -18222,6 +18275,36 @@ components:
                 moveExisting:
                     type: boolean
             description: DockerImageTag assigns one alias to an immutable local image.
+        DockerLifecycleSelection:
+            type: object
+            properties:
+                keys:
+                    type: array
+                    items:
+                        $ref: '#/components/schemas/DockerObjectKey'
+                action:
+                    enum:
+                        - DOCKER_CONTAINER_ACTION_UNSPECIFIED
+                        - DOCKER_CONTAINER_ACTION_START
+                        - DOCKER_CONTAINER_ACTION_STOP
+                        - DOCKER_CONTAINER_ACTION_RESTART
+                        - DOCKER_CONTAINER_ACTION_PAUSE
+                        - DOCKER_CONTAINER_ACTION_UNPAUSE
+                        - DOCKER_CONTAINER_ACTION_KILL
+                        - DOCKER_CONTAINER_ACTION_REMOVE
+                        - DOCKER_CONTAINER_ACTION_RENAME
+                    type: string
+                    format: enum
+                signal:
+                    type: string
+                timeoutSeconds:
+                    type: integer
+                    format: uint32
+                removeAnonymousVolumes:
+                    type: boolean
+                newName:
+                    type: string
+            description: DockerLifecycleSelection selects existing containers or external Compose projects.
         DockerMaintenance:
             type: object
             properties:
@@ -18236,7 +18319,9 @@ components:
                     description: The reviewed pause to clear. Empty when this plan removes artifacts.
                 imageAction:
                     $ref: '#/components/schemas/DockerImageAction'
-            description: DockerMaintenance is the exact scope of an irreversible local cleanup.
+                lifecycle:
+                    $ref: '#/components/schemas/DockerContainerLifecycle'
+            description: DockerMaintenance is the exact scope of a reviewed local Docker action.
         DockerNetwork:
             type: object
             properties:
@@ -18439,6 +18524,7 @@ components:
                         - DOCKER_RECEIPT_STATE_CHANGED
                         - DOCKER_RECEIPT_STATE_FAILED
                         - DOCKER_RECEIPT_STATE_UNKNOWN
+                        - DOCKER_RECEIPT_STATE_APPLIED
                     type: string
                     format: enum
                 beforeBytes:
@@ -18463,6 +18549,8 @@ components:
                         - DOCKER_RECEIPT_REASON_PROTECTED
                     type: string
                     format: enum
+                containerTarget:
+                    $ref: '#/components/schemas/DockerContainerTarget'
             description: DockerReceipt reports one approved target's outcome.
         DockerRegistryDescriptor:
             type: object
@@ -19288,7 +19376,7 @@ components:
                 mustCreate:
                     type: boolean
                     description: |-
-                        Require a new resource name for a firewall rule, network or volume.
+                        Require a new resource name for an app, firewall rule, network or volume.
                          A network or volume also needs an unoccupied Docker Engine name.
             description: Edit sets one resource's desired spec, or deletes it.
         EditServerSshKeyRequest:
@@ -27071,6 +27159,8 @@ components:
                     $ref: '#/components/schemas/DockerImageExport'
                 pull:
                     $ref: '#/components/schemas/DockerImagePull'
+                lifecycle:
+                    $ref: '#/components/schemas/DockerLifecycleSelection'
             description: PlanDockerMaintenanceRequest names exact reviewed targets or the pause to clear.
         PlanDockerMaintenanceResponse:
             type: object

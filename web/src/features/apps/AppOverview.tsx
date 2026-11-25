@@ -255,9 +255,7 @@ function HealthNotice({
     case "paused":
       return (
         <Callout tone="warning" title={fleet ? t`${name} is paused on ${where}` : t`${name} is paused`}>
-          <Trans>
-            It serves nothing until someone unpauses it, and restarting or deploying it also puts that right.
-          </Trans>
+          <Trans>It serves no traffic while paused.</Trans>
         </Callout>
       );
     case "unknown": {

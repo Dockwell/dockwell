@@ -36,6 +36,7 @@ import (
 	"github.com/dockwell/dockwell/internal/control/paging"
 	"github.com/dockwell/dockwell/internal/control/place"
 	"github.com/dockwell/dockwell/internal/control/settings"
+	"github.com/dockwell/dockwell/internal/docker"
 	"github.com/dockwell/dockwell/internal/fault"
 	"github.com/dockwell/dockwell/internal/human"
 	"github.com/dockwell/dockwell/internal/id"
@@ -180,8 +181,8 @@ func (h *Handler) ProposeChange(ctx context.Context, req *connect.Request[dockwe
 					return nil, authapi.Invalid(errors.New("create-only needs a new firewall rule scoped to its server"))
 				}
 			case e.GetDelete() || e.GetBaseRevision() != 0 || len(e.GetServers()) != 1 ||
-				(spec.GetNetwork() == nil && spec.GetVolume() == nil):
-				return nil, authapi.Invalid(errors.New("create-only needs a new network or volume and one server"))
+				(spec.GetNetwork() == nil && spec.GetVolume() == nil && spec.GetService().GetApp() == nil):
+				return nil, authapi.Invalid(errors.New("create-only needs a new app, network or volume and one server"))
 			}
 		}
 		if how, ok := ownMethods[e.GetResource().GetKind()]; ok {
@@ -306,7 +307,8 @@ func (h *Handler) proposeAlso(ctx context.Context, who revision.By, summary stri
 			edits[i].Base = also.Base
 		}
 		edits[i].Pull, edits[i].Run = also.Pull, also.Run
-		edits[i].MustCreate = also.MustCreate[edits[i].Ref] || (edits[i].Ref.Kind == firewall.Kind && edits[i].MustCreate)
+		ref := edits[i].Ref
+		edits[i].MustCreate = also.MustCreate[ref] || edits[i].MustCreate && (ref.Kind == firewall.Kind || ref.Kind == service.Kind)
 		if edits[i].Ref.Kind == compose.TemplateKind && edits[i].Base == 0 {
 			if edits[i].Spec == nil {
 				return nil, authapi.Invalid(errors.New("name the current revision to delete a Compose template"))
@@ -469,8 +471,8 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 	if pushPermission && (p.Token != nil || p.Session.ID == "") {
 		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in to change a registry login's push permission"), authapi.ReasonNeedsSession)
 	}
-	if r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && (p.Token != nil || p.Session.ID == "") {
-		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in with an install admin account to apply this image action"), authapi.ReasonNeedsSession)
+	if r.State == store.ChangePlanned && (r.Plan.HasDockerImageAction() || r.Plan.HasDockerLifecycle()) && (p.Token != nil || p.Session.ID == "") {
+		return nil, authapi.ReasonError(connect.CodePermissionDenied, errors.New("sign in with an install admin account to apply this Docker action"), authapi.ReasonNeedsSession)
 	}
 	// What the caller's role refuses is said first, before anything is asked of
 	// them; applying checks it again (ADR 0048, check 2).
@@ -501,9 +503,9 @@ func (h *Handler) ApplyChange(ctx context.Context, req *connect.Request[dockwell
 			"plan_changed")
 	case pushPermission && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition, errors.New("review the registry permission change, then apply it with its plan fingerprint"), "needs_confirmation")
-	case r.State == store.ChangePlanned && r.Plan.HasDockerImageAction() && fp == "":
+	case r.State == store.ChangePlanned && (r.Plan.HasDockerImageAction() || r.Plan.HasDockerLifecycle()) && fp == "":
 		return nil, authapi.ReasonError(connect.CodeFailedPrecondition,
-			errors.New("review the image action, then apply it with its plan fingerprint"), "needs_confirmation")
+			errors.New("review the Docker action, then apply it with its plan fingerprint"), "needs_confirmation")
 	case r.State == store.ChangePlanned && r.Plan.Destructive() && p.Token != nil:
 		return nil, authapi.ReasonError(connect.CodePermissionDenied,
 			fmt.Errorf("%s destroys data, may cut off access to a server, or lets two containers write to one place, so no API token may apply it. %s", r.ID, signIn),
@@ -1216,7 +1218,7 @@ func (h *Handler) edits(ctx context.Context, in []*dockwellv1.Edit) ([]revision.
 				Ref: ref, Spec: spec, Servers: servers, Base: int(e.GetBaseRevision()), KeepEnv: e.GetKeepEnv(),
 				EnvToSecrets: e.GetEnvToSecrets(), WithContents: e.GetWithContents(),
 				KeepSharedIn: e.GetKeepSharedIn(), DeleteShared: e.GetDeleteShared(),
-				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate() && ref.Kind != firewall.Kind,
+				MustCreate: e.GetMustCreate(), DockerStorageCreate: e.GetMustCreate() && (ref.Kind == "network" || ref.Kind == "volume"),
 			})
 		}
 		return nil
@@ -1251,7 +1253,7 @@ func runIntentOnly(spec proto.Message) resourcev1.DesiredRunState {
 // folder. A copy is changed, never the request.
 func withNewAppDefaults(ctx context.Context, tx *store.Tx, ref resource.Ref, spec proto.Message) (proto.Message, error) {
 	svc, ok := spec.(*resourcev1.Service)
-	if !ok || svc.GetAutoUpdate() != nil || svc.GetBuild() != nil || svc.GetRuntime() != nil {
+	if !ok || svc.GetAutoUpdate() != nil || svc.GetBuild() != nil || svc.GetRuntime() != nil || docker.IsImageID(svc.GetApp().GetImage()) {
 		return spec, nil
 	}
 	switch r, err := tx.GetResource(ctx, string(ref.Kind), ref.Scope, ref.Name); {

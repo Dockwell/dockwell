@@ -206,9 +206,12 @@ func (r *Runner) Preview(ctx context.Context, ref resource.Ref) (Preview, error)
 	}
 	p := Preview{Method: resource.BackupCopy}
 	if db := users.database(); db != nil && db.running {
+		if db.paused || r.hasSavedPause(db.id) {
+			return Preview{}, db.pausedDump()
+		}
 		p.Method, p.Database = resource.BackupDump, db.kind.name
 	}
-	running := users.running()
+	running := users.writing()
 	p.Running = namesOf(running)
 	if len(running) > 0 && p.Method == resource.BackupCopy {
 		p.Method = resource.BackupCopyRunning
@@ -291,6 +294,9 @@ func (r *Runner) Take(ctx context.Context, take Take) (*Manifest, error) {
 	if take.from != nil {
 		db = take.from
 	}
+	if db != nil && (db.paused || r.hasSavedPause(db.id)) {
+		return nil, db.pausedDump()
+	}
 	if one := take.Database; one != "" {
 		// One database alone is a dump of it, from its server running now.
 		switch {
@@ -357,23 +363,42 @@ func (r *Runner) copyVolume(ctx context.Context, take Take, t volume.Target, use
 	if db := users.database(); db != nil {
 		m.Image = db.image
 	}
-	running := users.running()
+	running := users.writing()
 	m.Method = resource.BackupCopy
-	stopped := len(running) > 0 && take.Stop
 	if len(running) > 0 && !take.Stop {
 		m.Method = resource.BackupCopyRunning
 	}
+	var stopped []*user
 	startAgain := func() error {
-		if !stopped {
+		if len(stopped) == 0 {
 			return nil
 		}
-		stopped = false
-		return r.startAgain(ctx, take.ID, running)
+		toStart := stopped
+		stopped = nil
+		return r.startAgain(ctx, take.ID, toStart)
 	}
 	defer func() { err = errors.Join(err, startAgain()) }()
-	if stopped {
-		if err := r.stop(ctx, take.ID, running, false); err != nil {
-			return err
+	if take.Stop {
+		for _, c := range running {
+			if err := r.withRunState(c.id, func(state resourcev1.DesiredRunState) error {
+				actual, err := r.Client.InspectContainer(ctx, c.id)
+				if docker.IsNotFound(err) {
+					return nil
+				}
+				if err != nil {
+					return err
+				}
+				if !actual.State.Running || actual.State.Paused {
+					return nil
+				}
+				if state == resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED {
+					return fmt.Errorf("%s is running while its revision says paused. Back up again once its pause is restored", c.name)
+				}
+				stopped = append(stopped, c)
+				return r.stop(ctx, take.ID, []*user{c}, false)
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	return r.write(take.Ref, m, func(w io.Writer) (int64, error) {
@@ -666,23 +691,36 @@ func (r *Runner) startContainer(ctx context.Context, id string) error {
 	return r.Client.StartContainer(ctx, id)
 }
 
-func (r *Runner) withRunIntent(id string, action func(stopped bool) error) error {
+func (r *Runner) withRunState(id string, action func(resourcev1.DesiredRunState) error) error {
 	if r.RunControl == nil {
-		return action(false)
+		return action(resourcev1.DesiredRunState_DESIRED_RUN_STATE_UNSPECIFIED)
 	}
-	return r.RunControl.WithRunIntent(id, action)
+	return r.RunControl.WithDesiredRunState(id, action)
 }
 
 // start starts containers, and forgets them once all of them are.
 func (r *Runner) start(ctx context.Context, run string, containers []*user) error {
 	var down downList
 	for _, c := range containers {
-		err := r.withRunIntent(c.id, func(stopped bool) error {
-			if stopped {
+		err := r.withRunState(c.id, func(state resourcev1.DesiredRunState) error {
+			switch state {
+			case resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED:
 				return nil
+			case resourcev1.DesiredRunState_DESIRED_RUN_STATE_PAUSED:
+				actual, err := r.Client.InspectContainer(ctx, c.id)
+				if err != nil || actual.State.Paused {
+					return err
+				}
+				if !actual.State.Running {
+					if err := r.startContainer(ctx, c.id); err != nil {
+						return err
+					}
+				}
+				return r.Client.PauseContainer(ctx, c.id)
+			default:
+				resource.Progress(ctx, "Starting "+c.name)
+				return r.startContainer(ctx, c.id)
 			}
-			resource.Progress(ctx, "Starting "+c.name)
-			return r.startContainer(ctx, c.id)
 		})
 		if err != nil && !docker.IsNotFound(err) {
 			down = append(down, stayedDown{user: c, err: err})

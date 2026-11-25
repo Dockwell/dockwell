@@ -353,7 +353,7 @@ export function AppsPage({
   const may = useMay();
   const deleteApps = useDeleteApps();
   const mayUpdate = useMayUpdate();
-  const { changeRun, changeRunMany, restart: restartApp } = useWorkloadControls();
+  const { changeRun, changePause, changeRunMany, restart: restartApp } = useWorkloadControls();
   const [updatingApp, setUpdatingApp] = useState<ServiceInfo>();
   const selection = useRowSelection(
     rows.flatMap(({ service }) => (service ? [service.id] : [])),
@@ -385,6 +385,7 @@ export function AppsPage({
   const actionsFor = (service: ServiceInfo): MenuAction[] => {
     const where = { environment: environmentOf(service) };
     const stopped = isStoppedApp(service);
+    const paused = appOf(service)?.desiredRunState === DesiredRunState.PAUSED;
     const settled = settledApp(service);
     const visit = visitFor(service);
     const offer = counts(service.update, updatesNow) ? offered(service.update) : undefined;
@@ -418,7 +419,18 @@ export function AppsPage({
                 },
           ]
         : []),
-      ...(settled && !stopped
+      ...(settled && !stopped && service.resource
+        ? [
+            {
+              id: paused ? "unpause" : "pause",
+              icon: paused ? ("play" as const) : ("pause" as const),
+              label: paused ? t`Unpause` : t`Pause`,
+              ...may(ChangeService.method.proposeChange, where).off,
+              onSelect: () => service.resource && changePause(service.resource, service.revision, !paused),
+            },
+          ]
+        : []),
+      ...(settled && !stopped && !paused
         ? [
             {
               id: "restart",

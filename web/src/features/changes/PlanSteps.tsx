@@ -4,8 +4,10 @@ import { timestampMs } from "@bufbuild/protobuf/wkt";
 import {
   type BackupFirst,
   BackupMethod,
+  DockerContainerAction,
   DockerDaemonAction,
   DockerImageOutcome,
+  DockerReceiptState,
   HostAccessKind,
   type HostAgentUpgrade,
   type Intent,
@@ -25,6 +27,7 @@ import { Fragment } from "react";
 import { useTimeWords } from "../../lib/time";
 import { splitVersion } from "../../lib/versions";
 import { DockerCleanupReceipts } from "../docker/DockerCleanupReceipts";
+import { useLifecycleVerbs } from "../docker/DockerLifecycle";
 import { useControlPlaneNow } from "../servers/useFleet";
 import { DockerArchiveStep } from "./DockerArchiveStep";
 import { DockerBuildStep } from "./DockerBuildStep";
@@ -427,6 +430,9 @@ function StepRow({
       </li>
     );
   }
+  if (step.dockerMaintenance?.lifecycle) {
+    return <DockerLifecycleStep action={step.dockerMaintenance.lifecycle} server={server} live={live} />;
+  }
   if (step.dockerMaintenance) {
     const status = live ? words.step(live.state) : undefined;
     return (
@@ -754,4 +760,94 @@ function Counting({ start }: { start: number }) {
 function Took({ ms }: { ms: number }) {
   const time = useTimeWords();
   return <span className="plan-step-time">{time.bound(Math.max(ms, 0))}</span>;
+}
+
+function DockerLifecycleStep({
+  action,
+  server,
+  live,
+}: {
+  action: NonNullable<NonNullable<PlanStep["dockerMaintenance"]>["lifecycle"]>;
+  server: string;
+  live: StepProgress | undefined;
+}) {
+  const { t } = useLingui();
+  const words = useChangeWords();
+  const verb = useLifecycleVerbs().find((item) => item.action === action.action)?.label ?? t`Act on containers`;
+  const status = live ? words.step(live.state) : undefined;
+  const receipts = new Map(live?.dockerReceipts.map((receipt) => [receipt.containerTarget?.engineId, receipt.state]));
+  const states: Partial<Record<DockerReceiptState, string>> = {
+    [DockerReceiptState.APPLIED]: t`Applied`,
+    [DockerReceiptState.CHANGED]: t`Changed since review`,
+    [DockerReceiptState.FAILED]: t`Refused`,
+    [DockerReceiptState.UNKNOWN]: t`Result unknown`,
+  };
+  return (
+    <li className="plan-step">
+      <span className="plan-step-what">
+        {status ? <StatusBadge label={status.word} status={status.status} /> : null}
+        <span className="plan-step-line">
+          <Trans>
+            {verb} on <code>{server}</code>
+          </Trans>
+        </span>
+      </span>
+      {action.action === DockerContainerAction.KILL ? (
+        action.signal ? (
+          <span>
+            <Trans>
+              Send <code>{action.signal}</code>
+            </Trans>
+          </span>
+        ) : (
+          <span>
+            <Trans>Send SIGTERM, then SIGKILL after {action.timeoutSeconds || 10} s</Trans>
+          </span>
+        )
+      ) : null}
+      {action.action === DockerContainerAction.REMOVE ? (
+        <span>
+          {action.removeAnonymousVolumes ? (
+            <Trans>Also remove the listed anonymous volumes</Trans>
+          ) : (
+            <Trans>Keep all volumes</Trans>
+          )}
+        </span>
+      ) : null}
+      <dl className="plan-image-evidence">
+        {action.targets.map((target) => {
+          const result = receipts.get(target.engineId);
+          return (
+            <div key={target.engineId}>
+              <dt>
+                <code>{target.name}</code>
+              </dt>
+              <dd className="plan-docker-target">
+                <code title={target.engineId}>{target.engineId.slice(0, 12)}</code>
+                {target.composeProject ? <code>{target.composeProject}</code> : null}
+                {target.newName ? (
+                  <span>
+                    <Trans>
+                      New name <code>{target.newName}</code>
+                    </Trans>
+                  </span>
+                ) : null}
+                {target.hostAccess ? (
+                  <Tag icon="lock">
+                    <Trans>Host access</Trans>
+                  </Tag>
+                ) : null}
+                {target.anonymousVolumes.map((volume) => (
+                  <code key={volume} title={volume}>
+                    {volume.slice(0, 12)}
+                  </code>
+                ))}
+                {result ? <span>{states[result]}</span> : null}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </li>
+  );
 }

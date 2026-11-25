@@ -45,6 +45,7 @@ type diskUse struct {
 	docker               *docker.Client
 	collector            *collect.Collector
 	cleanupMu            sync.Mutex
+	lifecycleMu          sync.Mutex      // serializes lifecycle receipt replays across connections
 	imagePulls           map[string]int  // exact image IDs in staging, guarded by cleanupMu
 	failedCleanupChanges map[string]bool // changes whose cleanup journal write failed, guarded by cleanupMu
 	// logs reads Docker's data directory, for its containers' logs. Nil reads the

@@ -30,6 +30,7 @@ import { useChangeSheet } from "../changes/ChangeSheet";
 import { LogsSearchButton } from "../logs/phoneSearch";
 import { Reconnecting } from "../servers/FleetNotes";
 import { useAgoNow, useFleetView } from "../servers/useFleet";
+import { ActionMenu } from "../shell/ActionMenu";
 import { usePageCommands } from "../shell/CommandMenu";
 import { EmptyState } from "../shell/EmptyState";
 import { Page } from "../shell/Page";
@@ -265,12 +266,19 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
   const changeable = state.kind !== "unreadable";
   // Nothing restarts while it is moving, or where it has no server to do it on.
   const isStopped = appOf(service)?.desiredRunState === DesiredRunState.STOPPED;
-  const restartable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
+  const controllable = !moving && state.kind !== "unplaced" && changeable && !isStopped;
+  const pausable = controllable && !!appOf(service) && !!service.resource;
+  const isPaused = appOf(service)?.desiredRunState === DesiredRunState.PAUSED;
+  const restartable = controllable && !isPaused;
   const startable = !moving && state.kind !== "unplaced" && changeable && isStopped;
-  const { changeRun, restart: restartWorkload } = useWorkloadControls();
+  const { changeRun, changePause, restart: restartWorkload } = useWorkloadControls();
   const start = () => {
     if (service.resource) changeRun(service.resource, service.revision, true);
   };
+  const pause = () => {
+    if (service.resource) changePause(service.resource, service.revision, !isPaused);
+  };
+  const pauseLabel = isPaused ? t`Unpause workload` : t`Pause workload`;
   const stop = () => {
     if (service.resource) changeRun(service.resource, service.revision, false);
   };
@@ -328,8 +336,19 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           },
         ]
       : []),
-    ...(restartable && service.resource && mayStart.allowed
+    ...(controllable && service.resource && mayStart.allowed
       ? [{ id: "stop", icon: "stop" as const, label: t`Stop ${name}`, hint: t`Opens a plan`, run: stop }]
+      : []),
+    ...(pausable && mayStart.allowed
+      ? [
+          {
+            id: "pause",
+            icon: isPaused ? ("play" as const) : ("pause" as const),
+            label: isPaused ? t`Unpause ${name}` : t`Pause ${name}`,
+            hint: t`Opens a plan`,
+            run: pause,
+          },
+        ]
       : []),
     ...(restartable && mayRestart.allowed
       ? [{ id: "restart", icon: "refresh" as const, label: t`Restart ${name}`, hint: t`Opens a plan`, run: restart }]
@@ -467,9 +486,14 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
               <Trans context="open an app at its domain">Open</Trans>
             </ButtonLink>
           ) : null}
-          {restartable && service.resource ? (
+          {controllable && service.resource ? (
             <Button icon="stop" onClick={stop} {...mayStart.off}>
               <Trans>Stop</Trans>
+            </Button>
+          ) : null}
+          {pausable ? (
+            <Button icon={isPaused ? "play" : "pause"} onClick={pause} {...mayStart.off}>
+              {pauseLabel}
             </Button>
           ) : null}
           {restartable ? (
@@ -500,6 +524,22 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
             </Button>
           ) : null}
         </>
+      }
+      phoneAction={
+        pausable ? (
+          <ActionMenu
+            label={t`Actions for ${name}`}
+            actions={[
+              {
+                id: "pause",
+                icon: isPaused ? "play" : "pause",
+                label: pauseLabel,
+                ...mayStart.off,
+                onSelect: pause,
+              },
+            ]}
+          />
+        ) : undefined
       }
       {...(phone && onLogs
         ? {
@@ -532,7 +572,7 @@ function AppFrame({ reconnecting, children }: { reconnecting: boolean; children:
           <RouterButtonLink to="/apps/$serviceId/logs" params={{ serviceId }} icon="terminal" size="lg">
             <Trans>Logs</Trans>
           </RouterButtonLink>
-          {restartable && service.resource ? (
+          {controllable && service.resource ? (
             <Button icon="stop" size="lg" onClick={stop} {...mayStart.off}>
               <Trans>Stop</Trans>
             </Button>

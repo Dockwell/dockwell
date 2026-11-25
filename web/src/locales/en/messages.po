@@ -1635,6 +1635,9 @@ msgstr "{server} made {resourceName} again while the control plane was away"
 msgid "{server} renewed its certificate"
 msgstr "{server} renewed its certificate"
 
+msgid "{server} restored the pause on {resourceName}"
+msgstr "{server} restored the pause on {resourceName}"
+
 msgid "{server} started {resourceName} again on its own"
 msgstr "{server} started {resourceName} again on its own"
 
@@ -3467,6 +3470,12 @@ msgstr "Opens a plan"
 msgid "Overview"
 msgstr "Overview"
 
+msgid "Pause workload"
+msgstr "Pause workload"
+
+msgid "Pause {name}"
+msgstr "Pause {name}"
+
 msgid "Putting <0>{image}</0> back failed, {ago}"
 msgstr "Putting <0>{image}</0> back failed, {ago}"
 
@@ -3493,6 +3502,12 @@ msgstr "Stop"
 
 msgid "Stop {name}"
 msgstr "Stop {name}"
+
+msgid "Unpause workload"
+msgstr "Unpause workload"
+
+msgid "Unpause {name}"
+msgstr "Unpause {name}"
 
 msgid "build cancelled {ago}"
 msgstr "build cancelled {ago}"
@@ -3646,8 +3661,8 @@ msgstr "It may be reached at more than this says. Nothing has changed."
 msgid "It said"
 msgstr "It said"
 
-msgid "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
-msgstr "It serves nothing until someone unpauses it, and restarting or deploying it also puts that right."
+msgid "It serves no traffic while paused."
+msgstr "It serves no traffic while paused."
 
 msgid "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
 msgstr "It stays up until someone changes something. Fix what its check reports, or the check, then deploy."
@@ -4465,6 +4480,9 @@ msgstr "Stop {count}"
 msgid "Unfold {title}"
 msgstr "Unfold {title}"
 
+msgid "Unpause"
+msgstr "Unpause"
+
 msgid "Update"
 msgstr "Update"
 
@@ -5235,14 +5253,14 @@ msgstr "Nobody can say how {name} runs now."
 msgid "Open a shell in {0} on {1}"
 msgstr "Open a shell in {0} on {1}"
 
+msgid "Paused by its revision. Unpause it from the app."
+msgstr "Paused by its revision. Unpause it from the app."
+
 msgid "Reading how it runs"
 msgstr "Reading how it runs"
 
 msgid "Shell"
 msgstr "Shell"
-
-msgid "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
-msgstr "Someone paused it, so it serves nothing and no check runs. Unpause it with {command}."
 
 msgid "Starting"
 msgstr "Starting"
@@ -5261,6 +5279,9 @@ msgstr "The agent on {name} isn't connected, so it can't say how this runs now."
 
 msgid "The agent on {name} isn't connected, so it can't say how this runs now. It last read {word}, {ago}."
 msgstr "The agent on {name} isn't connected, so it can't say how this runs now. It last read {word}, {ago}."
+
+msgid "The container is paused. Use Unpause in Docker."
+msgstr "The container is paused. Use Unpause in Docker."
 
 msgid "The panel can't reach the control plane, so it can't say how this runs. It keeps trying."
 msgstr "The panel can't reach the control plane, so it can't say how this runs. It keeps trying."
@@ -6745,6 +6766,9 @@ msgstr "Taking it off {left}"
 
 msgid "Took it off {left}"
 msgstr "Took it off {left}"
+
+msgid "Unpaused"
+msgstr "Unpaused"
 
 msgid "deployed {ago}"
 msgstr "deployed {ago}"
@@ -9914,6 +9938,9 @@ msgstr "Apply plan"
 msgid "Apply this only if you trust what it runs."
 msgstr "Apply this only if you trust what it runs."
 
+msgid "Applying Docker actions"
+msgstr "Applying Docker actions"
+
 msgid "Applying this approves a change a push planned, with your passkey"
 msgstr "Applying this approves a change a push planned, with your passkey"
 
@@ -9963,6 +9990,12 @@ msgstr "Disabling {name} at boot on {server}"
 
 msgid "Discarded"
 msgstr "Discarded"
+
+msgid "Docker actions applied"
+msgstr "Docker actions applied"
+
+msgid "Docker actions ended with errors"
+msgstr "Docker actions ended with errors"
 
 msgid "Docker cleanup complete"
 msgstr "Docker cleanup complete"
@@ -10300,8 +10333,14 @@ msgstr "rolling, with nothing stopped"
 msgid "starts and verifies health"
 msgstr "starts and verifies health"
 
+msgid "stays paused until unpaused"
+msgstr "stays paused until unpaused"
+
 msgid "stays stopped until started"
 msgstr "stays stopped until started"
+
+msgid "unpauses and verifies health"
+msgstr "unpauses and verifies health"
 
 #. placeholder {0}: going.length
 msgid "visitors lose {0} addresses"
@@ -10792,6 +10831,12 @@ msgstr "About {span} down, and up to {bound} until healthy"
 msgid "About {stepSpan} down"
 msgstr "About {stepSpan} down"
 
+msgid "Act on containers"
+msgstr "Act on containers"
+
+msgid "Also remove the listed anonymous volumes"
+msgstr "Also remove the listed anonymous volumes"
+
 msgid "An upgrade can't be undone"
 msgstr "An upgrade can't be undone"
 
@@ -10807,6 +10852,9 @@ msgstr "Back up <0>{name}</0>, with {stops} stopped for an exact copy and starte
 
 msgid "Brings back the data the server kept"
 msgstr "Brings back the data the server kept"
+
+msgid "Changed since review"
+msgstr "Changed since review"
 
 msgid "Changes in daemon.json"
 msgstr "Changes in daemon.json"
@@ -10850,6 +10898,9 @@ msgstr "Dump <0>{0}</0> alone from <1>{name}</1>, with nothing stopped"
 msgid "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 msgstr "Dump {databases} alone from <0>{name}</0>, each as a backup of its own, with nothing stopped"
 
+msgid "Host access"
+msgstr "Host access"
+
 msgid "If Docker fails its health check, Dockwell reloads the previous settings."
 msgstr "If Docker fails its health check, Dockwell reloads the previous settings."
 
@@ -10870,6 +10921,9 @@ msgstr "Its kept logs can't be read from then on, and go in 7 days"
 
 msgid "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
 msgstr "Its kept logs can't be read from then on, and go in 7 days. Undoing this brings them back"
+
+msgid "Keep all volumes"
+msgstr "Keep all volumes"
 
 msgid "Keeps its data for 7 days, then deletes it"
 msgstr "Keeps its data for 7 days, then deletes it"
@@ -10902,6 +10956,10 @@ msgstr "New image ID"
 
 msgid "New image config digest"
 msgstr "New image config digest"
+
+#. placeholder {0}: target.newName
+msgid "New name <0>{0}</0>"
+msgstr "New name <0>{0}</0>"
 
 msgid "New platform manifest digest"
 msgstr "New platform manifest digest"
@@ -10968,6 +11026,14 @@ msgctxt "a package update"
 msgid "Security fix"
 msgstr "Security fix"
 
+#. placeholder {0}: action.signal
+msgid "Send <0>{0}</0>"
+msgstr "Send <0>{0}</0>"
+
+#. placeholder {0}: action.timeoutSeconds || 10
+msgid "Send SIGTERM, then SIGKILL after {0} s"
+msgstr "Send SIGTERM, then SIGKILL after {0} s"
+
 msgid "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 msgstr "Services these packages run may restart as they're installed. It can't be undone: what it installs stays installed"
 
@@ -11024,6 +11090,9 @@ msgstr "{n, plural, one {Install # package on} other {Install # packages on}}"
 
 msgid "{server} needs a reboot for this to take effect, which is a change of its own"
 msgstr "{server} needs a reboot for this to take effect, which is a change of its own"
+
+msgid "{verb} on <0>{server}</0>"
+msgstr "{verb} on <0>{server}</0>"
 
 msgid "{waves}, one after another"
 msgstr "{waves}, one after another"
@@ -11791,6 +11860,9 @@ msgstr "An SSH tunnel is the safer way"
 msgid "An address limit that lets in this server or private networks can't be seen."
 msgstr "An address limit that lets in this server or private networks can't be seen."
 
+msgid "Anonymous volume data is deleted permanently"
+msgstr "Anonymous volume data is deleted permanently"
+
 msgid "Another writer can claim this tag"
 msgstr "Another writer can claim this tag"
 
@@ -11971,8 +12043,14 @@ msgstr "For {what}."
 msgid "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 msgstr "Give it one, such as {target}:size=64m, or give {name} a memory limit."
 
+msgid "Health checks pause and routes lose their backend. Existing connections may stall."
+msgstr "Health checks pause and routes lose their backend. Existing connections may stall."
+
 msgid "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
 msgstr "Health checks pause. Routes lose their backend. Apps that use this workload may lose access."
+
+msgid "Health checks resume and routes can serve the workload again."
+msgstr "Health checks resume and routes can serve the workload again."
 
 msgid "Health checks resume and routes can serve the workload again. Dependent apps keep running."
 msgstr "Health checks resume and routes can serve the workload again. Dependent apps keep running."
@@ -12183,6 +12261,9 @@ msgstr "No rule allows the WireGuard tunnel {tunnels} on {0}"
 
 msgid "Nothing installed from this catalog upgrades to them."
 msgstr "Nothing installed from this catalog upgrades to them."
+
+msgid "Pauses on every placed server"
+msgstr "Pauses on every placed server"
 
 #. placeholder {0}: server.serverName
 msgid "Ports this plan would close on {0}"
@@ -12421,11 +12502,17 @@ msgstr "Undoing this puts back {from}. The release before it can't run the data.
 msgid "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 msgstr "Undoing this, or removing the jail, doesn't lift a ban already made: sign in from another address or your provider's console, and run fail2ban-client unban with the address."
 
+msgid "Unpauses on every placed server"
+msgstr "Unpauses on every placed server"
+
 msgid "Upgrade each by running the install script on it once."
 msgstr "Upgrade each by running the install script on it once."
 
 msgid "Upgrade it by running the install script on it once."
 msgstr "Upgrade it by running the install script on it once."
+
+msgid "Use Unpause to run it."
+msgstr "Use Unpause to run it."
 
 msgid "Volume data is deleted permanently and cannot be undone."
 msgstr "Volume data is deleted permanently and cannot be undone."
@@ -12688,6 +12775,9 @@ msgstr "{name} serves every project, including new ones"
 
 msgid "{name} shares {server}'s own network"
 msgstr "{name} shares {server}'s own network"
+
+msgid "{name} stays paused"
+msgstr "{name} stays paused"
 
 msgid "{name} stops HTTPS on {path} on {server}"
 msgstr "{name} stops HTTPS on {path} on {server}"
@@ -16072,6 +16162,9 @@ msgstr "No sample"
 msgid "Page {0}"
 msgstr "Page {0}"
 
+msgid "Paste docker run"
+msgstr "Paste docker run"
+
 msgid "Refresh containers"
 msgstr "Refresh containers"
 
@@ -16112,14 +16205,26 @@ msgstr "Uptime"
 msgid "Usage"
 msgstr "Usage"
 
+msgid "Workload state doesn't match"
+msgstr "Workload state doesn't match"
+
 msgid "memory"
 msgstr "memory"
+
+msgid "{label} {count}"
+msgstr "{label} {count}"
+
+msgid "{n, plural, one {Pause # workload} other {Pause # workloads}}"
+msgstr "{n, plural, one {Pause # workload} other {Pause # workloads}}"
 
 msgid "{n, plural, one {Start # workload} other {Start # workloads}}"
 msgstr "{n, plural, one {Start # workload} other {Start # workloads}}"
 
 msgid "{n, plural, one {Stop # workload} other {Stop # workloads}}"
 msgstr "{n, plural, one {Stop # workload} other {Stop # workloads}}"
+
+msgid "{n, plural, one {Unpause # workload} other {Unpause # workloads}}"
+msgstr "{n, plural, one {Unpause # workload} other {Unpause # workloads}}"
 
 msgid "Docker disk usage"
 msgstr "Docker disk usage"
@@ -16185,6 +16290,12 @@ msgstr "Push image"
 
 msgid "Review pull"
 msgstr "Review pull"
+
+msgid "Run image"
+msgstr "Run image"
+
+msgid "Search registries"
+msgstr "Search registries"
 
 msgid "Tag to move"
 msgstr "Tag to move"
@@ -16320,6 +16431,61 @@ msgstr "Unused"
 msgid "{0, plural, one {and # more tag} other {and # more tags}}"
 msgstr "{0, plural, one {and # more tag} other {and # more tags}}"
 
+msgid "Already running or unavailable"
+msgstr "Already running or unavailable"
+
+msgid "Anonymous volumes"
+msgstr "Anonymous volumes"
+
+msgid "Being removed"
+msgstr "Being removed"
+
+msgid "Container name prefix"
+msgstr "Container name prefix"
+
+msgid "Keep anonymous volumes"
+msgstr "Keep anonymous volumes"
+
+msgid "Kill"
+msgstr "Kill"
+
+msgid "Managed or system container"
+msgstr "Managed or system container"
+
+msgid "New container name"
+msgstr "New container name"
+
+msgid "Not paused"
+msgstr "Not paused"
+
+msgid "Not running or already paused"
+msgstr "Not running or already paused"
+
+msgid "Not running or paused"
+msgstr "Not running or paused"
+
+msgid "Remove container and its anonymous volumes"
+msgstr "Remove container and its anonymous volumes"
+
+msgid "Rename"
+msgstr "Rename"
+
+msgid "SIGTERM, then SIGKILL"
+msgstr "SIGTERM, then SIGKILL"
+
+msgid "Seconds before SIGKILL"
+msgstr "Seconds before SIGKILL"
+
+msgid "Signal"
+msgstr "Signal"
+
+msgid "Stop the container first"
+msgstr "Stop the container first"
+
+#. placeholder {0}: verb.label
+msgid "{0} {count}"
+msgstr "{0} {count}"
+
 msgid "Address pools"
 msgstr "Address pools"
 
@@ -16404,9 +16570,6 @@ msgstr "This network is a shared link"
 msgid "This network is gone"
 msgstr "This network is gone"
 
-msgid "Anonymous volumes"
-msgstr "Anonymous volumes"
-
 msgid "Dangling images"
 msgstr "Dangling images"
 
@@ -16482,6 +16645,9 @@ msgstr "Local status unavailable"
 msgid "Manage logins"
 msgstr "Manage logins"
 
+msgid "No repositories match"
+msgstr "No repositories match"
+
 msgid "No repositories on this page"
 msgstr "No repositories on this page"
 
@@ -16500,6 +16666,9 @@ msgstr "Other registry…"
 msgid "Registry address"
 msgstr "Registry address"
 
+msgid "Registry search unavailable"
+msgstr "Registry search unavailable"
+
 msgid "Repository list unavailable"
 msgstr "Repository list unavailable"
 
@@ -16508,6 +16677,12 @@ msgstr "Repository tags"
 
 msgid "Retry registry logins"
 msgstr "Retry registry logins"
+
+msgid "Search Docker Hub"
+msgstr "Search Docker Hub"
+
+msgid "Searching registry"
+msgstr "Searching registry"
 
 msgid "Show more tags"
 msgstr "Show more tags"
@@ -16546,6 +16721,39 @@ msgstr "Review push"
 
 msgid "This destination serves a different digest."
 msgstr "This destination serves a different digest."
+
+msgid "Add the image name after the options."
+msgstr "Add the image name after the options."
+
+msgid "Anonymous mounts get new managed volumes"
+msgstr "Anonymous mounts get new managed volumes"
+
+msgid "App name"
+msgstr "App name"
+
+msgid "Close the quote or complete the line continuation."
+msgstr "Close the quote or complete the line continuation."
+
+msgid "Docker couldn't verify existing volumes. Refresh the server and review again."
+msgstr "Docker couldn't verify existing volumes. Refresh the server and review again."
+
+msgid "Docker run command"
+msgstr "Docker run command"
+
+msgid "Options that need editing"
+msgstr "Options that need editing"
+
+msgid "Paste a docker run command."
+msgstr "Paste a docker run command."
+
+msgid "Run {appName} as a Dockwell app"
+msgstr "Run {appName} as a Dockwell app"
+
+msgid "Shell syntax or expansion. Use literal Docker arguments."
+msgstr "Shell syntax or expansion. Use literal Docker arguments."
+
+msgid "Use a command under 32 KB."
+msgstr "Use a command under 32 KB."
 
 msgid "API version"
 msgstr "API version"
@@ -16888,9 +17096,6 @@ msgstr "This network name is in use"
 msgid "Volume name"
 msgstr "Volume name"
 
-msgid "App name"
-msgstr "App name"
-
 msgid "Keeps the current container, mounts, network connections and environment."
 msgstr "Keeps the current container, mounts, network connections and environment."
 
@@ -17080,6 +17285,9 @@ msgstr "Reference moved"
 msgid "Retained for recovery"
 msgstr "Retained for recovery"
 
+msgid "Review removal in Containers"
+msgstr "Review removal in Containers"
+
 msgid "Shared storage"
 msgstr "Shared storage"
 
@@ -17088,9 +17296,6 @@ msgstr "Swarm manager: remove volumes with docker volume rm"
 
 msgid "Tagged in more than one repository"
 msgstr "Tagged in more than one repository"
-
-msgid "Take on before deletion"
-msgstr "Take on before deletion"
 
 msgid "The build cache removal could not be verified"
 msgstr "The build cache removal could not be verified"
@@ -17522,9 +17727,6 @@ msgstr "Permissions"
 #. placeholder {0}: entry.name
 msgid "Previewing {0}"
 msgstr "Previewing {0}"
-
-msgid "Rename"
-msgstr "Rename"
 
 #. placeholder {0}: entry.name
 #. placeholder {0}: view.label
@@ -21961,9 +22163,6 @@ msgstr "{failedCount, plural, one {Couldn't stop # join command: {failedWhy} It 
 
 msgid "{n, plural, other {# join commands waiting · the first expires in {first}}}"
 msgstr "{n, plural, other {# join commands waiting · the first expires in {first}}}"
-
-msgid "Being removed"
-msgstr "Being removed"
 
 msgid "Dead"
 msgstr "Dead"

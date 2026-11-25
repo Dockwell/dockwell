@@ -114,6 +114,7 @@ jobs_for() {
   scripts/chaos/* | scripts/chaos.sh) echo "go chaos" ;;
   scripts/docker-stops-evidence.sh) echo "chaos" ;;
   *_test.go) echo "$gotest" ;;
+  internal/docker/lifecycle-signals.json) echo "$go $web" ;;
   # The fake Docker Engine is the tests', which reach no Swarm.
   internal/docker/dockertest/*) echo "$go" ;;
   internal/agent/panels/*.go | internal/control/importapi/*.go | internal/control/composeapi/*.go | internal/docker/*.go | \

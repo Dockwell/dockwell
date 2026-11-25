@@ -52,7 +52,8 @@ interface Summary {
 interface Inspected {
   Name: string;
   Config: { Image: string; Labels?: Record<string, string>; Env?: string[] };
-  State: { Running: boolean };
+  State: { Running: boolean; Paused: boolean };
+  Mounts: { Name: string; Destination: string }[];
   NetworkSettings: { Networks?: Record<string, unknown> };
 }
 
@@ -144,6 +145,7 @@ export async function dockerRun(
     env?: string[];
     port?: number;
     mount?: string;
+    anonymousVolume?: string;
     network?: string;
     labels?: Readonly<Record<string, string>>;
   },
@@ -155,6 +157,7 @@ export async function dockerRun(
       Image: run.image,
       Cmd: run.command,
       Env: run.env,
+      Volumes: run.anonymousVolume ? { [run.anonymousVolume]: {} } : undefined,
       Labels: run.labels,
       ExposedPorts: run.port ? { "80/tcp": {} } : undefined,
       HostConfig: {
@@ -183,9 +186,14 @@ export async function dockerStarted(socket: string, id: string): Promise<string>
 }
 
 /** Removes a container and a volume it was the only one to use, as docker rm -f and docker volume rm do. */
-export async function dockerRemove(socket: string, id: string, volume: string): Promise<void> {
+export async function dockerRemove(socket: string, id: string, volume?: string): Promise<void> {
   await call(socket, "DELETE", `/containers/${id}?force=1`);
-  await call(socket, "DELETE", `/volumes/${volume}`);
+  if (volume) await dockerRemoveVolume(socket, volume);
+}
+
+/** Removes a fixture volume by its exact Engine name. */
+export async function dockerRemoveVolume(socket: string, name: string): Promise<void> {
+  await call(socket, "DELETE", `/volumes/${name}`);
 }
 
 /** Tells scripts/fakedocker how a container's check went, as it has none to run. */

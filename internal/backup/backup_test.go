@@ -509,6 +509,50 @@ func TestACopyStopsWhatItWasAskedToAndStartsItAgain(t *testing.T) {
 	}
 }
 
+func TestACopyLeavesAPausedWorkloadPaused(t *testing.T) {
+	b := newBench(t)
+	b.write("page.html", "hello")
+	id := b.run("web", "nginx:1", "/data")
+	if err := b.client.PauseContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	before, err := b.client.InspectContainer(t.Context(), id)
+	if err != nil || !before.State.Paused {
+		t.Fatalf("pause fixture: %v %v", before, err)
+	}
+	p, err := b.runner.Preview(t.Context(), ref)
+	if err != nil || p.Method != resource.BackupCopy || len(p.Running) != 0 {
+		t.Fatalf("preview: %+v, %v", p, err)
+	}
+	if m := b.take(true); m.Method != resource.BackupCopy || m.Files == 0 {
+		t.Fatalf("backup: %+v", m)
+	}
+	after, err := b.client.InspectContainer(t.Context(), id)
+	if err != nil || !after.State.Paused || after.State.StartedAt != before.State.StartedAt {
+		t.Fatalf("copy disturbed the paused workload: %v %v", after, err)
+	}
+}
+
+func TestAPausedDatabaseRefusesBackupBeforePlanning(t *testing.T) {
+	b := newBench(t)
+	id := b.run("db", "postgres:17", "/var/lib/postgresql/data")
+	if err := b.client.PauseContainer(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	refusal := func(err error) {
+		t.Helper()
+		if err == nil || !strings.Contains(err.Error(), "db is paused. Unpause it before backing up its database") {
+			t.Fatalf("expected the paused database refusal, got %v", err)
+		}
+	}
+	_, err := b.runner.Preview(t.Context(), ref)
+	refusal(err)
+	_, _, err = b.runner.JudgeBackup(t.Context(), ref, resource.BackupAsked{ID: "bkp_1", Database: "myapp"})
+	refusal(err)
+	_, err = b.runner.Take(t.Context(), Take{Ref: ref, ID: "bkp_1", Stop: true})
+	refusal(err)
+}
+
 // A token can have a backup stop what mounts a volume, and start it again, so this is
 // the one start anyone can ask for at will. It's no way round where a server path
 // leads: a folder that became a link since keeps what mounts it down, and says why.

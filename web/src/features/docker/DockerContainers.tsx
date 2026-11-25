@@ -9,6 +9,7 @@ import {
   ContainerService,
   ContainerState,
   DeploymentState,
+  DesiredRunState,
   type DockerContainer,
   DockerHealth,
   type DockerObject,
@@ -69,6 +70,8 @@ import {
   useRowMenu,
   useRowSelection,
 } from "../shell/ListTools";
+import { useDockerLifecycle } from "./DockerLifecycle";
+import { DockerRunSheet } from "./DockerRunSheet";
 import { DockerTakeOn } from "./DockerTakeOn";
 import { dockerKey, rowWithHealth, useDockerWatch } from "./live";
 import { containerOf, LiveUpdates, Unread } from "./parts";
@@ -257,16 +260,22 @@ interface ContainerActionProps {
   onTakeOn?: (row: DockerObject) => void;
 }
 
-export function ContainerActions(props: ContainerActionProps) {
-  const actionsFor = useContainerActions();
-  return <ContainerActionButtons {...actionsFor(props)} />;
+export function ContainerActions(props: ContainerActionProps & { lifecycle?: ReturnType<typeof useDockerLifecycle> }) {
+  const local = useDockerLifecycle();
+  const actionsFor = useContainerActions(props.lifecycle ?? local);
+  return (
+    <>
+      {props.lifecycle ? null : local.editor}
+      <ContainerActionButtons {...actionsFor(props)} />
+    </>
+  );
 }
 
-function useContainerActions() {
+function useContainerActions(lifecycle: ReturnType<typeof useDockerLifecycle>) {
   const { t } = useLingui();
   const may = useMay();
   const navigate = useNavigate();
-  const { changeRun, changeRunMany, restartInstance } = useWorkloadControls();
+  const { changeRun, changeRunMany, changePause, restartInstance } = useWorkloadControls();
   return ({
     row,
     stack,
@@ -320,6 +329,7 @@ function useContainerActions() {
         onSelect: () => onTakeOn?.(row),
       });
     }
+    actions.unshift(...lifecycle.actionsFor(row, onApplied));
     const target = runTarget(row);
     if (target) {
       const mayPlan = may(ChangeService.method.proposeChange, target.where);
@@ -347,6 +357,16 @@ function useContainerActions() {
             ? changeRunMany([{ resource, baseRevision }], start, label, onApplied)
             : changeRun(resource, baseRevision, start, onApplied),
       });
+      if (row.state === ContainerState.PAUSED || row.state === ContainerState.RUNNING) {
+        const pause = row.state === ContainerState.RUNNING;
+        actions.splice(1, 0, {
+          id: pause ? "pause" : "unpause",
+          label: pause ? t`Pause workload` : t`Unpause workload`,
+          icon: pause ? "pause" : "play",
+          ...mayPlan.off,
+          onSelect: () => changePause(resource, baseRevision, pause, onApplied),
+        });
+      }
       if (row.state === ContainerState.RUNNING || row.state === ContainerState.RESTARTING) {
         actions.splice(1, 0, {
           id: "restart",
@@ -638,7 +658,9 @@ export function DockerContainers({
     };
   };
   const menu = useRowMenu<Row>();
-  const actionsFor = useContainerActions();
+  const lifecycle = useDockerLifecycle();
+  const [pasting, setPasting] = useState(false);
+  const actionsFor = useContainerActions(lifecycle);
   const rowActions = (row: Row) =>
     actionsFor({
       row: row.object,
@@ -748,13 +770,19 @@ export function DockerContainers({
   });
   const byId = new Map(candidates.map((target) => [target.row.id, target]));
   const batchAction = useBatchAction<Row>();
-  const runBatch = (start: boolean) =>
-    batchAction(
+  const runBatch = (mode: "start" | "stop" | "pause" | "unpause") => {
+    const start = mode === "start";
+    const pause = mode === "pause";
+    const togglePause = pause || mode === "unpause";
+    const matches = (row: Row, starts: boolean) =>
+      togglePause ? row.object.state === (pause ? ContainerState.RUNNING : ContainerState.PAUSED) : starts === start;
+    const label = start ? t`Start` : pause ? t`Pause` : togglePause ? t`Unpause` : t`Stop`;
+    return batchAction(
       selected,
       (row) => {
         const target = byId.get(row.id);
         if (!target) return { reason: t`No managed run state` };
-        if (target.start !== start) return { reason: start ? t`Already running` : t`Already stopped` };
+        if (!matches(row, target.start)) return { reason: t`Workload state doesn't match` };
         if (!target.permission.allowed) return { permission: target.permission };
         if (target.resource.kind === "service") {
           const placement = placementFor(row);
@@ -765,7 +793,7 @@ export function DockerContainers({
                 (candidate) =>
                   candidate.row.object.managedResourceId === row.object.managedResourceId &&
                   candidate.baseRevision === target.baseRevision &&
-                  candidate.start === start &&
+                  matches(candidate.row, candidate.start) &&
                   candidate.permission.allowed,
               )
               .map((candidate) => candidate.row.serverId),
@@ -776,9 +804,9 @@ export function DockerContainers({
         return undefined;
       },
       {
-        id: start ? "start" : "stop",
-        label: (count) => (start ? (count ? t`Start ${count}` : t`Start`) : count ? t`Stop ${count}` : t`Stop`),
-        icon: start ? "play" : "stop",
+        id: mode,
+        label: (count) => (count ? t`${label} ${count}` : label),
+        icon: pause ? "pause" : start || togglePause ? "play" : "stop",
         onSelect: (rows) => {
           const unique = new Map(
             rows.flatMap((row) => {
@@ -790,14 +818,31 @@ export function DockerContainers({
           const summary = start
             ? plural(n, { one: "Start # workload", other: "Start # workloads" })
             : plural(n, { one: "Stop # workload", other: "Stop # workloads" });
-          changeRunMany([...unique.values()], start, summary, () => {
+          const state = togglePause ? (pause ? DesiredRunState.PAUSED : DesiredRunState.RUNNING) : start;
+          const pauseSummary = pause
+            ? plural(n, { one: "Pause # workload", other: "Pause # workloads" })
+            : plural(n, { one: "Unpause # workload", other: "Unpause # workloads" });
+          changeRunMany([...unique.values()], state, togglePause ? pauseSummary : summary, () => {
             selection.clear();
             refresh();
           });
         },
       },
     );
-  const batch = combineBatchActions(runBatch(true), runBatch(false));
+  };
+  const batch = combineBatchActions(
+    runBatch("start"),
+    runBatch("stop"),
+    runBatch("pause"),
+    runBatch("unpause"),
+    lifecycle.batch(
+      selected.map((row) => row.object),
+      () => {
+        selection.clear();
+        refresh();
+      },
+    ),
+  );
   const filtered = !!(search || project || state !== "all" || ownership);
   const outOfDate = changed || reasonOf(query.error) === "docker_resync";
   const next = query.data?.nextPageToken;
@@ -805,6 +850,16 @@ export function DockerContainers({
   const held = useHeldRows("docker.containers", waiting ? undefined : list.length);
   const slow = fleet ? t`Docker is slow to answer on these servers` : t`Docker is slow to answer on this server`;
   const imports: MenuAction[] = [
+    ...(may(ChangeService.method.proposeChange).allowed
+      ? [
+          {
+            id: "docker-run",
+            label: t`Paste docker run`,
+            icon: "terminal" as const,
+            onSelect: () => setPasting(true),
+          },
+        ]
+      : []),
     ...(may(ContainerService.method.adoptContainer).allowed
       ? [
           {
@@ -847,6 +902,8 @@ export function DockerContainers({
 
   return (
     <>
+      {lifecycle.editor}
+      {pasting ? <DockerRunSheet servers={servers} onClose={() => setPasting(false)} /> : null}
       {takeOn ? <DockerTakeOn row={takeOn} onClose={() => setTakeOn(undefined)} /> : null}
       <div className="docker-section-heading">
         <h2>

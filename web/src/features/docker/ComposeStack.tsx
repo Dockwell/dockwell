@@ -57,6 +57,7 @@ import { ComposeOperations, useComposeWorkloadPlan } from "./ComposeOperations";
 import { composePlacementGroups, copyKey, onComposeServer, selectedVolumeCopies } from "./composePlacement";
 import { ComposeOwnership, ComposeStatus, composeOf, stackPath } from "./DockerComposes";
 import { ContainerActions, ContainerStatus, dockerPort } from "./DockerContainers";
+import { useDockerLifecycle } from "./DockerLifecycle";
 import { useDockerWatch } from "./live";
 import { containerOf, LiveUpdates } from "./parts";
 import type { ComposeDetailSearch, ComposeRunAction } from "./search";
@@ -90,6 +91,7 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
   const [volumeSelection, setVolumeSelection] = useState<{ snapshot: string; copies: ReadonlySet<string> }>();
   const [workload, setWorkload] = useState<ComposeRunAction>();
   const planWorkload = useComposeWorkloadPlan();
+  const lifecycle = useDockerLifecycle();
   const fleet = useFleetView().servers ?? [];
   const server = fleet.find((item) => item.id === serverId);
   const serverName = (id: string) => fleet.find((item) => item.id === id)?.name ?? id;
@@ -221,10 +223,11 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
           <Trans>Take on</Trans>
         </Button>
       ) : null}
-      {!outside && services.length ? (
+      {outside || services.length ? (
         <ComposeOperations
           row={row}
           showText
+          externalActions={lifecycle.actionsFor(row, refresh)}
           onWorkload={(action) => {
             if (action !== "restart" && serviceGroups.length > 1) setWorkload(action);
             else planWorkload(row, services, action, refresh);
@@ -265,6 +268,11 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
       machineTitle={outside}
       className="compose-page"
       actions={actions}
+      phoneAction={
+        row && outside ? (
+          <ComposeOperations row={row} externalActions={lifecycle.actionsFor(row, refresh)} />
+        ) : undefined
+      }
       badge={
         row ? (
           <div className="compose-actions">
@@ -300,6 +308,7 @@ export function ComposeStack({ serverId, composeId, search, onSearch }: StackPro
         </Link>
       }
     >
+      {lifecycle.editor}
       <div className="compose-detail">
         {row ? <div className="compose-phone-actions">{actions}</div> : null}
         <LiveUpdates paused={watch.paused} retry={watch.retry} />

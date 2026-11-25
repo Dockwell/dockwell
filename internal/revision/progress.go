@@ -696,6 +696,14 @@ func stepMessage(state StepState, st *resource.Step, server string) string {
 		}
 		return message(state, st.Action, st.Ref, server)
 	}
+	if life := st.DockerMaintenance.GetLifecycle(); life != nil {
+		switch state {
+		case StepQueued, StepRunning, StepDone:
+			return "Docker container actions on " + server
+		case StepFailed, StepSkipped, StepWaiting:
+			return message(state, st.Action, st.Ref, server)
+		}
+	}
 	if st.DockerMaintenance.GetResumeCleanupToken() != "" {
 		switch state {
 		case StepQueued:

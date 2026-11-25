@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	resourcev1 "github.com/dockwell/dockwell/gen/dockwell/resource/v1alpha1"
 	dockwellv1 "github.com/dockwell/dockwell/gen/dockwell/v1"
 	engines "github.com/dockwell/dockwell/internal/database"
 	"github.com/dockwell/dockwell/internal/docker"
@@ -151,6 +152,9 @@ func (r *Runner) stopsFor(ctx context.Context, t volume.Target, u *users, m *Man
 		return nil, nil, fmt.Errorf("this backup is a dump of %s, which loads into a running %s, and nothing on this server runs one with %s as its data. "+
 			"Deploy the service that uses it, then plan this again", m.Database, m.Database, t.Key)
 	}
+	if db.paused || r.hasSavedPause(db.id) {
+		return nil, nil, fmt.Errorf("%s is paused. Unpause it before restoring its database", db.name)
+	}
 	others, err := r.Client.ListContainers(ctx, map[string][]string{"label": {docker.LabelProject + "=" + t.Project}})
 	if err != nil {
 		return nil, nil, err
@@ -230,6 +234,8 @@ func (r *Runner) JudgeBackup(ctx context.Context, ref resource.Ref, asked resour
 		switch {
 		case db == nil || db.kind.dumpOne == nil:
 			return resource.Decision{}, false, fmt.Errorf("%s holds no PostgreSQL, MySQL or MariaDB server, so %s can't be dumped alone before the update", ref.Name, one)
+		case db.paused || r.hasSavedPause(db.id):
+			return resource.Decision{}, false, db.pausedDump()
 		case !db.running:
 			return resource.Decision{}, false, fmt.Errorf("%s's database server isn't running, and dumping %s before the update needs it. Start it, then plan this again", ref.Name, one)
 		}
@@ -612,7 +618,7 @@ func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file stri
 	// The database may start just to load this dump. On every exit, its saved
 	// state has the last word, even if the restore's context was cancelled.
 	defer func() { err = errors.Join(err, r.stopAfterRestore(ctx, db)) }()
-	if err := r.withRunIntent(db.id, func(bool) error { return r.startContainer(ctx, db.id) }); err != nil {
+	if err := r.withRunState(db.id, func(resourcev1.DesiredRunState) error { return r.startContainer(ctx, db.id) }); err != nil {
 		return fmt.Errorf("can't start %s: %w", db.name, err)
 	}
 	if err := r.awaitReady(ctx, db); err != nil {
@@ -628,8 +634,8 @@ func (r *Runner) replaceWithDump(ctx context.Context, t volume.Target, file stri
 func (r *Runner) stopAfterRestore(ctx context.Context, db *database) error {
 	ctx, cancel := resource.Finishing(ctx, startWait)
 	defer cancel()
-	return r.withRunIntent(db.id, func(stopped bool) error {
-		if !stopped {
+	return r.withRunState(db.id, func(state resourcev1.DesiredRunState) error {
+		if state != resourcev1.DesiredRunState_DESIRED_RUN_STATE_STOPPED {
 			return nil
 		}
 		c, err := r.Client.InspectContainer(ctx, db.id)

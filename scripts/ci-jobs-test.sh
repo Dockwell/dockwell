@@ -96,6 +96,7 @@ picks "go docker-go caddy-go $web" internal/control/changes_test.go web/src/main
 picks "$go every-leg" go.mod go.sum
 picks "$go every-leg" tools/go.mod
 picks "$web" web/src/features/apps/AppsPage.tsx
+picks "$go $web" internal/docker/lifecycle-signals.json
 picks "$web" web/src/locales/zh-CN/messages.po packages/ui/src/Button.tsx
 picks "$web" pnpm-lock.yaml package.json
 # The panel's stylesheet bundles the fonts.

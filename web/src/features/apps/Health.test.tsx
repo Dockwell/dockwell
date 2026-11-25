@@ -111,7 +111,7 @@ const STATES: readonly {
     on: { state: HealthState.PAUSED, said: "the container is paused" },
     word: "Paused",
     tone: "dw-tone-idle",
-    says: /Someone paused it, so it serves nothing and no check runs/,
+    says: /The container is paused. Use Unpause in Docker/,
     notice: /web is paused/,
   },
   {
@@ -1128,7 +1128,7 @@ describe("a health check on the overview", () => {
 
   it("says why it isn't checked when it's paused, as the server's words have it", async () => {
     const panel = await badgeOf(http, reading({ state: HealthState.PAUSED }));
-    expect(await within(panel).findByText(/Someone paused it, so it serves nothing and no check runs/)).toBeVisible();
+    expect(await within(panel).findByText(/The container is paused. Use Unpause in Docker/)).toBeVisible();
   });
 
   it("goes by how the server reads: a check failing below its retries still reads Passing", async () => {

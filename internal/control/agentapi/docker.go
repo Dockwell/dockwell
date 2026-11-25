@@ -211,12 +211,38 @@ func (s *Session) dockerChanged(msg *agentv1.DockerInventoryChanged) {
 	}
 }
 
+func (s *Session) checkDockerLifecycleSupport() error {
+	if !s.externalContainerControls {
+		return fault.New(ErrOlderAgent, "update the agent to review external container actions")
+	}
+	return nil
+}
+
+// DockerLifecyclePreview resolves exact container identities and their review evidence.
+func (s *Session) DockerLifecyclePreview(ctx context.Context, ask *agentv1.DockerLifecyclePreviewCall) (*agentv1.DockerLifecyclePreviewResult, error) {
+	if err := s.checkDockerLifecycleSupport(); err != nil {
+		return nil, err
+	}
+	result, err := s.call(ctx, &agentv1.Call{Call: &agentv1.Call_DockerLifecyclePreview{DockerLifecyclePreview: ask}},
+		dockerCallWait, (*Session).checkDockerLifecycleSupport)
+	if err != nil {
+		return nil, err
+	}
+	if out := result.GetDockerLifecyclePreview(); out != nil {
+		return out, nil
+	}
+	return nil, errors.New("the agent did not answer the Docker lifecycle preview")
+}
+
 // checkDockerMaintenanceSupport verifies that this agent session supports
 // every operation and target count in maintenance. Shared by Plan and Apply
 // so reconnects to an older agent fail with a clear upgrade requirement.
 func (s *Session) checkDockerMaintenanceSupport(m *dockwellv1.DockerMaintenance) error {
 	if m == nil {
 		return nil
+	}
+	if m.GetLifecycle() != nil {
+		return s.checkDockerLifecycleSupport()
 	}
 	if !s.DockerCleanup() {
 		return fault.New(ErrOlderAgent, "update the agent to review Docker cleanup")

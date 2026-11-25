@@ -118,6 +118,7 @@ import {
   cleansDocker,
   diffResources,
   dockerImageAction,
+  dockerLifecycle,
   failedStep,
   foldPlumbing,
   foundNothingNewer,
@@ -791,6 +792,7 @@ function ChangeSheet({
       plan?.removes ||
       panelStartsAgain(plan) ||
       cleansDocker(plan) ||
+      dockerLifecycle(plan) ||
       dockerImageAction(plan) ? (
         <Trans>No undo</Trans>
       ) : onlyIfNewer(plan) ? (
@@ -1192,6 +1194,11 @@ function useTitle(phase: Phase, plan: Plan | undefined, change: Change | undefin
     if (phase === "failed") return t`Image action failed`;
     if (phase === "history" || phase === "arrived") return pull ? t`Image pulled` : t`Image tag set`;
   }
+  if (dockerLifecycle(plan)) {
+    if (phase === "applying") return t`Applying Docker actions`;
+    if (phase === "failed") return t`Docker actions ended with errors`;
+    if (phase === "history" || phase === "arrived") return t`Docker actions applied`;
+  }
   if (resumesDockerCleanup(plan)) {
     if (phase === "applying") return t`Re-enabling Docker cleanup`;
     if (phase === "failed") return t`Could not re-enable Docker cleanup`;
@@ -1543,6 +1550,7 @@ function PlanBody({
   const phased = upgrade !== undefined && !fleet;
   const showSteps =
     cleansDocker(plan) ||
+    !!dockerLifecycle(plan) ||
     !!dockerImageAction(plan) ||
     (plan?.resources.some((r) => r.dockerDaemon !== undefined) ?? false) ||
     (phase === "applying" && !phased) ||
@@ -1726,7 +1734,7 @@ function PlanBody({
       {/* What it writes at Cloudflare runs first, so it reads first, as the mock has it (ADR 0104). */}
       {showSteps ? null : <CloudflareSteps plan={plan} />}
       {/* An action on a system service is its step (ADR 0082): the host it edits says nothing more. */}
-      {unitOnly || cleansDocker(plan) || dockerImageAction(plan) ? null : (
+      {unitOnly || cleansDocker(plan) || dockerLifecycle(plan) || dockerImageAction(plan) ? null : (
         <section className="plan-section" aria-label={cameToNothing ? setOut : t`Plan`}>
           {cameToNothing ? (
             <h3 className="dw-text-label plan-heading">{setOut}</h3>
@@ -1990,6 +1998,7 @@ function Impact({ plan }: { plan: Plan | undefined }) {
     const on = new Intl.ListFormat(i18n.locale, { style: "long", type: "conjunction" }).format(labelled);
     return t`${on} · no step, nothing goes down`;
   }
+  if (dockerLifecycle(plan)) return null;
   if (servers.length === 0) return <Trans>No server · nothing goes down</Trans>;
   const where =
     servers.length <= 2 ? (
@@ -2039,10 +2048,16 @@ function Impact({ plan }: { plan: Plan | undefined }) {
   const unit = servers.flatMap((s) => s.steps).find((s) => s.unit !== undefined)?.unit;
   const stopsWorkload = plan?.notes.some((note) => note.reason === "workload_stops");
   const startsWorkload = plan?.notes.some((note) => note.reason === "workload_starts");
+  const pausesWorkload = plan?.notes.some((note) => note.reason === "workload_pauses");
+  const unpausesWorkload = plan?.notes.some((note) => note.reason === "workload_unpauses");
   const running = stopsWorkload ? (
     <Trans>stays stopped until started</Trans>
   ) : startsWorkload ? (
     <Trans>starts and verifies health</Trans>
+  ) : pausesWorkload ? (
+    <Trans>stays paused until unpaused</Trans>
+  ) : unpausesWorkload ? (
+    <Trans>unpauses and verifies health</Trans>
   ) : rebooting ? (
     <Trans>everything there is offline until it's back</Trans>
   ) : unit?.replacesRules ? (

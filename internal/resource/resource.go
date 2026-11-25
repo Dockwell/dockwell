@@ -2096,8 +2096,9 @@ type Step struct {
 	DockerStorageGuard *DockerStorageGuard `json:",omitempty"`
 	ExactRestart       string              `json:",omitempty"`
 	// NeedsRunControl gates apply and stream replacement on the control plane.
-	NeedsRunControl bool `json:",omitempty"`
-	Ref             Ref
+	NeedsRunControl   bool `json:",omitempty"`
+	NeedsPauseControl bool `json:",omitempty"`
+	Ref               Ref
 	Decision
 	// Changes are the fields that differ between what the server has and
 	// what is desired.
